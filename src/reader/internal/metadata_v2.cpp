@@ -174,18 +174,55 @@ get_layout(MappedFrozen<thrift::metadata::metadata> const& meta) {
 
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
-                    size_t total_size) {
+                    size_t total_size, bool verbose) {
+  using namespace ::apache::thrift;
   using namespace ::apache::thrift::frozen;
   null_logger lgr;
 
+  struct usage_info {
+    usage_info(size_t off, size_t sz, std::string text)
+        : offset{off}
+        , size{sz}
+        , line{std::move(text)} {}
+
+    size_t offset;
+    size_t size;
+    std::string line;
+  };
+
   auto& l = get_layout(meta);
-  std::vector<std::pair<size_t, std::string>> usage;
+  std::vector<usage_info> usage;
 
 #if FMT_VERSION >= 70000
 #define DWARFS_FMT_L "L"
 #else
 #define DWARFS_FMT_L "n"
 #endif
+
+  auto get_offset = [&](auto const* ptr) {
+    return ptr ? reinterpret_cast<uintptr_t>(ptr) -
+                     reinterpret_cast<uintptr_t>(meta.getPosition().start)
+               : 0;
+  };
+
+  auto get_list_offset = [&](auto const& v) {
+    struct view_internal {
+      void const* layout;
+      uint8_t const* start;
+      size_t bitOffset;
+      uint8_t const* data;
+      size_t count;
+    };
+    using list_t = std::decay_t<decltype(v.thaw())>;
+    static_assert(sizeof(v) == sizeof(view_internal));
+    static_assert(
+        std::derived_from<std::decay_t<decltype(v)>,
+                          typename frozen::detail::ArrayLayout<
+                              list_t, typename list_t::value_type>::View>);
+    auto const* vi = reinterpret_cast<view_internal const*>(&v);
+    DWARFS_CHECK(vi->count == v.size(), "internal error: size mismatch");
+    return get_offset(vi->data);
+  };
 
   auto fmt_size = [&](std::string_view name, std::optional<size_t> count_opt,
                       size_t size) {
@@ -201,24 +238,36 @@ void analyze_frozen(std::ostream& os,
   };
 
   auto fmt_detail = [&](std::string_view name, size_t count, size_t size,
-                        std::string num) {
-    return fmt::format(
-        "               {0:<24}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
-        "{3:5.1f} bytes/item\n",
-        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
+                        std::optional<size_t> offset, std::string num) {
+    std::string range;
+    if (verbose) {
+      if (offset) {
+        range = fmt::format("  {:08x}..{:08x} ", *offset, *offset + size);
+      } else {
+        range.append(21, ' ');
+      }
+    }
+    range.append(15, ' ');
+    return fmt::format("{0}{1:<24}{2:>16" DWARFS_FMT_L "} bytes {3:>6} "
+                       "{4:5.1f} bytes/item\n",
+                       range, name, size, num,
+                       count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
-  auto fmt_detail_pct = [&](std::string_view name, size_t count, size_t size) {
-    return fmt_detail(name, count, size,
+  auto fmt_detail_pct = [&](std::string_view name, size_t count, size_t size,
+                            std::optional<size_t> offset = std::nullopt) {
+    return fmt_detail(name, count, size, offset,
                       fmt::format("{0:5.1f}%", 100.0 * size / total_size));
   };
 
-  auto add_size = [&](std::string_view name, size_t count, size_t size) {
-    usage.emplace_back(size, fmt_size(name, count, size));
+  auto add_size = [&](std::string_view name, size_t count, size_t offset,
+                      size_t size) {
+    usage.emplace_back(offset, size, fmt_size(name, count, size));
   };
 
-  auto add_size_unique = [&](std::string_view name, size_t size) {
-    usage.emplace_back(size, fmt_size(name, std::nullopt, size));
+  auto add_size_unique = [&](std::string_view name, size_t offset,
+                             size_t size) {
+    usage.emplace_back(offset, size, fmt_size(name, std::nullopt, size));
   };
 
   auto list_size = [&](auto const& list, auto const& field) {
@@ -227,7 +276,7 @@ void analyze_frozen(std::ostream& os,
 
   auto add_list_size = [&](std::string_view name, auto const& list,
                            auto const& field) {
-    add_size(name, list.size(), list_size(list, field));
+    add_size(name, list.size(), get_list_offset(list), list_size(list, field));
   };
 
   auto add_string_list_size = [&](std::string_view name, auto const& list,
@@ -240,7 +289,7 @@ void analyze_frozen(std::ostream& os,
       auto fmt = fmt_size(name, count, size) +
                  fmt_detail_pct("|- data", count, data_size) +
                  fmt_detail_pct("'- index", count, index_size);
-      usage.emplace_back(size, fmt);
+      usage.emplace_back(get_list_offset(list), size, fmt);
     }
   };
 
@@ -253,24 +302,28 @@ void analyze_frozen(std::ostream& os,
       auto size = index_size + data_size + dict_size;
       auto count = table.index().size() - (table.packed_index() ? 0 : 1);
       auto fmt = fmt_size(name, count, size) +
-                 fmt_detail_pct("|- data", count, data_size);
+                 fmt_detail_pct("|- data", count, data_size,
+                                get_offset(table.buffer().data()));
       if (table.symtab()) {
         string_table st(lgr, "tmp", table);
         auto unpacked_size = st.unpacked_size();
         fmt += fmt_detail(
-            "|- unpacked", count, unpacked_size,
+            "|- unpacked", count, unpacked_size, std::nullopt,
             fmt::format("{0:5.2f}x",
                         static_cast<double>(unpacked_size) / data_size));
-        fmt += fmt_detail_pct("|- dict", count, dict_size);
+        fmt += fmt_detail_pct("|- dict", count, dict_size,
+                              get_offset(table.symtab()->data()));
       }
-      fmt += fmt_detail_pct("'- index", count, index_size);
-      usage.emplace_back(size, fmt);
+      fmt += fmt_detail_pct("'- index", count, index_size,
+                            get_list_offset(table.index()));
+      usage.emplace_back(get_offset(table.buffer().data()), size, fmt);
     }
   };
 
   using detail_bits_t = std::pair<std::string_view, size_t>;
 
-  auto summarize_details = [&](std::string_view name, size_t count, size_t size,
+  auto summarize_details = [&](std::string_view name, size_t count,
+                               size_t offset, size_t size,
                                std::span<detail_bits_t> details) {
     std::ranges::stable_sort(details, ranges::greater{},
                              &detail_bits_t::second);
@@ -281,7 +334,7 @@ void analyze_frozen(std::ostream& os,
       fmt += fmt_detail_pct(fmt::format("{}- {} [{}]", tree, member, bits),
                             count, (count * bits + 7) / 8);
     }
-    usage.emplace_back(size, fmt);
+    usage.emplace_back(offset, size, fmt);
   };
 
 #define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l.x##Field)
@@ -327,8 +380,8 @@ void analyze_frozen(std::ostream& os,
   } while (0)
 
 #define META_LIST_SIZE_DETAIL_END(x)                                           \
-  summarize_details(#x, meta.x().size(), list_size(meta.x(), l.x##Field),      \
-                    detail_bits);                                              \
+  summarize_details(#x, meta.x().size(), get_list_offset(meta.x()),            \
+                    list_size(meta.x(), l.x##Field), detail_bits);             \
   }                                                                            \
   while (0)
 
@@ -347,7 +400,7 @@ void analyze_frozen(std::ostream& os,
   } while (0)
 
 #define META_OPT_LIST_SIZE_DETAIL_END(x)                                       \
-  summarize_details(#x, list->size(),                                          \
+  summarize_details(#x, list->size(), get_list_offset(*list),                  \
                     list_size(*list, l.x##Field.layout.valueField),            \
                     detail_bits);                                              \
   }                                                                            \
@@ -435,20 +488,32 @@ void analyze_frozen(std::ostream& os,
         history_size += entry.dwarfs_version()->size();
       }
     }
-    add_size("metadata_version_history", list->size(), history_size);
+    add_size("metadata_version_history", list->size(), get_list_offset(*list),
+             history_size);
   }
 
   if (auto version = meta.dwarfs_version()) {
-    add_size_unique("dwarfs_version", version->size());
+    add_size_unique("dwarfs_version", get_offset(version->data()),
+                    version->size());
   }
 
-  add_size_unique("metadata_root", l.size);
+  add_size_unique("metadata_root", 0, l.size);
+  add_size_unique("padding", total_size - LayoutRoot::kPaddingBytes,
+                  LayoutRoot::kPaddingBytes);
 
-  std::ranges::sort(usage, [](auto const& a, auto const& b) {
-    return a.first > b.first || (a.first == b.first && a.second < b.second);
+  std::ranges::sort(usage, [verbose](auto const& a, auto const& b) {
+    if (verbose) {
+      return a.offset < b.offset ||
+             (a.offset == b.offset &&
+              (a.size < b.size || (a.size == b.size && a.line < b.line)));
+    }
+    return a.size > b.size || (a.size == b.size && a.line < b.line);
   });
 
   os << "metadata memory usage:\n";
+  if (verbose) {
+    os << fmt::format("  {:08x}..{:08x} ", 0, total_size);
+  }
   os << fmt::format("               {0:.<24}{1:.>16" DWARFS_FMT_L
                     "} bytes       {2:6.1f} bytes/inode\n",
                     "total metadata", total_size,
@@ -457,7 +522,10 @@ void analyze_frozen(std::ostream& os,
 #undef DWARFS_FMT_L
 
   for (auto const& u : usage) {
-    os << u.second;
+    if (verbose) {
+      os << fmt::format("  {:08x}..{:08x} ", u.offset, u.offset + u.size);
+    }
+    os << u.line;
   }
 }
 
@@ -1767,8 +1835,10 @@ void metadata_v2_data::dump(
     }
   }
 
-  if (opts.features.has(fsinfo_feature::frozen_analysis)) {
-    analyze_frozen(os, meta_, data_.size());
+  if (opts.features.has(fsinfo_feature::frozen_analysis) ||
+      opts.features.has(fsinfo_feature::frozen_analysis_details)) {
+    analyze_frozen(os, meta_, data_.size(),
+                   opts.features.has(fsinfo_feature::frozen_analysis_details));
   }
 
   if (opts.features.has(fsinfo_feature::frozen_layout)) {
