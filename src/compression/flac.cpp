@@ -393,6 +393,11 @@ class flac_block_compressor final : public block_compressor::impl {
     return cc;
   }
 
+  size_t estimate_memory_usage(size_t data_size) const override {
+    // TODO: can we estimate the FLAC encoder state size?
+    return data_size;
+  }
+
  private:
   uint32_t const level_;
   bool const exhaustive_;
