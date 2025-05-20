@@ -219,9 +219,11 @@ void frozen_analyzer::add_string_list_size(std::vector<usage_info>& usage,
     auto index_size = list_size(list, field);
     auto data_size = list.back().end() - list.front().begin();
     auto size = index_size + data_size;
-    auto fmt = fmt_size(name, count, size) +
-               fmt_detail_pct("|- data", count, data_size) +
-               fmt_detail_pct("'- index", count, index_size);
+    auto fmt =
+        fmt_size(name, count, size) +
+        fmt_detail_pct("|- index", count, index_size, get_list_offset(list)) +
+        fmt_detail_pct("'- data", count, data_size,
+                       get_offset(list.front().data()));
     usage.emplace_back(get_list_offset(list), size, fmt);
   }
 }
