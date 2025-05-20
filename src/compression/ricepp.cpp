@@ -171,6 +171,11 @@ class ricepp_block_compressor final : public block_compressor::impl {
     return cc;
   }
 
+  size_t estimate_memory_usage(size_t data_size) const override {
+    // ricepp encoder basically has no memory overhead by itself
+    return data_size;
+  }
+
  private:
   size_t const block_size_;
 };

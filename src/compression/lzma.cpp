@@ -136,6 +136,13 @@ class lzma_block_compressor final : public block_compressor::impl {
     return {};
   }
 
+  size_t estimate_memory_usage(size_t data_size) const override {
+    auto lzma_opts = opt_lzma_;
+    std::array<lzma_filter, 2> filters{
+        {{LZMA_FILTER_LZMA2, &lzma_opts}, {LZMA_VLI_UNKNOWN, nullptr}}};
+    return lzma_raw_encoder_memusage(filters.data()) + data_size;
+  }
+
  private:
   shared_byte_buffer
   compress(shared_byte_buffer const& data, lzma_filter const* filters) const;

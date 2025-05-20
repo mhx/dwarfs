@@ -54,6 +54,8 @@ struct lz4_compression_policy {
   }
 
   static std::string describe(int /*level*/) { return "lz4"; }
+
+  static size_t state_size(size_t /*data_size*/) { return LZ4_sizeofState(); }
 };
 
 struct lz4hc_compression_policy {
@@ -67,6 +69,8 @@ struct lz4hc_compression_policy {
   static std::string describe(int level) {
     return fmt::format("lz4hc [level={}]", level);
   }
+
+  static size_t state_size(size_t /*data_size*/) { return LZ4_sizeofStateHC(); }
 };
 
 template <typename Policy>
@@ -111,6 +115,10 @@ class lz4_block_compressor final : public block_compressor::impl {
   compression_constraints
   get_compression_constraints(std::string const&) const override {
     return {};
+  }
+
+  size_t estimate_memory_usage(size_t data_size) const override {
+    return Policy::state_size(data_size) + data_size;
   }
 
  private:

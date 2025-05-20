@@ -78,6 +78,10 @@ class block_compressor {
     return impl_->get_compression_constraints(metadata);
   }
 
+  size_t estimate_memory_usage(size_t data_size) const {
+    return impl_->estimate_memory_usage(data_size);
+  }
+
   explicit operator bool() const { return static_cast<bool>(impl_); }
 
   class impl {
@@ -96,6 +100,8 @@ class block_compressor {
 
     virtual compression_constraints
     get_compression_constraints(std::string const& metadata) const = 0;
+
+    virtual size_t estimate_memory_usage(size_t data_size) const = 0;
   };
 
  private:
