@@ -453,8 +453,8 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
         if (recompress_block) {
           log_recompress(s, cat);
 
-          writer.write_section(section_type::BLOCK, s->compression(),
-                               parser->section_data(*s), cat);
+          writer.rewrite_section(section_type::BLOCK, s->compression(),
+                                 parser->section_data(*s), cat);
         } else {
           copy_compressed(s, cat);
         }
@@ -491,8 +491,8 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
       } else {
         if (opts.recompress_metadata && !from_none_to_none(s)) {
           log_recompress(s);
-          writer.write_section(s->type(), s->compression(),
-                               parser->section_data(*s));
+          writer.rewrite_section(s->type(), s->compression(),
+                                 parser->section_data(*s));
         } else {
           copy_compressed(s);
         }
