@@ -94,7 +94,7 @@ class filesystem_writer_detail {
       compression_type compression, std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt,
       block_compression_info* info = nullptr) = 0;
-  virtual void write_section(
+  virtual void rewrite_section(
       section_type type, compression_type compression,
       std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
