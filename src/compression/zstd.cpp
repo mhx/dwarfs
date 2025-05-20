@@ -26,8 +26,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <mutex>
-
 #include <zstd.h>
 
 #include <fmt/format.h>
@@ -38,7 +36,6 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
-#include <dwarfs/zstd_context_manager.h>
 
 #include "base.h"
 
@@ -56,8 +53,7 @@ namespace {
 class zstd_block_compressor final : public block_compressor::impl {
  public:
   explicit zstd_block_compressor(int level)
-      : ctxmgr_{get_context_manager()}
-      , level_{level} {}
+      : level_{level} {}
 
   zstd_block_compressor(zstd_block_compressor const& rhs) = default;
 
@@ -82,19 +78,6 @@ class zstd_block_compressor final : public block_compressor::impl {
   }
 
  private:
-  static std::shared_ptr<zstd_context_manager> get_context_manager() {
-    std::lock_guard lock(s_mx);
-    auto mgr = s_ctxmgr.lock();
-    if (!mgr) {
-      s_ctxmgr = mgr = std::make_shared<zstd_context_manager>();
-    }
-    return mgr;
-  }
-
-  static inline std::mutex s_mx;
-  static inline std::weak_ptr<zstd_context_manager> s_ctxmgr;
-
-  std::shared_ptr<zstd_context_manager> ctxmgr_;
   int const level_;
 };
 
@@ -103,9 +86,8 @@ zstd_block_compressor::compress(shared_byte_buffer const& data,
                                 std::string const* /*metadata*/) const {
   auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
   compressed.resize(ZSTD_compressBound(data.size()));
-  auto ctx = ctxmgr_->make_context();
-  auto size = ZSTD_compressCCtx(ctx.get(), compressed.data(), compressed.size(),
-                                data.data(), data.size(), level_);
+  auto size = ZSTD_compress(compressed.data(), compressed.size(), data.data(),
+                            data.size(), level_);
   if (ZSTD_isError(size)) {
     DWARFS_THROW(runtime_error,
                  fmt::format("ZSTD: {}", ZSTD_getErrorName(size)));
