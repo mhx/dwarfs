@@ -595,9 +595,10 @@ class filesystem_writer_ final : public filesystem_writer_detail {
                                std::span<uint8_t const> data,
                                std::optional<fragment_category::value_type> cat,
                                block_compression_info* info) override;
-  void write_section(section_type type, compression_type compression,
-                     std::span<uint8_t const> data,
-                     std::optional<fragment_category::value_type> cat) override;
+  void
+  rewrite_section(section_type type, compression_type compression,
+                  std::span<uint8_t const> data,
+                  std::optional<fragment_category::value_type> cat) override;
   void rewrite_block(delayed_data_fn_type data, size_t uncompressed_size,
                      std::optional<fragment_category::value_type> cat) override;
   void write_compressed_section(fs_section const& sec,
@@ -617,10 +618,9 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   write_block_impl(fragment_category cat, shared_byte_buffer data,
                    block_compressor const& bc, std::optional<std::string> meta,
                    physical_block_cb_type physical_block_cb);
-  void
-  write_section_delayed_data(section_type type, delayed_data_fn_type data,
-                             size_t uncompressed_size,
-                             std::optional<fragment_category::value_type> cat);
+  void rewrite_section_delayed_data(
+      section_type type, delayed_data_fn_type data, size_t uncompressed_size,
+      std::optional<fragment_category::value_type> cat);
   void on_block_merged(block_holder_type holder);
   void write_section_impl(section_type type, shared_byte_buffer data);
   void write(fsblock const& fsb);
@@ -743,6 +743,8 @@ size_t filesystem_writer_<LoggerPolicy>::mem_used() const {
   for (auto const& holder : queue_) {
     s += holder.value()->capacity();
   }
+
+  LOG_VERBOSE << "mem_used: " << s;
 
   return s;
 }
@@ -921,7 +923,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_section_delayed_data(
+void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
     section_type type, delayed_data_fn_type data, size_t uncompressed_size,
     std::optional<fragment_category::value_type> cat) {
   {
@@ -931,8 +933,9 @@ void filesystem_writer_<LoggerPolicy>::write_section_delayed_data(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    // TODO: do we still need this with the merger in place?
+    // TODO: this isn't currently working
     while (mem_used() > options_.max_queue_size) {
+      LOG_VERBOSE << "waiting for queue to drain";
       cond_.wait(lock);
     }
 
@@ -951,14 +954,14 @@ void filesystem_writer_<LoggerPolicy>::write_section_delayed_data(
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_section(
+void filesystem_writer_<LoggerPolicy>::rewrite_section(
     section_type type, compression_type compression,
     std::span<uint8_t const> data,
     std::optional<fragment_category::value_type> cat) {
   auto bd = block_decompressor(compression, data);
   auto uncompressed_size = bd.uncompressed_size();
 
-  write_section_delayed_data(
+  rewrite_section_delayed_data(
       type,
       [bd = std::move(bd)]() mutable {
         auto block = bd.start_decompression(malloc_byte_buffer::create());
@@ -972,8 +975,8 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::rewrite_block(
     delayed_data_fn_type data, size_t uncompressed_size,
     std::optional<fragment_category::value_type> cat) {
-  write_section_delayed_data(section_type::BLOCK, std::move(data),
-                             uncompressed_size, cat);
+  rewrite_section_delayed_data(section_type::BLOCK, std::move(data),
+                               uncompressed_size, cat);
 }
 
 template <typename LoggerPolicy>
