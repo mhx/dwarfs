@@ -147,7 +147,7 @@ class fsblock {
   std::span<uint8_t const> data() const { return impl_->data(); }
   size_t uncompressed_size() const { return impl_->uncompressed_size(); }
   size_t size() const { return impl_->size(); }
-  size_t capacity() const { return impl_->capacity(); }
+  size_t estimated_mem_usage() const { return impl_->estimated_mem_usage(); }
   void set_block_no(uint32_t number) { impl_->set_block_no(number); }
   uint32_t block_no() const { return impl_->block_no(); }
   section_header_v2 const& header() const { return impl_->header(); }
@@ -165,7 +165,7 @@ class fsblock {
     virtual std::span<uint8_t const> data() const = 0;
     virtual size_t uncompressed_size() const = 0;
     virtual size_t size() const = 0;
-    virtual size_t capacity() const = 0;
+    virtual size_t estimated_mem_usage() const = 0;
     virtual void set_block_no(uint32_t number) = 0;
     virtual uint32_t block_no() const = 0;
     virtual section_header_v2 const& header() const = 0;
@@ -260,7 +260,7 @@ class raw_fsblock : public fsblock::impl {
     return data_.size();
   }
 
-  size_t capacity() const override {
+  size_t estimated_mem_usage() const override {
     std::lock_guard lock(mx_);
     return data_.capacity();
   }
@@ -350,7 +350,7 @@ class compressed_fsblock : public fsblock::impl {
 
   size_t uncompressed_size() const override { return range_.size(); }
   size_t size() const override { return range_.size(); }
-  size_t capacity() const override { return range_.size(); }
+  size_t estimated_mem_usage() const override { return range_.size(); }
 
   void set_block_no(uint32_t number) override { number_ = number; }
   uint32_t block_no() const override { return number_.value(); }
@@ -415,7 +415,7 @@ class rewritten_fsblock : public fsblock::impl {
     return block_data_->size();
   }
 
-  size_t capacity() const override {
+  size_t estimated_mem_usage() const override {
     std::lock_guard lock(mx_);
     return block_data_.has_value() ? block_data_->capacity() : 0;
   }
@@ -741,7 +741,7 @@ size_t filesystem_writer_<LoggerPolicy>::mem_used() const {
   size_t s = 0;
 
   for (auto const& holder : queue_) {
-    s += holder.value()->capacity();
+    s += holder.value()->estimated_mem_usage();
   }
 
   LOG_VERBOSE << "mem_used: " << s;
