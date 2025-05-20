@@ -104,6 +104,7 @@ add_library(
   src/reader/internal/cached_block.cpp
   src/reader/internal/filesystem_parser.cpp
   src/reader/internal/inode_reader_v2.cpp
+  src/reader/internal/metadata_analyzer.cpp
   src/reader/internal/metadata_types.cpp
   src/reader/internal/metadata_v2.cpp
   src/reader/internal/periodic_executor.cpp
