@@ -66,6 +66,11 @@ class null_block_compressor final : public block_compressor::impl {
   get_compression_constraints(std::string const&) const override {
     return {};
   }
+
+  size_t estimate_memory_usage(size_t /*data_size*/) const override {
+    // we're re-using the input buffer, so we don't need any extra memory
+    return 0;
+  }
 };
 
 class null_block_decompressor final : public block_decompressor_base {
