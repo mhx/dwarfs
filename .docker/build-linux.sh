@@ -308,15 +308,18 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     export LDFLAGS="${LDFLAGS} -lz"
   fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
-  if [[ "$BUILD_TYPE" != *-minimal-* ]]; then
+  if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal"
+  else
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full"
   fi
   if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-libressl"
   else
     _sslprefix="/opt/static-libs/$COMPILER-openssl"
   fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix;$_jemallocprefix"
 fi
 
 INSTALLDIR="$HOME/install"
