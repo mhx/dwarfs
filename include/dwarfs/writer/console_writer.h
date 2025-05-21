@@ -44,12 +44,15 @@ class console_writer : public stream_logger {
  public:
   enum display_mode { NORMAL, REWRITE };
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
+  using mem_usage_fn = std::function<size_t()>;
 
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
                  progress_mode pg_mode, display_mode mode = NORMAL,
                  logger_options const& options = {});
 
   void update(writer_progress& prog, bool last);
+
+  void set_memory_usage_function(mem_usage_fn func) { mem_usage_ = func; }
 
  private:
   void preamble(std::ostream& os) override;
@@ -63,6 +66,7 @@ class console_writer : public stream_logger {
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
   display_mode const mode_;
+  mem_usage_fn mem_usage_;
 };
 
 } // namespace writer

@@ -33,6 +33,7 @@
 #include <exception>
 #include <filesystem>
 #include <iosfwd>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -84,5 +85,7 @@ int get_current_umask();
 void install_signal_handlers();
 
 std::tm safe_localtime(std::time_t t);
+
+std::optional<size_t> get_self_memory_usage();
 
 } // namespace dwarfs

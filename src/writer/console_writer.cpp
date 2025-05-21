@@ -285,7 +285,7 @@ void console_writer::update(writer_progress& prog, bool last) {
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written" << newline;
+          << size_with_unit(p.compressed_size) << " written";
       break;
 
     case REWRITE:
@@ -295,9 +295,15 @@ void console_writer::update(writer_progress& prog, bool last) {
 
           << "compressed filesystem: " << p.blocks_written << "/"
           << p.block_count << " blocks/" << size_with_unit(p.compressed_size)
-          << " written" << newline;
+          << " written";
       break;
     }
+
+    if (mem_usage_) {
+      oss << ", using " << size_with_unit(mem_usage_()) << " of RAM";
+    }
+
+    oss << newline;
   }
 
   if (pg_mode_ == NONE) {

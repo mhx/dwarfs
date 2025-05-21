@@ -996,6 +996,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                         : writer::console_writer::NORMAL,
                              logopts);
 
+  if (get_self_memory_usage()) {
+    lgr.set_memory_usage_function(
+        [] { return get_self_memory_usage().value_or(0); });
+  }
+
   std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
 
   if (!filter.empty()) {
