@@ -249,7 +249,15 @@ for COMPILER in $COMPILERS; do
         curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
         curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
         ./autogen.sh
-        ./configure --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
+        mkdir build-minimal
+        cd build-minimal
+        ../configure --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
+        make -j$(nproc)
+        make install
+        cd ..
+        mkdir build-full
+        cd build-full
+        ../configure --prefix="$INSTALL_DIR-jemalloc-full" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
         make -j$(nproc)
         make install
     fi
