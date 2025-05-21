@@ -32,6 +32,7 @@
 #include <clocale>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <optional>
@@ -569,6 +570,33 @@ std::tm safe_localtime(std::time_t t) {
   }
 #endif
   return buf;
+}
+
+std::optional<size_t> get_self_memory_usage() {
+#if defined(_WIN32)
+  // TODO
+#elif defined(__APPLE__)
+  // TODO
+#elif defined(__linux__)
+  static constexpr auto kSmapsPath{"/proc/self/smaps_rollup"};
+  std::ifstream smaps(kSmapsPath);
+  if (smaps) {
+    std::string line;
+    while (std::getline(smaps, line)) {
+      if (line.starts_with("Pss:")) {
+        std::string_view size_str(line);
+        size_str.remove_prefix(size_str.find_first_not_of(" \t", 4));
+        size_t size;
+        auto [endp, ec] = std::from_chars(
+            size_str.data(), size_str.data() + size_str.size(), size);
+        if (ec == std::errc() && std::string_view(endp).starts_with(" kB")) {
+          return size * 1024;
+        }
+      }
+    }
+  }
+#endif
+  return std::nullopt; // Not implemented
 }
 
 } // namespace dwarfs
