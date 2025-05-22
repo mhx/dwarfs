@@ -149,15 +149,27 @@ class fast_multimap {
     return false;
   }
 
-  void clear() {
-    values_.clear();
-    collisions_.clear();
-  }
-
   DWARFS_FORCE_INLINE blockhash_t const& values() const { return values_; };
   DWARFS_FORCE_INLINE collision_t const& collisions() const {
     return collisions_;
   };
+
+  size_t memory_usage() const {
+    auto phmap_mem = []<typename T>(T const& m) {
+      return m.capacity() * sizeof(typename T::slot_type) + m.capacity() + 1;
+    };
+
+    auto mem = phmap_mem(values_) + phmap_mem(collisions_);
+
+    for (auto const& c : collisions_) {
+      if (c.second.size() > MaxCollInline) {
+        mem +=
+            c.second.capacity() * sizeof(typename collision_vector::value_type);
+      }
+    }
+
+    return mem;
+  }
 
  private:
   blockhash_t values_;
@@ -244,6 +256,8 @@ class alignas(64) bloom_filter {
     // NOLINTNEXTLINE(modernize-use-ranges)
     std::transform(cbegin(), cend(), other.cbegin(), begin(), std::bit_or<>{});
   }
+
+  size_t memory_usage() const { return size_ / 8; }
 
  private:
   DWARFS_FORCE_INLINE bits_type const* cbegin() const { return bits_; }
@@ -590,6 +604,18 @@ class active_block : private GranularityPolicy {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_.reserve(this->frames_to_bytes(capacity_in_frames_));
+  }
+
+  ~active_block() {
+    LOG_DEBUG << "block " << num_ << " destroyed, "
+              << size_with_unit(offsets_.memory_usage()) << " offset memory ("
+              << fmt::format("{:.1f}",
+                             static_cast<double>(offsets_.memory_usage()) /
+                                 offsets_.values().size())
+              << " bytes per offset, " << offsets_.values().size()
+              << " offsets, " << offsets_.collisions().size()
+              << " collisions), " << size_with_unit(filter_.memory_usage())
+              << " bloom filter";
   }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
