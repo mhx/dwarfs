@@ -108,12 +108,12 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
   multi_queue_block_merger() = default;
 
   multi_queue_block_merger(
-      size_t num_active_slots, size_t max_queued_blocks,
+      size_t num_active_slots, size_t max_queued_size,
       std::vector<source_type> const& sources,
       on_block_merged_callback_type&& on_block_merged_callback,
-      BlockPolicy&& policy = block_merger_whole_block_policy{})
+      BlockPolicy&& policy = BlockPolicy{})
       : state_{std::make_unique<state>(
-            num_active_slots, max_queued_blocks, sources,
+            num_active_slots, max_queued_size, sources,
             std::move(on_block_merged_callback), std::move(policy))} {}
 
   void add(source_type src, block_type blk) override {
@@ -131,13 +131,13 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
       detail::multi_queue_block_merger_impl<SourceT, BlockT, BlockPolicy>;
 
   struct state {
-    state(size_t num_active_slots, size_t max_queued_blocks,
+    state(size_t num_active_slots, size_t max_queued_size,
           std::vector<source_type> const& sources,
           on_block_merged_callback_type&& on_block_merged_callback,
-          BlockPolicy&& policy = block_merger_whole_block_policy{})
+          BlockPolicy&& policy = BlockPolicy{})
         : callback{std::move(on_block_merged_callback)}
         , impl{std::make_shared<impl_type>(
-              num_active_slots, max_queued_blocks, sources,
+              num_active_slots, max_queued_size, sources,
               [this](block_type&& blk, size_t size) {
                 on_block_merged(std::move(blk), size);
               },
