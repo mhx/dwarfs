@@ -64,6 +64,10 @@
 #endif
 #endif
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
+
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
@@ -576,7 +580,13 @@ std::optional<size_t> get_self_memory_usage() {
 #if defined(_WIN32)
   // TODO
 #elif defined(__APPLE__)
-  // TODO
+  mach_task_vm_info info{};
+  mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+
+  if (task_info(mach_task_self(), TASK_VM_INFO,
+                reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS) {
+    return info.phys_footprint;
+  }
 #elif defined(__linux__)
   static constexpr auto kSmapsPath{"/proc/self/smaps_rollup"};
   std::ifstream smaps(kSmapsPath);
