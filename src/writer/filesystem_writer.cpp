@@ -816,6 +816,10 @@ void filesystem_writer_<LoggerPolicy>::write_block_impl(
     pctx = pctx_;
   }
 
+  LOG_DEBUG << "compressor memory usage: "
+            << size_with_unit(bc.estimate_memory_usage(data.size()))
+            << " (block size " << size_with_unit(data.size()) << ")";
+
   auto fsb = std::make_unique<fsblock>(section_type::BLOCK, bc, std::move(data),
                                        pctx, std::move(physical_block_cb));
 
