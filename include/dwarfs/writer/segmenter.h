@@ -61,6 +61,9 @@ class segmenter {
   using block_ready_cb =
       std::function<void(shared_byte_buffer, size_t logical_block_num)>;
 
+  static size_t
+  estimate_memory_usage(config const& cfg, compression_constraints const& cc);
+
   segmenter(logger& lgr, writer_progress& prog,
             std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,
             compression_constraints const& cc, size_t total_size,

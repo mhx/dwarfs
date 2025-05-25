@@ -711,6 +711,16 @@ class segmenter_progress : public progress::context {
   size_t const bytes_total_;
 };
 
+DWARFS_FORCE_INLINE size_t window_size(segmenter::config const& cfg) {
+  return cfg.blockhash_window_size > 0
+             ? static_cast<size_t>(1) << cfg.blockhash_window_size
+             : 0;
+}
+
+DWARFS_FORCE_INLINE size_t window_step(segmenter::config const& cfg) {
+  return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
+}
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
@@ -792,16 +802,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     }
 
     return 0;
-  }
-
-  static DWARFS_FORCE_INLINE size_t window_size(segmenter::config const& cfg) {
-    return cfg.blockhash_window_size > 0
-               ? static_cast<size_t>(1) << cfg.blockhash_window_size
-               : 0;
-  }
-
-  static DWARFS_FORCE_INLINE size_t window_step(segmenter::config const& cfg) {
-    return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
   }
 
   size_t DWARFS_FORCE_INLINE
@@ -1418,5 +1418,38 @@ segmenter::segmenter(logger& lgr, writer_progress& prog,
     : impl_(internal::create_segmenter(lgr, prog.get_internal(),
                                        std::move(blkmgr), cfg, cc, total_size,
                                        std::move(block_ready))) {}
+
+size_t segmenter::estimate_memory_usage(config const& cfg,
+                                        compression_constraints const& cc) {
+  if (cfg.max_active_blocks == 0 or cfg.blockhash_window_size == 0) {
+    return 0;
+  }
+
+  static constexpr size_t kWorstCaseBytesPerOffset = 19; // 8 bytes / 0.4375
+
+  size_t const granularity = cc.granularity.value_or(1);
+  size_t const block_size_in_frames =
+      (static_cast<size_t>(1) << cfg.block_size_bits) / granularity;
+
+  size_t const win_size = internal::window_size(cfg);
+  size_t const win_step = internal::window_step(cfg);
+  size_t const max_offset_count =
+      (block_size_in_frames - (win_size - win_step)) / win_step;
+  size_t const bloom_filter_mem =
+      ((static_cast<size_t>(1) << cfg.bloom_filter_size) *
+       std::bit_ceil(cfg.max_active_blocks *
+                     (block_size_in_frames / win_step))) /
+      8;
+
+  // Single active block uses memory for:
+  // - offsets
+  // - bloom filter (only with MultiBlockSegmentationPolicy)
+  // We do *not* consider the memory for the block data buffer here
+  size_t const active_block_mem_usage =
+      (max_offset_count * kWorstCaseBytesPerOffset) +
+      (cfg.max_active_blocks > 1 ? bloom_filter_mem : 0);
+
+  return cfg.max_active_blocks * active_block_mem_usage + bloom_filter_mem;
+}
 
 } // namespace dwarfs::writer

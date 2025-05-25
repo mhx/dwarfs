@@ -814,6 +814,11 @@ void scanner_<LoggerPolicy>::scan(
 
       auto cc = fsw.get_compression_constraints(category.value(), meta);
 
+      LOG_DEBUG << category_prefix(catmgr, category)
+                << "segmenter will use up to "
+                << size_with_unit(
+                       segmenter_factory_.estimate_memory_usage(category, cc));
+
       wg_blockify.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
                            &prog, &fsw, &im, &wg_ordering] {
         auto span = im.ordered_span(category, wg_ordering);
