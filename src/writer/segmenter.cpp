@@ -207,7 +207,7 @@ class alignas(64) bloom_filter {
 
   explicit bloom_filter(size_t size)
       : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
-      , size_{std::max(size, value_mask + 1)} {
+      , size_{size > 0 ? std::max(size, value_mask + 1) : 0} {
     if (size > 0) {
       if (size & (size - 1)) {
         throw std::runtime_error("size must be a power of two");
@@ -228,6 +228,7 @@ class alignas(64) bloom_filter {
   }
 
   DWARFS_FORCE_INLINE void add(size_t ix) {
+    assert(bits_);
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
     bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
@@ -235,6 +236,7 @@ class alignas(64) bloom_filter {
   }
 
   DWARFS_FORCE_INLINE bool test(size_t ix) const {
+    assert(bits_);
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
     return bits[(ix >> index_shift) & index_mask_] &
@@ -245,11 +247,13 @@ class alignas(64) bloom_filter {
   DWARFS_FORCE_INLINE size_t size() const { return size_; }
 
   void clear() {
+    assert(bits_);
     // NOLINTNEXTLINE(modernize-use-ranges)
     std::fill(begin(), end(), 0);
   }
 
   void merge(bloom_filter const& other) {
+    assert(bits_);
     if (size() != other.size()) {
       throw std::runtime_error("size mismatch");
     }
@@ -945,7 +949,9 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
           if (!is_existing_repeating_sequence(hashval, offset - window_size_))
               [[likely]] {
             offsets_.insert(hashval, offset - window_size_);
-            filter_.add(hashval);
+            if (filter_.size() > 0) {
+              filter_.add(hashval);
+            }
             global_filter.add(hashval);
           }
         }
@@ -1088,8 +1094,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
 
     if constexpr (is_segmentation_enabled()) {
       global_filter_.clear();
-      for (auto const& b : blocks_) {
-        global_filter_.merge(b.filter());
+      if constexpr (is_multi_block_mode()) {
+        for (auto const& b : blocks_) {
+          global_filter_.merge(b.filter());
+        }
       }
     }
 
@@ -1097,7 +1105,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
                   repeating_collisions_, blkmgr_->get_logical_block(),
                   block_size_in_frames_,
                   cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
-                  global_filter_.size());
+                  is_multi_block_mode() ? global_filter_.size() : 0);
   }
 
   auto const offset_in_bytes = frames_to_bytes(offset_in_frames);
