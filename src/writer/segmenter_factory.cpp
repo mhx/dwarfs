@@ -42,6 +42,22 @@ class segmenter_factory_ final : public segmenter_factory::impl {
                    compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
+    return {lgr_, prog_,    std::move(blkmgr),     make_segmenter_config(cat),
+            cc,   cat_size, std::move(block_ready)};
+  }
+
+  size_t get_block_size() const override {
+    return static_cast<size_t>(1) << cfg_.block_size_bits;
+  }
+
+  size_t
+  estimate_memory_usage(fragment_category cat,
+                        compression_constraints const& cc) const override {
+    return segmenter::estimate_memory_usage(make_segmenter_config(cat), cc);
+  }
+
+ private:
+  segmenter::config make_segmenter_config(fragment_category cat) const {
     segmenter::config cfg;
 
     if (catmgr_) {
@@ -54,15 +70,9 @@ class segmenter_factory_ final : public segmenter_factory::impl {
     cfg.bloom_filter_size = cfg_.bloom_filter_size.get(cat);
     cfg.block_size_bits = cfg_.block_size_bits;
 
-    return {lgr_, prog_,    std::move(blkmgr),     cfg,
-            cc,   cat_size, std::move(block_ready)};
+    return cfg;
   }
 
-  size_t get_block_size() const override {
-    return static_cast<size_t>(1) << cfg_.block_size_bits;
-  }
-
- private:
   logger& lgr_;
   writer_progress& prog_;
   std::shared_ptr<categorizer_manager> catmgr_;

@@ -67,6 +67,11 @@ class segmenter_factory {
 
   size_t get_block_size() const { return impl_->get_block_size(); }
 
+  size_t estimate_memory_usage(fragment_category cat,
+                               compression_constraints const& cc) const {
+    return impl_->estimate_memory_usage(cat, cc);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -76,6 +81,9 @@ class segmenter_factory {
                              std::shared_ptr<internal::block_manager> blkmgr,
                              segmenter::block_ready_cb block_ready) const = 0;
     virtual size_t get_block_size() const = 0;
+    virtual size_t
+    estimate_memory_usage(fragment_category cat,
+                          compression_constraints const& cc) const = 0;
   };
 
  private:
