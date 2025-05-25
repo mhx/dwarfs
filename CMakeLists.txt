@@ -850,7 +850,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
   endif()
 
   if(WIN32)
-    target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
+    target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib psapi.lib)
   endif()
 endforeach()
 

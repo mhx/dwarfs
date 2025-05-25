@@ -38,6 +38,10 @@
 #include <optional>
 #include <type_traits>
 
+#ifdef _WIN32
+#define PSAPI_VERSION 1
+#endif
+
 #if __has_include(<utf8cpp/utf8.h>)
 #include <utf8cpp/utf8.h>
 #else
@@ -54,6 +58,10 @@
 #include <folly/system/HardwareConcurrency.h>
 
 #include <dwarfs/config.h>
+
+#ifdef _WIN32
+#include <psapi.h>
+#endif
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
@@ -591,7 +599,15 @@ std::tm safe_localtime(std::time_t t) {
 
 std::optional<size_t> get_self_memory_usage() {
 #if defined(_WIN32)
-  // TODO
+  PROCESS_MEMORY_COUNTERS_EX pmc{};
+
+  if (::GetProcessMemoryInfo(::GetCurrentProcess(),
+                             reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&pmc),
+                             sizeof(pmc))) {
+    if (pmc.PrivateUsage > 0) {
+      return static_cast<size_t>(pmc.PrivateUsage);
+    }
+  }
 #elif defined(__APPLE__)
   task_vm_info info{};
   mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
