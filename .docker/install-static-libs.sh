@@ -144,10 +144,11 @@ set_build_flags() {
         echo "setting CXXFLAGS: $CXXFLAGS"
     fi
 
-    if [[ $LDFLAGS =~ ^[[:space:]]*$ ]]; then
+    if [[ $COMP_LDFLAGS =~ ^[[:space:]]*$ ]]; then
         echo "unsetting LDFLAGS"
         unset LDFLAGS
     else
+        export LDFLAGS="$COMP_LDFLAGS"
         echo "setting LDFLAGS: $LDFLAGS"
     fi
 }
@@ -173,7 +174,7 @@ for COMPILER in $COMPILERS; do
     export SIZE_CXXFLAGS="$COMMON_CXXFLAGS"
     export PERF_CFLAGS="$COMMON_CFLAGS"
     export PERF_CXXFLAGS="$COMMON_CXXFLAGS"
-    export LDFLAGS="$COMMON_LDFLAGS"
+    export COMP_LDFLAGS="$COMMON_LDFLAGS"
 
     case "$COMPILER" in
         clang*)
@@ -203,7 +204,7 @@ for COMPILER in $COMPILERS; do
             export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto"
             export PERF_CFLAGS="$PERF_CFLAGS -flto"
             export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
-            export LDFLAGS="$LDFLAGS -flto"
+            export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
             ;;
     esac
 
@@ -429,15 +430,34 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib libarchive; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBARCHIVE_TARBALL}
-        cd libarchive-${LIBARCHIVE_VERSION}
-        # TODO: once DwarFS supports ACLs / xattrs, we need to update this
-        ./configure --prefix="$INSTALL_DIR" --without-iconv --without-xml2 --without-expat --without-openssl \
-                                            --without-bz2lib --without-zlib --disable-acl --disable-xattr
-        make -j$(nproc)
-        make install
+        unset LIBARCHIVE_PREFIXES
+        if use_lib openssl; then
+            LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-openssl"
+        fi
+        if use_lib libressl; then
+            LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-libressl"
+        fi
+        if [[ -z "$LIBARCHIVE_PREFIXES" ]]; then
+            LIBARCHIVE_PREFIXES="$INSTALL_DIR"
+        fi
+
+        for prefix in $LIBARCHIVE_PREFIXES; do
+            opt_size
+            cd "$HOME/pkgs/$COMPILER"
+            rm -rf libarchive-${LIBARCHIVE_VERSION}
+            tar xf ../${LIBARCHIVE_TARBALL}
+            cd libarchive-${LIBARCHIVE_VERSION}
+            # TODO: once DwarFS supports ACLs / xattrs, we need to update this
+            export CFLAGS="-I$prefix/include $CFLAGS"
+            export CPPFLAGS="-I$prefix/include $CPPFLAGS"
+            export LDFLAGS="-L$prefix/lib $LDFLAGS"
+            ./configure --prefix="$prefix" \
+                        --without-iconv --without-xml2 --without-expat \
+                        --without-bz2lib --without-zlib \
+                        --disable-shared --disable-acl --disable-xattr
+            make -j$(nproc)
+            make install
+        done
     fi
 
     if use_lib file; then
