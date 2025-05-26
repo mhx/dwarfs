@@ -122,16 +122,20 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  void open_archive(std::filesystem::path const& output [[maybe_unused]],
-                    std::string const& format [[maybe_unused]]) override {
+  void
+  open_archive(std::filesystem::path const& output [[maybe_unused]],
+               std::string const& format [[maybe_unused]],
+               std::string const& format_options [[maybe_unused]]) override {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     DWARFS_THROW(runtime_error, "open_archive() not supported in this build");
 #else
-    LOG_DEBUG << "opening archive file in " << format << " format";
+    LOG_DEBUG << "opening archive file in " << format
+              << " format with options '" << format_options << "'";
 
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+    check_result(::archive_write_set_options(a_, format_options.c_str()));
     check_result(::archive_write_set_bytes_in_last_block(a_, 1));
 
 #ifdef _WIN32
@@ -144,8 +148,10 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 #endif
   }
 
-  void open_stream(std::ostream& os [[maybe_unused]],
-                   std::string const& format [[maybe_unused]]) override {
+  void
+  open_stream(std::ostream& os [[maybe_unused]],
+              std::string const& format [[maybe_unused]],
+              std::string const& format_options [[maybe_unused]]) override {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     DWARFS_THROW(runtime_error, "open_stream() not supported in this build");
 #else
@@ -162,11 +168,13 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     iot_ = std::make_unique<std::thread>(
         [this, &os, fd = pipefd_[0]] { pump(os, fd); });
 
-    LOG_DEBUG << "opening archive stream in " << format << " format";
+    LOG_DEBUG << "opening archive stream in " << format
+              << " format with options '" << format_options << "'";
 
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+    check_result(::archive_write_set_options(a_, format_options.c_str()));
     check_result(::archive_write_set_bytes_in_last_block(a_, 1));
     check_result(::archive_write_open_fd(a_, pipefd_[1]));
 #endif
