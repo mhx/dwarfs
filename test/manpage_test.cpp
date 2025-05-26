@@ -194,6 +194,7 @@ TEST_P(manpage_coverage_test, options) {
   if (tool_name == "dwarfsextract") {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     man_opts.erase("format");
+    man_opts.erase("format-options");
 #endif
     man_opts.erase("pattern");
   }
