@@ -67,6 +67,12 @@ to disk:
   if no output directory is specified). For a full list of supported formats,
   see libarchive-formats(5).
 
+- `--format-options=`*options*:
+
+  Comma-separated libarchive options for the specific output format.
+  The options are passed to libarchive. For a full list of options for each
+  output format, see archive_write_set_options(3).
+
 - `--continue-on-error`:
   Try to continue with extraction even when errors are encountered. This
   only applies to errors when reading from the file system image. Errors

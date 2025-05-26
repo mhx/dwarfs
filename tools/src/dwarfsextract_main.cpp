@@ -72,7 +72,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string cache_size_str, image_offset;
   logger_options logopts;
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  std::string format;
+  std::string format, format_options;
 #endif
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
@@ -100,6 +100,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("format,f",
         po::value<std::string>(&format),
         "output format")
+    ("format-options",
+        po::value<std::string>(&format_options),
+        "comma-separated libarchive options for the specific output format")
 #endif
     ("continue-on-error",
         po::value<bool>(&continue_on_error)->zero_tokens(),
@@ -228,9 +231,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
       }
 
       if (stream) {
-        fsx.open_stream(*stream, format);
+        fsx.open_stream(*stream, format, format_options);
       } else {
-        fsx.open_archive(iol.os->canonical(output), format);
+        fsx.open_archive(iol.os->canonical(output), format, format_options);
       }
     }
 #endif
