@@ -63,12 +63,15 @@ class filesystem_extractor {
   static void add_library_dependencies(library_dependencies& deps);
 
   void
-  open_archive(std::filesystem::path const& output, std::string const& format) {
-    impl_->open_archive(output, format);
+  open_archive(std::filesystem::path const& output,
+               std::string const& format,
+               std::string const& format_options = "") {
+    impl_->open_archive(output, format, format_options);
   }
 
-  void open_stream(std::ostream& os, std::string const& format) {
-    impl_->open_stream(os, format);
+  void open_stream(std::ostream& os, std::string const& format,
+                   std::string const& format_options = "") {
+    impl_->open_stream(os, format, format_options);
   }
 
   void open_disk(std::filesystem::path const& output) {
@@ -95,8 +98,11 @@ class filesystem_extractor {
     virtual ~impl() = default;
 
     virtual void open_archive(std::filesystem::path const& output,
-                              std::string const& format) = 0;
-    virtual void open_stream(std::ostream& os, std::string const& format) = 0;
+                              std::string const& format,
+                              std::string const& format_options = "") = 0;
+    virtual void open_stream(std::ostream& os,
+                             std::string const& format,
+                             std::string const& format_options) = 0;
     virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
     virtual bool

@@ -2171,11 +2171,12 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_progress_test,
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 TEST(dwarfsextract_test, mtree) {
   auto t = dwarfsextract_tester::create_with_image();
-  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree"})) << t.err();
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--format-options", "mtree:sha256"})) << t.err();
   auto out = t.out();
   EXPECT_TRUE(out.starts_with("#mtree")) << out;
   EXPECT_THAT(out, ::testing::HasSubstr("type=dir"));
   EXPECT_THAT(out, ::testing::HasSubstr("type=file"));
+  EXPECT_THAT(out, ::testing::HasSubstr("sha256digest="));
 }
 
 TEST(dwarfsextract_test, patterns) {
