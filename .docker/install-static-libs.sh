@@ -16,10 +16,10 @@ FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 BZIP2_VERSION=1.0.8
 
-LIBARCHIVE_VERSION=3.7.9                 # 2025-03-30
+LIBARCHIVE_VERSION=3.8.0                 # 2025-05-20
 FLAC_VERSION=1.5.0                       # 2025-02-11
-LIBUNWIND_VERSION=1.8.1                  # 2024-02-22
-BENCHMARK_VERSION=1.9.3                  # 2025-05-07
+LIBUNWIND_VERSION=1.8.2                  # 2025-05-22
+BENCHMARK_VERSION=1.9.4                  # 2025-05-19
 BOOST_VERSION=1.88.0                     # 2025-04-11
 OPENSSL_VERSION=3.5.0                    # 2025-04-08
 LIBRESSL_VERSION=4.1.0                   # 2025-04-30
@@ -218,9 +218,6 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBUNWIND_TARBALL}
         cd libunwind-${LIBUNWIND_VERSION}
-        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/1f17e0b0fb8eae34ffbe82649edffcd476f5d960/main/libunwind/fix-libunwind-pc-in.patch | patch -p1
-        # This fixes https://github.com/libunwind/libunwind/issues/702
-        curl https://github.com/libunwind/libunwind/commit/a69d0f14c9e6c46e82ba6e02fcdedb2eb63b7f7f.diff | patch -p1
         LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
             --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests
         make -j$(nproc)
