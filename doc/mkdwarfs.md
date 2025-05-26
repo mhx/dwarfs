@@ -86,10 +86,12 @@ Most other options are concerned with compression tuning:
   Number of worker threads used for building the filesystem. This defaults
   to the number of processors available on your system. Use this option if
   you want to limit the resources used by `mkdwarfs` or to optimize build
-  speed. This option affects only the compression phase.
-  During the compression phase, the worker threads are used to compress the
-  individual filesystem blocks in the background. Ordering, segmenting
-  and block building are single-threaded and run independently.
+  speed. This option only affects the compression phase directly, but
+  it is also used as a default for both `--num-scanner-workers` and
+  `--num-segmenter-workers`. During the compression phase, the worker
+  threads are used to compress the individual filesystem blocks in the
+  background. Ordering, segmenting and block building are single-threaded
+  and run independently for each category.
 
 - `--compress-niceness=`*value*:
   Set the niceness of compression worker threads. Defaults to 5. This
@@ -125,13 +127,13 @@ Most other options are concerned with compression tuning:
 
 - `-B`, `--max-lookback-blocks=[*category*`::`]`*value*:
   Specify how many of the most recent blocks to scan for duplicate segments.
-  By default, only the current block will be scanned. The larger this number,
-  the more duplicate segments will likely be found, which may further improve
-  compression. Impact on compression speed is minimal, but this could cause
-  resulting filesystem to be less efficient to use, as single small files can
-  now potentially span multiple filesystem blocks. Definitely avoid passing
-  large values (i.e. larger than 10) here, especially in combination with
-  large block sizes, unless you know *exactly* what you are doing. To give
+  By default, only the current block will be scanned (`-B 1`). The larger this
+  number, the more duplicate segments will likely be found, which may further
+  improve compression. Impact on compression speed should be minimal, but this
+  could cause resulting filesystem to be less efficient to use, as single small
+  files can now potentially span multiple filesystem blocks. Definitely avoid
+  passing large values (i.e. larger than 10) here, especially in combination
+  with large block sizes, unless you know *exactly* what you are doing. To give
   give you an idea, using `-S 26` (i.e. 64 MiB blocks) with `-B 32` means
   that in the worst case, to read a single file of less than 1 MiB in size,
   the file system may have to decompress 2 GiB of data. You have been warned.
@@ -698,6 +700,13 @@ to the file system image.
 In order to produce bit-identical images, you need to pass
 `--no-create-timestamp` and either `--no-history-timestamps` or
 `--no-history`.
+
+Another more subtle requirement for bit-identical images is that if
+you're using `--categorize`, the `--num-segmenter-workers` is kept
+constant. Since the default number of workers depends on the physical
+processor count, if you want images produced on different systems with
+different processor count to be bit-identical, you should explicitly
+set the number of segmenter workers.
 
 ## FILTER RULES
 
