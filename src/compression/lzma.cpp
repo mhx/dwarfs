@@ -122,8 +122,9 @@ class lzma_block_compressor final : public block_compressor::impl {
     return std::make_unique<lzma_block_compressor>(*this);
   }
 
-  shared_byte_buffer compress(shared_byte_buffer const& data,
-                              std::string const* metadata) const override;
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const* metadata,
+           memory_manager* /*memmgr*/) const override;
 
   compression_type type() const override { return compression_type::LZMA; }
 
@@ -258,7 +259,8 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
 
 shared_byte_buffer
 lzma_block_compressor::compress(shared_byte_buffer const& data,
-                                std::string const* /*metadata*/) const {
+                                std::string const* /*metadata*/,
+                                memory_manager* /*memmgr*/) const {
   auto lzma_opts = opt_lzma_;
   std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
                                       {LZMA_FILTER_LZMA2, &lzma_opts},

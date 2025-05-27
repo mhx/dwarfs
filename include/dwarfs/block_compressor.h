@@ -38,6 +38,8 @@
 
 namespace dwarfs {
 
+class memory_manager;
+
 class bad_compression_ratio_error : public std::runtime_error {
  public:
   bad_compression_ratio_error()
@@ -56,13 +58,15 @@ class block_compressor {
   block_compressor(block_compressor&& bc) = default;
   block_compressor& operator=(block_compressor&& rhs) = default;
 
-  shared_byte_buffer compress(shared_byte_buffer const& data) const {
-    return impl_->compress(data, nullptr);
+  shared_byte_buffer compress(shared_byte_buffer const& data,
+                              memory_manager* memmgr = nullptr) const {
+    return impl_->compress(data, nullptr, memmgr);
   }
 
   shared_byte_buffer
-  compress(shared_byte_buffer const& data, std::string const& metadata) const {
-    return impl_->compress(data, &metadata);
+  compress(shared_byte_buffer const& data, std::string const& metadata,
+           memory_manager* memmgr = nullptr) const {
+    return impl_->compress(data, &metadata, memmgr);
   }
 
   compression_type type() const { return impl_->type(); }
@@ -90,8 +94,9 @@ class block_compressor {
 
     virtual std::unique_ptr<impl> clone() const = 0;
 
-    virtual shared_byte_buffer compress(shared_byte_buffer const& data,
-                                        std::string const* metadata) const = 0;
+    virtual shared_byte_buffer
+    compress(shared_byte_buffer const& data, std::string const* metadata,
+             memory_manager* memmgr) const = 0;
 
     virtual compression_type type() const = 0;
     virtual std::string describe() const = 0;
