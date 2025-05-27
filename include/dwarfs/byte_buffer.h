@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <any>
 #include <compare>
 #include <concepts>
 #include <memory>
@@ -81,6 +82,8 @@ class mutable_byte_buffer_interface : public byte_buffer_interface {
   virtual void append(void const* data, size_t size) = 0;
 
   virtual internal::malloc_buffer& raw_buffer() = 0;
+
+  virtual void hold(std::any&& thing) = 0;
 };
 
 class shared_byte_buffer {
@@ -178,6 +181,8 @@ class mutable_byte_buffer {
   }
 
   internal::malloc_buffer& raw_buffer() { return bb_->raw_buffer(); }
+
+  void hold(std::any&& thing) { bb_->hold(std::move(thing)); }
 
   void swap(mutable_byte_buffer& other) noexcept { std::swap(bb_, other.bb_); }
 

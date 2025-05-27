@@ -48,6 +48,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/memory_manager.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
@@ -205,12 +206,12 @@ class alignas(64) bloom_filter {
   static constexpr size_t const index_shift = std::popcount(value_mask);
   static constexpr size_t const alignment = 64;
 
-  explicit bloom_filter(size_t size)
-      : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
-      , size_{size > 0 ? std::max(size, value_mask + 1) : 0} {
-    if (size > 0) {
-      if (size & (size - 1)) {
-        throw std::runtime_error("size must be a power of two");
+  explicit bloom_filter(size_t bits)
+      : index_mask_{(std::max(bits, value_mask + 1) >> index_shift) - 1}
+      , size_{bits_size(bits)} {
+    if (bits > 0) {
+      if (bits & (bits - 1)) {
+        throw std::runtime_error("bits must be a power of two");
       }
       bits_ = reinterpret_cast<bits_type*>(
           boost::alignment::aligned_alloc(alignment, size_ / 8));
@@ -263,7 +264,15 @@ class alignas(64) bloom_filter {
 
   size_t memory_usage() const { return size_ / 8; }
 
+  static constexpr size_t memory_usage(size_t size) {
+    return bits_size(size) / 8;
+  }
+
  private:
+  static constexpr size_t bits_size(size_t bits) {
+    return bits > 0 ? std::max(bits, value_mask + 1) : 0;
+  }
+
   DWARFS_FORCE_INLINE bits_type const* cbegin() const { return bits_; }
   DWARFS_FORCE_INLINE bits_type const* cend() const {
     return bits_ + (size_ >> index_shift);
@@ -321,13 +330,14 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   static constexpr size_t const kGranularity{N};
 
   template <typename T>
-  static void add_new_block(T& blocks, logger& lgr,
-                            repeating_sequence_map_type const& repseqmap,
-                            repeating_collisions_map_type& repcoll, size_t num,
-                            size_t size, size_t window_size, size_t window_step,
-                            size_t bloom_filter_size) {
-    blocks.emplace_back(lgr, repseqmap, repcoll, num, size, window_size,
-                        window_step, bloom_filter_size);
+  static void
+  add_new_block(T& blocks, logger& lgr, std::shared_ptr<memory_manager> memmgr,
+                repeating_sequence_map_type const& repseqmap,
+                repeating_collisions_map_type& repcoll, size_t num, size_t size,
+                size_t window_size, size_t window_step,
+                size_t bloom_filter_bits) {
+    blocks.emplace_back(lgr, std::move(memmgr), repseqmap, repcoll, num, size,
+                        window_size, window_step, bloom_filter_bits);
   }
 
   template <typename T, typename U>
@@ -393,13 +403,15 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
       : granularity_{granularity} {}
 
   template <typename T>
-  void add_new_block(T& blocks, logger& lgr,
-                     repeating_sequence_map_type const& repseqmap,
-                     repeating_collisions_map_type& repcoll, size_t num,
-                     size_t size, size_t window_size, size_t window_step,
-                     size_t bloom_filter_size) const {
-    blocks.emplace_back(lgr, repseqmap, repcoll, num, size, window_size,
-                        window_step, bloom_filter_size, granularity_);
+  void
+  add_new_block(T& blocks, logger& lgr, std::shared_ptr<memory_manager> memmgr,
+                repeating_sequence_map_type const& repseqmap,
+                repeating_collisions_map_type& repcoll, size_t num, size_t size,
+                size_t window_size, size_t window_step,
+                size_t bloom_filter_bits) const {
+    blocks.emplace_back(lgr, std::move(memmgr), repseqmap, repcoll, num, size,
+                        window_size, window_step, bloom_filter_bits,
+                        granularity_);
   }
 
   template <typename T, typename U>
@@ -591,23 +603,34 @@ class active_block : private GranularityPolicy {
 
  public:
   template <typename... PolicyArgs>
-  active_block(logger& lgr, repeating_sequence_map_type const& repseqmap,
+  active_block(logger& lgr, std::shared_ptr<memory_manager> memmgr,
+               repeating_sequence_map_type const& repseqmap,
                repeating_collisions_map_type& repcoll, size_t num,
                size_t size_in_frames, size_t window_size, size_t window_step,
-               size_t bloom_filter_size, PolicyArgs&&... args)
+               size_t bloom_filter_bits, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , LOG_PROXY_INIT(lgr)
       , num_(num)
       , capacity_in_frames_(size_in_frames)
       , window_size_(window_size)
       , window_step_mask_(window_step - 1)
-      , filter_(bloom_filter_size)
+      , credit_{request_memory(memmgr, size_in_frames, window_size, window_step,
+                               bloom_filter_bits)}
+      , filter_(bloom_filter_bits)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
       , data_{malloc_byte_buffer::create()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
-    data_.reserve(this->frames_to_bytes(capacity_in_frames_));
+    auto const capacity_in_bytes = this->frames_to_bytes(capacity_in_frames_);
+    memory_manager::credit_handle data_credit;
+    if (memmgr) {
+      data_credit = memmgr->request(capacity_in_bytes, 0, "data");
+    }
+    data_.reserve(capacity_in_bytes);
+    if (data_credit) {
+      data_.hold(std::move(data_credit));
+    }
   }
 
   ~active_block() {
@@ -668,11 +691,38 @@ class active_block : private GranularityPolicy {
   DWARFS_FORCE_INLINE bool
   is_existing_repeating_sequence(hash_t hashval, size_t offset);
 
+  static memory_manager::credit_handle
+  request_memory(std::shared_ptr<memory_manager> const& memmgr,
+                 size_t size_in_frames, size_t window_size, size_t window_step,
+                 size_t bloom_filter_bits) {
+    memory_manager::credit_handle credit;
+
+    if (memmgr) {
+      static constexpr size_t kWorstCaseBytesPerOffset = 19; // 8 bytes / 0.4375
+      size_t const window_offset = window_size - window_step;
+      size_t const max_offset_count =
+          size_in_frames > window_offset
+              ? (size_in_frames - window_offset) / window_step
+              : 0;
+      size_t const bloom_filter_mem =
+          bloom_filter::memory_usage(bloom_filter_bits);
+      size_t const mem_usage =
+          (max_offset_count * kWorstCaseBytesPerOffset) + bloom_filter_mem;
+
+      if (mem_usage > 0) {
+        credit = memmgr->request(mem_usage, 0, "sblk");
+      }
+    }
+
+    return credit;
+  }
+
   static constexpr size_t num_inline_offsets = 4;
 
   LOG_PROXY_DECL(LoggerPolicy);
   size_t const num_, capacity_in_frames_, window_size_, window_step_mask_;
   rsync_hash hasher_;
+  memory_manager::credit_handle credit_;
   bloom_filter filter_;
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
@@ -738,19 +788,22 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  public:
   template <typename... PolicyArgs>
   segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
+             std::shared_ptr<memory_manager> memmgr,
              segmenter::config const& cfg, size_t total_size,
              segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
       : SegmentingPolicy(std::forward<PolicyArgs>(args)...)
       , LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , blkmgr_{std::move(blkmgr)}
+      , memmgr_{std::move(memmgr)}
       , cfg_{cfg}
       , block_ready_{std::move(block_ready)}
       , pctx_{prog.create_context<segmenter_progress>(cfg.context, total_size)}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_in_frames_{block_size_in_frames(cfg)}
-      , global_filter_{bloom_filter_size(cfg)}
+      , credit_{request_memory(memmgr_, cfg)}
+      , global_filter_{bloom_filter_bits(cfg)}
       , match_counts_{1, 0, 128} {
     if constexpr (is_segmentation_enabled()) {
       LOG_VERBOSE << cfg_.context << "using a "
@@ -782,6 +835,22 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     size_t size_in_frames{0};
   };
 
+  memory_manager::credit_handle
+  request_memory(std::shared_ptr<memory_manager> const& memmgr,
+                 segmenter::config const& cfg) {
+    memory_manager::credit_handle credit;
+
+    if (memmgr) {
+      if (size_t const mem_usage =
+              bloom_filter::memory_usage(bloom_filter_bits(cfg));
+          mem_usage > 0) {
+        credit = memmgr->request(mem_usage, 0, "segm");
+      }
+    }
+
+    return credit;
+  }
+
   DWARFS_FORCE_INLINE void block_ready();
   void finish_chunk(chunkable& chkable);
   DWARFS_FORCE_INLINE void
@@ -793,7 +862,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
   DWARFS_FORCE_INLINE size_t
-  bloom_filter_size(segmenter::config const& cfg) const {
+  bloom_filter_bits(segmenter::config const& cfg) const {
     if constexpr (is_segmentation_enabled()) {
       auto hash_count =
           std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
@@ -813,6 +882,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
   std::shared_ptr<block_manager> blkmgr_;
+  std::shared_ptr<memory_manager> memmgr_;
   segmenter::config const cfg_;
   segmenter::block_ready_cb block_ready_;
   std::shared_ptr<segmenter_progress> pctx_;
@@ -823,6 +893,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   chunk_state chunk_;
 
+  memory_manager::credit_handle credit_;
   bloom_filter global_filter_;
 
   segmenter_stats stats_;
@@ -1101,9 +1172,9 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
       }
     }
 
-    add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
-                  repeating_collisions_, blkmgr_->get_logical_block(),
-                  block_size_in_frames_,
+    add_new_block(blocks_, LOG_GET_LOGGER, memmgr_,
+                  repeating_sequence_hash_values_, repeating_collisions_,
+                  blkmgr_->get_logical_block(), block_size_in_frames_,
                   cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
                   is_multi_block_mode() ? global_filter_.size() : 0);
   }
@@ -1348,6 +1419,7 @@ template <template <typename> typename SegmentingPolicy>
 std::unique_ptr<segmenter::impl>
 create_segmenter2(logger& lgr, progress& prog,
                   std::shared_ptr<block_manager> blkmgr,
+                  std::shared_ptr<memory_manager> memmgr,
                   segmenter::config const& cfg,
                   compression_constraints const& cc, size_t total_size,
                   segmenter::block_ready_cb block_ready) {
@@ -1358,8 +1430,8 @@ create_segmenter2(logger& lgr, progress& prog,
         segmenter::impl,
         constant_granularity_segmenter_<SegmentingPolicy,
                                         Granularity>::template type,
-        logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                         std::move(block_ready));
+        logger_policies>(lgr, prog, std::move(blkmgr), std::move(memmgr), cfg,
+                         total_size, std::move(block_ready));
   };
 
   switch (granularity) {
@@ -1380,30 +1452,32 @@ create_segmenter2(logger& lgr, progress& prog,
   return make_unique_logging_object<
       segmenter::impl,
       variable_granularity_segmenter_<SegmentingPolicy>::template type,
-      logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                       std::move(block_ready), cc.granularity.value());
+      logger_policies>(lgr, prog, std::move(blkmgr), std::move(memmgr), cfg,
+                       total_size, std::move(block_ready),
+                       cc.granularity.value());
 }
 
 std::unique_ptr<segmenter::impl>
 create_segmenter(logger& lgr, progress& prog,
                  std::shared_ptr<block_manager> blkmgr,
+                 std::shared_ptr<memory_manager> memmgr,
                  segmenter::config const& cfg,
                  compression_constraints const& cc, size_t total_size,
                  segmenter::block_ready_cb block_ready) {
   if (cfg.max_active_blocks == 0 or cfg.blockhash_window_size == 0) {
     return create_segmenter2<SegmentationDisabledPolicy>(
-        lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+        lgr, prog, std::move(blkmgr), std::move(memmgr), cfg, cc, total_size,
         std::move(block_ready));
   }
 
   if (cfg.max_active_blocks == 1) {
     return create_segmenter2<SingleBlockSegmentationPolicy>(
-        lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+        lgr, prog, std::move(blkmgr), std::move(memmgr), cfg, cc, total_size,
         std::move(block_ready));
   }
 
   return create_segmenter2<MultiBlockSegmentationPolicy>(
-      lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+      lgr, prog, std::move(blkmgr), std::move(memmgr), cfg, cc, total_size,
       std::move(block_ready));
 }
 
@@ -1413,14 +1487,17 @@ create_segmenter(logger& lgr, progress& prog,
 
 segmenter::segmenter(logger& lgr, writer_progress& prog,
                      std::shared_ptr<internal::block_manager> blkmgr,
-                     config const& cfg, compression_constraints const& cc,
-                     size_t total_size, block_ready_cb block_ready)
-    : impl_(internal::create_segmenter(lgr, prog.get_internal(),
-                                       std::move(blkmgr), cfg, cc, total_size,
-                                       std::move(block_ready))) {}
+                     std::shared_ptr<memory_manager> memmgr, config const& cfg,
+                     compression_constraints const& cc, size_t total_size,
+                     block_ready_cb block_ready)
+    : impl_(internal::create_segmenter(
+          lgr, prog.get_internal(), std::move(blkmgr), std::move(memmgr), cfg,
+          cc, total_size, std::move(block_ready))) {}
 
 size_t segmenter::estimate_memory_usage(config const& cfg,
                                         compression_constraints const& cc) {
+  // TODO: refactor with request_memory()
+
   if (cfg.max_active_blocks == 0 or cfg.blockhash_window_size == 0) {
     return 0;
   }

@@ -41,6 +41,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/memory_manager.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
@@ -124,6 +125,7 @@ class fsblock {
  public:
   fsblock(section_type type, block_compressor const& bc,
           shared_byte_buffer data, std::shared_ptr<compression_progress> pctx,
+          std::shared_ptr<memory_manager> memmgr,
           folly::Function<void(size_t)> set_block_cb = nullptr);
 
   fsblock(section_type type, compression_type compression,
@@ -134,7 +136,8 @@ class fsblock {
 
   fsblock(section_type type, block_compressor const& bc,
           delayed_data_fn_type data, size_t uncompressed_size,
-          std::shared_ptr<compression_progress> pctx);
+          std::shared_ptr<compression_progress> pctx,
+          std::shared_ptr<memory_manager> memmgr);
 
   void
   compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
@@ -193,6 +196,8 @@ class fsblock_merger_policy {
     return worst_case_block_size_;
   }
 
+  static size_t limit_queueable_size(size_t size) { return size; }
+
  private:
   size_t worst_case_block_size_;
 };
@@ -202,6 +207,7 @@ class raw_fsblock : public fsblock::impl {
   raw_fsblock(section_type type, block_compressor const& bc,
               shared_byte_buffer data,
               std::shared_ptr<compression_progress> pctx,
+              std::shared_ptr<memory_manager> memmgr,
               folly::Function<void(size_t)> set_block_cb)
       : type_{type}
       , bc_{bc}
@@ -209,6 +215,7 @@ class raw_fsblock : public fsblock::impl {
       , data_{std::move(data)}
       , comp_type_{bc_.type()}
       , pctx_{std::move(pctx)}
+      , memmgr_{std::move(memmgr)}
       , set_block_cb_{std::move(set_block_cb)} {
     DWARFS_CHECK(bc_, "block_compressor must not be null");
   }
@@ -304,6 +311,7 @@ class raw_fsblock : public fsblock::impl {
   std::optional<section_header_v2> mutable header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
+  std::shared_ptr<memory_manager> memmgr_;
   folly::Function<void(size_t)> set_block_cb_;
 };
 
@@ -372,12 +380,14 @@ class rewritten_fsblock : public fsblock::impl {
  public:
   rewritten_fsblock(section_type type, block_compressor const& bc,
                     delayed_data_fn_type data, size_t uncompressed_size,
-                    std::shared_ptr<compression_progress> pctx)
+                    std::shared_ptr<compression_progress> pctx,
+                    std::shared_ptr<memory_manager> memmgr)
       : type_{type}
       , bc_{bc}
       , data_{std::move(data)}
       , comp_type_{bc_.type()}
       , pctx_{std::move(pctx)}
+      , memmgr_{std::move(memmgr)}
       , uncompressed_size_{uncompressed_size} {
     DWARFS_CHECK(bc_, "block_compressor must not be null");
   }
@@ -484,15 +494,17 @@ class rewritten_fsblock : public fsblock::impl {
   std::optional<section_header_v2> mutable header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
+  std::shared_ptr<memory_manager> memmgr_;
   size_t const uncompressed_size_;
 };
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
                  shared_byte_buffer data,
                  std::shared_ptr<compression_progress> pctx,
+                 std::shared_ptr<memory_manager> memmgr,
                  folly::Function<void(size_t)> set_block_cb)
     : impl_(std::make_unique<raw_fsblock>(type, bc, std::move(data),
-                                          std::move(pctx),
+                                          std::move(pctx), std::move(memmgr),
                                           std::move(set_block_cb))) {}
 
 fsblock::fsblock(section_type type, compression_type compression,
@@ -506,9 +518,11 @@ fsblock::fsblock(fs_section sec, std::span<uint8_t const> data,
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
                  delayed_data_fn_type data, size_t uncompressed_size,
-                 std::shared_ptr<compression_progress> pctx)
+                 std::shared_ptr<compression_progress> pctx,
+                 std::shared_ptr<memory_manager> memmgr)
     : impl_(std::make_unique<rewritten_fsblock>(
-          type, bc, std::move(data), uncompressed_size, std::move(pctx))) {}
+          type, bc, std::move(data), uncompressed_size, std::move(pctx),
+          std::move(memmgr))) {}
 
 void fsblock::build_section_header(section_header_v2& sh,
                                    fsblock::impl const& fsb,
@@ -566,7 +580,8 @@ class filesystem_writer_ final : public filesystem_writer_detail {
       filesystem_writer_detail::physical_block_cb_type;
 
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
-                     progress& prog, filesystem_writer_options const& options,
+                     progress& prog, std::shared_ptr<memory_manager> memmgr,
+                     filesystem_writer_options const& options,
                      std::istream* header);
   ~filesystem_writer_() noexcept override;
 
@@ -638,6 +653,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   std::istream* header_;
   worker_group& wg_;
   progress& prog_;
+  std::shared_ptr<memory_manager> memmgr_;
   std::optional<block_compressor> default_bc_;
   std::unordered_map<fragment_category::value_type, block_compressor>
       category_bc_;
@@ -661,11 +677,13 @@ class filesystem_writer_ final : public filesystem_writer_detail {
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
+    std::shared_ptr<memory_manager> memmgr,
     filesystem_writer_options const& options, std::istream* header)
     : os_(os)
     , header_(header)
     , wg_(wg)
     , prog_(prog)
+    , memmgr_(std::move(memmgr))
     , options_(options)
     , LOG_PROXY_INIT(lgr) {
   if (header_) {
@@ -820,8 +838,9 @@ void filesystem_writer_<LoggerPolicy>::write_block_impl(
             << size_with_unit(bc.estimate_memory_usage(data.size()))
             << " (block size " << size_with_unit(data.size()) << ")";
 
-  auto fsb = std::make_unique<fsblock>(section_type::BLOCK, bc, std::move(data),
-                                       pctx, std::move(physical_block_cb));
+  auto fsb =
+      std::make_unique<fsblock>(section_type::BLOCK, bc, std::move(data), pctx,
+                                memmgr_, std::move(physical_block_cb));
 
   fsb->compress(wg_, std::move(meta));
 
@@ -874,7 +893,8 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    auto fsb = std::make_unique<fsblock>(type, bc, std::move(data), pctx_);
+    auto fsb =
+        std::make_unique<fsblock>(type, bc, std::move(data), pctx_, memmgr_);
 
     number = section_number_;
     fsb->set_block_no(section_number_++);
@@ -946,7 +966,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
     auto& bc = get_compressor(type, cat);
 
     auto fsb = std::make_unique<fsblock>(type, bc, std::move(data),
-                                         uncompressed_size, pctx_);
+                                         uncompressed_size, pctx_, memmgr_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);
@@ -1203,11 +1223,18 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      thread_pool& pool, writer_progress& prog,
                                      filesystem_writer_options const& options,
                                      std::istream* header)
+    : filesystem_writer(os, lgr, pool, prog, nullptr, options, header) {}
+
+filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
+                                     thread_pool& pool, writer_progress& prog,
+                                     std::shared_ptr<memory_manager> memmgr,
+                                     filesystem_writer_options const& options,
+                                     std::istream* header)
     : impl_{make_unique_logging_object<internal::filesystem_writer_detail,
                                        internal::filesystem_writer_,
                                        logger_policies>(
-          lgr, os, pool.get_worker_group(), prog.get_internal(), options,
-          header)} {}
+          lgr, os, pool.get_worker_group(), prog.get_internal(),
+          std::move(memmgr), options, header)} {}
 
 filesystem_writer::~filesystem_writer() noexcept = default;
 filesystem_writer::filesystem_writer(filesystem_writer&&) noexcept = default;

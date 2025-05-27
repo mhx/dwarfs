@@ -35,6 +35,7 @@ namespace dwarfs {
 struct compression_constraints;
 
 class logger;
+class memory_manager;
 
 namespace writer {
 
@@ -65,7 +66,8 @@ class segmenter {
   estimate_memory_usage(config const& cfg, compression_constraints const& cc);
 
   segmenter(logger& lgr, writer_progress& prog,
-            std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,
+            std::shared_ptr<internal::block_manager> blkmgr,
+            std::shared_ptr<memory_manager> memmgr, config const& cfg,
             compression_constraints const& cc, size_t total_size,
             block_ready_cb block_ready);
 

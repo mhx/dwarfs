@@ -103,6 +103,11 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
 
   internal::malloc_buffer& raw_buffer() override { return data_; }
 
+  void hold(std::any&& thing) override {
+    assert_not_frozen("hold");
+    data_.hold(std::move(thing));
+  }
+
  private:
   void assert_not_frozen(std::string_view what) const {
     if (frozen()) {

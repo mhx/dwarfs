@@ -149,7 +149,7 @@ void run_segmenter_benchmark(::benchmark::State& state, unsigned granularity,
     written.clear();
 
     dwarfs::writer::segmenter seg(
-        lgr, prog, blkmgr, cfg, cc, total_size,
+        lgr, prog, blkmgr, nullptr, cfg, cc, total_size,
         [&written, blkmgr](dwarfs::shared_byte_buffer blk,
                            auto logical_block_num) {
           auto physical_block_num = written.size();

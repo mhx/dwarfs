@@ -166,6 +166,10 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
         "operation not allowed on mmap buffer: raw_buffer");
   }
 
+  void hold(std::any&& /*thing*/) override {
+    throw std::runtime_error("operation not allowed on mmap buffer: hold");
+  }
+
  private:
   void frozen_error(std::string_view what) const {
     throw std::runtime_error("operation not allowed on mmap buffer: " +

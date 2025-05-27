@@ -31,6 +31,7 @@
 namespace dwarfs {
 
 class logger;
+class memory_manager;
 
 struct compression_constraints;
 
@@ -56,6 +57,9 @@ class segmenter_factory {
   segmenter_factory(logger& lgr, writer_progress& prog,
                     std::shared_ptr<categorizer_manager> catmgr,
                     config const& cfg);
+  segmenter_factory(logger& lgr, writer_progress& prog,
+                    std::shared_ptr<categorizer_manager> catmgr,
+                    std::shared_ptr<memory_manager> memmgr, config const& cfg);
 
   segmenter create(fragment_category cat, size_t cat_size,
                    compression_constraints const& cc,

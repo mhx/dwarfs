@@ -82,4 +82,8 @@ void malloc_buffer::shrink_to_fit() {
   }
 }
 
+void malloc_buffer::hold(std::any&& thing) {
+  holds_.push_back(std::move(thing));
+}
+
 } // namespace dwarfs::internal

@@ -151,9 +151,12 @@ class multi_queue_block_merger_impl : public block_merger_base,
 
  private:
   size_t queueable_size() const {
-    size_t total_active_size{queued_size() + releaseable_size_};
+    size_t const total_active_size{queued_size() + releaseable_size_};
     assert(total_active_size <= max_queueable_size_);
-    return max_queueable_size_ - total_active_size;
+    size_t const remaining = max_queueable_size_ - total_active_size;
+    size_t const limited = this->limit_queueable_size(remaining);
+    assert(limited <= remaining);
+    return limited;
   }
 
   size_t queued_size() const {
