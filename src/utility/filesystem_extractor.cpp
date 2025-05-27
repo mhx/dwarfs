@@ -42,6 +42,11 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
+
 #include <folly/ExceptionString.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Unistd.h>
@@ -122,21 +127,17 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  void
-  open_archive(std::filesystem::path const& output [[maybe_unused]],
-               std::string const& format [[maybe_unused]],
-               std::string const& format_options [[maybe_unused]]) override {
+  void open_archive(std::filesystem::path const& output [[maybe_unused]],
+                    filesystem_extractor_archive_format const& format
+                    [[maybe_unused]]) override {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     DWARFS_THROW(runtime_error, "open_archive() not supported in this build");
 #else
-    LOG_DEBUG << "opening archive file in " << format
-              << " format with options '" << format_options << "'";
+    LOG_DEBUG << "opening archive file in " << format.description();
 
     a_ = ::archive_write_new();
 
-    check_result(::archive_write_set_format_by_name(a_, format.c_str()));
-    check_result(::archive_write_set_options(a_, format_options.c_str()));
-    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
+    configure_format(format, &output);
 
 #ifdef _WIN32
     check_result(::archive_write_open_filename_w(
@@ -148,10 +149,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 #endif
   }
 
-  void
-  open_stream(std::ostream& os [[maybe_unused]],
-              std::string const& format [[maybe_unused]],
-              std::string const& format_options [[maybe_unused]]) override {
+  void open_stream(std::ostream& os [[maybe_unused]],
+                   filesystem_extractor_archive_format const& format
+                   [[maybe_unused]]) override {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     DWARFS_THROW(runtime_error, "open_stream() not supported in this build");
 #else
@@ -168,14 +168,12 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     iot_ = std::make_unique<std::thread>(
         [this, &os, fd = pipefd_[0]] { pump(os, fd); });
 
-    LOG_DEBUG << "opening archive stream in " << format
-              << " format with options '" << format_options << "'";
+    LOG_DEBUG << "opening archive stream in " << format.description();
 
     a_ = ::archive_write_new();
 
-    check_result(::archive_write_set_format_by_name(a_, format.c_str()));
-    check_result(::archive_write_set_options(a_, format_options.c_str()));
-    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
+    configure_format(format);
+
     check_result(::archive_write_open_fd(a_, pipefd_[1]));
 #endif
   }
@@ -221,6 +219,37 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
           filesystem_extractor_options const& opts) override;
 
  private:
+  void configure_format(filesystem_extractor_archive_format const& format
+                        [[maybe_unused]],
+                        std::filesystem::path const* output
+                        [[maybe_unused]] = nullptr) {
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    if (format.name == "auto") {
+      if (!output || output->empty()) {
+        DWARFS_THROW(runtime_error, "auto format requires output path");
+      }
+
+      if (!format.filters.empty()) {
+        DWARFS_THROW(runtime_error, "auto format does not support filters");
+      }
+
+      auto fn = output->filename().string();
+
+      LOG_DEBUG << "setting archive format by extension for " << fn;
+      check_result(::archive_write_set_format_filter_by_ext(a_, fn.c_str()));
+    } else {
+      check_result(::archive_write_set_format_by_name(a_, format.name.c_str()));
+
+      for (auto const& filter : format.filters) {
+        check_result(::archive_write_add_filter_by_name(a_, filter.c_str()));
+      }
+    }
+
+    check_result(::archive_write_set_options(a_, format.options.c_str()));
+    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
+#endif
+  }
+
   void closefd(int& fd) {
     if (fd >= 0) {
       if (::close(fd) != 0) {
@@ -516,6 +545,20 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 }
 
 } // namespace internal
+
+std::string filesystem_extractor_archive_format::description() const {
+  std::string desc = name;
+
+  if (!filters.empty()) {
+    desc += fmt::format(" ({})", fmt::join(filters, ", "));
+  }
+
+  if (!options.empty()) {
+    desc += " with options '" + options + "'";
+  }
+
+  return desc;
+}
 
 filesystem_extractor::filesystem_extractor(logger& lgr, os_access const& os)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
