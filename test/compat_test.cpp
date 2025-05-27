@@ -1135,7 +1135,7 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
   utility::filesystem_extractor ext(lgr, os);
   std::ostringstream oss;
 
-  EXPECT_NO_THROW(ext.open_stream(oss, "mtree"));
+  EXPECT_NO_THROW(ext.open_stream(oss, {.name = "mtree"}));
   EXPECT_NO_THROW(ext.extract(fs));
   EXPECT_NO_THROW(ext.close());
 
