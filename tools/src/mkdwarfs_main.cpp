@@ -67,6 +67,7 @@
 #include <dwarfs/integral_value_parser.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
+#include <dwarfs/memory_manager.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -1362,6 +1363,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
 
+  auto memmgr = std::make_shared<memory_manager>(mem_limit);
+
+  // TODO: this must be synchronized
+  lgr.set_memory_manager(memmgr);
+
   std::optional<writer::filesystem_writer> fsw;
 
   try {
@@ -1373,7 +1379,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw.emplace(fsw_os, lgr, compress_pool, prog, fswopts,
+    fsw.emplace(fsw_os, lgr, compress_pool, prog, memmgr, fswopts,
                 header_ifs ? &header_ifs->is() : nullptr);
 
     fsw->add_section_compressor(section_type::METADATA_V2_SCHEMA, schema_bc);
@@ -1441,7 +1447,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                   rw_opts);
     } else {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
-                                   sf_config);
+                                   memmgr, sf_config);
       writer::entry_factory ef;
 
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
