@@ -211,7 +211,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
 
     reader::filesystem_v2_lite fs(lgr, *iol.os, fs_image, fsopts, perfmon);
-    utility::filesystem_extractor fsx(lgr, *iol.os);
+    utility::filesystem_extractor fsx(lgr, *iol.os, iol.file);
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     if (format.name.empty()) {
