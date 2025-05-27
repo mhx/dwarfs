@@ -63,8 +63,9 @@ class ricepp_block_compressor final : public block_compressor::impl {
     return std::make_unique<ricepp_block_compressor>(*this);
   }
 
-  shared_byte_buffer compress(shared_byte_buffer const& data,
-                              std::string const* metadata) const override {
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const* metadata,
+           memory_manager* /*memmgr*/) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
                    "internal error: ricepp compression requires metadata");

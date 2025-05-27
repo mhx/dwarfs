@@ -32,6 +32,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/memory_manager.h>
 #include <dwarfs/terminal.h>
+#include <dwarfs/termutil.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/console_writer.h>
 #include <dwarfs/writer/entry_interface.h>
@@ -307,7 +308,32 @@ void console_writer::update(writer_progress& prog, bool last) {
     oss << newline;
 
     if (memmgr_) {
+      // TODO: clean up, move to separate function
+
       oss << "memmgr: " << memmgr_->status() << newline;
+
+      auto usage = memmgr_->get_usage_info();
+      std::unordered_map<std::string_view, size_t> usage_map;
+      for (auto const& u : usage) {
+        usage_map.emplace(u.tag, u.size);
+      }
+
+      using namespace std::string_view_literals;
+
+      static constexpr std::array tags{
+          "segm"sv, "sblk"sv, "data"sv, "comp"sv, "cblk"sv, "free"sv,
+      };
+
+      std::vector<bar_chart_section> sections;
+
+      for (auto const& tag : tags) {
+        if (auto it = usage_map.find(tag); it != usage_map.end()) {
+          sections.emplace_back(bar_chart_section{
+              std::string{tag}, static_cast<double>(it->second)});
+        }
+      }
+
+      oss << render_bar_chart(term(), sections) << newline;
     }
   }
 
@@ -375,7 +401,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     oss.clear();
     oss.seekp(0);
 
-    rewind(oss, (mode_ == NORMAL ? 9 : 4) + (memmgr_ ? 1 : 0) + ctxs.size());
+    rewind(oss, (mode_ == NORMAL ? 9 : 4) + (memmgr_ ? 2 : 0) + ctxs.size());
     oss << statebuf_;
 
     write_nolock(oss.str());

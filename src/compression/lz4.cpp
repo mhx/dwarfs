@@ -84,8 +84,9 @@ class lz4_block_compressor final : public block_compressor::impl {
     return std::make_unique<lz4_block_compressor>(*this);
   }
 
-  shared_byte_buffer compress(shared_byte_buffer const& data,
-                              std::string const* /*metadata*/) const override {
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const* /*metadata*/,
+           memory_manager* /*memmgr*/) const override {
     auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
     compressed.resize(sizeof(uint32_t) +
                       LZ4_compressBound(to<int>(data.size())));
