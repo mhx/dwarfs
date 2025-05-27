@@ -72,7 +72,8 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string cache_size_str, image_offset;
   logger_options logopts;
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  std::string format, format_options;
+  utility::filesystem_extractor_archive_format format;
+  std::string format_filters;
 #endif
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
@@ -98,11 +99,14 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
         "filesystem image offset in bytes")
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     ("format,f",
-        po::value<std::string>(&format),
+        po::value<std::string>(&format.name),
         "output format")
+    ("format-filters",
+        po::value<std::string>(&format_filters),
+        "comma-separated libarchive format filters")
     ("format-options",
-        po::value<std::string>(&format_options),
-        "comma-separated libarchive options for the specific output format")
+        po::value<std::string>(&format.options),
+        "options for the specific libarchive format/filters")
 #endif
     ("continue-on-error",
         po::value<bool>(&continue_on_error)->zero_tokens(),
@@ -210,7 +214,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     utility::filesystem_extractor fsx(lgr, *iol.os);
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-    if (format.empty()) {
+    if (format.name.empty()) {
 #endif
       fsx.open_disk(iol.os->canonical(output));
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
@@ -230,10 +234,12 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
         }
       }
 
+      split_to(format_filters, ',', format.filters);
+
       if (stream) {
-        fsx.open_stream(*stream, format, format_options);
+        fsx.open_stream(*stream, format);
       } else {
-        fsx.open_archive(iol.os->canonical(output), format, format_options);
+        fsx.open_archive(iol.os->canonical(output), format);
       }
     }
 #endif

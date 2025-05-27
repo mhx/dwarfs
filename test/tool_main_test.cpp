@@ -2263,6 +2263,32 @@ TEST(dwarfsextract_test, mtree) {
   EXPECT_THAT(out, ::testing::HasSubstr("sha256digest="));
 }
 
+TEST(dwarfsextract_test, filters) {
+  auto t = dwarfsextract_tester::create_with_image();
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "gnutar", "--format-filters",
+                      "zstd", "--format-options", "zstd:compression-level=3"}))
+      << t.err();
+
+  auto out = t.out();
+
+  auto ar = ::archive_read_new();
+  ASSERT_EQ(ARCHIVE_OK,
+            ::archive_read_set_format(ar, ARCHIVE_FORMAT_TAR_GNUTAR))
+      << ::archive_error_string(ar);
+  ASSERT_THAT(::archive_read_append_filter(ar, ARCHIVE_FILTER_ZSTD),
+              ::testing::AnyOf(ARCHIVE_OK, ARCHIVE_WARN))
+      << ::archive_error_string(ar);
+  ASSERT_EQ(ARCHIVE_OK, ::archive_read_open_memory(ar, out.data(), out.size()))
+      << ::archive_error_string(ar);
+
+  struct archive_entry* entry;
+  int ret = ::archive_read_next_header(ar, &entry);
+
+  EXPECT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
+
+  EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar)) << ::archive_error_string(ar);
+}
+
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
