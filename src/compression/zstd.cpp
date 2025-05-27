@@ -114,8 +114,9 @@ class zstd_block_compressor final : public block_compressor::impl {
     return std::make_unique<zstd_block_compressor>(*this);
   }
 
-  shared_byte_buffer compress(shared_byte_buffer const& data,
-                              std::string const* metadata) const override;
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const* metadata,
+           memory_manager* /*memmgr*/) const override;
 
   compression_type type() const override { return compression_type::ZSTD; }
 
@@ -152,7 +153,8 @@ class zstd_block_compressor final : public block_compressor::impl {
 
 shared_byte_buffer
 zstd_block_compressor::compress(shared_byte_buffer const& data,
-                                std::string const* /*metadata*/) const {
+                                std::string const* /*metadata*/,
+                                memory_manager* /*memmgr*/) const {
   auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
   compressed.resize(ZSTD_compressBound(data.size()));
   auto size = ZSTD_compress(compressed.data(), compressed.size(), data.data(),
