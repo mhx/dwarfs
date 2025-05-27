@@ -34,6 +34,7 @@
 
 namespace dwarfs {
 
+class memory_manager;
 class terminal;
 
 namespace writer {
@@ -53,6 +54,9 @@ class console_writer : public stream_logger {
   void update(writer_progress& prog, bool last);
 
   void set_memory_usage_function(mem_usage_fn func) { mem_usage_ = func; }
+  void set_memory_manager(std::shared_ptr<memory_manager const> memmgr) {
+    memmgr_ = std::move(memmgr);
+  }
 
  private:
   void preamble(std::ostream& os) override;
@@ -67,6 +71,7 @@ class console_writer : public stream_logger {
   progress_mode const pg_mode_;
   display_mode const mode_;
   mem_usage_fn mem_usage_;
+  std::shared_ptr<memory_manager const> memmgr_;
 };
 
 } // namespace writer

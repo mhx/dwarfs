@@ -103,9 +103,12 @@ class sized_block_merger_policy {
       : worst_case_block_size_{std::move(worst_case_block_size)} {}
 
   static size_t block_size(sized_block const& blk) { return blk.size; }
+
   size_t worst_case_source_block_size(size_t source_id) const {
     return worst_case_block_size_[source_id];
   }
+
+  static size_t limit_queueable_size(size_t size) { return size; }
 
  private:
   std::vector<size_t> worst_case_block_size_;

@@ -29,14 +29,15 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/internal/lazy_value.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/memory_manager.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/console_writer.h>
 #include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/lazy_value.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/progress.h>
 
@@ -304,6 +305,10 @@ void console_writer::update(writer_progress& prog, bool last) {
     }
 
     oss << newline;
+
+    if (memmgr_) {
+      oss << "memmgr: " << memmgr_->status() << newline;
+    }
   }
 
   if (pg_mode_ == NONE) {
@@ -370,7 +375,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     oss.clear();
     oss.seekp(0);
 
-    rewind(oss, (mode_ == NORMAL ? 9 : 4) + ctxs.size());
+    rewind(oss, (mode_ == NORMAL ? 9 : 4) + (memmgr_ ? 1 : 0) + ctxs.size());
     oss << statebuf_;
 
     write_nolock(oss.str());
