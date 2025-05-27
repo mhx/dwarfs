@@ -38,6 +38,7 @@
 
 namespace dwarfs {
 
+class file_access;
 class glob_matcher;
 class library_dependencies;
 class logger;
@@ -67,7 +68,8 @@ struct filesystem_extractor_archive_format {
 
 class filesystem_extractor {
  public:
-  filesystem_extractor(logger& lgr, os_access const& os);
+  filesystem_extractor(logger& lgr, os_access const& os,
+                       std::shared_ptr<file_access const> fa = nullptr);
 
   static void add_library_dependencies(library_dependencies& deps);
 

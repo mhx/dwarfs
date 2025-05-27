@@ -53,6 +53,7 @@
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/config.h>
+#include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/glob_matcher.h>
@@ -112,9 +113,11 @@ class archive_error : public std::runtime_error {
 template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
-  explicit filesystem_extractor_(logger& lgr, os_access const& os)
+  explicit filesystem_extractor_(logger& lgr, os_access const& os,
+                                 std::shared_ptr<file_access const> fa)
       : LOG_PROXY_INIT(lgr)
-      , os_{os} {}
+      , os_{os}
+      , fa_{std::move(fa)} {}
 
   ~filesystem_extractor_() override {
     try {
@@ -139,13 +142,13 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
     configure_format(format, &output);
 
-#ifdef _WIN32
-    check_result(::archive_write_open_filename_w(
-        a_, output.empty() ? nullptr : output.wstring().c_str()));
-#else
-    check_result(::archive_write_open_filename(
-        a_, output.empty() ? nullptr : output.string().c_str()));
-#endif
+    if (output.empty()) {
+      check_result(::archive_write_open_filename(a_, nullptr));
+    } else {
+      out_ = fa_->open_output_binary(output);
+      check_result(::archive_write_open2(a_, this, nullptr, on_stream_write,
+                                         on_stream_close, on_stream_free));
+    }
 #endif
   }
 
@@ -219,6 +222,26 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
           filesystem_extractor_options const& opts) override;
 
  private:
+  static la_ssize_t on_stream_write(struct archive* /*a*/, void* client_data,
+                                    void const* buffer, size_t length) {
+    auto self = static_cast<filesystem_extractor_*>(client_data);
+    auto& os = self->out_->os();
+    os.write(static_cast<char const*>(buffer), length);
+    return os.good() ? static_cast<la_ssize_t>(length) : -1;
+  }
+
+  static int on_stream_close(struct archive* /*a*/, void* client_data) {
+    auto self = static_cast<filesystem_extractor_*>(client_data);
+    self->out_->close();
+    return ARCHIVE_OK;
+  }
+
+  static int on_stream_free(struct archive* /*a*/, void* client_data) {
+    auto self = static_cast<filesystem_extractor_*>(client_data);
+    self->out_.reset();
+    return ARCHIVE_OK;
+  }
+
   void configure_format(filesystem_extractor_archive_format const& format
                         [[maybe_unused]],
                         std::filesystem::path const* output
@@ -301,7 +324,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   LOG_PROXY_DECL(debug_logger_policy);
   os_access const& os_;
+  std::shared_ptr<file_access const> fa_;
   struct ::archive* a_{nullptr};
+  std::unique_ptr<output_stream> out_;
   std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
 };
@@ -560,10 +585,12 @@ std::string filesystem_extractor_archive_format::description() const {
   return desc;
 }
 
-filesystem_extractor::filesystem_extractor(logger& lgr, os_access const& os)
+filesystem_extractor::filesystem_extractor(
+    logger& lgr, os_access const& os, std::shared_ptr<file_access const> fa)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
                                        internal::filesystem_extractor_,
-                                       logger_policies>(lgr, os)) {}
+                                       logger_policies>(lgr, os,
+                                                        std::move(fa))) {}
 
 void filesystem_extractor::add_library_dependencies(
     library_dependencies& deps) {
