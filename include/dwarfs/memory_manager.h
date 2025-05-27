@@ -143,30 +143,7 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
   }
 
   std::string status() const {
-    struct request_info {
-      size_t active_size{0};
-      size_t active_count{0};
-      size_t pending_size{0};
-      size_t pending_count{0};
-    };
-
-    std::unordered_map<std::string_view, request_info> requests;
-
-    {
-      std::lock_guard lock(mutex_);
-
-      for (auto const& [_, info] : active_) {
-        auto& entry = requests[info.tag];
-        entry.active_size += info.size;
-        ++entry.active_count;
-      }
-
-      for (auto const& req : pending_) {
-        auto& entry = requests[req->tag];
-        entry.pending_size += req->size;
-        ++entry.pending_count;
-      }
-    }
+    auto const requests = get_request_info();
 
     std::vector<std::string_view> tags(requests.size());
     std::ranges::transform(requests, tags.begin(),
@@ -177,7 +154,7 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
         fmt::format("{}/{}", size_with_unit(used_), size_with_unit(limit_));
 
     for (auto const& tag : tags) {
-      auto const& info = requests[tag];
+      auto const& info = requests.at(tag);
       result +=
           fmt::format("; {}: {} ({}) A, {} ({}) P", tag,
                       size_with_unit(info.active_size), info.active_count,
@@ -187,7 +164,54 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
     return result;
   }
 
+  struct usage_info {
+    std::string_view tag;
+    size_t size;
+  };
+
+  std::vector<usage_info> get_usage_info() const {
+    auto const requests = get_request_info();
+    std::vector<usage_info> usage;
+    size_t total_used{0};
+    for (auto const& [tag, info] : requests) {
+      total_used += info.active_size;
+      usage.emplace_back(usage_info{tag, info.active_size});
+    }
+    DWARFS_CHECK(total_used <= limit_,
+                 fmt::format("Total used memory exceeds limit: {} > {}",
+                             total_used, limit_));
+    usage.emplace_back(usage_info{"free", limit_ - total_used});
+    return usage;
+  }
+
  private:
+  struct request_info {
+    size_t active_size{0};
+    size_t active_count{0};
+    size_t pending_size{0};
+    size_t pending_count{0};
+  };
+
+  std::unordered_map<std::string_view, request_info> get_request_info() const {
+    std::unordered_map<std::string_view, request_info> requests;
+
+    std::lock_guard lock(mutex_);
+
+    for (auto const& [_, info] : active_) {
+      auto& entry = requests[info.tag];
+      entry.active_size += info.size;
+      ++entry.active_count;
+    }
+
+    for (auto const& req : pending_) {
+      auto& entry = requests[req->tag];
+      entry.pending_size += req->size;
+      ++entry.pending_count;
+    }
+
+    return requests;
+  }
+
   void fulfill_and_unlock(std::unique_lock<std::mutex>& lock) {
     std::vector<request_ptr> granted;
 
@@ -233,7 +257,8 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
   void release_partial(size_t released_size, size_t sequence) {
     std::unique_lock lock(mutex_);
 
-    if (active_.contains(sequence)) {
+    if (auto it = active_.find(sequence); it != active_.end()) {
+      it->second.size -= released_size;
       used_ -= released_size;
       fulfill_and_unlock(lock);
     }

@@ -51,8 +51,9 @@ class null_block_compressor final : public block_compressor::impl {
     return std::make_unique<null_block_compressor>(*this);
   }
 
-  shared_byte_buffer compress(shared_byte_buffer const& data,
-                              std::string const* /*metadata*/) const override {
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const* /*metadata*/,
+           memory_manager* /*memmgr*/) const override {
     return data;
   }
 
