@@ -65,11 +65,17 @@ to disk:
   The archive format to produce. If this is left empty or unspecified,
   files will be extracted to the output directory (or the current directory
   if no output directory is specified). For a full list of supported formats,
-  see libarchive-formats(5).
+  see libarchive-formats(5). If an output file is specified, `--format=auto`
+  can be used to automatically determine the format and filters from the
+  file name.
+
+- `--format-filters=`*filters*:
+  Comma-separated list of libarchive filters to apply to the selected format.
+  Filters will be selected based on the file name with `--format=auto`. It is
+  not supported to use both `--format=auto` and `--format-filters`.
 
 - `--format-options=`*options*:
-
-  Comma-separated libarchive options for the specific output format.
+  Comma-separated libarchive options for the specific output format/filters.
   The options are passed to libarchive. For a full list of options for each
   output format, see archive_write_set_options(3).
 

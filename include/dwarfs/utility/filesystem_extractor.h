@@ -34,6 +34,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dwarfs {
 
@@ -56,21 +57,28 @@ struct filesystem_extractor_options {
   std::function<void(std::string_view, uint64_t, uint64_t)> progress;
 };
 
+struct filesystem_extractor_archive_format {
+  std::string name;
+  std::vector<std::string> filters{};
+  std::string options{};
+
+  std::string description() const;
+};
+
 class filesystem_extractor {
  public:
   filesystem_extractor(logger& lgr, os_access const& os);
 
   static void add_library_dependencies(library_dependencies& deps);
 
-  void
-  open_archive(std::filesystem::path const& output, std::string const& format,
-               std::string const& format_options = "") {
-    impl_->open_archive(output, format, format_options);
+  void open_archive(std::filesystem::path const& output,
+                    filesystem_extractor_archive_format const& format) {
+    impl_->open_archive(output, format);
   }
 
-  void open_stream(std::ostream& os, std::string const& format,
-                   std::string const& format_options = "") {
-    impl_->open_stream(os, format, format_options);
+  void open_stream(std::ostream& os,
+                   filesystem_extractor_archive_format const& format) {
+    impl_->open_stream(os, format);
   }
 
   void open_disk(std::filesystem::path const& output) {
@@ -97,10 +105,11 @@ class filesystem_extractor {
     virtual ~impl() = default;
 
     virtual void
-    open_archive(std::filesystem::path const& output, std::string const& format,
-                 std::string const& format_options = "") = 0;
-    virtual void open_stream(std::ostream& os, std::string const& format,
-                             std::string const& format_options) = 0;
+    open_archive(std::filesystem::path const& output,
+                 filesystem_extractor_archive_format const& format) = 0;
+    virtual void
+    open_stream(std::ostream& os,
+                filesystem_extractor_archive_format const& format) = 0;
     virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
     virtual bool
