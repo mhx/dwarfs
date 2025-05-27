@@ -32,6 +32,7 @@
 namespace dwarfs {
 
 class logger;
+class memory_manager;
 class thread_pool;
 
 namespace writer {
@@ -53,6 +54,12 @@ class filesystem_writer {
 
   filesystem_writer(std::ostream& os, logger& lgr, thread_pool& pool,
                     writer_progress& prog,
+                    filesystem_writer_options const& options,
+                    std::istream* header = nullptr);
+
+  filesystem_writer(std::ostream& os, logger& lgr, thread_pool& pool,
+                    writer_progress& prog,
+                    std::shared_ptr<memory_manager> memmgr,
                     filesystem_writer_options const& options,
                     std::istream* header = nullptr);
 

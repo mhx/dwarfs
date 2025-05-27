@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+#include <dwarfs/memory_manager.h>
+
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/segmenter_factory.h>
 
@@ -32,18 +34,26 @@ class segmenter_factory_ final : public segmenter_factory::impl {
  public:
   segmenter_factory_(logger& lgr, writer_progress& prog,
                      std::shared_ptr<categorizer_manager> catmgr,
+                     std::shared_ptr<memory_manager> memmgr,
                      segmenter_factory::config const& cfg)
       : lgr_{lgr}
       , prog_{prog}
       , catmgr_{std::move(catmgr)}
+      , memmgr_{std::move(memmgr)}
       , cfg_{cfg} {}
 
   segmenter create(fragment_category cat, size_t cat_size,
                    compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
-    return {lgr_, prog_,    std::move(blkmgr),     make_segmenter_config(cat),
-            cc,   cat_size, std::move(block_ready)};
+    return {lgr_,
+            prog_,
+            std::move(blkmgr),
+            memmgr_,
+            make_segmenter_config(cat),
+            cc,
+            cat_size,
+            std::move(block_ready)};
   }
 
   size_t get_block_size() const override {
@@ -76,6 +86,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
   logger& lgr_;
   writer_progress& prog_;
   std::shared_ptr<categorizer_manager> catmgr_;
+  std::shared_ptr<memory_manager> memmgr_;
   segmenter_factory::config cfg_;
 };
 
@@ -83,9 +94,10 @@ class segmenter_factory_ final : public segmenter_factory::impl {
 
 segmenter_factory::segmenter_factory(
     logger& lgr, writer_progress& prog,
-    std::shared_ptr<categorizer_manager> catmgr, config const& cfg)
+    std::shared_ptr<categorizer_manager> catmgr,
+    std::shared_ptr<memory_manager> memmgr, config const& cfg)
     : impl_(std::make_unique<internal::segmenter_factory_>(
-          lgr, prog, std::move(catmgr), cfg)) {}
+          lgr, prog, std::move(catmgr), std::move(memmgr), cfg)) {}
 
 segmenter_factory::segmenter_factory(logger& lgr, writer_progress& prog,
                                      config const& cfg)
@@ -98,5 +110,10 @@ segmenter_factory::segmenter_factory(
     logger& lgr, writer_progress& prog,
     std::shared_ptr<categorizer_manager> catmgr)
     : segmenter_factory(lgr, prog, std::move(catmgr), config{}) {}
+
+segmenter_factory::segmenter_factory(
+    logger& lgr, writer_progress& prog,
+    std::shared_ptr<categorizer_manager> catmgr, config const& cfg)
+    : segmenter_factory(lgr, prog, std::move(catmgr), nullptr, cfg) {}
 
 } // namespace dwarfs::writer

@@ -28,9 +28,11 @@
 
 #pragma once
 
+#include <any>
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <vector>
 
 namespace dwarfs::internal {
 
@@ -77,6 +79,8 @@ class malloc_buffer {
 
   void shrink_to_fit();
 
+  void hold(std::any&& thing);
+
  private:
   void grow(size_t new_size);
   void resize_buffer(size_t new_size);
@@ -88,6 +92,7 @@ class malloc_buffer {
   value_type* data_{nullptr};
   size_t size_{0};
   size_t capacity_{0};
+  std::vector<std::any> holds_;
 };
 
 } // namespace dwarfs::internal

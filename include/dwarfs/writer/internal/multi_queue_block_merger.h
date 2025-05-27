@@ -45,6 +45,8 @@ class block_merger_whole_block_policy {
   static size_t worst_case_source_block_size(SourceT const&) {
     return 1;
   }
+
+  static size_t limit_queueable_size(size_t size) { return size; }
 };
 
 /**
