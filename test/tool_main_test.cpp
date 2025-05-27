@@ -2289,6 +2289,30 @@ TEST(dwarfsextract_test, filters) {
   EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar)) << ::archive_error_string(ar);
 }
 
+TEST(dwarfsextract_test, auto_format) {
+  auto t = dwarfsextract_tester::create_with_image();
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "auto", "-o", "image.tar"}))
+      << t.err();
+
+  auto out = t.fa->get_file("image.tar").value();
+
+  auto ar = ::archive_read_new();
+  ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
+      << ::archive_error_string(ar);
+  ASSERT_EQ(ARCHIVE_OK, ::archive_read_open_memory(ar, out.data(), out.size()))
+      << ::archive_error_string(ar);
+
+  struct archive_entry* entry;
+  int ret = ::archive_read_next_header(ar, &entry);
+
+  EXPECT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
+  auto fmt = ::archive_format(ar);
+  EXPECT_EQ(ARCHIVE_FORMAT_TAR, fmt & ARCHIVE_FORMAT_BASE_MASK) << fmt::format(
+      "expected TAR ({:08x}), got {:08x}", ARCHIVE_FORMAT_TAR, fmt);
+
+  EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar)) << ::archive_error_string(ar);
+}
+
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
