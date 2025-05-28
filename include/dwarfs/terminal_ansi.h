@@ -41,6 +41,7 @@ class terminal_ansi : public terminal {
 
   static std::string_view
   color_impl(termcolor color, termstyle style = termstyle::NORMAL);
+  static std::string_view bgcolor_impl(termcolor color);
   static std::string
   colored_impl(std::string_view text, termcolor color, bool enable = true,
                termstyle style = termstyle::NORMAL);
@@ -49,6 +50,7 @@ class terminal_ansi : public terminal {
   bool is_tty(std::ostream& os) const override;
   bool is_fancy() const override;
   std::string_view color(termcolor color, termstyle style) const override;
+  std::string_view bgcolor(termcolor color) const override;
   std::string colored(std::string text, termcolor color, bool enable,
                       termstyle style) const override;
   std::string_view carriage_return() const override;
