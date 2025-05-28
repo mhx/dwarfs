@@ -48,6 +48,7 @@
 #include <dwarfs/types.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 namespace dwarfs {
 
@@ -124,7 +125,7 @@ class lzma_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer
   compress(shared_byte_buffer const& data, std::string const* metadata,
-           memory_manager* /*memmgr*/) const override;
+           memory_manager* memmgr) const override;
 
   compression_type type() const override { return compression_type::LZMA; }
 
@@ -137,16 +138,17 @@ class lzma_block_compressor final : public block_compressor::impl {
     return {};
   }
 
-  size_t estimate_memory_usage(size_t data_size) const override {
+  size_t estimate_memory_usage(size_t /*data_size*/) const override {
     auto lzma_opts = opt_lzma_;
     std::array<lzma_filter, 2> filters{
         {{LZMA_FILTER_LZMA2, &lzma_opts}, {LZMA_VLI_UNKNOWN, nullptr}}};
-    return lzma_raw_encoder_memusage(filters.data()) + data_size;
+    return lzma_raw_encoder_memusage(filters.data());
   }
 
  private:
   shared_byte_buffer
-  compress(shared_byte_buffer const& data, lzma_filter const* filters) const;
+  compress(shared_byte_buffer const& data, memory_manager* memmgr,
+           lzma_filter const* filters) const;
 
   static uint32_t get_preset(unsigned level, bool extreme) {
     uint32_t preset = level;
@@ -218,7 +220,10 @@ lzma_block_compressor::lzma_block_compressor(option_map& om) {
 
 shared_byte_buffer
 lzma_block_compressor::compress(shared_byte_buffer const& data,
+                                memory_manager* memmgr,
                                 lzma_filter const* filters) const {
+  compress_scope scope(this, memmgr, data.size(), data.size() - 1);
+
   lzma_stream s = LZMA_STREAM_INIT;
 
   if (auto ret = lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64);
@@ -229,17 +234,14 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
 
   lzma_action action = LZMA_FINISH;
 
-  auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
-  compressed.resize(data.size() - 1);
-
   s.next_in = data.data();
   s.avail_in = data.size();
-  s.next_out = compressed.data();
-  s.avail_out = compressed.size();
+  s.next_out = scope.data();
+  s.avail_out = scope.size();
 
   lzma_ret ret = lzma_code(&s, action);
 
-  compressed.resize(compressed.size() - s.avail_out);
+  size_t const compressed_size = scope.size() - s.avail_out;
 
   lzma_end(&s);
 
@@ -247,29 +249,29 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
     throw bad_compression_ratio_error();
   }
 
-  if (ret == LZMA_STREAM_END) {
-    compressed.shrink_to_fit();
-  } else {
+  if (ret != LZMA_STREAM_END) {
     DWARFS_THROW(runtime_error, fmt::format("LZMA compression failed: {}",
                                             lzma_error_string(ret)));
   }
 
-  return compressed.share();
+  scope.shrink(compressed_size);
+
+  return scope.share();
 }
 
 shared_byte_buffer
 lzma_block_compressor::compress(shared_byte_buffer const& data,
                                 std::string const* /*metadata*/,
-                                memory_manager* /*memmgr*/) const {
+                                memory_manager* memmgr) const {
   auto lzma_opts = opt_lzma_;
   std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
                                       {LZMA_FILTER_LZMA2, &lzma_opts},
                                       {LZMA_VLI_UNKNOWN, nullptr}}};
 
-  auto best = compress(data, &filters[1]);
+  auto best = compress(data, memmgr, &filters[1]);
 
   if (filters[0].id != LZMA_VLI_UNKNOWN) {
-    auto compressed = compress(data, filters.data());
+    auto compressed = compress(data, memmgr, filters.data());
 
     if (compressed.size() < best.size()) {
       best.swap(compressed);

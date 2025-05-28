@@ -45,6 +45,7 @@
 #include <dwarfs/gen-cpp2/compression_types.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 namespace dwarfs {
 
@@ -65,7 +66,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer
   compress(shared_byte_buffer const& data, std::string const* metadata,
-           memory_manager* /*memmgr*/) const override {
+           memory_manager* memmgr) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
                    "internal error: ricepp compression requires metadata");
@@ -100,7 +101,17 @@ class ricepp_block_compressor final : public block_compressor::impl {
         .unused_lsb_count = static_cast<unsigned>(unused_lsb_count),
     });
 
-    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
+    std::span<pixel_type const> input{
+        reinterpret_cast<pixel_type const*>(data.data()),
+        data.size() / bytes_per_sample};
+
+    static constexpr size_t kMaxHeaderSize{256};
+    size_t const bound = encoder->worst_case_encoded_bytes(input);
+
+    compress_scope scope{this, memmgr, data.size(), bound + kMaxHeaderSize,
+                         compress_scope::buffer_mode::RESERVE};
+
+    auto& compressed = scope.buffer();
 
     // TODO: see if we can resize just once...
     {
@@ -126,19 +137,15 @@ class ricepp_block_compressor final : public block_compressor::impl {
       compressed.append(hdrbuf.data(), hdrbuf.size());
     }
 
-    std::span<pixel_type const> input{
-        reinterpret_cast<pixel_type const*>(data.data()),
-        data.size() / bytes_per_sample};
-
     size_t header_size = compressed.size();
-    compressed.resize(header_size + encoder->worst_case_encoded_bytes(input));
+    compressed.resize(header_size + bound);
 
     auto output =
         encoder->encode(compressed.span().subspan(header_size), input);
-    compressed.resize(header_size + output.size());
-    compressed.shrink_to_fit();
 
-    return compressed.share();
+    scope.shrink(header_size + output.size());
+
+    return scope.share();
   }
 
   compression_type type() const override { return compression_type::RICEPP; }
@@ -172,9 +179,9 @@ class ricepp_block_compressor final : public block_compressor::impl {
     return cc;
   }
 
-  size_t estimate_memory_usage(size_t data_size) const override {
+  size_t estimate_memory_usage(size_t /*data_size*/) const override {
     // ricepp encoder basically has no memory overhead by itself
-    return data_size;
+    return 0;
   }
 
  private:

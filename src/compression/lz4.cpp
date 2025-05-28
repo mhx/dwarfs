@@ -40,6 +40,7 @@
 #include <dwarfs/option_map.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 namespace dwarfs {
 
@@ -86,25 +87,26 @@ class lz4_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer
   compress(shared_byte_buffer const& data, std::string const* /*metadata*/,
-           memory_manager* /*memmgr*/) const override {
-    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
-    compressed.resize(sizeof(uint32_t) +
-                      LZ4_compressBound(to<int>(data.size())));
+           memory_manager* memmgr) const override {
+    compress_scope scope{this, memmgr, data.size(),
+                         sizeof(uint32_t) +
+                             LZ4_compressBound(to<int>(data.size()))};
     // TODO: this should have been a varint; also, if we ever support
     //       big-endian systems, we'll have to properly convert this
     uint32_t size = data.size();
-    std::memcpy(compressed.data(), &size, sizeof(size));
-    auto csize = Policy::compress(
-        data.data(), compressed.data() + sizeof(uint32_t), data.size(),
-        compressed.size() - sizeof(uint32_t), level_);
+    std::memcpy(scope.data(), &size, sizeof(size));
+    auto csize =
+        Policy::compress(data.data(), scope.data() + sizeof(uint32_t),
+                         data.size(), scope.size() - sizeof(uint32_t), level_);
     if (csize == 0) {
       DWARFS_THROW(runtime_error, "error during compression");
     }
-    if (sizeof(uint32_t) + csize >= data.size()) {
+    csize += sizeof(uint32_t);
+    if (csize >= data.size()) {
       throw bad_compression_ratio_error();
     }
-    compressed.resize(sizeof(uint32_t) + csize);
-    return compressed.share();
+    scope.shrink(csize);
+    return scope.share();
   }
 
   compression_type type() const override { return compression_type::LZ4; }
@@ -119,7 +121,7 @@ class lz4_block_compressor final : public block_compressor::impl {
   }
 
   size_t estimate_memory_usage(size_t data_size) const override {
-    return Policy::state_size(data_size) + data_size;
+    return Policy::state_size(data_size);
   }
 
  private:

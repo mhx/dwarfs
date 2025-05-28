@@ -230,9 +230,9 @@ class raw_fsblock : public fsblock::impl {
             shared_byte_buffer tmp;
 
             if (meta) {
-              tmp = bc_.compress(data_, *meta);
+              tmp = bc_.compress(data_, *meta, memmgr_.get());
             } else {
-              tmp = bc_.compress(data_);
+              tmp = bc_.compress(data_, memmgr_.get());
             }
 
             pctx_->bytes_in += data_.size();
@@ -463,9 +463,9 @@ class rewritten_fsblock : public fsblock::impl {
 
       try {
         if (meta) {
-          block = bc_.compress(block, *meta);
+          block = bc_.compress(block, *meta, memmgr_.get());
         } else {
-          block = bc_.compress(block);
+          block = bc_.compress(block, memmgr_.get());
         }
       } catch (bad_compression_ratio_error const&) {
         comp_type_ = compression_type::NONE;

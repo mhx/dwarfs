@@ -67,20 +67,11 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
       }
     }
 
-    bool release_partial(size_t released_size) {
-      if (mgr) {
-        if (released_size < size) {
-          size -= released_size;
-          mgr->release_partial(released_size, sequence);
-          return true; // Still active
-        }
-
-        // Fully released
-        mgr->release(size, sequence);
-        mgr.reset();
+    void resize(size_t new_size) {
+      if (mgr && new_size < size) {
+        mgr->release_partial(size - new_size, sequence);
+        size = new_size;
       }
-
-      return false;
     }
 
     std::shared_ptr<memory_manager> mgr;
@@ -104,9 +95,11 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
 
     void release() { req_.reset(); }
 
-    void release_partial(size_t size) {
-      if (size > 0 && req_ && !req_->release_partial(size)) {
-        req_.reset();
+    void resize(size_t new_size) {
+      if (new_size == 0) {
+        release();
+      } else if (req_) {
+        req_->resize(new_size);
       }
     }
 
@@ -116,18 +109,29 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
     request_ptr req_;
   };
 
+  memory_manager() = default;
+
   explicit memory_manager(size_t limit, size_t hipri_reserve = 0)
       : limit_{limit}
+      , limit_set_{true}
       , hipri_reserve_{hipri_reserve} {}
+
+  void set_limit(size_t limit) {
+    std::lock_guard lock(mutex_);
+    DWARFS_CHECK(!limit_set_.load(), "memory limit already set");
+    limit_ = limit;
+    limit_set_.store(true);
+  }
+
+  void set_hipri_reserve(size_t reserve) { hipri_reserve_.store(reserve); }
 
   credit_handle
   request_noblock(size_t size, int priority, std::string_view tag = "") {
+    DWARFS_CHECK(limit_set_.load(), "memory limit not set");
     std::unique_lock lock(mutex_);
-    if (size == 0 || size > limit_) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("Invalid memory request size: {} (limit: {})",
-                               size, limit_));
-    }
+    DWARFS_CHECK(size > 0 && size <= limit_,
+                 fmt::format("Invalid memory request size: {} (limit: {})",
+                             size, limit_));
     auto req = std::make_shared<memory_request>(shared_from_this(), size,
                                                 sequence_++, priority, tag);
     pending_.emplace_back(req);
@@ -143,22 +147,28 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
   }
 
   std::string status() const {
-    auto const requests = get_request_info();
+    std::string result;
 
-    std::vector<std::string_view> tags(requests.size());
-    std::ranges::transform(requests, tags.begin(),
-                           [](auto const& pair) { return pair.first; });
-    std::ranges::sort(tags);
+    if (limit_set_.load()) {
+      auto const [requests, limit] = get_request_info();
 
-    std::string result =
-        fmt::format("{}/{}", size_with_unit(used_), size_with_unit(limit_));
+      std::vector<std::string_view> tags(requests.size());
+      std::ranges::transform(requests, tags.begin(),
+                             [](auto const& pair) { return pair.first; });
+      std::ranges::sort(tags);
 
-    for (auto const& tag : tags) {
-      auto const& info = requests.at(tag);
-      result +=
-          fmt::format("; {}: {} ({}) A, {} ({}) P", tag,
-                      size_with_unit(info.active_size), info.active_count,
-                      size_with_unit(info.pending_size), info.pending_count);
+      result =
+          fmt::format("{}/{}", size_with_unit(used_), size_with_unit(limit));
+
+      for (auto const& tag : tags) {
+        auto const& info = requests.at(tag);
+        result +=
+            fmt::format("; {}: {} ({}) A, {} ({}) P", tag,
+                        size_with_unit(info.active_size), info.active_count,
+                        size_with_unit(info.pending_size), info.pending_count);
+      }
+    } else {
+      result = "no memory limit set";
     }
 
     return result;
@@ -170,17 +180,22 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
   };
 
   std::vector<usage_info> get_usage_info() const {
-    auto const requests = get_request_info();
     std::vector<usage_info> usage;
+
+    auto const [requests, limit] = get_request_info();
     size_t total_used{0};
+
     for (auto const& [tag, info] : requests) {
       total_used += info.active_size;
       usage.emplace_back(usage_info{tag, info.active_size});
     }
-    DWARFS_CHECK(total_used <= limit_,
+
+    DWARFS_CHECK(total_used <= limit,
                  fmt::format("Total used memory exceeds limit: {} > {}",
-                             total_used, limit_));
-    usage.emplace_back(usage_info{"free", limit_ - total_used});
+                             total_used, limit));
+
+    usage.emplace_back(usage_info{"free", limit - total_used});
+
     return usage;
   }
 
@@ -192,7 +207,8 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
     size_t pending_count{0};
   };
 
-  std::unordered_map<std::string_view, request_info> get_request_info() const {
+  std::pair<std::unordered_map<std::string_view, request_info>, size_t>
+  get_request_info() const {
     std::unordered_map<std::string_view, request_info> requests;
 
     std::lock_guard lock(mutex_);
@@ -209,7 +225,7 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
       ++entry.pending_count;
     }
 
-    return requests;
+    return {requests, limit_};
   }
 
   void fulfill_and_unlock(std::unique_lock<std::mutex>& lock) {
@@ -285,6 +301,7 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
   size_t sequence_{0};
   size_t used_{};
   size_t limit_{};
+  std::atomic<bool> limit_set_{false};
   std::atomic<size_t> hipri_reserve_;
 };
 

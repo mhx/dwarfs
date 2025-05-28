@@ -43,6 +43,7 @@
 #include <dwarfs/varint.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 namespace dwarfs {
 
@@ -551,23 +552,29 @@ class brotli_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer
   compress(shared_byte_buffer const& data, std::string const* /*metadata*/,
-           memory_manager* /*memmgr*/) const override {
-    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
-    compressed.resize(varint::max_size +
-                      ::BrotliEncoderMaxCompressedSize(data.size()));
-    size_t size_size = varint::encode(data.size(), compressed.data());
-    size_t compressed_size = compressed.size() - size_size;
+           memory_manager* memmgr) const override {
+    compress_scope scope{this, memmgr, data.size(),
+                         varint::max_size +
+                             ::BrotliEncoderMaxCompressedSize(data.size())};
+
+    size_t const size_size = varint::encode(data.size(), scope.data());
+    size_t compressed_size = scope.size() - size_size;
     if (!::BrotliEncoderCompress(quality_, window_bits_, BROTLI_DEFAULT_MODE,
                                  data.size(), data.data(), &compressed_size,
-                                 compressed.data() + size_size)) {
+                                 scope.data() + size_size)) {
       DWARFS_THROW(runtime_error, "brotli: error during compression");
     }
-    compressed.resize(size_size + compressed_size);
-    if (compressed.size() >= data.size()) {
+    scope.release();
+
+    compressed_size += size_size;
+
+    if (compressed_size >= data.size()) {
       throw bad_compression_ratio_error();
     }
-    compressed.shrink_to_fit();
-    return compressed.share();
+
+    scope.shrink(compressed_size);
+
+    return scope.share();
   }
 
   compression_type type() const override { return compression_type::BROTLI; }
@@ -586,8 +593,7 @@ class brotli_block_compressor final : public block_compressor::impl {
   size_t estimate_memory_usage(size_t data_size) const override {
 #ifdef BROTLI_BUILD_ENC_EXTRA_API
     return ::BrotliEncoderEstimatePeakMemoryUsage(quality_, window_bits_,
-                                                  data_size) +
-           data_size;
+                                                  data_size);
 #else
     auto const q = std::clamp<int>(quality_, 0, 11);
     auto const lg_win = std::clamp<int>(window_bits_, 10, 30) - 10;
@@ -596,8 +602,7 @@ class brotli_block_compressor final : public block_compressor::impl {
                         30) -
         10;
     auto const index = (q * 21 + lg_win) * 21 + lg_data_size;
-    return kBrotliMemUsageGranularity * brotli_memory_usage.at(index) +
-           data_size;
+    return kBrotliMemUsageGranularity * brotli_memory_usage.at(index);
 #endif
   }
 
