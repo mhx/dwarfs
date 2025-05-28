@@ -49,14 +49,12 @@ class console_writer : public stream_logger {
 
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
                  progress_mode pg_mode, display_mode mode = NORMAL,
-                 logger_options const& options = {});
+                 logger_options const& options = {},
+                 std::shared_ptr<memory_manager const> memmgr = nullptr);
 
   void update(writer_progress& prog, bool last);
 
   void set_memory_usage_function(mem_usage_fn func) { mem_usage_ = func; }
-  void set_memory_manager(std::shared_ptr<memory_manager const> memmgr) {
-    memmgr_ = std::move(memmgr);
-  }
 
  private:
   void preamble(std::ostream& os) override;

@@ -386,6 +386,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
   v = categorize_optval{po::validators::get_single_string(values), true};
 }
 
+// TODO: this needs a serious overhaul...
 uint64_t
 compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
   auto const sys_mem =
@@ -396,7 +397,7 @@ compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
   } else {
     wanted_mem += std::min(num_cpu, UINT64_C(8)) * block_size;
   }
-  return std::min(wanted_mem, sys_mem / 8);
+  return std::max(UINT64_C(128) << 20, std::min(wanted_mem, sys_mem / 8));
 }
 
 } // namespace
@@ -992,10 +993,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
 
+  auto memmgr = std::make_shared<memory_manager>();
+
   writer::console_writer lgr(iol.term, iol.err, pg_mode,
                              recompress ? writer::console_writer::REWRITE
                                         : writer::console_writer::NORMAL,
-                             logopts);
+                             logopts, memmgr);
 
   if (get_self_memory_usage()) {
     lgr.set_memory_usage_function(
@@ -1363,10 +1366,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
 
-  auto memmgr = std::make_shared<memory_manager>(mem_limit);
-
-  // TODO: this must be synchronized
-  lgr.set_memory_manager(memmgr);
+  memmgr->set_limit(mem_limit);
 
   std::optional<writer::filesystem_writer> fsw;
 
