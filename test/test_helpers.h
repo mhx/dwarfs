@@ -261,6 +261,7 @@ class test_terminal : public terminal {
   size_t width() const override;
   bool is_tty(std::ostream& os) const override;
   bool is_fancy() const override;
+  std::string_view bgcolor(termcolor color) const override;
   std::string_view color(termcolor color, termstyle style) const override;
   std::string colored(std::string text, termcolor color, bool enable,
                       termstyle style) const override;
