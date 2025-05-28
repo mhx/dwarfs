@@ -167,10 +167,12 @@ void output_context_line(terminal const& term, std::ostream& os,
 
 console_writer::console_writer(std::shared_ptr<terminal const> term,
                                std::ostream& os, progress_mode pg_mode,
-                               display_mode mode, logger_options const& options)
+                               display_mode mode, logger_options const& options,
+                               std::shared_ptr<memory_manager const> memmgr)
     : stream_logger(std::move(term), os, options)
     , pg_mode_(pg_mode)
-    , mode_(mode) {}
+    , mode_(mode)
+    , memmgr_{std::move(memmgr)} {}
 
 void console_writer::rewind(std::ostream& os, int next_rewind_lines) {
   if (!statebuf_.empty()) {
@@ -327,10 +329,11 @@ void console_writer::update(writer_progress& prog, bool last) {
       std::vector<bar_chart_section> sections;
 
       for (auto const& tag : tags) {
+        double mem{0.0};
         if (auto it = usage_map.find(tag); it != usage_map.end()) {
-          sections.emplace_back(bar_chart_section{
-              std::string{tag}, static_cast<double>(it->second)});
+          mem = static_cast<double>(it->second);
         }
+        sections.emplace_back(bar_chart_section{std::string{tag}, mem});
       }
 
       oss << render_bar_chart(term(), sections) << newline;

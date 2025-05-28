@@ -50,6 +50,7 @@
 #include <dwarfs/gen-cpp2/compression_types.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 namespace dwarfs {
 
@@ -226,7 +227,7 @@ class flac_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer
   compress(shared_byte_buffer const& data, std::string const* metadata,
-           memory_manager* /*memmgr*/) const override {
+           memory_manager* memmgr) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
                    "internal error: flac compression requires metadata");
@@ -282,12 +283,15 @@ class flac_block_compressor final : public block_compressor::impl {
       pcm_pad = pcm_sample_padding::Msb;
     }
 
-    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
+    size_t const bound_estimate = 5 * data.size() / 8; // optimistic guess
+
+    compress_scope scope{this, memmgr, data.size(), bound_estimate,
+                         compress_scope::buffer_mode::RESERVE};
+    auto& compressed = scope.buffer();
 
     {
       using namespace ::apache::thrift;
 
-      compressed.reserve(5 * data.size() / 8); // optimistic guess
       compressed.resize(varint::max_size);
 
       size_t pos = 0;
@@ -355,9 +359,9 @@ class flac_block_compressor final : public block_compressor::impl {
     //   throw bad_compression_ratio_error();
     // }
 
-    compressed.shrink_to_fit();
+    scope.shrink_to_fit();
 
-    return compressed.share();
+    return scope.share();
   }
 
   compression_type type() const override { return compression_type::FLAC; }
@@ -394,9 +398,9 @@ class flac_block_compressor final : public block_compressor::impl {
     return cc;
   }
 
-  size_t estimate_memory_usage(size_t data_size) const override {
+  size_t estimate_memory_usage(size_t /*data_size*/) const override {
     // TODO: can we estimate the FLAC encoder state size?
-    return data_size;
+    return 0;
   }
 
  private:
