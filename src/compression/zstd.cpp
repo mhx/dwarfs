@@ -35,9 +35,11 @@
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/memory_manager.h>
 #include <dwarfs/option_map.h>
 
 #include "base.h"
+#include "compress_scope.h"
 
 #if ZSTD_VERSION_MAJOR > 1 ||                                                  \
     (ZSTD_VERSION_MAJOR == 1 && ZSTD_VERSION_MINOR >= 4)
@@ -135,7 +137,7 @@ class zstd_block_compressor final : public block_compressor::impl {
 #ifdef ZSTD_STATIC_LINKING_ONLY
     // TODO: check if dictSize == 0 is correct
     auto params = ZSTD_getCParams(level_, data_size, 0);
-    return ZSTD_estimateCCtxSize_usingCParams(params) + data_size;
+    return ZSTD_estimateCCtxSize_usingCParams(params);
 #else
     auto const l = std::clamp<int>(level_, 0, 22);
     auto const lg_data_size =
@@ -143,7 +145,7 @@ class zstd_block_compressor final : public block_compressor::impl {
                         30) -
         10;
     auto const index = l * 21 + lg_data_size;
-    return kZstdMemUsageGranularity * zstd_memory_usage.at(index) + data_size;
+    return kZstdMemUsageGranularity * zstd_memory_usage.at(index);
 #endif
   }
 
@@ -154,21 +156,27 @@ class zstd_block_compressor final : public block_compressor::impl {
 shared_byte_buffer
 zstd_block_compressor::compress(shared_byte_buffer const& data,
                                 std::string const* /*metadata*/,
-                                memory_manager* /*memmgr*/) const {
-  auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
-  compressed.resize(ZSTD_compressBound(data.size()));
-  auto size = ZSTD_compress(compressed.data(), compressed.size(), data.data(),
+                                memory_manager* memmgr) const {
+  compress_scope scope{this, memmgr, data.size(),
+                       ZSTD_compressBound(data.size())};
+
+  auto size = ZSTD_compress(scope.data(), scope.size(), data.data(),
                             data.size(), level_);
+
+  scope.release();
+
   if (ZSTD_isError(size)) {
     DWARFS_THROW(runtime_error,
                  fmt::format("ZSTD: {}", ZSTD_getErrorName(size)));
   }
+
   if (size >= data.size()) {
     throw bad_compression_ratio_error();
   }
-  compressed.resize(size);
-  compressed.shrink_to_fit();
-  return compressed.share();
+
+  scope.shrink(size);
+
+  return scope.share();
 }
 
 class zstd_block_decompressor final : public block_decompressor_base {
