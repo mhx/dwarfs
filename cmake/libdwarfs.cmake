@@ -42,6 +42,7 @@ add_library(
   src/pcm_sample_transformer.cpp
   $<IF:$<BOOL:${ENABLE_PERFMON}>,src/performance_monitor.cpp,>
   src/terminal_ansi.cpp
+  src/termutil.cpp
   src/thread_pool.cpp
   src/util.cpp
   src/varint.cpp
