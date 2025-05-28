@@ -36,6 +36,7 @@ namespace dwarfs {
 
 enum class termcolor {
   NORMAL,
+  BLACK,
   RED,
   GREEN,
   YELLOW,
@@ -44,6 +45,7 @@ enum class termcolor {
   CYAN,
   WHITE,
   GRAY,
+  BOLD_BLACK,
   BOLD_RED,
   BOLD_GREEN,
   BOLD_YELLOW,
@@ -52,6 +54,7 @@ enum class termcolor {
   BOLD_CYAN,
   BOLD_WHITE,
   BOLD_GRAY,
+  DIM_BLACK,
   DIM_RED,
   DIM_GREEN,
   DIM_YELLOW,
@@ -74,6 +77,7 @@ class terminal {
   virtual bool is_fancy() const = 0;
   virtual std::string_view
   color(termcolor color, termstyle style = termstyle::NORMAL) const = 0;
+  virtual std::string_view bgcolor(termcolor color) const = 0;
   virtual std::string
   colored(std::string text, termcolor color, bool enable = true,
           termstyle style = termstyle::NORMAL) const = 0;
