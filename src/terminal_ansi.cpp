@@ -194,6 +194,45 @@ std::string_view terminal_ansi::color_impl(termcolor color, termstyle style) {
   return colors.at(static_cast<size_t>(color));
 }
 
+std::string_view terminal_ansi::bgcolor_impl(termcolor color) {
+  static constexpr std::array<std::string_view,
+                              static_cast<size_t>(termcolor::NUM_COLORS)>
+      // clang-format off
+      bg_colors = {{
+          "\033[0m",
+          "\033[40m",
+          "\033[41m",
+          "\033[42m",
+          "\033[43m",
+          "\033[44m",
+          "\033[45m",
+          "\033[46m",
+          "\033[47m",
+          "\033[100m",
+          "\033[100m",
+          "\033[101m",
+          "\033[102m",
+          "\033[103m",
+          "\033[104m",
+          "\033[105m",
+          "\033[106m",
+          "\033[107m",
+          "\033[100m",
+          "\033[40m",
+          "\033[41m",
+          "\033[42m",
+          "\033[43m",
+          "\033[44m",
+          "\033[45m",
+          "\033[46m",
+          "\033[47m",
+          "\033[40m",
+      }};
+  // clang-format on
+
+  return bg_colors.at(static_cast<size_t>(color));
+}
+
 std::string terminal_ansi::colored_impl(std::string_view text, termcolor color,
                                         bool enable, termstyle style) {
   std::string result;
@@ -223,6 +262,10 @@ std::string_view
 terminal_ansi::color(termcolor color,
                      termstyle style = termstyle::NORMAL) const {
   return color_impl(color, style);
+}
+
+std::string_view terminal_ansi::bgcolor(termcolor color) const {
+  return bgcolor_impl(color);
 }
 
 std::string

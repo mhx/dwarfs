@@ -286,6 +286,44 @@ std::string_view test_terminal::color(termcolor color, termstyle style) const {
   return colors.at(static_cast<size_t>(color));
 }
 
+std::string_view test_terminal::bgcolor(termcolor color) const {
+  static constexpr std::array<std::string_view,
+                              static_cast<size_t>(termcolor::NUM_COLORS)>
+      // clang-format off
+      colors = {{
+          "<bg-normal>",
+          "<bg-black>",
+          "<bg-red>",
+          "<bg-green>",
+          "<bg-yellow>",
+          "<bg-blue>",
+          "<bg-magenta>",
+          "<bg-cyan>",
+          "<bg-white>",
+          "<bg-gray>",
+          "<bg-bright-black>",
+          "<bg-bright-red>",
+          "<bg-bright-green>",
+          "<bg-bright-yellow>",
+          "<bg-bright-blue>",
+          "<bg-bright-magenta>",
+          "<bg-bright-cyan>",
+          "<bg-bright-white>",
+          "<bg-bright-gray>",
+          "<bg-dim-black>",
+          "<bg-dim-red>",
+          "<bg-dim-green>",
+          "<bg-dim-yellow>",
+          "<bg-dim-blue>",
+          "<bg-dim-magenta>",
+          "<bg-dim-cyan>",
+          "<bg-dim-white>",
+          "<bg-dim-gray>",
+      }}; // clang-format on
+
+  return colors.at(static_cast<size_t>(color));
+}
+
 std::string test_terminal::colored(std::string text, termcolor color,
                                    bool enable, termstyle style) const {
   std::string result;
