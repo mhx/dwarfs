@@ -233,6 +233,7 @@ std::string_view test_terminal::color(termcolor color, termstyle style) const {
       // clang-format off
       colors = {{
           "<normal>",
+          "<black>",
           "<red>",
           "<green>",
           "<yellow>",
@@ -241,6 +242,7 @@ std::string_view test_terminal::color(termcolor color, termstyle style) const {
           "<cyan>",
           "<white>",
           "<gray>",
+          "<bold-black>",
           "<bold-red>",
           "<bold-green>",
           "<bold-yellow>",
@@ -249,6 +251,7 @@ std::string_view test_terminal::color(termcolor color, termstyle style) const {
           "<bold-cyan>",
           "<bold-white>",
           "<bold-gray>",
+          "<dim-black>",
           "<dim-red>",
           "<dim-green>",
           "<dim-yellow>",

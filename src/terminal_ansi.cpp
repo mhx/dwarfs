@@ -140,6 +140,7 @@ std::string_view terminal_ansi::color_impl(termcolor color, termstyle style) {
       // clang-format off
       colors = {{
           "\033[0m",
+          "\033[30m",
           "\033[31m",
           "\033[32m",
           "\033[33m",
@@ -148,6 +149,7 @@ std::string_view terminal_ansi::color_impl(termcolor color, termstyle style) {
           "\033[36m",
           "\033[37m",
           "\033[90m",
+          "\033[1;30m",
           "\033[1;31m",
           "\033[1;32m",
           "\033[1;33m",
@@ -156,6 +158,7 @@ std::string_view terminal_ansi::color_impl(termcolor color, termstyle style) {
           "\033[1;36m",
           "\033[1;37m",
           "\033[1;90m",
+          "\033[2;30m",
           "\033[2;31m",
           "\033[2;32m",
           "\033[2;33m",
