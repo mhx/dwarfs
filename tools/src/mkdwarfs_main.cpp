@@ -422,7 +422,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false,
        no_history_timestamps = false, no_history_command_line = false,
-       rebuild_metadata = false, change_block_size = false;
+       rebuild_metadata = false, change_block_size = false,
+       use_memory_manager = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -527,6 +528,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("auto"),
         "block manager memory limit")
+    ("experimental-memory-manager",
+        po::value<bool>(&use_memory_manager)->zero_tokens(),
+        "use memory manager")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
@@ -993,7 +997,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
 
-  auto memmgr = std::make_shared<memory_manager>();
+  std::shared_ptr<memory_manager> memmgr;
+
+  if (use_memory_manager) {
+    memmgr = std::make_shared<memory_manager>();
+  }
 
   writer::console_writer lgr(iol.term, iol.err, pg_mode,
                              recompress ? writer::console_writer::REWRITE
@@ -1366,7 +1374,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
 
-  memmgr->set_limit(mem_limit);
+  if (memmgr) {
+    memmgr->set_limit(mem_limit);
+    // memmgr->set_hipri_reserve(UINT64_C(300) << 20); // 300 MiB
+  }
 
   std::optional<writer::filesystem_writer> fsw;
 
