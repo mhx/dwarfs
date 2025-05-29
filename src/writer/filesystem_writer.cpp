@@ -184,8 +184,10 @@ class fsblock {
 
 class fsblock_merger_policy {
  public:
-  explicit fsblock_merger_policy(size_t worst_case_block_size)
-      : worst_case_block_size_{worst_case_block_size} {}
+  fsblock_merger_policy(size_t worst_case_block_size,
+                        memory_manager const* memmgr)
+      : worst_case_block_size_{worst_case_block_size}
+      , memmgr_{memmgr} {}
 
   size_t block_size(std::unique_ptr<fsblock> const& fsb) const {
     assert(fsb->size() <= worst_case_block_size_);
@@ -196,10 +198,21 @@ class fsblock_merger_policy {
     return worst_case_block_size_;
   }
 
-  static size_t limit_queueable_size(size_t size) { return size; }
+  size_t limit_queueable_size(size_t size) const {
+    if (memmgr_) {
+      size_t available = memmgr_->available_lopri_mem();
+      if (available <= worst_case_block_size_) {
+        return 0;
+      }
+      return std::min(size, available - worst_case_block_size_);
+    }
+
+    return size;
+  }
 
  private:
   size_t worst_case_block_size_;
+  memory_manager const* memmgr_;
 };
 
 class raw_fsblock : public fsblock::impl {
@@ -1122,7 +1135,7 @@ void filesystem_writer_<LoggerPolicy>::configure(
       [this](auto&& holder) {
         on_block_merged(std::forward<decltype(holder)>(holder));
       },
-      fsblock_merger_policy{options_.worst_case_block_size});
+      fsblock_merger_policy{options_.worst_case_block_size, memmgr_.get()});
 }
 
 template <typename LoggerPolicy>
