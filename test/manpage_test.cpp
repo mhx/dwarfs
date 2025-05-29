@@ -140,6 +140,9 @@ parse_options(std::string const& text, std::regex const& re, bool is_fuse) {
           }
         }
       }
+      if (long_opt.starts_with("experimental-")) {
+        continue;
+      }
       options[long_opt] = short_opt;
     }
   }
