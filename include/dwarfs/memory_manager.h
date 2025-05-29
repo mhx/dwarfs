@@ -146,6 +146,12 @@ class memory_manager : public std::enable_shared_from_this<memory_manager> {
     return hdl;
   }
 
+  size_t available_lopri_mem() const {
+    std::lock_guard lock(mutex_);
+    auto const limit = lopri_limit();
+    return limit > used_ ? limit - used_ : 0;
+  }
+
   std::string status() const {
     std::string result;
 
