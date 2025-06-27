@@ -2549,3 +2549,5 @@ dwarfs merged.dwarfs /mnt/fs2 -ooffset=9231,imagesize=7999
 [Runimage: portable single-file linux container](https://github.com/VHSgunzo/runimage)
 
 [PELF - The AppBundle format and the AppBundle Creation Tool](https://github.com/xplshn/pelf)
+
+[uruntime: Universal RunImage and AppImage runtime with SquashFS and DwarFS supports](https://github.com/VHSgunzo/uruntime)
