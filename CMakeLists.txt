@@ -1042,16 +1042,18 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
-      find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
+      find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
 
-      # upx -9 is a good compromise between compression ratio and speed
-      # also, anything above --best increases the startup time of the compressed
-      # executable significantly
-      add_custom_command(
-        OUTPUT ${UNIVERSAL_OUT}
-        COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      )
+      if(UPX_EXE)
+        # upx -9 is a good compromise between compression ratio and speed
+        # also, anything above --best increases the startup time of the compressed
+        # executable significantly
+        add_custom_command(
+          OUTPUT ${UNIVERSAL_OUT}
+          COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
+          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+      endif()
     endif()
 
     list(APPEND UNIVERSAL_UPX_TARGETS ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT})
