@@ -200,6 +200,9 @@ jobs:
           - arch: arm64v8
             dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
+          - arch: riscv64
+            dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
           - arch: amd64
             dist: alpine
             build_type: clang-relsize-minimal-lto-ninja-static

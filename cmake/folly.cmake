@@ -150,6 +150,11 @@ target_include_directories(
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/folly>
 )
 
+# On platforms other than x86 / arm, we need to use the fallback
+if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|aarch64")
+  target_compile_definitions(dwarfs_folly_lite PUBLIC FOLLY_F14_FORCE_FALLBACK=1)
+endif()
+
 if(NOT PREFER_SYSTEM_FAST_FLOAT)
   target_include_directories(
     dwarfs_folly_lite SYSTEM PRIVATE

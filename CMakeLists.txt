@@ -1053,6 +1053,13 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
           COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
+      else()
+        add_custom_command(
+          OUTPUT ${UNIVERSAL_OUT}
+          COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${UNIVERSAL_OUT}
+          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+          COMMENT "UPX not found, copying binary without compression"
+        )
       endif()
     endif()
 

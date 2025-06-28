@@ -51,7 +51,13 @@ RUN apk add --no-cache \
 
 # Install UPX
 ARG ARCH
-RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
+# UPX isn't supported on RISC-V yet, so skip this
+RUN if [ "$ARCH" != "riscv64" ]; then \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+    else \
+        echo "Skipping UPX installation for RISC-V architecture while it is not supported."; \
+        echo "See https://github.com/upx/upx/discussions/793 for details."; \
+    fi
 
 # Install mistletoe
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
@@ -67,7 +73,11 @@ RUN bash /usr/local/bin/install-mold.sh
 
 # Install bloaty
 COPY install-bloaty.sh /usr/local/bin/install-bloaty.sh
-RUN bash /usr/local/bin/install-bloaty.sh
+RUN if [ "$ARCH" != "riscv64" ]; then \
+        bash /usr/local/bin/install-bloaty.sh; \
+    else \
+        echo "Skipping bloaty installation for RISC-V."; \
+    fi
 
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
