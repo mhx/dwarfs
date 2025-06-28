@@ -41,12 +41,22 @@ echo "Using $GCC and $CLANG"
 if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
-elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,libressl,lz4,mimalloc,openssl,xxhash,xz,zstd"
+elif [[ "$PKGS" == ":alpine"* ]]; then
+    if [[ "$PKGS" == ":alpine" ]]; then
+        PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,libressl,lz4,mimalloc,openssl,xxhash,xz,zstd"
+    else
+        PKGS="${PKGS#:alpine:}"
+    fi
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
+    export COMMON_LDFLAGS="-fuse-ld=mold"
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
-    COMPILERS="clang clang-minsize-lto gcc"
+    if [[ "$ARCH" != "x86_64" && "$ARCH" != "aarch64" ]]; then
+        # Let's keep it simple for more exotic architectures
+        COMPILERS="clang-minsize-lto"
+    else
+        COMPILERS="clang clang-minsize-lto gcc"
+    fi
 elif [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
@@ -451,7 +461,9 @@ for COMPILER in $COMPILERS; do
             ./configure --prefix="$prefix" \
                         --without-iconv --without-xml2 --without-expat \
                         --without-bz2lib --without-zlib \
-                        --disable-shared --disable-acl --disable-xattr
+                        --disable-shared --disable-acl --disable-xattr \
+                        --disable-bsdtar --disable-bsdcat --disable-bsdcpio \
+                        --disable-bsdunzip
             make -j$(nproc)
             make install
         done
@@ -472,7 +484,8 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FLAC_TARBALL}
         cd flac-${FLAC_VERSION}
-        ./configure --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
+        ./configure --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
+                    --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
         make -j$(nproc)
         make install
     fi
