@@ -65,6 +65,7 @@ function(add_cpp2_thrift_library idlfile)
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_for_each_field.h
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_handlers.h
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_types.cpp
+    ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_types_compact.cpp
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_types.h
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_types.tcc
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp2/${_THRIFTNAME}_types_custom_protocol.h
