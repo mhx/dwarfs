@@ -147,6 +147,12 @@ jobs:
             build_type: gcc-release-shared-ninja-split
         include:
           - arch: amd64
+            dist: debian
+            build_type: gcc-release-make-full
+          - arch: amd64
+            dist: debian
+            build_type: clang-debug-shared-ninja-split
+          - arch: amd64
             dist: ubuntu
             build_type: clang-reldbg-shared-asan-ninja
           - arch: amd64
