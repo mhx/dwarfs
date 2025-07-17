@@ -1,4 +1,5 @@
 IMAGE_UBUNTU="dwarfs-buildenv"
+IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
 IMAGE_ALPINE_RISCV="dwarfs-buildenv-alpine-riscv64"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
@@ -25,6 +26,12 @@ run:
 
 build_arm:
 	docker build -f Dockerfile.ubuntu -t $(IMAGE_UBUNTU) --build-arg ARCH=arm64v8 .
+
+build_debian:
+	docker build -f Dockerfile.debian -t $(IMAGE_DEBIAN) .
+
+run_debian:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
 
 build_alpine:
 	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE) .

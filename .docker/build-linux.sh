@@ -111,7 +111,7 @@ CMAKE_ARGS="${CMAKE_TOOL_ARGS}"
 case "-$BUILD_TYPE-" in
   *-gcc-*)
     case "-$BUILD_DIST-" in
-      *-ubuntu-*)
+      *-ubuntu-*|*-debian-*)
         export CC=gcc$GCC_VERSION CXX=g++$GCC_VERSION
         ;;
     esac
@@ -122,7 +122,7 @@ case "-$BUILD_TYPE-" in
     ;;
   *-clang-*)
     case "-$BUILD_DIST-" in
-      *-ubuntu-*|*-alpine-*)
+      *-ubuntu-*|*-debian-*|*-alpine-*)
         export CC=clang$CLANG_VERSION CXX=clang++$CLANG_VERSION
         ;;
       *)
