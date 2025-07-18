@@ -122,7 +122,7 @@ Currently, the following different section types are defined:
   first section. The whole point of the section index is to avoid
   having to build an index by visiting all section headers. Since
   the offsets in the index are sorted, the section index is *always*
-  stored uncompressed, and the section infex *must* be the last
+  stored uncompressed, and the section index *must* be the last
   section, you can find the start of the section index by reading
   the last 64-bit value from the image file, checking if the upper
   16 bits match the `SECTION_INDEX` type, and then add the image
