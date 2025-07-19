@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+#include <array>
 #include <filesystem>
 #include <sstream>
 
@@ -37,6 +38,26 @@
 using namespace dwarfs;
 
 namespace {
+
+using namespace std::string_view_literals;
+
+constexpr std::array kSkipOn32Bit = {
+    "0161bfabd70ee4d3700a46dbe0bf2335.dwarfs"sv,
+    "0ca44aa3dda67fe9e9dd85bafbcf8c65.dwarfs"sv,
+    "1ee0685c6ec60cc83d204dcd2a86cf6e.dwarfs"sv,
+    "288e74070d7e82ba12a6c7f87c7b74c2.dwarfs"sv,
+    "320da6d7bce5948ef356e4fe01b20275.dwarfs"sv,
+    "38528a6800d8907065e9bc3de6545030.dwarfs"sv,
+    "3935bf683501ba8e0812b96a32f9e9c1.dwarfs"sv,
+    "3cdd36c5bfdcad8f1cb11f3757b10e0d.dwarfs"sv,
+    "67eb016e1ec15aef9e50ddac8119544f.dwarfs"sv,
+    "72028fdf38bc8bf5767467a8eb33cea1.dwarfs"sv,
+    "80c6ae30d257cf7a936eafa54c85e0f4.dwarfs"sv,
+    "af9384d3fac4850ed2f10125b5db730c.dwarfs"sv,
+    "b5c4dfdbba53dda0eea180ae3acccebc.dwarfs"sv,
+    "ccbfc9eb10aa7b89138996ab90a172a1.dwarfs"sv,
+    "f93cd8ed5de226bca0ecefc521df9f13.dwarfs"sv,
+};
 
 auto const testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
 
@@ -60,7 +81,13 @@ class bad_fs : public ::testing::TestWithParam<std::string> {};
 } // namespace
 
 TEST_P(bad_fs, test) {
-  auto filename = testdata / GetParam();
+  auto const filename = GetParam();
+  auto const filepath = testdata / GetParam();
+
+  if (sizeof(size_t) == 4 && std::find(kSkipOn32Bit.begin(), kSkipOn32Bit.end(),
+                                       filename) != kSkipOn32Bit.end()) {
+    GTEST_SKIP() << "skipping test for 32-bit systems: " << filename;
+  }
 
   test::test_logger lgr;
   test::os_access_mock os;
@@ -70,7 +97,7 @@ TEST_P(bad_fs, test) {
 
   try {
     nerror = reader::filesystem_v2::identify(
-        lgr, os, std::make_shared<mmap>(filename), oss, 9, 1, true,
+        lgr, os, std::make_shared<mmap>(filepath), oss, 9, 1, true,
         reader::filesystem_options::IMAGE_OFFSET_AUTO);
   } catch (std::exception const&) {
     nerror = 1;

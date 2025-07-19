@@ -147,8 +147,8 @@ TEST_P(options_test, cache_stress) {
       auto iv = inodes[inode_dist(rng)];
       auto stat = fs.getattr(iv);
       if (stat.is_regular_file()) {
-        auto offset = rng() % stat.size();
-        auto size = rng() % (stat.size() - offset);
+        size_t offset = rng() % stat.size();
+        size_t size = rng() % (stat.size() - offset);
         reqs.push_back({iv, offset, size});
 
         while (reqs.size() < num_read_reqs &&
