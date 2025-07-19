@@ -489,7 +489,7 @@ class flac_block_decompressor final : public block_decompressor_base {
     return hdr;
   }
 
-  size_t const uncompressed_size_;
+  uint64_t const uncompressed_size_;
   thrift::compression::flac_block_header const header_;
   std::unique_ptr<dwarfs_flac_stream_decoder> decoder_;
 };

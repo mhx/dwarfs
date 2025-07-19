@@ -256,7 +256,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
     return hdr;
   }
 
-  size_t const uncompressed_size_;
+  uint64_t const uncompressed_size_;
   thrift::compression::ricepp_block_header const header_;
   std::span<uint8_t const> data_;
   std::unique_ptr<ricepp::decoder_interface<uint16_t>> decoder_;

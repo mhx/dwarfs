@@ -668,7 +668,7 @@ class brotli_block_decompressor final : public block_decompressor_base {
         ::BrotliDecoderGetErrorCode(decoder_.get()));
   }
 
-  size_t const uncompressed_size_;
+  uint64_t const uncompressed_size_;
   uint8_t const* brotli_data_;
   size_t brotli_size_;
   std::unique_ptr<BrotliDecoderState, decltype(BrotliDecoderDestroyInstance)*>
