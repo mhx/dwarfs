@@ -2,9 +2,6 @@
 ARG ARCH=amd64
 FROM $ARCH/alpine:latest
 
-ARG TARGETARCH
-RUN echo "Building for target: $TARGETARCH"
-
 RUN apk update
 RUN apk upgrade
 RUN apk add --no-cache \
@@ -45,15 +42,16 @@ RUN apk add --no-cache \
         isl-dev \
         texinfo \
         rsync \
-        qemu-$TARGETARCH
+        qemu-riscv64 \
+        qemu-i386
 
 # Install UPX
 ARG ARCH
-# UPX isn't supported on RISC-V yet, so skip this
-RUN if [ "$TARGETARCH" ~= "^(riscv|s390)" ]; then \
-        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $TARGETARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+# UPX isn't supported on RISC-V/S390 (yet), so skip this
+RUN if [ "$ARCH" ~= "^(riscv|s390)" ]; then \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
     else \
-        echo "Skipping UPX installation for $TARGETARCH architecture while it is not supported."; \
+        echo "Skipping UPX installation for $ARCH architecture while it is not supported."; \
         echo "See https://github.com/upx/upx/discussions/793 for details."; \
     fi
 
@@ -62,8 +60,8 @@ RUN if [ "$TARGETARCH" ~= "^(riscv|s390)" ]; then \
 #RUN bash /usr/local/bin/install-libstdcxx.sh
 COPY install-toolchain.sh /usr/local/bin/install-toolchain.sh
 RUN bash /usr/local/bin/install-toolchain.sh prepare
-RUN bash /usr/local/bin/install-toolchain.sh build-stage1 s
-RUN bash /usr/local/bin/install-toolchain.sh build-final s
+RUN bash /usr/local/bin/install-toolchain.sh build riscv64 s
+RUN bash /usr/local/bin/install-toolchain.sh build i386 s
 RUN bash /usr/local/bin/install-toolchain.sh cleanup
 
 RUN apk add --no-cache linux-headers
@@ -74,37 +72,33 @@ RUN bash /usr/local/bin/install-mold.sh
 
 RUN apk del linux-headers zlib-dev
 
-# TODO: move into toolchain installation script
-RUN ln -s /usr/bin/clang /opt/static-libs/libstdc++-Os/$TARGETARCH-unknown-linux-musl/usr/bin/$TARGETARCH-unknown-linux-musl-clang
-RUN ln -s /usr/bin/clang++ /opt/static-libs/libstdc++-Os/$TARGETARCH-unknown-linux-musl/usr/bin/$TARGETARCH-unknown-linux-musl-clang++
-
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libucontext
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libunwind
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:nlohmann
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:date
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:utfcpp
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:boost
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:jemalloc
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:mimalloc
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:double-conversion
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:fmt
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:fuse
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:glog
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:benchmark
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:xxhash
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:bzip2
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:brotli
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:lz4
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:xz
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:zstd
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libressl
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libevent
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libarchive
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:flac
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libdwarf
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:cpptrace
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libucontext
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libunwind
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:nlohmann
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:date
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:utfcpp
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:boost
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:jemalloc
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:mimalloc
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:double-conversion
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:fmt
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:fuse
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:glog
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:benchmark
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:xxhash
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:bzip2
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:brotli
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:lz4
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:xz
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:zstd
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libressl
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libevent
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libarchive
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:flac
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libdwarf
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:cpptrace
 
 ### # RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 

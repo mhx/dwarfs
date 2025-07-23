@@ -3,11 +3,8 @@
 set -ex
 
 TASK="$1"
-OPT="${2:-s}"
-
-if [ -z "$TARGETARCH" ]; then
-    exit 0
-fi
+TARGETARCH="$2"
+OPT="${3:-s}"
 
 BINUTILS_VERSION=2.44
 GCC_VERSION=14.2.0
@@ -39,7 +36,7 @@ CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC
 CXXFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
 LDFLAGS="-Wl,--gc-sections"
 
-SYSROOT="/opt/static-libs/libstdc++-O${OPT}/${TARGET}"
+SYSROOT="/opt/cross"
 PREFIX="$SYSROOT/usr"
 PATH="$PREFIX/bin:$ORIGPATH"
 
@@ -104,11 +101,12 @@ case "$TASK" in
         curl https://gcc.gnu.org/pipermail/gcc-patches/attachments/20250220/c6211b02/attachment.bin | patch -p1
         ;;
 
-    build-stage1)
+    build)
+        # Stage 1
         cd "${HOME}"/pkgs
 
-        mkdir binutils-${BINUTILS_VERSION}-build-O${OPT}
-        cd binutils-${BINUTILS_VERSION}-build-O${OPT}
+        mkdir binutils-${BINUTILS_VERSION}-build-${TARGETARCH}-O${OPT}
+        cd binutils-${BINUTILS_VERSION}-build-${TARGETARCH}-O${OPT}
 
         "$HOME"/pkgs/binutils-${BINUTILS_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --disable-nls --disable-werror
@@ -116,11 +114,11 @@ case "$TASK" in
         make install
 
         cd "$HOME"/pkgs/linux-${LINUX_VERSION}
-        make ARCH="$CARCH" INSTALL_HDR_PATH=$PREFIX headers_install
+        make ARCH="$CARCH" INSTALL_HDR_PATH=$PREFIX/$TARGET headers_install
 
         cd "$HOME"/pkgs
-        mkdir gcc-${GCC_VERSION}-build-O${OPT}-stage1
-        cd gcc-${GCC_VERSION}-build-O${OPT}-stage1
+        mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
+        cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --with-newlib --without-headers \
             --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
@@ -135,16 +133,15 @@ case "$TASK" in
         rm -rf musl-${MUSL_VERSION}
         tar xf ${MUSL_TARBALL}
         cd musl-${MUSL_VERSION}
-        ./configure --prefix=$PREFIX --target=$TARGET CC=$TARGET-gcc
+        ./configure --prefix=$PREFIX/$TARGET --target=$TARGET CC=$TARGET-gcc
         make install-headers
         make -j"$(nproc)"
         make install
-        ;;
 
-    build-final)
+        # Stage 2
         cd "$HOME"/pkgs
-        mkdir gcc-${GCC_VERSION}-build-O${OPT}-final
-        cd gcc-${GCC_VERSION}-build-O${OPT}-final
+        mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
+        cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
 
         case "$ARCH" in
             aarch64)
@@ -152,15 +149,19 @@ case "$TASK" in
                 ;;
         esac
 
+        # --libdir=$PREFIX/lib --includedir=$PREFIX/include \
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT \
-            --libdir=$PREFIX/lib --includedir=$PREFIX/include \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
             --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
             --enable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
             --enable-libstdcxx-time=yes --enable-default-pie --enable-default-ssp --with-linker-hash-style=gnu ${_arch_config}
         make -j"$(nproc)"
         make install
+
+        # Symbolic links for clang
+        ln -s /usr/bin/clang $PREFIX/bin/$TARGET-clang
+        ln -s /usr/bin/clang++ $PREFIX/bin/$TARGET-clang++
         ;;
 
     cleanup)
@@ -168,5 +169,3 @@ case "$TASK" in
         rm -rf pkgs
         ;;
 esac
-
-

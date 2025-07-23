@@ -23,6 +23,11 @@ repositories = [
     # "microsoft/mimalloc",
     "jemalloc/jemalloc",
     "tukaani-project/xz",
+    "davea42/libdwarf-code",
+    "libevent/libevent",
+    "nlohmann/json",
+    "HowardHinnant/date",
+    "nemtrif/utfcpp",
 ]
 
 

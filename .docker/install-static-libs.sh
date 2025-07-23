@@ -6,12 +6,12 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
-GCC="${1:-gcc}"
-CLANG="${2:-clang}"
-PKGS="${3:-:none}"
+GCC="gcc"
+CLANG="clang"
+TARGET_ARCH_STR="$1"
+PKGS="${2:-:none}"
 
 ARCH="$(uname -m)"
-CARCH="$TARGETARCH"
 
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
@@ -206,24 +206,29 @@ opt_perf() {
     set_build_flags
 }
 
-rm -f /tmp/meson-$CARCH.txt
+read -ra TARGET_ARCHS <<< "${TARGET_ARCH_STR//,/$'\n'}"
 
-if [ -n "$TARGETARCH" ]; then
-    export TARGET="${TARGETARCH}-unknown-linux-musl"
-    export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
-    export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$CARCH"
-    export OPENSSL_TARGET_ARGS="linux-$CARCH"
-    export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
-    export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
+for TARGETARCH in "${TARGET_ARCHS[@]}"; do
+    export CARCH="$TARGETARCH"
 
-    endian="little"
-    case "$CARCH" in
-        powerpc|powerpc64|s390|s390x)
-            endian="big"
-            ;;
-    esac
+    rm -f /tmp/meson-$CARCH.txt
 
-    cat <<EOF > /tmp/meson-$CARCH.txt
+    if [ -n "$TARGETARCH" ]; then
+        export TARGET="${TARGETARCH}-unknown-linux-musl"
+        export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
+        export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$CARCH"
+        export OPENSSL_TARGET_ARGS="linux-$CARCH"
+        export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
+        export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
+
+        endian="little"
+        case "$CARCH" in
+            powerpc|powerpc64|s390|s390x)
+                endian="big"
+                ;;
+        esac
+
+        cat <<EOF > /tmp/meson-$CARCH.txt
 [binaries]
 c = '$TARGET-clang'
 cpp = '$TARGET-clang++'
@@ -237,436 +242,437 @@ cpu_family = '$CARCH'
 cpu = '$CARCH'
 endian = '$endian'
 EOF
-else
-    export TARGET=""
-    export TRIPLETS=""
-    export BOOST_CMAKE_ARGS=""
-    export OPENSSL_TARGET_ARGS=""
-    export LIBUCONTEXT_MAKE_ARGS=""
-    export MESON_CROSS_FILE=""
-fi
-
-# TODO
-export INCLUDE_FLAGS="-isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/include -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/$TARGET/include/c++/14.2.0 -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/$TARGET/include/c++/14.2.0/$TARGET"
-export PATH="/opt/static-libs/libstdc++-Os/$TARGET/usr/bin:$PATH"
-export COMMON_CFLAGS="$COMMON_CFLAGS $INCLUDE_FLAGS"
-export COMMON_CXXFLAGS="$COMMON_CXXFLAGS $INCLUDE_FLAGS"
-export CPPFLAGS="$INCLUDE_FLAGS"
-
-for COMPILER in $COMPILERS; do
-    INSTALL_DIR=/opt/static-libs/$COMPILER
-    TARGET_LDFLAGS=
-    if [ -n "$TARGETARCH" ]; then
-        INSTALL_DIR="$INSTALL_DIR/$TARGET"
-        TARGET_LDFLAGS="-L/opt/static-libs/libstdc++-Os/$TARGET/usr/lib --sysroot=/opt/static-libs/libstdc++-Os/$TARGET"
-    fi
-    INSTALL_DIR="$INSTALL_DIR/usr"
-
-    export SIZE_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
-    export SIZE_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
-    export PERF_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
-    export PERF_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
-    export COMP_LDFLAGS="$TARGET_LDFLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
-
-    case "$COMPILER" in
-        clang*)
-            if [ -n "$TARGETARCH" ]; then
-                export CC="$TARGET-clang"
-                export CXX="$TARGET-clang++"
-            else
-                export CC="$CLANG"
-                export CXX="${CLANG/clang/clang++}"
-            fi
-            ;;
-        gcc*)
-            if [ -n "$TARGETARCH" ]; then
-                export CC="$TARGET-gcc"
-                export CXX="$TARGET-g++"
-            else
-                export CC="$GCC"
-                export CXX="${GCC/gcc/g++}"
-            fi
-            ;;
-        *)
-            echo "Unknown compiler: $COMPILER"
-            exit 1
-            ;;
-    esac
-
-    case "-$COMPILER-" in
-        *-minsize-*)
-            export SIZE_CFLAGS="$SIZE_CFLAGS -Os"
-            export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -Os"
-            ;;
-    esac
-
-    case "$COMPILER" in
-        *-lto)
-            export SIZE_CFLAGS="$SIZE_CFLAGS -flto"
-            export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto"
-            export PERF_CFLAGS="$PERF_CFLAGS -flto"
-            export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
-            export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
-            ;;
-    esac
-
-    cd "$HOME/pkgs"
-    mkdir $COMPILER
-
-    if use_lib libucontext; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        mkdir libucontext-${LIBUCONTEXT_VERSION}
-        tar xf ../${LIBUCONTEXT_TARBALL} --strip-components=1 -C libucontext-${LIBUCONTEXT_VERSION}
-        cd libucontext-${LIBUCONTEXT_VERSION}
-        make -j$(nproc) ${LIBUCONTEXT_MAKE_ARGS}
-        make install ${LIBUCONTEXT_MAKE_ARGS} DESTDIR="$INSTALL_DIR" prefix=""
+    else
+        export TARGET=""
+        export TRIPLETS=""
+        export BOOST_CMAKE_ARGS=""
+        export OPENSSL_TARGET_ARGS=""
+        export LIBUCONTEXT_MAKE_ARGS=""
+        export MESON_CROSS_FILE=""
     fi
 
-    if use_lib libunwind; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBUNWIND_TARBALL}
-        cd libunwind-${LIBUNWIND_VERSION}
-        LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
-            ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
-        make -j$(nproc)
-        make install
-    fi
+    export PATH="/opt/cross/usr/bin:$PATH"
+    export WORKROOT="$HOME/pkgs"
 
-    if use_lib nlohmann; then
-        mkdir -p "$INSTALL_DIR/include/nlohmann"
-        cp "$HOME/pkgs/json.hpp" "$INSTALL_DIR/include/nlohmann/json.hpp"
-    fi
+    for COMPILER in $COMPILERS; do
+        INSTALL_DIR=/opt/static-libs/$COMPILER
+        WORKSUBDIR="$COMPILER"
+        TARGET_FLAGS=
+        if [ -n "$TARGETARCH" ]; then
+            INSTALL_DIR="$INSTALL_DIR/$TARGET"
+            WORKSUBDIR="$WORKSUBDIR/$TARGET"
+            TARGET_FLAGS="--sysroot=/opt/cross"
+        fi
+        INSTALL_DIR="$INSTALL_DIR/usr"
+        WORKDIR="$WORKROOT/$WORKSUBDIR"
 
-    if use_lib date; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${DATE_TARBALL}
-        cd date-${DATE_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
+        export SIZE_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
+        export SIZE_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
+        export PERF_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
+        export PERF_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
+        export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
+        export CPPFLAGS="$TARGET_FLAGS"
 
-    if use_lib utfcpp; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${UTFCPP_TARBALL}
-        cd utfcpp-${UTFCPP_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
+        case "$COMPILER" in
+            clang*)
+                if [ -n "$TARGETARCH" ]; then
+                    export CC="$TARGET-clang"
+                    export CXX="$TARGET-clang++"
+                else
+                    export CC="$CLANG"
+                    export CXX="${CLANG/clang/clang++}"
+                fi
+                ;;
+            gcc*)
+                if [ -n "$TARGETARCH" ]; then
+                    export CC="$TARGET-gcc"
+                    export CXX="$TARGET-g++"
+                else
+                    export CC="$GCC"
+                    export CXX="${GCC/gcc/g++}"
+                fi
+                ;;
+            *)
+                echo "Unknown compiler: $COMPILER"
+                exit 1
+                ;;
+        esac
 
-    if use_lib boost; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${BOOST_TARBALL}
-        cd boost-${BOOST_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
-                 -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
-                 -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
-                 -DBOOST_EXCLUDE_LIBRARIES=stacktrace ${BOOST_CMAKE_ARGS} \
-                 -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
+        case "-$COMPILER-" in
+            *-minsize-*)
+                export SIZE_CFLAGS="$SIZE_CFLAGS -Os"
+                export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -Os"
+                ;;
+        esac
 
-    if use_lib jemalloc; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${JEMALLOC_TARBALL}
-        cd jemalloc-${JEMALLOC_VERSION}
-        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
-        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
-        ./autogen.sh ${TRIPLETS}
-        # mkdir build-minimal
-        # cd build-minimal
-        # ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
-        # make -j$(nproc)
-        # make install
-        # cd ..
-        # mkdir build-full
-        mkdir build
-        cd build
-        ../configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
-        make -j$(nproc)
-        make install
-    fi
+        case "$COMPILER" in
+            *-lto)
+                export SIZE_CFLAGS="$SIZE_CFLAGS -flto"
+                export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto"
+                export PERF_CFLAGS="$PERF_CFLAGS -flto"
+                export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
+                export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
+                ;;
+        esac
 
-    if use_lib mimalloc; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${MIMALLOC_TARBALL}
-        cd mimalloc-${MIMALLOC_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
+        cd "$WORKROOT"
+        mkdir -p "$WORKSUBDIR"
 
-    if use_lib double-conversion; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${DOUBLE_CONVERSION_TARBALL}
-        cd double-conversion-${DOUBLE_CONVERSION_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib fmt; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${FMT_TARBALL}
-        cd fmt-${FMT_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib fuse; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBFUSE_TARBALL}
-        cd fuse-${LIBFUSE_VERSION}
-        mkdir build
-        cd build
-        meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-        # meson configure ${TRIPLETS} -D utils=false -D tests=false -D examples=false
-        meson configure -D utils=false -D tests=false -D examples=false
-        meson setup --reconfigure ..
-        ninja
-        ninja install
-    fi
-
-    if use_lib glog; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${GLOG_TARBALL}
-        cd glog-${GLOG_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib benchmark; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${BENCHMARK_TARBALL}
-        cd benchmark-${BENCHMARK_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DBENCHMARK_ENABLE_WERROR=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib xxhash; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${XXHASH_TARBALL}
-        cd xxHash-${XXHASH_VERSION}
-        make -j$(nproc)
-        make install PREFIX="$INSTALL_DIR"
-    fi
-
-    if use_lib bzip2; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${BZIP2_TARBALL}
-        cd bzip2-${BZIP2_VERSION}
-        make -j$(nproc)
-        make PREFIX="$INSTALL_DIR" install
-    fi
-
-    if use_lib brotli; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${BROTLI_TARBALL}
-        cd brotli-${BROTLI_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib lz4; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LZ4_TARBALL}
-        cd lz4-${LZ4_VERSION}/build/cmake
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib xz; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${XZ_TARBALL}
-        cd xz-${XZ_VERSION}
-        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib zstd; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${ZSTD_TARBALL}
-        cd zstd-${ZSTD_VERSION}
-        mkdir meson-build
-        cd meson-build
-        meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-        meson configure -D zlib=disabled -D lzma=disabled -D lz4=disabled
-        meson setup --reconfigure ../build/meson
-        ninja
-        ninja install
-    fi
-
-    if use_lib openssl; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${OPENSSL_TARBALL}
-        cd openssl-${OPENSSL_VERSION}
-        ./Configure ${OPENSSL_TARGET_ARGS} --prefix="$INSTALL_DIR-openssl" --libdir=lib \
-                threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
-                no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
-                no-dgram no-dh no-dsa no-ec no-engine no-filenames no-idea no-ktls no-md4 no-multiblock \
-                no-nextprotoneg no-ocsp no-ocb no-poly1305 no-psk no-rc2 no-rc4 no-seed no-siphash no-siv no-sm3 no-sm4 \
-                no-srp no-srtp no-ssl3-method no-ssl-trace no-tfo no-ts no-ui-console no-whirlpool no-fips-securitychecks \
-                no-tests no-docs
-
-        make -j$(nproc)
-        make install_sw
-    fi
-
-    if use_lib libressl; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBRESSL_TARBALL}
-        cd libressl-${LIBRESSL_VERSION}
-        # ./configure ${TRIPLETS} --prefix="$INSTALL_DIR-libressl" --enable-static --disable-shared --disable-tests
-        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static --disable-shared --disable-tests
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib libevent; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBEVENT_TARBALL}
-        cd libevent-${LIBEVENT_VERSION}-stable
-        curl https://github.com/libevent/libevent/commit/883630f76cbf512003b81de25cd96cb75c6cf0f9.diff | patch -p1
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS} \
-                 -DEVENT__DISABLE_DEBUG_MODE=ON -DEVENT__DISABLE_THREAD_SUPPORT=ON -DEVENT__DISABLE_OPENSSL=ON \
-                 -DEVENT__DISABLE_MBEDTLS=ON -DEVENT__DISABLE_BENCHMARK=ON -DEVENT__DISABLE_TESTS=ON \
-                 -DEVENT__DISABLE_REGRESS=ON -DEVENT__DISABLE_SAMPLES=ON -DEVENT__LIBRARY_TYPE=STATIC
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib libarchive; then
-        unset LIBARCHIVE_PREFIXES
-        # if use_lib openssl; then
-        #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-openssl"
-        # fi
-        # if use_lib libressl; then
-        #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-libressl"
-        # fi
-        if [[ -z "$LIBARCHIVE_PREFIXES" ]]; then
-            LIBARCHIVE_PREFIXES="$INSTALL_DIR"
+        if use_lib libucontext; then
+            opt_size
+            cd "$WORKDIR"
+            mkdir libucontext-${LIBUCONTEXT_VERSION}
+            tar xf ${WORKROOT}/${LIBUCONTEXT_TARBALL} --strip-components=1 -C libucontext-${LIBUCONTEXT_VERSION}
+            cd libucontext-${LIBUCONTEXT_VERSION}
+            make -j$(nproc) ${LIBUCONTEXT_MAKE_ARGS}
+            make install ${LIBUCONTEXT_MAKE_ARGS} DESTDIR="$INSTALL_DIR" prefix=""
         fi
 
-        for prefix in $LIBARCHIVE_PREFIXES; do
+        if use_lib libunwind; then
             opt_size
-            cd "$HOME/pkgs/$COMPILER"
-            rm -rf libarchive-${LIBARCHIVE_VERSION}
-            tar xf ../${LIBARCHIVE_TARBALL}
-            cd libarchive-${LIBARCHIVE_VERSION}
-            # TODO: once DwarFS supports ACLs / xattrs, we need to update this
-            # export CFLAGS="-I$prefix/include $CFLAGS"
-            # export CPPFLAGS="-I$prefix/include $CPPFLAGS"
-            # export LDFLAGS="-L$prefix/lib $LDFLAGS"
-            ./configure ${TRIPLETS} --prefix="$prefix" \
-                        --without-iconv --without-xml2 --without-expat \
-                        --without-bz2lib --without-zlib \
-                        --disable-shared --disable-acl --disable-xattr \
-                        --disable-bsdtar --disable-bsdcat --disable-bsdcpio \
-                        --disable-bsdunzip
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBUNWIND_TARBALL}
+            cd libunwind-${LIBUNWIND_VERSION}
+            LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
+                ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
             make -j$(nproc)
             make install
-        done
-    fi
+        fi
 
-    if use_lib file; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${FILE_TARBALL}
-        cd file-${FILE_VERSION}
-        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no
-        make -j$(nproc)
-        make install
-    fi
+        if use_lib nlohmann; then
+            mkdir -p "$INSTALL_DIR/include/nlohmann"
+            cp "$HOME/pkgs/json.hpp" "$INSTALL_DIR/include/nlohmann/json.hpp"
+        fi
 
-    if use_lib flac; then
-        opt_perf
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${FLAC_TARBALL}
-        cd flac-${FLAC_VERSION}
-        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
-                    --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
-        make -j$(nproc)
-        make install
-    fi
+        if use_lib date; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${DATE_TARBALL}
+            cd date-${DATE_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
 
-    if use_lib libdwarf; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBDWARF_TARBALL}
-        cd libdwarf-${LIBDWARF_VERSION}
-        mkdir meson-build
-        cd meson-build
-        meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-        # meson configure
-        # meson setup --reconfigure ..
-        ninja
-        ninja install
-    fi
+        if use_lib utfcpp; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${UTFCPP_TARBALL}
+            cd utfcpp-${UTFCPP_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
 
-    if use_lib cpptrace; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${CPPTRACE_TARBALL}
-        cd cpptrace-${CPPTRACE_VERSION}
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-                 -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
-                 ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
+        if use_lib boost; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${BOOST_TARBALL}
+            cd boost-${BOOST_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
+                     -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
+                     -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
+                     -DBOOST_EXCLUDE_LIBRARIES=stacktrace ${BOOST_CMAKE_ARGS} \
+                     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib jemalloc; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${JEMALLOC_TARBALL}
+            cd jemalloc-${JEMALLOC_VERSION}
+            curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
+            curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
+            ./autogen.sh ${TRIPLETS}
+            # mkdir build-minimal
+            # cd build-minimal
+            # ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
+            # make -j$(nproc)
+            # make install
+            # cd ..
+            # mkdir build-full
+            mkdir build
+            cd build
+            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib mimalloc; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${MIMALLOC_TARBALL}
+            cd mimalloc-${MIMALLOC_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib double-conversion; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${DOUBLE_CONVERSION_TARBALL}
+            cd double-conversion-${DOUBLE_CONVERSION_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib fmt; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${FMT_TARBALL}
+            cd fmt-${FMT_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib fuse; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBFUSE_TARBALL}
+            cd fuse-${LIBFUSE_VERSION}
+            mkdir build
+            cd build
+            meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
+            # meson configure ${TRIPLETS} -D utils=false -D tests=false -D examples=false
+            meson configure -D utils=false -D tests=false -D examples=false
+            meson setup --reconfigure ..
+            ninja
+            ninja install
+        fi
+
+        if use_lib glog; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${GLOG_TARBALL}
+            cd glog-${GLOG_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib benchmark; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${BENCHMARK_TARBALL}
+            cd benchmark-${BENCHMARK_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DBENCHMARK_ENABLE_WERROR=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib xxhash; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${XXHASH_TARBALL}
+            cd xxHash-${XXHASH_VERSION}
+            make -j$(nproc)
+            make install PREFIX="$INSTALL_DIR"
+        fi
+
+        if use_lib bzip2; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${BZIP2_TARBALL}
+            cd bzip2-${BZIP2_VERSION}
+            make -j$(nproc)
+            make PREFIX="$INSTALL_DIR" install
+        fi
+
+        if use_lib brotli; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${BROTLI_TARBALL}
+            cd brotli-${BROTLI_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib lz4; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LZ4_TARBALL}
+            cd lz4-${LZ4_VERSION}/build/cmake
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib xz; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${XZ_TARBALL}
+            cd xz-${XZ_VERSION}
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib zstd; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${ZSTD_TARBALL}
+            cd zstd-${ZSTD_VERSION}
+            mkdir meson-build
+            cd meson-build
+            meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
+            meson configure -D zlib=disabled -D lzma=disabled -D lz4=disabled
+            meson setup --reconfigure ../build/meson
+            ninja
+            ninja install
+        fi
+
+        if use_lib openssl; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${OPENSSL_TARBALL}
+            cd openssl-${OPENSSL_VERSION}
+            ./Configure ${OPENSSL_TARGET_ARGS} --prefix="$INSTALL_DIR-openssl" --libdir=lib \
+                    threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
+                    no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
+                    no-dgram no-dh no-dsa no-ec no-engine no-filenames no-idea no-ktls no-md4 no-multiblock \
+                    no-nextprotoneg no-ocsp no-ocb no-poly1305 no-psk no-rc2 no-rc4 no-seed no-siphash no-siv no-sm3 no-sm4 \
+                    no-srp no-srtp no-ssl3-method no-ssl-trace no-tfo no-ts no-ui-console no-whirlpool no-fips-securitychecks \
+                    no-tests no-docs
+
+            make -j$(nproc)
+            make install_sw
+        fi
+
+        if use_lib libressl; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
+            cd libressl-${LIBRESSL_VERSION}
+            # ./configure ${TRIPLETS} --prefix="$INSTALL_DIR-libressl" --enable-static --disable-shared --disable-tests
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static --disable-shared --disable-tests
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib libevent; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBEVENT_TARBALL}
+            cd libevent-${LIBEVENT_VERSION}-stable
+            curl https://github.com/libevent/libevent/commit/883630f76cbf512003b81de25cd96cb75c6cf0f9.diff | patch -p1
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS} \
+                     -DEVENT__DISABLE_DEBUG_MODE=ON -DEVENT__DISABLE_THREAD_SUPPORT=ON -DEVENT__DISABLE_OPENSSL=ON \
+                     -DEVENT__DISABLE_MBEDTLS=ON -DEVENT__DISABLE_BENCHMARK=ON -DEVENT__DISABLE_TESTS=ON \
+                     -DEVENT__DISABLE_REGRESS=ON -DEVENT__DISABLE_SAMPLES=ON -DEVENT__LIBRARY_TYPE=STATIC
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib libarchive; then
+            unset LIBARCHIVE_PREFIXES
+            # if use_lib openssl; then
+            #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-openssl"
+            # fi
+            # if use_lib libressl; then
+            #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-libressl"
+            # fi
+            if [[ -z "$LIBARCHIVE_PREFIXES" ]]; then
+                LIBARCHIVE_PREFIXES="$INSTALL_DIR"
+            fi
+
+            for prefix in $LIBARCHIVE_PREFIXES; do
+                opt_size
+                cd "$WORKDIR"
+                rm -rf libarchive-${LIBARCHIVE_VERSION}
+                tar xf ${WORKROOT}/${LIBARCHIVE_TARBALL}
+                cd libarchive-${LIBARCHIVE_VERSION}
+                # TODO: once DwarFS supports ACLs / xattrs, we need to update this
+                # export CFLAGS="-I$prefix/include $CFLAGS"
+                # export CPPFLAGS="-I$prefix/include $CPPFLAGS"
+                # export LDFLAGS="-L$prefix/lib $LDFLAGS"
+                ./configure ${TRIPLETS} --prefix="$prefix" \
+                            --without-iconv --without-xml2 --without-expat \
+                            --without-bz2lib --without-zlib \
+                            --disable-shared --disable-acl --disable-xattr \
+                            --disable-bsdtar --disable-bsdcat --disable-bsdcpio \
+                            --disable-bsdunzip
+                make -j$(nproc)
+                make install
+            done
+        fi
+
+        if use_lib file; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${FILE_TARBALL}
+            cd file-${FILE_VERSION}
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib flac; then
+            opt_perf
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${FLAC_TARBALL}
+            cd flac-${FLAC_VERSION}
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
+                        --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib libdwarf; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBDWARF_TARBALL}
+            cd libdwarf-${LIBDWARF_VERSION}
+            mkdir meson-build
+            cd meson-build
+            meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
+            # meson configure
+            # meson setup --reconfigure ..
+            ninja
+            ninja install
+        fi
+
+        if use_lib cpptrace; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${CPPTRACE_TARBALL}
+            cd cpptrace-${CPPTRACE_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+                     -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
+                     ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+    done
 done
 
 cd "$HOME"
