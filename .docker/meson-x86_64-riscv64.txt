@@ -1,0 +1,11 @@
+[binaries]
+c = 'xx-clang'
+cpp = 'xx-clang++'
+ar = 'riscv64-alpine-linux-musl-ar'
+strip = 'riscv64-alpine-linux-musl-strip'
+
+[host_machine]
+system = 'linux'
+cpu_family = 'riscv64'
+cpu = 'riscv64'
+endian = 'little'

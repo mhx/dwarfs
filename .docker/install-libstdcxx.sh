@@ -2,6 +2,14 @@
 
 set -ex
 
+if [ -n "$TARGETPLATFORM" ]; then
+    # export CC="xx-cc"
+    # export CXX="xx-c++"
+    export TRIPLETS="--host=$(TARGETPLATFORM= xx-info triple) --build=$(TARGETPLATFORM= xx-info triple) --target=$(xx-info triple)"
+else
+    export TRIPLETS=""
+fi
+
 cd "$HOME"
 mkdir pkgs
 cd pkgs
@@ -74,7 +82,7 @@ for opt in s; do
             ;;
     esac
 
-    "$HOME"/pkgs/gcc-${GCC_VERSION}/configure --prefix=${INSTALLDIR} --libdir=${INSTALLDIR}/lib \
+    "$HOME"/pkgs/gcc-${GCC_VERSION}/configure ${TRIPLETS} --prefix=${INSTALLDIR} --libdir=${INSTALLDIR}/lib \
         --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
         --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
         --disable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
