@@ -99,6 +99,7 @@ RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libarchive
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:flac
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libdwarf
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:cpptrace
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:range-v3
 
 ### # RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 

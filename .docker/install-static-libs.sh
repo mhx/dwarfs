@@ -42,6 +42,7 @@ LIBEVENT_VERSION=2.1.12                  # 2020-07-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 DATE_VERSION=3.0.4                       # 2025-05-28
 UTFCPP_VERSION=4.0.6                     # 2024-11-03
+RANGE_V3_VERSION=0.12.0                  # 2022-06-21
 
 echo "Using $GCC and $CLANG"
 
@@ -50,7 +51,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine"* ]]; then
     if [[ "$PKGS" == ":alpine" ]]; then
-        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,utfcpp,xxhash,xz,zstd"
+        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,range-v3,openssl,utfcpp,xxhash,xz,zstd"
     else
         PKGS="${PKGS#:alpine:}"
     fi
@@ -96,6 +97,7 @@ LIBDWARF_TARBALL="libdwarf-${LIBDWARF_VERSION}.tar.xz"
 LIBEVENT_TARBALL="libevent-${LIBEVENT_VERSION}-stable.tar.gz"
 DATE_TARBALL="date-${DATE_VERSION}.tar.gz"
 UTFCPP_TARBALL="utfcpp-${UTFCPP_VERSION}.tar.gz"
+RANGE_V3_TARBALL="range-v3-${RANGE_V3_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -157,6 +159,7 @@ fetch_lib libevent https://github.com/libevent/libevent/releases/download/releas
 fetch_lib nlohmann https://github.com/nlohmann/json/releases/download/v${NLOHMANN_VERSION}/json.hpp
 fetch_lib date https://github.com/HowardHinnant/date/archive/refs/tags/v${DATE_VERSION}.tar.gz ${DATE_TARBALL}
 fetch_lib utfcpp https://github.com/nemtrif/utfcpp/archive/refs/tags/v${UTFCPP_VERSION}.tar.gz ${UTFCPP_TARBALL}
+fetch_lib range-v3 https://github.com/ericniebler/range-v3/archive/refs/tags/${RANGE_V3_VERSION}.tar.gz ${RANGE_V3_TARBALL}
 
 set_build_flags() {
     if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
@@ -668,6 +671,22 @@ EOF
             cd build
             cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
                      -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
+                     ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib range-v3; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${RANGE_V3_TARBALL}
+            cd range-v3-${RANGE_V3_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+                     -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DRANGE_V3_EXAMPLES=OFF \
+                     -DRANGE_V3_PERF=OFF -DRANGE_V3_TESTS=OFF -DRANGE_V3_HEADER_CHECKS=ON \
+                     -DRANGES_ENABLE_WERROR=OFF -DRANGES_NATIVE=OFF -DRANGES_DEBUG_INFO=OFF \
                      ${CMAKE_ARGS}
             make -j$(nproc)
             make install
