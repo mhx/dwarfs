@@ -33,7 +33,8 @@ XXHASH_VERSION=0.8.3                     # 2024-12-30
 LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.1.0                     # 2023-08-31
 ZSTD_VERSION=1.5.7                       # 2025-02-19
-LIBFUSE_VERSION=3.17.3                   # 2025-07-19
+LIBFUSE_VERSION=2.9.9                    # 2019-01-04
+LIBFUSE3_VERSION=3.17.3                  # 2025-07-19
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 JEMALLOC_VERSION=5.3.0                   # 2022-05-02
 XZ_VERSION=5.8.1                         # 2025-04-03
@@ -52,7 +53,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine"* ]]; then
     if [[ "$PKGS" == ":alpine" ]]; then
-        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,parallel-hashmap,range-v3,openssl,utfcpp,xxhash,xz,zstd"
+        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,parallel-hashmap,range-v3,openssl,utfcpp,xxhash,xz,zstd"
     else
         PKGS="${PKGS#:alpine:}"
     fi
@@ -91,6 +92,7 @@ LZ4_TARBALL="lz4-${LZ4_VERSION}.tar.gz"
 BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
 ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
 LIBFUSE_TARBALL="fuse-${LIBFUSE_VERSION}.tar.gz"
+LIBFUSE3_TARBALL="fuse-${LIBFUSE3_VERSION}.tar.gz"
 MIMALLOC_TARBALL="mimalloc-${MIMALLOC_VERSION}.tar.gz"
 JEMALLOC_TARBALL="jemalloc-${JEMALLOC_VERSION}.tar.bz2"
 XZ_TARBALL="xz-${XZ_VERSION}.tar.xz"
@@ -153,6 +155,7 @@ fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
 fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
+fetch_lib fuse3 https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE3_VERSION}/${LIBFUSE3_TARBALL}
 fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz ${MIMALLOC_TARBALL}
 fetch_lib jemalloc https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/${JEMALLOC_TARBALL}
 fetch_lib xz https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/${XZ_TARBALL}
@@ -461,6 +464,18 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${LIBFUSE_TARBALL}
             cd fuse-${LIBFUSE_VERSION}
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" \
+                --disable-shared --enable-static \
+                --disable-example --enable-lib --disable-util
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib fuse3; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBFUSE3_TARBALL}
+            cd fuse-${LIBFUSE3_VERSION}
             mkdir build
             cd build
             meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
