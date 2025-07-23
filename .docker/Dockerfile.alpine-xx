@@ -1,0 +1,121 @@
+# syntax=docker/dockerfile:1
+ARG ARCH=amd64
+FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
+FROM --platform=$BUILDPLATFORM alpine:latest
+RUN apk update
+RUN apk upgrade
+RUN apk add --no-cache \
+        bash-completion \
+        build-base \
+        wget \
+        curl \
+        vim \
+        tar \
+        ripgrep \
+        py3-pip \
+        less \
+        gcc \
+        g++ \
+        clang19 \
+        git \
+        ccache \
+        samurai \
+        cmake \
+        make \
+        bison \
+        flex \
+        ronn \
+        fuse \
+        fuse-dev \
+        fuse-static \
+        fuse3 \
+        fuse3-dev \
+        fuse3-static \
+        pkgconf \
+        binutils-dev \
+        libevent-dev \
+        libevent-static \
+        linux-headers \
+        date-dev \
+        range-v3-dev \
+        zlib-static \
+        libucontext-dev \
+        libdwarf-dev \
+        elfutils-dev \
+        utfcpp \
+        nlohmann-json \
+        meson \
+        autoconf \
+        strace \
+        gdb
+
+COPY --from=xx / /
+ARG TARGETPLATFORM
+RUN xx-apk add --no-cache musl-dev binutils gcc g++
+
+# Install UPX
+ARG ARCH
+# UPX isn't supported on RISC-V yet, so skip this
+RUN if [ "$ARCH" != "riscv64" ]; then \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+    else \
+        echo "Skipping UPX installation for RISC-V architecture while it is not supported."; \
+        echo "See https://github.com/upx/upx/discussions/793 for details."; \
+    fi
+
+# Install mistletoe
+RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
+
+# Install size-optimized and static-link-optimized libstdc++
+RUN apk add --no-cache gmp-dev mpfr-dev mpc1-dev isl-dev texinfo rsync
+#COPY install-libstdcxx.sh /usr/local/bin/install-libstdcxx.sh
+#RUN bash /usr/local/bin/install-libstdcxx.sh
+COPY install-toolchain.sh /usr/local/bin/install-toolchain.sh
+RUN bash /usr/local/bin/install-toolchain.sh prepare
+RUN bash /usr/local/bin/install-toolchain.sh build-stage1 s
+RUN bash /usr/local/bin/install-toolchain.sh build-final s
+RUN bash /usr/local/bin/install-toolchain.sh cleanup
+
+# Install mold
+COPY install-mold.sh /usr/local/bin/install-mold.sh
+RUN bash /usr/local/bin/install-mold.sh
+
+RUN apk add qemu-riscv64
+COPY meson-x86_64-riscv64.txt /usr/local/share/meson-x86_64-riscv64.txt
+
+# Install all static libraries
+COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libucontext
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libunwind
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:boost
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:jemalloc
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:mimalloc
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:double-conversion
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:fmt
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:fuse
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:glog
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:benchmark
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:xxhash
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:bzip2
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:brotli
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:lz4
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:xz
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:zstd
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libressl
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libarchive
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:flac
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:libdwarf
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine:cpptrace
+
+### # RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+
+# Install the *real* ninja...
+# TODO: move this up if we change anything
+RUN apk add --no-cache ninja-build
+RUN apk del fuse fuse-dev fuse-static binutils-dev
+
+# Set up git & user
+RUN git config --global --add safe.directory /workspace
+RUN adduser -G users -s bash -u 1000 -D mhx
+USER mhx
+ENTRYPOINT /workspace/.docker/build-linux.sh

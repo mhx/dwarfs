@@ -2,6 +2,11 @@
 
 set -ex
 
+# if [ -n "$TARGETPLATFORM" ]; then
+#     export CC="xx-cc"
+#     export CXX="xx-c++"
+# fi
+
 cd "$HOME"
 mkdir pkgs
 cd pkgs

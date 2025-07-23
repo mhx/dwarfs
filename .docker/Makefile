@@ -2,6 +2,7 @@ IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
 IMAGE_ALPINE_RISCV="dwarfs-buildenv-alpine-riscv64"
+IMAGE_ALPINE_XX_RISCV="dwarfs-buildenv-alpine-xx-riscv64"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_ARCH="dwarfs-buildenv-arch"
@@ -38,6 +39,12 @@ build_alpine:
 
 run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
+
+build_alpine_xx_riscv:
+	docker buildx build -f Dockerfile.alpine-xx --platform linux/riscv64 -t $(IMAGE_ALPINE_XX_RISCV) .
+
+run_alpine_xx_riscv:
+	@docker run --platform linux/riscv64 --env TARGETPLATFORM=linux/riscv64 $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX_RISCV)
 
 build_alpine_riscv:
 	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE_RISCV) --build-arg ARCH=riscv64 .
