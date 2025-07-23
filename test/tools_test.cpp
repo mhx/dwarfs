@@ -105,6 +105,12 @@ auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
 #define DWARFSEXTRACT_BINARY tools_dir / "dwarfsextract" EXE_EXT
 #endif
 
+#ifdef DWARFS_CROSSCOMPILING_EMULATOR
+#define DWARFS_ARG_EMULATOR_ DWARFS_CROSSCOMPILING_EMULATOR,
+#else
+#define DWARFS_ARG_EMULATOR_
+#endif
+
 auto tools_dir = fs::path(TOOLS_BIN_DIR).make_preferred();
 auto mkdwarfs_bin = fs::path{MKDWARFS_BINARY};
 auto fuse3_bin = tools_dir / "dwarfs" EXE_EXT;
@@ -490,7 +496,7 @@ class subprocess {
 
     try {
       // std::cerr << "running: " << cmdline() << "\n";
-      c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
+      c_ = bp::child(prog_.string(), bp::args(cmdline_), bp::std_in.close(),
                      bp::std_out > out_, bp::std_err > err_, *ios
 #ifdef _WIN32
                      ,
@@ -590,9 +596,9 @@ class driver_runner {
     wait_until_file_ready(mountpoint, std::chrono::seconds(5));
 #else
     std::vector<std::string> options;
-    if (!subprocess::check_run(driver, make_tool_arg(tool_arg), image,
-                               mountpoint, options,
-                               std::forward<Args>(args)...)) {
+    if (!subprocess::check_run(DWARFS_ARG_EMULATOR_ driver,
+                               make_tool_arg(tool_arg), image, mountpoint,
+                               options, std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
 #ifdef __APPLE__
@@ -609,12 +615,12 @@ class driver_runner {
                 Args&&... args)
       : mountpoint_{mountpoint} {
     setup_mountpoint(mountpoint);
-    process_ = std::make_unique<subprocess>(driver, make_tool_arg(tool_arg),
-                                            image, mountpoint,
+    process_ = std::make_unique<subprocess>(
+        DWARFS_ARG_EMULATOR_ driver, make_tool_arg(tool_arg), image, mountpoint,
 #ifndef _WIN32
-                                            "-f",
+        "-f",
 #endif
-                                            std::forward<Args>(args)...);
+        std::forward<Args>(args)...);
     process_->run_background();
 #if !(defined(_WIN32) || defined(__APPLE__))
     dwarfs_guard_ = process_guard(process_->pid());
@@ -854,22 +860,23 @@ TEST_P(tools_test, end_to_end) {
   }
 
   {
-    auto out = subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg);
+    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
+                                     mkdwarfs_tool_arg);
     ASSERT_TRUE(out);
     EXPECT_THAT(*out, ::testing::HasSubstr("Usage:"));
     EXPECT_THAT(*out, ::testing::HasSubstr("--long-help"));
   }
 
   if (mode == binary_mode::universal_tool) {
-    auto out = subprocess::check_run(universal_bin);
+    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ universal_bin);
     ASSERT_TRUE(out);
     EXPECT_THAT(*out, ::testing::HasSubstr("--tool="));
   }
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
-  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
-                                    dwarfsextract_tool_arg, "-i",
-                                    test_data_dwarfs, "-o", fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(
+      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
+      "-i", test_data_dwarfs, "-o", fsdata_dir));
 
   EXPECT_EQ(num_hardlinks(fsdata_dir / "format.sh"), 3);
   EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
@@ -890,17 +897,19 @@ TEST_P(tools_test, end_to_end) {
       read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
 
-  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i",
-                                    fsdata_dir, "-o", image, "--no-progress",
-                                    "--no-history", "--no-create-timestamp"));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
+                                    mkdwarfs_tool_arg, "-i", fsdata_dir, "-o",
+                                    image, "--no-progress", "--no-history",
+                                    "--no-create-timestamp"));
 
   ASSERT_TRUE(fs::exists(image));
   ASSERT_GT(fs::file_size(image), 1000);
 
   {
-    auto out = subprocess::check_run(
-        *mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", fsdata_dir, "-o", "-",
-        "--no-progress", "--no-history", "--no-create-timestamp");
+    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
+                                     mkdwarfs_tool_arg, "-i", fsdata_dir, "-o",
+                                     "-", "--no-progress", "--no-history",
+                                     "--no-create-timestamp");
     ASSERT_TRUE(out);
     std::string ref;
     ASSERT_TRUE(read_file(image, ref));
@@ -909,8 +918,9 @@ TEST_P(tools_test, end_to_end) {
   }
 
   ASSERT_TRUE(subprocess::check_run(
-      *mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", image, "-o", image_hdr,
-      "--no-progress", "--recompress=none", "--header", header_data));
+      DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", image,
+      "-o", image_hdr, "--no-progress", "--recompress=none", "--header",
+      header_data));
 
   ASSERT_TRUE(fs::exists(image_hdr));
   ASSERT_GT(fs::file_size(image_hdr), 1000);
@@ -949,8 +959,8 @@ TEST_P(tools_test, end_to_end) {
   for (auto const& driver : drivers) {
     {
       scoped_no_leak_check no_leak_check;
-      auto const [out, err, ec] =
-          subprocess::run(driver, dwarfs_tool_arg, "--help");
+      auto const [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ driver,
+                                                  dwarfs_tool_arg, "--help");
       EXPECT_THAT(out, ::testing::HasSubstr("Usage:"));
     }
 
@@ -1047,7 +1057,7 @@ TEST_P(tools_test, end_to_end) {
 
     {
       auto const [out, err, ec] = subprocess::run(
-          driver,
+          DWARFS_ARG_EMULATOR_ driver,
           driver_runner::make_tool_arg(mode == binary_mode::universal_tool),
           image_hdr, mountpoint);
 
@@ -1200,20 +1210,23 @@ TEST_P(tools_test, end_to_end) {
 
   auto meta_export = td / "test.meta";
 
-  ASSERT_TRUE(
-      subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg, image));
-  ASSERT_TRUE(subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
-                                    image, "--check-integrity"));
-  ASSERT_TRUE(subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
-                                    image, "--export-metadata", meta_export));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
+                                    dwarfsck_tool_arg, image));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
+                                    dwarfsck_tool_arg, image,
+                                    "--check-integrity"));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
+                                    dwarfsck_tool_arg, image,
+                                    "--export-metadata", meta_export));
 
   {
     std::string header;
 
     EXPECT_TRUE(read_file(header_data, header));
 
-    auto output = subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
-                                        image_hdr, "-H");
+    auto output =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
+                              dwarfsck_tool_arg, image_hdr, "-H");
 
     ASSERT_TRUE(output);
 
@@ -1224,9 +1237,9 @@ TEST_P(tools_test, end_to_end) {
 
   ASSERT_TRUE(fs::create_directory(extracted));
 
-  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
-                                    dwarfsextract_tool_arg, "-i", image, "-o",
-                                    extracted));
+  ASSERT_TRUE(subprocess::check_run(
+      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
+      "-i", image, "-o", extracted));
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
@@ -1510,9 +1523,9 @@ TEST_P(tools_test, categorize) {
   }
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
-  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
-                                    dwarfsextract_tool_arg, "-i",
-                                    test_catdata_dwarfs, "-o", fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(
+      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
+      "-i", test_catdata_dwarfs, "-o", fsdata_dir));
 
   ASSERT_TRUE(fs::exists(fsdata_dir / "random"));
   EXPECT_EQ(4096, fs::file_size(fsdata_dir / "random"));
@@ -1528,8 +1541,8 @@ TEST_P(tools_test, categorize) {
                                          "-W",
                                          "pcmaudio/waveform::8"};
 
-  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg,
-                                    mkdwarfs_args));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
+                                    mkdwarfs_tool_arg, mkdwarfs_args));
 
   ASSERT_TRUE(fs::exists(image));
   auto const image_size = fs::file_size(image);
@@ -1552,7 +1565,8 @@ TEST_P(tools_test, categorize) {
 #endif
   };
 
-  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg,
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
+                                    mkdwarfs_tool_arg,
                                     mkdwarfs_args_recompress));
 
   ASSERT_TRUE(fs::exists(image_recompressed));
@@ -1676,8 +1690,9 @@ TEST_P(tools_test, categorize) {
 
 #endif
 
-  auto json_info = subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
-                                         image_recompressed, "--json");
+  auto json_info =
+      subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
+                            dwarfsck_tool_arg, image_recompressed, "--json");
   ASSERT_TRUE(json_info);
 
   nlohmann::json info;
@@ -1782,7 +1797,8 @@ TEST_P(manpage_test, manpage) {
 
   scoped_no_leak_check no_leak_check;
 
-  auto out = subprocess::check_run(*test_bin, args, "--man");
+  auto out =
+      subprocess::check_run(DWARFS_ARG_EMULATOR_ * test_bin, args, "--man");
 
   ASSERT_TRUE(out);
   EXPECT_GT(out->size(), 1000) << *out;
@@ -1814,15 +1830,16 @@ TEST(tools_test, dwarfsextract_progress) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
-                                   "-o", td.string(), "--stdout-progress");
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                                   test_catdata_dwarfs, "-o", td.string(),
+                                   "--stdout-progress");
   EXPECT_TRUE(fs::exists(td / "pcmaudio" / "test12.aiff"));
 #else
   auto tarfile = td / "output.tar";
 
-  auto out =
-      subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs, "-o",
-                            tarfile, "-f", "gnutar", "--stdout-progress");
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                                   test_catdata_dwarfs, "-o", tarfile, "-f",
+                                   "gnutar", "--stdout-progress");
   EXPECT_TRUE(fs::exists(tarfile));
 #endif
 
@@ -1841,8 +1858,8 @@ TEST(tools_test, dwarfsextract_stdout) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
 
-  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
-                                   "-f", "mtree");
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                                   test_catdata_dwarfs, "-f", "mtree");
   ASSERT_TRUE(out);
 
   EXPECT_GT(out->size(), 1000) << *out;
@@ -1855,8 +1872,9 @@ TEST(tools_test, dwarfsextract_file_out) {
   auto td = tempdir.path();
   auto outfile = td / "output.mtree";
 
-  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
-                                   "-f", "mtree", "-o", outfile);
+  auto out =
+      subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                            test_catdata_dwarfs, "-f", "mtree", "-o", outfile);
   ASSERT_TRUE(out);
   EXPECT_TRUE(out->empty()) << *out;
 
@@ -1887,8 +1905,9 @@ TEST(tools_test, mkdwarfs_invalid_utf8_filename) {
   auto output1 = td / "test1.dwarfs";
 
   {
-    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, "-i", input.string(),
-                                          "-o", output1.string());
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", output1.string());
     EXPECT_EQ(2, ec);
     EXPECT_THAT(err, ::testing::HasSubstr("storing as \"invalid\ufffd.txt\""));
   }
@@ -1898,8 +1917,9 @@ TEST(tools_test, mkdwarfs_invalid_utf8_filename) {
   auto output2 = td / "test2.dwarfs";
 
   {
-    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, "-i", input.string(),
-                                          "-o", output2.string());
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", output2.string());
     EXPECT_EQ(2, ec);
     EXPECT_THAT(err, ::testing::HasSubstr("storing as \"invalid\ufffd.txt\""));
     EXPECT_THAT(
@@ -1910,15 +1930,17 @@ TEST(tools_test, mkdwarfs_invalid_utf8_filename) {
 
   auto ext1 = td / "ext1";
   ASSERT_TRUE(fs::create_directory(ext1));
-  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output1.string(),
-                                    "-o", ext1.string()));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", output1.string(), "-o",
+                                    ext1.string()));
   EXPECT_TRUE(fs::exists(ext1 / "valid.txt"));
   EXPECT_TRUE(fs::exists(ext1 / L"invalid\ufffd.txt"));
 
   auto ext2 = td / "ext2";
   ASSERT_TRUE(fs::create_directory(ext2));
-  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output2.string(),
-                                    "-o", ext2.string()));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", output2.string(), "-o",
+                                    ext2.string()));
   EXPECT_TRUE(fs::exists(ext2 / "valid.txt"));
   EXPECT_TRUE(fs::exists(ext2 / L"invalid\ufffd.txt"));
 }
@@ -1972,8 +1994,8 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 
   ASSERT_TRUE(fs::create_directory(input));
 
-  ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", test_data_dwarfs,
-                                    "-o", input));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", test_data_dwarfs, "-o", input));
 
   std::ostringstream files;
 
@@ -2005,14 +2027,16 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
       args.push_back(input.lexically_relative(td).string());
     }
 
-    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, args);
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, args);
     ASSERT_EQ(0, ec) << out << err;
   }
 
   auto extracted = td / "extracted";
   ASSERT_TRUE(fs::create_directory(extracted));
-  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output.string(),
-                                    "-o", extracted.string()));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", output.string(), "-o",
+                                    extracted.string()));
 
   std::set<fs::path> extracted_files;
   for (auto const& entry : fs::recursive_directory_iterator(extracted)) {
