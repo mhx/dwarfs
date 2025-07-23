@@ -11,7 +11,7 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
-MOLD_VERSION=2.37.1
+MOLD_VERSION=2.40.2
 
 wget -O mold-${MOLD_VERSION}.tar.gz https://github.com/rui314/mold/archive/refs/tags/v${MOLD_VERSION}.tar.gz
 tar xf mold-${MOLD_VERSION}.tar.gz

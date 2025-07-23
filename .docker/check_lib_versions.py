@@ -28,6 +28,8 @@ repositories = [
     "nlohmann/json",
     "HowardHinnant/date",
     "nemtrif/utfcpp",
+    "ericniebler/range-v3",
+    "greg7mdp/parallel-hashmap",
 ]
 
 

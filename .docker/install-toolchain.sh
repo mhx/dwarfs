@@ -32,6 +32,12 @@ case "$CARCH" in
     loongarch*) CARCH="loongarch" ;;
 esac
 
+case "$CARCH" in
+    i386)
+        GCC_CONFIGURE_ARGS="--with-arch=i486 --with-tune=generic"
+        ;;
+esac
+
 CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
 CXXFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
 LDFLAGS="-Wl,--gc-sections"
@@ -151,7 +157,7 @@ case "$TASK" in
 
         # --libdir=$PREFIX/lib --includedir=$PREFIX/include \
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
-            --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT \
+            --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
             --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
             --enable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \

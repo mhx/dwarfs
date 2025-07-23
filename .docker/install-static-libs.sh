@@ -33,7 +33,7 @@ XXHASH_VERSION=0.8.3                     # 2024-12-30
 LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.1.0                     # 2023-08-31
 ZSTD_VERSION=1.5.7                       # 2025-02-19
-LIBFUSE_VERSION=3.17.2                   # 2025-04-23
+LIBFUSE_VERSION=3.17.3                   # 2025-07-19
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 JEMALLOC_VERSION=5.3.0                   # 2022-05-02
 XZ_VERSION=5.8.1                         # 2025-04-03
@@ -43,6 +43,7 @@ NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 DATE_VERSION=3.0.4                       # 2025-05-28
 UTFCPP_VERSION=4.0.6                     # 2024-11-03
 RANGE_V3_VERSION=0.12.0                  # 2022-06-21
+PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21
 
 echo "Using $GCC and $CLANG"
 
@@ -51,7 +52,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine"* ]]; then
     if [[ "$PKGS" == ":alpine" ]]; then
-        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,range-v3,openssl,utfcpp,xxhash,xz,zstd"
+        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,parallel-hashmap,range-v3,openssl,utfcpp,xxhash,xz,zstd"
     else
         PKGS="${PKGS#:alpine:}"
     fi
@@ -98,6 +99,7 @@ LIBEVENT_TARBALL="libevent-${LIBEVENT_VERSION}-stable.tar.gz"
 DATE_TARBALL="date-${DATE_VERSION}.tar.gz"
 UTFCPP_TARBALL="utfcpp-${UTFCPP_VERSION}.tar.gz"
 RANGE_V3_TARBALL="range-v3-${RANGE_V3_VERSION}.tar.gz"
+PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -160,6 +162,7 @@ fetch_lib nlohmann https://github.com/nlohmann/json/releases/download/v${NLOHMAN
 fetch_lib date https://github.com/HowardHinnant/date/archive/refs/tags/v${DATE_VERSION}.tar.gz ${DATE_TARBALL}
 fetch_lib utfcpp https://github.com/nemtrif/utfcpp/archive/refs/tags/v${UTFCPP_VERSION}.tar.gz ${UTFCPP_TARBALL}
 fetch_lib range-v3 https://github.com/ericniebler/range-v3/archive/refs/tags/${RANGE_V3_VERSION}.tar.gz ${RANGE_V3_TARBALL}
+fetch_lib parallel-hashmap https://github.com/greg7mdp/parallel-hashmap/archive/refs/tags/v${PARALLEL_HASHMAP_VERSION}.tar.gz ${PARALLEL_HASHMAP_TARBALL}
 
 set_build_flags() {
     if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
@@ -209,9 +212,17 @@ opt_perf() {
     set_build_flags
 }
 
-read -ra TARGET_ARCHS <<< "${TARGET_ARCH_STR//,/$'\n'}"
+for target_arch in ${TARGET_ARCH_STR//,/ }; do
+    echo "==========================================================="
+    echo "Building for target architecture: $target_arch"
+    echo "==========================================================="
 
-for TARGETARCH in "${TARGET_ARCHS[@]}"; do
+    if [ "$target_arch" != "$ARCH" ]; then
+        export TARGETARCH="$target_arch"
+    else
+        unset TARGETARCH
+    fi
+
     export CARCH="$TARGETARCH"
 
     rm -f /tmp/meson-$CARCH.txt
@@ -684,9 +695,23 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-                     -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DRANGE_V3_EXAMPLES=OFF \
+                     -DBUILD_SHARED_LIBS=OFF -DRANGE_V3_EXAMPLES=OFF \
                      -DRANGE_V3_PERF=OFF -DRANGE_V3_TESTS=OFF -DRANGE_V3_HEADER_CHECKS=ON \
                      -DRANGES_ENABLE_WERROR=OFF -DRANGES_NATIVE=OFF -DRANGES_DEBUG_INFO=OFF \
+                     ${CMAKE_ARGS}
+            make -j$(nproc)
+            make install
+        fi
+
+        if use_lib parallel-hashmap; then
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${PARALLEL_HASHMAP_TARBALL}
+            cd parallel-hashmap-${PARALLEL_HASHMAP_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+                     -DBUILD_SHARED_LIBS=OFF -DPHMAP_BUILD_EXAMPLES=OFF -DPHMAP_BUILD_TESTS=OFF \
                      ${CMAKE_ARGS}
             make -j$(nproc)
             make install

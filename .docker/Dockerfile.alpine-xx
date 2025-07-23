@@ -41,6 +41,7 @@ RUN apk add --no-cache \
         mpc1-dev \
         isl-dev \
         texinfo \
+        linux-headers \
         rsync \
         qemu-riscv64 \
         qemu-i386
@@ -49,11 +50,17 @@ RUN apk add --no-cache \
 ARG ARCH
 # UPX isn't supported on RISC-V/S390 (yet), so skip this
 RUN if [ "$ARCH" ~= "^(riscv|s390)" ]; then \
-        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
     else \
         echo "Skipping UPX installation for $ARCH architecture while it is not supported."; \
         echo "See https://github.com/upx/upx/discussions/793 for details."; \
     fi
+
+# Install mold
+COPY install-mold.sh /usr/local/bin/install-mold.sh
+RUN bash /usr/local/bin/install-mold.sh
+
+RUN apk del linux-headers
 
 # Install size-optimized and static-link-optimized libstdc++
 #COPY install-libstdcxx.sh /usr/local/bin/install-libstdcxx.sh
@@ -64,13 +71,7 @@ RUN bash /usr/local/bin/install-toolchain.sh build riscv64 s
 RUN bash /usr/local/bin/install-toolchain.sh build i386 s
 RUN bash /usr/local/bin/install-toolchain.sh cleanup
 
-RUN apk add --no-cache linux-headers
-
-# Install mold
-COPY install-mold.sh /usr/local/bin/install-mold.sh
-RUN bash /usr/local/bin/install-mold.sh
-
-RUN apk del linux-headers zlib-dev
+RUN apk del zlib-dev
 
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
@@ -100,8 +101,9 @@ RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:flac
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libdwarf
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:cpptrace
 RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:range-v3
+RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:parallel-hashmap
 
-### # RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+# RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
