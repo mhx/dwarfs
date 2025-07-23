@@ -9,8 +9,8 @@ mkdir -p "$LOCAL_REPO_PATH"
 LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
 
 WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
-NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
-BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
 mkdir -p "$WORKFLOW_LOG_DIR"
 
 log() {
@@ -77,7 +77,7 @@ cd build
 # Stick to clang-18, clang-19 has a regression for nilsimsa performance
 if [[ "$BUILD_DIST" == "alpine" ]]; then
   GCC_VERSION=
-  CLANG_VERSION=-19
+  CLANG_VERSION=-20
 elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
   GCC_VERSION=-12
   CLANG_VERSION=-15
@@ -113,6 +113,9 @@ case "-$BUILD_TYPE-" in
     case "-$BUILD_DIST-" in
       *-ubuntu-*|*-debian-*)
         export CC=gcc$GCC_VERSION CXX=g++$GCC_VERSION
+        ;;
+      *)
+        export CC=gcc CXX=g++
         ;;
     esac
     export COMPILER=gcc
@@ -182,7 +185,16 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-static-*)
-    export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
+    case "$CROSS_ARCH" in
+      ppc64le)
+         # https://github.com/rui314/mold/issues/1490
+         CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
+         export LDFLAGS="${LDFLAGS} -fuse-ld=lld"
+         ;;
+      *)
+         export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
+         ;;
+    esac
     ;;
 esac
 
@@ -287,39 +299,49 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
-    _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
-    if [[ "$ARCH" == "aarch64" ]]; then
-      # Similar to the issue with *not* linking against `gcc_eh` in the CMakeLists.txt,
-      # if we link against the `gcc_eh` from the `-Os` build, we run into exactly the
-      # same issue. So we temporarily copy the size-optimized `libgcc.a` to a directory
-      # we then use for linking.
-      _GCCLIBDIR="/tmp/gcclib"
-      mkdir -p "$_GCCLIBDIR"
-      cp -a "$_LIBSTDCXXDIR"/gcc/*/*/libgcc.a "$_GCCLIBDIR"
-    else
-      _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
-    fi
-    LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
+  # A size-optimized libgcc/libstdc++/musl will only save about 10k for the universal
+  # and fuse-extract binaries, so we'll just stick to using the -O2 toolchain.
+  _SYSROOT="/opt/cross/O2"
+  _MARCH="${CROSS_ARCH}"
+  if [[ -z "$CROSS_ARCH" ]]; then
+    _MARCH="${ARCH}"
   fi
-  export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
-  if [[ "$ARCH" == "aarch64" ]]; then
-    # For some reason, this dependency of libunwind is not resolved on aarch64
-    export LDFLAGS="${LDFLAGS} -lz"
+  if [[ "$_MARCH" == "arm" ]]; then
+    _TARGET="${_MARCH}-linux-musleabihf"
+  else
+    _TARGET="${_MARCH}-alpine-linux-musl"
   fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+  export CC="${_TARGET}-${CC}"
+  export CXX="${_TARGET}-${CXX}"
+  export STRIP_TOOL="${_TARGET}-strip"
+  export PATH="$_SYSROOT/usr/bin:$PATH"
+
+  _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
   if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
-    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal"
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal/$_TARGET"
   else
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
-    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full"
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full/$_TARGET"
   fi
   if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
-    _sslprefix="/opt/static-libs/$COMPILER-libressl"
+    _sslprefix="/opt/static-libs/$COMPILER-libressl/$_TARGET"
   else
-    _sslprefix="/opt/static-libs/$COMPILER-openssl"
+    _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix;$_jemallocprefix"
+
+  export LDFLAGS="${LDFLAGS} -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib"
+  export CFLAGS="${CFLAGS} -isystem $_staticprefix/include"
+  export CXXFLAGS="${CXXFLAGS} -isystem $_staticprefix/include"
+
+  if [[ "$_MARCH" == "i386" ]]; then
+    export LDFLAGS="${LDFLAGS} -lucontext"
+  fi
+
+  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+
+  if [[ -n "$CROSS_ARCH" ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
+  fi
 fi
 
 INSTALLDIR="$HOME/install"

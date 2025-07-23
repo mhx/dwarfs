@@ -136,10 +136,11 @@ def main():
                             if args.ninja and step.get("name") == "Run Build":
                                 run_id = job.get("run_id", 0)
                                 # get arch, dist, config from "linux (arm64v8, alpine, clang-release-ninja-static) / docker-build"
-                                m = re.match(r"linux \(([^,]+), ([^,]+), ([^,]+)\)", name)
+                                m = re.match(r"linux \(([^,]+), ([^,]+), ([^,]+)(, ([^,]+))?\)", name)
                                 if m:
-                                    build_log_path = f"{args.log_base}/{run_id}/build-{m.group(1)},{m.group(2)},{m.group(3)}.log"
-                                    ninja_log_path = f"{args.log_base}/{run_id}/ninja-{m.group(1)},{m.group(2)},{m.group(3)}.log"
+                                    cross = m.group(5) if m.group(5) else ""
+                                    build_log_path = f"{args.log_base}/{run_id}/build-{m.group(1)},{cross},{m.group(2)},{m.group(3)}.log"
+                                    ninja_log_path = f"{args.log_base}/{run_id}/ninja-{m.group(1)},{cross},{m.group(2)},{m.group(3)}.log"
                                     build_events = {}
                                     if os.path.exists(build_log_path):
                                         with open(build_log_path, "r") as f:

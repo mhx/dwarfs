@@ -10,6 +10,10 @@ on:
       build_arch:
         required: true
         type: string
+      cross_arch:
+        required: false
+        type: string
+        default: ''
       build_dist:
         required: true
         type: string
@@ -47,12 +51,15 @@ jobs:
           fetch-depth: '0'
           ref: ${{ github.ref }}
 
+      # Only if inputs.build_arch is `amd64`, we want to build a cross-compiling
+      # container by setting TARGET_ARCHS. Otherwise, don't set TARGET_ARCHS.
       - name: Build Docker Image
         run: |
-          docker build \
+          docker buildx build --progress=plain \
             -f .docker/Dockerfile.${{ inputs.build_dist }} \
             -t dwarfs-linux-build-${{ inputs.build_dist }} \
             --build-arg ARCH=${{ inputs.build_arch }} \
+            ${{ inputs.build_arch == 'amd64' && '--build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,ppc64le,s390x,arm,i386' || '' }} \
             .docker
 
       - name: Run Build
@@ -67,6 +74,7 @@ jobs:
             ${{ inputs.build_from_tarball && '--env BUILD_FROM_TARBALL=1' || '' }} \
             --env BUILD_TYPE=${{ inputs.build_type }} \
             --env BUILD_ARCH=${{ inputs.build_arch }} \
+            --env CROSS_ARCH=${{ inputs.cross_arch }} \
             --env BUILD_DIST=${{ inputs.build_dist }} \
             --env GITHUB_REF_NAME \
             --env GITHUB_REF_TYPE \
