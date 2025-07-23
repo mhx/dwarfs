@@ -53,7 +53,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine"* ]]; then
     if [[ "$PKGS" == ":alpine" ]]; then
-        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,parallel-hashmap,range-v3,openssl,utfcpp,xxhash,xz,zstd"
+        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
     else
         PKGS="${PKGS#:alpine:}"
     fi
@@ -234,9 +234,22 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         export TARGET="${TARGETARCH}-unknown-linux-musl"
         export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
         export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$CARCH"
-        export OPENSSL_TARGET_ARGS="linux-$CARCH"
         export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
         export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
+
+        case "$CARCH" in
+            aarch64*)    OPENSSL_TARGET_ARGS="linux-aarch64" ;;
+            arm*)        OPENSSL_TARGET_ARGS="linux-armv4" ;;
+            mips64*)     OPENSSL_TARGET_ARGS="linux64-mips64" ;;
+            ppc)         OPENSSL_TARGET_ARGS="linux-ppc" ;;
+            ppc64)       OPENSSL_TARGET_ARGS="linux-ppc64" ;;
+            ppc64le)     OPENSSL_TARGET_ARGS="linux-ppc64le" ;;
+            i386)        OPENSSL_TARGET_ARGS="linux-elf" ;;
+            s390x)       OPENSSL_TARGET_ARGS="linux64-s390x";;
+            riscv64)     OPENSSL_TARGET_ARGS="linux64-riscv64";;
+            loongarch64) OPENSSL_TARGET_ARGS="linux64-loongarch64";;
+            *)           echo "Unable to determine architecture from (CARCH=$CARCH)"; exit 1 ;;
+        esac
 
         endian="little"
         case "$CARCH" in
@@ -273,10 +286,14 @@ EOF
 
     for COMPILER in $COMPILERS; do
         INSTALL_DIR=/opt/static-libs/$COMPILER
+        INSTALL_DIR_OPENSSL=/opt/static-libs/$COMPILER-openssl
+        INSTALL_DIR_LIBRESSL=/opt/static-libs/$COMPILER-libressl
         WORKSUBDIR="$COMPILER"
         TARGET_FLAGS=
         if [ -n "$TARGETARCH" ]; then
             INSTALL_DIR="$INSTALL_DIR/$TARGET"
+            INSTALL_DIR_OPENSSL="$INSTALL_DIR_OPENSSL/$TARGET"
+            INSTALL_DIR_LIBRESSL="$INSTALL_DIR_LIBRESSL/$TARGET"
             WORKSUBDIR="$WORKSUBDIR/$TARGET"
             TARGET_FLAGS="--sysroot=/opt/cross"
         fi
@@ -576,12 +593,14 @@ EOF
             ninja install
         fi
 
+        unset SSL_PREFIXES
+
         if use_lib openssl; then
             opt_size
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${OPENSSL_TARBALL}
             cd openssl-${OPENSSL_VERSION}
-            ./Configure ${OPENSSL_TARGET_ARGS} --prefix="$INSTALL_DIR-openssl" --libdir=lib \
+            ./Configure ${OPENSSL_TARGET_ARGS} --prefix="$INSTALL_DIR_OPENSSL" --libdir=lib \
                     threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
                     no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
                     no-dgram no-dh no-dsa no-ec no-engine no-filenames no-idea no-ktls no-md4 no-multiblock \
@@ -589,8 +608,9 @@ EOF
                     no-srp no-srtp no-ssl3-method no-ssl-trace no-tfo no-ts no-ui-console no-whirlpool no-fips-securitychecks \
                     no-tests no-docs
 
-            make -j$(nproc)
-            make install_sw
+            make -j$(nproc) build_libs
+            make install_dev
+            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_OPENSSL"
         fi
 
         if use_lib libressl; then
@@ -598,10 +618,14 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
             cd libressl-${LIBRESSL_VERSION}
-            # ./configure ${TRIPLETS} --prefix="$INSTALL_DIR-libressl" --enable-static --disable-shared --disable-tests
-            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static --disable-shared --disable-tests
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR_LIBRESSL" --enable-static --disable-shared --disable-tests
             make -j$(nproc)
             make install
+            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_LIBRESSL"
+        fi
+
+        if [[ -z "$SSL_PREFIXES" ]]; then
+            SSL_PREFIXES="$INSTALL_DIR"
         fi
 
         if use_lib libevent; then
@@ -621,27 +645,17 @@ EOF
         fi
 
         if use_lib libarchive; then
-            unset LIBARCHIVE_PREFIXES
-            # if use_lib openssl; then
-            #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-openssl"
-            # fi
-            # if use_lib libressl; then
-            #     LIBARCHIVE_PREFIXES="$LIBARCHIVE_PREFIXES $INSTALL_DIR-libressl"
-            # fi
-            if [[ -z "$LIBARCHIVE_PREFIXES" ]]; then
-                LIBARCHIVE_PREFIXES="$INSTALL_DIR"
-            fi
-
-            for prefix in $LIBARCHIVE_PREFIXES; do
+            for prefix in $SSL_PREFIXES; do
                 opt_size
+                # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
+                export CFLAGS="-isystem $prefix/include $CFLAGS"
+                export CPPFLAGS="-isystem $prefix/include $CPPFLAGS"
+                export LDFLAGS="-L$prefix/lib $LDFLAGS"
                 cd "$WORKDIR"
                 rm -rf libarchive-${LIBARCHIVE_VERSION}
                 tar xf ${WORKROOT}/${LIBARCHIVE_TARBALL}
                 cd libarchive-${LIBARCHIVE_VERSION}
                 # TODO: once DwarFS supports ACLs / xattrs, we need to update this
-                # export CFLAGS="-I$prefix/include $CFLAGS"
-                # export CPPFLAGS="-I$prefix/include $CPPFLAGS"
-                # export LDFLAGS="-L$prefix/lib $LDFLAGS"
                 ./configure ${TRIPLETS} --prefix="$prefix" \
                             --without-iconv --without-xml2 --without-expat \
                             --without-bz2lib --without-zlib \
@@ -675,31 +689,45 @@ EOF
         fi
 
         if use_lib libdwarf; then
-            opt_size
-            cd "$WORKDIR"
-            tar xf ${WORKROOT}/${LIBDWARF_TARBALL}
-            cd libdwarf-${LIBDWARF_VERSION}
-            mkdir meson-build
-            cd meson-build
-            meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-            # meson configure
-            # meson setup --reconfigure ..
-            ninja
-            ninja install
+            for prefix in $SSL_PREFIXES; do
+                opt_size
+                # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
+                export CFLAGS="-isystem $prefix/include $CFLAGS"
+                export CPPFLAGS="-isystem $prefix/include $CPPFLAGS"
+                export LDFLAGS="-L$prefix/lib $LDFLAGS"
+                cd "$WORKDIR"
+                rm -rf libdwarf-${LIBDWARF_VERSION}
+                tar xf ${WORKROOT}/${LIBDWARF_TARBALL}
+                cd libdwarf-${LIBDWARF_VERSION}
+                mkdir meson-build
+                cd meson-build
+                meson setup .. --default-library=static --prefix="$prefix" $MESON_CROSS_FILE
+                # meson configure
+                # meson setup --reconfigure ..
+                ninja
+                ninja install
+            done
         fi
 
         if use_lib cpptrace; then
-            opt_size
-            cd "$WORKDIR"
-            tar xf ${WORKROOT}/${CPPTRACE_TARBALL}
-            cd cpptrace-${CPPTRACE_VERSION}
-            mkdir build
-            cd build
-            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-                     -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
-                     ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            for prefix in $SSL_PREFIXES; do
+                opt_size
+                # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
+                export CFLAGS="-isystem $prefix/include $CFLAGS"
+                export CPPFLAGS="-isystem $prefix/include $CPPFLAGS"
+                export LDFLAGS="-L$prefix/lib $LDFLAGS"
+                cd "$WORKDIR"
+                rm -rf cpptrace-${CPPTRACE_VERSION}
+                tar xf ${WORKROOT}/${CPPTRACE_TARBALL}
+                cd cpptrace-${CPPTRACE_VERSION}
+                mkdir build
+                cd build
+                cmake .. -DCMAKE_PREFIX_PATH="$prefix;$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$prefix" \
+                         -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
+                         ${CMAKE_ARGS}
+                make -j$(nproc)
+                make install
+            done
         fi
 
         if use_lib range-v3; then
