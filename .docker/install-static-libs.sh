@@ -11,7 +11,7 @@ CLANG="${2:-clang}"
 PKGS="${3:-:none}"
 
 ARCH="$(uname -m)"
-CARCH="$(xx-info march)"
+CARCH="$TARGETARCH"
 
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
@@ -56,7 +56,7 @@ elif [[ "$PKGS" == ":alpine"* ]]; then
     fi
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-    export COMMON_LDFLAGS="-fuse-ld=mold"
+    export COMMON_LDFLAGS="-fuse-ld=mold -static-libgcc"
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     COMPILERS="clang-minsize-lto"
     # if [[ "$ARCH" != "x86_64" && "$ARCH" != "aarch64" ]]; then
@@ -186,7 +186,7 @@ opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
-    if [ -n "$TARGETPLATFORM" ]; then
+    if [ -n "$TARGETARCH" ]; then
         export CMAKE_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     else
         export CMAKE_ARGS=
@@ -198,7 +198,7 @@ opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-    if [ -n "$TARGETPLATFORM" ]; then
+    if [ -n "$TARGETARCH" ]; then
         export CMAKE_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     else
         export CMAKE_ARGS=
@@ -208,9 +208,9 @@ opt_perf() {
 
 rm -f /tmp/meson-$CARCH.txt
 
-if [ -n "$TARGETPLATFORM" ]; then
-    export TARGET="$(xx-info triple)"
-    export TRIPLETS="--host=$(xx-info triple) --target=$(xx-info triple) --build=$(TARGETARCH= TARGETPLATFORM= xx-info triple)"
+if [ -n "$TARGETARCH" ]; then
+    export TARGET="${TARGETARCH}-unknown-linux-musl"
+    export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
     export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$CARCH"
     export OPENSSL_TARGET_ARGS="linux-$CARCH"
     export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
@@ -225,8 +225,9 @@ if [ -n "$TARGETPLATFORM" ]; then
 
     cat <<EOF > /tmp/meson-$CARCH.txt
 [binaries]
-c = 'xx-clang'
-cpp = 'xx-clang++'
+c = '$TARGET-clang'
+cpp = '$TARGET-clang++'
+ld = '$TARGET-clang'
 ar = '$TARGET-ar'
 strip = '$TARGET-strip'
 
@@ -246,14 +247,18 @@ else
 fi
 
 # TODO
+export INCLUDE_FLAGS="-isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/include -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/$TARGET/include/c++/14.2.0 -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/$TARGET/include/c++/14.2.0/$TARGET"
 export PATH="/opt/static-libs/libstdc++-Os/$TARGET/usr/bin:$PATH"
-export COMMON_CFLAGS="$COMMON_CFLAGS -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/include"
-export COMMON_CXXFLAGS="$COMMON_CXXFLAGS -isystem /opt/static-libs/libstdc++-Os/$TARGET/usr/include"
+export COMMON_CFLAGS="$COMMON_CFLAGS $INCLUDE_FLAGS"
+export COMMON_CXXFLAGS="$COMMON_CXXFLAGS $INCLUDE_FLAGS"
+export CPPFLAGS="$INCLUDE_FLAGS"
 
 for COMPILER in $COMPILERS; do
     INSTALL_DIR=/opt/static-libs/$COMPILER
-    if [ -n "$TARGETPLATFORM" ]; then
+    TARGET_LDFLAGS=
+    if [ -n "$TARGETARCH" ]; then
         INSTALL_DIR="$INSTALL_DIR/$TARGET"
+        TARGET_LDFLAGS="-L/opt/static-libs/libstdc++-Os/$TARGET/usr/lib --sysroot=/opt/static-libs/libstdc++-Os/$TARGET"
     fi
     INSTALL_DIR="$INSTALL_DIR/usr"
 
@@ -261,20 +266,20 @@ for COMPILER in $COMPILERS; do
     export SIZE_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
     export PERF_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
     export PERF_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
-    export COMP_LDFLAGS="$COMMON_LDFLAGS -L$INSTALL_DIR/lib"
+    export COMP_LDFLAGS="$TARGET_LDFLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
 
     case "$COMPILER" in
         clang*)
-            if [ -n "$TARGETPLATFORM" ]; then
-                export CC="xx-clang"
-                export CXX="xx-clang++"
+            if [ -n "$TARGETARCH" ]; then
+                export CC="$TARGET-clang"
+                export CXX="$TARGET-clang++"
             else
                 export CC="$CLANG"
                 export CXX="${CLANG/clang/clang++}"
             fi
             ;;
         gcc*)
-            if [ -n "$TARGETPLATFORM" ]; then
+            if [ -n "$TARGETARCH" ]; then
                 export CC="$TARGET-gcc"
                 export CXX="$TARGET-g++"
             else
@@ -324,7 +329,7 @@ for COMPILER in $COMPILERS; do
         tar xf ../${LIBUNWIND_TARBALL}
         cd libunwind-${LIBUNWIND_VERSION}
         LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
-            ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests
+            ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
         make -j$(nproc)
         make install
     fi

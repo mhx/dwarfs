@@ -5,7 +5,7 @@ set -ex
 TASK="$1"
 OPT="${2:-s}"
 
-if [ -z "$TARGETPLATFORM" ]; then
+if [ -z "$TARGETARCH" ]; then
     exit 0
 fi
 
@@ -22,9 +22,9 @@ LINUX_TARBALL=linux-${LINUX_VERSION}.tar.xz
 ARCH="$(uname -m)"
 
 ORIGPATH="$PATH"
-TARGET="$(xx-info triple)"
+TARGET="${TARGETARCH}-unknown-linux-musl"
 
-CARCH="$(xx-info march)"
+CARCH="$TARGETARCH"
 case "$CARCH" in
     aarch64*) CARCH="arm64" ;;
     arm*) CARCH="arm" ;;

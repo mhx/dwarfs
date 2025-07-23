@@ -1,12 +1,9 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
-FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
-FROM --platform=$BUILDPLATFORM alpine:latest
+FROM $ARCH/alpine:latest
 
-COPY --from=xx / /
-ARG TARGETPLATFORM
-ARG XXMARCH
-RUN echo "Building for target platform: $TARGETPLATFORM, arch: $XXMARCH"
+ARG TARGETARCH
+RUN echo "Building for target: $TARGETARCH"
 
 RUN apk update
 RUN apk upgrade
@@ -48,17 +45,15 @@ RUN apk add --no-cache \
         isl-dev \
         texinfo \
         rsync \
-        qemu-$XXMARCH
-
-RUN xx-apk add --no-cache binutils gcc g++
+        qemu-$TARGETARCH
 
 # Install UPX
 ARG ARCH
 # UPX isn't supported on RISC-V yet, so skip this
-RUN if [ "$XXMARCH" ~= "^(riscv|s390)" ]; then \
-        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $XXMARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+RUN if [ "$TARGETARCH" ~= "^(riscv|s390)" ]; then \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $TARGETARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
     else \
-        echo "Skipping UPX installation for RISC-V architecture while it is not supported."; \
+        echo "Skipping UPX installation for $TARGETARCH architecture while it is not supported."; \
         echo "See https://github.com/upx/upx/discussions/793 for details."; \
     fi
 
@@ -78,6 +73,10 @@ COPY install-mold.sh /usr/local/bin/install-mold.sh
 RUN bash /usr/local/bin/install-mold.sh
 
 RUN apk del linux-headers zlib-dev
+
+# TODO: move into toolchain installation script
+RUN ln -s /usr/bin/clang /opt/static-libs/libstdc++-Os/$TARGETARCH-unknown-linux-musl/usr/bin/$TARGETARCH-unknown-linux-musl-clang
+RUN ln -s /usr/bin/clang++ /opt/static-libs/libstdc++-Os/$TARGETARCH-unknown-linux-musl/usr/bin/$TARGETARCH-unknown-linux-musl-clang++
 
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh

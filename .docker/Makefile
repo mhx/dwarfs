@@ -42,16 +42,16 @@ run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
 
 build_alpine_xx_riscv:
-	docker buildx build -f Dockerfile.alpine-xx --platform linux/riscv64 --build-arg XXMARCH=riscv64 -t $(IMAGE_ALPINE_XX_RISCV) .
+	docker buildx build -f Dockerfile.alpine-xx --build-arg TARGETARCH=riscv64 -t $(IMAGE_ALPINE_XX_RISCV) .
 
 run_alpine_xx_riscv:
-	@docker run --platform linux/riscv64 --env TARGETPLATFORM=linux/riscv64 $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX_RISCV)
+	@docker run --env TARGETARCH=riscv64 $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX_RISCV)
 
 build_alpine_xx_i386:
-	docker buildx build -f Dockerfile.alpine-xx --platform linux/i386 --build-arg XXMARCH=i386 -t $(IMAGE_ALPINE_XX_I386) .
+	docker buildx build -f Dockerfile.alpine-xx --build-arg TARGETARCH=i386 -t $(IMAGE_ALPINE_XX_I386) .
 
 run_alpine_xx_i386:
-	@docker run --platform linux/i386 --env TARGETPLATFORM=linux/386 $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX_I386)
+	@docker run --env TARGETARCH=i386 $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX_I386)
 
 build_alpine_riscv:
 	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE_RISCV) --build-arg ARCH=riscv64 .
