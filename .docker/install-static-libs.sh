@@ -6,12 +6,12 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
+ARCH="$(uname -m)"
+
 GCC="gcc"
 CLANG="clang"
-TARGET_ARCH_STR="$1"
-PKGS="${2:-:none}"
-
-ARCH="$(uname -m)"
+PKGS="$1"
+TARGET_ARCH_STR="${2:-${ARCH}}"
 
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
@@ -48,31 +48,16 @@ PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21
 
 echo "Using $GCC and $CLANG"
 
-if [[ "$PKGS" == ":ubuntu" ]]; then
-    # TODO: this is no longer supported
-    PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
-    COMPILERS="clang gcc"
-elif [[ "$PKGS" == ":alpine"* ]]; then
-    if [[ "$PKGS" == ":alpine" ]]; then
-        PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
-    else
-        PKGS="${PKGS#:alpine:}"
-    fi
-    export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
-    export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-    export COMMON_LDFLAGS="-fuse-ld=mold -static-libgcc"
-    # COMPILERS="clang clang-lto clang-minsize-lto gcc"
-    COMPILERS="clang-minsize-lto"
-    # if [[ "$ARCH" != "x86_64" && "$ARCH" != "aarch64" ]]; then
-    #     # Let's keep it simple for more exotic architectures
-    #     COMPILERS="clang-minsize-lto"
-    # else
-    #     COMPILERS="clang clang-minsize-lto gcc"
-    # fi
-elif [[ "$PKGS" == ":none" ]]; then
+if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
+elif [[ "$PKGS" == ":all" ]]; then
+    PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
 fi
+
+export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
+export COMMON_CXXFLAGS="$COMMON_CFLAGS"
+export COMMON_LDFLAGS="-fuse-ld=mold -static-libgcc"
 
 FILE_TARBALL="file-${FILE_VERSION}.tar.gz"
 BZIP2_TARBALL="bzip2-${BZIP2_VERSION}.tar.gz"
@@ -193,16 +178,24 @@ set_build_flags() {
 opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
+    export CPPFLAGS="$TARGET_FLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
-    export CMAKE_ARGS="-GNinja -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
+    export CMAKE_ARGS="-GNinja"
+    if [[ "$CARCH" != "$ARCH" ]]; then
+        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
+    fi
     set_build_flags
 }
 
 opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
+    export CPPFLAGS="$TARGET_FLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-    export CMAKE_ARGS="-GNinja -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
+    export CMAKE_ARGS="-GNinja"
+    if [[ "$CARCH" != "$ARCH" ]]; then
+        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
+    fi
     set_build_flags
 }
 
@@ -267,20 +260,26 @@ EOF
     export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:$PATH"
     export WORKROOT="$HOME/pkgs"
 
+    # COMPILERS="clang clang-lto clang-minsize-lto gcc"
+    COMPILERS="clang clang-minsize-lto gcc"
+    if [[ "$CARCH" != "x86_64" && "$CARCH" != "aarch64" ]]; then
+        # Let's keep it simple for more exotic architectures
+        COMPILERS="clang-minsize-lto"
+    fi
+
     for COMPILER in $COMPILERS; do
         INSTALL_DIR="/opt/static-libs/$COMPILER/$TARGET"
         INSTALL_DIR_OPENSSL="/opt/static-libs/$COMPILER-openssl/$TARGET"
         INSTALL_DIR_LIBRESSL="/opt/static-libs/$COMPILER-libressl/$TARGET"
         WORKSUBDIR="$COMPILER/$TARGET"
-        TARGET_FLAGS="--sysroot=$SYSROOT"
         WORKDIR="$WORKROOT/$WORKSUBDIR"
 
+        export TARGET_FLAGS="--sysroot=$SYSROOT"
         export SIZE_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
         export SIZE_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
         export PERF_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
         export PERF_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
         export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
-        export CPPFLAGS="$TARGET_FLAGS"
 
         case "$COMPILER" in
             clang*)
@@ -730,8 +729,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-                     -DBUILD_SHARED_LIBS=OFF -DRANGE_V3_EXAMPLES=OFF \
-                     -DRANGE_V3_PERF=OFF -DRANGE_V3_TESTS=OFF -DRANGE_V3_HEADER_CHECKS=ON \
+                     -DBUILD_SHARED_LIBS=OFF -DRANGE_V3_EXAMPLES=OFF -DRANGE_V3_TESTS=OFF \
+                     -DRANGE_V3_DOCS=OFF -DRANGES_BUILD_CALENDAR_EXAMPLE=OFF \
                      -DRANGES_ENABLE_WERROR=OFF -DRANGES_NATIVE=OFF -DRANGES_DEBUG_INFO=OFF \
                      ${CMAKE_ARGS}
             ninja
@@ -756,3 +755,4 @@ done
 
 cd "$HOME"
 rm -rf pkgs
+rm -f /tmp/meson-*.txt

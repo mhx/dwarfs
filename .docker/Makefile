@@ -41,7 +41,7 @@ run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
 
 build_alpine_xx:
-	docker buildx build -f Dockerfile.alpine-xx --build-arg TARGET_ARCHS=x86_64,aarch64,loongarch64,riscv64,i386 -t $(IMAGE_ALPINE_XX) .
+	docker buildx build -f Dockerfile.alpine-xx --build-arg TARGET_ARCHS=x86_64,riscv64,i386 -t $(IMAGE_ALPINE_XX) .
 
 run_alpine_xx:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX)
