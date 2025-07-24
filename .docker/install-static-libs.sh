@@ -590,8 +590,6 @@ EOF
             ninja install
         fi
 
-        unset SSL_PREFIXES
-
         if use_lib openssl; then
             opt_size
             cd "$WORKDIR"
@@ -607,7 +605,6 @@ EOF
 
             make -j$(nproc) build_libs
             make install_dev
-            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_OPENSSL"
         fi
 
         if use_lib libressl; then
@@ -622,11 +619,6 @@ EOF
                      ${CMAKE_ARGS}
             ninja
             ninja install
-            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_LIBRESSL"
-        fi
-
-        if [[ -z "$SSL_PREFIXES" ]]; then
-            SSL_PREFIXES="$INSTALL_DIR"
         fi
 
         if use_lib libevent; then
@@ -645,13 +637,24 @@ EOF
             ninja install
         fi
 
+        SSL_PREFIXES=""
+        if [ -d "$INSTALL_DIR_OPENSSL" ]; then
+            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_OPENSSL"
+        fi
+        if [ -d "$INSTALL_DIR_LIBRESSL" ]; then
+            SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_LIBRESSL"
+        fi
+        if [[ -z "$SSL_PREFIXES" ]]; then
+            SSL_PREFIXES="$INSTALL_DIR"
+        fi
+
         if use_lib libarchive; then
             for prefix in $SSL_PREFIXES; do
                 opt_size
                 # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
                 export CFLAGS="-I$prefix/include $CFLAGS"
                 export CPPFLAGS="-I$prefix/include $CPPFLAGS"
-                export LDFLAGS="-L$prefix/lib $LDFLAGS"
+                export LDFLAGS="-L$prefix/lib $LDFLAGS -latomic"
                 cd "$WORKDIR"
                 rm -rf libarchive-${LIBARCHIVE_VERSION}
                 tar xf ${WORKROOT}/${LIBARCHIVE_TARBALL}
