@@ -2,9 +2,17 @@
 ARG ARCH=amd64
 FROM $ARCH/alpine:latest
 
+ARG ARCH
+ARG TARGET_ARCHS=$ARCH
+ARG TOOLCHAIN_OPTIMIZE=s
+
 RUN apk update
 RUN apk upgrade
-RUN apk add --no-cache \
+RUN qemu_pkgs=""; \
+    for arch in $(echo $TARGET_ARCHS | tr ',' ' '); do \
+        qemu_pkgs="$qemu_pkgs qemu-$arch"; \
+    done; \
+    apk add --no-cache \
         bash-completion \
         build-base \
         wget \
@@ -36,19 +44,33 @@ RUN apk add --no-cache \
         strace \
         gdb \
         gmp-dev \
+        zlib-static \
+        zstd-static \
         zlib-dev \
+        zstd-dev \
         mpfr-dev \
         mpc1-dev \
         isl-dev \
         texinfo \
         linux-headers \
         rsync \
-        qemu-riscv64 \
-        qemu-i386
+        $qemu_pkgs
+
+COPY fetch.sh /usr/local/bin/fetch.sh
 
 # Install mold
 COPY install-mold.sh /usr/local/bin/install-mold.sh
-RUN bash /usr/local/bin/install-mold.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-mold.sh
+
+# Install bloaty
+COPY install-bloaty.sh /usr/local/bin/install-bloaty.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    if [ "$ARCH" == "amd64" ]; then \
+        bash /usr/local/bin/install-bloaty.sh; \
+    else \
+        echo "Skipping bloaty installation for $ARCH."; \
+    fi
 
 RUN apk del linux-headers
 
@@ -56,51 +78,112 @@ RUN apk del linux-headers
 #COPY install-libstdcxx.sh /usr/local/bin/install-libstdcxx.sh
 #RUN bash /usr/local/bin/install-libstdcxx.sh
 COPY install-toolchain.sh /usr/local/bin/install-toolchain.sh
-RUN bash /usr/local/bin/install-toolchain.sh prepare
-RUN bash /usr/local/bin/install-toolchain.sh build riscv64 s
-RUN bash /usr/local/bin/install-toolchain.sh build i386 s
-RUN bash /usr/local/bin/install-toolchain.sh cleanup
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-toolchain.sh $TARGET_ARCHS $TOOLCHAIN_OPTIMIZE
 
-RUN apk del zlib-dev
+RUN apk del zlib-dev zstd-dev
+
+# Clear the config cache after a toolchain update
+RUN --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    rm -rf /root/.cfgcache/*
 
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libucontext
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libunwind
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:nlohmann
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:date
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:utfcpp
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:boost
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:jemalloc
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:mimalloc
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:double-conversion
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:fmt
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:fuse
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:fuse3
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:glog
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:benchmark
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:xxhash
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:bzip2
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:brotli
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:lz4
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:xz
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:zstd
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:openssl
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libressl
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libevent
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libarchive
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:flac
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:libdwarf
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:cpptrace
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:range-v3
-RUN bash /usr/local/bin/install-static-libs.sh riscv64,i386 :alpine:parallel-hashmap
 
-# RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libucontext
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libunwind
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:nlohmann
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:date
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:utfcpp
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:boost
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:jemalloc
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:mimalloc
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:double-conversion
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:fmt
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:fuse
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:fuse3
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:glog
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:benchmark
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:xxhash
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:bzip2
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:brotli
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:lz4
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:xz
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:zstd
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:openssl
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libressl
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libevent
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libarchive
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:flac
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:libdwarf
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:cpptrace
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:range-v3
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine:parallel-hashmap
+# RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+#     --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+#     bash /usr/local/bin/install-static-libs.sh $TARGET_ARCHS :alpine
 
 # Install UPX
-ARG ARCH
 # UPX isn't supported on RISC-V/S390 (yet), so skip this
-RUN if ! [[ "$ARCH" =~ "^(riscv|s390)" ]]; then \
+RUN if ! [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
         wget -O - https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
     else \
         echo "Skipping UPX installation for $ARCH architecture while it is not supported."; \

@@ -49,6 +49,7 @@ PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21
 echo "Using $GCC and $CLANG"
 
 if [[ "$PKGS" == ":ubuntu" ]]; then
+    # TODO: this is no longer supported
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine"* ]]; then
@@ -115,9 +116,7 @@ use_lib() {
 if use_lib file; then
     RETRY=0
     while true; do
-        rm -f "$FILE_TARBALL"
-        curl -o "$FILE_TARBALL" "ftp://ftp.astron.com/pub/file/$FILE_TARBALL"
-        if echo "${FILE_SHA512}  $FILE_TARBALL" | sha512sum -c; then
+        if fetch.sh "ftp://ftp.astron.com/pub/file/$FILE_TARBALL" "$FILE_TARBALL" "$FILE_SHA512"; then
             break
         fi
         RETRY=$((RETRY+1))
@@ -133,7 +132,7 @@ fetch_lib() {
     local url="$2"
     local tarball="${3:-${url##*/}}"
     if use_lib "$lib"; then
-        wget -O "$tarball" "$url"
+        fetch.sh "$url" "$tarball"
     fi
 }
 
@@ -195,10 +194,7 @@ opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
-    export CMAKE_ARGS="-GNinja"
-    if [ -n "$TARGETARCH" ]; then
-        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
-    fi
+    export CMAKE_ARGS="-GNinja -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     set_build_flags
 }
 
@@ -206,10 +202,7 @@ opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-    export CMAKE_ARGS="-GNinja"
-    if [ -n "$TARGETARCH" ]; then
-        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
-    fi
+    export CMAKE_ARGS="-GNinja -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     set_build_flags
 }
 
@@ -218,45 +211,44 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     echo "Building for target architecture: $target_arch"
     echo "==========================================================="
 
-    if [ "$target_arch" != "$ARCH" ]; then
-        export TARGETARCH="$target_arch"
-    else
-        unset TARGETARCH
-    fi
-
-    export CARCH="$TARGETARCH"
+    export CARCH="$target_arch"
 
     rm -f /tmp/meson-$CARCH.txt
 
-    if [ -n "$TARGETARCH" ]; then
-        export TARGET="${TARGETARCH}-unknown-linux-musl"
-        export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
-        export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$CARCH"
-        export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
-        export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
+    case "$CARCH" in
+        aarch64*)    OPENSSL_TARGET_ARGS="linux-aarch64" ;;
+        arm*)        OPENSSL_TARGET_ARGS="linux-armv4" ;;
+        mips64*)     OPENSSL_TARGET_ARGS="linux64-mips64" ;;
+        ppc)         OPENSSL_TARGET_ARGS="linux-ppc" ;;
+        ppc64)       OPENSSL_TARGET_ARGS="linux-ppc64" ;;
+        ppc64le)     OPENSSL_TARGET_ARGS="linux-ppc64le" ;;
+        i386)        OPENSSL_TARGET_ARGS="linux-elf" ;;
+        s390x)       OPENSSL_TARGET_ARGS="linux64-s390x" ;;
+        riscv64)     OPENSSL_TARGET_ARGS="linux64-riscv64" ;;
+        loongarch64) OPENSSL_TARGET_ARGS="linux64-loongarch64" ;;
+        x86_64)      OPENSSL_TARGET_ARGS="linux-x86_64" ;;
+        *)           echo "Unable to determine architecture from (CARCH=$CARCH)"; exit 1 ;;
+    esac
 
-        case "$CARCH" in
-            aarch64*)    OPENSSL_TARGET_ARGS="linux-aarch64" ;;
-            arm*)        OPENSSL_TARGET_ARGS="linux-armv4" ;;
-            mips64*)     OPENSSL_TARGET_ARGS="linux64-mips64" ;;
-            ppc)         OPENSSL_TARGET_ARGS="linux-ppc" ;;
-            ppc64)       OPENSSL_TARGET_ARGS="linux-ppc64" ;;
-            ppc64le)     OPENSSL_TARGET_ARGS="linux-ppc64le" ;;
-            i386)        OPENSSL_TARGET_ARGS="linux-elf" ;;
-            s390x)       OPENSSL_TARGET_ARGS="linux64-s390x";;
-            riscv64)     OPENSSL_TARGET_ARGS="linux64-riscv64";;
-            loongarch64) OPENSSL_TARGET_ARGS="linux64-loongarch64";;
-            *)           echo "Unable to determine architecture from (CARCH=$CARCH)"; exit 1 ;;
-        esac
+    BOOST_CONTEXT_ARCH="$CARCH"
+    case "$CARCH" in
+        aarch64*)    BOOST_CONTEXT_ARCH="arm64" ;;
+    esac
 
-        endian="little"
-        case "$CARCH" in
-            powerpc|powerpc64|s390|s390x)
-                endian="big"
-                ;;
-        esac
+    export TARGET="${CARCH}-unknown-linux-musl"
+    export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
+    export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$BOOST_CONTEXT_ARCH"
+    export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
+    export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
 
-        cat <<EOF > /tmp/meson-$CARCH.txt
+    endian="little"
+    case "$CARCH" in
+        powerpc|powerpc64|s390|s390x)
+            endian="big"
+            ;;
+    esac
+
+    cat <<EOF > /tmp/meson-$CARCH.txt
 [binaries]
 c = '$TARGET-clang'
 cpp = '$TARGET-clang++'
@@ -270,31 +262,17 @@ cpu_family = '$CARCH'
 cpu = '$CARCH'
 endian = '$endian'
 EOF
-    else
-        export TARGET=""
-        export TRIPLETS=""
-        export BOOST_CMAKE_ARGS=""
-        export OPENSSL_TARGET_ARGS=""
-        export LIBUCONTEXT_MAKE_ARGS=""
-        export MESON_CROSS_FILE=""
-    fi
 
-    export PATH="/opt/cross/usr/bin:$PATH"
+    export SYSROOT="/opt/cross/Os"
+    export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:$PATH"
     export WORKROOT="$HOME/pkgs"
 
     for COMPILER in $COMPILERS; do
-        INSTALL_DIR=/opt/static-libs/$COMPILER
-        INSTALL_DIR_OPENSSL=/opt/static-libs/$COMPILER-openssl
-        INSTALL_DIR_LIBRESSL=/opt/static-libs/$COMPILER-libressl
-        WORKSUBDIR="$COMPILER"
-        TARGET_FLAGS=
-        if [ -n "$TARGETARCH" ]; then
-            INSTALL_DIR="$INSTALL_DIR/$TARGET"
-            INSTALL_DIR_OPENSSL="$INSTALL_DIR_OPENSSL/$TARGET"
-            INSTALL_DIR_LIBRESSL="$INSTALL_DIR_LIBRESSL/$TARGET"
-            WORKSUBDIR="$WORKSUBDIR/$TARGET"
-            TARGET_FLAGS="--sysroot=/opt/cross"
-        fi
+        INSTALL_DIR="/opt/static-libs/$COMPILER/$TARGET"
+        INSTALL_DIR_OPENSSL="/opt/static-libs/$COMPILER-openssl/$TARGET"
+        INSTALL_DIR_LIBRESSL="/opt/static-libs/$COMPILER-libressl/$TARGET"
+        WORKSUBDIR="$COMPILER/$TARGET"
+        TARGET_FLAGS="--sysroot=$SYSROOT"
         WORKDIR="$WORKROOT/$WORKSUBDIR"
 
         export SIZE_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
@@ -306,22 +284,12 @@ EOF
 
         case "$COMPILER" in
             clang*)
-                if [ -n "$TARGETARCH" ]; then
-                    export CC="$TARGET-clang"
-                    export CXX="$TARGET-clang++"
-                else
-                    export CC="$CLANG"
-                    export CXX="${CLANG/clang/clang++}"
-                fi
+                export CC="$TARGET-clang"
+                export CXX="$TARGET-clang++"
                 ;;
             gcc*)
-                if [ -n "$TARGETARCH" ]; then
-                    export CC="$TARGET-gcc"
-                    export CXX="$TARGET-g++"
-                else
-                    export CC="$GCC"
-                    export CXX="${GCC/gcc/g++}"
-                fi
+                export CC="$TARGET-gcc"
+                export CXX="$TARGET-g++"
                 ;;
             *)
                 echo "Unknown compiler: $COMPILER"
@@ -364,8 +332,11 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${LIBUNWIND_TARBALL}
             cd libunwind-${LIBUNWIND_VERSION}
-            LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
-                ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
+            fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/Remove-the-useless-endina.h-for-loongarch64.patch - | patch -p1
+            fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/fix-libunwind-pc-in.patch - | patch -p1
+            LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" \
+                ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared \
+                            --cache-file=$HOME/.cfgcache/libunwind-${LIBUNWIND_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)
             make install
         fi
@@ -420,8 +391,8 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${JEMALLOC_TARBALL}
             cd jemalloc-${JEMALLOC_VERSION}
-            curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
-            curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
+            fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
+            fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
             ./autogen.sh ${TRIPLETS}
             # mkdir build-minimal
             # cd build-minimal
@@ -432,7 +403,9 @@ EOF
             # mkdir build-full
             mkdir build
             cd build
-            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
+            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+                         --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug \
+                         --cache-file=$HOME/.cfgcache/jemalloc-${JEMALLOC_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)
             make install
         fi
@@ -480,7 +453,8 @@ EOF
             cd fuse-${LIBFUSE_VERSION}
             ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" \
                 --disable-shared --enable-static \
-                --disable-example --enable-lib --disable-util
+                --disable-example --enable-lib --disable-util \
+                --cache-file=$HOME/.cfgcache/fuse-${LIBFUSE_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)
             make install
         fi
@@ -549,7 +523,7 @@ EOF
             cd brotli-${BROTLI_VERSION}
             mkdir build
             cd build
-            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
+            cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBROTLI_BUILD_TOOLS=OFF -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
             ninja
             ninja install
         fi
@@ -571,7 +545,11 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${XZ_TARBALL}
             cd xz-${XZ_VERSION}
-            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls
+            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc \
+                        --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls \
+                        --disable-xz --disable-xzdec --disable-lzmainfo --disable-lzmadec \
+                        --disable-lzma-links --disable-scripts \
+                        --cache-file=$HOME/.cfgcache/xz-${XZ_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)
             make install
         fi
@@ -584,7 +562,7 @@ EOF
             mkdir meson-build
             cd meson-build
             meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-            meson configure -D zlib=disabled -D lzma=disabled -D lz4=disabled
+            meson configure -D bin_programs=false -D bin_contrib=false -D zlib=disabled -D lzma=disabled -D lz4=disabled
             meson setup --reconfigure ../build/meson
             ninja
             ninja install
@@ -608,17 +586,19 @@ EOF
         fi
 
         if use_lib libressl; then
-            opt_size
-            cd "$WORKDIR"
-            tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
-            cd libressl-${LIBRESSL_VERSION}
-            mkdir build
-            cd build
-            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
-                     -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
-                     ${CMAKE_ARGS}
-            ninja
-            ninja install
+            if [[ "$CARCH" =~ ^(x86_64|aarch64|riscv64|i386)$ ]]; then
+                opt_size
+                cd "$WORKDIR"
+                tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
+                cd libressl-${LIBRESSL_VERSION}
+                mkdir build
+                cd build
+                cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
+                         -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
+                         ${CMAKE_ARGS}
+                ninja
+                ninja install
+            fi
         fi
 
         if use_lib libevent; then
@@ -626,7 +606,7 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${LIBEVENT_TARBALL}
             cd libevent-${LIBEVENT_VERSION}-stable
-            curl https://github.com/libevent/libevent/commit/883630f76cbf512003b81de25cd96cb75c6cf0f9.diff | patch -p1
+            fetch.sh https://github.com/libevent/libevent/commit/883630f76cbf512003b81de25cd96cb75c6cf0f9.diff - | patch -p1
             mkdir build
             cd build
             cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS} \
@@ -650,6 +630,12 @@ EOF
 
         if use_lib libarchive; then
             for prefix in $SSL_PREFIXES; do
+                sslsuffix=""
+                if [[ "$prefix" == *libressl* ]]; then
+                    sslsuffix="-libressl"
+                elif [[ "$prefix" == *openssl* ]]; then
+                    sslsuffix="-openssl"
+                fi
                 opt_size
                 # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
                 export CFLAGS="-I$prefix/include $CFLAGS"
@@ -665,7 +651,8 @@ EOF
                             --without-bz2lib --without-zlib \
                             --disable-shared --disable-acl --disable-xattr \
                             --disable-bsdtar --disable-bsdcat --disable-bsdcpio \
-                            --disable-bsdunzip
+                            --disable-bsdunzip \
+                            --cache-file=$HOME/.cfgcache/libarchive-${LIBARCHIVE_VERSION}-${CARCH}-${COMPILER}${sslsuffix}.cache
                 make -j$(nproc)
                 make install
             done
@@ -687,7 +674,8 @@ EOF
             tar xf ${WORKROOT}/${FLAC_TARBALL}
             cd flac-${FLAC_VERSION}
             ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
-                        --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
+                        --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples \
+                        --cache-file=$HOME/.cfgcache/flac-${FLAC_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)
             make install
         fi
