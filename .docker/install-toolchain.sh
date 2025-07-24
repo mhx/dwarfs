@@ -103,6 +103,13 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             i386)
                 GCC_CONFIGURE_ARGS="--with-arch=i486 --with-tune=generic"
                 ;;
+            aarch64)
+                GCC_CONFIGURE_ARGS="--with-arch=armv8-a --with-abi=lp64"
+                ;;
+            arm)
+                GCC_CONFIGURE_ARGS="--with-arch=armv6 --with-fpu=vfp --with-float=hard"
+                TARGET="arm-linux-musleabihf"
+                ;;
         esac
 
         CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
@@ -113,7 +120,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         PREFIX="$SYSROOT/usr"
         PATH="$PREFIX/bin:$ORIGPATH"
 
-        GCC_NOCS="MAKEINFO=/bin/true gcc_cv_prog_makeinfo_modern=no HELP2MAN=/bin/true TEXI2POD=/bin/true POD2MAN=/bin/true"
+        GCC_NODOCS="MAKEINFO=/bin/true gcc_cv_prog_makeinfo_modern=no HELP2MAN=/bin/true TEXI2POD=/bin/true POD2MAN=/bin/true"
 
         # Stage 1
         cd "${HOME}"/pkgs
@@ -136,9 +143,9 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --with-newlib --without-headers \
             --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
             --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv \
-            --disable-libstdcxx --enable-languages=c,c++ ${GCC_NOCS}
-        make -j"$(nproc)" all-gcc ${GCC_NOCS}
-        make -j"$(nproc)" all-target-libgcc ${GCC_NOCS}
+            --disable-libstdcxx --enable-languages=c,c++ ${GCC_NODOCS}
+        make -j"$(nproc)" all-gcc ${GCC_NODOCS}
+        make -j"$(nproc)" all-target-libgcc ${GCC_NODOCS}
         make install-gcc
         make install-target-libgcc
 
@@ -156,20 +163,14 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
         cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
 
-        case "$ARCH" in
-            aarch64)
-                _arch_config="--with-arch=armv8-a --with-abi=lp64"
-                ;;
-        esac
-
         # --libdir=$PREFIX/lib --includedir=$PREFIX/include \
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
             --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
             --enable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
-            --enable-libstdcxx-time=yes --enable-default-pie --enable-default-ssp --with-linker-hash-style=gnu ${_arch_config} ${GCC_NOCS}
-        make -j"$(nproc)" ${GCC_NOCS}
+            --enable-libstdcxx-time=yes --enable-default-pie --enable-default-ssp --with-linker-hash-style=gnu ${GCC_NODOCS}
+        make -j"$(nproc)" ${GCC_NODOCS}
         make install
 
         # Symbolic links for clang

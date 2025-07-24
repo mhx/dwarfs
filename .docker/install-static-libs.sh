@@ -229,6 +229,11 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     esac
 
     export TARGET="${CARCH}-unknown-linux-musl"
+
+    case "$CARCH" in
+        arm) export TARGET="arm-linux-musleabihf" ;;
+    esac
+
     export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
     export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$BOOST_CONTEXT_ARCH"
     export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
@@ -715,6 +720,7 @@ EOF
                 cd build
                 cmake .. -DCMAKE_PREFIX_PATH="$prefix;$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$prefix" \
                          -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
+                         -DCPPTRACE_UNWIND_WITH_LIBUNWIND=ON -DCPPTRACE_GET_SYMBOLS_WITH_LIBDWARF=ON \
                          ${CMAKE_ARGS}
                 ninja
                 ninja install
