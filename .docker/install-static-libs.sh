@@ -195,10 +195,9 @@ opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
+    export CMAKE_ARGS="-GNinja"
     if [ -n "$TARGETARCH" ]; then
-        export CMAKE_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
-    else
-        export CMAKE_ARGS=
+        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     fi
     set_build_flags
 }
@@ -207,10 +206,9 @@ opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
     # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+    export CMAKE_ARGS="-GNinja"
     if [ -n "$TARGETARCH" ]; then
-        export CMAKE_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
-    else
-        export CMAKE_ARGS=
+        export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     fi
     set_build_flags
 }
@@ -297,7 +295,6 @@ EOF
             WORKSUBDIR="$WORKSUBDIR/$TARGET"
             TARGET_FLAGS="--sysroot=/opt/cross"
         fi
-        INSTALL_DIR="$INSTALL_DIR/usr"
         WORKDIR="$WORKROOT/$WORKSUBDIR"
 
         export SIZE_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
@@ -386,8 +383,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib utfcpp; then
@@ -398,8 +395,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib boost; then
@@ -414,8 +411,8 @@ EOF
                      -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
                      -DBOOST_EXCLUDE_LIBRARIES=stacktrace ${BOOST_CMAKE_ARGS} \
                      -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib jemalloc; then
@@ -448,8 +445,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib double-conversion; then
@@ -460,8 +457,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib fmt; then
@@ -472,8 +469,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib fuse; then
@@ -511,8 +508,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib benchmark; then
@@ -523,8 +520,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DBENCHMARK_ENABLE_WERROR=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib xxhash; then
@@ -553,8 +550,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib lz4; then
@@ -565,8 +562,8 @@ EOF
             mkdir build
             cd build
             cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib xz; then
@@ -618,9 +615,13 @@ EOF
             cd "$WORKDIR"
             tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
             cd libressl-${LIBRESSL_VERSION}
-            ./configure ${TRIPLETS} --prefix="$INSTALL_DIR_LIBRESSL" --enable-static --disable-shared --disable-tests
-            make -j$(nproc)
-            make install
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
+                     -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
+                     ${CMAKE_ARGS}
+            ninja
+            ninja install
             SSL_PREFIXES="$SSL_PREFIXES $INSTALL_DIR_LIBRESSL"
         fi
 
@@ -640,16 +641,16 @@ EOF
                      -DEVENT__DISABLE_DEBUG_MODE=ON -DEVENT__DISABLE_THREAD_SUPPORT=ON -DEVENT__DISABLE_OPENSSL=ON \
                      -DEVENT__DISABLE_MBEDTLS=ON -DEVENT__DISABLE_BENCHMARK=ON -DEVENT__DISABLE_TESTS=ON \
                      -DEVENT__DISABLE_REGRESS=ON -DEVENT__DISABLE_SAMPLES=ON -DEVENT__LIBRARY_TYPE=STATIC
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib libarchive; then
             for prefix in $SSL_PREFIXES; do
                 opt_size
                 # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
-                export CFLAGS="-isystem $prefix/include $CFLAGS"
-                export CPPFLAGS="-isystem $prefix/include $CPPFLAGS"
+                export CFLAGS="-I$prefix/include $CFLAGS"
+                export CPPFLAGS="-I$prefix/include $CPPFLAGS"
                 export LDFLAGS="-L$prefix/lib $LDFLAGS"
                 cd "$WORKDIR"
                 rm -rf libarchive-${LIBARCHIVE_VERSION}
@@ -725,8 +726,8 @@ EOF
                 cmake .. -DCMAKE_PREFIX_PATH="$prefix;$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$prefix" \
                          -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
                          ${CMAKE_ARGS}
-                make -j$(nproc)
-                make install
+                ninja
+                ninja install
             done
         fi
 
@@ -742,8 +743,8 @@ EOF
                      -DRANGE_V3_PERF=OFF -DRANGE_V3_TESTS=OFF -DRANGE_V3_HEADER_CHECKS=ON \
                      -DRANGES_ENABLE_WERROR=OFF -DRANGES_NATIVE=OFF -DRANGES_DEBUG_INFO=OFF \
                      ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
 
         if use_lib parallel-hashmap; then
@@ -756,8 +757,8 @@ EOF
             cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
                      -DBUILD_SHARED_LIBS=OFF -DPHMAP_BUILD_EXAMPLES=OFF -DPHMAP_BUILD_TESTS=OFF \
                      ${CMAKE_ARGS}
-            make -j$(nproc)
-            make install
+            ninja
+            ninja install
         fi
     done
 done
