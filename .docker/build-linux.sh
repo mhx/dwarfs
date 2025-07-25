@@ -327,8 +327,8 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   fi
 
   export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
-  export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT"
-  export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT"
+  export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
+  export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
   # if [[ "$ARCH" == "aarch64" ]]; then
   #   # For some reason, this dependency of libunwind is not resolved on aarch64
   #   export LDFLAGS="${LDFLAGS} -lz"

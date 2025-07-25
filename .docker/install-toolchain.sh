@@ -129,7 +129,8 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         cd binutils-${BINUTILS_VERSION}-build-${TARGETARCH}-O${OPT}
 
         "$HOME"/pkgs/binutils-${BINUTILS_VERSION}/configure \
-            --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --disable-nls --disable-werror
+            --target=$TARGET --program-prefix="$TARGET-" --prefix=$PREFIX --with-sysroot=$SYSROOT \
+            --disable-nls --disable-werror
         make -j"$(nproc)"
         make install
 
