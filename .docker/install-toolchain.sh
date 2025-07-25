@@ -154,17 +154,20 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         rm -rf musl-${MUSL_VERSION}
         tar xf ${MUSL_TARBALL}
         cd musl-${MUSL_VERSION}
+        fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/3.22-stable/main/musl/__stack_chk_fail_local.c
+        ${TARGET}-gcc $CFLAGS -c __stack_chk_fail_local.c -o __stack_chk_fail_local.o
+        ${TARGET}-ar r libssp_nonshared.a __stack_chk_fail_local.o
         ./configure --prefix=$PREFIX/$TARGET --target=$TARGET CC=$TARGET-gcc
         make install-headers
         make -j"$(nproc)"
         make install
+        cp libssp_nonshared.a $PREFIX/$TARGET/lib/
 
         # Stage 2
         cd "$HOME"/pkgs
         mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
         cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
 
-        # --libdir=$PREFIX/lib --includedir=$PREFIX/include \
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
