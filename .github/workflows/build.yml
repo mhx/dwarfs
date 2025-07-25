@@ -289,15 +289,20 @@ jobs:
           #   build_dist: alpine
           #   build_type: clang-release-ninja-static
 
-          # - build_arch: amd64
-          #   build_dist: alpine
-          #   build_type: clang-relsize-libressl-lto-ninja-static
-          #   cross_arch: riscv64
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: aarch64
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
-            cross_arch: i386
+            cross_arch: riscv64
+
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
+          #   cross_arch: i386
 
     uses: ./.github/workflows/docker-run-build.yml
     with:
