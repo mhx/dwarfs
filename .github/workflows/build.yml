@@ -108,143 +108,202 @@ jobs:
 
     strategy:
       matrix:
-        arch:
-          - amd64
-          - arm64v8
-        dist:
-          - ubuntu
-          - fedora
-          - arch
-        build_type:
-          - gcc-debug-shared-ninja-full
-          - gcc-release-ninja-split
-          - gcc-release-shared-ninja-split
-          - clang-release-shared-ninja-full
-        exclude:
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-debug-shared-ninja-full
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-ninja-split
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-shared-ninja-split
-          - arch: arm64v8
-            dist: arch
-            build_type: clang-release-shared-ninja-full
-          - arch: arm64v8
-            dist: ubuntu
-            build_type: gcc-release-ninja-split
-          - arch: arm64v8
-            dist: ubuntu
-            build_type: gcc-release-shared-ninja-split
-          - arch: arm64v8
-            dist: fedora
-            build_type: gcc-release-ninja-split
-          - arch: arm64v8
-            dist: fedora
-            build_type: gcc-release-shared-ninja-split
         include:
-          - arch: amd64
-            dist: debian
-            build_type: gcc-release-make-full
-          - arch: amd64
-            dist: debian
-            build_type: clang-debug-shared-ninja-split
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-asan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-debug-shared-tsan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-ubsan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: oldgcc-debug-shared-make-split
-          - arch: amd64
-            dist: ubuntu
-            build_type: gcc-debug-shared-noperfmon-ninja-split
-          - arch: amd64
-            dist: ubuntu
-            build_type: oldclang-debug-shared-make-split
-          - arch: amd64
-            dist: ubuntu-2204
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: gcc-release-ninja-split
+
+          - build_arch: amd64
+            build_dist: ubuntu
             build_type: gcc-release-shared-ninja-split
-          - arch: amd64
-            dist: ubuntu-2204
+
+          - build_arch: amd64
+            build_dist: ubuntu
             build_type: gcc-debug-shared-ninja-full
-          - arch: amd64
-            dist: ubuntu-2204
-            build_type: clang-release-ninja-split
-          - arch: amd64
-            dist: ubuntu
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: gcc-debug-shared-noperfmon-ninja-split
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: clang-release-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: clang-reldbg-shared-asan-ninja
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: clang-reldbg-shared-ubsan-ninja
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: clang-debug-shared-tsan-ninja
+
+          - build_arch: amd64
+            build_dist: ubuntu
             build_type: clang-debug-coverage-ninja
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: oldgcc-debug-shared-make-split
+
+          - build_arch: amd64
+            build_dist: ubuntu
+            build_type: oldclang-debug-shared-make-split
+
+          - build_arch: amd64
+            build_dist: ubuntu-2204
+            build_type: gcc-release-shared-ninja-split
+
+          - build_arch: amd64
+            build_dist: ubuntu-2204
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: ubuntu-2204
+            build_type: clang-release-ninja-split
+
+          - build_arch: amd64
+            build_dist: fedora
+            build_type: gcc-release-ninja-split
+
+          - build_arch: amd64
+            build_dist: fedora
+            build_type: gcc-release-shared-ninja-split
+
+          - build_arch: amd64
+            build_dist: fedora
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: fedora
+            build_type: clang-release-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: arch
+            build_type: gcc-release-ninja-split
+
+          - build_arch: amd64
+            build_dist: arch
+            build_type: gcc-release-shared-ninja-split
+
+          - build_arch: amd64
+            build_dist: arch
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: arch
+            build_type: clang-release-shared-ninja-full
+
+          - build_arch: amd64
+            build_dist: debian
+            build_type: gcc-release-make-full
+
+          - build_arch: amd64
+            build_dist: debian
+            build_type: clang-debug-shared-ninja-split
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: gcc-release-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: gcc-release-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-release-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-release-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
-          - arch: riscv64
-            dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-minimal-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-minimal-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-minimal-libressl-lto-ninja-static
-          # - arch: arm64v8
-          #   dist: alpine
-          #   build_type: clang-relsize-minimal-libressl-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
-          # - arch: arm64v8
-          #   dist: alpine
-          #   build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
-          - arch: amd64
-            dist: alpine
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
-          - arch: arm64v8
-            dist: alpine
+
+          - build_arch: arm64v8
+            build_dist: ubuntu
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: arm64v8
+            build_dist: ubuntu
+            build_type: clang-release-shared-ninja-full
+
+          - build_arch: arm64v8
+            build_dist: fedora
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: arm64v8
+            build_dist: fedora
+            build_type: clang-release-shared-ninja-full
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
+
+          - build_arch: riscv64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: riscv64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: i386
 
     uses: ./.github/workflows/docker-run-build.yml
     with:
       build_type: ${{ matrix.build_type }}
-      build_arch: ${{ matrix.arch }}
-      build_dist: ${{ matrix.dist }}
+      build_arch: ${{ matrix.build_arch }}
+      build_dist: ${{ matrix.build_dist }}
       build_from_tarball: true
       upload_coverage: ${{ matrix.build_type == 'clang-debug-coverage-ninja' }}
       upload_artifacts: ${{ endsWith(matrix.build_type, '-static') }}

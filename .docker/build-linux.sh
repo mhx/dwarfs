@@ -77,7 +77,7 @@ cd build
 # Stick to clang-18, clang-19 has a regression for nilsimsa performance
 if [[ "$BUILD_DIST" == "alpine" ]]; then
   GCC_VERSION=
-  CLANG_VERSION=-19
+  CLANG_VERSION=-20
 elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
   GCC_VERSION=-12
   CLANG_VERSION=-15
@@ -287,39 +287,53 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
-    _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
-    if [[ "$ARCH" == "aarch64" ]]; then
-      # Similar to the issue with *not* linking against `gcc_eh` in the CMakeLists.txt,
-      # if we link against the `gcc_eh` from the `-Os` build, we run into exactly the
-      # same issue. So we temporarily copy the size-optimized `libgcc.a` to a directory
-      # we then use for linking.
-      _GCCLIBDIR="/tmp/gcclib"
-      mkdir -p "$_GCCLIBDIR"
-      cp -a "$_LIBSTDCXXDIR"/gcc/*/*/libgcc.a "$_GCCLIBDIR"
-    else
-      _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
-    fi
-    LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
-  fi
-  export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
-  if [[ "$ARCH" == "aarch64" ]]; then
-    # For some reason, this dependency of libunwind is not resolved on aarch64
-    export LDFLAGS="${LDFLAGS} -lz"
-  fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+  _SYSROOT="/opt/cross/Os"
+  _MARCH="${CROSS_ARCH:-$ARCH}"
+  _TARGET="${_MARCH}-unknown-linux-musl"
+  export CC="${_TARGET}-${CC}"
+  export CXX="${_TARGET}-${CXX}"
+  export PATH="$_SYSROOT/usr/bin:$PATH"
+  # if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
+  #   _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
+  #   if [[ "$ARCH" == "aarch64" ]]; then
+  #     # Similar to the issue with *not* linking against `gcc_eh` in the CMakeLists.txt,
+  #     # if we link against the `gcc_eh` from the `-Os` build, we run into exactly the
+  #     # same issue. So we temporarily copy the size-optimized `libgcc.a` to a directory
+  #     # we then use for linking.
+  #     _GCCLIBDIR="/tmp/gcclib"
+  #     mkdir -p "$_GCCLIBDIR"
+  #     cp -a "$_LIBSTDCXXDIR"/gcc/*/*/libgcc.a "$_GCCLIBDIR"
+  #   else
+  #     _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
+  #   fi
+  #   LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
+  # fi
+
+  _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
   if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
-    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal"
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal/$_TARGET"
   else
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
-    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full"
+    _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full/$_TARGET"
   fi
   if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
-    _sslprefix="/opt/static-libs/$COMPILER-libressl"
+    _sslprefix="/opt/static-libs/$COMPILER-libressl/$_TARGET"
   else
-    _sslprefix="/opt/static-libs/$COMPILER-openssl"
+    _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix;$_jemallocprefix"
+
+  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -L$_staticprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
+  export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT"
+  export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT"
+  # if [[ "$ARCH" == "aarch64" ]]; then
+  #   # For some reason, this dependency of libunwind is not resolved on aarch64
+  #   export LDFLAGS="${LDFLAGS} -lz"
+  # fi
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DSTATIC_BUILD_EXTRA_PREFIX=$_staticprefix;$_sslprefix;$_jemallocprefix"
+
+  if [[ -n "$CROSS_ARCH" ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
+  fi
 fi
 
 INSTALLDIR="$HOME/install"
