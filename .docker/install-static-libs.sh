@@ -261,7 +261,7 @@ cpu = '$CARCH'
 endian = '$endian'
 EOF
 
-    export SYSROOT="/opt/cross/Os"
+    export SYSROOT="/opt/cross/O2"
     export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:$PATH"
     export WORKROOT="$HOME/pkgs"
 

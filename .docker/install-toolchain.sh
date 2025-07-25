@@ -78,6 +78,7 @@ ORIGPATH="$PATH"
 
 export CC="/usr/bin/ccache /usr/bin/gcc"
 export CXX="/usr/bin/ccache /usr/bin/g++"
+export LD="/usr/bin/ld"
 
 for target_arch in ${TARGET_ARCH_STR//,/ }; do
     for OPT in ${OPTIMIZE_STR//,/ }; do
@@ -113,8 +114,9 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 ;;
         esac
 
-        export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
-        export CXXFLAGS="$CFLAGS"
+        export BOOT_CFLAGS='-O2 -g0 -pipe'
+        export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fomit-frame-pointer -fPIC"
+        export CXXFLAGS="$CFLAGS -fno-semantic-interposition"
         export LDFLAGS="-Wl,--gc-sections"
 
         SYSROOT="/opt/cross/O${OPT}"

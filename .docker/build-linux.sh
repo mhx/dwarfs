@@ -287,7 +287,7 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  _SYSROOT="/opt/cross/Os"
+  _SYSROOT="/opt/cross/O2"
   _MARCH="${CROSS_ARCH}"
   if [[ "$CROSS_ARCH" == "native" ]]; then
     _MARCH="${ARCH}"
