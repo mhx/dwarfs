@@ -295,6 +295,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   _TARGET="${_MARCH}-unknown-linux-musl"
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
+  export STRIP_TOOL="${_TARGET}-strip"
   export PATH="$_SYSROOT/usr/bin:$PATH"
   # if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
   #   _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
