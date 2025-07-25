@@ -70,6 +70,13 @@ TEST_F(global_metadata_test, check_empty_tables) {
   EXPECT_THAT([&] { check(raw); }, throws_error("empty modes table"));
 }
 
+// On aarch64, Clang will wrongly optimize away some of the assignments
+// in this test, leading to false positives. I'm pretty sure this is a bug
+// in Clang, need to reproduce it and file a bug report.
+#if defined(__clang__) && defined(__aarch64__)
+#pragma clang optimize off
+#endif
+
 TEST_F(global_metadata_test, check_index_range) {
   metadata raw;
   raw.directories()->resize(1);
@@ -137,6 +144,10 @@ TEST_F(global_metadata_test, check_index_range) {
   de.inode_num() = 1;
   EXPECT_THAT([&] { check(raw); }, throws_error("inode_num out of range"));
 }
+
+#if defined(__clang__) && defined(__aarch64__)
+#pragma clang optimize on
+#endif
 
 TEST_F(global_metadata_test, check_packed_tables) {
   metadata raw;
