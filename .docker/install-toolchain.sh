@@ -118,7 +118,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
 
         SYSROOT="/opt/cross/O${OPT}"
         PREFIX="$SYSROOT/usr"
-        PATH="$PREFIX/bin:$ORIGPATH"
+        PATH="$ORIGPATH:$PREFIX/bin"
 
         GCC_NODOCS="MAKEINFO=/bin/true gcc_cv_prog_makeinfo_modern=no HELP2MAN=/bin/true TEXI2POD=/bin/true POD2MAN=/bin/true"
 
