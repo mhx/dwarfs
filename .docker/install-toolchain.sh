@@ -114,7 +114,6 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 ;;
         esac
 
-        export BOOT_CFLAGS='-O2 -g0 -pipe'
         export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fomit-frame-pointer -fPIC"
         export CXXFLAGS="$CFLAGS -fno-semantic-interposition"
         export LDFLAGS="-Wl,--gc-sections"
@@ -140,27 +139,32 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         cd "$HOME"/pkgs/linux-${LINUX_VERSION}
         make ARCH="$CARCH" INSTALL_HDR_PATH=$PREFIX/$TARGET headers_install
 
-        cd "$HOME"/pkgs
-        mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
-        cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
-        "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
-            --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --with-newlib --without-headers \
-            --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
-            --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv \
-            --disable-libstdcxx --enable-languages=c,c++ ${GCC_NODOCS}
-        make -j"$(nproc)" all-gcc ${GCC_NODOCS}
-        make -j"$(nproc)" all-target-libgcc ${GCC_NODOCS}
-        make install-gcc
-        make install-target-libgcc
+        if [[ "$TARGETARCH" != "$ARCH" ]]; then
+            cd "$HOME"/pkgs
+            mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
+            cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
+            "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
+                --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --with-newlib --without-headers \
+                --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
+                --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv \
+                --disable-libstdcxx --enable-languages=c,c++ ${GCC_NODOCS}
+            make -j"$(nproc)" all-gcc ${GCC_NODOCS}
+            make -j"$(nproc)" all-target-libgcc ${GCC_NODOCS}
+            make install-gcc
+            make install-target-libgcc
+            MUSL_CC="${TARGET}-gcc"
+        else
+            MUSL_CC="gcc"
+        fi
 
         cd "$HOME"/pkgs
         rm -rf musl-${MUSL_VERSION}
         tar xf ${MUSL_TARBALL}
         cd musl-${MUSL_VERSION}
         fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/3.22-stable/main/musl/__stack_chk_fail_local.c
-        ${TARGET}-gcc $CFLAGS -c __stack_chk_fail_local.c -o __stack_chk_fail_local.o
+        ${MUSL_CC} $CFLAGS -c __stack_chk_fail_local.c -o __stack_chk_fail_local.o
         ${TARGET}-ar r libssp_nonshared.a __stack_chk_fail_local.o
-        ./configure --prefix=$PREFIX/$TARGET --target=$TARGET CC=$TARGET-gcc
+        ./configure --prefix=$PREFIX/$TARGET --target=$TARGET CC=$MUSL_CC
         make install-headers
         make -j"$(nproc)"
         make install
@@ -182,7 +186,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             --with-gmp=/usr --with-mpfr=/usr --with-mpc=/usr \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
             --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
-            --enable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
+            --enable-libssp --disable-libsanitizer --enable-checking=release --disable-cet --disable-fixed-point \
             --enable-libstdcxx-time=yes --enable-default-pie --enable-default-ssp --with-linker-hash-style=gnu ${GCC_NODOCS}
         make -j"$(nproc)" ${GCC_NODOCS}
         make install
