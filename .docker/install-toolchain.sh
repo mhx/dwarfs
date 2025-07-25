@@ -16,8 +16,6 @@ GCC_TARBALL=gcc-${GCC_VERSION}.tar.xz
 MUSL_TARBALL=musl-${MUSL_VERSION}.tar.gz
 LINUX_TARBALL=linux-${LINUX_VERSION}.tar.xz
 
-export PATH="/usr/lib/ccache/bin:$PATH"
-
 cd "$HOME"
 mkdir pkgs
 cd pkgs
@@ -78,6 +76,9 @@ fetch.sh https://gcc.gnu.org/pipermail/gcc-patches/attachments/20250220/c6211b02
 
 ORIGPATH="$PATH"
 
+export CC="/usr/bin/ccache /usr/bin/gcc"
+export CXX="/usr/bin/ccache /usr/bin/g++"
+
 for target_arch in ${TARGET_ARCH_STR//,/ }; do
     for OPT in ${OPTIMIZE_STR//,/ }; do
         echo "==========================================================="
@@ -112,13 +113,13 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 ;;
         esac
 
-        CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
-        CXXFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
-        LDFLAGS="-Wl,--gc-sections"
+        export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
+        export CXXFLAGS="$CFLAGS"
+        export LDFLAGS="-Wl,--gc-sections"
 
         SYSROOT="/opt/cross/O${OPT}"
         PREFIX="$SYSROOT/usr"
-        PATH="$ORIGPATH:$PREFIX/bin"
+        PATH="$PREFIX/bin:$ORIGPATH"
 
         GCC_NODOCS="MAKEINFO=/bin/true gcc_cv_prog_makeinfo_modern=no HELP2MAN=/bin/true TEXI2POD=/bin/true POD2MAN=/bin/true"
 
@@ -163,6 +164,12 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         make install
         cp libssp_nonshared.a $PREFIX/$TARGET/lib/
 
+        if [[ "$TARGETARCH" == "$ARCH" ]]; then
+            # Fix for aarch64 build: rsync musl headers to native sysroot
+            rsync -av $PREFIX/$TARGET/include/ $PREFIX/include/
+            rsync -av $PREFIX/$TARGET/lib/ $PREFIX/lib/
+        fi
+
         # Stage 2
         cd "$HOME"/pkgs
         mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-final
@@ -170,6 +177,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
 
         "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
             --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} \
+            --with-gmp=/usr --with-mpfr=/usr --with-mpc=/usr \
             --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
             --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
             --enable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
