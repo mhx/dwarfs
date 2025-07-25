@@ -9,8 +9,8 @@ mkdir -p "$LOCAL_REPO_PATH"
 LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
 
 WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
-NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
-BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
 mkdir -p "$WORKFLOW_LOG_DIR"
 
 log() {
@@ -288,7 +288,10 @@ fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   _SYSROOT="/opt/cross/Os"
-  _MARCH="${CROSS_ARCH:-$ARCH}"
+  _MARCH="${CROSS_ARCH}"
+  if [[ "$CROSS_ARCH" == "native" ]]; then
+    _MARCH="${ARCH}"
+  fi
   _TARGET="${_MARCH}-unknown-linux-musl"
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
@@ -322,7 +325,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -L$_staticprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
+  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
   export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT"
   export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT"
   # if [[ "$ARCH" == "aarch64" ]]; then
@@ -331,7 +334,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   # fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DSTATIC_BUILD_EXTRA_PREFIX=$_staticprefix;$_sslprefix;$_jemallocprefix"
 
-  if [[ -n "$CROSS_ARCH" ]]; then
+  if [[ "$CROSS_ARCH" != "native" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
   fi
 fi

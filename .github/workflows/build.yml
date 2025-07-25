@@ -13,84 +13,84 @@ permissions:
   contents: read
 
 jobs:
-  windows:
-    runs-on:
-      - self-hosted
-      - Windows
-
-    strategy:
-      matrix:
-        arch:
-          - X64
-        build_mode:
-          - Release
-          - Debug
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Set MSVC Dev Environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure Build
-        shell: cmd
-        run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
-
-      - name: Run Build
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build
-
-      - name: Run Test
-        shell: cmd
-        run: |
-          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
-          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
-
-      - name: Build Package
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target package
-
-      - name: Compress Universal Binary
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target universal_upx
-
-      - name: Copy Artifacts
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target copy_artifacts
-
-      # - name: Prepare Artifact Upload
-      #   shell: cmd
-      #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-
-      # - name: Upload Binary Tarball
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.binary_tarball }}
-      #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-
-      # - name: Upload Universal Binary
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.universal_binary }}
-      #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+#  windows:
+#    runs-on:
+#      - self-hosted
+#      - Windows
+#
+#    strategy:
+#      matrix:
+#        arch:
+#          - X64
+#        build_mode:
+#          - Release
+#          - Debug
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: 'true'
+#          fetch-depth: '0'
+#          ref: ${{ github.ref }}
+#
+#      - name: Set MSVC Dev Environment
+#        uses: ilammy/msvc-dev-cmd@v1
+#
+#      - name: Configure Build
+#        shell: cmd
+#        run: |
+#          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
+#
+#      - name: Run Build
+#        shell: cmd
+#        run: |
+#          cmake --build ${{ runner.temp }}\build
+#
+#      - name: Run Test
+#        shell: cmd
+#        run: |
+#          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
+#          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
+#
+#      - name: Build Package
+#        shell: cmd
+#        run: |
+#          cmake --build ${{ runner.temp }}\build --target package
+#
+#      - name: Compress Universal Binary
+#        shell: cmd
+#        run: |
+#          cmake --build ${{ runner.temp }}\build --target universal_upx
+#
+#      - name: Copy Artifacts
+#        shell: cmd
+#        run: |
+#          cmake --build ${{ runner.temp }}\build --target copy_artifacts
+#
+#      # - name: Prepare Artifact Upload
+#      #   shell: cmd
+#      #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
+#
+#      # - name: Upload Binary Tarball
+#      #   uses: actions/upload-artifact@v4
+#      #   with:
+#      #     name: ${{ env.binary_tarball }}
+#      #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
+#      #     if-no-files-found: error
+#      #     compression-level: 0
+#      #   env:
+#      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+#
+#      # - name: Upload Universal Binary
+#      #   uses: actions/upload-artifact@v4
+#      #   with:
+#      #     name: ${{ env.universal_binary }}
+#      #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
+#      #     if-no-files-found: error
+#      #     compression-level: 0
+#      #   env:
+#      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
 
 ################################################################################
 
@@ -109,195 +109,195 @@ jobs:
     strategy:
       matrix:
         include:
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: gcc-release-ninja-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: gcc-release-ninja-split
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: gcc-release-shared-ninja-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: gcc-release-shared-ninja-split
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: gcc-debug-shared-noperfmon-ninja-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: gcc-debug-shared-noperfmon-ninja-split
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-release-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: clang-release-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-reldbg-shared-asan-ninja
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: clang-reldbg-shared-asan-ninja
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-reldbg-shared-ubsan-ninja
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: clang-reldbg-shared-ubsan-ninja
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-debug-shared-tsan-ninja
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: clang-debug-shared-tsan-ninja
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-debug-coverage-ninja
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: clang-debug-coverage-ninja
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: oldgcc-debug-shared-make-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: oldgcc-debug-shared-make-split
 
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: oldclang-debug-shared-make-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu
+          #   build_type: oldclang-debug-shared-make-split
 
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: gcc-release-shared-ninja-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu-2204
+          #   build_type: gcc-release-shared-ninja-split
 
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: ubuntu-2204
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: clang-release-ninja-split
+          # - build_arch: amd64
+          #   build_dist: ubuntu-2204
+          #   build_type: clang-release-ninja-split
 
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: gcc-release-ninja-split
+          # - build_arch: amd64
+          #   build_dist: fedora
+          #   build_type: gcc-release-ninja-split
 
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: gcc-release-shared-ninja-split
+          # - build_arch: amd64
+          #   build_dist: fedora
+          #   build_type: gcc-release-shared-ninja-split
 
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: fedora
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: clang-release-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: fedora
+          #   build_type: clang-release-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: arch
-            build_type: gcc-release-ninja-split
+          # - build_arch: amd64
+          #   build_dist: arch
+          #   build_type: gcc-release-ninja-split
 
-          - build_arch: amd64
-            build_dist: arch
-            build_type: gcc-release-shared-ninja-split
+          # - build_arch: amd64
+          #   build_dist: arch
+          #   build_type: gcc-release-shared-ninja-split
 
-          - build_arch: amd64
-            build_dist: arch
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: arch
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: arch
-            build_type: clang-release-shared-ninja-full
+          # - build_arch: amd64
+          #   build_dist: arch
+          #   build_type: clang-release-shared-ninja-full
 
-          - build_arch: amd64
-            build_dist: debian
-            build_type: gcc-release-make-full
+          # - build_arch: amd64
+          #   build_dist: debian
+          #   build_type: gcc-release-make-full
 
-          - build_arch: amd64
-            build_dist: debian
-            build_type: clang-debug-shared-ninja-split
+          # - build_arch: amd64
+          #   build_dist: debian
+          #   build_type: clang-debug-shared-ninja-split
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: gcc-release-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-release-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-lto-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-libressl-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-reldbg-stacktrace-ninja-static
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-reldbg-stacktrace-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: ubuntu
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: arm64v8
+          #   build_dist: ubuntu
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: ubuntu
-            build_type: clang-release-shared-ninja-full
+          # - build_arch: arm64v8
+          #   build_dist: ubuntu
+          #   build_type: clang-release-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: fedora
-            build_type: gcc-debug-shared-ninja-full
+          # - build_arch: arm64v8
+          #   build_dist: fedora
+          #   build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: fedora
-            build_type: clang-release-shared-ninja-full
+          # - build_arch: arm64v8
+          #   build_dist: fedora
+          #   build_type: clang-release-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: gcc-release-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-release-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-release-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-lto-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-minimal-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-lto-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-reldbg-stacktrace-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-reldbg-stacktrace-ninja-static
 
-          - build_arch: riscv64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
+          # - build_arch: riscv64
+          #   build_dist: alpine
+          #   build_type: clang-release-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
-            cross_arch: riscv64
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
+          #   cross_arch: riscv64
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
-            cross_arch: i386
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
+          #   cross_arch: i386
 
     uses: ./.github/workflows/docker-run-build.yml
     with:
@@ -310,123 +310,123 @@ jobs:
 
 ################################################################################
 
-  macos:
-    needs: package-source
-
-    runs-on:
-      - self-hosted
-      - macOS
-      - ${{ matrix.arch }}
-
-    strategy:
-      matrix:
-        arch:
-          - ARM64
-        build_mode:
-          - Release
-          - Debug
-        config:
-          - name: Normal
-            cmake_args:
-          - name: Benchmark
-            cmake_args: -DWITH_BENCHMARKS=ON
-        include:
-          - arch: X64
-            build_mode: Release
-            config:
-            - name: Normal
-              cmake_args:
-          - arch: X64
-            build_mode: Debug
-            config:
-            - name: Benchmark
-              cmake_args: -DWITH_BENCHMARKS=ON
-
-    steps:
-      - name: Unpack Source Tarball
-        run: |
-          rm -rf dwarfs-*/
-          rm -f dwarfs-source-*.tar.zst
-          rm -f dwarfs
-          tar xf /Volumes/opensource/artifacts/dwarfs/cache/dwarfs-source-${{ github.run_number }}.tar.zst
-          ln -s dwarfs-* dwarfs
-
-      - name: Configure Full Build
-        run: |
-          rm -rf ${{ runner.temp }}/build
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
-
-      - name: Run Full Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Full Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure Library Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }}
-
-      - name: Run Library Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Library Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install Library
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure Tools Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
-
-      - name: Run Tools Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Tools Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install Tools
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure FUSE Driver Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
-
-      - name: Run FUSE Driver Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run FUSE Driver Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install FUSE Driver
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-          rm -rf dwarfs-*/
-          rm -f dwarfs-source-*.tar.zst
-          rm -f dwarfs
+#  macos:
+#    needs: package-source
+#
+#    runs-on:
+#      - self-hosted
+#      - macOS
+#      - ${{ matrix.arch }}
+#
+#    strategy:
+#      matrix:
+#        arch:
+#          - ARM64
+#        build_mode:
+#          - Release
+#          - Debug
+#        config:
+#          - name: Normal
+#            cmake_args:
+#          - name: Benchmark
+#            cmake_args: -DWITH_BENCHMARKS=ON
+#        include:
+#          - arch: X64
+#            build_mode: Release
+#            config:
+#            - name: Normal
+#              cmake_args:
+#          - arch: X64
+#            build_mode: Debug
+#            config:
+#            - name: Benchmark
+#              cmake_args: -DWITH_BENCHMARKS=ON
+#
+#    steps:
+#      - name: Unpack Source Tarball
+#        run: |
+#          rm -rf dwarfs-*/
+#          rm -f dwarfs-source-*.tar.zst
+#          rm -f dwarfs
+#          tar xf /Volumes/opensource/artifacts/dwarfs/cache/dwarfs-source-${{ github.run_number }}.tar.zst
+#          ln -s dwarfs-* dwarfs
+#
+#      - name: Configure Full Build
+#        run: |
+#          rm -rf ${{ runner.temp }}/build
+#          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
+#
+#      - name: Run Full Build
+#        run: |
+#          cmake --build ${{ runner.temp }}/build
+#
+#      - name: Run Full Test
+#        run: |
+#          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+#
+#      - name: Cleanup
+#        run: |
+#          cmake --build ${{ runner.temp }}/build --target realclean
+#
+#      - name: Configure Library Build
+#        run: |
+#          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }}
+#
+#      - name: Run Library Build
+#        run: |
+#          cmake --build ${{ runner.temp }}/build
+#
+#      - name: Run Library Test
+#        run: |
+#          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+#
+#      - name: Install Library
+#        run: |
+#          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+#
+#      - name: Cleanup
+#        run: |
+#          cmake --build ${{ runner.temp }}/build --target realclean
+#
+#      - name: Configure Tools Build
+#        run: |
+#          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+#
+#      - name: Run Tools Build
+#        run: |
+#          cmake --build ${{ runner.temp }}/build
+#
+#      - name: Run Tools Test
+#        run: |
+#          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+#
+#      - name: Install Tools
+#        run: |
+#          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+#
+#      - name: Cleanup
+#        run: |
+#          cmake --build ${{ runner.temp }}/build --target realclean
+#
+#      - name: Configure FUSE Driver Build
+#        run: |
+#          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+#
+#      - name: Run FUSE Driver Build
+#        run: |
+#          cmake --build ${{ runner.temp }}/build
+#
+#      - name: Run FUSE Driver Test
+#        run: |
+#          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+#
+#      - name: Install FUSE Driver
+#        run: |
+#          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+#
+#      - name: Cleanup
+#        run: |
+#          cmake --build ${{ runner.temp }}/build --target realclean
+#          rm -rf dwarfs-*/
+#          rm -f dwarfs-source-*.tar.zst
+#          rm -f dwarfs

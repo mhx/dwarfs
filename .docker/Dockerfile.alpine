@@ -103,6 +103,10 @@ RUN if ! [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
         echo "See https://github.com/upx/upx/discussions/793 for details."; \
     fi
 
+# TODO: move up
+RUN apk add --no-cache py3-pip
+RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
+
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
 RUN adduser -G users -s bash -u 1000 -D mhx
