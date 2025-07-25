@@ -206,7 +206,7 @@ target_include_directories(dwarfs_common PUBLIC
 
 target_compile_definitions(
   dwarfs_common PRIVATE
-  DWARFS_SYSTEM_ID="${CMAKE_SYSTEM} [${CMAKE_SYSTEM_PROCESSOR}]"
+  DWARFS_SYSTEM_ID="${CMAKE_SYSTEM_NAME} [${CMAKE_SYSTEM_PROCESSOR}]"
   DWARFS_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
