@@ -1051,7 +1051,9 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
-      find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
+      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64)$")
+        find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
+      endif()
 
       if(UPX_EXE)
         # upx -9 is a good compromise between compression ratio and speed
