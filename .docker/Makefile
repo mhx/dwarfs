@@ -1,8 +1,6 @@
 IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
-IMAGE_ALPINE_RISCV="dwarfs-buildenv-alpine-riscv64"
-IMAGE_ALPINE_XX="dwarfs-buildenv-alpine-xx"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_ARCH="dwarfs-buildenv-arch"
@@ -35,22 +33,10 @@ run_debian:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
 
 build_alpine:
-	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE) .
+	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,i386 -t $(IMAGE_ALPINE) .
 
 run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
-
-build_alpine_xx:
-	docker buildx build -f Dockerfile.alpine-xx --build-arg TARGET_ARCHS=x86_64,riscv64,i386 -t $(IMAGE_ALPINE_XX) .
-
-run_alpine_xx:
-	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_XX)
-
-build_alpine_riscv:
-	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE_RISCV) --build-arg ARCH=riscv64 .
-
-run_alpine_riscv:
-	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_RISCV)
 
 build_ubuntu2204:
 	docker build -f Dockerfile.ubuntu-2204 -t $(IMAGE_UBUNTU2204) .

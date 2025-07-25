@@ -9,7 +9,7 @@ cd pkgs
 ARCH="$(uname -m)"
 
 GCC="gcc"
-CLANG="clang"
+CLANG="clang-20"
 PKGS="$1"
 TARGET_ARCH_STR="${2:-${ARCH}}"
 
@@ -398,16 +398,17 @@ EOF
             fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
             fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
             ./autogen.sh ${TRIPLETS}
-            # mkdir build-minimal
-            # cd build-minimal
-            # ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
-            # make -j$(nproc)
-            # make install
-            # cd ..
-            # mkdir build-full
-            mkdir build
-            cd build
-            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+            mkdir build-minimal
+            cd build-minimal
+            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+                         --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug \
+                         --cache-file=$HOME/.cfgcache/jemalloc-minimal-${JEMALLOC_VERSION}-${CARCH}-${COMPILER}.cache
+            make -j$(nproc)
+            make install
+            cd ..
+            mkdir build-full
+            cd build-full
+            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-full" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
                          --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug \
                          --cache-file=$HOME/.cfgcache/jemalloc-${JEMALLOC_VERSION}-${CARCH}-${COMPILER}.cache
             make -j$(nproc)

@@ -1,9 +1,18 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
 FROM $ARCH/alpine:latest
+
+ARG ARCH
+ARG TARGET_ARCHS
+ARG TOOLCHAIN_OPTIMIZE=s
+
 RUN apk update
 RUN apk upgrade
-RUN apk add --no-cache \
+RUN qemu_pkgs=""; \
+    for arch in $(echo $TARGET_ARCHS | tr ',' ' '); do \
+        qemu_pkgs="$qemu_pkgs qemu-$arch"; \
+    done; \
+    apk add --no-cache \
         bash-completion \
         build-base \
         wget \
@@ -11,81 +20,88 @@ RUN apk add --no-cache \
         vim \
         tar \
         ripgrep \
-        py3-pip \
         less \
         gcc \
         g++ \
         clang18 \
         clang19 \
+        clang20 \
         git \
+        xz \
+        gzip \
+        bzip2 \
+        zstd \
         ccache \
-        samurai \
+        ninja-build \
         cmake \
         make \
         bison \
         flex \
         ronn \
         fuse \
-        fuse-dev \
-        fuse-static \
         fuse3 \
-        fuse3-dev \
-        fuse3-static \
         pkgconf \
-        binutils-dev \
-        libevent-dev \
-        libevent-static \
-        linux-headers \
-        date-dev \
-        range-v3-dev \
-        zlib-static \
-        libucontext-dev \
-        libdwarf-dev \
-        elfutils-dev \
-        utfcpp \
-        nlohmann-json \
         meson \
         autoconf \
         strace \
-        gdb
+        gdb \
+        gmp-dev \
+        zlib-static \
+        zstd-static \
+        zlib-dev \
+        zstd-dev \
+        mpfr-dev \
+        mpc1-dev \
+        isl-dev \
+        texinfo \
+        linux-headers \
+        rsync \
+        $qemu_pkgs
 
-# Install UPX
-ARG ARCH
-# UPX isn't supported on RISC-V yet, so skip this
-RUN if [ "$ARCH" != "riscv64" ]; then \
-        wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
-    else \
-        echo "Skipping UPX installation for RISC-V architecture while it is not supported."; \
-        echo "See https://github.com/upx/upx/discussions/793 for details."; \
-    fi
-
-# Install mistletoe
-RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
-
-# Install size-optimized and static-link-optimized libstdc++
-RUN apk add --no-cache gmp-dev mpfr-dev mpc1-dev isl-dev
-COPY install-libstdcxx.sh /usr/local/bin/install-libstdcxx.sh
-RUN bash /usr/local/bin/install-libstdcxx.sh
+COPY fetch.sh /usr/local/bin/fetch.sh
 
 # Install mold
 COPY install-mold.sh /usr/local/bin/install-mold.sh
-RUN bash /usr/local/bin/install-mold.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-mold.sh
 
 # Install bloaty
 COPY install-bloaty.sh /usr/local/bin/install-bloaty.sh
-RUN if [ "$ARCH" != "riscv64" ]; then \
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    if [ "$ARCH" == "amd64" ]; then \
         bash /usr/local/bin/install-bloaty.sh; \
     else \
-        echo "Skipping bloaty installation for RISC-V."; \
+        echo "Skipping bloaty installation for $ARCH."; \
     fi
+
+RUN apk del linux-headers
+
+# Install size-optimized and static-link-optimized libstdc++
+COPY install-toolchain.sh /usr/local/bin/install-toolchain.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-toolchain.sh $TOOLCHAIN_OPTIMIZE $TARGET_ARCHS
+
+RUN apk del zlib-dev zstd-dev
+
+# Clear the config cache after a toolchain update
+RUN --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    rm -rf /root/.cfgcache/*
 
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 
-# Install the *real* ninja...
-# TODO: move this up if we change anything
-RUN apk add --no-cache ninja-build
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
+    bash /usr/local/bin/install-static-libs.sh :all $TARGET_ARCHS
+
+# Install UPX
+# UPX isn't supported on RISC-V/S390 (yet), so skip this
+RUN if ! [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
+        wget -O - https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
+    else \
+        echo "Skipping UPX installation for $ARCH architecture while it is not supported."; \
+        echo "See https://github.com/upx/upx/discussions/793 for details."; \
+    fi
 
 # Set up git & user
 RUN git config --global --add safe.directory /workspace

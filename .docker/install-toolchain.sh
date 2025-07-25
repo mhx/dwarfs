@@ -3,8 +3,8 @@
 set -ex
 
 ARCH="$(uname -m)"
-TARGET_ARCH_STR="${1:-$ARCH}"
-OPTIMIZE_STR="${2:-s}"
+OPTIMIZE_STR="${1:-s}"
+TARGET_ARCH_STR="${2:-$ARCH}"
 
 BINUTILS_VERSION=2.44
 GCC_VERSION=14.2.0
@@ -173,14 +173,20 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         make -j"$(nproc)" ${GCC_NODOCS}
         make install
 
-        # Symbolic links for clang
-        ln -s /usr/bin/clang $PREFIX/bin/$TARGET-clang
-        ln -s /usr/bin/clang++ $PREFIX/bin/$TARGET-clang++
-
-        # Also provide ccache symlinks
+        # Directory for ccache symlinks
         mkdir -p $PREFIX/lib/ccache/bin
-        for binary in gcc g++ clang clang++; do
-            ln -s /usr/bin/ccache $PREFIX/lib/ccache/bin/$TARGET-$binary
+
+        # Symbolic links for clang
+        for clang_binary in /usr/bin/clang{++,}{-[1-9]*,}; do
+            name=$(basename $clang_binary)
+            ln -s $clang_binary $PREFIX/bin/$TARGET-$name
+            ln -s /usr/bin/ccache $PREFIX/lib/ccache/bin/$TARGET-$name
+        done
+
+        # Also provide ccache symlinks for gcc
+        for gcc_binary in $PREFIX/bin/$TARGET-{c++,g++,gcc,gcc-[1-9]*}; do
+            name=$(basename $gcc_binary)
+            ln -s /usr/bin/ccache $PREFIX/lib/ccache/bin/$name
         done
     done
 done
