@@ -339,8 +339,7 @@ EOF
             fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/Remove-the-useless-endina.h-for-loongarch64.patch - | patch -p1
             fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/fix-libunwind-pc-in.patch - | patch -p1
             LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" \
-                ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared \
-                            --cache-file=$HOME/.cfgcache/libunwind-${LIBUNWIND_VERSION}-${CARCH}-${COMPILER}.cache
+                ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
             make -j$(nproc)
             make install
         fi
@@ -401,16 +400,14 @@ EOF
             mkdir build-minimal
             cd build-minimal
             ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
-                         --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug \
-                         --cache-file=$HOME/.cfgcache/jemalloc-minimal-${JEMALLOC_VERSION}-${CARCH}-${COMPILER}.cache
+                         --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
             cd ..
             mkdir build-full
             cd build-full
             ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-full" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
-                         --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug \
-                         --cache-file=$HOME/.cfgcache/jemalloc-${JEMALLOC_VERSION}-${CARCH}-${COMPILER}.cache
+                         --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
         fi
@@ -458,8 +455,7 @@ EOF
             cd fuse-${LIBFUSE_VERSION}
             ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" \
                 --disable-shared --enable-static \
-                --disable-example --enable-lib --disable-util \
-                --cache-file=$HOME/.cfgcache/fuse-${LIBFUSE_VERSION}-${CARCH}-${COMPILER}.cache
+                --disable-example --enable-lib --disable-util
             make -j$(nproc)
             make install
         fi
@@ -553,8 +549,7 @@ EOF
             ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc \
                         --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls \
                         --disable-xz --disable-xzdec --disable-lzmainfo --disable-lzmadec \
-                        --disable-lzma-links --disable-scripts \
-                        --cache-file=$HOME/.cfgcache/xz-${XZ_VERSION}-${CARCH}-${COMPILER}.cache
+                        --disable-lzma-links --disable-scripts
             make -j$(nproc)
             make install
         fi
@@ -656,8 +651,7 @@ EOF
                             --without-bz2lib --without-zlib \
                             --disable-shared --disable-acl --disable-xattr \
                             --disable-bsdtar --disable-bsdcat --disable-bsdcpio \
-                            --disable-bsdunzip \
-                            --cache-file=$HOME/.cfgcache/libarchive-${LIBARCHIVE_VERSION}-${CARCH}-${COMPILER}${sslsuffix}.cache
+                            --disable-bsdunzip
                 make -j$(nproc)
                 make install
             done
@@ -679,8 +673,7 @@ EOF
             tar xf ${WORKROOT}/${FLAC_TARBALL}
             cd flac-${FLAC_VERSION}
             ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
-                        --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples \
-                        --cache-file=$HOME/.cfgcache/flac-${FLAC_VERSION}-${CARCH}-${COMPILER}.cache
+                        --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
             make -j$(nproc)
             make install
         fi

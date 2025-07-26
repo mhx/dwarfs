@@ -85,15 +85,10 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 RUN apk del zlib-dev zstd-dev
 
-# Clear the config cache after a toolchain update
-RUN --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
-    rm -rf /root/.cfgcache/*
-
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    --mount=type=cache,id=cfgcache,target=/root/.cfgcache \
     bash /usr/local/bin/install-static-libs.sh :all $TARGET_ARCHS
 
 # Install UPX
