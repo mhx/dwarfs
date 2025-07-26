@@ -55,7 +55,7 @@ elif [[ "$PKGS" == ":all" ]]; then
     PKGS="benchmark,boost,brotli,cpptrace,date,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
 fi
 
-export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
+export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants -fomit-frame-pointer"
 export COMMON_CXXFLAGS="$COMMON_CFLAGS"
 export COMMON_LDFLAGS="-fuse-ld=mold -static-libgcc"
 
