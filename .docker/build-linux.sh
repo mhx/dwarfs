@@ -114,6 +114,9 @@ case "-$BUILD_TYPE-" in
       *-ubuntu-*|*-debian-*)
         export CC=gcc$GCC_VERSION CXX=g++$GCC_VERSION
         ;;
+      *)
+        export CC=gcc CXX=g++
+        ;;
     esac
     export COMPILER=gcc
     ;;
