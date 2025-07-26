@@ -112,6 +112,9 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 GCC_CONFIGURE_ARGS="--with-arch=armv6 --with-fpu=vfp --with-float=hard"
                 TARGET="arm-linux-musleabihf"
                 ;;
+            *)
+                GCC_CONFIGURE_ARGS=""
+                ;;
         esac
 
         export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fomit-frame-pointer -fPIC"
