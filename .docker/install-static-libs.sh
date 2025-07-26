@@ -272,10 +272,12 @@ EOF
         COMPILERS="clang-minsize-lto"
     fi
 
+    INSTALL_ROOT="/opt/static-libs"
+
     for COMPILER in $COMPILERS; do
-        INSTALL_DIR="/opt/static-libs/$COMPILER/$TARGET"
-        INSTALL_DIR_OPENSSL="/opt/static-libs/$COMPILER-openssl/$TARGET"
-        INSTALL_DIR_LIBRESSL="/opt/static-libs/$COMPILER-libressl/$TARGET"
+        INSTALL_DIR="$INSTALL_ROOT/$COMPILER/$TARGET"
+        INSTALL_DIR_OPENSSL="$INSTALL_ROOT/$COMPILER-openssl/$TARGET"
+        INSTALL_DIR_LIBRESSL="$INSTALL_ROOT/$COMPILER-libressl/$TARGET"
         WORKSUBDIR="$COMPILER/$TARGET"
         WORKDIR="$WORKROOT/$WORKSUBDIR"
 
@@ -399,14 +401,14 @@ EOF
             ./autogen.sh ${TRIPLETS}
             mkdir build-minimal
             cd build-minimal
-            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-minimal" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-minimal/$TARGET" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
                          --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
             cd ..
             mkdir build-full
             cd build-full
-            ../configure ${TRIPLETS} --prefix="$INSTALL_DIR-jemalloc-full" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-full/$TARGET" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
                          --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
