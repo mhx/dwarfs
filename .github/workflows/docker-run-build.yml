@@ -55,7 +55,7 @@ jobs:
       # container by setting TARGET_ARCHS. Otherwise, don't set TARGET_ARCHS.
       - name: Build Docker Image
         run: |
-          docker buildx build \
+          docker buildx build --progress=plain \
             -f .docker/Dockerfile.${{ inputs.build_dist }} \
             -t dwarfs-linux-build-${{ inputs.build_dist }} \
             --build-arg ARCH=${{ inputs.build_arch }} \

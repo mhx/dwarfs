@@ -265,13 +265,13 @@ jobs:
           #   build_dist: alpine
           #   build_type: clang-release-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-lto-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-relsize-libressl-lto-ninja-static
+          # - build_arch: arm64v8
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
 
           # - build_arch: arm64v8
           #   build_dist: alpine
@@ -285,14 +285,18 @@ jobs:
           #   build_dist: alpine
           #   build_type: clang-reldbg-stacktrace-ninja-static
 
+          - build_arch: riscv64
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+
           # - build_arch: riscv64
           #   build_dist: alpine
           #   build_type: clang-release-ninja-static
 
-          # - build_arch: amd64
-          #   build_dist: alpine
-          #   build_type: clang-relsize-libressl-lto-ninja-static
-          #   cross_arch: riscv64
+          ### - build_arch: amd64
+          ###   build_dist: alpine
+          ###   build_type: clang-relsize-libressl-lto-ninja-static
+          ###   cross_arch: riscv64
 
           # - build_arch: amd64
           #   build_dist: alpine
