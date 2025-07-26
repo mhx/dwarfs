@@ -326,7 +326,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
+  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
   export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
   export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
   # if [[ "$ARCH" == "aarch64" ]]; then
