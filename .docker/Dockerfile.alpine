@@ -93,7 +93,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 # Install UPX
 # UPX isn't supported on RISC-V/S390 (yet), so skip this
-RUN if ! [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
+RUN if [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
         wget -O - https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"; \
     else \
         echo "Skipping UPX installation for $ARCH architecture while it is not supported."; \
