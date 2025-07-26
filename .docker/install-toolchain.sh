@@ -117,8 +117,8 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 ;;
         esac
 
-        export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fomit-frame-pointer -fPIC"
-        export CXXFLAGS="$CFLAGS -fno-semantic-interposition"
+        export CFLAGS="-O${OPT} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
+        export CXXFLAGS="$CFLAGS"
         export LDFLAGS="-Wl,--gc-sections"
 
         SYSROOT="/opt/cross/O${OPT}"
