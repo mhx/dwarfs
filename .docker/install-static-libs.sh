@@ -228,7 +228,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         aarch64*)    BOOST_CONTEXT_ARCH="arm64" ;;
     esac
 
-    export TARGET="${CARCH}-unknown-linux-musl"
+    export TARGET="${CARCH}-alpine-linux-musl"
 
     case "$CARCH" in
         arm) export TARGET="arm-linux-musleabihf" ;;

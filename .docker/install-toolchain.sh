@@ -3,7 +3,7 @@
 set -ex
 
 ARCH="$(uname -m)"
-OPTIMIZE_STR="${1:-s}"
+OPTIMIZE_STR="${1:-2}"
 TARGET_ARCH_STR="${2:-$ARCH}"
 
 BINUTILS_VERSION=2.44
@@ -88,10 +88,10 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
 
         export TARGETARCH="$target_arch"
 
-        TARGET="${TARGETARCH}-unknown-linux-musl"
+        TARGET="${TARGETARCH}-alpine-linux-musl"
 
         CARCH="$TARGETARCH"
-        case "$CARCH" in
+        case "$TARGETARCH" in
             aarch64*) CARCH="arm64" ;;
             arm*) CARCH="arm" ;;
             mips*) CARCH="mips" ;;
@@ -101,14 +101,14 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             loongarch*) CARCH="loongarch" ;;
         esac
 
-        case "$CARCH" in
+        case "$TARGETARCH" in
             i386)
                 GCC_CONFIGURE_ARGS="--with-arch=i486 --with-tune=generic"
                 ;;
-            aarch64)
+            aarch64*)
                 GCC_CONFIGURE_ARGS="--with-arch=armv8-a --with-abi=lp64"
                 ;;
-            arm)
+            arm*)
                 GCC_CONFIGURE_ARGS="--with-arch=armv6 --with-fpu=vfp --with-float=hard"
                 TARGET="arm-linux-musleabihf"
                 ;;
