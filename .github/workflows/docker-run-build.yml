@@ -13,7 +13,7 @@ on:
       cross_arch:
         required: false
         type: string
-        default: native
+        default: ''
       build_dist:
         required: true
         type: string

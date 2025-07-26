@@ -289,10 +289,10 @@ fi
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   _SYSROOT="/opt/cross/O2"
   _MARCH="${CROSS_ARCH}"
-  if [[ "$CROSS_ARCH" == "native" ]]; then
+  if [[ -z "$CROSS_ARCH" ]]; then
     _MARCH="${ARCH}"
   fi
-  _TARGET="${_MARCH}-unknown-linux-musl"
+  _TARGET="${_MARCH}-alpine-linux-musl"
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
   export STRIP_TOOL="${_TARGET}-strip"
@@ -335,7 +335,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   # fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DSTATIC_BUILD_EXTRA_PREFIX=$_staticprefix;$_sslprefix;$_jemallocprefix"
 
-  if [[ "$CROSS_ARCH" != "native" ]]; then
+  if [[ -n "$CROSS_ARCH" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
   fi
 fi
