@@ -251,7 +251,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
 
     endian="little"
     case "$CARCH" in
-        powerpc|powerpc64)
+        s390x|powerpc|powerpc64)
             endian="big"
             ;;
     esac
