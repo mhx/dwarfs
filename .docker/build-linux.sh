@@ -290,6 +290,8 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+  # A size-optimized libgcc/libstdc++/musl will only save about 10k for the universal
+  # and fuse-extract binaries, so we'll just stick to using the -O2 toolchain.
   _SYSROOT="/opt/cross/O2"
   _MARCH="${CROSS_ARCH}"
   if [[ -z "$CROSS_ARCH" ]]; then
@@ -300,21 +302,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export CXX="${_TARGET}-${CXX}"
   export STRIP_TOOL="${_TARGET}-strip"
   export PATH="$_SYSROOT/usr/bin:$PATH"
-  # if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
-  #   _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
-  #   if [[ "$ARCH" == "aarch64" ]]; then
-  #     # Similar to the issue with *not* linking against `gcc_eh` in the CMakeLists.txt,
-  #     # if we link against the `gcc_eh` from the `-Os` build, we run into exactly the
-  #     # same issue. So we temporarily copy the size-optimized `libgcc.a` to a directory
-  #     # we then use for linking.
-  #     _GCCLIBDIR="/tmp/gcclib"
-  #     mkdir -p "$_GCCLIBDIR"
-  #     cp -a "$_LIBSTDCXXDIR"/gcc/*/*/libgcc.a "$_GCCLIBDIR"
-  #   else
-  #     _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
-  #   fi
-  #   LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
-  # fi
 
   _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
   if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
@@ -332,10 +319,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
   export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
   export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
-  # if [[ "$ARCH" == "aarch64" ]]; then
-  #   # For some reason, this dependency of libunwind is not resolved on aarch64
-  #   export LDFLAGS="${LDFLAGS} -lz"
-  # fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DSTATIC_BUILD_EXTRA_PREFIX=$_staticprefix;$_sslprefix;$_jemallocprefix"
 
   if [[ -n "$CROSS_ARCH" ]]; then
