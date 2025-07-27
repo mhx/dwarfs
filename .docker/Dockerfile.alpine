@@ -58,7 +58,9 @@ RUN qemu_pkgs=""; \
         isl-dev \
         texinfo \
         linux-headers \
+        gdb-multiarch \
         rsync \
+        screen \
         $qemu_pkgs
 
 COPY fetch.sh /usr/local/bin/fetch.sh
