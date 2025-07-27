@@ -1058,7 +1058,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
-      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64)$")
+      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le)$")
         find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
       endif()
 

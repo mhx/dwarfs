@@ -185,7 +185,14 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-static-*)
-    export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
+    case "$CROSS_ARCH" in
+      ppc64le|s390x)
+         CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
+         ;;
+      *)
+         export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
+         ;;
+    esac
     ;;
 esac
 
