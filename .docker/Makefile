@@ -34,13 +34,13 @@ run_debian:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
 
 build_alpine:
-	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,i386 -t $(IMAGE_ALPINE) .
+	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,ppc64le,i386 -t $(IMAGE_ALPINE) .
 
 run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
 
 build_alpine_newarch:
-	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=ppc64le,s390x,arm -t $(IMAGE_ALPINE_NEWARCH) .
+	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=s390x,arm -t $(IMAGE_ALPINE_NEWARCH) .
 
 run_alpine_newarch:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_NEWARCH)

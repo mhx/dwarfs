@@ -59,7 +59,7 @@ jobs:
             -f .docker/Dockerfile.${{ inputs.build_dist }} \
             -t dwarfs-linux-build-${{ inputs.build_dist }} \
             --build-arg ARCH=${{ inputs.build_arch }} \
-            ${{ inputs.build_arch == 'amd64' && '--build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,i386' || '' }} \
+            ${{ inputs.build_arch == 'amd64' && '--build-arg TARGET_ARCHS=x86_64,aarch64,riscv64,ppc64le,i386' || '' }} \
             .docker
 
       - name: Run Build
