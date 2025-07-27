@@ -1,6 +1,7 @@
 IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
+IMAGE_ALPINE_NEWARCH="dwarfs-buildenv-alpine-newarch"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_ARCH="dwarfs-buildenv-arch"
@@ -37,6 +38,12 @@ build_alpine:
 
 run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
+
+build_alpine_newarch:
+	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=ppc64le,s390x,arm -t $(IMAGE_ALPINE_NEWARCH) .
+
+run_alpine_newarch:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_NEWARCH)
 
 build_ubuntu2204:
 	docker build -f Dockerfile.ubuntu-2204 -t $(IMAGE_UBUNTU2204) .
