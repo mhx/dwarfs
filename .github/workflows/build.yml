@@ -289,9 +289,9 @@ jobs:
           #   build_dist: alpine
           #   build_type: clang-relsize-libressl-lto-ninja-static
 
-          # - build_arch: riscv64
-          #   build_dist: alpine
-          #   build_type: clang-release-ninja-static
+          - build_arch: riscv64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
