@@ -407,7 +407,20 @@ std::string exception_str(std::exception const& e) {
 }
 
 std::string exception_str(std::exception_ptr const& e) {
+#if defined(__linux__) && defined(__arm__)
+  try {
+    if (e) {
+      std::rethrow_exception(e);
+    }
+  } catch (std::exception const& ex) {
+    return folly::exceptionStr(ex).toStdString();
+  } catch (...) {
+    return "unknown exception";
+  }
+  return "no exception";
+#else
   return folly::exceptionStr(e).toStdString();
+#endif
 }
 
 unsigned int hardware_concurrency() noexcept {
