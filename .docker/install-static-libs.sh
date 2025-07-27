@@ -57,7 +57,7 @@ fi
 
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
 export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-export COMMON_LDFLAGS="-fuse-ld=mold -static-libgcc"
+export COMMON_LDFLAGS="-static-libgcc"
 
 FILE_TARBALL="file-${FILE_VERSION}.tar.gz"
 BZIP2_TARBALL="bzip2-${BZIP2_VERSION}.tar.gz"
@@ -91,6 +91,15 @@ PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
+    case "$CARCH" in
+        ppc64le|s390x|arm)
+            case "$lib" in
+                libunwind|libdwarf|cpptrace)
+                    return 1
+                    ;;
+            esac
+            ;;
+    esac
     if [[ ",$PKGS," == *",$lib,"* ]]; then
         return 0
     else
@@ -226,6 +235,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     BOOST_CONTEXT_ARCH="$CARCH"
     case "$CARCH" in
         aarch64*)    BOOST_CONTEXT_ARCH="arm64" ;;
+        ppc64*)      BOOST_CONTEXT_ARCH="ppc64" ;;
     esac
 
     export TARGET="${CARCH}-alpine-linux-musl"
@@ -241,7 +251,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
 
     endian="little"
     case "$CARCH" in
-        powerpc|powerpc64|s390|s390x)
+        powerpc|powerpc64)
             endian="big"
             ;;
     esac
@@ -266,11 +276,22 @@ EOF
     export WORKROOT="$HOME/pkgs"
 
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
-    COMPILERS="clang clang-minsize-lto gcc"
-    if [[ "$CARCH" != "x86_64" && "$CARCH" != "aarch64" ]]; then
-        # Let's keep it simple for more exotic architectures
-        COMPILERS="clang-minsize-lto"
-    fi
+    case "$CARCH" in
+        ppc64le|s390x)
+            COMPILERS="gcc"
+            ;;
+        arm)
+            COMPILERS="clang clang-minsize-lto"
+            ;;
+        *)
+            if [[ "$ARCH" == "riscv64" ]]; then
+                # This is so slow natively, stick to the basics for now
+                COMPILERS="clang"
+            else
+                COMPILERS="clang clang-minsize-lto gcc"
+            fi
+            ;;
+    esac
 
     INSTALL_ROOT="/opt/static-libs"
 
@@ -287,6 +308,17 @@ EOF
         export PERF_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
         export PERF_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
         export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
+
+        case "$CARCH" in
+            arm)
+                export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
+                ;;
+            ppc64le|s390x)
+                ;;
+            *)
+                export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
+                ;;
+        esac
 
         case "$COMPILER" in
             clang*)
@@ -385,6 +417,7 @@ EOF
             cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
                      -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
                      -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
+                     -DBOOST_CHARCONV_QUADMATH_FOUND_EXITCODE=0 \
                      -DBOOST_EXCLUDE_LIBRARIES=stacktrace ${BOOST_CMAKE_ARGS} \
                      -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
             ninja

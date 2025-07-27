@@ -2,11 +2,6 @@
 
 set -ex
 
-# if [ -n "$TARGETPLATFORM" ]; then
-#     export CC="xx-cc"
-#     export CXX="xx-c++"
-# fi
-
 cd "$HOME"
 mkdir pkgs
 cd pkgs
@@ -23,7 +18,6 @@ export PATH="/usr/lib/ccache/bin:$PATH"
 
 cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
 ninja
-ccache -s
 ninja install
 
 cd "$HOME"

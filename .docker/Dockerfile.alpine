@@ -26,6 +26,7 @@ RUN qemu_pkgs=""; \
         clang18 \
         clang19 \
         clang20 \
+        lld \
         git \
         xz \
         gzip \
