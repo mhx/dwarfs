@@ -111,23 +111,11 @@ jobs:
         include:
           - build_arch: amd64
             build_dist: ubuntu
-            build_type: gcc-release-ninja-split
-
-          - build_arch: amd64
-            build_dist: ubuntu
             build_type: gcc-release-shared-ninja-split
 
           - build_arch: amd64
             build_dist: ubuntu
-            build_type: gcc-debug-shared-ninja-full
-
-          - build_arch: amd64
-            build_dist: ubuntu
             build_type: gcc-debug-shared-noperfmon-ninja-split
-
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: clang-release-shared-ninja-full
 
           - build_arch: amd64
             build_dist: ubuntu
@@ -152,18 +140,6 @@ jobs:
           - build_arch: amd64
             build_dist: ubuntu
             build_type: oldclang-debug-shared-make-split
-
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: gcc-release-shared-ninja-split
-
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: gcc-debug-shared-ninja-full
-
-          - build_arch: amd64
-            build_dist: ubuntu-2204
-            build_type: clang-release-ninja-split
 
           - build_arch: amd64
             build_dist: fedora
@@ -240,6 +216,18 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: ubuntu-2204
+            build_type: gcc-release-shared-ninja-split
+
+          - build_arch: arm64v8
+            build_dist: ubuntu-2204
+            build_type: gcc-debug-shared-ninja-full
+
+          - build_arch: arm64v8
+            build_dist: ubuntu-2204
+            build_type: clang-release-ninja-split
 
           - build_arch: arm64v8
             build_dist: ubuntu
