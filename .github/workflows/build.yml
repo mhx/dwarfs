@@ -134,24 +134,8 @@ jobs:
             build_type: clang-debug-coverage-ninja
 
           - build_arch: amd64
-            build_dist: ubuntu
-            build_type: oldgcc-debug-shared-make-split
-
-          - build_arch: amd64
-            build_dist: ubuntu
-            build_type: oldclang-debug-shared-make-split
-
-          - build_arch: amd64
             build_dist: fedora
             build_type: gcc-release-ninja-split
-
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: gcc-release-shared-ninja-split
-
-          - build_arch: amd64
-            build_dist: fedora
-            build_type: gcc-debug-shared-ninja-full
 
           - build_arch: amd64
             build_dist: fedora
@@ -238,8 +222,20 @@ jobs:
             build_type: clang-release-shared-ninja-full
 
           - build_arch: arm64v8
+            build_dist: ubuntu
+            build_type: oldgcc-debug-shared-make-split
+
+          - build_arch: arm64v8
+            build_dist: ubuntu
+            build_type: oldclang-debug-shared-make-split
+
+          - build_arch: arm64v8
             build_dist: fedora
-            build_type: gcc-debug-shared-ninja-full
+            build_type: gcc-release-shared-make-full
+
+          - build_arch: arm64v8
+            build_dist: fedora
+            build_type: gcc-debug-shared-ninja-split
 
           - build_arch: arm64v8
             build_dist: fedora
