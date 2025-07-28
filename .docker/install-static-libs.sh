@@ -284,8 +284,7 @@ EOF
 
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     case "$CARCH" in
-        # There are currently issues with Clang & PPC64LE, see
-        # https://github.com/rui314/mold/issues/1490
+        # https://github.com/llvm/llvm-project/issues/150913
         ppc64le)
             COMPILERS="gcc"
             ;;
@@ -317,6 +316,8 @@ EOF
 
         case "$CARCH" in
             ppc64le)
+                # https://github.com/rui314/mold/issues/1490
+                export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
                 ;;
             *)
                 export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
