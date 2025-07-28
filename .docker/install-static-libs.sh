@@ -92,9 +92,16 @@ PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
 use_lib() {
     local lib="$1"
     case "$CARCH" in
-        ppc64le|s390x|arm)
+        ppc64le|arm)
             case "$lib" in
                 libunwind|libdwarf|cpptrace)
+                    return 1
+                    ;;
+            esac
+            ;;
+        s390x)
+            case "$lib" in
+                libunwind|libdwarf|cpptrace|libressl)
                     return 1
                     ;;
             esac
@@ -277,11 +284,10 @@ EOF
 
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     case "$CARCH" in
-        ppc64le|s390x)
+        # There are currently issues with Clang & PPC64LE, see
+        # https://github.com/rui314/mold/issues/1490
+        ppc64le)
             COMPILERS="gcc"
-            ;;
-        arm)
-            COMPILERS="clang clang-minsize-lto"
             ;;
         *)
             if [[ "$ARCH" == "riscv64" ]]; then
@@ -310,10 +316,7 @@ EOF
         export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
 
         case "$CARCH" in
-            arm)
-                export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
-                ;;
-            ppc64le|s390x)
+            ppc64le)
                 ;;
             *)
                 export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
@@ -621,19 +624,17 @@ EOF
         fi
 
         if use_lib libressl; then
-            if [[ "$CARCH" =~ ^(x86_64|aarch64|riscv64|i386)$ ]]; then
-                opt_size
-                cd "$WORKDIR"
-                tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
-                cd libressl-${LIBRESSL_VERSION}
-                mkdir build
-                cd build
-                cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
-                         -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
-                         ${CMAKE_ARGS}
-                ninja
-                ninja install
-            fi
+            opt_size
+            cd "$WORKDIR"
+            tar xf ${WORKROOT}/${LIBRESSL_TARBALL}
+            cd libressl-${LIBRESSL_VERSION}
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
+                     -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
+                     ${CMAKE_ARGS}
+            ninja
+            ninja install
         fi
 
         if use_lib libevent; then
