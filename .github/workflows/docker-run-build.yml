@@ -84,10 +84,10 @@ jobs:
             dwarfs-linux-build-${{ inputs.build_dist }}
 
       - name: Upload Coverage Data
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ${{ runner.temp }}/dwarfs-coverage.txt
+          files: ${{ runner.temp }}/dwarfs-coverage.txt
           fail_ci_if_error: false
         if: ${{ inputs.upload_coverage }}
 
