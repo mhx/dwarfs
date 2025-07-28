@@ -186,8 +186,10 @@ esac
 case "-$BUILD_TYPE-" in
   *-static-*)
     case "$CROSS_ARCH" in
-      ppc64le|s390x)
+      ppc64le)
+         # https://github.com/rui314/mold/issues/1490
          CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
+         export LDFLAGS="${LDFLAGS} -fuse-ld=lld"
          ;;
       *)
          export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
@@ -304,7 +306,11 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   if [[ -z "$CROSS_ARCH" ]]; then
     _MARCH="${ARCH}"
   fi
-  _TARGET="${_MARCH}-alpine-linux-musl"
+  if [[ "$_MARCH" == "arm" ]]; then
+    _TARGET="${_MARCH}-linux-musleabihf"
+  else
+    _TARGET="${_MARCH}-alpine-linux-musl"
+  fi
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
   export STRIP_TOOL="${_TARGET}-strip"
@@ -323,10 +329,15 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  export LDFLAGS="${LDFLAGS} --sysroot=$_SYSROOT -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
-  export CFLAGS="${CFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
-  export CXXFLAGS="${CXXFLAGS} --sysroot=$_SYSROOT -isystem $_staticprefix/include"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DSTATIC_BUILD_EXTRA_PREFIX=$_staticprefix;$_sslprefix;$_jemallocprefix"
+  # export LDFLAGS="${LDFLAGS} -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib -L$_SYSROOT/usr/$_TARGET/lib -lucontext"
+  export LDFLAGS="${LDFLAGS} -static-libgcc"
+  export CFLAGS="${CFLAGS} -isystem $_staticprefix/include"
+  export CXXFLAGS="${CXXFLAGS} -isystem $_staticprefix/include"
+  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+
+  if [[ "$_MARCH" == "i386" ]]; then
+    export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -lucontext"
+  fi
 
   if [[ -n "$CROSS_ARCH" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
