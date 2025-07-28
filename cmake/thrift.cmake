@@ -57,7 +57,7 @@ add_library(
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types_compact.cpp
 )
 
-set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD 20)
+set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 target_link_libraries(dwarfs_thrift_lite PUBLIC dwarfs_folly_lite)
 
 target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC

@@ -77,6 +77,8 @@ if(WITH_ALL_BENCHMARKS)
   set(WITH_BENCHMARKS ON)
 endif()
 
+set(DWARFS_CXX_STANDARD 20)
+
 # Libraries that we can fetch on demand if necessary
 #
 # All of these libraries are header-only and not strictly required once
@@ -472,8 +474,8 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
   endif()
-  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_common dwarfs_writer dwarfs_tool)
-  set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
+  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool)
+  set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 endif()
 
 if(WITH_TESTS)
@@ -818,7 +820,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     )
   endif()
 
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
