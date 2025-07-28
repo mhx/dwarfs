@@ -243,7 +243,7 @@ endif()
 target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
 target_include_directories(dwarfs_common SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD 20)
+set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
 

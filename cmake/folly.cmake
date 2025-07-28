@@ -38,13 +38,13 @@ add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES NOMINMAX NOGDI)
 add_compile_definitions(GLOG_USE_GLOG_EXPORT)
 
 set(
-  CXX_STD "gnu++20"
+  CXX_STD "gnu++${DWARFS_CXX_STANDARD}"
   CACHE STRING
   "The C++ standard argument to pass to the compiler."
 )
 
 set(
-  MSVC_LANGUAGE_VERSION "c++20"
+  MSVC_LANGUAGE_VERSION "c++${DWARFS_CXX_STANDARD}"
   CACHE STRING
   "The C++ standard argument to pass to the compiler."
 )
@@ -143,7 +143,7 @@ if(WIN32)
   )
 endif()
 
-set_property(TARGET dwarfs_folly_lite PROPERTY CXX_STANDARD 20)
+set_property(TARGET dwarfs_folly_lite PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 target_include_directories(
   dwarfs_folly_lite SYSTEM PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/folly>
