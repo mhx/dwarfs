@@ -140,17 +140,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 find_package(PkgConfig)
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # Strangely this is needed when linking statically against FLAC++
-  #add_compile_options(-fno-omit-frame-pointer)
-
-  if(STATIC_BUILD_EXTRA_PREFIX)
-    foreach (prefix ${STATIC_BUILD_EXTRA_PREFIX})
-      include_directories(BEFORE ${prefix}/include)
-    endforeach()
-    list(PREPEND CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
-    set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH ON)
-  endif()
-
   set(CMAKE_FIND_LIBRARY_SUFFIXES
       ".a"
       CACHE STRING "please look for static libs")
@@ -1058,7 +1047,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
-      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le)$")
+      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le|arm)$")
         find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
       endif()
 
