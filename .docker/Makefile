@@ -10,7 +10,7 @@ ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 NPROC:=$(shell nproc)
 
 COMMON_RUN_OPTS=-it --rm \
-		--cap-add SYS_ADMIN --device /dev/fuse --privileged \
+		--cap-add SYS_ADMIN --device /dev/fuse \
 		--mount type=bind,source="$(ROOT_DIR)"/..,target=/workspace,readonly \
 		--mount type=bind,source="$(ROOT_DIR)"/../@docker-ccache,target=/ccache \
 		--mount type=bind,source="$(ROOT_DIR)"/../@docker-home,target=/home/mhx \
