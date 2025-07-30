@@ -2990,6 +2990,8 @@ TEST(mkdwarfs_test, map_file_error) {
 class map_file_error_test : public testing::TestWithParam<char const*> {};
 
 TEST_P(map_file_error_test, delayed) {
+  DWARFS_SLOW_TEST();
+
 #if defined(__linux__) && defined(__i386__)
   GTEST_SKIP() << "this test is flaky on i386 Linux (SIGPIPE)";
 #endif

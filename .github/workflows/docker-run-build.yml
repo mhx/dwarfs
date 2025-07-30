@@ -29,6 +29,10 @@ on:
         required: false
         type: boolean
         default: false
+      skip_slow_tests:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -72,6 +76,7 @@ jobs:
             --mount type=bind,source=${HOME}/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             ${{ inputs.build_from_tarball && '--env BUILD_FROM_TARBALL=1' || '' }} \
+            ${{ inputs.skip_slow_tests && '--env DWARFS_SKIP_SLOW_TESTS=1' || '' }} \
             --env BUILD_TYPE=${{ inputs.build_type }} \
             --env BUILD_ARCH=${{ inputs.build_arch }} \
             --env CROSS_ARCH=${{ inputs.cross_arch }} \

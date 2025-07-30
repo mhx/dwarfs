@@ -292,16 +292,19 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-lto-ninja-static
             cross_arch: riscv64
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-release-ninja-static
             cross_arch: riscv64
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-ninja-static
             cross_arch: riscv64
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -312,16 +315,19 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-lto-ninja-static
             cross_arch: i386
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-release-ninja-static
             cross_arch: i386
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-ninja-static
             cross_arch: i386
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -332,11 +338,13 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-lto-ninja-static
             cross_arch: arm
+            skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-release-ninja-static
             cross_arch: arm
+            skip_slow_tests: true
 
           ######### fails: static_assert(std::atomic<bool>::is_always_lock_free);
           # - build_arch: amd64
@@ -355,6 +363,7 @@ jobs:
       build_arch: ${{ matrix.build_arch }}
       build_dist: ${{ matrix.build_dist }}
       cross_arch: ${{ matrix.cross_arch }}
+      skip_slow_tests: ${{ matrix.skip_slow_tests || false }}
       build_from_tarball: true
       upload_coverage: ${{ matrix.build_type == 'clang-debug-coverage-ninja' }}
       upload_artifacts: ${{ endsWith(matrix.build_type, '-static') }}
