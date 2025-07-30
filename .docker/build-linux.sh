@@ -334,7 +334,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export CXXFLAGS="${CXXFLAGS} -isystem $_staticprefix/include"
 
   if [[ "$_MARCH" == "i386" ]]; then
-    export LDFLAGS="${LDFLAGS} -lucontext"
+    export LDFLAGS="${LDFLAGS} -lucontext -latomic"
   fi
 
   CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"

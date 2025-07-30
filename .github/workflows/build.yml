@@ -107,6 +107,7 @@ jobs:
     needs: package-source
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - build_arch: amd64
@@ -289,13 +290,59 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: riscv64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+            cross_arch: riscv64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
+            cross_arch: riscv64
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
             cross_arch: i386
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: arm
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: arm
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+            cross_arch: arm
+
+          ######### fails: static_assert(std::atomic<bool>::is_always_lock_free);
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: gcc-release-ninja-static
+          #   cross_arch: arm
 
           - build_arch: amd64
             build_dist: alpine
