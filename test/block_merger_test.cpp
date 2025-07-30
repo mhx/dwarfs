@@ -476,6 +476,8 @@ block_merger_test(size_t const max_runs) {
 } // namespace
 
 TEST(block_merger, random) {
+  DWARFS_SLOW_TEST();
+
   using merger_type = internal::multi_queue_block_merger<size_t, block>;
 
   auto max_runs = skip_slow_tests() ? max_runs_regular_quick : max_runs_regular;
@@ -487,6 +489,8 @@ TEST(block_merger, random) {
 }
 
 TEST(block_merger, random_sized) {
+  DWARFS_SLOW_TEST();
+
   using merger_type =
       internal::multi_queue_block_merger<size_t, sized_block,
                                          sized_block_merger_policy>;
@@ -500,6 +504,8 @@ TEST(block_merger, random_sized) {
 }
 
 TEST(block_merger, random_sized_partial) {
+  DWARFS_SLOW_TEST();
+
   using merger_type =
       internal::multi_queue_block_merger<size_t, sized_block,
                                          sized_block_merger_policy>;
