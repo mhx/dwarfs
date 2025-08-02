@@ -45,6 +45,16 @@ def needs_binary(binary):
     return decorator
 
 
+def needs_files(*files):
+    """Decorator to specify a required files for a benchmark."""
+
+    def decorator(func):
+        func.required_files = files
+        return func
+
+    return decorator
+
+
 def needs_tag(tag):
     """Decorator to specify a required tag for a benchmark."""
 
@@ -307,6 +317,7 @@ wait
 
 @benchmark
 @needs_binary("dwarfs")
+@needs_files(f"emacs-{platform.machine()}-l6.dwarfs")
 def mount_and_run_emacs_l6(env):
     mount_and_run_test(
         env, env.data(f"emacs-{platform.machine()}-l6.dwarfs"), "{mnt}/AppRun --help"
@@ -315,6 +326,7 @@ def mount_and_run_emacs_l6(env):
 
 @benchmark
 @needs_binary("dwarfs")
+@needs_files(f"emacs-{platform.machine()}-l6.dwarfs")
 @needs_version("0.12.0")
 def mount_and_run_emacs_l6_mmap(env):
     mount_and_run_test(
@@ -327,6 +339,7 @@ def mount_and_run_emacs_l6_mmap(env):
 
 @benchmark
 @needs_binary("dwarfs")
+@needs_files(f"emacs-{platform.machine()}-l6.dwarfs")
 def mount_and_run_emacs_l6_foreground(env):
     mount_and_run_test(
         env,
@@ -338,6 +351,7 @@ def mount_and_run_emacs_l6_foreground(env):
 
 @benchmark
 @needs_binary("dwarfs")
+@needs_files(f"emacs-{platform.machine()}-l9.dwarfs")
 def mount_and_run_emacs_l9(env):
     mount_and_run_test(
         env, env.data(f"emacs-{platform.machine()}-l9.dwarfs"), "{mnt}/AppRun --help"
@@ -346,6 +360,7 @@ def mount_and_run_emacs_l9(env):
 
 @benchmark
 @needs_binary("dwarfs")
+@needs_files(f"emacs-{platform.machine()}-l9.dwarfs")
 def mount_and_run_emacs_l9_foreground(env):
     mount_and_run_test(
         env,
@@ -808,6 +823,16 @@ def main():
                     if not config.has_binary(benchmark_func.required_binary):
                         logging.info(
                             f"Skipping {benchmark_func.__name__} for {config.filename} due to missing {benchmark_func.required_binary}."
+                        )
+                        continue
+
+                if hasattr(benchmark_func, "required_files"):
+                    if not all(
+                        os.path.exists(os.path.join(args.data_dir, f))
+                        for f in benchmark_func.required_files
+                    ):
+                        logging.info(
+                            f"Skipping {benchmark_func.__name__} for {config.filename} due to missing {benchmark_func.required_files}."
                         )
                         continue
 
