@@ -151,16 +151,20 @@ class checksum_evp : public checksum::impl {
 
 struct xxh3_64_policy {
   using result_type = XXH64_hash_t;
+  using canonical_type = XXH64_canonical_t;
   static constexpr auto reset = XXH3_64bits_reset;
   static constexpr auto update = XXH3_64bits_update;
   static constexpr auto digest = XXH3_64bits_digest;
+  static constexpr auto canonical = XXH64_canonicalFromHash;
 };
 
 struct xxh3_128_policy {
   using result_type = XXH128_hash_t;
+  using canonical_type = XXH128_canonical_t;
   static constexpr auto reset = XXH3_128bits_reset;
   static constexpr auto update = XXH3_128bits_update;
   static constexpr auto digest = XXH3_128bits_digest;
+  static constexpr auto canonical = XXH128_canonicalFromHash;
 };
 
 template <typename Policy>
@@ -182,9 +186,12 @@ class checksum_xxh3 : public checksum::impl {
     if (!state_) {
       return false;
     }
-    auto hash = Policy::digest(state_.get());
+    typename Policy::canonical_type canonical;
+    Policy::canonical(&canonical, Policy::digest(state_.get()));
     state_.reset();
-    ::memcpy(digest, &hash, sizeof(hash));
+    // compat: we always store the digest in little-endian order :/
+    std::ranges::reverse(canonical.digest);
+    ::memcpy(digest, &canonical, sizeof(canonical));
     return true;
   }
 
