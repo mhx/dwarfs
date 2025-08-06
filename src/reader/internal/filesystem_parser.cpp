@@ -98,20 +98,22 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
 
       // First section must be either a block or the metadata schema,
       // using a valid compression type.
-      if ((sh->type == section_type::BLOCK ||
-           sh->type == section_type::METADATA_V2_SCHEMA) &&
+      auto const shtype = static_cast<section_type>(sh->type);
+      if ((shtype == section_type::BLOCK ||
+           shtype == section_type::METADATA_V2_SCHEMA) &&
           is_valid_compression(sh->compression) && sh->length > 0) {
         auto nextshpos =
             pos + sizeof(file_header) + sizeof(section_header) + sh->length;
         if (nextshpos + sizeof(section_header) < mm.size()) {
           auto nsh = mm.as<section_header>(nextshpos);
+          auto const nshtype = static_cast<section_type>(nsh->type);
           // the next section must be a block or a metadata schema if the first
           // section was a block *or* a metadata block if the first section was
           // a metadata schema
-          if ((sh->type == section_type::BLOCK
-                   ? nsh->type == section_type::BLOCK ||
-                         nsh->type == section_type::METADATA_V2_SCHEMA
-                   : nsh->type == section_type::METADATA_V2) &&
+          if ((shtype == section_type::BLOCK
+                   ? nshtype == section_type::BLOCK ||
+                         nshtype == section_type::METADATA_V2_SCHEMA
+                   : nshtype == section_type::METADATA_V2) &&
               is_valid_compression(nsh->compression) && nsh->length > 0) {
             // we can be somewhat sure that this is where the filesystem starts
             return pos;
