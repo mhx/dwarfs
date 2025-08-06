@@ -27,6 +27,7 @@
 #include <iostream>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,15 @@ class test_logger : public ::dwarfs::logger {
   }
 
   std::vector<log_entry> const& get_log() const { return log_; }
+
+  std::string as_string() const {
+    std::ostringstream oss;
+    for (auto const& entry : log_) {
+      oss << level_char(entry.level) << " [" << entry.loc.file_name() << ":"
+          << entry.loc.line() << "] " << entry.output << "\n";
+    }
+    return oss.str();
+  }
 
   bool empty() const { return log_.empty(); }
 
