@@ -88,7 +88,8 @@ std::string get_section_name(section_type type) {
 }
 
 void section_header::dump(std::ostream& os) const {
-  os << "[V1] type=" << get_default(sections, type) << ", compression="
+  os << "[V1] type=" << get_default(sections, static_cast<section_type>(type))
+     << ", compression="
      << get_compression_name(static_cast<compression_type>(compression))
      << ", length=" << length;
 }

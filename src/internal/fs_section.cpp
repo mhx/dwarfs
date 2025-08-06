@@ -105,9 +105,11 @@ class fs_section_v1 final : public fs_section::impl {
   compression_type compression() const override {
     return static_cast<compression_type>(hdr_.compression);
   }
-  section_type type() const override { return hdr_.type; }
+  section_type type() const override {
+    return static_cast<section_type>(hdr_.type);
+  }
 
-  std::string name() const override { return get_section_name(hdr_.type); }
+  std::string name() const override { return get_section_name(type()); }
   std::string description() const override {
     return fmt::format("{}, offset={}", hdr_.to_string(), start());
   }

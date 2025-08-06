@@ -195,8 +195,8 @@ TEST(filesystem, metadata_symlink_unix) {
 namespace {
 
 std::string valid_v1_header() {
-  section_header hdr;
-  hdr.type = section_type::BLOCK;
+  section_header hdr{};
+  hdr.type = folly::to_underlying(section_type::BLOCK);
   hdr.compression = compression_type_v1::NONE;
   hdr.length = 1;
   std::string buf;
@@ -207,8 +207,7 @@ std::string valid_v1_header() {
 }
 
 std::string valid_v2_header(uint32_t section_number = 0) {
-  section_header_v2 hdr;
-  std::memset(&hdr, 0, sizeof(hdr));
+  section_header_v2 hdr{};
   std::memcpy(hdr.magic.data(), "DWARFS", 6);
   hdr.major = 2;
   hdr.minor = 3;
