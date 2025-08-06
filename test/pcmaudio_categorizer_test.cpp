@@ -159,10 +159,22 @@ struct wav_file_hdr_t {
   uint8_t form[4];
 } FOLLY_PACK_ATTR;
 
+wav_file_hdr_t as_little_endian(wav_file_hdr_t const& hdr) {
+  wav_file_hdr_t result{hdr};
+  result.size = folly::Endian::little(result.size);
+  return result;
+}
+
 struct wav_chunk_hdr_t {
   uint8_t id[4];
   uint32_t size;
 } FOLLY_PACK_ATTR;
+
+wav_chunk_hdr_t as_little_endian(wav_chunk_hdr_t const& hdr) {
+  wav_chunk_hdr_t result{hdr};
+  result.size = folly::Endian::little(result.size);
+  return result;
+}
 
 struct wav64_file_hdr_t {
   uint8_t id[16];
@@ -170,10 +182,22 @@ struct wav64_file_hdr_t {
   uint8_t form[16];
 } FOLLY_PACK_ATTR;
 
+wav64_file_hdr_t as_little_endian(wav64_file_hdr_t const& hdr) {
+  wav64_file_hdr_t result{hdr};
+  result.size = folly::Endian::little(result.size);
+  return result;
+}
+
 struct wav64_chunk_hdr_t {
   uint8_t id[16];
   uint64_t size;
 } FOLLY_PACK_ATTR;
+
+wav64_chunk_hdr_t as_little_endian(wav64_chunk_hdr_t const& hdr) {
+  wav64_chunk_hdr_t result{hdr};
+  result.size = folly::Endian::little(result.size);
+  return result;
+}
 
 struct wav_fmt_chunk_t {
   uint16_t format_code;
@@ -188,6 +212,22 @@ struct wav_fmt_chunk_t {
   uint16_t sub_format_code{0};
   uint8_t guid_remainder[14]{0};
 } FOLLY_PACK_ATTR;
+
+wav_fmt_chunk_t as_little_endian(wav_fmt_chunk_t const& chk) {
+  wav_fmt_chunk_t result{chk};
+  result.format_code = folly::Endian::little(result.format_code);
+  result.num_channels = folly::Endian::little(result.num_channels);
+  result.samples_per_sec = folly::Endian::little(result.samples_per_sec);
+  result.avg_bytes_per_sec = folly::Endian::little(result.avg_bytes_per_sec);
+  result.block_align = folly::Endian::little(result.block_align);
+  result.bits_per_sample = folly::Endian::little(result.bits_per_sample);
+  result.ext_size = folly::Endian::little(result.ext_size);
+  result.valid_bits_per_sample =
+      folly::Endian::little(result.valid_bits_per_sample);
+  result.channel_mask = folly::Endian::little(result.channel_mask);
+  result.sub_format_code = folly::Endian::little(result.sub_format_code);
+  return result;
+}
 
 FOLLY_PACK_POP
 
@@ -376,10 +416,10 @@ class pcmaudio_error_test_wav : public pcmaudio_error_test {
 
   pcmfile_builder build_file() {
     pcmfile_builder builder;
-    builder.add(wav_file_hdr);
-    builder.add(wav_fmt_chunk_hdr);
-    builder.add(wav_fmt_chunk, 16);
-    builder.add(wav_data_chunk_hdr);
+    builder.add(as_little_endian(wav_file_hdr));
+    builder.add(as_little_endian(wav_fmt_chunk_hdr));
+    builder.add(as_little_endian(wav_fmt_chunk), 16);
+    builder.add(as_little_endian(wav_data_chunk_hdr));
     builder.add_bytes(16, 42);
     return builder;
   }
@@ -412,10 +452,10 @@ class pcmaudio_error_test_wav64 : public pcmaudio_error_test {
 
   pcmfile_builder build_file() {
     pcmfile_builder builder;
-    builder.add(wav_file_hdr);
-    builder.add(wav_fmt_chunk_hdr);
-    builder.add(wav_fmt_chunk, 16);
-    builder.add(wav_data_chunk_hdr);
+    builder.add(as_little_endian(wav_file_hdr));
+    builder.add(as_little_endian(wav_fmt_chunk_hdr));
+    builder.add(as_little_endian(wav_fmt_chunk), 16);
+    builder.add(as_little_endian(wav_data_chunk_hdr));
     builder.add_bytes(16, 42);
     return builder;
   }
@@ -427,7 +467,7 @@ TEST_F(pcmaudio_error_test_wav, no_error) {
   auto builder = build_file();
   auto frag = categorize(builder);
 
-  EXPECT_TRUE(logger.empty());
+  EXPECT_TRUE(logger.empty()) << logger.as_string();
 
   ASSERT_EQ(2, frag.size());
 
@@ -446,8 +486,8 @@ TEST_F(pcmaudio_error_test_wav, missing_fmt_chunk) {
   wav_file_hdr.size -= 24;
 
   pcmfile_builder builder;
-  builder.add(wav_file_hdr);
-  builder.add(wav_data_chunk_hdr);
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_data_chunk_hdr));
   builder.add_bytes(16, 42);
 
   auto frag = categorize(builder);
@@ -479,10 +519,10 @@ TEST_F(pcmaudio_error_test_wav, unexpected_fmt_chunk_size) {
   wav_fmt_chunk_hdr.size += 4;
 
   pcmfile_builder builder;
-  builder.add(wav_file_hdr);
-  builder.add(wav_fmt_chunk_hdr);
-  builder.add(wav_fmt_chunk, 20);
-  builder.add(wav_data_chunk_hdr);
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 20);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
   builder.add_bytes(16, 42);
 
   auto frag = categorize(builder);
@@ -501,12 +541,12 @@ TEST_F(pcmaudio_error_test_wav, unexpected_second_fmt_chunk) {
   wav_file_hdr.size += 24;
 
   pcmfile_builder builder;
-  builder.add(wav_file_hdr);
-  builder.add(wav_fmt_chunk_hdr);
-  builder.add(wav_fmt_chunk, 16);
-  builder.add(wav_fmt_chunk_hdr);
-  builder.add(wav_fmt_chunk, 16);
-  builder.add(wav_data_chunk_hdr);
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 16);
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 16);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
   builder.add_bytes(16, 42);
 
   auto frag = categorize(builder);
@@ -629,11 +669,11 @@ TEST_F(pcmaudio_error_test_wav64, no_error_alignment) {
   wav_fmt_chunk_hdr.size = 42;
 
   pcmfile_builder builder;
-  builder.add(wav_file_hdr);
-  builder.add(wav_fmt_chunk_hdr);
-  builder.add(wav_fmt_chunk, 18);
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 18);
   builder.add_bytes(6, 0); // pad for alignment
-  builder.add(wav_data_chunk_hdr);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
   builder.add_bytes(16, 42);
 
   auto frag = categorize(builder);
