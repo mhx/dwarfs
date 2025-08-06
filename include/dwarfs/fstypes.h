@@ -39,6 +39,7 @@
 
 #include <dwarfs/block_compressor.h> // TODO: or the other way round?
 #include <dwarfs/checksum.h>
+#include <dwarfs/endian.h>
 
 namespace dwarfs {
 
@@ -71,10 +72,10 @@ struct file_header {
 };
 
 struct section_header {
-  section_type type;
+  uint16le_t type;
   compression_type_v1 compression;
   uint8_t unused;
-  uint32_t length;
+  uint32le_t length;
 
   std::string to_string() const;
   void dump(std::ostream& os) const;
@@ -87,10 +88,10 @@ struct section_header_v2 {
   std::array<uint8_t, 32>    //  [8] SHA2-512/256 starting from next field
       sha2_512_256;          //
   uint64_t xxh3_64;          // [40] XXH3-64 starting from next field
-  uint32_t number;           // [48] section number
-  uint16_t type;             // [52] section type
-  uint16_t compression;      // [54] compression
-  uint64_t length;           // [56] length of section
+  uint32le_t number;         // [48] section number
+  uint16le_t type;           // [52] section type
+  uint16le_t compression;    // [54] compression
+  uint64le_t length;         // [56] length of section
 
   std::string to_string() const;
   void dump(std::ostream& os) const;
