@@ -23,7 +23,7 @@ Symbol concat(Symbol a, Symbol b) {
    u32 length = a.length()+b.length();
    if (length > Symbol::maxLength) length = Symbol::maxLength; 
    s.set_code_len(FSST_CODE_MASK, length);
-   s.val.num = (b.val.num << (8*a.length())) | a.val.num;
+   s.store_num((b.load_num() << (8*a.length())) | a.load_num());
    return s;
 }
 }  // namespace libfsst
@@ -33,7 +33,7 @@ template <>
 class hash<libfsst::QSymbol> {
    public:
    size_t operator()(const libfsst::QSymbol& q) const {
-      uint64_t k = q.symbol.val.num;
+      uint64_t k = q.symbol.load_num();
       const uint64_t m = 0xc6a4a7935bd1e995;
       const int r = 47;
       uint64_t h = 0x8445d61a4e774912 ^ (8*m);
@@ -125,7 +125,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<const u8*> line, const 
                   Symbol s = st->hashTab[idx];
                   code2 = st->shortCodes[word & 0xFFFF] & FSST_CODE_MASK;
                   word &= (0xFFFFFFFFFFFFFFFF >> (u8) s.icl);
-                  if ((s.icl < FSST_ICL_FREE) & (s.val.num == word)) {
+                  if ((s.icl < FSST_ICL_FREE) & (s.load_num() == word)) {
                      code2 = s.code(); 
 		     cur += s.length();
                   } else if (code2 >= FSST_CODE_BASE) {
@@ -205,7 +205,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<const u8*> line, const 
       }
 
       // insert candidates into priority queue (by gain)
-      auto cmpGn = [](const QSymbol& q1, const QSymbol& q2) { return (q1.gain < q2.gain) || (q1.gain == q2.gain && q1.symbol.val.num > q2.symbol.val.num); };
+      auto cmpGn = [](const QSymbol& q1, const QSymbol& q2) { return (q1.gain < q2.gain) || (q1.gain == q2.gain && q1.symbol.load_num() > q2.symbol.load_num()); };
       priority_queue<QSymbol,vector<QSymbol>,decltype(cmpGn)> pq(cmpGn);
       for (auto& q : cands)
          pq.push(q);
@@ -337,7 +337,7 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
                      Symbol s = symbolTable.hashTab[idx];
                      out[1] = (u8) word; // speculatively write out escaped byte
                      word &= (0xFFFFFFFFFFFFFFFF >> (u8) s.icl);
-                     if ((s.icl < FSST_ICL_FREE) && s.val.num == word) {
+                     if ((s.icl < FSST_ICL_FREE) && s.load_num() == word) {
                         *out++ = (u8) s.code(); cur += s.length();
                      } else {
                         // could be a 2-byte or 1-byte code, or miss
@@ -398,7 +398,7 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const
             Symbol s = symbolTable.hashTab[idx];
             out[1] = (u8) word; // speculatively write out escaped byte
             word &= (0xFFFFFFFFFFFFFFFF >> (u8) s.icl);
-            if ((s.icl < FSST_ICL_FREE) && s.val.num == word) {
+            if ((s.icl < FSST_ICL_FREE) && s.load_num() == word) {
                *out++ = (u8) s.code(); cur += s.length();
             } else if (avoidBranch) {
                // could be a 2-byte or 1-byte code, or miss
@@ -535,6 +535,8 @@ extern "C" u32 fsst_export(fsst_encoder_t *encoder, u8 *buf) {
                  (((u64) e->symbolTable->nSymbols) << 8) | 
                  FSST_ENDIAN_MARKER; // least significant byte is nonzero
 
+   version = swap64_if_be(version); // ensure version is little-endian encoded
+
    /* do not assume unaligned reads here */
    memcpy(buf, &version, 8);
    buf[8] = e->symbolTable->zeroTerminated;
@@ -559,6 +561,8 @@ extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 const *buf) {
 
    // version field (first 8 bytes) is now there just for future-proofness, unused still (skipped)
    memcpy(&version, buf, 8);
+   version = swap64_if_be(version); // version is always little-endian encoded
+
    if ((version>>32) != FSST_VERSION) return 0;
    decoder->zeroTerminated = buf[8]&1;
    memcpy(lenHisto, buf+9, 8);

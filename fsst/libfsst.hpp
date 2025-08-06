@@ -60,10 +60,18 @@ typedef uint64_t u64;
 #define FSST_CODE_MASK      (FSST_CODE_MAX-1UL)   /* all bits set: indicating a symbol that has not been assigned a code yet */
 
 namespace libfsst {
+constexpr inline uint64_t swap64_if_be(uint64_t v) noexcept {
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    return __builtin_bswap64(v);
+#else
+    return v; // little-endian (or unknown), so no swap needed
+#endif
+}
+
 inline uint64_t fsst_unaligned_load(u8 const* V) {
     uint64_t Ret;
     memcpy(&Ret, V, sizeof(uint64_t)); // compiler will generate efficient code (unaligned load, where possible)
-    return Ret;
+    return swap64_if_be(Ret);
 }
 
 struct Symbol {
@@ -77,7 +85,7 @@ struct Symbol {
 
    Symbol() : icl(0) { val.num = 0; }
 
-   explicit Symbol(u8 c, u16 code) : icl((1<<28)|(code<<16)|56) { val.num = c; } // single-char symbol
+   explicit Symbol(u8 c, u16 code) : icl((1<<28)|(code<<16)|56) { store_num(c); } // single-char symbol
    explicit Symbol(const char* begin, const char* end) : Symbol(begin, (u32) (end-begin)) {}
    explicit Symbol(const u8* begin, const u8* end) : Symbol((const char*)begin, (u32) (end-begin)) {}
    explicit Symbol(const char* input, u32 len) {
@@ -92,18 +100,21 @@ struct Symbol {
    }
    void set_code_len(u32 code, u32 len) { icl = (len<<28)|(code<<16)|((8-len)*8); }
 
+   u64 load_num() const { return swap64_if_be(val.num); }
+   void store_num(u64 v) { val.num = swap64_if_be(v); }
+
    u32 length() const { return (u32) (icl >> 28); }
    u16 code() const { return (icl >> 16) & FSST_CODE_MASK; }
    u32 ignoredBits() const { return (u32) icl; }
 
-   u8 first() const { assert( length() >= 1); return 0xFF & val.num; }
-   u16 first2() const { assert( length() >= 2); return 0xFFFF & val.num; }
+   u8 first() const { assert( length() >= 1); return 0xFF & load_num(); }
+   u16 first2() const { assert( length() >= 2); return 0xFFFF & load_num(); }
 
 #define FSST_HASH_LOG2SIZE 10 
 #define FSST_HASH_PRIME 2971215073LL
 #define FSST_SHIFT 15
 #define FSST_HASH(w) (((w)*FSST_HASH_PRIME)^(((w)*FSST_HASH_PRIME)>>FSST_SHIFT))
-   size_t hash() const { size_t v = 0xFFFFFF & val.num; return FSST_HASH(v); } // hash on the next 3 bytes
+   size_t hash() const { size_t v = 0xFFFFFF & load_num(); return FSST_HASH(v); } // hash on the next 3 bytes
 };
 
 // Symbol that can be put in a queue, ordered on gain
@@ -218,7 +229,7 @@ struct SymbolTable {
       bool taken = (hashTab[idx].icl < FSST_ICL_FREE);
       if (taken) return false; // collision in hash table
       hashTab[idx].icl = s.icl;
-      hashTab[idx].val.num = s.val.num & (0xFFFFFFFFFFFFFFFF >> (u8) s.icl);
+      hashTab[idx].store_num(s.load_num() & (0xFFFFFFFFFFFFFFFF >> (u8) s.icl));
       return true;
    }
    bool add(Symbol s) {
@@ -239,7 +250,7 @@ struct SymbolTable {
    /// Find longest expansion, return code (= position in symbol table)
    u16 findLongestSymbol(Symbol s) const {
       size_t idx = s.hash() & (hashTabSize-1);
-      if (hashTab[idx].icl <= s.icl && hashTab[idx].val.num == (s.val.num & (0xFFFFFFFFFFFFFFFF >> ((u8) hashTab[idx].icl)))) {
+      if (hashTab[idx].icl <= s.icl && hashTab[idx].load_num() == (s.load_num() & (0xFFFFFFFFFFFFFFFF >> ((u8) hashTab[idx].icl)))) {
          return (hashTab[idx].icl>>16) & FSST_CODE_MASK; // matched a long symbol 
       }
       if (s.length() >= 2) {
