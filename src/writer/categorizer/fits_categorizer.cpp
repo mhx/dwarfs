@@ -124,7 +124,10 @@ T fold_left_bit_or(std::span<uint8_t const> data) {
 
 template <>
 unsigned get_unused_lsb_count<uint16_t>(std::span<uint8_t const> imagedata) {
-  static constexpr uint64_t const kLsbMask{UINT64_C(0x0100010001000100)};
+  static constexpr uint64_t const kLsbMask{std::endian::native ==
+                                                   std::endian::little
+                                               ? UINT64_C(0x0100010001000100)
+                                               : UINT64_C(0x0001000100010001)};
   static constexpr size_t const kAlignment{64}; // for AVX512
 
   uint16_t b16{0};
