@@ -34,6 +34,7 @@
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
+#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
@@ -91,9 +92,7 @@ class lz4_block_compressor final : public block_compressor::impl {
     compress_scope scope{this, memmgr, data.size(),
                          sizeof(uint32_t) +
                              LZ4_compressBound(to<int>(data.size()))};
-    // TODO: this should have been a varint; also, if we ever support
-    //       big-endian systems, we'll have to properly convert this
-    uint32_t size = data.size();
+    uint32le_t size(data.size());
     std::memcpy(scope.data(), &size, sizeof(size));
     auto csize =
         Policy::compress(data.data(), scope.data() + sizeof(uint32_t),
@@ -162,8 +161,7 @@ class lz4_block_decompressor final : public block_decompressor_base {
 
  private:
   static size_t get_uncompressed_size(uint8_t const* data) {
-    // TODO: enforce little-endian
-    uint32_t size;
+    uint32le_t size;
     ::memcpy(&size, data, sizeof(size));
     return size;
   }
