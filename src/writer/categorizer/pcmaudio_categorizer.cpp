@@ -954,6 +954,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     return false;
   }
 
+  file_header.size = folly::Endian::little(file_header.size);
+
   if (file_header.form_sv() != FormatPolicy::wave_id) {
     return false;
   }
