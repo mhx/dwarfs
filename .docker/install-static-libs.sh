@@ -106,6 +106,13 @@ use_lib() {
                     ;;
             esac
             ;;
+        loongarch64)
+            case "$lib" in
+                fuse|libunwind|libdwarf|cpptrace|libressl)
+                    return 1
+                    ;;
+            esac
+            ;;
     esac
     if [[ ",$PKGS," == *",$lib,"* ]]; then
         return 0
