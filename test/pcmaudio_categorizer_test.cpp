@@ -278,7 +278,7 @@ TEST(pcmaudio_categorizer, requirements) {
       R"({"endianness": ["set", ["mixed", "big"]], "bytes_per_sample": ["range", 2, 3]})");
 
   auto wav = test_dir / "pcmaudio" / "test16.wav";
-  auto mm = mmap(wav);
+  auto mm = dwarfs::mmap(wav);
 
   {
     auto job = catmgr.job(wav);
