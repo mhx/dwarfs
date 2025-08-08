@@ -198,12 +198,21 @@ case "-$BUILD_TYPE-" in
     ;;
 esac
 
+_MARCH="${CROSS_ARCH}"
+if [[ -z "$CROSS_ARCH" ]]; then
+  _MARCH="${ARCH}"
+fi
+
 case "-$BUILD_TYPE-" in
   *-lto-*)
     export CFLAGS="${CFLAGS} -flto=auto"
     export CXXFLAGS="${CXXFLAGS} -flto=auto"
     # The -L option is needed so that boost_iostreams finds the right libzstd...
-    export LDFLAGS="${LDFLAGS} -flto=auto -Wl,--icf=all"
+    export LDFLAGS="${LDFLAGS} -flto=auto"
+    # On loongarch64, ICF currently causes SIGTRAPs, at least under qemu.
+    if [[ "$_MARCH" != "loongarch64" ]]; then
+      export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
+    fi
     export COMPILER="${COMPILER}-lto"
     ;;
 esac
@@ -302,10 +311,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   # A size-optimized libgcc/libstdc++/musl will only save about 10k for the universal
   # and fuse-extract binaries, so we'll just stick to using the -O2 toolchain.
   _SYSROOT="/opt/cross/O2"
-  _MARCH="${CROSS_ARCH}"
-  if [[ -z "$CROSS_ARCH" ]]; then
-    _MARCH="${ARCH}"
-  fi
   if [[ "$_MARCH" == "arm" ]]; then
     _TARGET="${_MARCH}-linux-musleabihf"
   else
