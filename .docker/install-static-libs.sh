@@ -277,14 +277,14 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     case "$CARCH" in
         # https://github.com/llvm/llvm-project/issues/150913
         ppc64le)
-            COMPILERS="gcc"
+            COMPILERS="gcc gcc-lto"
             ;;
         *)
             if [[ "$ARCH" == "riscv64" ]]; then
                 # This is so slow natively, stick to the basics for now
                 COMPILERS="clang"
             else
-                COMPILERS="clang clang-minsize-lto gcc"
+                COMPILERS="clang clang-minsize-lto gcc gcc-minsize-lto gcc-lto"
             fi
             ;;
     esac
