@@ -190,8 +190,13 @@ class performance_monitor_impl final : public performance_monitor {
     ::QueryPerformanceCounter(&ticks);
     return ticks.QuadPart;
 #else
+#ifdef __FreeBSD__
+    constexpr clockid_t kMonotonicClock = CLOCK_MONOTONIC;
+#else
+    constexpr clockid_t kMonotonicClock = CLOCK_MONOTONIC_RAW;
+#endif
     struct timespec ts;
-    auto rv [[maybe_unused]] = ::clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    auto rv [[maybe_unused]] = ::clock_gettime(kMonotonicClock, &ts);
     assert(rv == 0);
     return UINT64_C(1'000'000'000) * ts.tv_sec + ts.tv_nsec;
 #endif
