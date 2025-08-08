@@ -187,7 +187,7 @@ case "-$BUILD_TYPE-" in
   *-static-*)
     case "$CROSS_ARCH" in
       ppc64le)
-         # https://github.com/rui314/mold/issues/1490
+         # https://github.com/rui314/mold/issues/1496
          CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
          export LDFLAGS="${LDFLAGS} -fuse-ld=lld"
          ;;
