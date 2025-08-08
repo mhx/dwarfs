@@ -42,6 +42,7 @@
 #endif
 
 #include <dwarfs/os_access.h>
+#include <dwarfs/string.h>
 #include <dwarfs/tool/pager.h>
 
 namespace dwarfs::tool {
@@ -77,14 +78,20 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
       sv.remove_suffix(1);
     }
 
-    std::filesystem::path p{std::string(sv)};
+    // split into program and arguments
+    auto args = split_to<std::vector<std::string>>(sv, ' ');
+    std::filesystem::path p{args.front()};
+    args.erase(args.begin());
 
     if (os.access(p, X_OK) == 0) {
-      return pager_program{p, {}};
+      return pager_program{p, args};
     }
 
     if (auto exe = os.find_executable(p); !exe.empty()) {
-      return pager_program{exe, {}};
+      if (exe.filename() == "less" && args.empty()) {
+        args.push_back("-R");
+      }
+      return pager_program{exe, args};
     }
   }
 
