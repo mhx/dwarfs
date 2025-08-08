@@ -77,14 +77,16 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
       sv.remove_suffix(1);
     }
 
-    std::filesystem::path p{std::string(sv)};
+    if (sv != "less") {
+      std::filesystem::path p{std::string(sv)};
 
-    if (os.access(p, X_OK) == 0) {
-      return pager_program{p, {}};
-    }
+      if (os.access(p, X_OK) == 0) {
+        return pager_program{p, {}};
+      }
 
-    if (auto exe = os.find_executable(p); !exe.empty()) {
-      return pager_program{exe, {}};
+      if (auto exe = os.find_executable(p); !exe.empty()) {
+        return pager_program{exe, {}};
+      }
     }
   }
 
