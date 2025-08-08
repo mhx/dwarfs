@@ -42,6 +42,10 @@
 #include <boost/process/search_path.hpp>
 #endif
 
+#ifdef __FreeBSD__
+#include <pthread_np.h>
+#endif
+
 #ifdef __APPLE__
 #include <mach/mach.h>
 #include <mach/thread_info.h>
