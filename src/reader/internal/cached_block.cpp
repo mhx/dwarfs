@@ -126,12 +126,20 @@ class cached_block_ final : public cached_block {
   bool any_pages_swapped_out(std::vector<uint8_t>& tmp
                              [[maybe_unused]]) const override {
 #if !(defined(_WIN32) || defined(__APPLE__))
+    auto make_vec_arg = [](uint8_t* vec) {
+#ifdef __FreeBSD__
+      return reinterpret_cast<char*>(vec);
+#else
+      return vec;
+#endif
+    };
+
     // TODO: should be possible to do this on Windows and macOS as well
     auto page_size = ::sysconf(_SC_PAGESIZE);
     tmp.resize((data_.size() + page_size - 1) / page_size);
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
-                  tmp.data()) == 0) {
+                  make_vec_arg(tmp.data())) == 0) {
       // i&1 == 1 means resident in memory
       return std::any_of(tmp.begin(), tmp.end(),
                          [](auto i) { return (i & 1) == 0; });
