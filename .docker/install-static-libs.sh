@@ -254,7 +254,6 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     export TRIPLETS="--host=$TARGET --target=$TARGET --build=$ARCH-alpine-linux-musl"
     export BOOST_CMAKE_ARGS="-DBOOST_CONTEXT_ARCHITECTURE=$BOOST_CONTEXT_ARCH"
     export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
-    export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH.txt"
 
     endian="little"
     case "$CARCH" in
@@ -262,21 +261,6 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             endian="big"
             ;;
     esac
-
-    cat <<EOF > /tmp/meson-$CARCH.txt
-[binaries]
-c = '$TARGET-clang'
-cpp = '$TARGET-clang++'
-ld = '$TARGET-clang'
-ar = '$TARGET-ar'
-strip = '$TARGET-strip'
-
-[host_machine]
-system = 'linux'
-cpu_family = '$CARCH'
-cpu = '$CARCH'
-endian = '$endian'
-EOF
 
     export SYSROOT="/opt/cross/O2"
     export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:$PATH"
@@ -351,6 +335,23 @@ EOF
                 export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
                 ;;
         esac
+
+        export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH-$COMPILER.txt"
+
+        cat <<EOF > /tmp/meson-$CARCH-$COMPILER.txt
+[binaries]
+c = '$CC'
+cpp = '$CXX'
+ld = '$CC'
+ar = '$TARGET-ar'
+strip = '$TARGET-strip'
+
+[host_machine]
+system = 'linux'
+cpu_family = '$CARCH'
+cpu = '$CARCH'
+endian = '$endian'
+EOF
 
         cd "$WORKROOT"
         mkdir -p "$WORKSUBDIR"
