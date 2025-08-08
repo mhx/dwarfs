@@ -273,7 +273,7 @@ TEST(pager_test, find_pager_program) {
       auto pager = find_pager_program(os);
       ASSERT_TRUE(pager);
       EXPECT_EQ("/whatever/bin/less", pager->name);
-      EXPECT_TRUE(pager->args.empty());
+      EXPECT_THAT(pager->args, ::testing::ElementsAre("-R"));
     }
 
     os.setenv("PAGER", "cat");
