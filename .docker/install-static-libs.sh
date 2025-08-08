@@ -315,10 +315,6 @@ EOF
         export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
 
         case "$CARCH" in
-            ppc64le)
-                # https://github.com/rui314/mold/issues/1490
-                export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
-                ;;
             *)
                 export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
                 ;;
