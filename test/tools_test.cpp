@@ -45,6 +45,9 @@
 #include <sys/types.h>
 #ifdef __APPLE__
 #include <sys/mount.h>
+#elif defined(__FreeBSD__)
+#include <sys/mount.h>
+#include <sys/param.h>
 #else
 #include <sys/vfs.h>
 #endif
@@ -163,7 +166,7 @@ bool skip_fuse_tests() {
   return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
 }
 
-#if !(defined(_WIN32) || defined(__APPLE__))
+#ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
   return dwarfs::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
 }
@@ -534,42 +537,142 @@ class subprocess {
   std::vector<std::string> cmdline_;
 };
 
-#if !(defined(_WIN32) || defined(__APPLE__))
+#ifndef _WIN32
+namespace fs_guard_detail {
+
+struct unique_fd {
+  int fd{-1};
+  unique_fd() = default;
+  explicit unique_fd(int f)
+      : fd{f} {}
+  unique_fd(unique_fd const&) = delete;
+  unique_fd& operator=(unique_fd const&) = delete;
+  unique_fd(unique_fd&& o) noexcept
+      : fd{o.fd} {
+    o.fd = -1;
+  }
+  unique_fd& operator=(unique_fd&& o) noexcept {
+    if (this != &o) {
+      if (fd >= 0) {
+        ::close(fd);
+      }
+      fd = o.fd;
+      o.fd = -1;
+    }
+    return *this;
+  }
+  ~unique_fd() {
+    if (fd >= 0) {
+      ::close(fd);
+    }
+  }
+  int get() const { return fd; }
+  int release() {
+    int t = fd;
+    fd = -1;
+    return t;
+  }
+  explicit operator bool() const { return fd >= 0; }
+};
+
+} // namespace fs_guard_detail
+
 class process_guard {
  public:
   process_guard() = default;
 
   explicit process_guard(pid_t pid)
       : pid_{pid} {
-    auto proc_dir = fs::path("/proc") / dwarfs::to<std::string>(pid);
-    proc_dir_fd_ = ::open(proc_dir.c_str(), O_DIRECTORY);
-
-    if (proc_dir_fd_ < 0) {
-      throw std::runtime_error("could not open " + proc_dir.string());
+#if defined(__FreeBSD__) || defined(__APPLE__)
+    kq_ = fs_guard_detail::unique_fd(::kqueue());
+    if (!kq_) {
+      throw std::system_error(errno, std::generic_category(), "kqueue");
     }
-  }
 
-  ~process_guard() {
-    if (proc_dir_fd_ >= 0) {
-      ::close(proc_dir_fd_);
+    struct kevent kev{};
+    EV_SET(&kev, static_cast<uintptr_t>(pid_), EVFILT_PROC, EV_ADD | EV_CLEAR,
+           NOTE_EXIT, 0, nullptr);
+    if (::kevent(kq_.get(), &kev, 1, nullptr, 0, nullptr) < 0) {
+      // If the process is already gone, treat as non-existent.
+      if (errno == ESRCH) {
+        already_exited_ = true;
+      } else {
+        throw std::system_error(errno, std::generic_category(),
+                                "kevent(EV_ADD)");
+      }
     }
+#else
+    std::string proc_dir = "/proc/" + std::to_string(pid_);
+    procfd_ = fs_guard_detail::unique_fd(
+        ::open(proc_dir.c_str(), O_DIRECTORY | O_CLOEXEC));
+    if (!procfd_) {
+      throw std::system_error(errno, std::generic_category(),
+                              "open(" + proc_dir + ")");
+    }
+#endif
   }
 
   bool check_exit(std::chrono::milliseconds timeout) {
-    auto end = std::chrono::steady_clock::now() + timeout;
-    while (::faccessat(proc_dir_fd_, "fd", F_OK, 0) == 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      if (std::chrono::steady_clock::now() >= end) {
+#if defined(__FreeBSD__) || defined(__APPLE__)
+    if (already_exited_) {
+      return true;
+    }
+
+    struct kevent ev{};
+    struct timespec ts{
+        .tv_sec = static_cast<time_t>(timeout.count() / 1000),
+        .tv_nsec = static_cast<long>((timeout.count() % 1000) * 1'000'000)};
+
+    int n = ::kevent(kq_.get(), nullptr, 0, &ev, 1, &ts);
+    if (n < 0) {
+      // If PID vanished between registration and wait, consider it exited.
+      if (errno == ESRCH) {
+        return true;
+      }
+      // Other error: be conservative and signal timeout+terminate behavior
+      // below.
+      n = 0;
+    }
+
+    if (n == 0) {
+      // timed out: gently ask it to stop
+      ::kill(pid_, SIGTERM);
+      return false;
+    }
+
+    // We got an event; NOTE_EXIT means it's gone.
+    if (ev.filter == EVFILT_PROC && (ev.fflags & NOTE_EXIT)) {
+      return true;
+    }
+
+    // Unexpected event; treat as not exited yet.
+    return false;
+#else
+    // Poll for existence of a known child entry (like "fd") in /proc/<pid>.
+    auto deadline = std::chrono::steady_clock::now() + timeout;
+    for (;;) {
+      int rc = ::faccessat(procfd_.get(), "fd", F_OK, 0);
+      if (rc != 0) {
+        // Directory no longer has 'fd' → process is gone.
+        return true;
+      }
+      if (std::chrono::steady_clock::now() >= deadline) {
         ::kill(pid_, SIGTERM);
         return false;
       }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    return true;
+#endif
   }
 
  private:
   pid_t pid_{-1};
-  int proc_dir_fd_{-1};
+#if defined(__FreeBSD__) || defined(__APPLE__)
+  fs_guard_detail::unique_fd kq_;
+  bool already_exited_{false};
+#else
+  fs_guard_detail::unique_fd procfd_;
+#endif
 };
 #endif
 
@@ -601,11 +704,7 @@ class driver_runner {
                                options, std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
-#ifdef __APPLE__
-    wait_until_file_ready(mountpoint, std::chrono::seconds(5));
-#else
     dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
-#endif
 #endif
   }
 
@@ -622,7 +721,7 @@ class driver_runner {
 #endif
         std::forward<Args>(args)...);
     process_->run_background();
-#if !(defined(_WIN32) || defined(__APPLE__))
+#ifndef _WIN32
     dwarfs_guard_ = process_guard(process_->pid());
 #endif
   }
@@ -689,6 +788,16 @@ class driver_runner {
         return is_expected_exit_code;
 #ifndef _WIN32
       } else {
+#ifdef __FreeBSD__
+        auto umount = find_umount();
+        for (int i = 0; i < 5; ++i) {
+          if (subprocess::check_run(umount, mountpoint_)) {
+            break;
+          }
+          std::cerr << "retrying umount...\n";
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+#else
         auto fusermount = find_fusermount();
         for (int i = 0; i < 5; ++i) {
           if (subprocess::check_run(fusermount, "-u", mountpoint_)) {
@@ -697,6 +806,7 @@ class driver_runner {
           std::cerr << "retrying fusermount...\n";
           std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
+#endif
         mountpoint_.clear();
         return dwarfs_guard_.check_exit(std::chrono::seconds(5));
       }
@@ -732,6 +842,15 @@ class driver_runner {
 
  private:
 #if !(defined(_WIN32) || defined(__APPLE__))
+#ifdef __FreeBSD__
+  static fs::path find_umount() {
+    auto umount_bin = dwarfs::test::find_binary("umount");
+    if (!umount_bin) {
+      throw std::runtime_error("no umount binary found");
+    }
+    return *umount_bin;
+  }
+#else
   static fs::path find_fusermount() {
     auto fusermount_bin = dwarfs::test::find_binary("fusermount");
     if (!fusermount_bin) {
@@ -742,6 +861,7 @@ class driver_runner {
     }
     return *fusermount_bin;
   }
+#endif
 #endif
 
   static void setup_mountpoint(fs::path const& mp) {
@@ -755,7 +875,7 @@ class driver_runner {
 
   fs::path mountpoint_;
   std::unique_ptr<subprocess> process_;
-#if !(defined(_WIN32) || defined(__APPLE__))
+#ifndef _WIN32
   process_guard dwarfs_guard_;
 #endif
 };
@@ -1047,6 +1167,8 @@ TEST_P(tools_test, end_to_end) {
         EXPECT_TRUE(ec);
 #ifdef __APPLE__
         EXPECT_EQ(ec.value(), ENOATTR);
+#elif defined(__FreeBSD__)
+        EXPECT_EQ(ec.value(), ERANGE); // FIXME: this is weird...
 #else
         EXPECT_EQ(ec.value(), ENODATA);
 #endif
