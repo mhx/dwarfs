@@ -53,7 +53,7 @@ TEST(filesystem, metadata_symlink_win) {
   test::test_logger lgr;
   test::os_access_mock os;
 
-  auto mm = std::make_shared<mmap>(test_dir / "winlink.dwarfs");
+  auto mm = std::make_shared<dwarfs::mmap>(test_dir / "winlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
   auto dev1 = fs.find("link.txt");
@@ -130,7 +130,7 @@ TEST(filesystem, metadata_symlink_unix) {
   test::test_logger lgr;
   test::os_access_mock os;
 
-  auto mm = std::make_shared<mmap>(test_dir / "unixlink.dwarfs");
+  auto mm = std::make_shared<dwarfs::mmap>(test_dir / "unixlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
   auto dev1 = fs.find("link.txt");
@@ -247,7 +247,7 @@ TEST(filesystem, find_image_offset) {
 
   std::string valid_fs;
   {
-    mmap mm(test_dir / "unixlink.dwarfs");
+    dwarfs::mmap mm(test_dir / "unixlink.dwarfs");
     auto data = mm.span<char>();
     valid_fs.assign(data.data(), data.size());
   }
