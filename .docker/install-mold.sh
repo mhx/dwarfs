@@ -6,7 +6,7 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
-MOLD_VERSION=2.40.2
+MOLD_VERSION=2.40.3
 
 fetch.sh https://github.com/rui314/mold/archive/refs/tags/v${MOLD_VERSION}.tar.gz mold-${MOLD_VERSION}.tar.gz
 tar xf mold-${MOLD_VERSION}.tar.gz
