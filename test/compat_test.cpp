@@ -1343,7 +1343,7 @@ TEST_P(compat_metadata, backwards_compat) {
   auto filename = get_image_path(version);
   test::test_logger lgr;
   test::os_access_mock os;
-  reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename));
+  reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(filename));
   check_dynamic(version, fs);
 }
 
@@ -1365,7 +1365,8 @@ TEST_P(compat_filesystem, backwards_compat) {
   opts.metadata.check_consistency = true;
 
   {
-    reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename), opts);
+    reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(filename),
+                             opts);
     check_compat(lgr, fs, version, enable_nlink);
   }
 
@@ -1423,7 +1424,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     utility::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
   };
 
-  std::shared_ptr<mmif> origmm = std::make_shared<mmap>(filename);
+  std::shared_ptr<mmif> origmm = std::make_shared<dwarfs::mmap>(filename);
 
   {
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog);
@@ -1563,7 +1564,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(image));
+  reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(image));
 
   ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 
