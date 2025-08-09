@@ -357,6 +357,65 @@ jobs:
             build_type: gcc-release-ninja-static
             cross_arch: ppc64le
 
+          ######## blocked by https://github.com/rui314/mold/issues/1496
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: gcc-release-lto-ninja-static
+          #   cross_arch: ppc64le
+
+          ######## no libressl support
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
+          #   cross_arch: loongarch64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: loongarch64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-release-ninja-static
+            cross_arch: loongarch64
+            skip_slow_tests: true
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
+            cross_arch: loongarch64
+            skip_slow_tests: true
+
+          ######## no libressl support
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-libressl-lto-ninja-static
+          #   cross_arch: s390x
+
+          ######## misaligned symbol typeinfo name for std::_Sp_make_shared_tag for relocation R_390_PC32DBL
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-lto-ninja-static
+          #   cross_arch: s390x
+
+          ######## misaligned symbol typeinfo name for std::_Sp_make_shared_tag for relocation R_390_PC32DBL
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-release-ninja-static
+          #   cross_arch: s390x
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
+            cross_arch: s390x
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
+            cross_arch: s390x
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
     uses: ./.github/workflows/docker-run-build.yml
     with:
       build_type: ${{ matrix.build_type }}
