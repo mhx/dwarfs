@@ -105,6 +105,12 @@ RUN if [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
 
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
 
+# Install mold-patch
+RUN apk add linux-headers
+COPY install-mold-patch.sh /usr/local/bin/install-mold-patch.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-mold-patch.sh
+RUN apk del linux-headers
 RUN apk add py3-xxhash py3-zstd py3-lz4
 
 # Set up git & user
