@@ -490,3 +490,34 @@ jobs:
           rm -rf dwarfs-*/
           rm -f dwarfs-source-*.tar.zst
           rm -f dwarfs
+
+################################################################################
+
+  freebsd:
+    needs: package-source
+
+    runs-on:
+      - self-hosted
+      - freebsd
+      - ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        arch:
+          - amd64
+        build_mode:
+          - Release
+          - Debug
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'false'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Run Build
+        run: |
+          BUILD_MODE=${{ matrix.build_mode }} \
+          sh .github/scripts/freebsd_jail_build.sh
