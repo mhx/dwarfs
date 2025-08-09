@@ -364,6 +364,7 @@ jobs:
       build_dist: ${{ matrix.build_dist }}
       cross_arch: ${{ matrix.cross_arch }}
       skip_slow_tests: ${{ matrix.skip_slow_tests || false }}
+      skip_fuse_tests: ${{ matrix.skip_fuse_tests || false }}
       build_from_tarball: true
       upload_coverage: ${{ matrix.build_type == 'clang-debug-coverage-ninja' }}
       upload_artifacts: ${{ endsWith(matrix.build_type, '-static') }}
