@@ -276,7 +276,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     case "$CARCH" in
         # https://github.com/llvm/llvm-project/issues/150913
-        ppc64le)
+        ppc64*)
             COMPILERS="gcc gcc-lto"
             ;;
         *)

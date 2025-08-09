@@ -40,7 +40,7 @@ run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
 
 build_alpine_newarch:
-	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=loongarch64 -t $(IMAGE_ALPINE_NEWARCH) .
+	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=ppc64 -t $(IMAGE_ALPINE_NEWARCH) .
 
 run_alpine_newarch:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_NEWARCH)
