@@ -917,6 +917,26 @@ if(STATIC_BUILD_DO_NOT_USE)
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
     target_link_libraries(${tgt} PRIVATE gcc_eh)
   endforeach()
+
+  if(WITH_UNIVERSAL_BINARY OR WITH_FUSE_EXTRACT_BINARY)
+    # Build stub for self-extracting universal binary.
+    add_executable(sfxstub_zstd sfx/stub.c)
+    target_compile_options(sfxstub_zstd PRIVATE -O2)
+
+    if(LIBLZ4_FOUND)
+      add_executable(sfxstub_lz4 sfx/stub.c)
+      target_compile_definitions(sfxstub_lz4 PRIVATE DWARFS_SFX_STUB_USE_LZ4=1)
+      target_link_libraries(sfxstub_lz4 PRIVATE PkgConfig::XXHASH PkgConfig::LIBLZ4)
+    endif()
+
+    foreach(tgt sfxstub_zstd sfxstub_lz4)
+      if(TARGET ${tgt})
+        target_compile_options(${tgt} PRIVATE -fno-stack-protector -fno-asynchronous-unwind-tables)
+        target_link_options(${tgt} PRIVATE -Wl,--build-id=none)
+        list(APPEND BINARY_TARGETS ${tgt})
+      endif()
+    endforeach()
+  endif()
 endif(STATIC_BUILD_DO_NOT_USE)
 
 foreach(tgt ${TEST_TARGETS})
@@ -1046,6 +1066,10 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     list(APPEND UNIVERSAL_TARGETS dwarfsfuseextract)
   endif()
 
+  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le|arm)$")
+    find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
+  endif()
+
   foreach(tgt ${UNIVERSAL_TARGETS})
     get_target_property(TARGET_FILENAME ${tgt} OUTPUT_NAME)
     get_filename_component(TARGET_FILENAME ${TARGET_FILENAME} NAME_WLE)
@@ -1061,10 +1085,6 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
-      if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le|arm)$")
-        find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
-      endif()
-
       if(UPX_EXE)
         # upx -9 is a good compromise between compression ratio and speed
         # also, anything above --best increases the startup time of the compressed
@@ -1074,12 +1094,42 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
           COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
+      elseif(TARGET sfxstub_lz4 OR TARGET sfxstub_zstd)
+        # Fallback if UPX is not found or doesn't support the target architecture.
+        # Prefer lz4 if available (as it is faster), otherwise use zstd.
+        if(TARGET sfxstub_zstd)
+          set(_sfx_stub_target sfxstub_zstd)
+          # Sweet spot between compression ratio and decompression speed.
+          # set(_sfx_options "--level=16")
+          # We'll use the default (`--level=19`, i.e. maximum compression)
+          # for now and will potentially re-pack for release.
+        else()
+          set(_sfx_stub_target sfxstub_lz4)
+          set(_sfx_options "--lz4")
+        endif()
+        add_custom_command(
+          OUTPUT ${UNIVERSAL_OUT}
+          COMMAND ${CMAKE_SOURCE_DIR}/sfx/pack.py
+                      ${_sfx_options}
+                      --stub $<TARGET_FILE:${_sfx_stub_target}>
+                      --input $<TARGET_FILE:${tgt}>
+                      --output ${UNIVERSAL_OUT}
+          COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR}
+                  ${UNIVERSAL_OUT} --extract-wrapped-binary ${UNIVERSAL_OUT}.extracted
+          COMMAND ${CMAKE_COMMAND} -E compare_files
+                  ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT}.extracted
+                  $<TARGET_FILE:${tgt}>
+          COMMAND ${CMAKE_COMMAND} -E remove
+                  ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT}.extracted
+          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+          COMMENT "UPX not found/supported, using ${_sfx_stub_target} for universal binary"
+        )
       else()
         add_custom_command(
           OUTPUT ${UNIVERSAL_OUT}
           COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${UNIVERSAL_OUT}
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-          COMMENT "UPX not found, copying binary without compression"
+          COMMENT "UPX not found/supported, copying binary without compression"
         )
       endif()
     endif()
