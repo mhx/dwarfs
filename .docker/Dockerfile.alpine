@@ -105,6 +105,8 @@ RUN if [ "$ARCH" == "amd64" ] || [ "$ARCH" == "arm64v8" ]; then \
 
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
 
+RUN apk add py3-xxhash py3-zstd py3-lz4
+
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
 RUN adduser -G users -s bash -u 1000 -D mhx
