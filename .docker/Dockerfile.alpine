@@ -41,6 +41,9 @@ RUN qemu_pkgs=""; \
         ronn \
         perf \
         py3-pip \
+        py3-xxhash \
+        py3-zstd \
+        py3-lz4 \
         fuse \
         fuse3 \
         pkgconf \
