@@ -88,6 +88,14 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 RUN apk del zlib-dev zstd-dev
 
+# Install mold-patch
+RUN apk add linux-headers
+COPY install-mold-patch.sh /usr/local/bin/install-mold-patch.sh
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/install-mold-patch.sh
+RUN apk del linux-headers
+RUN apk add py3-xxhash
+
 # Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 

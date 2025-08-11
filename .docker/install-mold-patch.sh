@@ -14,6 +14,7 @@ fetch.sh https://github.com/rui314/mold/archive/refs/tags/v${MOLD_VERSION}.tar.g
 tar xf mold-${MOLD_VERSION}.tar.gz
 cd mold-${MOLD_VERSION}
 fetch.sh https://github.com/rui314/mold/commit/d9b20a158097a376154cb692f607edbe7a823338.diff - | patch -p1
+fetch.sh https://github.com/rui314/mold/commit/7e0b728378ffca93c39666d128fe280cdd81d895.diff - | patch -p1
 mkdir build
 cd build
 

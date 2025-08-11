@@ -92,7 +92,7 @@ PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
 use_lib() {
     local lib="$1"
     case "$CARCH" in
-        ppc64le|arm)
+        ppc64*|arm)
             case "$lib" in
                 libunwind|libdwarf|cpptrace)
                     return 1
