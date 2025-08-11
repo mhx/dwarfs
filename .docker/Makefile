@@ -62,3 +62,11 @@ build_arch:
 
 run_arch:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ARCH)
+
+prune:
+	docker image prune -f -a --filter until=72h
+	docker system prune -f -a --filter until=72h
+	docker buildx prune -f -a \
+		--max-used-space 1MB \
+		--filter until=72h \
+		--filter type=regular
