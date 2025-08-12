@@ -217,6 +217,14 @@ case "-$BUILD_TYPE-" in
       export COMPILER="${COMPILER}-lto"
     fi
     ;;
+  *)
+    if [[ "-$BUILD_TYPE-" == *-gcc-* ]]; then
+      # We're using fat LTO objects with GCC, so need to disable LTO explicitly
+      export CFLAGS="${CFLAGS} -fno-lto -fno-use-linker-plugin"
+      export CXXFLAGS="${CXXFLAGS} -fno-lto -fno-use-linker-plugin"
+      export LDFLAGS="${LDFLAGS} -fno-lto -fno-use-linker-plugin"
+    fi
+    ;;
 esac
 
 case "-$BUILD_TYPE-" in
@@ -336,13 +344,13 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  export LDFLAGS="${LDFLAGS} -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib"
+  export LDFLAGS="${LDFLAGS} -static -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib"
   export CFLAGS="${CFLAGS} -isystem $_staticprefix/include"
   export CXXFLAGS="${CXXFLAGS} -isystem $_staticprefix/include"
 
   case "$_MARCH" in
     i386)
-      export LDFLAGS="${LDFLAGS} -lucontext -latomic"
+      export LDFLAGS="${LDFLAGS} -no-pie -lucontext -latomic"
       ;;
     s390x)
       export LDFLAGS="${LDFLAGS} -lucontext"
