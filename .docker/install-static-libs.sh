@@ -92,7 +92,7 @@ PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
 use_lib() {
     local lib="$1"
     case "$CARCH" in
-        ppc64le|arm)
+        ppc64*|arm)
             case "$lib" in
                 libunwind|libdwarf|cpptrace)
                     return 1
@@ -276,7 +276,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     case "$CARCH" in
         # https://github.com/llvm/llvm-project/issues/150913
-        ppc64le)
+        ppc64*)
             COMPILERS="gcc"
             ;;
         *)

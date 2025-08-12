@@ -363,6 +363,19 @@ jobs:
             build_type: gcc-release-lto-ninja-static
             cross_arch: ppc64le
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          ######## blocked by https://github.com/rui314/mold/issues/1498
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: gcc-release-lto-ninja-static
+          #   cross_arch: ppc64
+          #   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
           ######## no libressl support
           # - build_arch: amd64
           #   build_dist: alpine
