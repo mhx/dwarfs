@@ -150,7 +150,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
             mkdir gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
             cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPT}-stage1
             "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
-                --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT --with-newlib --without-headers \
+                --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} --with-newlib --without-headers \
                 --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
                 --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv \
                 --disable-libstdcxx --enable-languages=c,c++ ${GCC_NODOCS}
