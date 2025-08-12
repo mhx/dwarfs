@@ -207,7 +207,6 @@ case "-$BUILD_TYPE-" in
   *-lto-*)
     export CFLAGS="${CFLAGS} -flto=auto"
     export CXXFLAGS="${CXXFLAGS} -flto=auto"
-    # The -L option is needed so that boost_iostreams finds the right libzstd...
     export LDFLAGS="${LDFLAGS} -flto=auto"
     # On loongarch64, ICF currently causes SIGTRAPs, at least under qemu.
     if [[ "$_MARCH" != "loongarch64" ]]; then
