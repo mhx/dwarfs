@@ -1060,7 +1060,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     list(APPEND UNIVERSAL_TARGETS dwarfsfuseextract)
   endif()
 
-  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64le|arm)$")
+  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|ppc64|ppc64le|arm)$")
     find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
   endif()
 

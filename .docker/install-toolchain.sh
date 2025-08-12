@@ -112,6 +112,9 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 GCC_CONFIGURE_ARGS="--with-arch=armv6 --with-fpu=vfp --with-float=hard"
                 TARGET="arm-linux-musleabihf"
                 ;;
+            ppc64)
+                GCC_CONFIGURE_ARGS="--with-abi=elfv2"
+                ;;
             s390x)
                 GCC_CONFIGURE_ARGS="--with-arch=z10"
                 ;;
