@@ -149,7 +149,7 @@ case "-$BUILD_TYPE-" in
   *-release-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
     if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
-      CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+      # CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
       if [[ "-$BUILD_TYPE-" != *-lto-* ]]; then
         CMAKE_ARGS="${CMAKE_ARGS} -DWITH_ALL_BENCHMARKS=1"
       fi
@@ -163,7 +163,7 @@ case "-$BUILD_TYPE-" in
   *-relsize-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
     if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
-      CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+      # CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
       if [[ "-$BUILD_TYPE-" != *-lto-* ]]; then
         CMAKE_ARGS="${CMAKE_ARGS} -DWITH_ALL_BENCHMARKS=1"
       fi
