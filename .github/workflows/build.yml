@@ -356,12 +356,12 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-ninja-static
             cross_arch: ppc64le
+            skip_slow_tests: true
 
-          ######## blocked by https://github.com/rui314/mold/issues/1496
-          # - build_arch: amd64
-          #   build_dist: alpine
-          #   build_type: gcc-release-lto-ninja-static
-          #   cross_arch: ppc64le
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
+            cross_arch: ppc64le
 
           ######## no libressl support
           # - build_arch: amd64
