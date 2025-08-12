@@ -207,7 +207,10 @@ case "-$BUILD_TYPE-" in
     if [[ "$_MARCH" != "loongarch64" ]]; then
       export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
     fi
-    export COMPILER="${COMPILER}-lto"
+    # GCC uses fat LTO objects
+    if [[ "-$BUILD_TYPE-" != *-gcc-* ]]; then
+      export COMPILER="${COMPILER}-lto"
+    fi
     ;;
 esac
 

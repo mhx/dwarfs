@@ -277,14 +277,14 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     case "$CARCH" in
         # https://github.com/llvm/llvm-project/issues/150913
         ppc64le)
-            COMPILERS="gcc gcc-lto"
+            COMPILERS="gcc"
             ;;
         *)
             if [[ "$ARCH" == "riscv64" ]]; then
                 # This is so slow natively, stick to the basics for now
                 COMPILERS="clang"
             else
-                COMPILERS="clang clang-minsize-lto gcc gcc-minsize-lto gcc-lto"
+                COMPILERS="clang clang-minsize-lto gcc"
             fi
             ;;
     esac
@@ -340,6 +340,12 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 export PERF_CFLAGS="$PERF_CFLAGS -flto"
                 export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
                 export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
+                ;;
+            gcc*)
+                export SIZE_CFLAGS="$SIZE_CFLAGS -flto -ffat-lto-objects"
+                export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto -ffat-lto-objects"
+                export PERF_CFLAGS="$PERF_CFLAGS -flto -ffat-lto-objects"
+                export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto -ffat-lto-objects"
                 ;;
         esac
 
