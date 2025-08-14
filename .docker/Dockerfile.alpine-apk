@@ -1,0 +1,11 @@
+# syntax=docker/dockerfile:1
+FROM alpine:edge
+
+RUN apk update
+RUN apk upgrade
+RUN apk add --no-cache alpine-sdk git sudo bash vim ripgrep openssh atools
+RUN adduser -G users -s bash -u 1000 -D mhx
+RUN adduser mhx abuild
+RUN echo "mhx ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+USER mhx
+ENTRYPOINT ["/bin/bash"]
