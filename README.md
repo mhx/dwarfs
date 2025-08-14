@@ -10,7 +10,7 @@
 
 The **D**eduplicating **W**arp-speed **A**dvanced **R**ead-only **F**ile **S**ystem.
 
-A fast high compression read-only file system for Linux and Windows.
+A fast high-compression read-only file system for Linux and Windows.
 
 ## Table of contents
 
@@ -59,7 +59,7 @@ A fast high compression read-only file system for Linux and Windows.
 ![Linux Screen Capture](doc/screenshot.gif?raw=true "DwarFS Linux")
 
 DwarFS is a read-only file system with a focus on achieving **very
-high compression ratios** in particular for very redundant data.
+high compression ratios**, particularly for highly redundant data.
 
 This probably doesn't sound very exciting, because if it's redundant,
 it *should* compress well. However, I found that other read-only,
@@ -67,10 +67,10 @@ compressed file systems don't do a very good job at making use of
 this redundancy. See [here](#comparison) for a comparison with other
 compressed file systems.
 
-DwarFS also **doesn't compromise on speed** and for my use cases I've
-found it to be on par with or perform better than SquashFS. For my
-primary use case, **DwarFS compression is an order of magnitude better
-than SquashFS compression**, it's **6 times faster to build the file
+DwarFS also **doesn't compromise on speed**; in my use cases, it
+performs on par with, or better than, SquashFS. For my primary use
+case, **DwarFS compression is an order of magnitude better than
+SquashFS compression**, it's **6 times faster to build the file
 system**, it's typically faster to access files on DwarFS and it uses
 less CPU resources.
 
@@ -83,7 +83,7 @@ So there's redundancy in both the video and audio data, but as the streams
 are interleaved and identical blocks are typically very far apart, it's
 challenging to make use of that redundancy for compression. SquashFS
 essentially fails to compress the source data at all, whereas DwarFS is
-able to reduce the size by almost a factor of 3, which is close to the
+able to reduce the size to nearly one-third, which is close to the
 theoretical maximum:
 
 ```
@@ -143,7 +143,7 @@ around for when I happened to need them.
 
 Up until then, I had been using [Cromfs](https://bisqwit.iki.fi/source/cromfs.html)
 for squeezing them into a manageable size. However, I was getting more
-and more annoyed by the time it took to build the filesystem image
+and more annoyed by the time it took to build the file system image
 and, to make things worse, more often than not it was crashing after
 about an hour or so.
 
@@ -177,21 +177,25 @@ some rudimentary docs as well.
 ### Note to Package Maintainers
 
 DwarFS should usually build fine with minimal changes out of the box.
-If it doesn't, please file a issue. I've set up
-[CI jobs](https://github.com/mhx/dwarfs/actions/workflows/build.yml)
-using Docker images for Ubuntu ([22.04](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.ubuntu-2204)
-and [24.04](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.ubuntu)),
-[Fedora Rawhide](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.fedora)
-and [Arch](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.arch)
+If it doesn't, please file an issue. I've set up
+[CI jobs](actions/workflows/build.yml)
+using Docker images for Ubuntu ([22.04](.docker/Dockerfile.ubuntu-2204)
+and [24.04](.docker/Dockerfile.ubuntu)),
+[Fedora Rawhide](.docker/Dockerfile.fedora),
+[Arch Linux](.docker/Dockerfile.arch), and
+[Debian](.docker/Dockerfile.debian),
+as well as a setup script for [FreeBSD](.github/scripts/freebsd_setup_base.sh),
 that can help with determining an up-to-date set of dependencies.
 Note that building from the release tarball requires less dependencies
 than building from the git repository, notably the `ronn` tool as well
 as Python and the `mistletoe` Python module are not required when
-building from the release tarball.
+building from the release tarball. Also, the release tarball build
+doesn't require to build the thrift compiler, which makes the build
+a lot faster.
 
 There are some things to be aware of:
 
-- There's a tendency to try and unbundle the [folly](https://github.com/facebook/folly/)
+- There's a tendency to try to unbundle the [folly](https://github.com/facebook/folly/)
   and [fbthrift](https://github.com/facebook/fbthrift) libraries that
   are included as submodules and are built along with DwarFS.
   While I agree with the sentiment, it's unfortunately a bad idea.
@@ -209,13 +213,13 @@ There are some things to be aware of:
   fbthrift headers are required to build against DwarFS' libraries.
 
 - Similar issues can arise when using a system-installed version
-  of GoogleTest. GoogleTest itself recommends that it is being
-  downloaded as part of the build. However, you can use the system
-  installed version by passing `-DPREFER_SYSTEM_GTEST=ON` to the
-  `cmake` call. Use at your own risk.
+  of GoogleTest. GoogleTest recommends downloading it as part of
+  the build. However, you can use the system-installed version by
+  passing `-DPREFER_SYSTEM_GTEST=ON` to the `cmake` call. Use at
+  your own risk.
 
 - For other bundled libraries (namely `fmt`, `parallel-hashmap`,
-  `range-v3`), the system installed version is used as long as it
+  `range-v3`), the system-installed version is used as long as it
   meets the minimum required version. Otherwise, the preferred
   version is fetched during the build.
 
@@ -233,18 +237,33 @@ In addition to the binary tarballs, there's a **universal binary**
 available for each architecture. These universal binaries contain
 *all* tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract` and the `dwarfs`
 FUSE driver) in a single executable. These executables are compressed
-using [upx](https://github.com/upx/upx), so they are much smaller than
-the individual tools combined. However, it also means the binaries need
-to be decompressed each time they are run, which can have a significant
-overhead. If that is an issue, you can either stick to the "classic"
-individual binaries or you can decompress the universal binary, e.g.:
+using [upx](https://github.com/upx/upx) where possible, and using a
+custom self-extractor on all other platforms. This means they are much
+smaller than the individual tools combined. However, it also means the
+binaries need to be decompressed each time they are run, which can add
+significant overhead. If that is an issue, you can either stick to the
+"classic" individual binaries or you can decompress the universal binary.
+For upx compressed binaries, you can use:
 
 ```
-upx -d dwarfs-universal-0.7.0-Linux-aarch64
+$ upx -d dwarfs-universal-0.7.0-Linux-aarch64
 ```
 
-The universal binaries can be run through symbolic links named after
-the proper tool. e.g.:
+For the binaries that use the custom self-extractor, you can use:
+
+```
+$ ./dwarfs-universal-riscv64 --extract-wrapped-binary dwarfs-universal
+```
+
+Note that both self-extractors need at least Linux kernel 3.17 to work
+properly. If you want to use the FUSE driver, you'll need to install
+the fuse3 tools for your distribution. If you want to run the binaries
+on an older kernel, you can unpack the universal binary (unpacking does
+*not* require kernel 3.17). If you're stuck with fuse2, you must use the
+individual `dwarfs2` driver instead of the universal binary.
+
+You can run the universal binaries via symbolic links named after
+the tool. For example:
 
 ```
 $ ln -s dwarfs-universal-0.7.0-Linux-aarch64 mkdwarfs
@@ -289,10 +308,13 @@ space-efficient, memory-mappable and well defined format. It's also
 included as a submodule, and we only build the compiler and a very
 reduced library that contains just enough for DwarFS to work.
 
-Other than that, DwarFS really only depends on FUSE3 and on a set
-of compression libraries that Folly already depends on (namely
-[lz4](https://github.com/lz4/lz4), [zstd](https://github.com/facebook/zstd)
-and [liblzma](https://github.com/kobolabs/liblzma)).
+Beyond that, DwarFS depends on FUSE3 and a set of compression
+libraries (namely [lz4](https://github.com/lz4/lz4),
+[zstd](https://github.com/facebook/zstd),
+[brotli](https://github.com/google/brotli),
+[xz](https://github.com/tukaani-project/xz), and
+[flac](https://github.com/xiph/flac)). Except for `zstd`, these
+are all optional.
 
 The dependency on [googletest](https://github.com/google/googletest)
 will be automatically resolved if you build with tests.
@@ -392,7 +414,7 @@ $ ctest -j
 ```
 
 All binaries use [jemalloc](https://github.com/jemalloc/jemalloc)
-as a memory allocator by default, as it is typically uses much less
+as a memory allocator by default, as it typically uses much less
 system memory compared to the `glibc` or `tcmalloc` allocators.
 To disable the use of `jemalloc`, pass `-DUSE_JEMALLOC=0` on the
 `cmake` command line.
@@ -484,12 +506,11 @@ pages using the `--man` option to each binary, e.g.:
 $ mkdwarfs --man
 ```
 
-The [dwarfs](doc/dwarfs.md) manual page also shows an example for setting
-up DwarFS with [overlayfs](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt)
-in order to create a writable file system mount on top a read-only
-DwarFS image.
+The [dwarfs](doc/dwarfs.md) manual page also shows an example for setting up DwarFS
+with [overlayfs](https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html)
+in order to create a writable file system mount on top of a read-only DwarFS image.
 
-A description of the DwarFS filesystem format can be found in
+A description of the DwarFS file system format can be found in
 [dwarfs-format](doc/dwarfs-format.md).
 
 A high-level overview of the internal operation of `mkdwarfs` is shown
@@ -511,7 +532,7 @@ There are five individual libraries:
 - `dwarfs_reader` contains all code required to read data from a
   DwarFS image. The interfaces are defined in [`dwarfs/reader/`](include/dwarfs/reader).
 
-- `dwarfs_extractor` contains the ccode required to extract a DwarFS
+- `dwarfs_extractor` contains the code required to extract a DwarFS
   image using [`libarchive`](https://libarchive.org/). The interfaces
   are defined in [`dwarfs/utility/filesystem_extractor.h`](include/dwarfs/utility/filesystem_extractor.h).
 
@@ -536,7 +557,7 @@ decades, my experience with Windows development is rather limited and
 I'd expect there to definitely be bugs and rough edges in the Windows
 code.
 
-The Windows version of the DwarFS filesystem driver relies on the awesome
+The Windows version of the DwarFS file system driver relies on the awesome
 [WinFsp](https://github.com/winfsp/winfsp) project and its `winfsp-x64.dll`
 must be discoverable by the `dwarfs.exe` driver.
 
@@ -549,9 +570,9 @@ There are a few things worth pointing out, though:
 
 - DwarFS supports both hardlinks and symlinks on Windows, just as it
   does on Linux. However, creating hardlinks and symlinks seems to
-  require admin privileges on Windows, so if you want to e.g. extract
-  a DwarFS image that contains links of some sort, you might run into
-  errors if you don't have the right privileges.
+  require admin privileges on Windows, so if, for example, you want to
+  extract a DwarFS image that contains links of some sort, you might
+  run into errors if you don't have the right privileges.
 
 - Due to a [problem](https://github.com/winfsp/winfsp/issues/454) in
   WinFsp, symlinks cannot currently point outside of the mounted file
@@ -593,7 +614,7 @@ You'll need to install:
 if it's not, you'll need to set `WINFSP_PATH` when running CMake via
 `cmake/win.bat`.
 
-Now you need to clone `vcpkg` and `dwarfs`:
+Clone `vcpkg` and `dwarfs`:
 
 ```
 > cd %HOMEPATH%
@@ -638,9 +659,9 @@ $ brew install dwarfs
 $ brew test dwarfs
 ```
 
-The macOS version of the DwarFS filesystem driver relies on the awesome
-[macFUSE](https://osxfuse.github.io/) project and is available from
-gromgit's [homebrew-fuse tap](https://github.com/gromgit/homebrew-fuse):
+The macOS version of the DwarFS file system driver relies on the awesome
+[macFUSE](https://macfuse.io) project and is available via gromgit's
+[homebrew-fuse tap](https://github.com/gromgit/homebrew-fuse):
 
 ```
 $ brew tap gromgit/homebrew-fuse
@@ -652,7 +673,7 @@ $ brew install dwarfs-fuse-mac
 ### Astrophotography
 
 Astrophotography can generate huge amounts of raw image data. During a
-single night, it's not unlikely to end up with a few dozens of gigabytes
+single night, it's not unlikely to end up with a few dozen gigabytes
 of data. With most dedicated astrophotography cameras, this data ends up
 in the form of FITS images. These are usually uncompressed, don't compress
 very well with standard compression algorithms, and while there are certain
@@ -861,7 +882,7 @@ The source directory contained **1139 different Perl installations**
 from 284 distinct releases, a total of 47.65 GiB of data in 1,927,501
 files and 330,733 directories. The source directory was freshly
 unpacked from a tar archive to an XFS partition on a 970 EVO Plus 2TB
-NVME drive, so most of its contents were likely cached.
+NVMe drive, so most of its contents were likely cached.
 
 I'm using the same compression type and compression level for
 SquashFS that is the default setting for DwarFS:
@@ -993,7 +1014,7 @@ the SquashFS image. The DwarFS image is only 0.6% of the original file size.
 
 So, why not use `lzma` instead of `zstd` by default? The reason is that `lzma`
 is about an order of magnitude slower to decompress than `zstd`. If you're
-only accessing data on your compressed filesystem occasionally, this might
+only accessing data on your compressed file system occasionally, this might
 not be a big deal, but if you use it extensively, `zstd` will result in
 better performance.
 
@@ -1025,7 +1046,7 @@ $ ll perl-install*.*fs
 ```
 
 Even this is *still* not entirely fair, as it uses a feature (`-B3`) that allows
-DwarFS to reference file chunks from up to two previous filesystem blocks.
+DwarFS to reference file chunks from up to two previous file system blocks.
 
 But the point is that this is really where SquashFS tops out, as it doesn't
 support larger block sizes or back-referencing. And as you'll see below, the
@@ -1040,7 +1061,7 @@ system with the best possible compression (`-l 9`):
 
 ```
 $ time mkdwarfs --recompress -i perl-install.dwarfs -o perl-lzma-re.dwarfs -l9
-I 20:28:03.246534 filesystem rewrittenwithout errors [148.3s]
+I 20:28:03.246534 filesystem rewritten without errors [148.3s]
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
 filesystem: 4.261 GiB in 273 blocks (0 chunks, 0 inodes)
 compressed filesystem: 273/273 blocks/372.7 MiB written
@@ -1058,13 +1079,13 @@ $ ll perl-*.dwarfs
 -rw-r--r-- 1 mhx users 315482627 Mar  3 21:23 perl-install-lzma.dwarfs
 ```
 
-Note that while the recompressed filesystem is smaller than the original image,
-it is still a lot bigger than the filesystem we previously build with `-l9`.
+Note that while the recompressed file system is smaller than the original image,
+it is still a lot bigger than the file system we previously build with `-l9`.
 The reason is that the recompressed image still uses the same block size, and
 the block size cannot be changed by recompressing.
 
 In terms of how fast the file system is when using it, a quick test
-I've done is to freshly mount the filesystem created above and run
+I've done is to freshly mount the file system created above and run
 each of the 1139 `perl` executables to print their version.
 
 ```
@@ -1144,7 +1165,7 @@ So you might want to consider using `zstd` instead of `lzma` if you'd
 like to optimize for file system performance. It's also the default
 compression used by `mkdwarfs`.
 
-Now here's a comparison with the SquashFS filesystem:
+Now here's a comparison with the SquashFS file system:
 
 ```
 $ hyperfine -c 'sudo umount mnt' -p 'umount mnt; dwarfs perl-install.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1' -n dwarfs-zstd "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'sudo umount mnt; sudo mount -t squashfs perl-install.squashfs mnt; sleep 1' -n squashfs-zstd "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
@@ -1249,7 +1270,7 @@ time, the difference is really marginal.
 
 ### With SquashFS & xz
 
-This test uses slightly less pathological input data: the root filesystem of
+This test uses slightly less pathological input data: the root file system of
 a recent Raspberry Pi OS release. This file system also contains device inodes,
 so in order to preserve those, we pass `--with-devices` to `mkdwarfs`:
 
@@ -1397,7 +1418,7 @@ $ ls -lh raspbian.tar.xz
 ```
 
 DwarFS also comes with the [dwarfsextract](doc/dwarfsextract.md) tool
-that allows extraction of a filesystem image without the FUSE driver.
+that allows extraction of a file system image without the FUSE driver.
 So here's a comparison of the extraction speed:
 
 ```
@@ -1959,7 +1980,7 @@ $ ls -l perl-install-small.*fs
 I noticed that the `blockifying` step that took ages for the full dataset
 with `mkcromfs` ran substantially faster (in terms of MiB/second) on the
 smaller dataset, which makes me wonder if there's some quadratic complexity
-behaviour that's slowing down `mkcromfs`.
+behavior that's slowing down `mkcromfs`.
 
 In order to be completely fair, I also ran `mkdwarfs` with `-l 9` to enable
 LZMA compression (which is what `mkcromfs` uses by default):
@@ -2017,8 +2038,8 @@ it crashed right upon trying to list the directory after mounting.
 
 ### With EROFS
 
-[EROFS](https://github.com/erofs/erofs-utils) is a read-only compressed
-file system that has been added to the Linux kernel recently.
+[EROFS](https://github.com/erofs/erofs-utils) is another read-only
+compressed file system included in the Linux kernel.
 Its goals are different from those of DwarFS, though. It is designed to
 be lightweight (which DwarFS is definitely not) and to run on constrained
 hardware like embedded devices or smartphones. It is not designed to provide
@@ -2073,7 +2094,7 @@ faster than `mkfs.erofs`.
 Actually using the file system images, here's how DwarFS performs:
 
 ```
-$ dwarfs perl-install-1M.dwarfs mnt -oworkers=8
+$ dwarfs perl-install-1M.dwarfs mnt -o workers=8
 $ find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
 50392172594 bytes (50 GB, 47 GiB) copied, 19 s, 2.7 GB/s
 0+1662649 records in
@@ -2181,7 +2202,7 @@ DwarFS can get close to the throughput of EROFS by using `zstd` instead
 of `lzma` compression:
 
 ```
-$ dwarfs perl-install-1M-zstd.dwarfs mnt -oworkers=8
+$ dwarfs perl-install-1M-zstd.dwarfs mnt -o workers=8
 find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
 49224202357 bytes (49 GB, 46 GiB) copied, 16 s, 3.1 GB/s
 0+1529018 records in
@@ -2251,7 +2272,7 @@ sys     0m0.610s
 ```
 
 Turns out that `tar --zstd` is easily winning the compression speed
-test. Looking at the file sizes did actually blow my mind just a bit:
+test. Looking at the file sizes did genuinely surprise me:
 
 ```
 $ ll zerotest.* --sort=size
@@ -2429,7 +2450,7 @@ To enable the performance monitor, you pass a list of components for which
 you want to collect latency metrics, e.g.:
 
 ```
-$ dwarfs test.dwarfs mnt -f -operfmon=fuse
+$ dwarfs test.dwarfs mnt -f -o perfmon=fuse
 ```
 
 When the driver exits, you will see output like this:
@@ -2526,14 +2547,18 @@ typically want to run on your "performance" cores.
 
 ### Specifying file system offset and size
 
-You can specify the byte offset at which the filesystem is located in the file using the `-o offset=N` option.
-This can be useful when mounting images where there is some preceding data before the filesystem or when mounting merged/concatenated images.
-When combined with the `-o imagesize=N` option you can mount merged filesystems, i.e. multiple filesystems stored in a single file.
+You can specify the byte offset at which the file system is located in the
+file using the `-o offset=N` option. This can be useful when mounting images
+where there is some preceding data before the file system or when mounting
+merged/concatenated images. When combined with the `-o imagesize=N` option
+you can mount merged file systems, i.e. multiple file systems stored in a
+single file.
 
-Here is an example, you have two filesystems concatenated into a single file and you want to mount both of them, you can achieve this by running
+Here is an example, you have two file systems concatenated into a single
+file and you want to mount both of them, you can achieve this by running:
 ```sh
-dwarfs merged.dwarfs /mnt/fs1 -oimagesize=9231
-dwarfs merged.dwarfs /mnt/fs2 -ooffset=9231,imagesize=7999
+dwarfs merged.dwarfs /mnt/fs1 -o imagesize=9231
+dwarfs merged.dwarfs /mnt/fs2 -o offset=9231,imagesize=7999
 ```
 
 ## Stargazers over Time
