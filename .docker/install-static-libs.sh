@@ -252,6 +252,11 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
         ppc64*)      BOOST_CONTEXT_ARCH="ppc64" ;;
     esac
 
+    case "$CARCH" in
+        i386|x86_64) MAX_LG_PAGE_SIZE=12 ;;
+        *)           MAX_LG_PAGE_SIZE=16 ;;
+    esac
+
     export TARGET="${CARCH}-alpine-linux-musl"
 
     case "$CARCH" in
@@ -449,14 +454,16 @@ EOF
             ./autogen.sh ${TRIPLETS}
             mkdir build-minimal
             cd build-minimal
-            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-minimal/$TARGET" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-minimal/$TARGET" --localstatedir=/var \
+                         --sysconfdir=/etc --with-lg-page=$MAX_LG_PAGE_SIZE --with-lg-hugepage=21 \
                          --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
             cd ..
             mkdir build-full
             cd build-full
-            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-full/$TARGET" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 \
+            ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-full/$TARGET" --localstatedir=/var \
+                         --sysconfdir=/etc --with-lg-page=$MAX_LG_PAGE_SIZE --with-lg-hugepage=21 \
                          --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
             make -j$(nproc)
             make install
