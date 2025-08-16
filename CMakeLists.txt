@@ -1067,7 +1067,10 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   endif()
 
   # ppc64le/ppc64 are theoretically supported by UPX, but they currently crash
-  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|arm)$")
+  #### skip for everything but Windows and use our own sfx stub
+  #### we can always prepare a upx-compressed version for release
+  # if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|arm)$")
+  if(WIN32)
     find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
   endif()
 
@@ -1115,13 +1118,10 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
                       --stub $<TARGET_FILE:${_sfx_stub_target}>
                       --input $<TARGET_FILE:${tgt}>
                       --output ${UNIVERSAL_OUT}
-          COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR}
-                  ${UNIVERSAL_OUT} --extract-wrapped-binary ${UNIVERSAL_OUT}.extracted
-          COMMAND ${CMAKE_COMMAND} -E compare_files
-                  ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT}.extracted
-                  $<TARGET_FILE:${tgt}>
-          COMMAND ${CMAKE_COMMAND} -E remove
-                  ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT}.extracted
+          COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT}
+                      --extract-wrapped-binary ${UNIVERSAL_OUT}.extracted
+          COMMAND ${CMAKE_COMMAND} -E compare_files ${UNIVERSAL_OUT}.extracted $<TARGET_FILE:${tgt}>
+          COMMAND ${CMAKE_COMMAND} -E remove ${UNIVERSAL_OUT}.extracted
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
           COMMENT "UPX not found/supported, using ${_sfx_stub_target} for universal binary"
         )
