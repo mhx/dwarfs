@@ -51,34 +51,21 @@ class mmap_block {
       : data_{allocate(size)}
       , size_{size} {}
 
-  mmap_block(mmap_block&& other) noexcept
-      : data_{other.data_}
-      , size_{other.size_} {
-    other.data_ = nullptr;
-    other.size_ = 0;
-  }
-
-  mmap_block& operator=(mmap_block&& other) noexcept {
-    if (this != &other) {
-      mmap_block tmp{std::move(*this)};
-      data_ = other.data_;
-      size_ = other.size_;
-      other.data_ = nullptr;
-      other.size_ = 0;
-    }
-    return *this;
-  }
-
-  size_t size() const { return size_; }
-
-  uint8_t* data() { return static_cast<uint8_t*>(data_); }
-  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
-
   ~mmap_block() {
     if (data_) {
       deallocate(data_, size_);
     }
   }
+
+  mmap_block(mmap_block const& other) = delete;
+  mmap_block& operator=(mmap_block const& other) = delete;
+  mmap_block(mmap_block&& other) = delete;
+  mmap_block& operator=(mmap_block&& other) = delete;
+
+  size_t size() const { return size_; }
+
+  uint8_t* data() { return static_cast<uint8_t*>(data_); }
+  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
 
  private:
   static void* allocate(size_t size) {
