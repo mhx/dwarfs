@@ -77,6 +77,7 @@ std::ostream& operator<<(std::ostream& os, metadata_options const& opts) {
   }
   os << "inode_size_cache_min_chunk_count: "
      << opts.inode_size_cache_min_chunk_count;
+  os << "}";
   return os;
 }
 

@@ -193,3 +193,38 @@ TEST_F(metadata_test, basic) {
     // std::cout << thrift_diff(unpacked1, unpacked2);
   }
 }
+
+TEST(metadata_options, output_stream) {
+  using namespace dwarfs::writer;
+
+  metadata_options opts;
+  opts.uid = 1000;
+  opts.gid = 1000;
+  opts.timestamp = 1234567890;
+  opts.keep_all_times = true;
+  opts.time_resolution_sec = 1;
+  opts.pack_chunk_table = true;
+  opts.pack_directories = true;
+  opts.pack_shared_files_table = true;
+  opts.plain_names_table = true;
+  opts.pack_names = true;
+  opts.pack_names_index = true;
+  opts.plain_symlinks_table = true;
+  opts.pack_symlinks = true;
+  opts.pack_symlinks_index = true;
+  opts.force_pack_string_tables = true;
+  opts.no_create_timestamp = true;
+  opts.inode_size_cache_min_chunk_count = 1000;
+
+  std::ostringstream oss;
+  oss << opts;
+
+  EXPECT_EQ(
+      oss.str(),
+      "{uid: 1000, gid: 1000, timestamp: 1234567890, keep_all_times, "
+      "time_resolution_sec: 1, pack_chunk_table, pack_directories, "
+      "pack_shared_files_table, plain_names_table, pack_names, "
+      "pack_names_index, plain_symlinks_table, pack_symlinks, "
+      "pack_symlinks_index, force_pack_string_tables, no_create_timestamp, "
+      "inode_size_cache_min_chunk_count: 1000}");
+}
