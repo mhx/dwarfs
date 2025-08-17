@@ -30,6 +30,9 @@
 #include <dwarfs/xattr.h>
 
 TEST(xattr_test, portable_xattr) {
+#ifdef _WIN32
+  GTEST_SKIP() << "Extended attributes are not fully implemented on Windows";
+#else
   dwarfs::temporary_directory td("dwarfs");
   auto const path = td.path() / "testfile";
   auto const non_existant_path = td.path() / "non_existant_testfile";
@@ -80,4 +83,5 @@ TEST(xattr_test, portable_xattr) {
 
   EXPECT_EQ(dwarfs::getxattr(path, xattr_name, ec), std::string{});
   EXPECT_TRUE(ec);
+#endif
 }
