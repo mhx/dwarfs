@@ -38,6 +38,7 @@
 #include <dwarfs/util.h>
 
 #include "loremipsum.h"
+#include "lz_synthetic_generator.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
 
@@ -271,9 +272,10 @@ void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
   if (random) {
     thread_local std::mt19937_64 rng{42};
 
-    std::uniform_int_distribution<> choice_dist{0, 3};
+    std::uniform_int_distribution<> choice_dist{0, 4};
+    auto choice = choice_dist(rng);
 
-    switch (choice_dist(rng)) {
+    switch (choice) {
     default:
       break;
 
@@ -281,6 +283,18 @@ void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
       add(path, st,
           [size, seed = rng()] { return create_random_string(size, seed); });
       return;
+
+    case 1:
+    case 2: {
+      add(path, st, [size, seed = rng(), text_mode = choice == 1] {
+        lz_params lzp{};
+        lzp.text_mode = text_mode;
+        lzp.seed = seed;
+        lz_synthetic_generator gen{lzp};
+        return gen.generate(size);
+      });
+      return;
+    }
     }
   }
 

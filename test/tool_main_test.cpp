@@ -67,6 +67,7 @@
 
 #include "filter_test_data.h"
 #include "loremipsum.h"
+#include "lz_synthetic_generator.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
 #include "test_logger.h"
@@ -258,6 +259,15 @@ class mkdwarfs_tester : public tester_common {
       return test::create_random_string(size, 'A', 'Z', rng);
     };
 
+    test::lz_params text_lzp{};
+    test::lz_params binary_lzp{};
+    text_lzp.text_mode = true;
+    binary_lzp.text_mode = false;
+    text_lzp.seed = rng();
+    binary_lzp.seed = rng();
+    test::lz_synthetic_generator text_gen{text_lzp};
+    test::lz_synthetic_generator binary_gen{binary_lzp};
+
     for (int x = 0; x < opt.dimension; ++x) {
       fs::path d1{random_path_component() + std::to_string(x)};
       os->add_dir(d1);
@@ -268,13 +278,24 @@ class mkdwarfs_tester : public tester_common {
 
         for (int z = 0; z < opt.dimension; ++z) {
           fs::path f{d2 / (random_path_component() + std::to_string(z))};
-          auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
+          auto const size =
+              std::min(max_size, static_cast<size_t>(size_dist(rng)));
           std::string data;
 
-          if (size < 1024 * 1024 && rng() % 2 == 0) {
+          auto const choice = rng() % 4;
+          switch (choice) {
+          case 0:
             data = test::create_random_string(size, rng);
-          } else {
+            break;
+          case 1:
             data = test::loremipsum(size);
+            break;
+          case 3:
+            data = text_gen.generate(size);
+            break;
+          case 4:
+            data = binary_gen.generate(size);
+            break;
           }
 
           os->add_file(f, data);
