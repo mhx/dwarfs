@@ -600,6 +600,7 @@ std::vector<std::string> const compressions{
 #ifdef DWARFS_HAVE_LIBLZMA
     "lzma:level=1",
     "lzma:level=1:binary=x86",
+    "lzma:level=1:dict_size=15:mode=fast:mf=bt2:nice=42:depth=4711:extreme",
 #endif
 #ifdef DWARFS_HAVE_LIBBROTLI
     "brotli:quality=2",
