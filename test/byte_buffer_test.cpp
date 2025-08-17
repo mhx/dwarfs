@@ -29,6 +29,8 @@
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/mapped_byte_buffer.h>
 
+#include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
+
 TEST(byte_buffer_test, malloc_byte_buffer) {
   auto buf = dwarfs::malloc_byte_buffer::create();
   static_assert(std::same_as<decltype(buf), dwarfs::mutable_byte_buffer>);
@@ -100,4 +102,58 @@ TEST(byte_buffer_test, malloc_byte_buffer) {
   EXPECT_TRUE(buf);
   EXPECT_FALSE(buf.empty());
   EXPECT_EQ(buf.size(), 13);
+}
+
+TEST(byte_buffer_test, block_cache_byte_buffer_mmap) {
+  using namespace dwarfs::reader;
+  auto factory = internal::block_cache_byte_buffer_factory::create(
+      block_cache_allocation_mode::MMAP);
+  auto buf = factory.create_mutable_fixed_reserve(13);
+
+  EXPECT_TRUE(buf);
+  EXPECT_TRUE(buf.empty());
+  EXPECT_EQ(buf.size(), 0);
+  EXPECT_EQ(buf.capacity(), 13);
+
+  EXPECT_THAT([&] { buf.reserve(200); },
+              ::testing::ThrowsMessage<std::runtime_error>(
+                  "operation not allowed on mmap buffer: reserve"));
+
+  EXPECT_THAT([&] { buf.raw_buffer(); },
+              ::testing::ThrowsMessage<std::runtime_error>(
+                  "operation not allowed on mmap buffer: raw_buffer"));
+
+  buf.append("Hello, World!", 13);
+
+  EXPECT_EQ(buf.size(), 13);
+
+  EXPECT_THAT(
+      [&] { buf.resize(20); },
+      ::testing::ThrowsMessage<std::runtime_error>(
+          "operation not allowed on mmap buffer: resize beyond capacity"));
+
+  EXPECT_NO_THROW(buf.resize(12));
+
+  EXPECT_THAT(
+      [&] { buf.append("Too much!", 9); },
+      ::testing::ThrowsMessage<std::runtime_error>(
+          "operation not allowed on mmap buffer: append beyond capacity"));
+
+  EXPECT_THAT([&] { buf.shrink_to_fit(); },
+              ::testing::ThrowsMessage<std::runtime_error>(
+                  "operation not allowed on mmap buffer: shrink_to_fit"));
+
+  EXPECT_THAT([&] { buf.clear(); },
+              ::testing::ThrowsMessage<std::runtime_error>(
+                  "operation not allowed on mmap buffer: clear"));
+
+  EXPECT_NO_THROW(buf.freeze_location());
+
+  EXPECT_EQ(buf.span().size(), 12);
+
+  auto shared = buf.share();
+
+  EXPECT_FALSE(shared.empty());
+  EXPECT_EQ(shared.size(), 12);
+  EXPECT_EQ(shared.span().size(), 12);
 }
