@@ -81,6 +81,7 @@ jobs:
             --env BUILD_ARCH=${{ inputs.build_arch }} \
             --env CROSS_ARCH=${{ inputs.cross_arch }} \
             --env BUILD_DIST=${{ inputs.build_dist }} \
+            --env GITHUB_WORKSPACE \
             --env GITHUB_REF_NAME \
             --env GITHUB_REF_TYPE \
             --env GITHUB_RUN_ID \
@@ -88,12 +89,22 @@ jobs:
             --env GITHUB_RUN_ATTEMPT \
             dwarfs-linux-build-${{ inputs.build_dist }}
 
-      - name: Upload Coverage Data
+      - name: Upload Coverage Data (Codecov)
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ runner.temp }}/dwarfs-coverage.txt
+          files: ${{ runner.temp }}/dwarfs-coverage.lcov
           fail_ci_if_error: false
+        if: ${{ inputs.upload_coverage }}
+
+      - name: Upload Coverage Data (Coveralls)
+        uses: coverallsapp/github-action@v2
+        with:
+          file: ${{ runner.temp }}/dwarfs-coverage.lcov
+          format: 'lcov'
+          fail-on-error: false
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         if: ${{ inputs.upload_coverage }}
 
       - name: Prepare Artifact Upload
@@ -132,3 +143,13 @@ jobs:
         env:
           ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
         if: ${{ inputs.upload_artifacts }}
+
+      - name: Upload Coverage Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwarfs-coverage
+          path: ${{ runner.temp }}/dwarfs-coverage.*
+          if-no-files-found: error
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ inputs.upload_coverage }}

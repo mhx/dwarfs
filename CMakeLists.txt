@@ -834,6 +834,12 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
                        -fno-omit-frame-pointer)
       target_link_options(${tgt} PRIVATE -fprofile-instr-generate
                           -fcoverage-mapping)
+      if(DEFINED ENV{GITHUB_WORKSPACE})
+        target_compile_options(${tgt} PRIVATE -fcoverage-prefix-map=${CMAKE_SOURCE_DIR}=$ENV{GITHUB_WORKSPACE}
+                                              -ffile-compilation-dir=$ENV{GITHUB_WORKSPACE})
+        target_link_options(${tgt} PRIVATE -fcoverage-prefix-map=${CMAKE_SOURCE_DIR}=$ENV{GITHUB_WORKSPACE}
+                                           -ffile-compilation-dir=$ENV{GITHUB_WORKSPACE})
+      endif()
     endif()
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
