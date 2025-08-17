@@ -52,6 +52,21 @@ TEST(terminal, ansi_color) {
   EXPECT_EQ("\033[31m", t.color(termcolor::RED));
 }
 
+TEST(terminal, ansi_bgcolor) {
+  EXPECT_EQ("\033[0m", terminal_ansi::bgcolor_impl(termcolor::NORMAL));
+  EXPECT_EQ("\033[41m", terminal_ansi::bgcolor_impl(termcolor::RED));
+  EXPECT_EQ("\033[47m", terminal_ansi::bgcolor_impl(termcolor::WHITE));
+  EXPECT_EQ("\033[100m", terminal_ansi::bgcolor_impl(termcolor::GRAY));
+  EXPECT_EQ("\033[105m", terminal_ansi::bgcolor_impl(termcolor::BOLD_MAGENTA));
+  EXPECT_EQ("\033[46m", terminal_ansi::bgcolor_impl(termcolor::DIM_CYAN));
+
+  terminal_ansi term(terminal_ansi::init_mode::NOINIT);
+  terminal const& t = term;
+
+  EXPECT_EQ("\033[0m", t.bgcolor(termcolor::NORMAL));
+  EXPECT_EQ("\033[41m", t.bgcolor(termcolor::RED));
+}
+
 TEST(terminal, ansi_colored) {
   EXPECT_EQ("\033[31mfoo\033[0m",
             terminal_ansi::colored_impl("foo", termcolor::RED));
