@@ -3966,3 +3966,128 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     }
   }
 }
+
+namespace {
+
+std::unordered_map<std::string, std::string>
+get_md5_checksums(std::string image) {
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  os->add_file("image.dwarfs", std::move(image));
+  auto t = dwarfsck_tester(std::move(os));
+  if (t.run({"image.dwarfs", "--checksum=md5"}) != 0) {
+    throw std::runtime_error("Failed to run dwarfsck: " + t.err());
+  }
+  auto out = t.out();
+
+  std::unordered_map<std::string, std::string> checksums;
+
+  for (auto line : split_view<std::string_view>(out, '\n')) {
+    if (line.empty()) {
+      continue;
+    }
+    auto pos = line.find("  ");
+    if (pos == std::string::npos) {
+      throw std::runtime_error("Invalid checksum line: " + std::string(line));
+    }
+    auto hash = line.substr(0, pos);
+    auto file = line.substr(pos + 2);
+    checksums.emplace(file, hash);
+  }
+
+  return checksums;
+};
+
+} // namespace
+
+TEST(mkdwarfs_test, change_block_size) {
+  std::string const image_file = "test.dwarfs";
+  std::string image;
+
+  std::unordered_map<std::string, std::string> ref_checksums;
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_local_files(audio_data_dir);
+    t.os->add_local_files(fits_data_dir);
+    auto files = t.add_random_file_tree({.avg_size = 8192.0, .dimension = 13});
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--with-devices",
+                        "--with-specials", "--keep-all-times", "--categorize",
+                        "-S18", "-B3", "-l4"}))
+        << t.err();
+    auto img = t.fa->get_file(image_file);
+    ASSERT_TRUE(img);
+    image = std::move(img.value());
+
+    auto fs = t.fs_from_file(image_file);
+
+    // std::cerr << "Image size: " << image.size() << " bytes\n" << t.err();
+    // fs.dump(std::cerr,
+    //         {.features = reader::fsinfo_features::for_level(3)});
+
+    ref_checksums = get_md5_checksums(image);
+
+    auto checksum_files =
+        ref_checksums | ranges::views::keys |
+        ranges::views::transform([](auto const& s) { return fs::path{s}; }) |
+        ranges::to<std::set<fs::path>>();
+
+    auto random_files =
+        files | ranges::views::keys | ranges::to<std::set<fs::path>>();
+
+    EXPECT_GT(checksum_files.size(), 1000);
+    EXPECT_GT(random_files.size(), 1000);
+
+    // All random files should be in the checksum set
+    std::vector<fs::path> missing_files;
+    std::set_difference(random_files.begin(), random_files.end(),
+                        checksum_files.begin(), checksum_files.end(),
+                        std::back_inserter(missing_files));
+
+    EXPECT_EQ(0, missing_files.size());
+  }
+
+  auto rebuild_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  for (int lg_block_size = 10; lg_block_size <= 26; ++lg_block_size) {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S",
+                        std::to_string(lg_block_size), "-C", "zstd:level=5",
+                        "--change-block-size", "--keep-all-times"}))
+        << t.err();
+
+    {
+      auto const checksums = get_md5_checksums(t.out());
+      EXPECT_EQ(ref_checksums, checksums);
+
+      auto fs = t.fs_from_stdout();
+      auto info =
+          fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+
+      EXPECT_EQ(1 << lg_block_size, info["block_size"].get<int>());
+    }
+
+    auto t2 = rebuild_tester(t.out());
+    ASSERT_EQ(0, t2.run({"-i", image_file, "-o", "-", "-S18", "-C",
+                         "zstd:level=5", "--change-block-size",
+                         "--keep-all-times", "--log-level=debug"}))
+        << t2.err();
+
+    {
+      auto const checksums = get_md5_checksums(t2.out());
+      EXPECT_EQ(ref_checksums, checksums);
+
+      auto fs = t2.fs_from_stdout();
+      auto info =
+          fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+
+      EXPECT_EQ(1 << 18, info["block_size"].get<int>());
+    }
+  }
+}
