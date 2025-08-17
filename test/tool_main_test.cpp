@@ -2287,7 +2287,8 @@ TEST(dwarfsextract_test, mtree) {
 TEST(dwarfsextract_test, filters) {
   auto t = dwarfsextract_tester::create_with_image();
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "gnutar", "--format-filters",
-                      "zstd", "--format-options", "zstd:compression-level=3"}))
+                      "zstd", "--format-options", "zstd:compression-level=3",
+                      "--log-level=debug"}))
       << t.err();
 
   auto out = t.out();
@@ -2445,7 +2446,8 @@ TEST_P(dwarfsextract_format_test, basic) {
   bool const is_shar = fmt.name.starts_with("shar");
   auto t = dwarfsextract_tester::create_with_image();
   int const expected_exit = fmt.expected_error ? 1 : 0;
-  int exit_code = t.run({"-i", "image.dwarfs", "-f", fmt.name});
+  int exit_code =
+      t.run({"-i", "image.dwarfs", "-f", fmt.name, "--log-level=debug"});
   if (!fmt.expected_error && exit_code != 0) {
     if (t.err().find("not supported on this platform") != std::string::npos) {
       GTEST_SKIP();
