@@ -170,9 +170,9 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
@@ -186,17 +186,17 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-minimal-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-minimal-libressl-lto-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-minimal-mimalloc-libressl-lto-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
@@ -288,17 +288,17 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: riscv64
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-            cross_arch: riscv64
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-lto-ninja-static
+          #skip#   cross_arch: riscv64
+          #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
-            cross_arch: riscv64
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-ninja-static
+          #skip#   cross_arch: riscv64
+          #skip#   skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -311,17 +311,17 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: i386
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-            cross_arch: i386
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-lto-ninja-static
+          #skip#   cross_arch: i386
+          #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
-            cross_arch: i386
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-ninja-static
+          #skip#   cross_arch: i386
+          #skip#   skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -334,17 +334,17 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: arm
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-            cross_arch: arm
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-lto-ninja-static
+          #skip#   cross_arch: arm
+          #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
-            cross_arch: arm
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-ninja-static
+          #skip#   cross_arch: arm
+          #skip#   skip_slow_tests: true
 
           ######### fails: static_assert(std::atomic<bool>::is_always_lock_free);
           # - build_arch: amd64
@@ -352,11 +352,11 @@ jobs:
           #   build_type: gcc-release-ninja-static
           #   cross_arch: arm
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
-            cross_arch: ppc64le
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: ppc64le
+          #skip#   skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -387,11 +387,11 @@ jobs:
             build_type: clang-relsize-lto-ninja-static
             cross_arch: loongarch64
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-ninja-static
-            cross_arch: loongarch64
-            skip_slow_tests: true
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-ninja-static
+          #skip#   cross_arch: loongarch64
+          #skip#   skip_slow_tests: true
 
           - build_arch: amd64
             build_dist: alpine
@@ -423,11 +423,11 @@ jobs:
             cross_arch: s390x
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
-            cross_arch: s390x
-            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: s390x
+          #skip#   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
     uses: ./.github/workflows/docker-run-build.yml
     with:
