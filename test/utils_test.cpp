@@ -29,6 +29,8 @@
 #include <tuple>
 #include <vector>
 
+#include <folly/portability/Stdlib.h>
+
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
 
@@ -389,4 +391,35 @@ TEST(utils, parse_time_point) {
   EXPECT_THAT([] { parse_time_point("2020-01-01 01:02x"); },
               ::testing::ThrowsMessage<dwarfs::runtime_error>(
                   ::testing::HasSubstr("cannot parse time point")));
+}
+
+TEST(utils, getenv_is_enabled) {
+  static char const* const test_var = "_DWARFS_THIS_IS_A_TEST_";
+
+  EXPECT_EQ(0, unsetenv("_DWARFS_THIS_IS_A_TEST_"));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "0", 1));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "1", 1));
+  EXPECT_TRUE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "false", 1));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "true", 1));
+  EXPECT_TRUE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "off", 1));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "on", 1));
+  EXPECT_TRUE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, setenv(test_var, "ThisAintBool", 1));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
+
+  EXPECT_EQ(0, unsetenv(test_var));
+  EXPECT_FALSE(getenv_is_enabled(test_var));
 }

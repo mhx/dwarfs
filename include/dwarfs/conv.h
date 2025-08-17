@@ -77,7 +77,7 @@ std::optional<bool> try_to(std::string_view s)
 
 template <typename T, typename U>
 std::optional<T> try_to(U&& s)
-  requires(std::convertible_to<U, T>)
+  requires(!std::same_as<T, bool> && std::convertible_to<U, T>)
 {
   return std::forward<U>(s);
 }
