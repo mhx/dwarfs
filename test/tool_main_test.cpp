@@ -3130,6 +3130,40 @@ TEST_P(segmenter_repeating_sequence_test, github161) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, segmenter_repeating_sequence_test,
                          ::testing::Values('\0', 'G', '\xff'));
 
+TEST(mkdwarfs_test, force_segmenter_collisions) {
+  // don't go overboard, otherwise this is too slow
+  static constexpr int const final_bytes{100'000};
+  static constexpr int const repetitions{50};
+  auto match = test::create_random_string(5'000);
+  auto suffix = test::create_random_string(50);
+  std::string sequence;
+  sequence.reserve(3000);
+  for (int i = 0; i < 1500; ++i) {
+    sequence += "ab";
+  }
+
+  std::string content;
+  content.reserve(match.size() + suffix.size() +
+                  (sequence.size() + match.size()) * repetitions + final_bytes);
+
+  content += match + suffix;
+  for (int i = 0; i < repetitions; ++i) {
+    content += sequence + match;
+  }
+  for (int i = 0; i < final_bytes; i += 2) {
+    content += "ab";
+  }
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_file("/bug", content);
+
+  ASSERT_EQ(
+      0,
+      t.run("-i / -o - -C zstd:level=3 -W12 --log-level=verbose --no-progress"))
+      << t.err();
+}
+
 TEST(mkdwarfs_test, map_file_error) {
   mkdwarfs_tester t;
   t.os->set_map_file_error(
