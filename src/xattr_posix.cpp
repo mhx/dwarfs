@@ -196,17 +196,21 @@ ssize_t portable_listxattr(char const* path, char* list, size_t size) {
                                 EXTATTR_NAMESPACE_SYSTEM};
 
   ssize_t total = 0;
+  size_t ns_without_error = 0;
 
   for (int ns : namespaces) {
     // Query size.
     ssize_t need = ::extattr_list_file(path, ns, nullptr, 0);
     if (need < 0) {
-      if (errno == EOPNOTSUPP) {
+      if (errno == EOPNOTSUPP || errno == EPERM) {
         continue;
       } else {
         return -1;
       }
     }
+
+    ++ns_without_error;
+
     if (need == 0) {
       continue;
     }
@@ -231,7 +235,7 @@ ssize_t portable_listxattr(char const* path, char* list, size_t size) {
     }
   }
 
-  return total;
+  return ns_without_error > 0 ? total : -1;
 }
 
 #else

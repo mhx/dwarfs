@@ -47,6 +47,8 @@ TEST(xattr_test, portable_xattr) {
   dwarfs::listxattr(path, ec);
   if (ec == std::errc::operation_not_supported) {
     GTEST_SKIP() << "Extended attributes not supported on this filesystem";
+  } else if (ec) {
+    FAIL() << "Unexpected error listing extended attributes: " << ec.message();
   }
 
   EXPECT_THAT(dwarfs::listxattr(path),
