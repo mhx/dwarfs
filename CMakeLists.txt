@@ -860,6 +860,28 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
   endif()
 endforeach()
 
+if(ENABLE_COVERAGE)
+  foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
+    list(APPEND _PROFILE_OBJECTS -object=$<TARGET_FILE:${tgt}>)
+  endforeach()
+  add_custom_target(
+    coverage
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/coverage
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
+    COMMAND llvm-profdata merge -sparse ${CMAKE_BINARY_DIR}/profile/*.profraw -o ${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
+    COMMAND llvm-cov export -instr-profile=${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
+                -ignore-filename-regex="\(fsst\|folly\|fbthrift\|build[^/]*\)/"
+                -format=lcov ${_PROFILE_OBJECTS} > ${CMAKE_BINARY_DIR}/coverage/coverage.info
+    COMMAND genhtml -o ${CMAKE_BINARY_DIR}/coverage/html
+                --no-branch-coverage --missed --show-details
+                --rc derive_function_end_line=1
+                --ignore-errors inconsistent
+                --ignore-errors corrupt
+                ${CMAKE_BINARY_DIR}/coverage/coverage.info
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  )
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL Release)
   # not sure why exactly, copied from fsst/CMakeLists.txt
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
