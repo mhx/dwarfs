@@ -485,6 +485,7 @@ if(WITH_TESTS)
       test/badfs_test.cpp
       test/block_merger_test.cpp
       test/block_range_test.cpp
+      test/byte_buffer_test.cpp
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
       test/entry_test.cpp
