@@ -159,14 +159,6 @@ jobs:
             build_type: clang-release-shared-ninja-full
 
           - build_arch: amd64
-            build_dist: debian
-            build_type: gcc-release-make-full
-
-          - build_arch: amd64
-            build_dist: debian
-            build_type: clang-debug-shared-ninja-split
-
-          - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-ninja-static
 
@@ -201,6 +193,14 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: debian
+            build_type: gcc-release-make-full
+
+          - build_arch: arm64v8
+            build_dist: debian
+            build_type: clang-debug-shared-ninja-split
 
           - build_arch: arm64v8
             build_dist: ubuntu-2204
