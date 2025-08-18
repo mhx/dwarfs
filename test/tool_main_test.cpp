@@ -2234,7 +2234,9 @@ TEST_P(mkdwarfs_progress_test, basic) {
   std::string const image_file = "test.dwarfs";
 
   std::vector<std::string> args{
-      "-i", "/", "-o", image_file, "--file-hash=sha512", "--progress", mode};
+      "-i",  "/",  "-o",           image_file,     "--file-hash=sha512",
+      "-l4", "-C", "zstd:level=5", "--categorize", "--progress",
+      mode};
 
   auto t = mkdwarfs_tester::create_empty();
 
