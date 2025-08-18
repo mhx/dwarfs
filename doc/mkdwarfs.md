@@ -250,7 +250,9 @@ Most other options are concerned with compression tuning:
   Change the block size while recompressing. This will change the block size
   according to the size given in `--block-size-bits`. Even if the block size
   is unchanged, this will still re-order and re-compress *all* blocks. Implies
-  `--recompress=all` and `--rebuild-metadata`.
+  `--recompress=all` and `--rebuild-metadata`. Note that changing the block
+  size to a different value and then back to the original value is not guaranteed
+  to produce a bit-identical file system image.
 
 - `--no-metadata-version-history`:
   By default, when rebuilding the metadata block, a small history entry will
