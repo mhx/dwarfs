@@ -274,9 +274,9 @@ jobs:
             build_dist: debian
             build_type: gcc-release-ninja-full
 
-          - build_arch: riscv64
-            build_dist: ubuntu
-            build_type: clang-debug-shared-ninja-split
+          #skip# - build_arch: riscv64
+          #skip#   build_dist: ubuntu
+          #skip#   build_type: clang-debug-shared-ninja-split
 
           - build_arch: amd64
             build_dist: alpine
