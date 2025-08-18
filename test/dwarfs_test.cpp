@@ -921,7 +921,8 @@ TEST_P(file_scanner, inode_ordering) {
   opts.metadata.no_create_timestamp = true;
 
   auto input = std::make_shared<test::os_access_mock>();
-#if defined(DWARFS_TEST_RUNNING_ON_ASAN) || defined(DWARFS_TEST_RUNNING_ON_TSAN)
+#if defined(DWARFS_TEST_RUNNING_ON_ASAN) ||                                    \
+    defined(DWARFS_TEST_RUNNING_ON_TSAN) || defined(DWARFS_TEST_CROSS_COMPILE)
   static constexpr int dim{7};
 #else
   static constexpr int dim{14};

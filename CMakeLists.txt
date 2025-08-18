@@ -574,6 +574,10 @@ if(WITH_TESTS)
       add_executable(${test} test/${test}.cpp)
     endif()
 
+    if(CMAKE_CROSSCOMPILING)
+      target_compile_definitions(${test} PRIVATE DWARFS_TEST_CROSS_COMPILE)
+    endif()
+
     target_link_libraries(
       ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
     )

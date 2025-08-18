@@ -2054,7 +2054,11 @@ TEST(mkdwarfs_test, pack_modes_random) {
     auto mode_arg = fmt::format("{}", fmt::join(modes, ","));
     auto t = mkdwarfs_tester::create_empty();
     t.add_test_file_tree();
+#ifdef DWARFS_TEST_CROSS_COMPILE
+    t.add_random_file_tree({.avg_size = 128.0, .dimension = 10});
+#else
     t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
+#endif
     ASSERT_EQ(
         0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
         << t.err();
@@ -2245,7 +2249,11 @@ TEST_P(mkdwarfs_progress_test, basic) {
 
   t.add_root_dir();
   t.add_random_file_tree({
+#ifdef DWARFS_TEST_CROSS_COMPILE
+      .avg_size = 2.0 * 1024 * 1024,
+#else
       .avg_size = 20.0 * 1024 * 1024,
+#endif
       .dimension = 2,
 #ifndef _WIN32
       // Windows can't deal with non-UTF-8 filenames
@@ -4095,7 +4103,16 @@ TEST(mkdwarfs_test, change_block_size) {
     return t;
   };
 
-  for (int lg_block_size = 10; lg_block_size <= 26; ++lg_block_size) {
+#ifdef DWARFS_TEST_CROSS_COMPILE
+  static constexpr int kMinBlockSize = 14;
+  static constexpr int kMaxBlockSize = 20;
+#else
+  static constexpr int kMinBlockSize = 10;
+  static constexpr int kMaxBlockSize = 26;
+#endif
+
+  for (int lg_block_size = kMinBlockSize; lg_block_size <= kMaxBlockSize;
+       ++lg_block_size) {
     auto t = rebuild_tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S",
                         std::to_string(lg_block_size), "-C", "zstd:level=5",
@@ -4143,7 +4160,7 @@ TEST(mkdwarfs_test, change_block_size) {
       EXPECT_EQ(1 << lg_block_size, hist[1]["block_size"].get<int>());
     }
 
-    if (lg_block_size == 10) {
+    if (lg_block_size == kMinBlockSize) {
       auto t3 = rebuild_tester(t2.out());
       ASSERT_EQ(
           0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=5",
