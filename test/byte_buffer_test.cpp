@@ -157,3 +157,16 @@ TEST(byte_buffer_test, block_cache_byte_buffer_mmap) {
   EXPECT_EQ(shared.size(), 12);
   EXPECT_EQ(shared.span().size(), 12);
 }
+
+TEST(byte_buffer_test, mapped_byte_buffer) {
+  static constexpr std::string_view test_data = "Hello, World!";
+
+  auto buf = dwarfs::mapped_byte_buffer::create(std::span(
+      reinterpret_cast<uint8_t const*>(test_data.data()), test_data.size()));
+  static_assert(std::same_as<decltype(buf), dwarfs::shared_byte_buffer>);
+
+  EXPECT_FALSE(buf.empty());
+  EXPECT_EQ(buf.size(), test_data.size());
+  EXPECT_EQ(buf.capacity(), test_data.size());
+  EXPECT_EQ(buf.data(), reinterpret_cast<uint8_t const*>(test_data.data()));
+}
