@@ -77,6 +77,7 @@ jobs:
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+            --mount type=bind,source=${HOME}/shared-ccache,target=/shared-ccache \
             --mount type=bind,source=${HOME}/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             ${{ inputs.build_from_tarball && '--env BUILD_FROM_TARBALL=1' || '' }} \

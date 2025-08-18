@@ -2,7 +2,7 @@
 
 set -ex
 
-export CCACHE_DIR=/ccache
+export CCACHE_CONFIGPATH=/workspace/.docker/ccache.conf
 
 LOCAL_REPO_PATH=/local/repos
 mkdir -p "$LOCAL_REPO_PATH"
