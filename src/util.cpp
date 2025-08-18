@@ -424,7 +424,14 @@ std::string exception_str(std::exception_ptr const& e) {
 }
 
 unsigned int hardware_concurrency() noexcept {
-  return folly::hardware_concurrency();
+  static auto const env = [] {
+    std::optional<int> concurrency;
+    if (auto env = std::getenv("DWARFS_OVERRIDE_HARDWARE_CONCURRENCY")) {
+      concurrency = try_to<int>(env);
+    }
+    return concurrency;
+  }();
+  return env.value_or(folly::hardware_concurrency());
 }
 
 int get_current_umask() {
