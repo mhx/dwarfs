@@ -4037,6 +4037,8 @@ get_md5_checksums(std::string image) {
 } // namespace
 
 TEST(mkdwarfs_test, change_block_size) {
+  DWARFS_SLOW_TEST();
+
   std::string const image_file = "test.dwarfs";
   std::string image;
 
