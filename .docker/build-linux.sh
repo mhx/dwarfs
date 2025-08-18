@@ -446,7 +446,7 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   _objects="$(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test *_tests ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/')"
   llvm-profdata$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
   llvm-cov$CLANG_VERSION export -format=lcov -compilation-dir="${GITHUB_WORKSPACE}" -instr-profile=dwarfs.profdata \
-      -ignore-filename-regex='(^|/)(fsst|folly|fbthrift)/' $_objects >/tmp-runner/dwarfs-coverage.lcov
+      -skip-branches -ignore-filename-regex='(^|/)(fsst|folly|fbthrift)/' $_objects >/tmp-runner/dwarfs-coverage.lcov
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
