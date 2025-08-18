@@ -66,9 +66,10 @@ class test_logger : public ::dwarfs::logger {
   void write(level_type level, std::string_view output,
              source_location loc) override {
     if (output_ && level <= output_threshold_) {
+      auto const t = get_current_time_string();
       std::lock_guard lock(mx_);
-      std::cerr << level_char(level) << " [" << loc.file_name() << ":"
-                << loc.line() << "] " << output << "\n";
+      std::cerr << level_char(level) << ' ' << t << " [" << loc.file_name()
+                << ":" << loc.line() << "] " << output << "\n";
     }
 
     if (level <= threshold_) {
