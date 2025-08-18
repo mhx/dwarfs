@@ -244,13 +244,6 @@ class block_cache_ final : public block_cache::impl {
             options.sequential_access_detector_threshold)}
       , os_{os}
       , options_(options) {
-    if (options.init_workers) {
-      wg_ = worker_group(lgr, os_, "blkcache",
-                         std::max(options.num_workers > 0
-                                      ? options.num_workers
-                                      : hardware_concurrency(),
-                                  static_cast<size_t>(1)));
-    }
     cache_.set_prune_hook(
         [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
           on_block_removed("evicted", block_no, std::move(block));
@@ -263,8 +256,12 @@ class block_cache_ final : public block_cache::impl {
 
     tidy_runner_.stop();
 
-    if (wg_) {
-      wg_.stop();
+    {
+      std::unique_lock lock(mx_wg_);
+
+      if (wg_) {
+        wg_.stop();
+      }
     }
 
     if (!blocks_created_.load()) {
@@ -604,7 +601,22 @@ class block_cache_ final : public block_cache::impl {
                                  std::memory_order_relaxed);
   }
 
+  void init_worker_group() const {
+    std::unique_lock lock(mx_wg_);
+
+    if (!wg_) {
+      wg_ = worker_group(LOG_GET_LOGGER, os_, "blkcache",
+                         std::max(options_.num_workers > 0
+                                      ? options_.num_workers
+                                      : hardware_concurrency(),
+                                  static_cast<size_t>(1)));
+    }
+  }
+
   void enqueue_job(std::shared_ptr<block_request_set> brs) const {
+    // lazy initialization of worker group
+    std::call_once(wg_init_flag_, [this] { init_worker_group(); });
+
     std::shared_lock lock(mx_wg_);
 
     // Lambda needs to be mutable so we can actually move out of it
@@ -789,6 +801,7 @@ class block_cache_ final : public block_cache::impl {
 
   mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;
+  mutable std::once_flag wg_init_flag_;
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
   byte_buffer_factory buffer_factory_;

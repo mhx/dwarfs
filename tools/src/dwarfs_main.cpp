@@ -1492,7 +1492,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.num_workers = opts.workers;
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
   fsopts.block_cache.mm_release = !opts.cache_image;
-  fsopts.block_cache.init_workers = false;
   fsopts.block_cache.sequential_access_detector_threshold =
       opts.seq_detector_threshold;
   fsopts.block_cache.allocation_mode = opts.block_allocator;

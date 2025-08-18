@@ -37,9 +37,9 @@ namespace dwarfs::reader {
 std::ostream& operator<<(std::ostream& os, block_cache_options const& opts) {
   os << fmt::format(
       "max_bytes={}, num_workers={}, decompress_ratio={}, mm_release={}, "
-      "init_workers={}, disable_block_integrity_check={}",
+      "disable_block_integrity_check={}",
       opts.max_bytes, opts.num_workers, opts.decompress_ratio, opts.mm_release,
-      opts.init_workers, opts.disable_block_integrity_check);
+      opts.disable_block_integrity_check);
   return os;
 }
 

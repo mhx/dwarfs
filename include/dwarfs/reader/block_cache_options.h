@@ -43,7 +43,6 @@ struct block_cache_options {
   size_t num_workers{0};
   double decompress_ratio{1.0};
   bool mm_release{true};
-  bool init_workers{true};
   bool disable_block_integrity_check{false};
   size_t sequential_access_detector_threshold{0};
   block_cache_allocation_mode allocation_mode{
