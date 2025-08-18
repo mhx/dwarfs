@@ -534,6 +534,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("change-block-size",
         po::value<bool>(&change_block_size)->zero_tokens(),
         "change block size when recompressing")
+    ("no-metadata-version-history",
+        po::value<bool>(&options.metadata.no_metadata_version_history)->zero_tokens(),
+        "remove metadata version history")
     ("recompress-categories",
         po::value<std::string>(&recompress_categories),
         "only recompress blocks of these categories")

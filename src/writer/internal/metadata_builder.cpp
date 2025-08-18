@@ -772,8 +772,12 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
 
   tv << "upgrading metadata...";
 
-  md_.metadata_version_history().ensure();
-  md_.metadata_version_history()->push_back(std::move(histent));
+  if (options_.no_metadata_version_history) {
+    md_.metadata_version_history().reset();
+  } else {
+    md_.metadata_version_history().ensure();
+    md_.metadata_version_history()->push_back(std::move(histent));
+  }
 }
 
 } // namespace

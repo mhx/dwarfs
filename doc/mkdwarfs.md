@@ -252,6 +252,14 @@ Most other options are concerned with compression tuning:
   is unchanged, this will still re-order and re-compress *all* blocks. Implies
   `--recompress=all` and `--rebuild-metadata`.
 
+- `--no-metadata-version-history`:
+  By default, when rebuilding the metadata block, a small history entry will
+  be added to the metadata block to keep track of versions and options across
+  metadata rebuilds. It is recommended to keep this history, as it allows for
+  better understanding of how the metadata block has changed over time and
+  why it may be lacking certain features. If you know what you're doing, you
+  can use this option to disable this history completely.
+
 - `--recompress-categories=`[`!`]*category*[`,`...]:
   When `--recompress` is set to `all` or `block`, this option controls
   which categories of blocks will be recompressed. Adding a `!` in front

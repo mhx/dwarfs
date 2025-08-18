@@ -4104,9 +4104,15 @@ TEST(mkdwarfs_test, change_block_size) {
 
       auto fs = t.fs_from_stdout();
       auto info =
-          fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+          fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
 
       EXPECT_EQ(1 << lg_block_size, info["block_size"].get<int>());
+
+      auto const& hist = info["meta"]["metadata_version_history"];
+
+      ASSERT_EQ(1, hist.size());
+
+      EXPECT_EQ(1 << 18, hist[0]["block_size"].get<int>());
     }
 
     auto t2 = rebuild_tester(t.out());
@@ -4121,9 +4127,36 @@ TEST(mkdwarfs_test, change_block_size) {
 
       auto fs = t2.fs_from_stdout();
       auto info =
-          fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+          fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
 
       EXPECT_EQ(1 << 18, info["block_size"].get<int>());
+
+      auto const& hist = info["meta"]["metadata_version_history"];
+
+      ASSERT_EQ(2, hist.size());
+
+      EXPECT_EQ(1 << 18, hist[0]["block_size"].get<int>());
+      EXPECT_EQ(1 << lg_block_size, hist[1]["block_size"].get<int>());
+    }
+
+    if (lg_block_size == 10) {
+      auto t3 = rebuild_tester(t2.out());
+      ASSERT_EQ(
+          0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=5",
+                     "--change-block-size", "--keep-all-times",
+                     "--log-level=debug", "--no-metadata-version-history"}))
+          << t3.err();
+
+      {
+        auto fs = t3.fs_from_stdout();
+        auto info = fs.info_as_json(
+            {.features = reader::fsinfo_features::for_level(3)});
+
+        EXPECT_EQ(1 << 20, info["block_size"].get<int>());
+
+        EXPECT_FALSE(info["meta"].contains("metadata_version_history"))
+            << info.dump(2);
+      }
     }
   }
 }
