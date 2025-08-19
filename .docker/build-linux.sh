@@ -364,6 +364,27 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     # Limit emulated parallelism to 4 threads, otherwise the slowdown is substantial
     export DWARFS_OVERRIDE_HARDWARE_CONCURRENCY=4
   fi
+
+  # Dump all environment variables for building in local docker container
+  cat <<EOF
+#################################################################################
+#################################################################################
+#################################################################################
+
+export PATH='$PATH'
+export CC='$CC'
+export CXX='$CXX'
+export STRIP_TOOL='$STRIP_TOOL'
+export CFLAGS='$CFLAGS'
+export CXXFLAGS='$CXXFLAGS'
+export LDFLAGS='$LDFLAGS'
+
+cmake /workspace $CMAKE_ARGS -DWITH_EXAMPLE=1
+
+#################################################################################
+#################################################################################
+#################################################################################
+EOF
 fi
 
 INSTALLDIR="$HOME/install"
