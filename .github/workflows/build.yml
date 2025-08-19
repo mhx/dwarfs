@@ -417,6 +417,12 @@ jobs:
             build_type: gcc-release-lto-ninja-static
             cross_arch: ppc64le
 
+          ######## blocked by https://github.com/llvm/llvm-project/issues/150913
+          # - build_arch: amd64
+          #   build_dist: alpine
+          #   build_type: clang-relsize-lto-ninja-static
+          #   cross_arch: ppc64le
+
           #####################################################################
           #                        ppc64 builds (cross)                       #
           #####################################################################
