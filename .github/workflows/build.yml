@@ -110,6 +110,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          #####################################################################
+          #                          x86_64 builds                            #
+          #####################################################################
+
           - build_arch: amd64
             build_dist: ubuntu
             build_type: gcc-release-shared-ninja-split
@@ -162,6 +166,10 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-ninja-static
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-release-ninja-static
@@ -193,6 +201,10 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
+
+          #####################################################################
+          #                          aarch64 builds                           #
+          #####################################################################
 
           - build_arch: arm64v8
             build_dist: debian
@@ -242,9 +254,13 @@ jobs:
             build_dist: fedora
             build_type: clang-release-shared-ninja-full
 
+          #skip# - build_arch: arm64v8
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+
           - build_arch: arm64v8
             build_dist: alpine
-            build_type: gcc-release-ninja-static
+            build_type: gcc-release-lto-ninja-static
 
           - build_arch: arm64v8
             build_dist: alpine
@@ -270,6 +286,10 @@ jobs:
             build_dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
 
+          #####################################################################
+          #                          riscv64 builds                           #
+          #####################################################################
+
           - build_arch: riscv64
             build_dist: debian
             build_type: gcc-release-ninja-full
@@ -278,11 +298,19 @@ jobs:
           #skip#   build_dist: ubuntu
           #skip#   build_type: clang-debug-shared-ninja-split
 
+          #####################################################################
+          #                       aarch64 builds (cross)                      #
+          #####################################################################
+
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: aarch64
 
+          #####################################################################
+          #                       riscv64 builds (cross)                      #
+          #####################################################################
+
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
@@ -302,9 +330,18 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
-            build_type: gcc-release-ninja-static
+            build_type: gcc-release-lto-ninja-static
             cross_arch: riscv64
-            skip_slow_tests: true
+
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: riscv64
+          #skip#   skip_slow_tests: true
+
+          #####################################################################
+          #                        i386 builds (cross)                        #
+          #####################################################################
 
           - build_arch: amd64
             build_dist: alpine
@@ -325,9 +362,18 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
-            build_type: gcc-release-ninja-static
+            build_type: gcc-release-lto-ninja-static
             cross_arch: i386
-            skip_slow_tests: true
+
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: i386
+          #skip#   skip_slow_tests: true
+
+          #####################################################################
+          #                         arm builds (cross)                        #
+          #####################################################################
 
           - build_arch: amd64
             build_dist: alpine
@@ -346,11 +392,19 @@ jobs:
           #skip#   cross_arch: arm
           #skip#   skip_slow_tests: true
 
-          ######### fails: static_assert(std::atomic<bool>::is_always_lock_free);
-          # - build_arch: amd64
-          #   build_dist: alpine
-          #   build_type: gcc-release-ninja-static
-          #   cross_arch: arm
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
+            cross_arch: arm
+
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: arm
+
+          #####################################################################
+          #                       ppc64le builds (cross)                      #
+          #####################################################################
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -362,6 +416,10 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-lto-ninja-static
             cross_arch: ppc64le
+
+          #####################################################################
+          #                        ppc64 builds (cross)                       #
+          #####################################################################
 
           - build_arch: amd64
             build_dist: alpine
@@ -375,6 +433,10 @@ jobs:
           #   build_type: gcc-release-lto-ninja-static
           #   cross_arch: ppc64
           #   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          #####################################################################
+          #                     loongarch64 builds (cross)                    #
+          #####################################################################
 
           ######## no libressl support
           # - build_arch: amd64
@@ -395,9 +457,18 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
-            build_type: gcc-release-ninja-static
+            build_type: gcc-release-lto-ninja-static
             cross_arch: loongarch64
-            skip_slow_tests: true
+
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: loongarch64
+          #skip#   skip_slow_tests: true
+
+          #####################################################################
+          #                        s390x builds (cross)                       #
+          #####################################################################
 
           ######## no libressl support
           # - build_arch: amd64
@@ -406,12 +477,14 @@ jobs:
           #   cross_arch: s390x
 
           ######## misaligned symbol typeinfo name for std::_Sp_make_shared_tag for relocation R_390_PC32DBL
+          ######## https://sourceware.org/bugzilla/show_bug.cgi?id=32969
           # - build_arch: amd64
           #   build_dist: alpine
           #   build_type: clang-relsize-lto-ninja-static
           #   cross_arch: s390x
 
           ######## misaligned symbol typeinfo name for std::_Sp_make_shared_tag for relocation R_390_PC32DBL
+          ######## https://sourceware.org/bugzilla/show_bug.cgi?id=32969
           # - build_arch: amd64
           #   build_dist: alpine
           #   build_type: clang-release-ninja-static
