@@ -91,7 +91,7 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
   }
 
   void freeze_location() override {
-    frozen_.store(true, std::memory_order_release);
+    frozen_.test_and_set(std::memory_order_release);
   }
 
   void append(void const* data, size_t size) override {
@@ -115,11 +115,10 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
                              std::string{what});
   }
 
-  bool frozen() const { return frozen_.load(std::memory_order_acquire); }
+  bool frozen() const { return frozen_.test(std::memory_order_acquire); }
 
   internal::malloc_buffer data_;
-  std::atomic<bool> frozen_{false};
-  static_assert(std::atomic<bool>::is_always_lock_free);
+  std::atomic_flag frozen_{};
 };
 
 } // namespace
