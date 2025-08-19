@@ -278,7 +278,6 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
     export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:$PATH"
     export WORKROOT="$HOME/pkgs"
 
-    # COMPILERS="clang clang-lto clang-minsize-lto gcc"
     case "$CARCH" in
         # https://github.com/llvm/llvm-project/issues/150913
         ppc64*)
@@ -289,7 +288,7 @@ for target_arch in ${TARGET_ARCH_STR//,/ }; do
                 # This is so slow natively, stick to the basics for now
                 COMPILERS="clang"
             else
-                COMPILERS="clang clang-minsize-lto gcc"
+                COMPILERS="clang clang-lto clang-minsize-lto gcc"
             fi
             ;;
     esac
