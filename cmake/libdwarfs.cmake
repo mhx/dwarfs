@@ -51,6 +51,7 @@ add_library(
   src/internal/file_status_conv.cpp
   src/internal/fs_section.cpp
   src/internal/fs_section_checker.cpp
+  src/internal/fsst.cpp
   src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
   src/internal/metadata_utils.cpp

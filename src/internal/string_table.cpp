@@ -31,11 +31,10 @@
 
 #include <fmt/format.h>
 
-#include <fsst.h>
-
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 
+#include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/string_table.h>
 
 namespace dwarfs::internal {
@@ -78,16 +77,8 @@ class packed_string_table : public string_table::impl {
 
       auto st = v_.symtab();
       DWARFS_CHECK(st, "symtab unexpectedly unset");
-      dec_ = std::make_unique<fsst_decoder_t>();
 
-      auto read = fsst_import(
-          dec_.get(), reinterpret_cast<unsigned char const*>(st->data()));
-
-      if (read != st->size()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("read {0} symtab bytes, expected {1}", read,
-                                 st->size()));
-      }
+      dec_.emplace(st.value());
 
       ti << "imported dictionary for " << name << " string table";
     }
@@ -118,14 +109,7 @@ class packed_string_table : public string_table::impl {
     }
 
     if constexpr (PackedData) {
-      thread_local std::string out;
-      size_t size = end - beg;
-      out.resize(8 * size);
-      auto outlen = fsst_decompress(
-          dec_.get(), size, reinterpret_cast<unsigned char const*>(beg),
-          out.size(), reinterpret_cast<unsigned char*>(out.data()));
-      out.resize(outlen);
-      return out;
+      return dec_->decompress(std::string_view{beg, end});
     }
 
     return {beg, end};
@@ -158,7 +142,7 @@ class packed_string_table : public string_table::impl {
   string_table::PackedTableView v_;
   char const* const buffer_;
   std::vector<uint32_t> index_;
-  std::unique_ptr<fsst_decoder_t> dec_;
+  std::optional<fsst_decoder> dec_;
 };
 
 string_table::string_table(LegacyTableView v)
@@ -191,94 +175,28 @@ template <typename T>
 thrift::metadata::string_table
 string_table::pack_generic(std::span<T const> input,
                            pack_options const& options) {
-  auto size = input.size();
-  bool pack_data = options.pack_data;
-  size_t total_input_size = 0;
-  std::string buffer;
-  std::string symtab;
-  std::vector<size_t> out_len_vec;
-  std::vector<unsigned char*> out_ptr_vec;
+  auto const size = input.size();
+  std::optional<fsst_encoder::bulk_compression_result> res;
 
-  if (input.empty()) {
-    pack_data = false;
-  }
-
-  if (pack_data) {
-    std::vector<size_t> len_vec;
-    std::vector<unsigned char const*> ptr_vec;
-
-    len_vec.reserve(size);
-    ptr_vec.reserve(size);
-
-    for (auto const& s : input) {
-      ptr_vec.emplace_back(reinterpret_cast<unsigned char const*>(s.data()));
-      len_vec.emplace_back(s.size());
-      total_input_size += s.size();
-    }
-
-    std::unique_ptr<::fsst_encoder_t, decltype(&::fsst_destroy)> enc{
-        ::fsst_create(size, len_vec.data(), ptr_vec.data(), 0),
-        &::fsst_destroy};
-
-    symtab.resize(sizeof(::fsst_decoder_t));
-
-    auto symtab_size = ::fsst_export(
-        enc.get(), reinterpret_cast<unsigned char*>(symtab.data()));
-    symtab.resize(symtab_size);
-
-    if (symtab.size() < total_input_size or options.force_pack_data) {
-      out_len_vec.resize(size);
-      out_ptr_vec.resize(size);
-
-      buffer.resize(options.force_pack_data ? total_input_size
-                                            : total_input_size - symtab.size());
-      size_t num_compressed = 0;
-
-      for (;;) {
-        num_compressed = ::fsst_compress(
-            enc.get(), size, len_vec.data(), ptr_vec.data(), buffer.size(),
-            reinterpret_cast<unsigned char*>(buffer.data()), out_len_vec.data(),
-            out_ptr_vec.data());
-
-        if (num_compressed == size || !options.force_pack_data) {
-          break;
-        }
-
-        buffer.resize(2 * buffer.size());
-      }
-
-      pack_data = num_compressed == size;
-    } else {
-      pack_data = false;
-    }
-  } else {
-    for (auto const& s : input) {
-      total_input_size += s.size();
-    }
+  if (options.pack_data) {
+    res = fsst_encoder::compress(input, options.force_pack_data);
   }
 
   thrift::metadata::string_table output;
 
-  if (pack_data) {
+  if (res.has_value()) {
     // store compressed
-    size_t compressed_size =
-        (out_ptr_vec.back() - out_ptr_vec.front()) + out_len_vec.back();
-
-    DWARFS_CHECK(reinterpret_cast<char*>(out_ptr_vec.front()) == buffer.data(),
-                 "string table compression pointer mismatch");
-    // TODO: only enable this in debug mode
-    DWARFS_CHECK(compressed_size == std::accumulate(out_len_vec.begin(),
-                                                    out_len_vec.end(),
-                                                    static_cast<size_t>(0)),
-                 "string table compression pointer mismatch");
-
-    buffer.resize(compressed_size);
-    output.buffer()->swap(buffer);
-    output.symtab() = std::move(symtab);
+    output.buffer() = std::move(res->buffer);
+    output.symtab() = std::move(res->dictionary);
     output.index()->resize(size);
-    std::ranges::copy(out_len_vec, output.index()->begin());
+    for (size_t i = 0; i < size; ++i) {
+      output.index()[i] = res->compressed_data[i].size();
+    }
   } else {
     // store uncompressed
+    auto const total_input_size =
+        std::accumulate(input.begin(), input.end(), size_t{0},
+                        [](size_t n, auto const& s) { return n + s.size(); });
     output.buffer()->reserve(total_input_size);
     output.index()->reserve(size);
     for (auto const& s : input) {

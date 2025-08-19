@@ -495,6 +495,7 @@ if(WITH_TESTS)
       test/filesystem_test.cpp
       test/filesystem_writer_test.cpp
       test/fragment_category_test.cpp
+      test/fsst_test.cpp
       test/glob_matcher_test.cpp
       test/global_metadata_test.cpp
       test/integral_value_parser_test.cpp

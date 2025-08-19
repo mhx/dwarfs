@@ -2114,12 +2114,10 @@ TEST(mkdwarfs_test, pack_mode_all) {
   auto fs = t.fs_from_stdout();
   auto info =
       fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
-  std::set<std::string> expected = {"packed_chunk_table",
-                                    "packed_directories",
-                                    "packed_names",
-                                    "packed_names_index",
-                                    "packed_shared_files_table",
-                                    "packed_symlinks_index"};
+  std::set<std::string> expected = {
+      "packed_chunk_table",   "packed_directories",        "packed_names",
+      "packed_names_index",   "packed_shared_files_table", "packed_symlinks",
+      "packed_symlinks_index"};
   std::set<std::string> fsopt;
   for (auto const& opt : info["options"]) {
     fsopt.insert(opt.get<std::string>());
