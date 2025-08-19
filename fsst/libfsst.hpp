@@ -44,6 +44,11 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 }  // namespace libfsst
 
+#if UINTPTR_MAX == 0xffffffffU
+// We're on a 32-bit platform
+#define NONOPT_FSST
+#endif
+
 #define FSST_ENDIAN_MARKER ((u64) 1)
 #define FSST_VERSION_20190218 20190218
 #define FSST_VERSION ((u64) FSST_VERSION_20190218)
