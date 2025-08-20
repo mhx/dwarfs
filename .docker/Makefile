@@ -10,6 +10,8 @@ IMAGE_ARCH="dwarfs-buildenv-arch"
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 NPROC:=$(shell nproc)
 
+ALPINE_DOCKERFILE:=Dockerfile.alpine_$(shell uname -m)
+
 COMMON_RUN_OPTS=-it --rm \
 		--cap-add SYS_ADMIN --device /dev/fuse \
 		--mount type=bind,source="$(ROOT_DIR)"/..,target=/workspace,readonly \
@@ -34,17 +36,19 @@ build_debian:
 run_debian:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
 
-build_alpine:
-	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=x86_64,aarch64,loongarch64,riscv64,ppc64,ppc64le,s390x,arm,i386 -t $(IMAGE_ALPINE) .
+Dockerfile.alpine_x86_64: build_dockerfile.pl
+	perl build_dockerfile.pl --targets=x86_64,aarch64,loongarch64,riscv64,ppc64,ppc64le,s390x,arm,i386 --upx=amd64 --with-bloaty > $@
+
+Dockerfile.alpine_aarch64: build_dockerfile.pl
+	perl build_dockerfile.pl --targets=aarch64 --upx=arm64 > $@
+
+dockerfiles: Dockerfile.alpine_x86_64 Dockerfile.alpine_aarch64
+
+build_alpine: $(ALPINE_DOCKERFILE)
+	docker buildx build -f $(ALPINE_DOCKERFILE) -t $(IMAGE_ALPINE) .
 
 run_alpine:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
-
-build_alpine_newarch:
-	docker buildx build -f Dockerfile.alpine --build-arg TARGET_ARCHS=ppc64 -t $(IMAGE_ALPINE_NEWARCH) .
-
-run_alpine_newarch:
-	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE_NEWARCH)
 
 build_alpine_apk:
 	docker buildx build -f Dockerfile.alpine-apk -t $(IMAGE_ALPINE_APK) .
@@ -72,10 +76,8 @@ build_arch:
 run_arch:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ARCH)
 
-prune:
-	docker image prune -f -a --filter until=72h
-	docker system prune -f -a --filter until=72h
-	docker buildx prune -f -a \
-		--max-used-space 1MB \
-		--filter until=72h \
-		--filter type=regular
+export_cache:
+	@docker buildx build -f Dockerfile.exportcache -t export-cache .
+
+import_cache:
+	@docker buildx build -f Dockerfile.importcache -t import-cache .

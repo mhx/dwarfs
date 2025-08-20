@@ -1,0 +1,7 @@
+# syntax=docker/dockerfile:1
+FROM alpine:latest AS import
+RUN apk add --no-cache rsync
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    rsync -a 192.168.1.60::docker-cache/ccache-$(uname -m)/ /root/.ccache/ && \
+    rsync -a 192.168.1.60::docker-cache/pkgcache/ /root/.pkgcache/
