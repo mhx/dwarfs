@@ -49,8 +49,9 @@ A fast high-compression read-only file system for Linux and Windows.
   - [With fuse-archive](#with-fuse-archive)
 - [Performance Monitoring](#performance-monitoring)
 - [Other Obscure Features](#other-obscure-features)
-- [Stargazers over Time](#stargazers-over-time)
+- [Related projects](#related-projects)
 - [Notable users](#notable-users)
+- [Stargazers over Time](#stargazers-over-time)
 
 ## Overview
 
@@ -2561,11 +2562,11 @@ dwarfs merged.dwarfs /mnt/fs1 -o imagesize=9231
 dwarfs merged.dwarfs /mnt/fs2 -o offset=9231,imagesize=7999
 ```
 
-## Stargazers over Time
+## Related Projects
 
-[![Stargazers over Time](https://starchart.cc/mhx/dwarfs.svg?variant=adaptive)](https://starchart.cc/mhx/dwarfs)
+[dwarfs-rs](https://github.com/oxalica/dwarfs-rs): A library for reading and writing DwarFS archives (aka. DwarFS images).
 
-## Notable users
+## Notable Users
 
 [Conty: easy to use unprivileged Linux container packed into a single portable executable](https://github.com/Kron4ek/Conty)
 
@@ -2576,3 +2577,7 @@ dwarfs merged.dwarfs /mnt/fs2 -o offset=9231,imagesize=7999
 [PELF - The AppBundle format and the AppBundle Creation Tool](https://github.com/xplshn/pelf)
 
 [uruntime: Universal RunImage and AppImage runtime with SquashFS and DwarFS supports](https://github.com/VHSgunzo/uruntime)
+
+## Stargazers over Time
+
+[![Stargazers over Time](https://starchart.cc/mhx/dwarfs.svg?variant=adaptive)](https://starchart.cc/mhx/dwarfs)
