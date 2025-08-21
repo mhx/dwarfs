@@ -568,6 +568,15 @@ on the other.
 
 There are a few things worth pointing out, though:
 
+- Windows traditionally treats file names as case-insensitive. However,
+  the DwarFS driver is case-sensitive by default, even on Windows.
+  There's an option `-o case_insensitive` that can be passed to the
+  driver to make it behave like a traditional Windows file system.
+  Note that this is *only* supported if the DwarFS image contains no
+  directories or files with the same name differing only in case within
+  the same directory. Otherwise, the driver will emit a warning when
+  mounting the image.
+
 - DwarFS supports both hardlinks and symlinks on Windows, just as it
   does on Linux. However, creating hardlinks and symlinks seems to
   require admin privileges on Windows, so if, for example, you want to
