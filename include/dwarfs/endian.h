@@ -74,9 +74,7 @@ class boxed_endian {
   T raw_{};
 
   static constexpr T swap(T value) noexcept {
-    if constexpr (std::endian::native == Endian) {
-      return value;
-    } else if constexpr (sizeof(T) == 1) {
+    if constexpr (std::endian::native == Endian || sizeof(T) == 1) {
       return value;
     } else {
       static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);

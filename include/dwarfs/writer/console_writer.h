@@ -52,7 +52,9 @@ class console_writer : public stream_logger {
 
   void update(writer_progress& prog, bool last);
 
-  void set_memory_usage_function(mem_usage_fn func) { mem_usage_ = func; }
+  void set_memory_usage_function(mem_usage_fn func) {
+    mem_usage_ = std::move(func);
+  }
 
  private:
   void preamble(std::ostream& os) override;

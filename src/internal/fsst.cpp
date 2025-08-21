@@ -95,7 +95,9 @@ fsst_compress_(std::span<T const> input, bool force) {
 
     if (num_compressed == size) {
       break;
-    } else if (!force) {
+    }
+
+    if (!force) {
       return output;
     }
 
@@ -123,8 +125,8 @@ fsst_compress_(std::span<T const> input, bool force) {
   output->compressed_data.reserve(size);
 
   for (size_t i = 0; i < size; ++i) {
-    output->compressed_data.emplace_back(std::string_view(
-        reinterpret_cast<char*>(out_ptr_vec[i]), out_len_vec[i]));
+    output->compressed_data.emplace_back(
+        reinterpret_cast<char*>(out_ptr_vec[i]), out_len_vec[i]);
   }
 
   return output;
