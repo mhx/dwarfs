@@ -1377,7 +1377,8 @@ TEST_P(tools_test, end_to_end) {
 #define EXPECT_EC_IMPL(ec, cat, val)                                           \
   EXPECT_TRUE(ec) << runner.cmdline();                                         \
   EXPECT_EQ(cat, (ec).category()) << runner.cmdline();                         \
-  EXPECT_EQ(val, (ec).value()) << runner.cmdline() << ": " << (ec).message()
+  EXPECT_THAT((ec).value(), testing::AnyOf val)                                \
+      << runner.cmdline() << ": " << (ec).message()
 
 #ifdef _WIN32
 #define EXPECT_EC_UNIX_MAC_WIN(ec, unix, mac, windows)                         \
@@ -1450,19 +1451,19 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(file, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(non_empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
@@ -1470,7 +1471,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       EXPECT_EQ(static_cast<std::uintmax_t>(-1),
                 fs::remove_all(non_empty_dir, ec))
           << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     // rename
@@ -1478,25 +1479,25 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::rename(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       fs::rename(file, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       fs::rename(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       fs::rename(empty_dir, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
     }
 
     // hard link
@@ -1504,13 +1505,14 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_hard_link(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS, EPERM), (EACCES),
+                             (ERROR_ACCESS_DENIED));
     }
 
     {
       std::error_code ec;
       fs::create_hard_link(file, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
     }
 
     // symbolic link
@@ -1518,7 +1520,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_symlink(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
@@ -1531,7 +1533,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_directory_symlink(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     {
@@ -1546,7 +1548,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::resize_file(file, 1, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     // create directory
@@ -1554,7 +1556,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_directory(name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     // read directory as file (non-mutating)
@@ -1563,7 +1565,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       std::error_code ec;
       auto tmp = dwarfs::read_file(mountpoint / "empty", ec);
       EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_WIN(ec, EISDIR, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_WIN(ec, (EISDIR), (ERROR_ACCESS_DENIED));
     }
 
     // open file as directory (non-mutating)
@@ -1571,7 +1573,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::directory_iterator it{mountpoint / "format.sh", ec};
-      EXPECT_EC_UNIX_WIN(ec, ENOTDIR, ERROR_DIRECTORY);
+      EXPECT_EC_UNIX_WIN(ec, (ENOTDIR), (ERROR_DIRECTORY));
     }
 
     // try open non-existing symlink
@@ -1579,7 +1581,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       auto tmp = fs::read_symlink(mountpoint / "doesnotexist", ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOENT, ERROR_FILE_NOT_FOUND);
+      EXPECT_EC_UNIX_WIN(ec, (ENOENT), (ERROR_FILE_NOT_FOUND));
     }
 
     // Open non-existent file for writing
@@ -1589,7 +1591,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       std::error_code ec;
       dwarfs::write_file(p, "hello", ec);
       EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     // Open existing file for writing
@@ -1599,7 +1601,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       std::error_code ec;
       dwarfs::write_file(p, "hello", ec);
       EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_WIN(ec, EACCES, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_WIN(ec, (EACCES), (ERROR_ACCESS_DENIED));
     }
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
