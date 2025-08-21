@@ -164,14 +164,13 @@ The majority of the code was written in 2013, then I did a couple
 of cleanups, bugfixes and refactors every once in a while, but I
 never really got it to a state where I would feel happy releasing
 it. It was too awkward to build with its dependency on Facebook's
-(quite awesome) [folly](https://github.com/facebook/folly) library
-and it didn't have any documentation.
+[folly](https://github.com/facebook/folly) library and it didn't
+have any documentation.
 
-Digging out the project again this year, things didn't look as grim
-as they used to. Folly now builds with CMake and so I just pulled
-it in as a submodule. Most other dependencies can be satisfied
-from packages that should be widely available. And I've written
-some rudimentary docs as well.
+Digging out the project again in 2020, things didn't look as grim
+as they used to. Folly now built with CMake and so I just pulled
+it in as a submodule. Most other dependencies could be satisfied
+from packages that should be widely available.
 
 ## Building and Installing
 
