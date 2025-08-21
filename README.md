@@ -10,7 +10,7 @@
 
 The **D**eduplicating **W**arp-speed **A**dvanced **R**ead-only **F**ile **S**ystem.
 
-A fast high-compression read-only file system for Linux and Windows.
+A fast high-compression read-only file system for Linux, FreeBSD, macOS and Windows.
 
 ## Table of contents
 
