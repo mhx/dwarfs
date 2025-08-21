@@ -234,16 +234,17 @@ where you can't easily build the tools from source.
 ### Universal Binaries
 
 In addition to the binary tarballs, there's a **universal binary**
-available for each architecture. These universal binaries contain
-*all* tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract` and the `dwarfs`
-FUSE driver) in a single executable. These executables are compressed
-using [upx](https://github.com/upx/upx) where possible, and using a
-custom self-extractor on all other platforms. This means they are much
-smaller than the individual tools combined. However, it also means the
+available for each architecture. These universal binaries contain *all*
+tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract` and the `dwarfs` fuse3
+driver) in a single executable. These executables are self-extracting
+and use either a [custom self-extractor](sfx/stub.c) or
+[upx](https://github.com/upx/upx). They are generally optimized to
+provide the best performance in the smallest possible binary and are much
+smaller than the individual tools combined. However, this also means the
 binaries need to be decompressed each time they are run, which can add
 significant overhead. If that is an issue, you can either stick to the
 "classic" individual binaries or you can decompress the universal binary.
-For upx compressed binaries, you can use:
+For upx-compressed binaries, you can use:
 
 ```
 $ upx -d dwarfs-universal-0.7.0-Linux-aarch64
@@ -295,92 +296,26 @@ See the [Windows Support](#windows-support) section for more details.
 
 DwarFS uses [CMake](https://cmake.org/) as a build tool.
 
-It uses both [Boost](https://www.boost.org/) and
-[Folly](https://github.com/facebook/folly), though the latter is
-included as a submodule since very few distributions actually
-offer packages for it. Folly itself has a number of dependencies,
-so please check [here](https://github.com/facebook/folly#dependencies)
-for an up-to-date list.
+If you build from a release tarball, the build will be faster and
+there will be fewer dependencies, because the release tarball ships
+with the auto-generated files that would otherwise have to be generated
+during the in-repository build.
 
-It also uses [Facebook Thrift](https://github.com/facebook/fbthrift),
-in particular the `frozen` library, for storing metadata in a highly
-space-efficient, memory-mappable and well defined format. It's also
-included as a submodule, and we only build the compiler and a very
-reduced library that contains just enough for DwarFS to work.
+You can grab an up-to-date list of dependencies from the docker files
+used for the CI builds:
 
-Beyond that, DwarFS depends on FUSE3 and a set of compression
-libraries (namely [lz4](https://github.com/lz4/lz4),
-[zstd](https://github.com/facebook/zstd),
-[brotli](https://github.com/google/brotli),
-[xz](https://github.com/tukaani-project/xz), and
-[flac](https://github.com/xiph/flac)). Except for `zstd`, these
-are all optional.
+- [Arch Linux](.docker/Dockerfile.arch)
+- [Debian Testing](.docker/Dockerfile.debian)
+- [Fedora Rawhide](.docker/Dockerfile.fedora)
+- [Ubuntu 22.04](.docker/Dockerfile.ubuntu-2204)
+- [Ubuntu 24.04](.docker/Dockerfile.ubuntu)
 
-The dependency on [googletest](https://github.com/google/googletest)
-will be automatically resolved if you build with tests.
-
-A good starting point for apt-based systems is probably:
-
-```
-$ apt install \
-    gcc \
-    g++ \
-    clang \
-    git \
-    ccache \
-    ninja-build \
-    cmake \
-    make \
-    bison \
-    flex \
-    fuse3 \
-    pkg-config \
-    binutils-dev \
-    libacl1-dev \
-    libarchive-dev \
-    libbenchmark-dev \
-    libboost-chrono-dev \
-    libboost-context-dev \
-    libboost-filesystem-dev \
-    libboost-iostreams-dev \
-    libboost-program-options-dev \
-    libboost-regex-dev \
-    libboost-system-dev \
-    libboost-thread-dev \
-    libbrotli-dev \
-    libevent-dev \
-    libhowardhinnant-date-dev \
-    libjemalloc-dev \
-    libdouble-conversion-dev \
-    libiberty-dev \
-    liblz4-dev \
-    liblzma-dev \
-    libzstd-dev \
-    libxxhash-dev \
-    libmagic-dev \
-    libparallel-hashmap-dev \
-    librange-v3-dev \
-    libssl-dev \
-    libunwind-dev \
-    libdwarf-dev \
-    libelf-dev \
-    libfmt-dev \
-    libfuse3-dev \
-    libgoogle-glog-dev \
-    libutfcpp-dev \
-    libflac++-dev \
-    nlohmann-json3-dev
-```
-
-Note that when building with `gcc`, the optimization level will be
-set to `-O2` instead of the CMake default of `-O3` for release
-builds. At least with versions up to `gcc-10`, the `-O3` build is
-[up to 70% slower](https://github.com/mhx/dwarfs/issues/14) than a
-build with `-O2`.
+For FreeBSD, you can use `PKGS` from the
+[script that sets up the jail for the CI builds](.github/scripts/freebsd_setup_base.sh).
 
 ### Building
 
-First, unpack the release archive:
+First, unpack the release tarball:
 
 ```
 $ tar xvf dwarfs-x.y.z.tar.xz
@@ -397,8 +332,8 @@ $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 $ cd dwarfs
 ```
 
-Once all dependencies have been installed, you can build DwarFS
-using:
+Once all [dependencies](#dependencies) have been installed, you can
+build DwarFS using:
 
 ```
 $ mkdir build
