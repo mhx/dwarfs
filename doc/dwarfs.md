@@ -106,7 +106,7 @@ options:
 
 - `-o case_insensitive`:
   Perform case-insensitive lookups in the mounted file system,
-  i.e. an entry orignally named `ReadMe.txt` can be accessed as
+  i.e. an entry originally named `ReadMe.txt` can be accessed as
   `readme.txt`, `README.TXT`, or `rEaDmE.tXt`. This works across
   all platforms. When mounting a file system with many files, this
   may be slightly slower and consume slightly more memory as case-
@@ -199,7 +199,7 @@ options:
   case, using the `mmap` block allocator is much more likely to release
   the memory. Note, however, that the `mmap` allocator can be slower than
   the `malloc` allocator. If your use case causes large numbers of blocks
-  to be constantly created/evicted (e.g. you have a hugh image and are
+  to be constantly created/evicted (e.g. you have a huge image and are
   randomly accessing a large fraction of the files), this may impact the
   performance.
 
