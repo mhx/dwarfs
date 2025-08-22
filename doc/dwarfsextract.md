@@ -117,7 +117,8 @@ to disk:
   Enable performance monitoring for the list of comma-separated components.
   This option is only available if the project was built with performance
   monitoring enabled. Available components include `fuse`, `filesystem_v2`,
-  `inode_reader_v2` and `block_cache`.
+  `inode_reader_v2` and `block_cache`. For more details, see the 
+  Performance Monitoring section in the main documentation.
 
 - `--perfmon-trace=`*file*:
   Write JSON trace data for all components enabled by `--perfmon` to this
@@ -142,4 +143,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfs(1), dwarfsck(1), dwarfs-format(5), libarchive-formats(5)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfs(1)](dwarfs.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md), libarchive-formats(5)

@@ -178,7 +178,7 @@ from packages that should be widely available.
 
 DwarFS should usually build fine with minimal changes out of the box.
 If it doesn't, please file an issue. I've set up
-[CI jobs](actions/workflows/build.yml)
+[CI jobs](.github/workflows/build.yml)
 using Docker images for Ubuntu ([22.04](.docker/Dockerfile.ubuntu-2204)
 and [24.04](.docker/Dockerfile.ubuntu)),
 [Fedora Rawhide](.docker/Dockerfile.fedora),
@@ -446,7 +446,7 @@ with [overlayfs](https://www.kernel.org/doc/html/latest/filesystems/overlayfs.ht
 in order to create a writable file system mount on top of a read-only DwarFS image.
 
 A description of the DwarFS file system format can be found in
-[dwarfs-format](doc/dwarfs-format.md).
+[dwarfs-format(5)](doc/dwarfs-format.md).
 
 A high-level overview of the internal operation of `mkdwarfs` is shown
 in [this sequence diagram](doc/mkdwarfs-sequence.svg).
@@ -633,6 +633,7 @@ DwarFS supports the `ricepp` (Rice++) compression, which builds on the basic
 idea of Rice compression, but makes a few enhancements: it compresses color
 and low bit depth images significantly better and always searches for the
 optimum solution during compression instead of relying on a heuristic.
+For more details on compression options, see the [mkdwarfs documentation](doc/mkdwarfs.md).
 
 Let's look at an example using 129 images (darks, flats and lights) taken
 with an ASI1600MM camera. Each image is 32 MiB, so a total of 4 GiB of data.
@@ -746,6 +747,8 @@ the default used by `par2create`) of the image are damaged.
 Extended attributes are not currently supported. Any extended attributes
 stored in the source file system will not currently be preserved when
 building a DwarFS image using `mkdwarfs`.
+
+<!-- TODO: Add support for preserving extended attributes in DwarFS images -->
 
 ### Extended Attributes exposed by the FUSE Driver
 
