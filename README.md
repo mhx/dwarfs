@@ -28,6 +28,7 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
   - [Building](#building)
   - [Installing](#installing)
   - [Static Builds](#static-builds)
+- [Quick Start](#quick-start)
 - [Usage](#usage)
 - [Using the Libraries](#using-the-libraries)
 - [Windows Support](#windows-support)
@@ -430,6 +431,33 @@ $ ninja
 $ ninja test
 ```
 
+## Quick Start
+
+If you want to quickly try DwarFS, here's the essential workflow:
+
+1. **Create a DwarFS image** from a directory:
+   ```
+   mkdwarfs -i /path/to/source/directory -o image.dwarfs
+   ```
+
+2. **Mount the image** (requires FUSE):
+   ```
+   mkdir /tmp/mountpoint
+   dwarfs image.dwarfs /tmp/mountpoint
+   ```
+
+3. **Access files** in the mounted directory:
+   ```
+   ls /tmp/mountpoint
+   ```
+
+4. **Unmount when done**:
+   ```
+   umount /tmp/mountpoint
+   ```
+
+For Windows users, replace `umount` with the standard Windows unmount procedure.
+
 ## Usage
 
 Please check out the manual pages for [mkdwarfs](doc/mkdwarfs.md),
@@ -808,7 +836,8 @@ $ attr -qg dwarfs.inodeinfo "05 Disappear.caf"
 
 This is useful, for example, to check how a particular file is spread
 across multiple blocks or which categories have been assigned to the
-file.
+file. For more information on categories, see the 
+[Categorization framework documentation](doc/mkdwarfs.md#categorizers).
 
 ## Comparison
 
