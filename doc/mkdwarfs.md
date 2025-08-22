@@ -11,14 +11,14 @@
 **mkdwarfs** allows you to create highly compressed, read-only file systems
 in the DwarFS format. DwarFS is similar to file systems like SquashFS,
 cramfs or CromFS, but it has some distinct features. For more detail,
-see dwarfs(1).
+see [dwarfs(1)](dwarfs.md).
 
 In its simplest usage form, you can create a file system containing the
 full contents of `/path/dir` with:
 
     mkdwarfs -i /path/dir -o image.dwarfs
 
-After that, you can mount it using dwarfs(1):
+After that, you can mount it using [dwarfs(1)](dwarfs.md):
 
     dwarfs image.dwarfs /path/to/mountpoint
 
@@ -903,4 +903,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-dwarfs(1), dwarfsextract(1), dwarfsck(1), dwarfs-format(5)
+[dwarfs(1)](dwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md)

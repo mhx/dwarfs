@@ -178,7 +178,7 @@ from packages that should be widely available.
 
 DwarFS should usually build fine with minimal changes out of the box.
 If it doesn't, please file an issue. I've set up
-[CI jobs](actions/workflows/build.yml)
+[CI jobs](.github/workflows/build.yml)
 using Docker images for Ubuntu ([22.04](.docker/Dockerfile.ubuntu-2204)
 and [24.04](.docker/Dockerfile.ubuntu)),
 [Fedora Rawhide](.docker/Dockerfile.fedora),
@@ -446,7 +446,7 @@ with [overlayfs](https://www.kernel.org/doc/html/latest/filesystems/overlayfs.ht
 in order to create a writable file system mount on top of a read-only DwarFS image.
 
 A description of the DwarFS file system format can be found in
-[dwarfs-format](doc/dwarfs-format.md).
+[dwarfs-format(5)](doc/dwarfs-format.md).
 
 A high-level overview of the internal operation of `mkdwarfs` is shown
 in [this sequence diagram](doc/mkdwarfs-sequence.svg).
@@ -804,8 +804,8 @@ $ attr -qg dwarfs.inodeinfo "05 Disappear.caf"
 ```
 
 This is useful, for example, to check how a particular file is spread
-across multiple blocks or which categories have been assigned to the
-file.
+across multiple blocks or which [categories](doc/mkdwarfs.md#categorizers)
+have been assigned to the file.
 
 ## Comparison
 

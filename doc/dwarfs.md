@@ -459,4 +459,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfsextract(1), dwarfsck(1), dwarfs-format(5)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md)
