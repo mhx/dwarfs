@@ -18,6 +18,7 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
     <img src="https://repology.org/badge/vertical-allrepos/dwarfs.svg" alt="Packaging status" align="right">
 </a>
 
+- [Quick Start](#quick-start)
 - [Overview](#overview)
 - [History](#history)
 - [Building and Installing](#building-and-installing)
@@ -52,6 +53,50 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
 - [Related projects](#related-projects)
 - [Notable users](#notable-users)
 - [Stargazers over Time](#stargazers-over-time)
+
+## Quick Start
+
+DwarFS is a bit of a hybrid. You can use it as a file system, like
+SquashFS. But you can also use it like an archiver, similar to
+`tar` or `zip`. You don't have to choose one or the other, the
+file system image is the archive and vice versa.
+
+To create a DwarFS image from a directory, use [`mkdwarfs`](doc/mkdwarfs.md):
+
+```
+$ mkdwarfs -i /path/to/input/dir -o /path/to/image.dwarfs
+```
+
+To mount the image, use the [`dwarfs`](doc/dwarfs.md) FUSE driver:
+
+```
+$ mkdir /path/to/mountpoint
+$ dwarfs /path/to/image.dwarfs /path/to/mountpoint
+$ ls /path/to/mountpoint
+```
+
+To extract the image, use [`dwarfsextract`](doc/dwarfsextract.md):
+
+```
+$ dwarfsextract -i /path/to/image.dwarfs -o /path/to/output/dir
+```
+
+There's also the [`dwarfsck`](doc/dwarfsck.md) tool that can be used
+for a variety of tasks, for example listing the files in a DwarFS image:
+
+```
+$ dwarfsck /path/to/image.dwarfs -l
+```
+
+It can also be used for generating checksums for each file in the image
+in a format that is recognized by the `*sum` commands:
+
+```
+$ dwarfsck /path/to/image.dwarfs --checksum=sha512 | sha512sum --check
+```
+
+This is useful if you want to verify the integrity of the actual files
+stored in the DwarFS image.
 
 ## Overview
 
