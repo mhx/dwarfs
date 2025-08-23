@@ -117,6 +117,31 @@ HANDLE open_file(std::filesystem::path const& path, bool writeable,
   return fh;
 }
 
+std::error_code error_code_from_nt_status(NTSTATUS status) {
+  switch (status) {
+  case STATUS_EAS_NOT_SUPPORTED:
+    return std::make_error_code(std::errc::operation_not_supported);
+  case STATUS_EA_TOO_LARGE:
+    return std::make_error_code(std::errc::argument_list_too_long);
+  case STATUS_NONEXISTENT_EA_ENTRY:
+  case STATUS_NO_EAS_ON_FILE:
+  case STATUS_NO_MORE_EAS:
+    return std::make_error_code(std::errc::no_message_available);
+  case STATUS_EA_CORRUPT_ERROR:
+    return std::error_code(ERROR_EA_FILE_CORRUPT, std::system_category());
+  case STATUS_INVALID_EA_NAME:
+    return std::error_code(ERROR_INVALID_EA_NAME, std::system_category());
+  case STATUS_EA_LIST_INCONSISTENT:
+    return std::error_code(ERROR_EA_LIST_INCONSISTENT, std::system_category());
+  default:
+    break;
+  }
+
+  // Last resort...
+  return std::error_code(::RtlNtStatusToDosError(status),
+                         std::system_category());
+}
+
 } // namespace
 
 std::string getxattr(std::filesystem::path const& path, std::string const& name,
@@ -157,7 +182,7 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
                              getea_len, nullptr, FALSE);
 
   if (res != STATUS_SUCCESS) {
-    ec = std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+    ec = error_code_from_nt_status(res);
     return {};
   }
 
@@ -171,12 +196,62 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
 
 void setxattr(std::filesystem::path const& path, std::string const& name,
               std::string_view value, std::error_code& ec) {
-  // TODO
+  ec.clear();
+
+  if (name.size() > std::numeric_limits<UCHAR>::max()) {
+    ec = std::error_code(ERROR_INVALID_EA_NAME, std::system_category());
+    return;
+  }
+
+  if (value.size() > std::numeric_limits<USHORT>::max()) {
+    ec = std::error_code(ERANGE, std::generic_category());
+    return;
+  }
+
+  auto fh = open_file(path, true, ec);
+
+  if (!fh) {
+    // error code already set
+    return;
+  }
+
+  scope_exit close_fh{[&] { ::NtClose(fh); }};
+
+  ULONG ea_len = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
+                 static_cast<ULONG>(name.size()) + 1 +
+                 static_cast<ULONG>(value.size());
+
+  std::vector<CHAR> buf(ea_len, 0);
+  auto ea = reinterpret_cast<PFILE_FULL_EA_INFORMATION>(buf.data());
+
+  ea->NextEntryOffset = 0;
+  ea->Flags = 0;
+  ea->EaNameLength = static_cast<UCHAR>(name.size());
+  ea->EaValueLength = static_cast<USHORT>(value.size());
+
+  std::memcpy(ea->EaName, name.data(), name.size());
+  ea->EaName[name.size()] = '\0';
+  std::memcpy(ea->EaName + name.size() + 1, value.data(), value.size());
+
+  IO_STATUS_BLOCK iosb;
+  auto res = ::NtSetEaFile(fh, &iosb, ea, ea_len);
+  if (res != STATUS_SUCCESS) {
+    ec = error_code_from_nt_status(res);
+  }
 }
 
 void removexattr(std::filesystem::path const& path, std::string const& name,
                  std::error_code& ec) {
-  // TODO
+  // Windows EAs, unlike POSIX, do not support setting an empty value.
+  // Setting an empty value removes the attribute, hence we can implement
+  // removexattr by setting an empty value. For POSIX compatibility, we
+  // first check if the attribute exists, and return ENODATA if it doesn't.
+
+  getxattr(path, name, ec);
+
+  if (!ec) {
+    setxattr(path, name, {}, ec);
+  }
 }
 
 std::vector<std::string>
@@ -203,9 +278,13 @@ listxattr(std::filesystem::path const& path, std::error_code& ec) {
     auto res = ::NtQueryEaFile(fh, &iosb, ea, ea_buf.size(), FALSE, nullptr, 0,
                                nullptr, restart);
 
+    if (res == STATUS_NO_EAS_ON_FILE || res == STATUS_NO_MORE_EAS) {
+      // no EAs found, return empty list
+      break;
+    }
+
     if (res != STATUS_SUCCESS && res != STATUS_BUFFER_OVERFLOW) {
-      ec =
-          std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+      ec = error_code_from_nt_status(res);
       return {};
     }
 
