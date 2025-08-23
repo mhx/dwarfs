@@ -171,12 +171,56 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
 
 void setxattr(std::filesystem::path const& path, std::string const& name,
               std::string_view value, std::error_code& ec) {
-  // TODO
+  ec.clear();
+
+  if (name.size() > std::numeric_limits<UCHAR>::max()) {
+    ec = std::error_code(ERROR_INVALID_EA_NAME, std::system_category());
+    return;
+  }
+
+  if (value.size() > std::numeric_limits<USHORT>::max()) {
+    ec = std::error_code(ERANGE, std::generic_category());
+    return;
+  }
+
+  auto fh = open_file(path, true, ec);
+
+  if (!fh) {
+    // error code already set
+    return;
+  }
+
+  scope_exit close_fh{[&] { ::NtClose(fh); }};
+
+  ULONG ea_len = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
+                 static_cast<ULONG>(name.size()) + 1 +
+                 static_cast<ULONG>(value.size());
+
+  std::vector<CHAR> buf(ea_len, 0);
+  auto ea = reinterpret_cast<PFILE_FULL_EA_INFORMATION>(buf.data());
+
+  ea->NextEntryOffset = 0;
+  ea->Flags = 0;
+  ea->EaNameLength = static_cast<UCHAR>(name.size());
+  ea->EaValueLength = static_cast<USHORT>(value.size());
+
+  std::memcpy(ea->EaName, name.data(), name.size());
+  ea->EaName[name.size()] = '\0';
+  std::memcpy(ea->EaName + name.size() + 1, value.data(), value.size());
+
+  IO_STATUS_BLOCK iosb;
+  auto res = ::NtSetEaFile(fh, &iosb, ea, ea_len);
+  if (res != STATUS_SUCCESS) {
+    ec = std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+  }
 }
 
 void removexattr(std::filesystem::path const& path, std::string const& name,
                  std::error_code& ec) {
-  // TODO
+  // Windows EAs, unlike POSIX, do not support setting an empty value.
+  // Setting an empty value removes the attribute, hence we can implement
+  // removexattr by setting an empty value.
+  setxattr(path, name, {}, ec);
 }
 
 std::vector<std::string>
