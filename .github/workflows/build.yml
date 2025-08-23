@@ -190,9 +190,9 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-minimal-lto-ninja-static
 
-          #skip# - build_arch: amd64
-          #skip#   build_dist: alpine
-          #skip#   build_type: clang-relsize-minimal-libressl-lto-ninja-static
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
@@ -288,6 +288,10 @@ jobs:
 
           - build_arch: arm64v8
             build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+
+          - build_arch: arm64v8
+            build_dist: alpine
             build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
 
           - build_arch: arm64v8
@@ -334,6 +338,11 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: riscv64
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+            cross_arch: riscv64
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-lto-ninja-static
@@ -374,6 +383,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
             cross_arch: i386
 
           #skip# - build_arch: amd64
@@ -418,6 +432,11 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: arm
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+            cross_arch: arm
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-lto-ninja-static
@@ -460,6 +479,16 @@ jobs:
             build_type: gcc-release-minimal-lto-ninja-static
             cross_arch: ppc64le
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-libressl-lto-ninja-static
+            cross_arch: ppc64le
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-libressl-lto-ninja-static
+            cross_arch: ppc64le
+
           ######## blocked by https://github.com/llvm/llvm-project/issues/150913
           # - build_arch: amd64
           #   build_dist: alpine
@@ -479,6 +508,18 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-minimal-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-libressl-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-libressl-ninja-static
             cross_arch: ppc64
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
