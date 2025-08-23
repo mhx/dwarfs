@@ -99,6 +99,10 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
         # print(f"include_config: {qconfig} {qversion} {s}")
         return qconfig in s
 
+    commit = None
+    if version is not None and "+" in version:
+        version, commit = version.split("+", 1)
+
     def query(doc):
         if doc["arch"] != arch:
             return False
@@ -116,6 +120,9 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
         else:
             if doc["version"] != version:
                 return False
+            elif commit is not None:
+                if doc["commit"] is None or doc["commit"] != commit:
+                    return False
         return True
 
     rows = table.search(lambda doc: query(doc))
