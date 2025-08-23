@@ -117,6 +117,31 @@ HANDLE open_file(std::filesystem::path const& path, bool writeable,
   return fh;
 }
 
+std::error_code error_code_from_nt_status(NTSTATUS status) {
+  switch (status) {
+  case STATUS_EAS_NOT_SUPPORTED:
+    return std::make_error_code(std::errc::operation_not_supported);
+  case STATUS_EA_TOO_LARGE:
+    return std::make_error_code(std::errc::argument_list_too_long);
+  case STATUS_NONEXISTENT_EA_ENTRY:
+  case STATUS_NO_EAS_ON_FILE:
+  case STATUS_NO_MORE_EAS:
+    return std::make_error_code(std::errc::no_message_available);
+  case STATUS_EA_CORRUPT_ERROR:
+    return std::error_code(ERROR_EA_FILE_CORRUPT, std::system_category());
+  case STATUS_INVALID_EA_NAME:
+    return std::error_code(ERROR_INVALID_EA_NAME, std::system_category());
+  case STATUS_EA_LIST_INCONSISTENT:
+    return std::error_code(ERROR_EA_LIST_INCONSISTENT, std::system_category());
+  default:
+    break;
+  }
+
+  // Last resort...
+  return std::error_code(::RtlNtStatusToDosError(status),
+                         std::system_category());
+}
+
 } // namespace
 
 std::string getxattr(std::filesystem::path const& path, std::string const& name,
@@ -157,7 +182,7 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
                              getea_len, nullptr, FALSE);
 
   if (res != STATUS_SUCCESS) {
-    ec = std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+    ec = error_code_from_nt_status(res);
     return {};
   }
 
@@ -211,7 +236,7 @@ void setxattr(std::filesystem::path const& path, std::string const& name,
   IO_STATUS_BLOCK iosb;
   auto res = ::NtSetEaFile(fh, &iosb, ea, ea_len);
   if (res != STATUS_SUCCESS) {
-    ec = std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+    ec = error_code_from_nt_status(res);
   }
 }
 
@@ -219,8 +244,14 @@ void removexattr(std::filesystem::path const& path, std::string const& name,
                  std::error_code& ec) {
   // Windows EAs, unlike POSIX, do not support setting an empty value.
   // Setting an empty value removes the attribute, hence we can implement
-  // removexattr by setting an empty value.
-  setxattr(path, name, {}, ec);
+  // removexattr by setting an empty value. For POSIX compatibility, we
+  // first check if the attribute exists, and return ENODATA if it doesn't.
+
+  getxattr(path, name, ec);
+
+  if (!ec) {
+    setxattr(path, name, {}, ec);
+  }
 }
 
 std::vector<std::string>
@@ -247,9 +278,13 @@ listxattr(std::filesystem::path const& path, std::error_code& ec) {
     auto res = ::NtQueryEaFile(fh, &iosb, ea, ea_buf.size(), FALSE, nullptr, 0,
                                nullptr, restart);
 
+    if (res == STATUS_NO_EAS_ON_FILE || res == STATUS_NO_MORE_EAS) {
+      // no EAs found, return empty list
+      break;
+    }
+
     if (res != STATUS_SUCCESS && res != STATUS_BUFFER_OVERFLOW) {
-      ec =
-          std::error_code(::RtlNtStatusToDosError(res), std::system_category());
+      ec = error_code_from_nt_status(res);
       return {};
     }
 
