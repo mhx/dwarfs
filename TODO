@@ -1,6 +1,14 @@
 - More "real" benchmarks
 
-- Entry v2
+- Entry v2 - more memory efficient implementation
+
+- Support xattrs
+
+- Proper memory manager so `-L` will actually limit memory correctly
+
+- Incremental filesystem layers; this might support layer trees rather
+  than just a single linear layer sequence, i.e. we can add multiple
+  different child layers on top of a common parent layer.
 
 - Mounting lots of images with shared cache?
   - Communication could be implemented using xattrs
@@ -11,17 +19,6 @@
   - Second option would be handling the images internally
     - However, inode numbers aren't straightforward in
       case of adding/removing images.
-
-- Metadata rebuilding (see also below). It should be
-  possible to rebuild the metadata block and change
-  features like packing without having to rebuild the
-  whole image.
-
-- Allow changing the block size during recompression.
-  This should be possible, along with updating the chunks
-  in the metadata, and the operation should be perfectly
-  reversible. At block boundaries, chunks must be split
-  or merged, but that should be easily doable as well.
 
 - Sparse files: implement by adding a "chunk type" field
   to each chunk; for now, there are only "normal" and
@@ -39,8 +36,6 @@
   the code to support both mmap- and read-based APIs.
 
 - Add support for logging to file (with different level?)
-
-- Add support for libarchive filters in dwarfsextract.
 
 - When hashing, start by only hashing the first, say, 4KiB,
   and only if the hashes are identical, hash the whole file
