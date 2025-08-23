@@ -326,6 +326,11 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
+            cross_arch: riscv64
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: riscv64
 
@@ -363,6 +368,11 @@ jobs:
 
           - build_arch: amd64
             build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: i386
 
@@ -396,6 +406,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-release-lto-ninja-static
+            cross_arch: arm
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
             cross_arch: arm
 
           - build_arch: amd64
@@ -440,6 +455,11 @@ jobs:
             build_type: gcc-release-lto-ninja-static
             cross_arch: ppc64le
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-lto-ninja-static
+            cross_arch: ppc64le
+
           ######## blocked by https://github.com/llvm/llvm-project/issues/150913
           # - build_arch: amd64
           #   build_dist: alpine
@@ -453,6 +473,12 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-ninja-static
             cross_arch: ppc64
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
@@ -476,6 +502,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-release-lto-ninja-static
+            cross_arch: loongarch64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
             cross_arch: loongarch64
 
           - build_arch: amd64
@@ -527,6 +558,12 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-lto-ninja-static
+            cross_arch: s390x
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-lto-ninja-static
             cross_arch: s390x
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
