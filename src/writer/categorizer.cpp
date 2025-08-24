@@ -385,11 +385,6 @@ fragment_category categorizer_manager::default_category() {
   return fragment_category(0);
 }
 
-categorizer_registry& categorizer_registry::instance() {
-  static categorizer_registry the_instance;
-  return the_instance;
-}
-
 void categorizer_registry::register_factory(
     std::unique_ptr<categorizer_factory const>&& factory) {
   auto name = factory->name();

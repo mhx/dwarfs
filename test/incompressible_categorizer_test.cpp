@@ -79,7 +79,7 @@ class incompressible_categorizer_fixture : public Base {
   void create_catmgr() { create_catmgr({}); }
 
   void create_catmgr(std::vector<char const*> args) {
-    auto& catreg = writer::categorizer_registry::instance();
+    writer::categorizer_registry catreg;
 
     po::options_description opts;
     catreg.add_options(opts);

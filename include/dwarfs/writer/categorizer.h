@@ -231,7 +231,8 @@ class categorizer_factory : public categorizer_info {
 
 class categorizer_registry {
  public:
-  static categorizer_registry& instance();
+  categorizer_registry();
+  ~categorizer_registry();
 
   std::unique_ptr<categorizer>
   create(logger& lgr, std::string const& name,
@@ -245,9 +246,6 @@ class categorizer_registry {
   void register_factory(std::unique_ptr<categorizer_factory const>&& factory);
 
  private:
-  categorizer_registry();
-  ~categorizer_registry();
-
   std::map<std::string, std::unique_ptr<categorizer_factory const>> factories_;
 };
 

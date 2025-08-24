@@ -254,7 +254,7 @@ struct pcmfile_builder {
 TEST(pcmaudio_categorizer, requirements) {
   test::test_logger logger(logger::INFO);
   boost::program_options::variables_map vm;
-  auto& catreg = writer::categorizer_registry::instance();
+  writer::categorizer_registry catreg;
   auto catmgr = writer::categorizer_manager(logger, "/");
 
   catmgr.add(catreg.create(logger, "pcmaudio", vm, nullptr));
@@ -346,7 +346,7 @@ class pcmaudio_error_test : public testing::Test {
 
   void SetUp() override {
     boost::program_options::variables_map vm;
-    auto& catreg = writer::categorizer_registry::instance();
+    writer::categorizer_registry catreg;
     catmgr.add(catreg.create(logger, "pcmaudio", vm, nullptr));
 
     catmgr.set_metadata_requirements(

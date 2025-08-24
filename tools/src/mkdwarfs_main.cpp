@@ -456,7 +456,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto file_hash_desc = fmt::format(
       "choice of file hashing function (none, {})", fmt::join(hash_list, ", "));
 
-  auto& catreg = writer::categorizer_registry::instance();
+  writer::categorizer_registry catreg;
 
   auto categorize_desc =
       fmt::format("enable categorizers in the given order ({})",

@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 
   null_logger lgr;
 
-  auto& catreg = writer::categorizer_registry::instance();
+  writer::categorizer_registry catreg;
   auto catmgr = std::make_shared<writer::categorizer_manager>(lgr);
 
   boost::program_options::variables_map vm;
