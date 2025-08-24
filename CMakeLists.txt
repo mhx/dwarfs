@@ -570,6 +570,9 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS manpage_test)
   endif()
 
+  add_library(dwarfs_test_main OBJECT test/test_main.cpp)
+  target_link_libraries(dwarfs_test_main PUBLIC gtest gmock)
+
   foreach (test ${DWARFS_TESTS})
     if(NOT TARGET ${test})
       add_executable(${test} test/${test}.cpp)
@@ -580,7 +583,7 @@ if(WITH_TESTS)
     endif()
 
     target_link_libraries(
-      ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
+      ${test} PRIVATE dwarfs_test_helpers dwarfs_test_main
     )
 
     if(NOT PREFER_SYSTEM_GTEST)
