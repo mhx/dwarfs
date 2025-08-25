@@ -81,12 +81,6 @@ class progress {
     return ctx;
   }
 
-  template <typename T>
-  void run_sync(T&& fun) const {
-    std::lock_guard lock{mx_};
-    std::forward<T>(fun)();
-  }
-
   std::vector<std::shared_ptr<context>> get_active_contexts() const;
 
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)

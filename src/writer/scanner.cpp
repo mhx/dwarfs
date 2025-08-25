@@ -906,9 +906,6 @@ void scanner_<LoggerPolicy>::scan(
   });
   prog.current.store(nullptr);
 
-  // this is actually needed
-  prog.run_sync([&] { root->clear_name(); });
-
   LOG_INFO << "saving chunks...";
   mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
 

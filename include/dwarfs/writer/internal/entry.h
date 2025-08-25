@@ -79,7 +79,6 @@ class entry : public entry_interface {
 
   bool has_parent() const;
   std::shared_ptr<entry> parent() const;
-  void clear_name();
   std::filesystem::path fs_path() const;
   std::string path_as_string() const override;
   std::string dpath() const override;
