@@ -935,19 +935,6 @@ foreach(tgt ${TEST_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # I don't fully understand *why* exactly it is necessary to link against
-  # `gcc_eh`, but when building with `clang` on `aarch64`, *not* linking
-  # against it causes a subtle bug in the `check_index_range` test. Setting
-  # a zero value (e.g. `ino.owner_index() = 0;`) will somehow end up with
-  # the value *not* being set to zero, but to some other value. Complicating
-  # the expression (e.g. `ino.owner_index() = ino.owner_index().value() - 0;`)
-  # interestingly fixes the immediate problem, but it is not clear to me what
-  # the impact of *not* explicitly linking against `gcc_eh` would be for the
-  # rest of the code. So, for now, we just link against it.
-  foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
-    target_link_libraries(${tgt} PRIVATE gcc_eh)
-  endforeach()
-
   if(WITH_UNIVERSAL_BINARY OR WITH_FUSE_EXTRACT_BINARY)
     # Build stub for self-extracting universal binary.
     add_executable(sfxstub_zstd sfx/stub.c)
@@ -977,9 +964,6 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
   list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
   if(WIN32)
     list(APPEND REALCLEAN_FILES ${tgt}.ilk ${tgt}.pdb)
-  endif()
-  if(STATIC_BUILD_DO_NOT_USE)
-    target_link_options(${tgt} PRIVATE -static -static-libgcc)
   endif()
 endforeach()
 
