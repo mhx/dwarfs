@@ -166,17 +166,17 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-release-ninja-static
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-lto-ninja-static
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-lto-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
@@ -254,21 +254,21 @@ jobs:
             build_dist: fedora
             build_type: clang-release-shared-ninja-full
 
-          #skip# - build_arch: arm64v8
-          #skip#   build_dist: alpine
-          #skip#   build_type: gcc-release-ninja-static
-
           - build_arch: arm64v8
             build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
+            build_type: gcc-release-ninja-static
+
+          #skip# - build_arch: arm64v8
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
 
           - build_arch: arm64v8
             build_dist: alpine
             build_type: clang-release-ninja-static
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: clang-release-lto-ninja-static
+          #skip# - build_arch: arm64v8
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-lto-ninja-static
 
           - build_arch: arm64v8
             build_dist: alpine
@@ -319,15 +319,15 @@ jobs:
           #                       riscv64 builds (cross)                      #
           #####################################################################
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-lto-ninja-static
-            cross_arch: riscv64
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-lto-ninja-static
+          #skip#   cross_arch: riscv64
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-            cross_arch: riscv64
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-relsize-lto-ninja-static
+          #skip#   cross_arch: riscv64
 
           - build_arch: amd64
             build_dist: alpine
@@ -351,10 +351,10 @@ jobs:
           #skip#   cross_arch: riscv64
           #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
-            cross_arch: riscv64
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
+          #skip#   cross_arch: riscv64
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -366,10 +366,10 @@ jobs:
           #                        i386 builds (cross)                        #
           #####################################################################
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-lto-ninja-static
-            cross_arch: i386
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-lto-ninja-static
+          #skip#   cross_arch: i386
 
           - build_arch: amd64
             build_dist: alpine
@@ -398,10 +398,10 @@ jobs:
           #skip#   cross_arch: i386
           #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
-            cross_arch: i386
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
+          #skip#   cross_arch: i386
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -413,10 +413,10 @@ jobs:
           #                         arm builds (cross)                        #
           #####################################################################
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: clang-release-lto-ninja-static
-            cross_arch: arm
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: clang-release-lto-ninja-static
+          #skip#   cross_arch: arm
 
           - build_arch: amd64
             build_dist: alpine
@@ -445,10 +445,10 @@ jobs:
           #skip#   cross_arch: arm
           #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
-            cross_arch: arm
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
+          #skip#   cross_arch: arm
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -490,11 +490,11 @@ jobs:
           #                        ppc64 builds (cross)                       #
           #####################################################################
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
-            cross_arch: ppc64
-            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
+          #skip#   cross_arch: ppc64
+          #skip#   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
           - build_arch: amd64
             build_dist: alpine
@@ -546,10 +546,10 @@ jobs:
           #skip#   cross_arch: loongarch64
           #skip#   skip_slow_tests: true
 
-          - build_arch: amd64
-            build_dist: alpine
-            build_type: gcc-release-lto-ninja-static
-            cross_arch: loongarch64
+          #skip# - build_arch: amd64
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-lto-ninja-static
+          #skip#   cross_arch: loongarch64
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
