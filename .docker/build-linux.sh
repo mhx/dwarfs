@@ -344,9 +344,13 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  export LDFLAGS="${LDFLAGS} -static -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib"
-  export CFLAGS="${CFLAGS} -isystem $_staticprefix/include"
-  export CXXFLAGS="${CXXFLAGS} -isystem $_staticprefix/include"
+  if [[ "$COMPILER" == clang* ]]; then
+    export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc"
+  fi
+
+  export LDFLAGS="${LDFLAGS} -Wl,--start-group -lstdc++ -lgcc_eh -lgcc -lm -lpthread -Wl,--end-group -static -static-libgcc -L$_staticprefix/lib -L$_sslprefix/lib"
+  export CFLAGS="${CFLAGS} -g -isystem $_staticprefix/include"
+  export CXXFLAGS="${CXXFLAGS} -g -isystem $_staticprefix/include"
 
   case "$_MARCH" in
     i386)
