@@ -6,14 +6,17 @@ if [ "$#" -gt 1 ]; then
 fi
 
 set -e
-shopt -s extglob
+shopt -s extglob nullglob
 
 DIR="$(realpath "${1:-$(pwd)}")"
 RELDIR="$DIR/release"
 
 # TODO: maybe allow for stuff like RCn for release candidates
-SOURCE_TARBALL=$(basename $(eval echo "$DIR/dwarfs-+([0-9.]).tar.zst"))
+SOURCE_TARBALL=$(basename $(eval echo "$DIR/dwarfs-+([0-9]).+([0-9]).+([0-9])?(-+([0-9])-g+([[:xdigit:]])).tar.zst"))
 VERSION=$(echo "$SOURCE_TARBALL" | sed -E 's/dwarfs-(.+).tar.zst/\1/')
+
+SCRIPTDIR=$(dirname "$(realpath "$0")")
+SFXPACKER="$SCRIPTDIR/../sfx/pack.py"
 
 echo "Source: $SOURCE_TARBALL"
 echo "Version: $VERSION"
@@ -93,17 +96,12 @@ release_7z() {
   fi
 }
 
-recompress_upx() {
+sfx_to_upx() {
   local src="$1"
   local dst="$2"
 
-  local fullsrc="$DIR/$src"
-  local tmp="$RELDIR/$dst.tmp"
-  local fulldst="$RELDIR/$dst"
-
-  upx -d -qqq -o "$tmp" "$fullsrc"
-  upx -9 --best --brute -qqq -o "$fulldst" "$tmp"
-  rm -f "$tmp"
+  $SFXPACKER --decompress --input "$src" --output "$dst"
+  upx -9 --best -qqq "$dst"
 }
 
 release_binary() {
@@ -120,9 +118,25 @@ release_binary() {
   else
     echo "Creating $fulldst"
     local fullsrc="$DIR/$src"
-    ### TODO: maybe enable this in the future
-    # recompress_upx "$fullsrc" "$fulldst" &
     cp "$fullsrc" "$fulldst"
+  fi
+}
+
+release_upx_binary() {
+  local src="$1"
+  local dst="$2"
+
+  if [[ -z "$dst" ]]; then
+    dst="$src"
+  fi
+
+  local fulldst="$RELDIR/$dst"
+  if [ -f "$fulldst" ]; then
+    echo "$fulldst already exists, skipping"
+  else
+    echo "Creating $fulldst"
+    local fullsrc="$DIR/$src"
+    sfx_to_upx "$fullsrc" "$fulldst" &
   fi
 }
 
@@ -139,58 +153,88 @@ release_tarball "dwarfs-$VERSION" "dwarfs-$VERSION"
 release_7z "dwarfs-$VERSION-Windows-AMD64"
 release_binary "dwarfs-universal-$VERSION-Windows-AMD64.exe"
 
-for ARCH in aarch64 x86_64; do
+for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
+  # The tarball is chosen purely for speed, not size
+  # The universal binary is chosen for size, without compromising too much on speed
+  # The fuse-extract binary is chosen for smallest size
+
+  case "$ARCH" in
+    loongarch64)
+      _tarball_config="clang-minsize-musl-lto"
+      _universal_config="clang-minsize-musl-lto"
+      _fuse_extract_config="clang-minsize-musl-minimal-lto"
+      ;;
+
+    risv64)
+      _tarball_config="clang-minsize-musl-libressl-lto"
+      _universal_config="clang-minsize-musl-libressl-lto"
+      _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
+      ;;
+
+    ppc64)
+      _tarball_config="gcc-musl-libressl"
+      _universal_config="gcc-musl-libressl"
+      _fuse_extract_config="gcc-musl-minimal-libressl"
+      ;;
+
+    ppc64le)
+      _tarball_config="gcc-musl-lto"
+      _universal_config="gcc-musl-libressl-lto"
+      _fuse_extract_config="gcc-musl-minimal-libressl-lto"
+      ;;
+
+    s390x)
+      _tarball_config="gcc-musl-lto"
+      _universal_config="gcc-musl-lto"
+      _fuse_extract_config="gcc-musl-minimal-lto"
+      ;;
+
+    *)
+      _tarball_config="clang-minsize-musl-lto"
+      _universal_config="clang-minsize-musl-libressl-lto"
+      _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
+      ;;
+  esac
+
+  case "$ARCH" in
+    aarch64|x86_64)
+      # native builds
+      ;;
+
+    *)
+      _tarball_config="${_tarball_config}-cross-x86_64"
+      _universal_config="${_universal_config}-cross-x86_64"
+      _fuse_extract_config="${_fuse_extract_config}-cross-x86_64"
+      ;;
+  esac
+
   VA="$VERSION-Linux-$ARCH"
-  release_tarball "dwarfs-$VA-clang-minsize-musl-lto" "dwarfs-$VA"
-  release_binary "dwarfs-universal-$VA-clang-minsize-musl-libressl-lto" "dwarfs-universal-$VA"
-  release_binary "dwarfs-fuse-extract-$VA-clang-minsize-musl-minimal-lto" "dwarfs-fuse-extract-$VA"
-  release_binary "dwarfs-fuse-extract-$VA-clang-minsize-musl-minimal-mimalloc-lto" "dwarfs-fuse-extract-mimalloc-$VA"
+  release_tarball "dwarfs-$VA-${_tarball_config}" "dwarfs-$VA"
+
+  case "$ARCH" in
+    i386|arm)
+      # upx-only
+      ;;
+
+    *)
+      release_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA"
+      release_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA"
+      ;;
+  esac
+
+  case "$ARCH" in
+    i386|arm|x86_64|aarch64)
+      # also provide upx versions
+      release_upx_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA.upx"
+      release_upx_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA.upx"
+      ;;
+
+    *)
+      ;;
+  esac
 done
 
 jobs -l
 wait
 
 show_shasums
-
-# WHICH_LINUX={clang,clang-reldbg-stacktrace}
-# 
-# [ -d "$RELDIR" ] || mkdir "$RELDIR"
-# 
-# cp_unless_exists() {
-#   local filename="$(basename "$1")"
-#   if [ -f "$RELDIR/$filename" ]; then
-#     echo "$RELDIR/$filename already exists, skipping"
-#   else
-#     cp "$1" "$RELDIR"
-#   fi
-# }
-# 
-# for pkg in "$DIR"/dwarfs-+([0-9.]).tar.zst $(eval echo "$DIR/dwarfs-*-Linux-*-$WHICH_LINUX.tar.zst"); do
-#   OUTPUT="$RELDIR"/$(basename "$pkg" .zst).xz
-#   if [ -f "$OUTPUT" ]; then
-#     echo "$OUTPUT already exists, skipping"
-#     continue
-#   fi
-#   zstd -dc "$pkg" | xz -9e > "$OUTPUT" &
-# done
-# 
-# cp_unless_exists $DIR/dwarfs-*-Windows-AMD64.7z
-# 
-# for ub in $(eval echo "$DIR/dwarfs-universal-*-Linux-*-$WHICH_LINUX"); do
-#   cp_unless_exists "$ub"
-# done
-# cp_unless_exists "$DIR"/dwarfs-universal-*-Windows-AMD64.exe
-# 
-# chmod 644 "$RELDIR"/*.{xz,7z,exe}
-# chmod 755 "$RELDIR"/dwarfs-universal-*-Linux-*
-# 
-# # XXX: this recompression makes the executables much slower to start up
-# # for exe in "$DIR"/dwarfs-universal-*; do
-# #   upx -d -qqq -o "$RELDIR"/$(basename "$exe").tmp "$exe" && upx -9 -qqq -o "$RELDIR"/$(basename "$exe") "$RELDIR"/$(basename "$exe").tmp &
-# # done
-# 
-# jobs -l
-# 
-# wait
-# 
-# # rm "$RELDIR"/*.tmp
