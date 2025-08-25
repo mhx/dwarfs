@@ -379,7 +379,11 @@ export CFLAGS='$CFLAGS'
 export CXXFLAGS='$CXXFLAGS'
 export LDFLAGS='$LDFLAGS'
 
-cmake /workspace $CMAKE_ARGS -DWITH_EXAMPLE=1
+EOF
+
+  printf 'cmake /workspace %q -DWITH_EXAMPLE=1' "$CMAKE_ARGS"
+
+  cat <<EOF
 
 #################################################################################
 #################################################################################
