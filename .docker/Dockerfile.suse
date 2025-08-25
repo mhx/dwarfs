@@ -1,0 +1,70 @@
+# syntax=docker/dockerfile:1
+FROM opensuse/tumbleweed
+
+# Refresh & update the base. For Tumbleweed, a normal update is fine in a fresh image.
+RUN zypper -n refresh && zypper -n update
+
+# Nice-to-haves
+RUN zypper -n in --no-recommends \
+    bash-completion \
+    vim \
+    less
+
+# Build toolchain & essentials
+RUN zypper -n in --no-recommends \
+    mold \
+    gcc \
+    gcc-c++ \
+    clang \
+    man \
+    git \
+    zstd \
+    ccache \
+    ninja \
+    cmake \
+    make \
+    ruby3.4-rubygem-ronn-ng \
+    python313-mistletoe \
+    fuse \
+    fuse3 \
+    fuse-devel \
+    fuse3-devel \
+    pkgconf-pkg-config \
+    binutils-devel \
+    libarchive-devel \
+    benchmark-devel \
+    boost-devel \
+    libboost_chrono-devel \
+    libboost_context-devel \
+    libboost_filesystem-devel \
+    libboost_iostreams-devel \
+    libboost_process-devel \
+    libboost_program_options-devel \
+    libboost_system-devel \
+    libboost_thread-devel \
+    libbrotli-devel \
+    libevent-devel \
+    libopenssl-3-devel \
+    fmt-devel \
+    nlohmann_json-devel \
+    hhdate-devel \
+    jemalloc-devel \
+    double-conversion-devel \
+    liblz4-devel \
+    xz-devel \
+    libzstd-devel \
+    xxhash-devel \
+    libunwind-devel \
+    libdwarf-devel \
+    gflags-devel \
+    glog-devel \
+    flac-devel \
+    utfcpp-devel \
+    parallel-hashmap-devel \
+    range-v3-devel && \
+    zypper -n clean --all
+
+RUN git config --global --add safe.directory /workspace
+RUN useradd -g users -u 1000 -m mhx
+USER mhx
+ENTRYPOINT ["/workspace/.docker/build-linux.sh"]

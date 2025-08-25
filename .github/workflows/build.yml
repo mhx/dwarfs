@@ -215,6 +215,14 @@ jobs:
             build_type: clang-debug-shared-ninja-split
 
           - build_arch: arm64v8
+            build_dist: suse
+            build_type: gcc-release-ninja-split
+
+          - build_arch: arm64v8
+            build_dist: suse
+            build_type: clang-debug-shared-make-full
+
+          - build_arch: arm64v8
             build_dist: ubuntu-2204
             build_type: gcc-release-shared-ninja-split
 

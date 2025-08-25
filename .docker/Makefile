@@ -5,6 +5,7 @@ IMAGE_ALPINE_NEWARCH="dwarfs-buildenv-alpine-newarch"
 IMAGE_ALPINE_APK="dwarfs-alpine-apk"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
+IMAGE_SUSE="dwarfs-buildenv-suse"
 IMAGE_ARCH="dwarfs-buildenv-arch"
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -69,6 +70,12 @@ build_fedora:
 
 run_fedora:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_FEDORA)
+
+build_suse:
+	docker build -f Dockerfile.suse -t $(IMAGE_SUSE) .
+
+run_suse:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_SUSE)
 
 build_arch:
 	docker build -f Dockerfile.arch -t $(IMAGE_ARCH) .

@@ -227,6 +227,7 @@ If it doesn't, please file an issue. I've set up
 using Docker images for Ubuntu ([22.04](.docker/Dockerfile.ubuntu-2204)
 and [24.04](.docker/Dockerfile.ubuntu)),
 [Fedora Rawhide](.docker/Dockerfile.fedora),
+[openSUSE Tumbleweed](.docker/Dockerfile.suse),
 [Arch Linux](.docker/Dockerfile.arch), and
 [Debian](.docker/Dockerfile.debian),
 as well as a setup script for [FreeBSD](.github/scripts/freebsd_setup_base.sh),
@@ -352,6 +353,7 @@ used for the CI builds:
 - [Arch Linux](.docker/Dockerfile.arch)
 - [Debian Testing](.docker/Dockerfile.debian)
 - [Fedora Rawhide](.docker/Dockerfile.fedora)
+- [openSUSE Tumbleweed](.docker/Dockerfile.suse)
 - [Ubuntu 22.04](.docker/Dockerfile.ubuntu-2204)
 - [Ubuntu 24.04](.docker/Dockerfile.ubuntu)
 
