@@ -157,6 +157,11 @@ class metadata_v2 {
     return impl_->get_block_category(block_number);
   }
 
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const {
+    return impl_->get_block_category_metadata(block_number);
+  }
+
   std::vector<std::string> get_all_block_categories() const {
     return impl_->get_all_block_categories();
   }
@@ -231,6 +236,9 @@ class metadata_v2 {
 
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
+
+    virtual std::optional<nlohmann::json>
+    get_block_category_metadata(size_t block_number) const = 0;
 
     virtual std::vector<std::string> get_all_block_categories() const = 0;
 

@@ -331,6 +331,19 @@ class metadata_v2_data {
     return std::nullopt;
   }
 
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const {
+    if (auto meta_json = meta_.category_metadata_json()) {
+      if (auto block_cat_meta = meta_.block_category_metadata()) {
+        if (auto it = block_cat_meta->find(block_number);
+            it != block_cat_meta->end()) {
+          return nlohmann::json::parse(meta_json.value()[it->second()]);
+        }
+      }
+    }
+    return std::nullopt;
+  }
+
   std::vector<std::string> get_all_block_categories() const {
     std::vector<std::string> rv;
 
@@ -2190,6 +2203,11 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<std::string>
   get_block_category(size_t block_number) const override {
     return data_.get_block_category(block_number);
+  }
+
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const override {
+    return data_.get_block_category_metadata(block_number);
   }
 
   std::vector<std::string> get_all_block_categories() const override {

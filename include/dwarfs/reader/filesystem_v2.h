@@ -324,6 +324,11 @@ class filesystem_v2_lite {
     return lite_->get_block_category(block_number);
   }
 
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const {
+    return lite_->get_block_category_metadata(block_number);
+  }
+
   void cache_blocks_by_category(std::string_view category) const {
     lite_->cache_blocks_by_category(category);
   }
@@ -420,6 +425,8 @@ class filesystem_v2_lite {
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
+    virtual std::optional<nlohmann::json>
+    get_block_category_metadata(size_t block_number) const = 0;
     virtual void cache_blocks_by_category(std::string_view category) const = 0;
     virtual void cache_all_blocks() const = 0;
     virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;

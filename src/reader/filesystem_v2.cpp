@@ -307,6 +307,10 @@ class filesystem_ final {
   std::optional<std::string> get_block_category(size_t block_no) const {
     return meta_.get_block_category(block_no);
   }
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_no) const {
+    return meta_.get_block_category_metadata(block_no);
+  }
 
   void cache_blocks_by_category(std::string_view category) const {
     auto const max_blocks = get_max_cache_blocks();
@@ -689,7 +693,9 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
 
       std::string metadata;
 
-      if (bd) {
+      if (auto m = meta_.get_block_category_metadata(block_no)) {
+        metadata = fmt::format(", metadata={}", m->dump());
+      } else if (bd) {
         if (auto m = bd->metadata()) {
           metadata = fmt::format(", metadata={}", *m);
         }
@@ -769,7 +775,9 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
         section_info["size"] = uncompressed_size;
         section_info["ratio"] = float(s.length()) / uncompressed_size;
 
-        if (auto m = bd->metadata()) {
+        if (auto m = meta_.get_block_category_metadata(block_no)) {
+          section_info["metadata"] = *m;
+        } else if (auto m = bd->metadata()) {
           section_info["metadata"] = nlohmann::json::parse(*m);
         }
       }
@@ -1327,6 +1335,10 @@ class filesystem_common_ : public Base {
   std::optional<std::string>
   get_block_category(size_t block_no) const override {
     return fs_.get_block_category(block_no);
+  }
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_no) const override {
+    return fs_.get_block_category_metadata(block_no);
   }
 
   void cache_blocks_by_category(std::string_view category) const override {
