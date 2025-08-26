@@ -56,10 +56,11 @@ RUN apk add --no-cache \
         openssl-libs-static \
         openssl-dev
 
-COPY double-conversion-3.1.5.tar.gz /opt/
-COPY fmt-7.1.3.tar.gz /opt/
-COPY fuse-3.10.4.tar.xz /opt/
-COPY glog-0.5.0.tar.gz /opt/
+RUN wget https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O /opt/double-conversion-3.1.5.tar.gz \
+ && wget https://github.com/fmtlib/fmt/archive/refs/tags/7.1.3.tar.gz -O /opt/fmt-7.1.3.tar.gz \
+ && wget https://github.com/libfuse/libfuse/releases/download/fuse-3.10.4/fuse-3.10.4.tar.xz -O /opt/fuse-3.10.4.tar.xz \
+ && wget https://github.com/google/glog/archive/refs/tags/v0.5.0.tar.gz -O /opt/glog-0.5.0.tar.gz
+
 COPY build_libs.sh /opt/
 RUN bash /opt/build_libs.sh
 
