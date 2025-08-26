@@ -594,11 +594,12 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   void check_block_compression(compression_type compression,
                                std::span<uint8_t const> data,
                                std::optional<fragment_category::value_type> cat,
+                               std::optional<std::string> cat_metadata,
                                block_compression_info* info) override;
-  void
-  rewrite_section(section_type type, compression_type compression,
-                  std::span<uint8_t const> data,
-                  std::optional<fragment_category::value_type> cat) override;
+  void rewrite_section(section_type type, compression_type compression,
+                       std::span<uint8_t const> data,
+                       std::optional<fragment_category::value_type> cat,
+                       std::optional<std::string> cat_metadata) override;
   void rewrite_block(delayed_data_fn_type data, size_t uncompressed_size,
                      std::optional<fragment_category::value_type> cat) override;
   void write_compressed_section(fs_section const& sec,
@@ -892,7 +893,7 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::check_block_compression(
     compression_type compression, std::span<uint8_t const> data,
     std::optional<fragment_category::value_type> cat,
-    block_compression_info* info) {
+    std::optional<std::string> cat_metadata, block_compression_info* info) {
   block_compressor const* bc{nullptr};
 
   if (cat) {
@@ -903,11 +904,15 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
 
   block_decompressor bd(compression, data);
 
+  if (!cat_metadata) {
+    cat_metadata = bd.metadata();
+  }
+
   if (auto reqstr = bc->metadata_requirements(); !reqstr.empty()) {
     auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
     try {
-      req.check(bd.metadata());
+      req.check(cat_metadata);
     } catch (std::exception const& e) {
       auto msg = fmt::format(
           "cannot compress {} compressed block with compressor '{}' because "
@@ -919,7 +924,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
 
   if (info) {
     info->uncompressed_size = bd.uncompressed_size();
-    info->metadata = bd.metadata();
+    info->metadata = cat_metadata;
     if (info->metadata) {
       info->constraints = bc->get_compression_constraints(*info->metadata);
     }
@@ -961,16 +966,21 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::rewrite_section(
     section_type type, compression_type compression,
     std::span<uint8_t const> data,
-    std::optional<fragment_category::value_type> cat) {
+    std::optional<fragment_category::value_type> cat,
+    std::optional<std::string> cat_metadata) {
   auto bd = block_decompressor(compression, data);
   auto uncompressed_size = bd.uncompressed_size();
 
+  if (!cat_metadata) {
+    cat_metadata = bd.metadata();
+  }
+
   rewrite_section_delayed_data(
       type,
-      [bd = std::move(bd)]() mutable {
+      [bd = std::move(bd), meta = std::move(cat_metadata)]() mutable {
         auto block = bd.start_decompression(malloc_byte_buffer::create());
         bd.decompress_frame(bd.uncompressed_size());
-        return std::pair{std::move(block), bd.metadata()};
+        return std::pair{std::move(block), meta};
       },
       uncompressed_size, cat);
 }

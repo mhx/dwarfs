@@ -93,11 +93,13 @@ class filesystem_writer_detail {
   virtual void check_block_compression(
       compression_type compression, std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt,
+      std::optional<std::string> cat_metadata = std::nullopt,
       block_compression_info* info = nullptr) = 0;
   virtual void rewrite_section(
       section_type type, compression_type compression,
       std::span<uint8_t const> data,
-      std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
+      std::optional<fragment_category::value_type> cat = std::nullopt,
+      std::optional<std::string> cat_metadata = std::nullopt) = 0;
   virtual void rewrite_block(
       delayed_data_fn_type data, size_t uncompressed_size,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;

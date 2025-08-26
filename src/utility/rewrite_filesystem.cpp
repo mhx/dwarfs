@@ -288,13 +288,18 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
           dwarfs::writer::internal::block_compression_info bci;
           auto catstr = fs.get_block_category(block_no);
           std::optional<fragment_category::value_type> cat;
+          std::optional<std::string> cat_metadata;
 
           if (catstr) {
             cat = cat_resolver.category_value(catstr.value());
           }
 
+          if (auto cm = fs.get_block_category_metadata(block_no)) {
+            cat_metadata = cm->dump();
+          }
+
           writer.check_block_compression(
-              s->compression(), parser->section_data(*s), cat,
+              s->compression(), parser->section_data(*s), cat, cat_metadata,
               opts.change_block_size ? &bci : nullptr);
 
           if (opts.change_block_size) {
@@ -453,8 +458,14 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
         if (recompress_block) {
           log_recompress(s, cat);
 
+          std::optional<std::string> cat_metadata;
+
+          if (auto cm = fs.get_block_category_metadata(block_no)) {
+            cat_metadata = cm->dump();
+          }
+
           writer.rewrite_section(section_type::BLOCK, s->compression(),
-                                 parser->section_data(*s), cat);
+                                 parser->section_data(*s), cat, cat_metadata);
         } else {
           copy_compressed(s, cat);
         }
