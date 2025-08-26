@@ -1,5 +1,122 @@
 # Change Log
 
+## Version 0.13.0 - 2025-08-29
+
+- (fix) The linker configuration for the release binaries was broken. The
+  symptom of this was that *very* occasionally, tests would fail in the CI
+  with `std::terminate` being called after the exception handling code failed
+  to unwind the stack. The root cause was that in clang builds, code from
+  `libunwind` and code from `libstdc++` was rather arbitrarily mixed, which,
+  depending the order in which individual threads were scheduled in the unit
+  tests, could lead to stack unwinding working flawlessly, or not at all.
+  This was one of the hardest bugs to track down this year, fortunately the
+  fix was quite simple. In any case, there is potential for this issue being
+  present in the previously released binaries, although there haven't been
+  any reports.
+
+- (fix) Made section index discovery more robust. Fixes github #264.
+
+- (fix) A recent kernel change (https://lkml.org/lkml/2025/5/5/2868) caused
+  the `tools_test` to fail on Linux 6.14 and later. This has been fixed by
+  accepting both `EPERM` and `ENOSYS` as valid error codes for `link()` calls.
+
+- (feature) Support for FreeBSD. Everything that works on Linux should
+  also work on FreeBSD. There are no static binaries, but the build should
+  work out of the box once all dependencies are installed.
+
+- (feature) Support for big-endian architectures. This is still experimental,
+  even though all unit tests pass with QEMU, and the benchmark suite runs
+  fine on real hardware. This currently requires forked versions of `folly`
+  and `fsst`. The changes are small and the pull requests will hopefully
+  be merged upstream soon.
+
+- (feature) Experimental support for 32-bit architectures. While DwarFS
+  should mostly "just work" on 32-bit when using small images (a few hundred
+  megabytes), the limited address space is a problem for the extensive use
+  of memory-mapped files inside DwarFS. There will be changes to limit the
+  use of `mmap` in the future (mainly due to other issues), which should help
+  32-bit compatibility as a side-effect. Fixes github #268.
+
+- (feature) Support for a wide range of CPU architectures. The static
+  binary releases (including the universal binaries) are now available for
+  `x86_64`, `aarch64`, `i386`, `arm`, `ppc64`, `ppc64le`, `riscv64`, `s390x`,
+  and `loongarch64`. Trying to build the new release binaries has uncovered a
+  few bugs in `clang`, `binutils`, `mold`, and `upx`, not all of which have
+  been fixed yet. As a result, the binaries use slightly different toolchains
+  and configurations depending on the architecture. Fixes github #266, #268.
+
+- (feature) Custom self-extracting binary stub for universal binaries. This
+  aims for simplicity and portability and should work on most Linux systems.
+  This is used if `upx` support for an architecture is not available, or if
+  the binaries extract much faster than the `upx` compressed version. The
+  stub also supports a `--extract-wrapped-binary <file>` option to extract
+  the embedded binary.
+
+- (feature) The category metadata for categorized blocks is now stored in
+  the metadata block by default. This allows re-compressing the blocks with
+  a metadata-dependent algorithm (e.g. FLAC) even if they were previously
+  compressed using a metadata-independent algorithm. This can be disabled
+  using the `--no-category-metadata` option. See the `mkdwarfs` man page
+  for more details.
+
+- (feature) The `--no-category-names` and `--no-category-metadata` options
+  can be used to reduce the size of the metadata. However, this will make
+  it impossible to use metadata-dependent compression algorithms (e.g. FLAC),
+  or even select category-specific compression, when recompressing the image.
+
+- (feature) Metadata rebuilding is now supported in `mkdwarfs` using the
+  `--rebuild-metadata` option. Previously, the metadata could only be
+  recompressed, but it was impossible to change it. With the new option,
+  it is now possible to change metadata packing and apply operations like
+  `--set-owner`, `--set-group`, `--set-time`, `--time-resolution`, `--chmod`,
+  or `--no-create-timestamp`. Note that these are potentially lossy operations
+  that may be irreversible. By default, the history of metadata rebuilds is
+  tracked in the metadata itself, but this can be disabled using
+  `--no-metadata-version-history`.
+
+- (feature) In addition to metadata rebuilding, it is now also possible to
+  change the block size of an existing image using the `--change-block-size`
+  option. This implies `--rebuild-metadata` and `--recompress=all`. This can
+  be useful for tuning the performance of an existing image without having
+  to re-create it from scratch.
+
+- (feature) `mkdwarfs` now shows its current memory usage while running.
+  Note that `-L`/`--memory-limit` still only limits the memory used for
+  the block queue, not the overall memory usage. Fixing this is on the
+  roadmap, there's no need to file an issue.
+
+- (feature) `dwarfsextract` has new options to control the output format:
+  `--format-options` and `--format-filters`. There is also `--format=auto`
+  to automatically "guess" the format and filters based on the output file
+  name. (Thanks to @oxalica for the pull request.)
+
+- (feature) `dwarfsck` has a new `frozen_details` detail level that will
+  show the `frozen_analysis` content ordered by memory location instead of
+  memory usage and also shows the address range of each section.
+
+- (feature) Replaced `folly`’s `EvictingCacheMap` with a simple in-repo LRU
+  cache implementation. Reduces external dependencies and binary size while
+  not sacrificing performance.
+
+- (feature) The `pxattr` utility now supports all extended attribute
+  operations, including `setxattr` and `removexattr`, on Windows. Also,
+  error handling/reporting for extended attributes on Windows has been
+  improved.
+
+- (docs) Updated `dwarfs-format.md` with more info on section types,
+  compression metadata, and Frozen2 binary metadata layout. (Thanks to
+  @oxalica for asking the right questions, reporting bugs, and ultimately
+  releasing a Rust library to read/write DwarFS images.)
+
+- (docs) Added notable users section to README. (Thanks to Vitaly Zdanevich
+  for the PRs.)
+
+- (docs) Updated `mkdwarfs` docs with more info on worker threads and
+  requirements for bit-identical images.
+
+- (docs) Major README overhaul. Added quick start section, added more
+  links, fixed typos and wording.
+
 ## Version 0.12.4 - 2025-05-14
 
 - (fix) Segfault on `bad_compression_ratio_error`. When recompressing a
