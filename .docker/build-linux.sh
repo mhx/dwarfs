@@ -370,6 +370,8 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   fi
 
   # Dump all environment variables for building in local docker container
+  _cmake_args_quoted="$(printf ' %q' $CMAKE_ARGS -DWITH_EXAMPLE=1)"
+
   cat <<EOF
 #################################################################################
 #################################################################################
@@ -383,11 +385,7 @@ export CFLAGS='$CFLAGS'
 export CXXFLAGS='$CXXFLAGS'
 export LDFLAGS='$LDFLAGS'
 
-EOF
-
-  printf 'cmake /workspace %q -DWITH_EXAMPLE=1' "$CMAKE_ARGS"
-
-  cat <<EOF
+cmake /workspace $_cmake_args_quoted
 
 #################################################################################
 #################################################################################
