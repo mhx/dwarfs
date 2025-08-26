@@ -591,7 +591,9 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   md_.features() = features_.get();
 
   md_.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
-  if (!options_.no_create_timestamp) {
+  if (options_.no_create_timestamp) {
+    md_.create_timestamp().reset();
+  } else {
     md_.create_timestamp() = std::time(nullptr);
   }
   md_.preferred_path_separator() =
