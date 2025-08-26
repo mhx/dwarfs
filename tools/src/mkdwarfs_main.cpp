@@ -84,7 +84,6 @@
 #include <dwarfs/utility/rewrite_options.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/category_parser.h>
-#include <dwarfs/writer/chmod_entry_transformer.h>
 #include <dwarfs/writer/console_writer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
@@ -1024,21 +1023,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  std::vector<std::unique_ptr<writer::entry_transformer>> transformers;
-
   if (vm.contains("chmod")) {
     if (chmod_str == "norm") {
       chmod_str = "ug-st,=Xr";
     }
 
-    auto chmod_exprs = split_to<std::vector<std::string_view>>(chmod_str, ',');
-
-    auto mask = get_current_umask();
-
-    for (auto expr : chmod_exprs) {
-      transformers.push_back(
-          writer::create_chmod_entry_transformer(expr, mask));
-    }
+    options.metadata.chmod_specifiers = chmod_str;
+    options.metadata.umask = get_current_umask();
   }
 
   if (vm.contains("set-owner")) {
@@ -1152,6 +1143,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   LOG_PROXY(debug_logger_policy, lgr);
+
+  try {
+    writer::metadata_options::validate(options.metadata);
+  } catch (std::exception const& e) {
+    LOG_ERROR << "invalid metadata option: " << e.what();
+    return 1;
+  }
 
   writer::writer_progress::update_function_type updater;
 
@@ -1453,10 +1451,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       if (rule_filter) {
         s.add_filter(std::move(rule_filter));
-      }
-
-      for (auto& t : transformers) {
-        s.add_transformer(std::move(t));
       }
 
       s.scan(*fsw, path, prog, input_list, iol.file);

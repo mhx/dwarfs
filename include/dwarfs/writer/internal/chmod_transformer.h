@@ -26,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include <dwarfs/file_stat.h>
 
@@ -36,6 +37,9 @@ class chmod_transformer {
   using mode_type = file_stat::mode_type;
 
   chmod_transformer(std::string_view spec, mode_type umask);
+
+  static std::vector<chmod_transformer>
+  build_chain(std::string_view spec, mode_type umask);
 
   std::optional<mode_type> transform(mode_type mode, bool isdir) const {
     return impl_->transform(mode, isdir);

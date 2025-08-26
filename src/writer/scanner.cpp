@@ -57,7 +57,6 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_filter.h>
-#include <dwarfs/writer/entry_transformer.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -254,9 +253,6 @@ class scanner_ final : public scanner::impl {
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
-  void
-  add_transformer(std::unique_ptr<entry_transformer>&& transformer) override;
-
   void scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
             writer_progress& wprog,
             std::optional<std::span<std::filesystem::path const>> list,
@@ -286,7 +282,6 @@ class scanner_ final : public scanner::impl {
   entry_factory& entry_factory_;
   os_access const& os_;
   std::vector<std::unique_ptr<entry_filter>> filters_;
-  std::vector<std::unique_ptr<entry_transformer>> transformers_;
   std::unordered_set<std::string> invalid_filenames_;
 };
 
@@ -294,12 +289,6 @@ template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::add_filter(
     std::unique_ptr<entry_filter>&& filter) {
   filters_.push_back(std::move(filter));
-}
-
-template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::add_transformer(
-    std::unique_ptr<entry_transformer>&& transformer) {
-  transformers_.push_back(std::move(transformer));
 }
 
 template <typename LoggerPolicy>
@@ -361,10 +350,6 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       }
 
       return nullptr;
-    }
-
-    for (auto const& t : transformers_) {
-      t->transform(*pe);
     }
 
     switch (pe->type()) {
@@ -484,10 +469,6 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
                  fmt::format("'{}' must be a directory", path.string()));
   }
 
-  for (auto const& t : transformers_) {
-    t->transform(*root);
-  }
-
   std::deque<entry_factory::node> queue({root});
   prog.dirs_found++;
 
@@ -546,10 +527,6 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     DWARFS_THROW(runtime_error,
                  fmt::format("'{}' must be a directory",
                              path_to_utf8_string_sanitized(rootpath)));
-  }
-
-  for (auto const& t : transformers_) {
-    t->transform(*root);
   }
 
   auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,

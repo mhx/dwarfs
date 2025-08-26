@@ -23,6 +23,7 @@
 
 #include <charconv>
 #include <filesystem>
+#include <ranges>
 #include <vector>
 
 #include <fmt/format.h>
@@ -351,5 +352,16 @@ chmod_transformer_::transform(mode_type mode, bool isdir) const {
 
 chmod_transformer::chmod_transformer(std::string_view spec, mode_type umask)
     : impl_{std::make_unique<chmod_transformer_>(spec, umask)} {}
+
+std::vector<chmod_transformer>
+chmod_transformer::build_chain(std::string_view spec, mode_type umask) {
+  std::vector<chmod_transformer> chain;
+
+  for (auto part : std::views::split(spec, std::string_view{","})) {
+    chain.emplace_back(std::string_view{part.begin(), part.end()}, umask);
+  }
+
+  return chain;
+}
 
 } // namespace dwarfs::writer::internal

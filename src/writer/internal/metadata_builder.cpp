@@ -35,6 +35,7 @@
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/writer/internal/block_manager.h>
+#include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode_manager.h>
@@ -156,6 +157,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   }
 
   void update_inodes();
+  void apply_chmod();
 
   LOG_PROXY_DECL(LoggerPolicy);
   thrift::metadata::metadata md_;
@@ -268,6 +270,8 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
   md_.modes() = ge_data.get_modes();
 
   md_.timestamp_base() = ge_data.get_timestamp_base();
+
+  apply_chmod();
 }
 
 template <typename LoggerPolicy>
@@ -391,7 +395,7 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
   }
 
   if (!update_uid && !update_gid && !set_timestamp && !remove_atime_ctime &&
-      !update_resolution) {
+      !update_resolution && options_.chmod_specifiers.empty()) {
     // nothing to do
     return;
   }
@@ -424,6 +428,8 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
     }
   }
 
+  apply_chmod();
+
   if (update_uid) {
     md_.uids() = std::vector<uid_type>{*options_.uid};
   }
@@ -442,9 +448,43 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
     md_.options().ensure();
     md_.options()->time_resolution_sec() = new_resolution;
   }
+}
 
-  // TODO: also allow chmod? -> that's quite a lot more involved,
-  //       but we can probably get rid of scanner transformers
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::apply_chmod() {
+  if (options_.chmod_specifiers.empty()) {
+    return;
+  }
+
+  std::vector<uint32_t> new_modes;
+  std::unordered_map<uint32_t, uint32_t> new_mode_index_map;
+  auto xfm =
+      chmod_transformer::build_chain(options_.chmod_specifiers, options_.umask);
+
+  for (auto& inode : md_.inodes().value()) {
+    static constexpr uint32_t kPermissionsMask = 07777;
+    auto const mode_index = inode.mode_index().value();
+    auto const mode = md_.modes()->at(mode_index);
+    auto permissions = mode & kPermissionsMask;
+    auto const file_type = posix_file_type::from_mode(mode);
+
+    for (auto& c : xfm) {
+      if (auto new_perm = c.transform(
+              permissions, file_type == posix_file_type::directory)) {
+        permissions = *new_perm;
+      }
+    }
+
+    auto const new_mode = (mode & ~kPermissionsMask) | permissions;
+    auto [it, inserted] =
+        new_mode_index_map.emplace(new_mode, new_modes.size());
+    if (inserted) {
+      new_modes.push_back(new_mode);
+    }
+    inode.mode_index() = it->second;
+  }
+
+  md_.modes() = std::move(new_modes);
 }
 
 template <typename LoggerPolicy>

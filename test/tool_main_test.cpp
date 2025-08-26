@@ -3675,6 +3675,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     EXPECT_EQ(6003, stat.ctime());
     EXPECT_EQ(1000, stat.uid());
     EXPECT_EQ(100, stat.gid());
+    EXPECT_EQ(0644, stat.permissions());
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
@@ -3703,6 +3704,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6003, stat.ctime());
       EXPECT_EQ(1000, stat.uid());
       EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3715,6 +3717,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000030003, stat.ctime());
       EXPECT_EQ(0, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3727,6 +3730,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(8003, stat.ctime());
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3748,6 +3752,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6002, stat.ctime());
       EXPECT_EQ(1000, stat.uid());
       EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3760,6 +3765,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000020002, stat.ctime());
       EXPECT_EQ(0, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3772,6 +3778,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(8002, stat.ctime());
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3794,6 +3801,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6000, stat.ctime());
       EXPECT_EQ(1000, stat.uid());
       EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3806,6 +3814,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000020000, stat.ctime());
       EXPECT_EQ(0, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3818,6 +3827,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(7980, stat.ctime());
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3840,6 +3850,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(98765, stat.ctime());
       EXPECT_EQ(1000, stat.uid());
       EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3852,6 +3863,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(98765, stat.ctime());
       EXPECT_EQ(0, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3864,6 +3876,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(98765, stat.ctime());
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3886,6 +3899,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6002, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3898,6 +3912,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000020002, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3910,6 +3925,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(8002, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3932,6 +3948,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6002, stat.ctime());
       EXPECT_EQ(1000, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3944,6 +3961,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000020002, stat.ctime());
       EXPECT_EQ(0, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -3956,6 +3974,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(8002, stat.ctime());
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
     }
   }
 
@@ -3979,6 +3998,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(6000, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
 
     {
@@ -3991,6 +4011,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(4000029960, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0666, stat.permissions());
     }
 
     {
@@ -4003,6 +4024,56 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(7980, stat.ctime());
       EXPECT_EQ(123, stat.uid());
       EXPECT_EQ(456, stat.gid());
+      EXPECT_EQ(0600, stat.permissions());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--keep-all-times", "--chmod=a+r,go-w"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6001, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6003, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000010001, stat.atime());
+      EXPECT_EQ(4000020002, stat.mtime());
+      EXPECT_EQ(4000030003, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(8001, stat.atime());
+      EXPECT_EQ(8002, stat.mtime());
+      EXPECT_EQ(8003, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
     }
   }
 }

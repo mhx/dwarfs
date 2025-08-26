@@ -41,7 +41,6 @@ namespace writer {
 struct scanner_options;
 
 class entry_filter;
-class entry_transformer;
 class entry_factory;
 class filesystem_writer;
 class writer_progress;
@@ -57,10 +56,6 @@ class scanner {
     impl_->add_filter(std::move(filter));
   }
 
-  void add_transformer(std::unique_ptr<entry_transformer>&& transformer) {
-    impl_->add_transformer(std::move(transformer));
-  }
-
   void scan(
       filesystem_writer& fsw, std::filesystem::path const& path,
       writer_progress& prog,
@@ -74,9 +69,6 @@ class scanner {
     virtual ~impl() = default;
 
     virtual void add_filter(std::unique_ptr<entry_filter>&& filter) = 0;
-
-    virtual void
-    add_transformer(std::unique_ptr<entry_transformer>&& transformer) = 0;
 
     virtual void
     scan(filesystem_writer& fsw, std::filesystem::path const& path,

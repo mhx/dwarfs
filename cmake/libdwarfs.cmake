@@ -116,7 +116,6 @@ add_library(
 
   src/writer/categorizer.cpp
   src/writer/category_parser.cpp
-  src/writer/chmod_entry_transformer.cpp
   src/writer/compression_metadata_requirements.cpp
   src/writer/console_writer.cpp
   src/writer/entry_factory.cpp

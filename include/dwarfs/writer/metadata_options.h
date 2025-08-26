@@ -26,8 +26,7 @@
 #include <functional>
 #include <iosfwd>
 #include <optional>
-#include <string>
-#include <vector>
+#include <string_view>
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/history_config.h>
@@ -43,6 +42,8 @@ struct metadata_options {
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
   std::optional<uint32_t> time_resolution_sec{};
+  std::string_view chmod_specifiers{};
+  file_stat::mode_type umask{0};
   bool pack_chunk_table{false};
   bool pack_directories{false};
   bool pack_shared_files_table{false};
@@ -58,6 +59,8 @@ struct metadata_options {
   bool no_category_metadata{false};
   bool no_metadata_version_history{false};
   size_t inode_size_cache_min_chunk_count{128};
+
+  static void validate(metadata_options const& opts);
 };
 
 std::ostream& operator<<(std::ostream& os, metadata_options const& opts);

@@ -21,9 +21,14 @@
 
 #include <ostream>
 
+#include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/metadata_options.h>
 
 namespace dwarfs::writer {
+
+void metadata_options::validate(metadata_options const& opts) {
+  internal::chmod_transformer::build_chain(opts.chmod_specifiers, opts.umask);
+}
 
 std::ostream& operator<<(std::ostream& os, metadata_options const& opts) {
   os << "{";

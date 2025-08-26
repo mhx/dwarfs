@@ -116,7 +116,6 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
 
   if (ftd) {
     s.add_filter(std::make_unique<test::mock_filter>(ftd));
-    s.add_transformer(std::make_unique<test::mock_transformer>(ftd));
   }
 
   if (filter) {
@@ -196,7 +195,6 @@ void basic_end_to_end_test(
       build_dwarfs(lgr, input, compressor, cfg, options, {}, &wprog, ftd);
 
   EXPECT_EQ(14, ftd->filter_calls.size());
-  EXPECT_EQ(15, ftd->transform_calls.size());
 
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));

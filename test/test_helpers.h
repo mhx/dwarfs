@@ -47,7 +47,6 @@
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_interface.h>
-#include <dwarfs/writer/entry_transformer.h>
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
@@ -219,7 +218,6 @@ struct filter_transformer_data {
   };
 
   std::vector<entry_data> filter_calls;
-  std::vector<entry_data> transform_calls;
 };
 
 class mock_filter : public writer::entry_filter {
@@ -231,19 +229,6 @@ class mock_filter : public writer::entry_filter {
   filter(writer::entry_interface const& ei) const override {
     data_->filter_calls.emplace_back(ei);
     return writer::filter_action::keep;
-  }
-
- private:
-  std::shared_ptr<filter_transformer_data> data_;
-};
-
-class mock_transformer : public writer::entry_transformer {
- public:
-  mock_transformer(std::shared_ptr<filter_transformer_data> data)
-      : data_{std::move(data)} {}
-
-  void transform(writer::entry_interface& ei) override {
-    data_->transform_calls.emplace_back(ei);
   }
 
  private:
