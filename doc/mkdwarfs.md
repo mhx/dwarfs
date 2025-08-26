@@ -244,7 +244,13 @@ Most other options are concerned with compression tuning:
 - `--rebuild-metadata`:
   Completely rebuild the metadata block. This will upgrade the internal format
   of the metadata to the latest version instead of just recompressing the
-  metadata block. Implies `--recompress=metadata`.
+  metadata block. Implies `--recompress=metadata`. This will take into account
+  the following options: `--set-owner`, `--set-group`, `--set-time`,
+  `--keep-all-times`, `--time-resolution`, `--chmod`, `--pack-metadata`,
+  `--no-metadata-version-history`, `--no-category-names`, `--no-category-metadata`,
+  and `--no-create-timestamp`. Note that most of these operations are not
+  reversible, e.g. if you set a global owner or group, you cannot get back
+  the original owners and groups.
 
 - `--change-block-size`:
   Change the block size while recompressing. This will change the block size
