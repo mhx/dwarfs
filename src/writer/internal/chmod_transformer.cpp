@@ -120,7 +120,7 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
   // This is roughly following the implementation of chmod(1) from GNU coreutils
 
   if (spec.empty()) {
-    throw std::invalid_argument("empty mode");
+    throw std::invalid_argument("empty chmod mode");
   }
 
   auto orig_spec{spec};
@@ -129,7 +129,8 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
     // octal mode
     auto mode = parse_oct(spec);
     if (!mode or !spec.empty()) {
-      throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+      throw std::invalid_argument(
+          fmt::format("invalid octal chmod mode: {}", orig_spec));
     }
     mode_type mask{spec.size() > 4 ? kAllModeBits
                                    : (mode.value() & kAllUidBits) | kStickyBit |
@@ -143,7 +144,8 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
 
   auto whom = parse_whom(spec);
   if (!whom) {
-    throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+    throw std::invalid_argument(
+        fmt::format("missing whom in chmod mode: {}", orig_spec));
   }
 
   mode_type const mask{whom.value() ? whom.value() : kAllModeBits};
@@ -153,12 +155,18 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
     spec.remove_prefix(1);
 
     if (spec.empty()) {
-      throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+      throw std::invalid_argument(
+          fmt::format("missing permissions in chmod mode: {}", orig_spec));
     }
 
-    if (auto mode = parse_oct(spec); mode) {
-      if (whom.value() or !spec.empty()) {
-        throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+    if (auto mode = parse_oct(spec)) {
+      if (whom.value()) {
+        throw std::invalid_argument(fmt::format(
+            "cannot combine whom with octal chmod mode: {}", orig_spec));
+      }
+      if (!spec.empty()) {
+        throw std::invalid_argument(fmt::format(
+            "invalid octal chmod mode after operation: {}", orig_spec));
       }
       modifiers_.push_back(
           {op, opmode::normal, kAllModeBits, mode.value(), kAllModeBits});
@@ -226,7 +234,8 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
   }
 
   if (!spec.empty()) {
-    throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+    throw std::invalid_argument(
+        fmt::format("trailing characters in chmod mode: {}", orig_spec));
   }
 }
 
