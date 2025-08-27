@@ -180,7 +180,7 @@ nlohmann::json history::as_json() const {
     if (auto ts = histent.timestamp(); ts.has_value()) {
       entry["timestamp"] = {
           {"epoch", ts.value()},
-          {"local", fmt::format("%FT%T", safe_localtime(ts.value()))},
+          {"local", fmt::format("{:%FT%T}", safe_localtime(ts.value()))},
       };
     }
 
