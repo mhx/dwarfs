@@ -199,10 +199,6 @@ rw_block_mappings build_block_mappings(std::span<block_info const> blocks,
         size_t const chunk_size{std::min(b.uncompressed_size - offset,
                                          max_stream_block_size - m.size)};
 
-        DWARFS_CHECK(chunk_size % granularity == 0,
-                     fmt::format("chunk_size ({}) % granularity ({}) != 0",
-                                 chunk_size, granularity));
-
         old_to_new.chunks.push_back(
             {.block = m.block, .offset = m.size, .size = chunk_size});
 
