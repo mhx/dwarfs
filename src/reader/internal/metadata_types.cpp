@@ -70,6 +70,13 @@ class stack_ctor {
 };
 
 bool dir_has_self_entry(global_metadata::Meta const& meta) {
+  // If there is only the root directory (plus the sentinel), there
+  // are no bits allocated for self_entry. The self_entry for the
+  // root directory is always 0, and for the sentinel it is unused.
+  if (meta.directories().size() <= 2) {
+    return true;
+  }
+
   auto layout = meta.findFirstOfType<
       std::unique_ptr<frozen::Layout<thrift::metadata::metadata>>>();
   return (*layout)
