@@ -239,7 +239,16 @@ Most other options are concerned with compression tuning:
   the block sections (i.e. the actual file data) or the metadata sections
   are recompressed. This can be useful if you want to switch from compressed
   metadata to uncompressed metadata without having to rebuild or recompress
-  all the other data.
+  all the other data. See also `--rebuild-metadata` and `--change-block-size`,
+  which go way beyond just recompressing existing blocks. Note that when
+  recompressing blocks with metadata-dependent compression algorithms (e.g.
+  FLAC), the category metadata must be present in the file system metadata.
+  If the file system has been created with `--no-category-metadata`, this
+  is no longer possible. Also note that even *if* category metadata is present,
+  recompressing blocks with a metadata-dependent compression algorithm may
+  require the use of `--change-block-size`, as the compression algorithm may
+  have specific granularity requirements, which the blocks as previously stored
+  may not satisfy.
 
 - `--rebuild-metadata`:
   Completely rebuild the metadata block. This will upgrade the internal format
