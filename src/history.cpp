@@ -61,6 +61,11 @@ void history::parse_append(std::span<uint8_t const> data) {
   folly::Range<uint8_t const*> range{data.data(), data.size()};
   thrift::history::history tmp;
   apache::thrift::CompactSerializer::deserialize(range, tmp);
+  if (!cfg_.with_timestamps) {
+    for (auto& entry : *tmp.entries()) {
+      entry.timestamp().reset();
+    }
+  }
   history_->entries()->insert(history_->entries()->end(),
                               std::make_move_iterator(tmp.entries()->begin()),
                               std::make_move_iterator(tmp.entries()->end()));
