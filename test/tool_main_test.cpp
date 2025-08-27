@@ -4297,3 +4297,295 @@ TEST(mkdwarfs_test, change_block_size) {
     }
   }
 }
+
+namespace {
+
+constexpr sorted_array_map catdata_md5{
+    std::pair{"audio/test16-1.wav"sv, "f9c2148b3e0f2bb9527cc1ebc7ff18da"sv},
+    std::pair{"audio/test16-2.aiff"sv, "330d63fc43b29d7b381b5ef2a0ae9339"sv},
+    std::pair{"audio/test16-2.caf"sv, "3f54aa0f2536b7afcc960e05d36e304b"sv},
+    std::pair{"audio/test16-2.w64"sv, "4e0c1b3e36b9c9db4354f36625881652"sv},
+    std::pair{"audio/test16-2.wav"sv, "36a17673d35b669b60dfe720856d200c"sv},
+    std::pair{"audio/test16-3.aiff"sv, "747278e7a8f186dea3729baa6481bc18"sv},
+    std::pair{"audio/test16-3.caf"sv, "ff54ad5f905dd346c0d0a6d1346f1559"sv},
+    std::pair{"audio/test16-3.w64"sv, "c25656ba400ce2a8ce9d98b1c244699f"sv},
+    std::pair{"audio/test16-3.wav"sv, "355dba5f01c6fc592638c90b5d9927c0"sv},
+    std::pair{"audio/test16-4.aiff"sv, "ad39b02769adce30a2fc13d2187401db"sv},
+    std::pair{"audio/test16-4.caf"sv, "1ccf4adf466dbf81663d98254740fab6"sv},
+    std::pair{"audio/test16-4.w64"sv, "811ddc3dd30fee42f970706d124463e3"sv},
+    std::pair{"audio/test16-4.wav"sv, "56312ba7a4f9caa9ebe9d25617aecf27"sv},
+    std::pair{"audio/test16-5.aiff"sv, "3bfbbcce59fcc6961641b6fd7d55a8e3"sv},
+    std::pair{"audio/test16-5.caf"sv, "1f4b5637a02c548f53520239948bc930"sv},
+    std::pair{"audio/test16-5.w64"sv, "f7e507129cd27eeb518b5b2073c03abf"sv},
+    std::pair{"audio/test16-5.wav"sv, "1138ee1c2aeb767a422c5ba766d109ec"sv},
+    std::pair{"audio/test16-6.aiff"sv, "e232fe1f468eff20485a83192a10801f"sv},
+    std::pair{"audio/test16-6.caf"sv, "8db491beba24fbe20011dd5d16e806b0"sv},
+    std::pair{"audio/test16-6.w64"sv, "8f3b3bef779e1159b8bd88e14c89ae3f"sv},
+    std::pair{"audio/test16-6.wav"sv, "480c726c4b9b35aaa6a2b55adf339a03"sv},
+    std::pair{"audio/test16.aiff"sv, "489527849947c117849fbeca3c9ac7ef"sv},
+    std::pair{"audio/test16.caf"sv, "b7c8332fd5c0eace79c542e547333329"sv},
+    std::pair{"audio/test16.w64"sv, "6d634a6bc3afd44829eaf0262a61d954"sv},
+    std::pair{"audio/test16.wav"sv, "428a89911f1b5adee0af44d88688c989"sv},
+    std::pair{"audio/test20-1.wav"sv, "85c257407bae30f9d549f33c8fd0f65e"sv},
+    std::pair{"audio/test20-2.aiff"sv, "6206452ed20d7e8562a354862cfaf921"sv},
+    std::pair{"audio/test20-2.caf"sv, "cd4cf8c942a3ae78e3c011853931477e"sv},
+    std::pair{"audio/test20-2.w64"sv, "2d49579c0dc8d1ba899a0f2c01598a9d"sv},
+    std::pair{"audio/test20-2.wav"sv, "88f1166f1663bdf848973afa1832c5f1"sv},
+    std::pair{"audio/test20-3.aiff"sv, "2c87ec84de8a0b4925a8e54aef047870"sv},
+    std::pair{"audio/test20-3.caf"sv, "bf4ee2da4214f470b82ba5db3aa0cec5"sv},
+    std::pair{"audio/test20-3.w64"sv, "8c24cbcd243ea27f9689906963a95f6f"sv},
+    std::pair{"audio/test20-3.wav"sv, "0c100083f8e40177531becdbd90beee6"sv},
+    std::pair{"audio/test20-4.aiff"sv, "ac27c311680c072f81e7a7c2f84d5beb"sv},
+    std::pair{"audio/test20-4.caf"sv, "2328b7adf7561be6cf18c337d1e8f5c3"sv},
+    std::pair{"audio/test20-4.w64"sv, "5368727787fa9c815197f8a8be0b6b43"sv},
+    std::pair{"audio/test20-4.wav"sv, "46c4f66bedd6979a0f0e6ea4e2a45757"sv},
+    std::pair{"audio/test20-5.aiff"sv, "842d3568a933cf6c9a444e6381f965ce"sv},
+    std::pair{"audio/test20-5.caf"sv, "8612d5c6c3ccfe8d0a3023bb1e9a309c"sv},
+    std::pair{"audio/test20-5.w64"sv, "29e8ed10166a0c5c54f70d5575f99db0"sv},
+    std::pair{"audio/test20-5.wav"sv, "83c65551cd036b65f42b9253cf0c3fa7"sv},
+    std::pair{"audio/test20-6.aiff"sv, "4afc297effa20aae812a9c06f887c7a7"sv},
+    std::pair{"audio/test20-6.caf"sv, "59c5e2ef11de2dfc55e6bac04fd9ef93"sv},
+    std::pair{"audio/test20-6.w64"sv, "09b9221f335e93a3396eb09f8c110c09"sv},
+    std::pair{"audio/test20-6.wav"sv, "0a17ac79445189644abc81aa90447eaf"sv},
+    std::pair{"audio/test20.aiff"sv, "13e225a77a4a3b7f2fcdcace2623ca82"sv},
+    std::pair{"audio/test20.caf"sv, "5e2f032ef1c1c9774de3496e04f27d55"sv},
+    std::pair{"audio/test20.w64"sv, "7525edb6a8aa13df75c3ba14b8115281"sv},
+    std::pair{"audio/test20.wav"sv, "87227330f105188d1ae62033f63a3e7d"sv},
+    std::pair{"audio/test24-1.wav"sv, "a07b9011224a78caf91eec99eeb8305e"sv},
+    std::pair{"audio/test24-2.aiff"sv, "f87dbe528f7688c81c6b60109c47d27d"sv},
+    std::pair{"audio/test24-2.caf"sv, "9c081bff2722051579077050f37d078d"sv},
+    std::pair{"audio/test24-2.w64"sv, "a7892a82bc0efb91a604436cb8e92da8"sv},
+    std::pair{"audio/test24-2.wav"sv, "32b5b955c6355efeca113854380c5f30"sv},
+    std::pair{"audio/test24-3.aiff"sv, "a80b4a76cb2cc1e805a8287f4b3ec857"sv},
+    std::pair{"audio/test24-3.caf"sv, "2e4090d9bfd3fa92d0b16e4492f9ad50"sv},
+    std::pair{"audio/test24-3.w64"sv, "a2a7832631b538b2016448b81fc61fd9"sv},
+    std::pair{"audio/test24-3.wav"sv, "ace1e3a34533b729bf50439fb711dd61"sv},
+    std::pair{"audio/test24-4.aiff"sv, "6e6d208c90ccee28002e73a87e161503"sv},
+    std::pair{"audio/test24-4.caf"sv, "ec29f45cd4e4c4d93fb60bee411c0db1"sv},
+    std::pair{"audio/test24-4.w64"sv, "63b82b9c2091732dfa7fbc7ba5e5c6b9"sv},
+    std::pair{"audio/test24-4.wav"sv, "7743d363d3304ca681614ff3484a30b6"sv},
+    std::pair{"audio/test24-5.aiff"sv, "52a80647bc76ba6343b1c0bafc8534be"sv},
+    std::pair{"audio/test24-5.caf"sv, "656e7756c7b81728db76f0fcaa3b977b"sv},
+    std::pair{"audio/test24-5.w64"sv, "9e11fcdb31051778e879cf0ee213f4cc"sv},
+    std::pair{"audio/test24-5.wav"sv, "85d9e7c46ce6bc56a29bdf8232e0d851"sv},
+    std::pair{"audio/test24-6.aiff"sv, "6fee950dffcf0066015856df846963b7"sv},
+    std::pair{"audio/test24-6.caf"sv, "00b1326e361b49b52766fabe5be82f98"sv},
+    std::pair{"audio/test24-6.w64"sv, "83d67e7880717a74a4409a5146e65e4f"sv},
+    std::pair{"audio/test24-6.wav"sv, "320fe315c135f05d367970406fc6716e"sv},
+    std::pair{"audio/test24.aiff"sv, "5b7c4b315b4edf5c5bd03b54f7e44b07"sv},
+    std::pair{"audio/test24.caf"sv, "6874e90ff3aa9d566a25de5a6b5c78ac"sv},
+    std::pair{"audio/test24.w64"sv, "609309cd6676f7ccf9325aa35b50be7f"sv},
+    std::pair{"audio/test24.wav"sv, "189d2cad17ee00ecd2d842ae78a6e5cf"sv},
+    std::pair{"audio/test32-1.wav"sv, "08e1813bc67544fd1118431faa7036dd"sv},
+    std::pair{"audio/test32-2.aiff"sv, "04c5d051fb64520b46ca6715e0ea132c"sv},
+    std::pair{"audio/test32-2.caf"sv, "d1b4ea74fecec67f96034760babfc0c7"sv},
+    std::pair{"audio/test32-2.w64"sv, "0e503c61df3ecf32ef60c829e57f81bc"sv},
+    std::pair{"audio/test32-2.wav"sv, "2d3adc5615fccf60570287ce15aef0c3"sv},
+    std::pair{"audio/test32-3.aiff"sv, "e6249929dcfb827b31c740f63fc82cd2"sv},
+    std::pair{"audio/test32-3.caf"sv, "b3d445f76326fe932892977cbbf934d7"sv},
+    std::pair{"audio/test32-3.w64"sv, "e4282a828b68deda53ed0d71b3fe3403"sv},
+    std::pair{"audio/test32-3.wav"sv, "d8c4692b2f5ed6d9d240143db674d6e9"sv},
+    std::pair{"audio/test32-4.aiff"sv, "9708e947bc70f09371d941b9f9df29ff"sv},
+    std::pair{"audio/test32-4.caf"sv, "7f1848a150eaf9d3051190afad4354f6"sv},
+    std::pair{"audio/test32-4.w64"sv, "911afcd7438b60952bac9de1a3121621"sv},
+    std::pair{"audio/test32-4.wav"sv, "46161eaa81b30eeec96d423c45983565"sv},
+    std::pair{"audio/test32-5.aiff"sv, "d2354d3e2341ead476844d5adb3dfb13"sv},
+    std::pair{"audio/test32-5.caf"sv, "51dcb09fedf7ae414d7ad860618556ce"sv},
+    std::pair{"audio/test32-5.w64"sv, "4ea2f1fa063c05f67a5bbbf5b854f6fd"sv},
+    std::pair{"audio/test32-5.wav"sv, "70f7106929f155126fa3b8550443fb8a"sv},
+    std::pair{"audio/test32-6.aiff"sv, "43d8c8bf867a1ec03872dd2b6f83b6a0"sv},
+    std::pair{"audio/test32-6.caf"sv, "31b6c7cf5e3414613a90de043fa129bd"sv},
+    std::pair{"audio/test32-6.w64"sv, "a3d118d9aaf93cf70f502fb07f60e6ec"sv},
+    std::pair{"audio/test32-6.wav"sv, "b158a2ee946a5b68f9ca992a34018729"sv},
+    std::pair{"audio/test32.aiff"sv, "cd948369dca513e55828c7e65958a848"sv},
+    std::pair{"audio/test32.caf"sv, "168effe99eafc9c4994d9e828ba847e8"sv},
+    std::pair{"audio/test32.w64"sv, "ad79d9566c91bc7058d112e56a111499"sv},
+    std::pair{"audio/test32.wav"sv, "24d5869a7376318a7e25e72b23f2a8a9"sv},
+    std::pair{"audio/test8-1.wav"sv, "55a192e95b83951d215e1fa9c72c41c0"sv},
+    std::pair{"audio/test8-2.aiff"sv, "9db33df311ed6f9389fc534a6c559172"sv},
+    std::pair{"audio/test8-2.caf"sv, "c8c2c5fa60e40e295d81c31a1deb68bb"sv},
+    std::pair{"audio/test8-2.w64"sv, "5e3a3a4c631a62ae992c7593978eb402"sv},
+    std::pair{"audio/test8-2.wav"sv, "dd8f79a205dd067f06aeb66f04485aef"sv},
+    std::pair{"audio/test8-3.aiff"sv, "424dd7aabed58151f98b186bfad4bba2"sv},
+    std::pair{"audio/test8-3.caf"sv, "86cabf47c3dbe36e2a014f73d1cbf359"sv},
+    std::pair{"audio/test8-3.w64"sv, "ba78d15742c7b1820754dcc582eb3d68"sv},
+    std::pair{"audio/test8-3.wav"sv, "ed05b7d6dd7cc342faa149e25481f27b"sv},
+    std::pair{"audio/test8-4.aiff"sv, "bb947d291c15604920814865439464fe"sv},
+    std::pair{"audio/test8-4.caf"sv, "77ef57423fd8419d53a411fe86a636dd"sv},
+    std::pair{"audio/test8-4.w64"sv, "9e3b1d3b967e15c226059606c930e7a3"sv},
+    std::pair{"audio/test8-4.wav"sv, "e403f9b91cedd334696f56b5c8feb7f7"sv},
+    std::pair{"audio/test8-5.aiff"sv, "13256745a30e8e38608ac3dbe517e320"sv},
+    std::pair{"audio/test8-5.caf"sv, "5e94100af782d8fa1fb01464a87eb6c0"sv},
+    std::pair{"audio/test8-5.w64"sv, "7d14ca30317b05462b54902ea76ed959"sv},
+    std::pair{"audio/test8-5.wav"sv, "04a5ddb40d77c09bdeb384687434a1ad"sv},
+    std::pair{"audio/test8-6.aiff"sv, "6651384f84d0d1f92f9ea3bf352d5ccb"sv},
+    std::pair{"audio/test8-6.caf"sv, "76335125bd0cb0db003fda6d108af1a1"sv},
+    std::pair{"audio/test8-6.w64"sv, "011bfb37cdd67d53cc686bee151e2c88"sv},
+    std::pair{"audio/test8-6.wav"sv, "9f01ed7018221a453633bcaf86412ddf"sv},
+    std::pair{"audio/test8.aiff"sv, "76a55b5645ea8fe8d3eab14ffdfec276"sv},
+    std::pair{"audio/test8.caf"sv, "aab3a2b7c4781b8dc7600c73bd9ebefc"sv},
+    std::pair{"audio/test8.w64"sv, "e54de8b1d704a556d8a95b081607007c"sv},
+    std::pair{"audio/test8.wav"sv, "7d455a3b730013af1d2b02532bbc2997"sv},
+    std::pair{"dwarfsextract.md"sv, "8b729b774a2db7f72f9f0111d727745b"sv},
+    std::pair{"pcmaudio/test12.aiff"sv, "84795c79f52804a884c1f8906178f8a8"sv},
+    std::pair{"pcmaudio/test12.caf"sv, "4855cfa1b322e39162e194d215fa93d2"sv},
+    std::pair{"pcmaudio/test12.w64"sv, "c4e88844fc8e8d95674c38ba85f09372"sv},
+    std::pair{"pcmaudio/test12.wav"sv, "5a39c2df63de6caee2bc844d88e98d8d"sv},
+    std::pair{"pcmaudio/test16.aiff"sv, "84795c79f52804a884c1f8906178f8a8"sv},
+    std::pair{"pcmaudio/test16.caf"sv, "4855cfa1b322e39162e194d215fa93d2"sv},
+    std::pair{"pcmaudio/test16.w64"sv, "c4e88844fc8e8d95674c38ba85f09372"sv},
+    std::pair{"pcmaudio/test16.wav"sv, "5a39c2df63de6caee2bc844d88e98d8d"sv},
+    std::pair{"pcmaudio/test20.aiff"sv, "ee32abc285b1b7a943af8d6e006989a5"sv},
+    std::pair{"pcmaudio/test20.caf"sv, "997e77cdf5425df454cd1c3abe6eda51"sv},
+    std::pair{"pcmaudio/test20.w64"sv, "e388292faacd248914e628e14fd315fe"sv},
+    std::pair{"pcmaudio/test20.wav"sv, "a4ece26f5446db93836a572647ab5132"sv},
+    std::pair{"pcmaudio/test24.aiff"sv, "ee32abc285b1b7a943af8d6e006989a5"sv},
+    std::pair{"pcmaudio/test24.caf"sv, "997e77cdf5425df454cd1c3abe6eda51"sv},
+    std::pair{"pcmaudio/test24.w64"sv, "e388292faacd248914e628e14fd315fe"sv},
+    std::pair{"pcmaudio/test24.wav"sv, "a4ece26f5446db93836a572647ab5132"sv},
+    std::pair{"pcmaudio/test32.aiff"sv, "e0ff44422a17d4849ef15a45c6ae066c"sv},
+    std::pair{"pcmaudio/test32.caf"sv, "d5c2519500c318f7250a52541176d797"sv},
+    std::pair{"pcmaudio/test32.w64"sv, "30747ae5977982f5d39ea85e9a73d180"sv},
+    std::pair{"pcmaudio/test32.wav"sv, "6a380566a3d8c50979838433c8007c78"sv},
+    std::pair{"pcmaudio/test8.aiff"sv, "6cd42d7d18aec1d697a6dc20a5308bd0"sv},
+    std::pair{"pcmaudio/test8.caf"sv, "c88b695d0f96c44017b08479d1da9484"sv},
+    std::pair{"pcmaudio/test8.w64"sv, "c5f53ae69b7829b959ef1d611c44af79"sv},
+    std::pair{"pcmaudio/test8.wav"sv, "79cd84e4670315f8639c0932ed4c8f74"sv},
+    std::pair{"random"sv, "319b0d53fb1ccf63671c4efeb3b510d0"sv},
+};
+
+}
+
+TEST(mkdwarfs_test, change_block_size_catdata) {
+  DWARFS_SLOW_TEST();
+
+  std::unordered_map<std::string, std::string> ref_checksums;
+
+  for (auto const& [file, md5] : catdata_md5) {
+    ref_checksums.emplace(file, md5);
+  }
+
+  std::string const image_file = "catdata.dwarfs";
+  auto const catdata_image = test_dir / image_file;
+  auto image0 = read_file(catdata_image);
+
+  auto t0 = mkdwarfs_tester::create_empty();
+  auto fs0 = t0.fs_from_data(image0);
+  auto info0 =
+      fs0.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image0), ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(1 << 24, info0["block_size"].get<int>());
+  EXPECT_EQ(55, info0["sections"].size());
+
+  auto rebuild_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  auto t1 = rebuild_tester(std::move(image0));
+  ASSERT_EQ(0, t1.run({"-i", image_file, "-o", "-", "-S", "15", "-C",
+                       "zstd:level=5", "-C", "pcmaudio/waveform::zstd:level=5",
+                       "--change-block-size"}))
+      << t1.err();
+  auto image1 = t1.out();
+  auto fs1 = t1.fs_from_stdout();
+  auto info1 =
+      fs1.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image1), ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(1 << 15, info1["block_size"].get<int>());
+  EXPECT_EQ(1757, info1["sections"].size());
+
+#ifdef DWARFS_HAVE_FLAC
+
+  auto t1b = rebuild_tester(image1);
+  ASSERT_EQ(0, t1b.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5", "-S",
+                        "15", "-C", "pcmaudio/waveform::flac:level=3",
+                        "--change-block-size"}))
+      << t1b.err();
+  auto image1b = t1b.out();
+  auto fs1b = t1b.fs_from_stdout();
+  auto info1b =
+      fs1b.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image1b),
+              ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(1 << 15, info1b["block_size"].get<int>());
+  EXPECT_EQ(1761, info1b["sections"].size());
+
+  auto t1c = rebuild_tester(image1);
+  ASSERT_EQ(0, t1c.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5", "-S",
+                        "16", "-C", "pcmaudio/waveform::flac:level=3",
+                        "--change-block-size"}))
+      << t1c.err();
+  auto image1c = t1c.out();
+  auto fs1c = t1c.fs_from_stdout();
+  auto info1c =
+      fs1c.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image1c),
+              ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(1 << 16, info1c["block_size"].get<int>());
+  EXPECT_EQ(897, info1c["sections"].size());
+
+  EXPECT_LT(image1c.size(), image1b.size());
+
+  image1b.clear();
+  image1 = std::move(image1c);
+
+#endif
+
+  auto t2 = rebuild_tester(image1);
+  ASSERT_EQ(0, t2.run({"-i", image_file, "-o", "-", "-S", "24", "-C",
+                       "zstd:level=5", "-C", "pcmaudio/waveform::zstd:level=5",
+                       "--change-block-size"}))
+      << t2.err();
+  auto image2 = t2.out();
+  auto fs2 = t2.fs_from_stdout();
+  auto info2 =
+      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image2), ::testing::ContainerEq(ref_checksums));
+
+  // Back to original block size and block count
+  EXPECT_EQ(1 << 24, info2["block_size"].get<int>());
+  EXPECT_EQ(55, info2["sections"].size());
+
+#ifdef DWARFS_HAVE_FLAC
+
+  auto t2b = rebuild_tester(image1);
+  ASSERT_EQ(0, t2b.run({"-i", image_file, "-o", "-", "--recompress", "-C",
+                        "pcmaudio/waveform::zstd:level=5", "--rebuild-metadata",
+                        "--no-category-metadata"}))
+      << t2b.err();
+  auto image2b = t2b.out();
+  auto fs2b = t2b.fs_from_stdout();
+  auto info2b =
+      fs2b.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  EXPECT_THAT(get_md5_checksums(image2b),
+              ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(1 << 16, info2b["block_size"].get<int>());
+  EXPECT_EQ(897, info2b["sections"].size());
+
+  auto t2c = rebuild_tester(image2b);
+  EXPECT_NE(0,
+            t2c.run({"-i", image_file, "-o", "-", "-S", "24", "-C",
+                     "pcmaudio/waveform::flac:level=3", "--change-block-size"}))
+      << t2c.err();
+
+  EXPECT_THAT(t2c.err(), ::testing::HasSubstr(
+                             "cannot compress ZSTD compressed block with "
+                             "compressor 'flac [level=3]' because the "
+                             "following metadata requirements are not met"));
+
+#endif
+}
