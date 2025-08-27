@@ -66,7 +66,9 @@ void history::parse_append(std::span<uint8_t const> data) {
                               std::make_move_iterator(tmp.entries()->end()));
 }
 
-void history::append(std::optional<std::vector<std::string>> args) {
+void history::append(
+    std::optional<std::vector<std::string>> args,
+    std::function<void(library_dependencies&)> const& extra_deps) {
   auto& histent = history_->entries()->emplace_back();
   auto& version = histent.version().value();
   version.major() = DWARFS_VERSION_MAJOR;
@@ -86,6 +88,9 @@ void history::append(std::optional<std::vector<std::string>> args) {
   }
   library_dependencies deps;
   deps.add_common_libraries();
+  if (extra_deps) {
+    extra_deps(deps);
+  }
   histent.library_versions() = deps.as_set();
 }
 

@@ -248,10 +248,12 @@ std::string block_mappings_to_string(rw_block_mappings const& mapped) {
 
 } // namespace
 
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& fs_writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts) {
+void rewrite_filesystem(
+    logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
+    dwarfs::writer::filesystem_writer& fs_writer,
+    dwarfs::writer::category_resolver const& cat_resolver,
+    rewrite_options const& opts,
+    std::function<void(library_dependencies&)> const& extra_deps) {
   using dwarfs::writer::fragment_category;
 
   LOG_PROXY(debug_logger_policy, lgr);
@@ -511,7 +513,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
       if (opts.enable_history) {
         history hist{opts.history};
         hist.parse(fs.get_history().serialize().span());
-        hist.append(opts.command_line_arguments);
+        hist.append(opts.command_line_arguments, extra_deps);
 
         LOG_VERBOSE << "updating " << get_section_name(s->type()) << " ("
                     << get_compression_name(s->compression())
@@ -537,7 +539,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
 
   if (!seen_history && opts.enable_history) {
     history hist{opts.history};
-    hist.append(opts.command_line_arguments);
+    hist.append(opts.command_line_arguments, extra_deps);
 
     LOG_VERBOSE << "adding " << get_section_name(section_type::HISTORY)
                 << ", compressing using '"

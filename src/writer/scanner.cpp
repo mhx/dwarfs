@@ -253,10 +253,12 @@ class scanner_ final : public scanner::impl {
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
-  void scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
-            writer_progress& wprog,
-            std::optional<std::span<std::filesystem::path const>> list,
-            std::shared_ptr<file_access const> fa) override;
+  void
+  scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
+       writer_progress& wprog,
+       std::optional<std::span<std::filesystem::path const>> list,
+       std::shared_ptr<file_access const> fa,
+       std::function<void(library_dependencies&)> const& extra_deps) override;
 
  private:
   entry_factory::node scan_tree(std::filesystem::path const& path,
@@ -642,7 +644,8 @@ void scanner_<LoggerPolicy>::scan(
     filesystem_writer& fs_writer, std::filesystem::path const& path,
     writer_progress& wprog,
     std::optional<std::span<std::filesystem::path const>> list,
-    std::shared_ptr<file_access const> fa) {
+    std::shared_ptr<file_access const> fa,
+    std::function<void(library_dependencies&)> const& extra_deps) {
   auto& prog = wprog.get_internal();
   auto& fsw = fs_writer.get_internal();
 
@@ -959,7 +962,7 @@ void scanner_<LoggerPolicy>::scan(
 
   if (options_.enable_history) {
     history hist(options_.history);
-    hist.append(options_.command_line_arguments);
+    hist.append(options_.command_line_arguments, extra_deps);
     fsw.write_history(hist.serialize());
   }
 

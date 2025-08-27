@@ -23,8 +23,11 @@
 
 #pragma once
 
+#include <functional>
+
 namespace dwarfs {
 
+class library_dependencies;
 class logger;
 
 namespace reader {
@@ -44,10 +47,12 @@ namespace utility {
 
 struct rewrite_options;
 
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
+void rewrite_filesystem(
+    logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
+    dwarfs::writer::filesystem_writer& writer,
+    dwarfs::writer::category_resolver const& cat_resolver,
+    rewrite_options const& opts,
+    std::function<void(library_dependencies&)> const& extra_deps = {});
 
 } // namespace utility
 

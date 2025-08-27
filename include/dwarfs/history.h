@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <functional>
 #include <iosfwd>
 #include <memory>
 #include <optional>
@@ -41,6 +42,8 @@
 #include <dwarfs/history_config.h>
 
 namespace dwarfs {
+
+class library_dependencies;
 
 namespace thrift::history {
 
@@ -58,7 +61,9 @@ class history {
   void parse(std::span<uint8_t const> data);
   void parse_append(std::span<uint8_t const> data);
   thrift::history::history const& get() const { return *history_; }
-  void append(std::optional<std::vector<std::string>> args);
+  void
+  append(std::optional<std::vector<std::string>> args,
+         std::function<void(library_dependencies&)> const& extra_deps = {});
   size_t size() const;
   shared_byte_buffer serialize() const;
   void dump(std::ostream& os) const;

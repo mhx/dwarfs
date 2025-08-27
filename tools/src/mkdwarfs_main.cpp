@@ -1440,7 +1440,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         rw_opts.change_block_size = UINT64_C(1) << sf_config.block_size_bits;
       }
       utility::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
-                                  rw_opts);
+                                  rw_opts, extra_deps);
     } else {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
                                    sf_config);
@@ -1454,7 +1454,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         s.add_filter(std::move(rule_filter));
       }
 
-      s.scan(*fsw, path, prog, input_list, iol.file);
+      s.scan(*fsw, path, prog, input_list, iol.file, extra_deps);
 
       options.inode.categorizer_mgr.reset();
     }

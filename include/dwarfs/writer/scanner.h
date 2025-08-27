@@ -24,6 +24,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -32,6 +33,7 @@
 namespace dwarfs {
 
 class file_access;
+class library_dependencies;
 class logger;
 class os_access;
 class thread_pool;
@@ -60,8 +62,9 @@ class scanner {
       filesystem_writer& fsw, std::filesystem::path const& path,
       writer_progress& prog,
       std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
-      std::shared_ptr<file_access const> fa = nullptr) {
-    impl_->scan(fsw, path, prog, list, std::move(fa));
+      std::shared_ptr<file_access const> fa = nullptr,
+      std::function<void(library_dependencies&)> const& extra_deps = {}) {
+    impl_->scan(fsw, path, prog, list, std::move(fa), extra_deps);
   }
 
   class impl {
@@ -74,7 +77,8 @@ class scanner {
     scan(filesystem_writer& fsw, std::filesystem::path const& path,
          writer_progress& prog,
          std::optional<std::span<std::filesystem::path const>> list,
-         std::shared_ptr<file_access const> fa) = 0;
+         std::shared_ptr<file_access const> fa,
+         std::function<void(library_dependencies&)> const& extra_deps) = 0;
   };
 
  private:
