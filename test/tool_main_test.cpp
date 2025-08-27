@@ -4650,7 +4650,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   args.push_back("fits/image::zstd:level=11");
 #endif
 
-  auto t2 = recompress_tester(std::move(image));
+  auto t2 = recompress_tester(image);
   ASSERT_EQ(0, t2.run(args)) << t2.err();
 
   auto image2 = t2.out();
@@ -4660,9 +4660,36 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
 
   compressors.clear();
 
+  size_t pcmaudio_blocks{0};
+  size_t fits_blocks{0};
+
   for (auto const& sec : info2["sections"]) {
     compressors.insert(sec["compression"].get<std::string>());
+    if (sec["type"] == "BLOCK") {
+      ASSERT_TRUE(sec.contains("category"));
+      if (sec["category"] == "pcmaudio/waveform") {
+        ++pcmaudio_blocks;
+        ASSERT_TRUE(sec.contains("metadata"));
+        EXPECT_TRUE(sec["metadata"].contains("bits_per_sample"));
+      }
+      if (sec["category"] == "fits/image") {
+        ++fits_blocks;
+        ASSERT_TRUE(sec.contains("metadata"));
+        EXPECT_TRUE(sec["metadata"].contains("component_count"));
+      }
+    }
   }
+
+#ifdef DWARFS_HAVE_FLAC
+  EXPECT_GT(pcmaudio_blocks, 0);
+#else
+  EXPECT_EQ(pcmaudio_blocks, 0);
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+  EXPECT_GT(fits_blocks, 0);
+#else
+  EXPECT_EQ(fits_blocks, 0);
+#endif
 
   EXPECT_THAT(compressors, ::testing::ElementsAre("NONE", "ZSTD"));
   EXPECT_THAT(get_md5_checksums(image2), ::testing::ContainerEq(ref_checksums));
@@ -4677,7 +4704,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   args.push_back("-C");
   args.push_back("fits/image::ricepp");
 #endif
-  auto t3 = recompress_tester(std::move(image2));
+  auto t3 = recompress_tester(image2);
   ASSERT_EQ(0, t3.run(args)) << t3.err();
 
   auto image3 = t3.out();
@@ -4695,6 +4722,20 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   EXPECT_THAT(get_md5_checksums(image3), ::testing::ContainerEq(ref_checksums));
 
   EXPECT_EQ(3, info3["history"].size());
+
+  auto t4 = recompress_tester(image3);
+  ASSERT_EQ(0, t4.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                       "--no-category-names"}))
+      << t4.err();
+
+  auto fs4 = t4.fs_from_stdout();
+
+  auto info4 =
+      fs4.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  for (auto const& sec : info4["sections"]) {
+    EXPECT_FALSE(sec.contains("category"));
+  }
 }
 #endif
 
