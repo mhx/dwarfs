@@ -4590,3 +4590,110 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
 
 #endif
 }
+
+#if defined(DWARFS_HAVE_FLAC) || defined(DWARFS_HAVE_RICEPP)
+TEST(mkdwarfs_test, recompress_with_metadata) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.add_root_dir();
+#ifdef DWARFS_HAVE_FLAC
+  t.os->add_local_files(audio_data_dir);
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+  t.os->add_local_files(fits_data_dir);
+#endif
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "--categorize", "-l4"})) << t.err();
+
+  auto image = t.out();
+  auto const ref_checksums = get_md5_checksums(image);
+
+  auto fs = t.fs_from_stdout();
+  auto info =
+      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  std::set<std::string> const expected_compressors{
+      "NONE",
+      "ZSTD",
+#ifdef DWARFS_HAVE_FLAC
+      "FLAC",
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+      "RICEPP",
+#endif
+  };
+  std::set<std::string> compressors;
+
+  for (auto const& sec : info["sections"]) {
+    compressors.insert(sec["compression"].get<std::string>());
+  }
+
+  EXPECT_THAT(compressors, ::testing::ContainerEq(expected_compressors));
+
+  std::string const image_file = "image.dwarfs";
+
+  auto recompress_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  std::vector<std::string> args{"-i",           image_file, "-o",           "-",
+                                "--recompress", "-C",       "zstd:level=11"};
+#ifdef DWARFS_HAVE_FLAC
+  args.push_back("-C");
+  args.push_back("pcmaudio/waveform::zstd:level=11");
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+  args.push_back("-C");
+  args.push_back("fits/image::zstd:level=11");
+#endif
+
+  auto t2 = recompress_tester(std::move(image));
+  ASSERT_EQ(0, t2.run(args)) << t2.err();
+
+  auto image2 = t2.out();
+  auto fs2 = t2.fs_from_stdout();
+  auto info2 =
+      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  compressors.clear();
+
+  for (auto const& sec : info2["sections"]) {
+    compressors.insert(sec["compression"].get<std::string>());
+  }
+
+  EXPECT_THAT(compressors, ::testing::ElementsAre("NONE", "ZSTD"));
+  EXPECT_THAT(get_md5_checksums(image2), ::testing::ContainerEq(ref_checksums));
+
+  args = std::vector<std::string>{
+      "-i", image_file, "-o", "-", "--recompress", "-C", "zstd:level=11"};
+#ifdef DWARFS_HAVE_FLAC
+  args.push_back("-C");
+  args.push_back("pcmaudio/waveform::flac:level=3");
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+  args.push_back("-C");
+  args.push_back("fits/image::ricepp");
+#endif
+  auto t3 = recompress_tester(std::move(image2));
+  ASSERT_EQ(0, t3.run(args)) << t3.err();
+
+  auto image3 = t3.out();
+  auto fs3 = t3.fs_from_stdout();
+  auto info3 =
+      fs3.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+
+  compressors.clear();
+
+  for (auto const& sec : info3["sections"]) {
+    compressors.insert(sec["compression"].get<std::string>());
+  }
+
+  EXPECT_THAT(compressors, testing::ContainerEq(expected_compressors));
+  EXPECT_THAT(get_md5_checksums(image3), ::testing::ContainerEq(ref_checksums));
+
+  EXPECT_EQ(3, info3["history"].size());
+}
+#endif
