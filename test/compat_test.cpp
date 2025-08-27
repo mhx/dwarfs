@@ -864,14 +864,19 @@ operator<<(std::ostream& os, rebuild_metadata_type const& rmt) {
   return os;
 }
 
-constexpr std::array<rebuild_metadata_type, 6> rebuild_metadata_options{{
-    {false, std::nullopt},
-    {true, std::nullopt},
-    {true, writer::metadata_options{}},
-    {true, writer::metadata_options{.pack_chunk_table = true}},
-    {true, writer::metadata_options{.pack_directories = true}},
-    {true, writer::metadata_options{.pack_shared_files_table = true}},
-}};
+constexpr std::array rebuild_metadata_options{
+    rebuild_metadata_type{false, std::nullopt},
+    rebuild_metadata_type{true, std::nullopt},
+    rebuild_metadata_type{true, writer::metadata_options{}},
+    rebuild_metadata_type{true,
+                          writer::metadata_options{.pack_chunk_table = true}},
+    rebuild_metadata_type{true,
+                          writer::metadata_options{.pack_directories = true}},
+    rebuild_metadata_type{
+        true, writer::metadata_options{.pack_shared_files_table = true}},
+    rebuild_metadata_type{true,
+                          writer::metadata_options{.uid = 1000, .gid = 100}},
+};
 
 std::string format_sh = R"(#!/bin/bash
 find test/ src/ include/ -type f -name '*.[ch]*' | xargs -d $'\n' clang-format -i
