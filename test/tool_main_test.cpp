@@ -1382,6 +1382,57 @@ TEST(mkdwarfs_test, metadata_access) {
   }
 }
 
+TEST(mkdwarfs_test, chmod_errors) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=invalid"}));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "invalid metadata option: missing whom in chmod mode: invalid"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=a+r,"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "invalid metadata option: empty chmod mode"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=,a+r"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "invalid metadata option: empty chmod mode"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=1799"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "invalid metadata option: invalid octal chmod mode: 1799"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=-1799"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("invalid metadata option: invalid octal "
+                                   "chmod mode after operation: -1799"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+777"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("invalid metadata option: cannot combine "
+                                   "whom with octal chmod mode: u+777"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+"}));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "invalid metadata option: missing permissions in chmod mode: u+"));
+
+  t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+wpp"}));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "invalid metadata option: trailing characters in chmod mode: u+wpp"));
+}
+
 TEST(mkdwarfs_test, chmod_norm) {
   std::string const image_file = "test.dwarfs";
 
