@@ -4697,3 +4697,45 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   EXPECT_EQ(3, info3["history"].size());
 }
 #endif
+
+TEST(mkdwarfs_test, no_timestamps) {
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(
+        0, t.run("-i / -o - -l2 --no-create-timestamp --no-history-timestamps"))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    auto info =
+        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    EXPECT_FALSE(info.contains("created_on"));
+    ASSERT_EQ(1, info["history"].size());
+    EXPECT_FALSE(info["history"][0].contains("timestamp"));
+  }
+
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(0, t.run("-i / -o - -l2")) << t.err();
+    auto fs = t.fs_from_stdout();
+    auto info =
+        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    EXPECT_TRUE(info.contains("created_on"));
+    ASSERT_EQ(1, info["history"].size());
+    EXPECT_TRUE(info["history"][0].contains("timestamp"));
+
+    auto t2 = mkdwarfs_tester::create_empty();
+    t2.add_root_dir();
+    t2.os->add_file("test.dwarfs", t.out());
+
+    EXPECT_EQ(
+        0, t2.run({"-i", "test.dwarfs", "-o", "-", "-l2", "--rebuild-metadata",
+                   "--no-create-timestamp", "--no-history-timestamps"}))
+        << t2.err();
+    auto fs2 = t2.fs_from_stdout();
+    auto info2 =
+        fs2.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    EXPECT_FALSE(info2.contains("created_on"));
+    ASSERT_EQ(2, info2["history"].size());
+    EXPECT_FALSE(info2["history"][0].contains("timestamp"));
+    EXPECT_FALSE(info2["history"][1].contains("timestamp"));
+  }
+}
