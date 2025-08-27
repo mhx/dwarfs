@@ -54,6 +54,7 @@
 #endif
 
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>

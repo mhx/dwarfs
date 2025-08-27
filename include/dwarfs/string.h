@@ -28,69 +28,42 @@
 
 #pragma once
 
-#include <concepts>
 #include <iterator>
 #include <type_traits>
-#include <utility>
-
-#include <range/v3/algorithm/copy.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/map.hpp>
-#include <range/v3/view/split.hpp>
 
 #include <dwarfs/conv.h>
 
 namespace dwarfs {
 
-template <typename T, typename Input, typename Delim>
-auto split_view(Input&& input, Delim&& delim)
-  requires(std::same_as<T, std::string> || std::same_as<T, std::string_view>)
-{
-  return std::forward<Input>(input) |
-         ranges::views::split(std::forward<Delim>(delim)) |
-         ranges::views::transform([](auto&& rng) {
-           return T(&*rng.begin(), ranges::distance(rng));
-         });
+template <typename Container>
+void split_to(std::string_view str, char delimiter, Container& out) {
+  if (str.empty()) {
+    return;
+  }
+  auto add_part =
+      [it = std::inserter(out, out.end())](std::string_view part) mutable {
+        if constexpr (std::is_constructible_v<typename Container::value_type,
+                                              std::string_view>) {
+          *it++ = typename Container::value_type(part);
+        } else {
+          *it++ = to<typename Container::value_type>(part);
+        }
+      };
+  std::size_t start{0};
+  std::size_t end = str.find(delimiter);
+  while (end != std::string_view::npos) {
+    add_part(str.substr(start, end - start));
+    start = end + 1;
+    end = str.find(delimiter, start);
+  }
+  add_part(str.substr(start));
 }
 
-template <typename T, typename Input, typename Delim>
-auto split_view(Input&& input, Delim&& delim)
-  requires std::is_arithmetic_v<T>
-{
-  return std::forward<Input>(input) |
-         ranges::views::split(std::forward<Delim>(delim)) |
-         ranges::views::transform([](auto&& rng) {
-           return to<T>(std::string_view(&*rng.begin(), ranges::distance(rng)));
-         });
-}
-
-template <typename T, typename Delim>
-auto split_view(char const* input, Delim&& delim) {
-  return split_view<T>(std::string_view(input), std::forward<Delim>(delim));
-}
-
-template <typename R, typename Input, typename Delim>
-R split_to(Input&& input, Delim&& delim) {
-  return split_view<typename R::value_type>(std::forward<Input>(input),
-                                            std::forward<Delim>(delim)) |
-         ranges::to<R>;
-}
-
-template <typename R, typename Delim>
-R split_to(char const* input, Delim&& delim) {
-  return split_to<R>(std::string_view(input), std::forward<Delim>(delim));
-}
-
-template <typename Input, typename Delim, typename Container>
-void split_to(Input&& input, Delim&& delim, Container& container) {
-  ranges::copy(split_view<typename Container::value_type>(
-                   std::forward<Input>(input), std::forward<Delim>(delim)),
-               std::inserter(container, container.end()));
-}
-
-template <typename Delim, typename Container>
-void split_to(char const* input, Delim&& delim, Container& container) {
-  split_to(std::string_view(input), std::forward<Delim>(delim), container);
+template <typename Container>
+Container split_to(std::string_view str, char delimiter) {
+  Container out;
+  split_to(str, delimiter, out);
+  return out;
 }
 
 } // namespace dwarfs

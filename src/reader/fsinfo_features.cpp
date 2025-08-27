@@ -110,7 +110,7 @@ fsinfo_features fsinfo_features::for_level(int level) {
 fsinfo_features fsinfo_features::parse(std::string_view features) {
   fsinfo_features result;
 
-  for (auto const& f : split_view<std::string_view>(features, ',')) {
+  for (auto const& f : split_to<std::vector<std::string_view>>(features, ',')) {
     auto const it = std::ranges::find_if(
         fsinfo_feature_names, [&f](auto const& p) { return f == p.second; });
 

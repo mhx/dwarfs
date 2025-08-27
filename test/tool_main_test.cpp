@@ -2850,6 +2850,7 @@ TEST(dwarfsck_test, list_files) {
   auto out = t.out();
 
   auto files = split_to<std::set<std::string>>(out, '\n');
+  files.erase("");
 
   std::set<std::string> const expected{
       "test.pl",     "somelink",      "somedir",   "foo.pl",
@@ -2896,7 +2897,7 @@ TEST(dwarfsck_test, checksum_files) {
 
   std::map<std::string, std::string> actual;
 
-  for (auto line : split_view<std::string_view>(out, '\n')) {
+  for (auto line : split_to<std::vector<std::string_view>>(out, '\n')) {
     if (line.empty()) {
       continue;
     }
@@ -4144,7 +4145,7 @@ get_md5_checksums(std::string image) {
 
   std::unordered_map<std::string, std::string> checksums;
 
-  for (auto line : split_view<std::string_view>(out, '\n')) {
+  for (auto line : split_to<std::vector<std::string_view>>(out, '\n')) {
     if (line.empty()) {
       continue;
     }

@@ -510,6 +510,7 @@ if(WITH_TESTS)
       test/pcm_sample_transformer_test.cpp
       test/sorted_array_map_test.cpp
       test/speedometer_test.cpp
+      test/string_test.cpp
       test/terminal_test.cpp
       test/unicode_test.cpp
       test/utils_test.cpp

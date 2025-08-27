@@ -23,12 +23,12 @@
 
 #include <charconv>
 #include <filesystem>
-#include <ranges>
 #include <vector>
 
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
+#include <dwarfs/string.h>
 
 #include <dwarfs/writer/internal/chmod_transformer.h>
 
@@ -366,8 +366,8 @@ std::vector<chmod_transformer>
 chmod_transformer::build_chain(std::string_view spec, mode_type umask) {
   std::vector<chmod_transformer> chain;
 
-  for (auto part : std::views::split(spec, std::string_view{","})) {
-    chain.emplace_back(std::string_view{part.begin(), part.end()}, umask);
+  for (auto const& part : split_to<std::vector<std::string_view>>(spec, ',')) {
+    chain.emplace_back(part, umask);
   }
 
   return chain;
