@@ -160,7 +160,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
     , image_size_{
           std::min<file_off_t>(image_size, mm_->size() - image_offset_)} {
   if (std::cmp_less(image_size_, sizeof(file_header))) {
-    DWARFS_THROW(runtime_error, "file too small");
+    DWARFS_THROW(runtime_error, "filesystem image too small");
   }
 
   auto fh = mm_->as<file_header>(image_offset_);
@@ -170,11 +170,11 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
   }
 
   if (fh->major != MAJOR_VERSION) {
-    DWARFS_THROW(runtime_error, "different major version");
+    DWARFS_THROW(runtime_error, "unsupported major version");
   }
 
   if (fh->minor > MINOR_VERSION) {
-    DWARFS_THROW(runtime_error, "newer minor version");
+    DWARFS_THROW(runtime_error, "unsupported minor version");
   }
 
   header_version_ = fh->minor >= 2 ? 2 : 1;
