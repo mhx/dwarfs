@@ -117,6 +117,9 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         {"fits/metadata", {compression_type}},
     };
     EXPECT_EQ(expected_ccmap, ccmap);
+
+    ASSERT_TRUE(info.contains("valid_section_index"));
+    EXPECT_TRUE(info["valid_section_index"].get<bool>());
   }
 
   auto tester = [&image_file](std::string const& image_data) {
@@ -255,14 +258,19 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
 
   {
     auto t = tester(image);
-    EXPECT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=none",
-                        "--log-level=verbose", "--no-history"}))
+    EXPECT_EQ(
+        0, t.run({"-i", image_file, "-o", "-", "--recompress=none",
+                  "--log-level=verbose", "--no-history", "--no-section-index"}))
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
     EXPECT_EQ(0, fs.get_history().size());
     EXPECT_EQ(1, fs.info_as_json(info_opts).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
+
+    auto info = fs.info_as_json(info_opts);
+    ASSERT_TRUE(info.contains("valid_section_index"));
+    EXPECT_FALSE(info["valid_section_index"].get<bool>());
 
     auto t2 = tester(t.out());
     EXPECT_EQ(0, t2.run({"-i", image_file, "-o", "-", "--recompress=none",
@@ -272,6 +280,10 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_TRUE(fs2.find("/random"));
     EXPECT_EQ(1, fs2.get_history().size());
     EXPECT_THAT(t2.err(), ::testing::HasSubstr("adding HISTORY"));
+
+    auto info2 = fs2.info_as_json(info_opts);
+    ASSERT_TRUE(info2.contains("valid_section_index"));
+    EXPECT_TRUE(info2["valid_section_index"].get<bool>());
   }
 
   {
@@ -281,6 +293,14 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_NE(0, t.run({"-i", image_file, "-o", "-", "--recompress"}))
         << t.err();
     EXPECT_THAT(t.err(), ::testing::HasSubstr("input filesystem is corrupt"));
+  }
+
+  {
+    auto t = tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--recompress", "-C",
+                        "SoMeThInG::null"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown category: 'SoMeThInG'"));
   }
 }
 
