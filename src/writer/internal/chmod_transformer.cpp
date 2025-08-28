@@ -287,7 +287,7 @@ auto chmod_transformer_::parse_whom(std::string_view& spec)
       return whom;
 
     default:
-      return std::nullopt;
+      break;
     }
 
     spec.remove_prefix(1);
