@@ -123,6 +123,15 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(0, stat.gid());
       EXPECT_EQ(0600, stat.permissions());
     }
+
+    {
+      auto analysis =
+          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      EXPECT_THAT(analysis,
+                  ::testing::HasSubstr("1 metadata_version_history..."));
+      EXPECT_THAT(analysis,
+                  ::testing::HasSubstr("previous metadata versions:"));
+    }
   }
 
   {
