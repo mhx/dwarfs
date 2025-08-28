@@ -953,6 +953,12 @@ TEST_F(mkdwarfs_main_test, filesystem_header_error) {
   EXPECT_THAT(err(), ::testing::HasSubstr("cannot open header file"));
 }
 
+TEST(mkdwarfs_test, input_must_be_a_directory) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/test.pl", "-o", "-"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("'/test.pl' must be a directory"));
+}
+
 TEST(mkdwarfs_test, output_file_exists) {
   mkdwarfs_tester t;
   t.fa->set_file("exists.dwarfs", "bla");
