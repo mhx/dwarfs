@@ -155,8 +155,6 @@ bool entry::is_directory() const { return stat_.is_directory(); }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
-void entry::walk(std::function<void(entry const*)> const& f) const { f(this); }
-
 void entry::update(global_entry_data& data) const {
   stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
                      file_stat::mode_valid | file_stat::atime_valid |
@@ -322,14 +320,6 @@ void dir::walk(std::function<void(entry*)> const& f) {
 
   for (entry_ptr const& e : entries_) {
     e->walk(f);
-  }
-}
-
-void dir::walk(std::function<void(entry const*)> const& f) const {
-  f(this);
-
-  for (entry_ptr const& e : entries_) {
-    const_cast<entry const*>(e.get())->walk(f);
   }
 }
 
