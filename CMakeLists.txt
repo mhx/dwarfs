@@ -465,7 +465,7 @@ endif()
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
-  add_library(dwarfs_test_helpers OBJECT
+  add_library(dwarfs_test_helpers
     test/test_helpers.cpp
     test/test_iolayer.cpp
     test/loremipsum.cpp
@@ -477,6 +477,16 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   endif()
   target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
+  target_compile_definitions(dwarfs_test_helpers
+       PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+              TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+endif()
+
+if(WITH_TESTS AND WITH_TOOLS)
+  add_library(dwarfs_tool_main_tester test/test_tool_main_tester.cpp)
+  target_link_libraries(dwarfs_tool_main_tester PUBLIC dwarfs_test_helpers GTest::gtest)
+  target_link_libraries(dwarfs_tool_main_tester PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+  set_property(TARGET dwarfs_tool_main_tester PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 endif()
 
 if(WITH_TESTS)
@@ -572,7 +582,7 @@ if(WITH_TESTS)
   endif()
 
   add_library(dwarfs_test_main OBJECT test/test_main.cpp)
-  target_link_libraries(dwarfs_test_main PUBLIC gtest gmock)
+  target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock)
 
   foreach (test ${DWARFS_TESTS})
     if(NOT TARGET ${test})
@@ -598,10 +608,6 @@ if(WITH_TESTS)
       target_include_directories(${test} SYSTEM BEFORE PRIVATE ${gmock_include_dirs} ${gtest_include_dirs})
     endif()
 
-    target_compile_definitions(${test}
-      PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-              TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
-
     if(WIN32)
       target_compile_options(${test} PRIVATE /bigobj)
     endif()
@@ -610,7 +616,7 @@ if(WITH_TESTS)
   endforeach()
 
   if(TARGET tool_main_test)
-    target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
+    target_link_libraries(tool_main_test PRIVATE dwarfs_tool_main_tester PkgConfig::LIBARCHIVE)
   endif()
 
   if(TARGET dwarfs_unit_tests)
