@@ -310,10 +310,9 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       , opts_{opts} {}
 
   void order_nilsimsa(nilsimsa_element_view const& ev, receiver<index_type> rec,
-                      std::optional<index_type> index) const override;
+                      index_type index) const override;
 
  private:
-  index_type build_index(similarity_element_view const& ev) const;
   duplicates_map
   find_duplicates(similarity_element_view const& ev, index_type& index) const;
 
@@ -363,7 +362,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
   template <size_t Bits, typename BitsType>
   void order_impl(
-      receiver<index_type>&& rec, std::optional<index_type> idx,
+      receiver<index_type>&& rec, index_type idx,
       basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -371,29 +370,6 @@ class similarity_ordering_ final : public similarity_ordering::impl {
   worker_group& wg_;
   similarity_ordering_options const opts_;
 };
-
-template <typename LoggerPolicy>
-auto similarity_ordering_<LoggerPolicy>::build_index(
-    similarity_element_view const& ev) const -> index_type {
-  index_type index;
-
-  {
-    auto tt = LOG_TIMED_TRACE;
-
-    index.reserve(ev.size());
-    for (index_value_type i = 0; i < ev.size(); ++i) {
-      if (ev.exists(i)) {
-        index.push_back(i);
-      }
-    }
-    index.shrink_to_fit();
-
-    tt << opts_.context << "build index: " << ev.size() << " -> "
-       << index.size();
-  }
-
-  return index;
-}
 
 template <typename LoggerPolicy>
 auto similarity_ordering_<LoggerPolicy>::find_duplicates(
@@ -676,16 +652,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
 template <typename LoggerPolicy>
 template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::order_impl(
-    receiver<index_type>&& rec, std::optional<index_type> idx,
+    receiver<index_type>&& rec, index_type index,
     basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
-  index_type index;
-
-  if (idx) {
-    index = *idx;
-  } else {
-    index = build_index(ev);
-  }
-
   LOG_DEBUG << opts_.context
             << "total distance before ordering: " << total_distance(ev, index);
 
@@ -715,7 +683,7 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
 template <typename LoggerPolicy>
 void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
     nilsimsa_element_view const& ev, receiver<index_type> rec,
-    std::optional<index_type> index) const {
+    index_type index) const {
   wg_.add_job(
       [this, rec = std::move(rec), idx = std::move(index), &ev]() mutable {
         order_impl(std::move(rec), std::move(idx), ev);
