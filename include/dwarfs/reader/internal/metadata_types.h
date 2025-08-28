@@ -158,9 +158,6 @@ class dir_entry_view_impl {
   from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
                        global_metadata const& g,
                        entry_name_type name_type = entry_name_type::other);
-  static dir_entry_view_impl
-  from_dir_entry_index(uint32_t self_index, global_metadata const& g,
-                       entry_name_type name_type = entry_name_type::other);
 
   static std::string name(uint32_t index, global_metadata const& g);
 

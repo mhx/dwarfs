@@ -1009,13 +1009,6 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
                                          name_type);
 }
 
-dir_entry_view_impl
-dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
-                                          global_metadata const& g,
-                                          entry_name_type name_type) {
-  return make_dir_entry_view<stack_ctor>(self_index, g, name_type);
-}
-
 std::shared_ptr<dir_entry_view_impl> dir_entry_view_impl::parent() const {
   if (is_root()) {
     return nullptr;
