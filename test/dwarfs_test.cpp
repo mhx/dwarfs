@@ -1304,10 +1304,13 @@ TEST(section_index_regression, github183) {
   std::vector<uint64_t> index;
 
   {
-    uint64_t index_pos;
+    uint64le_t index_pos_le;
 
-    ::memcpy(&index_pos, fsimage.data() + (fsimage.size() - sizeof(uint64_t)),
+    ::memcpy(&index_pos_le,
+             fsimage.data() + (fsimage.size() - sizeof(uint64_t)),
              sizeof(uint64_t));
+
+    uint64_t index_pos = index_pos_le.load();
 
     ASSERT_EQ((index_pos >> 48),
               static_cast<uint16_t>(section_type::SECTION_INDEX));
@@ -1320,8 +1323,12 @@ TEST(section_index_regression, github183) {
 
     EXPECT_TRUE(section.check_fast(mm));
 
-    index.resize(section.length() / sizeof(uint64_t));
-    ::memcpy(index.data(), section.data(mm).data(), section.length());
+    auto const num_entries{section.length() / sizeof(uint64_t)};
+    std::vector<uint64le_t> tmp(num_entries);
+    ::memcpy(tmp.data(), section.data(mm).data(), section.length());
+    index.resize(num_entries);
+    std::transform(begin(tmp), end(tmp), begin(index),
+                   [](auto const& v) { return v.load(); });
   }
 
   ASSERT_GT(index.size(), 10);

@@ -652,7 +652,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   bool volatile flush_{true};
   std::thread writer_thread_;
   uint32_t section_number_{0};
-  std::vector<uint64_t> section_index_;
+  std::vector<uint64le_t> section_index_;
   std::ostream::pos_type header_size_{0};
   std::unique_ptr<block_merger_type> merger_;
 };
@@ -1184,8 +1184,8 @@ void filesystem_writer_<LoggerPolicy>::flush() {
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::push_section_index(section_type type) {
-  section_index_.push_back((static_cast<uint64_t>(type) << 48) |
-                           static_cast<uint64_t>(size() - header_size_));
+  section_index_.emplace_back((static_cast<uint64_t>(type) << 48) |
+                              static_cast<uint64_t>(size() - header_size_));
 }
 
 template <typename LoggerPolicy>

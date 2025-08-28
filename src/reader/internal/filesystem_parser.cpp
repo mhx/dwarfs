@@ -248,11 +248,13 @@ filesystem_parser::section_data(fs_section const& s) const {
 }
 
 void filesystem_parser::find_index() {
-  uint64_t index_pos;
+  uint64le_t index_pos_le;
 
-  ::memcpy(&index_pos,
+  ::memcpy(&index_pos_le,
            mm_->as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
            sizeof(uint64_t));
+
+  uint64_t index_pos = index_pos_le.load();
 
   if ((index_pos >> 48) != static_cast<uint16_t>(section_type::SECTION_INDEX)) {
     return;
@@ -297,8 +299,12 @@ void filesystem_parser::find_index() {
 
   auto const index = section.data(*mm_);
 
+  std::vector<uint64le_t> tmp(section_count);
   index_.resize(section_count);
-  ::memcpy(index_.data(), index.data(), index.size());
+
+  ::memcpy(tmp.data(), index.data(), index.size());
+  std::transform(tmp.begin(), tmp.end(), index_.begin(),
+                 [](auto const& v) { return v.load(); });
 
   // index entries must be sorted by offset
   if (!std::ranges::is_sorted(index_, [](auto const a, auto const b) {
