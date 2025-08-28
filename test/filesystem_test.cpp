@@ -354,3 +354,104 @@ TEST(filesystem, check_valid_image) {
             ::testing::HasSubstr("unsupported minor version")));
   }
 }
+
+TEST(filesytem, check_section_index) {
+  test::test_logger lgr;
+  test::os_access_mock os;
+  auto const data = read_file(test_dir / "compat" / "compat-v0.9.10.dwarfs");
+
+  EXPECT_NO_THROW(
+      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+
+  auto ii = data.rfind("DWARFS");
+  ASSERT_NE(ii, std::string::npos);
+
+  auto const data_noindex = data.substr(0, ii);
+  auto const index = data.substr(ii);
+
+  section_header_v2 sh{};
+  std::memcpy(&sh, index.data(), sizeof(sh));
+
+  ASSERT_EQ((index.size() - sizeof(sh)) % sizeof(uint64le_t), 0u);
+  size_t const num_offsets = (index.size() - sizeof(sh)) / sizeof(uint64le_t);
+  std::vector<uint64le_t> offsets(num_offsets);
+  std::memcpy(offsets.data(), index.data() + sizeof(sh),
+              index.size() - sizeof(sh));
+
+  auto make_fs = [&](bool invalid_checksum = false,
+                     bool corrupt_length = false) {
+    auto tmp{sh};
+
+    size_t offlen = sizeof(uint64_t) * offsets.size();
+    auto offptr = reinterpret_cast<uint8_t*>(offsets.data());
+
+    if (corrupt_length) {
+      offlen -= 1;
+      offptr += 1;
+    }
+
+    tmp.length = offlen;
+
+    if (invalid_checksum) {
+      tmp.xxh3_64 = 0;
+    } else {
+      checksum xxh(checksum::xxh3_64);
+      xxh.update(&tmp.number, sizeof(section_header_v2) -
+                                  offsetof(section_header_v2, number));
+      xxh.update(offptr, offlen);
+      EXPECT_TRUE(xxh.finalize(&tmp.xxh3_64));
+    }
+
+    std::string buf(sizeof(tmp) + offlen, '\0');
+    std::memcpy(buf.data(), &tmp, sizeof(tmp));
+    std::memcpy(buf.data() + sizeof(tmp), offptr, offlen);
+
+    return reader::filesystem_v2(
+        lgr, os, std::make_shared<test::mmap_mock>(data_noindex + buf));
+  };
+
+  EXPECT_TRUE(make_fs().has_valid_section_index());
+
+  offsets[0] = offsets[0] + 1; // first offset *must* be zero
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  offsets[0] = offsets[0] - 1;       // undo
+  std::swap(offsets[1], offsets[2]); // offsets must be sorted
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  std::swap(offsets[1], offsets[2]); // undo
+  sh.type = 4;                       // invalid section type
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  sh.type = static_cast<uint16_t>(section_type::SECTION_INDEX);
+  sh.compression =
+      static_cast<uint16_t>(compression_type::ZSTD); // must be NONE
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  sh.compression = static_cast<uint16_t>(compression_type::NONE); // undo
+
+  EXPECT_FALSE(make_fs(false, true).has_valid_section_index());
+
+  auto tmp_back = offsets.back();
+  offsets.back() = (tmp_back & ((UINT64_C(1) << 48) - 1)); // invalid type
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  offsets.back() = tmp_back + 1000; // must be within image
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+
+  offsets.back() = tmp_back; // undo
+
+  EXPECT_FALSE(make_fs(true).has_valid_section_index());
+
+  offsets.erase(std::next(offsets.begin()),
+                std::prev(offsets.end())); // too few offsets
+  EXPECT_EQ(2u, offsets.size());
+
+  EXPECT_FALSE(make_fs().has_valid_section_index());
+}
