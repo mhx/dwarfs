@@ -30,6 +30,7 @@
 
 #include <folly/Utility.h>
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -272,5 +273,84 @@ TEST(filesystem, find_image_offset) {
     EXPECT_THAT([&] { make_fs(prefix + truncated); },
                 ::testing::Throws<runtime_error>())
         << "len=" << len;
+  }
+}
+
+TEST(filesystem, find_image_offset_v1) {
+  test::test_logger lgr;
+  test::os_access_mock os;
+  auto const data = read_file(test_dir / "compat" / "compat-v0.2.0.dwarfs");
+
+  EXPECT_NO_THROW(
+      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+
+  auto const truncated = data.substr(0, 16);
+  auto mm = std::make_shared<test::mmap_mock>(truncated);
+
+  EXPECT_THAT([&] { reader::filesystem_v2(lgr, os, mm); },
+              ::testing::ThrowsMessage<runtime_error>(
+                  ::testing::HasSubstr("truncated section data")));
+
+  EXPECT_THAT(
+      [&] {
+        reader::filesystem_v2(
+            lgr, os, mm,
+            {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+      },
+      ::testing::ThrowsMessage<runtime_error>(
+          ::testing::HasSubstr("no filesystem found")));
+
+  auto const truncated2 = std::string(13, 'x') + truncated;
+
+  EXPECT_THAT(
+      [&] {
+        reader::filesystem_v2(
+            lgr, os, mm,
+            {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+      },
+      ::testing::ThrowsMessage<runtime_error>(
+          ::testing::HasSubstr("no filesystem found")));
+}
+
+TEST(filesystem, check_valid_image) {
+  test::test_logger lgr;
+  test::os_access_mock os;
+  auto const data = read_file(test_dir / "compat" / "compat-v0.9.10.dwarfs");
+
+  EXPECT_NO_THROW(
+      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+
+  EXPECT_THAT(
+      [&] {
+        reader::filesystem_v2(lgr, os,
+                              std::make_shared<test::mmap_mock>("DWARFS"));
+      },
+      ::testing::ThrowsMessage<runtime_error>(
+          ::testing::HasSubstr("filesystem image too small")));
+
+  {
+    auto tmp = data;
+    tmp[6] = 0x01; // unsupported major version
+
+    EXPECT_THAT(
+        [&] {
+          reader::filesystem_v2(lgr, os,
+                                std::make_shared<test::mmap_mock>(tmp));
+        },
+        ::testing::ThrowsMessage<runtime_error>(
+            ::testing::HasSubstr("unsupported major version")));
+  }
+
+  {
+    auto tmp = data;
+    ++tmp[7]; // unsupported minor version
+
+    EXPECT_THAT(
+        [&] {
+          reader::filesystem_v2(lgr, os,
+                                std::make_shared<test::mmap_mock>(tmp));
+        },
+        ::testing::ThrowsMessage<runtime_error>(
+            ::testing::HasSubstr("unsupported minor version")));
   }
 }
