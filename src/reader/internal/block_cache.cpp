@@ -330,9 +330,8 @@ class block_cache_ final : public block_cache::impl {
   }
 
   void set_block_size(size_t size) override {
-    if (size == 0) {
-      DWARFS_THROW(runtime_error, "block size is zero");
-    }
+    DWARFS_CHECK(size > 0, "block size is zero");
+
     auto max_blocks = std::max<size_t>(options_.max_bytes / size, 1);
 
     if (!block_.empty() && max_blocks > block_.size()) {
