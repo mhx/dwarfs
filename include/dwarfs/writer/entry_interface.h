@@ -44,16 +44,10 @@ class entry_interface : public object {
   virtual bool is_directory() const = 0;
 
   virtual mode_type get_permissions() const = 0;
-  virtual void set_permissions(mode_type perm) = 0;
   virtual uid_type get_uid() const = 0;
-  virtual void set_uid(uid_type uid) = 0;
   virtual gid_type get_gid() const = 0;
-  virtual void set_gid(gid_type gid) = 0;
   virtual uint64_t get_atime() const = 0;
-  virtual void set_atime(uint64_t atime) = 0;
   virtual uint64_t get_mtime() const = 0;
-  virtual void set_mtime(uint64_t mtime) = 0;
   virtual uint64_t get_ctime() const = 0;
-  virtual void set_ctime(uint64_t ctime) = 0;
 };
 } // namespace dwarfs::writer

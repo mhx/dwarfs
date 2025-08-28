@@ -80,8 +80,6 @@ bool entry::has_parent() const { return static_cast<bool>(parent_.lock()); }
 
 std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 
-std::u8string entry::u8name() const { return string_to_u8string(name_); }
-
 fs::path entry::fs_path() const {
 #ifdef _WIN32
   fs::path self = path_;
@@ -192,27 +190,15 @@ entry::type_t file::type() const { return E_FILE; }
 
 auto entry::get_permissions() const -> mode_type { return stat_.permissions(); }
 
-void entry::set_permissions(mode_type perm) { stat_.set_permissions(perm); }
-
 auto entry::get_uid() const -> uid_type { return stat_.uid(); }
-
-void entry::set_uid(uid_type uid) { stat_.set_uid(uid); }
 
 auto entry::get_gid() const -> gid_type { return stat_.gid(); }
 
-void entry::set_gid(gid_type gid) { stat_.set_gid(gid); }
-
 uint64_t entry::get_atime() const { return stat_.atime(); }
-
-void entry::set_atime(uint64_t atime) { stat_.set_atime(atime); }
 
 uint64_t entry::get_mtime() const { return stat_.mtime(); }
 
-void entry::set_mtime(uint64_t mtime) { stat_.set_mtime(mtime); }
-
 uint64_t entry::get_ctime() const { return stat_.ctime(); }
-
-void entry::set_ctime(uint64_t ctime) { stat_.set_ctime(ctime); }
 
 std::string_view file::hash() const {
   auto& h = data_->hash;

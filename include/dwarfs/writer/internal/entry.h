@@ -104,23 +104,15 @@ class entry : public entry_interface {
 
   // more methods from entry_interface
   mode_type get_permissions() const override;
-  void set_permissions(mode_type perm) override;
   uid_type get_uid() const override;
-  void set_uid(uid_type uid) override;
   gid_type get_gid() const override;
-  void set_gid(gid_type gid) override;
   uint64_t get_atime() const override;
-  void set_atime(uint64_t atime) override;
   uint64_t get_mtime() const override;
-  void set_mtime(uint64_t mtime) override;
   uint64_t get_ctime() const override;
-  void set_ctime(uint64_t ctime) override;
 
   void override_size(size_t size);
 
  private:
-  std::u8string u8name() const;
-
 #ifdef _WIN32
   std::filesystem::path path_;
 #endif
