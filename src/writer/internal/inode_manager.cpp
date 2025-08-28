@@ -116,10 +116,7 @@ class inode_ : public inode {
   }
 
   void set_files(files_vector&& fv) override {
-    if (!files_.empty()) {
-      DWARFS_THROW(runtime_error, "files already set for inode");
-    }
-
+    DWARFS_CHECK(files_.empty(), "files already set for inode");
     files_ = std::move(fv);
   }
 
@@ -207,9 +204,7 @@ class inode_ : public inode {
   size_t size() const override { return any()->size(); }
 
   file const* any() const override {
-    if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file (any)");
-    }
+    DWARFS_CHECK(!files_.empty(), "inode has no file (any)");
     for (auto const& f : files_) {
       if (!f->is_invalid()) {
         return f;
@@ -362,18 +357,15 @@ class inode_ : public inode {
 
   template <typename T>
   T const* find_similarity(fragment_category cat) const {
-    if (fragments_.empty()) [[unlikely]] {
-      DWARFS_THROW(runtime_error, fmt::format("inode has no fragments ({})",
-                                              folly::demangle(typeid(T))));
-    }
+    DWARFS_CHECK(!fragments_.empty(), fmt::format("inode has no fragments ({})",
+                                                  folly::demangle(typeid(T))));
     if (std::holds_alternative<std::monostate>(similarity_)) {
       return nullptr;
     }
     if (fragments_.size() == 1) {
-      if (fragments_.get_single_category() != cat) [[unlikely]] {
-        DWARFS_THROW(runtime_error, fmt::format("category mismatch ({})",
-                                                folly::demangle(typeid(T))));
-      }
+      DWARFS_CHECK(
+          fragments_.get_single_category() == cat,
+          fmt::format("category mismatch ({})", folly::demangle(typeid(T))));
       return &std::get<T>(similarity_);
     }
     auto& m = std::get<similarity_map_type>(similarity_);
