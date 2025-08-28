@@ -925,13 +925,32 @@ void walk_tree(reader::filesystem_v2 const& fs, T& cb,
   }
 }
 
+int compare_versions(std::string_view v1str, std::string_view v2str) {
+  auto const v1 = split_to<std::vector<int>>(v1str, '.');
+  auto const v2 = split_to<std::vector<int>>(v2str, '.');
+
+  for (size_t i = 0; i < std::max(v1.size(), v2.size()); ++i) {
+    auto const n1 = i < v1.size() ? v1[i] : 0;
+    auto const n2 = i < v2.size() ? v2[i] : 0;
+
+    if (n1 > n2) {
+      return 1;
+    }
+
+    if (n1 < n2) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
                   std::string const& version, bool enable_nlink) {
-  bool const has_devices = not(version == "0.2.0" or version == "0.2.3");
-  bool const has_ac_time = version == "0.2.0" or version == "0.2.3";
-  bool const nlink_affects_blocks =
-      not(version.starts_with("0.2.") or version.starts_with("0.3.") or
-          version.starts_with("0.4."));
+  bool const has_devices = compare_versions(version, "0.3.0") >= 0;
+  bool const has_ac_time = compare_versions(version, "0.3.0") < 0;
+  bool const nlink_affects_blocks = compare_versions(version, "0.5.0") >= 0;
+  bool const has_section_index = compare_versions(version, "0.6.0") >= 0;
   auto const expected_blocks =
       nlink_affects_blocks and enable_nlink ? 2747 : 10614;
 
@@ -955,6 +974,8 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/format.sh");
+
+  EXPECT_EQ(has_section_index, fs.has_valid_section_index());
 
   ASSERT_TRUE(entry);
   auto iv = entry->inode();
@@ -1446,6 +1467,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
+    EXPECT_TRUE(fs.has_valid_section_index());
   }
 
   rewritten.str(std::string());
