@@ -1461,6 +1461,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   } catch (dwarfs::error const& e) {
     LOG_ERROR << exception_str(e);
     return 1;
+  } catch (std::exception const& e) {
+    LOG_ERROR << exception_str(e);
+    return 1;
   }
 
   if (!options.debug_filter_function) {
