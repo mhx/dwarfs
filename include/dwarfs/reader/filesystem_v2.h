@@ -104,6 +104,10 @@ class filesystem_v2_lite {
 
   filesystem_version version() const { return lite_->version(); }
 
+  bool has_valid_section_index() const {
+    return lite_->has_valid_section_index();
+  }
+
   void walk(std::function<void(dir_entry_view)> const& func) const {
     lite_->walk(func);
   }
@@ -344,6 +348,7 @@ class filesystem_v2_lite {
     virtual ~impl_lite() = default;
 
     virtual filesystem_version version() const = 0;
+    virtual bool has_valid_section_index() const = 0;
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual void

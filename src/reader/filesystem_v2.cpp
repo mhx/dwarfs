@@ -220,6 +220,7 @@ class filesystem_ final {
   nlohmann::json metadata_as_json() const;
   std::string serialize_metadata_as_json(bool simple) const;
   filesystem_version version() const;
+  bool has_valid_section_index() const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
   void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
   dir_entry_view root() const;
@@ -390,6 +391,7 @@ class filesystem_ final {
   file_off_t const image_offset_;
   filesystem_options const options_;
   filesystem_version version_;
+  bool has_valid_section_index_{false};
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -518,6 +520,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   if (parser.has_index()) {
     LOG_DEBUG << "found valid section index";
+    has_valid_section_index_ = true;
   }
 
   header_ = parser.header();
@@ -812,6 +815,11 @@ filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
 template <typename LoggerPolicy>
 filesystem_version filesystem_<LoggerPolicy>::version() const {
   return version_;
+}
+
+template <typename LoggerPolicy>
+bool filesystem_<LoggerPolicy>::has_valid_section_index() const {
+  return has_valid_section_index_;
 }
 
 template <typename LoggerPolicy>
@@ -1175,6 +1183,9 @@ class filesystem_common_ : public Base {
       : fs_{lgr, os, std::move(mm), options, perfmon} {}
 
   filesystem_version version() const override { return fs_.version(); }
+  bool has_valid_section_index() const override {
+    return fs_.has_valid_section_index();
+  }
   void walk(std::function<void(dir_entry_view)> const& func) const override {
     fs_.walk(func);
   }
