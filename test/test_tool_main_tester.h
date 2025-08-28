@@ -32,6 +32,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -184,6 +185,9 @@ build_with_args(std::vector<std::string> opt_args = {});
 std::set<uint64_t> get_all_fs_times(reader::filesystem_v2 const& fs);
 std::set<uint64_t> get_all_fs_uids(reader::filesystem_v2 const& fs);
 std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs);
+
+std::unordered_map<std::string, std::string>
+get_md5_checksums(std::string image);
 
 class tool_main_test : public testing::Test {
  public:

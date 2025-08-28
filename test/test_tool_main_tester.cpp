@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs_tool_main.h>
@@ -364,5 +365,34 @@ std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs) {
   });
   return gids;
 }
+
+std::unordered_map<std::string, std::string>
+get_md5_checksums(std::string image) {
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  os->add_file("image.dwarfs", std::move(image));
+  auto t = dwarfsck_tester(std::move(os));
+  if (t.run({"image.dwarfs", "--checksum=md5"}) != 0) {
+    throw std::runtime_error("Failed to run dwarfsck: " + t.err());
+  }
+  auto out = t.out();
+
+  std::unordered_map<std::string, std::string> checksums;
+
+  for (auto line : split_to<std::vector<std::string_view>>(out, '\n')) {
+    if (line.empty()) {
+      continue;
+    }
+    auto pos = line.find("  ");
+    if (pos == std::string::npos) {
+      throw std::runtime_error("Invalid checksum line: " + std::string(line));
+    }
+    auto hash = line.substr(0, pos);
+    auto file = line.substr(pos + 2);
+    checksums.emplace(file, hash);
+  }
+
+  return checksums;
+};
 
 } // namespace dwarfs::test

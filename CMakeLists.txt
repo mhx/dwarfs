@@ -558,6 +558,19 @@ if(WITH_TESTS)
   endif()
 
   if(WITH_TOOLS)
+    add_executable(tool_main_test
+      test/tool_main_cmdline_test.cpp
+      test/tool_main_logging_test.cpp
+      test/tool_main_perfmon_test.cpp
+      test/tool_dwarfsck_main_basic_test.cpp
+      test/tool_dwarfsextract_main_basic_test.cpp
+      test/tool_mkdwarfs_main_basic_test.cpp
+      test/tool_mkdwarfs_main_build_test.cpp
+      test/tool_mkdwarfs_main_metadata_test.cpp
+      test/tool_mkdwarfs_main_rebuild_test.cpp
+      test/tool_mkdwarfs_main_recompress_test.cpp
+    )
+
     list(APPEND DWARFS_TESTS
       block_cache_test
       tool_main_test
