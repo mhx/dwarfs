@@ -694,18 +694,26 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
         ++block_no;
       }
 
-      std::string metadata;
+      std::string extra;
 
       if (auto m = meta_.get_block_category_metadata(block_no)) {
-        metadata = fmt::format(", metadata={}", m->dump());
+        extra = fmt::format(", metadata={}", m->dump());
       } else if (bd) {
         if (auto m = bd->metadata()) {
-          metadata = fmt::format(", metadata={}", *m);
+          extra = fmt::format(", metadata={}", *m);
+        }
+      }
+
+      if (s.type() == section_type::SECTION_INDEX) {
+        if (parser.has_index()) {
+          extra = " [VALID]";
+        } else {
+          extra = " [INVALID]";
         }
       }
 
       os << "SECTION " << s.description() << ", " << block_size << category
-         << metadata << "\n";
+         << extra << "\n";
     }
   }
 
@@ -792,7 +800,12 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
         ++block_no;
       }
 
+      if (s.type() == section_type::SECTION_INDEX) {
+        section_info["valid"] = parser.has_index();
+      }
+
       info["sections"].push_back(std::move(section_info));
+      info["valid_section_index"] = parser.has_index();
     }
   }
 
