@@ -884,86 +884,73 @@ TEST(mkdwarfs_test, unknown_option_in_filter_rule) {
               ::testing::HasSubstr("unknown option 'x' in filter rule"));
 }
 
-TEST(mkdwarfs_test, cannot_open_input_list_file) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
+TEST_F(mkdwarfs_main_test, cannot_open_input_list_file) {
+  EXPECT_NE(0, run({"--input-list", "missing.list", "-o", "-"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("cannot open input list file"));
 }
 
-TEST(mkdwarfs_test, order_invalid) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid inode order mode"));
+TEST_F(mkdwarfs_main_test, order_invalid) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("invalid inode order mode"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_invalid_option) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "invalid option(s) for choice nilsimsa: grmpf"));
+TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_option) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "invalid option(s) for choice nilsimsa: grmpf"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_invalid_value) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0,
-            t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid max-children value: 0"));
+TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_value) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("invalid max-children value: 0"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_cannot_parse_value) {
-  mkdwarfs_tester t;
+TEST_F(mkdwarfs_main_test, order_nilsimsa_cannot_parse_value) {
   EXPECT_NE(
-      0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse size value"));
+      0, run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("cannot parse size value"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_duplicate_option) {
-  mkdwarfs_tester t;
+TEST_F(mkdwarfs_main_test, order_nilsimsa_duplicate_option) {
   EXPECT_NE(0,
-            t.run({"-i", "/", "-o", "-",
-                   "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"}));
-  EXPECT_THAT(t.err(),
+            run({"-i", "/", "-o", "-",
+                 "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"}));
+  EXPECT_THAT(err(),
               ::testing::HasSubstr(
                   "duplicate option max-cluster-size for choice nilsimsa"));
 }
 
-TEST(mkdwarfs_test, unknown_file_hash) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--file-hash=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown file hash function"));
+TEST_F(mkdwarfs_main_test, unknown_file_hash) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--file-hash=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("unknown file hash function"));
 }
 
-TEST(mkdwarfs_test, invalid_filter_debug_mode) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--debug-filter=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid filter debug mode"));
+TEST_F(mkdwarfs_main_test, invalid_filter_debug_mode) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--debug-filter=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("invalid filter debug mode"));
 }
 
-TEST(mkdwarfs_test, invalid_progress_mode) {
-  mkdwarfs_tester t;
-  t.iol->set_terminal_is_tty(true);
-  t.iol->set_terminal_fancy(true);
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--progress=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid progress mode"));
+TEST_F(mkdwarfs_main_test, invalid_progress_mode) {
+  iol->set_terminal_is_tty(true);
+  iol->set_terminal_fancy(true);
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--progress=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("invalid progress mode"));
 }
 
-TEST(mkdwarfs_test, time_resolution_zero) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=0"}));
-  EXPECT_THAT(t.err(),
+TEST_F(mkdwarfs_main_test, time_resolution_zero) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--time-resolution=0"}));
+  EXPECT_THAT(err(),
               ::testing::HasSubstr("'--time-resolution' must be nonzero"));
 }
 
-TEST(mkdwarfs_test, time_resolution_invalid) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("'--time-resolution' is invalid"));
+TEST_F(mkdwarfs_main_test, time_resolution_invalid) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--time-resolution=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("'--time-resolution' is invalid"));
 }
 
-TEST(mkdwarfs_test, filesystem_header_error) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--header=header.txt"})) << t.err();
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open header file"));
+TEST_F(mkdwarfs_main_test, filesystem_header_error) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--header=header.txt"})) << err();
+  EXPECT_THAT(err(), ::testing::HasSubstr("cannot open header file"));
 }
 
 TEST(mkdwarfs_test, output_file_exists) {
@@ -1001,20 +988,17 @@ TEST(mkdwarfs_test, output_file_fail_close) {
 }
 
 #ifdef DWARFS_HAVE_RICEPP
-TEST(mkdwarfs_test, compression_cannot_be_used_without_category) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "ricepp"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("cannot be used without a category"));
+TEST_F(mkdwarfs_main_test, compression_cannot_be_used_without_category) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "-C", "ricepp"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("cannot be used without a category"));
 }
 
-TEST(mkdwarfs_test, compression_cannot_be_used_for_category) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize", "-C",
-                      "incompressible::ricepp"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "cannot be used for category 'incompressible': "
-                           "metadata requirements not met"));
+TEST_F(mkdwarfs_main_test, compression_cannot_be_used_for_category) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--categorize", "-C",
+                    "incompressible::ricepp"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "cannot be used for category 'incompressible': "
+                         "metadata requirements not met"));
 }
 #endif
 
