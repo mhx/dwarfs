@@ -781,8 +781,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_path(span);
     tv << prefix << span.size() << " inodes ordered";
-    break;
-  }
+  } break;
 
   case fragment_order_mode::REVPATH: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
@@ -790,8 +789,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_reverse_path(span);
     tv << prefix << span.size() << " inodes ordered";
-    break;
-  }
+  } break;
 
   case fragment_order_mode::SIMILARITY: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
@@ -799,8 +797,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_similarity(span, cat);
     tv << prefix << span.size() << " inodes ordered";
-    break;
-  }
+  } break;
 
   case fragment_order_mode::NILSIMSA: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
@@ -812,8 +809,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     auto tv = LOG_TIMED_VERBOSE;
     order.by_nilsimsa(wg, soo, span, cat);
     tv << prefix << span.size() << " inodes ordered";
-    break;
-  }
+  } break;
 
   case fragment_order_mode::EXPLICIT: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
@@ -821,8 +817,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_explicit_order(span, root_path_, opts);
     tv << prefix << span.size() << " inodes ordered";
-    break;
-  }
+  } break;
   }
 
   return span;
