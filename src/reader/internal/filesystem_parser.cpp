@@ -292,11 +292,6 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  // the section index must be the last section
-  if (std::cmp_not_equal(section.end(), image_offset_ + image_size_)) {
-    return;
-  }
-
   auto const index = section.data(*mm_);
 
   std::vector<uint64le_t> tmp(section_count);
