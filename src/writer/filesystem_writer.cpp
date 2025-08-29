@@ -268,9 +268,7 @@ class raw_fsblock : public fsblock::impl {
   void set_block_no(uint32_t number) override {
     {
       std::lock_guard lock(mx_);
-      if (number_) {
-        DWARFS_THROW(runtime_error, "block number already set");
-      }
+      DWARFS_CHECK(!number_.has_value(), "block number already set");
       number_ = number;
     }
 
@@ -423,9 +421,7 @@ class rewritten_fsblock : public fsblock::impl {
   void set_block_no(uint32_t number) override {
     {
       std::lock_guard lock(mx_);
-      if (number_) {
-        DWARFS_THROW(runtime_error, "block number already set");
-      }
+      DWARFS_CHECK(!number_.has_value(), "block number already set");
       number_ = number;
     }
   }
@@ -801,9 +797,7 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_block_impl(
     fragment_category cat, shared_byte_buffer data, block_compressor const& bc,
     std::optional<std::string> meta, physical_block_cb_type physical_block_cb) {
-  if (!merger_) {
-    DWARFS_THROW(runtime_error, "filesystem_writer not configured");
-  }
+  DWARFS_CHECK(merger_, "filesystem_writer not configured");
 
   std::shared_ptr<compression_progress> pctx;
 
@@ -854,10 +848,7 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::finish_category(fragment_category cat) {
-  if (!merger_) {
-    DWARFS_THROW(runtime_error, "filesystem_writer not configured");
-  }
-
+  DWARFS_CHECK(merger_, "filesystem_writer not configured");
   merger_->finish(cat);
 }
 
@@ -1021,9 +1012,7 @@ void filesystem_writer_<LoggerPolicy>::add_default_compressor(
 
   LOG_DEBUG << "adding default compressor (" << bc.describe() << ")";
 
-  if (default_bc_) {
-    DWARFS_THROW(runtime_error, "default compressor registered more than once");
-  }
+  DWARFS_CHECK(!default_bc_, "default compressor registered more than once");
 
   default_bc_ = std::move(bc);
 }
@@ -1036,12 +1025,9 @@ void filesystem_writer_<LoggerPolicy>::add_category_compressor(
   LOG_DEBUG << "adding compressor (" << bc.describe() << ") for category "
             << cat;
 
-  if (!category_bc_.emplace(cat, std::move(bc)).second) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("compressor registered more than once for category {}",
-                    cat));
-  }
+  DWARFS_CHECK(
+      category_bc_.emplace(cat, std::move(bc)).second,
+      fmt::format("compressor registered more than once for category {}", cat));
 }
 
 template <typename LoggerPolicy>
@@ -1068,12 +1054,10 @@ void filesystem_writer_<LoggerPolicy>::add_section_compressor(
     }
   }
 
-  if (!section_bc_.emplace(type, std::move(bc)).second) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("compressor registered more than once for section type {}",
-                    get_friendly_section_name(type)));
-  }
+  DWARFS_CHECK(
+      section_bc_.emplace(type, std::move(bc)).second,
+      fmt::format("compressor registered more than once for section type {}",
+                  get_friendly_section_name(type)));
 }
 
 template <typename LoggerPolicy>
@@ -1103,9 +1087,7 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::configure(
     std::vector<fragment_category> const& expected_categories,
     size_t max_active_slots) {
-  if (merger_) {
-    DWARFS_THROW(runtime_error, "filesystem_writer already configured");
-  }
+  DWARFS_CHECK(!merger_, "filesystem_writer already configured");
 
   merger_ = std::make_unique<block_merger_type>(
       max_active_slots, options_.max_queue_size, expected_categories,
