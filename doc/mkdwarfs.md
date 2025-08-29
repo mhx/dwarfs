@@ -137,7 +137,8 @@ Most other options are concerned with compression tuning:
   give you an idea, using `-S 26` (i.e. 64 MiB blocks) with `-B 32` means
   that in the worst case, to read a single file of less than 1 MiB in size,
   the file system may have to decompress 2 GiB of data. You have been warned.
-  Passing `-B0` will completely disable duplicate segment search.
+  See [Virtual Block Size](#virtual-block-size) for more details. Passing
+  `-B0` will completely disable duplicate segment search.
 
 - `-W`, `--window-size=[*category*`::`]`*value*:
   Window size of cyclic hash used for segmenting. This is an exponent
@@ -267,7 +268,8 @@ Most other options are concerned with compression tuning:
   is unchanged, this will still re-order and re-compress *all* blocks. Implies
   `--recompress=all` and `--rebuild-metadata`. Note that changing the block
   size to a different value and then back to the original value is not guaranteed
-  to produce a bit-identical file system image.
+  to produce a bit-identical file system image. Also note that this will not
+  affect the [Virtual Block Size](#virtual-block-size) of the file system.
 
 - `--no-metadata-version-history`:
   By default, when rebuilding the metadata block, a small history entry will
@@ -732,6 +734,55 @@ constant. Since the default number of workers depends on the physical
 processor count, if you want images produced on different systems with
 different processor count to be bit-identical, you should explicitly
 set the number of segmenter workers.
+
+### Virtual Block Size
+
+The concept of "virtual block size" is useful when thinking about
+the resource requirements of a file system image. `mkdwarfs` already
+allows you to choose very large block sizes. While this is helpful
+for high compression ratios, it also increases the CPU and memory
+requirements when accessing files in the file system. For example,
+reading a 1,000 byte file from a DwarFS image with a block size of
+16 MiB will require decompressing *at least* one full 16 MiB block.
+If the file is split across two blocks, *both* blocks will have to be
+decompressed. These blocks will end up in the cache, in case they
+are needed for subsequent reads, but if this is the only file you're
+going to read, that is a lot of wasted effort.
+
+Usually, you won't really notice this, as decompression is *really*
+fast. However, if you're doing a lot of random reads of (small) files
+that are spread across a large number of blocks and these blocks don't
+fit into the cache, you will notice a significant slowdown, as the
+same blocks will have to be decompressed over and over again.
+
+So far, this is quite straightforward. It gets more interesting when
+you start to also use `--max-lookback-blocks` when building a DwarFS
+image. This option, while tempting to use to get better compression,
+will increase the "virtual" size of file system blocks. Specifying
+`--max-lookback-blocks=4` means that each file can potentially refer
+to chunks of data in up to 4 blocks, even if it is itself much smaller
+than a single block. Combining this with a block size of 16 MiB means
+that each file access will potentially require decompressing up to
+64 MiB of data. This is the "virtual block size" of the file system.
+So, while a combination of `-S26 -B16` may look quite innocent, it
+actually produces a file system with a virtual block size of 1 GiB,
+meaning a single file access can potentially completely exhaust the
+cache.
+
+So please keep this concept in mind when choosing the options to build
+your file system image. Something like `-S26 -B16` *may* be totally
+fine if you have plenty of RAM and your primary goal is for the image
+to be as small as possible. However, if you want a file system image
+that is optimized for random access speed, you should stick to smaller
+(virtual) block sizes.
+
+Also keep in mind that you cannot change the virtual block size of an
+existing file system image. While you can change the physical block
+size using `--change-block-size`, e.g. go from 16 MiB to 1 MiB, the
+virtual block size will remain the same since a file can still refer
+to data in all of the 16 blocks that the original 16 MiB block was
+split into. The resulting file system will be very similar to one that
+was built with a block size of 1 MiB and 16 blocks of lookback.
 
 ## FILTER RULES
 
