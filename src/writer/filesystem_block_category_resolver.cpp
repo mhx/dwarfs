@@ -23,6 +23,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/error.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 
 namespace dwarfs::writer {
@@ -31,10 +32,8 @@ filesystem_block_category_resolver::filesystem_block_category_resolver(
     std::vector<std::string> categories)
     : categories_{std::move(categories)} {
   for (auto const& [i, name] : ranges::views::enumerate(categories_)) {
-    if (!category_map_.emplace(name, i).second) {
-      throw std::runtime_error(
-          fmt::format("duplicate category name: '{}'", name));
-    }
+    DWARFS_CHECK(category_map_.emplace(name, i).second,
+                 fmt::format("duplicate category name: '{}'", name));
   }
 }
 
