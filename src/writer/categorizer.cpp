@@ -228,7 +228,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
     if (catmap_.emplace(cat, categories_.size()).second) {
       categories_.emplace_back(cat, categorizer_index);
     } else {
-      LOG_WARN << "duplicate category: " << cat;
+      DWARFS_PANIC(fmt::format("internal error: duplicate category: {}", cat));
     }
   }
 
