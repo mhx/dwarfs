@@ -926,10 +926,17 @@ TEST_P(mkdwarfs_progress_test, basic) {
   std::string mode{GetParam()};
   std::string const image_file = "test.dwarfs";
 
-  std::vector<std::string> args{
-      "-i",  "/",  "-o",           image_file,     "--file-hash=sha512",
-      "-l4", "-C", "zstd:level=5", "--categorize", "--progress",
-      mode};
+  std::vector<std::string> args{"-i",
+                                "/",
+                                "-o",
+                                image_file,
+                                "-l1",
+                                "--file-hash=sha512",
+                                "--categorize",
+                                "--incompressible-zstd-level=19",
+                                "--order=nilsimsa",
+                                "--progress",
+                                mode};
 
   auto t = mkdwarfs_tester::create_empty();
 
@@ -941,7 +948,7 @@ TEST_P(mkdwarfs_progress_test, basic) {
 #ifdef DWARFS_TEST_CROSS_COMPILE
       .avg_size = 2.0 * 1024 * 1024,
 #else
-      .avg_size = 20.0 * 1024 * 1024,
+      .avg_size = 16.0 * 1024 * 1024,
 #endif
       .dimension = 2,
 #ifndef _WIN32

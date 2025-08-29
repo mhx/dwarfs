@@ -222,7 +222,7 @@ void console_writer::update(writer_progress& prog, bool last) {
       auto bytes = sp.bytes.load();
       auto bytes_per_second = (bytes << 20) / usec;
       sp.chunk_size.store(std::min(
-          UINT64_C(1) << 25,
+          UINT64_C(1) << 24,
           std::max(UINT64_C(1) << 15, std::bit_ceil(bytes_per_second / 32))));
       sp.bytes_per_sec.store(bytes_per_second);
     }
