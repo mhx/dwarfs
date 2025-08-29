@@ -1485,10 +1485,9 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::frozen_analysis) ||
-      opts.features.has(fsinfo_feature::frozen_analysis_details)) {
+      opts.features.has(fsinfo_feature::frozen_details)) {
     metadata_analyzer(meta_, data_)
-        .print_frozen(
-            os, opts.features.has(fsinfo_feature::frozen_analysis_details));
+        .print_frozen(os, opts.features.has(fsinfo_feature::frozen_details));
   }
 
   if (opts.features.has(fsinfo_feature::frozen_layout)) {

@@ -48,7 +48,7 @@ constexpr std::array level_features{
     /* 2 */
     fsinfo_features({fsinfo_feature::frozen_analysis, fsinfo_feature::history}),
     /* 3 */
-    fsinfo_features({fsinfo_feature::frozen_analysis_details,
+    fsinfo_features({fsinfo_feature::frozen_details,
                      fsinfo_feature::metadata_details,
                      fsinfo_feature::section_details}),
     /* 4 */
@@ -69,7 +69,7 @@ constexpr std::array<std::pair<fsinfo_feature, std::string_view>,
         FSINFO_FEATURE_PAIR_(metadata_details),
         FSINFO_FEATURE_PAIR_(metadata_full_dump),
         FSINFO_FEATURE_PAIR_(frozen_analysis),
-        FSINFO_FEATURE_PAIR_(frozen_analysis_details),
+        FSINFO_FEATURE_PAIR_(frozen_details),
         FSINFO_FEATURE_PAIR_(frozen_layout),
         FSINFO_FEATURE_PAIR_(schema_raw_dump),
         FSINFO_FEATURE_PAIR_(directory_tree),
