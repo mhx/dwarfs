@@ -298,8 +298,8 @@ void filesystem_parser::find_index() {
   index_.resize(section_count);
 
   ::memcpy(tmp.data(), index.data(), index.size());
-  std::transform(tmp.begin(), tmp.end(), index_.begin(),
-                 [](auto const& v) { return v.load(); });
+  std::ranges::transform(tmp, index_.begin(),
+                         [](auto const& v) { return v.load(); });
 
   // index entries must be sorted by offset
   if (!std::ranges::is_sorted(index_, [](auto const a, auto const b) {

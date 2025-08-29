@@ -362,7 +362,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
   template <size_t Bits, typename BitsType>
   void order_impl(
-      receiver<index_type>&& rec, index_type idx,
+      receiver<index_type>&& rec, index_type index,
       basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
