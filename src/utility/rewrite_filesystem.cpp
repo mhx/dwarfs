@@ -275,11 +275,11 @@ void rewrite_filesystem(
   auto& writer = fs_writer.get_internal();
 
   if (opts.recompress_block) {
-    size_t block_no{0};
     parser->rewind();
 
     {
       auto tv = LOG_TIMED_VERBOSE;
+      size_t block_no{0};
 
       while (auto s = parser->next_section()) {
         if (s->type() == section_type::BLOCK) {
