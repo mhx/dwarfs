@@ -948,6 +948,11 @@ TEST_F(mkdwarfs_main_test, unknown_file_hash) {
   EXPECT_THAT(err(), ::testing::HasSubstr("unknown file hash function"));
 }
 
+TEST_F(mkdwarfs_main_test, unknown_categorizer) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--categorize=grmpf"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("unknown categorizer: grmpf"));
+}
+
 TEST_F(mkdwarfs_main_test, invalid_filter_debug_mode) {
   EXPECT_NE(0, run({"-i", "/", "-o", "-", "--debug-filter=grmpf"}));
   EXPECT_THAT(err(), ::testing::HasSubstr("invalid filter debug mode"));
