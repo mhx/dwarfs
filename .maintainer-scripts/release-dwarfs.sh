@@ -165,7 +165,7 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
       _fuse_extract_config="clang-minsize-musl-minimal-lto"
       ;;
 
-    risv64)
+    riscv64)
       _tarball_config="clang-minsize-musl-libressl-lto"
       _universal_config="clang-minsize-musl-libressl-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
