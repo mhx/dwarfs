@@ -81,7 +81,7 @@ std::ostream& operator<<(std::ostream& os, endianness e) {
     os << "little";
     break;
   default:
-    throw std::runtime_error("internal error: unhandled endianness value");
+    DWARFS_PANIC("internal error: unhandled endianness value");
   }
   return os;
 }
@@ -112,7 +112,7 @@ std::ostream& operator<<(std::ostream& os, signedness e) {
     os << "unsigned";
     break;
   default:
-    throw std::runtime_error("internal error: unhandled signedness value");
+    DWARFS_PANIC("internal error: unhandled signedness value");
   }
   return os;
 }
@@ -138,7 +138,7 @@ std::ostream& operator<<(std::ostream& os, padding e) {
     os << "msb";
     break;
   default:
-    throw std::runtime_error("internal error: unhandled padding value");
+    DWARFS_PANIC("internal error: unhandled padding value");
   }
   return os;
 }
