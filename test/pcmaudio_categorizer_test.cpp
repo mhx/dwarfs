@@ -514,6 +514,26 @@ TEST_F(pcmaudio_error_test_wav, unknown_format_code) {
   EXPECT_EQ(0, frag.size());
 }
 
+TEST_F(pcmaudio_error_test_wav, unexpected_end_of_file) {
+  wav_file_hdr.size -= 5;
+
+  pcmfile_builder builder;
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 16);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
+  builder.add_bytes(11, 42);
+
+  auto frag = categorize(builder);
+  auto const& log = logger.get_log();
+
+  ASSERT_EQ(1, log.size()) << logger.as_string();
+
+  EXPECT_THAT(log.front().output,
+              testing::HasSubstr("[WAV] \"test.wav\": unexpected end of file "
+                                 "(pos=60, hdr.size=16, end=55)"));
+}
+
 TEST_F(pcmaudio_error_test_wav, unexpected_fmt_chunk_size) {
   wav_file_hdr.size += 4;
   wav_fmt_chunk_hdr.size += 4;
