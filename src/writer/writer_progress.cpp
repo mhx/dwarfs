@@ -35,9 +35,6 @@ namespace dwarfs::writer {
 writer_progress::writer_progress()
     : prog_{std::make_unique<internal::progress>()} {}
 
-writer_progress::writer_progress(update_function_type func)
-    : writer_progress(std::move(func), std::chrono::seconds(1)) {}
-
 writer_progress::writer_progress(update_function_type func,
                                  std::chrono::microseconds interval)
     : prog_{std::make_unique<internal::progress>()}

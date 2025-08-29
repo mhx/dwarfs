@@ -43,7 +43,6 @@ class writer_progress {
   using update_function_type = std::function<void(writer_progress&, bool)>;
 
   writer_progress();
-  explicit writer_progress(update_function_type func);
   writer_progress(update_function_type func,
                   std::chrono::microseconds interval);
 
