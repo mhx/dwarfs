@@ -860,6 +860,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
 namespace {
 
 std::array const fragment_orders{
+    std::pair{"none"sv, "a/c,b,c/a,c/d,e"sv},
     std::pair{"path"sv, "a/c,b,c/a,c/d,e"sv},
     std::pair{"revpath"sv, "c/a,b,a/c,c/d,e"sv},
     std::pair{"explicit:file=order.dat"sv, "c/d,b,a/c,e,c/a"sv},
@@ -888,7 +889,7 @@ TEST_P(fragment_order_test, basic) {
   t.os->add_file("c/d", 16, true);
   t.os->add_file("e", 32, true);
 
-  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file,
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--log-level=verbose",
                       "--order=" + std::string{option}, "-B0"}))
       << t.err();
 
@@ -907,8 +908,15 @@ TEST_P(fragment_order_test, basic) {
 
   EXPECT_EQ(file_offsets.size(), 5);
 
-  std::ranges::sort(file_offsets, std::less{},
-                    &std::pair<std::string, size_t>::second);
+  if (option == "none") {
+    // just make sure everything is there, order doesn't matter
+    std::ranges::sort(file_offsets, std::less{},
+                      &std::pair<std::string, size_t>::first);
+  } else {
+    std::ranges::sort(file_offsets, std::less{},
+                      &std::pair<std::string, size_t>::second);
+  }
+
   auto got = file_offsets | ranges::views::keys | ranges::views::join(","sv) |
              ranges::to<std::string>();
 

@@ -898,15 +898,34 @@ TEST_F(mkdwarfs_main_test, order_invalid) {
   EXPECT_THAT(err(), ::testing::HasSubstr("invalid inode order mode"));
 }
 
+TEST_F(mkdwarfs_main_test, order_does_not_support_options) {
+  EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=path:foo=42"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "inode order mode 'path' does not support options"));
+}
+
+TEST_F(mkdwarfs_main_test, order_explicit_failed_to_open_file) {
+  EXPECT_NE(0,
+            run({"-i", "/", "-o", "-", "--order=explicit:file=explicit.txt"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "failed to open explicit order file 'explicit.txt':"));
+}
+
 TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_option) {
   EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
   EXPECT_THAT(err(), ::testing::HasSubstr(
                          "invalid option(s) for choice nilsimsa: grmpf"));
 }
 
-TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_value) {
+TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_childre_value) {
   EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
   EXPECT_THAT(err(), ::testing::HasSubstr("invalid max-children value: 0"));
+}
+
+TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_cluster_size_value) {
+  EXPECT_NE(0,
+            run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=0"}));
+  EXPECT_THAT(err(), ::testing::HasSubstr("invalid max-cluster-size value: 0"));
 }
 
 TEST_F(mkdwarfs_main_test, order_nilsimsa_cannot_parse_value) {
