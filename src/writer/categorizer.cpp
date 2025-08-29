@@ -369,10 +369,8 @@ void categorizer_registry::register_factory(
     std::unique_ptr<categorizer_factory const>&& factory) {
   auto name = factory->name();
 
-  if (!factories_.emplace(name, std::move(factory)).second) {
-    std::cerr << "categorizer factory name conflict (" << name << "\n";
-    std::abort();
-  }
+  DWARFS_CHECK(factories_.emplace(name, std::move(factory)).second,
+               fmt::format("categorizer factory name conflict: {}", name));
 }
 
 std::unique_ptr<categorizer> categorizer_registry::create(
