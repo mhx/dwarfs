@@ -996,7 +996,7 @@ TEST(mkdwarfs_test, hotness_categorizer) {
   t.fa->set_file("hot", hot_files.str());
 
   ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize=hotness",
-                      "--hotness-list=hot", "-B0"}))
+                      "--hotness-list=hot", "-B0", "-l1", "--log-level=debug"}))
       << t.err();
 
   auto fs = t.fs_from_file(image_file);
@@ -1021,4 +1021,54 @@ TEST(mkdwarfs_test, hotness_categorizer) {
     auto info = fs.get_inode_info(dev->inode());
     EXPECT_EQ(info["chunks"][0]["category"].get<std::string>(), "<default>");
   }
+}
+
+TEST(mkdwarfs_test, hotness_categorizer_cannot_open_hotness_file) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize=hotness",
+                      "--hotness-list=hot", "-B0"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to open file 'hot':"));
+}
+
+TEST(mkdwarfs_test, hotness_categorizer_empty_hotness_list) {
+  mkdwarfs_tester t;
+
+  t.fa->set_file("hot", "");
+
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "--categorize=hotness",
+                      "--hotness-list=hot", "-B0", "-l1"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("hotness categorizer: empty hotness list"));
+}
+
+TEST(mkdwarfs_test, hotness_categorizer_no_hotness_list_provided) {
+  mkdwarfs_tester t;
+
+  EXPECT_EQ(0,
+            t.run({"-i", "/", "-o", "-", "--categorize=hotness", "-B0", "-l1"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "hotness categorizer: no hotness list provided"));
+}
+
+TEST(mkdwarfs_test, hotness_categorizer_duplicate_path_in_hotness_list) {
+  std::ostringstream hot_files;
+  hot_files << "foo.pl" << '\n' << "ipsum.txt" << '\n' << "foo.pl" << '\n';
+
+  mkdwarfs_tester t;
+
+  t.fa->set_file("hot", hot_files.str());
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize=hotness",
+                      "--hotness-list=hot", "-B0"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("duplicate path in hotness list: 'foo.pl'"));
 }
