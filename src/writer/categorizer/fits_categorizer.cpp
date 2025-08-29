@@ -60,7 +60,7 @@ struct fmt::formatter<std::endian> : formatter<std::string_view> {
       sv = "big";
       break;
     default:
-      throw std::runtime_error("internal error: unhandled endianness value");
+      DWARFS_PANIC("internal error: unhandled endianness value");
     }
     return formatter<std::string_view>::format(sv, ctx);
   }
