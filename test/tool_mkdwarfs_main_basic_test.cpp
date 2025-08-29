@@ -162,7 +162,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
 
 TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
   std::string const image_file = "test.dwarfs";
-  std::string const input_list = "ipsum.py\nempty\n";
+  std::string const input_list = "ipsum.py\nipsum.py\nempty\n";
   mkdwarfs_tester t;
 
   t.iol->set_in(input_list);
@@ -170,6 +170,10 @@ TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
   ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
                       "--log-level=trace"}))
       << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "skipping duplicate entry 'ipsum.py' in input list"));
 
   std::ostringstream oss;
   t.add_stream_logger(oss, logger::DEBUG);
