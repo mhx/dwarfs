@@ -1240,9 +1240,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.inode.categorizer_mgr =
         std::make_shared<writer::categorizer_manager>(lgr, path);
 
-    for (auto const& name : categorizers) {
-      options.inode.categorizer_mgr->add(
-          catreg.create(lgr, name, vm, iol.file));
+    try {
+      for (auto const& name : categorizers) {
+        options.inode.categorizer_mgr->add(
+            catreg.create(lgr, name, vm, iol.file));
+      }
+    } catch (std::exception const& e) {
+      LOG_ERROR << "could not create categorizer: " << e.what();
+      return 1;
     }
   }
 
