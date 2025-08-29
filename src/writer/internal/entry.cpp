@@ -206,10 +206,7 @@ std::string_view file::hash() const {
 }
 
 void file::set_inode(std::shared_ptr<inode> ino) {
-  if (inode_) {
-    DWARFS_THROW(runtime_error, "inode already set for file");
-  }
-
+  DWARFS_CHECK(!inode_, "inode already set for file");
   inode_ = std::move(ino);
 }
 
@@ -218,7 +215,7 @@ std::shared_ptr<inode> file::get_inode() const { return inode_; }
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access const& /*os*/, progress& /*prog*/) {
-  DWARFS_THROW(runtime_error, "file::scan() without hash_alg is not used");
+  DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
 
 void file::scan(mmif* mm, progress& prog,
