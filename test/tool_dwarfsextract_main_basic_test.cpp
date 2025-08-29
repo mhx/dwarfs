@@ -97,6 +97,22 @@ TEST(dwarfsextract_test, auto_format) {
   EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar)) << ::archive_error_string(ar);
 }
 
+TEST(dwarfsextract_test, auto_format_stdout) {
+  auto t = dwarfsextract_tester::create_with_image();
+  EXPECT_NE(0, t.run({"-i", "image.dwarfs", "-f", "auto"})) << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("auto format requires output path"));
+}
+
+TEST(dwarfsextract_test, auto_format_no_filters) {
+  auto t = dwarfsextract_tester::create_with_image();
+  EXPECT_NE(0, t.run({"-i", "image.dwarfs", "-f", "auto", "-o", "image.tar",
+                      "--format-filters", "zstd"}))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("auto format does not support filters"));
+}
+
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
