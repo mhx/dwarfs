@@ -621,6 +621,8 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     }
 
     if (auto pe = pd->find(relpath)) {
+      LOG_INFO << "skipping duplicate entry '"
+               << path_to_utf8_string_sanitized(relpath) << "' in input list";
       continue;
     }
 
