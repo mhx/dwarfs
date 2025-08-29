@@ -47,7 +47,7 @@ namespace {
 
 class mmap_block {
  public:
-  mmap_block(size_t size)
+  explicit mmap_block(size_t size)
       : data_{allocate(size)}
       , size_{size} {}
 
@@ -166,7 +166,8 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
 class block_cache_byte_buffer_factory_impl
     : public byte_buffer_factory_interface {
  public:
-  block_cache_byte_buffer_factory_impl(block_cache_allocation_mode mode)
+  explicit block_cache_byte_buffer_factory_impl(
+      block_cache_allocation_mode mode)
       : mode_{mode} {}
 
   mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const override {

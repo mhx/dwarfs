@@ -40,7 +40,7 @@ namespace {
 
 class bench_chunkable : public dwarfs::writer::internal::chunkable {
  public:
-  bench_chunkable(std::vector<uint8_t> data)
+  explicit bench_chunkable(std::vector<uint8_t> data)
       : data_{std::move(data)} {}
 
   dwarfs::writer::internal::file const* get_file() const override {

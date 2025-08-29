@@ -40,7 +40,7 @@ namespace {
 class mock_cached_block : public reader::internal::cached_block {
  public:
   mock_cached_block() = default;
-  mock_cached_block(std::span<uint8_t const> span)
+  explicit mock_cached_block(std::span<uint8_t const> span)
       : span_{span} {}
 
   size_t range_end() const override { return span_ ? span_->size() : 0; }

@@ -37,7 +37,9 @@ namespace {
 
 class test_input_stream : public input_stream {
  public:
-  test_input_stream(std::string content) { is_.str(std::move(content)); }
+  explicit test_input_stream(std::string content) {
+    is_.str(std::move(content));
+  }
 
   std::istream& is() override { return is_; }
 
