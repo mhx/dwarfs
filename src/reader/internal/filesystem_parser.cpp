@@ -45,34 +45,67 @@ namespace dwarfs::reader::internal {
 
 using namespace dwarfs::internal;
 
+namespace {
+
+constexpr std::array<char, 7> kMagic{
+    {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
+
+inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
+  size_t const n = haystack.size();
+
+  if (n < kMagic.size()) {
+    return n;
+  }
+
+  auto const* base = reinterpret_cast<unsigned char const*>(haystack.data());
+  auto const* p = base + 6;         // gate on major version
+  auto const* limit = base + n - 1; // inclusive end for memchr
+
+  int const gate = static_cast<int>(kMagic[6]);
+
+  while (p <= limit) {
+    auto const* hit = std::memchr(p, gate, static_cast<size_t>(limit - p + 1));
+
+    if (!hit) {
+      break;
+    }
+
+    auto const* i = static_cast<unsigned char const*>(hit);
+    auto const* cand = i - 6;
+
+    if (cand[0] == kMagic[0] && cand[1] == kMagic[1] && cand[2] == kMagic[2] &&
+        cand[3] == kMagic[3] && cand[4] == kMagic[4] && cand[5] == kMagic[5]) {
+      return static_cast<size_t>(cand - base);
+    }
+
+    p = i + 1;
+  }
+
+  return n;
+}
+
+} // namespace
+
 file_off_t
 filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
   if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
     return image_offset;
   }
 
-  static constexpr std::array<char, 7> magic{
-      {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
-
   file_off_t start = 0;
   for (;;) {
-    if (start + magic.size() >= mm.size()) {
+    if (start + kMagic.size() >= mm.size()) {
       break;
     }
 
-    auto ss = mm.span<char>(start);
-#if __cpp_lib_boyer_moore_searcher >= 201603
-    auto searcher = std::boyer_moore_searcher(magic.begin(), magic.end());
-#else
-    auto searcher = std::default_searcher(magic.begin(), magic.end());
-#endif
-    auto it = std::search(ss.begin(), ss.end(), searcher);
+    auto ss = mm.span<std::byte>(start);
+    auto dp = search_dwarfs_header(ss);
 
-    if (it == ss.end()) {
+    if (dp >= ss.size()) {
       break;
     }
 
-    file_off_t pos = start + std::distance(ss.begin(), it);
+    file_off_t pos = start + dp;
 
     if (pos + sizeof(file_header) >= mm.size()) {
       break;
@@ -138,7 +171,7 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
 
           auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
 
-          if (::memcmp(ps, magic.data(), magic.size()) == 0 and
+          if (::memcmp(ps, kMagic.data(), kMagic.size()) == 0 and
               reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
             return pos;
           }
@@ -146,7 +179,7 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
       }
     }
 
-    start = pos + magic.size();
+    start = pos + kMagic.size();
   }
 
   DWARFS_THROW(runtime_error, "no filesystem found");
