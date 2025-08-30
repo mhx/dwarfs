@@ -1,3 +1,16 @@
+- Idea for `mmap` refactoring: add a layer of abstraction for getting a
+  "block" of data. That is, instead of the current `mmap` instance, well
+  have something like a "file view" with an interface that allows to get
+  a block of data from the file, which we can subsequently retrieve a
+  `std::span` from. The block will be refcounted and may be just a cheap
+  pointer into a large `mmap` block, or a (still relatively cheap) memory
+  mapping of *just that block* with the file, or it may be allocated memory
+  that is filled by reading from a file, reading from an archive, whatever.
+  That should make sure we don't really break any existing interfaces, e.g.
+  unit tests. It's only that we switch from a "whole-file" view to a chunked
+  view of the file internally.
+  This API could also be used to abstract out sparse files.
+
 - More "real" benchmarks
 
 - Entry v2 - more memory efficient implementation
