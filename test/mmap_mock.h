@@ -21,73 +21,23 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <filesystem>
+#include <string>
+
 #include <dwarfs/file_view.h>
 
-namespace dwarfs {
-namespace test {
+namespace dwarfs::test {
 
-class mmap_mock : public file_view::impl {
- public:
-  mmap_mock(std::string data)
-      : mmap_mock{std::move(data), "<mock-file>"} {}
+// TODO: see which of those we actually need
 
-  mmap_mock(std::string data, std::filesystem::path const& path)
-      : data_{std::move(data)}
-      , path_{path} {}
+file_view make_mock_file_view(std::string data);
 
-  mmap_mock(std::string const& data, size_t size)
-      : mmap_mock{data, size, "<mock-file>"} {}
+file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path);
 
-  mmap_mock(std::string const& data, size_t size,
-            std::filesystem::path const& path)
-      : data_{data, 0, std::min(size, data.size())}
-      , path_{path} {}
+file_view make_mock_file_view(std::string const& data, size_t size);
 
-  void const* addr() const override { return data_.data(); }
+file_view make_mock_file_view(std::string const& data, size_t size,
+                              std::filesystem::path const& path);
 
-  size_t size() const override { return data_.size(); }
-
-  std::filesystem::path const& path() const override { return path_; }
-
-  std::error_code lock(file_off_t, size_t) const override {
-    return std::error_code();
-  }
-  std::error_code release(file_off_t, size_t) const override {
-    return std::error_code();
-  }
-  std::error_code release_until(file_off_t) const override {
-    return std::error_code();
-  }
-
-  std::error_code advise(advice) const override { return std::error_code(); }
-  std::error_code advise(advice, file_off_t, size_t) const override {
-    return std::error_code();
-  }
-
- private:
-  std::string const data_;
-  std::filesystem::path const path_;
-};
-
-// TODO: clean this stuff up
-
-inline file_view make_mock_file_view(std::string data) {
-  return file_view{std::make_shared<mmap_mock>(std::move(data))};
-}
-
-inline file_view
-make_mock_file_view(std::string data, std::filesystem::path const& path) {
-  return file_view{std::make_shared<mmap_mock>(std::move(data), path)};
-}
-
-inline file_view make_mock_file_view(std::string const& data, size_t size) {
-  return file_view{std::make_shared<mmap_mock>(data, size)};
-}
-
-inline file_view make_mock_file_view(std::string const& data, size_t size,
-                                     std::filesystem::path const& path) {
-  return file_view{std::make_shared<mmap_mock>(data, size, path)};
-}
-
-} // namespace test
-} // namespace dwarfs
+} // namespace dwarfs::test

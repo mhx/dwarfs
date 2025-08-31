@@ -468,6 +468,7 @@ add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers
+    test/mmap_mock.cpp
     test/test_helpers.cpp
     test/test_iolayer.cpp
     test/loremipsum.cpp
@@ -504,6 +505,7 @@ if(WITH_TESTS)
       test/error_test.cpp
       test/file_access_test.cpp
       test/file_utils_test.cpp
+      test/file_view_test.cpp
       test/filesystem_test.cpp
       test/filesystem_writer_test.cpp
       test/fragment_category_test.cpp

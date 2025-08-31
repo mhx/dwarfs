@@ -485,7 +485,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     std::shared_ptr<performance_monitor const> const& perfmon)
     : LOG_PROXY_INIT(lgr)
     , os_{os}
-    , mm_{std::move(mm)}
+    , mm_{mm}
     , image_offset_{filesystem_parser::find_image_offset(mm_,
                                                          options.image_offset)}
     , options_{options} // clang-format off
@@ -1453,7 +1453,7 @@ filesystem_v2_lite::filesystem_v2_lite(
 
 filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
                                        file_view const& mm)
-    : filesystem_v2_lite(lgr, os, std::move(mm), filesystem_options()) {}
+    : filesystem_v2_lite(lgr, os, mm, filesystem_options()) {}
 
 filesystem_v2_lite::filesystem_v2_lite(
     logger& lgr, os_access const& os, file_view const& mm,
@@ -1462,8 +1462,8 @@ filesystem_v2_lite::filesystem_v2_lite(
     : filesystem_v2_lite(
           make_unique_logging_object<filesystem_v2_lite::impl_lite,
                                      internal::filesystem_lite_,
-                                     logger_policies>(lgr, os, std::move(mm),
-                                                      options, perfmon)) {}
+                                     logger_policies>(lgr, os, mm, options,
+                                                      perfmon)) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
@@ -1478,7 +1478,7 @@ filesystem_v2::filesystem_v2(
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              file_view const& mm)
-    : filesystem_v2(lgr, os, std::move(mm), filesystem_options()) {}
+    : filesystem_v2(lgr, os, mm, filesystem_options()) {}
 
 filesystem_v2::filesystem_v2(
     logger& lgr, os_access const& os, file_view const& mm,
@@ -1487,7 +1487,7 @@ filesystem_v2::filesystem_v2(
     : filesystem_v2_lite(
           make_unique_logging_object<
               filesystem_v2::impl, internal::filesystem_full_, logger_policies>(
-              lgr, os, std::move(mm), options, perfmon)) {}
+              lgr, os, mm, options, perfmon)) {}
 
 int filesystem_v2::identify(logger& lgr, os_access const& os,
                             file_view const& mm, std::ostream& output,
@@ -1496,7 +1496,7 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
   filesystem_options fsopts;
   fsopts.metadata.enable_nlink = true;
   fsopts.image_offset = image_offset;
-  filesystem_v2 fs(lgr, os, std::move(mm), fsopts);
+  filesystem_v2 fs(lgr, os, mm, fsopts);
 
   auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
                                          : filesystem_check_level::CHECKSUM,

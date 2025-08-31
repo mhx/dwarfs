@@ -28,11 +28,15 @@
 
 #pragma once
 
-#include <cstdint>
+#include <dwarfs/extent_kind.h>
+#include <dwarfs/types.h>
 
-namespace dwarfs {
+namespace dwarfs::detail {
 
-using file_off_t = int64_t;
-using file_size_t = int64_t;
+struct file_extent_info {
+  extent_kind kind;
+  file_off_t offset;
+  file_size_t size;
+};
 
-} // namespace dwarfs
+} // namespace dwarfs::detail

@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 #endif
   {
     std::filesystem::path p(argv[1]);
-    auto mm = file_view{std::make_shared<mmap>(p)};
+    auto mm = create_mmap_file_view(p);
     auto job = catmgr->job(p);
     job.set_total_size(mm.size());
     job.categorize_random_access(mm.span());
