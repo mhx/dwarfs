@@ -32,7 +32,6 @@
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 
@@ -54,7 +53,7 @@ TEST(filesystem, metadata_symlink_win) {
   test::test_logger lgr;
   test::os_access_mock os;
 
-  auto mm = std::make_shared<dwarfs::mmap>(test_dir / "winlink.dwarfs");
+  auto mm = test::make_real_file_view(test_dir / "winlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
   auto dev1 = fs.find("link.txt");
@@ -131,7 +130,7 @@ TEST(filesystem, metadata_symlink_unix) {
   test::test_logger lgr;
   test::os_access_mock os;
 
-  auto mm = std::make_shared<dwarfs::mmap>(test_dir / "unixlink.dwarfs");
+  auto mm = test::make_real_file_view(test_dir / "unixlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
   auto dev1 = fs.find("link.txt");
@@ -235,7 +234,7 @@ TEST(filesystem, find_image_offset) {
           reader::filesystem_options const& opt = {
               .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO}) {
         return reader::filesystem_v2(
-            lgr, os, std::make_shared<test::mmap_mock>(std::move(data)), opt);
+            lgr, os, test::make_mock_file_view(std::move(data)), opt);
       };
 
   auto throws_rt_error = [](auto substr) {
@@ -248,7 +247,7 @@ TEST(filesystem, find_image_offset) {
 
   std::string valid_fs;
   {
-    dwarfs::mmap mm(test_dir / "unixlink.dwarfs");
+    auto mm = test::make_real_file_view(test_dir / "unixlink.dwarfs");
     auto data = mm.span<char>();
     valid_fs.assign(data.data(), data.size());
   }
@@ -282,10 +281,10 @@ TEST(filesystem, find_image_offset_v1) {
   auto const data = read_file(test_dir / "compat" / "compat-v0.2.0.dwarfs");
 
   EXPECT_NO_THROW(
-      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+      reader::filesystem_v2(lgr, os, test::make_mock_file_view(data)));
 
   auto const truncated = data.substr(0, 16);
-  auto mm = std::make_shared<test::mmap_mock>(truncated);
+  auto mm = test::make_mock_file_view(truncated);
 
   EXPECT_THAT([&] { reader::filesystem_v2(lgr, os, mm); },
               ::testing::ThrowsMessage<runtime_error>(
@@ -318,12 +317,11 @@ TEST(filesystem, check_valid_image) {
   auto const data = read_file(test_dir / "compat" / "compat-v0.9.10.dwarfs");
 
   EXPECT_NO_THROW(
-      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+      reader::filesystem_v2(lgr, os, test::make_mock_file_view(data)));
 
   EXPECT_THAT(
       [&] {
-        reader::filesystem_v2(lgr, os,
-                              std::make_shared<test::mmap_mock>("DWARFS"));
+        reader::filesystem_v2(lgr, os, test::make_mock_file_view("DWARFS"));
       },
       ::testing::ThrowsMessage<runtime_error>(
           ::testing::HasSubstr("filesystem image too small")));
@@ -333,10 +331,7 @@ TEST(filesystem, check_valid_image) {
     tmp[6] = 0x01; // unsupported major version
 
     EXPECT_THAT(
-        [&] {
-          reader::filesystem_v2(lgr, os,
-                                std::make_shared<test::mmap_mock>(tmp));
-        },
+        [&] { reader::filesystem_v2(lgr, os, test::make_mock_file_view(tmp)); },
         ::testing::ThrowsMessage<runtime_error>(
             ::testing::HasSubstr("unsupported major version")));
   }
@@ -346,10 +341,7 @@ TEST(filesystem, check_valid_image) {
     ++tmp[7]; // unsupported minor version
 
     EXPECT_THAT(
-        [&] {
-          reader::filesystem_v2(lgr, os,
-                                std::make_shared<test::mmap_mock>(tmp));
-        },
+        [&] { reader::filesystem_v2(lgr, os, test::make_mock_file_view(tmp)); },
         ::testing::ThrowsMessage<runtime_error>(
             ::testing::HasSubstr("unsupported minor version")));
   }
@@ -361,7 +353,7 @@ TEST(filesytem, check_section_index) {
   auto const data = read_file(test_dir / "compat" / "compat-v0.9.10.dwarfs");
 
   EXPECT_NO_THROW(
-      reader::filesystem_v2(lgr, os, std::make_shared<test::mmap_mock>(data)));
+      reader::filesystem_v2(lgr, os, test::make_mock_file_view(data)));
 
   auto ii = data.rfind("DWARFS");
   ASSERT_NE(ii, std::string::npos);
@@ -406,8 +398,8 @@ TEST(filesytem, check_section_index) {
     std::memcpy(buf.data(), &tmp, sizeof(tmp));
     std::memcpy(buf.data() + sizeof(tmp), offptr, offlen);
 
-    return reader::filesystem_v2(
-        lgr, os, std::make_shared<test::mmap_mock>(data_noindex + buf));
+    return reader::filesystem_v2(lgr, os,
+                                 test::make_mock_file_view(data_noindex + buf));
   };
 
   EXPECT_TRUE(make_fs().has_valid_section_index());

@@ -36,7 +36,7 @@ namespace dwarfs::internal {
 namespace {
 
 template <typename T>
-bool check_impl(T const& section, mmif const& mm) {
+bool check_impl(T const& section, file_view const& mm) {
   if (auto const cs_val = section.xxh3_64_value()) {
     if (auto const cs_span = section.checksum_span(mm)) {
       return checksum::verify(checksum::xxh3_64, cs_span->data(),

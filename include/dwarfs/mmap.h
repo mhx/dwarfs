@@ -32,11 +32,12 @@
 
 #include <boost/iostreams/device/mapped_file.hpp>
 
-#include <dwarfs/mmif.h>
+#include <dwarfs/file_view.h>
 
 namespace dwarfs {
 
-class mmap : public mmif {
+// TODO: refactor and move to implementation; nobody needs to see this
+class mmap : public file_view::impl {
  public:
   explicit mmap(std::filesystem::path const& path);
   mmap(std::filesystem::path const& path, size_t size);
@@ -44,12 +45,13 @@ class mmap : public mmif {
   void const* addr() const override;
   size_t size() const override;
 
-  std::error_code lock(file_off_t offset, size_t size) override;
-  std::error_code release(file_off_t offset, size_t size) override;
-  std::error_code release_until(file_off_t offset) override;
+  std::error_code lock(file_off_t offset, size_t size) const override;
+  std::error_code release(file_off_t offset, size_t size) const override;
+  std::error_code release_until(file_off_t offset) const override;
 
-  std::error_code advise(advice adv) override;
-  std::error_code advise(advice adv, file_off_t offset, size_t size) override;
+  std::error_code advise(advice adv) const override;
+  std::error_code
+  advise(advice adv, file_off_t offset, size_t size) const override;
 
   std::filesystem::path const& path() const override;
 

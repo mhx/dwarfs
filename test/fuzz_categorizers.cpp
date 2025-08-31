@@ -25,6 +25,9 @@
 
 #include <boost/program_options.hpp>
 
+#include <dwarfs/file_access.h>
+#include <dwarfs/file_access_generic.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/writer/categorizer.h>
@@ -39,17 +42,19 @@ int main(int argc, char** argv) {
   null_logger lgr;
 
   writer::categorizer_registry catreg;
-  auto catmgr = std::make_shared<writer::categorizer_manager>(lgr);
+  auto catmgr = std::make_shared<writer::categorizer_manager>(
+      lgr, std::filesystem::path{});
+  std::shared_ptr<file_access const> fa = create_file_access_generic();
 
   boost::program_options::variables_map vm;
-  catmgr->add(catreg.create(lgr, "pcmaudio", vm));
+  catmgr->add(catreg.create(lgr, "pcmaudio", vm, fa));
 
 #ifdef __AFL_LOOP
   while (__AFL_LOOP(10000))
 #endif
   {
     std::filesystem::path p(argv[1]);
-    auto mm = mmap(p);
+    auto mm = file_view{std::make_shared<mmap>(p)};
     auto job = catmgr->job(p);
     job.set_total_size(mm.size());
     job.categorize_random_access(mm.span());

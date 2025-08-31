@@ -75,7 +75,7 @@ TEST_P(options_test, cache_stress) {
     }
   }
 
-  std::shared_ptr<mmif> mm;
+  file_view mm;
 
   {
     auto fa = std::make_shared<test::test_file_access>();
@@ -93,7 +93,7 @@ TEST_P(options_test, cache_stress) {
                                   "-l3",      "-S16", "-C", compression};
     EXPECT_EQ(0, tool::main_adapter(tool::mkdwarfs_main)(args, iol.get()));
 
-    mm = std::make_shared<test::mmap_mock>(iol.out());
+    mm = test::make_mock_file_view(iol.out());
   }
 
   test::test_logger lgr(logger::TRACE);

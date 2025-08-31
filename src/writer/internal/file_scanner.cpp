@@ -36,9 +36,9 @@
 #include <range/v3/view/drop.hpp>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmif.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
@@ -229,7 +229,7 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
     scan_dedupe(p);
   } else {
     prog_.current.store(p);
-    p->scan(nullptr, prog_, opts_.hash_algo); // TODO
+    p->scan({}, prog_, opts_.hash_algo); // TODO
 
     by_raw_inode_[p->raw_inode_num()].push_back(p);
 
@@ -284,7 +284,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
       try {
         auto mm = os_.map_file(p->fs_path(), kLargeFileStartHashSize);
         checksum cs(checksum::xxh3_64);
-        cs.update(mm->addr(), kLargeFileStartHashSize);
+        cs.update(mm.addr(), kLargeFileStartHashSize);
         cs.finalize(&start_hash);
       } catch (...) {
         LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
@@ -414,9 +414,10 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   }
 
   auto const size = p->size();
-  std::unique_ptr<mmif> mm;
+  file_view mm;
 
   if (size > 0) {
+    // TODO: use exception-less variant once provided
     try {
       mm = os_.map_file(p->fs_path(), size);
     } catch (...) {
@@ -430,7 +431,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   }
 
   prog_.current.store(p);
-  p->scan(mm.get(), prog_, opts_.hash_algo);
+  p->scan(mm, prog_, opts_.hash_algo);
 }
 
 template <typename LoggerPolicy>

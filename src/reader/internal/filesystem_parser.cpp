@@ -36,7 +36,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/mmif.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/reader/filesystem_options.h>
 
 #include <dwarfs/reader/internal/filesystem_parser.h>
@@ -86,8 +86,8 @@ inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
 
 } // namespace
 
-file_off_t
-filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
+file_off_t filesystem_parser::find_image_offset(file_view const& mm,
+                                                file_off_t image_offset) {
   if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
     return image_offset;
   }
@@ -185,18 +185,18 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
   DWARFS_THROW(runtime_error, "no filesystem found");
 }
 
-filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
+filesystem_parser::filesystem_parser(file_view const& mm,
                                      file_off_t image_offset,
                                      file_off_t image_size)
-    : mm_{std::move(mm)}
-    , image_offset_{find_image_offset(*mm_, image_offset)}
+    : mm_{mm}
+    , image_offset_{find_image_offset(mm_, image_offset)}
     , image_size_{
-          std::min<file_off_t>(image_size, mm_->size() - image_offset_)} {
+          std::min<file_off_t>(image_size, mm_.size() - image_offset_)} {
   if (std::cmp_less(image_size_, sizeof(file_header))) {
     DWARFS_THROW(runtime_error, "filesystem image too small");
   }
 
-  auto fh = mm_->as<file_header>(image_offset_);
+  auto fh = mm_.as<file_header>(image_offset_);
 
   if (fh->magic_sv() != "DWARFS") {
     DWARFS_THROW(runtime_error, "magic not found");
@@ -224,7 +224,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
 std::optional<fs_section> filesystem_parser::next_section() {
   if (index_.empty()) {
     if (std::cmp_less(offset_, image_offset_ + image_size_)) {
-      auto section = fs_section(*mm_, offset_, header_version_);
+      auto section = fs_section(mm_, offset_, header_version_);
       offset_ = section.end();
       return section;
     }
@@ -248,7 +248,7 @@ std::optional<std::span<uint8_t const>> filesystem_parser::header() const {
   if (image_offset_ == 0) {
     return std::nullopt;
   }
-  return mm_->span(0, image_offset_);
+  return mm_.span(0, image_offset_);
 }
 
 void filesystem_parser::rewind() {
@@ -277,14 +277,14 @@ size_t filesystem_parser::filesystem_size() const {
 
 std::span<uint8_t const>
 filesystem_parser::section_data(fs_section const& s) const {
-  return s.data(*mm_);
+  return s.data(mm_);
 }
 
 void filesystem_parser::find_index() {
   uint64le_t index_pos_le;
 
   ::memcpy(&index_pos_le,
-           mm_->as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
+           mm_.as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
            sizeof(uint64_t));
 
   uint64_t index_pos = index_pos_le.load();
@@ -300,7 +300,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  auto section = fs_section(*mm_, index_pos, header_version_);
+  auto section = fs_section(mm_, index_pos, header_version_);
 
   if (section.type() != section_type::SECTION_INDEX) {
     return;
@@ -314,7 +314,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  if (!section.check_fast(*mm_)) {
+  if (!section.check_fast(mm_)) {
     return;
   }
 
@@ -325,7 +325,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  auto const index = section.data(*mm_);
+  auto const index = section.data(mm_);
 
   std::vector<uint64le_t> tmp(section_count);
   index_.resize(section_count);

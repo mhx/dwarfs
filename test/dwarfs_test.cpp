@@ -43,7 +43,6 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmif.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -197,7 +196,7 @@ void basic_end_to_end_test(
   EXPECT_EQ(14, ftd->filter_calls.size());
 
   auto image_size = fsimage.size();
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   bool similarity = file_order == writer::fragment_order_mode::SIMILARITY ||
                     file_order == writer::fragment_order_mode::NILSIMSA;
@@ -711,8 +710,8 @@ TEST_P(packing_test, regression_empty_fs) {
 
   input->add_dir("");
 
-  auto mm = std::make_shared<test::mmap_mock>(
-      build_dwarfs(lgr, input, "null", cfg, options));
+  auto mm =
+      test::make_mock_file_view(build_dwarfs(lgr, input, "null", cfg, options));
 
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
@@ -791,7 +790,7 @@ TEST(segmenter, regression_block_boundary) {
 
     auto fsdata = build_dwarfs(lgr, input, "null", cfg);
 
-    auto mm = std::make_shared<test::mmap_mock>(fsdata);
+    auto mm = test::make_mock_file_view(fsdata);
 
     reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
@@ -844,7 +843,7 @@ TEST_P(compression_regression, github45) {
 
   auto fsdata = build_dwarfs(lgr, input, compressor, cfg);
 
-  auto mm = std::make_shared<test::mmap_mock>(fsdata);
+  auto mm = test::make_mock_file_view(fsdata);
 
   std::stringstream idss;
   reader::filesystem_v2::identify(lgr, *input, mm, idss, 3);
@@ -1054,7 +1053,7 @@ TEST_P(filter_test, filesystem) {
   auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, {}, nullptr,
                               nullptr, std::nullopt, std::move(rbf));
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
@@ -1144,7 +1143,7 @@ TEST(file_scanner, input_list) {
   auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, {}, nullptr,
                               nullptr, input_list);
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1175,7 +1174,7 @@ TEST(filesystem, uid_gid_32bit) {
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1209,7 +1208,7 @@ TEST(filesystem, uid_gid_count) {
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1246,7 +1245,7 @@ TEST(filesystem, uid_gid_override) {
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   {
     reader::filesystem_options opts{.metadata = {
@@ -1318,7 +1317,7 @@ TEST(section_index_regression, github183) {
 
     ASSERT_LT(index_pos, fsimage.size());
 
-    test::mmap_mock mm(fsimage);
+    auto mm = test::make_mock_file_view(fsimage);
     auto section = internal::fs_section(mm, index_pos, 2);
 
     EXPECT_TRUE(section.check_fast(mm));
@@ -1350,7 +1349,7 @@ TEST(section_index_regression, github183) {
 
   ::memset(fsimage2.data() + 8, 0xff, schema_offset - 8);
 
-  auto mm = std::make_shared<test::mmap_mock>(fsimage2);
+  auto mm = test::make_mock_file_view(fsimage2);
 
   reader::filesystem_v2 fs;
 
@@ -1384,7 +1383,7 @@ TEST(filesystem, find_by_path) {
   test::test_logger lgr;
   auto input = test::os_access_mock::create_test_instance();
   auto fsimage = build_dwarfs(lgr, input, "null");
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1416,7 +1415,7 @@ TEST(file_scanner, file_start_hash) {
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm,
                            {.metadata = {.enable_nlink = true}});
@@ -1449,7 +1448,7 @@ TEST(filesystem, root_access_github204) {
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1621,7 +1620,7 @@ TEST(filesystem, read) {
 
   auto fsimage = build_dwarfs(lgr, input, "null", {.block_size_bits = 8});
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_v2 fs(lgr, *input, mm,
                            {.inode_reader = {.readahead = 64}});
@@ -1977,7 +1976,7 @@ TEST(filesystem, inode_size_cache) {
   cfg.blockhash_window_size = 7;
 
   auto fsimage = build_dwarfs(lgr, input, "null", cfg, options);
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   reader::filesystem_options fsopts = {.metadata = {.check_consistency = true}};
 
@@ -2012,7 +2011,7 @@ TEST(filesystem, multi_image) {
     data += "filler";
   }
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(data));
+  auto mm = test::make_mock_file_view(std::move(data));
   auto os = std::make_shared<test::os_access_mock>();
 
   std::vector<reader::filesystem_v2> fss;
@@ -2155,7 +2154,7 @@ TEST(filesystem, case_insensitive_lookup) {
   test::test_logger lgr;
   auto fsimage = build_dwarfs(lgr, input, "null");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  auto mm = test::make_mock_file_view(std::move(fsimage));
 
   lgr.clear();
 

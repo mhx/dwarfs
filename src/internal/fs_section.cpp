@@ -34,7 +34,6 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
-#include <dwarfs/mmif.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/fs_section_checker.h>
@@ -44,7 +43,7 @@ namespace dwarfs::internal {
 namespace {
 
 template <typename T>
-void read_section_header_common(T& header, size_t& start, mmif const& mm,
+void read_section_header_common(T& header, size_t& start, file_view const& mm,
                                 size_t offset) {
   if (offset + sizeof(T) > mm.size()) {
     DWARFS_THROW(runtime_error,
@@ -89,7 +88,7 @@ void check_section(T const& sec) {
 
 class fs_section_v1 final : public fs_section::impl {
  public:
-  fs_section_v1(mmif const& mm, size_t offset);
+  fs_section_v1(file_view const& mm, size_t offset);
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
@@ -114,19 +113,19 @@ class fs_section_v1 final : public fs_section::impl {
     return fmt::format("{}, offset={}", hdr_.to_string(), start());
   }
 
-  bool check_fast(mmif const&) const override { return true; }
+  bool check_fast(file_view const&) const override { return true; }
 
-  std::span<uint8_t const> data(mmif const& mm) const override {
+  std::span<uint8_t const> data(file_view const& mm) const override {
     return mm.span(start_, hdr_.length);
   }
 
   std::optional<std::span<uint8_t const>>
-  checksum_span(mmif const&) const override {
+  checksum_span(file_view const&) const override {
     return std::nullopt;
   }
 
   std::optional<std::span<uint8_t const>>
-  integrity_span(mmif const&) const override {
+  integrity_span(file_view const&) const override {
     return std::nullopt;
   }
 
@@ -149,7 +148,7 @@ class fs_section_v1 final : public fs_section::impl {
 
 class fs_section_v2 final : public fs_section::impl {
  public:
-  fs_section_v2(mmif const& mm, size_t offset);
+  fs_section_v2(file_view const& mm, size_t offset);
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
@@ -191,7 +190,7 @@ class fs_section_v2 final : public fs_section::impl {
                        start());
   }
 
-  bool check_fast(mmif const& mm) const override {
+  bool check_fast(file_view const& mm) const override {
     if (auto state = check_state_.load(); state != check_state::unknown) {
       return state == check_state::passed;
     }
@@ -208,12 +207,12 @@ class fs_section_v2 final : public fs_section::impl {
     return ok;
   }
 
-  std::span<uint8_t const> data(mmif const& mm) const override {
+  std::span<uint8_t const> data(file_view const& mm) const override {
     return mm.span(start_, hdr_.length);
   }
 
   std::optional<std::span<uint8_t const>>
-  checksum_span(mmif const& mm) const override {
+  checksum_span(file_view const& mm) const override {
     static constexpr auto kHdrCsLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
 
@@ -221,7 +220,7 @@ class fs_section_v2 final : public fs_section::impl {
   }
 
   std::optional<std::span<uint8_t const>>
-  integrity_span(mmif const& mm) const override {
+  integrity_span(file_view const& mm) const override {
     static constexpr auto kHdrShaLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
 
@@ -250,8 +249,8 @@ class fs_section_v2 final : public fs_section::impl {
 
 class fs_section_v2_lazy final : public fs_section::impl {
  public:
-  fs_section_v2_lazy(std::shared_ptr<mmif const> mm, section_type type,
-                     size_t offset, size_t size);
+  fs_section_v2_lazy(file_view const& mm, section_type type, size_t offset,
+                     size_t size);
 
   size_t start() const override { return offset_ + sizeof(section_header_v2); }
   size_t length() const override { return size_ - sizeof(section_header_v2); }
@@ -274,21 +273,21 @@ class fs_section_v2_lazy final : public fs_section::impl {
 
   std::string description() const override { return section().description(); }
 
-  bool check_fast(mmif const& mm) const override {
+  bool check_fast(file_view const& mm) const override {
     return section().check_fast(mm);
   }
 
-  std::span<uint8_t const> data(mmif const& mm) const override {
+  std::span<uint8_t const> data(file_view const& mm) const override {
     return section().data(mm);
   }
 
   std::optional<std::span<uint8_t const>>
-  checksum_span(mmif const& mm) const override {
+  checksum_span(file_view const& mm) const override {
     return section().checksum_span(mm);
   }
 
   std::optional<std::span<uint8_t const>>
-  integrity_span(mmif const& mm) const override {
+  integrity_span(file_view const& mm) const override {
     return section().integrity_span(mm);
   }
 
@@ -309,13 +308,13 @@ class fs_section_v2_lazy final : public fs_section::impl {
 
   std::mutex mutable mx_;
   std::unique_ptr<fs_section::impl const> mutable sec_;
-  std::shared_ptr<mmif const> mutable mm_;
+  std::optional<file_view> mutable mm_;
   section_type const type_;
   size_t const offset_;
   size_t const size_;
 };
 
-fs_section::fs_section(mmif const& mm, size_t offset, int version) {
+fs_section::fs_section(file_view const& mm, size_t offset, int version) {
   switch (version) {
   case 1:
     impl_ = std::make_shared<fs_section_v1>(mm, offset);
@@ -332,12 +331,11 @@ fs_section::fs_section(mmif const& mm, size_t offset, int version) {
   }
 }
 
-fs_section::fs_section(std::shared_ptr<mmif const> mm, section_type type,
-                       size_t offset, size_t size, int version) {
+fs_section::fs_section(file_view const& mm, section_type type, size_t offset,
+                       size_t size, int version) {
   switch (version) {
   case 2:
-    impl_ =
-        std::make_shared<fs_section_v2_lazy>(std::move(mm), type, offset, size);
+    impl_ = std::make_shared<fs_section_v2_lazy>(mm, type, offset, size);
     break;
 
   default:
@@ -347,12 +345,12 @@ fs_section::fs_section(std::shared_ptr<mmif const> mm, section_type type,
   }
 }
 
-fs_section_v1::fs_section_v1(mmif const& mm, size_t offset) {
+fs_section_v1::fs_section_v1(file_view const& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   check_section(*this);
 }
 
-fs_section_v2::fs_section_v2(mmif const& mm, size_t offset) {
+fs_section_v2::fs_section_v2(file_view const& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   // TODO: Don't enforce these checks as we might want to add section types
   //       and compression types in the future without necessarily incrementing
@@ -362,10 +360,9 @@ fs_section_v2::fs_section_v2(mmif const& mm, size_t offset) {
   // check_section(*this);
 }
 
-fs_section_v2_lazy::fs_section_v2_lazy(std::shared_ptr<mmif const> mm,
-                                       section_type type, size_t offset,
-                                       size_t size)
-    : mm_{std::move(mm)}
+fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm, section_type type,
+                                       size_t offset, size_t size)
+    : mm_{mm}
     , type_{type}
     , offset_{offset}
     , size_{size} {}

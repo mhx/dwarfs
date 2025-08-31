@@ -240,7 +240,7 @@ mkdwarfs_tester::fs_from_data(std::string data,
   if (!lgr) {
     lgr = std::make_unique<test::test_logger>();
   }
-  auto mm = std::make_shared<test::mmap_mock>(std::move(data));
+  auto mm = test::make_mock_file_view(std::move(data));
   return reader::filesystem_v2(*lgr, *os, mm, opt);
 }
 

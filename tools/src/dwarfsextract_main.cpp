@@ -37,7 +37,6 @@
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/glob_matcher.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/filesystem_options.h>
