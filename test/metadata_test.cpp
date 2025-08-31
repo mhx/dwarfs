@@ -34,7 +34,7 @@
 #include <dwarfs/config.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/mmif.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/metadata_options.h>
@@ -135,14 +135,14 @@ class metadata_test : public ::testing::Test {
 
     s.scan(fsw, std::filesystem::path("/"), prog);
 
-    mm = std::make_shared<test::mmap_mock>(oss.str());
+    mm = test::make_mock_file_view(oss.str());
   }
 
   void TearDown() override {}
 
   test::test_logger lgr;
   std::shared_ptr<test::os_access_mock> os;
-  std::shared_ptr<mmif> mm;
+  file_view mm;
 };
 
 TEST_F(metadata_test, basic) {

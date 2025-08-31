@@ -35,14 +35,13 @@
 #include <string>
 #include <vector>
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/types.h>
 
 #include <dwarfs/internal/fs_section.h>
 
 namespace dwarfs {
-
-class mmif;
 
 namespace reader::internal {
 
@@ -51,10 +50,11 @@ class filesystem_parser {
   static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
 
  public:
-  static file_off_t find_image_offset(mmif& mm, file_off_t image_offset);
+  static file_off_t
+  find_image_offset(file_view const& mm, file_off_t image_offset);
 
   explicit filesystem_parser(
-      std::shared_ptr<mmif> mm, file_off_t image_offset = 0,
+      file_view const& mm, file_off_t image_offset = 0,
       file_off_t image_size = std::numeric_limits<file_off_t>::max());
 
   std::optional<dwarfs::internal::fs_section> next_section();
@@ -82,7 +82,7 @@ class filesystem_parser {
  private:
   void find_index();
 
-  std::shared_ptr<mmif> mm_;
+  file_view mm_;
   file_off_t const image_offset_{0};
   file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
   file_off_t offset_{0};

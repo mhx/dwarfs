@@ -23,7 +23,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/mmif.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/inode_fragments.h>
 
@@ -35,7 +34,7 @@ namespace dwarfs::writer::internal {
 
 fragment_chunkable::fragment_chunkable(inode const& ino,
                                        single_inode_fragment& frag,
-                                       file_off_t offset, mmif& mm,
+                                       file_off_t offset, file_view const& mm,
                                        categorizer_manager const* catmgr)
     : ino_{ino}
     , frag_{frag}

@@ -45,6 +45,7 @@
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/fsinfo_features.h>
@@ -57,7 +58,6 @@ struct vfs_stat;
 
 class history;
 class logger;
-class mmif;
 class os_access;
 class performance_monitor;
 
@@ -94,11 +94,10 @@ class filesystem_v2_lite {
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
-  filesystem_v2_lite(logger& lgr, os_access const& os,
-                     std::shared_ptr<mmif> mm);
+  filesystem_v2_lite(logger& lgr, os_access const& os, file_view const& mm);
 
   filesystem_v2_lite(
-      logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+      logger& lgr, os_access const& os, file_view const& mm,
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
@@ -463,23 +462,22 @@ class filesystem_v2 final : public filesystem_v2_lite {
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
-  filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm);
+  filesystem_v2(logger& lgr, os_access const& os, file_view const& mm);
 
   filesystem_v2(
-      logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+      logger& lgr, os_access const& os, file_view const& mm,
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
   static int
-  identify(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+  identify(logger& lgr, os_access const& os, file_view const& mm,
            std::ostream& output, int detail_level = 0, size_t num_readers = 1,
            bool check_integrity = false, file_off_t image_offset = 0);
 
-  static std::optional<std::span<uint8_t const>>
-  header(std::shared_ptr<mmif> mm);
+  static std::optional<std::span<uint8_t const>> header(file_view const& mm);
 
   static std::optional<std::span<uint8_t const>>
-  header(std::shared_ptr<mmif> mm, file_off_t image_offset);
+  header(file_view const& mm, file_off_t image_offset);
 
   int check(filesystem_check_level level, size_t num_threads = 0) const;
 

@@ -49,7 +49,6 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmif.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -834,7 +833,7 @@ void scanner_<LoggerPolicy>::scan(
 
               for (auto& frag : ino->fragments()) {
                 if (frag.category() == category) {
-                  fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
+                  fragment_chunkable fc(*ino, frag, offset, mm, catmgr);
                   seg.add_chunkable(fc);
                   prog.fragments_written++;
                 }

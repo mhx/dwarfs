@@ -21,18 +21,18 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <dwarfs/mmif.h>
+#include <dwarfs/file_view.h>
 
 namespace dwarfs {
 namespace test {
 
-class mmap_mock : public mmif {
+class mmap_mock : public file_view::impl {
  public:
-  mmap_mock(std::string const& data)
-      : mmap_mock{data, "<mock-file>"} {}
+  mmap_mock(std::string data)
+      : mmap_mock{std::move(data), "<mock-file>"} {}
 
-  mmap_mock(std::string const& data, std::filesystem::path const& path)
-      : data_{data}
+  mmap_mock(std::string data, std::filesystem::path const& path)
+      : data_{std::move(data)}
       , path_{path} {}
 
   mmap_mock(std::string const& data, size_t size)
@@ -49,18 +49,18 @@ class mmap_mock : public mmif {
 
   std::filesystem::path const& path() const override { return path_; }
 
-  std::error_code lock(file_off_t, size_t) override {
+  std::error_code lock(file_off_t, size_t) const override {
     return std::error_code();
   }
-  std::error_code release(file_off_t, size_t) override {
+  std::error_code release(file_off_t, size_t) const override {
     return std::error_code();
   }
-  std::error_code release_until(file_off_t) override {
+  std::error_code release_until(file_off_t) const override {
     return std::error_code();
   }
 
-  std::error_code advise(advice) override { return std::error_code(); }
-  std::error_code advise(advice, file_off_t, size_t) override {
+  std::error_code advise(advice) const override { return std::error_code(); }
+  std::error_code advise(advice, file_off_t, size_t) const override {
     return std::error_code();
   }
 
@@ -68,6 +68,26 @@ class mmap_mock : public mmif {
   std::string const data_;
   std::filesystem::path const path_;
 };
+
+// TODO: clean this stuff up
+
+inline file_view make_mock_file_view(std::string data) {
+  return file_view{std::make_shared<mmap_mock>(std::move(data))};
+}
+
+inline file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path) {
+  return file_view{std::make_shared<mmap_mock>(std::move(data), path)};
+}
+
+inline file_view make_mock_file_view(std::string const& data, size_t size) {
+  return file_view{std::make_shared<mmap_mock>(data, size)};
+}
+
+inline file_view make_mock_file_view(std::string const& data, size_t size,
+                                     std::filesystem::path const& path) {
+  return file_view{std::make_shared<mmap_mock>(data, size, path)};
+}
 
 } // namespace test
 } // namespace dwarfs

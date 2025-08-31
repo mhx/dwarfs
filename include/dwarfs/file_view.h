@@ -35,8 +35,6 @@
 #include <string>
 #include <system_error>
 
-#include <boost/noncopyable.hpp>
-
 #include <dwarfs/types.h>
 
 namespace dwarfs {
@@ -49,10 +47,17 @@ enum class advice {
   dontneed,
 };
 
-class mmif : public boost::noncopyable {
+class file_view {
  public:
-  virtual ~mmif() = default;
+  file_view() = default;
 
+  explicit operator bool() const { return static_cast<bool>(impl_); }
+
+  bool valid() const { return static_cast<bool>(impl_); }
+
+  void reset() { impl_.reset(); }
+
+  // TODO: this is mostly all deprecated
   template <typename T, std::integral U>
   T const* as(U offset = 0) const {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -76,18 +81,53 @@ class mmif : public boost::noncopyable {
     return span<T>(0);
   }
 
-  virtual void const* addr() const = 0;
-  virtual size_t size() const = 0;
+  void const* addr() const { return impl_->addr(); }
+  size_t size() const { return impl_->size(); }
 
-  virtual std::error_code lock(file_off_t offset, size_t size) = 0;
-  virtual std::error_code release(file_off_t offset, size_t size) = 0;
-  virtual std::error_code release_until(file_off_t offset) = 0;
+  std::error_code lock(file_off_t offset, size_t size) const {
+    return impl_->lock(offset, size);
+  }
 
-  virtual std::error_code advise(advice adv) = 0;
-  virtual std::error_code
-  advise(advice adv, file_off_t offset, size_t size) = 0;
+  std::error_code release(file_off_t offset, size_t size) const {
+    return impl_->release(offset, size);
+  }
 
-  virtual std::filesystem::path const& path() const = 0;
+  std::error_code release_until(file_off_t offset) const {
+    return impl_->release_until(offset);
+  }
+
+  std::error_code advise(advice adv) const { return impl_->advise(adv); }
+
+  std::error_code advise(advice adv, file_off_t offset, size_t size) const {
+    return impl_->advise(adv, offset, size);
+  }
+
+  std::filesystem::path const& path() const { return impl_->path(); }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    // TODO: this is mostly all deprecated
+    virtual void const* addr() const = 0;
+    virtual size_t size() const = 0;
+
+    virtual std::error_code lock(file_off_t offset, size_t size) const = 0;
+    virtual std::error_code release(file_off_t offset, size_t size) const = 0;
+    virtual std::error_code release_until(file_off_t offset) const = 0;
+
+    virtual std::error_code advise(advice adv) const = 0;
+    virtual std::error_code
+    advise(advice adv, file_off_t offset, size_t size) const = 0;
+
+    virtual std::filesystem::path const& path() const = 0;
+  };
+
+  explicit file_view(std::shared_ptr<impl const> impl)
+      : impl_{std::move(impl)} {}
+
+ private:
+  std::shared_ptr<impl const> impl_;
 };
 
 } // namespace dwarfs

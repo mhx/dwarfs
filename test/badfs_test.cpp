@@ -28,7 +28,6 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 
@@ -97,7 +96,7 @@ TEST_P(bad_fs, test) {
 
   try {
     nerror = reader::filesystem_v2::identify(
-        lgr, os, std::make_shared<dwarfs::mmap>(filepath), oss, 9, 1, true,
+        lgr, os, test::make_real_file_view(filepath), oss, 9, 1, true,
         reader::filesystem_options::IMAGE_OFFSET_AUTO);
   } catch (std::exception const&) {
     nerror = 1;

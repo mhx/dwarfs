@@ -46,8 +46,8 @@
 
 #include <parallel_hashmap/phmap.h>
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmif.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/block_cache_options.h>
 #include <dwarfs/reader/cache_tidy_config.h>
@@ -225,13 +225,13 @@ class block_request_set {
 template <typename LoggerPolicy>
 class block_cache_ final : public block_cache::impl {
  public:
-  block_cache_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+  block_cache_(logger& lgr, os_access const& os, file_view const& mm,
                block_cache_options const& options,
                std::shared_ptr<performance_monitor const> const& perfmon
                [[maybe_unused]])
       : cache_(0)
       , tidy_runner_{mx_, {}, "tidy-blkcache", [this] { tidy_cache(); }}
-      , mm_(std::move(mm))
+      , mm_{mm}
       , buffer_factory_{block_cache_byte_buffer_factory::create(
             options.allocation_mode)}
       , LOG_PROXY_INIT(lgr)
@@ -413,7 +413,7 @@ class block_cache_ final : public block_cache::impl {
       if (section.compression() == compression_type::NONE) {
         LOG_TRACE << "block " << block_no
                   << " is uncompressed, bypassing cache";
-        promise.set_value(block_range(section.data(*mm_).data(), offset, size));
+        promise.set_value(block_range(section.data(mm_).data(), offset, size));
         return future;
       }
     } catch (...) {
@@ -802,7 +802,7 @@ class block_cache_ final : public block_cache::impl {
   mutable worker_group wg_;
   mutable std::once_flag wg_init_flag_;
   std::vector<fs_section> block_;
-  std::shared_ptr<mmif> mm_;
+  file_view mm_;
   byte_buffer_factory buffer_factory_;
   LOG_PROXY_DECL(LoggerPolicy);
   PERFMON_CLS_PROXY_DECL
@@ -818,10 +818,10 @@ class block_cache_ final : public block_cache::impl {
 } // namespace
 
 block_cache::block_cache(
-    logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+    logger& lgr, os_access const& os, file_view const& mm,
     block_cache_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
-          lgr, os, std::move(mm), options, perfmon)) {}
+          lgr, os, mm, options, perfmon)) {}
 
 } // namespace dwarfs::reader::internal

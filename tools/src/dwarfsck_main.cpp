@@ -48,7 +48,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
@@ -303,7 +302,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     auto input_path = iol.os->canonical(input);
 
-    std::shared_ptr<mmif> mm = iol.os->map_file(input_path);
+    auto mm = iol.os->map_file(input_path);
 
     if (print_header) {
       if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {

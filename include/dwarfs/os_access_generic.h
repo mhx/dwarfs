@@ -38,8 +38,6 @@
 
 namespace dwarfs {
 
-class mmif;
-
 class os_access_generic : public os_access {
  public:
   std::unique_ptr<dir_reader>
@@ -47,9 +45,8 @@ class os_access_generic : public os_access {
   file_stat symlink_info(std::filesystem::path const& path) const override;
   std::filesystem::path
   read_symlink(std::filesystem::path const& path) const override;
-  std::unique_ptr<mmif>
-  map_file(std::filesystem::path const& path) const override;
-  std::unique_ptr<mmif>
+  file_view map_file(std::filesystem::path const& path) const override;
+  file_view
   map_file(std::filesystem::path const& path, size_t size) const override;
   int access(std::filesystem::path const& path, int mode) const override;
   std::filesystem::path

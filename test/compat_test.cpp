@@ -43,7 +43,6 @@
 #include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -1313,7 +1312,7 @@ void check_history(nlohmann::json info, reader::filesystem_v2 const& origfs,
 }
 
 void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
-                   std::shared_ptr<mmif> origmm = nullptr,
+                   file_view const& origmm = {},
                    bool rebuild_metadata = false) {
   auto meta = fs.metadata_as_json();
   nlohmann::json ref;
@@ -1369,7 +1368,7 @@ TEST_P(compat_metadata, backwards_compat) {
   auto filename = get_image_path(version);
   test::test_logger lgr;
   test::os_access_mock os;
-  reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(filename));
+  reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename));
   check_dynamic(version, fs);
 }
 
@@ -1391,7 +1390,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   opts.metadata.check_consistency = true;
 
   {
-    reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(filename),
+    reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename),
                              opts);
     check_compat(lgr, fs, version, enable_nlink);
   }
@@ -1402,15 +1401,15 @@ TEST_P(compat_filesystem, backwards_compat) {
   ASSERT_TRUE(folly::readFile(filename.string().c_str(), fsdata));
 
   for (auto const& hdr : headers) {
-    reader::filesystem_v2 fs(
-        lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
+    reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
+                             opts);
     check_compat(lgr, fs, version, enable_nlink);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
-      reader::filesystem_v2 fs(
-          lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
+      reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
+                               opts);
       check_compat(lgr, fs, version, enable_nlink);
     }
   }
@@ -1450,7 +1449,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     utility::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
   };
 
-  std::shared_ptr<mmif> origmm = std::make_shared<dwarfs::mmap>(filename);
+  auto origmm = test::make_real_file_view(filename);
 
   {
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog);
@@ -1461,7 +1460,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
+    auto mm = test::make_mock_file_view(rewritten.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(mm));
     reader::filesystem_v2 fs(lgr, os, mm);
@@ -1483,7 +1482,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
+    auto mm = test::make_mock_file_view(rewritten.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(
         lgr, os, mm, idss, 0, 1, false,
         reader::filesystem_options::IMAGE_OFFSET_AUTO));
@@ -1507,11 +1506,11 @@ TEST_P(rewrite, filesystem_rewrite) {
     writer::filesystem_writer fsw(rewritten2, lgr, pool, prog, fsw_opts,
                                   &hdr_iss);
     fsw.add_default_compressor(bc);
-    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten.str()));
+    rewrite_fs(fsw, test::make_mock_file_view(rewritten.str()));
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten2.str());
+    auto mm = test::make_mock_file_view(rewritten2.str());
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
                                        rewritten2.str().size());
@@ -1524,11 +1523,11 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     writer::filesystem_writer fsw(rewritten3, lgr, pool, prog);
     fsw.add_default_compressor(bc);
-    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten2.str()));
+    rewrite_fs(fsw, test::make_mock_file_view(rewritten2.str()));
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten3.str());
+    auto mm = test::make_mock_file_view(rewritten3.str());
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
                                        rewritten3.str().size());
@@ -1537,7 +1536,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   std::ostringstream rewritten4;
-  origmm = std::make_shared<test::mmap_mock>(rewritten3.str());
+  origmm = test::make_mock_file_view(rewritten3.str());
 
   {
     writer::filesystem_writer_options fsw_opts;
@@ -1548,7 +1547,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten4.str());
+    auto mm = test::make_mock_file_view(rewritten4.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
@@ -1558,7 +1557,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   std::ostringstream rewritten5;
-  origmm = std::make_shared<test::mmap_mock>(rewritten4.str());
+  origmm = test::make_mock_file_view(rewritten4.str());
 
   {
     writer::filesystem_writer_options fsw_opts;
@@ -1569,7 +1568,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   {
-    auto mm = std::make_shared<test::mmap_mock>(rewritten5.str());
+    auto mm = test::make_mock_file_view(rewritten5.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
@@ -1591,7 +1590,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  reader::filesystem_v2 fs(lgr, os, std::make_shared<dwarfs::mmap>(image));
+  reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(image));
 
   ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 

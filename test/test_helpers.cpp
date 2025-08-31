@@ -33,6 +33,7 @@
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
+#include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
@@ -449,8 +450,7 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
       fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-std::unique_ptr<mmif>
-os_access_mock::map_file(fs::path const& path, size_t size) const {
+file_view os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
@@ -469,7 +469,7 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
       }
     }
 
-    return std::make_unique<mmap_mock>(
+    return make_mock_file_view(
         de->v |
             match{
                 [](std::string const& str) { return str; },
@@ -494,7 +494,7 @@ std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
   return rv;
 }
 
-std::unique_ptr<mmif> os_access_mock::map_file(fs::path const& path) const {
+file_view os_access_mock::map_file(fs::path const& path) const {
   return map_file(path, std::numeric_limits<size_t>::max());
 }
 
@@ -614,6 +614,10 @@ parse_mtree(std::string_view mtree) {
   }
 
   return rv;
+}
+
+file_view make_real_file_view(std::filesystem::path const& path) {
+  return file_view{std::make_shared<dwarfs::mmap>(path)};
 }
 
 bool skip_slow_tests() {

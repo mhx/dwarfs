@@ -84,8 +84,8 @@ decltype(auto) get_file_path(std::filesystem::path const& path) {
 
 } // namespace
 
-std::error_code
-mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
+std::error_code mmap::lock(file_off_t offset [[maybe_unused]],
+                           size_t size [[maybe_unused]]) const {
   std::error_code ec;
 
   auto data = mf_.const_data() + offset;
@@ -105,7 +105,7 @@ mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
 
 std::error_code
 mmap::advise(advice adv [[maybe_unused]], file_off_t offset [[maybe_unused]],
-             size_t size [[maybe_unused]]) {
+             size_t size [[maybe_unused]]) const {
   std::error_code ec;
 
 #ifdef _WIN32
@@ -133,13 +133,15 @@ mmap::advise(advice adv [[maybe_unused]], file_off_t offset [[maybe_unused]],
   return ec;
 }
 
-std::error_code mmap::advise(advice adv) { return advise(adv, 0, size()); }
+std::error_code mmap::advise(advice adv) const {
+  return advise(adv, 0, size());
+}
 
-std::error_code mmap::release(file_off_t offset, size_t size) {
+std::error_code mmap::release(file_off_t offset, size_t size) const {
   return advise(advice::dontneed, offset, size);
 }
 
-std::error_code mmap::release_until(file_off_t offset) {
+std::error_code mmap::release_until(file_off_t offset) const {
   return release(0, offset);
 }
 

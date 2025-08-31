@@ -44,9 +44,9 @@
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
-#include <dwarfs/mmif.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
@@ -125,15 +125,15 @@ class inode_ : public inode {
     fragments_.emplace_back(categorizer_manager::default_category(), size);
   }
 
-  void scan(mmif* mm, inode_options const& opts, progress& prog) override {
+  void scan(file_view const& mm, inode_options const& opts,
+            progress& prog) override {
     assert(fragments_.empty());
 
     categorizer_job catjob;
 
     // No job if categorizers are disabled
     if (opts.categorizer_mgr) {
-      catjob =
-          opts.categorizer_mgr->job(mm ? mm->path().string() : "<no-file>");
+      catjob = opts.categorizer_mgr->job(mm ? mm.path().string() : "<no-file>");
     }
 
     /// TODO: remove comments or move elsewhere
@@ -155,8 +155,8 @@ class inode_ : public inode {
       if (catjob) {
         // First, run random access categorizers. If we get a result here,
         // it's very likely going to be the best result.
-        catjob.set_total_size(mm->size());
-        catjob.categorize_random_access(mm->span());
+        catjob.set_total_size(mm.size());
+        catjob.categorize_random_access(mm.span());
 
         if (!catjob.best_result_found()) {
           // We must perform a sequential categorizer scan before scanning the
@@ -168,7 +168,7 @@ class inode_ : public inode {
           auto const chunk_size = prog.categorize.chunk_size.load();
           auto sp = make_progress_context(kCategorizeContext, mm, prog,
                                           4 * chunk_size);
-          progress::scan_updater supd(prog.categorize, mm->size());
+          progress::scan_updater supd(prog.categorize, mm.size());
           scan_range(mm, sp.get(), chunk_size, [&catjob](auto span) {
             catjob.categorize_sequential(span);
           });
@@ -180,7 +180,7 @@ class inode_ : public inode {
           auto const chunk_size = prog.similarity.chunk_size.load();
           auto sp =
               make_progress_context(kScanContext, mm, prog, 4 * chunk_size);
-          progress::scan_updater supd(prog.similarity, mm->size());
+          progress::scan_updater supd(prog.similarity, mm.size());
           scan_fragments(mm, sp.get(), opts, chunk_size);
         }
       }
@@ -190,7 +190,7 @@ class inode_ : public inode {
     // fragment to store the inode's chunks. This won't use up any resources
     // as a single fragment is stored inline.
     if (fragments_.size() <= 1) {
-      size_t size = mm ? mm->size() : 0;
+      size_t size = mm ? mm.size() : 0;
       if (fragments_.empty()) {
         populate(size);
       }
@@ -319,10 +319,10 @@ class inode_ : public inode {
     return std::nullopt;
   }
 
-  std::tuple<std::unique_ptr<mmif>, file const*,
+  std::tuple<file_view, file const*,
              std::vector<std::pair<file const*, std::exception_ptr>>>
   mmap_any(os_access const& os) const override {
-    std::unique_ptr<mmif> mm;
+    file_view mm;
     std::vector<std::pair<file const*, std::exception_ptr>> errors;
     file const* rfp{nullptr};
 
@@ -344,12 +344,12 @@ class inode_ : public inode {
 
  private:
   std::shared_ptr<scanner_progress>
-  make_progress_context(std::string_view context, mmif* mm, progress& prog,
-                        size_t min_size) const {
+  make_progress_context(std::string_view context, file_view const& mm,
+                        progress& prog, size_t min_size) const {
     if (mm) {
-      if (auto size = mm->size(); size >= min_size) {
+      if (auto size = mm.size(); size >= min_size) {
         return prog.create_context<scanner_progress>(
-            context, path_to_utf8_string_sanitized(mm->path()), size);
+            context, path_to_utf8_string_sanitized(mm.path()), size);
       }
     }
     return nullptr;
@@ -376,15 +376,15 @@ class inode_ : public inode {
   }
 
   template <typename T>
-  void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
-                  size_t chunk_size, T&& scanner) {
+  void scan_range(file_view const& mm, scanner_progress* sprog, size_t offset,
+                  size_t size, size_t chunk_size, T&& scanner) {
     auto&& scan = std::forward<T>(scanner);
 
     while (size >= chunk_size) {
-      scan(mm->span(offset, chunk_size));
+      scan(mm.span(offset, chunk_size));
       // release_until() is best-effort, we can ignore the return value
       // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
-      mm->release_until(offset);
+      mm.release_until(offset);
       offset += chunk_size;
       size -= chunk_size;
       if (sprog) {
@@ -392,7 +392,7 @@ class inode_ : public inode {
       }
     }
 
-    scan(mm->span(offset, size));
+    scan(mm.span(offset, size));
 
     if (sprog) {
       sprog->bytes_processed += size;
@@ -400,12 +400,12 @@ class inode_ : public inode {
   }
 
   template <typename T>
-  void scan_range(mmif* mm, scanner_progress* sprog, size_t chunk_size,
-                  T&& scanner) {
-    scan_range(mm, sprog, 0, mm->size(), chunk_size, std::forward<T>(scanner));
+  void scan_range(file_view const& mm, scanner_progress* sprog,
+                  size_t chunk_size, T&& scanner) {
+    scan_range(mm, sprog, 0, mm.size(), chunk_size, std::forward<T>(scanner));
   }
 
-  void scan_fragments(mmif* mm, scanner_progress* sprog,
+  void scan_fragments(file_view const& mm, scanner_progress* sprog,
                       inode_options const& opts, size_t chunk_size) {
     assert(mm);
     assert(fragments_.size() > 1);
@@ -468,12 +468,12 @@ class inode_ : public inode {
     similarity_.emplace<similarity_map_type>(std::move(tmp_map));
   }
 
-  void scan_full(mmif* mm, scanner_progress* sprog, inode_options const& opts,
-                 size_t chunk_size) {
+  void scan_full(file_view const& mm, scanner_progress* sprog,
+                 inode_options const& opts, size_t chunk_size) {
     assert(fragments_.size() <= 1);
 
     if (mm) {
-      if (auto max = opts.max_similarity_scan_size; max && mm->size() > *max) {
+      if (auto max = opts.max_similarity_scan_size; max && mm.size() > *max) {
         return;
       }
     }
@@ -673,7 +673,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
   if (inodes_need_scanning_ /* && p->size() > 0 */) {
     wg.add_job([this, &os, p, ino = std::move(ino)] {
       auto const size = p->size();
-      std::shared_ptr<mmif> mm;
+      file_view mm;
 
       if (size > 0 && !p->is_invalid()) {
         try {
@@ -690,7 +690,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
         }
       }
 
-      ino->scan(mm.get(), opts_, prog_);
+      ino->scan(mm, opts_, prog_);
       update_prog(ino, p);
     });
   } else {
@@ -726,7 +726,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
           // TODO: p = p is a workaround for older Clang versions
           wg.add_job([this, p = p, ino, mm = std::move(mm)] {
-            ino->scan(mm.get(), opts_, prog_);
+            ino->scan(mm, opts_, prog_);
             update_prog(ino, p);
           });
 
@@ -738,7 +738,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
       assert(ino->any()->is_invalid());
 
-      ino->scan(nullptr, opts_, prog_);
+      ino->scan({}, opts_, prog_);
       update_prog(ino, ino->any());
 
       errors.emplace_back(scan_err.value());

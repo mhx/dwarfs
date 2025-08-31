@@ -48,7 +48,6 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/file_status_conv.h>
