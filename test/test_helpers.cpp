@@ -617,7 +617,7 @@ parse_mtree(std::string_view mtree) {
 }
 
 file_view make_real_file_view(std::filesystem::path const& path) {
-  return file_view{std::make_shared<dwarfs::mmap>(path)};
+  return create_mmap_file_view(path);
 }
 
 bool skip_slow_tests() {

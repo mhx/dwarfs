@@ -29,9 +29,7 @@
 
 #include <dwarfs/writer/internal/chunkable.h>
 
-namespace dwarfs {
-
-namespace writer {
+namespace dwarfs::writer {
 
 class categorizer_manager;
 class single_inode_fragment;
@@ -64,6 +62,4 @@ class fragment_chunkable : public chunkable {
 
 } // namespace internal
 
-} // namespace writer
-
-} // namespace dwarfs
+} // namespace dwarfs::writer
