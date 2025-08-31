@@ -200,7 +200,7 @@ void dwarfs_initialize(::benchmark::State& state) {
   auto image = make_filesystem(&state);
   test::test_logger lgr;
   test::os_access_mock os;
-  auto mm = std::make_shared<test::mmap_mock>(image);
+  auto mm = test::make_mock_file_view(image);
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = true;
@@ -217,7 +217,7 @@ class filesystem : public ::benchmark::Fixture {
 
   void SetUp(::benchmark::State const& state) override {
     image = make_filesystem(&state);
-    mm = std::make_shared<test::mmap_mock>(image);
+    mm = test::make_mock_file_view(image);
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
@@ -316,13 +316,13 @@ class filesystem : public ::benchmark::Fixture {
   test::test_logger lgr;
   test::os_access_mock os;
   std::string image;
-  std::shared_ptr<mmif> mm;
+  file_view mm;
 };
 
 class filesystem_walk : public ::benchmark::Fixture {
  public:
   void SetUp(::benchmark::State const&) override {
-    mm = std::make_shared<test::mmap_mock>(get_image());
+    mm = test::make_mock_file_view(get_image());
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
@@ -432,7 +432,7 @@ class filesystem_walk : public ::benchmark::Fixture {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  std::shared_ptr<mmif> mm;
+  file_view mm;
 };
 
 BENCHMARK_DEFINE_F(filesystem, find_path)(::benchmark::State& state) {

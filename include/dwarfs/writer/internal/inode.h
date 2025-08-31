@@ -30,6 +30,7 @@
 #include <tuple>
 #include <vector>
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/internal/sortable_span.h>
@@ -45,7 +46,6 @@ class chunk;
 
 }
 
-class mmif;
 class os_access;
 
 namespace writer {
@@ -63,7 +63,8 @@ class inode : public object {
 
   virtual void set_files(files_vector&& fv) = 0;
   virtual void populate(size_t size) = 0;
-  virtual void scan(mmif* mm, inode_options const& options, progress& prog) = 0;
+  virtual void
+  scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
   virtual bool has_category(fragment_category cat) const = 0;
@@ -81,7 +82,8 @@ class inode : public object {
   virtual void set_scan_error(file const* fp, std::exception_ptr ep) = 0;
   virtual std::optional<std::pair<file const*, std::exception_ptr>>
   get_scan_error() const = 0;
-  virtual std::tuple<std::unique_ptr<mmif>, file const*,
+  // TODO: WTH is this interface???
+  virtual std::tuple<file_view, file const*,
                      std::vector<std::pair<file const*, std::exception_ptr>>>
   mmap_any(os_access const& os) const = 0;
 };

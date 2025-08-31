@@ -127,8 +127,8 @@ TEST(dwarfsck_test, check_fail) {
       test::test_logger lgr;
       test::os_access_mock os;
       auto make_fs = [&] {
-        return reader::filesystem_v2{
-            lgr, os, std::make_shared<test::mmap_mock>(corrupt_image)};
+        return reader::filesystem_v2{lgr, os,
+                                     test::make_mock_file_view(corrupt_image)};
       };
       if (is_metadata_section) {
         EXPECT_THAT([&] { make_fs(); },

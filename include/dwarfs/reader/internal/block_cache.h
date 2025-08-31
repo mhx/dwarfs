@@ -35,13 +35,13 @@
 #include <memory>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
 
 namespace dwarfs {
 
 class logger;
-class mmif;
 class os_access;
 class performance_monitor;
 
@@ -60,7 +60,7 @@ namespace internal {
 
 class block_cache {
  public:
-  block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+  block_cache(logger& lgr, os_access const& os, file_view const& mm,
               block_cache_options const& options,
               std::shared_ptr<performance_monitor const> const& perfmon);
 

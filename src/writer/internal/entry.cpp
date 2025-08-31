@@ -30,7 +30,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
-#include <dwarfs/mmif.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
@@ -218,7 +218,7 @@ void file::scan(os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
 
-void file::scan(mmif* mm, progress& prog,
+void file::scan(file_view const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
   size_t s = size();
 
@@ -240,10 +240,10 @@ void file::scan(mmif* mm, progress& prog,
       assert(mm);
 
       while (s >= chunk_size) {
-        cs.update(mm->as<void>(offset), chunk_size);
+        cs.update(mm.as<void>(offset), chunk_size);
         // release_until() is best-effort, we can ignore the return value
         // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
-        mm->release_until(offset);
+        mm.release_until(offset);
         offset += chunk_size;
         s -= chunk_size;
         if (pctx) {
@@ -251,7 +251,7 @@ void file::scan(mmif* mm, progress& prog,
         }
       }
 
-      cs.update(mm->as<void>(offset), s);
+      cs.update(mm.as<void>(offset), s);
     }
 
     data_->hash.resize(cs.digest_size());

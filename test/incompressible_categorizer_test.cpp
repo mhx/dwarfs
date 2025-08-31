@@ -34,7 +34,6 @@
 
 #include <folly/String.h>
 
-#include <dwarfs/mmap.h>
 #include <dwarfs/writer/categorizer.h>
 
 #include "loremipsum.h"

@@ -38,10 +38,9 @@
 #include <thread>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_view.h>
 
 namespace dwarfs {
-
-class mmif;
 
 class dir_reader {
  public:
@@ -50,6 +49,7 @@ class dir_reader {
   virtual bool read(std::filesystem::path& name) = 0;
 };
 
+// TODO: refactor this so we avoid all the smart pointers everywhere
 class os_access {
  public:
   virtual ~os_access() = default;
@@ -59,9 +59,10 @@ class os_access {
   virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
-  virtual std::unique_ptr<mmif>
-  map_file(std::filesystem::path const& path) const = 0;
-  virtual std::unique_ptr<mmif>
+  // TODO: rename to open_file, add overload that accepts std::error_code&
+  virtual file_view map_file(std::filesystem::path const& path) const = 0;
+  // TODO: [[deprecated("use map_file without size parameter")]]
+  virtual file_view
   map_file(std::filesystem::path const& path, size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
   virtual std::filesystem::path

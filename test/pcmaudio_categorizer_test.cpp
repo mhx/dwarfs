@@ -33,9 +33,10 @@
 #include <folly/String.h>
 #include <folly/lang/Bits.h>
 
-#include <dwarfs/mmap.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/writer/categorizer.h>
 
+#include "test_helpers.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
@@ -278,7 +279,7 @@ TEST(pcmaudio_categorizer, requirements) {
       R"({"endianness": ["set", ["mixed", "big"]], "bytes_per_sample": ["range", 2, 3]})");
 
   auto wav = test_dir / "pcmaudio" / "test16.wav";
-  auto mm = dwarfs::mmap(wav);
+  auto mm = test::make_real_file_view(wav);
 
   {
     auto job = catmgr.job(wav);

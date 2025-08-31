@@ -25,11 +25,11 @@
 
 #include <memory>
 
+#include <dwarfs/file_view.h>
+
 #include <dwarfs/writer/internal/chunkable.h>
 
 namespace dwarfs {
-
-class mmif;
 
 namespace writer {
 
@@ -43,7 +43,7 @@ class inode;
 class fragment_chunkable : public chunkable {
  public:
   fragment_chunkable(inode const& ino, single_inode_fragment& frag,
-                     file_off_t offset, mmif& mm,
+                     file_off_t offset, file_view const& mm,
                      categorizer_manager const* catmgr);
   ~fragment_chunkable() override;
 
@@ -58,7 +58,7 @@ class fragment_chunkable : public chunkable {
   inode const& ino_;
   single_inode_fragment& frag_;
   file_off_t offset_;
-  mmif& mm_;
+  file_view const& mm_;
   categorizer_manager const* catmgr_;
 };
 

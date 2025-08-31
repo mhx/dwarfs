@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/writer/entry_interface.h>
 
@@ -48,7 +49,6 @@ class metadata;
 
 } // namespace thrift::metadata
 
-class mmif;
 class os_access;
 
 namespace writer::internal {
@@ -132,8 +132,8 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
-  void
-  scan(mmif* mm, progress& prog, std::optional<std::string> const& hash_alg);
+  void scan(file_view const& mm, progress& prog,
+            std::optional<std::string> const& hash_alg);
   void create_data();
   void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;

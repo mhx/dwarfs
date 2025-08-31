@@ -35,8 +35,8 @@
 
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/error.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmif.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/reader/internal/cached_block.h>
@@ -52,18 +52,18 @@ class cached_block_ final : public cached_block {
  public:
   static inline std::atomic<size_t> instance_count_{0};
 
-  cached_block_(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
+  cached_block_(logger& lgr, fs_section const& b, file_view const& mm,
                 byte_buffer_factory const& buffer_factory, bool release,
                 bool disable_integrity_check)
       : decompressor_{std::make_unique<block_decompressor>(
-            b.compression(), mm->span<uint8_t>(b.start(), b.length()))}
+            b.compression(), mm.span<uint8_t>(b.start(), b.length()))}
       , data_{decompressor_->start_decompression(buffer_factory)}
-      , mm_(std::move(mm))
+      , mm_{mm}
       , section_(b)
       , LOG_PROXY_INIT(lgr)
       , release_(release)
       , uncompressed_size_{decompressor_->uncompressed_size()} {
-    if (!disable_integrity_check && !section_.check_fast(*mm_)) {
+    if (!disable_integrity_check && !section_.check_fast(mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
     std::atomic_fetch_add(&instance_count_, 1U);
@@ -153,7 +153,7 @@ class cached_block_ final : public cached_block {
     if (release_) {
       LOG_TRACE << "releasing mapped memory for block "
                 << section_.section_number().value();
-      if (auto ec = mm_->release(section_.start(), section_.length())) {
+      if (auto ec = mm_.release(section_.start(), section_.length())) {
         LOG_INFO << "madvise() failed: " << ec.message();
       }
     }
@@ -162,7 +162,7 @@ class cached_block_ final : public cached_block {
   std::atomic<size_t> range_end_{0};
   std::unique_ptr<block_decompressor> decompressor_;
   shared_byte_buffer data_;
-  std::shared_ptr<mmif> mm_;
+  file_view mm_;
   fs_section section_;
   LOG_PROXY_DECL(LoggerPolicy);
   bool const release_;
@@ -173,7 +173,7 @@ class cached_block_ final : public cached_block {
 } // namespace
 
 std::unique_ptr<cached_block>
-cached_block::create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
+cached_block::create(logger& lgr, fs_section const& b, file_view const& mm,
                      byte_buffer_factory const& bbf, bool release,
                      bool disable_integrity_check) {
   return make_unique_logging_object<cached_block, cached_block_,

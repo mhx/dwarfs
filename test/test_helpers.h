@@ -42,6 +42,7 @@
 
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_view.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/tool/iolayer.h>
@@ -132,9 +133,8 @@ class os_access_mock : public os_access {
   std::filesystem::path
   read_symlink(std::filesystem::path const& path) const override;
 
-  std::unique_ptr<mmif>
-  map_file(std::filesystem::path const& path) const override;
-  std::unique_ptr<mmif>
+  file_view map_file(std::filesystem::path const& path) const override;
+  file_view
   map_file(std::filesystem::path const& path, size_t size) const override;
 
   int access(std::filesystem::path const&, int) const override;
@@ -359,6 +359,8 @@ std::string create_random_string(size_t size, size_t seed = 0);
 std::vector<
     std::pair<std::string, std::unordered_map<std::string, std::string>>>
 parse_mtree(std::string_view mtree);
+
+file_view make_real_file_view(std::filesystem::path const& path);
 
 bool skip_slow_tests();
 

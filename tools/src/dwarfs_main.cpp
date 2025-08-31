@@ -89,7 +89,6 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/cache_tidy_config.h>

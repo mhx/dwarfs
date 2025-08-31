@@ -69,7 +69,6 @@
 #include <dwarfs/integral_value_parser.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>

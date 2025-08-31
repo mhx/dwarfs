@@ -33,19 +33,18 @@
 #include <span>
 #include <string>
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 
 namespace dwarfs {
-
-class mmif;
 
 namespace internal {
 
 class fs_section {
  public:
-  fs_section(mmif const& mm, size_t offset, int version);
-  fs_section(std::shared_ptr<mmif const> mm, section_type type, size_t offset,
-             size_t size, int version);
+  fs_section(file_view const& mm, size_t offset, int version);
+  fs_section(file_view const& mm, section_type type, size_t offset, size_t size,
+             int version);
 
   size_t start() const { return impl_->start(); }
   size_t length() const { return impl_->length(); }
@@ -58,17 +57,19 @@ class fs_section {
   section_type type() const { return impl_->type(); }
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
-  bool check_fast(mmif const& mm) const { return impl_->check_fast(mm); }
+  bool check_fast(file_view const& mm) const { return impl_->check_fast(mm); }
 
-  std::span<uint8_t const> data(mmif const& mm) const {
+  std::span<uint8_t const> data(file_view const& mm) const {
     return impl_->data(mm);
   }
 
-  std::optional<std::span<uint8_t const>> checksum_span(mmif const& mm) const {
+  std::optional<std::span<uint8_t const>>
+  checksum_span(file_view const& mm) const {
     return impl_->checksum_span(mm);
   }
 
-  std::optional<std::span<uint8_t const>> integrity_span(mmif const& mm) const {
+  std::optional<std::span<uint8_t const>>
+  integrity_span(file_view const& mm) const {
     return impl_->integrity_span(mm);
   }
 
@@ -98,12 +99,12 @@ class fs_section {
     virtual section_type type() const = 0;
     virtual std::string name() const = 0;
     virtual std::string description() const = 0;
-    virtual bool check_fast(mmif const& mm) const = 0;
-    virtual std::span<uint8_t const> data(mmif const& mm) const = 0;
+    virtual bool check_fast(file_view const& mm) const = 0;
+    virtual std::span<uint8_t const> data(file_view const& mm) const = 0;
     virtual std::optional<std::span<uint8_t const>>
-    checksum_span(mmif const& mm) const = 0;
+    checksum_span(file_view const& mm) const = 0;
     virtual std::optional<std::span<uint8_t const>>
-    integrity_span(mmif const& mm) const = 0;
+    integrity_span(file_view const& mm) const = 0;
     virtual std::optional<uint32_t> section_number() const = 0;
     virtual std::optional<uint64_t> xxh3_64_value() const = 0;
     virtual std::optional<std::span<uint8_t const>>

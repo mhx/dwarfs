@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/mapped_byte_buffer.h>
 
 namespace dwarfs {
@@ -34,10 +35,9 @@ namespace {
 
 class mapped_byte_buffer_impl : public byte_buffer_interface {
  public:
-  mapped_byte_buffer_impl(std::span<uint8_t const> data,
-                          std::shared_ptr<mmif const> mm)
+  mapped_byte_buffer_impl(std::span<uint8_t const> data, file_view const& mm)
       : data_{data}
-      , mm_{std::move(mm)} {}
+      , mm_{mm} {}
 
   size_t size() const override { return data_.size(); }
 
@@ -51,15 +51,15 @@ class mapped_byte_buffer_impl : public byte_buffer_interface {
 
  private:
   std::span<uint8_t const> data_;
-  std::shared_ptr<mmif const> mm_;
+  file_view mm_;
 };
 
 } // namespace
 
-shared_byte_buffer mapped_byte_buffer::create(std::span<uint8_t const> data,
-                                              std::shared_ptr<mmif const> mm) {
+shared_byte_buffer
+mapped_byte_buffer::create(std::span<uint8_t const> data, file_view const& mm) {
   return shared_byte_buffer{
-      std::make_shared<mapped_byte_buffer_impl>(data, std::move(mm))};
+      std::make_shared<mapped_byte_buffer_impl>(data, mm)};
 }
 
 } // namespace dwarfs

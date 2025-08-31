@@ -28,16 +28,19 @@
 
 #pragma once
 
+#include <optional>
+#include <span>
+
 #include <dwarfs/byte_buffer.h>
+#include <dwarfs/file_view.h>
 
 namespace dwarfs {
 
-class mmif;
-
 class mapped_byte_buffer {
  public:
-  static shared_byte_buffer create(std::span<uint8_t const> data,
-                                   std::shared_ptr<mmif const> mmif = nullptr);
+  // TODO: this should be a segment, not a file_view
+  static shared_byte_buffer
+  create(std::span<uint8_t const> data, file_view const& mm = {});
 };
 
 } // namespace dwarfs
