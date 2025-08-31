@@ -235,23 +235,21 @@ void file::scan(file_view const& mm, progress& prog,
             termcolor::MAGENTA, kHashContext, path_as_string(), s);
       }
 
-      size_t offset = 0;
-
       assert(mm);
 
-      while (s >= chunk_size) {
-        cs.update(mm.as<void>(offset), chunk_size);
-        // release_until() is best-effort, we can ignore the return value
-        // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
-        mm.release_until(offset);
-        offset += chunk_size;
-        s -= chunk_size;
-        if (pctx) {
-          pctx->bytes_processed += chunk_size;
+      for (auto const& ext : mm.extents()) {
+        // TODO; See if we need to handle hole extents differently.
+        //       I guess not, since we can just make holes generate
+        //       zeroes efficiently in the file_view abstraction.
+        for (auto const& seg : ext.segments(chunk_size)) {
+          auto data = seg.span();
+          cs.update(data);
+          static_cast<void>(seg.advise(io_advice::dontneed));
+          if (pctx) {
+            pctx->bytes_processed += data.size();
+          }
         }
       }
-
-      cs.update(mm.as<void>(offset), s);
     }
 
     data_->hash.resize(cs.digest_size());
