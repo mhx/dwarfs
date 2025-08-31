@@ -28,11 +28,25 @@
 
 #pragma once
 
-#include <cstdint>
+#include <cstddef>
+#include <span>
+#include <system_error>
 
-namespace dwarfs {
+#include <dwarfs/io_advice.h>
+#include <dwarfs/types.h>
 
-using file_off_t = int64_t;
-using file_size_t = int64_t;
+namespace dwarfs::detail {
 
-} // namespace dwarfs
+class file_segment_impl {
+ public:
+  virtual ~file_segment_impl() = default;
+
+  virtual file_off_t offset() const noexcept = 0;
+  virtual size_t size() const noexcept = 0;
+  virtual bool is_zero() const noexcept = 0;
+  virtual std::span<std::byte const> raw_bytes() const = 0;
+  virtual void advise(io_advice adv, file_off_t offset, size_t size,
+                      std::error_code& ec) const noexcept = 0;
+};
+
+} // namespace dwarfs::detail

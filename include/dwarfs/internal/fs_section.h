@@ -36,9 +36,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 
-namespace dwarfs {
-
-namespace internal {
+namespace dwarfs::internal {
 
 class fs_section {
  public:
@@ -115,6 +113,4 @@ class fs_section {
   std::shared_ptr<impl const> impl_;
 };
 
-} // namespace internal
-
-} // namespace dwarfs
+} // namespace dwarfs::internal

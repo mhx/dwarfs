@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <iosfwd>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -63,6 +64,11 @@ class checksum {
 
   checksum& update(void const* data, size_t size) {
     impl_->update(data, size);
+    return *this;
+  }
+
+  checksum& update(std::span<std::byte const> data) {
+    impl_->update(data.data(), data.size());
     return *this;
   }
 

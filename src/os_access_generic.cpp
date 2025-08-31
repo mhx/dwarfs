@@ -119,11 +119,11 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::map_file(fs::path const& path) const {
-  return file_view(std::make_shared<mmap>(path));
+  return create_mmap_file_view(path);
 }
 
 file_view os_access_generic::map_file(fs::path const& path, size_t size) const {
-  return file_view(std::make_shared<mmap>(path, size));
+  return create_mmap_file_view(path, size);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {

@@ -28,28 +28,17 @@
 
 #pragma once
 
-#include <concepts>
-#include <cstddef>
-#include <filesystem>
-#include <span>
-#include <string>
-#include <system_error>
-
-#include <dwarfs/types.h>
+#include <dwarfs/detail/file_view_impl.h>
+#include <dwarfs/file_extents_iterable.h>
 
 namespace dwarfs {
-
-enum class advice {
-  normal,
-  random,
-  sequential,
-  willneed,
-  dontneed,
-};
 
 class file_view {
  public:
   file_view() = default;
+
+  explicit file_view(std::shared_ptr<detail::file_view_impl const> impl)
+      : impl_{std::move(impl)} {}
 
   explicit operator bool() const { return static_cast<bool>(impl_); }
 
@@ -57,7 +46,52 @@ class file_view {
 
   void reset() { impl_.reset(); }
 
+  file_segment segment_at(file_off_t offset, size_t size) const {
+    return impl_->segment_at(offset, size);
+  }
+
+  file_extents_iterable extents() const { return impl_->extents(); }
+
+  template <typename T>
+    requires std::is_trivially_copyable_v<T>
+  void copy_to(T& t, file_off_t offset, std::error_code& ec) const {
+    impl_->copy_bytes(&t, offset, sizeof(T), ec);
+  }
+
+  template <typename T>
+    requires std::is_trivially_copyable_v<T>
+  void copy_to(T& t, file_off_t offset = 0) const {
+    std::error_code ec;
+    copy_to(t, offset, ec);
+    if (ec) {
+      throw std::system_error(ec);
+    }
+  }
+
+  template <typename T>
+    requires(std::is_trivially_copyable_v<T> &&
+             std::is_default_constructible_v<T>)
+  T read(file_off_t offset, std::error_code& ec) const {
+    T t;
+    this->copy_to(t, offset, ec);
+    return t;
+  }
+
+  template <typename T>
+    requires(std::is_trivially_copyable_v<T> &&
+             std::is_default_constructible_v<T>)
+  T read(file_off_t offset = 0) const {
+    std::error_code ec;
+    auto t = this->read<T>(offset, ec);
+    if (ec) {
+      throw std::system_error(ec);
+    }
+    return t;
+  }
+
+  // ---------------------------------------------------------------------
   // TODO: this is mostly all deprecated
+
   template <typename T, std::integral U>
   T const* as(U offset = 0) const {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -96,38 +130,19 @@ class file_view {
     return impl_->release_until(offset);
   }
 
-  std::error_code advise(advice adv) const { return impl_->advise(adv); }
+  std::error_code advise(io_advice adv) const noexcept {
+    return impl_->advise(adv);
+  }
 
-  std::error_code advise(advice adv, file_off_t offset, size_t size) const {
+  std::error_code
+  advise(io_advice adv, file_off_t offset, size_t size) const noexcept {
     return impl_->advise(adv, offset, size);
   }
 
   std::filesystem::path const& path() const { return impl_->path(); }
 
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    // TODO: this is mostly all deprecated
-    virtual void const* addr() const = 0;
-    virtual size_t size() const = 0;
-
-    virtual std::error_code lock(file_off_t offset, size_t size) const = 0;
-    virtual std::error_code release(file_off_t offset, size_t size) const = 0;
-    virtual std::error_code release_until(file_off_t offset) const = 0;
-
-    virtual std::error_code advise(advice adv) const = 0;
-    virtual std::error_code
-    advise(advice adv, file_off_t offset, size_t size) const = 0;
-
-    virtual std::filesystem::path const& path() const = 0;
-  };
-
-  explicit file_view(std::shared_ptr<impl const> impl)
-      : impl_{std::move(impl)} {}
-
  private:
-  std::shared_ptr<impl const> impl_;
+  std::shared_ptr<detail::file_view_impl const> impl_;
 };
 
 } // namespace dwarfs

@@ -28,11 +28,14 @@
 
 #pragma once
 
-#include <cstdint>
-
 namespace dwarfs {
 
-using file_off_t = int64_t;
-using file_size_t = int64_t;
+enum class io_advice {
+  normal,
+  random,
+  sequential,
+  willneed,
+  dontneed,
+};
 
 } // namespace dwarfs
