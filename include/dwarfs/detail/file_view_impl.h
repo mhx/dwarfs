@@ -29,12 +29,44 @@
 #pragma once
 
 #include <filesystem>
+#include <system_error>
 
-#include <dwarfs/file_view.h>
+#include <dwarfs/file_extents_iterable.h>
+#include <dwarfs/file_segment.h>
+#include <dwarfs/io_advice.h>
+#include <dwarfs/types.h>
 
-namespace dwarfs {
+namespace dwarfs::detail {
 
-file_view create_mmap_file_view(std::filesystem::path const& path);
-file_view create_mmap_file_view(std::filesystem::path const& path, size_t size);
+class file_view_impl {
+ public:
+  virtual ~file_view_impl() = default;
 
-} // namespace dwarfs
+  virtual file_segment segment_at(file_off_t offset, size_t size) const = 0;
+
+  virtual file_extents_iterable extents() const = 0;
+
+  virtual bool supports_raw_bytes() const noexcept = 0;
+
+  virtual std::span<std::byte const> raw_bytes() const = 0;
+
+  virtual void copy_bytes(void* dest, file_off_t offset, size_t size,
+                          std::error_code& ec) const = 0;
+
+  // ----------------------------------------------------------------------
+  // TODO: this is mostly all deprecated
+  virtual void const* addr() const = 0;
+  virtual size_t size() const = 0;
+
+  virtual std::error_code lock(file_off_t offset, size_t size) const = 0;
+  virtual std::error_code release(file_off_t offset, size_t size) const = 0;
+  virtual std::error_code release_until(file_off_t offset) const = 0;
+
+  virtual std::error_code advise(io_advice adv) const noexcept = 0;
+  virtual std::error_code
+  advise(io_advice adv, file_off_t offset, size_t size) const noexcept = 0;
+
+  virtual std::filesystem::path const& path() const = 0;
+};
+
+} // namespace dwarfs::detail

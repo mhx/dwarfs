@@ -31,6 +31,7 @@
 
 #ifndef _WIN32
 #include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 #include <dwarfs/block_decompressor.h>
@@ -177,8 +178,8 @@ cached_block::create(logger& lgr, fs_section const& b, file_view const& mm,
                      byte_buffer_factory const& bbf, bool release,
                      bool disable_integrity_check) {
   return make_unique_logging_object<cached_block, cached_block_,
-                                    logger_policies>(
-      lgr, b, std::move(mm), bbf, release, disable_integrity_check);
+                                    logger_policies>(lgr, b, mm, bbf, release,
+                                                     disable_integrity_check);
 }
 
 } // namespace dwarfs::reader::internal

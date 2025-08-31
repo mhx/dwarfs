@@ -41,9 +41,7 @@
 
 #include <dwarfs/internal/fs_section.h>
 
-namespace dwarfs {
-
-namespace reader::internal {
+namespace dwarfs::reader::internal {
 
 class filesystem_parser {
  private:
@@ -91,6 +89,4 @@ class filesystem_parser {
   std::vector<uint64_t> index_;
 };
 
-} // namespace reader::internal
-
-} // namespace dwarfs
+} // namespace dwarfs::reader::internal

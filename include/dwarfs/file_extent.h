@@ -28,11 +28,39 @@
 
 #pragma once
 
-#include <cstdint>
+#include <cassert>
+#include <memory>
+
+#include <dwarfs/detail/file_view_impl.h>
+#include <dwarfs/file_segments_iterable.h>
 
 namespace dwarfs {
 
-using file_off_t = int64_t;
-using file_size_t = int64_t;
+class file_extent {
+ public:
+  file_extent() = default;
+  file_extent(std::shared_ptr<detail::file_view_impl const> fv,
+              detail::file_extent_info const& extent)
+      : fv_{std::move(fv)}
+      , extent_{&extent} {}
+
+  explicit operator bool() const noexcept { return static_cast<bool>(fv_); }
+  bool valid() const noexcept { return static_cast<bool>(fv_); }
+  void reset() noexcept { fv_.reset(); }
+
+  file_off_t offset() const noexcept { return extent_->offset; }
+  file_size_t size() const noexcept { return extent_->size; }
+  extent_kind kind() const noexcept { return extent_->kind; }
+
+  file_segments_iterable
+  segments(size_t max_segment_size, size_t overlap_size = 0) const {
+    return file_segments_iterable{fv_, *extent_, max_segment_size,
+                                  overlap_size};
+  }
+
+ private:
+  std::shared_ptr<detail::file_view_impl const> fv_;
+  detail::file_extent_info const* extent_{nullptr};
+};
 
 } // namespace dwarfs
