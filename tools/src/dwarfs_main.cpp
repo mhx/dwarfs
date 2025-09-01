@@ -81,6 +81,7 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
@@ -110,6 +111,7 @@
 namespace {
 
 using namespace std::string_view_literals;
+using namespace dwarfs::binary_literals;
 
 #ifdef DWARFS_FSP_COMPAT
 using native_stat = struct ::fuse_stat;
@@ -1649,9 +1651,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     userdata.lgr.set_threshold(opts.logopts.threshold);
     userdata.lgr.set_with_context(opts.logopts.threshold >= logger::DEBUG);
 
-    opts.cachesize = opts.cachesize_str
-                         ? parse_size_with_unit(opts.cachesize_str)
-                         : (static_cast<size_t>(512) << 20);
+    opts.cachesize =
+        opts.cachesize_str ? parse_size_with_unit(opts.cachesize_str) : 512_MiB;
     opts.blocksize = opts.blocksize_str
                          ? parse_size_with_unit(opts.blocksize_str)
                          : kDefaultBlockSize;

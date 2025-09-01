@@ -56,6 +56,7 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
@@ -107,6 +108,7 @@ namespace dwarfs::tool {
 namespace {
 
 using namespace std::string_view_literals;
+using namespace dwarfs::binary_literals;
 
 constexpr sorted_array_map progress_modes{
     std::pair{"none"sv, writer::console_writer::NONE},
@@ -387,8 +389,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 
 uint64_t
 compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
-  auto const sys_mem =
-      std::max(tool::sysinfo::get_total_memory(), UINT64_C(256) << 20);
+  auto const sys_mem = std::max(tool::sysinfo::get_total_memory(), 256_MiB);
   auto wanted_mem = num_cpu * block_size;
   if (wanted_mem < sys_mem / 32) {
     wanted_mem *= 2;
