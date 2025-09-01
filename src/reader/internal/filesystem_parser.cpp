@@ -35,6 +35,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -44,6 +45,7 @@
 namespace dwarfs::reader::internal {
 
 using namespace dwarfs::internal;
+using namespace dwarfs::binary_literals;
 
 namespace {
 
@@ -84,21 +86,11 @@ inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
   return n;
 }
 
-} // namespace
-
-file_off_t filesystem_parser::find_image_offset(file_view const& mm,
-                                                file_off_t image_offset) {
-  if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
-    return image_offset;
-  }
-
+file_off_t search_image_in_segment(file_segment const& seg) {
   file_off_t start = 0;
-  for (;;) {
-    if (start + kMagic.size() >= mm.size()) {
-      break;
-    }
 
-    auto ss = mm.span<std::byte>(start);
+  while (start + kMagic.size() < seg.size()) {
+    auto ss = seg.span(start);
     auto dp = search_dwarfs_header(ss);
 
     if (dp >= ss.size()) {
@@ -107,19 +99,19 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
 
     file_off_t pos = start + dp;
 
-    if (pos + sizeof(file_header) >= mm.size()) {
+    if (pos + sizeof(file_header) >= seg.size()) {
       break;
     }
 
-    auto fh = mm.as<file_header>(pos);
+    auto fh = seg.read<file_header>(pos);
 
-    if (fh->minor < 2) {
+    if (fh.minor < 2) {
       // v1 section header, presumably
-      if (pos + sizeof(file_header) + sizeof(section_header) >= mm.size()) {
+      if (pos + sizeof(file_header) + sizeof(section_header) >= seg.size()) {
         break;
       }
 
-      auto sh = mm.as<section_header>(pos + sizeof(file_header));
+      auto sh = seg.read<section_header>(pos + sizeof(file_header));
 
       // The only compression types supported before v0.3.0
       auto is_valid_compression = [](compression_type_v1 c) {
@@ -131,15 +123,15 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
 
       // First section must be either a block or the metadata schema,
       // using a valid compression type.
-      auto const shtype = static_cast<section_type>(sh->type);
+      auto const shtype = static_cast<section_type>(sh.type);
       if ((shtype == section_type::BLOCK ||
            shtype == section_type::METADATA_V2_SCHEMA) &&
-          is_valid_compression(sh->compression) && sh->length > 0) {
+          is_valid_compression(sh.compression) && sh.length > 0) {
         auto nextshpos =
-            pos + sizeof(file_header) + sizeof(section_header) + sh->length;
-        if (nextshpos + sizeof(section_header) < mm.size()) {
-          auto nsh = mm.as<section_header>(nextshpos);
-          auto const nshtype = static_cast<section_type>(nsh->type);
+            pos + sizeof(file_header) + sizeof(section_header) + sh.length;
+        if (nextshpos + sizeof(section_header) < seg.size()) {
+          auto nsh = seg.read<section_header>(nextshpos);
+          auto const nshtype = static_cast<section_type>(nsh.type);
           // the next section must be a block or a metadata schema if the first
           // section was a block *or* a metadata block if the first section was
           // a metadata schema
@@ -147,7 +139,7 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
                    ? nshtype == section_type::BLOCK ||
                          nshtype == section_type::METADATA_V2_SCHEMA
                    : nshtype == section_type::METADATA_V2) &&
-              is_valid_compression(nsh->compression) && nsh->length > 0) {
+              is_valid_compression(nsh.compression) && nsh.length > 0) {
             // we can be somewhat sure that this is where the filesystem starts
             return pos;
           }
@@ -155,24 +147,25 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
       }
     } else {
       // do a little more validation before we return
-      if (pos + sizeof(section_header_v2) >= mm.size()) {
+      if (pos + sizeof(section_header_v2) >= seg.size()) {
         break;
       }
 
-      auto sh = mm.as<section_header_v2>(pos);
+      auto sh = seg.read<section_header_v2>(pos);
 
-      if (sh->number == 0) {
-        auto endpos = pos + sh->length + 2 * sizeof(section_header_v2);
+      if (sh.number == 0) {
+        auto endpos = pos + sh.length + 2 * sizeof(section_header_v2);
 
-        if (endpos >= sh->length) {
-          if (endpos >= mm.size()) {
+        if (endpos >= sh.length) {
+          if (endpos >= seg.size()) {
             break;
           }
 
-          auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
+          auto nsh = seg.read<section_header_v2>(pos + sh.length +
+                                                 sizeof(section_header_v2));
 
-          if (::memcmp(ps, kMagic.data(), kMagic.size()) == 0 and
-              reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
+          if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
+              nsh.number == 1) {
             return pos;
           }
         }
@@ -180,6 +173,32 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
     }
 
     start = pos + kMagic.size();
+  }
+
+  return -1;
+}
+
+} // namespace
+
+file_off_t filesystem_parser::find_image_offset(file_view const& mm,
+                                                file_off_t image_offset) {
+  if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
+    return image_offset;
+  }
+
+  for (auto const& ext : mm.extents()) {
+    if (ext.kind() == extent_kind::hole) {
+      // skip holes
+      continue;
+    }
+
+    for (auto const& seg : ext.segments(8_MiB, sizeof(section_header_v2))) {
+      auto pos = search_image_in_segment(seg);
+
+      if (pos >= 0) {
+        return seg.offset() + pos;
+      }
+    }
   }
 
   DWARFS_THROW(runtime_error, "no filesystem found");
@@ -196,23 +215,23 @@ filesystem_parser::filesystem_parser(file_view const& mm,
     DWARFS_THROW(runtime_error, "filesystem image too small");
   }
 
-  auto fh = mm_.as<file_header>(image_offset_);
+  auto fh = mm_.read<file_header>(image_offset_);
 
-  if (fh->magic_sv() != "DWARFS") {
+  if (fh.magic_sv() != "DWARFS") {
     DWARFS_THROW(runtime_error, "magic not found");
   }
 
-  if (fh->major != MAJOR_VERSION) {
+  if (fh.major != MAJOR_VERSION) {
     DWARFS_THROW(runtime_error, "unsupported major version");
   }
 
-  if (fh->minor > MINOR_VERSION) {
+  if (fh.minor > MINOR_VERSION) {
     DWARFS_THROW(runtime_error, "unsupported minor version");
   }
 
-  header_version_ = fh->minor >= 2 ? 2 : 1;
-  fs_version_.major = fh->major;
-  fs_version_.minor = fh->minor;
+  header_version_ = fh.minor >= 2 ? 2 : 1;
+  fs_version_.major = fh.major;
+  fs_version_.minor = fh.minor;
 
   if (fs_version_.minor >= 4) {
     find_index();
