@@ -55,17 +55,38 @@ class fs_section {
   section_type type() const { return impl_->type(); }
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
+
+  // TODO: see if we want to keep this interface (should be fine for now)
   bool check_fast(file_view const& mm) const { return impl_->check_fast(mm); }
 
+  file_segment segment(file_view const& mm) const { return impl_->segment(mm); }
+
+  std::span<uint8_t const> data(file_segment const& seg) const {
+    return impl_->data(seg);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  checksum_span(file_segment const& seg) const {
+    return impl_->checksum_span(seg);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  integrity_span(file_segment const& seg) const {
+    return impl_->integrity_span(seg);
+  }
+
+  // [[deprecated]]
   std::span<uint8_t const> data(file_view const& mm) const {
     return impl_->data(mm);
   }
 
+  // [[deprecated]]
   std::optional<std::span<uint8_t const>>
   checksum_span(file_view const& mm) const {
     return impl_->checksum_span(mm);
   }
 
+  // [[deprecated]]
   std::optional<std::span<uint8_t const>>
   integrity_span(file_view const& mm) const {
     return impl_->integrity_span(mm);
@@ -98,9 +119,18 @@ class fs_section {
     virtual std::string name() const = 0;
     virtual std::string description() const = 0;
     virtual bool check_fast(file_view const& mm) const = 0;
+    virtual file_segment segment(file_view const& mm) const = 0;
+    virtual std::span<uint8_t const> data(file_segment const& seg) const = 0;
+    virtual std::optional<std::span<uint8_t const>>
+    checksum_span(file_segment const& seg) const = 0;
+    virtual std::optional<std::span<uint8_t const>>
+    integrity_span(file_segment const& seg) const = 0;
+    // [[deprecated]]
     virtual std::span<uint8_t const> data(file_view const& mm) const = 0;
+    // [[deprecated]]
     virtual std::optional<std::span<uint8_t const>>
     checksum_span(file_view const& mm) const = 0;
+    // [[deprecated]]
     virtual std::optional<std::span<uint8_t const>>
     integrity_span(file_view const& mm) const = 0;
     virtual std::optional<uint32_t> section_number() const = 0;
