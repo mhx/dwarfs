@@ -116,7 +116,7 @@ class fs_section_v1 final : public fs_section::impl {
   bool check_fast(file_view const&) const override { return true; }
 
   std::span<uint8_t const> data(file_view const& mm) const override {
-    return mm.span(start_, hdr_.length);
+    return mm.raw_bytes<uint8_t>(start_, hdr_.length);
   }
 
   std::optional<std::span<uint8_t const>>
@@ -208,7 +208,7 @@ class fs_section_v2 final : public fs_section::impl {
   }
 
   std::span<uint8_t const> data(file_view const& mm) const override {
-    return mm.span(start_, hdr_.length);
+    return mm.raw_bytes<uint8_t>(start_, hdr_.length);
   }
 
   std::optional<std::span<uint8_t const>>
@@ -216,7 +216,7 @@ class fs_section_v2 final : public fs_section::impl {
     static constexpr auto kHdrCsLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
 
-    return mm.span(start_ - kHdrCsLen, hdr_.length + kHdrCsLen);
+    return mm.raw_bytes<uint8_t>(start_ - kHdrCsLen, hdr_.length + kHdrCsLen);
   }
 
   std::optional<std::span<uint8_t const>>
@@ -224,7 +224,7 @@ class fs_section_v2 final : public fs_section::impl {
     static constexpr auto kHdrShaLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
 
-    return mm.span(start_ - kHdrShaLen, hdr_.length + kHdrShaLen);
+    return mm.raw_bytes<uint8_t>(start_ - kHdrShaLen, hdr_.length + kHdrShaLen);
   }
 
   std::optional<uint32_t> section_number() const override {
