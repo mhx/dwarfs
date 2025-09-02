@@ -156,7 +156,7 @@ class inode_ : public inode {
         // First, run random access categorizers. If we get a result here,
         // it's very likely going to be the best result.
         catjob.set_total_size(mm.size());
-        catjob.categorize_random_access(mm.span());
+        catjob.categorize_random_access(mm.raw_bytes<uint8_t>());
 
         if (!catjob.best_result_found()) {
           // We must perform a sequential categorizer scan before scanning the
@@ -381,7 +381,7 @@ class inode_ : public inode {
     auto&& scan = std::forward<T>(scanner);
 
     while (size >= chunk_size) {
-      scan(mm.span(offset, chunk_size));
+      scan(mm.raw_bytes<uint8_t>(offset, chunk_size));
       // release_until() is best-effort, we can ignore the return value
       // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
       mm.release_until(offset);
@@ -392,7 +392,7 @@ class inode_ : public inode {
       }
     }
 
-    scan(mm.span(offset, size));
+    scan(mm.raw_bytes<uint8_t>(offset, size));
 
     if (sprog) {
       sprog->bytes_processed += size;

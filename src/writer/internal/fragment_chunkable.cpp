@@ -55,7 +55,7 @@ std::string fragment_chunkable::description() const {
 }
 
 std::span<uint8_t const> fragment_chunkable::span() const {
-  return mm_.span(offset_, frag_.size());
+  return mm_.raw_bytes<uint8_t>(offset_, frag_.size());
 }
 
 void fragment_chunkable::add_chunk(size_t block, size_t offset, size_t size) {
