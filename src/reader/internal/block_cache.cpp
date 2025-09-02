@@ -408,13 +408,18 @@ class block_cache_ final : public block_cache::impl {
                                  block_no, block_.size()));
       }
 
-      auto const& section = DWARFS_NOTHROW(block_.at(block_no));
+      // TODO: we probably want to change the interface for `section.data()`
+      //       so that we don't need multiple different `data()` methods
+      if (mm_.supports_raw_bytes()) {
+        auto const& section = DWARFS_NOTHROW(block_.at(block_no));
 
-      if (section.compression() == compression_type::NONE) {
-        LOG_TRACE << "block " << block_no
-                  << " is uncompressed, bypassing cache";
-        promise.set_value(block_range(section.data(mm_).data(), offset, size));
-        return future;
+        if (section.compression() == compression_type::NONE) {
+          LOG_TRACE << "block " << block_no
+                    << " is uncompressed, bypassing cache";
+          promise.set_value(
+              block_range(section.data(mm_).data(), offset, size));
+          return future;
+        }
       }
     } catch (...) {
       promise.set_exception(std::current_exception());
