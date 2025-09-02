@@ -52,6 +52,40 @@ class file_view {
 
   file_extents_iterable extents() const { return impl_->extents(); }
 
+  bool supports_raw_bytes() const noexcept {
+    return impl_->supports_raw_bytes();
+  }
+
+  std::span<std::byte const> raw_bytes() const { return impl_->raw_bytes(); }
+
+  std::span<std::byte const> raw_bytes(file_off_t offset) const {
+    return raw_bytes().subspan(offset);
+  }
+
+  std::span<std::byte const> raw_bytes(file_off_t offset, size_t size) const {
+    return raw_bytes().subspan(offset, size);
+  }
+
+  template <typename T>
+    requires(sizeof(T) == 1 && std::is_fundamental_v<T>)
+  std::span<T const> raw_bytes() const {
+    auto bytes = impl_->raw_bytes();
+    return std::span<T const>{reinterpret_cast<T const*>(bytes.data()),
+                              bytes.size()};
+  }
+
+  template <typename T>
+    requires(sizeof(T) == 1 && std::is_fundamental_v<T>)
+  std::span<T const> raw_bytes(file_off_t offset) const {
+    return raw_bytes<T>().subspan(offset);
+  }
+
+  template <typename T>
+    requires(sizeof(T) == 1 && std::is_fundamental_v<T>)
+  std::span<T const> raw_bytes(file_off_t offset, size_t size) const {
+    return raw_bytes<T>().subspan(offset, size);
+  }
+
   template <typename T>
     requires std::is_trivially_copyable_v<T>
   void copy_to(T& t, file_off_t offset, std::error_code& ec) const {
@@ -98,21 +132,6 @@ class file_view {
     auto raw = static_cast<std::byte const*>(this->addr()) + offset;
     // NOLINTNEXTLINE(bugprone-casting-through-void)
     return static_cast<T const*>(static_cast<void const*>(raw));
-  }
-
-  template <typename T = uint8_t, std::integral U>
-  std::span<T const> span(U offset, size_t length) const {
-    return std::span(this->as<T>(offset), length);
-  }
-
-  template <typename T = uint8_t, std::integral U>
-  std::span<T const> span(U offset) const {
-    return span<T>(offset, size() - offset);
-  }
-
-  template <typename T = uint8_t>
-  std::span<T const> span() const {
-    return span<T>(0);
   }
 
   void const* addr() const { return impl_->addr(); }

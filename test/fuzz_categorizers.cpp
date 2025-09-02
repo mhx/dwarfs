@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     auto mm = create_mmap_file_view(p);
     auto job = catmgr->job(p);
     job.set_total_size(mm.size());
-    job.categorize_random_access(mm.span());
+    job.categorize_random_access(mm.raw_bytes<uint8_t>());
     auto res [[maybe_unused]] = job.result();
   }
 

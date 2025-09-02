@@ -57,7 +57,7 @@ class cached_block_ final : public cached_block {
                 byte_buffer_factory const& buffer_factory, bool release,
                 bool disable_integrity_check)
       : decompressor_{std::make_unique<block_decompressor>(
-            b.compression(), mm.span<uint8_t>(b.start(), b.length()))}
+            b.compression(), mm.raw_bytes<uint8_t>(b.start(), b.length()))}
       , data_{decompressor_->start_decompression(buffer_factory)}
       , mm_{mm}
       , section_(b)
