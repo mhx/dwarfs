@@ -287,7 +287,7 @@ TEST(pcmaudio_categorizer, requirements) {
 
     EXPECT_TRUE(logger.empty());
 
-    job.categorize_random_access(mm.span());
+    job.categorize_random_access(mm.raw_bytes<uint8_t>());
     auto frag = job.result();
 
     ASSERT_EQ(1, logger.get_log().size());
@@ -313,7 +313,7 @@ TEST(pcmaudio_categorizer, requirements) {
 
     EXPECT_TRUE(logger.empty());
 
-    job.categorize_random_access(mm.span());
+    job.categorize_random_access(mm.raw_bytes<uint8_t>());
     auto frag = job.result();
 
     EXPECT_TRUE(logger.empty());

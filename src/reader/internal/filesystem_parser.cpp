@@ -248,7 +248,7 @@ std::optional<std::span<uint8_t const>> filesystem_parser::header() const {
   if (image_offset_ == 0) {
     return std::nullopt;
   }
-  return mm_.span(0, image_offset_);
+  return mm_.raw_bytes<uint8_t>(0, image_offset_);
 }
 
 void filesystem_parser::rewind() {
