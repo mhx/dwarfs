@@ -48,12 +48,12 @@ class single_inode_fragment {
     size_type size;
   };
 
-  single_inode_fragment(fragment_category category, file_off_t length)
+  single_inode_fragment(fragment_category category, file_size_t length)
       : category_{category}
       , length_{length} {}
 
   fragment_category category() const { return category_; }
-  file_off_t length() const { return length_; }
+  file_size_t length() const { return length_; }
   file_off_t size() const { return length_; }
 
   void add_chunk(size_t block, size_t offset, size_t size);
@@ -63,13 +63,13 @@ class single_inode_fragment {
     return {chunks_.data(), chunks_.size()};
   }
 
-  void extend(file_off_t length) { length_ += length; }
+  void extend(file_size_t length) { length_ += length; }
 
   bool chunks_are_consistent() const;
 
  private:
   fragment_category category_;
-  file_off_t length_;
+  file_size_t length_;
   small_vector<chunk, 1> chunks_;
 };
 
@@ -81,7 +81,7 @@ class inode_fragments {
   inode_fragments() = default;
 
   single_inode_fragment&
-  emplace_back(fragment_category category, file_off_t length) {
+  emplace_back(fragment_category category, file_size_t length) {
     return fragments_.emplace_back(category, length);
   }
 
@@ -118,7 +118,7 @@ class inode_fragments {
   std::string
   to_string(mapper_function_type const& mapper = mapper_function_type()) const;
 
-  std::unordered_map<fragment_category, file_off_t> get_category_sizes() const;
+  std::unordered_map<fragment_category, file_size_t> get_category_sizes() const;
 
  private:
   small_vector<single_inode_fragment, 1> fragments_;

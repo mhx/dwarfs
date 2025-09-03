@@ -27,6 +27,8 @@
 #include <string_view>
 #include <system_error>
 
+#include <dwarfs/types.h>
+
 namespace dwarfs::writer::internal {
 
 class file;
@@ -36,7 +38,7 @@ class chunkable {
   virtual ~chunkable() = default;
 
   virtual file const* get_file() const = 0;
-  virtual size_t size() const = 0;
+  virtual file_size_t size() const = 0;
   virtual std::string description() const = 0;
   virtual std::span<uint8_t const> span() const = 0;
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
