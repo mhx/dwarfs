@@ -55,7 +55,7 @@ bool single_inode_fragment::chunks_are_consistent() const {
   }
 
   auto total_chunks_len =
-      std::accumulate(chunks_.begin(), chunks_.end(), file_off_t{0},
+      std::accumulate(chunks_.begin(), chunks_.end(), file_size_t{0},
                       [](auto acc, auto const& c) { return acc + c.size; });
 
   return total_chunks_len == length_;
@@ -106,9 +106,9 @@ inode_fragments::to_string(mapper_function_type const& mapper) const {
   return oss.str();
 }
 
-std::unordered_map<fragment_category, file_off_t>
+std::unordered_map<fragment_category, file_size_t>
 inode_fragments::get_category_sizes() const {
-  std::unordered_map<fragment_category, file_off_t> result;
+  std::unordered_map<fragment_category, file_size_t> result;
 
   for (auto const& f : span()) {
     result[f.category()] += f.size();
