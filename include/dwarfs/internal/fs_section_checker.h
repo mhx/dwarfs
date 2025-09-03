@@ -28,24 +28,30 @@
 
 #pragma once
 
-#include <dwarfs/file_view.h>
+#include <functional>
+#include <variant>
 
 #include <dwarfs/internal/fs_section.h>
 
-namespace dwarfs::internal {
+namespace dwarfs {
+
+class file_segment;
+class file_view;
+
+namespace internal {
 
 class fs_section_checker {
  public:
-  // TOOD: this should be a segment, not a file_view
-  fs_section_checker(file_view const& mm)
-      : mm_{mm} {}
+  fs_section_checker(file_segment const& seg)
+      : seg_{seg} {}
 
   bool check(fs_section const& section) const;
   bool check(fs_section::impl const& section) const;
   bool verify(fs_section const& section) const;
 
  private:
-  file_view const& mm_;
+  file_segment const& seg_;
 };
 
-} // namespace dwarfs::internal
+} // namespace internal
+} // namespace dwarfs

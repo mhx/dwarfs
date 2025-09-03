@@ -64,29 +64,21 @@ class mmap_mock : public detail::file_view_impl,
   void copy_bytes(void* dest, file_off_t offset, size_t size,
                   std::error_code& ec) const override;
 
-  void const* addr() const override { return data_.data(); }
-
   size_t size() const override { return data_.size(); }
 
   std::filesystem::path const& path() const override { return path_; }
 
-  std::error_code lock(file_off_t, size_t) const override {
-    return std::error_code();
-  }
-  std::error_code release(file_off_t, size_t) const override {
-    return std::error_code();
-  }
   std::error_code release_until(file_off_t) const override {
     return std::error_code();
   }
 
-  std::error_code advise(io_advice) const noexcept override {
+  void const* addr() const { return data_.data(); }
+
+  std::error_code advise(io_advice, file_off_t, size_t) const {
     return std::error_code();
   }
-  std::error_code
-  advise(io_advice, file_off_t, size_t) const noexcept override {
-    return std::error_code();
-  }
+
+  std::error_code lock(file_off_t, size_t) const { return std::error_code(); }
 
  private:
   std::string const data_;
@@ -112,8 +104,12 @@ class mmap_mock_file_segment : public detail::file_segment_impl {
   }
 
   void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const noexcept override {
+              std::error_code& ec) const override {
     ec = mm_->advise(adv, offset_ + offset, size);
+  }
+
+  void lock(std::error_code& ec) const override {
+    ec = mm_->lock(offset_, size_);
   }
 
  private:
