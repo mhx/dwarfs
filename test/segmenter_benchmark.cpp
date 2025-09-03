@@ -47,7 +47,7 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
     return nullptr;
   }
 
-  size_t size() const override { return data_.size(); }
+  dwarfs::file_size_t size() const override { return data_.size(); }
 
   std::string description() const override { return std::string(); }
 
