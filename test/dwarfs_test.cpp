@@ -1320,11 +1320,11 @@ TEST(section_index_regression, github183) {
     auto mm = test::make_mock_file_view(fsimage);
     auto section = internal::fs_section(mm, index_pos, 2);
 
-    EXPECT_TRUE(section.check_fast(mm));
+    EXPECT_TRUE(section.check_fast_mm(mm));
 
     auto const num_entries{section.length() / sizeof(uint64_t)};
     std::vector<uint64le_t> tmp(num_entries);
-    ::memcpy(tmp.data(), section.data(mm).data(), section.length());
+    ::memcpy(tmp.data(), section.raw_bytes(mm).data(), section.length());
     index.resize(num_entries);
     std::transform(begin(tmp), end(tmp), begin(index),
                    [](auto const& v) { return v.load(); });
