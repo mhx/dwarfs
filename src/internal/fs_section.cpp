@@ -113,14 +113,16 @@ class fs_section_v1 final : public fs_section::impl {
     return fmt::format("{}, offset={}", hdr_.to_string(), start());
   }
 
-  bool check_fast(file_view const&) const override { return true; }
+  bool check_fast_mm(file_view const&) const override { return true; }
+  bool check_fast(file_segment const&) const override { return true; }
 
   file_segment segment(file_view const& mm) const override {
-    return mm.segment_at(start_, hdr_.length);
+    return mm.segment_at(start_ - sizeof(section_header),
+                         hdr_.length + sizeof(section_header));
   }
 
   std::span<uint8_t const> data(file_segment const& seg) const override {
-    return seg.span<uint8_t>();
+    return seg.span<uint8_t>(sizeof(section_header));
   }
 
   std::optional<std::span<uint8_t const>>
@@ -133,18 +135,8 @@ class fs_section_v1 final : public fs_section::impl {
     return std::nullopt;
   }
 
-  std::span<uint8_t const> data(file_view const& mm) const override {
+  std::span<uint8_t const> raw_bytes(file_view const& mm) const override {
     return mm.raw_bytes<uint8_t>(start_, hdr_.length);
-  }
-
-  std::optional<std::span<uint8_t const>>
-  checksum_span(file_view const&) const override {
-    return std::nullopt;
-  }
-
-  std::optional<std::span<uint8_t const>>
-  integrity_span(file_view const&) const override {
-    return std::nullopt;
   }
 
   std::optional<uint32_t> section_number() const override {
@@ -208,12 +200,22 @@ class fs_section_v2 final : public fs_section::impl {
                        start());
   }
 
-  bool check_fast(file_view const& mm) const override {
+  bool check_fast_mm(file_view const& mm) const override {
     if (auto state = check_state_.load(); state != check_state::unknown) {
       return state == check_state::passed;
     }
 
-    auto ok = fs_section_checker(mm).check(*this);
+    auto seg = this->segment(mm);
+
+    return this->check_fast(seg);
+  }
+
+  bool check_fast(file_segment const& seg) const override {
+    if (auto state = check_state_.load(); state != check_state::unknown) {
+      return state == check_state::passed;
+    }
+
+    auto ok = fs_section_checker(seg).check(*this);
 
     if (auto state = check_state_.load(); state == check_state::failed) {
       ok = false;
@@ -244,24 +246,8 @@ class fs_section_v2 final : public fs_section::impl {
     return seg.span<uint8_t>(offsetof(section_header_v2, xxh3_64));
   }
 
-  std::span<uint8_t const> data(file_view const& mm) const override {
+  std::span<uint8_t const> raw_bytes(file_view const& mm) const override {
     return mm.raw_bytes<uint8_t>(start_, hdr_.length);
-  }
-
-  std::optional<std::span<uint8_t const>>
-  checksum_span(file_view const& mm) const override {
-    static constexpr auto kHdrCsLen =
-        sizeof(section_header_v2) - offsetof(section_header_v2, number);
-
-    return mm.raw_bytes<uint8_t>(start_ - kHdrCsLen, hdr_.length + kHdrCsLen);
-  }
-
-  std::optional<std::span<uint8_t const>>
-  integrity_span(file_view const& mm) const override {
-    static constexpr auto kHdrShaLen =
-        sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
-
-    return mm.raw_bytes<uint8_t>(start_ - kHdrShaLen, hdr_.length + kHdrShaLen);
   }
 
   std::optional<uint32_t> section_number() const override {
@@ -310,8 +296,12 @@ class fs_section_v2_lazy final : public fs_section::impl {
 
   std::string description() const override { return section().description(); }
 
-  bool check_fast(file_view const& mm) const override {
-    return section().check_fast(mm);
+  bool check_fast_mm(file_view const& mm) const override {
+    return section().check_fast_mm(mm);
+  }
+
+  bool check_fast(file_segment const& seg) const override {
+    return section().check_fast(seg);
   }
 
   file_segment segment(file_view const& mm) const override {
@@ -332,18 +322,8 @@ class fs_section_v2_lazy final : public fs_section::impl {
     return section().integrity_span(seg);
   }
 
-  std::span<uint8_t const> data(file_view const& mm) const override {
-    return section().data(mm);
-  }
-
-  std::optional<std::span<uint8_t const>>
-  checksum_span(file_view const& mm) const override {
-    return section().checksum_span(mm);
-  }
-
-  std::optional<std::span<uint8_t const>>
-  integrity_span(file_view const& mm) const override {
-    return section().integrity_span(mm);
+  std::span<uint8_t const> raw_bytes(file_view const& mm) const override {
+    return section().raw_bytes(mm);
   }
 
   std::optional<uint32_t> section_number() const override {

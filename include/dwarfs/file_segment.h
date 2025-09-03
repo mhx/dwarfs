@@ -124,7 +124,7 @@ class file_segment {
   }
 
   void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const noexcept {
+              std::error_code& ec) const {
     return impl_->advise(adv, offset, size, ec);
   }
 
@@ -136,13 +136,23 @@ class file_segment {
     }
   }
 
-  void advise(io_advice adv, std::error_code& ec) const noexcept {
+  void advise(io_advice adv, std::error_code& ec) const {
     impl_->advise(adv, 0, size(), ec);
   }
 
   void advise(io_advice adv) const {
     std::error_code ec;
     impl_->advise(adv, 0, size(), ec);
+    if (ec) {
+      throw std::system_error(ec);
+    }
+  }
+
+  void lock(std::error_code& ec) const { impl_->lock(ec); }
+
+  void lock() const {
+    std::error_code ec;
+    impl_->lock(ec);
     if (ec) {
       throw std::system_error(ec);
     }

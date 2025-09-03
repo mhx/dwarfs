@@ -42,6 +42,10 @@ class file_view_impl {
  public:
   virtual ~file_view_impl() = default;
 
+  virtual size_t size() const = 0;
+
+  virtual std::filesystem::path const& path() const = 0;
+
   virtual file_segment segment_at(file_off_t offset, size_t size) const = 0;
 
   virtual file_extents_iterable extents() const = 0;
@@ -55,18 +59,8 @@ class file_view_impl {
 
   // ----------------------------------------------------------------------
   // TODO: this is mostly all deprecated
-  virtual void const* addr() const = 0;
-  virtual size_t size() const = 0;
 
-  virtual std::error_code lock(file_off_t offset, size_t size) const = 0;
-  virtual std::error_code release(file_off_t offset, size_t size) const = 0;
   virtual std::error_code release_until(file_off_t offset) const = 0;
-
-  virtual std::error_code advise(io_advice adv) const noexcept = 0;
-  virtual std::error_code
-  advise(io_advice adv, file_off_t offset, size_t size) const noexcept = 0;
-
-  virtual std::filesystem::path const& path() const = 0;
 };
 
 } // namespace dwarfs::detail

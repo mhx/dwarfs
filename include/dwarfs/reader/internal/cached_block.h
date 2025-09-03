@@ -33,11 +33,10 @@
 #include <memory>
 #include <vector>
 
-#include <dwarfs/file_view.h>
-
 namespace dwarfs {
 
 class byte_buffer_factory;
+class file_segment;
 class logger;
 
 namespace internal {
@@ -52,8 +51,11 @@ class cached_block {
  public:
   static std::unique_ptr<cached_block>
   create(logger& lgr, dwarfs::internal::fs_section const& b,
-         file_view const& mm, byte_buffer_factory const& bbf, bool release,
+         file_segment const& seg, byte_buffer_factory const& bbf, bool release,
          bool disable_integrity_check);
+
+  // TODO: have a create method for an uncompressed block,
+  //       or (preferably) just handle this case internally
 
   virtual ~cached_block() = default;
 

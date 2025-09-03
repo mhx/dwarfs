@@ -118,6 +118,8 @@ class mmap_file_view : public detail::file_view_impl,
   explicit mmap_file_view(std::filesystem::path const& path);
   mmap_file_view(std::filesystem::path const& path, size_t size);
 
+  size_t size() const override;
+
   file_segment segment_at(file_off_t offset, size_t size) const override;
 
   file_extents_iterable extents() const override;
@@ -131,18 +133,18 @@ class mmap_file_view : public detail::file_view_impl,
 
   // ------------------------------------------------------------
 
-  void const* addr() const override;
-  size_t size() const override;
-
-  std::error_code lock(file_off_t offset, size_t size) const override;
-  std::error_code release(file_off_t offset, size_t size) const override;
   std::error_code release_until(file_off_t offset) const override;
 
-  std::error_code advise(io_advice adv) const noexcept override;
-  std::error_code
-  advise(io_advice adv, file_off_t offset, size_t size) const noexcept override;
+  // ------------------------------------------------------------
 
   std::filesystem::path const& path() const override;
+
+  // Not exposed publicly
+  void const* addr() const { return mf_.const_data(); }
+
+  std::error_code advise(io_advice adv, file_off_t offset, size_t size) const;
+
+  std::error_code lock(file_off_t offset, size_t size) const;
 
  private:
   boost::iostreams::mapped_file mutable mf_;
@@ -169,8 +171,12 @@ class mmap_ref_file_segment : public detail::file_segment_impl {
   }
 
   void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const noexcept override {
+              std::error_code& ec) const override {
     ec = mm_->advise(adv, offset_ + offset, size);
+  }
+
+  void lock(std::error_code& ec) const override {
+    ec = mm_->lock(offset_, size_);
   }
 
  private:
@@ -275,10 +281,9 @@ std::error_code mmap_file_view::lock(file_off_t offset [[maybe_unused]],
   return ec;
 }
 
-std::error_code
-mmap_file_view::advise(io_advice adv [[maybe_unused]],
-                       file_off_t offset [[maybe_unused]],
-                       size_t size [[maybe_unused]]) const noexcept {
+std::error_code mmap_file_view::advise(io_advice adv [[maybe_unused]],
+                                       file_off_t offset [[maybe_unused]],
+                                       size_t size [[maybe_unused]]) const {
   std::error_code ec;
 
 #ifdef _WIN32
@@ -306,19 +311,9 @@ mmap_file_view::advise(io_advice adv [[maybe_unused]],
   return ec;
 }
 
-std::error_code mmap_file_view::advise(io_advice adv) const noexcept {
-  return advise(adv, 0, size());
-}
-
-std::error_code mmap_file_view::release(file_off_t offset, size_t size) const {
-  return advise(io_advice::dontneed, offset, size);
-}
-
 std::error_code mmap_file_view::release_until(file_off_t offset) const {
-  return release(0, offset);
+  return advise(io_advice::dontneed, 0, offset);
 }
-
-void const* mmap_file_view::addr() const { return mf_.const_data(); }
 
 size_t mmap_file_view::size() const { return mf_.size(); }
 

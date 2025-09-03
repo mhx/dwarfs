@@ -28,7 +28,6 @@
 
 #include <dwarfs/checksum.h>
 
-#include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/fs_section_checker.h>
 
 namespace dwarfs::internal {
@@ -36,9 +35,9 @@ namespace dwarfs::internal {
 namespace {
 
 template <typename T>
-bool check_impl(T const& section, file_view const& mm) {
+bool check_impl(T const& section, file_segment const& seg) {
   if (auto const cs_val = section.xxh3_64_value()) {
-    if (auto const cs_span = section.checksum_span(mm)) {
+    if (auto const cs_span = section.checksum_span(seg)) {
       return checksum::verify(checksum::xxh3_64, cs_span->data(),
                               cs_span->size(), &*cs_val, sizeof(*cs_val));
     }
@@ -50,16 +49,16 @@ bool check_impl(T const& section, file_view const& mm) {
 } // namespace
 
 bool fs_section_checker::check(fs_section const& section) const {
-  return check_impl(section, mm_);
+  return check_impl(section, seg_);
 }
 
 bool fs_section_checker::check(fs_section::impl const& section) const {
-  return check_impl(section, mm_);
+  return check_impl(section, seg_);
 }
 
 bool fs_section_checker::verify(fs_section const& section) const {
   if (auto const cs_val = section.sha2_512_256_value()) {
-    if (auto const cs_span = section.integrity_span(mm_)) {
+    if (auto const cs_span = section.integrity_span(seg_)) {
       return checksum::verify(checksum::sha2_512_256, cs_span->data(),
                               cs_span->size(), cs_val->data(), cs_val->size());
     }

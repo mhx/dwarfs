@@ -46,6 +46,10 @@ class file_view {
 
   void reset() { impl_.reset(); }
 
+  size_t size() const { return impl_->size(); }
+
+  std::filesystem::path const& path() const { return impl_->path(); }
+
   file_segment segment_at(file_off_t offset, size_t size) const {
     return impl_->segment_at(offset, size);
   }
@@ -126,39 +130,9 @@ class file_view {
   // ---------------------------------------------------------------------
   // TODO: this is mostly all deprecated
 
-  template <typename T, std::integral U>
-  T const* as(U offset = 0) const {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    auto raw = static_cast<std::byte const*>(this->addr()) + offset;
-    // NOLINTNEXTLINE(bugprone-casting-through-void)
-    return static_cast<T const*>(static_cast<void const*>(raw));
-  }
-
-  void const* addr() const { return impl_->addr(); }
-  size_t size() const { return impl_->size(); }
-
-  std::error_code lock(file_off_t offset, size_t size) const {
-    return impl_->lock(offset, size);
-  }
-
-  std::error_code release(file_off_t offset, size_t size) const {
-    return impl_->release(offset, size);
-  }
-
   std::error_code release_until(file_off_t offset) const {
     return impl_->release_until(offset);
   }
-
-  std::error_code advise(io_advice adv) const noexcept {
-    return impl_->advise(adv);
-  }
-
-  std::error_code
-  advise(io_advice adv, file_off_t offset, size_t size) const noexcept {
-    return impl_->advise(adv, offset, size);
-  }
-
-  std::filesystem::path const& path() const { return impl_->path(); }
 
  private:
   std::shared_ptr<detail::file_view_impl const> impl_;

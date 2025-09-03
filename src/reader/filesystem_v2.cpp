@@ -48,6 +48,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/mapped_byte_buffer.h>
+#include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -104,55 +105,109 @@ auto call_ec_throw(Fn&& fn) {
 
 using section_map = std::unordered_map<section_type, std::vector<fs_section>>;
 
-block_decompressor
-get_block_decompressor(file_view const& mm, fs_section const& sec) {
-  if (!sec.check_fast(mm)) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("attempt to access damaged {} section", sec.name()));
-  }
+class section_wrapper {
+ public:
+  class section_data {
+   public:
+    struct secseg {
+      secseg(fs_section const& s, file_segment const& seg)
+          : section{s}
+          , segment{seg} {}
 
-  return {sec.compression(), sec.data(mm)};
-}
+      fs_section section;
+      file_segment segment;
+    };
 
-std::optional<block_decompressor>
-try_get_block_decompressor(file_view const& mm, fs_section const& sec) {
-  if (sec.check_fast(mm)) {
+    section_data(fs_section const& sec, file_segment const& seg)
+        : data_{secseg{sec, seg}} {}
+
+    explicit section_data(shared_byte_buffer const& buf)
+        : data_{buf} {}
+
+    std::span<uint8_t const> span() const {
+      return data_ |
+             match{
+                 [](secseg const& ss) { return ss.section.data(ss.segment); },
+                 [](shared_byte_buffer const& buf) { return buf.span(); },
+             };
+    }
+
+    void lock(std::error_code& ec) {
+      data_ | match{
+                  [&](secseg const& ss) { ss.segment.lock(ec); },
+                  [](shared_byte_buffer const&) {},
+              };
+    }
+
+   private:
+    std::variant<secseg, shared_byte_buffer> data_;
+  };
+
+  section_wrapper(file_view const& fv, fs_section const& sec)
+      : fv_{fv}
+      , sec_{sec} {}
+
+  std::optional<block_decompressor> try_get_block_decompressor() {
     try {
-      return get_block_decompressor(mm, sec);
+      return get_block_decompressor();
     } catch (std::exception const&) { // NOLINT(bugprone-empty-catch)
     }
+
+    return std::nullopt;
   }
 
-  return std::nullopt;
-}
+  size_t get_uncompressed_size() {
+    if (sec_.compression() == compression_type::NONE) {
+      return sec_.length();
+    }
 
-size_t
-get_uncompressed_section_size(file_view const& mm, fs_section const& sec) {
-  if (sec.compression() == compression_type::NONE) {
-    return sec.length();
+    return get_block_decompressor().uncompressed_size();
   }
 
-  return get_block_decompressor(mm, sec).uncompressed_size();
-}
+  section_data get_section_data() {
+    auto const& seg = segment();
 
-shared_byte_buffer
-get_section_data(file_view const& mm, fs_section const& section) {
-  DWARFS_CHECK(
-      section.check_fast(mm),
-      fmt::format("attempt to access damaged {} section", section.name()));
+    DWARFS_CHECK(
+        sec_.check_fast(seg),
+        fmt::format("attempt to access damaged {} section", sec_.name()));
 
-  auto span = section.data(mm);
-  auto compression = section.compression();
+    auto compression = sec_.compression();
 
-  if (compression == compression_type::NONE) {
-    return mapped_byte_buffer::create(span, mm);
+    if (compression == compression_type::NONE) {
+      return section_data{sec_, seg};
+    }
+
+    return section_data{
+        block_decompressor::decompress(compression, sec_.data(seg))};
   }
 
-  return block_decompressor::decompress(compression, span);
-}
+ private:
+  file_segment const& segment() {
+    if (!segment_) {
+      segment_ = sec_.segment(fv_);
+    }
 
-std::tuple<shared_byte_buffer, metadata_v2>
+    return segment_.value();
+  }
+
+  block_decompressor get_block_decompressor() {
+    auto const& seg = segment();
+
+    if (!sec_.check_fast(seg)) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("attempt to access damaged {} section", sec_.name()));
+    }
+
+    return {sec_.compression(), sec_.data(seg)};
+  }
+
+  file_view fv_;
+  fs_section sec_;
+  std::optional<file_segment> segment_{};
+};
+
+std::tuple<section_wrapper::section_data, metadata_v2>
 make_metadata(logger& lgr, file_view const& mm, section_map const& sections,
               metadata_options const& options, int inode_offset,
               mlock_mode lock_mode, bool force_consistency_check,
@@ -177,24 +232,22 @@ make_metadata(logger& lgr, file_view const& mm, section_map const& sections,
     DWARFS_THROW(runtime_error, "multiple metadata found");
   }
 
-  auto& meta_section = meta_it->second.front();
+  auto meta_section = section_wrapper(mm, meta_it->second.front());
+  auto schema_section = section_wrapper(mm, schema_it->second.front());
 
-  auto meta_buffer = get_section_data(mm, meta_section);
-  auto schema_buffer = get_section_data(mm, schema_it->second.front());
+  auto meta_buffer = meta_section.get_section_data();
+  auto schema_buffer = schema_section.get_section_data();
 
   if (lock_mode != mlock_mode::NONE) {
-    if (auto ec = mm.lock(meta_section.start(), meta_buffer.size())) {
+    std::error_code ec;
+
+    meta_buffer.lock(ec);
+
+    if (ec) {
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
       }
       LOG_WARN << "mlock() failed: " << ec.message();
-    }
-  }
-
-  // don't keep the compressed metadata in cache
-  if (meta_section.compression() != compression_type::NONE) {
-    if (auto ec = mm.release(meta_section.start(), meta_section.length())) {
-      LOG_INFO << "madvise() failed: " << ec.message();
     }
   }
 
@@ -383,7 +436,7 @@ class filesystem_ final {
   metadata_v2 meta_;
   inode_reader_v2 ir_;
   mutable std::mutex mx_;
-  shared_byte_buffer meta_buffer_;
+  std::optional<section_wrapper::section_data> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
   mutable block_access_level fsinfo_block_access_level_{
       block_access_level::no_access};
@@ -440,13 +493,15 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
     while (auto s = parser.next_section()) {
       check_section(*s);
 
+      auto section = section_wrapper(mm_, *s);
+
       if (s->type() == section_type::BLOCK) {
         ++info.block_count;
         info.compressed_block_size += s->length();
         info.compressed_block_sizes.push_back(s->length());
         if (opts.block_access >= block_access_level::unrestricted) {
           try {
-            auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
+            auto uncompressed_size = section.get_uncompressed_size();
             info.uncompressed_block_size += uncompressed_size;
             info.uncompressed_block_sizes.emplace_back(uncompressed_size);
           } catch (std::exception const&) {
@@ -462,8 +517,7 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
       } else if (s->type() == section_type::METADATA_V2) {
         info.compressed_metadata_size += s->length();
         try {
-          info.uncompressed_metadata_size +=
-              get_uncompressed_section_size(mm_, *s);
+          info.uncompressed_metadata_size += section.get_uncompressed_size();
         } catch (std::exception const&) {
           info.uncompressed_metadata_size += s->length();
           info.uncompressed_metadata_size_is_estimate = true;
@@ -541,7 +595,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     } else {
       check_section(*s);
 
-      if (!s->check_fast(mm_)) {
+      if (!s->check_fast_mm(mm_)) {
         switch (s->type()) {
         case section_type::METADATA_V2:
         case section_type::METADATA_V2_SCHEMA:
@@ -580,8 +634,8 @@ history filesystem_<LoggerPolicy>::get_history() const {
   history hist({.with_timestamps = true});
 
   for (auto& section : history_sections_) {
-    if (section.check_fast(mm_)) {
-      auto buffer = get_section_data(mm_, section);
+    if (section.check_fast_mm(mm_)) {
+      auto buffer = section_wrapper(mm_, section).get_section_data();
       hist.parse_append(buffer.span());
     }
   }
@@ -597,21 +651,20 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
   worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
 
-  fs_section_checker section_checker(mm_);
-
   while (auto sp = parser.next_section()) {
     check_section(*sp);
 
-    std::packaged_task<fs_section()> task{[this, level, &section_checker,
-                                           s = std::move(*sp)] {
+    std::packaged_task<fs_section()> task{[this, level, s = std::move(*sp)] {
+      auto seg = s.segment(mm_);
       if (level == filesystem_check_level::INTEGRITY ||
           level == filesystem_check_level::FULL) {
-        if (!section_checker.verify(s)) {
+        fs_section_checker checker(seg);
+        if (!checker.verify(s)) {
           DWARFS_THROW(runtime_error,
                        "integrity check error in section: " + s.name());
         }
       } else {
-        if (!s.check_fast(mm_)) {
+        if (!s.check_fast(seg)) {
           DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
         }
       }
@@ -674,7 +727,8 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
-      auto bd = try_get_block_decompressor(mm_, s);
+      auto section = section_wrapper(mm_, s);
+      auto bd = section.try_get_block_decompressor();
       std::string block_size;
 
       if (bd) {
@@ -771,7 +825,9 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
-      bool checksum_ok = s.check_fast(mm_);
+      auto section = section_wrapper(mm_, s);
+
+      bool checksum_ok = s.check_fast_mm(mm_);
 
       nlohmann::json section_info{
           {"type", s.name()},
@@ -780,7 +836,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
           {"checksum_ok", checksum_ok},
       };
 
-      auto bd = try_get_block_decompressor(mm_, s);
+      auto bd = section.try_get_block_decompressor();
 
       if (bd) {
         auto uncompressed_size = bd->uncompressed_size();
