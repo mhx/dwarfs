@@ -417,7 +417,7 @@ class block_cache_ final : public block_cache::impl {
           LOG_TRACE << "block " << block_no
                     << " is uncompressed, bypassing cache";
           promise.set_value(
-              block_range(section.data(mm_).data(), offset, size));
+              block_range(section.raw_bytes(mm_).data(), offset, size));
           return future;
         }
       }
@@ -573,10 +573,11 @@ class block_cache_ final : public block_cache::impl {
   void create_cached_block(size_t block_no, std::promise<block_range>&& promise,
                            size_t offset, size_t range_end) const {
     try {
+      auto const& section = DWARFS_NOTHROW(block_.at(block_no));
+
       std::shared_ptr<cached_block> block = cached_block::create(
-          LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
-          buffer_factory_, options_.mm_release,
-          options_.disable_block_integrity_check);
+          LOG_GET_LOGGER, section, section.segment(mm_), buffer_factory_,
+          options_.mm_release, options_.disable_block_integrity_check);
       blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
