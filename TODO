@@ -1,3 +1,33 @@
+- Idea for the segmenter:
+
+  - Provide another policy for the granular_span_adapter that abstracts
+    out std::span vs. dwarfs::file_view; if file_view::supports_raw_bytes,
+    we can still use the "optimized" adapter; otherwise we fall back back
+    to the generic one that handles discontinuities between segments.
+
+- Factor out cross-platform `mmap` code that is currently spread over a
+  number of files; get rid of `boost::iostream::mapped_file` in that
+  process.
+
+- What's the fallback for *not* using sparse files? I think we'll have
+  to disable sparse files already in the segmenter so it won't produce
+  any hole chunks and references actual chunks of zeroes in a block.
+
+- Refactoring fragments/chunkables for file_view API will be interesting.
+  The current `span` based API won't cut it. Good thing is that this
+  will make sparse file handling much easier once it's done.
+
+- Sequential categorizers will need to be aware of sparse file so they
+  can skip over holes. Again, the `span` based API isn't adequate.
+
+- One of the first things we probably need is a way to define a "hole"
+  fragment.
+
+- Also, some docs on fragments / files / chunks / sections / segments /
+  views / extents would be good .... :D
+
+
+
 - Idea for `mmap` refactoring: add a layer of abstraction for getting a
   "block" of data. That is, instead of the current `mmap` instance, well
   have something like a "file view" with an interface that allows to get
@@ -39,14 +69,39 @@
   follows:
 
     block: byte value
-    offset: sequence_length / block_size
-    size: sequence_length % block_size
+    offset: sequence_length % block_size
+    size: sequence_length / block_size
+
+  Distribution of size values usually leans towards
+  smaller values, so this stores the quotient, not the
+  remainder.
 
   Will need a feature bit. Also, we probably want a
   sparse file categorizer? (see further below)
 
   We'll probably have to do this along with refactoring
   the code to support both mmap- and read-based APIs.
+
+  Alternative idea (save the extra bit-per-chunk for
+  file systems with sparse files):
+
+    block: N  (number of blocks)
+    offset: sequence_length % block_size
+    size: sequence_length / block_size
+
+  If offset == (block_size - 1), then size is an index
+  into a new list of huge hole sizes (for sizes that
+  are larger than block_size**2).
+
+  This concept could in theory also be used for other
+  sequences: with yet another list encoding the byte
+  value of the sequence, the index into that list could
+  be encoded in the block number as well (i.e. N would
+  be index 0, N + 2 would be index 2). It's also fully
+  compatible if we only do holes for the first release.
+
+  Note: this is all going to be very interesting when
+  it comes to metadata rebuilding / block size change. :)
 
 - Add support for logging to file (with different level?)
 
