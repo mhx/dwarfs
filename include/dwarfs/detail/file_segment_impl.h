@@ -46,7 +46,8 @@ class file_segment_impl {
   virtual bool is_zero() const noexcept = 0;
   virtual std::span<std::byte const> raw_bytes() const = 0;
   virtual void advise(io_advice adv, file_off_t offset, size_t size,
-                      std::error_code& ec) const noexcept = 0;
+                      std::error_code& ec) const = 0;
+  virtual void lock(std::error_code& ec) const = 0;
 };
 
 } // namespace dwarfs::detail

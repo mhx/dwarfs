@@ -296,17 +296,13 @@ size_t filesystem_parser::filesystem_size() const {
 
 std::span<uint8_t const>
 filesystem_parser::section_data(fs_section const& s) const {
-  return s.data(mm_);
+  return s.raw_bytes(mm_);
 }
 
 void filesystem_parser::find_index() {
-  uint64le_t index_pos_le;
-
-  ::memcpy(&index_pos_le,
-           mm_.as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
-           sizeof(uint64_t));
-
-  uint64_t index_pos = index_pos_le.load();
+  uint64_t index_pos =
+      mm_.read<uint64le_t>(image_offset_ + image_size_ - sizeof(uint64le_t))
+          .load();
 
   if ((index_pos >> 48) != static_cast<uint16_t>(section_type::SECTION_INDEX)) {
     return;
@@ -333,7 +329,9 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  if (!section.check_fast(mm_)) {
+  auto seg = section.segment(mm_);
+
+  if (!section.check_fast(seg)) {
     return;
   }
 
@@ -344,7 +342,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  auto const index = section.data(mm_);
+  auto const index = section.raw_bytes(mm_);
 
   std::vector<uint64le_t> tmp(section_count);
   index_.resize(section_count);
