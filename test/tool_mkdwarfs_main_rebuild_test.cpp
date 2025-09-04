@@ -28,6 +28,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/sorted_array_map.h>
@@ -40,6 +41,7 @@ using namespace dwarfs;
 namespace fs = std::filesystem;
 
 using namespace std::literals::string_view_literals;
+using namespace dwarfs::binary_literals;
 
 TEST(mkdwarfs_test, rebuild_metadata) {
   std::string const image_file = "test.dwarfs";
@@ -1118,4 +1120,136 @@ TEST(mkdwarfs_test, no_timestamps) {
     EXPECT_FALSE(info2["history"][0].contains("timestamp"));
     EXPECT_FALSE(info2["history"][1].contains("timestamp"));
   }
+}
+
+TEST(mkdwarfs_test, empty_filesystem) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  EXPECT_EQ(0, t.run("-i / -o -")) << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info =
+      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(0, info["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info["block_count"].get<int>());
+  EXPECT_EQ(16_MiB, info["block_size"].get<int>());
+  EXPECT_EQ(1, info["inode_count"].get<int>());
+  EXPECT_EQ(4, info["sections"].size());
+
+  auto t2 = mkdwarfs_tester::create_empty();
+  t2.add_root_dir();
+  t2.os->add_file("test.dwarfs", t.out());
+  EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata"}))
+      << t2.err();
+  auto fs2 = t2.fs_from_stdout();
+  auto info2 =
+      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(0, info2["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info2["block_count"].get<int>());
+  EXPECT_EQ(16_MiB, info2["block_size"].get<int>());
+  EXPECT_EQ(1, info2["inode_count"].get<int>());
+  EXPECT_EQ(4, info2["sections"].size());
+
+  auto t3 = mkdwarfs_tester::create_empty();
+  t3.add_root_dir();
+  t3.os->add_file("test.dwarfs", t2.out());
+  EXPECT_EQ(0, t3.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
+                       "-S10", "--change-block-size"}))
+      << t3.err();
+  auto fs3 = t3.fs_from_stdout();
+  auto info3 =
+      fs3.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(0, info3["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info3["block_count"].get<int>());
+  EXPECT_EQ(1_KiB, info3["block_size"].get<int>());
+  EXPECT_EQ(1, info3["inode_count"].get<int>());
+  EXPECT_EQ(4, info3["sections"].size());
+}
+
+TEST(mkdwarfs_test, minimal_empty_filesystem) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  EXPECT_EQ(
+      0,
+      t.run("-i / -o - --no-create-timestamp --no-history --no-section-index"))
+      << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info =
+      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(0, info["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info["block_count"].get<int>());
+  EXPECT_EQ(1, info["inode_count"].get<int>());
+  EXPECT_EQ(2, info["sections"].size());
+
+  auto t2 = mkdwarfs_tester::create_empty();
+  t2.add_root_dir();
+  t2.os->add_file("test.dwarfs", t.out());
+  EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
+                       "--no-create-timestamp", "--no-history",
+                       "--no-section-index"}))
+      << t2.err();
+  auto fs2 = t2.fs_from_stdout();
+  auto info2 =
+      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(0, info2["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info2["block_count"].get<int>());
+  EXPECT_EQ(1, info2["inode_count"].get<int>());
+  EXPECT_EQ(2, info2["sections"].size());
+}
+
+TEST(mkdwarfs_test, metadata_only_filesystem) {
+  static constexpr size_t kTotalSymlinkSize{273};
+  static constexpr size_t kTotalInodeCount{276};
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree(false);
+  t.add_special_files(false);
+
+  EXPECT_EQ(0, t.run("-i / -o - --with-devices --with-specials")) << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info =
+      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(kTotalSymlinkSize, info["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info["block_count"].get<int>());
+  EXPECT_EQ(16_MiB, info["block_size"].get<int>());
+  EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
+  EXPECT_EQ(4, info["sections"].size());
+
+  auto t2 = mkdwarfs_tester::create_empty();
+  t2.add_root_dir();
+  t2.os->add_file("test.dwarfs", t.out());
+  EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata"}))
+      << t2.err();
+  auto fs2 = t2.fs_from_stdout();
+  auto info2 =
+      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(kTotalSymlinkSize, info2["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info2["block_count"].get<int>());
+  EXPECT_EQ(16_MiB, info2["block_size"].get<int>());
+  EXPECT_EQ(kTotalInodeCount, info2["inode_count"].get<int>());
+  EXPECT_EQ(4, info2["sections"].size());
+
+  auto t3 = mkdwarfs_tester::create_empty();
+  t3.add_root_dir();
+  t3.os->add_file("test.dwarfs", t2.out());
+  EXPECT_EQ(0, t3.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
+                       "-S10", "--change-block-size"}))
+      << t3.err();
+  auto fs3 = t3.fs_from_stdout();
+  auto info3 =
+      fs3.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  EXPECT_EQ(kTotalSymlinkSize, info3["original_filesystem_size"].get<int>());
+  EXPECT_EQ(0, info3["block_count"].get<int>());
+  EXPECT_EQ(1_KiB, info3["block_size"].get<int>());
+  EXPECT_EQ(kTotalInodeCount, info3["inode_count"].get<int>());
+  EXPECT_EQ(4, info3["sections"].size());
+
+  size_t symlink_size{0};
+  fs3.walk([&](reader::dir_entry_view const& e) {
+    auto iv = e.inode();
+    if (iv.is_symlink()) {
+      symlink_size += fs.getattr(iv).size();
+    }
+  });
+
+  EXPECT_EQ(kTotalSymlinkSize, symlink_size);
 }
