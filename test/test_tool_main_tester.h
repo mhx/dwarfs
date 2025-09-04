@@ -136,8 +136,8 @@ class mkdwarfs_tester : public tester_common {
                          logger::level_type level = logger::VERBOSE);
 
   void add_root_dir();
-  void add_special_files();
-  void add_test_file_tree();
+  void add_special_files(bool with_regular_files = true);
+  void add_test_file_tree(bool with_regular_files = true);
 
   std::vector<std::pair<std::filesystem::path, std::string>>
   add_random_file_tree(

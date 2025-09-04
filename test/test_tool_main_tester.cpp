@@ -121,12 +121,14 @@ void mkdwarfs_tester::add_root_dir() {
   os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
 }
 
-void mkdwarfs_tester::add_special_files() {
-  static constexpr file_stat::off_type const size = 10;
-  std::string data(size, 'x');
-  os->add("suid", {1001, 0104755, 1, 0, 0, size, 0, 3333, 2222, 1111}, data);
-  os->add("sgid", {1002, 0102755, 1, 0, 0, size, 0, 0, 0, 0}, data);
-  os->add("sticky", {1003, 0101755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+void mkdwarfs_tester::add_special_files(bool with_regular_files) {
+  if (with_regular_files) {
+    static constexpr file_stat::off_type const size = 10;
+    std::string data(size, 'x');
+    os->add("suid", {1001, 0104755, 1, 0, 0, size, 0, 3333, 2222, 1111}, data);
+    os->add("sgid", {1002, 0102755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+    os->add("sticky", {1003, 0101755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+  }
   os->add("block", {1004, 060666, 1, 0, 0, 0, 77, 0, 0, 0}, std::string{});
   os->add("sock", {1005, 0140666, 1, 0, 0, 0, 0, 0, 0, 0}, std::string{});
 }
@@ -215,14 +217,16 @@ mkdwarfs_tester::add_random_file_tree(random_file_tree_options const& opt) {
   return paths;
 }
 
-void mkdwarfs_tester::add_test_file_tree() {
+void mkdwarfs_tester::add_test_file_tree(bool with_regular_files) {
   for (auto const& [stat, name] : test::test_dirtree()) {
     auto path = name.substr(name.size() == 5 ? 5 : 6);
 
     switch (stat.type()) {
     case posix_file_type::regular:
-      os->add(path, stat,
-              [size = stat.size] { return test::loremipsum(size); });
+      if (with_regular_files) {
+        os->add(path, stat,
+                [size = stat.size] { return test::loremipsum(size); });
+      }
       break;
     case posix_file_type::symlink:
       os->add(path, stat, test::loremipsum(stat.size));
