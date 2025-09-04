@@ -453,6 +453,17 @@ struct metadata {
   // number to index into `categorization_metadata_json`.
   32: optional map<UInt32, UInt32> block_category_metadata
 
-   // version strings for all metadata versions
+  // Version strings for all metadata versions
   33: optional list<history_entry> metadata_version_history
+
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+  // The block index used to encode a hole in a chunk.
+  34: optional UInt32           hole_block_index
+
+  // The size of sparse file holes that are too large to be
+  // stored efficiently in the chunk table, in bytes.
+  35: optional list<UInt64>     large_hole_size
 }
