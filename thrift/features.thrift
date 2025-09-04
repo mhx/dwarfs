@@ -37,5 +37,5 @@ namespace cpp2 dwarfs
 // as this will break compatibility with older metadata using
 // the feature defined by the removed enumerator.
 enum feature {
-  // There are no features yet :-)
+  sparsefiles = 0,       // support for sparse files (v0.14.0)
 }
