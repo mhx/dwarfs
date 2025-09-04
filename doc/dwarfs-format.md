@@ -4,13 +4,101 @@
 
 This document describes the DwarFS file system format, version 2.5.
 
+## TERMINOLOGY
+
+### High-Level Terms
+
+- **DwarFS image** or **DwarFS file system image**: A file that contains
+  a DwarFS file system. **DwarFS archive** is another commonly used term.
+
+- **Section**: A contiguous part of a DwarFS image that contains either
+  file system data or metadata. Each section has a header with a magic,
+  version number, type, length and hashes for integrity checking.
+
+- **Header**: An optional, arbitrary prefix before the first section of a
+  DwarFS image. Typically, this is a shell script or other executable that
+  intends to use the bundled DwarFS image. The DwarFS binary tools use an
+  efficient algorithm to automatically skip this header.
+
+- **Block**: A section of type `BLOCK` that contains file data. There can be
+  an arbitrary number of `BLOCK` sections in a DwarFS image.
+
+- **Metadata**: A section of type `METADATA_V2` that contains all metadata
+  to interpret the file system. Without the metadata, the structure of the
+  file system is completely lost and all you will have is a collection of
+  shredded bits and pieces of file data with no association to the original
+  files.
+
+- **Inode**: An entry in the `inodes` list in the metadata. Each inode
+  represents a file system object, i.e. a directory, regular file, symlink,
+  device, socket or pipe.
+
+- **Directory Entry**: An entry in the `dir_entries` list in the metadata.
+  Each directory entry associates a name with an inode number. Directory
+  entries are grouped by directory using the `directories` list. Also, within
+  a single directory, the entries are sorted asciibetically by name.
+
+- **Chunk**: A part of a file that references a contiguous range of bytes
+  in a single `BLOCK`. Each regular file inode references a list of chunks
+  that, when concatenated, make up the contents of the file.
+
+- **Shared File**: A regular file that shares its contents with one or more
+  other regular files. This is similar to hardlinks, but on a "file level"
+  instead of an "inode level". Each shared file has its own inode, but the
+  inodes reference the same list of chunks through the `shared_files_table`.
+
+### Internal Terms and Types
+
+- **`file_view`**: An abstraction representing a single file in a file system
+  and allowing read access to its contents. The exact mechanism to access the
+  file contents is implementation-defined. Different implementation have
+  different trade-offs in terms of memory usage, speed and error handling.
+  For example, the default on 64-bit systems is to memory-map the entire file.
+  While this is usually *extremely* fast, there are no means for gracefully
+  handling I/O errors and they will typically result in the process crashing
+  with a bus error (`SIGBUS`). On 32-bit systems, the default is to only
+  memory-map "segments" of the file at a time. This limits the amount of
+  address space used, bus uses more system calls and is thus slower. On
+  either platform, it is also possible to use an implementation that reads
+  data into allocated buffers. This is the slowest option and the one that
+  will use the most process memory, but it is the only option that allows for
+  graceful handling of I/O errors.
+
+- **`file_extent`**: Using a `file_view`, you can iterate over the "extents"
+  of a file. Extents are contiguous ranges of either data or holes. In sparse
+  files, holes are ranges of zeros that do not actually occupy any space in the
+  file system. This allows the code to efficiently skip over these holes if
+  possible.
+
+- **`file_segment`**: A contiguous range of data within a file. You can get
+  a `file_segment` either directly from a `file_view` (using offset and size),
+  or by using `file_extent::segments()` to iterate over a range of segments
+  given the preferred segment size and an optional overlap between segments.
+  A `file_segment` is *always* backed by contiguous memory representing the
+  corresponding range of data in the file.
+
+- **Fragments** are contiguous ranges of categorized file data. A categorizer
+  can split each file into a sequence of fragments, each of which will be
+  assigned a category. For example, the `pcmaudio_categorizer` will typically
+  split an audio file into a `pcmaudio/metadata` fragment at the start, followed
+  by a `pcmaudio/waveform` fragment, optionally followed by `pcmaudio/metadata`
+  if there's any trailing metadata. The fragments from each category will be
+  processed as separate streams: that is, all `pcmaudio/metadata` fragments will
+  be ordered (e.g. by similarity) and the fed into the segmenter, which will
+  further split each fragment into "chunks" (these are the chunks that will
+  eventually be stored in the `chunk_table` in the metadata).
+
+- **Chunks** are the smallest entity of contiguous file data that DwarFS
+  manages. The segmenter splits data into chunks, adding references to data
+  it has already seen if possible.
+
 ## FILE STRUCTURE
 
-A DwarFS file system image is just a sequence of blocks, optionally
+A DwarFS file system image is just a sequence of sections, optionally
 prefixed by a "header", which is typically some sort of shell script
 or other executable that intends to use the "bundled" DwarFS image.
 
-Each block in the DwarFS image has the following format:
+Each section in the DwarFS image has the following format:
 
          ┌───┬───┬───┬───┬───┬───┬───┬───┐
     0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x05 for v2.5
@@ -18,7 +106,7 @@ Each block in the DwarFS image has the following format:
     0x08 │                               │  Used for full (slow) integrity
          ├─ SHA-512/256 integrity hash  ─┤  check with `dwarfsck`.
     0x10 │  over the remainder of the    │
-         ├─ block data, starting at     ─┤
+         ├─ section data, starting at   ─┤
     0x18 │  offset 0x28.                 │
          ├─                             ─┤
     0x20 │                               │
@@ -39,14 +127,14 @@ Each block in the DwarFS image has the following format:
 
 A couple of notes:
 
-- No padding is added between blocks.
+- No padding is added between sections.
 
-- The list of blocks can easily be traversed by using the length field
+- The list of sections can easily be traversed by using the length field
   to skip to the start of the next section.
 
 - Corruption can easily be detected using the XXH3-64 hash. Computation
   of this hash is so fast that it is in fact checked every single time a
-  file system block is loaded.
+  file system section is loaded.
 
 - Integrity can furthermore be checked using the SHA-512/256 hash. This
   is much slower, but should rarely be needed.
@@ -87,15 +175,15 @@ without any problems.
 Currently, the following different section types are defined:
 
 - `BLOCK` (0):
-  A block of data. This is where all file data is stored. There can be
-  an arbitrary number of blocks of this type. The file data can only be
-  interpreted using the metadata blocks. The metadata contains a list
-  of chunks for each file, each of which references a small part of the
-  data in a single `BLOCK`.
+  A block of data. This is where all file data is stored. There can be an
+  arbitrary number of sections of this type. The file data in these `BLOCK`s
+  can only be interpreted using the metadata section. The metadata contains
+  a list of chunks for each file, each of which references a small part of
+  the data in a single `BLOCK`.
 
 - `METADATA_V2_SCHEMA` (7):
   The [schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
-  used to layout the `METADATA_V2` block contents. This is stored in
+  used to layout the `METADATA_V2` section contents. This is stored in
   "compact" thrift encoding. The metadata cannot be read without the
   schema, as it defines the exact bit widths used to store each metadata
   field.
@@ -138,14 +226,14 @@ Currently, the following different section types are defined:
 
 ### Compression Algorithms
 
-DwarFS supports a wide range of block compression algorithms, some of
+DwarFS supports a wide range of section compression algorithms, some of
 which require additional metadata. The full list of supported algorithms
 is defined in [`dwarfs/compression.h`](../include/dwarfs/compression.h).
 
 For compression algorithms with metadata, the metadata is defined in
 [`thrift/compression.thrift`](../thrift/compression.thrift). The metadata
-is stored in "compact" thrift encoding at the beginning of the block, just
-after the header.
+is stored in "compact" thrift encoding at the beginning of the section,
+just after the header.
 
 ## METADATA FORMAT
 
@@ -221,7 +309,7 @@ to each other:
 Thanks to the bit-packing, fields that are unused or only contain a
 single (zero) value, e.g. a `group_index` that's always zero because
 all files belong to the same group, does not occupy any space in the
-metadata block.
+metadata section.
 
 ### Determining Inode Offsets
 
@@ -256,6 +344,37 @@ the `chunk_table`.
 
 The `shared_files_table` provides the necessary indirection that
 maps a *shared* file inode to a `chunk_table` index.
+
+### Sparse Files
+
+DwarFS can optionally support sparse files since v0.14.0. However, images
+created with sparse file support will not be backwards compatible.
+
+Sparse file data is stored as usual. Holes are stored in the `chunk_table`
+using a "special" block index. In a file system with N blocks, the highest
+valid block index is N-1. Holes are stored using the block index N. This
+is cheaper than having to allocate an extra bit per chunk to indicate
+whether it's a data or a hole chunk. The block index used to encode a hole
+chunk is stored in the metadata as `hole_block_index`.
+
+Since holes can get quite large, their size is encoded in both the `size`
+and `offset` fields of the corresponding `chunk_table` entry. While the
+`offset` field values are typically randomly distributed, the `size` field
+value distribution is usually skewed towards small values. Thus it makes
+sense to store the hole size as follows:
+
+```
+chunk.offset = hole_size % BLOCK_SIZE
+chunk.size   = hole_size / BLOCK_SIZE
+```
+
+With large `BLOCK_SIZE` values, the `chunk.size` field will usually occupy
+a few bits less than the `chunk.offset` field. In order to prevent a single
+large hole from excessively widening the storage used for `chunk.size`, we
+use a separate list `large_hole_size` to store the sizes of holes that are
+larger than a certain threshold (that is derived from the block size). The
+index into this list will be stored in `chunk.size`, indicated by setting
+`chunk.offset` to `BLOCK_SIZE - 1`.
 
 ### Traversing the Metadata
 
@@ -397,10 +516,10 @@ The binary metadata is stored using
 This format is, unfortunately, not really documented. Also, as of now,
 there is only a C++ implementation to read or write this format.
 
-To interpret the binary data in the `METADATA_V2` block, both the thrift
+To interpret the binary data in the `METADATA_V2` section, both the thrift
 definitions in [`metadata.thrift`](../thrift/metadata.thrift) and the
 [schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
-from the `METADATA_V2_SCHEMA` block are needed.
+from the `METADATA_V2_SCHEMA` section are needed.
 
 You can inspect the schema using `dwarfsck` in two different ways.
 First, as a "raw" schema dump:
@@ -504,7 +623,7 @@ To make *any* sense of this, you need to look at the
 that the `rootLayout` in the schema refers to the `struct metadata` in the
 thrift IDL. With that in mind, you can now see that the `struct metadata`
 itself uses 36 bytes (or 282 bits) of storage. By definition, these bytes
-are located at the start of the `METADATA_V2` block data. Note that these
+are located at the start of the `METADATA_V2` section data. Note that these
 sizes are *solely* defined by the schema; another DwarFS image may store
 the `struct metadata` in fewer or more bits.
 
@@ -527,7 +646,7 @@ is only one block in the DwarFS image we're looking at. Thus, no bits are
 used to represent the `block` member in `struct chunk`. For `offset`, 12 bits
 are allocated per item and for `size`, 11 bits are allocated.
 
-Now, if we look at a hex dump of the `METADATA_V2` block, we have enough
+Now, if we look at a hex dump of the `METADATA_V2` section, we have enough
 context to navigate the data:
 
 ```
