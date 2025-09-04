@@ -8,6 +8,11 @@ on:
       - 'mhx/**'
     tags:
       - v*
+    paths-ignore:
+      - '/CHANGES.md'
+      - '/CITATION.cff'
+      - '/README.md'
+      - '/TODO'
 
 permissions:
   contents: read
