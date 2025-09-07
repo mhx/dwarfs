@@ -283,6 +283,9 @@ class metadata_v2_data {
 
   void statvfs(vfs_stat* stbuf) const;
 
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const;
+
   std::optional<dir_entry_view> find(std::string_view path) const;
 
   std::optional<dir_entry_view>
@@ -1055,6 +1058,36 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
   stbuf->files = inode_count_;
   stbuf->readonly = true;
   stbuf->namemax = PATH_MAX;
+}
+
+file_off_t
+metadata_v2_data::seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                       std::error_code& ec) const {
+  auto chunks = get_chunks(inode, ec);
+  if (ec) {
+    return -1;
+  }
+
+  file_off_t start{0};
+  bool const seek_hole = whence == seek_whence::hole;
+
+  // TODO: this scan can be quite expensive for highly fragmented files
+
+  for (auto const& chk : chunks) {
+    auto const end = start + chk.size();
+    if (offset < end && seek_hole == chk.is_hole()) {
+      return std::max(start, offset);
+    }
+    start = end;
+  }
+
+  if (offset < start && seek_hole) {
+    return start;
+  }
+
+  ec = std::make_error_code(std::errc::no_such_device_or_address);
+
+  return -1;
 }
 
 int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
@@ -2171,6 +2204,11 @@ class metadata_ final : public metadata_v2::impl {
 
     ec = std::make_error_code(std::errc::invalid_argument);
     return 0;
+  }
+
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const override {
+    return data_.seek(inode, offset, whence, ec);
   }
 
   std::string readlink(inode_view iv, readlink_mode mode,
