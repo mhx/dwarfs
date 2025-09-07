@@ -30,7 +30,7 @@
 
 #include <iterator>
 
-#include <dwarfs/detail/file_extent_info.h>
+#include <dwarfs/file_range.h>
 #include <dwarfs/file_segment.h>
 
 namespace dwarfs {
@@ -42,8 +42,7 @@ class file_view_impl;
 class file_segments_iterable {
  public:
   file_segments_iterable(std::shared_ptr<detail::file_view_impl const> fv,
-                         detail::file_extent_info const& extent,
-                         size_t max_segment_bytes,
+                         file_range const& range, size_t max_segment_bytes,
                          size_t overlap_bytes) noexcept;
 
   class iterator {
@@ -56,8 +55,7 @@ class file_segments_iterable {
 
     iterator();
     iterator(std::shared_ptr<detail::file_view_impl const> fv,
-             detail::file_extent_info const* extent, size_t maxb,
-             size_t overlapb);
+             file_range const* range, size_t maxb, size_t overlapb);
     ~iterator();
 
     reference operator*() const noexcept { return seg_; }
@@ -103,7 +101,7 @@ class file_segments_iterable {
     void advance();
 
     std::shared_ptr<detail::file_view_impl const> fv_;
-    detail::file_extent_info const* extent_{nullptr};
+    file_range const* range_{nullptr};
     size_t max_bytes_{};
     size_t overlap_bytes_{};
     file_off_t offset_{};
@@ -114,13 +112,13 @@ class file_segments_iterable {
   static_assert(std::input_iterator<iterator>);
 
   iterator begin() const noexcept {
-    return iterator{fv_, extent_, max_bytes_, overlap_bytes_};
+    return iterator{fv_, &range_, max_bytes_, overlap_bytes_};
   }
   std::default_sentinel_t end() const noexcept { return {}; }
 
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;
-  detail::file_extent_info const* extent_{nullptr};
+  file_range const range_;
   size_t const max_bytes_{};
   size_t const overlap_bytes_{};
 };
