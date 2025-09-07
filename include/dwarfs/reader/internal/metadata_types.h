@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -40,6 +41,8 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
+#include <dwarfs/metadata_defs.h>
+#include <dwarfs/types.h>
 
 #include <dwarfs/internal/packed_ptr.h>
 #include <dwarfs/internal/string_table.h>
@@ -198,7 +201,60 @@ class dir_entry_view_impl {
       g_;
 };
 
-using chunk_view = ::apache::thrift::frozen::View<thrift::metadata::chunk>;
+class chunk_view {
+  using Meta =
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+
+ public:
+  chunk_view() = default;
+  chunk_view(Meta const* meta,
+             ::apache::thrift::frozen::View<thrift::metadata::chunk> v) {
+    auto const b = v.block();
+    auto const o = v.offset();
+    auto const s = v.size();
+    auto const hole_ix = meta->hole_block_index();
+
+    if (hole_ix.has_value() && b == *hole_ix) { // this is a hole
+      block_ = 0;
+      offset_ = 0;
+      bits_ = kChunkBitsHoleBit;
+      if (o == kChunkOffsetIsLargeHole) {
+        assert(meta->large_hole_size().has_value());
+        assert(s < meta->large_hole_size()->size());
+        bits_ |= (*meta->large_hole_size())[s];
+      } else {
+        bits_ = (static_cast<uint64_t>(s) << 32) | o;
+      }
+    } else { // this is data
+      block_ = b;
+      offset_ = o;
+      bits_ = s;
+    }
+  }
+
+  bool is_data() const { return (bits_ & kChunkBitsHoleBit) == 0; }
+
+  bool is_hole() const {
+    return (bits_ & kChunkBitsHoleBit) == kChunkBitsHoleBit;
+  }
+
+  uint32_t block() const {
+    assert(is_data());
+    return block_;
+  }
+
+  uint32_t offset() const {
+    assert(is_data());
+    return offset_;
+  }
+
+  file_off_t size() const { return bits_ & kChunkBitsSizeMask; }
+
+ private:
+  uint32_t block_{0};
+  uint32_t offset_{0};
+  uint64_t bits_{0};
+};
 
 class chunk_range {
   using Meta =
@@ -242,7 +298,7 @@ class chunk_range {
 
     // TODO: this is nasty; can we do this without boost::iterator_facade?
     chunk_view const& dereference() const {
-      view_ = meta_->chunks()[it_];
+      view_ = chunk_view(meta_, meta_->chunks()[it_]);
       return view_;
     }
 
@@ -259,7 +315,9 @@ class chunk_range {
 
   bool empty() const { return end_ == begin_; }
 
-  chunk_view operator[](uint32_t index) const { return meta_->chunks()[index]; }
+  chunk_view operator[](uint32_t index) const {
+    return {meta_, meta_->chunks()[index]};
+  }
 
  private:
   chunk_range() = default;
