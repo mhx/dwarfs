@@ -30,6 +30,7 @@
 
 #include <dwarfs/detail/file_view_impl.h>
 #include <dwarfs/file_extents_iterable.h>
+#include <dwarfs/file_segments_iterable.h>
 
 namespace dwarfs {
 
@@ -52,6 +53,12 @@ class file_view {
 
   file_segment segment_at(file_off_t offset, size_t size) const {
     return impl_->segment_at(offset, size);
+  }
+
+  file_segments_iterable
+  segments(file_range const& range, size_t max_segment_size,
+           size_t overlap_size = 0) const {
+    return file_segments_iterable{impl_, range, max_segment_size, overlap_size};
   }
 
   file_extents_iterable extents() const { return impl_->extents(); }

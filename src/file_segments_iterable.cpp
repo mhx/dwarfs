@@ -35,11 +35,10 @@
 namespace dwarfs {
 
 file_segments_iterable::file_segments_iterable(
-    std::shared_ptr<detail::file_view_impl const> fv,
-    detail::file_extent_info const& extent, size_t max_segment_bytes,
-    size_t overlap_bytes) noexcept
+    std::shared_ptr<detail::file_view_impl const> fv, file_range const& range,
+    size_t max_segment_bytes, size_t overlap_bytes) noexcept
     : fv_{std::move(fv)}
-    , extent_{&extent}
+    , range_{range}
     , max_bytes_{max_segment_bytes}
     , overlap_bytes_{overlap_bytes} {}
 
@@ -47,10 +46,10 @@ file_segments_iterable::iterator::iterator() = default;
 file_segments_iterable::iterator::~iterator() = default;
 
 file_segments_iterable::iterator::iterator(
-    std::shared_ptr<detail::file_view_impl const> fv,
-    detail::file_extent_info const* extent, size_t maxb, size_t overlapb)
+    std::shared_ptr<detail::file_view_impl const> fv, file_range const* range,
+    size_t maxb, size_t overlapb)
     : fv_{std::move(fv)}
-    , extent_{extent}
+    , range_{range}
     , max_bytes_{maxb}
     , overlap_bytes_{overlapb}
     , at_end_{!fv_} {
@@ -62,7 +61,7 @@ file_segments_iterable::iterator::iterator(
 }
 
 void file_segments_iterable::iterator::advance() {
-  auto const size = extent_->size;
+  auto const size = range_->size();
   at_end_ = std::cmp_greater_equal(offset_, size);
 
   if (at_end_) {
@@ -70,7 +69,7 @@ void file_segments_iterable::iterator::advance() {
     fv_.reset();
   } else {
     auto const len = std::min<size_t>(max_bytes_, size - offset_);
-    seg_ = fv_->segment_at(extent_->offset + offset_, len);
+    seg_ = fv_->segment_at(range_->begin() + offset_, len);
     offset_ += len;
     if (std::cmp_less(offset_, size)) {
       offset_ -= overlap_bytes_;
@@ -80,7 +79,7 @@ void file_segments_iterable::iterator::advance() {
 
 bool file_segments_iterable::iterator::equal(iterator const& a,
                                              iterator const& b) noexcept {
-  return a.fv_.get() == b.fv_.get() && a.extent_ == b.extent_ &&
+  return a.fv_.get() == b.fv_.get() && a.range_ == b.range_ &&
          a.offset_ == b.offset_ && a.max_bytes_ == b.max_bytes_ &&
          a.at_end_ == b.at_end_;
 }
