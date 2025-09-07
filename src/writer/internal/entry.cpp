@@ -244,6 +244,8 @@ void file::scan(file_view const& mm, progress& prog,
         for (auto const& seg : ext.segments(chunk_size)) {
           auto data = seg.span();
           cs.update(data);
+          // TODO: Do we need this? Should we rather do this in the
+          //       segment's dtor?
           static_cast<void>(seg.advise(io_advice::dontneed));
           if (pctx) {
             pctx->bytes_processed += data.size();
