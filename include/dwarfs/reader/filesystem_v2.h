@@ -187,6 +187,15 @@ class filesystem_v2_lite {
     return lite_->open(std::move(entry), ec);
   }
 
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence) const {
+    return lite_->seek(inode, offset, whence);
+  }
+
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const {
+    return lite_->seek(inode, offset, whence, ec);
+  }
+
   std::string read_string(uint32_t inode) const {
     return lite_->read_string(inode);
   }
@@ -378,6 +387,10 @@ class filesystem_v2_lite {
     virtual void statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual int open(inode_view entry, std::error_code& ec) const = 0;
+    virtual file_off_t
+    seek(uint32_t inode, file_off_t offset, seek_whence whence) const = 0;
+    virtual file_off_t seek(uint32_t inode, file_off_t offset,
+                            seek_whence whence, std::error_code& ec) const = 0;
     virtual std::string read_string(uint32_t inode) const = 0;
     virtual std::string
     read_string(uint32_t inode, std::error_code& ec) const = 0;

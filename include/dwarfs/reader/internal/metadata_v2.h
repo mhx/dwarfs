@@ -134,6 +134,11 @@ class metadata_v2 {
     return impl_->open(std::move(iv), ec);
   }
 
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const {
+    return impl_->seek(inode, offset, whence, ec);
+  }
+
   std::string
   readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const {
     return impl_->readlink(std::move(iv), mode, ec);
@@ -219,6 +224,9 @@ class metadata_v2 {
                         file_stat::gid_type gid, std::error_code& ec) const = 0;
 
     virtual int open(inode_view iv, std::error_code& ec) const = 0;
+
+    virtual file_off_t seek(uint32_t inode, file_off_t offset,
+                            seek_whence whence, std::error_code& ec) const = 0;
 
     virtual std::string
     readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const = 0;
