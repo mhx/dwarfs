@@ -29,43 +29,36 @@
 #pragma once
 
 #include <cassert>
-#include <memory>
+#include <concepts>
+#include <limits>
 
-#include <dwarfs/detail/file_extent_info.h>
-#include <dwarfs/detail/file_view_impl.h>
-#include <dwarfs/file_segments_iterable.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 
-class file_extent {
+class file_range {
  public:
-  file_extent() = default;
-  file_extent(std::shared_ptr<detail::file_view_impl const> fv,
-              detail::file_extent_info const& extent)
-      : fv_{std::move(fv)}
-      , extent_{&extent} {}
-
-  explicit operator bool() const noexcept { return static_cast<bool>(fv_); }
-  bool valid() const noexcept { return static_cast<bool>(fv_); }
-  void reset() noexcept { fv_.reset(); }
-
-  file_off_t offset() const noexcept { return extent_->offset; }
-  file_size_t size() const noexcept { return extent_->size; }
-  extent_kind kind() const noexcept { return extent_->kind; }
-
-  file_range range() const noexcept {
-    return {this->offset(), this->offset() + this->size()};
+  file_range() = default;
+  file_range(file_off_t begin, file_off_t end)
+      : begin_{begin}
+      , end_{end} {
+    assert(end_ >= begin_);
   }
 
-  file_segments_iterable
-  segments(size_t max_segment_size, size_t overlap_size = 0) const {
-    return file_segments_iterable{fv_, this->range(), max_segment_size,
-                                  overlap_size};
+  file_off_t begin() const noexcept { return begin_; }
+
+  file_off_t end() const noexcept { return end_; }
+
+  file_size_t size() const noexcept { return end_ - begin_; }
+
+  friend bool
+  operator==(file_range const& lhs, file_range const& rhs) noexcept {
+    return lhs.begin_ == rhs.begin_ && lhs.end_ == rhs.end_;
   }
 
  private:
-  std::shared_ptr<detail::file_view_impl const> fv_;
-  detail::file_extent_info const* extent_{nullptr};
+  file_off_t begin_{0};
+  file_off_t end_{0};
 };
 
 } // namespace dwarfs

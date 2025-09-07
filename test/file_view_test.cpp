@@ -42,7 +42,6 @@ TEST(file_view, mock_file_view) {
 
     for (auto const& ext : view.extents()) {
       for (auto const& seg : ext.segments(4)) {
-        std::cerr << " Segment: " << seg.offset() << " " << seg.size() << "\n";
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
       }
@@ -62,5 +61,16 @@ TEST(file_view, mock_file_view) {
     }
 
     EXPECT_THAT(parts, testing::ElementsAre("Hell", "lo, ", " Wor", "rld!"));
+  }
+
+  {
+    std::vector<std::string> parts;
+
+    for (auto const& seg : view.segments({2, 11}, 4, 1)) {
+      auto span = seg.span<char>();
+      parts.emplace_back(span.begin(), span.end());
+    }
+
+    EXPECT_THAT(parts, testing::ElementsAre("llo,", ", Wo", "orl"));
   }
 }
