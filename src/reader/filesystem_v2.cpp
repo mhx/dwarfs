@@ -300,6 +300,9 @@ class filesystem_ final {
   void statvfs(vfs_stat* stbuf) const;
   int open(inode_view entry) const;
   int open(inode_view entry, std::error_code& ec) const;
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence) const;
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const;
   std::string read_string(uint32_t inode) const;
   std::string read_string(uint32_t inode, std::error_code& ec) const;
   std::string read_string(uint32_t inode, size_t size, file_off_t offset) const;
@@ -464,6 +467,8 @@ class filesystem_ final {
   PERFMON_CLS_TIMER_DECL(statvfs)
   PERFMON_CLS_TIMER_DECL(open)
   PERFMON_CLS_TIMER_DECL(open_ec)
+  PERFMON_CLS_TIMER_DECL(seek)
+  PERFMON_CLS_TIMER_DECL(seek_ec)
   PERFMON_CLS_TIMER_DECL(read_string)
   PERFMON_CLS_TIMER_DECL(read_string_ec)
   PERFMON_CLS_TIMER_DECL(read)
@@ -561,6 +566,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(statvfs)
     PERFMON_CLS_TIMER_INIT(open)
     PERFMON_CLS_TIMER_INIT(open_ec)
+    PERFMON_CLS_TIMER_INIT(seek)
+    PERFMON_CLS_TIMER_INIT(seek_ec)
     PERFMON_CLS_TIMER_INIT(read_string)
     PERFMON_CLS_TIMER_INIT(read_string_ec)
     PERFMON_CLS_TIMER_INIT(read)
@@ -1039,6 +1046,23 @@ int filesystem_<LoggerPolicy>::open(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
+file_off_t
+filesystem_<LoggerPolicy>::seek(uint32_t inode, file_off_t offset,
+                                seek_whence whence, std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(seek_ec)
+  return meta_.seek(inode, offset, whence, ec);
+}
+
+template <typename LoggerPolicy>
+file_off_t filesystem_<LoggerPolicy>::seek(uint32_t inode, file_off_t offset,
+                                           seek_whence whence) const {
+  PERFMON_CLS_SCOPED_SECTION(seek)
+  return call_ec_throw([&](std::error_code& ec) {
+    return meta_.seek(inode, offset, whence, ec);
+  });
+}
+
+template <typename LoggerPolicy>
 std::string
 filesystem_<LoggerPolicy>::read_string_ec(uint32_t inode, size_t size,
                                           file_off_t offset,
@@ -1315,6 +1339,14 @@ class filesystem_common_ : public Base {
   int open(inode_view entry) const override { return fs_.open(entry); }
   int open(inode_view entry, std::error_code& ec) const override {
     return fs_.open(entry, ec);
+  }
+  file_off_t
+  seek(uint32_t inode, file_off_t offset, seek_whence whence) const override {
+    return fs_.seek(inode, offset, whence);
+  }
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
+                  std::error_code& ec) const override {
+    return fs_.seek(inode, offset, whence, ec);
   }
   std::string read_string(uint32_t inode) const override {
     return fs_.read_string(inode);
