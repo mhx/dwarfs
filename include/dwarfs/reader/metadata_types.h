@@ -58,6 +58,11 @@ enum class readlink_mode {
   posix,
 };
 
+enum class seek_whence {
+  data,
+  hole,
+};
+
 class inode_view {
  public:
   using uid_type = file_stat::uid_type;
