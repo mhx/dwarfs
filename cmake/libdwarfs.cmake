@@ -47,6 +47,7 @@ add_library(
   src/util.cpp
   src/varint.cpp
   src/xattr.cpp
+  src/zero_memory.cpp
 
   src/internal/features.cpp
   src/internal/file_status_conv.cpp
