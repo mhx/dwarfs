@@ -100,7 +100,7 @@ class mmap_block {
   size_t size_;
 };
 
-class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
+class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
  public:
   explicit mmap_byte_buffer_impl(size_t size)
       : data_{size} {}
