@@ -115,6 +115,10 @@ class inode_manager {
     return impl_->ordered_span(cat, wg);
   }
 
+  size_t get_max_data_chunk_size() const {
+    return impl_->get_max_data_chunk_size();
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -135,6 +139,7 @@ class inode_manager {
     virtual sortable_inode_span
     ordered_span(fragment_category cat,
                  dwarfs::internal::worker_group& wg) const = 0;
+    virtual size_t get_max_data_chunk_size() const = 0;
   };
 
  private:
