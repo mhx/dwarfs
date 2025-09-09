@@ -95,8 +95,6 @@ class single_inode_fragment {
 
   fragment_category category() const { return category_; }
 
-  file_size_t length() const { return this->size(); }
-
   file_size_t size() const { return bits_ & kChunkBitsSizeMask; }
 
   void add_chunk(size_t block, size_t offset, size_t size);
