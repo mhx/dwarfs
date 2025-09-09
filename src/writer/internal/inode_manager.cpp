@@ -441,7 +441,7 @@ class inode_ : public inode {
     file_off_t pos = 0;
 
     for (auto const& f : fragments_.span()) {
-      auto const size = f.length();
+      auto const size = f.size();
 
       if (auto i = sc.find(f.category()); i != sc.end()) {
         scan_range(mm, sprog, pos, size, chunk_size, i->second);

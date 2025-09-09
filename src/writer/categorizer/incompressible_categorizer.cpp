@@ -117,7 +117,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
              std::accumulate(fragments_.begin(), fragments_.end(),
                              static_cast<size_t>(0),
                              [](size_t len, auto const& fragment) {
-                               return len + fragment.length();
+                               return len + fragment.size();
                              }));
     }
 
