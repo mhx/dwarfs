@@ -224,9 +224,9 @@ class inode_ : public inode {
     for (auto const& frag : fragments_) {
       for (auto const& src : frag.chunks()) {
         auto& chk = vec.emplace_back();
-        chk.block() = src.block;
-        chk.offset() = src.offset;
-        chk.size() = src.size;
+        chk.block() = src.block();
+        chk.offset() = src.offset();
+        chk.size() = src.size();
       }
     }
     return true;
@@ -269,7 +269,7 @@ class inode_ : public inode {
       dump_category(f.category());
       os << "(" << f.size() << " bytes)\n";
       for (auto const& c : f.chunks()) {
-        os << "      (" << c.block << ", " << c.offset << ", " << c.size
+        os << "      (" << c.block() << ", " << c.offset() << ", " << c.size()
            << ")\n";
       }
     }

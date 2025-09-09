@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
@@ -30,6 +31,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <dwarfs/metadata_defs.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
 #include <dwarfs/writer/fragment_category.h>
@@ -38,23 +40,64 @@ namespace dwarfs::writer {
 
 class single_inode_fragment {
  public:
-  struct chunk {
+  class chunk {
+   public:
     using block_type = uint32_t;
     using offset_type = uint32_t;
-    using size_type = uint32_t;
+    using size_type = file_size_t;
 
-    block_type block;
-    offset_type offset;
-    size_type size;
+    struct hole_tag {};
+    static constexpr hole_tag hole{};
+
+    chunk() = default;
+
+    chunk(block_type block, offset_type offset, file_size_t size)
+        : block_{block}
+        , offset_{offset}
+        , bits_{static_cast<uint64_t>(size)} {}
+
+    chunk(hole_tag, file_size_t size)
+        : bits_{static_cast<uint64_t>(size) | kChunkBitsHoleBit} {}
+
+    bool is_hole() const { return (bits_ & kChunkBitsHoleBit) != 0; }
+
+    bool is_data() const { return !is_hole(); }
+
+    block_type block() const {
+      assert(is_data());
+      return block_;
+    }
+
+    offset_type offset() const {
+      assert(is_data());
+      return offset_;
+    }
+
+    void grow_by(size_type size) {
+      bits_ = (this->size() + size) | (bits_ & kChunkBitsHoleBit);
+    }
+
+    size_type size() const { return bits_ & kChunkBitsSizeMask; }
+
+   private:
+    block_type block_{0};
+    offset_type offset_{0};
+    uint64_t bits_{0};
   };
 
   single_inode_fragment(fragment_category category, file_size_t length)
       : category_{category}
-      , length_{length} {}
+      , bits_{static_cast<uint64_t>(length)} {}
+
+  bool is_hole() const { return (bits_ & kChunkBitsHoleBit) != 0; }
+
+  bool is_data() const { return !is_hole(); }
 
   fragment_category category() const { return category_; }
-  file_size_t length() const { return length_; }
-  file_off_t size() const { return length_; }
+
+  file_size_t length() const { return this->size(); }
+
+  file_size_t size() const { return bits_ & kChunkBitsSizeMask; }
 
   void add_chunk(size_t block, size_t offset, size_t size);
 
@@ -63,13 +106,15 @@ class single_inode_fragment {
     return {chunks_.data(), chunks_.size()};
   }
 
-  void extend(file_size_t length) { length_ += length; }
+  void extend(file_size_t length) {
+    bits_ = (this->size() + length) | (bits_ & kChunkBitsHoleBit);
+  }
 
   bool chunks_are_consistent() const;
 
  private:
   fragment_category category_;
-  file_size_t length_;
+  uint64_t bits_;
   small_vector<chunk, 1> chunks_;
 };
 

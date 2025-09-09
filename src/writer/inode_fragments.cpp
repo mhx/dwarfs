@@ -35,30 +35,31 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
                                       size_t size) {
   if (!chunks_.empty()) {
     auto& last = chunks_.back();
-    if (last.block == block && last.offset + last.size == offset) [[unlikely]] {
+    if (last.block() == block &&
+        std::cmp_equal(last.offset() + last.size(), offset)) [[unlikely]] {
       // merge chunks
-      last.size += size;
+      last.grow_by(size);
       return;
     }
   }
 
-  chunks_.push_back({
-      .block = folly::to<chunk::block_type>(block),
-      .offset = folly::to<chunk::offset_type>(offset),
-      .size = folly::to<chunk::size_type>(size),
-  });
+  chunks_.emplace_back(folly::to<chunk::block_type>(block),
+                       folly::to<chunk::offset_type>(offset),
+                       folly::to<chunk::size_type>(size));
 }
 
 bool single_inode_fragment::chunks_are_consistent() const {
-  if (length_ > 0 && chunks_.empty()) {
+  auto const frag_size = size();
+
+  if (frag_size > 0 && chunks_.empty()) {
     return false;
   }
 
   auto total_chunks_len =
       std::accumulate(chunks_.begin(), chunks_.end(), file_size_t{0},
-                      [](auto acc, auto const& c) { return acc + c.size; });
+                      [](auto acc, auto const& c) { return acc + c.size(); });
 
-  return total_chunks_len == length_;
+  return total_chunks_len == frag_size;
 }
 
 std::ostream&
