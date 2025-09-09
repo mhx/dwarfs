@@ -18,7 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include <dwarfs/mmif.h>
