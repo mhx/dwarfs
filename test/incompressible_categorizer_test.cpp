@@ -175,7 +175,7 @@ TEST_F(incompressible_categorizer, categorize_fragments) {
     auto const& f = frag.span()[i];
 
     EXPECT_EQ(r.first, catmgr->category_name(f.category().value())) << i;
-    EXPECT_EQ(r.second, f.length()) << i;
+    EXPECT_EQ(r.second, f.size()) << i;
   }
 }
 
