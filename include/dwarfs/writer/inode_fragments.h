@@ -155,6 +155,8 @@ class inode_fragments {
 
   explicit operator bool() const { return !empty(); }
 
+  file_size_t total_size() const;
+
   std::ostream&
   to_stream(std::ostream& os,
             mapper_function_type const& mapper = mapper_function_type()) const;

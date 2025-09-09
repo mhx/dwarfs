@@ -112,13 +112,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
       }
     } else {
       LOG_TRACE << stats() << ", " << fragments_.size() << " fragments";
-
-      assert(total_input_size_ ==
-             std::accumulate(fragments_.begin(), fragments_.end(),
-                             static_cast<size_t>(0),
-                             [](size_t len, auto const& fragment) {
-                               return len + fragment.size();
-                             }));
+      assert(std::cmp_equal(total_input_size_, fragments_.total_size()));
     }
 
     return fragments_;

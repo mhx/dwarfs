@@ -62,6 +62,12 @@ bool single_inode_fragment::chunks_are_consistent() const {
   return total_chunks_len == frag_size;
 }
 
+file_size_t inode_fragments::total_size() const {
+  return std::accumulate(
+      fragments_.begin(), fragments_.end(), file_size_t{0},
+      [](auto acc, auto const& f) { return acc + f.size(); });
+}
+
 std::ostream&
 inode_fragments::to_stream(std::ostream& os,
                            mapper_function_type const& mapper) const {
