@@ -460,6 +460,8 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
 template <typename T, typename GranularityPolicy>
 class granular_span_adapter : private GranularityPolicy {
  public:
+  static_assert(sizeof(T) == 1, "T must be a byte type (for now)");
+
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
   granular_span_adapter(std::span<T> s, PolicyArgs&&... args)
@@ -470,14 +472,7 @@ class granular_span_adapter : private GranularityPolicy {
     return this->bytes_to_frames(s_.size());
   }
 
-  DWARFS_FORCE_INLINE std::span<T> raw() const { return s_; }
-
-  DWARFS_FORCE_INLINE granular_span_adapter subspan(size_t offset,
-                                                    size_t count) const {
-    return this->template create<granular_span_adapter<T, GranularityPolicy>>(
-        s_.subspan(this->frames_to_bytes(offset),
-                   this->frames_to_bytes(count)));
-  }
+  DWARFS_FORCE_INLINE size_t size_in_bytes() const { return s_.size(); }
 
   template <typename H>
   DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
@@ -491,6 +486,16 @@ class granular_span_adapter : private GranularityPolicy {
     from = this->frames_to_bytes(from);
     to = this->frames_to_bytes(to);
     this->for_bytes_in_frame([&] { hasher.update(s_[from++], s_[to++]); });
+  }
+
+  DWARFS_FORCE_INLINE void append_to(auto& v) const {
+    v.append(s_.data(), s_.size());
+  }
+
+  DWARFS_FORCE_INLINE int compare(size_t offset, std::span<T const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    assert(offset_in_bytes + rhs.size() <= s_.size());
+    return std::memcmp(s_.data() + offset_in_bytes, rhs.data(), rhs.size());
   }
 
  private:
@@ -531,6 +536,8 @@ template <typename T, typename GranularityPolicy>
 class basic_granular_container_adapter : private GranularityPolicy {
  public:
   using value_type = typename T::value_type;
+  static_assert(sizeof(value_type) == 1,
+                "value_type must be a byte type (for now)");
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
@@ -544,17 +551,16 @@ class basic_granular_container_adapter : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE void append(
       granular_span_adapter<value_type const, GranularityPolicy> const& span) {
-    auto raw = span.raw();
-    v_.append(raw.data(), raw.size());
+    span.append_to(v_);
   }
 
-  DWARFS_FORCE_INLINE int
-  compare(size_t offset,
-          granular_span_adapter<value_type const, GranularityPolicy> const&
-              span) const {
-    auto raw = span.raw();
-    return std::memcmp(v_.data() + this->frames_to_bytes(offset), raw.data(),
-                       raw.size());
+  DWARFS_FORCE_INLINE std::span<value_type const>
+  subspan(size_t offset, size_t size) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const size_in_bytes = this->frames_to_bytes(size);
+    assert(offset_in_bytes + size_in_bytes <= v_.size());
+    return std::span<value_type const>(v_.data() + offset_in_bytes,
+                                       size_in_bytes);
   }
 
   template <typename H>
@@ -968,11 +974,11 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
       block_->data().raw_buffer());
 
   // First, check if the regions actually match
-  if (v.compare(offset_, data.subspan(pos, len)) == 0) {
+  if (data.compare(pos, v.subspan(offset_, len)) == 0) {
     // scan backward
     auto tmp = offset_;
     while (tmp > 0 && pos > begin &&
-           v.compare(tmp - 1, data.subspan(pos - 1, 1)) == 0) {
+           data.compare(pos - 1, v.subspan(tmp - 1, 1)) == 0) {
       --tmp;
       --pos;
     }
@@ -984,7 +990,7 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
     pos += len;
     tmp = offset_ + len;
     while (tmp < v.size() && pos < end &&
-           v.compare(tmp, data.subspan(pos, 1)) == 0) {
+           data.compare(pos, v.subspan(tmp, 1)) == 0) {
       ++tmp;
       ++pos;
     }
