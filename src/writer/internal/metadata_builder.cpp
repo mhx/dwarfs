@@ -20,8 +20,10 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <ctime>
 #include <filesystem>
+#include <optional>
 
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 
@@ -38,6 +40,7 @@
 #include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
+#include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/metadata_builder.h>
 
@@ -208,10 +211,19 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
   md_.chunk_table()->resize(im.count() + 1);
   md_.chunks().value().reserve(chunk_count);
 
+  std::optional<inode_hole_mapper> hole_mapper;
+
+  if (options_.enable_sparse_files) {
+    auto const block_size = md_.block_size().value();
+    assert(block_size > 0);
+    hole_mapper.emplace(bm.num_blocks(), block_size,
+                        im.get_max_data_chunk_size());
+  }
+
   im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
     auto const total_chunks = md_.chunks()->size();
     DWARFS_NOTHROW(md_.chunk_table()->at(ino->num())) = total_chunks;
-    if (!ino->append_chunks_to(md_.chunks().value())) {
+    if (!ino->append_chunks_to(md_.chunks().value(), hole_mapper)) {
       std::ostringstream oss;
       for (auto fp : ino->all()) {
         oss << "\n  " << fp->path_as_string();

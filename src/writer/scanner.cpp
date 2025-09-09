@@ -887,6 +887,8 @@ void scanner_<LoggerPolicy>::scan(
   });
   prog.current.store(nullptr);
 
+  mdb.set_block_size(segmenter_factory_.get_block_size());
+
   LOG_INFO << "saving chunks...";
   mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
 
@@ -949,7 +951,6 @@ void scanner_<LoggerPolicy>::scan(
     mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
-  mdb.set_block_size(segmenter_factory_.get_block_size());
   mdb.set_total_fs_size(prog.original_size);
   mdb.set_total_hardlink_size(prog.hardlink_size);
   mdb.gather_global_entry_data(ge_data);
