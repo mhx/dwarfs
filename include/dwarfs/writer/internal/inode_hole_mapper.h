@@ -23,30 +23,41 @@
 
 #pragma once
 
-#include <mutex>
-#include <optional>
+#include <cstddef>
+#include <cstdint>
+#include <unordered_map>
 #include <vector>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
-#include <dwarfs/writer/fragment_category.h>
+#include <dwarfs/types.h>
+
+namespace dwarfs::thrift::metadata {
+
+class chunk;
+
+} // namespace dwarfs::thrift::metadata
 
 namespace dwarfs::writer::internal {
 
-class block_manager {
+class inode_hole_mapper {
  public:
-  using chunk_type = thrift::metadata::chunk;
+  inode_hole_mapper(size_t hole_block_index, size_t block_size,
+                    size_t max_data_chunk_size);
 
-  size_t get_logical_block() const;
-  void set_written_block(size_t logical_block, size_t written_block,
-                         fragment_category category);
-  void map_logical_blocks(std::vector<chunk_type>& vec) const;
-  std::vector<fragment_category> get_written_block_categories() const;
-  size_t num_blocks() const;
+  void map_hole(dwarfs::thrift::metadata::chunk& out, file_size_t size);
+  bool is_hole(dwarfs::thrift::metadata::chunk const& chk) const;
+  bool has_holes() const { return hole_count_ > 0; }
+  size_t hole_block_index() const { return hole_block_index_; }
+  std::vector<uint64_t> const& large_hole_sizes() const {
+    return large_hole_sizes_;
+  }
 
  private:
-  std::mutex mutable mx_;
-  size_t mutable num_blocks_{0};
-  std::vector<std::optional<std::pair<size_t, fragment_category>>> block_map_;
+  size_t hole_count_{0};
+  size_t hole_block_index_{0};
+  int block_size_bits_{0};
+  uint64_t inline_hole_size_limit_{0};
+  std::vector<uint64_t> large_hole_sizes_;
+  std::unordered_map<uint64_t, size_t> large_hole_size_map_;
 };
 
 } // namespace dwarfs::writer::internal

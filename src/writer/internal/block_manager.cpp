@@ -74,4 +74,9 @@ block_manager::get_written_block_categories() const {
   return result;
 }
 
+size_t block_manager::num_blocks() const {
+  std::lock_guard lock{mx_};
+  return num_blocks_;
+}
+
 } // namespace dwarfs::writer::internal

@@ -215,7 +215,9 @@ class inode_ : public inode {
 
   files_vector const& all() const override { return files_; }
 
-  bool append_chunks_to(std::vector<chunk_type>& vec) const override {
+  bool append_chunks_to(
+      std::vector<chunk_type>& vec,
+      std::optional<inode_hole_mapper>& hole_mapper) const override {
     for (auto const& frag : fragments_) {
       if (!frag.chunks_are_consistent()) {
         return false;
@@ -224,9 +226,16 @@ class inode_ : public inode {
     for (auto const& frag : fragments_) {
       for (auto const& src : frag.chunks()) {
         auto& chk = vec.emplace_back();
-        chk.block() = src.block();
-        chk.offset() = src.offset();
-        chk.size() = src.size();
+        if (src.is_hole()) {
+          DWARFS_CHECK(hole_mapper.has_value(),
+                       "inode has hole chunk but there's no hole mapper");
+          auto& hm = hole_mapper.value();
+          hm.map_hole(chk, src.size());
+        } else {
+          chk.block() = src.block();
+          chk.offset() = src.offset();
+          chk.size() = src.size();
+        }
       }
     }
     return true;
@@ -631,6 +640,8 @@ class inode_manager_ final : public inode_manager::impl {
   sortable_inode_span
   ordered_span(fragment_category cat, worker_group& wg) const override;
 
+  size_t get_max_data_chunk_size() const override;
+
  private:
   void update_prog(std::shared_ptr<inode> const& ino, file const* p) const {
     if (p->size() > 0 && !p->is_invalid()) {
@@ -821,6 +832,23 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
   }
 
   return span;
+}
+
+template <typename LoggerPolicy>
+size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
+  file_size_t max_chunk_size{0};
+
+  for (auto const& ino : inodes_) {
+    for (auto const& frag : ino->fragments().span()) {
+      for (auto const& chk : frag.chunks()) {
+        if (chk.is_data()) {
+          max_chunk_size = std::max(max_chunk_size, chk.size());
+        }
+      }
+    }
+  }
+
+  return max_chunk_size;
 }
 
 inode_manager::inode_manager(logger& lgr, progress& prog,
