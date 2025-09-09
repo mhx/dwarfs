@@ -141,6 +141,7 @@ add_library(
   src/writer/internal/fragment_chunkable.cpp
   src/writer/internal/global_entry_data.cpp
   src/writer/internal/inode_element_view.cpp
+  src/writer/internal/inode_hole_mapper.cpp
   src/writer/internal/inode_manager.cpp
   src/writer/internal/inode_ordering.cpp
   src/writer/internal/metadata_builder.cpp
