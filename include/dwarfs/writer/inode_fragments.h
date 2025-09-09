@@ -85,9 +85,17 @@ class single_inode_fragment {
     uint64_t bits_{0};
   };
 
+  struct hole_tag {};
+  static constexpr hole_tag hole{};
+
   single_inode_fragment(fragment_category category, file_size_t length)
       : category_{category}
       , bits_{static_cast<uint64_t>(length)} {}
+
+  single_inode_fragment(hole_tag, fragment_category category,
+                        file_size_t length)
+      : category_{category}
+      , bits_{static_cast<uint64_t>(length) | kChunkBitsHoleBit} {}
 
   bool is_hole() const { return (bits_ & kChunkBitsHoleBit) != 0; }
 
@@ -126,6 +134,13 @@ class inode_fragments {
   single_inode_fragment&
   emplace_back(fragment_category category, file_size_t length) {
     return fragments_.emplace_back(category, length);
+  }
+
+  single_inode_fragment&
+  emplace_back(single_inode_fragment::hole_tag, fragment_category category,
+               file_size_t length) {
+    return fragments_.emplace_back(single_inode_fragment::hole, category,
+                                   length);
   }
 
   std::span<single_inode_fragment const> span() const {
