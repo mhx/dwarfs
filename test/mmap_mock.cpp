@@ -23,7 +23,11 @@
 
 #include <vector>
 
+#include <dwarfs/binary_literals.h>
+
 #include "mmap_mock.h"
+
+using namespace dwarfs::binary_literals;
 
 namespace dwarfs::test {
 
@@ -79,6 +83,8 @@ class mmap_mock : public detail::file_view_impl,
   }
 
   std::error_code lock(file_off_t, size_t) const { return std::error_code(); }
+
+  size_t default_segment_size() const override { return 64_KiB; }
 
  private:
   std::string const data_;

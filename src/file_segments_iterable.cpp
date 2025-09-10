@@ -39,7 +39,8 @@ file_segments_iterable::file_segments_iterable(
     size_t max_segment_bytes, size_t overlap_bytes) noexcept
     : fv_{std::move(fv)}
     , range_{range}
-    , max_bytes_{max_segment_bytes}
+    , max_bytes_{max_segment_bytes == 0 ? fv_->default_segment_size()
+                                        : max_segment_bytes}
     , overlap_bytes_{overlap_bytes} {}
 
 file_segments_iterable::iterator::iterator() = default;
