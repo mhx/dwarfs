@@ -64,7 +64,7 @@ class mmap_mock : public detail::file_view_impl,
   void copy_bytes(void* dest, file_off_t offset, size_t size,
                   std::error_code& ec) const override;
 
-  size_t size() const override { return data_.size(); }
+  file_size_t size() const override { return data_.size(); }
 
   std::filesystem::path const& path() const override { return path_; }
 
