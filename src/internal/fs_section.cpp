@@ -44,8 +44,8 @@ namespace dwarfs::internal {
 namespace {
 
 template <typename T>
-void read_section_header_common(T& header, size_t& start, file_view const& mm,
-                                size_t offset) {
+void read_section_header_common(T& header, file_off_t& start,
+                                file_view const& mm, file_off_t offset) {
   if (std::cmp_greater(offset + sizeof(T), mm.size())) {
     DWARFS_THROW(runtime_error,
                  fmt::format("truncated section header: {} + {} > {}", offset,
@@ -56,7 +56,7 @@ void read_section_header_common(T& header, size_t& start, file_view const& mm,
 
   offset += sizeof(T);
 
-  auto end = offset + header.length;
+  file_off_t end = offset + header.length;
 
   if (end < offset) {
     DWARFS_THROW(runtime_error,
@@ -89,9 +89,9 @@ void check_section(T const& sec) {
 
 class fs_section_v1 final : public fs_section::impl {
  public:
-  fs_section_v1(file_view const& mm, size_t offset);
+  fs_section_v1(file_view const& mm, file_off_t offset);
 
-  size_t start() const override { return start_; }
+  file_off_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
 
   bool is_known_compression() const override {
@@ -153,15 +153,15 @@ class fs_section_v1 final : public fs_section::impl {
   }
 
  private:
-  size_t start_;
+  file_off_t start_;
   section_header hdr_;
 };
 
 class fs_section_v2 final : public fs_section::impl {
  public:
-  fs_section_v2(file_view const& mm, size_t offset);
+  fs_section_v2(file_view const& mm, file_off_t offset);
 
-  size_t start() const override { return start_; }
+  file_off_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
 
   bool is_known_compression() const override {
@@ -266,17 +266,19 @@ class fs_section_v2 final : public fs_section::impl {
  private:
   enum class check_state { unknown, passed, failed };
 
-  size_t start_;
+  file_off_t start_;
   section_header_v2 hdr_;
   std::atomic<check_state> mutable check_state_{check_state::unknown};
 };
 
 class fs_section_v2_lazy final : public fs_section::impl {
  public:
-  fs_section_v2_lazy(file_view const& mm, section_type type, size_t offset,
+  fs_section_v2_lazy(file_view const& mm, section_type type, file_off_t offset,
                      size_t size);
 
-  size_t start() const override { return offset_ + sizeof(section_header_v2); }
+  file_off_t start() const override {
+    return offset_ + sizeof(section_header_v2);
+  }
   size_t length() const override { return size_ - sizeof(section_header_v2); }
 
   bool is_known_compression() const override {
@@ -346,11 +348,11 @@ class fs_section_v2_lazy final : public fs_section::impl {
   std::unique_ptr<fs_section::impl const> mutable sec_;
   std::optional<file_view> mutable mm_;
   section_type const type_;
-  size_t const offset_;
+  file_off_t const offset_;
   size_t const size_;
 };
 
-fs_section::fs_section(file_view const& mm, size_t offset, int version) {
+fs_section::fs_section(file_view const& mm, file_off_t offset, int version) {
   switch (version) {
   case 1:
     impl_ = std::make_shared<fs_section_v1>(mm, offset);
@@ -367,8 +369,8 @@ fs_section::fs_section(file_view const& mm, size_t offset, int version) {
   }
 }
 
-fs_section::fs_section(file_view const& mm, section_type type, size_t offset,
-                       size_t size, int version) {
+fs_section::fs_section(file_view const& mm, section_type type,
+                       file_off_t offset, size_t size, int version) {
   switch (version) {
   case 2:
     impl_ = std::make_shared<fs_section_v2_lazy>(mm, type, offset, size);
@@ -381,12 +383,12 @@ fs_section::fs_section(file_view const& mm, section_type type, size_t offset,
   }
 }
 
-fs_section_v1::fs_section_v1(file_view const& mm, size_t offset) {
+fs_section_v1::fs_section_v1(file_view const& mm, file_off_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   check_section(*this);
 }
 
-fs_section_v2::fs_section_v2(file_view const& mm, size_t offset) {
+fs_section_v2::fs_section_v2(file_view const& mm, file_off_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   // TODO: Don't enforce these checks as we might want to add section types
   //       and compression types in the future without necessarily incrementing
@@ -397,7 +399,7 @@ fs_section_v2::fs_section_v2(file_view const& mm, size_t offset) {
 }
 
 fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm, section_type type,
-                                       size_t offset, size_t size)
+                                       file_off_t offset, size_t size)
     : mm_{mm}
     , type_{type}
     , offset_{offset}
