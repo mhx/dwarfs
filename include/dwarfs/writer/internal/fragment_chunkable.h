@@ -49,6 +49,7 @@ class fragment_chunkable : public chunkable {
   file_size_t size() const override;
   std::string description() const override;
   std::span<uint8_t const> span() const override;
+  file_segments_iterable segments() const override;
   void add_chunk(size_t block, size_t offset, size_t size) override;
   std::error_code release_until(size_t offset) override;
 

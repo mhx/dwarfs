@@ -34,6 +34,7 @@
 #include <dwarfs/writer/internal/chunkable.h>
 
 #include "loremipsum.h"
+#include "mmap_mock.h"
 #include "test_logger.h"
 
 namespace {
@@ -41,17 +42,24 @@ namespace {
 class bench_chunkable : public dwarfs::writer::internal::chunkable {
  public:
   explicit bench_chunkable(std::vector<uint8_t> data)
-      : data_{std::move(data)} {}
+      : mm_{dwarfs::test::make_mock_file_view(
+            std::string{data.begin(), data.end()})} {}
 
   dwarfs::writer::internal::file const* get_file() const override {
     return nullptr;
   }
 
-  dwarfs::file_size_t size() const override { return data_.size(); }
+  dwarfs::file_size_t size() const override { return mm_.size(); }
 
   std::string description() const override { return std::string(); }
 
-  std::span<uint8_t const> span() const override { return data_; }
+  std::span<uint8_t const> span() const override {
+    return mm_.raw_bytes<uint8_t>();
+  }
+
+  dwarfs::file_segments_iterable segments() const override {
+    return mm_.segments();
+  }
 
   void
   add_chunk(size_t /*block*/, size_t /*offset*/, size_t /*size*/) override {}
@@ -59,7 +67,7 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
   std::error_code release_until(size_t /*offset*/) override { return {}; }
 
  private:
-  std::vector<uint8_t> data_;
+  dwarfs::file_view mm_;
 };
 
 std::vector<uint8_t>
