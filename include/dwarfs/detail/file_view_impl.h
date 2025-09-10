@@ -42,7 +42,7 @@ class file_view_impl {
  public:
   virtual ~file_view_impl() = default;
 
-  virtual size_t size() const = 0;
+  virtual file_size_t size() const = 0;
 
   virtual std::filesystem::path const& path() const = 0;
 
