@@ -61,8 +61,8 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   auto opts = GetParam();
   auto options = test::parse_args(opts);
   std::string const image_file = "test.dwarfs";
-  std::vector<std::string> args = {"-i",       "/",  "-o",
-                                   image_file, "-C", "zstd:level=9"};
+  std::vector<std::string> args = {
+      "-i", "/", "-o", image_file, "-C", "zstd:level=9", "--log-level=debug"};
   args.insert(args.end(), options.begin(), options.end());
 
   auto t = mkdwarfs_tester::create_empty();
