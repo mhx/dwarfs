@@ -78,6 +78,11 @@ if(WITH_ALL_BENCHMARKS)
   set(WITH_BENCHMARKS ON)
 endif()
 
+if(NOT WIN32)
+  set(BASH_INSTALL_PATH "bash-completion/completions" CACHE STRING "Bash completion install dir")
+  set(ZSH_INSTALL_PATH "zsh/site-functions" CACHE STRING "Zsh completion install dir")
+endif()
+
 set(DWARFS_CXX_STANDARD 20)
 
 # Libraries that we can fetch on demand if necessary
@@ -294,6 +299,13 @@ if(WITH_TOOLS)
       install(FILES $<TARGET_PDB_FILE:${tgt}> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     endif()
   endforeach()
+
+  if(NOT WIN32)
+    file(GLOB SHELLCOMP_BASH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/*)
+    file(GLOB SHELLCOMP_ZSH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/*)
+    install(FILES "${SHELLCOMP_BASH_FILES}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
+    install(FILES "${SHELLCOMP_ZSH_FILES}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
+  endif()
 
   target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
   target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)

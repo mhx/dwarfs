@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# bash completion for mkdwarfs
+#
+# synopsis
+#   mkdwarfs [OPTIONS...]
+#
+
+# TODO: unreliable? maybe not if app keeps the two groups intact.
+__mkdwarfs_list_comp_algos()
+{
+    # extract algorithms block
+    # trim algo leading space, delete algo args, remove empty line
+    # delete algo descriptions
+    # double print with trailing ':' except 'null' - they complete with no space
+    mkdwarfs -H | \
+        sed -e '1,/Compression algorithms/d;/Categories:/,$d' \
+            -e 's/^[ ]\{1,2\}//;/^ /d;/^$/d' \
+            -e 's/ .*$//' \
+            -ne 'p;/null/!s/$/:/p'
+}
+
+__mkdwarfs_additional_options()
+{
+    if [[ "$(mkdwarfs -h | grep -e ' *--man')" ]]; then
+        echo "--man"
+    fi
+}
+
+_mkdwarfs_completion()
+{
+    local cur prev words cword
+    _comp_initialize || return
+
+    local OPTIONS_GENERAL=(
+        --bloom-filter-size
+        --categorize
+        --change-block-size
+        --chmod
+        --compress-niceness
+        --debug-filter
+        --file-hash
+        --header
+        --history-compression
+        --hotness-list
+        --incompressible-block-size
+        --incompressible-fragments
+        --incompressible-min-input-size
+        --incompressible-ratio
+        --incompressible-zstd-level
+        --input-list
+        --keep-all-times
+        --log-level
+        --log-with-context
+        --man
+        --max-similarity-size
+        --metadata-compression
+        --no-category-metadata
+        --no-category-names
+        --no-create-timestamp
+        --no-history
+        --no-history-command-line
+        --no-history-timestamps
+        --no-metadata-version-history
+        --no-progress
+        --no-section-index
+        --num-scanner-workers
+        --num-segmenter-workers
+        --order
+        --progress
+        --rebuild-metadata
+        --recompress
+        --recompress-categories
+        --remove-empty-dirs
+        --remove-header
+        --schema-compression
+        --set-group
+        --set-owner
+        --set-time
+        --time-resolution
+        --with-devices
+        --with-specials
+        -B --max-lookback-blocks
+        -C --compression
+        -F --filter
+        -f --force
+        -h --help
+        -H --long-help
+        -i --input
+        -l --compress-level
+        -L --memory-limit
+        -N --num-workers
+        -o --output
+        -P --pack-metadata
+        -S --block-size-bits
+        -W --window-size
+        -w --window-step
+        $(__mkdwarfs_additional_options)
+    )
+
+    local OPTION_ARG__log_level=( error warn info verbose debug trace )
+    local OPTION_ARG__compress_level=( 0 1 2 3 4 5 6 7 8 9 )
+    local OPTION_ARG__recompress=( none block metadata all )
+    local OPTION_ARG__categorize=( fits pcmaudio incompressible )
+    # TODO: find a better way to extract these at runtime
+    local OPTION_ARG__file_hash=( )
+    local OPTION_ARG__progress=( ascii none simple unicode )
+    local OPTION_ARG__pack_metadata=( auto all none chunk_table directories
+        shared_files names names_index symlinks symlinks_index force plain )
+
+    # catch option with known arguments first
+    case $prev in
+        --log-level | --compress-level | --recompress | \
+        --categorize | --file-hash | --progress | --pack-metadata)
+            prevoption=${prev//-/_}
+            _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
+            return 0
+            ;;
+        -P)
+            _comp_compgen -- -W '"${OPTION_ARG__pack_metadata[@]}"'
+            return 0
+            ;;
+        -l)
+            _comp_compgen -- -W '"${OPTION_ARG__compress_level[@]}"'
+            return 0
+            ;;
+        --set-owner)
+            _comp_compgen -- uids
+            return 0
+            ;;
+        --set-group)
+            _comp_compgen -- gids
+            return 0
+            ;;
+        -i | --input)
+            _comp_compgen -a filedir -d
+            return 0
+            ;;
+        --input-list | -o | --output)
+            _comp_compgen -a filedir
+            return 0
+            ;;
+        --compression | --schema-compression | \
+        --metadata-compression | --history-compression)
+            # TODO: complete algo args based $prev and ':' or ','
+            # --prev <algo>:<arg1>=<_>,<arg2>=<_>
+            _comp_compgen -- -W '$(__mkdwarfs_list_comp_algos)'
+            return 0
+            ;;
+    esac
+
+
+    if [[ $cur == -* ]]; then
+        # cursor on an option, show options only
+        _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+    else
+        # show all options and files
+        _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+        _comp_compgen -a filedir
+    fi
+
+    return 0
+} &&
+complete -F _mkdwarfs_completion mkdwarfs

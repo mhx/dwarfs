@@ -1,0 +1,101 @@
+#compdef mkdwarfs
+#
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# zsh completion for mkdwarfs
+#
+# synopsis
+#   mkdwarfs [OPTIONS...]
+#
+
+local context state line ret=1
+
+# TODO: unreliable? maybe not if app keeps the two groups intact.
+__mkdwarfs_list_comp_algos()
+{
+    # extract algorithms block
+    # trim algo leading space, delete algo args, remove empty line
+    # delete algo descriptions
+    # double print with trailing '\:' except 'null'
+    mkdwarfs -H | \
+        sed -e '1,/Compression algorithms/d;/Categories:/,$d' \
+            -e 's/^[ ]\{1,2\}//;/^ /d;/^$/d' \
+            -e 's/ .*$//' \
+            -ne 'p;/null/!s/$/\\:/p'
+}
+
+__mkdwarfs_disable_man()
+{
+    if [[ ! "$(mkdwarfs -h | grep -e ' *--man')" ]]; then
+        echo -n "!"
+    fi
+}
+
+_arguments -S \
+	"--bloom-filter-size" \
+	"--categorize=-:cattype:_values -s , cattype fits pcmaudio incompressible" \
+	"--change-block-size" \
+	"--chmod" \
+	"--compress-niceness" \
+	"--debug-filter" \
+	"--file-hash:hashfnc:" \
+	"--header" \
+	"--history-compression:algos:($(__mkdwarfs_list_comp_algos))" \
+	"--hotness-list" \
+	"--incompressible-block-size" \
+	"--incompressible-fragments" \
+	"--incompressible-min-input-size" \
+	"--incompressible-ratio" \
+	"--incompressible-zstd-level" \
+	"--input-list[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
+	"--keep-all-times[save atime and ctime in addition to mtime]" \
+	"--log-level:level:(error warn info verbose debug trace)" \
+	"--log-with-context" \
+	"--max-similarity-size" \
+	"--metadata-compression:algos:($(__mkdwarfs_list_comp_algos))" \
+	"--no-category-metadata" \
+	"--no-category-names" \
+	"--no-create-timestamp" \
+	"--no-history" \
+	"--no-history-command-line" \
+	"--no-history-timestamps" \
+	"--no-metadata-version-history" \
+	"--no-progress" \
+	"--no-section-index" \
+	"--num-scanner-workers" \
+	"--num-segmenter-workers" \
+	"--order" \
+	"--progress:progress:(ascii none simple unicode)" \
+	"--rebuild-metadata" \
+	"--recompress:level:(none block metadata all)" \
+	"--recompress-categories" \
+	"--remove-empty-dirs" \
+	"--remove-header" \
+	"--schema-compression:algos:($(__mkdwarfs_list_comp_algos))" \
+	"--set-group[group (gid) for whole file system]" \
+	"--set-owner[owner (uid) for whole file system]" \
+	"--set-time[timestamp for whole file system (unixtime or 'now')]" \
+	"--time-resolution" \
+	"--with-devices" \
+	"--with-specials" \
+	{-B,--max-lookback-blocks} \
+	{-C,--compression=-}"[block compression algorithm]:algos:($(__mkdwarfs_list_comp_algos))" \
+	{-F,--filter} \
+	{-f,--force}"[force overwrite of existing output image]" \
+	{-h,--help}"[help message]" \
+	{-H,--long-help}"[full help message]" \
+	{-i,--input}"[path to root directory or source filesystem]:directory:_files -/" \
+	{-l,--compress-level}"[compression level (0=fast, 9=best)]:level:(0 1 2 3 4 5 6 7 8 9)" \
+	{-L,--memory-limit} \
+	{-N,--num-workers}"[number of writer (compression) worker threads]" \
+	{-o,--output}"[filesystem output name or - for stdout]:filename:_files" \
+	{-P,--pack-metadata}":packtype:_values packtype auto all none \
+		chunk_table directories shared_files names names_index symlinks \
+		symlinks_index force plain" \
+	{-S,--block-size-bits} \
+	{-W,--window-size} \
+	{-w,--window-step} \
+	"$(__mkdwarfs_disable_man)--man[show manual page and exit]" && ret=0
+
+return ret
