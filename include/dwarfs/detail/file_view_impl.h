@@ -57,6 +57,8 @@ class file_view_impl {
   virtual void copy_bytes(void* dest, file_off_t offset, size_t size,
                           std::error_code& ec) const = 0;
 
+  virtual size_t default_segment_size() const = 0;
+
   // ----------------------------------------------------------------------
   // TODO: this is mostly all deprecated
 
