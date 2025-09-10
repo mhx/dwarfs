@@ -29,6 +29,7 @@
 #include <atomic>
 #include <cstddef>
 #include <mutex>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -45,7 +46,7 @@ namespace {
 template <typename T>
 void read_section_header_common(T& header, size_t& start, file_view const& mm,
                                 size_t offset) {
-  if (offset + sizeof(T) > mm.size()) {
+  if (std::cmp_greater(offset + sizeof(T), mm.size())) {
     DWARFS_THROW(runtime_error,
                  fmt::format("truncated section header: {} + {} > {}", offset,
                              sizeof(T), mm.size()));
@@ -62,7 +63,7 @@ void read_section_header_common(T& header, size_t& start, file_view const& mm,
                  fmt::format("offset/length overflow: {} < {}", end, offset));
   }
 
-  if (end > mm.size()) {
+  if (std::cmp_greater(end, mm.size())) {
     DWARFS_THROW(runtime_error, fmt::format("truncated section data: {} > {}",
                                             end, mm.size()));
   }

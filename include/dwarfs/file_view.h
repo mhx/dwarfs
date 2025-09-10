@@ -47,7 +47,7 @@ class file_view {
 
   void reset() { impl_.reset(); }
 
-  size_t size() const { return impl_->size(); }
+  file_size_t size() const { return impl_->size(); }
 
   std::filesystem::path const& path() const { return impl_->path(); }
 

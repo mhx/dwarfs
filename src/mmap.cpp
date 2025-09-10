@@ -116,9 +116,9 @@ class mmap_file_view : public detail::file_view_impl,
                        public std::enable_shared_from_this<mmap_file_view> {
  public:
   explicit mmap_file_view(std::filesystem::path const& path);
-  mmap_file_view(std::filesystem::path const& path, size_t size);
+  mmap_file_view(std::filesystem::path const& path, file_size_t size);
 
-  size_t size() const override;
+  file_size_t size() const override;
 
   file_segment segment_at(file_off_t offset, size_t size) const override;
 
@@ -315,7 +315,7 @@ std::error_code mmap_file_view::release_until(file_off_t offset) const {
   return advise(io_advice::dontneed, 0, offset);
 }
 
-size_t mmap_file_view::size() const { return mf_.size(); }
+file_size_t mmap_file_view::size() const { return mf_.size(); }
 
 std::filesystem::path const& mmap_file_view::path() const { return path_; }
 
@@ -327,8 +327,10 @@ mmap_file_view::mmap_file_view(std::filesystem::path const& path)
   DWARFS_CHECK(mf_.is_open(), "failed to map file");
 }
 
-mmap_file_view::mmap_file_view(std::filesystem::path const& path, size_t size)
-    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly, size}
+mmap_file_view::mmap_file_view(std::filesystem::path const& path,
+                               file_size_t size)
+    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly,
+          static_cast<size_t>(size)}
     , page_size_{get_page_size()}
     , path_{path}
     , extents_{get_file_extents(path)} {
@@ -342,7 +344,7 @@ file_view create_mmap_file_view(std::filesystem::path const& path) {
 }
 
 file_view
-create_mmap_file_view(std::filesystem::path const& path, size_t size) {
+create_mmap_file_view(std::filesystem::path const& path, file_size_t size) {
   return file_view(std::make_shared<mmap_file_view>(path, size));
 }
 

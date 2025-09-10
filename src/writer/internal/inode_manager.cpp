@@ -34,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -356,7 +357,7 @@ class inode_ : public inode {
   make_progress_context(std::string_view context, file_view const& mm,
                         progress& prog, size_t min_size) const {
     if (mm) {
-      if (auto size = mm.size(); size >= min_size) {
+      if (auto size = mm.size(); std::cmp_greater_equal(size, min_size)) {
         return prog.create_context<scanner_progress>(
             context, path_to_utf8_string_sanitized(mm.path()), size);
       }
@@ -482,7 +483,8 @@ class inode_ : public inode {
     assert(fragments_.size() <= 1);
 
     if (mm) {
-      if (auto max = opts.max_similarity_scan_size; max && mm.size() > *max) {
+      if (auto max = opts.max_similarity_scan_size;
+          max && std::cmp_greater(mm.size(), *max)) {
         return;
       }
     }
