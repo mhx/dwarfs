@@ -26,6 +26,7 @@ project(dwarfs LANGUAGES CXX C)
 include(ExternalProject)
 include(CheckCXXSourceCompiles)
 
+option(BUILD_SHARED_LIBS "build static libs unless asked" OFF)
 option(WITH_LIBDWARFS "build with libdwarfs" ON)
 option(WITH_TOOLS "build with tools" ON)
 option(WITH_FUSE_DRIVER "build with FUSE driver" ON)

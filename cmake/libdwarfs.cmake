@@ -286,6 +286,7 @@ list(APPEND LIBDWARFS_OBJECT_TARGETS
 if(NOT STATIC_BUILD_DO_NOT_USE)
   foreach(tgt ${LIBDWARFS_TARGETS})
     set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
+    set_target_properties(${tgt} PROPERTIES SOVERSION ${PRJ_VERSION_MAJOR})
   endforeach()
 
   include(CMakePackageConfigHelpers)
