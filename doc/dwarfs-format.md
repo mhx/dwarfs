@@ -614,4 +614,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-[mkdwarfs(1)](mkdwarfs.md), [dwarfs(1)](dwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfs(8)](dwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md)

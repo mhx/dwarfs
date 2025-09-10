@@ -142,4 +142,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-[mkdwarfs(1)](mkdwarfs.md), [dwarfs(1)](dwarfs.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md), libarchive-formats(5)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfs(8)](dwarfs.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md), libarchive-formats(5)

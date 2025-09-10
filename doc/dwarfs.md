@@ -1,4 +1,4 @@
-# dwarfs(1) -- mount highly compressed read-only file system
+# dwarfs(8) -- mount highly compressed read-only file system
 
 ## SYNOPSIS
 
