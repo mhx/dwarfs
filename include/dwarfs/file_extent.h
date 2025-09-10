@@ -58,7 +58,7 @@ class file_extent {
   }
 
   file_segments_iterable
-  segments(size_t max_segment_size, size_t overlap_size = 0) const {
+  segments(size_t max_segment_size = 0, size_t overlap_size = 0) const {
     return file_segments_iterable{fv_, this->range(), max_segment_size,
                                   overlap_size};
   }

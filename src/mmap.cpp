@@ -39,6 +39,7 @@
 
 #include <boost/iostreams/device/mapped_file.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/scope_exit.h>
@@ -46,6 +47,8 @@
 namespace dwarfs {
 
 namespace {
+
+using namespace binary_literals;
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA)
 
@@ -130,6 +133,8 @@ class mmap_file_view : public detail::file_view_impl,
 
   void copy_bytes(void* dest, file_off_t offset, size_t size,
                   std::error_code& ec) const override;
+
+  size_t default_segment_size() const override { return 16_MiB; }
 
   // ------------------------------------------------------------
 
