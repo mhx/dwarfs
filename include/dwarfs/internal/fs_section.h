@@ -35,16 +35,17 @@
 
 #include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs::internal {
 
 class fs_section {
  public:
-  fs_section(file_view const& mm, size_t offset, int version);
-  fs_section(file_view const& mm, section_type type, size_t offset, size_t size,
-             int version);
+  fs_section(file_view const& mm, file_off_t offset, int version);
+  fs_section(file_view const& mm, section_type type, file_off_t offset,
+             size_t size, int version);
 
-  size_t start() const { return impl_->start(); }
+  file_off_t start() const { return impl_->start(); }
   size_t length() const { return impl_->length(); }
   bool is_known_compression() const { return impl_->is_known_compression(); }
   bool is_known_type() const { return impl_->is_known_type(); }
@@ -85,7 +86,7 @@ class fs_section {
     return impl_->raw_bytes(mm);
   }
 
-  size_t end() const { return start() + length(); }
+  file_off_t end() const { return start() + length(); }
 
   std::optional<uint32_t> section_number() const {
     return impl_->section_number();
@@ -103,7 +104,7 @@ class fs_section {
    public:
     virtual ~impl() = default;
 
-    virtual size_t start() const = 0;
+    virtual file_off_t start() const = 0;
     virtual size_t length() const = 0;
     virtual bool is_known_compression() const = 0;
     virtual bool is_known_type() const = 0;
