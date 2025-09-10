@@ -56,9 +56,13 @@ class file_view {
   }
 
   file_segments_iterable
-  segments(file_range const& range, size_t max_segment_size,
+  segments(file_range const& range, size_t max_segment_size = 0,
            size_t overlap_size = 0) const {
     return file_segments_iterable{impl_, range, max_segment_size, overlap_size};
+  }
+
+  file_segments_iterable segments() const {
+    return segments({0, this->size()});
   }
 
   file_extents_iterable extents() const { return impl_->extents(); }
