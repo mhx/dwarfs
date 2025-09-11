@@ -34,7 +34,7 @@
 using namespace dwarfs;
 using namespace std::string_literals;
 
-TEST(file_view, mock_file_view) {
+TEST(file_view, mock_file_view_basic) {
   auto view = test::make_mock_file_view("Hello, World!");
 
   {
@@ -66,11 +66,99 @@ TEST(file_view, mock_file_view) {
   {
     std::vector<std::string> parts;
 
-    for (auto const& seg : view.segments({2, 11}, 4, 1)) {
+    for (auto const& seg : view.segments({2, 9}, 4, 1)) {
       auto span = seg.span<char>();
       parts.emplace_back(span.begin(), span.end());
     }
 
     EXPECT_THAT(parts, testing::ElementsAre("llo,", ", Wo", "orl"));
+  }
+}
+
+TEST(file_view, mock_file_view_extents) {
+  auto view = test::make_mock_file_view("Hello,\0\0\0\0World!"s,
+                                        {
+                                            {extent_kind::data, {0, 6}},
+                                            {extent_kind::hole, {6, 4}},
+                                            {extent_kind::data, {10, 6}},
+                                        });
+
+  {
+    std::vector<std::vector<std::string>> extent_parts;
+
+    for (auto const& ext : view.extents()) {
+      auto& parts = extent_parts.emplace_back();
+      for (auto const& seg : ext.segments(3)) {
+        auto span = seg.span<char>();
+        parts.emplace_back(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extent_parts,
+                testing::ElementsAre(testing::ElementsAre("Hel"s, "lo,"s),
+                                     testing::ElementsAre("\0\0\0"s, "\0"s),
+                                     testing::ElementsAre("Wor"s, "ld!"s)));
+  }
+
+  {
+    std::vector<std::vector<std::string>> extent_parts;
+
+    for (auto const& ext : view.extents({4, 10})) {
+      auto& parts = extent_parts.emplace_back();
+      for (auto const& seg : ext.segments(3)) {
+        auto span = seg.span<char>();
+        parts.emplace_back(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extent_parts,
+                testing::ElementsAre(testing::ElementsAre("o,"s),
+                                     testing::ElementsAre("\0\0\0"s, "\0"s),
+                                     testing::ElementsAre("Wor"s, "l"s)));
+  }
+
+  {
+    std::vector<std::vector<std::string>> extent_parts;
+
+    for (auto const& ext : view.extents({1, 4})) {
+      auto& parts = extent_parts.emplace_back();
+      for (auto const& seg : ext.segments(3)) {
+        auto span = seg.span<char>();
+        parts.emplace_back(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extent_parts,
+                testing::ElementsAre(testing::ElementsAre("ell"s, "o"s)));
+  }
+
+  {
+    std::vector<std::vector<std::string>> extent_parts;
+
+    for (auto const& ext : view.extents({9, 2})) {
+      auto& parts = extent_parts.emplace_back();
+      for (auto const& seg : ext.segments(3)) {
+        auto span = seg.span<char>();
+        parts.emplace_back(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extent_parts, testing::ElementsAre(testing::ElementsAre("\0"s),
+                                                   testing::ElementsAre("W"s)));
+  }
+
+  {
+    std::vector<std::vector<std::string>> extent_parts;
+
+    for (auto const& ext : view.extents({2, 4})) {
+      auto& parts = extent_parts.emplace_back();
+      for (auto const& seg : ext.segments(3, 1)) {
+        auto span = seg.span<char>();
+        parts.emplace_back(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extent_parts,
+                testing::ElementsAre(testing::ElementsAre("llo"s, "o,"s)));
   }
 }

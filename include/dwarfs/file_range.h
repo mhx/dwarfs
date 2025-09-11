@@ -39,26 +39,35 @@ namespace dwarfs {
 class file_range {
  public:
   file_range() = default;
-  file_range(file_off_t begin, file_off_t end)
-      : begin_{begin}
-      , end_{end} {
-    assert(end_ >= begin_);
+  file_range(file_off_t offset, file_size_t size)
+      : offset_{offset}
+      , size_{size} {}
+
+  bool empty() const noexcept { return size_ == 0; }
+
+  file_off_t begin() const noexcept { return offset_; }
+
+  file_off_t end() const noexcept { return offset_ + size_; }
+
+  file_off_t offset() const noexcept { return offset_; }
+
+  file_size_t size() const noexcept { return size_; }
+
+  file_range subrange(file_off_t offset, file_size_t size) const {
+    assert(offset >= 0);
+    assert(size >= 0);
+    assert(offset + size <= this->size());
+    return {offset_ + offset, size};
   }
-
-  file_off_t begin() const noexcept { return begin_; }
-
-  file_off_t end() const noexcept { return end_; }
-
-  file_size_t size() const noexcept { return end_ - begin_; }
 
   friend bool
   operator==(file_range const& lhs, file_range const& rhs) noexcept {
-    return lhs.begin_ == rhs.begin_ && lhs.end_ == rhs.end_;
+    return lhs.offset_ == rhs.offset_ && lhs.size_ == rhs.size_;
   }
 
  private:
-  file_off_t begin_{0};
-  file_off_t end_{0};
+  file_off_t offset_{0};
+  file_size_t size_{0};
 };
 
 } // namespace dwarfs

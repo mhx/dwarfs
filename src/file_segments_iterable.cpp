@@ -35,7 +35,7 @@
 namespace dwarfs {
 
 file_segments_iterable::file_segments_iterable(
-    std::shared_ptr<detail::file_view_impl const> fv, file_range const& range,
+    std::shared_ptr<detail::file_view_impl const> fv, file_range range,
     size_t max_segment_bytes, size_t overlap_bytes) noexcept
     : fv_{std::move(fv)}
     , range_{range}
@@ -47,7 +47,7 @@ file_segments_iterable::iterator::iterator() = default;
 file_segments_iterable::iterator::~iterator() = default;
 
 file_segments_iterable::iterator::iterator(
-    std::shared_ptr<detail::file_view_impl const> fv, file_range const* range,
+    std::shared_ptr<detail::file_view_impl const> fv, file_range range,
     size_t maxb, size_t overlapb)
     : fv_{std::move(fv)}
     , range_{range}
@@ -62,7 +62,7 @@ file_segments_iterable::iterator::iterator(
 }
 
 void file_segments_iterable::iterator::advance() {
-  auto const size = range_->size();
+  auto const size = range_.size();
   at_end_ = std::cmp_greater_equal(offset_, size);
 
   if (at_end_) {
@@ -70,7 +70,7 @@ void file_segments_iterable::iterator::advance() {
     fv_.reset();
   } else {
     auto const len = std::min<size_t>(max_bytes_, size - offset_);
-    seg_ = fv_->segment_at(range_->begin() + offset_, len);
+    seg_ = fv_->segment_at(range_.subrange(offset_, len));
     offset_ += len;
     if (std::cmp_less(offset_, size)) {
       offset_ -= overlap_bytes_;
