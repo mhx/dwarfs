@@ -89,7 +89,7 @@ inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
 file_off_t search_image_in_segment(file_segment const& seg) {
   file_off_t start = 0;
 
-  while (start + kMagic.size() < seg.size()) {
+  while (std::cmp_less(start + kMagic.size(), seg.size())) {
     auto ss = seg.span(start);
     auto dp = search_dwarfs_header(ss);
 
@@ -99,7 +99,7 @@ file_off_t search_image_in_segment(file_segment const& seg) {
 
     file_off_t pos = start + dp;
 
-    if (pos + sizeof(file_header) >= seg.size()) {
+    if (std::cmp_greater_equal(pos + sizeof(file_header), seg.size())) {
       break;
     }
 
@@ -107,7 +107,8 @@ file_off_t search_image_in_segment(file_segment const& seg) {
 
     if (fh.minor < 2) {
       // v1 section header, presumably
-      if (pos + sizeof(file_header) + sizeof(section_header) >= seg.size()) {
+      if (std::cmp_greater_equal(
+              pos + sizeof(file_header) + sizeof(section_header), seg.size())) {
         break;
       }
 
@@ -129,7 +130,7 @@ file_off_t search_image_in_segment(file_segment const& seg) {
           is_valid_compression(sh.compression) && sh.length > 0) {
         auto nextshpos =
             pos + sizeof(file_header) + sizeof(section_header) + sh.length;
-        if (nextshpos + sizeof(section_header) < seg.size()) {
+        if (std::cmp_less(nextshpos + sizeof(section_header), seg.size())) {
           auto nsh = seg.read<section_header>(nextshpos);
           auto const nshtype = static_cast<section_type>(nsh.type);
           // the next section must be a block or a metadata schema if the first
@@ -147,7 +148,7 @@ file_off_t search_image_in_segment(file_segment const& seg) {
       }
     } else {
       // do a little more validation before we return
-      if (pos + sizeof(section_header_v2) >= seg.size()) {
+      if (std::cmp_greater_equal(pos + sizeof(section_header_v2), seg.size())) {
         break;
       }
 
@@ -157,7 +158,7 @@ file_off_t search_image_in_segment(file_segment const& seg) {
         auto endpos = pos + sh.length + 2 * sizeof(section_header_v2);
 
         if (endpos >= sh.length) {
-          if (endpos >= seg.size()) {
+          if (std::cmp_greater_equal(endpos, seg.size())) {
             break;
           }
 

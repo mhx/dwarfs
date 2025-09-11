@@ -48,7 +48,11 @@ class file_segment {
   void reset() noexcept { impl_.reset(); }
 
   file_off_t offset() const noexcept { return impl_->offset(); }
-  size_t size() const noexcept { return impl_->size(); }
+
+  file_size_t size() const noexcept { return impl_->size(); }
+
+  file_range range() const noexcept { return impl_->range(); }
+
   bool is_zero() const noexcept { return impl_->is_zero(); }
 
   std::span<std::byte const> span() const { return impl_->raw_bytes(); }
@@ -123,26 +127,25 @@ class file_segment {
     return t;
   }
 
-  void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const {
-    return impl_->advise(adv, offset, size, ec);
+  void advise(io_advice adv, file_range range, std::error_code& ec) const {
+    impl_->advise(adv, range, ec);
   }
 
-  void advise(io_advice adv, file_off_t offset, size_t size) const {
+  void advise(io_advice adv, file_range range) const {
     std::error_code ec;
-    impl_->advise(adv, offset, size, ec);
+    impl_->advise(adv, range, ec);
     if (ec) {
       throw std::system_error(ec);
     }
   }
 
   void advise(io_advice adv, std::error_code& ec) const {
-    impl_->advise(adv, 0, size(), ec);
+    impl_->advise(adv, this->range(), ec);
   }
 
   void advise(io_advice adv) const {
     std::error_code ec;
-    impl_->advise(adv, 0, size(), ec);
+    impl_->advise(adv, this->range(), ec);
     if (ec) {
       throw std::system_error(ec);
     }

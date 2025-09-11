@@ -29,9 +29,11 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <system_error>
 
 #include <dwarfs/file_extents_iterable.h>
+#include <dwarfs/file_range.h>
 #include <dwarfs/file_segment.h>
 #include <dwarfs/io_advice.h>
 #include <dwarfs/types.h>
@@ -46,16 +48,17 @@ class file_view_impl {
 
   virtual std::filesystem::path const& path() const = 0;
 
-  virtual file_segment segment_at(file_off_t offset, size_t size) const = 0;
+  virtual file_segment segment_at(file_range range) const = 0;
 
-  virtual file_extents_iterable extents() const = 0;
+  virtual file_extents_iterable
+  extents(std::optional<file_range> range) const = 0;
 
   virtual bool supports_raw_bytes() const noexcept = 0;
 
   virtual std::span<std::byte const> raw_bytes() const = 0;
 
-  virtual void copy_bytes(void* dest, file_off_t offset, size_t size,
-                          std::error_code& ec) const = 0;
+  virtual void
+  copy_bytes(void* dest, file_range range, std::error_code& ec) const = 0;
 
   virtual size_t default_segment_size() const = 0;
 
