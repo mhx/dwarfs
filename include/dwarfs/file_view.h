@@ -49,15 +49,20 @@ class file_view {
 
   file_size_t size() const { return impl_->size(); }
 
+  file_range range() const { return {0, impl_->size()}; }
+
   std::filesystem::path const& path() const { return impl_->path(); }
 
-  file_segment segment_at(file_off_t offset, size_t size) const {
-    return impl_->segment_at(offset, size);
+  file_segment segment_at(file_range range) const {
+    return impl_->segment_at(range);
   }
 
-  file_segments_iterable
-  segments(file_range const& range, size_t max_segment_size = 0,
-           size_t overlap_size = 0) const {
+  file_segment segment_at(file_off_t offset, file_size_t size) const {
+    return impl_->segment_at({offset, size});
+  }
+
+  file_segments_iterable segments(file_range range, size_t max_segment_size = 0,
+                                  size_t overlap_size = 0) const {
     return file_segments_iterable{impl_, range, max_segment_size, overlap_size};
   }
 
@@ -65,7 +70,11 @@ class file_view {
     return segments({0, this->size()});
   }
 
-  file_extents_iterable extents() const { return impl_->extents(); }
+  file_extents_iterable extents() const { return impl_->extents(std::nullopt); }
+
+  file_extents_iterable extents(file_range range) const {
+    return impl_->extents(range);
+  }
 
   bool supports_raw_bytes() const noexcept {
     return impl_->supports_raw_bytes();
@@ -104,7 +113,7 @@ class file_view {
   template <typename T>
     requires std::is_trivially_copyable_v<T>
   void copy_to(T& t, file_off_t offset, std::error_code& ec) const {
-    impl_->copy_bytes(&t, offset, sizeof(T), ec);
+    impl_->copy_bytes(&t, file_range{offset, sizeof(T)}, ec);
   }
 
   template <typename T>

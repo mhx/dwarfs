@@ -30,17 +30,19 @@
 
 #include <iterator>
 
-#include <dwarfs/detail/file_view_impl.h>
 #include <dwarfs/file_extent.h>
 
 namespace dwarfs {
 
+namespace detail {
+class file_view_impl;
+}
+
 class file_extents_iterable {
  public:
-  file_extents_iterable(std::shared_ptr<detail::file_view_impl const> ext,
-                        std::span<detail::file_extent_info const> extents)
-      : fv_{std::move(ext)}
-      , extents_{extents} {}
+  file_extents_iterable(std::shared_ptr<detail::file_view_impl const> fv,
+                        std::span<detail::file_extent_info const> extents,
+                        file_range range);
 
   class iterator {
    public:
@@ -51,29 +53,14 @@ class file_extents_iterable {
     using pointer = file_extent const*;
 
     iterator() = default;
-    iterator(std::shared_ptr<detail::file_view_impl const> ext,
-             std::span<detail::file_extent_info const> extents)
-        : fv_{std::move(ext)}
-        , extents_{extents}
-        , it_{extents_.begin()} {
-      if (it_ != extents_.end()) {
-        cur_ = file_extent{fv_, *it_};
-      }
-    }
+    iterator(std::shared_ptr<detail::file_view_impl const> fv,
+             std::span<detail::file_extent_info const> extents,
+             file_range range);
 
     reference operator*() const noexcept { return cur_; }
     pointer operator->() const noexcept { return &cur_; }
 
-    iterator& operator++() {
-      ++it_;
-      if (it_ != extents_.end()) {
-        cur_ = file_extent{fv_, *it_};
-      } else {
-        fv_.reset();
-        cur_ = file_extent{};
-      }
-      return *this;
-    }
+    iterator& operator++();
 
     iterator operator++(int) {
       auto tmp = *this;
@@ -108,18 +95,20 @@ class file_extents_iterable {
    private:
     std::shared_ptr<detail::file_view_impl const> fv_;
     file_extent cur_;
+    file_off_t end_offset_{0};
     std::span<detail::file_extent_info const> extents_;
     std::span<detail::file_extent_info const>::iterator it_;
   };
 
   static_assert(std::input_iterator<iterator>);
 
-  iterator begin() const noexcept { return iterator{fv_, extents_}; }
+  iterator begin() const noexcept { return iterator{fv_, extents_, range_}; }
   std::default_sentinel_t end() const noexcept { return {}; }
 
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;
   std::span<detail::file_extent_info const> extents_;
+  file_range range_;
 };
 
 } // namespace dwarfs
