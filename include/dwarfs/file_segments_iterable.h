@@ -42,7 +42,7 @@ class file_view_impl;
 class file_segments_iterable {
  public:
   file_segments_iterable(std::shared_ptr<detail::file_view_impl const> fv,
-                         file_range const& range, size_t max_segment_bytes,
+                         file_range range, size_t max_segment_bytes,
                          size_t overlap_bytes) noexcept;
 
   class iterator {
@@ -54,8 +54,8 @@ class file_segments_iterable {
     using pointer = file_segment const*;
 
     iterator();
-    iterator(std::shared_ptr<detail::file_view_impl const> fv,
-             file_range const* range, size_t maxb, size_t overlapb);
+    iterator(std::shared_ptr<detail::file_view_impl const> fv, file_range range,
+             size_t maxb, size_t overlapb);
     ~iterator();
 
     reference operator*() const noexcept { return seg_; }
@@ -101,7 +101,7 @@ class file_segments_iterable {
     void advance();
 
     std::shared_ptr<detail::file_view_impl const> fv_;
-    file_range const* range_{nullptr};
+    file_range range_;
     size_t max_bytes_{};
     size_t overlap_bytes_{};
     file_off_t offset_{};
@@ -112,7 +112,7 @@ class file_segments_iterable {
   static_assert(std::input_iterator<iterator>);
 
   iterator begin() const noexcept {
-    return iterator{fv_, &range_, max_bytes_, overlap_bytes_};
+    return iterator{fv_, range_, max_bytes_, overlap_bytes_};
   }
   std::default_sentinel_t end() const noexcept { return {}; }
 
