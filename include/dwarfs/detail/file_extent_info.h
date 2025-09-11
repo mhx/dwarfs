@@ -29,14 +29,14 @@
 #pragma once
 
 #include <dwarfs/extent_kind.h>
+#include <dwarfs/file_range.h>
 #include <dwarfs/types.h>
 
 namespace dwarfs::detail {
 
 struct file_extent_info {
   extent_kind kind;
-  file_off_t offset;
-  file_size_t size;
+  file_range range;
 };
 
 } // namespace dwarfs::detail

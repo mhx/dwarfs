@@ -32,6 +32,7 @@
 #include <span>
 #include <system_error>
 
+#include <dwarfs/file_range.h>
 #include <dwarfs/io_advice.h>
 #include <dwarfs/types.h>
 
@@ -42,11 +43,12 @@ class file_segment_impl {
   virtual ~file_segment_impl() = default;
 
   virtual file_off_t offset() const noexcept = 0;
-  virtual size_t size() const noexcept = 0;
+  virtual file_size_t size() const noexcept = 0;
+  virtual file_range range() const noexcept = 0;
   virtual bool is_zero() const noexcept = 0;
   virtual std::span<std::byte const> raw_bytes() const = 0;
-  virtual void advise(io_advice adv, file_off_t offset, size_t size,
-                      std::error_code& ec) const = 0;
+  virtual void
+  advise(io_advice adv, file_range range, std::error_code& ec) const = 0;
   virtual void lock(std::error_code& ec) const = 0;
 };
 

@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <utility>
 #include <vector>
 
 #include <dwarfs/binary_literals.h>
@@ -31,17 +32,23 @@ using namespace dwarfs::binary_literals;
 
 namespace dwarfs::test {
 
-class mmap_mock : public detail::file_view_impl,
-                  public std::enable_shared_from_this<mmap_mock> {
+class mmap_mock final : public detail::file_view_impl,
+                        public std::enable_shared_from_this<mmap_mock> {
  public:
   mmap_mock(std::string data)
       : mmap_mock{std::move(data), "<mock-file>"} {}
 
   mmap_mock(std::string data, std::filesystem::path const& path)
+      : mmap_mock(std::move(data), path, {}) {}
+
+  mmap_mock(std::string data, std::vector<detail::file_extent_info> extents)
+      : mmap_mock(std::move(data), "<mock-file>", std::move(extents)) {}
+
+  mmap_mock(std::string data, std::filesystem::path const& path,
+            std::vector<detail::file_extent_info> extents)
       : data_{std::move(data)}
       , path_{path}
-      , extents_{
-            {extent_kind::data, 0, static_cast<file_size_t>(data_.size())}} {}
+      , extents_{default_extent(std::move(extents), data_.size())} {}
 
   mmap_mock(std::string const& data, size_t size)
       : mmap_mock{data, size, "<mock-file>"} {}
@@ -50,13 +57,17 @@ class mmap_mock : public detail::file_view_impl,
             std::filesystem::path const& path)
       : data_{data, 0, std::min(size, data.size())}
       , path_{path}
-      , extents_{
-            {extent_kind::data, 0, static_cast<file_size_t>(data_.size())}} {}
+      , extents_{{extent_kind::data,
+                  file_range{0, static_cast<file_size_t>(data_.size())}}} {}
 
-  file_segment segment_at(file_off_t offset, size_t size) const override;
+  file_segment segment_at(file_range range) const override;
 
-  file_extents_iterable extents() const override {
-    return file_extents_iterable(shared_from_this(), extents_);
+  file_extents_iterable
+  extents(std::optional<file_range> range) const override {
+    if (!range.has_value()) {
+      range.emplace(0, size());
+    }
+    return file_extents_iterable(shared_from_this(), extents_, *range);
   }
 
   bool supports_raw_bytes() const noexcept override { return true; }
@@ -65,8 +76,8 @@ class mmap_mock : public detail::file_view_impl,
     return {reinterpret_cast<std::byte const*>(data_.data()), data_.size()};
   }
 
-  void copy_bytes(void* dest, file_off_t offset, size_t size,
-                  std::error_code& ec) const override;
+  void
+  copy_bytes(void* dest, file_range range, std::error_code& ec) const override;
 
   file_size_t size() const override { return data_.size(); }
 
@@ -78,63 +89,78 @@ class mmap_mock : public detail::file_view_impl,
 
   void const* addr() const { return data_.data(); }
 
-  std::error_code advise(io_advice, file_off_t, size_t) const {
+  std::error_code advise(io_advice, file_range) const {
     return std::error_code();
   }
 
-  std::error_code lock(file_off_t, size_t) const { return std::error_code(); }
+  std::error_code lock(file_range) const { return std::error_code(); }
 
   size_t default_segment_size() const override { return 64_KiB; }
 
  private:
+  static std::vector<detail::file_extent_info>
+  default_extent(std::vector<detail::file_extent_info> ext, file_size_t size) {
+    if (ext.empty()) {
+      ext.emplace_back(extent_kind::data, file_range{0, size});
+    }
+    return ext;
+  }
+
   std::string const data_;
   std::filesystem::path const path_;
   std::vector<detail::file_extent_info> const extents_;
 };
 
-class mmap_mock_file_segment : public detail::file_segment_impl {
+class mmap_mock_file_segment final : public detail::file_segment_impl {
  public:
   mmap_mock_file_segment(std::shared_ptr<mmap_mock const> const& mm,
-                         file_off_t offset, size_t size)
+                         file_range range)
       : mm_{mm}
-      , offset_{offset}
-      , size_{size} {}
+      , range_{range} {}
 
-  file_off_t offset() const noexcept override { return offset_; }
-  size_t size() const noexcept override { return size_; }
+  file_off_t offset() const noexcept override { return range_.offset(); }
+
+  file_size_t size() const noexcept override { return range_.size(); }
+
+  file_range range() const noexcept override { return range_; }
 
   bool is_zero() const noexcept override { return false; }
 
   std::span<std::byte const> raw_bytes() const override {
-    return {static_cast<std::byte const*>(mm_->addr()) + offset_, size_};
+    return {static_cast<std::byte const*>(mm_->addr()) + range_.offset(),
+            static_cast<size_t>(range_.size())};
   }
 
-  void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const override {
-    ec = mm_->advise(adv, offset_ + offset, size);
+  void
+  advise(io_advice adv, file_range range, std::error_code& ec) const override {
+    ec = mm_->advise(adv, range);
   }
 
-  void lock(std::error_code& ec) const override {
-    ec = mm_->lock(offset_, size_);
-  }
+  void lock(std::error_code& ec) const override { ec = mm_->lock(range_); }
 
  private:
   std::shared_ptr<mmap_mock const> mm_;
-  file_off_t offset_;
-  size_t size_;
+  file_range range_;
 };
 
-file_segment mmap_mock::segment_at(file_off_t offset, size_t size) const {
-  if (offset < 0 || size == 0 || offset + size > data_.size()) {
+file_segment mmap_mock::segment_at(file_range range) const {
+  auto const offset = range.offset();
+  auto const size = range.size();
+
+  if (offset < 0 || size == 0 ||
+      std::cmp_greater(offset + size, data_.size())) {
     return {};
   }
 
-  return file_segment(std::make_shared<mmap_mock_file_segment>(
-      shared_from_this(), offset, size));
+  return file_segment(
+      std::make_shared<mmap_mock_file_segment>(shared_from_this(), range));
 }
 
-void mmap_mock::copy_bytes(void* dest, file_off_t offset, size_t size,
+void mmap_mock::copy_bytes(void* dest, file_range range,
                            std::error_code& ec) const {
+  auto const offset = range.offset();
+  auto const size = range.size();
+
   if (size == 0) {
     return;
   }
@@ -144,7 +170,7 @@ void mmap_mock::copy_bytes(void* dest, file_off_t offset, size_t size,
     return;
   }
 
-  if (offset + size > data_.size()) {
+  if (std::cmp_greater(offset + size, data_.size())) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }
@@ -158,9 +184,22 @@ file_view make_mock_file_view(std::string data) {
   return file_view{std::make_shared<mmap_mock>(std::move(data))};
 }
 
+file_view make_mock_file_view(std::string data,
+                              std::vector<detail::file_extent_info> extents) {
+  return file_view{
+      std::make_shared<mmap_mock>(std::move(data), std::move(extents))};
+}
+
 file_view
 make_mock_file_view(std::string data, std::filesystem::path const& path) {
   return file_view{std::make_shared<mmap_mock>(std::move(data), path)};
+}
+
+file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path,
+                    std::vector<detail::file_extent_info> extents) {
+  return file_view{
+      std::make_shared<mmap_mock>(std::move(data), path, std::move(extents))};
 }
 
 file_view make_mock_file_view(std::string const& data, size_t size) {

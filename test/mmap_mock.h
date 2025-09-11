@@ -32,8 +32,15 @@ namespace dwarfs::test {
 
 file_view make_mock_file_view(std::string data);
 
+file_view make_mock_file_view(std::string data,
+                              std::vector<detail::file_extent_info> extents);
+
 file_view
 make_mock_file_view(std::string data, std::filesystem::path const& path);
+
+file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path,
+                    std::vector<detail::file_extent_info> extents);
 
 file_view make_mock_file_view(std::string const& data, size_t size);
 
