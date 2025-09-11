@@ -93,7 +93,7 @@ get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
     }
 
     if (rv > offset) {
-      extents.emplace_back(kind, offset, rv - offset);
+      extents.emplace_back(kind, file_range{offset, rv - offset});
       offset = rv;
     }
   }
@@ -107,32 +107,34 @@ get_file_extents(std::filesystem::path const& path) {
   auto extents = get_file_extents(path, ec);
   if (ec) {
     extents.clear();
-    extents.emplace_back(extent_kind::data, 0,
-                         std::filesystem::file_size(path));
+    extents.emplace_back(extent_kind::data,
+                         file_range{0, static_cast<file_size_t>(
+                                           std::filesystem::file_size(path))});
   }
   return extents;
 }
 
 #endif
 
-class mmap_file_view : public detail::file_view_impl,
-                       public std::enable_shared_from_this<mmap_file_view> {
+class mmap_file_view final
+    : public detail::file_view_impl,
+      public std::enable_shared_from_this<mmap_file_view> {
  public:
   explicit mmap_file_view(std::filesystem::path const& path);
   mmap_file_view(std::filesystem::path const& path, file_size_t size);
 
   file_size_t size() const override;
 
-  file_segment segment_at(file_off_t offset, size_t size) const override;
+  file_segment segment_at(file_range range) const override;
 
-  file_extents_iterable extents() const override;
+  file_extents_iterable extents(std::optional<file_range> range) const override;
 
   bool supports_raw_bytes() const noexcept override;
 
   std::span<std::byte const> raw_bytes() const override;
 
-  void copy_bytes(void* dest, file_off_t offset, size_t size,
-                  std::error_code& ec) const override;
+  void
+  copy_bytes(void* dest, file_range range, std::error_code& ec) const override;
 
   size_t default_segment_size() const override { return 16_MiB; }
 
@@ -147,9 +149,9 @@ class mmap_file_view : public detail::file_view_impl,
   // Not exposed publicly
   void const* addr() const { return mf_.const_data(); }
 
-  std::error_code advise(io_advice adv, file_off_t offset, size_t size) const;
+  std::error_code advise(io_advice adv, file_range range) const;
 
-  std::error_code lock(file_off_t offset, size_t size) const;
+  std::error_code lock(file_range range) const;
 
  private:
   boost::iostreams::mapped_file mutable mf_;
@@ -158,36 +160,36 @@ class mmap_file_view : public detail::file_view_impl,
   std::vector<detail::file_extent_info> const extents_;
 };
 
-class mmap_ref_file_segment : public detail::file_segment_impl {
+class mmap_ref_file_segment final : public detail::file_segment_impl {
  public:
   mmap_ref_file_segment(std::shared_ptr<mmap_file_view const> const& mm,
-                        file_off_t offset, size_t size)
+                        file_range range)
       : mm_{mm}
-      , offset_{offset}
-      , size_{size} {}
+      , range_{range} {}
 
-  file_off_t offset() const noexcept override { return offset_; }
-  size_t size() const noexcept override { return size_; }
+  file_off_t offset() const noexcept override { return range_.offset(); }
+
+  file_size_t size() const noexcept override { return range_.size(); }
+
+  file_range range() const noexcept override { return range_; }
 
   bool is_zero() const noexcept override { return false; }
 
   std::span<std::byte const> raw_bytes() const override {
-    return {static_cast<std::byte const*>(mm_->addr()) + offset_, size_};
+    return {static_cast<std::byte const*>(mm_->addr()) + range_.offset(),
+            static_cast<size_t>(range_.size())};
   }
 
-  void advise(io_advice adv, file_off_t offset, size_t size,
-              std::error_code& ec) const override {
-    ec = mm_->advise(adv, offset_ + offset, size);
+  void
+  advise(io_advice adv, file_range range, std::error_code& ec) const override {
+    ec = mm_->advise(adv, range);
   }
 
-  void lock(std::error_code& ec) const override {
-    ec = mm_->lock(offset_, size_);
-  }
+  void lock(std::error_code& ec) const override { ec = mm_->lock(range_); }
 
  private:
   std::shared_ptr<mmap_file_view const> mm_;
-  file_off_t offset_;
-  size_t size_;
+  file_range const range_;
 };
 
 uint64_t get_page_size() {
@@ -229,17 +231,24 @@ decltype(auto) get_file_path(std::filesystem::path const& path) {
 #endif
 }
 
-file_segment mmap_file_view::segment_at(file_off_t offset, size_t size) const {
-  if (offset < 0 || size == 0 || offset + size > mf_.size()) {
+file_segment mmap_file_view::segment_at(file_range range) const {
+  auto const offset = range.offset();
+  auto const size = range.size();
+
+  if (offset < 0 || size == 0 || std::cmp_greater(offset + size, mf_.size())) {
     return {};
   }
 
-  return file_segment(std::make_shared<mmap_ref_file_segment>(
-      shared_from_this(), offset, size));
+  return file_segment(
+      std::make_shared<mmap_ref_file_segment>(shared_from_this(), range));
 }
 
-file_extents_iterable mmap_file_view::extents() const {
-  return file_extents_iterable(shared_from_this(), extents_);
+file_extents_iterable
+mmap_file_view::extents(std::optional<file_range> range) const {
+  if (!range.has_value()) {
+    range.emplace(0, size());
+  }
+  return {shared_from_this(), extents_, *range};
 }
 
 bool mmap_file_view::supports_raw_bytes() const noexcept { return true; }
@@ -248,8 +257,11 @@ std::span<std::byte const> mmap_file_view::raw_bytes() const {
   return {reinterpret_cast<std::byte const*>(mf_.const_data()), mf_.size()};
 }
 
-void mmap_file_view::copy_bytes(void* dest, file_off_t offset, size_t size,
+void mmap_file_view::copy_bytes(void* dest, file_range range,
                                 std::error_code& ec) const {
+  auto const offset = range.offset();
+  auto const size = range.size();
+
   if (size == 0) {
     return;
   }
@@ -259,7 +271,7 @@ void mmap_file_view::copy_bytes(void* dest, file_off_t offset, size_t size,
     return;
   }
 
-  if (offset + size > mf_.size()) {
+  if (std::cmp_greater(offset + size, mf_.size())) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }
@@ -267,10 +279,11 @@ void mmap_file_view::copy_bytes(void* dest, file_off_t offset, size_t size,
   std::memcpy(dest, mf_.const_data() + offset, size);
 }
 
-std::error_code mmap_file_view::lock(file_off_t offset [[maybe_unused]],
-                                     size_t size [[maybe_unused]]) const {
+std::error_code mmap_file_view::lock(file_range range [[maybe_unused]]) const {
   std::error_code ec;
 
+  auto const offset = range.offset();
+  auto const size = range.size();
   auto data = mf_.const_data() + offset;
 
 #ifdef _WIN32
@@ -286,9 +299,9 @@ std::error_code mmap_file_view::lock(file_off_t offset [[maybe_unused]],
   return ec;
 }
 
-std::error_code mmap_file_view::advise(io_advice adv [[maybe_unused]],
-                                       file_off_t offset [[maybe_unused]],
-                                       size_t size [[maybe_unused]]) const {
+std::error_code
+mmap_file_view::advise(io_advice adv [[maybe_unused]],
+                       file_range range [[maybe_unused]]) const {
   std::error_code ec;
 
 #ifdef _WIN32
@@ -297,6 +310,8 @@ std::error_code mmap_file_view::advise(io_advice adv [[maybe_unused]],
   //   ec.assign(::GetLastError(), std::system_category());
   // }
 #else
+  auto offset = range.offset();
+  auto size = range.size();
   auto misalign = offset % page_size_;
 
   offset -= misalign;
@@ -317,7 +332,7 @@ std::error_code mmap_file_view::advise(io_advice adv [[maybe_unused]],
 }
 
 std::error_code mmap_file_view::release_until(file_off_t offset) const {
-  return advise(io_advice::dontneed, 0, offset);
+  return advise(io_advice::dontneed, file_range{0, offset});
 }
 
 file_size_t mmap_file_view::size() const { return mf_.size(); }
