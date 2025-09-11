@@ -37,6 +37,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -102,8 +103,9 @@ read_trailer(uint8_t const* addr, uint64_t size, struct trailer_info* ti) {
   return 0;
 }
 
-static int create_exec_memfd(void) {
-  unsigned int flags = MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_EXEC;
+static int create_exec_memfd(size_t size) {
+  // MFD_CLOEXEC breaks QEMU + binfmt_misc
+  unsigned int flags = /*MFD_CLOEXEC |*/ MFD_ALLOW_SEALING | MFD_EXEC;
   int fd = memfd_create("wrapped", flags);
   if (fd < 0 && (errno == EINVAL || errno == EOPNOTSUPP)) {
     flags &= ~MFD_EXEC;
@@ -112,12 +114,102 @@ static int create_exec_memfd(void) {
       return -1;
     }
   }
+  if (ftruncate(fd, size) != 0) {
+    close(fd);
+    return -1;
+  }
   return fd;
+}
+
+static int reopen_readonly(int fd) {
+  char path[64];
+  snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+  int ro_fd = open(path, O_RDONLY);
+  if (ro_fd < 0) {
+    perror("open(readonly)");
+    return -1;
+  }
+  close(fd);
+  return ro_fd;
+}
+
+static int dir_allows_exec(char const* dir) {
+  struct statvfs sv;
+  if (statvfs(dir, &sv) != 0) {
+    return 0;
+  }
+  if ((sv.f_flag & ST_NOEXEC) != 0) {
+    return 0;
+  }
+  return access(dir, W_OK | X_OK) == 0;
+}
+
+static int try_create_tmpfd_in_dir(char const* dir, size_t size) {
+  if (!dir_allows_exec(dir)) {
+    return -1;
+  }
+
+  char template[1024];
+  snprintf(template, sizeof(template), "%s/sfx-XXXXXX", dir);
+
+  int fd = mkstemp(template);
+  if (fd < 0) {
+    return -1;
+  }
+
+  unlink(template);
+
+  if (fchmod(fd, 0700) != 0) {
+    close(fd);
+    return -1;
+  }
+
+  if (ftruncate(fd, size) != 0) {
+    close(fd);
+    return -1;
+  }
+
+  return fd;
+}
+
+static int create_exec_tmpfd(size_t size) {
+  char const* dirs[] = {
+    "TMPDIR",
+    "XDG_RUNTIME_DIR",
+    "/dev/shm",
+    "/tmp",
+    "/usr/tmp",
+    "/var/tmp",
+    NULL
+  };
+
+  for (char const** d = dirs; *d != NULL; ++d) {
+    char const* dir = *d;
+
+    if (*dir != '/') {
+      dir = getenv(dir);
+      if (dir == NULL || *dir == '\0' || *dir != '/') {
+        continue;
+      }
+    }
+
+    int fd = try_create_tmpfd_in_dir(dir, size);
+
+    if (fd >= 0) {
+      return fd;
+    }
+  }
+
+  return -1;
 }
 
 static int add_seals_immutable_exec(int fd) {
   int seals = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL;
   if (fcntl(fd, F_ADD_SEALS, seals) != 0) {
+    if (errno == EINVAL) {
+      // likely an old kernel without F_ADD_SEALS support
+      return 0;
+    }
     perror("F_ADD_SEALS");
     return -1;
   }
@@ -274,25 +366,17 @@ int main(int argc, char** argv, char** envp) {
     return rc == 0 ? 0 : 1;
   }
 
-  int app_fd = create_exec_memfd();
+  int needs_reopen = 0;
+  int app_fd = create_exec_memfd(ti.u_size);
   if (app_fd < 0) {
-    if (errno == ENOSYS) {
-      fprintf(
-          stderr,
-          "memfd_create() not supported, are you running on an old kernel?\n");
+    app_fd = create_exec_tmpfd(ti.u_size);
+    if (app_fd < 0) {
+      munmap((void*)self_addr, self_st.st_size);
+      fprintf(stderr, "could not create temporary executable file\n");
       print_extract_hint(argv[0]);
-    } else {
-      perror("memfd_create");
+      return 1;
     }
-    munmap((void*)self_addr, self_st.st_size);
-    return 1;
-  }
-
-  if (ftruncate(app_fd, ti.u_size) != 0) {
-    perror("ftruncate");
-    munmap((void*)self_addr, self_st.st_size);
-    close(app_fd);
-    return 1;
+    needs_reopen = 1;
   }
 
   void* app_addr =
@@ -350,6 +434,19 @@ int main(int argc, char** argv, char** envp) {
   if (verify_rv != 0) {
     close(app_fd);
     return 1;
+  }
+
+  if (needs_reopen) {
+    int ro_fd = reopen_readonly(app_fd);
+
+    close(app_fd);
+
+    if (ro_fd < 0) {
+      print_extract_hint(argv[0]);
+      return 1;
+    }
+
+    app_fd = ro_fd;
   }
 
   lseek(app_fd, 0, SEEK_SET);
