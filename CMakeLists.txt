@@ -410,7 +410,7 @@ if(WITH_FUSE_DRIVER)
   endif()
 
   if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
-    add_library(dwarfs2_main tools/src/dwarfs_main.cpp)
+    add_library(dwarfs2_main OBJECT tools/src/dwarfs_main.cpp)
     target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                     FUSE_USE_VERSION=29)
     target_link_libraries(dwarfs2_main PRIVATE PkgConfig::FUSE)
