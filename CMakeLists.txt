@@ -992,6 +992,7 @@ if(STATIC_BUILD_DO_NOT_USE)
         target_compile_options(${tgt} PRIVATE -fno-stack-protector -fno-asynchronous-unwind-tables)
         target_link_options(${tgt} PRIVATE -Wl,--build-id=none)
         list(APPEND BINARY_TARGETS ${tgt})
+        list(APPEND SFXSTUB_TARGETS ${tgt})
       endif()
     endforeach()
   endif()
@@ -1240,6 +1241,15 @@ if(DEFINED ENV{GITHUB_REF_TYPE})
       COMMAND ${CMAKE_COMMAND} -E copy -t ${ARTIFACTS_FULL_PATH} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}
       COMMAND ${CMAKE_COMMAND} -E copy -t ${ARTIFACTS_FULL_PATH} ${UNIVERSAL_UPX_TARGETS}
     )
+
+    foreach(tgt ${SFXSTUB_TARGETS})
+      add_custom_command(
+        OUTPUT _copy_artifacts APPEND
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_BINARY_DIR}/${tgt}
+            ${ARTIFACTS_FULL_PATH}/${tgt}-${DWARFS_ARTIFACT_ID}
+      )
+    endforeach()
 
     if(WITH_BENCHMARKS)
       foreach(tgt ${BENCHMARK_TARGETS})
