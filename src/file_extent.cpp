@@ -26,58 +26,17 @@
  * SPDX-License-Identifier: MIT
  */
 
-#pragma once
-
-#include <cassert>
-#include <memory>
-
-#include <dwarfs/detail/file_extent_info.h>
-#include <dwarfs/file_segments_iterable.h>
+#include <dwarfs/detail/file_view_impl.h>
+#include <dwarfs/file_extent.h>
 
 namespace dwarfs {
 
-namespace detail {
-class file_view_impl;
+bool file_extent::supports_raw_bytes() const noexcept {
+  return fv_->supports_raw_bytes();
 }
 
-class file_extent {
- public:
-  file_extent() = default;
-  file_extent(std::shared_ptr<detail::file_view_impl const> fv,
-              detail::file_extent_info const& extent)
-      : fv_{std::move(fv)}
-      , extent_{extent} {
-    assert(fv_);
-  }
-
-  explicit operator bool() const noexcept { return static_cast<bool>(fv_); }
-
-  bool valid() const noexcept { return static_cast<bool>(fv_); }
-
-  void reset() noexcept { fv_.reset(); }
-
-  bool supports_raw_bytes() const noexcept;
-
-  std::span<std::byte const> raw_bytes() const;
-
-  file_off_t offset() const noexcept { return extent_.range.offset(); }
-
-  file_size_t size() const noexcept { return extent_.range.size(); }
-
-  extent_kind kind() const noexcept { return extent_.kind; }
-
-  file_range range() const noexcept { return extent_.range; }
-
-  file_segments_iterable
-  segments(size_t max_segment_size = 0, size_t overlap_size = 0) const {
-    assert(fv_);
-    return file_segments_iterable{fv_, extent_.range, max_segment_size,
-                                  overlap_size};
-  }
-
- private:
-  std::shared_ptr<detail::file_view_impl const> fv_;
-  detail::file_extent_info extent_{};
-};
+std::span<std::byte const> file_extent::raw_bytes() const {
+  return fv_->raw_bytes().subspan(offset(), size());
+}
 
 } // namespace dwarfs
