@@ -1155,11 +1155,11 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
           COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
-      elseif(TARGET sfxstub_lz4 OR TARGET sfxstub_zstd)
+      elseif(TARGET sfxstub_lz4 OR TARGET sfxstub_zstd_minimal)
         # Fallback if UPX is not found or doesn't support the target architecture.
         # Prefer lz4 if available (as it is faster), otherwise use zstd.
-        if(TARGET sfxstub_zstd)
-          set(_sfx_stub_target sfxstub_zstd)
+        if(TARGET sfxstub_zstd_minimal)
+          set(_sfx_stub_target sfxstub_zstd_minimal)
           # Sweet spot between compression ratio and decompression speed.
           # set(_sfx_options "--level=16")
           # We'll use the default (`--level=19`, i.e. maximum compression)
