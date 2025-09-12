@@ -27,6 +27,7 @@ add_library(
   src/conv.cpp
   src/error.cpp
   src/file_access_generic.cpp
+  src/file_extent.cpp
   src/file_extents_iterable.cpp
   src/file_segments_iterable.cpp
   src/file_stat.cpp
