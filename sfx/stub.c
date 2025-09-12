@@ -49,6 +49,8 @@
 #include "zstddeclib.c"
 #endif
 
+#include "nanoprintf.h"
+
 #define TRAILER_SIZE 32
 static uint8_t const trailer_magic[8] = {'S', 'Q', 'U', 'E',
                                          'E', 'Z', 'E', '!'};
@@ -67,6 +69,17 @@ struct trailer_info {
   off_t c_off;
 };
 
+static void fmterr(char const* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  char buf[1024];
+  npf_vsnprintf(buf, sizeof(buf), fmt, ap);
+  fputs(buf, stderr);
+  va_end(ap);
+}
+
+static void msgerr(char const* msg) { fputs(msg, stderr); }
+
 static int open_self_ro(void) {
   int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
   if (fd < 0) {
@@ -78,14 +91,14 @@ static int open_self_ro(void) {
 static int
 read_trailer(uint8_t const* addr, uint64_t size, struct trailer_info* ti) {
   if (size < TRAILER_SIZE) {
-    fprintf(stderr, "wrapped: file too small\n");
+    msgerr("wrapped: file too small\n");
     return -1;
   }
 
   uint8_t const* buf = addr + size - TRAILER_SIZE;
 
   if (memcmp(buf, trailer_magic, 8) != 0) {
-    fprintf(stderr, "wrapped: bad magic\n");
+    msgerr("wrapped: bad magic\n");
     return -1;
   }
 
@@ -94,7 +107,7 @@ read_trailer(uint8_t const* addr, uint64_t size, struct trailer_info* ti) {
   ti->u_xxh64 = read_le64(buf + 24);
 
   if (size < TRAILER_SIZE + ti->c_size) {
-    fprintf(stderr, "wrapped: inconsistent sizes\n");
+    msgerr("wrapped: inconsistent sizes\n");
     return -1;
   }
 
@@ -123,7 +136,7 @@ static int create_exec_memfd(size_t size) {
 
 static int reopen_readonly(int fd) {
   char path[64];
-  snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+  npf_snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
   int ro_fd = open(path, O_RDONLY);
   if (ro_fd < 0) {
     perror("open(readonly)");
@@ -150,7 +163,7 @@ static int try_create_tmpfd_in_dir(char const* dir, size_t size) {
   }
 
   char template[1024];
-  snprintf(template, sizeof(template), "%s/sfx-XXXXXX", dir);
+  npf_snprintf(template, sizeof(template), "%s/sfx-XXXXXX", dir);
 
   int fd = mkstemp(template);
   if (fd < 0) {
@@ -173,15 +186,8 @@ static int try_create_tmpfd_in_dir(char const* dir, size_t size) {
 }
 
 static int create_exec_tmpfd(size_t size) {
-  char const* dirs[] = {
-    "TMPDIR",
-    "XDG_RUNTIME_DIR",
-    "/dev/shm",
-    "/tmp",
-    "/usr/tmp",
-    "/var/tmp",
-    NULL
-  };
+  char const* dirs[] = {"TMPDIR",   "XDG_RUNTIME_DIR", "/dev/shm", "/tmp",
+                        "/usr/tmp", "/var/tmp",        NULL};
 
   for (char const** d = dirs; *d != NULL; ++d) {
     char const* dir = *d;
@@ -222,30 +228,28 @@ static int decompress_wrapped(void const* src, size_t src_size, void* dst,
   int rv = LZ4_decompress_safe(src, dst, src_size, dst_size);
 
   if (rv < 0) {
-    fprintf(stderr, "wrapped: lz4 error\n");
+    msgerr("wrapped: lz4 error\n");
     return -1;
   }
 
   if ((size_t)rv != dst_size) {
-    fprintf(stderr,
-            "wrapped: lz4 decompression size mismatch "
-            "(got %d, expected %zu)\n",
-            rv, dst_size);
+    fmterr("wrapped: lz4 decompression size mismatch "
+           "(got %d, expected %zu)\n",
+           rv, dst_size);
     return -1;
   }
 #else
   size_t rv = ZSTD_decompress(dst, dst_size, src, src_size);
 
   if (ZSTD_isError(rv)) {
-    fprintf(stderr, "wrapped: zstd error: %s\n", ZSTD_getErrorName(rv));
+    fmterr("wrapped: zstd error: %s\n", ZSTD_getErrorName(rv));
     return -1;
   }
 
   if (rv != dst_size) {
-    fprintf(stderr,
-            "wrapped: zstd decompression size mismatch "
-            "(got %zu, expected %zu)\n",
-            rv, dst_size);
+    fmterr("wrapped: zstd decompression size mismatch "
+           "(got %zu, expected %zu)\n",
+           rv, dst_size);
     return -1;
   }
 #endif
@@ -258,10 +262,9 @@ xxh64_verify(void const* addr, uint64_t expect_hash, uint64_t expect_size) {
   uint64_t got = XXH64(addr, expect_size, 0);
 
   if (got != expect_hash) {
-    fprintf(stderr,
-            "wrapped: XXH64 mismatch (got 0x%016" PRIx64
-            ", expect 0x%016" PRIx64 ")\n",
-            got, expect_hash);
+    fmterr("wrapped: XXH64 mismatch (got 0x%016" PRIx64
+           ", expected 0x%016" PRIx64 ")\n",
+           got, expect_hash);
     return -1;
   }
 
@@ -311,10 +314,9 @@ static int extract_to_path_verified(char const* path, uint8_t const* addr,
 }
 
 static void print_extract_hint(char const* prog_name) {
-  fprintf(stderr,
-          "\nYou can extract the wrapped binary using:\n\n"
-          "  %s --extract-wrapped-binary <output_path>\n\n",
-          prog_name);
+  fmterr("\nYou can extract the wrapped binary using:\n\n"
+         "  %s --extract-wrapped-binary <output_path>\n\n",
+         prog_name);
 }
 
 static char const* get_error_name(int err) {
@@ -372,7 +374,7 @@ int main(int argc, char** argv, char** envp) {
     app_fd = create_exec_tmpfd(ti.u_size);
     if (app_fd < 0) {
       munmap((void*)self_addr, self_st.st_size);
-      fprintf(stderr, "could not create temporary executable file\n");
+      msgerr("could not create temporary executable file\n");
       print_extract_hint(argv[0]);
       return 1;
     }
@@ -453,8 +455,8 @@ int main(int argc, char** argv, char** envp) {
   fexecve(app_fd, argv, envp);
 
   if (errno == ENOEXEC || errno == ENOENT || errno == ENOSYS) {
-    fprintf(stderr, "fexecve() failed with %s, are you using QEMU?\n",
-            get_error_name(errno));
+    fmterr("fexecve() failed with %s, are you using QEMU?\n",
+           get_error_name(errno));
     print_extract_hint(argv[0]);
   } else {
     perror("fexecve");

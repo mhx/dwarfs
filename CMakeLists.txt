@@ -973,6 +973,18 @@ if(STATIC_BUILD_DO_NOT_USE)
 
     foreach(tgt sfxstub_zstd sfxstub_lz4)
       if(TARGET ${tgt})
+        target_compile_definitions(${tgt} PRIVATE
+          NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS=1
+          NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS=0
+          NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS=0
+          NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS=1
+          NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS=0
+          NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS=0
+          NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS=0
+          NANOPRINTF_USE_ALT_FORM_FLAG=0
+          NANOPRINTF_VISIBILITY_STATIC=1
+          NANOPRINTF_IMPLEMENTATION=1
+        )
         target_compile_options(${tgt} PRIVATE -fno-stack-protector -fno-asynchronous-unwind-tables)
         target_link_options(${tgt} PRIVATE -Wl,--build-id=none)
         list(APPEND BINARY_TARGETS ${tgt})
