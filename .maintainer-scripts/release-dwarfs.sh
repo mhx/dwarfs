@@ -211,16 +211,10 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
   VA="$VERSION-Linux-$ARCH"
   release_tarball "dwarfs-$VA-${_tarball_config}" "dwarfs-$VA"
 
-  case "$ARCH" in
-    i386|arm)
-      # upx-only
-      ;;
-
-    *)
-      release_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA"
-      release_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA"
-      ;;
-  esac
+  # provide SFX versions for all architectures
+  # while larger and (sometimes) slower to extract, these are more portable
+  release_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA"
+  release_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA"
 
   case "$ARCH" in
     i386|arm|x86_64|aarch64)
