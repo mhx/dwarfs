@@ -73,6 +73,15 @@ TEST(file_view, mock_file_view_basic) {
 
     EXPECT_THAT(parts, testing::ElementsAre("llo,", ", Wo", "orl"));
   }
+
+  ASSERT_TRUE(view.supports_raw_bytes());
+
+  auto raw = view.raw_bytes();
+  std::string raw_str(raw.size(), '\0');
+  std::ranges::transform(raw, raw_str.begin(),
+                         [](auto b) { return static_cast<char>(b); });
+
+  EXPECT_EQ(raw_str, "Hello, World!");
 }
 
 TEST(file_view, mock_file_view_extents) {
@@ -160,5 +169,19 @@ TEST(file_view, mock_file_view_extents) {
 
     EXPECT_THAT(extent_parts,
                 testing::ElementsAre(testing::ElementsAre("llo"s, "o,"s)));
+  }
+
+  {
+    std::vector<std::string> extents;
+
+    for (auto const& ext : view.extents({2, 11})) {
+      auto raw = ext.raw_bytes();
+      auto& dest = extents.emplace_back();
+      dest.resize(raw.size());
+      std::ranges::transform(raw, dest.begin(),
+                             [](auto b) { return static_cast<char>(b); });
+    }
+
+    EXPECT_THAT(extents, testing::ElementsAre("llo,"s, "\0\0\0\0"s, "Wor"s));
   }
 }
