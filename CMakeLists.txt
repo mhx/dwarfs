@@ -1028,6 +1028,7 @@ file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/src/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/sfx/stub.c
         ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp)
 
