@@ -965,13 +965,17 @@ if(STATIC_BUILD_DO_NOT_USE)
     add_executable(sfxstub_zstd sfx/stub.c)
     target_compile_options(sfxstub_zstd PRIVATE -O2)
 
+    add_executable(sfxstub_zstd_minimal sfx/stub.c)
+    target_compile_options(sfxstub_zstd_minimal PRIVATE -Oz)
+    target_compile_definitions(sfxstub_zstd_minimal PRIVATE DYNAMIC_BMI2=0)
+
     if(LIBLZ4_FOUND)
       add_executable(sfxstub_lz4 sfx/stub.c)
       target_compile_definitions(sfxstub_lz4 PRIVATE DWARFS_SFX_STUB_USE_LZ4=1)
       target_link_libraries(sfxstub_lz4 PRIVATE PkgConfig::XXHASH PkgConfig::LIBLZ4)
     endif()
 
-    foreach(tgt sfxstub_zstd sfxstub_lz4)
+    foreach(tgt sfxstub_zstd sfxstub_zstd_minimal sfxstub_lz4)
       if(TARGET ${tgt})
         target_compile_definitions(${tgt} PRIVATE
           NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS=1
