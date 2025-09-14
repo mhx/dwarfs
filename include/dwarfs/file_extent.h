@@ -75,6 +75,8 @@ class file_extent {
                                   overlap_size};
   }
 
+  std::error_code release_until(file_off_t offset) const;
+
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;
   detail::file_extent_info extent_{};
