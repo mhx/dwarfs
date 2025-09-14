@@ -107,6 +107,8 @@ class single_inode_fragment {
 
   void add_chunk(size_t block, size_t offset, size_t size);
 
+  void add_hole(file_size_t size);
+
   std::span<chunk const> chunks() const {
     // TODO: workaround for older boost small_vector
     return {chunks_.data(), chunks_.size()};

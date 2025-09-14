@@ -58,13 +58,15 @@ std::span<uint8_t const> fragment_chunkable::span() const {
   return mm_.raw_bytes<uint8_t>(offset_, frag_.size());
 }
 
-file_segments_iterable fragment_chunkable::segments() const {
-  return mm_.segments({offset_, frag_.size()});
+file_extents_iterable fragment_chunkable::extents() const {
+  return mm_.extents({offset_, frag_.size()});
 }
 
 void fragment_chunkable::add_chunk(size_t block, size_t offset, size_t size) {
   frag_.add_chunk(block, offset, size);
 }
+
+void fragment_chunkable::add_hole(file_size_t size) { frag_.add_hole(size); }
 
 std::error_code fragment_chunkable::release_until(size_t offset) {
   return mm_.release_until(offset_ + offset);
