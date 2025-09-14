@@ -39,4 +39,8 @@ std::span<std::byte const> file_extent::raw_bytes() const {
   return fv_->raw_bytes().subspan(offset(), size());
 }
 
+std::error_code file_extent::release_until(file_off_t offset) const {
+  return fv_->release_until(offset);
+}
+
 } // namespace dwarfs
