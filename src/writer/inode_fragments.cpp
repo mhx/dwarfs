@@ -35,7 +35,7 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
                                       size_t size) {
   if (!chunks_.empty()) {
     auto& last = chunks_.back();
-    if (last.block() == block &&
+    if (last.is_data() && last.block() == block &&
         std::cmp_equal(last.offset() + last.size(), offset)) [[unlikely]] {
       // merge chunks
       last.grow_by(size);
@@ -46,6 +46,10 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
   chunks_.emplace_back(folly::to<chunk::block_type>(block),
                        folly::to<chunk::offset_type>(offset),
                        folly::to<chunk::size_type>(size));
+}
+
+void single_inode_fragment::add_hole(file_size_t size) {
+  chunks_.emplace_back(chunk::hole, size);
 }
 
 bool single_inode_fragment::chunks_are_consistent() const {
