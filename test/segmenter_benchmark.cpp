@@ -57,12 +57,14 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
     return mm_.raw_bytes<uint8_t>();
   }
 
-  dwarfs::file_segments_iterable segments() const override {
-    return mm_.segments();
+  dwarfs::file_extents_iterable extents() const override {
+    return mm_.extents();
   }
 
   void
   add_chunk(size_t /*block*/, size_t /*offset*/, size_t /*size*/) override {}
+
+  void add_hole(dwarfs::file_size_t /*size*/) override {}
 
   std::error_code release_until(size_t /*offset*/) override { return {}; }
 
