@@ -39,39 +39,57 @@ TEST(file_view, mock_file_view_basic) {
 
   {
     std::vector<std::string> parts;
+    std::vector<file_off_t> offsets;
+    std::vector<file_size_t> sizes;
 
     for (auto const& ext : view.extents()) {
       for (auto const& seg : ext.segments(4)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        offsets.push_back(seg.offset());
+        sizes.push_back(seg.size());
       }
     }
 
     EXPECT_THAT(parts, testing::ElementsAre("Hell", "o, W", "orld", "!"));
+    EXPECT_THAT(offsets, testing::ElementsAre(0, 4, 8, 12));
+    EXPECT_THAT(sizes, testing::ElementsAre(4, 4, 4, 1));
   }
 
   {
     std::vector<std::string> parts;
+    std::vector<file_off_t> offsets;
+    std::vector<file_size_t> sizes;
 
     for (auto const& ext : view.extents()) {
       for (auto const& seg : ext.segments(4, 1)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        offsets.push_back(seg.offset());
+        sizes.push_back(seg.size());
       }
     }
 
     EXPECT_THAT(parts, testing::ElementsAre("Hell", "lo, ", " Wor", "rld!"));
+    EXPECT_THAT(offsets, testing::ElementsAre(0, 3, 6, 9));
+    EXPECT_THAT(sizes, testing::ElementsAre(4, 4, 4, 4));
   }
 
   {
     std::vector<std::string> parts;
+    std::vector<file_off_t> offsets;
+    std::vector<file_size_t> sizes;
 
     for (auto const& seg : view.segments({2, 9}, 4, 1)) {
       auto span = seg.span<char>();
       parts.emplace_back(span.begin(), span.end());
+      offsets.push_back(seg.offset());
+      sizes.push_back(seg.size());
     }
 
     EXPECT_THAT(parts, testing::ElementsAre("llo,", ", Wo", "orl"));
+    EXPECT_THAT(offsets, testing::ElementsAre(2, 5, 8));
+    EXPECT_THAT(sizes, testing::ElementsAre(4, 4, 3));
   }
 
   ASSERT_TRUE(view.supports_raw_bytes());
@@ -94,12 +112,20 @@ TEST(file_view, mock_file_view_extents) {
 
   {
     std::vector<std::vector<std::string>> extent_parts;
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    std::vector<file_off_t> segment_offsets;
+    std::vector<file_size_t> segment_sizes;
 
     for (auto const& ext : view.extents()) {
       auto& parts = extent_parts.emplace_back();
+      extent_offsets.push_back(ext.offset());
+      extent_sizes.push_back(ext.size());
       for (auto const& seg : ext.segments(3)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        segment_offsets.push_back(seg.offset());
+        segment_sizes.push_back(seg.size());
       }
     }
 
@@ -107,16 +133,28 @@ TEST(file_view, mock_file_view_extents) {
                 testing::ElementsAre(testing::ElementsAre("Hel"s, "lo,"s),
                                      testing::ElementsAre("\0\0\0"s, "\0"s),
                                      testing::ElementsAre("Wor"s, "ld!"s)));
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(0, 6, 10));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(6, 4, 6));
+    EXPECT_THAT(segment_offsets, testing::ElementsAre(0, 3, 6, 9, 10, 13));
+    EXPECT_THAT(segment_sizes, testing::ElementsAre(3, 3, 3, 1, 3, 3));
   }
 
   {
     std::vector<std::vector<std::string>> extent_parts;
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    std::vector<file_off_t> segment_offsets;
+    std::vector<file_size_t> segment_sizes;
 
     for (auto const& ext : view.extents({4, 10})) {
       auto& parts = extent_parts.emplace_back();
+      extent_offsets.push_back(ext.offset());
+      extent_sizes.push_back(ext.size());
       for (auto const& seg : ext.segments(3)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        segment_offsets.push_back(seg.offset());
+        segment_sizes.push_back(seg.size());
       }
     }
 
@@ -124,51 +162,91 @@ TEST(file_view, mock_file_view_extents) {
                 testing::ElementsAre(testing::ElementsAre("o,"s),
                                      testing::ElementsAre("\0\0\0"s, "\0"s),
                                      testing::ElementsAre("Wor"s, "l"s)));
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(4, 6, 10));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(2, 4, 4));
+    EXPECT_THAT(segment_offsets, testing::ElementsAre(4, 6, 9, 10, 13));
+    EXPECT_THAT(segment_sizes, testing::ElementsAre(2, 3, 1, 3, 1));
   }
 
   {
     std::vector<std::vector<std::string>> extent_parts;
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    std::vector<file_off_t> segment_offsets;
+    std::vector<file_size_t> segment_sizes;
 
     for (auto const& ext : view.extents({1, 4})) {
       auto& parts = extent_parts.emplace_back();
+      extent_offsets.push_back(ext.offset());
+      extent_sizes.push_back(ext.size());
       for (auto const& seg : ext.segments(3)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        segment_offsets.push_back(seg.offset());
+        segment_sizes.push_back(seg.size());
       }
     }
 
     EXPECT_THAT(extent_parts,
                 testing::ElementsAre(testing::ElementsAre("ell"s, "o"s)));
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(1));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(4));
+    EXPECT_THAT(segment_offsets, testing::ElementsAre(1, 4));
+    EXPECT_THAT(segment_sizes, testing::ElementsAre(3, 1));
   }
 
   {
     std::vector<std::vector<std::string>> extent_parts;
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    std::vector<file_off_t> segment_offsets;
+    std::vector<file_size_t> segment_sizes;
 
     for (auto const& ext : view.extents({9, 2})) {
       auto& parts = extent_parts.emplace_back();
+      extent_offsets.push_back(ext.offset());
+      extent_sizes.push_back(ext.size());
       for (auto const& seg : ext.segments(3)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        segment_offsets.push_back(seg.offset());
+        segment_sizes.push_back(seg.size());
       }
     }
 
     EXPECT_THAT(extent_parts, testing::ElementsAre(testing::ElementsAre("\0"s),
                                                    testing::ElementsAre("W"s)));
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(9, 10));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(1, 1));
+    EXPECT_THAT(segment_offsets, testing::ElementsAre(9, 10));
+    EXPECT_THAT(segment_sizes, testing::ElementsAre(1, 1));
   }
 
   {
     std::vector<std::vector<std::string>> extent_parts;
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    std::vector<file_off_t> segment_offsets;
+    std::vector<file_size_t> segment_sizes;
 
     for (auto const& ext : view.extents({2, 4})) {
       auto& parts = extent_parts.emplace_back();
+      extent_offsets.push_back(ext.offset());
+      extent_sizes.push_back(ext.size());
       for (auto const& seg : ext.segments(3, 1)) {
         auto span = seg.span<char>();
         parts.emplace_back(span.begin(), span.end());
+        segment_offsets.push_back(seg.offset());
+        segment_sizes.push_back(seg.size());
       }
     }
 
     EXPECT_THAT(extent_parts,
                 testing::ElementsAre(testing::ElementsAre("llo"s, "o,"s)));
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(2));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(4));
+    EXPECT_THAT(segment_offsets, testing::ElementsAre(2, 4));
+    EXPECT_THAT(segment_sizes, testing::ElementsAre(3, 2));
   }
 
   {
