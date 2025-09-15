@@ -391,8 +391,8 @@ uint64_t
 compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
   auto const sys_mem = std::max(tool::sysinfo::get_total_memory(), 256_MiB);
   auto wanted_mem = num_cpu * block_size;
-  if (wanted_mem < sys_mem / 32) {
-    wanted_mem *= 2;
+  if (wanted_mem < sys_mem / 64) {
+    wanted_mem = sys_mem / 64;
   } else {
     wanted_mem += std::min(num_cpu, UINT64_C(8)) * block_size;
   }
