@@ -457,6 +457,252 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   uint_fast32_t const granularity_;
 };
 
+class segment_queue {
+ public:
+  class queue_data {
+   public:
+    explicit queue_data(file_segments_iterable segments)
+        : segments_{std::move(segments)}
+        , seg_it_{segments_.begin()} {}
+
+    struct queued_segment {
+      file_range range;
+      std::span<std::byte const> bytes;
+      file_segment segment;
+    };
+
+    using lookup_hint = std::optional<std::deque<queued_segment>::iterator>;
+
+    file_range range() const { return segments_.range(); }
+
+    std::span<std::byte const> span(file_off_t offset) {
+      auto it = find_segment(offset);
+      return it->bytes.subspan(offset - it->range.offset());
+    }
+
+    std::byte const& at(file_off_t offset, lookup_hint* hint = nullptr) {
+      if (hint && hint->has_value()) {
+        auto it = **hint;
+        auto const& r = it->range;
+        if (offset >= r.offset() && offset < r.end()) {
+          return it->bytes[offset - r.offset()];
+        }
+      }
+
+      auto it = find_segment(offset);
+
+      if (hint) {
+        hint->emplace(it);
+      }
+
+      return it->bytes[offset - it->range.offset()];
+    }
+
+   private:
+    std::deque<queued_segment>::iterator find_segment(file_off_t offset) {
+      while (queue_.empty() || offset >= queue_.back().range.end()) {
+        if (seg_it_ == segments_.end()) {
+          throw std::out_of_range("offset out of range");
+        }
+        auto const& seg = *seg_it_++;
+        queue_.emplace_back(seg.range(), seg.span(), seg);
+      }
+
+      auto it = queue_.begin();
+
+      while (it != queue_.end()) {
+        assert(offset >= it->range.offset());
+        if (offset < it->range.end()) {
+          return it;
+        }
+      }
+
+      throw std::out_of_range("offset out of range");
+    }
+
+    std::deque<queued_segment> queue_;
+    file_segments_iterable segments_;
+    file_segments_iterable::iterator seg_it_;
+  };
+
+  class byte_range_iterable {
+   public:
+    class iterator {
+     public:
+      using value_type = std::byte;
+      using difference_type = std::ptrdiff_t;
+      using iterator_category = std::input_iterator_tag;
+      using reference = value_type const&;
+      using pointer = value_type const*;
+
+      iterator() = default;
+      iterator(queue_data* d, file_off_t offset)
+          : data_{d}
+          , offset_{offset} {}
+
+      reference operator*() { return data_->at(offset_, &hint_); }
+      pointer operator->() { return &**this; }
+
+      iterator& operator++() {
+        ++offset_;
+        return *this;
+      }
+
+      iterator operator++(int) {
+        auto tmp = *this;
+        ++*this;
+        return tmp;
+      }
+
+      friend bool operator==(iterator const& a, iterator const& b) noexcept {
+        return a.data_ == b.data_ && a.offset_ == b.offset_;
+      }
+
+      friend bool operator!=(iterator const& a, iterator const& b) noexcept {
+        return !(a == b);
+      }
+
+     private:
+      queue_data* data_{nullptr};
+      file_off_t offset_{0};
+      queue_data::lookup_hint hint_;
+    };
+
+    iterator begin() { return iterator{data_, range_.begin()}; }
+
+    iterator end() { return iterator{data_, range_.end()}; }
+
+    byte_range_iterable(queue_data* d, file_range range)
+        : data_{d}
+        , range_{range} {}
+
+   private:
+    queue_data* data_{nullptr};
+    file_range range_;
+  };
+
+  class span_range_iterable {
+   public:
+    class iterator {
+     public:
+      using value_type = std::span<std::byte const>;
+      using difference_type = std::ptrdiff_t;
+      using iterator_category = std::input_iterator_tag;
+      using reference = value_type const&;
+      using pointer = value_type const*;
+
+      iterator() = default;
+      iterator(queue_data* d, file_range range)
+          : data_{d}
+          , cur_{range.begin()}
+          , end_{range.end()} {
+        advance(true);
+      }
+
+      reference operator*() { return span_; }
+      pointer operator->() { return &**this; }
+
+      iterator& operator++() {
+        advance();
+        return *this;
+      }
+
+      iterator operator++(int) {
+        auto tmp = *this;
+        ++*this;
+        return tmp;
+      }
+
+      friend bool operator==(iterator const& a, iterator const& b) noexcept {
+        return a.data_ == b.data_ && a.cur_ == b.cur_;
+      }
+
+      friend bool operator!=(iterator const& a, iterator const& b) noexcept {
+        return !(a == b);
+      }
+
+      friend bool
+      operator==(iterator const& a, std::default_sentinel_t) noexcept {
+        return a.cur_ == a.end_;
+      }
+
+      friend bool
+      operator!=(iterator const& a, std::default_sentinel_t s) noexcept {
+        return !(a == s);
+      }
+
+      friend bool
+      operator==(std::default_sentinel_t s, iterator const& a) noexcept {
+        return a == s;
+      }
+
+      friend bool
+      operator!=(std::default_sentinel_t s, iterator const& a) noexcept {
+        return a != s;
+      }
+
+     private:
+      void advance(bool initialize = false) {
+        if (!initialize) {
+          cur_ += span_.size();
+        }
+
+        if (cur_ < end_) {
+          auto const remain = end_ - cur_;
+
+          span_ = data_->span(cur_);
+
+          if (std::cmp_greater(span_.size(), remain)) {
+            span_ = span_.subspan(0, remain);
+          }
+        } else {
+          assert(cur_ == end_);
+          span_ = {};
+        }
+      }
+
+      queue_data* data_{nullptr};
+      std::span<std::byte const> span_;
+      file_off_t cur_{0};
+      file_off_t end_{0};
+    };
+
+    span_range_iterable(queue_data* d, file_range range)
+        : data_{d}
+        , range_{range} {}
+
+    iterator begin() { return iterator{data_, range_}; }
+
+    std::default_sentinel_t end() { return {}; }
+
+   private:
+    queue_data* data_{nullptr};
+    file_range range_;
+  };
+
+  explicit segment_queue(file_segments_iterable segments)
+      : data_{std::make_unique<queue_data>(std::move(segments))} {}
+
+  byte_range_iterable byte_range(file_range range) {
+    return byte_range_iterable{data_.get(), range};
+  }
+
+  byte_range_iterable byte_range() {
+    return byte_range_iterable{data_.get(), data_->range()};
+  }
+
+  span_range_iterable span_range(file_range range) {
+    return span_range_iterable{data_.get(), range};
+  }
+
+  span_range_iterable span_range() {
+    return span_range_iterable{data_.get(), data_->range()};
+  }
+
+ private:
+  std::unique_ptr<queue_data> data_;
+};
+
 template <typename T, typename GranularityPolicy>
 class granular_extent_adapter : private GranularityPolicy {
  public:
@@ -508,7 +754,7 @@ class granular_extent_adapter : private GranularityPolicy {
 
  private:
   extent_type ext_;
-  // std::deque<file_segment> segments_;
+  std::deque<file_segment> segments_;
 };
 
 template <typename GranularityPolicy, bool SegmentationEnabled, bool MultiBlock>
