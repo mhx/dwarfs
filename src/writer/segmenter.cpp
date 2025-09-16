@@ -585,6 +585,8 @@ class segment_queue {
 
     iterator end() { return iterator{data_, range_.end()}; }
 
+    byte_range_iterable() = default;
+
     byte_range_iterable(queue_data* d, file_range range)
         : data_{d}
         , range_{range} {}
@@ -843,6 +845,76 @@ class granular_extent_adapter<GranularityPolicy, true>
  private:
   file_extent const& ext_;
   segment_queue mutable queue_;
+};
+
+template <bool UseSegmentQueue>
+class hash_window;
+
+template <>
+class hash_window<false> {
+ public:
+  explicit hash_window(size_t window_size) noexcept
+      : window_size_{window_size} {}
+
+  template <typename Hasher, typename ExtentAdapter>
+  DWARFS_FORCE_INLINE file_off_t seek(Hasher& hasher, ExtentAdapter const& data,
+                                      file_off_t offset) {
+    file_off_t end = offset + window_size_;
+    for (; offset < end; ++offset) {
+      data.update_hash(hasher, offset);
+    }
+    return offset;
+  }
+
+  template <typename Hasher, typename ExtentAdapter>
+  DWARFS_FORCE_INLINE file_off_t slide(Hasher& hasher,
+                                       ExtentAdapter const& data,
+                                       file_off_t offset) {
+    data.update_hash(hasher, offset - window_size_, offset);
+    return offset + 1;
+  }
+
+ private:
+  size_t const window_size_{0};
+};
+
+template <>
+class hash_window<true> {
+ public:
+  explicit hash_window(size_t window_size) noexcept
+      : window_size_{window_size} {}
+
+  template <typename Hasher, typename ExtentAdapter>
+  DWARFS_FORCE_INLINE file_off_t seek(Hasher& hasher, ExtentAdapter const& data,
+                                      file_off_t offset) {
+    from_range_ = data.byte_range(offset);
+    from_it_ = from_range_.begin();
+    to_range_ = data.byte_range(offset);
+    to_it_ = to_range_.begin();
+
+    file_off_t end = offset + window_size_;
+
+    for (; offset < end; ++offset) {
+      data.update_hash(hasher, to_it_);
+    }
+
+    return offset;
+  }
+
+  template <typename Hasher, typename ExtentAdapter>
+  DWARFS_FORCE_INLINE file_off_t slide(Hasher& hasher,
+                                       ExtentAdapter const& data,
+                                       file_off_t offset) {
+    data.update_hash(hasher, from_it_, to_it_);
+    return offset + 1;
+  }
+
+ private:
+  size_t const window_size_{0};
+  segment_queue::byte_range_iterable from_range_;
+  segment_queue::byte_range_iterable to_range_;
+  segment_queue::byte_range_iterable::iterator from_it_;
+  segment_queue::byte_range_iterable::iterator to_it_;
 };
 
 template <typename GranularityPolicy, bool SegmentationEnabled, bool MultiBlock>
@@ -1545,25 +1617,9 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
 
-  std::optional<segment_queue::byte_range_iterable> from_range [[maybe_unused]];
-  std::optional<segment_queue::byte_range_iterable> to_range [[maybe_unused]];
-  segment_queue::byte_range_iterable::iterator from_it [[maybe_unused]];
-  segment_queue::byte_range_iterable::iterator to_it [[maybe_unused]];
+  hash_window<extent_adapter_t::kUseSegmentQueue> hashwin(window_size_);
 
-  if constexpr (extent_adapter_t::kUseSegmentQueue) {
-    from_range = data.byte_range(0);
-    from_it = from_range->begin();
-    to_range = data.byte_range(0);
-    to_it = to_range->begin();
-
-    for (; std::cmp_less(offset_in_frames, window_size_); ++offset_in_frames) {
-      data.update_hash(hasher, to_it);
-    }
-  } else {
-    for (; std::cmp_less(offset_in_frames, window_size_); ++offset_in_frames) {
-      data.update_hash(hasher, offset_in_frames);
-    }
-  }
+  offset_in_frames = hashwin.seek(hasher, data, 0);
 
   folly::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
       matches;
@@ -1664,25 +1720,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           hasher.clear();
 
-          if constexpr (extent_adapter_t::kUseSegmentQueue) {
-            from_range = data.byte_range(offset_in_frames);
-            from_it = from_range->begin();
-
-            to_range = data.byte_range(offset_in_frames);
-            to_it = to_range->begin();
-
-            for (;
-                 std::cmp_less(offset_in_frames, frames_written + window_size_);
-                 ++offset_in_frames) {
-              data.update_hash(hasher, to_it);
-            }
-          } else {
-            for (;
-                 std::cmp_less(offset_in_frames, frames_written + window_size_);
-                 ++offset_in_frames) {
-              data.update_hash(hasher, offset_in_frames);
-            }
-          }
+          offset_in_frames = hashwin.seek(hasher, data, offset_in_frames);
 
           update_progress(offset_in_frames);
 
@@ -1713,14 +1751,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       update_progress(offset_in_frames);
     }
 
-    if constexpr (extent_adapter_t::kUseSegmentQueue) {
-      data.update_hash(hasher, from_it, to_it);
-    } else {
-      data.update_hash(hasher, offset_in_frames - window_size_,
-                       offset_in_frames);
-    }
-
-    ++offset_in_frames;
+    offset_in_frames = hashwin.slide(hasher, data, offset_in_frames);
   }
 
   update_progress(size_in_frames);
