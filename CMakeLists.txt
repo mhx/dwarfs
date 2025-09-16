@@ -187,6 +187,7 @@ elseif(MINGW)
   message(STATUS "OSTYPE  (forced by MINGW): '${OSTYPE_TXT}'")
   set(IS_MSYS ON)
   include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
+  add_compile_definitions(GFLAGS_IS_A_DLL=0)
 else(MSVC)
   include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 

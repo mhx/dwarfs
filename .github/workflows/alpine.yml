@@ -72,10 +72,6 @@ jobs:
         openssl:
           - '3'
         include:
-          - architecture: { host: 'ubuntu-22.04', platform: linux/amd64 }
-            config: { os: 'alpine-3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
-            setup: { scope: 'ALL',  tests: 'ON' }
-            openssl: '1.1'
           - architecture: { host: 'ubuntu-22.04-arm', platform: linux/arm64 }
             config: { os: 'alpine-3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
             setup: { scope: 'ALL',  tests: 'ON' }
