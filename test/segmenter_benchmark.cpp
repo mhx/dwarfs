@@ -53,10 +53,6 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
 
   std::string description() const override { return std::string(); }
 
-  std::span<uint8_t const> span() const override {
-    return mm_.raw_bytes<uint8_t>();
-  }
-
   dwarfs::file_extents_iterable extents() const override {
     return mm_.extents();
   }
