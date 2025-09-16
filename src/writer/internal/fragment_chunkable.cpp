@@ -54,10 +54,6 @@ std::string fragment_chunkable::description() const {
                      ino_.num(), ino_.any()->name(), size());
 }
 
-std::span<uint8_t const> fragment_chunkable::span() const {
-  return mm_.raw_bytes<uint8_t>(offset_, frag_.size());
-}
-
 file_extents_iterable fragment_chunkable::extents() const {
   return mm_.extents({offset_, frag_.size()});
 }
