@@ -562,11 +562,13 @@ class segment_queue {
         return tmp;
       }
 
-      friend bool operator==(iterator const& a, iterator const& b) noexcept {
+      [[maybe_unused]] friend bool
+      operator==(iterator const& a, iterator const& b) noexcept {
         return a.data_ == b.data_ && a.offset_ == b.offset_;
       }
 
-      friend bool operator!=(iterator const& a, iterator const& b) noexcept {
+      [[maybe_unused]] friend bool
+      operator!=(iterator const& a, iterator const& b) noexcept {
         return !(a == b);
       }
 
@@ -621,12 +623,12 @@ class segment_queue {
         return tmp;
       }
 
-      friend bool
+      [[maybe_unused]] friend bool
       operator==(iterator const& a, std::default_sentinel_t) noexcept {
         return a.cur_ == a.end_;
       }
 
-      friend bool
+      [[maybe_unused]] friend bool
       operator!=(iterator const& a, std::default_sentinel_t s) noexcept {
         return !(a == s);
       }
@@ -699,8 +701,7 @@ template <typename T, typename GranularityPolicy>
 class granular_extent_adapter : private GranularityPolicy {
  public:
   static constexpr bool kUseFileExtent{true};
-  using extent_type =
-      std::conditional_t<kUseFileExtent, file_extent, std::span<T const>>;
+  using extent_type = file_extent;
   static_assert(sizeof(T) == 1, "T must be a byte type (for now)");
 
   template <typename... PolicyArgs>
@@ -719,41 +720,31 @@ class granular_extent_adapter : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE file_size_t size_in_bytes() const { return ext_.size(); }
 
-  template <typename H>
-  DWARFS_FORCE_INLINE void update_hash(H& hasher, file_off_t offset) const {
+  auto byte_range(file_off_t offset) const {
     offset = this->frames_to_bytes(offset);
     if constexpr (kUseFileExtent) {
-      for (auto const b : queue_->byte_range(
-               {ext_.offset() + offset,
-                static_cast<file_size_t>(this->granularity_bytes())})) {
-        hasher.update(static_cast<uint8_t>(b));
-      }
+      return queue_->byte_range({ext_.offset() + offset, ext_.size() - offset});
     } else {
-      this->for_bytes_in_frame([&] { hasher.update(ext_[offset++]); });
+      assert(ext_.supports_raw_bytes());
+      return ext_.raw_bytes().subspan(offset);
     }
   }
 
-  template <typename H>
-  DWARFS_FORCE_INLINE void
-  update_hash(H& hasher, file_off_t from, file_off_t to) const {
-    from = this->frames_to_bytes(from);
-    to = this->frames_to_bytes(to);
-    if constexpr (kUseFileExtent) {
-      auto const ext_offset = ext_.offset();
-      auto frange = queue_->byte_range(
-          {ext_offset + from,
-           static_cast<file_size_t>(this->granularity_bytes())});
-      auto fit = frange.begin();
-      for (auto const to : queue_->byte_range(
-               {ext_offset + to,
-                static_cast<file_size_t>(this->granularity_bytes())})) {
-        assert(fit != frange.end());
-        hasher.update(static_cast<uint8_t>(*fit++), static_cast<uint8_t>(to));
-      }
-    } else {
-      this->for_bytes_in_frame(
-          [&] { hasher.update(ext_[from++], ext_[to++]); });
-    }
+  template <typename H, typename It>
+  DWARFS_FORCE_INLINE void update_hash(H& hasher, It& it) const {
+    this->for_bytes_in_frame([&] {
+      hasher.update(static_cast<uint8_t>(*it));
+      ++it;
+    });
+  }
+
+  template <typename H, typename It>
+  DWARFS_FORCE_INLINE void update_hash(H& hasher, It& from, It& to) const {
+    this->for_bytes_in_frame([&] {
+      hasher.update(static_cast<uint8_t>(*from), static_cast<uint8_t>(*to));
+      ++from;
+      ++to;
+    });
   }
 
   DWARFS_FORCE_INLINE void
@@ -764,7 +755,8 @@ class granular_extent_adapter : private GranularityPolicy {
         v.append(span.data(), span.size());
       }
     } else {
-      v.append(ext_.data() + offset, size);
+      assert(ext_.supports_raw_bytes());
+      v.append(ext_.raw_bytes().data() + offset, size);
     }
   }
 
@@ -785,8 +777,10 @@ class granular_extent_adapter : private GranularityPolicy {
 
       return 0;
     } else {
+      assert(ext_.supports_raw_bytes());
       assert(offset_in_bytes + rhs.size() <= ext_.size());
-      return std::memcmp(ext_.data() + offset_in_bytes, rhs.data(), rhs.size());
+      return std::memcmp(ext_.raw_bytes().data() + offset_in_bytes, rhs.data(),
+                         rhs.size());
     }
   }
 
@@ -1500,8 +1494,18 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
 
+  // for (; std::cmp_less(offset_in_frames, window_size_); ++offset_in_frames) {
+  //   data.update_hash(hasher, offset_in_frames);
+  // }
+
+  auto from_range = data.byte_range(0);
+  auto from_it = from_range.begin();
+
+  auto to_range = data.byte_range(0);
+  auto to_it = to_range.begin();
+
   for (; std::cmp_less(offset_in_frames, window_size_); ++offset_in_frames) {
-    data.update_hash(hasher, offset_in_frames);
+    data.update_hash(hasher, to_it);
   }
 
   folly::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
@@ -1603,9 +1607,21 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           hasher.clear();
 
+          from_range = data.byte_range(offset_in_frames);
+          from_it = from_range.begin();
+
+          to_range = data.byte_range(offset_in_frames);
+          to_it = to_range.begin();
+
+          // for (; std::cmp_less(offset_in_frames, frames_written +
+          // window_size_);
+          //      ++offset_in_frames) {
+          //   data.update_hash(hasher, offset_in_frames);
+          // }
+
           for (; std::cmp_less(offset_in_frames, frames_written + window_size_);
                ++offset_in_frames) {
-            data.update_hash(hasher, offset_in_frames);
+            data.update_hash(hasher, to_it);
           }
 
           update_progress(offset_in_frames);
@@ -1637,7 +1653,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       update_progress(offset_in_frames);
     }
 
-    data.update_hash(hasher, offset_in_frames - window_size_, offset_in_frames);
+    data.update_hash(hasher, from_it, to_it);
     ++offset_in_frames;
   }
 
