@@ -715,7 +715,8 @@ class granular_extent_adapter<GranularityPolicy, false>
   DWARFS_FORCE_INLINE
   granular_extent_adapter(file_extent const& extent, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , raw_bytes_{get_raw_bytes(extent)} {}
+      , raw_bytes_{get_raw_bytes(extent)}
+      , ext_{extent} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
     return this->bytes_to_frames(raw_bytes_.size());
@@ -753,8 +754,8 @@ class granular_extent_adapter<GranularityPolicy, false>
                        rhs.size());
   }
 
-  void release_until(file_off_t /*offset*/) {
-    // TODO
+  void release_until(file_off_t offset) {
+    ext_.release_until(ext_.offset() + this->frames_to_bytes(offset));
   }
 
  private:
@@ -765,6 +766,7 @@ class granular_extent_adapter<GranularityPolicy, false>
   }
 
   std::span<value_type const> raw_bytes_;
+  file_extent const& ext_;
 };
 
 template <typename GranularityPolicy>
@@ -790,7 +792,7 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   segment_queue::byte_range_iterable byte_range(file_off_t offset) const {
     offset = this->frames_to_bytes(offset);
-    return queue_->byte_range({ext_.offset() + offset, ext_.size() - offset});
+    return queue_.byte_range({ext_.offset() + offset, ext_.size() - offset});
   }
 
   template <typename H, typename It>
@@ -812,8 +814,7 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   DWARFS_FORCE_INLINE void
   append_to(auto& v, file_off_t offset, file_size_t size) const {
-    for (auto const& span :
-         queue_->span_range({ext_.offset() + offset, size})) {
+    for (auto const& span : queue_.span_range({ext_.offset() + offset, size})) {
       v.append(span.data(), span.size());
     }
   }
@@ -822,7 +823,7 @@ class granular_extent_adapter<GranularityPolicy, true>
   compare(file_off_t offset, std::span<value_type const> rhs) const {
     auto const offset_in_bytes = this->frames_to_bytes(offset);
 
-    for (auto const& span : queue_->span_range(
+    for (auto const& span : queue_.span_range(
              {static_cast<file_off_t>(ext_.offset() + offset_in_bytes),
               static_cast<file_size_t>(rhs.size())})) {
       auto const cmp = std::memcmp(span.data(), rhs.data(), span.size());
@@ -836,12 +837,12 @@ class granular_extent_adapter<GranularityPolicy, true>
   }
 
   void release_until(file_off_t offset) {
-    queue_->release_until(ext_.offset() + offset);
+    queue_.release_until(ext_.offset() + offset);
   }
 
  private:
-  file_extent ext_;
-  std::optional<segment_queue> mutable queue_;
+  file_extent const& ext_;
+  segment_queue mutable queue_;
 };
 
 template <typename GranularityPolicy, bool SegmentationEnabled, bool MultiBlock>
