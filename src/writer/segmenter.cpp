@@ -704,12 +704,11 @@ template <typename T, typename GranularityPolicy>
 class granular_extent_adapter : private GranularityPolicy {
  public:
   static constexpr bool kUseFileExtent{false};
-  using extent_type = file_extent;
   static_assert(sizeof(T) == 1, "T must be a byte type (for now)");
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
-  granular_extent_adapter(extent_type extent, PolicyArgs&&... args)
+  granular_extent_adapter(file_extent extent, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , ext_{std::move(extent)} {
     if constexpr (kUseFileExtent) {
@@ -817,7 +816,7 @@ class granular_extent_adapter : private GranularityPolicy {
   }
 
  private:
-  extent_type ext_;
+  file_extent ext_;
   std::span<T const> raw_bytes_;
   std::optional<segment_queue> mutable queue_;
 };
@@ -1333,9 +1332,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
 
     pctx_->current_file = chkable.get_file();
 
-    auto extents = chkable.extents();
-
-    for (auto const& ext : extents) {
+    for (auto const& ext : chkable.extents()) {
       if (ext.kind() == extent_kind::hole) {
         chkable.add_hole(ext.size());
       } else {
