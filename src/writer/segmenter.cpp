@@ -698,7 +698,7 @@ class segment_queue {
 template <typename T, typename GranularityPolicy>
 class granular_extent_adapter : private GranularityPolicy {
  public:
-  static constexpr bool kUseFileExtent{false};
+  static constexpr bool kUseFileExtent{true};
   using extent_type =
       std::conditional_t<kUseFileExtent, file_extent, std::span<T const>>;
   static_assert(sizeof(T) == 1, "T must be a byte type (for now)");
@@ -1318,7 +1318,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
       if (ext.kind() == extent_kind::hole) {
         chkable.add_hole(ext.size());
       } else {
-        auto data = this->template create<extent_adapter_t>(chkable.span());
+        auto data = this->template create<extent_adapter_t>(ext);
         auto const size_in_frames = data.size();
 
         if (!is_segmentation_enabled() or
