@@ -485,18 +485,19 @@ class segment_queue {
       return it->bytes.subspan(offset - it->range.offset());
     }
 
-    std::byte const& at(file_off_t offset, lookup_hint* hint = nullptr) {
-      if (hint && hint->has_value()) {
+    DWARFS_FORCE_INLINE std::byte const&
+    at(file_off_t offset, lookup_hint* hint = nullptr) {
+      if (hint && hint->has_value()) [[likely]] {
         auto it = **hint;
         auto const& r = it->range;
-        if (offset >= r.offset() && offset < r.end()) {
+        if (offset >= r.offset() && offset < r.end()) [[likely]] {
           return it->bytes[offset - r.offset()];
         }
       }
 
       auto it = find_segment(offset);
 
-      if (hint) {
+      if (hint) [[likely]] {
         hint->emplace(it);
       }
 
@@ -548,26 +549,28 @@ class segment_queue {
           : data_{d}
           , offset_{offset} {}
 
-      reference operator*() { return data_->at(offset_, &hint_); }
-      pointer operator->() { return &**this; }
+      DWARFS_FORCE_INLINE reference operator*() {
+        return data_->at(offset_, &hint_);
+      }
+      DWARFS_FORCE_INLINE pointer operator->() { return &**this; }
 
-      iterator& operator++() {
+      DWARFS_FORCE_INLINE iterator& operator++() {
         ++offset_;
         return *this;
       }
 
-      iterator operator++(int) {
+      DWARFS_FORCE_INLINE iterator operator++(int) {
         auto tmp = *this;
         ++*this;
         return tmp;
       }
 
-      [[maybe_unused]] friend bool
+      [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
       operator==(iterator const& a, iterator const& b) noexcept {
         return a.data_ == b.data_ && a.offset_ == b.offset_;
       }
 
-      [[maybe_unused]] friend bool
+      [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
       operator!=(iterator const& a, iterator const& b) noexcept {
         return !(a == b);
       }
@@ -1494,10 +1497,6 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
 
-  // for (; std::cmp_less(offset_in_frames, window_size_); ++offset_in_frames) {
-  //   data.update_hash(hasher, offset_in_frames);
-  // }
-
   auto from_range = data.byte_range(0);
   auto from_it = from_range.begin();
 
@@ -1612,12 +1611,6 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           to_range = data.byte_range(offset_in_frames);
           to_it = to_range.begin();
-
-          // for (; std::cmp_less(offset_in_frames, frames_written +
-          // window_size_);
-          //      ++offset_in_frames) {
-          //   data.update_hash(hasher, offset_in_frames);
-          // }
 
           for (; std::cmp_less(offset_in_frames, frames_written + window_size_);
                ++offset_in_frames) {
