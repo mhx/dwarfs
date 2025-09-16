@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <span>
 #include <string_view>
 #include <system_error>
 
@@ -41,7 +40,6 @@ class chunkable {
   virtual file const* get_file() const = 0;
   virtual file_size_t size() const = 0;
   virtual std::string description() const = 0;
-  virtual std::span<uint8_t const> span() const = 0;
   virtual file_extents_iterable extents() const = 0;
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void add_hole(file_size_t size) = 0;
