@@ -21,11 +21,19 @@ cmake_minimum_required(VERSION 3.24.0)
 # Enable CMAKE_MSVC_RUNTIME_LIBRARY
 cmake_policy(SET CMP0091 NEW)
 
+# Use Boost’s CMake package
+if (POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(dwarfs)
 
 include(ExternalProject)
 
 include(CheckCXXSourceCompiles)
+
+# Force use of FindBoost.cmake; avoid BoostConfig.cmake per-component config lookups
+# set(Boost_NO_BOOST_CMAKE ON CACHE BOOL "Use FindBoost module instead of Boost CMake config" FORCE)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
