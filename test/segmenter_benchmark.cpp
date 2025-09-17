@@ -62,8 +62,6 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
 
   void add_hole(dwarfs::file_size_t /*size*/) override {}
 
-  std::error_code release_until(size_t /*offset*/) override { return {}; }
-
  private:
   dwarfs::file_view mm_;
 };

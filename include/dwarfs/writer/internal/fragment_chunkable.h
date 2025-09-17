@@ -51,7 +51,6 @@ class fragment_chunkable : public chunkable {
   file_extents_iterable extents() const override;
   void add_chunk(size_t block, size_t offset, size_t size) override;
   void add_hole(file_size_t size) override;
-  std::error_code release_until(size_t offset) override;
 
  private:
   inode const& ino_;
