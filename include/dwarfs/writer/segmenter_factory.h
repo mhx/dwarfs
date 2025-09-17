@@ -25,6 +25,7 @@
 
 #include <memory>
 
+#include <dwarfs/types.h>
 #include <dwarfs/writer/categorized_option.h>
 #include <dwarfs/writer/segmenter.h>
 
@@ -47,6 +48,7 @@ class segmenter_factory {
     categorized_option<size_t> max_active_blocks;
     categorized_option<unsigned> bloom_filter_size;
     unsigned block_size_bits{22};
+    bool enable_sparse_files{false};
   };
 
   segmenter_factory(logger& lgr, writer_progress& prog);
@@ -57,7 +59,7 @@ class segmenter_factory {
                     std::shared_ptr<categorizer_manager> catmgr,
                     config const& cfg);
 
-  segmenter create(fragment_category cat, size_t cat_size,
+  segmenter create(fragment_category cat, file_size_t cat_size,
                    compression_constraints const& cc,
                    std::shared_ptr<internal::block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const {
@@ -67,8 +69,8 @@ class segmenter_factory {
 
   size_t get_block_size() const { return impl_->get_block_size(); }
 
-  size_t estimate_memory_usage(fragment_category cat,
-                               compression_constraints const& cc) const {
+  uint64_t estimate_memory_usage(fragment_category cat,
+                                 compression_constraints const& cc) const {
     return impl_->estimate_memory_usage(cat, cc);
   }
 
@@ -76,12 +78,12 @@ class segmenter_factory {
    public:
     virtual ~impl() = default;
 
-    virtual segmenter create(fragment_category cat, size_t cat_size,
+    virtual segmenter create(fragment_category cat, file_size_t cat_size,
                              compression_constraints const& cc,
                              std::shared_ptr<internal::block_manager> blkmgr,
                              segmenter::block_ready_cb block_ready) const = 0;
     virtual size_t get_block_size() const = 0;
-    virtual size_t
+    virtual uint64_t
     estimate_memory_usage(fragment_category cat,
                           compression_constraints const& cc) const = 0;
   };
