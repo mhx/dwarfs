@@ -47,6 +47,8 @@ runs:
                 -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}       \
                 ${{ matrix.config.extra_opts }} ${{ env.EXTRA_OPTS }} .
 
+# cmake -B build  -DFOLLY_NO_EXCEPTION_TRACER=ON -DWITH_MAN_PAGES=OFF -DNIXPKGS_DWARFS_VERSION_OVERRIDE=tebako -DWITH_TESTS=ON  -DTEBAKO_BUILD_SCOPE=ALL
+
       - name: Load Cache
         if: env.CCACHE_FLD != ''
         uses: actions/cache@v4

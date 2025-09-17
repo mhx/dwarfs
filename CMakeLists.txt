@@ -176,7 +176,7 @@ include_directories(BEFORE ${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
 link_directories(BEFORE ${DEPS_LIB_DIR})
 
 set(IS_MSYS OFF)
-add_compile_definitions(GLOG_USE_GLOG_EXPORT)
+add_compile_definitions(GLOG_USE_GLOG_EXPORT FOLLY_ASSUME_NO_TCMALLOC)
 
 if(MSVC)
   set(OSTYPE_TXT "Windows")
