@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <dwarfs/byte_buffer.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 
@@ -56,17 +57,18 @@ class segmenter {
     size_t max_active_blocks{1};
     unsigned bloom_filter_size{4};
     unsigned block_size_bits{22};
+    bool enable_sparse_files{false};
   };
 
   using block_ready_cb =
       std::function<void(shared_byte_buffer, size_t logical_block_num)>;
 
-  static size_t
+  static uint64_t
   estimate_memory_usage(config const& cfg, compression_constraints const& cc);
 
   segmenter(logger& lgr, writer_progress& prog,
             std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,
-            compression_constraints const& cc, size_t total_size,
+            compression_constraints const& cc, file_size_t total_size,
             block_ready_cb block_ready);
 
   void add_chunkable(internal::chunkable& chkable) {
