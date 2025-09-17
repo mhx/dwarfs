@@ -22,6 +22,7 @@
  */
 
 #include <filesystem>
+#include <optional>
 #include <string>
 
 #include <dwarfs/file_view.h>
@@ -30,21 +31,31 @@ namespace dwarfs::test {
 
 // TODO: see which of those we actually need
 
-file_view make_mock_file_view(std::string data);
-
-file_view make_mock_file_view(std::string data,
-                              std::vector<detail::file_extent_info> extents);
+struct mock_file_view_options {
+  std::optional<bool> support_raw_bytes;
+};
 
 file_view
-make_mock_file_view(std::string data, std::filesystem::path const& path);
+make_mock_file_view(std::string data, mock_file_view_options const& opts = {});
+
+file_view make_mock_file_view(std::string data,
+                              std::vector<detail::file_extent_info> extents,
+                              mock_file_view_options const& opts = {});
 
 file_view
 make_mock_file_view(std::string data, std::filesystem::path const& path,
-                    std::vector<detail::file_extent_info> extents);
+                    mock_file_view_options const& opts = {});
 
-file_view make_mock_file_view(std::string const& data, size_t size);
+file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path,
+                    std::vector<detail::file_extent_info> extents,
+                    mock_file_view_options const& opts = {});
 
 file_view make_mock_file_view(std::string const& data, size_t size,
-                              std::filesystem::path const& path);
+                              mock_file_view_options const& opts = {});
+
+file_view make_mock_file_view(std::string const& data, size_t size,
+                              std::filesystem::path const& path,
+                              mock_file_view_options const& opts = {});
 
 } // namespace dwarfs::test
