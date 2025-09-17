@@ -43,7 +43,6 @@ class chunkable {
   virtual file_extents_iterable extents() const = 0;
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void add_hole(file_size_t size) = 0;
-  virtual std::error_code release_until(size_t offset) = 0;
 };
 
 } // namespace dwarfs::writer::internal
