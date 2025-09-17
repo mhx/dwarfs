@@ -37,6 +37,7 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/byte_buffer.h>
 #include <dwarfs/compression_constraints.h>
+#include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/writer/fragment_category.h>
 
@@ -82,7 +83,7 @@ class filesystem_writer_detail {
             size_t max_active_slots) = 0;
   virtual void
   configure_rewrite(size_t filesystem_size, size_t block_count) = 0;
-  virtual void copy_header(std::span<uint8_t const> header) = 0;
+  virtual void copy_header(file_extents_iterable header) = 0;
   virtual void write_block(fragment_category cat, shared_byte_buffer data,
                            physical_block_cb_type physical_block_cb,
                            std::optional<std::string> meta = std::nullopt) = 0;

@@ -29,6 +29,7 @@
 #pragma once
 
 #include <iterator>
+#include <string>
 
 #include <dwarfs/file_extent.h>
 
@@ -104,6 +105,8 @@ class file_extents_iterable {
 
   iterator begin() const noexcept { return iterator{fv_, extents_, range_}; }
   std::default_sentinel_t end() const noexcept { return {}; }
+
+  std::string as_string() const;
 
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;

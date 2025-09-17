@@ -1324,7 +1324,9 @@ TEST(section_index_regression, github183) {
 
     auto const num_entries{section.length() / sizeof(uint64_t)};
     std::vector<uint64le_t> tmp(num_entries);
-    ::memcpy(tmp.data(), section.raw_bytes(mm).data(), section.length());
+    auto const segment = section.segment(mm);
+    auto const data = section.data(segment);
+    ::memcpy(tmp.data(), data.data(), data.size());
     index.resize(num_entries);
     std::transform(begin(tmp), end(tmp), begin(index),
                    [](auto const& v) { return v.load(); });

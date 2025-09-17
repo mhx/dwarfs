@@ -84,4 +84,19 @@ auto file_extents_iterable::iterator::operator++() -> iterator& {
   return *this;
 }
 
+std::string file_extents_iterable::as_string() const {
+  std::string res;
+
+  res.reserve(range_.size());
+
+  for (auto const& ext : *this) {
+    for (auto const& seg : ext.segments()) {
+      auto const data = seg.span<char>();
+      res.append(data.data(), data.size());
+    }
+  }
+
+  return res;
+}
+
 } // namespace dwarfs

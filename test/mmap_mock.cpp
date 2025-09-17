@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -86,6 +87,7 @@ class mmap_mock final : public detail::file_view_impl,
   }
 
   std::span<std::byte const> raw_bytes() const override {
+    assert(supports_raw_bytes_);
     return {reinterpret_cast<std::byte const*>(data_.data()), data_.size()};
   }
 

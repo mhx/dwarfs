@@ -1489,8 +1489,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
                                        rewritten.str().size());
-    EXPECT_EQ(format_sh, std::string(reinterpret_cast<char const*>(hdr->data()),
-                                     hdr->size()));
+    EXPECT_EQ(format_sh, hdr->as_string());
     reader::filesystem_options fsopts;
     fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
@@ -1514,8 +1513,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
                                        rewritten2.str().size());
-    EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
-                               hdr->size()));
+    EXPECT_EQ("D", hdr->as_string());
   }
 
   std::ostringstream rewritten3;
@@ -1531,8 +1529,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
                                        rewritten3.str().size());
-    EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
-                               hdr->size()));
+    EXPECT_EQ("D", hdr->as_string());
   }
 
   std::ostringstream rewritten4;

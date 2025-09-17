@@ -579,7 +579,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   void configure(std::vector<fragment_category> const& expected_categories,
                  size_t max_active_slots) override;
   void configure_rewrite(size_t filesystem_size, size_t block_count) override;
-  void copy_header(std::span<uint8_t const> header) override;
+  void copy_header(file_extents_iterable header) override;
   void write_block(fragment_category cat, shared_byte_buffer data,
                    physical_block_cb_type physical_block_cb,
                    std::optional<std::string> meta) override;
@@ -1107,12 +1107,16 @@ void filesystem_writer_<LoggerPolicy>::configure_rewrite(size_t filesystem_size,
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::copy_header(
-    std::span<uint8_t const> header) {
+    file_extents_iterable header) {
   if (!options_.remove_header) {
     if (header_) {
       LOG_WARN << "replacing old header";
     } else {
-      write(header);
+      for (auto const& ext : header) {
+        for (auto const& seg : ext.segments()) {
+          write(seg.span<uint8_t>());
+        }
+      }
       header_size_ = size();
     }
   }
