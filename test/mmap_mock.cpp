@@ -24,6 +24,8 @@
 #include <utility>
 #include <vector>
 
+#include <xxhash.h>
+
 #include <dwarfs/binary_literals.h>
 
 #include "mmap_mock.h"
@@ -35,30 +37,39 @@ namespace dwarfs::test {
 class mmap_mock final : public detail::file_view_impl,
                         public std::enable_shared_from_this<mmap_mock> {
  public:
-  mmap_mock(std::string data)
-      : mmap_mock{std::move(data), "<mock-file>"} {}
-
-  mmap_mock(std::string data, std::filesystem::path const& path)
-      : mmap_mock(std::move(data), path, {}) {}
-
-  mmap_mock(std::string data, std::vector<detail::file_extent_info> extents)
-      : mmap_mock(std::move(data), "<mock-file>", std::move(extents)) {}
+  mmap_mock(std::string data, mock_file_view_options const& opts)
+      : mmap_mock{std::move(data), "<mock-file>", opts} {}
 
   mmap_mock(std::string data, std::filesystem::path const& path,
-            std::vector<detail::file_extent_info> extents)
-      : data_{std::move(data)}
-      , path_{path}
-      , extents_{default_extent(std::move(extents), data_.size())} {}
+            mock_file_view_options const& opts)
+      : mmap_mock(std::move(data), path, {}, opts) {}
 
-  mmap_mock(std::string const& data, size_t size)
-      : mmap_mock{data, size, "<mock-file>"} {}
+  mmap_mock(std::string data, std::vector<detail::file_extent_info> extents,
+            mock_file_view_options const& opts)
+      : mmap_mock(std::move(data), "<mock-file>", std::move(extents), opts) {}
 
   mmap_mock(std::string const& data, size_t size,
-            std::filesystem::path const& path)
+            mock_file_view_options const& opts)
+      : mmap_mock{data, size, "<mock-file>", opts} {}
+
+  mmap_mock(std::string data, std::filesystem::path const& path,
+            std::vector<detail::file_extent_info> extents,
+            mock_file_view_options const& opts)
+      : data_{std::move(data)}
+      , path_{path}
+      , extents_{default_extent(std::move(extents), data_.size())}
+      , opts_{opts}
+      , supports_raw_bytes_{get_supports_raw_bytes(data_, opts_)} {}
+
+  mmap_mock(std::string const& data, size_t size,
+            std::filesystem::path const& path,
+            mock_file_view_options const& opts)
       : data_{data, 0, std::min(size, data.size())}
       , path_{path}
       , extents_{{extent_kind::data,
-                  file_range{0, static_cast<file_size_t>(data_.size())}}} {}
+                  file_range{0, static_cast<file_size_t>(data_.size())}}}
+      , opts_{opts}
+      , supports_raw_bytes_{get_supports_raw_bytes(data_, opts_)} {}
 
   file_segment segment_at(file_range range) const override;
 
@@ -70,7 +81,9 @@ class mmap_mock final : public detail::file_view_impl,
     return file_extents_iterable(shared_from_this(), extents_, *range);
   }
 
-  bool supports_raw_bytes() const noexcept override { return true; }
+  bool supports_raw_bytes() const noexcept override {
+    return supports_raw_bytes_;
+  }
 
   std::span<std::byte const> raw_bytes() const override {
     return {reinterpret_cast<std::byte const*>(data_.data()), data_.size()};
@@ -106,9 +119,20 @@ class mmap_mock final : public detail::file_view_impl,
     return ext;
   }
 
+  static bool get_supports_raw_bytes(std::string const& data,
+                                     mock_file_view_options const& opts) {
+    if (opts.support_raw_bytes.has_value()) {
+      return *opts.support_raw_bytes;
+    }
+    auto hash = XXH3_64bits(data.data(), data.size());
+    return (hash % 3) == 0;
+  }
+
   std::string const data_;
   std::filesystem::path const path_;
   std::vector<detail::file_extent_info> const extents_;
+  mock_file_view_options const opts_;
+  bool const supports_raw_bytes_{false};
 };
 
 class mmap_mock_file_segment final : public detail::file_segment_impl {
@@ -180,35 +204,41 @@ void mmap_mock::copy_bytes(void* dest, file_range range,
 
 // TODO: clean this stuff up
 
-file_view make_mock_file_view(std::string data) {
-  return file_view{std::make_shared<mmap_mock>(std::move(data))};
+file_view
+make_mock_file_view(std::string data, mock_file_view_options const& opts) {
+  return file_view{std::make_shared<mmap_mock>(std::move(data), opts)};
 }
 
 file_view make_mock_file_view(std::string data,
-                              std::vector<detail::file_extent_info> extents) {
+                              std::vector<detail::file_extent_info> extents,
+                              mock_file_view_options const& opts) {
   return file_view{
-      std::make_shared<mmap_mock>(std::move(data), std::move(extents))};
-}
-
-file_view
-make_mock_file_view(std::string data, std::filesystem::path const& path) {
-  return file_view{std::make_shared<mmap_mock>(std::move(data), path)};
+      std::make_shared<mmap_mock>(std::move(data), std::move(extents), opts)};
 }
 
 file_view
 make_mock_file_view(std::string data, std::filesystem::path const& path,
-                    std::vector<detail::file_extent_info> extents) {
-  return file_view{
-      std::make_shared<mmap_mock>(std::move(data), path, std::move(extents))};
+                    mock_file_view_options const& opts) {
+  return file_view{std::make_shared<mmap_mock>(std::move(data), path, opts)};
 }
 
-file_view make_mock_file_view(std::string const& data, size_t size) {
-  return file_view{std::make_shared<mmap_mock>(data, size)};
+file_view
+make_mock_file_view(std::string data, std::filesystem::path const& path,
+                    std::vector<detail::file_extent_info> extents,
+                    mock_file_view_options const& opts) {
+  return file_view{std::make_shared<mmap_mock>(std::move(data), path,
+                                               std::move(extents), opts)};
 }
 
 file_view make_mock_file_view(std::string const& data, size_t size,
-                              std::filesystem::path const& path) {
-  return file_view{std::make_shared<mmap_mock>(data, size, path)};
+                              mock_file_view_options const& opts) {
+  return file_view{std::make_shared<mmap_mock>(data, size, opts)};
+}
+
+file_view make_mock_file_view(std::string const& data, size_t size,
+                              std::filesystem::path const& path,
+                              mock_file_view_options const& opts) {
+  return file_view{std::make_shared<mmap_mock>(data, size, path, opts)};
 }
 
 } // namespace dwarfs::test
