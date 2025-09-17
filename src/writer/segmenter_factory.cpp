@@ -38,7 +38,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
       , catmgr_{std::move(catmgr)}
       , cfg_{cfg} {}
 
-  segmenter create(fragment_category cat, size_t cat_size,
+  segmenter create(fragment_category cat, file_size_t cat_size,
                    compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
@@ -50,7 +50,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
     return static_cast<size_t>(1) << cfg_.block_size_bits;
   }
 
-  size_t
+  uint64_t
   estimate_memory_usage(fragment_category cat,
                         compression_constraints const& cc) const override {
     return segmenter::estimate_memory_usage(make_segmenter_config(cat), cc);
