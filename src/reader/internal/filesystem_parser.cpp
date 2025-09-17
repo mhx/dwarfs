@@ -264,11 +264,11 @@ std::optional<fs_section> filesystem_parser::next_section() {
   return std::nullopt;
 }
 
-std::optional<std::span<uint8_t const>> filesystem_parser::header() const {
+std::optional<file_extents_iterable> filesystem_parser::header() const {
   if (image_offset_ == 0) {
     return std::nullopt;
   }
-  return mm_.raw_bytes<uint8_t>(0, image_offset_);
+  return mm_.extents({0, image_offset_});
 }
 
 void filesystem_parser::rewind() {
@@ -295,9 +295,8 @@ size_t filesystem_parser::filesystem_size() const {
   return image_offset_ + image_size_;
 }
 
-std::span<uint8_t const>
-filesystem_parser::section_data(fs_section const& s) const {
-  return s.raw_bytes(mm_);
+file_segment filesystem_parser::segment(fs_section const& s) const {
+  return s.segment(mm_);
 }
 
 void filesystem_parser::find_index() {
@@ -343,7 +342,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  auto const index = section.raw_bytes(mm_);
+  auto const index = section.data(seg);
 
   std::vector<uint64le_t> tmp(section_count);
   index_.resize(section_count);

@@ -334,7 +334,7 @@ class filesystem_ final {
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
         std::error_code& ec) const;
-  std::optional<std::span<uint8_t const>> header() const;
+  std::optional<file_extents_iterable> header() const;
   void set_num_workers(size_t num) { ir_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) {
     ir_.set_cache_tidy_config(cfg);
@@ -440,7 +440,7 @@ class filesystem_ final {
   inode_reader_v2 ir_;
   mutable std::mutex mx_;
   std::optional<section_wrapper::section_data> meta_buffer_;
-  std::optional<std::span<uint8_t const>> header_;
+  std::optional<file_extents_iterable> header_;
   mutable block_access_level fsinfo_block_access_level_{
       block_access_level::no_access};
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
@@ -1263,8 +1263,7 @@ filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size, file_off_t offset,
 }
 
 template <typename LoggerPolicy>
-std::optional<std::span<uint8_t const>>
-filesystem_<LoggerPolicy>::header() const {
+std::optional<file_extents_iterable> filesystem_<LoggerPolicy>::header() const {
   return header_;
 }
 
@@ -1502,7 +1501,7 @@ class filesystem_full_
   std::string serialize_metadata_as_json(bool simple) const override {
     return fs().serialize_metadata_as_json(simple);
   }
-  std::optional<std::span<uint8_t const>> header() const override {
+  std::optional<file_extents_iterable> header() const override {
     return fs().header();
   }
   history const& get_history() const override { return history_; }
@@ -1595,12 +1594,12 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
   return errors;
 }
 
-std::optional<std::span<uint8_t const>>
+std::optional<file_extents_iterable>
 filesystem_v2::header(file_view const& mm) {
   return header(mm, filesystem_options::IMAGE_OFFSET_AUTO);
 }
 
-std::optional<std::span<uint8_t const>>
+std::optional<file_extents_iterable>
 filesystem_v2::header(file_view const& mm, file_off_t image_offset) {
   return internal::filesystem_parser(mm, image_offset).header();
 }
@@ -1630,7 +1629,7 @@ std::string filesystem_v2::serialize_metadata_as_json(bool simple) const {
   return full_().serialize_metadata_as_json(simple);
 }
 
-std::optional<std::span<uint8_t const>> filesystem_v2::header() const {
+std::optional<file_extents_iterable> filesystem_v2::header() const {
   return full_().header();
 }
 

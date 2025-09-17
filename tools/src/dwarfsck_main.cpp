@@ -307,7 +307,12 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     if (print_header) {
       if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {
         ensure_binary_mode(iol.out);
-        iol.out.write(reinterpret_cast<char const*>(hdr->data()), hdr->size());
+        for (auto const& ext : *hdr) {
+          for (auto const& seg : ext.segments()) {
+            auto const data = seg.span<char>();
+            iol.out.write(data.data(), data.size());
+          }
+        }
         if (iol.out.bad() || iol.out.fail()) {
           LOG_ERROR << "error writing header";
           return 1;
