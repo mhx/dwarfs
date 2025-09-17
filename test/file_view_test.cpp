@@ -35,7 +35,9 @@ using namespace dwarfs;
 using namespace std::string_literals;
 
 TEST(file_view, mock_file_view_basic) {
-  auto view = test::make_mock_file_view("Hello, World!");
+  auto view = test::make_mock_file_view(
+      "Hello, World!"s,
+      test::mock_file_view_options{.support_raw_bytes = true});
 
   {
     std::vector<std::string> parts;
