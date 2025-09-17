@@ -173,8 +173,7 @@ TEST(mkdwarfs_test, filesystem_header) {
       image, {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
   auto hdr = fs.header();
   ASSERT_TRUE(hdr);
-  std::string actual(reinterpret_cast<char const*>(hdr->data()), hdr->size());
-  EXPECT_EQ(header, actual);
+  EXPECT_EQ(header, hdr->as_string());
 
   auto os = std::make_shared<test::os_access_mock>();
   os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});

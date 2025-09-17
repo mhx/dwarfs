@@ -81,7 +81,6 @@ class fs_section {
     return impl_->integrity_span(seg);
   }
 
-  // [[deprecated]]
   std::span<uint8_t const> raw_bytes(file_view const& mm) const {
     return impl_->raw_bytes(mm);
   }
@@ -120,7 +119,6 @@ class fs_section {
     checksum_span(file_segment const& seg) const = 0;
     virtual std::optional<std::span<uint8_t const>>
     integrity_span(file_segment const& seg) const = 0;
-    // [[deprecated]]
     virtual std::span<uint8_t const> raw_bytes(file_view const& mm) const = 0;
     virtual std::optional<uint32_t> section_number() const = 0;
     virtual std::optional<uint64_t> xxh3_64_value() const = 0;
