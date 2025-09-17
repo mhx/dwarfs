@@ -250,6 +250,16 @@ TEST(file_view, mock_file_view_extents) {
     EXPECT_THAT(segment_offsets, testing::ElementsAre(2, 4));
     EXPECT_THAT(segment_sizes, testing::ElementsAre(3, 2));
   }
+}
+
+TEST(file_view, mock_file_view_extents_raw_bytes) {
+  auto view = test::make_mock_file_view("Hello,\0\0\0\0World!"s,
+                                        {
+                                            {extent_kind::data, {0, 6}},
+                                            {extent_kind::hole, {6, 4}},
+                                            {extent_kind::data, {10, 6}},
+                                        },
+                                        {.support_raw_bytes = true});
 
   {
     std::vector<std::string> extents;

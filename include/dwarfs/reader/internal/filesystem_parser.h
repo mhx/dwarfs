@@ -57,7 +57,7 @@ class filesystem_parser {
 
   std::optional<dwarfs::internal::fs_section> next_section();
 
-  std::optional<std::span<uint8_t const>> header() const;
+  std::optional<file_extents_iterable> header() const;
 
   void rewind();
 
@@ -74,8 +74,7 @@ class filesystem_parser {
   bool has_index() const;
 
   size_t filesystem_size() const;
-  std::span<uint8_t const>
-  section_data(dwarfs::internal::fs_section const& s) const;
+  file_segment segment(dwarfs::internal::fs_section const& s) const;
 
  private:
   void find_index();
