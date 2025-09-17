@@ -114,7 +114,10 @@ class file_segments_iterable {
   iterator begin() const noexcept {
     return iterator{fv_, range_, max_bytes_, overlap_bytes_};
   }
+
   std::default_sentinel_t end() const noexcept { return {}; }
+
+  file_range const& range() const noexcept { return range_; }
 
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;
