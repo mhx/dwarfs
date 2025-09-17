@@ -44,6 +44,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
@@ -487,9 +488,9 @@ class filesystem_v2 final : public filesystem_v2_lite {
            std::ostream& output, int detail_level = 0, size_t num_readers = 1,
            bool check_integrity = false, file_off_t image_offset = 0);
 
-  static std::optional<std::span<uint8_t const>> header(file_view const& mm);
+  static std::optional<file_extents_iterable> header(file_view const& mm);
 
-  static std::optional<std::span<uint8_t const>>
+  static std::optional<file_extents_iterable>
   header(file_view const& mm, file_off_t image_offset);
 
   int check(filesystem_check_level level, size_t num_threads = 0) const;
@@ -501,7 +502,7 @@ class filesystem_v2 final : public filesystem_v2_lite {
   nlohmann::json metadata_as_json() const;
   std::string serialize_metadata_as_json(bool simple) const;
 
-  std::optional<std::span<uint8_t const>> header() const;
+  std::optional<file_extents_iterable> header() const;
 
   history const& get_history() const;
 
@@ -522,7 +523,7 @@ class filesystem_v2 final : public filesystem_v2_lite {
     virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json metadata_as_json() const = 0;
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;
-    virtual std::optional<std::span<uint8_t const>> header() const = 0;
+    virtual std::optional<file_extents_iterable> header() const = 0;
     virtual history const& get_history() const = 0;
     virtual std::unique_ptr<thrift::metadata::metadata>
     thawed_metadata() const = 0;
