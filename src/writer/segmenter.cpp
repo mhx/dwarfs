@@ -1397,10 +1397,18 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
 
   // First, check if the regions actually match
   if (data.compare(pos, v.subspan(offset_, len)) == 0) {
+    if (pos > begin + offset_) {
+      begin = pos - offset_;
+    }
+
+    if (end - pos > v.size() - offset_) {
+      end = pos + (v.size() - offset_);
+    }
+
     // scan backward
     auto tmp = offset_;
-    while (tmp > 0 && pos > begin &&
-           data.compare(pos - 1, v.subspan(tmp - 1, 1)) == 0) {
+    while (pos > begin && data.compare(pos - 1, v.subspan(tmp - 1, 1)) == 0) {
+      assert(tmp > 0);
       --tmp;
       --pos;
     }
@@ -1410,9 +1418,9 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
 
     // scan forward
     pos += len;
-    tmp = offset_ + len;
-    while (tmp < v.size() && pos < end &&
-           data.compare(pos, v.subspan(tmp, 1)) == 0) {
+    tmp += len;
+    while (pos < end && data.compare(pos, v.subspan(tmp, 1)) == 0) {
+      assert(tmp < v.size());
       ++tmp;
       ++pos;
     }
