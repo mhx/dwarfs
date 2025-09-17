@@ -751,9 +751,41 @@ class granular_extent_adapter<GranularityPolicy, false>
   DWARFS_FORCE_INLINE int
   compare(file_off_t offset, std::span<value_type const> rhs) const {
     auto const offset_in_bytes = this->frames_to_bytes(offset);
-    assert(offset_in_bytes + rhs.size() <= ext_.size());
+    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
     return std::memcmp(raw_bytes_.data() + offset_in_bytes, rhs.data(),
                        rhs.size());
+  }
+
+  DWARFS_FORCE_INLINE size_t
+  match_backward(file_off_t offset, std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
+
+    std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
+                                    rhs.size()};
+    auto [lit, rit] =
+        std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
+
+    size_t match_length = std::distance(lhs.rbegin(), lit);
+    match_length -= match_length % this->granularity_bytes();
+
+    return this->bytes_to_frames(match_length);
+  }
+
+  DWARFS_FORCE_INLINE size_t
+  match_forward(file_off_t offset, std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
+
+    std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
+                                    rhs.size()};
+    auto [lit, rit] =
+        std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+
+    size_t match_length = std::distance(lhs.begin(), lit);
+    match_length -= match_length % this->granularity_bytes();
+
+    return this->bytes_to_frames(match_length);
   }
 
   void release_until(file_off_t offset) {
@@ -816,7 +848,7 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   DWARFS_FORCE_INLINE void
   append_to(auto& v, file_off_t offset, file_size_t size) const {
-    for (auto const& span : queue_.span_range({ext_.offset() + offset, size})) {
+    for (auto const& span : this->get_span_range(offset, size)) {
       v.append(span.data(), span.size());
     }
   }
@@ -825,9 +857,7 @@ class granular_extent_adapter<GranularityPolicy, true>
   compare(file_off_t offset, std::span<value_type const> rhs) const {
     auto const offset_in_bytes = this->frames_to_bytes(offset);
 
-    for (auto const& span : queue_.span_range(
-             {static_cast<file_off_t>(ext_.offset() + offset_in_bytes),
-              static_cast<file_size_t>(rhs.size())})) {
+    for (auto const& span : this->get_span_range(offset_in_bytes, rhs.size())) {
       auto const cmp = std::memcmp(span.data(), rhs.data(), span.size());
       if (cmp != 0) {
         return cmp;
@@ -838,11 +868,76 @@ class granular_extent_adapter<GranularityPolicy, true>
     return 0;
   }
 
+  DWARFS_FORCE_INLINE size_t
+  match_backward(file_off_t offset, std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const spans = collect_spans(offset_in_bytes, rhs.size());
+    size_t match_length{0};
+
+    for (auto const& lhs : spans | std::views::reverse) {
+      auto const [lit, rit] =
+          std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
+      auto const submatch_length = std::distance(lhs.rbegin(), lit);
+      match_length += submatch_length;
+      if (lit != lhs.rend() && rit != rhs.rend()) {
+        break;
+      }
+      rhs = rhs.subspan(0, rhs.size() - submatch_length);
+    }
+
+    match_length -= match_length % this->granularity_bytes();
+
+    return this->bytes_to_frames(match_length);
+  }
+
+  DWARFS_FORCE_INLINE size_t
+  match_forward(file_off_t offset, std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const spans = collect_spans(offset_in_bytes, rhs.size());
+    size_t match_length{0};
+
+    for (auto const& lhs : spans) {
+      auto const [lit, rit] =
+          std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+      auto const submatch_length = std::distance(lhs.begin(), lit);
+      match_length += submatch_length;
+      if (lit != lhs.end() && rit != rhs.end()) {
+        break;
+      }
+      rhs = rhs.subspan(submatch_length);
+    }
+
+    match_length -= match_length % this->granularity_bytes();
+
+    return this->bytes_to_frames(match_length);
+  }
+
   void release_until(file_off_t offset) {
     queue_.release_until(ext_.offset() + offset);
   }
 
  private:
+  DWARFS_FORCE_INLINE auto
+  collect_spans(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
+    folly::small_vector<std::span<value_type const>, 8> spans;
+
+    for (auto const& span : get_span_range(offset_in_bytes, size_in_bytes)) {
+      spans.emplace_back(reinterpret_cast<value_type const*>(span.data()),
+                         span.size());
+    }
+
+    return spans;
+  }
+
+  DWARFS_FORCE_INLINE auto
+  get_span_range(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
+    assert(offset_in_bytes + size_in_bytes <= ext_.size());
+
+    return queue_.span_range(
+        {static_cast<file_off_t>(ext_.offset() + offset_in_bytes),
+         size_in_bytes});
+  }
+
   file_extent const& ext_;
   segment_queue mutable queue_;
 };
@@ -1159,7 +1254,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   using GranularityPolicyT::granularity_bytes;
   using SegmentingPolicy::is_multi_block_mode;
   using SegmentingPolicy::is_segmentation_enabled;
-  using extent_adapter_t = granular_extent_adapter<GranularityPolicyT, false>;
+  using extent_adapter_t = granular_extent_adapter<GranularityPolicyT, true>;
 
  public:
   template <typename... PolicyArgs>
@@ -1405,26 +1500,17 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
       end = pos + (v.size() - offset_);
     }
 
-    // scan backward
-    auto tmp = offset_;
-    while (pos > begin && data.compare(pos - 1, v.subspan(tmp - 1, 1)) == 0) {
-      assert(tmp > 0);
-      --tmp;
-      --pos;
-    }
-    len += offset_ - tmp;
-    offset_ = tmp;
-    pos_ = pos;
+    auto const prefixlen = pos - begin;
+    auto const prefixmatchlen =
+        data.match_backward(begin, v.subspan(offset_ - prefixlen, prefixlen));
 
-    // scan forward
-    pos += len;
-    tmp += len;
-    while (pos < end && data.compare(pos, v.subspan(tmp, 1)) == 0) {
-      assert(tmp < v.size());
-      ++tmp;
-      ++pos;
-    }
-    size_ = tmp - offset_;
+    auto const suffixlen = end - (pos + len);
+    auto const suffixmatchlen =
+        data.match_forward(pos + len, v.subspan(offset_ + len, suffixlen));
+
+    offset_ -= prefixmatchlen;
+    pos_ = pos - prefixmatchlen;
+    size_ = len + prefixmatchlen + suffixmatchlen;
   }
 
   // No match, this was a hash collision, we're done.
