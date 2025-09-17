@@ -1254,7 +1254,9 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   using GranularityPolicyT::granularity_bytes;
   using SegmentingPolicy::is_multi_block_mode;
   using SegmentingPolicy::is_segmentation_enabled;
-  using extent_adapter_t = granular_extent_adapter<GranularityPolicyT, true>;
+  template <bool UseSegmentQueue>
+  using extent_adapter_t =
+      granular_extent_adapter<GranularityPolicyT, UseSegmentQueue>;
 
  public:
   template <typename... PolicyArgs>
@@ -1305,13 +1307,17 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   DWARFS_FORCE_INLINE void block_ready();
   void finish_chunk(chunkable& chkable);
+  template <bool UseSegmentQueue>
   DWARFS_FORCE_INLINE void
-  append_to_block(chunkable& chkable, extent_adapter_t& data,
+  append_to_block(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
                   file_off_t offset_in_frames, file_size_t size_in_frames);
-  void add_data(chunkable& chkable, extent_adapter_t& data,
+  template <bool UseSegmentQueue>
+  void add_data(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
                 file_off_t offset_in_frames, file_size_t size_in_frames);
+  template <bool UseSegmentQueue>
   DWARFS_FORCE_INLINE void
-  segment_and_add_data(chunkable& chkable, extent_adapter_t& data,
+  segment_and_add_data(chunkable& chkable,
+                       extent_adapter_t<UseSegmentQueue>& data,
                        file_size_t size_in_frames);
 
   DWARFS_FORCE_INLINE size_t
@@ -1525,23 +1531,31 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
 
     pctx_->current_file = chkable.get_file();
 
+    auto process_extent = [&](auto& data) {
+      auto const size_in_frames = data.size();
+
+      if (!is_segmentation_enabled() or
+          std::cmp_less(size_in_frames, window_size_)) {
+        // no point dealing with hashing, just write it out
+        add_data(chkable, data, 0, size_in_frames);
+        finish_chunk(chkable);
+        auto const size_in_bytes = data.size_in_bytes();
+        prog_.total_bytes_read += size_in_bytes;
+        pctx_->bytes_processed += size_in_bytes;
+      } else {
+        segment_and_add_data(chkable, data, size_in_frames);
+      }
+    };
+
     for (auto const& ext : chkable.extents()) {
       if (ext.kind() == extent_kind::hole) {
         chkable.add_hole(ext.size());
+      } else if (ext.supports_raw_bytes()) {
+        auto data = this->template create<extent_adapter_t<false>>(ext);
+        process_extent(data);
       } else {
-        auto data = this->template create<extent_adapter_t>(ext);
-        auto const size_in_frames = data.size();
-
-        if (!is_segmentation_enabled() or
-            std::cmp_less(size_in_frames, window_size_)) {
-          // no point dealing with hashing, just write it out
-          add_data(chkable, data, 0, size_in_frames);
-          finish_chunk(chkable);
-          prog_.total_bytes_read += data.size_in_bytes();
-          pctx_->bytes_processed += data.size_in_bytes();
-        } else {
-          segment_and_add_data(chkable, data, size_in_frames);
-        }
+        auto data = this->template create<extent_adapter_t<true>>(ext);
+        process_extent(data);
       }
     }
   }
@@ -1615,10 +1629,11 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
+template <bool UseSegmentQueue>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
-    chunkable& chkable, extent_adapter_t& data, file_off_t offset_in_frames,
-    file_size_t size_in_frames) {
+    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
+    file_off_t offset_in_frames, file_size_t size_in_frames) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
@@ -1662,9 +1677,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
+template <bool UseSegmentQueue>
 void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
-    chunkable& chkable, extent_adapter_t& data, file_off_t offset_in_frames,
-    file_size_t size_in_frames) {
+    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
+    file_off_t offset_in_frames, file_size_t size_in_frames) {
   while (size_in_frames > 0) {
     file_off_t block_offset_in_frames = 0;
 
@@ -1696,9 +1712,11 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
+template <bool UseSegmentQueue>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
-    chunkable& chkable, extent_adapter_t& data, file_size_t size_in_frames) {
+    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
+    file_size_t size_in_frames) {
   rsync_hash hasher;
   file_off_t offset_in_frames = 0;
   file_size_t frames_written = 0;
@@ -1711,7 +1729,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
 
-  hash_window<extent_adapter_t::kUseSegmentQueue> hashwin(window_size_);
+  hash_window<UseSegmentQueue> hashwin(window_size_);
 
   offset_in_frames = hashwin.seek(hasher, data, 0);
 
