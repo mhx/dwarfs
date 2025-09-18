@@ -26,6 +26,7 @@
 #include <string>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/types.h>
 #include <dwarfs/writer/object.h>
 
 namespace dwarfs::writer {
@@ -40,7 +41,7 @@ class entry_interface : public object {
   virtual std::string dpath() const = 0;
   virtual std::string unix_dpath() const = 0;
   virtual std::string const& name() const = 0;
-  virtual size_t size() const = 0;
+  virtual file_size_t size() const = 0;
   virtual bool is_directory() const = 0;
 
   virtual mode_type get_permissions() const = 0;

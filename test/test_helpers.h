@@ -46,6 +46,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/tool/iolayer.h>
+#include <dwarfs/types.h>
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_interface.h>
 
@@ -95,7 +96,7 @@ class os_access_mock : public os_access {
 
   static std::shared_ptr<os_access_mock> create_test_instance();
 
-  size_t size() const;
+  file_size_t size() const;
 
   void
   add_entries(std::span<std::pair<std::string_view, simplestat> const> entries,
@@ -108,8 +109,8 @@ class os_access_mock : public os_access {
            std::function<std::string()> generator);
 
   void add_dir(std::filesystem::path const& path);
-  void
-  add_file(std::filesystem::path const& path, size_t size, bool random = false);
+  void add_file(std::filesystem::path const& path, file_size_t size,
+                bool random = false);
   void add_file(std::filesystem::path const& path, std::string const& contents);
 
   void add_local_files(std::filesystem::path const& path);
@@ -120,7 +121,7 @@ class os_access_mock : public os_access {
   void set_map_file_delay(std::filesystem::path const& path,
                           std::chrono::nanoseconds delay);
 
-  void set_map_file_delay_min_size(size_t size) {
+  void set_map_file_delay_min_size(file_size_t size) {
     map_file_delay_min_size_ = size;
   }
 
@@ -135,7 +136,7 @@ class os_access_mock : public os_access {
 
   file_view map_file(std::filesystem::path const& path) const override;
   file_view
-  map_file(std::filesystem::path const& path, size_t size) const override;
+  map_file(std::filesystem::path const& path, file_size_t size) const override;
 
   int access(std::filesystem::path const&, int) const override;
 
@@ -188,7 +189,7 @@ class os_access_mock : public os_access {
   executable_resolver_type executable_resolver_;
   std::chrono::nanoseconds dir_reader_delay_{0};
   std::map<std::filesystem::path, std::chrono::nanoseconds> map_file_delays_;
-  size_t map_file_delay_min_size_{0};
+  file_size_t map_file_delay_min_size_{0};
 };
 
 struct filter_transformer_data {
@@ -207,7 +208,7 @@ struct filter_transformer_data {
 
     std::string path;
     std::string name;
-    size_t size;
+    file_size_t size;
     bool is_directory;
     file_stat::mode_type mode;
     file_stat::uid_type uid;

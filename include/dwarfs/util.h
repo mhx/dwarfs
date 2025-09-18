@@ -38,12 +38,14 @@
 #include <string>
 #include <string_view>
 
+#include <dwarfs/types.h>
+
 namespace dwarfs {
 
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
-std::string size_with_unit(size_t size);
-size_t parse_size_with_unit(std::string const& str);
+std::string size_with_unit(file_size_t size);
+file_size_t parse_size_with_unit(std::string const& str);
 std::chrono::milliseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);
 

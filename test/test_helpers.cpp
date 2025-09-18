@@ -262,7 +262,8 @@ void os_access_mock::add_dir(fs::path const& path) {
   add(path, st);
 }
 
-void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
+void os_access_mock::add_file(fs::path const& path, file_size_t size,
+                              bool random) {
   simplestat st;
   st.ino = ino_++;
   st.mode = posix_file_type::regular | 0644;
@@ -355,7 +356,7 @@ void os_access_mock::set_map_file_delay(std::filesystem::path const& path,
   map_file_delays_[path] = delay;
 }
 
-size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
+file_size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
   std::vector<std::string> parts;
@@ -450,7 +451,8 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
       fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-file_view os_access_mock::map_file(fs::path const& path, size_t size) const {
+file_view
+os_access_mock::map_file(fs::path const& path, file_size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {

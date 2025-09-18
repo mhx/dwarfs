@@ -85,7 +85,7 @@ class entry : public entry_interface {
   std::string unix_dpath() const override;
   std::string const& name() const override { return name_; }
   bool less_revpath(entry const& rhs) const;
-  size_t size() const override;
+  file_size_t size() const override;
   virtual type_t type() const = 0;
   bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
@@ -110,7 +110,7 @@ class entry : public entry_interface {
   uint64_t get_mtime() const override;
   uint64_t get_ctime() const override;
 
-  void override_size(size_t size);
+  void override_size(file_size_t size);
 
  private:
 #ifdef _WIN32
