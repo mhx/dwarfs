@@ -29,6 +29,7 @@
 #pragma once
 
 #include <memory>
+#include <system_error>
 
 #include <dwarfs/detail/file_extent_info.h>
 #include <dwarfs/file_segments_iterable.h>
@@ -71,7 +72,7 @@ class file_extent {
                                   overlap_size};
   }
 
-  std::error_code release_until(file_off_t offset) const;
+  void release_until(file_off_t offset, std::error_code& ec) const;
 
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;

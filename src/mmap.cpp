@@ -138,11 +138,7 @@ class mmap_file_view final
 
   size_t default_segment_size() const override { return 16_MiB; }
 
-  // ------------------------------------------------------------
-
-  std::error_code release_until(file_off_t offset) const override;
-
-  // ------------------------------------------------------------
+  void release_until(file_off_t offset, std::error_code& ec) const override;
 
   std::filesystem::path const& path() const override;
 
@@ -331,8 +327,9 @@ mmap_file_view::advise(io_advice adv [[maybe_unused]],
   return ec;
 }
 
-std::error_code mmap_file_view::release_until(file_off_t offset) const {
-  return advise(io_advice::dontneed, file_range{0, offset});
+void mmap_file_view::release_until(file_off_t offset,
+                                   std::error_code& ec) const {
+  ec = advise(io_advice::dontneed, file_range{0, offset});
 }
 
 file_size_t mmap_file_view::size() const { return mf_.size(); }
