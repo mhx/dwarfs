@@ -166,6 +166,25 @@ class file_view {
     return t;
   }
 
+  std::string
+  read_string(file_off_t offset, file_size_t len, std::error_code& ec) const {
+    std::string s;
+    if (len > 0) {
+      s.resize(len);
+      impl_->copy_bytes(s.data(), file_range{offset, len}, ec);
+    }
+    return s;
+  }
+
+  std::string read_string(file_off_t offset, file_size_t len) const {
+    std::error_code ec;
+    auto s = read_string(offset, len, ec);
+    if (ec) {
+      throw std::system_error(ec);
+    }
+    return s;
+  }
+
   // ---------------------------------------------------------------------
   // TODO: this is mostly all deprecated
 
