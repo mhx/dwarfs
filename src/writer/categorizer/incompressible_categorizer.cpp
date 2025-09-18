@@ -79,7 +79,8 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     input_.reserve(total_size < cfg_.block_size ? total_size : cfg_.block_size);
   }
 
-  void add(std::span<uint8_t const> data) override {
+  void add(file_segment const& seg) override {
+    auto data = seg.span<uint8_t>();
     while (!data.empty()) {
       auto part_size = input_.size() + data.size() <= cfg_.block_size
                            ? data.size()
