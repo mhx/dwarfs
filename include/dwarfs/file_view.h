@@ -185,11 +185,9 @@ class file_view {
     return s;
   }
 
-  // ---------------------------------------------------------------------
-  // TODO: this is mostly all deprecated
-
-  std::error_code release_until(file_off_t offset) const {
-    return impl_->release_until(offset);
+  // TODO: maybe deprecate this
+  void release_until(file_off_t offset, std::error_code& ec) const {
+    impl_->release_until(offset, ec);
   }
 
  private:

@@ -62,10 +62,7 @@ class file_view_impl {
 
   virtual size_t default_segment_size() const = 0;
 
-  // ----------------------------------------------------------------------
-  // TODO: this is mostly all deprecated
-
-  virtual std::error_code release_until(file_off_t offset) const = 0;
+  virtual void release_until(file_off_t offset, std::error_code& ec) const = 0;
 };
 
 } // namespace dwarfs::detail
