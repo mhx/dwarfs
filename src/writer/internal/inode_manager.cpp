@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -75,6 +76,11 @@ namespace {
 
 constexpr std::string_view const kScanContext{"[scanning] "};
 constexpr std::string_view const kCategorizeContext{"[categorizing] "};
+
+enum class scan_mode {
+  skip_holes,
+  include_holes,
+};
 
 } // namespace
 
@@ -170,9 +176,10 @@ class inode_ : public inode {
           auto sp = make_progress_context(kCategorizeContext, mm, prog,
                                           4 * chunk_size);
           progress::scan_updater supd(prog.categorize, mm.size());
-          scan_range(mm, sp.get(), chunk_size, [&catjob](auto span) {
-            catjob.categorize_sequential(span);
-          });
+          scan_range(mm, sp.get(), chunk_size,
+                     [&catjob](std::span<uint8_t const> span) {
+                       catjob.categorize_sequential(span);
+                     });
         }
 
         fragments_ = catjob.result();
@@ -386,33 +393,69 @@ class inode_ : public inode {
   }
 
   template <typename T>
-  void scan_range(file_view const& mm, scanner_progress* sprog, size_t offset,
-                  size_t size, size_t chunk_size, T&& scanner) {
-    auto&& scan = std::forward<T>(scanner);
+  void scan_range_impl(file_view const& mm, scanner_progress* sprog,
+                       file_off_t offset, file_size_t size, size_t chunk_size,
+                       std::invocable<T> auto&& scanner,
+                       scan_mode mode = scan_mode::skip_holes) {
+    auto&& scan = std::forward<decltype(scanner)>(scanner);
 
-    while (size >= chunk_size) {
-      scan(mm.raw_bytes<uint8_t>(offset, chunk_size));
-      // release_until() is best-effort, we can ignore the return value
-      // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
-      mm.release_until(offset);
-      offset += chunk_size;
-      size -= chunk_size;
+    auto advance = [&](file_size_t n) {
       if (sprog) {
-        sprog->bytes_processed += chunk_size;
+        sprog->bytes_processed += n;
       }
-    }
+    };
 
-    scan(mm.raw_bytes<uint8_t>(offset, size));
+    for (auto const& ext : mm.extents({offset, size})) {
+      if (ext.kind() == extent_kind::hole && mode == scan_mode::skip_holes) {
+        advance(ext.size());
+        continue;
+      }
 
-    if (sprog) {
-      sprog->bytes_processed += size;
+      for (auto const& seg : ext.segments(chunk_size)) {
+        if constexpr (std::same_as<T, std::span<uint8_t const>>) {
+          scan(seg.span<uint8_t>());
+        } else {
+          scan(seg);
+        }
+        advance(seg.size());
+      }
     }
   }
 
-  template <typename T>
   void scan_range(file_view const& mm, scanner_progress* sprog,
-                  size_t chunk_size, T&& scanner) {
-    scan_range(mm, sprog, 0, mm.size(), chunk_size, std::forward<T>(scanner));
+                  file_off_t offset, file_size_t size, size_t chunk_size,
+                  std::invocable<std::span<uint8_t const>> auto&& scanner,
+                  scan_mode mode = scan_mode::skip_holes) {
+    scan_range_impl<std::span<uint8_t const>>(
+        mm, sprog, offset, size, chunk_size,
+        std::forward<decltype(scanner)>(scanner), mode);
+  }
+
+  void
+  scan_range(file_view const& mm, scanner_progress* sprog, size_t chunk_size,
+             std::invocable<std::span<uint8_t const>> auto&& scanner,
+             scan_mode mode = scan_mode::skip_holes) {
+    scan_range_impl<std::span<uint8_t const>>(
+        mm, sprog, 0, mm.size(), chunk_size,
+        std::forward<decltype(scanner)>(scanner), mode);
+  }
+
+  void scan_range(file_view const& mm, scanner_progress* sprog,
+                  file_off_t offset, file_size_t size, size_t chunk_size,
+                  std::invocable<file_segment> auto&& scanner,
+                  scan_mode mode = scan_mode::skip_holes) {
+    scan_range_impl<file_segment>(mm, sprog, offset, size, chunk_size,
+                                  std::forward<decltype(scanner)>(scanner),
+                                  mode);
+  }
+
+  void
+  scan_range(file_view const& mm, scanner_progress* sprog, size_t chunk_size,
+             std::invocable<file_segment> auto&& scanner,
+             scan_mode mode = scan_mode::skip_holes) {
+    scan_range_impl<file_segment>(mm, sprog, 0, mm.size(), chunk_size,
+                                  std::forward<decltype(scanner)>(scanner),
+                                  mode);
   }
 
   void scan_fragments(file_view const& mm, scanner_progress* sprog,
