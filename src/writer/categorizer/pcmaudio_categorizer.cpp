@@ -23,6 +23,7 @@
 
 #include <array>
 #include <cassert>
+#include <concepts>
 #include <cstring>
 #include <map>
 #include <shared_mutex>
@@ -84,11 +85,6 @@ std::ostream& operator<<(std::ostream& os, endianness e) {
     DWARFS_PANIC("internal error: unhandled endianness value");
   }
   return os;
-}
-
-std::string_view span_to_sv(std::span<uint8_t const> s) {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  return {reinterpret_cast<char const*>(s.data()), s.size()};
 }
 
 std::optional<endianness> parse_endianness(std::string_view e) {
@@ -271,7 +267,7 @@ struct AiffChunkPolicy {
   static constexpr size_t const alignment{2};
   static constexpr endianness const endian{endianness::BIG};
   static constexpr bool const size_includes_header{false};
-  static void preprocess(auto&, std::span<uint8_t const>) {}
+  static void preprocess(auto&, file_view const&) {}
 };
 
 struct CafChunkPolicy {
@@ -279,10 +275,10 @@ struct CafChunkPolicy {
   static constexpr size_t const alignment{1};
   static constexpr endianness const endian{endianness::BIG};
   static constexpr bool const size_includes_header{false};
-  static void preprocess(auto& c, std::span<uint8_t const> data) {
+  static void preprocess(auto& c, file_view const& mm) {
     if (c.header.size == std::numeric_limits<decltype(c.header.size)>::max() &&
         c.is("data")) {
-      c.header.size = data.size() - (c.pos + sizeof(c.header));
+      c.header.size = mm.size() - (c.pos + sizeof(c.header));
     }
   }
 };
@@ -295,7 +291,7 @@ struct WavChunkPolicy {
   static constexpr endianness const endian{endianness::LITTLE};
   static constexpr bool const size_includes_header{
       FormatPolicy::size_includes_header};
-  static void preprocess(auto&, std::span<uint8_t const>) {}
+  static void preprocess(auto&, file_view const&) {}
 };
 
 template <typename LoggerPolicy, typename ChunkPolicy, typename ChunkHeaderType>
@@ -303,7 +299,7 @@ class iff_parser final {
  public:
   struct chunk {
     ChunkHeaderType header;
-    size_t pos;
+    file_off_t pos;
 
     static constexpr size_t const kFourCCSize{4};
 
@@ -321,29 +317,30 @@ class iff_parser final {
       return {header.id.data(), kFourCCSize};
     }
 
-    constexpr size_t size() const { return header.size; }
+    constexpr file_size_t size() const { return header.size; }
   };
 
-  iff_parser(logger& lgr, fs::path const& path, std::span<uint8_t const> data,
-             size_t pos)
+  iff_parser(logger& lgr, fs::path const& path, file_view const& mm,
+             file_off_t pos)
       : LOG_PROXY_INIT(lgr)
-      , data_{data}
+      , mm_{mm}
       , path_{path}
       , pos_{pos} {}
 
-  template <typename T>
-  static T align(T x)
-    requires(std::is_integral_v<T> && std::is_unsigned_v<T>)
-  {
+  template <std::integral T>
+  static T align(T x) {
     if constexpr (ChunkPolicy::alignment > 1) {
-      return (x + ChunkPolicy::alignment - 1) & ~(ChunkPolicy::alignment - 1);
-    } else {
-      return x;
+      auto const offset = x % ChunkPolicy::alignment;
+      if (offset != 0) {
+        x += ChunkPolicy::alignment - offset;
+      }
     }
+
+    return x;
   }
 
-  bool check_size(std::string_view which, size_t actual_size,
-                  size_t expected_size) const {
+  bool check_size(std::string_view which, file_size_t actual_size,
+                  file_size_t expected_size) const {
     if (actual_size != expected_size) {
       if (ChunkPolicy::alignment == 1 || align(actual_size) != expected_size) {
         LOG_VERBOSE << "[" << ChunkPolicy::format_name << "] " << path_
@@ -360,14 +357,14 @@ class iff_parser final {
 
     pos_ = align(pos_);
 
-    if (pos_ + sizeof(ChunkHeaderType) <= data_.size()) {
+    if (std::cmp_less_equal(pos_ + sizeof(ChunkHeaderType), mm_.size())) {
       c.emplace();
 
       DWARFS_CHECK(read(c->header, pos_), "iff_parser::read failed");
       c->header.size = endian<ChunkPolicy::endian>::convert(c->header.size);
       c->pos = pos_;
 
-      ChunkPolicy::preprocess(*c, data_);
+      ChunkPolicy::preprocess(*c, mm_);
 
       if constexpr (ChunkPolicy::size_includes_header) {
         if (c->header.size < sizeof(ChunkHeaderType)) {
@@ -383,10 +380,10 @@ class iff_parser final {
         pos_ += c->header.size;
       }
 
-      if (pos_ > data_.size()) {
+      if (pos_ > mm_.size()) {
         LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
                  << ": unexpected end of file (pos=" << pos_
-                 << ", hdr.size=" << c->header.size << ", end=" << data_.size()
+                 << ", hdr.size=" << c->header.size << ", end=" << mm_.size()
                  << ")";
         c.reset();
         return c;
@@ -405,7 +402,7 @@ class iff_parser final {
   }
 
   template <typename T>
-  bool read(T& storage, chunk const& c, size_t len) const {
+  bool read(T& storage, chunk const& c, file_size_t len) const {
     assert(len <= c.size());
     return read(storage, c.pos + sizeof(ChunkHeaderType), len);
   }
@@ -415,7 +412,7 @@ class iff_parser final {
     return read(storage, 0, sizeof(storage));
   }
 
-  bool expected_size(chunk c, size_t expected_size) const {
+  bool expected_size(chunk c, file_size_t expected_size) const {
     if (c.size() == expected_size) {
       return true;
     }
@@ -430,16 +427,25 @@ class iff_parser final {
 
  private:
   template <typename T>
-  bool read(T& storage, size_t pos) const {
+  bool read(T& storage, file_off_t pos) const {
     return read(storage, pos, sizeof(storage));
   }
 
   template <typename T>
-  bool read(T& storage, size_t pos, size_t len) const {
-    assert(len <= sizeof(storage));
+  bool read(T& storage, file_off_t pos, file_size_t len) const {
+    assert(std::cmp_less_equal(len, sizeof(storage)));
 
-    if (pos + len <= data_.size()) {
-      std::memcpy(&storage, data_.data() + pos, len);
+    if (pos + len <= mm_.size()) {
+      std::error_code ec;
+
+      mm_.copy_to(storage, pos, len, ec);
+
+      if (ec) {
+        LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
+                 << ": read error at pos " << pos << ": " << ec.message();
+        return false;
+      }
+
       return true;
     }
 
@@ -450,9 +456,9 @@ class iff_parser final {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::span<uint8_t const> data_;
+  file_view const& mm_;
   fs::path const& path_;
-  size_t pos_;
+  file_off_t pos_;
 };
 
 std::ostream& operator<<(std::ostream& os, pcmaudio_metadata const& m) {
@@ -527,9 +533,8 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                                  &pcmaudio_metadata::number_of_channels);
   }
 
-  inode_fragments
-  categorize(file_path_info const& path, std::span<uint8_t const> data,
-             category_mapper const& mapper) const override;
+  inode_fragments categorize(file_path_info const& path, file_view const& mm,
+                             category_mapper const& mapper) const override;
 
   std::string category_metadata(std::string_view category_name,
                                 fragment_category c) const override {
@@ -549,22 +554,17 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
 
  private:
   bool check_aiff(inode_fragments& frag, fs::path const& path,
-                  std::span<uint8_t const> data,
-                  category_mapper const& mapper) const;
-  bool
-  check_caf(inode_fragments& frag, fs::path const& path,
-            std::span<uint8_t const> data, category_mapper const& mapper) const;
-  bool
-  check_wav(inode_fragments& frag, fs::path const& path,
-            std::span<uint8_t const> data, category_mapper const& mapper) const;
+                  file_view const& mm, category_mapper const& mapper) const;
+  bool check_caf(inode_fragments& frag, fs::path const& path,
+                 file_view const& mm, category_mapper const& mapper) const;
+  bool check_wav(inode_fragments& frag, fs::path const& path,
+                 file_view const& mm, category_mapper const& mapper) const;
   bool check_wav64(inode_fragments& frag, fs::path const& path,
-                   std::span<uint8_t const> data,
-                   category_mapper const& mapper) const;
+                   file_view const& mm, category_mapper const& mapper) const;
 
   template <typename FormatPolicy>
   bool check_wav_like(inode_fragments& frag, fs::path const& path,
-                      std::span<uint8_t const> data,
-                      category_mapper const& mapper) const;
+                      file_view const& mm, category_mapper const& mapper) const;
 
   bool check_metadata(pcmaudio_metadata const& meta, std::string_view context,
                       fs::path const& path) const;
@@ -574,12 +574,11 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
   handle_pcm_data(std::string_view context, ChunkT const& chunk,
                   fs::path const& path, inode_fragments& frag,
                   category_mapper const& mapper, pcmaudio_metadata const& meta,
-                  std::span<uint8_t const> data, size_t pcm_offset) const;
+                  file_size_t total_size, file_off_t pcm_offset) const;
 
-  void
-  add_fragments(inode_fragments& frag, category_mapper const& mapper,
-                pcmaudio_metadata const& meta, std::span<uint8_t const> data,
-                size_t pcm_start, size_t pcm_length) const;
+  void add_fragments(inode_fragments& frag, category_mapper const& mapper,
+                     pcmaudio_metadata const& meta, file_size_t total_size,
+                     file_off_t pcm_start, file_size_t pcm_length) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   folly::Synchronized<pcmaudio_metadata_store, std::shared_mutex> mutable meta_;
@@ -597,13 +596,8 @@ pcmaudio_categorizer_base::categories() const {
 
 template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
-    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  if (auto d = span_to_sv(data);
-      !d.starts_with("FORM") || !d.substr(8).starts_with("AIFF")) {
-    return false;
-  }
-
   FOLLY_PACK_PUSH
 
   struct file_hdr_t {
@@ -635,8 +629,18 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
   static_assert(sizeof(comm_chk_t) == 8);
   static_assert(sizeof(ssnd_chk_t) == 8);
 
-  iff_parser<LoggerPolicy, AiffChunkPolicy, chunk_hdr_t> parser(
-      LOG_GET_LOGGER, path, data, sizeof(file_hdr_t));
+  using aiff_parser = iff_parser<LoggerPolicy, AiffChunkPolicy, chunk_hdr_t>;
+
+  {
+    std::error_code ec;
+    auto const d = mm.read_string(0, 12, ec);
+
+    if (ec || !d.starts_with("FORM") || !d.substr(8).starts_with("AIFF")) {
+      return false;
+    }
+  }
+
+  aiff_parser parser(LOG_GET_LOGGER, path, mm, sizeof(file_hdr_t));
 
   file_hdr_t file_header;
   if (!parser.read_file_header(file_header)) {
@@ -646,7 +650,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
   file_header.size = folly::Endian::big(file_header.size);
 
   parser.check_size("file", file_header.size,
-                    data.size() - offsetof(file_hdr_t, form));
+                    mm.size() - offsetof(file_hdr_t, form));
 
   bool meta_valid{false};
   uint32_t num_sample_frames;
@@ -696,12 +700,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       ssnd.offset = folly::Endian::big(ssnd.offset);
       ssnd.block_size = folly::Endian::big(ssnd.block_size);
 
-      size_t pcm_start =
+      file_off_t pcm_start =
           chunk->pos + sizeof(chunk_hdr_t) + sizeof(ssnd) + ssnd.offset;
-      size_t pcm_length =
+      file_size_t pcm_length =
           num_sample_frames * (meta.number_of_channels * meta.bytes_per_sample);
 
-      if (sizeof(ssnd) + ssnd.offset + pcm_length > chunk->size()) {
+      if (std::cmp_greater(sizeof(ssnd) + ssnd.offset + pcm_length,
+                           chunk->size())) {
         LOG_WARN << "[AIFF] " << path
                  << ": `SSND` invalid chunk size: " << chunk->size()
                  << ", expected >= " << sizeof(ssnd) + ssnd.offset + pcm_length
@@ -710,7 +715,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
-      add_fragments(frag, mapper, meta, data, pcm_start, pcm_length);
+      add_fragments(frag, mapper, meta, mm.size(), pcm_start, pcm_length);
 
       return true;
     }
@@ -721,12 +726,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
 template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
-    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  if (auto d = span_to_sv(data); !d.starts_with("caff")) {
-    return false;
-  }
-
   FOLLY_PACK_PUSH
 
   struct caff_hdr_t {
@@ -769,8 +770,18 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
   static constexpr uint32_t const kCAFLinearPCMFormatFlagIsLittleEndian{1L
                                                                         << 1};
 
-  iff_parser<LoggerPolicy, CafChunkPolicy, chunk_hdr_t> parser(
-      LOG_GET_LOGGER, path, data, sizeof(caff_hdr_t));
+  using caf_parser = iff_parser<LoggerPolicy, CafChunkPolicy, chunk_hdr_t>;
+
+  {
+    std::error_code ec;
+    auto const d = mm.read_string(0, 4, ec);
+
+    if (ec || !d.starts_with("caff")) {
+      return false;
+    }
+  }
+
+  caf_parser parser(LOG_GET_LOGGER, path, mm, sizeof(caff_hdr_t));
 
   caff_hdr_t caff_hdr;
   if (!parser.read_file_header(caff_hdr)) {
@@ -876,7 +887,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       }
 
       return handle_pcm_data<chunk_hdr_t>("CAF", chunk.value(), path, frag,
-                                          mapper, meta, data,
+                                          mapper, meta, mm.size(),
                                           sizeof(data_chk_t));
     }
   }
@@ -886,27 +897,23 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
 template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav(
-    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  return check_wav_like<WavPolicy>(frag, path, data, mapper);
+  return check_wav_like<WavPolicy>(frag, path, mm, mapper);
 }
 
 template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav64(
-    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  return check_wav_like<Wav64Policy>(frag, path, data, mapper);
+  return check_wav_like<Wav64Policy>(frag, path, mm, mapper);
 }
 
 template <typename LoggerPolicy>
 template <typename FormatPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
-    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  if (auto d = span_to_sv(data); !d.starts_with(FormatPolicy::file_header_id)) {
-    return false;
-  }
-
   FOLLY_PACK_PUSH
 
   struct file_hdr_t {
@@ -946,8 +953,19 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   static constexpr uint16_t const DWARFS_WAVE_FORMAT_PCM{0x0001};
   static constexpr uint16_t const DWARFS_WAVE_FORMAT_EXTENSIBLE{0xFFFE};
 
-  iff_parser<LoggerPolicy, WavChunkPolicy<FormatPolicy>, chunk_hdr_t> parser(
-      LOG_GET_LOGGER, path, data, sizeof(file_hdr_t));
+  using wav_parser =
+      iff_parser<LoggerPolicy, WavChunkPolicy<FormatPolicy>, chunk_hdr_t>;
+
+  {
+    std::error_code ec;
+    auto const d = mm.read_string(0, FormatPolicy::file_header_id.size(), ec);
+
+    if (ec || !d.starts_with(FormatPolicy::file_header_id)) {
+      return false;
+    }
+  }
+
+  wav_parser parser(LOG_GET_LOGGER, path, mm, sizeof(file_hdr_t));
 
   file_hdr_t file_header;
   if (!parser.read_file_header(file_header)) {
@@ -961,8 +979,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   }
 
   {
-    size_t const expected_size =
-        data.size() -
+    file_size_t const expected_size =
+        mm.size() -
         (FormatPolicy::size_includes_header ? 0 : offsetof(file_hdr_t, form));
 
     parser.check_size("file", file_header.size, expected_size);
@@ -1037,7 +1055,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
 
       return handle_pcm_data<chunk_hdr_t>(FormatPolicy::format_name,
                                           chunk.value(), path, frag, mapper,
-                                          meta, data, 0);
+                                          meta, mm.size(), 0);
     }
   }
 
@@ -1071,10 +1089,10 @@ template <typename ChunkHdrT, typename ChunkT>
 bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
     std::string_view context, ChunkT const& chunk, fs::path const& path,
     inode_fragments& frag, category_mapper const& mapper,
-    pcmaudio_metadata const& meta, std::span<uint8_t const> data,
-    size_t pcm_offset) const {
-  size_t pcm_start = chunk.pos + sizeof(ChunkHdrT) + pcm_offset;
-  size_t pcm_length = chunk.size() - pcm_offset;
+    pcmaudio_metadata const& meta, file_size_t total_size,
+    file_off_t pcm_offset) const {
+  file_off_t pcm_start = chunk.pos + sizeof(ChunkHdrT) + pcm_offset;
+  file_size_t pcm_length = chunk.size() - pcm_offset;
 
   if (auto pcm_padding =
           pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
@@ -1092,7 +1110,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
     pcm_length -= pcm_padding;
   }
 
-  add_fragments(frag, mapper, meta, data, pcm_start, pcm_length);
+  add_fragments(frag, mapper, meta, total_size, pcm_start, pcm_length);
 
   return true;
 }
@@ -1100,27 +1118,27 @@ bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
 template <typename LoggerPolicy>
 void pcmaudio_categorizer_<LoggerPolicy>::add_fragments(
     inode_fragments& frag, category_mapper const& mapper,
-    pcmaudio_metadata const& meta, std::span<uint8_t const> data,
-    size_t pcm_start, size_t pcm_length) const {
+    pcmaudio_metadata const& meta, file_size_t total_size, file_off_t pcm_start,
+    file_size_t pcm_length) const {
   fragment_category::value_type subcategory = meta_.wlock()->add(meta);
 
   frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)), pcm_start);
   frag.emplace_back(fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
                     pcm_length);
 
-  if (pcm_start + pcm_length < data.size()) {
+  if (pcm_start + pcm_length < total_size) {
     frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                      data.size() - (pcm_start + pcm_length));
+                      total_size - (pcm_start + pcm_length));
   }
 }
 
 template <typename LoggerPolicy>
 inode_fragments pcmaudio_categorizer_<LoggerPolicy>::categorize(
-    file_path_info const& path, std::span<uint8_t const> data,
+    file_path_info const& path, file_view const& mm,
     category_mapper const& mapper) const {
   inode_fragments fragments;
 
-  if (data.size() >= MIN_PCMAUDIO_SIZE) {
+  if (mm.size() >= MIN_PCMAUDIO_SIZE) {
     for (auto f : {
              // clang-format off
              &pcmaudio_categorizer_::check_aiff,
@@ -1129,7 +1147,7 @@ inode_fragments pcmaudio_categorizer_<LoggerPolicy>::categorize(
              &pcmaudio_categorizer_::check_wav64,
              // clang-format on
          }) {
-      if ((this->*f)(fragments, path.full_path(), data, mapper)) {
+      if ((this->*f)(fragments, path.full_path(), mm, mapper)) {
         break;
       }
 

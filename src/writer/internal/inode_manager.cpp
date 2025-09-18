@@ -163,7 +163,7 @@ class inode_ : public inode {
         // First, run random access categorizers. If we get a result here,
         // it's very likely going to be the best result.
         catjob.set_total_size(mm.size());
-        catjob.categorize_random_access(mm.raw_bytes<uint8_t>());
+        catjob.categorize_random_access(mm);
 
         if (!catjob.best_result_found()) {
           // We must perform a sequential categorizer scan before scanning the
@@ -177,8 +177,8 @@ class inode_ : public inode {
                                           4 * chunk_size);
           progress::scan_updater supd(prog.categorize, mm.size());
           scan_range(mm, sp.get(), chunk_size,
-                     [&catjob](std::span<uint8_t const> span) {
-                       catjob.categorize_sequential(span);
+                     [&catjob](file_segment const& seg) {
+                       catjob.categorize_sequential(seg);
                      });
         }
 
@@ -442,20 +442,20 @@ class inode_ : public inode {
 
   void scan_range(file_view const& mm, scanner_progress* sprog,
                   file_off_t offset, file_size_t size, size_t chunk_size,
-                  std::invocable<file_segment> auto&& scanner,
+                  std::invocable<file_segment const&> auto&& scanner,
                   scan_mode mode = scan_mode::skip_holes) {
-    scan_range_impl<file_segment>(mm, sprog, offset, size, chunk_size,
-                                  std::forward<decltype(scanner)>(scanner),
-                                  mode);
+    scan_range_impl<file_segment const&>(
+        mm, sprog, offset, size, chunk_size,
+        std::forward<decltype(scanner)>(scanner), mode);
   }
 
   void
   scan_range(file_view const& mm, scanner_progress* sprog, size_t chunk_size,
-             std::invocable<file_segment> auto&& scanner,
+             std::invocable<file_segment const&> auto&& scanner,
              scan_mode mode = scan_mode::skip_holes) {
-    scan_range_impl<file_segment>(mm, sprog, 0, mm.size(), chunk_size,
-                                  std::forward<decltype(scanner)>(scanner),
-                                  mode);
+    scan_range_impl<file_segment const&>(
+        mm, sprog, 0, mm.size(), chunk_size,
+        std::forward<decltype(scanner)>(scanner), mode);
   }
 
   void scan_fragments(file_view const& mm, scanner_progress* sprog,

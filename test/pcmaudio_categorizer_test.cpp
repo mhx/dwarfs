@@ -36,6 +36,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/writer/categorizer.h>
 
+#include "mmap_mock.h"
 #include "test_helpers.h"
 #include "test_logger.h"
 
@@ -235,19 +236,17 @@ FOLLY_PACK_POP
 struct pcmfile_builder {
   template <typename T>
   void add(T const& t, size_t size = sizeof(T)) {
-    auto const* p = reinterpret_cast<uint8_t const*>(&t);
-    data.insert(data.end(), p, p + size);
+    auto const* p = reinterpret_cast<char const*>(&t);
+    data.append(p, size);
   }
 
-  void add_bytes(size_t count, uint8_t value) {
-    data.insert(data.end(), count, value);
-  }
+  void add_bytes(size_t count, uint8_t value) { data.append(count, value); }
 
-  std::span<uint8_t const> span() const { return data; }
+  file_view view() const { return test::make_mock_file_view(data); }
 
   size_t size() const { return data.size(); }
 
-  std::vector<uint8_t> data;
+  std::string data;
 };
 
 } // namespace
@@ -287,7 +286,7 @@ TEST(pcmaudio_categorizer, requirements) {
 
     EXPECT_TRUE(logger.empty());
 
-    job.categorize_random_access(mm.raw_bytes<uint8_t>());
+    job.categorize_random_access(mm);
     auto frag = job.result();
 
     ASSERT_EQ(1, logger.get_log().size());
@@ -313,7 +312,7 @@ TEST(pcmaudio_categorizer, requirements) {
 
     EXPECT_TRUE(logger.empty());
 
-    job.categorize_random_access(mm.raw_bytes<uint8_t>());
+    job.categorize_random_access(mm);
     auto frag = job.result();
 
     EXPECT_TRUE(logger.empty());
@@ -341,7 +340,7 @@ class pcmaudio_error_test : public testing::Test {
     // std::cout << folly::hexDump(builder.data.data(), builder.data.size());
     auto job = catmgr.job(filename());
     job.set_total_size(builder.size());
-    job.categorize_random_access(builder.span());
+    job.categorize_random_access(builder.view());
     return job.result();
   }
 

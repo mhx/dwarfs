@@ -37,10 +37,12 @@
 #include <dwarfs/writer/categorizer.h>
 
 #include "loremipsum.h"
+#include "mmap_mock.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
 using dwarfs::test::loremipsum;
+using dwarfs::test::make_mock_file_view;
 // using testing::MatchesRegex;
 
 namespace fs = std::filesystem;
@@ -60,12 +62,6 @@ std::string random_string(size_t size) {
   std::generate(begin(data), end(data), std::ref(rbe));
 
   return data;
-}
-
-std::vector<uint8_t> make_data(std::string const& s) {
-  std::vector<uint8_t> rv(s.size());
-  std::memcpy(rv.data(), s.data(), s.size());
-  return rv;
 }
 
 } // namespace
@@ -100,11 +96,15 @@ class incompressible_categorizer_fixture : public Base {
   // }
 
  public:
-  auto categorize(fs::path const& path, std::span<uint8_t const> data) {
+  auto categorize(fs::path const& path, file_view const& mm) {
     auto job = catmgr->job(path);
-    job.set_total_size(data.size());
-    job.categorize_random_access(data);
-    job.categorize_sequential(data);
+    job.set_total_size(mm.size());
+    job.categorize_random_access(mm);
+    for (auto const& ext : mm.extents()) {
+      for (auto const& seg : ext.segments()) {
+        job.categorize_sequential(seg);
+      }
+    }
     return job.result();
   }
 
@@ -136,7 +136,7 @@ TEST_F(incompressible_categorizer, requirements) {
 TEST_F(incompressible_categorizer, categorize_incompressible) {
   create_catmgr();
 
-  auto data = make_data(random_string(10'000));
+  auto data = make_mock_file_view(random_string(10'000));
   auto frag = categorize("random.txt", data);
   ASSERT_EQ(1, frag.size());
   EXPECT_EQ("incompressible",
@@ -146,7 +146,7 @@ TEST_F(incompressible_categorizer, categorize_incompressible) {
 TEST_F(incompressible_categorizer, categorize_default) {
   create_catmgr();
 
-  auto data = make_data(loremipsum(10'000));
+  auto data = make_mock_file_view(loremipsum(10'000));
   auto frag = categorize("ipsum.txt", data);
   EXPECT_TRUE(frag.empty());
 }
@@ -158,9 +158,9 @@ TEST_F(incompressible_categorizer, categorize_fragments) {
   // data:  CCCCCCCCCCCCIIIIIIIIIIIICCCCCCCCCCCCIIIIIIIIIIIICCC
   // block: 0-------1-------2-------3-------4-------5-------6--
   // frag:  def-------------incomp--def-------------incomp--def
-  auto data = make_data(loremipsum(12 * 1024) + random_string(12 * 1024) +
-                        loremipsum(12 * 1024) + random_string(12 * 1024) +
-                        loremipsum(3 * 1024));
+  auto data = make_mock_file_view(
+      loremipsum(12 * 1024) + random_string(12 * 1024) + loremipsum(12 * 1024) +
+      random_string(12 * 1024) + loremipsum(3 * 1024));
 
   auto frag = categorize("mixed.txt", data);
   ASSERT_EQ(5, frag.size());
@@ -183,12 +183,12 @@ TEST_F(incompressible_categorizer, min_input_size) {
   create_catmgr({"--incompressible-min-input-size=1000"});
 
   {
-    auto data = make_data(random_string(999));
+    auto data = make_mock_file_view(random_string(999));
     auto frag = categorize("random.txt", data);
     EXPECT_TRUE(frag.empty());
   }
   {
-    auto data = make_data(random_string(10'000));
+    auto data = make_mock_file_view(random_string(10'000));
     auto frag = categorize("random.txt", data);
     ASSERT_EQ(1, frag.size());
     EXPECT_EQ("incompressible",
@@ -205,7 +205,7 @@ TEST_P(max_ratio_test, max_ratio) {
 
   create_catmgr({arg.c_str()});
 
-  auto data = make_data(loremipsum(10'000));
+  auto data = make_mock_file_view(loremipsum(10'000));
   auto frag = categorize("ipsum.txt", data);
   if (is_incompressible) {
     ASSERT_EQ(1, frag.size());
@@ -229,7 +229,7 @@ TEST_P(zstd_accel_test, zstd_acceleration) {
 
   create_catmgr({arg.c_str()});
 
-  auto data = make_data(loremipsum(10'000));
+  auto data = make_mock_file_view(loremipsum(10'000));
   auto frag = categorize("ipsum.txt", data);
   if (is_incompressible) {
     ASSERT_EQ(1, frag.size());
