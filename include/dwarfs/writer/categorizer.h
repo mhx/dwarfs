@@ -33,6 +33,7 @@
 #include <span>
 #include <string_view>
 
+#include <dwarfs/file_view.h>
 #include <dwarfs/writer/category_resolver.h>
 #include <dwarfs/writer/inode_fragments.h>
 
@@ -85,7 +86,7 @@ class file_path_info {
 class random_access_categorizer : public categorizer {
  public:
   virtual inode_fragments
-  categorize(file_path_info const& path, std::span<uint8_t const> data,
+  categorize(file_path_info const& path, file_view const& mm,
              category_mapper const& mapper) const = 0;
 };
 
@@ -95,7 +96,7 @@ class sequential_categorizer_job {
  public:
   virtual ~sequential_categorizer_job() = default;
 
-  virtual void add(std::span<uint8_t const> data) = 0;
+  virtual void add(file_segment const& seg) = 0;
   virtual inode_fragments result() = 0;
 };
 
@@ -117,12 +118,12 @@ class categorizer_job {
     impl_->set_total_size(total_size);
   }
 
-  void categorize_random_access(std::span<uint8_t const> data) {
-    impl_->categorize_random_access(data);
+  void categorize_random_access(file_view const& mm) {
+    impl_->categorize_random_access(mm);
   }
 
-  void categorize_sequential(std::span<uint8_t const> data) {
-    impl_->categorize_sequential(data);
+  void categorize_sequential(file_segment const& seg) {
+    impl_->categorize_sequential(seg);
   }
 
   inode_fragments result() { return impl_->result(); }
@@ -136,8 +137,8 @@ class categorizer_job {
     virtual ~impl() = default;
 
     virtual void set_total_size(file_size_t total_size) = 0;
-    virtual void categorize_random_access(std::span<uint8_t const> data) = 0;
-    virtual void categorize_sequential(std::span<uint8_t const> data) = 0;
+    virtual void categorize_random_access(file_view const& mm) = 0;
+    virtual void categorize_sequential(file_segment const& seg) = 0;
     virtual inode_fragments result() = 0;
     virtual bool best_result_found() const = 0;
   };

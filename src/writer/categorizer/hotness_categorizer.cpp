@@ -58,9 +58,8 @@ class hotness_categorizer_ final : public random_access_categorizer {
 
   std::span<std::string_view const> categories() const override;
 
-  inode_fragments
-  categorize(file_path_info const& path, std::span<uint8_t const> data,
-             category_mapper const& mapper) const override;
+  inode_fragments categorize(file_path_info const& path, file_view const& mm,
+                             category_mapper const& mapper) const override;
 
   bool
   subcategory_less(fragment_category a, fragment_category b) const override;
@@ -116,7 +115,7 @@ hotness_categorizer_<LoggerPolicy>::categories() const {
 
 template <typename LoggerPolicy>
 inode_fragments hotness_categorizer_<LoggerPolicy>::categorize(
-    file_path_info const& path, std::span<uint8_t const> data,
+    file_path_info const& path, file_view const& mm,
     category_mapper const& mapper) const {
   inode_fragments fragments;
 
@@ -128,7 +127,7 @@ inode_fragments hotness_categorizer_<LoggerPolicy>::categorize(
 
     if (hotness_set_.contains(rel_path.string())) {
       fragments.emplace_back(fragment_category(mapper(HOTNESS_CATEGORY)),
-                             data.size());
+                             mm.size());
     }
   } else if (!warned_no_list_) {
     if (cfg_.hotness_list.empty()) {
