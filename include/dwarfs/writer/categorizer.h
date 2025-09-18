@@ -102,7 +102,7 @@ class sequential_categorizer_job {
 class sequential_categorizer : public categorizer {
  public:
   virtual std::unique_ptr<sequential_categorizer_job>
-  job(file_path_info const& path, size_t total_size,
+  job(file_path_info const& path, file_size_t total_size,
       category_mapper const& mapper) const = 0;
 };
 
@@ -113,7 +113,9 @@ class categorizer_job {
   categorizer_job();
   categorizer_job(std::unique_ptr<impl> impl);
 
-  void set_total_size(size_t total_size) { impl_->set_total_size(total_size); }
+  void set_total_size(file_size_t total_size) {
+    impl_->set_total_size(total_size);
+  }
 
   void categorize_random_access(std::span<uint8_t const> data) {
     impl_->categorize_random_access(data);
@@ -133,7 +135,7 @@ class categorizer_job {
    public:
     virtual ~impl() = default;
 
-    virtual void set_total_size(size_t total_size) = 0;
+    virtual void set_total_size(file_size_t total_size) = 0;
     virtual void categorize_random_access(std::span<uint8_t const> data) = 0;
     virtual void categorize_sequential(std::span<uint8_t const> data) = 0;
     virtual inode_fragments result() = 0;

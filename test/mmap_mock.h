@@ -51,10 +51,10 @@ make_mock_file_view(std::string data, std::filesystem::path const& path,
                     std::vector<detail::file_extent_info> extents,
                     mock_file_view_options const& opts = {});
 
-file_view make_mock_file_view(std::string const& data, size_t size,
+file_view make_mock_file_view(std::string const& data, file_size_t size,
                               mock_file_view_options const& opts = {});
 
-file_view make_mock_file_view(std::string const& data, size_t size,
+file_view make_mock_file_view(std::string const& data, file_size_t size,
                               std::filesystem::path const& path,
                               mock_file_view_options const& opts = {});
 

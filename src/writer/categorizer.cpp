@@ -72,7 +72,7 @@ class categorizer_job_ final : public categorizer_job::impl {
                     std::bind(&categorizer_manager_private::category,
                               std::cref(mgr_), _1)} {}
 
-  void set_total_size(size_t total_size) override;
+  void set_total_size(file_size_t total_size) override;
   void categorize_random_access(std::span<uint8_t const> data) override;
   void categorize_sequential(std::span<uint8_t const> data) override;
   inode_fragments result() override;
@@ -85,7 +85,7 @@ class categorizer_job_ final : public categorizer_job::impl {
   inode_fragments best_;
   int index_{-1};
   bool is_global_best_{false};
-  size_t total_size_{0};
+  file_size_t total_size_{0};
   std::vector<std::pair<int, std::unique_ptr<sequential_categorizer_job>>>
       seq_jobs_;
   fs::path const& root_path_;
@@ -94,7 +94,7 @@ class categorizer_job_ final : public categorizer_job::impl {
 };
 
 template <typename LoggerPolicy>
-void categorizer_job_<LoggerPolicy>::set_total_size(size_t total_size) {
+void categorizer_job_<LoggerPolicy>::set_total_size(file_size_t total_size) {
   total_size_ = total_size;
 }
 
