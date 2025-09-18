@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include <dwarfs/detail/file_view_impl.h>
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/file_segments_iterable.h>
@@ -112,18 +114,35 @@ class file_view {
 
   template <typename T>
     requires std::is_trivially_copyable_v<T>
+  void
+  copy_to(T& t, file_off_t offset, file_size_t len, std::error_code& ec) const {
+    if (std::cmp_less_equal(len, sizeof(T))) {
+      impl_->copy_bytes(&t, file_range{offset, len}, ec);
+    } else {
+      ec = make_error_code(std::errc::result_out_of_range);
+    }
+  }
+
+  template <typename T>
+    requires std::is_trivially_copyable_v<T>
   void copy_to(T& t, file_off_t offset, std::error_code& ec) const {
-    impl_->copy_bytes(&t, file_range{offset, sizeof(T)}, ec);
+    copy_to(t, offset, sizeof(T), ec);
+  }
+
+  template <typename T>
+    requires std::is_trivially_copyable_v<T>
+  void copy_to(T& t, file_off_t offset, file_size_t len) const {
+    std::error_code ec;
+    copy_to(t, offset, len, ec);
+    if (ec) {
+      throw std::system_error(ec);
+    }
   }
 
   template <typename T>
     requires std::is_trivially_copyable_v<T>
   void copy_to(T& t, file_off_t offset = 0) const {
-    std::error_code ec;
-    copy_to(t, offset, ec);
-    if (ec) {
-      throw std::system_error(ec);
-    }
+    copy_to(t, offset, sizeof(T));
   }
 
   template <typename T>
