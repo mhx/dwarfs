@@ -31,12 +31,14 @@
 
 #include <folly/portability/Stdlib.h>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/reader/internal/offset_cache.h>
 
 using namespace dwarfs;
+using namespace dwarfs::binary_literals;
 
 #ifdef GTEST_NO_U8STRING
 #define EXPECT_EQ_U8STR(a, b) EXPECT_TRUE((a) == (b))
@@ -344,20 +346,15 @@ TEST(utils, parse_time_with_unit) {
 }
 
 TEST(utils, parse_size_with_unit) {
-  EXPECT_EQ(static_cast<size_t>(2), parse_size_with_unit("2"));
-  EXPECT_EQ(static_cast<size_t>(3) * 1024, parse_size_with_unit("3k"));
-  EXPECT_EQ(static_cast<size_t>(4) * 1024 * 1024, parse_size_with_unit("4m"));
-  EXPECT_EQ(static_cast<size_t>(5) * 1024 * 1024 * 1024,
-            parse_size_with_unit("5g"));
-  EXPECT_EQ(static_cast<size_t>(6) * 1024 * 1024 * 1024 * 1024,
-            parse_size_with_unit("6t"));
-  EXPECT_EQ(static_cast<size_t>(1001) * 1024, parse_size_with_unit("1001K"));
-  EXPECT_EQ(static_cast<size_t>(1002) * 1024 * 1024,
-            parse_size_with_unit("1002M"));
-  EXPECT_EQ(static_cast<size_t>(1003) * 1024 * 1024 * 1024,
-            parse_size_with_unit("1003G"));
-  EXPECT_EQ(static_cast<size_t>(1004) * 1024 * 1024 * 1024 * 1024,
-            parse_size_with_unit("1004T"));
+  EXPECT_EQ(static_cast<file_size_t>(2), parse_size_with_unit("2"));
+  EXPECT_EQ(static_cast<file_size_t>(3_KiB), parse_size_with_unit("3k"));
+  EXPECT_EQ(static_cast<file_size_t>(4_MiB), parse_size_with_unit("4m"));
+  EXPECT_EQ(static_cast<file_size_t>(5_GiB), parse_size_with_unit("5g"));
+  EXPECT_EQ(static_cast<file_size_t>(6_TiB), parse_size_with_unit("6t"));
+  EXPECT_EQ(static_cast<file_size_t>(1001_KiB), parse_size_with_unit("1001K"));
+  EXPECT_EQ(static_cast<file_size_t>(1002_MiB), parse_size_with_unit("1002M"));
+  EXPECT_EQ(static_cast<file_size_t>(1003_GiB), parse_size_with_unit("1003G"));
+  EXPECT_EQ(static_cast<file_size_t>(1004_TiB), parse_size_with_unit("1004T"));
   EXPECT_THROW(parse_size_with_unit("7y"), dwarfs::runtime_error);
   EXPECT_THROW(parse_size_with_unit("7tb"), dwarfs::runtime_error);
   EXPECT_THROW(parse_size_with_unit("asd"), dwarfs::runtime_error);

@@ -922,16 +922,18 @@ TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_childre_value) {
   EXPECT_THAT(err(), ::testing::HasSubstr("invalid max-children value: 0"));
 }
 
-TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_cluster_size_value) {
+TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_cluster_size_value_zero) {
   EXPECT_NE(0,
             run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=0"}));
   EXPECT_THAT(err(), ::testing::HasSubstr("invalid max-cluster-size value: 0"));
 }
 
-TEST_F(mkdwarfs_main_test, order_nilsimsa_cannot_parse_value) {
+TEST_F(mkdwarfs_main_test,
+       order_nilsimsa_invalid_max_cluster_size_value_negative) {
   EXPECT_NE(
       0, run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
-  EXPECT_THAT(err(), ::testing::HasSubstr("cannot parse size value"));
+  EXPECT_THAT(err(),
+              ::testing::HasSubstr("invalid max-cluster-size value: -1"));
 }
 
 TEST_F(mkdwarfs_main_test, order_nilsimsa_duplicate_option) {
