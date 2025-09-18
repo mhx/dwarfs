@@ -39,6 +39,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 
@@ -63,7 +64,7 @@ class os_access {
   virtual file_view map_file(std::filesystem::path const& path) const = 0;
   // TODO: [[deprecated("use map_file without size parameter")]]
   virtual file_view
-  map_file(std::filesystem::path const& path, size_t size) const = 0;
+  map_file(std::filesystem::path const& path, file_size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
   virtual std::filesystem::path
   canonical(std::filesystem::path const& path) const = 0;

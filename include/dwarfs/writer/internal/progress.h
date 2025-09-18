@@ -35,6 +35,7 @@
 #include <vector>
 
 #include <dwarfs/terminal.h>
+#include <dwarfs/types.h>
 #include <dwarfs/writer/internal/speedometer.h>
 
 namespace dwarfs::writer {
@@ -52,8 +53,8 @@ class progress {
       std::string context;
       std::string status_string;
       std::optional<std::string> path;
-      std::optional<size_t> bytes_processed;
-      std::optional<size_t> bytes_total;
+      std::optional<file_size_t> bytes_processed;
+      std::optional<file_size_t> bytes_total;
     };
 
     virtual ~context() = default;
@@ -65,7 +66,7 @@ class progress {
   };
 
   using status_function_type =
-      std::function<std::string(progress const&, size_t)>;
+      std::function<std::string(progress const&, file_size_t)>;
 
   progress();
   ~progress();
@@ -86,8 +87,8 @@ class progress {
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   std::atomic<object const*> current{nullptr};
   std::atomic<uint64_t> total_bytes_read{0};
-  std::atomic<size_t> current_size{0};
-  std::atomic<size_t> current_offset{0};
+  std::atomic<file_size_t> current_size{0};
+  std::atomic<file_off_t> current_offset{0};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};
@@ -124,7 +125,7 @@ class progress {
 
   class scan_updater {
    public:
-    scan_updater(scan_progress& sp, size_t bytes)
+    scan_updater(scan_progress& sp, file_size_t bytes)
         : sp_{sp}
         , bytes_{bytes}
         , start_{std::chrono::steady_clock::now()} {}
@@ -140,7 +141,7 @@ class progress {
 
    private:
     scan_progress& sp_;
-    size_t const bytes_;
+    file_size_t const bytes_;
     std::chrono::steady_clock::time_point const start_;
   };
 

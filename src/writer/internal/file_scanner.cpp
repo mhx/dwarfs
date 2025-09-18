@@ -40,6 +40,7 @@
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/types.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/worker_group.h>
@@ -55,8 +56,8 @@ using namespace dwarfs::internal;
 
 namespace {
 
-constexpr size_t const kLargeFileThreshold = 1024 * 1024;
-constexpr size_t const kLargeFileStartHashSize = 4096;
+constexpr file_size_t const kLargeFileThreshold = 1024 * 1024;
+constexpr file_size_t const kLargeFileStartHashSize = 4096;
 
 } // namespace
 

@@ -121,7 +121,7 @@ class inode_ : public inode {
     files_ = std::move(fv);
   }
 
-  void populate(size_t size) override {
+  void populate(file_size_t size) override {
     assert(fragments_.empty());
     fragments_.emplace_back(categorizer_manager::default_category(), size);
   }
@@ -191,7 +191,7 @@ class inode_ : public inode {
     // fragment to store the inode's chunks. This won't use up any resources
     // as a single fragment is stored inline.
     if (fragments_.size() <= 1) {
-      size_t size = mm ? mm.size() : 0;
+      file_size_t size = mm ? mm.size() : 0;
       if (fragments_.empty()) {
         populate(size);
       }
@@ -202,7 +202,7 @@ class inode_ : public inode {
     }
   }
 
-  size_t size() const override { return any()->size(); }
+  file_size_t size() const override { return any()->size(); }
 
   file const* any() const override {
     DWARFS_CHECK(!files_.empty(), "inode has no file (any)");

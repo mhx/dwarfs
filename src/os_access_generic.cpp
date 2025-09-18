@@ -122,7 +122,8 @@ file_view os_access_generic::map_file(fs::path const& path) const {
   return create_mmap_file_view(path);
 }
 
-file_view os_access_generic::map_file(fs::path const& path, size_t size) const {
+file_view
+os_access_generic::map_file(fs::path const& path, file_size_t size) const {
   return create_mmap_file_view(path, size);
 }
 

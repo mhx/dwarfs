@@ -100,7 +100,7 @@ inline std::string trimmed(std::string in) {
 
 } // namespace
 
-std::string size_with_unit(size_t size) {
+std::string size_with_unit(file_size_t size) {
   return trimmed(folly::prettyPrint(size, folly::PRETTY_BYTES_IEC, true));
 }
 
@@ -112,8 +112,8 @@ std::string time_with_unit(std::chrono::nanoseconds ns) {
   return time_with_unit(1e-9 * ns.count());
 }
 
-size_t parse_size_with_unit(std::string const& str) {
-  size_t value;
+file_size_t parse_size_with_unit(std::string const& str) {
+  file_size_t value;
   auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
 
   if (ec != std::errc()) {

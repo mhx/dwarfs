@@ -49,7 +49,7 @@ namespace {
 constexpr std::string_view const INCOMPRESSIBLE_CATEGORY{"incompressible"};
 
 struct incompressible_categorizer_config {
-  size_t min_input_size{0};
+  file_size_t min_input_size{0};
   size_t block_size{0};
   bool generate_fragments{false};
   double max_ratio{0.0};
@@ -201,7 +201,7 @@ class incompressible_categorizer_ final : public sequential_categorizer {
 
   std::span<std::string_view const> categories() const override;
   std::unique_ptr<sequential_categorizer_job>
-  job(file_path_info const& path, size_t total_size,
+  job(file_path_info const& path, file_size_t total_size,
       category_mapper const& mapper) const override;
 
   bool
@@ -228,7 +228,8 @@ incompressible_categorizer_::categories() const {
 }
 
 std::unique_ptr<sequential_categorizer_job>
-incompressible_categorizer_::job(file_path_info const& path, size_t total_size,
+incompressible_categorizer_::job(file_path_info const& path,
+                                 file_size_t total_size,
                                  category_mapper const& mapper) const {
   if (total_size < config_.min_input_size) {
     return nullptr;
