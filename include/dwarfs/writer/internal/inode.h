@@ -32,6 +32,7 @@
 
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
+#include <dwarfs/types.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/internal/sortable_span.h>
 #include <dwarfs/writer/object.h>
@@ -63,7 +64,7 @@ class inode : public object {
   using files_vector = small_vector<file*, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
-  virtual void populate(size_t size) = 0;
+  virtual void populate(file_size_t size) = 0;
   virtual void
   scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
   virtual void set_num(uint32_t num) = 0;
@@ -73,7 +74,7 @@ class inode : public object {
   similarity_hash(fragment_category cat) const = 0;
   virtual nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
-  virtual size_t size() const = 0;
+  virtual file_size_t size() const = 0;
   virtual file const* any() const = 0;
   virtual files_vector const& all() const = 0;
   virtual bool

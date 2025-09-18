@@ -76,7 +76,7 @@ namespace {
 constexpr std::string_view const METADATA_CATEGORY{"fits/metadata"};
 constexpr std::string_view const IMAGE_CATEGORY{"fits/image"};
 
-constexpr size_t const FITS_SIZE_GRANULARITY{2880};
+constexpr file_size_t const FITS_SIZE_GRANULARITY{2880};
 
 std::optional<std::endian> parse_endian(std::string_view e) {
   static std::unordered_map<std::string_view, std::endian> const lookup{

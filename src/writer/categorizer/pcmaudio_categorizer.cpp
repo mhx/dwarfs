@@ -55,7 +55,7 @@ namespace {
 constexpr std::string_view const METADATA_CATEGORY{"pcmaudio/metadata"};
 constexpr std::string_view const WAVEFORM_CATEGORY{"pcmaudio/waveform"};
 
-constexpr size_t const MIN_PCMAUDIO_SIZE{32};
+constexpr file_size_t const MIN_PCMAUDIO_SIZE{32};
 
 enum class endianness : uint8_t {
   BIG,

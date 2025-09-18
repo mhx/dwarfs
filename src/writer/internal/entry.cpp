@@ -178,13 +178,13 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
   entry_v2.ctime_offset() = data.get_ctime_offset(stat_.ctime_unchecked());
 }
 
-size_t entry::size() const { return stat_.size(); }
+file_size_t entry::size() const { return stat_.size(); }
 
 uint64_t entry::raw_inode_num() const { return stat_.ino(); }
 
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 
-void entry::override_size(size_t size) { stat_.set_size(size); }
+void entry::override_size(file_size_t size) { stat_.set_size(size); }
 
 entry::type_t file::type() const { return E_FILE; }
 
@@ -220,7 +220,7 @@ void file::scan(os_access const& /*os*/, progress& /*prog*/) {
 
 void file::scan(file_view const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
-  size_t s = size();
+  auto s = size();
 
   if (hash_alg) {
     progress::scan_updater supd(prog.hash, s);
@@ -230,7 +230,7 @@ void file::scan(file_view const& mm, progress& prog,
       std::shared_ptr<scanner_progress> pctx;
       auto const chunk_size = prog.hash.chunk_size.load();
 
-      if (s >= 4 * chunk_size) {
+      if (std::cmp_greater_equal(s, 4 * chunk_size)) {
         pctx = prog.create_context<scanner_progress>(
             termcolor::MAGENTA, kHashContext, path_as_string(), s);
       }
