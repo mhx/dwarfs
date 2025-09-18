@@ -47,7 +47,7 @@ class os_access_generic : public os_access {
   read_symlink(std::filesystem::path const& path) const override;
   file_view map_file(std::filesystem::path const& path) const override;
   file_view
-  map_file(std::filesystem::path const& path, size_t size) const override;
+  map_file(std::filesystem::path const& path, file_size_t size) const override;
   int access(std::filesystem::path const& path, int mode) const override;
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;

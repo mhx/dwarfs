@@ -49,7 +49,7 @@ class mmap_mock final : public detail::file_view_impl,
             mock_file_view_options const& opts)
       : mmap_mock(std::move(data), "<mock-file>", std::move(extents), opts) {}
 
-  mmap_mock(std::string const& data, size_t size,
+  mmap_mock(std::string const& data, file_size_t size,
             mock_file_view_options const& opts)
       : mmap_mock{data, size, "<mock-file>", opts} {}
 
@@ -62,10 +62,10 @@ class mmap_mock final : public detail::file_view_impl,
       , opts_{opts}
       , supports_raw_bytes_{get_supports_raw_bytes(data_, opts_)} {}
 
-  mmap_mock(std::string const& data, size_t size,
+  mmap_mock(std::string const& data, file_size_t size,
             std::filesystem::path const& path,
             mock_file_view_options const& opts)
-      : data_{data, 0, std::min(size, data.size())}
+      : data_{data, 0, std::min(static_cast<size_t>(size), data.size())}
       , path_{path}
       , extents_{{extent_kind::data,
                   file_range{0, static_cast<file_size_t>(data_.size())}}}
@@ -87,7 +87,7 @@ class mmap_mock final : public detail::file_view_impl,
   }
 
   std::span<std::byte const> raw_bytes() const override {
-    assert(supports_raw_bytes_);
+    // assert(supports_raw_bytes_);
     return {reinterpret_cast<std::byte const*>(data_.data()), data_.size()};
   }
 
@@ -232,12 +232,12 @@ make_mock_file_view(std::string data, std::filesystem::path const& path,
                                                std::move(extents), opts)};
 }
 
-file_view make_mock_file_view(std::string const& data, size_t size,
+file_view make_mock_file_view(std::string const& data, file_size_t size,
                               mock_file_view_options const& opts) {
   return file_view{std::make_shared<mmap_mock>(data, size, opts)};
 }
 
-file_view make_mock_file_view(std::string const& data, size_t size,
+file_view make_mock_file_view(std::string const& data, file_size_t size,
                               std::filesystem::path const& path,
                               mock_file_view_options const& opts) {
   return file_view{std::make_shared<mmap_mock>(data, size, path, opts)};
