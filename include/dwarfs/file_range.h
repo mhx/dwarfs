@@ -56,8 +56,13 @@ class file_range {
   file_range subrange(file_off_t offset, file_size_t size) const {
     assert(offset >= 0);
     assert(size >= 0);
-    assert(offset + size <= this->size());
+    assert(offset + size <= size_);
     return {offset_ + offset, size};
+  }
+
+  file_range subrange(file_off_t offset) const {
+    assert(offset >= 0);
+    return {offset_ + offset, size_ - offset};
   }
 
   friend bool
