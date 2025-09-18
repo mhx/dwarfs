@@ -807,10 +807,9 @@ class granular_extent_adapter<GranularityPolicy, false>
     return this->bytes_to_frames(match_length);
   }
 
-  void release_until(file_off_t offset) {
-    // TODO
-    static_cast<void>(
-        ext_.release_until(ext_.offset() + this->frames_to_bytes(offset)));
+  void release_until(file_off_t offset_in_bytes) {
+    std::error_code ec;
+    ext_.release_until(offset_in_bytes, ec);
   }
 
  private:
@@ -934,8 +933,8 @@ class granular_extent_adapter<GranularityPolicy, true>
     return this->bytes_to_frames(match_length);
   }
 
-  void release_until(file_off_t offset) {
-    queue_.release_until(ext_.offset() + offset);
+  void release_until(file_off_t offset_in_bytes) {
+    queue_.release_until(ext_.offset() + offset_in_bytes);
   }
 
  private:

@@ -98,9 +98,7 @@ class mmap_mock final : public detail::file_view_impl,
 
   std::filesystem::path const& path() const override { return path_; }
 
-  std::error_code release_until(file_off_t) const override {
-    return std::error_code();
-  }
+  void release_until(file_off_t, std::error_code&) const override {}
 
   void const* addr() const { return data_.data(); }
 
