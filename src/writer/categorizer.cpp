@@ -73,8 +73,8 @@ class categorizer_job_ final : public categorizer_job::impl {
                               std::cref(mgr_), _1)} {}
 
   void set_total_size(file_size_t total_size) override;
-  void categorize_random_access(std::span<uint8_t const> data) override;
-  void categorize_sequential(std::span<uint8_t const> data) override;
+  void categorize_random_access(file_view const& mm) override;
+  void categorize_sequential(file_segment const& seg) override;
   inode_fragments result() override;
   bool best_result_found() const override;
 
@@ -100,11 +100,11 @@ void categorizer_job_<LoggerPolicy>::set_total_size(file_size_t total_size) {
 
 template <typename LoggerPolicy>
 void categorizer_job_<LoggerPolicy>::categorize_random_access(
-    std::span<uint8_t const> data) {
+    file_view const& mm) {
   DWARFS_CHECK(index_ < 0,
                "internal error: index already set in categorize_random_access");
 
-  total_size_ = data.size();
+  total_size_ = mm.size();
 
   bool global_best = true;
 
@@ -112,7 +112,7 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
 
   for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
     if (auto p = dynamic_cast<random_access_categorizer*>(cat.get())) {
-      if (auto c = p->categorize(path_info, data, cat_mapper_)) {
+      if (auto c = p->categorize(path_info, mm, cat_mapper_)) {
         best_ = c;
         index_ = index;
         is_global_best_ = global_best;
@@ -126,7 +126,7 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
 
 template <typename LoggerPolicy>
 void categorizer_job_<LoggerPolicy>::categorize_sequential(
-    std::span<uint8_t const> data) {
+    file_segment const& seg) {
   if (is_global_best_) {
     return;
   }
@@ -148,7 +148,7 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
   }
 
   for (auto&& [index, job] : seq_jobs_) {
-    job->add(data);
+    job->add(seg);
   }
 }
 

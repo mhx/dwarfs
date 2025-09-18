@@ -39,6 +39,7 @@
 
 #include <dwarfs/writer/categorizer.h>
 
+#include "mmap_mock.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
@@ -73,14 +74,6 @@ class fits_categorizer_fixture : public Base {
   }
 
  public:
-  auto categorize(fs::path const& path, std::span<uint8_t const> data) {
-    auto job = catmgr->job(path);
-    job.set_total_size(data.size());
-    job.categorize_random_access(data);
-    job.categorize_sequential(data);
-    return job.result();
-  }
-
   std::shared_ptr<writer::categorizer_manager> catmgr;
   test::test_logger lgr{logger::INFO};
 };
@@ -148,8 +141,10 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
 
         auto job = catmgr->job(
             fmt::format("test-{}-{}-{}", offset, pixel, unused_lsb_count));
-        job.set_total_size(fits.size());
-        job.categorize_random_access(fits);
+        auto mm = test::make_mock_file_view(std::string{
+            reinterpret_cast<char const*>(fits.data()), fits.size()});
+        job.set_total_size(mm.size());
+        job.categorize_random_access(mm);
         auto frag = job.result();
         auto fs = frag.span();
         ASSERT_EQ(3, fs.size());

@@ -94,9 +94,9 @@ struct fits_info {
   unsigned pixel_bits{};
   unsigned component_count{};
   unsigned unused_lsb_count{};
-  std::span<uint8_t const> header;
-  std::span<uint8_t const> imagedata;
-  std::span<uint8_t const> footer;
+  file_range header;
+  file_range imagedata;
+  file_range footer;
 };
 
 std::string_view trim(std::string_view sv) {
@@ -111,8 +111,11 @@ std::string_view trim(std::string_view sv) {
   return sv;
 }
 
-template <typename T>
-unsigned get_unused_lsb_count(std::span<uint8_t const> imagedata);
+template <std::unsigned_integral T>
+T merge_sample_bits(std::span<uint8_t const> data);
+
+template <std::unsigned_integral T>
+unsigned get_unused_lsb_count(file_extents_iterable const& extents);
 
 template <typename T>
 T fold_left_bit_or(std::span<uint8_t const> data) {
@@ -123,7 +126,7 @@ T fold_left_bit_or(std::span<uint8_t const> data) {
 }
 
 template <>
-unsigned get_unused_lsb_count<uint16_t>(std::span<uint8_t const> imagedata) {
+uint16_t merge_sample_bits<uint16_t>(std::span<uint8_t const> imagedata) {
   static constexpr uint64_t const kLsbMask{std::endian::native ==
                                                    std::endian::little
                                                ? UINT64_C(0x0100010001000100)
@@ -157,7 +160,7 @@ unsigned get_unused_lsb_count<uint16_t>(std::span<uint8_t const> imagedata) {
       b512[k] |= p[b512.size() * i + k];
     }
     if (b512[0] & kLsbMask) {
-      return 0;
+      return UINT16_MAX; // all bits used
     }
   }
 
@@ -166,13 +169,28 @@ unsigned get_unused_lsb_count<uint16_t>(std::span<uint8_t const> imagedata) {
   b16 |= fold_left_bit_or<uint16_t>(imagedata.subspan(
       size * kAlignment, imagedata.size_bytes() % kAlignment));
 
-  return std::countr_zero(folly::Endian::big(b16));
+  return folly::Endian::big(b16);
 }
 
-std::optional<fits_info> parse_fits(std::span<uint8_t const> data) {
-  std::span<char const> fits{reinterpret_cast<char const*>(data.data()),
-                             data.size_bytes()};
+template <>
+unsigned get_unused_lsb_count<uint16_t>(file_extents_iterable const& extents) {
+  uint16_t b16{0};
 
+  for (auto const& ext : extents) {
+    if (ext.kind() == extent_kind::data) {
+      for (auto const& seg : ext.segments()) {
+        b16 |= merge_sample_bits<uint16_t>(seg.span<uint8_t>());
+        if (b16 & 1) {
+          return 0; // short-circuit: LSB is used
+        }
+      }
+    }
+  }
+
+  return std::countr_zero(b16);
+}
+
+std::optional<fits_info> parse_fits(file_view const& mm) {
   fits_info fi;
   fi.component_count = 1;
 
@@ -181,13 +199,24 @@ std::optional<fits_info> parse_fits(std::span<uint8_t const> data) {
   int xdim = -1;
   int ydim = -1;
 
-  for (auto row : fits | ranges::views::chunk(80)) {
+  file_off_t filepos = 0;
+
+  for (;;) {
+    std::error_code ec;
+    auto row = mm.read_string(filepos, 80, ec);
+
+    if (ec) {
+      break;
+    }
+
+    filepos += 80;
+
 #if defined(__apple_build_version__) && __apple_build_version__ < 14000000
     std::string_view rv{row.data(), row.size()};
 #else
     std::string_view rv{row.begin(), row.end()};
 #endif
-    auto keyword = trim(rv.substr(0, 8));
+    auto const keyword = trim(rv.substr(0, 8));
     if (keyword == "COMMENT") {
       continue;
     }
@@ -197,14 +226,15 @@ std::optional<fits_info> parse_fits(std::span<uint8_t const> data) {
       }
 
       auto const header_frames =
-          (std::distance(fits.begin(), row.end()) + FITS_SIZE_GRANULARITY - 1) /
-          FITS_SIZE_GRANULARITY;
-      fi.header = data.subspan(0, header_frames * FITS_SIZE_GRANULARITY);
+          (filepos + FITS_SIZE_GRANULARITY - 1) / FITS_SIZE_GRANULARITY;
+      auto const range = mm.range();
+      fi.header = range.subrange(0, header_frames * FITS_SIZE_GRANULARITY);
       fi.imagedata =
-          data.subspan(fi.header.size(), xdim * ydim * sizeof(uint16_t));
-      fi.footer = data.subspan(fi.header.size() + fi.imagedata.size());
+          range.subrange(fi.header.size(), xdim * ydim * sizeof(uint16_t));
+      fi.footer = mm.range().subrange(fi.header.size() + fi.imagedata.size());
       fi.pixel_bits = static_cast<unsigned>(pixel_bits);
-      fi.unused_lsb_count = get_unused_lsb_count<uint16_t>(fi.imagedata);
+      fi.unused_lsb_count =
+          get_unused_lsb_count<uint16_t>(mm.extents(fi.imagedata));
       return fi;
     }
     if (rv[8] != '=') {
@@ -338,9 +368,8 @@ class fits_categorizer_ final : public fits_categorizer_base {
                               &fits_metadata::component_count);
   }
 
-  inode_fragments
-  categorize(file_path_info const& path, std::span<uint8_t const> data,
-             category_mapper const& mapper) const override;
+  inode_fragments categorize(file_path_info const& path, file_view const& mm,
+                             category_mapper const& mapper) const override;
 
   std::string category_metadata(std::string_view category_name,
                                 fragment_category c) const override {
@@ -395,13 +424,15 @@ bool fits_categorizer_<LoggerPolicy>::check_metadata(
 
 template <typename LoggerPolicy>
 inode_fragments fits_categorizer_<LoggerPolicy>::categorize(
-    file_path_info const& path, std::span<uint8_t const> data,
+    file_path_info const& path, file_view const& mm,
     category_mapper const& mapper) const {
   inode_fragments fragments;
 
-  if (data.size() >= 2 * FITS_SIZE_GRANULARITY &&
-      data.size() % FITS_SIZE_GRANULARITY == 0) {
-    if (auto fi = parse_fits(data)) {
+  auto const file_size = mm.size();
+
+  if (file_size >= 2 * FITS_SIZE_GRANULARITY &&
+      file_size % FITS_SIZE_GRANULARITY == 0) {
+    if (auto fi = parse_fits(mm)) {
       if (fi->pixel_bits == 16) {
         fits_metadata meta;
         meta.endianness = std::endian::big;
