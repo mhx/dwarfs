@@ -31,6 +31,7 @@
 #ifdef _WIN32
 #include <boost/filesystem/path.hpp>
 #include <folly/portability/Windows.h>
+#include <winioctl.h>
 #else
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -50,7 +51,117 @@ namespace {
 
 using namespace binary_literals;
 
-#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+#ifdef _WIN32
+
+std::vector<detail::file_extent_info>
+get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
+  std::vector<detail::file_extent_info> extents;
+
+  ec.clear();
+
+  HANDLE h =
+      ::CreateFileW(path.c_str(), GENERIC_READ,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+  if (h == INVALID_HANDLE_VALUE) {
+    ec = std::error_code(::GetLastError(), std::system_category());
+    return extents;
+  }
+
+  scope_exit close_h{[&] { ::CloseHandle(h); }};
+
+  LARGE_INTEGER size_li{};
+  if (!::GetFileSizeEx(h, &size_li)) {
+    ec = std::error_code(::GetLastError(), std::system_category());
+    return extents;
+  }
+
+  uint64_t const size = static_cast<uint64_t>(size_li.QuadPart);
+  if (size == 0) {
+    return extents;
+  }
+
+  std::vector<FILE_ALLOCATED_RANGE_BUFFER> ranges;
+  FILE_ALLOCATED_RANGE_BUFFER in{};
+  uint64_t next_start{0};
+
+  constexpr size_t kMaxRangesPerCall{256};
+
+  while (next_start < size) {
+    in.FileOffset.QuadPart = static_cast<LONGLONG>(next_start);
+    in.Length.QuadPart = static_cast<LONGLONG>(size - next_start);
+
+    size_t const old_count = ranges.size();
+    DWORD bytes{0};
+
+    ranges.resize(old_count + kMaxRangesPerCall);
+
+    BOOL ok = ::DeviceIoControl(
+        h, FSCTL_QUERY_ALLOCATED_RANGES, &in, sizeof(in), &ranges[old_count],
+        static_cast<DWORD>(kMaxRangesPerCall *
+                           sizeof(FILE_ALLOCATED_RANGE_BUFFER)),
+        &bytes, nullptr);
+
+    size_t const count = bytes / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
+    ranges.resize(old_count + count);
+
+    if (!ok) {
+      if (auto const err = ::GetLastError(); err != ERROR_MORE_DATA) {
+        ec = std::error_code(err, std::system_category());
+        ranges.clear();
+        break;
+      }
+    }
+
+    if (count == 0) {
+      break;
+    }
+
+    next_start =
+        ranges.back().FileOffset.QuadPart + ranges.back().Length.QuadPart;
+  }
+
+  if (!ranges.empty()) {
+    // coalesce adjacent ranges
+    for (size_t i = 1; i < ranges.size(); ++i) {
+      auto& prev = ranges[i - 1];
+      auto& curr = ranges[i];
+
+      if (prev.FileOffset.QuadPart + prev.Length.QuadPart ==
+          curr.FileOffset.QuadPart) {
+        prev.Length.QuadPart += curr.Length.QuadPart;
+        curr.Length.QuadPart = 0;
+      }
+    }
+
+    // remove empty ranges
+    ranges.erase(
+        std::remove_if(ranges.begin(), ranges.end(),
+                       [](auto const& r) { return r.Length.QuadPart == 0; }),
+        ranges.end());
+
+    file_off_t last_end = 0;
+
+    // convert to file_extent_info and add holes
+    for (size_t i = 0; i < ranges.size(); ++i) {
+      auto const& r = ranges[i];
+      file_off_t const offset = static_cast<file_off_t>(r.FileOffset.QuadPart);
+      file_size_t const length = static_cast<file_size_t>(r.Length.QuadPart);
+
+      if (offset > last_end) {
+        extents.emplace_back(extent_kind::hole,
+                             file_range{last_end, offset - last_end});
+      }
+
+      extents.emplace_back(extent_kind::data, file_range{offset, length});
+    }
+  }
+
+  return extents;
+}
+
+#elif defined(SEEK_HOLE) && defined(SEEK_DATA)
 
 std::vector<detail::file_extent_info>
 get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
@@ -101,20 +212,30 @@ get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
   return extents;
 }
 
+#else
+
+std::vector<detail::file_extent_info>
+get_file_extents(std::filesystem::path const& /*path*/, std::error_code& ec) {
+  ec = make_error_code(std::errc::not_supported);
+  return {};
+}
+
+#endif
+
 std::vector<detail::file_extent_info>
 get_file_extents(std::filesystem::path const& path) {
   std::error_code ec;
   auto extents = get_file_extents(path, ec);
   if (ec) {
     extents.clear();
-    extents.emplace_back(extent_kind::data,
-                         file_range{0, static_cast<file_size_t>(
-                                           std::filesystem::file_size(path))});
+    auto const size = std::filesystem::file_size(path, ec);
+    if (!ec && size > 0) {
+      extents.emplace_back(extent_kind::data,
+                           file_range{0, static_cast<file_size_t>(size)});
+    }
   }
   return extents;
 }
-
-#endif
 
 class mmap_file_view final
     : public detail::file_view_impl,
