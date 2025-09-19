@@ -39,9 +39,12 @@ namespace dwarfs {
 class file_range {
  public:
   file_range() = default;
-  file_range(file_off_t offset, file_size_t size)
+
+  template <std::integral T>
+    requires(std::numeric_limits<T>::digits >= 31)
+  file_range(file_off_t offset, T size)
       : offset_{offset}
-      , size_{size} {}
+      , size_{static_cast<file_size_t>(size)} {}
 
   bool empty() const noexcept { return size_ == 0; }
 
