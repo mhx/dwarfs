@@ -51,13 +51,19 @@
 #include <mach/thread_info.h>
 #endif
 
+#include <fmt/core.h>
+
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
 
 namespace fs = std::filesystem;
+
+using namespace binary_literals;
 
 namespace {
 
@@ -103,7 +109,59 @@ class generic_dir_reader final : public dir_reader {
   fs::directory_iterator it_;
 };
 
+constexpr bool kIs32BitArch = sizeof(void*) == 4;
+constexpr auto kIolayerOptsVar = "DWARFS_IOLAYER_OPTS";
+constexpr auto kMaxEagerMapSizeOpt = "max_eager_map_size";
+
+std::unordered_map<std::string_view, std::string_view>
+parse_iolayer_opts(std::string_view str) {
+  std::unordered_map<std::string_view, std::string_view> opts;
+
+  for (auto const part : split_to<std::vector<std::string_view>>(str, ',')) {
+    auto const pos = part.find('=');
+
+    if (pos != std::string_view::npos) {
+      opts.emplace(part.substr(0, pos), part.substr(pos + 1));
+    } else {
+      opts.emplace(part, std::string_view{});
+    }
+  }
+
+  return opts;
+}
+
 } // namespace
+
+struct os_access_generic::data {
+  data() {
+    if (kIs32BitArch) {
+      mmap_opts.max_eager_map_size.emplace(32_MiB);
+    }
+
+    if (auto const value = std::getenv(kIolayerOptsVar)) {
+      auto opts = parse_iolayer_opts(value);
+
+      if (auto it = opts.find(kMaxEagerMapSizeOpt); it != opts.end()) {
+        if (it->second == "unlimited") {
+          mmap_opts.max_eager_map_size.reset();
+        } else {
+          mmap_opts.max_eager_map_size.emplace(
+              parse_size_with_unit(std::string{it->second}));
+        }
+        opts.erase(it);
+      }
+
+      if (!opts.empty()) {
+        for (auto const& [key, val] : opts) {
+          fmt::print(stderr, "warning: ignoring unknown {} option '{}'\n",
+                     kIolayerOptsVar, key);
+        }
+      }
+    }
+  }
+
+  mmap_file_view_options mmap_opts;
+};
 
 std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
@@ -119,7 +177,7 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::open_file(fs::path const& path) const {
-  return create_mmap_file_view(path);
+  return create_mmap_file_view(path, data_->mmap_opts);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {
@@ -242,5 +300,10 @@ os_access_generic::find_executable(std::filesystem::path const& name) const {
   return boost::process::search_path(name.wstring()).wstring();
 #endif
 }
+
+os_access_generic::os_access_generic()
+    : data_{std::make_unique<data>()} {}
+
+os_access_generic::~os_access_generic() = default;
 
 } // namespace dwarfs
