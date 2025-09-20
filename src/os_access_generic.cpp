@@ -118,7 +118,7 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
   return fs::read_symlink(path);
 }
 
-file_view os_access_generic::map_file(fs::path const& path) const {
+file_view os_access_generic::open_file(fs::path const& path) const {
   return create_mmap_file_view(path);
 }
 
