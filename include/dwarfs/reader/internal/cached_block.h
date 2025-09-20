@@ -51,7 +51,7 @@ class cached_block {
  public:
   static std::unique_ptr<cached_block>
   create(logger& lgr, dwarfs::internal::fs_section const& b,
-         file_segment const& seg, byte_buffer_factory const& bbf, bool release,
+         file_segment const& seg, byte_buffer_factory const& bbf,
          bool disable_integrity_check);
 
   // TODO: have a create method for an uncompressed block,
