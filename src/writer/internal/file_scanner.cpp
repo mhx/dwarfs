@@ -421,10 +421,18 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   if (size > 0) {
     // TODO: use exception-less variant once provided
     try {
-      mm = os_.map_file(p->fs_path(), size);
+      mm = os_.map_file(p->fs_path());
     } catch (...) {
       LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
                 << exception_str(std::current_exception())
+                << ", creating empty file";
+      ++prog_.errors;
+      p->set_invalid();
+      return;
+    }
+
+    if (mm.size() != size) {
+      LOG_ERROR << "file size changed for " << p->path_as_string()
                 << ", creating empty file";
       ++prog_.errors;
       p->set_invalid();
