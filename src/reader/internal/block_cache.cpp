@@ -577,7 +577,7 @@ class block_cache_ final : public block_cache::impl {
 
       std::shared_ptr<cached_block> block = cached_block::create(
           LOG_GET_LOGGER, section, section.segment(mm_), buffer_factory_,
-          options_.mm_release, options_.disable_block_integrity_check);
+          options_.disable_block_integrity_check);
       blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
