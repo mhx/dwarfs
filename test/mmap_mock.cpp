@@ -49,26 +49,12 @@ class mmap_mock final : public detail::file_view_impl,
             mock_file_view_options const& opts)
       : mmap_mock(std::move(data), "<mock-file>", std::move(extents), opts) {}
 
-  mmap_mock(std::string const& data, file_size_t size,
-            mock_file_view_options const& opts)
-      : mmap_mock{data, size, "<mock-file>", opts} {}
-
   mmap_mock(std::string data, std::filesystem::path const& path,
             std::vector<detail::file_extent_info> extents,
             mock_file_view_options const& opts)
       : data_{std::move(data)}
       , path_{path}
       , extents_{default_extent(std::move(extents), data_.size())}
-      , opts_{opts}
-      , supports_raw_bytes_{get_supports_raw_bytes(data_, opts_)} {}
-
-  mmap_mock(std::string const& data, file_size_t size,
-            std::filesystem::path const& path,
-            mock_file_view_options const& opts)
-      : data_{data, 0, std::min(static_cast<size_t>(size), data.size())}
-      , path_{path}
-      , extents_{{extent_kind::data,
-                  file_range{0, static_cast<file_size_t>(data_.size())}}}
       , opts_{opts}
       , supports_raw_bytes_{get_supports_raw_bytes(data_, opts_)} {}
 
@@ -228,17 +214,6 @@ make_mock_file_view(std::string data, std::filesystem::path const& path,
                     mock_file_view_options const& opts) {
   return file_view{std::make_shared<mmap_mock>(std::move(data), path,
                                                std::move(extents), opts)};
-}
-
-file_view make_mock_file_view(std::string const& data, file_size_t size,
-                              mock_file_view_options const& opts) {
-  return file_view{std::make_shared<mmap_mock>(data, size, opts)};
-}
-
-file_view make_mock_file_view(std::string const& data, file_size_t size,
-                              std::filesystem::path const& path,
-                              mock_file_view_options const& opts) {
-  return file_view{std::make_shared<mmap_mock>(data, size, path, opts)};
 }
 
 } // namespace dwarfs::test
