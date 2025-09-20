@@ -41,13 +41,18 @@ class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
-  explicit mmap_file_view(std::filesystem::path const& path)
+  mmap_file_view(std::filesystem::path const& path,
+                 mmap_file_view_options const& opts)
       : file_{internal::mappable_file::create(path)}
-      , mapping_{file_.map_readonly()}
       , path_{path}
-      , extents_{file_.get_extents_noexcept()} {}
+      , extents_{file_.get_extents_noexcept()} {
+    if (!opts.max_eager_map_size.has_value() ||
+        file_.size() <= opts.max_eager_map_size.value()) {
+      mapping_.emplace(file_.map_readonly());
+    }
+  }
 
-  file_size_t size() const override { return mapping_.size(); }
+  file_size_t size() const override { return file_.size(); }
 
   file_segment segment_at(file_range range) const override;
 
@@ -59,10 +64,12 @@ class mmap_file_view final
     return {shared_from_this(), extents_, *range};
   }
 
-  bool supports_raw_bytes() const noexcept override { return true; }
+  bool supports_raw_bytes() const noexcept override {
+    return mapping_.has_value();
+  }
 
   std::span<std::byte const> raw_bytes() const override {
-    return mapping_.const_span();
+    return mapping_.value().const_span();
   }
 
   void
@@ -71,19 +78,21 @@ class mmap_file_view final
   size_t default_segment_size() const override { return 16_MiB; }
 
   void release_until(file_off_t offset, std::error_code& ec) const override {
-    mapping_.advise(io_advice::dontneed, 0, offset, ec);
+    if (mapping_.has_value()) {
+      mapping_->advise(io_advice::dontneed, 0, offset, ec);
+    }
   }
 
   std::filesystem::path const& path() const override { return path_; }
 
   // Not exposed publicly
   internal::readonly_memory_mapping const& mapping() const noexcept {
-    return mapping_;
+    return mapping_.value();
   }
 
  private:
   internal::mappable_file file_;
-  internal::readonly_memory_mapping mapping_;
+  std::optional<internal::readonly_memory_mapping> mapping_;
   std::filesystem::path const path_;
   std::vector<detail::file_extent_info> const extents_;
 };
@@ -125,17 +134,54 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
   file_range const range_;
 };
 
+class mmap_file_segment final : public detail::file_segment_impl {
+ public:
+  mmap_file_segment(internal::readonly_memory_mapping&& mm, file_range range)
+      : mm_{std::move(mm)}
+      , range_{range} {}
+
+  file_off_t offset() const noexcept override { return range_.offset(); }
+
+  file_size_t size() const noexcept override { return range_.size(); }
+
+  file_range range() const noexcept override { return range_; }
+
+  bool is_zero() const noexcept override { return false; }
+
+  std::span<std::byte const> raw_bytes() const override {
+    return mm_.const_span();
+  }
+
+  void advise(io_advice /*adv*/, file_range /*range*/,
+              std::error_code& /*ec*/) const override {
+    // mm_->mapping().advise(adv, range.offset(), range.size(), ec);
+  }
+
+  void lock(std::error_code& /*ec*/) const override {
+    // mm_->mapping().lock(ec);
+  }
+
+ private:
+  internal::readonly_memory_mapping mm_;
+  file_range const range_;
+};
+
 file_segment mmap_file_view::segment_at(file_range range) const {
   auto const offset = range.offset();
   auto const size = range.size();
 
   if (offset < 0 || size == 0 ||
-      std::cmp_greater(offset + size, mapping_.size())) {
+      std::cmp_greater(offset + size, file_.size())) {
     return {};
   }
 
-  return file_segment(
-      std::make_shared<mmap_ref_file_segment>(shared_from_this(), range));
+  if (mapping_.has_value()) {
+    return file_segment(
+        std::make_shared<mmap_ref_file_segment>(shared_from_this(), range));
+  }
+
+  return file_segment(std::make_shared<mmap_file_segment>(
+      file_.map_readonly(range.offset(), range.size()), range));
 }
 
 void mmap_file_view::copy_bytes(void* dest, file_range range,
@@ -152,18 +198,27 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
     return;
   }
 
-  if (std::cmp_greater(offset + size, mapping_.size())) {
+  if (std::cmp_greater(offset + size, file_.size())) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }
 
-  std::memcpy(dest, mapping_.const_span().data() + offset, size);
+  if (mapping_.has_value()) {
+    std::memcpy(dest, mapping_->const_span().data() + offset, size);
+  } else {
+    file_.read(dest, offset, size, ec);
+  }
 }
 
 } // namespace
 
+file_view create_mmap_file_view(std::filesystem::path const& path,
+                                mmap_file_view_options const& opts) {
+  return file_view(std::make_shared<mmap_file_view>(path, opts));
+}
+
 file_view create_mmap_file_view(std::filesystem::path const& path) {
-  return file_view(std::make_shared<mmap_file_view>(path));
+  return create_mmap_file_view(path, {});
 }
 
 } // namespace dwarfs

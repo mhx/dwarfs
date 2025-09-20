@@ -29,11 +29,18 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 
 #include <dwarfs/file_view.h>
 
 namespace dwarfs {
 
+struct mmap_file_view_options {
+  std::optional<file_size_t> max_eager_map_size;
+};
+
 file_view create_mmap_file_view(std::filesystem::path const& path);
+file_view create_mmap_file_view(std::filesystem::path const& path,
+                                mmap_file_view_options const& opts);
 
 } // namespace dwarfs
