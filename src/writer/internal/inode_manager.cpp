@@ -344,7 +344,7 @@ class inode_ : public inode {
     for (auto fp : files_) {
       if (!fp->is_invalid()) {
         try {
-          mm = os.map_file(fp->fs_path());
+          mm = os.open_file(fp->fs_path());
           if (mm.size() != fp->size()) {
             mm.reset();
             throw std::runtime_error(fmt::format(
@@ -736,7 +736,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
       if (size > 0 && !p->is_invalid()) {
         try {
-          mm = os.map_file(p->fs_path());
+          mm = os.open_file(p->fs_path());
         } catch (...) {
           p->set_invalid();
           // If this file *was* successfully mapped before, there's a slight
