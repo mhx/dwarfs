@@ -1529,13 +1529,13 @@ class filesystem_full_
 
 filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
                                        std::filesystem::path const& path)
-    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path))) {}
+    : filesystem_v2_lite(lgr, os, os.open_file(os.canonical(path))) {}
 
 filesystem_v2_lite::filesystem_v2_lite(
     logger& lgr, os_access const& os, std::filesystem::path const& path,
     filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path)), options,
+    : filesystem_v2_lite(lgr, os, os.open_file(os.canonical(path)), options,
                          perfmon) {}
 
 filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
@@ -1554,13 +1554,13 @@ filesystem_v2_lite::filesystem_v2_lite(
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
-    : filesystem_v2(lgr, os, os.map_file(os.canonical(path))) {}
+    : filesystem_v2(lgr, os, os.open_file(os.canonical(path))) {}
 
 filesystem_v2::filesystem_v2(
     logger& lgr, os_access const& os, std::filesystem::path const& path,
     filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : filesystem_v2(lgr, os, os.map_file(os.canonical(path)), options,
+    : filesystem_v2(lgr, os, os.open_file(os.canonical(path)), options,
                     perfmon) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
