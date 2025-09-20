@@ -47,12 +47,6 @@ class mmap_file_view final
       , path_{path}
       , extents_{file_.get_extents_noexcept()} {}
 
-  mmap_file_view(std::filesystem::path const& path, file_size_t size)
-      : file_{internal::mappable_file::create(path)}
-      , mapping_{file_.map_readonly(0, size)}
-      , path_{path}
-      , extents_{file_.get_extents_noexcept()} {}
-
   file_size_t size() const override { return mapping_.size(); }
 
   file_segment segment_at(file_range range) const override;
@@ -170,11 +164,6 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
 file_view create_mmap_file_view(std::filesystem::path const& path) {
   return file_view(std::make_shared<mmap_file_view>(path));
-}
-
-file_view
-create_mmap_file_view(std::filesystem::path const& path, file_size_t size) {
-  return file_view(std::make_shared<mmap_file_view>(path, size));
 }
 
 } // namespace dwarfs

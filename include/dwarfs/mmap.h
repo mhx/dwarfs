@@ -35,7 +35,5 @@
 namespace dwarfs {
 
 file_view create_mmap_file_view(std::filesystem::path const& path);
-file_view
-create_mmap_file_view(std::filesystem::path const& path, file_size_t size);
 
 } // namespace dwarfs
