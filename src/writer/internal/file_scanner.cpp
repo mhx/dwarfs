@@ -284,7 +284,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
     if (!p->is_invalid()) {
       try {
         auto seg =
-            os_.map_file(p->fs_path()).segment_at(0, kLargeFileStartHashSize);
+            os_.open_file(p->fs_path()).segment_at(0, kLargeFileStartHashSize);
         checksum cs(checksum::xxh3_64);
         cs.update(seg.span());
         cs.finalize(&start_hash);
@@ -421,7 +421,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   if (size > 0) {
     // TODO: use exception-less variant once provided
     try {
-      mm = os_.map_file(p->fs_path());
+      mm = os_.open_file(p->fs_path());
     } catch (...) {
       LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
                 << exception_str(std::current_exception())
