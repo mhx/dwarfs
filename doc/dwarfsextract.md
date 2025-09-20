@@ -132,6 +132,22 @@ to disk:
   suitable pager (e.g. `less`) is found, the manual page is displayed
   in the pager.
 
+## ENVIRONMENT VARIABLES
+
+The `DWARFS_IOLAYER_OPTS` environment variable can be used to configure
+certain aspects of the I/O layer used by all DwarFS tools. The value
+consists of a comma-separated list of key-value pairs (or just keys for
+boolean options). The following options are supported:
+
+- `max_eager_map_size`=*value*:
+  The maximum size of a file that will be eagerly mapped into memory
+  when opened. Larger files will be accessed using on-demand mappings.
+  This is mostly relevant for 32-bit systems, where the address space
+  is limited. *value* can be either `unlimited`, a size in bytes, or
+  an integer value with a suffix of `k`, `m`, or `g` to indicate
+  kibibytes, mebibytes, or gibibytes, respectively. The default is
+  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
