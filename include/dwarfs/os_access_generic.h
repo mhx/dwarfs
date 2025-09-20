@@ -40,6 +40,9 @@ namespace dwarfs {
 
 class os_access_generic : public os_access {
  public:
+  os_access_generic();
+  ~os_access_generic();
+
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
   file_stat symlink_info(std::filesystem::path const& path) const override;
@@ -57,5 +60,10 @@ class os_access_generic : public os_access {
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
+
+ private:
+  struct data;
+  std::unique_ptr<data const> data_;
 };
+
 } // namespace dwarfs
