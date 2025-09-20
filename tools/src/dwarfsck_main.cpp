@@ -302,7 +302,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     auto input_path = iol.os->canonical(input);
 
-    auto mm = iol.os->map_file(input_path);
+    auto mm = iol.os->open_file(input_path);
 
     if (print_header) {
       if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {
