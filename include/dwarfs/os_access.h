@@ -60,8 +60,7 @@ class os_access {
   virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
-  // TODO: rename to open_file, add overload that accepts std::error_code&
-  virtual file_view map_file(std::filesystem::path const& path) const = 0;
+  virtual file_view open_file(std::filesystem::path const& path) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
   virtual std::filesystem::path
   canonical(std::filesystem::path const& path) const = 0;
