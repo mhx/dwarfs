@@ -31,104 +31,45 @@
 #include <stdexcept>
 #include <system_error>
 
-#ifdef _WIN32
-#include <folly/portability/Windows.h>
-#else
-#include <sys/mman.h>
-#endif
-
 #include <dwarfs/malloc_byte_buffer.h>
 
+#include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 
 namespace dwarfs::reader::internal {
 
+using namespace dwarfs::internal;
+
 namespace {
-
-class mmap_block {
- public:
-  explicit mmap_block(size_t size)
-      : data_{allocate(size)}
-      , size_{size} {}
-
-  ~mmap_block() {
-    if (data_) {
-      deallocate(data_, size_);
-    }
-  }
-
-  mmap_block(mmap_block const& other) = delete;
-  mmap_block& operator=(mmap_block const& other) = delete;
-  mmap_block(mmap_block&& other) = delete;
-  mmap_block& operator=(mmap_block&& other) = delete;
-
-  size_t size() const { return size_; }
-
-  uint8_t* data() { return static_cast<uint8_t*>(data_); }
-  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
-
- private:
-  static void* allocate(size_t size) {
-#ifdef _WIN32
-    void* data =
-        ::VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    if (!data) {
-      std::error_code ec(::GetLastError(), std::system_category());
-      throw std::runtime_error("VirtualAlloc failed: " + ec.message());
-    }
-#else
-    void* data = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (data == MAP_FAILED) {
-      throw std::runtime_error("mmap failed");
-    }
-#endif
-    return data;
-  }
-
-  static void deallocate(void* data, size_t size) {
-#ifdef _WIN32
-    auto rv [[maybe_unused]] = ::VirtualFree(data, 0, MEM_RELEASE);
-    assert(rv);
-#else
-    auto rv [[maybe_unused]] = ::munmap(data, size);
-    assert(rv == 0);
-#endif
-  }
-
-  void* data_;
-  size_t size_;
-};
 
 class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
  public:
   explicit mmap_byte_buffer_impl(size_t size)
-      : data_{size} {}
+      : mm_{mappable_file::map_empty(size)}
+      , data_{reinterpret_cast<uint8_t*>(mm_.span<uint8_t>().data())} {}
 
   size_t size() const override { return size_; }
 
-  size_t capacity() const override { return data_.size(); }
+  size_t capacity() const override { return mm_.size(); }
 
-  uint8_t const* data() const override { return data_.data(); }
+  uint8_t const* data() const override { return data_; }
 
-  uint8_t* mutable_data() override { return data_.data(); }
+  uint8_t* mutable_data() override { return data_; }
 
-  std::span<uint8_t const> span() const override {
-    return {data_.data(), size_};
-  }
+  std::span<uint8_t const> span() const override { return {data_, size_}; }
 
-  std::span<uint8_t> mutable_span() override { return {data_.data(), size_}; }
+  std::span<uint8_t> mutable_span() override { return {data_, size_}; }
 
   void clear() override { frozen_error("clear"); }
 
   void reserve(size_t size) override {
-    if (size > data_.size()) {
+    if (size > mm_.size()) {
       frozen_error("reserve");
     }
   }
 
   void resize(size_t size) override {
-    if (size > data_.size()) {
+    if (size > mm_.size()) {
       frozen_error("resize beyond capacity");
     }
     size_ = size;
@@ -141,14 +82,14 @@ class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
   }
 
   void append(void const* data, size_t size) override {
-    if (size_ + size > data_.size()) {
+    if (size_ + size > mm_.size()) {
       frozen_error("append beyond capacity");
     }
-    std::memcpy(data_.data() + size_, data, size);
+    std::memcpy(data_ + size_, data, size);
     size_ += size;
   }
 
-  dwarfs::internal::malloc_buffer& raw_buffer() override {
+  malloc_buffer& raw_buffer() override {
     throw std::runtime_error(
         "operation not allowed on mmap buffer: raw_buffer");
   }
@@ -159,7 +100,8 @@ class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
                              std::string{what});
   }
 
-  mmap_block data_;
+  memory_mapping mm_;
+  uint8_t* data_;
   size_t size_{0};
 };
 
