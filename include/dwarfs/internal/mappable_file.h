@@ -32,8 +32,11 @@
 #include <memory>
 #include <optional>
 #include <system_error>
+#include <vector>
 
 #include <dwarfs/types.h>
+
+#include <dwarfs/detail/file_extent_info.h>
 
 #include <dwarfs/internal/memory_mapping.h>
 
@@ -57,6 +60,18 @@ class mappable_file {
   file_size_t size(std::error_code& ec) const { return impl_->size(&ec); }
 
   file_size_t size() const { return impl_->size(nullptr); }
+
+  std::vector<dwarfs::detail::file_extent_info>
+  get_extents(std::error_code& ec) const {
+    return impl_->get_extents(&ec);
+  }
+
+  std::vector<dwarfs::detail::file_extent_info> get_extents() const {
+    return impl_->get_extents(nullptr);
+  }
+
+  std::vector<dwarfs::detail::file_extent_info>
+  get_extents_noexcept() const noexcept;
 
   readonly_memory_mapping map_readonly(std::error_code& ec) const {
     return impl_->map_readonly(std::nullopt, &ec);
@@ -100,6 +115,8 @@ class mappable_file {
     virtual ~impl() = default;
 
     virtual file_size_t size(std::error_code* ec) const = 0;
+    virtual std::vector<dwarfs::detail::file_extent_info>
+    get_extents(std::error_code* ec) const = 0;
     virtual readonly_memory_mapping
     map_readonly(std::optional<file_range> range,
                  std::error_code* ec) const = 0;

@@ -27,215 +27,20 @@
  */
 
 #include <cerrno>
-
-#ifdef _WIN32
-#include <boost/filesystem/path.hpp>
-#include <folly/portability/Windows.h>
-#include <winioctl.h>
-#else
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
-
-#include <boost/iostreams/device/mapped_file.hpp>
+#include <vector>
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/scope_exit.h>
 
+#include <dwarfs/internal/mappable_file.h>
+
 namespace dwarfs {
 
 namespace {
 
 using namespace binary_literals;
-
-#ifdef _WIN32
-
-std::vector<detail::file_extent_info>
-get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
-  std::vector<detail::file_extent_info> extents;
-
-  ec.clear();
-
-  HANDLE h =
-      ::CreateFileW(path.c_str(), GENERIC_READ,
-                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-  if (h == INVALID_HANDLE_VALUE) {
-    ec = std::error_code(::GetLastError(), std::system_category());
-    return extents;
-  }
-
-  scope_exit close_h{[&] { ::CloseHandle(h); }};
-
-  LARGE_INTEGER size_li{};
-  if (!::GetFileSizeEx(h, &size_li)) {
-    ec = std::error_code(::GetLastError(), std::system_category());
-    return extents;
-  }
-
-  uint64_t const size = static_cast<uint64_t>(size_li.QuadPart);
-  if (size == 0) {
-    return extents;
-  }
-
-  std::vector<FILE_ALLOCATED_RANGE_BUFFER> ranges;
-  FILE_ALLOCATED_RANGE_BUFFER in{};
-  uint64_t next_start{0};
-
-  constexpr size_t kMaxRangesPerCall{256};
-
-  while (next_start < size) {
-    in.FileOffset.QuadPart = static_cast<LONGLONG>(next_start);
-    in.Length.QuadPart = static_cast<LONGLONG>(size - next_start);
-
-    size_t const old_count = ranges.size();
-    DWORD bytes{0};
-
-    ranges.resize(old_count + kMaxRangesPerCall);
-
-    BOOL ok = ::DeviceIoControl(
-        h, FSCTL_QUERY_ALLOCATED_RANGES, &in, sizeof(in), &ranges[old_count],
-        static_cast<DWORD>(kMaxRangesPerCall *
-                           sizeof(FILE_ALLOCATED_RANGE_BUFFER)),
-        &bytes, nullptr);
-
-    size_t const count = bytes / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
-    ranges.resize(old_count + count);
-
-    if (!ok) {
-      if (auto const err = ::GetLastError(); err != ERROR_MORE_DATA) {
-        ec = std::error_code(err, std::system_category());
-        ranges.clear();
-        break;
-      }
-    }
-
-    if (count == 0) {
-      break;
-    }
-
-    next_start =
-        ranges.back().FileOffset.QuadPart + ranges.back().Length.QuadPart;
-  }
-
-  if (!ranges.empty()) {
-    // coalesce adjacent ranges
-    for (size_t i = 1; i < ranges.size(); ++i) {
-      auto& prev = ranges[i - 1];
-      auto& curr = ranges[i];
-
-      if (prev.FileOffset.QuadPart + prev.Length.QuadPart ==
-          curr.FileOffset.QuadPart) {
-        prev.Length.QuadPart += curr.Length.QuadPart;
-        curr.Length.QuadPart = 0;
-      }
-    }
-
-    // remove empty ranges
-    ranges.erase(
-        std::remove_if(ranges.begin(), ranges.end(),
-                       [](auto const& r) { return r.Length.QuadPart == 0; }),
-        ranges.end());
-
-    file_off_t last_end = 0;
-
-    // convert to file_extent_info and add holes
-    for (size_t i = 0; i < ranges.size(); ++i) {
-      auto const& r = ranges[i];
-      file_off_t const offset = static_cast<file_off_t>(r.FileOffset.QuadPart);
-      file_size_t const length = static_cast<file_size_t>(r.Length.QuadPart);
-
-      if (offset > last_end) {
-        extents.emplace_back(extent_kind::hole,
-                             file_range{last_end, offset - last_end});
-      }
-
-      extents.emplace_back(extent_kind::data, file_range{offset, length});
-    }
-  }
-
-  return extents;
-}
-
-#elif defined(SEEK_HOLE) && defined(SEEK_DATA)
-
-std::vector<detail::file_extent_info>
-get_file_extents(std::filesystem::path const& path, std::error_code& ec) {
-  std::vector<detail::file_extent_info> extents;
-
-  auto fd = ::open(path.c_str(), O_RDONLY);
-  if (fd < 0) {
-    ec.assign(errno, std::generic_category());
-    return extents;
-  }
-
-  scope_exit close_fd{[fd]() { ::close(fd); }};
-
-  int whence = SEEK_DATA;
-  off_t offset = 0;
-
-  for (;;) {
-    off_t rv = ::lseek(fd, offset, whence);
-
-    if (rv < 0) {
-      if (errno != ENXIO) {
-        ec.assign(errno, std::generic_category());
-      }
-      break;
-    }
-
-    extent_kind kind;
-
-    switch (whence) {
-    case SEEK_DATA:
-      kind = extent_kind::hole;
-      whence = SEEK_HOLE;
-      break;
-    case SEEK_HOLE:
-      kind = extent_kind::data;
-      whence = SEEK_DATA;
-      break;
-    default:
-      DWARFS_PANIC("invalid whence");
-    }
-
-    if (rv > offset) {
-      extents.emplace_back(kind, file_range{offset, rv - offset});
-      offset = rv;
-    }
-  }
-
-  return extents;
-}
-
-#else
-
-std::vector<detail::file_extent_info>
-get_file_extents(std::filesystem::path const& /*path*/, std::error_code& ec) {
-  ec = make_error_code(std::errc::not_supported);
-  return {};
-}
-
-#endif
-
-std::vector<detail::file_extent_info>
-get_file_extents(std::filesystem::path const& path) {
-  std::error_code ec;
-  auto extents = get_file_extents(path, ec);
-  if (ec) {
-    extents.clear();
-    auto const size = std::filesystem::file_size(path, ec);
-    if (!ec && size > 0) {
-      extents.emplace_back(extent_kind::data,
-                           file_range{0, static_cast<file_size_t>(size)});
-    }
-  }
-  return extents;
-}
 
 class mmap_file_view final
     : public detail::file_view_impl,
@@ -264,15 +69,13 @@ class mmap_file_view final
   std::filesystem::path const& path() const override;
 
   // Not exposed publicly
-  void const* addr() const { return mf_.const_data(); }
-
-  std::error_code advise(io_advice adv, file_range range) const;
-
-  std::error_code lock(file_range range) const;
+  internal::readonly_memory_mapping const& mapping() const noexcept {
+    return mapping_;
+  }
 
  private:
-  boost::iostreams::mapped_file mutable mf_;
-  uint64_t const page_size_;
+  internal::mappable_file file_;
+  internal::readonly_memory_mapping mapping_;
   std::filesystem::path const path_;
   std::vector<detail::file_extent_info> const extents_;
 };
@@ -293,66 +96,27 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
   bool is_zero() const noexcept override { return false; }
 
   std::span<std::byte const> raw_bytes() const override {
-    return {static_cast<std::byte const*>(mm_->addr()) + range_.offset(),
-            static_cast<size_t>(range_.size())};
+    return mm_->mapping().const_span().subspan(range_.offset(), range_.size());
   }
 
   void
   advise(io_advice adv, file_range range, std::error_code& ec) const override {
-    ec = mm_->advise(adv, range);
+    mm_->mapping().advise(adv, range.offset(), range.size(), ec);
   }
 
-  void lock(std::error_code& ec) const override { ec = mm_->lock(range_); }
+  void lock(std::error_code& ec) const override { mm_->mapping().lock(ec); }
 
  private:
   std::shared_ptr<mmap_file_view const> mm_;
   file_range const range_;
 };
 
-uint64_t get_page_size() {
-#ifdef _WIN32
-  ::SYSTEM_INFO info;
-  ::GetSystemInfo(&info);
-  return info.dwPageSize;
-#else
-  return ::sysconf(_SC_PAGESIZE);
-#endif
-}
-
-#ifndef _WIN32
-int posix_advice(io_advice adv) {
-  switch (adv) {
-  case io_advice::normal:
-    return MADV_NORMAL;
-  case io_advice::random:
-    return MADV_RANDOM;
-  case io_advice::sequential:
-    return MADV_SEQUENTIAL;
-  case io_advice::willneed:
-    return MADV_WILLNEED;
-  case io_advice::dontneed:
-    return MADV_DONTNEED;
-  }
-
-  DWARFS_PANIC("invalid advice");
-
-  return MADV_NORMAL;
-}
-#endif
-
-decltype(auto) get_file_path(std::filesystem::path const& path) {
-#ifdef _WIN32
-  return boost::filesystem::path{path.native()};
-#else
-  return path.native();
-#endif
-}
-
 file_segment mmap_file_view::segment_at(file_range range) const {
   auto const offset = range.offset();
   auto const size = range.size();
 
-  if (offset < 0 || size == 0 || std::cmp_greater(offset + size, mf_.size())) {
+  if (offset < 0 || size == 0 ||
+      std::cmp_greater(offset + size, mapping_.size())) {
     return {};
   }
 
@@ -371,7 +135,7 @@ mmap_file_view::extents(std::optional<file_range> range) const {
 bool mmap_file_view::supports_raw_bytes() const noexcept { return true; }
 
 std::span<std::byte const> mmap_file_view::raw_bytes() const {
-  return {reinterpret_cast<std::byte const*>(mf_.const_data()), mf_.size()};
+  return mapping_.const_span();
 }
 
 void mmap_file_view::copy_bytes(void* dest, file_range range,
@@ -388,92 +152,35 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
     return;
   }
 
-  if (std::cmp_greater(offset + size, mf_.size())) {
+  if (std::cmp_greater(offset + size, mapping_.size())) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }
 
-  std::memcpy(dest, mf_.const_data() + offset, size);
-}
-
-std::error_code mmap_file_view::lock(file_range range [[maybe_unused]]) const {
-  std::error_code ec;
-
-  auto const offset = range.offset();
-  auto const size = range.size();
-  auto data = mf_.const_data() + offset;
-
-#ifdef _WIN32
-  if (::VirtualLock(const_cast<char*>(data), size) == 0) {
-    ec.assign(::GetLastError(), std::system_category());
-  }
-#else
-  if (::mlock(data, size) != 0) {
-    ec.assign(errno, std::generic_category());
-  }
-#endif
-
-  return ec;
-}
-
-std::error_code
-mmap_file_view::advise(io_advice adv [[maybe_unused]],
-                       file_range range [[maybe_unused]]) const {
-  std::error_code ec;
-
-#ifdef _WIN32
-  //// TODO: this doesn't currently work
-  // if (::VirtualFree(data, size, MEM_DECOMMIT) == 0) {
-  //   ec.assign(::GetLastError(), std::system_category());
-  // }
-#else
-  auto offset = range.offset();
-  auto size = range.size();
-  auto misalign = offset % page_size_;
-
-  offset -= misalign;
-  size += misalign;
-  size -= size % page_size_;
-
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  auto data = const_cast<char*>(mf_.const_data() + offset);
-
-  int native_adv = posix_advice(adv);
-
-  if (::madvise(data, size, native_adv) != 0) {
-    ec.assign(errno, std::generic_category());
-  }
-#endif
-
-  return ec;
+  std::memcpy(dest, mapping_.const_span().data() + offset, size);
 }
 
 void mmap_file_view::release_until(file_off_t offset,
                                    std::error_code& ec) const {
-  ec = advise(io_advice::dontneed, file_range{0, offset});
+  mapping_.advise(io_advice::dontneed, 0, offset, ec);
 }
 
-file_size_t mmap_file_view::size() const { return mf_.size(); }
+file_size_t mmap_file_view::size() const { return mapping_.size(); }
 
 std::filesystem::path const& mmap_file_view::path() const { return path_; }
 
 mmap_file_view::mmap_file_view(std::filesystem::path const& path)
-    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly}
-    , page_size_{get_page_size()}
+    : file_{internal::mappable_file::create(path)}
+    , mapping_{file_.map_readonly()}
     , path_{path}
-    , extents_{get_file_extents(path)} {
-  DWARFS_CHECK(mf_.is_open(), "failed to map file");
-}
+    , extents_{file_.get_extents_noexcept()} {}
 
 mmap_file_view::mmap_file_view(std::filesystem::path const& path,
                                file_size_t size)
-    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly,
-          static_cast<size_t>(size)}
-    , page_size_{get_page_size()}
+    : file_{internal::mappable_file::create(path)}
+    , mapping_{file_.map_readonly(0, size)}
     , path_{path}
-    , extents_{get_file_extents(path)} {
-  DWARFS_CHECK(mf_.is_open(), "failed to map file");
-}
+    , extents_{file_.get_extents_noexcept()} {}
 
 } // namespace
 
