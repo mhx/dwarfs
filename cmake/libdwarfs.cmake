@@ -257,7 +257,6 @@ target_link_libraries(
   PUBLIC
   Boost::boost
   Boost::chrono
-  Boost::iostreams
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
