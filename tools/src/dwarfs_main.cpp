@@ -188,7 +188,6 @@ struct options {
   int enable_nlink{0};
   int readonly{0};
   int case_insensitive{0};
-  int cache_image{0};
   int cache_files{0};
   size_t cachesize{0};
   size_t blocksize{0};
@@ -304,8 +303,6 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
-    DWARFS_OPT("cache_image", cache_image, 1),
-    DWARFS_OPT("no_cache_image", cache_image, 0),
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
 #if DWARFS_PERFMON_ENABLED
@@ -1263,7 +1260,6 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o case_insensitive    perform case-insensitive lookups\n"
      << "    -o preload_category=NAME  preload blocks from this category\n"
      << "    -o preload_all         preload all file system blocks\n"
-     << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
      << "    -o analysis_file=FILE  write accessed files to this file\n"
@@ -1492,7 +1488,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.max_bytes = opts.cachesize;
   fsopts.block_cache.num_workers = opts.workers;
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
-  fsopts.block_cache.mm_release = !opts.cache_image;
   fsopts.block_cache.sequential_access_detector_threshold =
       opts.seq_detector_threshold;
   fsopts.block_cache.allocation_mode = opts.block_allocator;
@@ -1582,7 +1577,6 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto& opts = userdata.opts;
 
   userdata.progname = std::filesystem::path(argv[0]);
-  opts.cache_image = 0;
   opts.cache_files = 1;
 
   fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
