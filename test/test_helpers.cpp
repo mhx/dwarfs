@@ -451,8 +451,7 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
       fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-file_view
-os_access_mock::map_file(fs::path const& path, file_size_t size) const {
+file_view os_access_mock::map_file(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
@@ -465,22 +464,23 @@ os_access_mock::map_file(fs::path const& path, file_size_t size) const {
       }
     }
 
-    if (size >= map_file_delay_min_size_) {
+    auto data = de->v | match{
+                            [](std::string const& str) { return str; },
+                            [](std::function<std::string()> const& fun) {
+                              return fun();
+                            },
+                            [](auto const&) -> std::string {
+                              throw std::runtime_error("oops in match");
+                            },
+                        };
+
+    if (std::cmp_greater_equal(data.size(), map_file_delay_min_size_)) {
       if (auto it = map_file_delays_.find(path); it != map_file_delays_.end()) {
         std::this_thread::sleep_for(it->second);
       }
     }
 
-    return make_mock_file_view(
-        de->v |
-            match{
-                [](std::string const& str) { return str; },
-                [](std::function<std::string()> const& fun) { return fun(); },
-                [](auto const&) -> std::string {
-                  throw std::runtime_error("oops in match");
-                },
-            },
-        size, path);
+    return make_mock_file_view(std::move(data), path);
   }
 
   throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
@@ -494,10 +494,6 @@ std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
     }
   }
   return rv;
-}
-
-file_view os_access_mock::map_file(fs::path const& path) const {
-  return map_file(path, std::numeric_limits<size_t>::max());
 }
 
 int os_access_mock::access(fs::path const& path, int) const {
