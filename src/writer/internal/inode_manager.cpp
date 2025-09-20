@@ -346,7 +346,12 @@ class inode_ : public inode {
     for (auto fp : files_) {
       if (!fp->is_invalid()) {
         try {
-          mm = os.map_file(fp->fs_path(), fp->size());
+          mm = os.map_file(fp->fs_path());
+          if (mm.size() != fp->size()) {
+            mm.reset();
+            throw std::runtime_error(fmt::format(
+                "file size changed: was {}, now {}", fp->size(), mm.size()));
+          }
           rfp = fp;
           break;
         } catch (...) {
@@ -733,7 +738,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
       if (size > 0 && !p->is_invalid()) {
         try {
-          mm = os.map_file(p->fs_path(), size);
+          mm = os.map_file(p->fs_path());
         } catch (...) {
           p->set_invalid();
           // If this file *was* successfully mapped before, there's a slight
@@ -741,6 +746,15 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
           // figure this out later when all files have been hashed, so we
           // save the error and try again later (in `try_scan_invalid()`).
           ino->set_scan_error(p, std::current_exception());
+          ++num_invalid_inodes_;
+          return;
+        }
+
+        if (mm.size() != size) {
+          ino->set_scan_error(
+              p, std::make_exception_ptr(std::runtime_error(fmt::format(
+                     "file size changed: was {}, now {}", size, mm.size()))));
+          p->set_invalid();
           ++num_invalid_inodes_;
           return;
         }
