@@ -35,9 +35,14 @@
 
 #include <dwarfs/error.h>
 
+#include <dwarfs/detail/file_extent_info.h>
+
 #include <dwarfs/internal/mappable_file.h>
 
 namespace dwarfs::internal {
+
+using dwarfs::detail::file_extent_info;
+using dwarfs::internal::detail::memory_mapping_impl;
 
 namespace {
 
@@ -65,15 +70,89 @@ int posix_advice(io_advice adv) {
   return MADV_NORMAL;
 }
 
-void handle_error(char const* what, std::error_code* ec) {
+void handle_error(char const* what, std::error_code* ec,
+                  std::error_code const& error) {
   if (ec) {
-    ec->assign(errno, std::generic_category());
+    *ec = error;
   } else {
-    throw std::system_error{errno, std::generic_category(), what};
+    throw std::system_error{error, what};
   }
 }
 
-class memory_mapping_posix final : public detail::memory_mapping_impl {
+void handle_error(char const* what, std::error_code* ec) {
+  handle_error(what, ec, std::error_code{errno, std::generic_category()});
+}
+
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+
+std::vector<file_extent_info> get_file_extents(int fd, std::error_code& ec) {
+  std::vector<file_extent_info> extents;
+
+  if (::lseek(fd, 0, SEEK_SET) == -1) {
+    ec.assign(errno, std::generic_category());
+    return {};
+  }
+
+  int whence = SEEK_DATA;
+  off_t offset = 0;
+
+  for (;;) {
+    off_t rv = ::lseek(fd, offset, whence);
+
+    if (rv < 0) {
+      if (errno != ENXIO) {
+        ec.assign(errno, std::generic_category());
+        return {};
+      }
+      break;
+    }
+
+    extent_kind kind;
+
+    switch (whence) {
+    case SEEK_DATA:
+      kind = extent_kind::hole;
+      whence = SEEK_HOLE;
+      break;
+    case SEEK_HOLE:
+      kind = extent_kind::data;
+      whence = SEEK_DATA;
+      break;
+    default:
+      DWARFS_PANIC("invalid whence");
+    }
+
+    if (rv > offset) {
+      extents.emplace_back(kind, file_range{offset, rv - offset});
+      offset = rv;
+    }
+  }
+
+  off_t rv = ::lseek(fd, 0, SEEK_END);
+
+  if (rv < 0) {
+    ec.assign(errno, std::generic_category());
+    return {};
+  }
+
+  if (rv > offset) {
+    extents.emplace_back(extent_kind::hole, file_range{offset, rv - offset});
+  }
+
+  return extents;
+}
+
+#else
+
+std::vector<file_extent_info>
+get_file_extents(int /*fd*/, std::error_code& ec) {
+  ec = make_error_code(std::errc::not_supported);
+  return {};
+}
+
+#endif
+
+class memory_mapping_posix final : public memory_mapping_impl {
  public:
   memory_mapping_posix(void* addr, size_t offset, size_t size, file_range range,
                        bool readonly, size_t page_size)
@@ -112,6 +191,7 @@ class memory_mapping_posix final : public detail::memory_mapping_impl {
   void advise(io_advice advice, size_t offset, size_t size,
               std::error_code* ec) const override {
     offset += offset_;
+
     if (auto const misalign = offset % page_size_; misalign != 0) {
       offset -= misalign;
       size += misalign;
@@ -177,6 +257,23 @@ class mappable_file_posix final : public mappable_file::impl {
       ec->clear();
     }
     return size_;
+  }
+
+  std::vector<file_extent_info>
+  get_extents(std::error_code* ec) const override {
+    if (ec) {
+      ec->clear();
+    }
+
+    std::error_code local_ec;
+    auto extents = get_file_extents(fd_, local_ec);
+
+    if (local_ec) {
+      handle_error("get_file_extents", ec, local_ec);
+      return {};
+    }
+
+    return extents;
   }
 
   readonly_memory_mapping map_readonly(std::optional<file_range> range,

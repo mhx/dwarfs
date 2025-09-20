@@ -57,6 +57,7 @@ add_library(
   src/internal/fsst.cpp
   src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
+  src/internal/mappable_file.cpp
   src/internal/mappable_file_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
   src/internal/metadata_utils.cpp
   src/internal/string_table.cpp

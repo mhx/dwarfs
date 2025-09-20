@@ -31,11 +31,15 @@
 #include <folly/portability/Windows.h>
 #include <winioctl.h>
 
+#include <dwarfs/detail/file_extent_info.h>
 #include <dwarfs/scope_exit.h>
 
 #include <dwarfs/internal/mappable_file.h>
 
 namespace dwarfs::internal {
+
+using dwarfs::detail::file_extent_info;
+using dwarfs::internal::detail::memory_mapping_impl;
 
 namespace {
 
@@ -48,8 +52,8 @@ uint64_t get_alloc_granularity() {
   return granularity;
 }
 
-static void handle_error(char const* what, std::error_code* ec,
-                         std::error_code const& error) {
+void handle_error(char const* what, std::error_code* ec,
+                  std::error_code const& error) {
   if (ec) {
     *ec = error;
   } else {
@@ -57,7 +61,7 @@ static void handle_error(char const* what, std::error_code* ec,
   }
 }
 
-static void handle_error(char const* what, std::error_code* ec) {
+void handle_error(char const* what, std::error_code* ec) {
   handle_error(what, ec,
                std::error_code(::GetLastError(), std::system_category()));
 }
@@ -115,10 +119,105 @@ win_pread(HANDLE h, void* buf, size_t n, uint64_t offset, std::error_code& ec) {
   return total;
 }
 
+std::vector<file_extent_info>
+get_file_extents(HANDLE h, uint64_t size, std::error_code& ec) {
+  std::vector<file_extent_info> extents;
+
+  ec.clear();
+
+  if (size == 0) {
+    return extents;
+  }
+
+  std::vector<FILE_ALLOCATED_RANGE_BUFFER> ranges;
+  FILE_ALLOCATED_RANGE_BUFFER in{};
+  uint64_t next_start{0};
+
+  constexpr size_t kMaxRangesPerCall{256};
+
+  while (next_start < size) {
+    in.FileOffset.QuadPart = static_cast<LONGLONG>(next_start);
+    in.Length.QuadPart = static_cast<LONGLONG>(size - next_start);
+
+    size_t const old_count = ranges.size();
+    DWORD bytes{0};
+
+    ranges.resize(old_count + kMaxRangesPerCall);
+
+    BOOL ok = ::DeviceIoControl(
+        h, FSCTL_QUERY_ALLOCATED_RANGES, &in, sizeof(in), &ranges[old_count],
+        static_cast<DWORD>(kMaxRangesPerCall *
+                           sizeof(FILE_ALLOCATED_RANGE_BUFFER)),
+        &bytes, nullptr);
+
+    size_t const count = bytes / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
+    ranges.resize(old_count + count);
+
+    if (!ok) {
+      if (auto const err = ::GetLastError(); err != ERROR_MORE_DATA) {
+        ec = std::error_code(err, std::system_category());
+        ranges.clear();
+        break;
+      }
+    }
+
+    if (count == 0) {
+      break;
+    }
+
+    next_start =
+        ranges.back().FileOffset.QuadPart + ranges.back().Length.QuadPart;
+  }
+
+  file_off_t last_end = 0;
+
+  if (!ranges.empty()) {
+    // coalesce adjacent ranges
+    for (size_t i = 1; i < ranges.size(); ++i) {
+      auto& prev = ranges[i - 1];
+      auto& curr = ranges[i];
+
+      if (prev.FileOffset.QuadPart + prev.Length.QuadPart ==
+          curr.FileOffset.QuadPart) {
+        prev.Length.QuadPart += curr.Length.QuadPart;
+        curr.Length.QuadPart = 0;
+      }
+    }
+
+    // remove empty ranges
+    ranges.erase(
+        std::remove_if(ranges.begin(), ranges.end(),
+                       [](auto const& r) { return r.Length.QuadPart == 0; }),
+        ranges.end());
+
+    // convert to file_extent_info and add holes
+    for (size_t i = 0; i < ranges.size(); ++i) {
+      auto const& r = ranges[i];
+      file_off_t const offset = static_cast<file_off_t>(r.FileOffset.QuadPart);
+      file_size_t const length = static_cast<file_size_t>(r.Length.QuadPart);
+
+      if (offset > last_end) {
+        extents.emplace_back(extent_kind::hole,
+                             file_range{last_end, offset - last_end});
+      }
+
+      extents.emplace_back(extent_kind::data, file_range{offset, length});
+      last_end = offset + length;
+    }
+  }
+
+  if (last_end < size) {
+    extents.emplace_back(extent_kind::hole,
+                         file_range{last_end, size - last_end});
+  }
+
+  return extents;
+}
+
 struct virtual_alloc_tag {};
 constexpr virtual_alloc_tag virtual_alloc{};
 
-class memory_mapping_win final : public detail::memory_mapping_impl {
+class memory_mapping_win final : public memory_mapping_impl {
  public:
   memory_mapping_win(void* addr, size_t offset, size_t size, file_range range,
                      bool readonly)
@@ -219,6 +318,23 @@ class mappable_file_win final : public mappable_file::impl {
       ec->clear();
     }
     return size_;
+  }
+
+  std::vector<file_extent_info>
+  get_extents(std::error_code* ec) const override {
+    if (ec) {
+      ec->clear();
+    }
+
+    std::error_code local_ec;
+    auto extents = get_file_extents(file_, size_, local_ec);
+
+    if (local_ec) {
+      handle_error("get_file_extents", ec, local_ec);
+      return {};
+    }
+
+    return extents;
   }
 
   readonly_memory_mapping map_readonly(std::optional<file_range> range,
