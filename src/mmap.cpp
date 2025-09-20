@@ -26,13 +26,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <cerrno>
-#include <vector>
-
 #include <dwarfs/binary_literals.h>
-#include <dwarfs/error.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/scope_exit.h>
 
 #include <dwarfs/internal/mappable_file.h>
 
@@ -46,27 +41,46 @@ class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
-  explicit mmap_file_view(std::filesystem::path const& path);
-  mmap_file_view(std::filesystem::path const& path, file_size_t size);
+  explicit mmap_file_view(std::filesystem::path const& path)
+      : file_{internal::mappable_file::create(path)}
+      , mapping_{file_.map_readonly()}
+      , path_{path}
+      , extents_{file_.get_extents_noexcept()} {}
 
-  file_size_t size() const override;
+  mmap_file_view(std::filesystem::path const& path, file_size_t size)
+      : file_{internal::mappable_file::create(path)}
+      , mapping_{file_.map_readonly(0, size)}
+      , path_{path}
+      , extents_{file_.get_extents_noexcept()} {}
+
+  file_size_t size() const override { return mapping_.size(); }
 
   file_segment segment_at(file_range range) const override;
 
-  file_extents_iterable extents(std::optional<file_range> range) const override;
+  file_extents_iterable
+  extents(std::optional<file_range> range) const override {
+    if (!range.has_value()) {
+      range.emplace(0, size());
+    }
+    return {shared_from_this(), extents_, *range};
+  }
 
-  bool supports_raw_bytes() const noexcept override;
+  bool supports_raw_bytes() const noexcept override { return true; }
 
-  std::span<std::byte const> raw_bytes() const override;
+  std::span<std::byte const> raw_bytes() const override {
+    return mapping_.const_span();
+  }
 
   void
   copy_bytes(void* dest, file_range range, std::error_code& ec) const override;
 
   size_t default_segment_size() const override { return 16_MiB; }
 
-  void release_until(file_off_t offset, std::error_code& ec) const override;
+  void release_until(file_off_t offset, std::error_code& ec) const override {
+    mapping_.advise(io_advice::dontneed, 0, offset, ec);
+  }
 
-  std::filesystem::path const& path() const override;
+  std::filesystem::path const& path() const override { return path_; }
 
   // Not exposed publicly
   internal::readonly_memory_mapping const& mapping() const noexcept {
@@ -130,20 +144,6 @@ file_segment mmap_file_view::segment_at(file_range range) const {
       std::make_shared<mmap_ref_file_segment>(shared_from_this(), range));
 }
 
-file_extents_iterable
-mmap_file_view::extents(std::optional<file_range> range) const {
-  if (!range.has_value()) {
-    range.emplace(0, size());
-  }
-  return {shared_from_this(), extents_, *range};
-}
-
-bool mmap_file_view::supports_raw_bytes() const noexcept { return true; }
-
-std::span<std::byte const> mmap_file_view::raw_bytes() const {
-  return mapping_.const_span();
-}
-
 void mmap_file_view::copy_bytes(void* dest, file_range range,
                                 std::error_code& ec) const {
   auto const offset = range.offset();
@@ -165,28 +165,6 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
   std::memcpy(dest, mapping_.const_span().data() + offset, size);
 }
-
-void mmap_file_view::release_until(file_off_t offset,
-                                   std::error_code& ec) const {
-  mapping_.advise(io_advice::dontneed, 0, offset, ec);
-}
-
-file_size_t mmap_file_view::size() const { return mapping_.size(); }
-
-std::filesystem::path const& mmap_file_view::path() const { return path_; }
-
-mmap_file_view::mmap_file_view(std::filesystem::path const& path)
-    : file_{internal::mappable_file::create(path)}
-    , mapping_{file_.map_readonly()}
-    , path_{path}
-    , extents_{file_.get_extents_noexcept()} {}
-
-mmap_file_view::mmap_file_view(std::filesystem::path const& path,
-                               file_size_t size)
-    : file_{internal::mappable_file::create(path)}
-    , mapping_{file_.map_readonly(0, size)}
-    , path_{path}
-    , extents_{file_.get_extents_noexcept()} {}
 
 } // namespace
 
