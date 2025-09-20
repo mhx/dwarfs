@@ -87,6 +87,12 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
       : mm_{mm}
       , range_{range} {}
 
+  ~mmap_ref_file_segment() override {
+    std::error_code ec;
+    mm_->mapping().advise(io_advice::dontneed, range_.offset(), range_.size(),
+                          ec);
+  }
+
   file_off_t offset() const noexcept override { return range_.offset(); }
 
   file_size_t size() const noexcept override { return range_.size(); }
