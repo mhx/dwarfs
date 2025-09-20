@@ -54,7 +54,7 @@ class cached_block_ final : public cached_block {
   static inline std::atomic<size_t> instance_count_{0};
 
   cached_block_(logger& lgr, fs_section const& b, file_segment const& seg,
-                byte_buffer_factory const& buffer_factory, bool release,
+                byte_buffer_factory const& buffer_factory,
                 bool disable_integrity_check)
       : decompressor_{std::make_unique<block_decompressor>(b.compression(),
                                                            b.data(seg))}
@@ -62,24 +62,19 @@ class cached_block_ final : public cached_block {
       , seg_{seg}
       , section_(b)
       , LOG_PROXY_INIT(lgr)
-      , release_(release)
       , uncompressed_size_{decompressor_->uncompressed_size()} {
     if (!disable_integrity_check && !section_.check_fast(seg_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
     std::atomic_fetch_add(&instance_count_, 1U);
     LOG_TRACE << "create cached block " << section_.section_number().value()
-              << " [" << instance_count_
-              << "], release=" << (release ? "true" : "false");
+              << " [" << instance_count_ << "]";
   }
 
   ~cached_block_() override {
     std::atomic_fetch_sub(&instance_count_, 1U);
     LOG_TRACE << "delete cached block " << section_.section_number().value()
               << " [" << instance_count_ << "]";
-    if (decompressor_) {
-      try_release();
-    }
   }
 
   // once the block is fully decompressed, we can reset the decompressor_
@@ -106,8 +101,8 @@ class cached_block_ final : public cached_block {
         // We're done, free the memory
         decompressor_.reset();
 
-        // And release the memory from the mapping
-        try_release();
+        // And release the file segment
+        seg_.reset();
       }
 
       pos = data_.size();
@@ -150,25 +145,12 @@ class cached_block_ final : public cached_block {
   }
 
  private:
-  void try_release() {
-    if (release_) {
-      LOG_TRACE << "releasing mapped memory for block "
-                << section_.section_number().value();
-      std::error_code ec;
-      seg_.advise(io_advice::dontneed, ec);
-      if (ec) {
-        LOG_INFO << "madvise() failed: " << ec.message();
-      }
-    }
-  }
-
   std::atomic<size_t> range_end_{0};
   std::unique_ptr<block_decompressor> decompressor_;
   shared_byte_buffer data_;
   file_segment seg_;
   fs_section section_;
   LOG_PROXY_DECL(LoggerPolicy);
-  bool const release_;
   size_t const uncompressed_size_;
   std::chrono::steady_clock::time_point last_access_;
 };
@@ -177,10 +159,10 @@ class cached_block_ final : public cached_block {
 
 std::unique_ptr<cached_block>
 cached_block::create(logger& lgr, fs_section const& b, file_segment const& seg,
-                     byte_buffer_factory const& bbf, bool release,
+                     byte_buffer_factory const& bbf,
                      bool disable_integrity_check) {
   return make_unique_logging_object<cached_block, cached_block_,
-                                    logger_policies>(lgr, b, seg, bbf, release,
+                                    logger_policies>(lgr, b, seg, bbf,
                                                      disable_integrity_check);
 }
 

@@ -128,17 +128,6 @@ options:
   you can use `dwarfsck`. If the cache size is too small, only as
   many blocks as will fit in the cache will be preloaded.
 
-- `-o (no_)cache_image`:
-  By default, `dwarfs` tries to ensure that the compressed file
-  system image will not be cached by the kernel (i.e. the default
-  is `-o no_cache_image`). This will reduce the memory consumption
-  of the FUSE driver to slightly more than the `cachesize`, plus
-  the size of the metadata block. This usually isn't a problem,
-  especially when the image is stored on an SSD, but if you want
-  to maximize performance it can be beneficial to use
-  `-o cache_image` to keep the compressed image data in the kernel
-  cache.
-
 - `-o (no_)cache_files`:
   By default, files in the mounted file system will be cached by
   the kernel (i.e. the default is `-o cache_files`). This will

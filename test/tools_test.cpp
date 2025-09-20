@@ -1202,7 +1202,7 @@ TEST_P(tools_test, end_to_end) {
 #ifndef __APPLE__
     // macFUSE is notoriously slow to start, so let's skip these tests
     if (!dwarfs::test::skip_slow_tests()) {
-      all_options.push_back("-omlock=try,no_cache_image");
+      all_options.push_back("-omlock=try");
       all_options.push_back("-otidy_strategy=time,cache_files");
     }
 #endif

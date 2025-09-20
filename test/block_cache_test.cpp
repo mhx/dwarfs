@@ -217,7 +217,6 @@ constexpr std::array const cache_options{
         .max_bytes = 1024 * 1024, .num_workers = 5, .decompress_ratio = 0.9},
     block_cache_options{.max_bytes = 512 * 1024,
                         .num_workers = 4,
-                        .mm_release = false,
                         .disable_block_integrity_check = true},
 };
 
