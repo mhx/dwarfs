@@ -44,6 +44,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
+#include <dwarfs/counting_semaphore.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
@@ -113,49 +114,72 @@ void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
 }
 
 void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
-                 std::string const& algo, size_t num_workers) {
+                 std::string const& algo, size_t num_workers,
+                 size_t max_queued_bytes) {
   LOG_PROXY(debug_logger_policy, lgr);
 
-  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
+  thread_pool pool{lgr, *iol.os, "checksum", num_workers, 2 * num_workers};
   std::mutex mx;
+  counting_semaphore sem;
+  sem.post(static_cast<int64_t>(max_queued_bytes));
 
   fs.walk_data_order([&](auto const& de) {
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
-      std::error_code ec;
-      auto ranges = fs.readv(iv.inode_num(), ec);
+      pool.add_job([&, de, iv]() {
+        std::error_code ec;
 
-      if (ec) {
-        LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
-                  << ec.message();
-        return;
-      }
+        auto const inode_num = iv.inode_num();
+        auto const stat = fs.getattr(iv, ec);
 
-      pool.add_job(
-          [&, de, iv,
-           ranges = std::make_shared<decltype(ranges)>(std::move(ranges))]() {
-            checksum cs(algo);
+        if (ec) {
+          LOG_ERROR << "failed to stat inode " << inode_num << ": "
+                    << ec.message();
+          return;
+        }
 
-            for (auto& fut : *ranges) {
-              try {
-                auto range = fut.get();
-                cs.update(range.data(), range.size());
-              } catch (std::exception const& e) {
-                LOG_ERROR << "error reading data from inode " << iv.inode_num()
-                          << ": " << e.what();
-                return;
-              }
+        checksum cs(algo);
+
+        auto remaining = stat.size();
+        file_off_t pos{0};
+
+        while (remaining > 0) {
+          auto num = std::min<file_size_t>(remaining, max_queued_bytes);
+          sem.wait(num);
+
+          auto ranges = fs.readv(inode_num, num, pos, ec);
+
+          if (ec) {
+            LOG_ERROR << "failed to read inode " << inode_num << ": "
+                      << ec.message();
+            return;
+          }
+
+          for (auto& fut : ranges) {
+            try {
+              auto range = fut.get();
+              cs.update(range.data(), range.size());
+            } catch (std::exception const& e) {
+              LOG_ERROR << "error reading data from inode " << inode_num << ": "
+                        << e.what();
+              return;
             }
+          }
 
-            auto output =
-                fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+          sem.post(num);
 
-            {
-              std::lock_guard lock(mx);
-              iol.out << output;
-            }
-          });
+          pos += num;
+          remaining -= num;
+        }
+
+        auto output = fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+
+        {
+          std::lock_guard lock(mx);
+          iol.out << output;
+        }
+      });
     }
   });
 
@@ -373,7 +397,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         }
 
         if (!checksum_algo.empty()) {
-          do_checksum(lgr, fs, iol, checksum_algo, num_workers);
+          do_checksum(lgr, fs, iol, checksum_algo, num_workers,
+                      fsopts.block_cache.max_bytes);
         }
 
         if (errors > 0) {
