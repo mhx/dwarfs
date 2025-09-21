@@ -53,6 +53,7 @@
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/config.h>
+#include <dwarfs/counting_semaphore.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -75,33 +76,6 @@ namespace internal {
 using namespace dwarfs::internal;
 
 namespace {
-
-class cache_semaphore {
- public:
-  void post(int64_t n) {
-    {
-      std::lock_guard lock(mx_);
-      size_ += n;
-      ++count_;
-    }
-    condition_.notify_one();
-  }
-
-  void wait(int64_t n) {
-    std::unique_lock lock(mx_);
-    while (size_ < n && count_ <= 0) {
-      condition_.wait(lock);
-    }
-    size_ -= n;
-    --count_;
-  }
-
- private:
-  std::mutex mx_;
-  std::condition_variable condition_;
-  int64_t count_{0};
-  int64_t size_{0};
-};
 
 class archive_error : public std::runtime_error {
  public:
@@ -348,7 +322,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   ::archive_entry* sparse = nullptr;
 
   worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
-  cache_semaphore sem;
+  counting_semaphore sem;
 
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
             << " bytes";
