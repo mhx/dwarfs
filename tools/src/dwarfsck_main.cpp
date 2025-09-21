@@ -177,7 +177,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
   sys_string input, export_metadata;
-  std::string image_offset, checksum_algo;
+  std::string cache_size_str, image_offset, checksum_algo;
   logger_options logopts;
   size_t num_workers;
   std::string detail;
@@ -219,6 +219,9 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
+    ("cache-size,s",
+        po::value<std::string>(&cache_size_str)->default_value("512m"),
+        "block cache size")
     ("check-integrity",
         po::value<bool>(&check_integrity)->zero_tokens(),
         "check integrity of each block")
@@ -299,6 +302,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.metadata.enable_nlink = true;
     fsopts.metadata.check_consistency = check_integrity;
     fsopts.image_offset = reader::parse_image_offset(image_offset);
+    fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
+    fsopts.block_cache.num_workers = num_workers;
 
     auto input_path = iol.os->canonical(input);
 
