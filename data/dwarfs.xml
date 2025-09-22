@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
+  <mime-type type="application/x-dwarfs-image">
+    <comment>DwarFS Image</comment>
+    <magic priority="70">
+      <match type="string" offset="0" value="DWARFS"/>
+      <match type="string" offset="48" value="\x00\x00\x00\x00\x00\x00"/>
+    </magic>
+    <icon name="application-x-iso"/>
+    <glob pattern="*.dwarfs"/>
+  </mime-type>
+</mime-info>

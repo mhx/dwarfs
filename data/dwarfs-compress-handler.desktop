@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=DwarFS Autocompress
+TryExec=mkdwarfs
+Exec=mkdwarfs --input %f
+Icon=application-x-iso
+NoDisplay=true
+Terminal=true
+StartupNotify=false
+Type=Application
+Categories=Utility;
+MimeType=inode/directory;
