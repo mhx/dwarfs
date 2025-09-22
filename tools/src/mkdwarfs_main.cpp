@@ -489,7 +489,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "or - for stdin")
     ("output,o",
         po_sys_value<sys_string>(&output_str),
-        "filesystem output name or - for stdout")
+        "filesystem output name or - for stdout (leave out to use <input.dwarfs>)")
     ("force,f",
         po::value<bool>(&force_overwrite)->zero_tokens(),
         "force overwrite of existing output image")
@@ -807,8 +807,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (vm.contains("help") or
-      !(vm.contains("input") or vm.contains("input-list")) or
-      (!vm.contains("output") and !vm.contains("debug-filter"))) {
+      !(vm.contains("input") or vm.contains("input-list"))) {
     iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n"
             << basic_opts << "\n";
     return 0;
@@ -1196,6 +1195,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       os;
 
   if (!options.debug_filter_function) {
+    //TODO: check input-list not used, file doesn't exist?
+    if (output_str.empty()) {
+      output = path_str;
+      output += ".dwarfs";
+      LOG_INFO << "output file will be " << output;
+    }
     if (output != "-") {
       if (iol.file->exists(output) && !force_overwrite) {
         LOG_ERROR << "output file already exists, use --force to overwrite";
