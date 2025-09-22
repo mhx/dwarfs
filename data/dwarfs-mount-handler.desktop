@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=DwarFS Mount
+Type=Application
+TryExec=dwarfs
+Exec=dwarfs --auto-mountpoint %f
+Icon=package-x-generic
+MimeType=application/x-dwarfs-image;
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+Categories=Utility;FileTools;ConsoleOnly
