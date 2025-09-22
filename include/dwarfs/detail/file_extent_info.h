@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <iosfwd>
+
 #include <dwarfs/extent_kind.h>
 #include <dwarfs/file_range.h>
 
@@ -41,6 +43,13 @@ struct file_extent_info {
   file_extent_info(extent_kind k, file_range r)
       : kind{k}
       , range{r} {}
+
+  friend bool operator==(file_extent_info const& lhs,
+                         file_extent_info const& rhs) noexcept {
+    return lhs.kind == rhs.kind && lhs.range == rhs.range;
+  }
 };
+
+std::ostream& operator<<(std::ostream& os, file_extent_info const& info);
 
 } // namespace dwarfs::detail
