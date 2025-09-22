@@ -214,6 +214,7 @@ struct options {
 #ifdef DWARFS_BUILTIN_MANPAGE
   bool is_man{false};
 #endif
+  bool is_auto_mountpoint{false};
 };
 
 static_assert(std::is_standard_layout_v<options>);
@@ -1317,7 +1318,9 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
      << "Usage: " << progname.filename().string()
-     << " <image> <mountpoint> [options]\n\n"
+     << " <image> <mountpoint> [options]\n"
+     << "       " << progname.filename().string()
+     << " <image> --auto-mountpoint [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
      << "    -o blocksize=SIZE      set file I/O block size (512K)\n"
@@ -1391,6 +1394,11 @@ int option_hdl(void* data, char const* arg, int key,
       return -1;
     }
 
+    if (argsv == "--auto-mountpoint") {
+      opts.is_auto_mountpoint = true;
+      return 0;
+    }
+
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (argsv == "--man") {
       opts.is_man = true;
@@ -1404,6 +1412,60 @@ int option_hdl(void* data, char const* arg, int key,
   }
 
   return 1;
+}
+
+int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
+                               struct fuse_args& args, iolayer const& iol) {
+  if (userdata->opts.seen_mountpoint) {
+    iol.err << "error: cannot combine <mountpoint> with --auto-mountpoint"
+            << "\n";
+    usage(iol.out, userdata->progname);
+    return 1;
+  }
+  if (!userdata->opts.fsimage) {
+    usage(iol.out, userdata->progname);
+    return 1;
+  }
+  auto fspath = std::filesystem::path(userdata->opts.fsimage->data());
+  // assume .dwarfs extension, so user gets "fs.dwarfs"  -> "fs/"
+  auto mountpath = fspath.parent_path() / fspath.stem();
+  if (fspath == mountpath) {
+    iol.err << "error: cannot select mountpoint directory for file with no "
+               "extension"
+            << "\n";
+    return 1;
+  }
+
+  // for Windows, check the mount point name doesn't exist and let WinFSP create
+  // it. other platforms, create or select an existing empty mount directory.
+#ifdef _WIN32
+  if (std::filesystem::exists(mountpath)) {
+    iol.err << "error: mountpoint directory already exists" << "\n";
+    return 1;
+  }
+#else
+  if (std::filesystem::exists(mountpath) &&
+      (!std::filesystem::is_empty(mountpath) ||
+       !std::filesystem::is_directory(mountpath))) {
+    iol.err << "error: cannot find a suitable empty mountpoint directory"
+            << "\n";
+    return 1;
+  }
+  if (!std::filesystem::exists(mountpath)) {
+    std::error_code ec;
+    if (!std::filesystem::create_directory(mountpath, ec) && ec) {
+      iol.err << "error: unable to create mountpoint directory: "
+              << ec.message() << "\n";
+      return 1;
+    }
+  }
+#endif
+
+  auto const mp_arg = path_to_utf8_string_sanitized(mountpath);
+  fuse_opt_add_arg(&args, mp_arg.c_str());
+  userdata->opts.seen_mountpoint = 1;
+
+  return 0;
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1669,6 +1731,12 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   userdata.progname = std::filesystem::path(argv[0]);
 
   fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
+
+  if (userdata.opts.is_auto_mountpoint) {
+    if (option_hdl_auto_mountpoint(&userdata, args, iol)) {
+      return 1;
+    }
+  }
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
