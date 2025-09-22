@@ -26,14 +26,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-#pragma once
+#include <ostream>
 
-#include <iosfwd>
+#include <dwarfs/detail/file_extent_info.h>
 
-namespace dwarfs {
+namespace dwarfs::detail {
 
-enum class extent_kind { hole, data };
+std::ostream& operator<<(std::ostream& os, file_extent_info const& info) {
+  os << "file_extent_info{kind=" << info.kind << ", range=["
+     << info.range.offset() << ", " << info.range.size() << ")}";
+  return os;
+}
 
-std::ostream& operator<<(std::ostream& os, extent_kind kind);
-
-} // namespace dwarfs
+} // namespace dwarfs::detail
