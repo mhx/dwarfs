@@ -25,7 +25,9 @@ add_library(
   src/checksum.cpp
   src/compression_registry.cpp
   src/conv.cpp
+  src/detail/file_extent_info.cpp
   src/error.cpp
+  src/extent_kind.cpp
   src/file_access_generic.cpp
   src/file_extent.cpp
   src/file_extents_iterable.cpp
