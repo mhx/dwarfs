@@ -26,14 +26,25 @@
  * SPDX-License-Identifier: MIT
  */
 
-#pragma once
+#include <ostream>
 
-#include <iosfwd>
+#include <dwarfs/extent_kind.h>
 
 namespace dwarfs {
 
-enum class extent_kind { hole, data };
-
-std::ostream& operator<<(std::ostream& os, extent_kind kind);
+std::ostream& operator<<(std::ostream& os, extent_kind kind) {
+  switch (kind) {
+  case extent_kind::data:
+    os << "data";
+    break;
+  case extent_kind::hole:
+    os << "hole";
+    break;
+  default:
+    os << "<" << static_cast<int>(kind) << ">";
+    break;
+  }
+  return os;
+}
 
 } // namespace dwarfs
