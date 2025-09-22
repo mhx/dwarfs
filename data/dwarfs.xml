@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
+  <mime-type type="application/x-dwarfs-image">
+    <comment>DwarFS Image</comment>
+    <icon name="package-x-generic"/>
+    <glob pattern="*.dwarfs"/>
+  </mime-type>
+</mime-info>

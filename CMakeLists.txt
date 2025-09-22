@@ -29,6 +29,7 @@ include(CheckCXXSourceCompiles)
 option(WITH_LIBDWARFS "build with libdwarfs" ON)
 option(WITH_TOOLS "build with tools" ON)
 option(WITH_FUSE_DRIVER "build with FUSE driver" ON)
+option(WITH_DESKTOP_INTEGRATION "install mimetype and desktop integration" ON)
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_ALL_BENCHMARKS "build with *all* benchmarks" OFF)
@@ -477,6 +478,13 @@ if(WITH_MAN_OPTION)
 endif()
 
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
+
+if(WITH_DESKTOP_INTEGRATION AND NOT WIN32)
+  install(FILES "data/dwarfs.xml" DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages)
+  if(WITH_FUSE_DRIVER)
+    install(FILES "data/dwarfs-mount-handler.desktop" DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+  endif()
+endif()
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers
