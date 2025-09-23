@@ -41,12 +41,14 @@
 
 #include <dwarfs/internal/mappable_file.h>
 
+#include "sparse_file_builder.h"
 #include "test_helpers.h"
 
 using namespace dwarfs;
 using namespace dwarfs::binary_literals;
 using namespace dwarfs::internal;
 using namespace dwarfs::test;
+using dwarfs::detail::file_extent_info;
 
 namespace {
 
@@ -237,4 +239,154 @@ TEST(zero_memory, basic) {
   EXPECT_EQ(zeroes.size(), 8_MiB);
   EXPECT_EQ(span.size(), 8_MiB);
   EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
+}
+
+class sparse_file_test : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    td.emplace();
+    granularity = sparse_file_builder::hole_granularity(td->path());
+
+    if (!granularity) {
+      GTEST_SKIP() << "filesystem does not support sparse files";
+    }
+  }
+
+  void TearDown() override { td.reset(); }
+
+  std::mt19937_64 rng{42};
+  std::optional<temporary_directory> td;
+  std::optional<size_t> granularity;
+};
+
+TEST_F(sparse_file_test, basic) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(3 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.write_data(2 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.commit();
+
+  auto mf = mappable_file::create(path);
+  EXPECT_EQ(mf.size(), 3 * granularity.value());
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(2 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(3, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_at_start) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(granularity.value() + 1);
+  sfb.write_data(granularity.value(), create_random_string(1, rng));
+  sfb.punch_hole(0, granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::hole,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(granularity.value()), 1)},
+  };
+
+  auto mf = mappable_file::create(path);
+  EXPECT_EQ(mf.size(), granularity.value() + 1);
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_at_end) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(2 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto mf = mappable_file::create(path);
+  EXPECT_EQ(mf.size(), 2 * granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_only) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(granularity.value());
+  sfb.punch_hole(0, granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::hole,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto mf = mappable_file::create(path);
+  EXPECT_EQ(mf.size(), granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(1, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, multiple_holes_and_data_blocks) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(6 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.write_data(2 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  sfb.write_data(5 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.punch_hole(3 * granularity.value(), 2 * granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(2 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(3 * granularity.value()),
+                  static_cast<file_size_t>(2 * granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(5 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto mf = mappable_file::create(path);
+  EXPECT_EQ(mf.size(), 6 * granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(5, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
 }
