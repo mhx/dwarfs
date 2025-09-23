@@ -166,7 +166,22 @@ class sparse_file_builder::impl {
     }
   }
 
-  void punch_hole(file_off_t, file_off_t, std::error_code&) noexcept {}
+  void
+  punch_hole(file_off_t off, file_off_t len, std::error_code& ec) noexcept {
+    assert(h_ != INVALID_HANDLE_VALUE);
+
+    FILE_ZERO_DATA_INFORMATION info{};
+    info.FileOffset.QuadPart = static_cast<LONGLONG>(start);
+    info.BeyondFinalZero.QuadPart = static_cast<LONGLONG>(start + len);
+
+    DWORD bytes = 0;
+
+    if (!::DeviceIoControl(handle_, FSCTL_SET_ZERO_DATA, &info, sizeof(info),
+                           nullptr, 0, &bytes, nullptr)) {
+      ec = std::error_code(static_cast<int>(::GetLastError()),
+                           std::system_category());
+    }
+  }
 
   void commit(std::error_code& ec) noexcept {
     if (h_ != INVALID_HANDLE_VALUE) {
