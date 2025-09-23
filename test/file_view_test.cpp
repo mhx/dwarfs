@@ -27,14 +27,16 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
+#include <dwarfs/mmap.h>
 
 #include "mmap_mock.h"
 
 using namespace dwarfs;
 using namespace std::string_literals;
 
-TEST(file_view, mock_file_view_basic) {
+TEST(mock_file_view, basic) {
   auto view = test::make_mock_file_view(
       "Hello, World!"s,
       test::mock_file_view_options{.support_raw_bytes = true});
@@ -104,7 +106,7 @@ TEST(file_view, mock_file_view_basic) {
   EXPECT_EQ(raw_str, "Hello, World!");
 }
 
-TEST(file_view, mock_file_view_extents) {
+TEST(mock_file_view, extents) {
   auto view = test::make_mock_file_view("Hello,\0\0\0\0World!"s,
                                         {
                                             {extent_kind::data, {0, 6}},
@@ -252,7 +254,7 @@ TEST(file_view, mock_file_view_extents) {
   }
 }
 
-TEST(file_view, mock_file_view_extents_raw_bytes) {
+TEST(mock_file_view, extents_raw_bytes) {
   auto view = test::make_mock_file_view("Hello,\0\0\0\0World!"s,
                                         {
                                             {extent_kind::data, {0, 6}},
@@ -273,5 +275,37 @@ TEST(file_view, mock_file_view_extents_raw_bytes) {
     }
 
     EXPECT_THAT(extents, testing::ElementsAre("llo,"s, "\0\0\0\0"s, "Wor"s));
+  }
+}
+
+TEST(mmap_file_view, basic) {
+  temporary_directory td;
+
+  auto path = td.path() / "testfile";
+
+  write_file(path, "Hello, World!");
+
+  auto mm = create_mmap_file_view(path);
+
+  EXPECT_TRUE(mm);
+  EXPECT_TRUE(mm.valid());
+
+  EXPECT_EQ(mm.size(), 13);
+  EXPECT_EQ(mm.path(), path);
+
+  auto const range = mm.range();
+
+  EXPECT_EQ(range.offset(), 0);
+  EXPECT_EQ(range.size(), 13);
+
+  EXPECT_TRUE(mm.supports_raw_bytes());
+  {
+    auto const data = mm.raw_bytes<char>();
+    EXPECT_EQ(std::string_view(data.data(), data.size()), "Hello, World!"s);
+  }
+
+  {
+    auto const data = mm.read_string(1, 10);
+    EXPECT_EQ(data, "ello, Worl"s);
   }
 }
