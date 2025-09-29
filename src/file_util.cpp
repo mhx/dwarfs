@@ -104,7 +104,7 @@ std::string read_file(std::filesystem::path const& path) {
   return content;
 }
 
-void write_file(std::filesystem::path const& path, std::string const& content,
+void write_file(std::filesystem::path const& path, std::string_view content,
                 std::error_code& ec) {
   if (folly::writeFile(content, path.string().c_str())) {
     ec.clear();
@@ -113,7 +113,7 @@ void write_file(std::filesystem::path const& path, std::string const& content,
   }
 }
 
-void write_file(std::filesystem::path const& path, std::string const& content) {
+void write_file(std::filesystem::path const& path, std::string_view content) {
   std::error_code ec;
   write_file(path, content, ec);
   if (ec) {
