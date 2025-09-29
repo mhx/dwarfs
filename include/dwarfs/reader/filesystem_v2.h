@@ -488,10 +488,11 @@ class filesystem_v2 final : public filesystem_v2_lite {
            std::ostream& output, int detail_level = 0, size_t num_readers = 1,
            bool check_integrity = false, file_off_t image_offset = 0);
 
-  static std::optional<file_extents_iterable> header(file_view const& mm);
+  static std::optional<file_extents_iterable>
+  header(logger& lgr, file_view const& mm);
 
   static std::optional<file_extents_iterable>
-  header(file_view const& mm, file_off_t image_offset);
+  header(logger& lgr, file_view const& mm, file_off_t image_offset);
 
   int check(filesystem_check_level level, size_t num_threads = 0) const;
 
