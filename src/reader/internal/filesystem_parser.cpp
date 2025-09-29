@@ -154,22 +154,34 @@ file_off_t filesystem_parser_<LoggerPolicy>::search_image_in_segment(
     auto ss = seg.span(start);
     auto dp = search_dwarfs_header(ss);
 
+    LOG_TRACE << "searched " << ss.size() << " bytes from " << start
+              << " in segment at offset " << seg.offset();
+
     if (dp >= ss.size()) {
+      LOG_TRACE << "no magic found";
       break;
     }
 
     file_off_t pos = start + dp;
 
+    LOG_TRACE << "found magic at " << pos << " in segment at offset "
+              << seg.offset();
+
     if (std::cmp_greater_equal(pos + sizeof(file_header), seg.size())) {
+      LOG_TRACE << "remaining data in segment is too small for file header";
       break;
     }
 
     auto fh = seg.read<file_header>(pos);
 
     if (fh.minor < 2) {
+      LOG_TRACE << "potential v1 filesystem found";
+
       // v1 section header, presumably
       if (std::cmp_greater_equal(
               pos + sizeof(file_header) + sizeof(section_header), seg.size())) {
+        LOG_TRACE
+            << "remaining data in segment is too small for section header";
         break;
       }
 
@@ -189,27 +201,42 @@ file_off_t filesystem_parser_<LoggerPolicy>::search_image_in_segment(
       if ((shtype == section_type::BLOCK ||
            shtype == section_type::METADATA_V2_SCHEMA) &&
           is_valid_compression(sh.compression) && sh.length > 0) {
-        auto nextshpos =
-            pos + sizeof(file_header) + sizeof(section_header) + sh.length;
-        if (std::cmp_less(nextshpos + sizeof(section_header), seg.size())) {
-          auto nsh = seg.read<section_header>(nextshpos);
-          auto const nshtype = static_cast<section_type>(nsh.type);
-          // the next section must be a block or a metadata schema if the first
-          // section was a block *or* a metadata block if the first section was
-          // a metadata schema
-          if ((shtype == section_type::BLOCK
-                   ? nshtype == section_type::BLOCK ||
-                         nshtype == section_type::METADATA_V2_SCHEMA
-                   : nshtype == section_type::METADATA_V2) &&
-              is_valid_compression(nsh.compression) && nsh.length > 0) {
-            // we can be somewhat sure that this is where the filesystem starts
-            return pos;
-          }
+        auto nextshpos = seg.offset() + pos + sizeof(file_header) +
+                         sizeof(section_header) + sh.length;
+
+        if (nextshpos < sh.length) {
+          LOG_TRACE << "integer overflow in section length";
+          break;
+        }
+
+        if (std::cmp_greater_equal(nextshpos + sizeof(section_header),
+                                   mm_.size())) {
+          LOG_TRACE << "next section header would be beyond file size";
+          break;
+        }
+
+        auto nsh = mm_.read<section_header>(nextshpos);
+        auto const nshtype = static_cast<section_type>(nsh.type);
+        // the next section must be a block or a metadata schema if the first
+        // section was a block *or* a metadata block if the first section was
+        // a metadata schema
+        if ((shtype == section_type::BLOCK
+                 ? nshtype == section_type::BLOCK ||
+                       nshtype == section_type::METADATA_V2_SCHEMA
+                 : nshtype == section_type::METADATA_V2) &&
+            is_valid_compression(nsh.compression) && nsh.length > 0) {
+          // we can be somewhat sure that this is where the filesystem starts
+          LOG_TRACE << "found valid v1 filesystem at offset " << pos;
+          return pos;
         }
       }
     } else {
+      LOG_TRACE << "potential v2 filesystem found";
+
       // do a little more validation before we return
       if (std::cmp_greater_equal(pos + sizeof(section_header_v2), seg.size())) {
+        LOG_TRACE
+            << "remaining data in segment is too small for section header";
         break;
       }
 
@@ -218,18 +245,23 @@ file_off_t filesystem_parser_<LoggerPolicy>::search_image_in_segment(
       if (sh.number == 0) {
         auto endpos = pos + sh.length + 2 * sizeof(section_header_v2);
 
-        if (endpos >= sh.length) {
-          if (std::cmp_greater_equal(endpos, seg.size())) {
-            break;
-          }
+        if (endpos < sh.length) {
+          LOG_TRACE << "integer overflow in section length";
+          break;
+        }
 
-          auto nsh = seg.read<section_header_v2>(pos + sh.length +
-                                                 sizeof(section_header_v2));
+        if (std::cmp_greater_equal(endpos, mm_.size())) {
+          LOG_TRACE << "next section header would be beyond file size";
+          break;
+        }
 
-          if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
-              nsh.number == 1) {
-            return pos;
-          }
+        auto nsh = mm_.read<section_header_v2>(seg.offset() + pos + sh.length +
+                                               sizeof(section_header_v2));
+
+        if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
+            nsh.number == 1) {
+          LOG_TRACE << "found valid v2 filesystem at offset " << pos;
+          return pos;
         }
       }
     }
