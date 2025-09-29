@@ -38,9 +38,9 @@ namespace dwarfs {
 std::string read_file(std::filesystem::path const& path, std::error_code& ec);
 std::string read_file(std::filesystem::path const& path);
 
-void write_file(std::filesystem::path const& path, std::string const& content,
+void write_file(std::filesystem::path const& path, std::string_view content,
                 std::error_code& ec);
-void write_file(std::filesystem::path const& path, std::string const& content);
+void write_file(std::filesystem::path const& path, std::string_view content);
 
 class temporary_directory {
  public:
