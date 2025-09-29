@@ -35,7 +35,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
@@ -46,7 +45,6 @@
 namespace dwarfs::reader::internal {
 
 using namespace dwarfs::internal;
-using namespace dwarfs::binary_literals;
 
 namespace {
 
@@ -285,7 +283,9 @@ filesystem_parser_<LoggerPolicy>::find_image_offset(file_off_t image_offset) {
       continue;
     }
 
-    for (auto const& seg : ext.segments(8_MiB, sizeof(section_header_v2))) {
+    LOG_TRACE << "searching data extent at offset " << ext.offset();
+
+    for (auto const& seg : ext.segments(0, sizeof(section_header_v2))) {
       auto pos = search_image_in_segment(seg);
 
       if (pos >= 0) {
