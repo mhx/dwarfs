@@ -41,51 +41,75 @@
 
 #include <dwarfs/internal/fs_section.h>
 
-namespace dwarfs::reader::internal {
+namespace dwarfs {
+
+class logger;
+
+namespace reader::internal {
 
 class filesystem_parser {
- private:
-  static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
-
  public:
-  static file_off_t
-  find_image_offset(file_view const& mm, file_off_t image_offset);
-
-  explicit filesystem_parser(
-      file_view const& mm, file_off_t image_offset = 0,
+  filesystem_parser(
+      logger& lgr, file_view const& mm, file_off_t image_offset = 0,
       file_off_t image_size = std::numeric_limits<file_off_t>::max());
 
-  std::optional<dwarfs::internal::fs_section> next_section();
+  void rewind() { impl_->rewind(); }
 
-  std::optional<file_extents_iterable> header() const;
+  std::optional<dwarfs::internal::fs_section> next_section() {
+    return impl_->next_section();
+  }
 
-  void rewind();
+  std::optional<file_extents_iterable> header() const {
+    return impl_->header();
+  }
 
-  std::string version() const;
+  std::string version() const { return impl_->version(); }
 
-  int major_version() const { return fs_version_.major; }
-  int minor_version() const { return fs_version_.minor; }
-  int header_version() const { return header_version_; }
-  filesystem_version const& fs_version() const { return fs_version_; }
+  int header_version() const { return impl_->header_version(); }
 
-  file_off_t image_offset() const { return image_offset_; }
+  filesystem_version const& fs_version() const { return impl_->fs_version(); }
+  int major_version() const { return impl_->fs_version().major; }
+  int minor_version() const { return impl_->fs_version().minor; }
 
-  bool has_checksums() const;
-  bool has_index() const;
+  file_off_t image_offset() const { return impl_->image_offset(); }
 
-  size_t filesystem_size() const;
-  file_segment segment(dwarfs::internal::fs_section const& s) const;
+  bool has_checksums() const { return impl_->has_checksums(); }
+  bool has_index() const { return impl_->has_index(); }
+
+  size_t filesystem_size() const { return impl_->filesystem_size(); }
+
+  file_segment segment(dwarfs::internal::fs_section const& s) const {
+    return impl_->segment(s);
+  }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual void rewind() = 0;
+    virtual std::optional<dwarfs::internal::fs_section> next_section() = 0;
+
+    virtual std::optional<file_extents_iterable> header() const = 0;
+
+    virtual std::string version() const = 0;
+
+    virtual int header_version() const = 0;
+    virtual filesystem_version const& fs_version() const = 0;
+
+    virtual file_off_t image_offset() const = 0;
+
+    virtual bool has_checksums() const = 0;
+    virtual bool has_index() const = 0;
+
+    virtual size_t filesystem_size() const = 0;
+
+    virtual file_segment
+    segment(dwarfs::internal::fs_section const& s) const = 0;
+  };
 
  private:
-  void find_index();
-
-  file_view mm_;
-  file_off_t const image_offset_{0};
-  file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
-  file_off_t offset_{0};
-  int header_version_{0};
-  filesystem_version fs_version_{};
-  std::vector<uint64_t> index_;
+  std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs::reader::internal
+} // namespace reader::internal
+} // namespace dwarfs
