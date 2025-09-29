@@ -359,8 +359,8 @@ class filesystem_ final {
     return meta_.get_all_gids();
   }
   std::shared_ptr<filesystem_parser> get_parser() const {
-    return std::make_shared<filesystem_parser>(mm_, image_offset_,
-                                               options_.image_size);
+    return std::make_shared<filesystem_parser>(
+        LOG_GET_LOGGER, mm_, image_offset_, options_.image_size);
   }
   std::optional<std::string> get_block_category(size_t block_no) const {
     return meta_.get_block_category(block_no);
@@ -414,7 +414,8 @@ class filesystem_ final {
 
  private:
   filesystem_parser make_fs_parser() const {
-    return filesystem_parser(mm_, image_offset_, options_.image_size);
+    return filesystem_parser(LOG_GET_LOGGER, mm_, image_offset_,
+                             options_.image_size);
   }
 
   size_t get_max_cache_blocks() const {
@@ -545,8 +546,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{mm}
-    , image_offset_{filesystem_parser::find_image_offset(mm_,
-                                                         options.image_offset)}
+    , image_offset_{filesystem_parser(lgr, mm_, options.image_offset)
+                        .image_offset()}
     , options_{options} // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
     PERFMON_CLS_TIMER_INIT(find_path)
@@ -1595,13 +1596,14 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
 }
 
 std::optional<file_extents_iterable>
-filesystem_v2::header(file_view const& mm) {
-  return header(mm, filesystem_options::IMAGE_OFFSET_AUTO);
+filesystem_v2::header(logger& lgr, file_view const& mm) {
+  return header(lgr, mm, filesystem_options::IMAGE_OFFSET_AUTO);
 }
 
 std::optional<file_extents_iterable>
-filesystem_v2::header(file_view const& mm, file_off_t image_offset) {
-  return internal::filesystem_parser(mm, image_offset).header();
+filesystem_v2::header(logger& lgr, file_view const& mm,
+                      file_off_t image_offset) {
+  return internal::filesystem_parser(lgr, mm, image_offset).header();
 }
 
 int filesystem_v2::check(filesystem_check_level level,
