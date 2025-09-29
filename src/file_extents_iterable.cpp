@@ -59,6 +59,10 @@ file_extents_iterable::iterator::iterator(
                      std::min(ext.range.end(), end_offset_) - range.offset()};
       cur_ = file_extent{fv_, ext};
     }
+  } else {
+    it_ = extents_.end();
+    fv_.reset();
+    cur_ = file_extent{};
   }
 }
 
