@@ -334,7 +334,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     auto mm = iol.os->open_file(input_path);
 
     if (print_header) {
-      if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {
+      if (auto hdr =
+              reader::filesystem_v2::header(lgr, mm, fsopts.image_offset)) {
         ensure_binary_mode(iol.out);
         for (auto const& ext : *hdr) {
           for (auto const& seg : ext.segments()) {
