@@ -205,6 +205,7 @@ bool read_file(fs::path const& path, std::string& out) {
   return true;
 }
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
 bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   std::ifstream ifs(path);
   if (!ifs.is_open()) {
@@ -216,6 +217,7 @@ bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   }
   return true;
 }
+#endif
 
 struct compare_directories_result {
   std::set<fs::path> mismatched;
