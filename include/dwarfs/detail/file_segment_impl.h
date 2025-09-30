@@ -47,8 +47,7 @@ class file_segment_impl {
   virtual file_range range() const noexcept = 0;
   virtual bool is_zero() const noexcept = 0;
   virtual std::span<std::byte const> raw_bytes() const = 0;
-  virtual void
-  advise(io_advice adv, file_range range, std::error_code& ec) const = 0;
+  virtual void advise(io_advice adv, std::error_code& ec) const = 0;
   virtual void lock(std::error_code& ec) const = 0;
 };
 

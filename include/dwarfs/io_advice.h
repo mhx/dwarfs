@@ -38,4 +38,9 @@ enum class io_advice {
   dontneed,
 };
 
+enum class io_advice_range {
+  include_partial,
+  exclude_partial,
+};
+
 } // namespace dwarfs

@@ -80,7 +80,8 @@ class mmap_file_view final
 
   void release_until(file_off_t offset, std::error_code& ec) const override {
     if (mapping_.has_value()) {
-      mapping_->advise(io_advice::dontneed, 0, offset, ec);
+      mapping_->advise(io_advice::dontneed, 0, offset,
+                       io_advice_range::exclude_partial, ec);
     }
   }
 
@@ -105,8 +106,7 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
 
   ~mmap_ref_file_segment() override {
     std::error_code ec;
-    mm_->mapping().advise(io_advice::dontneed, range_.offset(), range_.size(),
-                          ec);
+    advise(io_advice::dontneed, ec);
   }
 
   file_off_t offset() const noexcept override { return range_.offset(); }
@@ -121,12 +121,13 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
     return mm_->mapping().const_span().subspan(range_.offset(), range_.size());
   }
 
-  void
-  advise(io_advice adv, file_range range, std::error_code& ec) const override {
-    mm_->mapping().advise(adv, range.offset(), range.size(), ec);
+  void advise(io_advice adv, std::error_code& ec) const override {
+    mm_->mapping().advise(adv, range_.offset(), range_.size(), ec);
   }
 
-  void lock(std::error_code& ec) const override { mm_->mapping().lock(ec); }
+  void lock(std::error_code& ec) const override {
+    mm_->mapping().lock(range_.offset(), range_.size(), ec);
+  }
 
  private:
   std::shared_ptr<mmap_file_view const> mm_;
@@ -151,14 +152,11 @@ class mmap_file_segment final : public detail::file_segment_impl {
     return mm_.const_span();
   }
 
-  void advise(io_advice /*adv*/, file_range /*range*/,
-              std::error_code& /*ec*/) const override {
-    // mm_->mapping().advise(adv, range.offset(), range.size(), ec);
+  void advise(io_advice adv, std::error_code& ec) const override {
+    mm_.advise(adv, 0, mm_.size(), ec);
   }
 
-  void lock(std::error_code& /*ec*/) const override {
-    // mm_->mapping().lock(ec);
-  }
+  void lock(std::error_code& ec) const override { mm_.lock(0, mm_.size(), ec); }
 
  private:
   readonly_memory_mapping mm_;

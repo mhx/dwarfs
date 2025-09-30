@@ -127,25 +127,13 @@ class file_segment {
     return t;
   }
 
-  void advise(io_advice adv, file_range range, std::error_code& ec) const {
-    impl_->advise(adv, range, ec);
-  }
-
-  void advise(io_advice adv, file_range range) const {
-    std::error_code ec;
-    impl_->advise(adv, range, ec);
-    if (ec) {
-      throw std::system_error(ec);
-    }
-  }
-
   void advise(io_advice adv, std::error_code& ec) const {
-    impl_->advise(adv, this->range(), ec);
+    impl_->advise(adv, ec);
   }
 
   void advise(io_advice adv) const {
     std::error_code ec;
-    impl_->advise(adv, this->range(), ec);
+    impl_->advise(adv, ec);
     if (ec) {
       throw std::system_error(ec);
     }
