@@ -32,12 +32,18 @@
 
 #include <dwarfs/reader/block_cache_options.h>
 
-namespace dwarfs::reader::internal {
+namespace dwarfs {
+
+class os_access;
+
+namespace reader::internal {
 
 class block_cache_byte_buffer_factory {
  public:
-  static byte_buffer_factory create();
-  static byte_buffer_factory create(block_cache_allocation_mode mode);
+  static byte_buffer_factory create(os_access const& os);
+  static byte_buffer_factory
+  create(os_access const& os, block_cache_allocation_mode mode);
 };
 
-} // namespace dwarfs::reader::internal
+} // namespace reader::internal
+} // namespace dwarfs

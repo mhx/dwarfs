@@ -233,7 +233,7 @@ class block_cache_ final : public block_cache::impl {
       , tidy_runner_{mx_, {}, "tidy-blkcache", [this] { tidy_cache(); }}
       , mm_{mm}
       , buffer_factory_{block_cache_byte_buffer_factory::create(
-            options.allocation_mode)}
+            os, options.allocation_mode)}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "block_cache")

@@ -36,7 +36,7 @@
 #include <dwarfs/file_range.h>
 #include <dwarfs/io_advice.h>
 
-namespace dwarfs::internal {
+namespace dwarfs {
 
 namespace detail {
 
@@ -131,4 +131,4 @@ class memory_mapping final : public readonly_memory_mapping {
   }
 };
 
-} // namespace dwarfs::internal
+} // namespace dwarfs
