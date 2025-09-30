@@ -27,11 +27,11 @@
  */
 
 #include <dwarfs/binary_literals.h>
-#include <dwarfs/mmap.h>
 
 #include <dwarfs/internal/mappable_file.h>
+#include <dwarfs/internal/mmap_file_view.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -41,9 +41,10 @@ class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
-  mmap_file_view(std::filesystem::path const& path,
+  mmap_file_view(internal::memory_mapping_ops const& ops,
+                 std::filesystem::path const& path,
                  mmap_file_view_options const& opts)
-      : file_{internal::mappable_file::create(path)}
+      : file_{internal::mappable_file::create(ops, path)}
       , path_{path}
       , extents_{file_.get_extents_noexcept()} {
     if (!opts.max_eager_map_size.has_value() ||
@@ -86,13 +87,11 @@ class mmap_file_view final
   std::filesystem::path const& path() const override { return path_; }
 
   // Not exposed publicly
-  internal::readonly_memory_mapping const& mapping() const noexcept {
-    return mapping_.value();
-  }
+  readonly_memory_mapping const& mapping() const { return mapping_.value(); }
 
  private:
   internal::mappable_file file_;
-  std::optional<internal::readonly_memory_mapping> mapping_;
+  std::optional<readonly_memory_mapping> mapping_;
   std::filesystem::path const path_;
   std::vector<detail::file_extent_info> const extents_;
 };
@@ -136,7 +135,7 @@ class mmap_ref_file_segment final : public detail::file_segment_impl {
 
 class mmap_file_segment final : public detail::file_segment_impl {
  public:
-  mmap_file_segment(internal::readonly_memory_mapping&& mm, file_range range)
+  mmap_file_segment(readonly_memory_mapping&& mm, file_range range)
       : mm_{std::move(mm)}
       , range_{range} {}
 
@@ -162,7 +161,7 @@ class mmap_file_segment final : public detail::file_segment_impl {
   }
 
  private:
-  internal::readonly_memory_mapping mm_;
+  readonly_memory_mapping mm_;
   file_range const range_;
 };
 
@@ -212,13 +211,15 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
 } // namespace
 
-file_view create_mmap_file_view(std::filesystem::path const& path,
+file_view create_mmap_file_view(internal::memory_mapping_ops const& ops,
+                                std::filesystem::path const& path,
                                 mmap_file_view_options const& opts) {
-  return file_view(std::make_shared<mmap_file_view>(path, opts));
+  return file_view(std::make_shared<mmap_file_view>(ops, path, opts));
 }
 
-file_view create_mmap_file_view(std::filesystem::path const& path) {
-  return create_mmap_file_view(path, {});
+file_view create_mmap_file_view(internal::memory_mapping_ops const& ops,
+                                std::filesystem::path const& path) {
+  return create_mmap_file_view(ops, path, {});
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
