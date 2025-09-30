@@ -30,10 +30,60 @@
 
 #include <dwarfs/error.h>
 
+#include <dwarfs/internal/detail/align_advise_range.h>
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/memory_mapping_ops.h>
 
 namespace dwarfs::internal {
+
+namespace detail {
+
+advise_range align_advise_range(advise_range const& input,
+                                advise_range_constraints const& constraints,
+                                io_advice_range range, std::error_code& ec) {
+  ec.clear();
+
+  auto const granularity = constraints.granularity;
+  size_t offset = constraints.page_offset + input.offset;
+  size_t size = input.size;
+
+  if (offset > constraints.mapped_size || offset < constraints.page_offset) {
+    ec = make_error_code(std::errc::invalid_argument);
+    return {};
+  }
+
+  if (auto const max_size = constraints.mapped_size - offset; size > max_size) {
+    size = max_size;
+  }
+
+  if (auto const misalign = offset % granularity; misalign != 0) {
+    offset -= misalign;
+    size += misalign;
+    if (range == io_advice_range::exclude_partial) {
+      offset += granularity;
+      size = size >= granularity ? size - granularity : 0;
+    }
+  }
+
+  if (auto const misalign = size % granularity; misalign != 0) {
+    size -= misalign;
+    if (range == io_advice_range::include_partial) {
+      size += granularity;
+    }
+  }
+
+  if (offset > constraints.mapped_size) {
+    return {};
+  }
+
+  if (auto const max_size = constraints.mapped_size - offset; size > max_size) {
+    size = max_size;
+  }
+
+  return {offset, size};
+}
+
+} // namespace detail
 
 namespace {
 
@@ -112,42 +162,27 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
 
   void advise(io_advice advice, size_t offset, size_t size,
               io_advice_range range, std::error_code* ec) const override {
-    offset += page_offset_;
-
-    if (offset + size > mapped_size_) {
-      auto local_ec = make_error_code(std::errc::invalid_argument);
-      handle_error("advise", ec, local_ec);
-      return;
-    }
-
-    if (auto const misalign = offset % granularity_; misalign != 0) {
-      offset -= misalign;
-      size += misalign;
-      if (range == io_advice_range::exclude_partial) {
-        offset += granularity_;
-        size = size >= granularity_ ? size - granularity_ : 0;
-      }
-    }
-
-    if (auto const misalign = size % granularity_; misalign != 0) {
-      size -= misalign;
-      if (range == io_advice_range::include_partial) {
-        size += granularity_;
-      }
-    }
-
-    if (offset + size > mapped_size_) {
-      size = mapped_size_ - offset;
-    }
-
-    if (size == 0) {
-      return;
-    }
-
-    auto const addr = reinterpret_cast<std::byte*>(addr_) + offset;
-
     std::error_code local_ec;
-    ops_.advise(addr, size, advice, local_ec);
+
+    auto const aligned =
+        detail::align_advise_range({.offset = offset, .size = size},
+                                   {.page_offset = page_offset_,
+                                    .mapped_size = mapped_size_,
+                                    .granularity = granularity_},
+                                   range, local_ec);
+
+    if (local_ec) {
+      handle_error("align_advise_range", ec, local_ec);
+      return;
+    }
+
+    if (aligned.size == 0) {
+      return;
+    }
+
+    auto const addr = reinterpret_cast<std::byte*>(addr_) + aligned.offset;
+
+    ops_.advise(addr, aligned.size, advice, local_ec);
 
     handle_error("advise", ec, local_ec);
   }
