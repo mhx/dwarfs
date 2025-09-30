@@ -135,6 +135,8 @@ class os_access_mock : public os_access {
   read_symlink(std::filesystem::path const& path) const override;
 
   file_view open_file(std::filesystem::path const& path) const override;
+  readonly_memory_mapping map_empty_readonly(size_t size) const override;
+  memory_mapping map_empty(size_t size) const override;
 
   int access(std::filesystem::path const&, int) const override;
 

@@ -54,10 +54,13 @@
 #include <fmt/core.h>
 
 #include <dwarfs/binary_literals.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/mappable_file.h>
+#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/mmap_file_view.h>
 
 namespace dwarfs {
 
@@ -133,7 +136,8 @@ parse_iolayer_opts(std::string_view str) {
 } // namespace
 
 struct os_access_generic::data {
-  data() {
+  data()
+      : ops{internal::get_native_memory_mapping_ops()} {
     if (kIs32BitArch) {
       mmap_opts.max_eager_map_size.emplace(32_MiB);
     }
@@ -160,7 +164,8 @@ struct os_access_generic::data {
     }
   }
 
-  mmap_file_view_options mmap_opts;
+  internal::mmap_file_view_options mmap_opts;
+  dwarfs::internal::memory_mapping_ops const& ops;
 };
 
 std::unique_ptr<dir_reader>
@@ -177,7 +182,16 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::open_file(fs::path const& path) const {
-  return create_mmap_file_view(path, data_->mmap_opts);
+  return internal::create_mmap_file_view(data_->ops, path, data_->mmap_opts);
+}
+
+readonly_memory_mapping
+os_access_generic::map_empty_readonly(size_t size) const {
+  return internal::mappable_file::map_empty_readonly(data_->ops, size);
+}
+
+memory_mapping os_access_generic::map_empty(size_t size) const {
+  return internal::mappable_file::map_empty(data_->ops, size);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {

@@ -41,7 +41,6 @@ add_library(
   src/logger.cpp
   src/malloc_byte_buffer.cpp
   src/mapped_byte_buffer.cpp
-  src/mmap.cpp
   src/option_map.cpp
   src/os_access_generic.cpp
   src/pcm_sample_transformer.cpp
@@ -60,8 +59,9 @@ add_library(
   src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
   src/internal/mappable_file.cpp
-  src/internal/mappable_file_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
+  src/internal/memory_mapping_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
   src/internal/metadata_utils.cpp
+  src/internal/mmap_file_view.cpp
   src/internal/string_table.cpp
   src/internal/unicode_case_folding.cpp
   src/internal/wcwidth.c

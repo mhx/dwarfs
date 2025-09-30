@@ -40,6 +40,7 @@
 #include <dwarfs/file_util.h>
 
 #include <dwarfs/internal/mappable_file.h>
+#include <dwarfs/internal/memory_mapping_ops.h>
 
 #include "sparse_file_builder.h"
 #include "test_helpers.h"
@@ -76,8 +77,10 @@ class map_read_tests : public ::testing::Test {
       ASSERT_TRUE(os.good()) << "failed writing to " << p_;
     }
 
+    auto const& ops = internal::get_native_memory_mapping_ops();
+
     std::error_code ec;
-    mf_ = mappable_file::create(p_, ec);
+    mf_ = mappable_file::create(ops, p_, ec);
     ASSERT_FALSE(ec) << "mappable_file::create: " << ec.message();
 
     auto sz = mf_.size(ec);
@@ -233,7 +236,8 @@ TEST_F(map_read_tests, read_at_eof_returns_zero) {
 }
 
 TEST(zero_memory, basic) {
-  auto zeroes = mappable_file::map_empty_readonly(8_MiB);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto zeroes = mappable_file::map_empty_readonly(ops, 8_MiB);
   auto span = zeroes.const_span<uint8_t>();
 
   EXPECT_EQ(zeroes.size(), 8_MiB);
@@ -269,7 +273,8 @@ TEST_F(sparse_file_test, basic) {
   sfb.punch_hole(granularity.value(), granularity.value());
   sfb.commit();
 
-  auto mf = mappable_file::create(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
   EXPECT_EQ(mf.size(), 3 * granularity.value());
 
   std::vector<file_extent_info> const expected_extents = {
@@ -303,7 +308,8 @@ TEST_F(sparse_file_test, hole_at_start) {
        file_range(static_cast<file_off_t>(granularity.value()), 1)},
   };
 
-  auto mf = mappable_file::create(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
   EXPECT_EQ(mf.size(), granularity.value() + 1);
 
   auto const actual_extents = mf.get_extents();
@@ -326,7 +332,8 @@ TEST_F(sparse_file_test, hole_at_end) {
                   static_cast<file_size_t>(granularity.value()))},
   };
 
-  auto mf = mappable_file::create(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
   EXPECT_EQ(mf.size(), 2 * granularity.value());
 
   auto const actual_extents = mf.get_extents();
@@ -345,7 +352,8 @@ TEST_F(sparse_file_test, hole_only) {
        file_range(0, static_cast<file_size_t>(granularity.value()))},
   };
 
-  auto mf = mappable_file::create(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
   EXPECT_EQ(mf.size(), granularity.value());
 
   auto const actual_extents = mf.get_extents();
@@ -383,7 +391,8 @@ TEST_F(sparse_file_test, multiple_holes_and_data_blocks) {
                   static_cast<file_size_t>(granularity.value()))},
   };
 
-  auto mf = mappable_file::create(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
   EXPECT_EQ(mf.size(), 6 * granularity.value());
 
   auto const actual_extents = mf.get_extents();

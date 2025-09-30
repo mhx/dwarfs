@@ -29,7 +29,9 @@
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
-#include <dwarfs/mmap.h>
+
+#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/mmap_file_view.h>
 
 #include "mmap_mock.h"
 
@@ -285,7 +287,8 @@ TEST(mmap_file_view, basic) {
 
   write_file(path, "Hello, World!");
 
-  auto mm = create_mmap_file_view(path);
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mm = internal::create_mmap_file_view(ops, path);
 
   EXPECT_TRUE(mm);
   EXPECT_TRUE(mm.valid());

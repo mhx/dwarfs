@@ -31,6 +31,8 @@
 
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 
+#include "test_helpers.h"
+
 TEST(byte_buffer_test, malloc_byte_buffer) {
   auto buf = dwarfs::malloc_byte_buffer::create();
   static_assert(std::same_as<decltype(buf), dwarfs::mutable_byte_buffer>);
@@ -106,8 +108,9 @@ TEST(byte_buffer_test, malloc_byte_buffer) {
 
 TEST(byte_buffer_test, block_cache_byte_buffer_mmap) {
   using namespace dwarfs::reader;
+  dwarfs::test::os_access_mock os;
   auto factory = internal::block_cache_byte_buffer_factory::create(
-      block_cache_allocation_mode::MMAP);
+      os, block_cache_allocation_mode::MMAP);
   auto buf = factory.create_mutable_fixed_reserve(13);
 
   EXPECT_TRUE(buf);
