@@ -34,26 +34,32 @@
 #include <system_error>
 #include <vector>
 
+#include <dwarfs/memory_mapping.h>
 #include <dwarfs/types.h>
 
 #include <dwarfs/detail/file_extent_info.h>
 
-#include <dwarfs/internal/memory_mapping.h>
-
 namespace dwarfs::internal {
+
+class memory_mapping_ops;
 
 class mappable_file {
  public:
-  static readonly_memory_mapping map_empty_readonly(size_t size);
   static readonly_memory_mapping
-  map_empty_readonly(size_t size, std::error_code& ec);
+  map_empty_readonly(memory_mapping_ops const& ops, size_t size);
+  static readonly_memory_mapping
+  map_empty_readonly(memory_mapping_ops const& ops, size_t size,
+                     std::error_code& ec);
 
-  static memory_mapping map_empty(size_t size);
-  static memory_mapping map_empty(size_t size, std::error_code& ec);
+  static memory_mapping map_empty(memory_mapping_ops const& ops, size_t size);
+  static memory_mapping
+  map_empty(memory_mapping_ops const& ops, size_t size, std::error_code& ec);
 
-  static mappable_file create(std::filesystem::path const& path);
   static mappable_file
-  create(std::filesystem::path const& path, std::error_code& ec);
+  create(memory_mapping_ops const& ops, std::filesystem::path const& path);
+  static mappable_file
+  create(memory_mapping_ops const& ops, std::filesystem::path const& path,
+         std::error_code& ec);
 
   mappable_file() = default;
 

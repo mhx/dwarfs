@@ -33,7 +33,6 @@
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
@@ -486,6 +485,14 @@ file_view os_access_mock::open_file(fs::path const& path) const {
   throw std::runtime_error(fmt::format("oops in open_file: {}", path.string()));
 }
 
+readonly_memory_mapping os_access_mock::map_empty_readonly(size_t size) const {
+  return real_os_->map_empty_readonly(size);
+}
+
+memory_mapping os_access_mock::map_empty(size_t size) const {
+  return real_os_->map_empty(size);
+}
+
 std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
   std::set<std::filesystem::path> rv = access_fail_set_;
   for (auto const& [path, error] : map_file_errors_) {
@@ -615,7 +622,8 @@ parse_mtree(std::string_view mtree) {
 }
 
 file_view make_real_file_view(std::filesystem::path const& path) {
-  return create_mmap_file_view(path);
+  os_access_generic os;
+  return os.open_file(path);
 }
 
 bool skip_slow_tests() {
