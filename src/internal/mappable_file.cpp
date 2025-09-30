@@ -111,16 +111,37 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
   }
 
   void advise(io_advice advice, size_t offset, size_t size,
-              std::error_code* ec) const override {
+              io_advice_range range, std::error_code* ec) const override {
     offset += page_offset_;
+
+    if (offset + size > mapped_size_) {
+      auto local_ec = make_error_code(std::errc::invalid_argument);
+      handle_error("advise", ec, local_ec);
+      return;
+    }
 
     if (auto const misalign = offset % granularity_; misalign != 0) {
       offset -= misalign;
       size += misalign;
+      if (range == io_advice_range::exclude_partial) {
+        offset += granularity_;
+        size = size >= granularity_ ? size - granularity_ : 0;
+      }
     }
 
     if (auto const misalign = size % granularity_; misalign != 0) {
-      size += granularity_ - misalign;
+      size -= misalign;
+      if (range == io_advice_range::include_partial) {
+        size += granularity_;
+      }
+    }
+
+    if (offset + size > mapped_size_) {
+      size = mapped_size_ - offset;
+    }
+
+    if (size == 0) {
+      return;
     }
 
     auto const addr = reinterpret_cast<std::byte*>(addr_) + offset;

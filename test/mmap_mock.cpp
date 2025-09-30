@@ -141,9 +141,8 @@ class mmap_mock_file_segment final : public detail::file_segment_impl {
             static_cast<size_t>(range_.size())};
   }
 
-  void
-  advise(io_advice adv, file_range range, std::error_code& ec) const override {
-    ec = mm_->advise(adv, range);
+  void advise(io_advice adv, std::error_code& ec) const override {
+    ec = mm_->advise(adv, range_);
   }
 
   void lock(std::error_code& ec) const override { ec = mm_->lock(range_); }
