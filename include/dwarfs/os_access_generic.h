@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <iosfwd>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,10 +39,15 @@
 
 namespace dwarfs {
 
+namespace internal {
+class os_access_generic_data;
+} // namespace internal
+
 class os_access_generic : public os_access {
  public:
   os_access_generic();
-  ~os_access_generic();
+  explicit os_access_generic(std::ostream& err);
+  ~os_access_generic() override;
 
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
@@ -64,8 +70,7 @@ class os_access_generic : public os_access {
   find_executable(std::filesystem::path const& name) const override;
 
  private:
-  struct data;
-  std::unique_ptr<data const> data_;
+  std::unique_ptr<internal::os_access_generic_data const> data_;
 };
 
 } // namespace dwarfs

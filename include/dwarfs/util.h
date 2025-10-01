@@ -37,6 +37,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include <dwarfs/types.h>
 
@@ -48,6 +49,9 @@ std::string size_with_unit(file_size_t size);
 file_size_t parse_size_with_unit(std::string const& str);
 std::chrono::milliseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);
+
+std::unordered_map<std::string_view, std::string_view>
+parse_option_string(std::string_view str);
 
 inline std::u8string string_to_u8string(std::string const& in) {
   return {reinterpret_cast<char8_t const*>(in.data()), in.size()};
