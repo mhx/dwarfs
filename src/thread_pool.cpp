@@ -53,15 +53,6 @@ std::chrono::nanoseconds thread_pool::get_cpu_time(std::error_code& ec) const {
   return wg_->get_cpu_time(ec);
 }
 
-std::chrono::nanoseconds thread_pool::get_cpu_time() const {
-  std::error_code ec;
-  auto rv = get_cpu_time(ec);
-  if (ec) {
-    throw std::system_error(ec);
-  }
-  return rv;
-}
-
 std::optional<std::chrono::nanoseconds> thread_pool::try_get_cpu_time() const {
   return wg_->try_get_cpu_time();
 }

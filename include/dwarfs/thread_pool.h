@@ -75,7 +75,6 @@ class thread_pool {
   void wait();
   bool running() const;
   std::optional<std::chrono::nanoseconds> try_get_cpu_time() const;
-  std::chrono::nanoseconds get_cpu_time() const;
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const;
 
   internal::worker_group* operator->() { return wg_.get(); }
