@@ -63,6 +63,10 @@ class readonly_memory_mapping {
       std::unique_ptr<detail::memory_mapping_impl> impl)
       : impl_(std::move(impl)) {}
 
+  explicit operator bool() const noexcept { return static_cast<bool>(impl_); }
+  bool valid() const noexcept { return static_cast<bool>(impl_); }
+  void reset() noexcept { impl_.reset(); }
+
   file_range range() const { return impl_->range(); }
 
   size_t size() const { return impl_->const_span().size(); }
