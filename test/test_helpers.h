@@ -55,7 +55,7 @@
 #if __has_feature(address_sanitizer)
 #define DWARFS_TEST_RUNNING_ON_ASAN 1
 #endif
-#if __has_feature(address_sanitizer)
+#if __has_feature(thread_sanitizer)
 #define DWARFS_TEST_RUNNING_ON_TSAN 1
 #endif
 #endif
