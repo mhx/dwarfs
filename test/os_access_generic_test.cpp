@@ -29,8 +29,10 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/os_access_generic.h>
 
 #include <dwarfs/internal/os_access_generic_data.h>
+#include <dwarfs/internal/thread_util.h>
 
 using namespace dwarfs::binary_literals;
 using dwarfs::internal::os_access_generic_data;
@@ -51,6 +53,29 @@ class test_env {
  private:
   std::unordered_map<std::string, std::string> vars_;
 };
+
+#if !(defined(_WIN32) || defined(__APPLE__))
+std::vector<int> get_affinity(std::thread::id tid) {
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+
+  auto handle = dwarfs::internal::std_to_pthread_id(tid);
+
+  if (pthread_getaffinity_np(handle, sizeof(cpu_set_t), &cpuset) != 0) {
+    throw std::runtime_error("pthread_getaffinity_np failed");
+  }
+
+  std::vector<int> result;
+
+  for (int i = 0; i < CPU_SETSIZE; ++i) {
+    if (CPU_ISSET(i, &cpuset)) {
+      result.push_back(i);
+    }
+  }
+
+  return result;
+}
+#endif
 
 } // namespace
 
@@ -147,4 +172,44 @@ TEST(os_access_generic_data, extra_options) {
       err.str(),
       testing::HasSubstr(
           "warning: ignoring unknown DWARFS_IOLAYER_OPTS option 'someflag'"));
+}
+
+TEST(os_access_generic, set_thread_affinity) {
+#if defined(_WIN32) || defined(__APPLE__)
+  GTEST_SKIP() << "thread_set_affinity not supported on this platform";
+#else
+  auto const num_cpus = std::thread::hardware_concurrency();
+
+  if (num_cpus < 2) {
+    GTEST_SKIP() << "This test requires at least two CPUs";
+  }
+
+  auto const tid = std::this_thread::get_id();
+  auto const original_cpus = get_affinity(tid);
+
+  EXPECT_GT(original_cpus.size(), 0);
+  EXPECT_LE(original_cpus.size(), num_cpus);
+
+  dwarfs::os_access_generic os;
+
+  std::vector<int> set_cpus;
+  for (size_t i = 1; i < num_cpus; i += 2) {
+    set_cpus.push_back(static_cast<int>(i));
+  }
+
+  std::error_code ec;
+  os.thread_set_affinity(tid, set_cpus, ec);
+
+  EXPECT_FALSE(ec) << ec.message();
+
+  auto const new_cpus = get_affinity(tid);
+  EXPECT_THAT(new_cpus, testing::ElementsAreArray(set_cpus));
+
+  // restore original affinity
+  os.thread_set_affinity(tid, original_cpus, ec);
+  EXPECT_FALSE(ec) << ec.message();
+
+  auto const restored_cpus = get_affinity(tid);
+  EXPECT_THAT(restored_cpus, testing::ElementsAreArray(original_cpus));
+#endif
 }
