@@ -2186,3 +2186,143 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
                          ::testing::Combine(::testing::ValuesIn(path_types),
                                             ::testing::Bool()));
+
+TEST(tools_test, compare_directories_sanity) {
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto dir1 = td / "dir1";
+  auto dir2 = td / "dir2";
+
+  ASSERT_TRUE(fs::create_directory(dir1));
+  ASSERT_TRUE(fs::create_directory(dir2));
+
+  dwarfs::write_file(dir1 / "file1.txt", "hello");
+  dwarfs::write_file(dir1 / "file2.txt", "world");
+
+  dwarfs::write_file(dir2 / "file1.txt", "hello");
+  dwarfs::write_file(dir2 / "file2.txt", "world");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_TRUE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 0) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("mismatched:")));
+  }
+
+  dwarfs::write_file(dir2 / "file2.txt", "WORLD");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 1) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
+  }
+
+  dwarfs::write_file(dir2 / "file3.txt", "new file");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 2) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
+  }
+
+  fs::create_symlink("file1.txt", dir1 / "link1");
+  fs::create_symlink("file1.txt", dir2 / "link1");
+
+  fs::create_directory(dir1 / "subdir");
+  fs::create_directory(dir2 / "subdir");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 1) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 2) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("symlink:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
+  }
+
+  fs::create_directory(dir1 / "subdir2");
+  fs::create_symlink("file2.txt", dir2 / "link2");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 1) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 4) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("symlink:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
+  }
+
+  fs::remove(dir2 / "link1");
+  fs::create_symlink("file3.txt", dir2 / "link1");
+
+  {
+    compare_directories_result cdr;
+    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
+    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
+    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
+    EXPECT_EQ(cdr.mismatched.size(), 5) << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
+
+    std::ostringstream oss;
+    oss << cdr;
+    auto const oss_str = oss.str();
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
+    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
+    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
+  }
+}
