@@ -21,9 +21,24 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <chrono>
+#include <latch>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
+
+#include <folly/portability/PThread.h>
+
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#else
+#include <sys/resource.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <pthread_np.h>
+#endif
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -76,6 +91,39 @@ std::vector<int> get_affinity(std::thread::id tid) {
   return result;
 }
 #endif
+
+std::chrono::nanoseconds process_cpu_time() {
+#ifdef _WIN32
+  FILETIME create{}, exit{}, kernel{}, user{};
+  if (!::GetProcessTimes(::GetCurrentProcess(), &create, &exit, &kernel,
+                         &user)) {
+    throw std::system_error(::GetLastError(), std::system_category(),
+                            "GetProcessTimes failed");
+  }
+
+  ULARGE_INTEGER k{}, u{};
+  k.LowPart = kernel.dwLowDateTime;
+  k.HighPart = kernel.dwHighDateTime;
+  u.LowPart = user.dwLowDateTime;
+  u.HighPart = user.dwHighDateTime;
+
+  // FILETIME durations are in 100-ns units
+  unsigned long long total_100ns = k.QuadPart + u.QuadPart;
+  return std::chrono::nanoseconds(total_100ns * 100ull);
+#else
+  struct rusage usage{};
+  if (getrusage(RUSAGE_SELF, &usage) != 0) {
+    throw std::system_error(errno, std::system_category(), "getrusage failed");
+  }
+
+  auto const sec = static_cast<unsigned long long>(usage.ru_utime.tv_sec) +
+                   static_cast<unsigned long long>(usage.ru_stime.tv_sec);
+  auto const usec = static_cast<unsigned long long>(usage.ru_utime.tv_usec) +
+                    static_cast<unsigned long long>(usage.ru_stime.tv_usec);
+
+  return std::chrono::seconds(sec) + std::chrono::microseconds(usec);
+#endif
+}
 
 } // namespace
 
@@ -211,5 +259,40 @@ TEST(os_access_generic, set_thread_affinity) {
 
   auto const restored_cpus = get_affinity(tid);
   EXPECT_THAT(restored_cpus, testing::ElementsAreArray(original_cpus));
+#endif
+}
+
+TEST(os_access_generic, get_thread_cpu_time) {
+  using namespace std::chrono_literals;
+  std::latch loop_done(1);
+  std::latch exit_thread(1);
+
+  std::thread burn_cpu([&] {
+    auto const end = process_cpu_time() + 60ms;
+    while (process_cpu_time() < end) {
+      // burn CPU
+    }
+    loop_done.count_down();
+    exit_thread.wait();
+  });
+
+  loop_done.wait();
+
+  dwarfs::os_access_generic os;
+  std::error_code ec;
+
+  auto const cpu_time = os.thread_get_cpu_time(burn_cpu.get_id(), ec);
+
+  EXPECT_FALSE(ec) << ec.message();
+
+  exit_thread.count_down();
+  burn_cpu.join();
+
+  EXPECT_GE(cpu_time, 40ms);
+
+#ifdef _WIN32
+  EXPECT_LE(cpu_time, 120ms);
+#else
+  EXPECT_LE(cpu_time, 80ms);
 #endif
 }
