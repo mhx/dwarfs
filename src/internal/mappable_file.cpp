@@ -65,20 +65,20 @@ advise_range align_advise_range(advise_range const& input,
     }
   }
 
-  if (auto const misalign = size % granularity; misalign != 0) {
-    size -= misalign;
-    if (range == io_advice_range::include_partial) {
-      size += granularity;
-    }
-  }
-
   if (offset > constraints.mapped_size) {
     return {};
   }
 
-  if (auto const max_size = constraints.mapped_size - offset; size > max_size) {
-    size = max_size;
+  if (range == io_advice_range::exclude_partial) {
+    if (auto const misalign = size % granularity; misalign != 0) {
+      size -= misalign;
+    }
   }
+
+  assert(offset % granularity == 0);
+  assert(offset <= constraints.mapped_size);
+  assert(size <= constraints.mapped_size - offset);
+  assert(range == io_advice_range::include_partial || size % granularity == 0);
 
   return {offset, size};
 }
