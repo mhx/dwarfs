@@ -26,6 +26,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <limits>
+
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
@@ -38,49 +40,62 @@ namespace dwarfs::internal {
 
 namespace detail {
 
+static inline size_t align_down(size_t x, size_t g) { return x - (x % g); }
+
+static inline size_t align_up(size_t x, size_t g) {
+  size_t const r = x % g;
+  return r ? (x + (g - r)) : x;
+}
+
 advise_range align_advise_range(advise_range const& input,
                                 advise_range_constraints const& constraints,
                                 io_advice_range range, std::error_code& ec) {
   ec.clear();
 
-  auto const granularity = constraints.granularity;
-  size_t offset = constraints.page_offset + input.offset;
-  size_t size = input.size;
+  auto const gran = constraints.granularity;
 
-  if (offset > constraints.mapped_size || offset < constraints.page_offset) {
+  // check preconditions
+  if (gran == 0 || constraints.page_offset >= gran ||
+      input.offset >
+          std::numeric_limits<size_t>::max() - constraints.page_offset ||
+      constraints.page_offset + input.offset > constraints.mapped_size) {
     ec = make_error_code(std::errc::invalid_argument);
     return {};
   }
 
-  if (auto const max_size = constraints.mapped_size - offset; size > max_size) {
-    size = max_size;
-  }
-
-  if (auto const misalign = offset % granularity; misalign != 0) {
-    offset -= misalign;
-    size += misalign;
-    if (range == io_advice_range::exclude_partial) {
-      offset += granularity;
-      size = size >= granularity ? size - granularity : 0;
-    }
-  }
-
-  if (offset > constraints.mapped_size) {
+  if (input.size == 0) {
     return {};
   }
 
-  if (range == io_advice_range::exclude_partial) {
-    if (auto const misalign = size % granularity; misalign != 0) {
-      size -= misalign;
-    }
+  size_t start = constraints.page_offset + input.offset;
+  size_t end = constraints.mapped_size;
+
+  if (input.size < constraints.mapped_size - start) {
+    end = start + input.size;
   }
 
-  assert(offset % granularity == 0);
-  assert(offset <= constraints.mapped_size);
-  assert(size <= constraints.mapped_size - offset);
-  assert(range == io_advice_range::include_partial || size % granularity == 0);
+  if (range == io_advice_range::include_partial) {
+    start = align_down(start, gran);
+    // end can remain unaligned
+  } else {
+    start = align_up(start, gran);
+    end = align_down(end, gran);
+  }
 
-  return {offset, size};
+  if (start > constraints.mapped_size) {
+    return {};
+  }
+
+  size_t const size = end > start ? end - start : 0;
+
+  // check postconditions
+  assert(start % gran == 0);
+  assert(end <= constraints.mapped_size);
+  assert(start <= constraints.mapped_size);
+  assert(size <= constraints.mapped_size - start);
+  assert(range == io_advice_range::include_partial || size % gran == 0);
+
+  return {start, size};
 }
 
 } // namespace detail
