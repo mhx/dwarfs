@@ -508,3 +508,9 @@ TEST(extent_kind_test, ostream_operator) {
       << static_cast<extent_kind>(42);
   EXPECT_EQ(oss.str(), "data and hole and <42>");
 }
+
+TEST(file_extent_info_test, ostream_operator) {
+  std::ostringstream oss;
+  oss << file_extent_info{extent_kind::data, file_range{123, 456}};
+  EXPECT_EQ(oss.str(), "file_extent_info{kind=data, range=[123, 456]}");
+}
