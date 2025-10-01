@@ -32,6 +32,7 @@
 #include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
 
+#include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/memory_mapping_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 
@@ -735,6 +736,86 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
   EXPECT_CALL(mock_ops, close(handle, _)).Times(1);
 
   fv.reset();
+
+  ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+}
+
+TEST(mappable_file, virtual_alloc_free) {
+  static constexpr size_t kGran{4096};
+  fake_mm_ops_lowlevel fake(kGran);
+  StrictMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  static constexpr size_t kAllocSize{10000};
+
+  void* allocated_ptr{nullptr};
+
+  EXPECT_CALL(mock_ops, granularity()).Times(1);
+
+  EXPECT_CALL(mock_ops,
+              virtual_alloc(kAllocSize, internal::memory_access::readwrite, _))
+      .WillOnce(Invoke(
+          [&](size_t sz, internal::memory_access acc, std::error_code& ec) {
+            void* p = fake.virtual_alloc(sz, acc, ec);
+            allocated_ptr = p;
+            return p;
+          }));
+
+  auto mapping = internal::mappable_file::map_empty(ops, kAllocSize);
+
+  EXPECT_TRUE(mapping.valid());
+
+  ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+
+  EXPECT_CALL(mock_ops, virtual_free(allocated_ptr, kAllocSize, _))
+      .WillOnce(Invoke([&](void* p, size_t sz, std::error_code& ec) {
+        EXPECT_EQ(p, allocated_ptr);
+        EXPECT_EQ(sz, kAllocSize);
+        fake.virtual_free(p, sz, ec);
+      }));
+
+  mapping.reset();
+
+  ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+}
+
+TEST(mappable_file, virtual_alloc_free_readonly) {
+  static constexpr size_t kGran{4096};
+  fake_mm_ops_lowlevel fake(kGran);
+  StrictMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  static constexpr size_t kAllocSize{10000};
+
+  void* allocated_ptr{nullptr};
+
+  EXPECT_CALL(mock_ops, granularity()).Times(1);
+
+  EXPECT_CALL(mock_ops,
+              virtual_alloc(kAllocSize, internal::memory_access::readonly, _))
+      .WillOnce(Invoke(
+          [&](size_t sz, internal::memory_access acc, std::error_code& ec) {
+            void* p = fake.virtual_alloc(sz, acc, ec);
+            allocated_ptr = p;
+            return p;
+          }));
+
+  auto mapping = internal::mappable_file::map_empty_readonly(ops, kAllocSize);
+
+  EXPECT_TRUE(mapping.valid());
+
+  ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+
+  EXPECT_CALL(mock_ops, virtual_free(allocated_ptr, kAllocSize, _))
+      .WillOnce(Invoke([&](void* p, size_t sz, std::error_code& ec) {
+        EXPECT_EQ(p, allocated_ptr);
+        EXPECT_EQ(sz, kAllocSize);
+        fake.virtual_free(p, sz, ec);
+      }));
+
+  mapping.reset();
 
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
 }
