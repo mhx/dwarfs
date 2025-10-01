@@ -28,6 +28,7 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <iostream>
 
 #include <folly/portability/PThread.h>
 #include <folly/portability/Unistd.h>
@@ -51,22 +52,17 @@
 #include <mach/thread_info.h>
 #endif
 
-#include <fmt/core.h>
-
-#include <dwarfs/binary_literals.h>
 #include <dwarfs/os_access_generic.h>
-#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/memory_mapping_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
+#include <dwarfs/internal/os_access_generic_data.h>
 
 namespace dwarfs {
 
 namespace fs = std::filesystem;
-
-using namespace binary_literals;
 
 namespace {
 
@@ -112,61 +108,7 @@ class generic_dir_reader final : public dir_reader {
   fs::directory_iterator it_;
 };
 
-constexpr bool kIs32BitArch = sizeof(void*) == 4;
-constexpr auto kIolayerOptsVar = "DWARFS_IOLAYER_OPTS";
-constexpr auto kMaxEagerMapSizeOpt = "max_eager_map_size";
-
-std::unordered_map<std::string_view, std::string_view>
-parse_iolayer_opts(std::string_view str) {
-  std::unordered_map<std::string_view, std::string_view> opts;
-
-  for (auto const part : split_to<std::vector<std::string_view>>(str, ',')) {
-    auto const pos = part.find('=');
-
-    if (pos != std::string_view::npos) {
-      opts.emplace(part.substr(0, pos), part.substr(pos + 1));
-    } else {
-      opts.emplace(part, std::string_view{});
-    }
-  }
-
-  return opts;
-}
-
 } // namespace
-
-struct os_access_generic::data {
-  data()
-      : ops{internal::get_native_memory_mapping_ops()} {
-    if (kIs32BitArch) {
-      mmap_opts.max_eager_map_size.emplace(32_MiB);
-    }
-
-    if (auto const value = std::getenv(kIolayerOptsVar)) {
-      auto opts = parse_iolayer_opts(value);
-
-      if (auto it = opts.find(kMaxEagerMapSizeOpt); it != opts.end()) {
-        if (it->second == "unlimited") {
-          mmap_opts.max_eager_map_size.reset();
-        } else {
-          mmap_opts.max_eager_map_size.emplace(
-              parse_size_with_unit(std::string{it->second}));
-        }
-        opts.erase(it);
-      }
-
-      if (!opts.empty()) {
-        for (auto const& [key, val] : opts) {
-          fmt::print(stderr, "warning: ignoring unknown {} option '{}'\n",
-                     kIolayerOptsVar, key);
-        }
-      }
-    }
-  }
-
-  internal::mmap_file_view_options mmap_opts;
-  dwarfs::internal::memory_mapping_ops const& ops;
-};
 
 std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
@@ -182,16 +124,17 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::open_file(fs::path const& path) const {
-  return internal::create_mmap_file_view(data_->ops, path, data_->mmap_opts);
+  return internal::create_mmap_file_view(data_->mm_ops(), path,
+                                         data_->fv_opts());
 }
 
 readonly_memory_mapping
 os_access_generic::map_empty_readonly(size_t size) const {
-  return internal::mappable_file::map_empty_readonly(data_->ops, size);
+  return internal::mappable_file::map_empty_readonly(data_->mm_ops(), size);
 }
 
 memory_mapping os_access_generic::map_empty(size_t size) const {
-  return internal::mappable_file::map_empty(data_->ops, size);
+  return internal::mappable_file::map_empty(data_->mm_ops(), size);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {
@@ -316,7 +259,11 @@ os_access_generic::find_executable(std::filesystem::path const& name) const {
 }
 
 os_access_generic::os_access_generic()
-    : data_{std::make_unique<data>()} {}
+    : os_access_generic(std::cerr) {}
+
+os_access_generic::os_access_generic(std::ostream& err)
+    : data_{std::make_unique<internal::os_access_generic_data>(err,
+                                                               std::getenv)} {}
 
 os_access_generic::~os_access_generic() = default;
 

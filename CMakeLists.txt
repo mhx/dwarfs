@@ -534,6 +534,7 @@ if(WITH_TESTS)
       test/metadata_test.cpp
       test/nilsimsa_test.cpp
       test/options_test.cpp
+      test/os_access_generic_test.cpp
       test/packed_int_vector_test.cpp
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp

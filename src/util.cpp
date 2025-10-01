@@ -37,6 +37,7 @@
 #include <mutex>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #ifdef _WIN32
 #define PSAPI_VERSION 1
@@ -83,6 +84,7 @@
 
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 extern "C" int dwarfs_wcwidth(int ucs);
@@ -210,6 +212,23 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "cannot parse time point");
+}
+
+std::unordered_map<std::string_view, std::string_view>
+parse_option_string(std::string_view str) {
+  std::unordered_map<std::string_view, std::string_view> opts;
+
+  for (auto const part : split_to<std::vector<std::string_view>>(str, ',')) {
+    auto const pos = part.find('=');
+
+    if (pos != std::string_view::npos) {
+      opts.emplace(part.substr(0, pos), part.substr(pos + 1));
+    } else {
+      opts.emplace(part, std::string_view{});
+    }
+  }
+
+  return opts;
 }
 
 size_t utf8_display_width(char const* p, size_t len) {
