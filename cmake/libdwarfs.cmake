@@ -62,6 +62,8 @@ add_library(
   src/internal/memory_mapping_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
   src/internal/metadata_utils.cpp
   src/internal/mmap_file_view.cpp
+  src/internal/option_parser.cpp
+  src/internal/os_access_generic_data.cpp
   src/internal/string_table.cpp
   src/internal/unicode_case_folding.cpp
   src/internal/wcwidth.c
