@@ -29,6 +29,7 @@
 #include <unordered_map>
 
 #include <folly/portability/PThread.h>
+#include <folly/portability/Stdlib.h>
 
 #ifdef _WIN32
 #include <folly/portability/Windows.h>
@@ -295,4 +296,55 @@ TEST(os_access_generic, get_thread_cpu_time) {
 #else
   EXPECT_LE(cpu_time, 80ms);
 #endif
+}
+
+TEST(os_access_generic, map_empty_readonly) {
+  dwarfs::os_access_generic os;
+
+  auto mapping = os.map_empty_readonly(12345);
+
+  EXPECT_TRUE(mapping.valid());
+  EXPECT_EQ(mapping.size(), 12345);
+
+  auto span = mapping.const_span<uint8_t>();
+  EXPECT_EQ(span.size(), 12345);
+
+  // mapping should be all zeroes
+  EXPECT_THAT(span, testing::Each(0));
+}
+
+TEST(os_access_generic, getenv) {
+  static char const* const test_var = "_DWARFS_THIS_IS_A_TEST_";
+
+  EXPECT_EQ(0, unsetenv(test_var));
+
+  dwarfs::os_access_generic os;
+
+  {
+    auto value = os.getenv(test_var);
+    EXPECT_FALSE(value.has_value());
+  }
+
+  EXPECT_EQ(0, setenv(test_var, "some_value", 1));
+
+  {
+    auto value = os.getenv(test_var);
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "some_value");
+  }
+
+  EXPECT_EQ(0, setenv(test_var, "", 1));
+
+  {
+    auto value = os.getenv(test_var);
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "");
+  }
+
+  EXPECT_EQ(0, unsetenv(test_var));
+
+  {
+    auto value = os.getenv(test_var);
+    EXPECT_FALSE(value.has_value());
+  }
 }
