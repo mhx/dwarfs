@@ -530,6 +530,7 @@ if(WITH_TESTS)
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
       test/mappable_file_test.cpp
+      test/memory_mapping_ops_test.cpp
       test/metadata_requirements_test.cpp
       test/metadata_test.cpp
       test/nilsimsa_test.cpp
