@@ -1032,7 +1032,7 @@ add_custom_target(
       dwarfs_install.cmake package_version.cmake
       CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
       CTestTestfile.cmake Testing
-      fbthrift folly zstd ricepp tools
+      fbthrift folly zstd ricepp tools fake_folly
       include src thrift universal bin lib man1 man5
       vcpkg-manifest-install.log
       Makefile compile_commands.json
