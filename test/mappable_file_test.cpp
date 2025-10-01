@@ -29,6 +29,7 @@
 #include <fstream>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -235,14 +236,115 @@ TEST_F(map_read_tests, read_at_eof_returns_zero) {
   EXPECT_EQ(n, 0u);
 }
 
-TEST(zero_memory, basic) {
+TEST_F(map_read_tests, lock_mapping) {
+  {
+    auto mm = mf_.map_readonly();
+    std::error_code ec;
+    mm.lock(ec);
+    if (ec == std::errc::operation_not_permitted) {
+      GTEST_SKIP() << "mlock not permitted";
+    } else if (ec == kMlockQuotaError) {
+      GTEST_SKIP() << "mlock quota exceeded";
+    }
+    EXPECT_FALSE(ec) << "mapped_memory::lock: " << ec.message() << "/"
+                     << ec.value();
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    EXPECT_NO_THROW(mm.lock());
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    std::error_code ec;
+    mm.lock(123, 456, ec);
+    EXPECT_FALSE(ec) << "mapped_memory::lock: " << ec.message();
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    EXPECT_NO_THROW(mm.lock(123, 456));
+  }
+}
+
+TEST_F(map_read_tests, advise_mapping) {
+  std::error_code ec;
+  auto mm = mf_.map_readonly(ec);
+  ASSERT_FALSE(ec) << "mappable_file::map_readonly: " << ec.message();
+
+  ec.clear();
+  mm.advise(io_advice::willneed, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::normal));
+
+  ec.clear();
+  mm.advise(io_advice::dontneed, 123, 456, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::sequential, 123, 456));
+
+  ec.clear();
+  mm.advise(io_advice::random, 123, kGranularity + 456,
+            io_advice_range::exclude_partial, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::random, 123, kGranularity + 456,
+                            io_advice_range::include_partial));
+}
+
+TEST(map_empty, read_only) {
+  readonly_memory_mapping zeroes;
+
+  EXPECT_FALSE(zeroes);
+  EXPECT_FALSE(zeroes.valid());
+
   auto const& ops = internal::get_native_memory_mapping_ops();
-  auto zeroes = mappable_file::map_empty_readonly(ops, 8_MiB);
+  zeroes = mappable_file::map_empty_readonly(ops, 8_MiB);
   auto span = zeroes.const_span<uint8_t>();
+
+  EXPECT_TRUE(zeroes);
+  EXPECT_TRUE(zeroes.valid());
 
   EXPECT_EQ(zeroes.size(), 8_MiB);
   EXPECT_EQ(span.size(), 8_MiB);
   EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
+
+  zeroes.reset();
+
+  EXPECT_FALSE(zeroes);
+  EXPECT_FALSE(zeroes.valid());
+}
+
+TEST(map_empty, read_write) {
+  memory_mapping mem;
+
+  EXPECT_FALSE(mem);
+  EXPECT_FALSE(mem.valid());
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  mem = mappable_file::map_empty(ops, 8_MiB);
+  auto span = mem.span<uint8_t>();
+
+  EXPECT_TRUE(mem);
+  EXPECT_TRUE(mem.valid());
+
+  EXPECT_EQ(mem.size(), 8_MiB);
+  EXPECT_EQ(span.size(), 8_MiB);
+  EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
+
+  std::fill(span.begin(), span.end(), 0xAB);
+  EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0xAB; }));
+
+  auto bytespan = mem.span();
+  EXPECT_EQ(bytespan.size(), 8_MiB);
+  EXPECT_EQ(bytespan.data(), reinterpret_cast<std::byte*>(span.data()));
+
+  mem.reset();
+
+  EXPECT_FALSE(mem);
+  EXPECT_FALSE(mem.valid());
 }
 
 class sparse_file_test : public ::testing::Test {
@@ -398,4 +500,11 @@ TEST_F(sparse_file_test, multiple_holes_and_data_blocks) {
   auto const actual_extents = mf.get_extents();
   EXPECT_EQ(5, actual_extents.size());
   EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST(extent_kind_test, ostream_operator) {
+  std::ostringstream oss;
+  oss << extent_kind::data << " and " << extent_kind::hole << " and "
+      << static_cast<extent_kind>(42);
+  EXPECT_EQ(oss.str(), "data and hole and <42>");
 }
