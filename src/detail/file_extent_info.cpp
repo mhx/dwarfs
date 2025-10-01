@@ -34,7 +34,7 @@ namespace dwarfs::detail {
 
 std::ostream& operator<<(std::ostream& os, file_extent_info const& info) {
   os << "file_extent_info{kind=" << info.kind << ", range=["
-     << info.range.offset() << ", " << info.range.size() << ")}";
+     << info.range.offset() << ", " << info.range.size() << "]}";
   return os;
 }
 
