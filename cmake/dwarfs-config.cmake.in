@@ -22,8 +22,8 @@ find_dependency(Threads REQUIRED)
 find_dependency(fmt CONFIG REQUIRED)
 find_dependency(gflags CONFIG REQUIRED)
 find_dependency(Boost @BOOST_REQUIRED_VERSION@ REQUIRED CONFIG
-                COMPONENTS chrono context filesystem program_options regex system thread
-                OPTIONAL_COMPONENTS process)
+                COMPONENTS chrono context filesystem program_options regex thread
+                OPTIONAL_COMPONENTS process system)
 pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=@LIBCRYPTO_REQUIRED_VERSION@)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=@LIBARCHIVE_REQUIRED_VERSION@)
 pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=@XXHASH_REQUIRED_VERSION@)
