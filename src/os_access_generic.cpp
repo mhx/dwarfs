@@ -158,6 +158,7 @@ void os_access_generic::thread_set_affinity(std::thread::id tid
                                             [[maybe_unused]]) const {
 #if !(defined(_WIN32) || defined(__APPLE__))
   cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
 
   for (auto cpu : cpus) {
     CPU_SET(cpu, &cpuset);
