@@ -59,35 +59,13 @@
 #include <dwarfs/internal/memory_mapping_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 #include <dwarfs/internal/os_access_generic_data.h>
+#include <dwarfs/internal/thread_util.h>
 
 namespace dwarfs {
 
 namespace fs = std::filesystem;
 
 namespace {
-
-#ifdef _WIN32
-
-DWORD std_to_win_thread_id(std::thread::id tid) {
-  static_assert(sizeof(std::thread::id) == sizeof(DWORD),
-                "Win32 thread id type mismatch");
-  DWORD id;
-  std::memcpy(&id, &tid, sizeof(id));
-  return id;
-}
-
-#else
-
-pthread_t std_to_pthread_id(std::thread::id tid) {
-  static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
-  static_assert(sizeof(std::thread::id) ==
-                sizeof(std::thread::native_handle_type));
-  pthread_t id{0};
-  std::memcpy(&id, &tid, sizeof(id));
-  return id;
-}
-
-#endif
 
 class generic_dir_reader final : public dir_reader {
  public:
@@ -174,7 +152,7 @@ void os_access_generic::thread_set_affinity(std::thread::id tid
     CPU_SET(cpu, &cpuset);
   }
 
-  if (auto error = pthread_setaffinity_np(std_to_pthread_id(tid),
+  if (auto error = pthread_setaffinity_np(internal::std_to_pthread_id(tid),
                                           sizeof(cpu_set_t), &cpuset);
       error != 0) {
     ec.assign(error, std::generic_category());
@@ -188,7 +166,7 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
 #ifdef _WIN32
 
   HANDLE h = ::OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE,
-                          std_to_win_thread_id(tid));
+                          internal::std_to_win_thread_id(tid));
 
   if (h == nullptr) {
     ec.assign(::GetLastError(), std::system_category());
@@ -211,7 +189,7 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
 
 #elif defined(__APPLE__)
 
-  auto port = ::pthread_mach_thread_np(std_to_pthread_id(tid));
+  auto port = ::pthread_mach_thread_np(internal::std_to_pthread_id(tid));
 
   ::thread_basic_info_data_t ti;
   ::mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -232,7 +210,8 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
   ::clockid_t cid;
   struct ::timespec ts;
 
-  if (auto err = ::pthread_getcpuclockid(std_to_pthread_id(tid), &cid);
+  if (auto err =
+          ::pthread_getcpuclockid(internal::std_to_pthread_id(tid), &cid);
       err != 0) {
     ec.assign(err, std::generic_category());
     return {};
