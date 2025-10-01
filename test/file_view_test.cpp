@@ -281,10 +281,6 @@ constexpr auto align_down(file_off_t x, size_t a) -> file_off_t {
   return (x / a) * a;
 }
 
-constexpr auto align_up(file_off_t x, size_t a) -> file_off_t {
-  return ((x + a - 1) / a) * a;
-}
-
 } // namespace
 
 TEST(mock_file_view, basic) {
@@ -664,8 +660,8 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
   static constexpr file_off_t kReleaseOffset{19000};
 
   static constexpr file_off_t kExpectedMapBase = align_down(kWantOffset, kGran);
-  static constexpr size_t kExpectedMapLength =
-      align_up(kWantSize + (kWantOffset - kExpectedMapBase), kGran);
+  static constexpr size_t kExpectedAdviseLength =
+      kWantSize + (kWantOffset - kExpectedMapBase);
 
   EXPECT_CALL(mock_ops, open(path, _)).Times(1);
 
@@ -701,7 +697,7 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
 
   EXPECT_CALL(mock_ops,
               advise(static_cast<std::byte*>(mapped_base) + kExpectedMapBase,
-                     kExpectedMapLength, io_advice::sequential, _))
+                     kExpectedAdviseLength, io_advice::sequential, _))
       .Times(1);
 
   seg.advise(io_advice::sequential);
@@ -718,7 +714,7 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
 
   EXPECT_CALL(mock_ops,
               advise(static_cast<std::byte*>(mapped_base) + kExpectedMapBase,
-                     kExpectedMapLength, io_advice::dontneed, _))
+                     kExpectedAdviseLength, io_advice::dontneed, _))
       .Times(1);
 
   seg.reset();
