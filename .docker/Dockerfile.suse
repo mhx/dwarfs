@@ -37,10 +37,9 @@ RUN zypper -n in --no-recommends \
     libboost_chrono-devel \
     libboost_context-devel \
     libboost_filesystem-devel \
-    libboost_iostreams-devel \
     libboost_process-devel \
     libboost_program_options-devel \
-    libboost_system-devel \
+    libboost_regex-devel \
     libboost_thread-devel \
     libbrotli-devel \
     libevent-devel \
