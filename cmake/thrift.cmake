@@ -25,7 +25,17 @@ endif()
 
 if(DWARFS_GIT_BUILD)
   set(THRIFT_COMPILER_ONLY ON CACHE BOOL "only build thrift compiler")
+  # We need to fake a folly module for fbthrift, but we just alias our
+  # dwarfs_folly_lite target. Fortunately, we only need this hack in
+  # a git build. :-)
+  set(folly_DIR "${CMAKE_BINARY_DIR}/fake_folly")
+  file(MAKE_DIRECTORY "${folly_DIR}")
+  file(WRITE "${folly_DIR}/follyConfig.cmake" "set(folly_FOUND TRUE)")
+  list(PREPEND CMAKE_MODULE_PATH "${folly_DIR}")
+  add_library(Folly::folly ALIAS dwarfs_folly_lite)
+  set(CMAKE_SKIP_INSTALL_RULES ON)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/fbthrift EXCLUDE_FROM_ALL SYSTEM)
+  unset(CMAKE_SKIP_INSTALL_RULES)
   set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
 else()
   set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
