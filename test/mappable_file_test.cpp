@@ -35,6 +35,7 @@
 #include <system_error>
 #include <vector>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
@@ -266,6 +267,16 @@ TEST_F(map_read_tests, lock_mapping) {
     auto mm = mf_.map_readonly();
     EXPECT_NO_THROW(mm.lock(123, 456));
   }
+}
+
+TEST_F(map_read_tests, lock_mapping_errors) {
+  auto mm = mf_.map_readonly();
+
+  EXPECT_NO_THROW(mm.lock(0, 0));
+
+  EXPECT_THAT([&] { mm.lock(mm.size() + 1, 1); },
+              ::testing::Throws<std::system_error>(::testing::Property(
+                  &std::system_error::code, std::errc::invalid_argument)));
 }
 
 TEST_F(map_read_tests, advise_mapping) {
@@ -513,4 +524,30 @@ TEST(file_extent_info_test, ostream_operator) {
   std::ostringstream oss;
   oss << file_extent_info{extent_kind::data, file_range{123, 456}};
   EXPECT_EQ(oss.str(), "file_extent_info{kind=data, range=[123, 456]}");
+}
+
+TEST(mappable_file, map_empty_error) {
+  auto const& ops = internal::get_native_memory_mapping_ops();
+
+  EXPECT_THAT(
+      [&] {
+        mappable_file::map_empty(ops, std::numeric_limits<size_t>::max());
+      },
+      ::testing::Throws<std::system_error>());
+
+  EXPECT_THAT(
+      [&] {
+        mappable_file::map_empty_readonly(ops,
+                                          std::numeric_limits<size_t>::max());
+      },
+      ::testing::Throws<std::system_error>());
+}
+
+TEST(mappable_file, create_nonexistent_file) {
+  temporary_directory td;
+  auto const& ops = internal::get_native_memory_mapping_ops();
+
+  EXPECT_THAT(
+      [&] { mappable_file::create(ops, td.path() / "nonexistent.bin"); },
+      ::testing::Throws<std::system_error>());
 }
