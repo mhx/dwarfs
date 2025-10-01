@@ -29,6 +29,10 @@
 #include <random>
 #include <regex>
 
+#ifdef _WIN32
+#include <winerror.h>
+#endif
+
 #include <fmt/format.h>
 
 #include <dwarfs/file_util.h>
@@ -43,6 +47,14 @@
 #include "test_helpers.h"
 
 namespace dwarfs::test {
+
+std::error_code const kMlockQuotaError =
+#ifdef _WIN32
+    {ERROR_WORKING_SET_QUOTA, std::system_category()}
+#else
+    std::make_error_code(std::errc::not_enough_memory)
+#endif
+;
 
 namespace fs = std::filesystem;
 
