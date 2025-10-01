@@ -37,6 +37,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <variant>
 #include <vector>
 
@@ -60,6 +61,8 @@
 #endif
 
 namespace dwarfs::test {
+
+extern std::error_code const kMlockQuotaError;
 
 struct simplestat {
   file_stat::ino_type ino{0};
