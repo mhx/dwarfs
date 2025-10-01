@@ -163,9 +163,7 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
   file_range range() const override { return range_; }
 
   std::span<std::byte> mutable_span() override {
-    if (readonly_) {
-      throw std::runtime_error("memory mapping is read-only");
-    }
+    DWARFS_CHECK(!readonly_, "memory mapping is read-only");
     return {reinterpret_cast<std::byte*>(addr_) + page_offset_,
             static_cast<size_t>(range_.size())};
   }
