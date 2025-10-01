@@ -201,7 +201,23 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
   }
 
   void lock(size_t offset, size_t size, std::error_code* ec) const override {
+    if (offset > std::numeric_limits<size_t>::max() - page_offset_) {
+      handle_error("lock", ec, make_error_code(std::errc::invalid_argument));
+      return;
+    }
+
+    if (size == 0) {
+      return;
+    }
+
     offset += page_offset_;
+
+    if (offset > mapped_size_) {
+      handle_error("lock", ec, make_error_code(std::errc::invalid_argument));
+      return;
+    }
+
+    size = std::min(size, mapped_size_ - offset);
 
     auto const addr = reinterpret_cast<std::byte*>(addr_) + offset;
 
