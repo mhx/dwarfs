@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <array>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -556,6 +557,90 @@ TEST(mmap_file_view, basic) {
   {
     auto const data = mm.read_string(1, 10);
     EXPECT_EQ(data, "ello, Worl"s);
+  }
+
+  {
+    auto const data = mm.read_string(5, 0);
+    EXPECT_EQ(data, ""s);
+  }
+
+  EXPECT_THAT(([&] {
+                std::array<char, 8> buf;
+                mm.copy_to(buf, 10, 10);
+              }),
+              ::testing::Throws<std::system_error>(::testing::Property(
+                  &std::system_error::code, std::errc::result_out_of_range)));
+
+  {
+    std::array<char, 8> buf;
+    EXPECT_NO_THROW(mm.copy_to(buf, 2));
+    EXPECT_EQ(std::string_view(buf.data(), buf.size()), "llo, Wor"s);
+  }
+
+  {
+    auto const buf = mm.read<std::array<char, 7>>(3);
+    EXPECT_EQ(std::string_view(buf.data(), buf.size()), "lo, Wor"s);
+  }
+
+  {
+    auto seg = mm.segment_at(20, 10);
+    EXPECT_FALSE(seg.valid());
+  }
+}
+
+TEST(mmap_file_view, ref_segment) {
+  temporary_directory td;
+
+  auto path = td.path() / "testfile";
+
+  write_file(path, "Hello, World!");
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mm = internal::create_mmap_file_view(
+      ops, path, {.max_eager_map_size = std::nullopt});
+
+  EXPECT_TRUE(mm);
+  EXPECT_TRUE(mm.valid());
+  EXPECT_TRUE(mm.supports_raw_bytes());
+
+  auto seg = mm.segment_at(2, 10);
+
+  EXPECT_EQ(seg.range(), file_range(2, 10));
+  EXPECT_EQ(seg.offset(), 2);
+  EXPECT_EQ(seg.size(), 10);
+  EXPECT_FALSE(seg.is_zero());
+
+  {
+    auto const data = seg.span<char>();
+    EXPECT_EQ(std::string_view(data.data(), data.size()), "llo, World"s);
+  }
+}
+
+TEST(mmap_file_view, mapped_segment) {
+  temporary_directory td;
+
+  auto path = td.path() / "testfile";
+
+  write_file(path, "Hello, World!");
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mm =
+      internal::create_mmap_file_view(ops, path, {.max_eager_map_size = 1});
+
+  EXPECT_TRUE(mm);
+  EXPECT_TRUE(mm.valid());
+  EXPECT_FALSE(mm.supports_raw_bytes());
+
+  auto seg = mm.segment_at(2, 10);
+
+  EXPECT_EQ(seg.range(), file_range(2, 10));
+  EXPECT_EQ(seg.offset(), 2);
+  EXPECT_EQ(seg.size(), 10);
+  EXPECT_FALSE(seg.is_zero());
+
+  {
+    auto const data = seg.span<char>();
+    EXPECT_EQ(std::string_view(data.data(), data.size()), "llo, World"s);
   }
 }
 
