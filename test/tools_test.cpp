@@ -1243,6 +1243,7 @@ TEST_P(tools_test, end_to_end) {
 
       args.push_back("-otidy_interval=1s");
       args.push_back("-otidy_max_age=2s");
+      args.push_back("-odebuglevel=debug");
 
       {
         driver_runner runner(driver, mode == binary_mode::universal_tool, image,
