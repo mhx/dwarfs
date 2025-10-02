@@ -15,6 +15,7 @@ ALPINE_DOCKERFILE:=Dockerfile.alpine_$(shell uname -m)
 
 COMMON_RUN_OPTS=-it --rm \
 		--cap-add SYS_ADMIN --device /dev/fuse \
+		--security-opt seccomp:unconfined --security-opt apparmor:unconfined \
 		--mount type=bind,source="$(ROOT_DIR)"/..,target=/workspace,readonly \
 		--mount type=bind,source="$(ROOT_DIR)"/../@docker-ccache,target=/ccache \
 		--mount type=bind,source="$(ROOT_DIR)"/../@docker-home,target=/home/mhx \
