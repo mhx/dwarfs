@@ -26,6 +26,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
+#include <array>
 #include <cerrno>
 #include <ctime>
 #include <filesystem>
@@ -35,6 +37,7 @@
 
 #ifdef _WIN32
 #include <folly/portability/Windows.h>
+#include <winioctl.h>
 #else
 #include <fcntl.h>
 #endif
@@ -48,6 +51,7 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/file_status_conv.h>
@@ -60,13 +64,66 @@ namespace fs = std::filesystem;
 
 #ifdef _WIN32
 
-uint64_t time_from_filetime(FILETIME const& ft) {
-  static constexpr uint64_t FT_TICKS_PER_SECOND = UINT64_C(10000000);
-  static constexpr uint64_t FT_EPOCH_OFFSET = UINT64_C(11644473600);
-  uint64_t ticks =
-      (static_cast<uint64_t>(ft.dwHighDateTime) << 32) + ft.dwLowDateTime;
-  return (ticks / FT_TICKS_PER_SECOND) - FT_EPOCH_OFFSET;
+int64_t to_unix_time_seconds(LARGE_INTEGER const& ft) {
+  // FILETIME epoch (1601) → Unix epoch (1970)
+  static constexpr int64_t kEpochDiff100ns = INT64_C(116'444'736'000'000'000);
+  auto const t100 = static_cast<int64_t>(ft.QuadPart);
+  if (t100 < kEpochDiff100ns) {
+    return 0;
+  }
+  return (t100 - kEpochDiff100ns) / INT64_C(10'000'000);
+};
+
+int utf8_len_of_print_name(WCHAR const* wstr, int wlen_chars) {
+  if (!wstr || wlen_chars <= 0) {
+    return 0;
+  }
+
+  int need = ::WideCharToMultiByte(CP_UTF8, 0, wstr, wlen_chars, nullptr, 0,
+                                   nullptr, nullptr);
+  return std::max(0, need);
+};
+
+bool is_executable(fs::path const& path) {
+  static constexpr std::array executable_exts{
+      std::wstring_view{L".exe"},
+      std::wstring_view{L".com"},
+      std::wstring_view{L".bat"},
+      std::wstring_view{L".cmd"},
+  };
+
+  return std::ranges::any_of(
+      executable_exts,
+      [ext = path.extension().wstring()](auto const& e) { return ext == e; });
 }
+
+// REPARSE_DATA_BUFFER isn't exposed by windows.h, so define a minimal
+// compatible version here.
+typedef struct _REPARSE_DATA_BUFFER {
+  ULONG ReparseTag;
+  USHORT ReparseDataLength;
+  USHORT Reserved;
+  union {
+    struct {
+      USHORT SubstituteNameOffset;
+      USHORT SubstituteNameLength;
+      USHORT PrintNameOffset;
+      USHORT PrintNameLength;
+      ULONG Flags;
+      WCHAR PathBuffer[1];
+    } SymbolicLinkReparseBuffer;
+    struct {
+      USHORT SubstituteNameOffset;
+      USHORT SubstituteNameLength;
+      USHORT PrintNameOffset;
+      USHORT PrintNameLength;
+      WCHAR PathBuffer[1];
+    } MountPointReparseBuffer;
+    struct {
+      UCHAR DataBuffer[1];
+    } GenericReparseBuffer;
+  };
+} REPARSE_DATA_BUFFER;
 
 #endif
 
@@ -111,109 +168,128 @@ file_stat::file_stat() = default;
 #ifdef _WIN32
 
 file_stat::file_stat(fs::path const& path) {
-  std::error_code ec;
-  auto status = fs::symlink_status(path, ec);
+  auto set_exception = [this, &path](std::string const& what) {
+    exception_ = std::make_exception_ptr(std::system_error(
+        ::GetLastError(), std::system_category(),
+        fmt::format("{}: {}", what, path_to_utf8_string_sanitized(path))));
+  };
 
-  if (ec) {
-    status = fs::status(path, ec);
-  }
+  HANDLE h = ::CreateFileW(
+      path.c_str(), FILE_READ_ATTRIBUTES,
+      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+      nullptr);
 
-  if (ec) {
-    exception_ = std::make_exception_ptr(std::system_error(ec));
+  if (h == INVALID_HANDLE_VALUE) {
+    set_exception("CreateFileW failed");
     return;
   }
 
-  if (status.type() == fs::file_type::not_found ||
-      status.type() == fs::file_type::unknown) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("{}: {}",
-                             status.type() == fs::file_type::not_found
-                                 ? "file not found"
-                                 : "unknown file type",
-                             path_to_utf8_string_sanitized(path)));
+  scope_exit close_handle([h]() { ::CloseHandle(h); });
+
+  BY_HANDLE_FILE_INFORMATION bhfi{};
+  FILE_BASIC_INFO basic{};
+  FILE_STANDARD_INFO stdinfo{};
+
+  if (!GetFileInformationByHandle(h, &bhfi)) {
+    set_exception("GetFileInformationByHandle failed");
+    return;
   }
 
-  valid_fields_ = file_stat::mode_valid;
-  mode_ = internal::file_status_to_mode(status);
-  blksize_ = 0;
-  blocks_ = 0;
+  if (!GetFileInformationByHandleEx(h, FileBasicInfo, &basic, sizeof(basic))) {
+    set_exception("GetFileInformationByHandleEx(FileBasicInfo) failed");
+    return;
+  }
 
-  auto wps = path.wstring();
+  if (!GetFileInformationByHandleEx(h, FileStandardInfo, &stdinfo,
+                                    sizeof(stdinfo))) {
+    set_exception("GetFileInformationByHandleEx(FileStandardInfo) failed");
+    return;
+  }
 
-  if (status.type() == fs::file_type::symlink) {
-    ::WIN32_FILE_ATTRIBUTE_DATA info;
-    if (::GetFileAttributesExW(wps.c_str(), GetFileExInfoStandard, &info) ==
-        0) {
-      exception_ = std::make_exception_ptr(std::system_error(
-          ::GetLastError(), std::system_category(), "GetFileAttributesExW"));
-    } else {
-      valid_fields_ = file_stat::all_valid;
-      dev_ = 0;
-      ino_ = 0;
-      nlink_ = 0;
-      uid_ = 0;
-      gid_ = 0;
-      rdev_ = 0;
-      size_ =
-          (static_cast<uint64_t>(info.nFileSizeHigh) << 32) + info.nFileSizeLow;
-      atime_ = time_from_filetime(info.ftLastAccessTime);
-      mtime_ = time_from_filetime(info.ftLastWriteTime);
-      ctime_ = time_from_filetime(info.ftCreationTime);
+  FILE_ATTRIBUTE_TAG_INFO tag{};
+  bool const has_tag = GetFileInformationByHandleEx(h, FileAttributeTagInfo,
+                                                    &tag, sizeof(tag)) != 0;
+  bool const is_reparse =
+      (basic.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+  bool const is_symlink = is_reparse && has_tag &&
+                          (tag.ReparseTag == IO_REPARSE_TAG_SYMLINK ||
+                           tag.ReparseTag == IO_REPARSE_TAG_MOUNT_POINT);
+  bool const is_directory =
+      (basic.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+  bool const is_readonly =
+      (basic.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+
+  valid_fields_ =
+      file_stat::mode_valid | file_stat::nlink_valid | file_stat::dev_valid |
+      file_stat::ino_valid | file_stat::uid_valid | file_stat::gid_valid |
+      file_stat::size_valid | file_stat::blocks_valid | file_stat::atime_valid |
+      file_stat::ctime_valid | file_stat::mtime_valid;
+
+  if (is_symlink) {
+    mode_ = posix_file_type::symlink | 0777;
+  } else if (is_directory) {
+    mode_ = posix_file_type::directory | 0755;
+  } else {
+    mode_ = posix_file_type::regular;
+    mode_ |= is_readonly ? 0444 : 0644;
+    if (is_executable(path)) {
+      mode_ |= 0111;
+    }
+  }
+
+  nlink_ = stdinfo.NumberOfLinks;
+
+  dev_ = bhfi.dwVolumeSerialNumber;
+  ino_ = (static_cast<uint64_t>(bhfi.nFileIndexHigh) << 32) |
+         static_cast<uint64_t>(bhfi.nFileIndexLow);
+
+  // These don't make sense on Windows
+  uid_ = 0;
+  gid_ = 0;
+
+  if (is_symlink) {
+    size_ = 0;
+
+    // Read reparse buffer to get the target path length.
+    std::vector<uint8_t> buffer(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+    DWORD returned_len = 0;
+
+    if (::DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, nullptr, 0, buffer.data(),
+                          static_cast<DWORD>(buffer.size()), &returned_len,
+                          nullptr)) {
+      auto const* reparse =
+          reinterpret_cast<REPARSE_DATA_BUFFER*>(buffer.data());
+
+      auto get_symlink_size =
+          [total_size = reparse->ReparseDataLength](auto const& buffer) -> int {
+        size_t const end = buffer.PrintNameOffset + buffer.PrintNameLength;
+        if (end > total_size) {
+          return 0;
+        }
+        auto const base = reinterpret_cast<BYTE const*>(buffer.PathBuffer);
+        auto const w_print =
+            reinterpret_cast<WCHAR const*>(base + buffer.PrintNameOffset);
+        int const w_len_chars = buffer.PrintNameLength / sizeof(WCHAR);
+        return utf8_len_of_print_name(w_print, w_len_chars);
+      };
+
+      if (reparse->ReparseTag == IO_REPARSE_TAG_SYMLINK) {
+        size_ = get_symlink_size(reparse->SymbolicLinkReparseBuffer);
+      } else if (reparse->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT) {
+        size_ = get_symlink_size(reparse->MountPointReparseBuffer);
+      }
     }
   } else {
-    struct ::__stat64 st;
-
-    if (::_wstat64(wps.c_str(), &st) == 0) {
-      if (status.type() == fs::file_type::regular) {
-        ::HANDLE hdl =
-            ::CreateFileW(wps.c_str(), 0, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-
-        if (hdl != INVALID_HANDLE_VALUE) {
-          ::BY_HANDLE_FILE_INFORMATION info;
-          if (::GetFileInformationByHandle(hdl, &info)) {
-            if (::CloseHandle(hdl)) {
-              valid_fields_ |= file_stat::ino_valid | file_stat::nlink_valid;
-              ino_ = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
-                     info.nFileIndexLow;
-              nlink_ = info.nNumberOfLinks;
-            } else {
-              exception_ = std::make_exception_ptr(std::system_error(
-                  ::GetLastError(), std::system_category(), "CloseHandle"));
-            }
-          } else {
-            exception_ = std::make_exception_ptr(
-                std::system_error(::GetLastError(), std::system_category(),
-                                  "GetFileInformationByHandle"));
-            ::CloseHandle(hdl);
-          }
-        } else {
-          exception_ = std::make_exception_ptr(std::system_error(
-              ::GetLastError(), std::system_category(), "CreateFileW"));
-        }
-      } else {
-        valid_fields_ |= file_stat::ino_valid | file_stat::nlink_valid;
-        ino_ = st.st_ino;
-        nlink_ = st.st_nlink;
-      }
-
-      valid_fields_ |= file_stat::dev_valid | file_stat::uid_valid |
-                       file_stat::gid_valid | file_stat::rdev_valid |
-                       file_stat::size_valid | file_stat::atime_valid |
-                       file_stat::mtime_valid | file_stat::ctime_valid;
-      dev_ = st.st_dev;
-      uid_ = st.st_uid;
-      gid_ = st.st_gid;
-      rdev_ = st.st_rdev;
-      size_ = st.st_size;
-      atime_ = st.st_atime;
-      mtime_ = st.st_mtime;
-      ctime_ = st.st_ctime;
-    } else {
-      exception_ = std::make_exception_ptr(
-          std::system_error(errno, std::generic_category(), "_stat64"));
-    }
+    size_ = stdinfo.EndOfFile.QuadPart; // logical size
   }
+
+  auto const alloc = static_cast<uint64_t>(stdinfo.AllocationSize.QuadPart);
+  blocks_ = (alloc + 511) / 512;
+
+  atime_ = to_unix_time_seconds(basic.LastAccessTime);
+  mtime_ = to_unix_time_seconds(basic.LastWriteTime);
+  ctime_ = to_unix_time_seconds(basic.ChangeTime);
 }
 
 #else
