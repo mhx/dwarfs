@@ -22,11 +22,14 @@
  */
 
 #include <chrono>
+#include <filesystem>
 #include <latch>
+#include <random>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <folly/portability/PThread.h>
 #include <folly/portability/Stdlib.h>
@@ -45,13 +48,19 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/os_access_generic.h>
 
 #include <dwarfs/internal/os_access_generic_data.h>
 #include <dwarfs/internal/thread_util.h>
 
+#include "sparse_file_builder.h"
+#include "test_helpers.h"
+
 using namespace dwarfs::binary_literals;
 using dwarfs::internal::os_access_generic_data;
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -347,4 +356,117 @@ TEST(os_access_generic, getenv) {
     auto value = os.getenv(test_var);
     EXPECT_FALSE(value.has_value());
   }
+}
+
+TEST(os_access_generic, symlink_info) {
+  using namespace dwarfs;
+
+  temporary_directory td;
+  auto const granularity =
+      test::sparse_file_builder::hole_granularity(td.path());
+
+  if (!granularity.has_value()) {
+    GTEST_SKIP() << "filesystem does not support sparse files";
+  }
+
+  std::mt19937_64 rng(42);
+
+  auto const dir = td.path() / "dir";
+  auto const file = td.path() / "some_file";
+  auto const symlink = td.path() / "some_symlink";
+  auto const hardlink = td.path() / "some_hardlink";
+  auto const sparse = td.path() / "sparse_file";
+  auto const exe_like = td.path() / "some.exe";
+
+  fs::create_directory(dir);
+  write_file(file, "hello");
+  fs::create_symlink("some_file", symlink);
+  fs::create_hard_link(file, hardlink);
+
+  auto sfb = test::sparse_file_builder::create(sparse);
+  sfb.truncate(3 * granularity.value());
+  sfb.write_data(0, test::create_random_string(granularity.value(), rng));
+  sfb.write_data(2 * granularity.value(),
+                 test::create_random_string(granularity.value(), rng));
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.commit();
+
+  write_file(exe_like, "something executable");
+  fs::permissions(exe_like,
+                  fs::perms::owner_exec | fs::perms::group_exec |
+                      fs::perms::others_exec,
+                  fs::perm_options::add);
+
+  dwarfs::os_access_generic os;
+
+  auto const st_dir = os.symlink_info(dir);
+  auto const st_file = os.symlink_info(file);
+  auto const st_symlink = os.symlink_info(symlink);
+  auto const st_hardlink = os.symlink_info(hardlink);
+  auto const st_sparse = os.symlink_info(sparse);
+  auto const st_exe_like = os.symlink_info(exe_like);
+
+  auto is_executable = [](auto const& st) {
+    return (fs::perms(st.permissions()) & fs::perms::owner_exec) !=
+           fs::perms::none;
+  };
+
+  EXPECT_TRUE(st_dir.is_directory());
+  EXPECT_TRUE(st_file.is_regular_file());
+  EXPECT_TRUE(st_symlink.is_symlink());
+  EXPECT_TRUE(st_hardlink.is_regular_file());
+  EXPECT_TRUE(st_sparse.is_regular_file());
+  EXPECT_TRUE(st_exe_like.is_regular_file());
+
+  EXPECT_GE(st_dir.nlink(), 1);
+  EXPECT_EQ(2, st_file.nlink());
+  EXPECT_EQ(2, st_hardlink.nlink());
+  EXPECT_EQ(1, st_sparse.nlink());
+  EXPECT_EQ(1, st_symlink.nlink());
+  EXPECT_EQ(1, st_exe_like.nlink());
+
+  EXPECT_TRUE(is_executable(st_dir));
+  EXPECT_FALSE(is_executable(st_file));
+  EXPECT_TRUE(is_executable(st_symlink));
+  EXPECT_FALSE(is_executable(st_hardlink));
+  EXPECT_FALSE(is_executable(st_sparse));
+  EXPECT_TRUE(is_executable(st_exe_like));
+
+  std::unordered_set<file_stat::dev_type> devs;
+
+  devs.insert(st_dir.dev());
+  devs.insert(st_file.dev());
+  devs.insert(st_symlink.dev());
+  devs.insert(st_hardlink.dev());
+  devs.insert(st_sparse.dev());
+  devs.insert(st_exe_like.dev());
+
+  EXPECT_EQ(1, devs.size()) << "all files should be on the same device";
+
+  std::unordered_set<file_stat::ino_type> inos;
+
+  inos.insert(st_dir.ino());
+  inos.insert(st_file.ino());
+  inos.insert(st_symlink.ino());
+  inos.insert(st_hardlink.ino());
+  inos.insert(st_sparse.ino());
+  inos.insert(st_exe_like.ino());
+
+  EXPECT_EQ(st_file.ino(), st_hardlink.ino());
+  EXPECT_EQ(5, inos.size()) << "there should be 5 distinct inodes";
+
+  EXPECT_EQ(st_file.size(), 5);
+  EXPECT_EQ(st_hardlink.size(), 5);
+  EXPECT_EQ(st_sparse.size(), 3 * granularity.value());
+  EXPECT_EQ(st_symlink.size(), 9);
+  EXPECT_EQ(st_exe_like.size(), 20);
+
+  EXPECT_EQ(st_file.allocated_size(), 5);
+  EXPECT_EQ(st_hardlink.allocated_size(), 5);
+  EXPECT_EQ(st_sparse.allocated_size(), 2 * granularity.value());
+  EXPECT_EQ(st_symlink.allocated_size(), 9);
+  EXPECT_EQ(st_exe_like.allocated_size(), 20);
+
+  // directory size is very platform-dependent
+  EXPECT_EQ(st_dir.size(), st_dir.allocated_size());
 }
