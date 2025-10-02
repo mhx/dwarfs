@@ -265,6 +265,9 @@ struct dwarfs_userdata {
   PERFMON_EXT_TIMER_DECL(op_getattr)
   PERFMON_EXT_TIMER_DECL(op_readlink)
   PERFMON_EXT_TIMER_DECL(op_open)
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+  PERFMON_EXT_TIMER_DECL(op_lseek)
+#endif
   PERFMON_EXT_TIMER_DECL(op_read)
   PERFMON_EXT_TIMER_DECL(op_readdir)
   PERFMON_EXT_TIMER_DECL(op_statfs)
@@ -698,6 +701,76 @@ int op_open(char const* path, struct fuse_file_info* fi) {
     return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
+#endif
+
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+template <typename LogProxy>
+off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata, uint32_t inode,
+                      off_t off, int whence) {
+  return checked_call(log_, [&]() -> off_t {
+    reader::seek_whence rwhence;
+
+    switch (whence) {
+    case SEEK_DATA:
+      rwhence = reader::seek_whence::data;
+      break;
+    case SEEK_HOLE:
+      rwhence = reader::seek_whence::hole;
+      break;
+    default:
+      return -EINVAL;
+    }
+
+    std::error_code ec;
+    auto offset = userdata.fs.seek(inode, off, rwhence, ec);
+
+    if (ec) {
+      return -ec.value();
+    }
+
+    return offset;
+  });
+}
+
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
+              struct fuse_file_info* fi) {
+  dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_lseek)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+
+  LOG_DEBUG << __func__ << "(" << ino << ", " << off << ", " << whence << ")"
+            << get_caller_context(req);
+  PERFMON_SET_CONTEXT(ino)
+
+  if (FUSE_ROOT_ID + fi->fh != ino) {
+    fuse_reply_err(req, EIO);
+  }
+
+  auto result = op_lseek_common(log_, userdata, ino, off, whence);
+
+  if (result >= 0) {
+    fuse_reply_lseek(req, result);
+  } else {
+    fuse_reply_err(req, -static_cast<int>(result));
+  }
+}
+#else
+template <typename LoggerPolicy>
+off_t op_lseek(char const* path, off_t off, int whence,
+               struct fuse_file_info* fi) {
+  dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_lseek)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+  PERFMON_SET_CONTEXT(fi->fh)
+
+  LOG_DEBUG << __func__ << "(" << path << ", " << off << ", " << whence << ")"
+            << get_caller_context();
+
+  return op_lseek_common(log_, userdata, fi->fh, off, whence);
+}
+#endif
 #endif
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1343,6 +1416,11 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+  if (userdata.fs.has_sparse_files()) {
+    ops.lseek = &op_lseek<LoggerPolicy>;
+  }
+#endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
@@ -1359,6 +1437,11 @@ void init_fuse_ops(struct fuse_operations& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+  if (userdata.fs.has_sparse_files()) {
+    ops.lseek = &op_lseek<LoggerPolicy>;
+  }
+#endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
