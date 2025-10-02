@@ -2327,3 +2327,79 @@ TEST(tools_test, compare_directories_sanity) {
     EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
   }
 }
+
+#ifdef __linux__
+TEST_P(tools_test, fusermount_check) {
+  auto mode = GetParam();
+
+#ifndef DWARFS_WITH_FUSE_DRIVER
+
+  GTEST_SKIP() << "FUSE driver not built";
+
+#elif defined(DWARFS_CROSSCOMPILING_EMULATOR)
+
+  GTEST_SKIP() << "skipping bubblewrap tests when cross-compiling";
+
+#else
+
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  auto bwrap = dwarfs::test::find_binary("bwrap");
+
+  if (!bwrap) {
+    GTEST_SKIP() << "bubblewrap not found";
+  }
+
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto mountpoint = td / "mnt";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
+
+  fs::create_directory(mountpoint);
+
+  if (mode == binary_mode::universal_symlink) {
+    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+  }
+
+  std::vector<fs::path> drivers;
+  std::vector<std::string> dwarfs_tool_arg;
+
+  switch (mode) {
+  case binary_mode::standalone:
+    drivers.push_back(fuse3_bin);
+
+    if (fs::exists(fuse2_bin)) {
+      drivers.push_back(fuse2_bin);
+    }
+    break;
+
+  case binary_mode::universal_tool:
+    drivers.push_back(universal_bin);
+    dwarfs_tool_arg.push_back("--tool=dwarfs");
+    break;
+
+  case binary_mode::universal_symlink:
+    drivers.push_back(universal_symlink_dwarfs_bin);
+    break;
+  }
+
+  for (auto const& driver : drivers) {
+    scoped_no_leak_check no_leak_check;
+    auto const [out, err, ec] = subprocess::run(
+        bwrap.value(), "--unshare-user", "--unshare-pid", "--unshare-uts",
+        "--unshare-net", "--unshare-ipc", "--ro-bind", "/", "/", "--tmpfs",
+        "/usr/bin", "--dev-bind", "/dev", "/dev", "--bind", "/proc", "/proc",
+        driver, dwarfs_tool_arg, test_data_dwarfs, mountpoint, "-f");
+
+    EXPECT_NE(0, ec) << out << err;
+
+    std::string const package = driver == fuse2_bin ? "fuse/fuse2" : "fuse3";
+
+    EXPECT_THAT(err, ::testing::HasSubstr("Do you need to install the `" +
+                                          package + "' package?"));
+  }
+#endif
+}
+#endif
