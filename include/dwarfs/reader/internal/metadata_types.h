@@ -217,14 +217,17 @@ class chunk_view {
     if (hole_ix.has_value() && b == *hole_ix) { // this is a hole
       block_ = 0;
       offset_ = 0;
-      bits_ = kChunkBitsHoleBit;
       if (o == kChunkOffsetIsLargeHole) {
         assert(meta->large_hole_size().has_value());
         assert(s < meta->large_hole_size()->size());
-        bits_ |= (*meta->large_hole_size())[s];
+        bits_ = (*meta->large_hole_size())[s];
       } else {
-        bits_ = (static_cast<uint64_t>(s) << 32) | o;
+        auto const block_size = meta->block_size();
+        assert(std::has_single_bit(block_size));
+        assert(o < block_size);
+        bits_ = (static_cast<uint64_t>(s) * block_size) + o;
       }
+      bits_ |= kChunkBitsHoleBit;
     } else { // this is data
       block_ = b;
       offset_ = o;

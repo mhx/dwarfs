@@ -396,6 +396,13 @@ Most other options are concerned with compression tuning:
   Include named fifos and sockets in the output file system. These are not
   included by default.
 
+- `--no-sparse-files`:
+  By default, sparse files are detected and stored in a space-efficient
+  manner. However, file system images with sparse files cannot be read
+  by older versions of the DwarFS tools. If you need to maintain backward
+  compatibility, you can use this option to disable sparse file support.
+  Sparse files will then be processed and stored like regular files.
+
 - `--header=`*file*:
   Read header from file and place it before the output filesystem image.
   Can be used with `--recompress` to add or replace a header.

@@ -202,8 +202,13 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
                                        std::string const& indent,
                                        chunk_range chunks) const {
   for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
-    os << indent << "  [" << index << "] -> (block=" << chunk.block()
-       << ", offset=" << chunk.offset() << ", size=" << chunk.size() << ")\n";
+    if (chunk.is_data()) {
+      os << indent << "  [" << index << "] -> DATA (block=" << chunk.block()
+         << ", offset=" << chunk.offset() << ", size=" << chunk.size() << ")\n";
+    } else {
+      os << indent << "  [" << index << "] -> HOLE (size=" << chunk.size()
+         << ")\n";
+    }
   }
 }
 
