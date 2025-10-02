@@ -51,7 +51,6 @@ class main_adapter {
 
   int safe(int argc, sys_char** argv) const;
   int safe(std::span<std::string const> args, iolayer const& iol) const;
-  int safe(std::span<std::string_view const> args, iolayer const& iol) const;
 
  private:
   main_fn_type main_fn_{nullptr};
