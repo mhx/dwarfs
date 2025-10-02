@@ -118,9 +118,4 @@ int main_adapter::safe(std::span<std::string const> args,
   return safe_main([&] { return (*this)(args, iol); });
 }
 
-int main_adapter::safe(std::span<std::string_view const> args,
-                       iolayer const& iol) const {
-  return safe_main([&] { return (*this)(args, iol); });
-}
-
 } // namespace dwarfs::tool

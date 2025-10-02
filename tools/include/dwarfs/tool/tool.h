@@ -57,11 +57,6 @@ std::string tool_header(std::string_view tool_name, std::string_view extra_info,
 std::string tool_header_nodeps(std::string_view tool_name);
 
 inline std::string
-tool_header(std::string_view tool_name, std::string_view extra_info = {}) {
-  return tool_header(tool_name, extra_info, {});
-}
-
-inline std::string
 tool_header(std::string_view tool_name, extra_deps_fn const& extra_deps) {
   return tool_header(tool_name, {}, extra_deps);
 }
