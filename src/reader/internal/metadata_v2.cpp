@@ -1905,9 +1905,13 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_mode(mode);
 
   if (!opts.no_size) {
-    stbuf.set_size(stbuf.is_directory() ? make_directory_view(iv).entry_count()
-                                        : file_size(LOG_PROXY_ARG_ iv, mode));
-    stbuf.set_blocks((stbuf.size_unchecked() + 511) / 512);
+    auto const size = stbuf.is_directory()
+                          ? make_directory_view(iv).entry_count()
+                          : file_size(LOG_PROXY_ARG_ iv, mode);
+    stbuf.set_size(size);
+    // TODO
+    stbuf.set_blocks((size + 511) / 512);
+    stbuf.set_allocated_size(size);
   }
 
   auto& ivr = iv.raw();

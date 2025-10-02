@@ -66,7 +66,8 @@ class file_stat {
   static constexpr valid_fields_type atime_valid = 1 << 10;
   static constexpr valid_fields_type mtime_valid = 1 << 11;
   static constexpr valid_fields_type ctime_valid = 1 << 12;
-  static constexpr valid_fields_type all_valid = (1 << 13) - 1;
+  static constexpr valid_fields_type allocated_size_valid = 1 << 13;
+  static constexpr valid_fields_type all_valid = (1 << 14) - 1;
 
   file_stat();
   explicit file_stat(std::filesystem::path const& path);
@@ -131,6 +132,10 @@ class file_stat {
   time_type ctime_unchecked() const { return ctime_; }
   void set_ctime(time_type ctime);
 
+  off_type allocated_size() const;
+  off_type allocated_size_unchecked() const { return allocated_size_; }
+  void set_allocated_size(off_type allocated_size);
+
   bool is_directory() const;
   bool is_regular_file() const;
   bool is_symlink() const;
@@ -190,6 +195,7 @@ class file_stat {
   time_type atime_{};
   time_type mtime_{};
   time_type ctime_{};
+  off_type allocated_size_{};
   std::exception_ptr exception_;
 };
 
