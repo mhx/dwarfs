@@ -375,8 +375,9 @@ void checked_reply_err(LogProxy& log_, fuse_req_t req, T&& f) {
       *reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
 #endif
 
-void check_fusermount(dwarfs_userdata& userdata) {
-#ifndef _WIN32
+void check_fusermount(dwarfs_userdata& userdata [[maybe_unused]]) {
+  // fusermount is Linux-specific
+#ifdef __linux__
 
 #if FUSE_USE_VERSION >= 30
   static constexpr std::string_view const fusermount_name = "fusermount3";
