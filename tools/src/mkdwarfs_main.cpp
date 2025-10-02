@@ -418,7 +418,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       bloom_filter_size, compression;
   size_t num_workers, num_scanner_workers, num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
-       force_overwrite = false, no_history = false,
+       force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false;
   unsigned level;
@@ -571,6 +571,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("with-specials",
         po::value<bool>(&options.with_specials)->zero_tokens(),
         "include named fifo and sockets")
+    ("no-sparse-files",
+        po::value<bool>(&no_sparse_files)->zero_tokens(),
+        "don't store sparse files as sparse")
     ("header",
         po_sys_value<sys_string>(&header_str),
         "prepend output filesystem with contents of this file")
@@ -1354,6 +1357,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     LOG_ERROR << e.what();
     return 1;
   }
+
+  sf_config.enable_sparse_files = !no_sparse_files;
+  options.metadata.enable_sparse_files = !no_sparse_files;
 
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);

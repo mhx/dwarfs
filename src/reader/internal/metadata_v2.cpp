@@ -2052,12 +2052,18 @@ nlohmann::json metadata_v2_data::get_inode_info(inode_view const& iv,
       for (auto const& chunk : chunk_range) {
         nlohmann::json& chk = obj["chunks"].emplace_back();
 
-        chk["block"] = chunk.block();
-        chk["offset"] = chunk.offset();
-        chk["size"] = chunk.size();
+        if (chunk.is_data()) {
+          chk["kind"] = "data";
+          chk["block"] = chunk.block();
+          chk["offset"] = chunk.offset();
+          chk["size"] = chunk.size();
 
-        if (auto catname = get_block_category(chunk.block())) {
-          chk["category"] = catname.value();
+          if (auto catname = get_block_category(chunk.block())) {
+            chk["category"] = catname.value();
+          }
+        } else {
+          chk["kind"] = "hole";
+          chk["size"] = chunk.size();
         }
       }
     } else {

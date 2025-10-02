@@ -425,6 +425,8 @@ void frozen_analyzer::print(std::ostream& os) const {
                     version->size());
   }
 
+  META_OPT_LIST_SIZE(large_hole_size);
+
   add_size_unique(usage, "metadata_root", 0, l.size);
   add_size_unique(usage, "padding", total_size_ - LayoutRoot::kPaddingBytes,
                   LayoutRoot::kPaddingBytes);
