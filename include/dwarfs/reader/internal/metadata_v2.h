@@ -154,6 +154,8 @@ class metadata_v2 {
 
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
+  bool has_sparse_files() const { return impl_->has_sparse_files(); }
+
   nlohmann::json get_inode_info(inode_view iv, size_t max_chunks) const {
     return impl_->get_inode_info(std::move(iv), max_chunks);
   }
@@ -238,6 +240,8 @@ class metadata_v2 {
     virtual size_t block_size() const = 0;
 
     virtual bool has_symlinks() const = 0;
+
+    virtual bool has_sparse_files() const = 0;
 
     virtual nlohmann::json
     get_inode_info(inode_view iv, size_t max_chunks) const = 0;
