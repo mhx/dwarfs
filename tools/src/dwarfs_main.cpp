@@ -226,12 +226,12 @@ class dwarfs_analysis {
     }
   }
 
-  void add_lookup(fuse_ino_t ino, std::string const& path) {
+  void add_lookup(uint32_t ino, std::string const& path) {
     std::lock_guard lock{mx_};
     lookup_.try_emplace(ino, path);
   }
 
-  void add_open(fuse_ino_t ino) {
+  void add_open(uint32_t ino) {
     std::lock_guard lock{mx_};
     if (opened_.insert(ino).second) {
       ofs_ << lookup_.at(ino) << '\n';
@@ -242,8 +242,8 @@ class dwarfs_analysis {
  private:
   std::mutex mx_;
   std::ofstream ofs_;
-  std::unordered_map<fuse_ino_t, std::string> lookup_;
-  std::unordered_set<fuse_ino_t> opened_;
+  std::unordered_map<uint32_t, std::string> lookup_;
+  std::unordered_set<uint32_t> opened_;
 };
 
 struct dwarfs_userdata {
