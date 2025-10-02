@@ -315,10 +315,6 @@ class chunk_range {
 
   bool empty() const { return end_ == begin_; }
 
-  chunk_view operator[](uint32_t index) const {
-    return {meta_, meta_->chunks()[index]};
-  }
-
  private:
   chunk_range() = default;
 
