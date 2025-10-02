@@ -180,6 +180,8 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
 
 file_size_t entry::size() const { return stat_.size(); }
 
+file_size_t entry::allocated_size() const { return stat_.blocks() * 512; }
+
 uint64_t entry::raw_inode_num() const { return stat_.ino(); }
 
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
