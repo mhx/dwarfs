@@ -74,7 +74,8 @@ jobs:
       - name: Run Build
         run: |
           docker run --rm --init \
-            --cap-add SYS_ADMIN --device /dev/fuse --security-opt apparmor:unconfined \
+            --cap-add SYS_ADMIN --device /dev/fuse \
+            --security-opt seccomp:unconfined --security-opt apparmor:unconfined \
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
