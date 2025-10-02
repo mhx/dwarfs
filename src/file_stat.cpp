@@ -97,6 +97,43 @@ bool is_executable(fs::path const& path) {
       [ext = path.extension().wstring()](auto const& e) { return ext == e; });
 }
 
+file_stat::off_type
+get_sparse_file_allocated_size_win(HANDLE h, file_stat::off_type logical_size) {
+  FILE_ALLOCATED_RANGE_BUFFER in{};
+  in.FileOffset.QuadPart = 0;
+  in.Length.QuadPart = logical_size;
+
+  file_stat::off_type total_allocated{0};
+  DWORD bytes{};
+  std::array<FILE_ALLOCATED_RANGE_BUFFER, 16> buf;
+
+  for (;;) {
+    auto const done =
+        ::DeviceIoControl(h, FSCTL_QUERY_ALLOCATED_RANGES, &in, sizeof(in),
+                          buf.data(), sizeof(buf), &bytes, nullptr);
+    bool const more = done == 0 && ::GetLastError() == ERROR_MORE_DATA;
+
+    if (!done && !more) {
+      return logical_size; // fallback
+    }
+
+    size_t const num = bytes / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
+
+    for (size_t i = 0; i < num; ++i) {
+      total_allocated += buf[i].Length.QuadPart;
+    }
+
+    if (done) {
+      break;
+    }
+
+    in.FileOffset.QuadPart =
+        buf[num - 1].FileOffset.QuadPart + buf[num - 1].Length.QuadPart;
+  }
+
+  return total_allocated;
+}
+
 // REPARSE_DATA_BUFFER isn't exposed by windows.h, so define a minimal
 // compatible version here.
 typedef struct _REPARSE_DATA_BUFFER {
@@ -124,6 +161,62 @@ typedef struct _REPARSE_DATA_BUFFER {
     } GenericReparseBuffer;
   };
 } REPARSE_DATA_BUFFER;
+
+#else
+
+file_stat::off_type
+get_sparse_file_allocated_size_posix(fs::path const& path [[maybe_unused]],
+                                     file_stat::off_type logical_size) {
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+  // NOLINTNEXTLINE: cppcoreguidelines-pro-type-vararg
+  int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+
+  if (fd < 0) {
+    return logical_size; // fallback
+  }
+
+  scope_exit close_fd([fd]() { ::close(fd); });
+
+  if (::lseek(fd, 0, SEEK_SET) == -1) {
+    return logical_size; // fallback
+  }
+
+  int whence = SEEK_DATA;
+  off_t offset = 0;
+  file_stat::off_type total_allocated{0};
+
+  for (;;) {
+    off_t rv = ::lseek(fd, offset, whence);
+
+    if (rv < 0) {
+      if (errno != ENXIO) {
+        return logical_size; // fallback
+      }
+      break;
+    }
+
+    switch (whence) {
+    case SEEK_DATA:
+      whence = SEEK_HOLE;
+      break;
+    case SEEK_HOLE:
+      if (rv > offset) {
+        total_allocated += rv - offset;
+      }
+      whence = SEEK_DATA;
+      break;
+    default:
+      DWARFS_PANIC("invalid whence");
+    }
+
+    offset = rv;
+  }
+
+  return total_allocated;
+#else
+  return logical_size; // fallback
+#endif
+}
 
 #endif
 
@@ -175,7 +268,7 @@ file_stat::file_stat(fs::path const& path) {
   };
 
   HANDLE h = ::CreateFileW(
-      path.c_str(), FILE_READ_ATTRIBUTES,
+      path.c_str(), GENERIC_READ,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
       OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
       nullptr);
@@ -220,11 +313,12 @@ file_stat::file_stat(fs::path const& path) {
   bool const is_readonly =
       (basic.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
 
-  valid_fields_ =
-      file_stat::mode_valid | file_stat::nlink_valid | file_stat::dev_valid |
-      file_stat::ino_valid | file_stat::uid_valid | file_stat::gid_valid |
-      file_stat::size_valid | file_stat::blocks_valid | file_stat::atime_valid |
-      file_stat::ctime_valid | file_stat::mtime_valid;
+  valid_fields_ = file_stat::mode_valid | file_stat::nlink_valid |
+                  file_stat::dev_valid | file_stat::ino_valid |
+                  file_stat::uid_valid | file_stat::gid_valid |
+                  file_stat::size_valid | file_stat::blocks_valid |
+                  file_stat::atime_valid | file_stat::ctime_valid |
+                  file_stat::mtime_valid | file_stat::allocated_size_valid;
 
   if (is_symlink) {
     mode_ = posix_file_type::symlink | 0777;
@@ -284,8 +378,13 @@ file_stat::file_stat(fs::path const& path) {
     size_ = stdinfo.EndOfFile.QuadPart; // logical size
   }
 
-  auto const alloc = static_cast<uint64_t>(stdinfo.AllocationSize.QuadPart);
-  blocks_ = (alloc + 511) / 512;
+  allocated_size_ = size_;
+
+  if (basic.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) {
+    allocated_size_ = get_sparse_file_allocated_size_win(h, size_);
+  }
+
+  blocks_ = (stdinfo.AllocationSize.QuadPart + 511) / 512;
 
   atime_ = to_unix_time_seconds(basic.LastAccessTime);
   mtime_ = to_unix_time_seconds(basic.LastWriteTime);
@@ -313,6 +412,11 @@ file_stat::file_stat(fs::path const& path) {
   gid_ = st.st_gid;
   rdev_ = st.st_rdev;
   size_ = st.st_size;
+  if (S_ISREG(mode_) && st.st_blocks * 512 < size_) {
+    allocated_size_ = get_sparse_file_allocated_size_posix(path, size_);
+  } else {
+    allocated_size_ = size_;
+  }
   blksize_ = st.st_blksize;
   blocks_ = st.st_blocks;
 #ifdef __APPLE__
@@ -522,6 +626,16 @@ file_stat::time_type file_stat::ctime() const {
 void file_stat::set_ctime(time_type ctime) {
   valid_fields_ |= ctime_valid;
   ctime_ = ctime;
+}
+
+file_stat::off_type file_stat::allocated_size() const {
+  ensure_valid(allocated_size_valid);
+  return allocated_size_;
+}
+
+void file_stat::set_allocated_size(off_type allocated_size) {
+  valid_fields_ |= allocated_size_valid;
+  allocated_size_ = allocated_size;
 }
 
 } // namespace dwarfs
