@@ -259,6 +259,8 @@ class metadata_v2_data {
 
   bool has_symlinks() const { return !meta_.symlink_table().empty(); }
 
+  bool has_sparse_files() const { return meta_.hole_block_index().has_value(); }
+
   std::optional<inode_view> get_entry(int inode) const {
     inode -= inode_offset_;
     std::optional<inode_view> rv;
@@ -2236,6 +2238,8 @@ class metadata_ final : public metadata_v2::impl {
   size_t block_size() const override { return data_.block_size(); }
 
   bool has_symlinks() const override { return data_.has_symlinks(); }
+
+  bool has_sparse_files() const override { return data_.has_sparse_files(); }
 
   nlohmann::json
   get_inode_info(inode_view iv, size_t max_chunks) const override {
