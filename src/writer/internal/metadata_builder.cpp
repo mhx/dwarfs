@@ -233,10 +233,16 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
     }
   });
 
-  bm.map_logical_blocks(md_.chunks().value());
+  bm.map_logical_blocks(md_.chunks().value(), hole_mapper);
 
   // insert dummy inode to help determine number of chunks per inode
   DWARFS_NOTHROW(md_.chunk_table()->at(im.count())) = md_.chunks()->size();
+
+  if (hole_mapper && hole_mapper->has_holes()) {
+    md_.hole_block_index() = hole_mapper->hole_block_index();
+    md_.large_hole_size() = hole_mapper->large_hole_sizes();
+    features_.add(feature::sparsefiles);
+  }
 
   LOG_DEBUG << "total number of unique files: " << im.count();
   LOG_DEBUG << "total number of chunks: " << md_.chunks()->size();

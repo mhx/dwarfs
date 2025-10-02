@@ -30,6 +30,8 @@
 #include <dwarfs/gen-cpp2/metadata_types.h>
 #include <dwarfs/writer/fragment_category.h>
 
+#include <dwarfs/writer/internal/inode_hole_mapper.h>
+
 namespace dwarfs::writer::internal {
 
 class block_manager {
@@ -39,7 +41,9 @@ class block_manager {
   size_t get_logical_block() const;
   void set_written_block(size_t logical_block, size_t written_block,
                          fragment_category category);
-  void map_logical_blocks(std::vector<chunk_type>& vec) const;
+  void
+  map_logical_blocks(std::vector<chunk_type>& vec,
+                     std::optional<inode_hole_mapper> const& hole_mapper) const;
   std::vector<fragment_category> get_written_block_categories() const;
   size_t num_blocks() const;
 
