@@ -26,7 +26,6 @@ XZ_VERSION=5.8.1                         # 2025-04-03
 LIBDWARF_VERSION=2.1.0                   # 2025-07-19
 LIBEVENT_VERSION=2.1.12                  # 2020-07-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
-DATE_VERSION=3.0.4                       # 2025-05-28
 UTFCPP_VERSION=4.0.6                     # 2024-11-03
 RANGE_V3_VERSION=0.12.0                  # 2022-06-21
 PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21

@@ -46,7 +46,6 @@ RUN zypper -n in --no-recommends \
     libopenssl-3-devel \
     fmt-devel \
     nlohmann_json-devel \
-    hhdate-devel \
     jemalloc-devel \
     double-conversion-devel \
     liblz4-devel \
