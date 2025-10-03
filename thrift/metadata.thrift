@@ -189,7 +189,7 @@ struct string_table {
  */
 struct inode_size_cache {
    // lookup from inode number to size
-   1: map<UInt32, UInt64>  lookup
+   1: map<UInt32, UInt64>  size_lookup
 
    // minimum number of chunks for a file to be found in the cache,
    // corresponds to scanner_options.inode_size_cache_min_chunk_count
