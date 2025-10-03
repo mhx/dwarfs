@@ -44,6 +44,7 @@
 namespace dwarfs {
 
 class logger;
+class os_access;
 class performance_monitor;
 
 namespace reader {
@@ -60,7 +61,7 @@ class inode_reader_v2 {
  public:
   inode_reader_v2() = default;
 
-  inode_reader_v2(logger& lgr, block_cache&& bc,
+  inode_reader_v2(logger& lgr, os_access const& os, block_cache&& bc,
                   inode_reader_options const& opts,
                   std::shared_ptr<performance_monitor const> const& perfmon);
 
