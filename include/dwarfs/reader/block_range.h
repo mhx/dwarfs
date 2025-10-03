@@ -43,6 +43,8 @@ class cached_block;
 class block_range {
  public:
   block_range() = default;
+  explicit block_range(std::span<uint8_t const> span)
+      : span_{span} {}
   block_range(uint8_t const* data, size_t offset, size_t size);
   block_range(std::shared_ptr<internal::cached_block const> block,
               size_t offset, size_t size);
