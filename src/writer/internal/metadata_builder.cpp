@@ -179,6 +179,10 @@ metadata_builder_<LoggerPolicy>::build_inode_size_cache() const {
   auto const& chunk_table = md_.chunk_table().value();
   auto const& chunks = md_.chunks().value();
 
+  uint32_t const hole_ix = md_.hole_block_index().value_or(UINT32_MAX);
+  uint64_t const block_size = md_.block_size().value();
+  assert(std::has_single_bit(block_size));
+
   for (size_t ino = 1; ino < chunk_table.size() - 1; ++ino) {
     auto const begin = chunk_table[ino];
     auto const end = chunk_table[ino + 1];
@@ -186,16 +190,41 @@ metadata_builder_<LoggerPolicy>::build_inode_size_cache() const {
 
     if (num_chunks >= options_.inode_size_cache_min_chunk_count) {
       uint64_t size = 0;
+      uint64_t allocated_size = 0;
 
       for (uint32_t ix = begin; ix < end; ++ix) {
         auto const& chunk = chunks[ix];
-        size += chunk.size().value();
+        auto const b = chunk.block().value();
+        auto const o = chunk.offset().value();
+        auto const s = chunk.size().value();
+
+        if (b == hole_ix) {
+          if (o == kChunkOffsetIsLargeHole) {
+            assert(md_.large_hole_size());
+            assert(o < md_.large_hole_size()->size());
+            size += md_.large_hole_size()->at(s);
+          } else {
+            assert(o < block_size);
+            size += s * block_size + o;
+          }
+        } else {
+          size += s;
+          allocated_size += s;
+        }
       }
 
       LOG_DEBUG << "caching size " << size << " for inode " << ino << " with "
                 << num_chunks << " chunks";
 
       cache.size_lookup()->emplace(ino, size);
+
+      if (allocated_size != size) {
+        LOG_DEBUG << "caching allocated size " << allocated_size
+                  << " for inode " << ino << " with " << num_chunks
+                  << " chunks";
+
+        cache.allocated_size_lookup()->emplace(ino, allocated_size);
+      }
     }
   }
 
