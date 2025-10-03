@@ -48,8 +48,6 @@
 #include <utf8.h>
 #endif
 
-#include <date/date.h>
-
 #include <folly/ExceptionString.h>
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
@@ -191,7 +189,7 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   for (auto const& fmt : formats) {
     std::istringstream iss(str);
     std::chrono::system_clock::time_point tp;
-    date::from_stream(iss, fmt, tp);
+    std::chrono::from_stream(iss, fmt, tp);
     if (!iss.fail()) {
       iss.peek();
       if (iss.eof()) {
