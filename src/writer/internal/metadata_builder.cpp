@@ -195,7 +195,7 @@ metadata_builder_<LoggerPolicy>::build_inode_size_cache() const {
       LOG_DEBUG << "caching size " << size << " for inode " << ino << " with "
                 << num_chunks << " chunks";
 
-      cache.lookup()->emplace(ino, size);
+      cache.size_lookup()->emplace(ino, size);
     }
   }
 
