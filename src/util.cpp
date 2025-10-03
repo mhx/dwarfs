@@ -48,7 +48,12 @@
 #include <utf8.h>
 #endif
 
+#if __has_include(<date/date.h>)
 #include <date/date.h>
+#define DWARFS_USE_HH_DATE 1
+#else
+#define DWARFS_USE_HH_DATE 0
+#endif
 
 #include <folly/ExceptionString.h>
 #include <folly/String.h>
@@ -191,7 +196,11 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   for (auto const& fmt : formats) {
     std::istringstream iss(str);
     std::chrono::system_clock::time_point tp;
+#if DWARFS_USE_HH_DATE
     date::from_stream(iss, fmt, tp);
+#else
+    std::chrono::from_stream(iss, fmt, tp);
+#endif
     if (!iss.fail()) {
       iss.peek();
       if (iss.eof()) {
