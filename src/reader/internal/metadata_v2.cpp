@@ -239,6 +239,35 @@ get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
 uint16_t const READ_ONLY_MASK = ~uint16_t(
     fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
+struct file_size_result {
+  file_size_result() = default;
+  explicit file_size_result(file_size_t sz)
+      : size{sz}
+      , allocated_size{sz} {}
+  file_size_result(file_size_t sz, file_size_t alloc_sz)
+      : size{sz}
+      , allocated_size{alloc_sz} {}
+
+  friend bool operator==(file_size_result const& a, file_size_result const& b) {
+    return a.size == b.size && a.allocated_size == b.allocated_size;
+  }
+
+  friend bool operator!=(file_size_result const& a, file_size_result const& b) {
+    return !(a == b);
+  }
+
+  file_size_t size{0};
+  file_size_t allocated_size{0};
+};
+
+std::ostream& operator<<(std::ostream& os, file_size_result const& fsr) {
+  os << fsr.size;
+  if (fsr.allocated_size != fsr.size) {
+    os << " (allocated: " << fsr.allocated_size << ")";
+  }
+  return os;
+}
+
 } // namespace
 
 class metadata_v2_data {
@@ -443,15 +472,15 @@ class metadata_v2_data {
                          getattr_options const& opts) const;
 
   template <typename TraceFunc>
-  size_t reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
-                            TraceFunc const& trace) const;
+  file_size_result reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
+                                      TraceFunc const& trace) const;
 
-  size_t reg_file_size_notrace(inode_view_impl const& iv) const {
+  file_size_result reg_file_size_notrace(inode_view_impl const& iv) const {
     return reg_file_size_impl(iv, true, [](int) {});
   }
 
   template <typename LoggerPolicy>
-  size_t
+  file_size_result
   reg_file_size_impl(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
                      bool use_cache) const {
     return reg_file_size_impl(iv, use_cache, [&](int index) {
@@ -460,26 +489,27 @@ class metadata_v2_data {
     });
   }
 
-  size_t reg_file_size_notrace(inode_view const& iv) const {
+  file_size_result reg_file_size_notrace(inode_view const& iv) const {
     return reg_file_size_notrace(iv.raw());
   }
 
   template <typename LoggerPolicy>
-  size_t file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
-                   uint32_t mode) const {
+  file_size_result
+  file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
+            uint32_t mode) const {
     switch (posix_file_type::from_mode(mode)) {
     case posix_file_type::regular:
       return reg_file_size_impl(LOG_PROXY_ARG_ iv, true);
     case posix_file_type::symlink:
-      return link_value(iv).size();
+      return file_size_result{static_cast<file_size_t>(link_value(iv).size())};
     default:
-      return 0;
+      return {};
     }
   }
 
   template <typename LoggerPolicy>
-  size_t file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv,
-                   uint32_t mode) const {
+  file_size_result file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv,
+                             uint32_t mode) const {
     return file_size(LOG_PROXY_ARG_ iv.raw(), mode);
   }
 
@@ -751,9 +781,9 @@ void metadata_v2_data::check_inode_size_cache(
         LOG_TRACE << "checking inode " << inode << " [index=" << index
                   << "] size " << size << " (" << cr.size() << " chunks)";
 
-        if (size != expected) {
+        if (std::cmp_not_equal(size, expected.size)) {
           LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
-                    << " does not match expected " << expected;
+                    << " does not match expected " << expected.size;
           ++errors;
         }
 
@@ -766,6 +796,8 @@ void metadata_v2_data::check_inode_size_cache(
 
         seen.insert(index);
       }
+
+      // TODO: also add checks for allocated size
     }
 
     for (auto entry : cache->size_lookup()) {
@@ -1114,33 +1146,48 @@ int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
 }
 
 template <typename TraceFunc>
-size_t
+file_size_result
 metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
                                      TraceFunc const& trace) const {
   PERFMON_CLS_SCOPED_SECTION(reg_file_size)
 
   // Looking up the chunk range is cheap, and we likely have to do it anyway
   std::error_code ec;
-  auto inode = iv.inode_num();
-  auto index = file_inode_to_chunk_index(inode);
-  auto cr = get_chunk_range_from_index(index, ec);
+  auto const inode = iv.inode_num();
+  auto const index = file_inode_to_chunk_index(inode);
+  auto const cr = get_chunk_range_from_index(index, ec);
   DWARFS_CHECK(!ec,
                fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
+  file_size_result result;
+
   if (use_cache) {
-    if (auto cache = meta_.reg_file_size_cache()) {
+    if (auto const cache = meta_.reg_file_size_cache()) {
       if (cr.size() >= cache->min_chunk_count()) {
         trace(index);
-        if (auto size = cache->size_lookup().getOptional(index)) {
-          return *size;
+
+        if (auto const size = cache->size_lookup().getOptional(index)) {
+          result.size = *size;
+          result.allocated_size =
+              cache->allocated_size_lookup().getOptional(index).value_or(
+                  result.size);
+          return result;
         }
       }
     }
   }
 
   // This is the expensive part for highly fragmented inodes
-  return std::accumulate(cr.begin(), cr.end(), static_cast<size_t>(0),
-                         [](size_t s, chunk_view cv) { return s + cv.size(); });
+
+  for (auto const& chk : cr) {
+    auto const chunk_size = chk.size();
+    if (chk.is_data()) {
+      result.allocated_size += chunk_size;
+    }
+    result.size += chunk_size;
+  }
+
+  return result;
 }
 
 std::string metadata_v2_data::serialize_as_json(bool simple) const {
@@ -1183,10 +1230,14 @@ nlohmann::json metadata_v2_data::as_json(dir_entry_view const& entry) const {
   }
 
   switch (posix_file_type::from_mode(mode)) {
-  case posix_file_type::regular:
+  case posix_file_type::regular: {
+    auto const sz = reg_file_size_notrace(iv);
     obj["type"] = "file";
-    obj["size"] = reg_file_size_notrace(iv);
-    break;
+    obj["size"] = sz.size;
+    if (sz.allocated_size != sz.size) {
+      obj["allocated_size"] = sz.allocated_size;
+    }
+  } break;
 
   case posix_file_type::directory:
     obj["type"] = "directory";
@@ -1908,13 +1959,13 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_mode(mode);
 
   if (!opts.no_size) {
-    auto const size = stbuf.is_directory()
-                          ? make_directory_view(iv).entry_count()
-                          : file_size(LOG_PROXY_ARG_ iv, mode);
-    stbuf.set_size(size);
-    // TODO
-    stbuf.set_blocks((size + 511) / 512);
-    stbuf.set_allocated_size(size);
+    auto const sz = stbuf.is_directory()
+                        ? file_size_result{static_cast<file_size_t>(
+                              make_directory_view(iv).entry_count())}
+                        : file_size(LOG_PROXY_ARG_ iv, mode);
+    stbuf.set_size(sz.size);
+    stbuf.set_blocks((sz.allocated_size + 511) / 512);
+    stbuf.set_allocated_size(sz.allocated_size);
   }
 
   auto& ivr = iv.raw();
