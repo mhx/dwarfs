@@ -475,4 +475,7 @@ struct metadata {
   // The size of sparse file holes that are too large to be
   // stored efficiently in the chunk table, in bytes.
   35: optional list<UInt64>     large_hole_size
+
+   // Total allocated file system size in bytes.
+  36: optional UInt64           total_allocated_fs_size
 }
