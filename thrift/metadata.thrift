@@ -194,6 +194,15 @@ struct inode_size_cache {
    // minimum number of chunks for a file to be found in the cache,
    // corresponds to scanner_options.inode_size_cache_min_chunk_count
    2: UInt64               min_chunk_count
+
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // lookup from inode number to allocated_size
+   // only used if the inode is sparse
+   3: map<UInt32, UInt64>  allocated_size_lookup
+
 }
 
 /*
