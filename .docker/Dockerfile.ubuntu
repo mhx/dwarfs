@@ -43,7 +43,6 @@ RUN apt install -y \
         libboost-chrono-dev \
         libboost-context-dev \
         libboost-filesystem-dev \
-        libboost-iostreams-dev \
         libboost-program-options-dev \
         libboost-regex-dev \
         libboost-system-dev \
