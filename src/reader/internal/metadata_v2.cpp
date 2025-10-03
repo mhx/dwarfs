@@ -737,7 +737,8 @@ void metadata_v2_data::check_inode_size_cache(
         continue;
       }
 
-      if (auto it = cache->lookup().find(index); it != cache->lookup().end()) {
+      if (auto it = cache->size_lookup().find(index);
+          it != cache->size_lookup().end()) {
         auto size = it->second();
 
         std::error_code ec;
@@ -765,7 +766,7 @@ void metadata_v2_data::check_inode_size_cache(
       }
     }
 
-    for (auto entry : cache->lookup()) {
+    for (auto entry : cache->size_lookup()) {
       auto index = entry.first();
       if (!seen.contains(index)) {
         LOG_ERROR << "unused inode size cache entry for index " << index
@@ -1128,7 +1129,7 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
     if (auto cache = meta_.reg_file_size_cache()) {
       if (cr.size() >= cache->min_chunk_count()) {
         trace(index);
-        if (auto size = cache->lookup().getOptional(index)) {
+        if (auto size = cache->size_lookup().getOptional(index)) {
           return *size;
         }
       }

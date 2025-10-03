@@ -404,8 +404,8 @@ void frozen_analyzer::print(std::ostream& os) const {
 
   if (auto cache = meta_.reg_file_size_cache()) {
     add_list_size(
-        usage, "inode_size_cache", cache->lookup(),
-        l.reg_file_size_cacheField.layout.valueField.layout.lookupField);
+        usage, "inode_size_cache", cache->size_lookup(),
+        l.reg_file_size_cacheField.layout.valueField.layout.size_lookupField);
   }
 
   if (auto list = meta_.metadata_version_history()) {
