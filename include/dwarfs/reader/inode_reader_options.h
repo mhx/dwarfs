@@ -34,6 +34,7 @@ namespace dwarfs::reader {
 
 struct inode_reader_options {
   size_t readahead{0};
+  size_t hole_data_size{256 << 10};
 };
 
 } // namespace dwarfs::reader

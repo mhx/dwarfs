@@ -631,7 +631,8 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader_v2(lgr, std::move(cache), options.inode_reader, perfmon);
+  ir_ = inode_reader_v2(lgr, os_, std::move(cache), options.inode_reader,
+                        perfmon);
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     history_sections_ = std::move(it->second);

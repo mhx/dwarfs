@@ -26,7 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <cerrno>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <future>
@@ -42,6 +42,8 @@
 
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/memory_mapping.h>
+#include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/inode_reader_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
@@ -100,16 +102,26 @@ constexpr size_t const offset_cache_updater_max_inline_offsets = 4;
 constexpr size_t const offset_cache_size = 64;
 constexpr size_t const readahead_cache_size = 64;
 
+template <class T>
+std::future<T> make_ready_future(T value) {
+  std::promise<T> p;
+  auto f = p.get_future();
+  p.set_value(std::move(value));
+  return f;
+}
+
 } // namespace
 
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
-  inode_reader_(logger& lgr, block_cache&& bc, inode_reader_options const& opts,
+  inode_reader_(logger& lgr, os_access const& os, block_cache&& bc,
+                inode_reader_options const& opts,
                 std::shared_ptr<performance_monitor const> const& perfmon
                 [[maybe_unused]])
       : cache_(std::move(bc))
       , opts_{opts}
+      , os_{os}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "inode_reader_v2")
@@ -182,8 +194,20 @@ class inode_reader_ final : public inode_reader_v2::impl {
                     chunk_range::iterator const& end, file_off_t read_offset,
                     size_t size, file_off_t it_offset) const;
 
+  readonly_memory_mapping const& get_hole_data() const {
+    std::call_once(hole_data_init_flag_, [this]() {
+      hole_data_ = os_.map_empty_readonly(opts_.hole_data_size);
+      if (!hole_data_) {
+        LOG_ERROR << "failed to allocate zero block: "
+                  << exception_str(std::current_exception());
+      }
+    });
+    return hole_data_;
+  }
+
   block_cache cache_;
   inode_reader_options const opts_;
+  os_access const& os_;
   LOG_PROXY_DECL(LoggerPolicy);
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(read)
@@ -195,6 +219,8 @@ class inode_reader_ final : public inode_reader_v2::impl {
   mutable readahead_cache_type readahead_cache_;
   mutable std::mutex iovec_sizes_mutex_;
   mutable folly::Histogram<size_t> iovec_sizes_;
+  mutable std::once_flag hole_data_init_flag_;
+  mutable readonly_memory_mapping hole_data_;
 };
 
 template <typename LoggerPolicy>
@@ -333,19 +359,38 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   size_t num_read = 0;
 
   while (it != end) {
-    size_t const chunksize = it->size();
-    size_t const copyoff = it->offset() + offset;
-    size_t copysize = chunksize - offset;
+    auto const chunksize = it->size();
+    auto copysize = chunksize - offset;
 
     DWARFS_CHECK(copysize > 0, "unexpected zero-sized chunk");
 
-    if (num_read + copysize > size) {
+    if (std::cmp_greater(num_read + copysize, size)) {
       copysize = size - num_read;
     }
 
-    ranges.emplace_back(cache_.get(it->block(), copyoff, copysize));
+    if (it->is_data()) {
+      file_off_t const copyoff = it->offset() + offset;
 
-    num_read += copysize;
+      assert(std::cmp_less_equal(copyoff, std::numeric_limits<size_t>::max()));
+      assert(std::cmp_less_equal(copysize, std::numeric_limits<size_t>::max()));
+
+      ranges.emplace_back(cache_.get(it->block(), copyoff, copysize));
+
+      num_read += copysize;
+    } else {
+      auto const& hole_span = get_hole_data().template const_span<uint8_t>();
+
+      while (copysize > 0) {
+        auto const hole_range_size =
+            std::min<size_t>(copysize, hole_span.size());
+
+        ranges.emplace_back(make_ready_future(
+            block_range(hole_span.subspan(0, hole_range_size))));
+
+        copysize -= hole_range_size;
+        num_read += hole_range_size;
+      }
+    }
 
     if (num_read == size || ranges.size() >= maxiov) {
       if (oc_ent) {
@@ -484,10 +529,11 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
 }
 
 inode_reader_v2::inode_reader_v2(
-    logger& lgr, block_cache&& bc, inode_reader_options const& opts,
+    logger& lgr, os_access const& os, block_cache&& bc,
+    inode_reader_options const& opts,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<inode_reader_v2::impl, inode_reader_,
-                                       logger_policies>(lgr, std::move(bc),
+                                       logger_policies>(lgr, os, std::move(bc),
                                                         opts, perfmon)) {}
 
 } // namespace dwarfs::reader::internal
