@@ -302,10 +302,8 @@ if use_lib boost; then
     mkdir build
     cd build
     cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
-             -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
-             -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
              -DBOOST_CHARCONV_QUADMATH_FOUND_EXITCODE=0 \
-             -DBOOST_EXCLUDE_LIBRARIES='cobalt;contract;coroutine;fiber;graph;graph_parallel;json;locale;log;log_setup;nowide;prg_exec_monitor;serialization;stacktrace;timer;type_erasure;unit_test_framework;url;wave;wserialization' \
+             -DBOOST_EXCLUDE_LIBRARIES='cobalt;contract;coroutine;fiber;graph;graph_parallel;iostreams;json;locale;log;log_setup;nowide;prg_exec_monitor;serialization;stacktrace;timer;type_erasure;unit_test_framework;url;wave;wserialization' \
              ${BOOST_CMAKE_ARGS} \
              -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
     $NINJA_PARALLEL
