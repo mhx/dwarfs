@@ -242,6 +242,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<const u8*> line, const 
    return bestTable;
 }
 
+#ifndef NONOPT_FSST
 static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size_t nlines, const size_t len[], const u8* line[], size_t size, u8* dst, size_t lenOut[], u8* strOut[], int unroll) {
    size_t curLine = 0, inOff = 0, outOff = 0, batchPos = 0, empty = 0, budget = size;
    u8 *lim = dst + size, *codeBase = symbolBase + (1<<18); // 512KB temp space for compressing 512 strings 
@@ -374,7 +375,7 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
    }
    return curLine;
 }
-
+#endif
 
 // optimized adaptive *scalar* compression method
 static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const size_t lenIn[], const u8* strIn[], size_t size, u8* out, size_t lenOut[], u8* strOut[], bool noSuffixOpt, bool avoidBranch) {
