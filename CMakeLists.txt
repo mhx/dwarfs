@@ -1038,7 +1038,7 @@ add_custom_target(
       dwarfs-config-version.cmake
       dwarfs-config.cmake
       dwarfs.ilk dwarfs.pdb
-      .ninja_deps build.ninja
+      .ninja_deps .ninja_log build.ninja
       CMakeCache.txt
       ${REALCLEAN_FILES}
 )
