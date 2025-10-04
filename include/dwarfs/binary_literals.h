@@ -49,20 +49,4 @@ constexpr auto operator""_TiB(unsigned long long value) {
   return static_cast<uint64_t>(value) << 40;
 }
 
-constexpr auto operator""_KiBs(unsigned long long value) {
-  return static_cast<size_t>(value) << 10;
-}
-
-constexpr auto operator""_MiBs(unsigned long long value) {
-  return static_cast<size_t>(value) << 20;
-}
-
-constexpr auto operator""_GiBs(unsigned long long value) {
-  return static_cast<size_t>(value) << 30;
-}
-
-constexpr auto operator""_TiBs(unsigned long long value) {
-  return static_cast<size_t>(value) << 40;
-}
-
 } // namespace dwarfs::binary_literals
