@@ -95,8 +95,8 @@ enum class cpu_feature {
   popcnt,
 };
 
-cpu_feature detect_cpu_feature() {
 #ifdef DWARFS_USE_POPCNT
+cpu_feature detect_cpu_feature() {
   static cpu_feature const feature = [] {
     if (__builtin_cpu_supports("popcnt")) {
       return cpu_feature::popcnt;
@@ -104,10 +104,8 @@ cpu_feature detect_cpu_feature() {
     return cpu_feature::none;
   }();
   return feature;
-#else
-  return cpu_feature::none;
-#endif
 }
+#endif
 
 template <typename Fn, typename... Args>
 decltype(auto) cpu_dispatch(Args&&... args) {
