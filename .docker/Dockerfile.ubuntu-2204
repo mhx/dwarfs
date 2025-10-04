@@ -20,8 +20,6 @@ RUN apt install -y \
         ninja-build \
         cmake \
         make \
-        bison \
-        flex \
         ronn \
         fuse3 \
         pkg-config \

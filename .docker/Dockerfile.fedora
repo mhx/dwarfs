@@ -19,8 +19,6 @@ RUN dnf install -y \
         cmake \
         make \
         bubblewrap \
-        bison \
-        flex \
         rubygem-ronn \
         fuse \
         fuse3 \

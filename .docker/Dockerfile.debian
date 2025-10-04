@@ -29,8 +29,6 @@ RUN apt install -y \
         cmake \
         make \
         bubblewrap \
-        bison \
-        flex \
         ronn \
         fuse3 \
         pkg-config \
@@ -43,11 +41,9 @@ RUN apt install -y \
         libboost-filesystem-dev \
         libboost-program-options-dev \
         libboost-regex-dev \
-        libboost-system-dev \
         libboost-thread-dev \
         libbrotli-dev \
         libevent-dev \
-        libhowardhinnant-date-dev \
         libjemalloc-dev \
         libdouble-conversion-dev \
         libiberty-dev \
