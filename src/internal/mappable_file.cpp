@@ -277,7 +277,6 @@ class mappable_file_ final : public mappable_file::impl {
 
     if (local_ec) {
       handle_error("get_file_extents", ec, local_ec);
-      return {};
     }
 
     return extents;

@@ -82,7 +82,8 @@ std::vector<file_extent_info> get_file_extents(int fd, std::error_code& ec) {
     if (rv < 0) {
       if (errno != ENXIO) {
         ec.assign(errno, std::generic_category());
-        return {};
+        extents.clear();
+        return extents;
       }
       break;
     }
@@ -112,7 +113,8 @@ std::vector<file_extent_info> get_file_extents(int fd, std::error_code& ec) {
 
   if (rv < 0) {
     ec.assign(errno, std::generic_category());
-    return {};
+    extents.clear();
+    return extents;
   }
 
   if (rv > offset) {
