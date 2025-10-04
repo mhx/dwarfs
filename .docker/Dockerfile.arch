@@ -17,6 +17,7 @@ RUN pacman -S --noconfirm --needed \
         cmake \
         make \
         bison \
+        bubblewrap \
         flex \
         ruby-ronn \
         python-mistletoe \

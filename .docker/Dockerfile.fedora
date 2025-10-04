@@ -18,6 +18,7 @@ RUN dnf install -y \
         ninja-build \
         cmake \
         make \
+        bubblewrap \
         bison \
         flex \
         rubygem-ronn \
