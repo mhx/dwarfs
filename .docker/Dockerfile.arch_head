@@ -31,7 +31,6 @@ RUN pacman -S --noconfirm --needed \
         libevent \
         openssl \
         fmt \
-        chrono-date \
         range-v3 \
         jemalloc \
         double-conversion \

@@ -32,7 +32,6 @@ RUN pacman -S --noconfirm --needed \
         libevent \
         openssl \
         fmt \
-        chrono-date \
         range-v3 \
         nlohmann-json \
         jemalloc \
