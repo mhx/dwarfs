@@ -116,10 +116,10 @@ struct Symbol {
    u16 first2() const { assert( length() >= 2); return 0xFFFF & load_num(); }
 
 #define FSST_HASH_LOG2SIZE 10 
-#define FSST_HASH_PRIME 2971215073LL
+#define FSST_HASH_PRIME 2971215073ULL
 #define FSST_SHIFT 15
 #define FSST_HASH(w) (((w)*FSST_HASH_PRIME)^(((w)*FSST_HASH_PRIME)>>FSST_SHIFT))
-   size_t hash() const { size_t v = 0xFFFFFF & load_num(); return FSST_HASH(v); } // hash on the next 3 bytes
+   u64 hash() const { u64 v = 0xFFFFFF & load_num(); return FSST_HASH(v); } // hash on the next 3 bytes
 };
 
 // Symbol that can be put in a queue, ordered on gain
