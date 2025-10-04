@@ -47,7 +47,7 @@ class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
  public:
   mmap_byte_buffer_impl(os_access const& os, size_t size)
       : mm_{os.map_empty(size)}
-      , data_{reinterpret_cast<uint8_t*>(mm_.span<uint8_t>().data())} {}
+      , data_{mm_.span<uint8_t>().data()} {}
 
   size_t size() const override { return size_; }
 
