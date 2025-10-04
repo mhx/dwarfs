@@ -25,6 +25,7 @@ RUN zypper -n in --no-recommends \
     make \
     ruby3.4-rubygem-ronn-ng \
     python313-mistletoe \
+    bubblewrap \
     fuse \
     fuse3 \
     fuse-devel \

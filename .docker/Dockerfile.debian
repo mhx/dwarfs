@@ -28,6 +28,7 @@ RUN apt install -y \
         ninja-build \
         cmake \
         make \
+        bubblewrap \
         bison \
         flex \
         ronn \
