@@ -348,9 +348,10 @@ class inode_ : public inode {
         try {
           mm = os.open_file(fp->fs_path());
           if (mm.size() != fp->size()) {
+            auto const now_size = mm.size();
             mm.reset();
             throw std::runtime_error(fmt::format(
-                "file size changed: was {}, now {}", fp->size(), mm.size()));
+                "file size changed: was {}, now {}", fp->size(), now_size));
           }
           rfp = fp;
           break;
