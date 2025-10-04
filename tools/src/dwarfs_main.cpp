@@ -212,6 +212,7 @@ struct options {
 #ifdef DWARFS_BUILTIN_MANPAGE
   bool is_man{false};
 #endif
+  bool is_automount{false};
 };
 
 static_assert(std::is_standard_layout_v<options>);
@@ -1244,7 +1245,9 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
      << "Usage: " << progname.filename().string()
-     << " <image> <mountpoint> [options]\n\n"
+     << " <image> <mountpoint> [options]\n"
+     << "       " << progname.filename().string()
+     << " <image> --automount  [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
      << "    -o blocksize=SIZE      set file I/O block size (512K)\n"
@@ -1318,6 +1321,9 @@ int option_hdl(void* data, char const* arg, int key,
     if (argsv == "-h" || argsv == "--help") {
       opts.is_help = true;
       return -1;
+    } else if (argsv == "--automount") {
+      opts.is_automount = true;
+      return 0;
     }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
@@ -1333,6 +1339,15 @@ int option_hdl(void* data, char const* arg, int key,
   }
 
   return 1;
+}
+
+// automount ok if dir doesn't exist or it's empty
+// leaving permission and more serious checks to fuse
+inline bool is_good_mount_path(std::filesystem::path& path) {
+  if (!std::filesystem::exists(path) ||
+    (std::filesystem::is_directory(path) && std::filesystem::is_empty(path)))
+    return true;
+  return false;
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1586,6 +1601,39 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   opts.cache_files = 1;
 
   fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
+
+  // automount to a new/existing dir
+  // TODO: check already mounted. refactor extract function.
+  if (userdata.opts.is_automount) {
+    if (userdata.opts.seen_mountpoint) {
+      iol.err << "error: cannot combine <mountpoint> with --automount" << "\n";
+      usage(iol.out, userdata.progname);
+      return 1;
+    }
+    auto fspath = std::filesystem::path(userdata.opts.fsimage->data());
+    // First try without file extension, then add "_mount". Otherwise, fail.
+    // This way, user gets:
+    //   "fs.dwarfs"  -> "fs/"
+    //   "fs"         -> "fs_mount/"
+    auto mountpath = fspath.parent_path() / fspath.stem();
+    if (!is_good_mount_path(mountpath)) {
+      mountpath += "_mount";
+      if (!is_good_mount_path(mountpath)){
+        iol.err << "error: cannot find a suitable mount dir" << "\n";
+        return 1;
+      }
+    }
+    if (!std::filesystem::exists(mountpath)) {
+      if (!std::filesystem::create_directory(mountpath)) {
+        iol.err << "error: unable to create mount dir" << "\n";
+        return 1;
+      }
+    }
+    //TODO: move after all parsing is done, before run_fuse() or fuse_main()?
+    iol.out << mountpath.string() << "\n";
+    fuse_opt_add_arg(&args, mountpath.c_str());
+    userdata.opts.seen_mountpoint = 1;
+  }
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30

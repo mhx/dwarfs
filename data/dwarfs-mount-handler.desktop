@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=DwarFS Automount
+TryExec=dwarfs
+Exec=dwarfs --automount %f
+Icon=application-x-iso
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+Type=Application
+Categories=Utility;
+MimeType=application/x-dwarfs-image;
