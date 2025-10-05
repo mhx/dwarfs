@@ -43,6 +43,8 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
+#include <dwarfs/writer/internal/byte_progress.h>
+
 namespace dwarfs::writer {
 
 namespace fs = std::filesystem;
@@ -74,7 +76,8 @@ class categorizer_job_ final : public categorizer_job::impl {
 
   void set_total_size(file_size_t total_size) override;
   void categorize_random_access(file_view const& mm) override;
-  void categorize_sequential(file_segment const& seg) override;
+  void categorize_sequential(file_view const& mm, file_size_t chunk_size,
+                             internal::byte_progress* progress) override;
   inode_fragments result() override;
   bool best_result_found() const override;
 
@@ -126,7 +129,8 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
 
 template <typename LoggerPolicy>
 void categorizer_job_<LoggerPolicy>::categorize_sequential(
-    file_segment const& seg) {
+    file_view const& mm, file_size_t chunk_size,
+    internal::byte_progress* progress) {
   if (is_global_best_) {
     return;
   }
@@ -147,8 +151,18 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
     }
   }
 
-  for (auto&& [index, job] : seq_jobs_) {
-    job->add(seg);
+  for (auto const& ext : mm.extents()) {
+    // TODO: handle holes in sparse files
+
+    for (auto const& seg : ext.segments(chunk_size)) {
+      for (auto&& [index, job] : seq_jobs_) {
+        job->add(seg);
+      }
+
+      if (progress) {
+        progress->advance(seg.size());
+      }
+    }
   }
 }
 
