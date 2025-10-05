@@ -49,6 +49,12 @@ class logger;
 
 namespace writer {
 
+namespace internal {
+
+class byte_progress;
+
+} // namespace internal
+
 using category_mapper =
     std::function<fragment_category::value_type(std::string_view)>;
 
@@ -122,8 +128,9 @@ class categorizer_job {
     impl_->categorize_random_access(mm);
   }
 
-  void categorize_sequential(file_segment const& seg) {
-    impl_->categorize_sequential(seg);
+  void categorize_sequential(file_view const& mm, file_size_t chunk_size,
+                             internal::byte_progress* progress = nullptr) {
+    impl_->categorize_sequential(mm, chunk_size, progress);
   }
 
   inode_fragments result() { return impl_->result(); }
@@ -138,7 +145,9 @@ class categorizer_job {
 
     virtual void set_total_size(file_size_t total_size) = 0;
     virtual void categorize_random_access(file_view const& mm) = 0;
-    virtual void categorize_sequential(file_segment const& seg) = 0;
+    virtual void
+    categorize_sequential(file_view const& mm, file_size_t chunk_size,
+                          internal::byte_progress* progress) = 0;
     virtual inode_fragments result() = 0;
     virtual bool best_result_found() const = 0;
   };

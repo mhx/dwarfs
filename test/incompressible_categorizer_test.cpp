@@ -34,6 +34,7 @@
 
 #include <folly/String.h>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/writer/categorizer.h>
 
 #include "loremipsum.h"
@@ -41,6 +42,7 @@
 #include "test_logger.h"
 
 using namespace dwarfs;
+using namespace dwarfs::binary_literals;
 using dwarfs::test::loremipsum;
 using dwarfs::test::make_mock_file_view;
 // using testing::MatchesRegex;
@@ -100,11 +102,7 @@ class incompressible_categorizer_fixture : public Base {
     auto job = catmgr->job(path);
     job.set_total_size(mm.size());
     job.categorize_random_access(mm);
-    for (auto const& ext : mm.extents()) {
-      for (auto const& seg : ext.segments()) {
-        job.categorize_sequential(seg);
-      }
-    }
+    job.categorize_sequential(mm, 64_KiB, nullptr);
     return job.result();
   }
 
