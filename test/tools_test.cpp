@@ -79,12 +79,15 @@
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
+#include "compare_directories.h"
 #include "test_helpers.h"
 
 namespace {
 
 namespace bp = boost::process;
 namespace fs = std::filesystem;
+
+using dwarfs::test::compare_directories;
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
@@ -218,144 +221,6 @@ bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   return true;
 }
 #endif
-
-struct compare_directories_result {
-  std::set<fs::path> mismatched;
-  std::set<fs::path> directories;
-  std::set<fs::path> symlinks;
-  std::set<fs::path> regular_files;
-  size_t total_regular_file_size{0};
-};
-
-std::ostream&
-operator<<(std::ostream& os, compare_directories_result const& cdr) {
-  for (auto const& m : cdr.mismatched) {
-    os << "*** mismatched: " << m << "\n";
-  }
-  for (auto const& m : cdr.regular_files) {
-    os << "*** regular: " << m << "\n";
-  }
-  for (auto const& m : cdr.directories) {
-    os << "*** directory: " << m << "\n";
-  }
-  for (auto const& m : cdr.symlinks) {
-    os << "*** symlink: " << m << "\n";
-  }
-  return os;
-}
-
-template <typename T>
-void find_all(fs::path const& root, T const& func) {
-  std::deque<fs::path> q;
-  q.push_back(root);
-  while (!q.empty()) {
-    auto p = q.front();
-    q.pop_front();
-
-    for (auto const& e : fs::directory_iterator(p)) {
-      func(e);
-      if (e.symlink_status().type() == fs::file_type::directory) {
-        q.push_back(e.path());
-      }
-    }
-  }
-}
-
-bool compare_directories(fs::path const& p1, fs::path const& p2,
-                         compare_directories_result* res = nullptr) {
-  std::map<fs::path, fs::directory_entry> m1, m2;
-  std::set<fs::path> s1, s2;
-
-  find_all(p1, [&](auto const& e) {
-    auto rp = e.path().lexically_relative(p1);
-    m1.emplace(rp, e);
-    s1.insert(rp);
-  });
-
-  find_all(p2, [&](auto const& e) {
-    auto rp = e.path().lexically_relative(p2);
-    m2.emplace(rp, e);
-    s2.insert(rp);
-  });
-
-  if (res) {
-    res->mismatched.clear();
-    res->directories.clear();
-    res->symlinks.clear();
-    res->regular_files.clear();
-    res->total_regular_file_size = 0;
-  }
-
-  bool rv = true;
-
-  std::set<fs::path> common;
-  std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(),
-                        std::inserter(common, common.end()));
-
-  if (s1.size() != common.size() || s2.size() != common.size()) {
-    if (res) {
-      std::set_symmetric_difference(
-          s1.begin(), s1.end(), s2.begin(), s2.end(),
-          std::inserter(res->mismatched, res->mismatched.end()));
-    }
-    rv = false;
-  }
-
-  for (auto const& p : common) {
-    auto const& e1 = m1[p];
-    auto const& e2 = m2[p];
-
-    if (e1.symlink_status().type() != e2.symlink_status().type() ||
-        (e1.symlink_status().type() != fs::file_type::directory &&
-         e1.file_size() != e2.file_size())) {
-      if (res) {
-        res->mismatched.insert(p);
-      }
-      rv = false;
-      continue;
-    }
-
-    switch (e1.symlink_status().type()) {
-    case fs::file_type::regular: {
-      std::string c1, c2;
-      if (!read_file(e1.path(), c1) || !read_file(e2.path(), c2) || c1 != c2) {
-        if (res) {
-          res->mismatched.insert(p);
-        }
-        rv = false;
-      }
-    }
-      if (res) {
-        res->regular_files.insert(p);
-        res->total_regular_file_size += e1.file_size();
-      }
-      break;
-
-    case fs::file_type::directory:
-      if (res) {
-        res->directories.insert(p);
-      }
-      break;
-
-    case fs::file_type::symlink:
-      if (fs::read_symlink(e1.path()) != fs::read_symlink(e2.path())) {
-        if (res) {
-          res->mismatched.insert(p);
-        }
-        rv = false;
-      }
-      if (res) {
-        res->symlinks.insert(p);
-      }
-      break;
-
-    default:
-      break;
-    }
-  }
-
-  return rv;
-}
 
 #ifdef _WIN32
 struct new_process_group : public ::boost::process::detail::handler_base {
@@ -1100,13 +965,14 @@ TEST_P(tools_test, end_to_end) {
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
           << runner.cmdline();
-      compare_directories_result cdr;
-      ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+      auto const cdr = compare_directories(fsdata_dir, mountpoint);
+      ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), 26)
           << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.regular_files.size(), 26)
+      EXPECT_EQ(cdr.matching_directories.size(), 19)
           << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.directories.size(), 19) << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_symlinks.size(), 2)
+          << runner.cmdline() << ": " << cdr;
       EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
 
       EXPECT_TRUE(fs::is_symlink(unicode_symlink)) << runner.cmdline();
@@ -1255,14 +1121,14 @@ TEST_P(tools_test, end_to_end) {
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar")
             << runner.cmdline();
-        compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+        auto const cdr = compare_directories(fsdata_dir, mountpoint);
+        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26)
+        EXPECT_EQ(cdr.matching_directories.size(), 19)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19)
+        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
@@ -1312,14 +1178,14 @@ TEST_P(tools_test, end_to_end) {
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar")
             << runner.cmdline();
-        compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+        auto const cdr = compare_directories(fsdata_dir, mountpoint);
+        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26)
+        EXPECT_EQ(cdr.matching_directories.size(), 19)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19)
+        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
@@ -1368,11 +1234,11 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
-  compare_directories_result cdr;
-  ASSERT_TRUE(compare_directories(fsdata_dir, extracted, &cdr)) << cdr;
-  EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
-  EXPECT_EQ(cdr.directories.size(), 19) << cdr;
-  EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
+  auto const cdr = compare_directories(fsdata_dir, extracted);
+  ASSERT_TRUE(cdr.identical()) << cdr;
+  EXPECT_EQ(cdr.matching_regular_files.size(), 26) << cdr;
+  EXPECT_EQ(cdr.matching_directories.size(), 19) << cdr;
+  EXPECT_EQ(cdr.matching_symlinks.size(), 2) << cdr;
 }
 
 #ifdef DWARFS_WITH_FUSE_DRIVER
@@ -1729,11 +1595,11 @@ TEST_P(tools_test, categorize) {
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
         << runner.cmdline();
-    compare_directories_result cdr;
-    ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+    auto const cdr = compare_directories(fsdata_dir, mountpoint);
+    ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 151)
         << runner.cmdline() << ": " << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 151) << runner.cmdline() << ": " << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 56'741'701)
+    EXPECT_EQ(cdr.total_matching_regular_file_size, 56'741'701)
         << runner.cmdline() << ": " << cdr;
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -2187,146 +2053,6 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
                          ::testing::Combine(::testing::ValuesIn(path_types),
                                             ::testing::Bool()));
-
-TEST(tools_test, compare_directories_sanity) {
-  dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = tempdir.path();
-  auto dir1 = td / "dir1";
-  auto dir2 = td / "dir2";
-
-  ASSERT_TRUE(fs::create_directory(dir1));
-  ASSERT_TRUE(fs::create_directory(dir2));
-
-  dwarfs::write_file(dir1 / "file1.txt", "hello");
-  dwarfs::write_file(dir1 / "file2.txt", "world");
-
-  dwarfs::write_file(dir2 / "file1.txt", "hello");
-  dwarfs::write_file(dir2 / "file2.txt", "world");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_TRUE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 0) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("mismatched:")));
-  }
-
-  dwarfs::write_file(dir2 / "file2.txt", "WORLD");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 1) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
-  }
-
-  dwarfs::write_file(dir2 / "file3.txt", "new file");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 0) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 2) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("directory:")));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
-  }
-
-  fs::create_symlink("file1.txt", dir1 / "link1");
-  fs::create_symlink("file1.txt", dir2 / "link1");
-
-  fs::create_directory(dir1 / "subdir");
-  fs::create_directory(dir2 / "subdir");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 1) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 2) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("symlink:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
-  }
-
-  fs::create_directory(dir1 / "subdir2");
-  fs::create_symlink("file2.txt", dir2 / "link2");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 1) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 4) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("symlink:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
-  }
-
-  fs::remove(dir2 / "link1");
-  fs::create_symlink("file3.txt", dir2 / "link1");
-
-  {
-    compare_directories_result cdr;
-    ASSERT_FALSE(compare_directories(dir1, dir2, &cdr)) << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 2) << cdr;
-    EXPECT_EQ(cdr.directories.size(), 1) << cdr;
-    EXPECT_EQ(cdr.symlinks.size(), 0) << cdr;
-    EXPECT_EQ(cdr.mismatched.size(), 5) << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 10) << cdr;
-
-    std::ostringstream oss;
-    oss << cdr;
-    auto const oss_str = oss.str();
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("regular:"));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("directory:"));
-    EXPECT_THAT(oss_str, ::testing::Not(::testing::HasSubstr("symlink:")));
-    EXPECT_THAT(oss_str, ::testing::HasSubstr("mismatched:"));
-  }
-}
 
 #ifdef __linux__
 TEST_P(tools_test, fusermount_check) {
