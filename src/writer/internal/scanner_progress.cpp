@@ -26,11 +26,11 @@
 namespace dwarfs::writer::internal {
 
 scanner_progress::scanner_progress(std::string_view context, std::string file,
-                                   size_t size)
+                                   file_size_t size)
     : scanner_progress(termcolor::YELLOW, context, std::move(file), size) {}
 
 scanner_progress::scanner_progress(termcolor color, std::string_view context,
-                                   std::string file, size_t size)
+                                   std::string file, file_size_t size)
     : color_{color}
     , context_{context}
     , file_{std::move(file)}
@@ -41,7 +41,7 @@ auto scanner_progress::get_status() const -> status {
   st.color = color_;
   st.context = context_;
   st.path.emplace(file_);
-  st.bytes_processed.emplace(bytes_processed.load());
+  st.bytes_processed.emplace(bytes_processed_.load());
   st.bytes_total.emplace(bytes_total_);
   return st;
 }

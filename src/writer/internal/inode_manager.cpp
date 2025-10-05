@@ -407,7 +407,7 @@ class inode_ : public inode {
 
     auto advance = [&](file_size_t n) {
       if (sprog) {
-        sprog->bytes_processed += n;
+        sprog->advance(n);
       }
     };
 

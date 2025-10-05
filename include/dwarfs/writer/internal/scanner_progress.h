@@ -27,6 +27,7 @@
 #include <string>
 
 #include <dwarfs/terminal.h>
+#include <dwarfs/types.h>
 
 #include <dwarfs/writer/internal/progress.h>
 
@@ -36,21 +37,21 @@ class scanner_progress : public progress::context {
  public:
   using status = progress::context::status;
 
-  scanner_progress(std::string_view context, std::string file, size_t size);
+  scanner_progress(std::string_view context, std::string file,
+                   file_size_t size);
   scanner_progress(termcolor color, std::string_view context, std::string file,
-                   size_t size);
+                   file_size_t size);
 
   status get_status() const override;
 
-  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
-  std::atomic<size_t> bytes_processed{0};
-  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
+  void advance(file_size_t bytes) noexcept { bytes_processed_ += bytes; }
 
  private:
+  std::atomic<file_size_t> bytes_processed_{0};
   termcolor const color_;
   std::string const context_;
   std::string const file_;
-  size_t const bytes_total_;
+  file_size_t const bytes_total_;
 };
 
 } // namespace dwarfs::writer::internal

@@ -247,7 +247,7 @@ void file::scan(file_view const& mm, progress& prog,
           auto data = seg.span();
           cs.update(data);
           if (pctx) {
-            pctx->bytes_processed += data.size();
+            pctx->advance(data.size());
           }
         }
       }
