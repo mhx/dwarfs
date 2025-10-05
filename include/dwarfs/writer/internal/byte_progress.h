@@ -23,38 +23,15 @@
 
 #pragma once
 
-#include <atomic>
-#include <string>
-
-#include <dwarfs/terminal.h>
 #include <dwarfs/types.h>
-
-#include <dwarfs/writer/internal/byte_progress.h>
-#include <dwarfs/writer/internal/progress.h>
 
 namespace dwarfs::writer::internal {
 
-class scanner_progress final : public progress::context, public byte_progress {
+class byte_progress {
  public:
-  using status = progress::context::status;
+  virtual ~byte_progress() = default;
 
-  scanner_progress(std::string_view context, std::string file,
-                   file_size_t size);
-  scanner_progress(termcolor color, std::string_view context, std::string file,
-                   file_size_t size);
-
-  status get_status() const override;
-
-  void advance(file_size_t bytes) noexcept override {
-    bytes_processed_ += bytes;
-  }
-
- private:
-  std::atomic<file_size_t> bytes_processed_{0};
-  termcolor const color_;
-  std::string const context_;
-  std::string const file_;
-  file_size_t const bytes_total_;
+  virtual void advance(file_size_t bytes) noexcept = 0;
 };
 
 } // namespace dwarfs::writer::internal
