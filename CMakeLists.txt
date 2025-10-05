@@ -44,6 +44,7 @@ option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_FUSE_EXTRACT_BINARY "build with fuse-extract binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
+option(WITH_DEV_TOOLS "build with developer tools" OFF)
 option(ENABLE_STACKTRACE "build with stack trace support" OFF)
 option(DISABLE_FILESYSTEM_EXTRACTOR_FORMAT "disable filesystem extractor format support" OFF)
 option(BUILD_FSST_MAIN "build fsst_main application (dev-only)" OFF)
@@ -480,6 +481,7 @@ add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers
+    test/compare_directories.cpp
     test/mmap_mock.cpp
     test/sparse_file_builder.cpp
     test/test_helpers.cpp
@@ -496,6 +498,10 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   target_compile_definitions(dwarfs_test_helpers
        PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  if(WITH_DEV_TOOLS)
+    add_executable(treediff test/treediff.cpp)
+    target_link_libraries(treediff PRIVATE dwarfs_test_helpers)
+  endif()
 endif()
 
 if(WITH_TESTS AND WITH_TOOLS)
@@ -515,6 +521,7 @@ if(WITH_TESTS)
       test/byte_buffer_test.cpp
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
+      test/compare_directories_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
       test/file_access_test.cpp
