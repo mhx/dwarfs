@@ -151,16 +151,24 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
     }
   }
 
+  auto advance = [progress](file_size_t bytes) {
+    if (progress) {
+      progress->advance(bytes);
+    }
+  };
+
   for (auto const& ext : mm.extents()) {
-    // TODO: handle holes in sparse files
-
-    for (auto const& seg : ext.segments(chunk_size)) {
-      for (auto&& [index, job] : seq_jobs_) {
-        job->add(seg);
+    if (ext.kind() == extent_kind::hole) {
+      for (auto&& [_, job] : seq_jobs_) {
+        job->add_hole(ext);
       }
-
-      if (progress) {
-        progress->advance(seg.size());
+      advance(ext.size());
+    } else {
+      for (auto const& seg : ext.segments(chunk_size)) {
+        for (auto&& [_, job] : seq_jobs_) {
+          job->add_data(seg);
+        }
+        advance(seg.size());
       }
     }
   }
