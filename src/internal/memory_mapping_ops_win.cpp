@@ -30,6 +30,7 @@
 #include <winioctl.h>
 
 #include <dwarfs/detail/file_extent_info.h>
+#include <dwarfs/error.h>
 #include <dwarfs/scope_exit.h>
 
 #include <dwarfs/internal/memory_mapping_ops.h>
@@ -227,8 +228,10 @@ class memory_mapping_ops_win : public memory_mapping_ops {
       return {};
     }
 
+    DWARFS_CHECK(size_li.QuadPart > 0, "attempt to open an empty file");
+
     HANDLE mapping =
-        CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+        ::CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
 
     if (!mapping) {
       ::CloseHandle(file);
