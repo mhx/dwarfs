@@ -624,7 +624,10 @@ if(WITH_TESTS)
   endif()
 
   add_library(dwarfs_test_main OBJECT test/test_main.cpp)
-  target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock)
+  target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock dwarfs_common)
+  if(DWARFS_STACKTRACE_ENABLED)
+    target_link_libraries(dwarfs_test_main PRIVATE cpptrace::cpptrace)
+  endif()
 
   foreach (test ${DWARFS_TESTS})
     if(NOT TARGET ${test})
@@ -769,7 +772,8 @@ foreach(tgt ${LIBDWARFS_TARGETS})
   )
 endforeach()
 
-foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
+foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
+            dwarfs_test_helpers dwarfs_test_main
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(NOT TARGET ${tgt})
     continue()
@@ -788,7 +792,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     # This is a workaround to *enforce* the include path in case we're in a
     # setup where libdwarfs is installed in a local path but some of its
     # dependencies are installed in a system path *AND* there's a different
-    # version of libdwafs *ALSO* installed in the system path.
+    # version of libdwarfs *ALSO* installed in the system path.
     target_include_directories(${tgt} BEFORE PUBLIC ${DWARFS_INCLUDE_DIR})
   endif()
 

@@ -1,33 +1,30 @@
-#include <cstdio>
+#include <iostream>
 
-#include "gtest/gtest.h"
+#include <dwarfs/config.h>
 
-#if 0 && defined(__linux__)
-
-#include <csignal>
-#include <cstdlib>
-#include <cstring>
-
-namespace {
-
-void ignore_sigpipe() {
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sigaction(SIGPIPE, &sa, nullptr);
-}
-
-} // namespace
-
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <cpptrace/from_current.hpp>
 #endif
+
+#include <gtest/gtest.h>
 
 GTEST_API_ int main(int argc, char** argv) {
-  printf("Running main() from %s\n", __FILE__);
-#if 0 && defined(__linux__)
-  ignore_sigpipe();
+  int result{1};
+#ifdef DWARFS_STACKTRACE_ENABLED
+  CPPTRACE_TRY {
 #endif
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+    std::cout << "Running main() from " << __FILE__ << "\n";
+    testing::InitGoogleTest(&argc, argv);
+#ifdef DWARFS_STACKTRACE_ENABLED
+    GTEST_FLAG_SET(catch_exceptions, false);
+#endif
+    result = RUN_ALL_TESTS();
+#ifdef DWARFS_STACKTRACE_ENABLED
+  }
+  CPPTRACE_CATCH(std::exception const& e) {
+    std::cout << "Exception: " << e.what() << std::endl;
+    cpptrace::from_current_exception().print();
+  }
+#endif
+  return result;
 }
