@@ -159,6 +159,8 @@ class inode_fragments {
   auto end() const { return fragments_.end(); }
   auto end() { return fragments_.end(); }
 
+  void append(inode_fragments const& other);
+
   size_t size() const { return fragments_.size(); }
 
   bool empty() const { return fragments_.empty(); }

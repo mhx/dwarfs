@@ -102,7 +102,8 @@ class sequential_categorizer_job {
  public:
   virtual ~sequential_categorizer_job() = default;
 
-  virtual void add(file_segment const& seg) = 0;
+  virtual void add_data(file_segment const& seg) = 0;
+  virtual void add_hole(file_extent const& ext) = 0;
   virtual inode_fragments result() = 0;
 };
 
