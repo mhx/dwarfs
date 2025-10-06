@@ -50,6 +50,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -118,68 +119,42 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
                  size_t max_queued_bytes) {
   LOG_PROXY(debug_logger_policy, lgr);
 
-  thread_pool pool{lgr, *iol.os, "checksum", num_workers, 2 * num_workers};
   std::mutex mx;
   counting_semaphore sem;
   sem.post(static_cast<int64_t>(max_queued_bytes));
+
+  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
+
+  size_t const max_queued_per_worker = max_queued_bytes / num_workers;
 
   fs.walk_data_order([&](auto const& de) {
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
-      pool.add_job([&, de, iv]() {
-        std::error_code ec;
+      reader::detail::file_reader fr(fs, iv);
 
-        auto const inode_num = iv.inode_num();
-        auto const stat = fs.getattr(iv, ec);
-
-        if (ec) {
-          LOG_ERROR << "failed to stat inode " << inode_num << ": "
-                    << ec.message();
-          return;
-        }
-
-        checksum cs(algo);
-
-        auto remaining = stat.size();
-        file_off_t pos{0};
-
-        while (remaining > 0) {
-          auto num = std::min<file_size_t>(remaining, max_queued_bytes);
-          sem.wait(num);
-
-          auto ranges = fs.readv(inode_num, num, pos, ec);
-
-          if (ec) {
-            LOG_ERROR << "failed to read inode " << inode_num << ": "
-                      << ec.message();
-            return;
-          }
-
-          for (auto& fut : ranges) {
+      pool.add_job(
+          [&, de,
+           ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
             try {
-              auto range = fut.get();
-              cs.update(range.data(), range.size());
+              checksum cs(algo);
+
+              for (auto const& r : ranges) {
+                cs.update(r.data(), r.size());
+              }
+
+              auto output =
+                  fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+
+              {
+                std::lock_guard lock(mx);
+                iol.out << output;
+              }
             } catch (std::exception const& e) {
-              LOG_ERROR << "error reading data from inode " << inode_num << ": "
-                        << e.what();
-              return;
+              LOG_ERROR << "error processing inode for " << de.unix_path()
+                        << ": " << e.what();
             }
-          }
-
-          sem.post(num);
-
-          pos += num;
-          remaining -= num;
-        }
-
-        auto output = fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
-
-        {
-          std::lock_guard lock(mx);
-          iol.out << output;
-        }
-      });
+          });
     }
   });
 
