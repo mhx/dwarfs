@@ -310,7 +310,13 @@ class basic_worker_group final : public worker_group::impl, private Policy {
         }
 #endif
         try {
-          std::visit([](auto&& j) { j(); }, job);
+          std::visit(
+              [](auto&& j) {
+                static_assert(std::is_rvalue_reference_v<decltype(j)>);
+                auto job = std::forward<decltype(j)>(j);
+                job();
+              },
+              std::move(job));
         } catch (...) {
           LOG_FATAL << "exception thrown in worker thread: "
                     << exception_str(std::current_exception());
