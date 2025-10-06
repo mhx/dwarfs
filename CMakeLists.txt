@@ -951,7 +951,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
 endif()
 
-foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite
+foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite thrift1
             ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(TARGET ${tgt})
