@@ -68,6 +68,12 @@ class file_range {
     return {offset_ + offset, size_ - offset};
   }
 
+  void advance(file_size_t n) {
+    assert(n <= size_);
+    offset_ += n;
+    size_ -= n;
+  }
+
   friend bool
   operator==(file_range const& lhs, file_range const& rhs) noexcept {
     return lhs.offset_ == rhs.offset_ && lhs.size_ == rhs.size_;
