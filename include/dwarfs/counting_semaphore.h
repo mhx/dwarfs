@@ -44,16 +44,65 @@ class counting_semaphore {
     cond_.notify_all();
   }
 
-  void wait(int64_t n) {
+  int64_t wait(int64_t n) {
     std::unique_lock lock(mx_);
     cond_.wait(lock, [&] { return count_ >= n; });
     count_ -= n;
+    return n;
   }
 
  private:
   std::mutex mx_;
   std::condition_variable cond_;
   int64_t count_{0};
+};
+
+class scoped_lease {
+ public:
+  scoped_lease(counting_semaphore& sem, int64_t n)
+      : sem_{&sem}
+      , n_{sem_->wait(n)} {}
+
+  ~scoped_lease() { release(); }
+
+  void release() {
+    if (n_ > 0) {
+      sem_->post(n_);
+      n_ = 0;
+    }
+  }
+
+  int64_t size() const noexcept { return n_; }
+
+  void shrink(int64_t n) {
+    if (n <= n_) {
+      sem_->post(n_ - n);
+      n_ = n;
+    }
+  }
+
+  scoped_lease(scoped_lease const&) = delete;
+  scoped_lease& operator=(scoped_lease const&) = delete;
+
+  scoped_lease(scoped_lease&& other) noexcept
+      : sem_{other.sem_}
+      , n_{other.n_} {
+    other.n_ = 0;
+  }
+
+  scoped_lease& operator=(scoped_lease&& other) noexcept {
+    if (this != &other) {
+      sem_->post(n_);
+      sem_ = other.sem_;
+      n_ = other.n_;
+      other.n_ = 0;
+    }
+    return *this;
+  }
+
+ private:
+  counting_semaphore* sem_{nullptr};
+  int64_t n_{0};
 };
 
 } // namespace dwarfs
