@@ -40,9 +40,8 @@ TEST(dwarfsextract_test, perfmon) {
   auto errs = t.err();
   EXPECT_GT(outs.size(), 100);
   EXPECT_FALSE(errs.empty());
-  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future_ec]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.getattr]"));
-  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.open]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readlink_ec]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.statvfs]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[inode_reader_v2.readv_future]"));

@@ -61,6 +61,7 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
@@ -321,13 +322,13 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   ::archive_entry* sparse = nullptr;
 
-  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
-  counting_semaphore sem;
-
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
             << " bytes";
 
+  counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
+
+  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
 
   vfs_stat vfs;
   fs.statvfs(&vfs);
@@ -342,65 +343,38 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
           reader::inode_view const& entry) { // TODO: inode vs. entry
         if (auto size = ::archive_entry_size(ae.get());
             entry.is_regular_file() && size > 0) {
-          auto fd = fs.open(entry);
-          std::string_view path{::archive_entry_pathname(ae.get())};
-          size_t pos = 0;
-          size_t remain = size;
+          reader::detail::file_reader fr(fs, entry);
 
-          while (remain > 0 && hard_error == 0) {
-            size_t bs =
-                remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
+          archiver.add_job([this, &hard_error, &soft_error, &opts,
+                            ranges =
+                                fr.read_sequential(sem, opts.max_queued_bytes),
+                            ae, size, path = ::archive_entry_pathname(ae.get()),
+                            &bytes_written, bytes_total]() mutable {
+            try {
+              LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
+              check_result(::archive_write_header(a_, ae.get()));
 
-            sem.wait(bs);
-
-            std::error_code ec;
-            auto ranges = fs.readv(fd, bs, pos, ec);
-
-            if (!ec) {
-              archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
-                                ranges = std::move(ranges), ae, pos, bs, size,
-                                path, &bytes_written, bytes_total]() mutable {
-                try {
-                  if (pos == 0) {
-                    LOG_DEBUG << "extracting " << path << " (" << size
-                              << " bytes)";
-                    check_result(::archive_write_header(a_, ae.get()));
-                  }
-                  for (auto& r : ranges) {
-                    auto br = r.get();
-                    LOG_TRACE << "[" << pos << "] writing " << br.size()
-                              << " bytes for " << path;
-                    check_result(
-                        ::archive_write_data(a_, br.data(), br.size()));
-                    if (opts.progress) {
-                      bytes_written += br.size();
-                      opts.progress(path, bytes_written, bytes_total);
-                    }
-                  }
-                  sem.post(bs);
-                } catch (archive_error const& e) {
-                  LOG_ERROR << exception_str(e);
-                  ++hard_error;
-                } catch (...) {
-                  if (opts.continue_on_error) {
-                    LOG_WARN << exception_str(std::current_exception());
-                    ++soft_error;
-                  } else {
-                    LOG_ERROR << exception_str(std::current_exception());
-                    ++hard_error;
-                  }
+              for (auto const& r : ranges) {
+                LOG_TRACE << "writing " << r.size() << " bytes for " << path;
+                check_result(::archive_write_data(a_, r.data(), r.size()));
+                if (opts.progress) {
+                  bytes_written += r.size();
+                  opts.progress(path, bytes_written, bytes_total);
                 }
-              });
-            } else {
-              LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
-                        << " from  inode [" << fd << "]: " << ec.message();
+              }
+            } catch (archive_error const& e) {
+              LOG_ERROR << exception_str(e);
               ++hard_error;
-              break;
+            } catch (...) {
+              if (opts.continue_on_error) {
+                LOG_WARN << exception_str(std::current_exception());
+                ++soft_error;
+              } else {
+                LOG_ERROR << exception_str(std::current_exception());
+                ++hard_error;
+              }
             }
-
-            pos += bs;
-            remain -= bs;
-          }
+          });
         } else {
           archiver.add_job([this, ae, &hard_error] {
             try {
