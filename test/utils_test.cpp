@@ -420,3 +420,33 @@ TEST(utils, getenv_is_enabled) {
   EXPECT_EQ(0, unsetenv(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 }
+
+TEST(utils, size_with_unit) {
+  EXPECT_EQ("0 B", size_with_unit(0));
+  EXPECT_EQ("1023 B", size_with_unit(1023));
+  EXPECT_EQ("1 KiB", size_with_unit(1024));
+  EXPECT_EQ("1.5 KiB", size_with_unit(1536));
+  EXPECT_EQ("97.66 KiB", size_with_unit(100'000));
+  EXPECT_EQ("256 KiB", size_with_unit(256_KiB));
+  EXPECT_EQ("1024 KiB", size_with_unit(1_MiB - 1));
+  EXPECT_EQ("1 MiB", size_with_unit(1_MiB));
+  EXPECT_EQ("1024 MiB", size_with_unit(1_GiB - 1));
+  EXPECT_EQ("1 GiB", size_with_unit(1_GiB));
+  EXPECT_EQ("1024 GiB", size_with_unit(1_TiB - 1));
+  EXPECT_EQ("1 TiB", size_with_unit(1_TiB));
+  EXPECT_EQ("1024 TiB", size_with_unit(1_TiB * 1024 - 1));
+  EXPECT_EQ("1 PiB", size_with_unit(1_TiB * 1024));
+}
+
+TEST(utils, time_with_unit) {
+  using namespace std::chrono_literals;
+  EXPECT_EQ("0s", time_with_unit(0ms));
+  EXPECT_EQ("999ms", time_with_unit(999ms));
+  EXPECT_EQ("1s", time_with_unit(1000ms));
+  EXPECT_EQ("1.5s", time_with_unit(1500ms));
+  EXPECT_EQ("59s", time_with_unit(59s));
+  EXPECT_EQ("1m", time_with_unit(60s));
+  EXPECT_EQ("1.017m", time_with_unit(61s));
+  EXPECT_EQ("1.75m", time_with_unit(105s));
+  EXPECT_EQ("12.5us", time_with_unit(12500ns));
+}
