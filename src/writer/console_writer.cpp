@@ -164,11 +164,10 @@ void output_context_line(terminal const& term, std::ostream& os,
 } // namespace
 
 console_writer::console_writer(std::shared_ptr<terminal const> term,
-                               std::ostream& os, progress_mode pg_mode,
-                               display_mode mode, logger_options const& options)
-    : stream_logger(std::move(term), os, options)
-    , pg_mode_(pg_mode)
-    , mode_(mode) {}
+                               std::ostream& os, options const& opts,
+                               logger_options const& logger_opts)
+    : stream_logger{std::move(term), os, logger_opts}
+    , opts_{opts} {}
 
 void console_writer::rewind(std::ostream& os, int next_rewind_lines) {
   if (!statebuf_.empty()) {
@@ -195,17 +194,17 @@ void console_writer::rewind(std::ostream& os, int next_rewind_lines) {
 void console_writer::preamble(std::ostream& os) { rewind(os, rewind_lines_); }
 
 void console_writer::postamble(std::ostream& os) {
-  if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
+  if (opts_.progress == UNICODE || opts_.progress == ASCII) {
     os << statebuf_;
   }
 }
 
 std::string_view console_writer::get_newline() const {
-  return pg_mode_ != NONE ? "\x1b[K\n" : "\n";
+  return opts_.progress != NONE ? "\x1b[K\n" : "\n";
 }
 
 void console_writer::update(writer_progress& prog, bool last) {
-  if (pg_mode_ == NONE && !last) {
+  if (opts_.progress == NONE && !last) {
     return;
   }
 
@@ -215,7 +214,7 @@ void console_writer::update(writer_progress& prog, bool last) {
 
   lazy_value<size_t> width([this] { return term().width(); });
 
-  bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
+  bool fancy = opts_.progress == ASCII || opts_.progress == UNICODE;
 
   auto update_chunk_size = [](internal::progress::scan_progress& sp) {
     if (auto usec = sp.usec.load(); usec > 10'000) {
@@ -237,12 +236,12 @@ void console_writer::update(writer_progress& prog, bool last) {
   if (last || fancy) {
     if (fancy) {
       for (size_t i = 0; i < width.get(); ++i) {
-        oss << (pg_mode_ == UNICODE ? "⎯" : "-");
+        oss << (opts_.progress == UNICODE ? "⎯" : "-");
       }
       oss << "\n";
     }
 
-    switch (mode_) {
+    switch (opts_.display) {
     case NORMAL:
       if (fancy) {
         oss << term().colored(p.status(width.get()), termcolor::BOLD_CYAN,
@@ -306,7 +305,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     oss << newline;
   }
 
-  if (pg_mode_ == NONE) {
+  if (opts_.progress == NONE) {
     if (INFO <= log_threshold()) {
       std::lock_guard lock(log_mutex());
       write_nolock(oss.str());
@@ -320,7 +319,8 @@ void console_writer::update(writer_progress& prog, bool last) {
                : 0.0;
   double frac_comp =
       p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
-  double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
+  double frac =
+      opts_.display == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
 
   if (last) {
     frac = 1.0;
@@ -328,7 +328,7 @@ void console_writer::update(writer_progress& prog, bool last) {
 
   frac_ = std::max(frac, frac_);
 
-  if (pg_mode_ == SIMPLE) {
+  if (opts_.progress == SIMPLE) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
                     p.blocks_written.load(), size_with_unit(p.compressed_size));
@@ -343,9 +343,9 @@ void console_writer::update(writer_progress& prog, bool last) {
     }
   } else {
     auto w = width.get();
-    auto spinner{pg_mode_ == UNICODE ? uni_spinner : asc_spinner};
+    auto spinner{opts_.progress == UNICODE ? uni_spinner : asc_spinner};
 
-    oss << progress_bar(w - 8, frac_, pg_mode_ == UNICODE)
+    oss << progress_bar(w - 8, frac_, opts_.progress == UNICODE)
         << fmt::format("{:3.0f}% ", 100 * frac_)
         << spinner[counter_ % spinner.size()] << '\n';
 
@@ -358,7 +358,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     }
 
     for (auto const& c : ctxs) {
-      output_context_line(term(), oss, *c, w, pg_mode_ == UNICODE,
+      output_context_line(term(), oss, *c, w, opts_.progress == UNICODE,
                           log_is_colored());
       oss << newline;
     }
@@ -370,7 +370,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     oss.clear();
     oss.seekp(0);
 
-    rewind(oss, (mode_ == NORMAL ? 9 : 4) + ctxs.size());
+    rewind(oss, (opts_.display == NORMAL ? 9 : 4) + ctxs.size());
     oss << statebuf_;
 
     write_nolock(oss.str());
