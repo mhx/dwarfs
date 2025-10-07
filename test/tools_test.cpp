@@ -80,6 +80,8 @@
 #include <dwarfs/xattr.h>
 
 #include "compare_directories.h"
+#include "loremipsum.h"
+#include "sparse_file_builder.h"
 #include "test_helpers.h"
 
 namespace {
@@ -2129,3 +2131,221 @@ TEST_P(tools_test, fusermount_check) {
 #endif
 }
 #endif
+
+class sparse_files_test : public ::testing::Test {
+ protected:
+  struct sparse_size_info {
+    dwarfs::file_size_t total_size{0};
+    dwarfs::file_size_t data_size{0};
+  };
+
+  struct sparse_file_info {
+    fs::path path;
+    sparse_size_info size;
+  };
+
+  struct sparse_info {
+    std::vector<sparse_file_info> files;
+    sparse_size_info total;
+  };
+
+  void SetUp() override {
+    td.emplace();
+    granularity =
+        dwarfs::test::sparse_file_builder::hole_granularity(td->path());
+
+    if (!granularity) {
+      GTEST_SKIP() << "filesystem does not support sparse files";
+    }
+  }
+
+  void TearDown() override { td.reset(); }
+
+  sparse_file_info create_random_sparse_file(fs::path const& path) {
+    using dwarfs::file_off_t;
+    using dwarfs::file_range;
+    using dwarfs::file_size_t;
+
+    size_t total_extents;
+
+    if (std::uniform_int_distribution<>(0, 1)(rng) == 0) {
+      total_extents = std::uniform_int_distribution<size_t>(1, 2)(rng);
+    } else {
+      total_extents =
+          static_cast<size_t>(1 + std::exponential_distribution<>(0.01)(rng));
+    }
+
+    bool is_hole = std::uniform_int_distribution<>(0, 1)(rng) == 0;
+    std::vector<dwarfs::detail::file_extent_info> extents;
+    file_off_t offset{0};
+    file_size_t data_size{0};
+
+    for (size_t i = 0; i < total_extents; ++i) {
+      file_size_t len;
+
+      if (is_hole) {
+        len = granularity.value() *
+              static_cast<file_size_t>(
+                  1 + std::exponential_distribution<>(0.0001)(rng));
+      } else {
+        len = granularity.value() *
+              std::uniform_int_distribution<file_size_t>(1, 4)(rng);
+        if (i == total_extents - 1) {
+          len += std::uniform_int_distribution<file_size_t>(
+              0, granularity.value() - 1)(rng);
+        }
+        data_size += len;
+      }
+
+      extents.emplace_back(is_hole ? dwarfs::extent_kind::hole
+                                   : dwarfs::extent_kind::data,
+                           file_range{offset, len});
+
+      offset += len;
+      is_hole = !is_hole;
+    }
+
+    sparse_file_info const info{
+        .path = path, .size = {.total_size = offset, .data_size = data_size}};
+
+    auto sfb = dwarfs::test::sparse_file_builder::create(path);
+
+    sfb.truncate(extents.back().range.end());
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::data) {
+        bool const random_data =
+            std::uniform_int_distribution<>(0, 10)(rng) != 0;
+        sfb.write_data(e.range.offset(),
+                       random_data ? dwarfs::test::create_random_string(
+                                         e.range.size(), rng)
+                                   : dwarfs::test::loremipsum(e.range.size()));
+      }
+    }
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::hole) {
+        sfb.punch_hole(e.range.offset(), e.range.size());
+      }
+    }
+
+    sfb.commit();
+
+    return info;
+  }
+
+  sparse_info create_random_sparse_files(fs::path const& dir, size_t count) {
+    sparse_info info;
+    fs::create_directory(dir);
+    for (size_t i = 0; i < count; ++i) {
+      auto const file_info =
+          create_random_sparse_file(dir / fmt::format("file{:04}.bin", i));
+      info.files.push_back(file_info);
+      info.total.total_size += file_info.size.total_size;
+      info.total.data_size += file_info.size.data_size;
+    }
+    return info;
+  }
+
+  std::mt19937_64 rng{42};
+  std::optional<dwarfs::temporary_directory> td;
+  std::optional<size_t> granularity;
+};
+
+TEST_F(sparse_files_test, random) {
+  static constexpr size_t kNumFiles{25};
+  auto input = td->path() / "input";
+  auto const info = create_random_sparse_files(input, kNumFiles);
+
+  auto image = td->path() / "sparse.dwarfs";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  nlohmann::json fsinfo;
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-j", "-d3");
+    ASSERT_EQ(0, ec) << out << err;
+    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
+  }
+
+  EXPECT_EQ(info.total.total_size,
+            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
+      << fsinfo.dump(2);
+
+  EXPECT_EQ(
+      info.total.data_size,
+      fsinfo["original_allocated_filesystem_size"].get<dwarfs::file_size_t>())
+      << fsinfo.dump(2);
+
+  // It seems that there are some issues with using the libarchive
+  // disk writing code on both macOS and Windows. While this isn't
+  // solved, skip the rest of the tests for these platforms.
+
+#if defined(__linux__) || defined(__FreeBSD__)
+  auto extracted = td->path() / "extracted";
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", extracted.string());
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+#ifdef DWARFS_WITH_FUSE_DRIVER
+  if (!skip_fuse_tests()) {
+    std::chrono::seconds const timeout{5};
+    auto mountpoint = td->path() / "mnt";
+
+    fs::create_directory(mountpoint);
+
+    driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+        << runner.cmdline();
+
+    auto const cdr = compare_directories(input, mountpoint);
+
+    EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+        << runner.cmdline() << ": " << cdr;
+
+    for (auto const& file : info.files) {
+      auto const p = mountpoint / file.path.filename();
+      dwarfs::file_stat stat(p);
+
+      EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+
+#ifdef __linux__
+      // TODO: Figure out how to make this work on other platforms.
+      //       FreeBSD seems to be off by 4096 bytes for some reason,
+      //       maybe some FUSE bug?
+      //       macOS *might* work with a newer macFUSE version?
+      //       Windows likely won't work at all:
+      //         https://github.com/winfsp/winfsp/issues/632
+      EXPECT_EQ(stat.allocated_size(), file.size.data_size)
+          << file.path.filename();
+#endif
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+#endif
+}
