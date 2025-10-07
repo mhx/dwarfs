@@ -180,7 +180,7 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
 
 file_size_t entry::size() const { return stat_.size(); }
 
-file_size_t entry::allocated_size() const { return stat_.blocks() * 512; }
+file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
 
 uint64_t entry::raw_inode_num() const { return stat_.ino(); }
 
@@ -428,6 +428,7 @@ void link::accept(entry_visitor& v, bool) { v.visit(this); }
 void link::scan(os_access const& os, progress& prog) {
   link_ = path_to_utf8_string_sanitized(os.read_symlink(fs_path()));
   prog.original_size += size();
+  prog.allocated_original_size += allocated_size();
   prog.symlink_size += size();
 }
 

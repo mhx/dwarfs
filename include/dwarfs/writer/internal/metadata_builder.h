@@ -91,8 +91,9 @@ class metadata_builder {
     impl_->set_block_size(block_size);
   }
 
-  void set_total_fs_size(uint64_t total_fs_size) {
-    impl_->set_total_fs_size(total_fs_size);
+  void
+  set_total_fs_size(uint64_t total_fs_size, uint64_t total_allocated_fs_size) {
+    impl_->set_total_fs_size(total_fs_size, total_allocated_fs_size);
   }
 
   void set_total_hardlink_size(uint64_t total_hardlink_size) {
@@ -151,7 +152,8 @@ class metadata_builder {
     virtual void set_devices(std::vector<uint64_t> devices) = 0;
     virtual void set_symlink_table_size(size_t size) = 0;
     virtual void set_block_size(uint32_t block_size) = 0;
-    virtual void set_total_fs_size(uint64_t total_fs_size) = 0;
+    virtual void set_total_fs_size(uint64_t total_fs_size,
+                                   uint64_t total_allocated_fs_size) = 0;
     virtual void set_total_hardlink_size(uint64_t total_hardlink_size) = 0;
     virtual void set_shared_files_table(std::vector<uint32_t> shared_files) = 0;
     virtual void

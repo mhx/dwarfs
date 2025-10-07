@@ -1001,6 +1001,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       .progress = DWARFS_NOTHROW(progress_modes.at(progress_mode)),
       .display = recompress ? writer::console_writer::REWRITE
                             : writer::console_writer::NORMAL,
+      .enable_sparse_files = !no_sparse_files,
   };
 
   writer::console_writer lgr(iol.term, iol.err, cwopts, logopts);
