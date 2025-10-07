@@ -181,10 +181,19 @@ std::ostream& operator<<(std::ostream& os, libarchive_format_def const& def) {
 
 std::vector<libarchive_format_def> const libarchive_formats{
     {"7zip"},
+#if 0
+    // The AR formats are disabled because they're not meant to support
+    // non-regular files.
+    //
+    // These were removed when `filesystem_extractor` introduced a strict
+    // check that `archive_write_data` actually returns that is has written
+    // all bytes.
+
     {"ar"},
     {"arbsd"},
     {"argnu"},
     {"arsvr4"},
+#endif
     {"bin"},
     {"bsdtar"},
     {"cd9660"},
