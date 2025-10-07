@@ -71,21 +71,27 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/os_access_generic.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
 #include "compare_directories.h"
+#include "loremipsum.h"
+#include "sparse_file_builder.h"
 #include "test_helpers.h"
 
 namespace {
 
 namespace bp = boost::process;
 namespace fs = std::filesystem;
+
+using namespace dwarfs::binary_literals;
 
 using dwarfs::test::compare_directories;
 
@@ -2129,3 +2135,381 @@ TEST_P(tools_test, fusermount_check) {
 #endif
 }
 #endif
+
+class sparse_files_test : public ::testing::Test {
+ protected:
+  struct config {
+    double avg_extent_count{100.0};
+    double avg_hole_size{10_MiB};
+    double avg_data_size{10_KiB};
+  };
+
+  struct sparse_size_info {
+    dwarfs::file_size_t total_size{0};
+    dwarfs::file_size_t data_size{0};
+  };
+
+  struct sparse_file_info {
+    fs::path path;
+    sparse_size_info size;
+    size_t extent_count{0};
+  };
+
+  struct sparse_info {
+    std::vector<sparse_file_info> files;
+    sparse_size_info total;
+  };
+
+  void SetUp() override {
+    td.emplace();
+    granularity =
+        dwarfs::test::sparse_file_builder::hole_granularity(td->path());
+
+    if (!granularity) {
+      GTEST_SKIP() << "filesystem does not support sparse files";
+    }
+  }
+
+  void TearDown() override { td.reset(); }
+
+  template <std::integral T>
+  T align_up(T value) {
+    auto const gran = static_cast<T>(granularity.value());
+    return ((value + gran - 1) / gran) * gran;
+  }
+
+  sparse_file_info
+  create_random_sparse_file(fs::path const& path, config const& cfg) {
+    using dwarfs::file_off_t;
+    using dwarfs::file_range;
+    using dwarfs::file_size_t;
+
+    size_t total_extents;
+
+    if (std::uniform_int_distribution<>(0, 1)(rng) == 0) {
+      total_extents = std::uniform_int_distribution<size_t>(1, 2)(rng);
+    } else {
+      total_extents = static_cast<size_t>(
+          1 + std::exponential_distribution<>(1 / cfg.avg_extent_count)(rng));
+    }
+
+    std::exponential_distribution<> hole_size_dist(1 / cfg.avg_hole_size);
+    std::exponential_distribution<> data_size_dist(1 / cfg.avg_data_size);
+
+    bool is_hole = std::uniform_int_distribution<>(0, 1)(rng) == 0;
+    std::vector<dwarfs::detail::file_extent_info> extents;
+    file_off_t offset{0};
+    file_size_t data_size{0};
+
+    for (size_t i = 0; i < total_extents; ++i) {
+      file_size_t len;
+
+      if (is_hole) {
+        len = align_up(static_cast<file_size_t>(1 + hole_size_dist(rng)));
+      } else {
+        len = static_cast<file_size_t>(1 + data_size_dist(rng));
+        if (i < total_extents - 1) {
+          len = align_up(len);
+        }
+        data_size += len;
+      }
+
+      extents.emplace_back(is_hole ? dwarfs::extent_kind::hole
+                                   : dwarfs::extent_kind::data,
+                           file_range{offset, len});
+
+      offset += len;
+      is_hole = !is_hole;
+    }
+
+    sparse_file_info const info{.path = path,
+                                .size =
+                                    {
+                                        .total_size = offset,
+                                        .data_size = data_size,
+                                    },
+                                .extent_count = extents.size()};
+
+    auto sfb = dwarfs::test::sparse_file_builder::create(path);
+
+    sfb.truncate(extents.back().range.end());
+
+    std::mt19937_64 data_rng(rng());
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::data) {
+        bool const random_data =
+            std::uniform_int_distribution<>(0, 4)(data_rng) != 0;
+        sfb.write_data(e.range.offset(),
+                       random_data ? dwarfs::test::create_random_string(
+                                         e.range.size(), data_rng)
+                                   : dwarfs::test::loremipsum(e.range.size()));
+      }
+    }
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::hole) {
+        sfb.punch_hole(e.range.offset(), e.range.size());
+      }
+    }
+
+    sfb.commit();
+
+    return info;
+  }
+
+  sparse_info create_random_sparse_files(fs::path const& dir, size_t count,
+                                         config const& cfg) {
+    sparse_info info;
+    fs::create_directory(dir);
+    for (size_t i = 0; i < count; ++i) {
+      auto const file_info =
+          create_random_sparse_file(dir / fmt::format("file{:04}.bin", i), cfg);
+      info.files.push_back(file_info);
+      info.total.total_size += file_info.size.total_size;
+      info.total.data_size += file_info.size.data_size;
+    }
+    return info;
+  }
+
+  friend std::ostream&
+  operator<<(std::ostream& os, sparse_file_info const& info) {
+    os << info.path.filename()
+       << ": total_size=" << dwarfs::size_with_unit(info.size.total_size)
+       << ", data_size=" << dwarfs::size_with_unit(info.size.data_size)
+       << ", extent_count=" << info.extent_count;
+    return os;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, sparse_info const& info) {
+    for (auto const& file : info.files) {
+      os << file << "\n";
+    }
+    os << "Total: total_size=" << dwarfs::size_with_unit(info.total.total_size)
+       << ", data_size=" << dwarfs::size_with_unit(info.total.data_size)
+       << "\n";
+    return os;
+  }
+
+#ifndef _WIN32
+  bool tar_supports_sparse(fs::path const& tarbin) {
+    dwarfs::temporary_directory td("dwarfs-tar");
+    auto const tarball = test_dir / "sparse.tar";
+
+    auto [out, err, ec] = subprocess::run(tarbin, "-xSf", tarball.string(),
+                                          "-C", td.path().string());
+
+    if (ec != 0) {
+      std::cerr << "tar -xSf failed: " << out << err << "\n";
+      return false;
+    }
+
+    auto const sparse_file = td.path() / "hole_then_data";
+
+    if (!fs::exists(sparse_file)) {
+      std::cerr << "sparse file not found in tarball\n";
+      return false;
+    }
+
+    dwarfs::file_stat stat(sparse_file);
+
+    if (stat.size() != 1'060'864) {
+      std::cerr << "sparse file size incorrect: " << stat.size() << "\n";
+      return false;
+    }
+
+    if (std::cmp_greater(stat.allocated_size(), 256_KiB)) {
+      std::cerr << "sparse file uses too much disk space: "
+                << dwarfs::size_with_unit(stat.allocated_size()) << "\n";
+      return false;
+    }
+
+    return true;
+  }
+#endif
+
+  bool fuse_supports_sparse(fs::path const& mountpoint, sparse_info const& si) {
+    dwarfs::os_access_generic const os;
+
+    for (auto const& sfi : si.files) {
+      if (sfi.extent_count > 1) {
+        auto const path = mountpoint / sfi.path.filename();
+        auto f = os.open_file(path);
+        auto ext = f.extents();
+        if (ext.size() > 1) {
+          std::cerr << "FUSE driver supports sparse files\n";
+          return true;
+        }
+        std::cerr << "File " << path << ": expected " << sfi.extent_count
+                  << " extents, but got " << ext.size() << "\n";
+      }
+    }
+
+    std::cerr << "FUSE driver does not support sparse files\n";
+
+    return false;
+  }
+
+  std::mt19937_64 rng;
+  std::optional<dwarfs::temporary_directory> td;
+  std::optional<size_t> granularity;
+};
+
+TEST_F(sparse_files_test, random_large_files) {
+  static constexpr size_t kNumFiles{20};
+  auto const input = td->path() / "input";
+  rng.seed(42);
+  auto const info = create_random_sparse_files(input, kNumFiles,
+                                               {
+                                                   .avg_extent_count = 60,
+                                                   .avg_hole_size = 500_MiB,
+                                                   .avg_data_size = 25_KiB,
+                                               });
+
+  std::cerr << "granularity: " << dwarfs::size_with_unit(granularity.value())
+            << "\n";
+  std::cerr << info;
+
+  auto image = td->path() / "sparse.dwarfs";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  std::cerr << "Created image: " << image << " ("
+            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
+
+  nlohmann::json fsinfo;
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-j", "-d3");
+    ASSERT_EQ(0, ec) << out << err;
+    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
+  }
+
+  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+
+  EXPECT_EQ(info.total.total_size,
+            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
+      << fsinfo.dump(2);
+
+  auto extracted = td->path() / "extracted";
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", extracted.string());
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  auto tarball = td->path() / "extracted.tar";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", tarball.string(), "-f", "pax");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  auto const tarball_size = fs::file_size(tarball);
+
+  std::cerr << "Created tarball: " << tarball << " ("
+            << dwarfs::size_with_unit(tarball_size) << ")\n";
+
+  EXPECT_LT(tarball_size, info.total.data_size * 5)
+      << "tarball size is not sufficiently small";
+
+#ifndef _WIN32
+  if (auto const tarbin = dwarfs::test::find_binary("tar");
+      tarbin && tar_supports_sparse(*tarbin)) {
+    ASSERT_NO_THROW(fs::create_directory(extracted));
+
+    auto [out, err, ec] = subprocess::run(*tarbin, "-xSf", tarball.string(),
+                                          "-C", extracted.string());
+
+    ASSERT_EQ(0, ec) << out << err;
+
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare tar extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+#endif
+#endif
+
+#ifdef DWARFS_WITH_FUSE_DRIVER
+  if (!skip_fuse_tests()) {
+    std::chrono::seconds const timeout{5};
+    auto mountpoint = td->path() / "mnt";
+
+    fs::create_directory(mountpoint);
+
+    {
+      driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
+                           mountpoint);
+
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+          << runner.cmdline();
+
+      // Only compare if we know the FUSE driver supports sparse files.
+      // Otherwise this will try to actually read hundreds of gigabytes
+      // of data.
+      if (fuse_supports_sparse(mountpoint, info)) {
+        auto const cdr = compare_directories(input, mountpoint);
+
+        std::cerr << "Compare FUSE mounted files:\n" << cdr;
+
+        EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+            << runner.cmdline() << ": " << cdr;
+      }
+
+      for (auto const& file : info.files) {
+        auto const p = mountpoint / file.path.filename();
+        dwarfs::file_stat stat(p);
+
+        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+      }
+
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    }
+
+    if (fs::exists(fuse2_bin)) {
+      driver_runner runner(driver_runner::foreground, fuse2_bin, false, image,
+                           mountpoint);
+
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+          << runner.cmdline();
+
+      for (auto const& file : info.files) {
+        auto const p = mountpoint / file.path.filename();
+        dwarfs::file_stat stat(p);
+
+        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+      }
+
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    }
+  }
+#endif
+}
