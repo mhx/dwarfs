@@ -111,7 +111,7 @@ class entry : public entry_interface {
   uint64_t get_mtime() const override;
   uint64_t get_ctime() const override;
 
-  void override_size(file_size_t size);
+  void set_empty();
 
  private:
 #ifdef _WIN32
