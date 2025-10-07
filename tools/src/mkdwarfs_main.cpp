@@ -988,19 +988,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
     return 1;
   }
+
   if (no_progress) {
     progress_mode = "none";
   }
+
   if (progress_mode != "none" && !iol.term->is_tty(iol.err)) {
     progress_mode = "simple";
   }
 
-  auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
+  writer::console_writer::options const cwopts{
+      .progress = DWARFS_NOTHROW(progress_modes.at(progress_mode)),
+      .display = recompress ? writer::console_writer::REWRITE
+                            : writer::console_writer::NORMAL,
+  };
 
-  writer::console_writer lgr(iol.term, iol.err, pg_mode,
-                             recompress ? writer::console_writer::REWRITE
-                                        : writer::console_writer::NORMAL,
-                             logopts);
+  writer::console_writer lgr(iol.term, iol.err, cwopts, logopts);
 
   if (get_self_memory_usage()) {
     lgr.set_memory_usage_function(
@@ -1128,8 +1131,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  auto interval = pg_mode == writer::console_writer::NONE ||
-                          pg_mode == writer::console_writer::SIMPLE
+  auto interval = cwopts.progress == writer::console_writer::NONE ||
+                          cwopts.progress == writer::console_writer::SIMPLE
                       ? 2000ms
                       : 200ms;
 
