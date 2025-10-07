@@ -450,3 +450,21 @@ TEST(utils, time_with_unit) {
   EXPECT_EQ("1.75m", time_with_unit(105s));
   EXPECT_EQ("12.5us", time_with_unit(12500ns));
 }
+
+TEST(utils, ratio_to_string) {
+  EXPECT_EQ("0x", ratio_to_string(0, 1));
+  EXPECT_EQ("1x", ratio_to_string(1, 1));
+  EXPECT_EQ("1.5x", ratio_to_string(3, 2));
+  EXPECT_EQ("10.7x", ratio_to_string(10.744, 1));
+  EXPECT_EQ("11x", ratio_to_string(10.744, 1, 2));
+  EXPECT_EQ("10.74x", ratio_to_string(10.744, 1, 4));
+  EXPECT_EQ("99.9%", ratio_to_string(999, 1000));
+  EXPECT_EQ("0.1%", ratio_to_string(1, 1000));
+  EXPECT_EQ("999ppm", ratio_to_string(999, 1'000'000));
+  EXPECT_EQ("1ppm", ratio_to_string(1, 1'000'000));
+  EXPECT_EQ("1.5ppm", ratio_to_string(3, 2'000'000));
+  EXPECT_EQ("10.7ppm", ratio_to_string(10'744, 1'000'000'000));
+  EXPECT_EQ("999ppb", ratio_to_string(999, 1'000'000'000));
+  EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000));
+  EXPECT_EQ("1.78e-12x", ratio_to_string(1.7777, 1'000'000'000'000));
+}
