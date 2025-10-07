@@ -152,6 +152,32 @@ file_size_t parse_size_with_unit(std::string const& str) {
   DWARFS_THROW(runtime_error, "unsupported size suffix");
 }
 
+std::string ratio_to_string(double num, double den, int precision) {
+  if (den == 0.0) {
+    return "N/A";
+  }
+
+  if (num == 0.0) {
+    return "0x";
+  }
+
+  double const ratio = num / den;
+
+  if (ratio < 1.0) {
+    if (ratio >= 1e-3) {
+      return fmt::format("{:.{}g}%", ratio * 100.0, precision);
+    }
+    if (ratio >= 1e-6) {
+      return fmt::format("{:.{}g}ppm", ratio * 1e6, precision);
+    }
+    if (ratio >= 1e-9) {
+      return fmt::format("{:.{}g}ppb", ratio * 1e9, precision);
+    }
+  }
+
+  return fmt::format("{:.{}g}x", ratio, precision);
+}
+
 std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
   uint64_t value;
   auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
