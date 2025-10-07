@@ -186,7 +186,10 @@ uint64_t entry::raw_inode_num() const { return stat_.ino(); }
 
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 
-void entry::override_size(file_size_t size) { stat_.set_size(size); }
+void entry::set_empty() {
+  stat_.set_size(0);
+  stat_.set_allocated_size(0);
+}
 
 entry::type_t file::type() const { return E_FILE; }
 
