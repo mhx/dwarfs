@@ -225,6 +225,7 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
   p->create_data();
 
   prog_.original_size += p->size();
+  prog_.allocated_original_size += p->allocated_size();
 
   if (opts_.hash_algo) {
     scan_dedupe(p);
@@ -400,6 +401,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
             ++prog_.files_scanned;
             ++prog_.duplicate_files;
             prog_.saved_by_deduplication += p->size();
+            prog_.allocated_saved_by_deduplication += p->allocated_size();
           }
 
           ref.push_back(p);

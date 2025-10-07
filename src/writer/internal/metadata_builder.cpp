@@ -98,8 +98,13 @@ class metadata_builder_ final : public metadata_builder::impl {
     md_.block_size() = block_size;
   }
 
-  void set_total_fs_size(uint64_t total_fs_size) override {
+  void set_total_fs_size(uint64_t total_fs_size,
+                         uint64_t total_allocated_fs_size) override {
     md_.total_fs_size() = total_fs_size;
+
+    if (options_.enable_sparse_files) {
+      md_.total_allocated_fs_size() = total_allocated_fs_size;
+    }
   }
 
   void set_total_hardlink_size(uint64_t total_hardlink_size) override {
