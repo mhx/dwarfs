@@ -49,6 +49,7 @@ class console_writer : public stream_logger {
   struct options {
     progress_mode progress{SIMPLE};
     display_mode display{NORMAL};
+    bool enable_sparse_files{false};
   };
 
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,

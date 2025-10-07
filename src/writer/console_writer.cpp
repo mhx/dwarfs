@@ -229,6 +229,16 @@ void console_writer::update(writer_progress& prog, bool last) {
 
   auto& p = prog.get_internal();
 
+  auto original_size = [&] {
+    return opts_.enable_sparse_files ? p.allocated_original_size.load()
+                                     : p.original_size.load();
+  };
+
+  auto saved_by_deduplication = [&] {
+    return opts_.enable_sparse_files ? p.allocated_saved_by_deduplication.load()
+                                     : p.saved_by_deduplication.load();
+  };
+
   update_chunk_size(p.hash);
   update_chunk_size(p.similarity);
   update_chunk_size(p.categorize);
@@ -254,21 +264,38 @@ void console_writer::update(writer_progress& prog, bool last) {
           << p.files_found << " files, " << p.specials_found << " other"
           << newline
 
-          << "original size: " << size_with_unit(p.original_size)
-          << ", hashed: " << size_with_unit(p.hash.bytes) << " ("
+          // -----------------------------------------------------------------------
+
+          << "original size: " << size_with_unit(p.original_size);
+
+      if (opts_.enable_sparse_files &&
+          p.allocated_original_size != p.original_size) {
+        oss << " (" << size_with_unit(p.allocated_original_size) << ")";
+      }
+
+      oss << ", hashed: " << size_with_unit(p.hash.bytes) << " ("
           << p.hash.scans << " files, " << size_with_unit(p.hash.bytes_per_sec)
-          << "/s)" << newline
+          << "/s)"
+          << newline
+
+          // -----------------------------------------------------------------------
 
           << "scanned: " << size_with_unit(p.similarity.bytes) << " ("
           << p.similarity.scans << " files, "
           << size_with_unit(p.similarity.bytes_per_sec) << "/s)"
           << ", categorizing: " << size_with_unit(p.categorize.bytes_per_sec)
-          << "/s" << newline
+          << "/s"
+          << newline
+
+          // -----------------------------------------------------------------------
 
           << "saved by deduplication: "
-          << size_with_unit(p.saved_by_deduplication) << " ("
+          << size_with_unit(saved_by_deduplication()) << " ("
           << p.duplicate_files << " files), saved by segmenting: "
-          << size_with_unit(p.saved_by_segmentation) << newline
+          << size_with_unit(p.saved_by_segmentation)
+          << newline
+
+          // -----------------------------------------------------------------------
 
           << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
           << p.block_count << " blocks (" << p.chunk_count << " chunks, ";
@@ -282,6 +309,8 @@ void console_writer::update(writer_progress& prog, bool last) {
 
       oss << p.files_found - p.duplicate_files - p.hardlinks << " inodes)"
           << newline
+
+          // -----------------------------------------------------------------------
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
           << size_with_unit(p.compressed_size) << " written";
@@ -313,7 +342,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     return;
   }
 
-  size_t orig = p.original_size - (p.saved_by_deduplication + p.symlink_size);
+  size_t orig = original_size() - (saved_by_deduplication() + p.symlink_size);
   double frac_fs =
       orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
                : 0.0;

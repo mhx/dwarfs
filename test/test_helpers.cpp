@@ -70,7 +70,8 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_gid(ss.gid);
   rv.set_rdev(ss.rdev);
   rv.set_size(ss.size);
-  rv.set_blocks(0);
+  rv.set_allocated_size(ss.size);
+  rv.set_blocks((ss.size + 511) / 512);
   rv.set_blksize(0);
   rv.set_atime(ss.atime);
   rv.set_mtime(ss.mtime);
