@@ -1310,7 +1310,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     if (auto ps = meta_.preferred_path_separator()) {
       info["preferred_path_separator"] = std::string(1, static_cast<char>(*ps));
     }
-    info["original_filesystem_size"] = stbuf.blocks;
+    info["original_filesystem_size"] = meta_.total_fs_size();
+    if (auto const allocated = meta_.total_allocated_fs_size()) {
+      info["original_allocated_filesystem_size"] = *allocated;
+    }
     if (fsinfo) {
       info["compressed_block_size"] = fsinfo->compressed_block_size;
       if (!fsinfo->uncompressed_block_size_is_estimate) {
@@ -1481,7 +1484,12 @@ void metadata_v2_data::dump(
     if (auto ps = meta_.preferred_path_separator()) {
       os << "preferred path separator: " << static_cast<char>(*ps) << "\n";
     }
-    os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
+    os << "original filesystem size: " << size_with_unit(meta_.total_fs_size())
+       << "\n";
+    if (auto const allocated = meta_.total_allocated_fs_size()) {
+      os << "original allocated filesystem size: " << size_with_unit(*allocated)
+         << "\n";
+    }
     if (fsinfo) {
       os << "compressed block size: "
          << size_with_unit(fsinfo->compressed_block_size);
