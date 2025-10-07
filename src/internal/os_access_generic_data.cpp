@@ -29,6 +29,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/platform.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/option_parser.h>
@@ -40,7 +41,6 @@ namespace dwarfs::internal {
 
 namespace {
 
-constexpr bool kIs32BitArch = sizeof(void*) == 4;
 constexpr auto kIolayerOptsVar = "DWARFS_IOLAYER_OPTS";
 constexpr auto kMaxEagerMapSizeOpt = "max_eager_map_size";
 
