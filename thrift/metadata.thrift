@@ -114,6 +114,25 @@ struct inode_data {
    // ctime relative to `metadata.timestamp_base`
    8: UInt64 ctime_offset
 
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // btime (birth time) relative to `metadata.timestamp_base`
+   9: UInt64 btime_offset
+
+   // subsecond part of atime
+  10: UInt64 atime_subsec
+
+   // subsecond part of mtime
+  11: UInt64 mtime_subsec
+
+   // subsecond part of ctime
+  12: UInt64 ctime_subsec
+
+   // subsecond part of btime
+  13: UInt64 btime_subsec
+
    /**
     * ==================================================================
     * NOTE: These fields has been deprecated with filesystem version 2.3
@@ -160,6 +179,19 @@ struct fs_options {
    3: bool   packed_chunk_table
    4: bool   packed_directories
    5: bool   packed_shared_files_table
+
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // if time stamps are stored with subsecond resolution,
+   // this multiplier is used to convert the subsecond part
+   // to nanoseconds; e.g. if the subsecond parts are stored
+   // with millisecond resolution, this would be 1,000,000
+   6: optional UInt32 subsecond_resolution_nsec_multiplier
+
+   // file system contains btime (birth time) time stamps
+   7: bool   has_btime
 }
 
 /**
