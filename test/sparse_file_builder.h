@@ -36,34 +36,33 @@ class sparse_file_builder {
   // returns the hole granularity of the filesystem containing 'path'
   // if the filesystem does not support sparse files, returns nullopt
   static std::optional<size_t>
-  hole_granularity(std::filesystem::path const& path) noexcept;
+  hole_granularity(std::filesystem::path const& path);
 
   // creates a sparse file builder for the given path
   static sparse_file_builder
-  create(std::filesystem::path const& path, std::error_code& ec) noexcept;
+  create(std::filesystem::path const& path, std::error_code& ec);
   static sparse_file_builder create(std::filesystem::path const& path);
 
   // destructor commits the file if not done before, but ignores errors
   ~sparse_file_builder();
 
-  void truncate(file_size_t size, std::error_code& ec) noexcept;
+  void truncate(file_size_t size, std::error_code& ec);
   void truncate(file_size_t size);
 
-  void write_data(file_off_t offset, std::string_view data,
-                  std::error_code& ec) noexcept;
+  void
+  write_data(file_off_t offset, std::string_view data, std::error_code& ec);
   void write_data(file_off_t offset, std::string_view data);
 
-  void
-  punch_hole(file_off_t offset, file_off_t size, std::error_code& ec) noexcept;
+  void punch_hole(file_off_t offset, file_off_t size, std::error_code& ec);
   void punch_hole(file_off_t offset, file_off_t size);
 
-  void commit(std::error_code& ec) noexcept;
+  void commit(std::error_code& ec);
   void commit();
 
   class impl;
 
-  sparse_file_builder(sparse_file_builder&&) noexcept = default;
-  sparse_file_builder& operator=(sparse_file_builder&&) noexcept = default;
+  sparse_file_builder(sparse_file_builder&&) = default;
+  sparse_file_builder& operator=(sparse_file_builder&&) = default;
 
  private:
   explicit sparse_file_builder(std::unique_ptr<impl> impl);
