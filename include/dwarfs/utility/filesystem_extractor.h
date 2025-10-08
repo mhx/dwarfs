@@ -87,6 +87,10 @@ class filesystem_extractor {
     impl_->open_disk(output);
   }
 
+  void open_disk_new(std::filesystem::path const& output) {
+    impl_->open_disk_new(output);
+  }
+
   void close() { impl_->close(); }
 
   bool extract(reader::filesystem_v2_lite const& fs,
@@ -113,6 +117,7 @@ class filesystem_extractor {
     open_stream(std::ostream& os,
                 filesystem_extractor_archive_format const& format) = 0;
     virtual void open_disk(std::filesystem::path const& output) = 0;
+    virtual void open_disk_new(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
     virtual bool
     extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,

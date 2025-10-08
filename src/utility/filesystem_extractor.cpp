@@ -32,6 +32,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_set>
+#include <variant>
 
 // This is required to avoid Windows.h being pulled in by libarchive
 // and polluting our environment with all sorts of shit.
@@ -69,6 +70,7 @@
 #include <dwarfs/vfs_stat.h>
 
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/utility/internal/disk_writer.h>
 
 namespace dwarfs::utility {
 
@@ -120,7 +122,8 @@ la_ssize_t write_range_data(sparse_file_mode mode, struct archive* a,
 } // namespace
 
 template <typename LoggerPolicy>
-class filesystem_extractor_ final : public filesystem_extractor::impl {
+class filesystem_extractor_ final : public filesystem_extractor::impl,
+                                    public internal::diagnostic_sink {
  public:
   explicit filesystem_extractor_(logger& lgr, os_access const& os,
                                  std::shared_ptr<file_access const> fa)
@@ -147,15 +150,16 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 #else
     LOG_DEBUG << "opening archive file in " << format.description();
 
-    a_ = ::archive_write_new();
+    auto a = ::archive_write_new();
+    a_ = a;
 
     configure_format(format, &output);
 
     if (output.empty()) {
-      check_result(::archive_write_open_filename(a_, nullptr));
+      check_result(::archive_write_open_filename(a, nullptr));
     } else {
       out_ = fa_->open_output_binary(output);
-      check_result(::archive_write_open2(a_, this, nullptr, on_stream_write,
+      check_result(::archive_write_open2(a, this, nullptr, on_stream_write,
                                          on_stream_close, on_stream_free));
     }
 #endif
@@ -182,11 +186,12 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
     LOG_DEBUG << "opening archive stream in " << format.description();
 
-    a_ = ::archive_write_new();
+    auto a = ::archive_write_new();
+    a_ = a;
 
     configure_format(format);
 
-    check_result(::archive_write_open_fd(a_, pipefd_[1]));
+    check_result(::archive_write_open_fd(a, pipefd_[1]));
 #endif
   }
 
@@ -195,24 +200,38 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       std::filesystem::current_path(output);
     }
 
-    a_ = ::archive_write_disk_new();
+    auto a = ::archive_write_disk_new();
+    a_ = a;
 
     check_result(::archive_write_disk_set_options(
-        a_,
-        ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
-            ARCHIVE_EXTRACT_UNLINK | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS |
-            ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_SYMLINKS));
+        a, ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
+               ARCHIVE_EXTRACT_UNLINK | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS |
+               ARCHIVE_EXTRACT_SECURE_NODOTDOT |
+               ARCHIVE_EXTRACT_SECURE_SYMLINKS));
 
     sparse_mode_ = sparse_file_mode::sparse_disk;
   }
 
+  void open_disk_new(std::filesystem::path const& output) override {
+    auto path = output;
+
+    if (path.empty()) {
+      path = std::filesystem::current_path();
+    }
+
+    a_ = internal::disk_writer::create_native(path, *this);
+  }
+
   void close() override {
-    if (a_) {
-      LOG_DEBUG << "closing archive";
-      check_result(::archive_write_close(a_));
-      LOG_TRACE << "freeing archive";
-      ::archive_write_free(a_);
-      a_ = nullptr;
+    if (std::holds_alternative<archive*>(a_)) {
+      auto a = std::get<archive*>(a_);
+      if (a) {
+        LOG_DEBUG << "closing archive";
+        check_result(::archive_write_close(a));
+        LOG_TRACE << "freeing archive";
+        ::archive_write_free(a);
+      }
+      a_ = std::monostate{};
     }
 
     if (iot_) {
@@ -230,9 +249,28 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   bool
   extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
-          filesystem_extractor_options const& opts) override;
+          filesystem_extractor_options const& opts) override {
+    if (std::holds_alternative<archive*>(a_)) {
+      return extract_libarchive(std::get<archive*>(a_), fs, matcher, opts);
+    } else if (std::holds_alternative<internal::disk_writer>(a_)) {
+      return extract_disk_writer(std::get<internal::disk_writer>(a_), fs,
+                                 matcher, opts);
+    }
+
+    DWARFS_THROW(runtime_error, "filesystem not opened");
+  }
 
  private:
+  bool
+  extract_libarchive(struct ::archive* a, reader::filesystem_v2_lite const& fs,
+                     glob_matcher const* matcher,
+                     filesystem_extractor_options const& opts);
+
+  bool extract_disk_writer(internal::disk_writer& dw,
+                           reader::filesystem_v2_lite const& fs,
+                           glob_matcher const* matcher,
+                           filesystem_extractor_options const& opts);
+
   static la_ssize_t on_stream_write(struct archive* /*a*/, void* client_data,
                                     void const* buffer, size_t length) {
     auto self = static_cast<filesystem_extractor_*>(client_data);
@@ -258,6 +296,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
                         std::filesystem::path const* output
                         [[maybe_unused]] = nullptr) {
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    auto a = std::get<archive*>(a_);
+
     if (format.name == "auto") {
       if (!output || output->empty()) {
         DWARFS_THROW(runtime_error, "auto format requires output path");
@@ -270,17 +310,17 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       auto fn = output->filename().string();
 
       LOG_DEBUG << "setting archive format by extension for " << fn;
-      check_result(::archive_write_set_format_filter_by_ext(a_, fn.c_str()));
+      check_result(::archive_write_set_format_filter_by_ext(a, fn.c_str()));
     } else {
-      check_result(::archive_write_set_format_by_name(a_, format.name.c_str()));
+      check_result(::archive_write_set_format_by_name(a, format.name.c_str()));
 
       for (auto const& filter : format.filters) {
-        check_result(::archive_write_add_filter_by_name(a_, filter.c_str()));
+        check_result(::archive_write_add_filter_by_name(a, filter.c_str()));
       }
     }
 
-    check_result(::archive_write_set_options(a_, format.options.c_str()));
-    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
+    check_result(::archive_write_set_options(a, format.options.c_str()));
+    check_result(::archive_write_set_bytes_in_last_block(a, 1));
 #endif
   }
 
@@ -318,25 +358,36 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   }
 
   void check_result(int res) {
+    auto a = std::get<archive*>(a_);
     switch (res) {
     case ARCHIVE_OK:
     case ARCHIVE_EOF:
     default:
       break;
     case ARCHIVE_WARN:
-      LOG_WARN << std::string(archive_error_string(a_));
+      LOG_WARN << std::string(archive_error_string(a));
       break;
     case ARCHIVE_RETRY:
     case ARCHIVE_FAILED:
     case ARCHIVE_FATAL:
-      throw archive_error(std::string(archive_error_string(a_)));
+      throw archive_error(std::string(archive_error_string(a)));
+    }
+  }
+
+  void warning(std::filesystem::path const& path, std::string_view message,
+               std::optional<std::error_code> ec) override {
+    auto const pstr = path_to_utf8_string_sanitized(path);
+    if (ec) {
+      LOG_WARN << pstr << ": " << message << ": " << ec->message();
+    } else {
+      LOG_WARN << pstr << ": " << message;
     }
   }
 
   LOG_PROXY_DECL(debug_logger_policy);
   os_access const& os_;
   std::shared_ptr<file_access const> fa_;
-  struct ::archive* a_{nullptr};
+  std::variant<std::monostate, struct ::archive*, internal::disk_writer> a_;
   std::unique_ptr<output_stream> out_;
   std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
@@ -344,10 +395,290 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 };
 
 template <typename LoggerPolicy>
-bool filesystem_extractor_<LoggerPolicy>::extract(
-    reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
-    filesystem_extractor_options const& opts) {
-  DWARFS_CHECK(a_, "filesystem not opened");
+bool filesystem_extractor_<LoggerPolicy>::extract_disk_writer(
+    internal::disk_writer& dw, reader::filesystem_v2_lite const& fs,
+    glob_matcher const* matcher, filesystem_extractor_options const& opts) {
+  LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
+            << " bytes";
+
+  counting_semaphore sem;
+  sem.post(opts.max_queued_bytes);
+
+  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
+
+  vfs_stat vfs;
+  fs.statvfs(&vfs);
+
+  std::atomic<size_t> hard_error{0};
+  std::atomic<size_t> soft_error{0};
+  std::atomic<uint64_t> bytes_written{0};
+  uint64_t const bytes_total{vfs.blocks};
+
+  auto do_archive_file =
+      [&](file_writer fw, std::string path,
+          reader::inode_view const& entry) { // TODO: inode vs. entry
+        reader::detail::file_reader fr(fs, entry);
+
+        auto extents = fr.extents();
+        std::vector<file_range> data_ranges;
+
+        for (auto const& e : extents) {
+          if (e.kind == dwarfs::extent_kind::data) {
+            data_ranges.push_back(e.range);
+          }
+        }
+
+        archiver.add_job([this, fw = std::move(fw), &hard_error, &soft_error,
+                          &opts, extents = std::move(extents),
+                          ranges = fr.read_sequential(data_ranges, sem,
+                                                      opts.max_queued_bytes),
+                          path = std::move(path), &bytes_written,
+                          bytes_total]() mutable {
+          try {
+            assert(!extents.empty());
+
+            auto const size = extents.back().range.end();
+
+            LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
+
+            std::error_code ec;
+
+            if (extents.size() > 1 || extents[0].kind == extent_kind::hole) {
+              LOG_DEBUG << "sparse file " << path << " with " << extents.size()
+                        << " extents";
+
+              fw.set_sparse(ec);
+
+              if (ec) {
+                LOG_WARN << "failed to set " << path
+                         << " to sparse mode: " << ec.message();
+              }
+            }
+
+            fw.truncate(size, ec);
+
+            if (ec) {
+              throw std::system_error(
+                  ec, fmt::format("truncate() failed for {}", path));
+            }
+
+            for (auto const& r : ranges) {
+              for (;;) {
+                assert(!extents.empty());
+                auto& ext = extents.front();
+                assert(!ext.range.empty());
+
+                LOG_TRACE << "writing " << r.size() << " bytes at offset "
+                          << ext.range.offset() << " in " << ext.kind
+                          << " extent for " << path;
+
+                if (ext.kind == dwarfs::extent_kind::data) {
+                  break;
+                }
+
+                fw.write_hole(ext.range.offset(), ext.range.size(), ec);
+
+                if (ec) {
+                  LOG_WARN << "failed to punch hole into " << path << ": "
+                           << ec.message();
+                }
+
+                extents.erase(extents.begin());
+              }
+
+              auto& ext = extents.front();
+
+              fw.write_data(ext.range.offset(), r.data(), r.size(), ec);
+
+              if (ec) {
+                throw std::system_error(
+                    ec, fmt::format("write_data() failed for {}", path));
+              }
+
+              ext.range.advance(r.size());
+
+              if (ext.range.empty()) {
+                extents.erase(extents.begin());
+              }
+
+              if (opts.progress) {
+                bytes_written += r.size();
+                opts.progress(path, bytes_written, bytes_total);
+              }
+            }
+
+            if (!extents.empty()) {
+              assert(extents.size() == 1);
+
+              auto& ext = extents.front();
+              assert(ext.kind == dwarfs::extent_kind::hole);
+
+              fw.write_hole(ext.range.offset(), ext.range.size(), ec);
+            }
+
+            fw.commit(ec);
+
+            if (ec) {
+              throw std::system_error(
+                  ec, fmt::format("commit() failed for {}", path));
+            }
+          } catch (...) {
+            if (opts.continue_on_error) {
+              LOG_WARN << exception_str(std::current_exception());
+              ++soft_error;
+            } else {
+              LOG_ERROR << exception_str(std::current_exception());
+              ++hard_error;
+            }
+          }
+        });
+      };
+
+  // Don't use an unordered_set<std::filesystem::path> here, this will break
+  // on macOS 13 due to clang not knowing how to hash std::filesystem::path.
+  std::unordered_set<std::string> matched_dirs;
+
+  if (matcher) {
+    // Collect all directories that contain matching files to make sure
+    // we descend into them during the extraction walk below.
+    fs.walk([&](auto entry) {
+      if (!entry.inode().is_directory()) {
+        if (matcher->match(entry.unix_path())) {
+          while (auto parent = entry.parent()) {
+            if (!matched_dirs.insert(parent->unix_path()).second) {
+              break;
+            }
+            entry = *parent;
+          }
+        }
+      }
+    });
+  }
+
+  // TODO: on Windows, create directories upfront so we can call
+  //       the right symlink() variant later on
+
+  fs.walk_data_order([&](auto const& entry) {
+    // TODO: we can surely early abort walk() somehow
+    if (entry.is_root() || hard_error) {
+      return;
+    }
+
+    auto inode = entry.inode();
+
+    if (matcher) {
+      auto const unix_path = entry.unix_path();
+      LOG_TRACE << "checking " << unix_path;
+      if (inode.is_directory()) {
+        if (!matched_dirs.contains(unix_path)) {
+          LOG_TRACE << "skipping directory " << unix_path;
+          // no need to extract this directory
+          return;
+        }
+      } else {
+        if (!matcher->match(unix_path)) {
+          LOG_TRACE << "skipping " << unix_path;
+          // no match, skip this entry
+          return;
+        }
+      }
+    }
+
+    auto stbuf = fs.getattr(inode);
+    std::error_code ec;
+
+    if (inode.is_symlink()) {
+      auto link = fs.readlink(inode, ec);
+
+      if (ec) {
+        LOG_ERROR << "readlink() failed: " << ec.message();
+        if (opts.continue_on_error) {
+          ++soft_error;
+        } else {
+          ++hard_error;
+        }
+      }
+
+      if (opts.progress) {
+        bytes_written += link.size();
+      }
+
+      dw.create_symlink(entry.fs_path(), stbuf, string_to_u8string(link), ec);
+
+      if (ec) {
+        LOG_ERROR << "create_symlink() failed for " << entry.unix_path() << ": "
+                  << ec.message();
+        if (opts.continue_on_error) {
+          ++soft_error;
+        } else {
+          ++hard_error;
+        }
+      }
+    } else if (inode.is_regular_file()) {
+      if (auto fw = dw.create_file(entry.fs_path(), stbuf, ec);
+          fw && stbuf.size() > 0) {
+        do_archive_file(std::move(fw.value()), entry.unix_path(), inode);
+      }
+
+      if (ec) {
+        LOG_ERROR << "create_file() failed for " << entry.unix_path() << ": "
+                  << ec.message();
+        if (opts.continue_on_error) {
+          ++soft_error;
+        } else {
+          ++hard_error;
+        }
+      }
+    } else {
+      dw.create_entry(entry.fs_path(), stbuf, ec);
+
+      if (ec) {
+        if (ec == std::errc::not_supported) {
+          LOG_WARN << "skipping unsupported file type for "
+                   << entry.unix_path();
+        } else {
+          LOG_ERROR << "create_entry() failed for " << entry.unix_path() << ": "
+                    << ec.message();
+          if (opts.continue_on_error) {
+            ++soft_error;
+          } else {
+            ++hard_error;
+          }
+        }
+      }
+    }
+  });
+
+  archiver.wait();
+
+  std::error_code ec;
+
+  dw.commit(ec);
+
+  if (ec) {
+    LOG_ERROR << "commit() failed: " << ec.message();
+    ++hard_error;
+  }
+
+  if (hard_error) {
+    DWARFS_THROW(runtime_error, "extraction aborted");
+  }
+
+  if (soft_error > 0) {
+    LOG_ERROR << "extraction finished with " << soft_error << " error(s)";
+    return false;
+  }
+
+  LOG_INFO << "extraction finished without errors";
+
+  return true;
+}
+
+template <typename LoggerPolicy>
+bool filesystem_extractor_<LoggerPolicy>::extract_libarchive(
+    struct ::archive* a, reader::filesystem_v2_lite const& fs,
+    glob_matcher const* matcher, filesystem_extractor_options const& opts) {
+  DWARFS_CHECK(a, "filesystem not opened");
 
   auto sparse_mode = sparse_mode_;
 
@@ -355,7 +686,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
 
-  if (auto fmt = ::archive_format(a_)) {
+  if (auto fmt = ::archive_format(a)) {
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
 
     if (sparse_mode == sparse_file_mode::auto_detect) {
@@ -400,110 +731,107 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
             }
           }
 
-          if (!data_ranges.empty()) {
-            archiver.add_job([this, &hard_error, &soft_error, &opts,
-                              extents = std::move(extents),
-                              ranges = fr.read_sequential(
-                                  data_ranges, sem, opts.max_queued_bytes),
-                              path = ::archive_entry_pathname(ae.get()),
-                              ae = std::move(ae), size, &sparse_mode,
-                              &bytes_written, bytes_total]() mutable {
-              try {
-                LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
+          archiver.add_job([this, a, &hard_error, &soft_error, &opts,
+                            extents = std::move(extents),
+                            ranges = fr.read_sequential(data_ranges, sem,
+                                                        opts.max_queued_bytes),
+                            path = ::archive_entry_pathname(ae.get()),
+                            ae = std::move(ae), size, &sparse_mode,
+                            &bytes_written, bytes_total]() mutable {
+            try {
+              LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
 
-                bool const hole_only =
-                    extents.size() == 1 && extents[0].kind == extent_kind::hole;
+              bool const hole_only =
+                  extents.size() == 1 && extents[0].kind == extent_kind::hole;
 
-                if (hole_only || extents.size() > 1) {
-                  LOG_DEBUG << "sparse file " << path << " with "
-                            << extents.size() << " extents";
+              if (hole_only || extents.size() > 1) {
+                LOG_DEBUG << "sparse file " << path << " with "
+                          << extents.size() << " extents";
 
-                  if (sparse_mode == sparse_file_mode::sparse_archive) {
-                    if (hole_only) {
-                      LOG_DEBUG << "no data extents found for sparse file, "
-                                   "adding dummy sparse entry";
-                      ::archive_entry_sparse_add_entry(ae.get(), size, 0);
-                    } else {
-                      for (auto const& e : extents) {
-                        if (e.kind == dwarfs::extent_kind::data) {
-                          LOG_DEBUG << "  data offset=" << e.range.offset()
-                                    << ", size=" << e.range.size();
-                          ::archive_entry_sparse_add_entry(
-                              ae.get(), e.range.offset(), e.range.size());
-                        }
+                if (sparse_mode == sparse_file_mode::sparse_archive) {
+                  if (hole_only) {
+                    LOG_DEBUG << "no data extents found for sparse file, "
+                                 "adding dummy sparse entry";
+                    ::archive_entry_sparse_add_entry(ae.get(), size, 0);
+                  } else {
+                    for (auto const& e : extents) {
+                      if (e.kind == dwarfs::extent_kind::data) {
+                        LOG_DEBUG << "  data offset=" << e.range.offset()
+                                  << ", size=" << e.range.size();
+                        ::archive_entry_sparse_add_entry(
+                            ae.get(), e.range.offset(), e.range.size());
                       }
                     }
                   }
                 }
+              }
 
-                check_result(::archive_write_header(a_, ae.get()));
+              check_result(::archive_write_header(a, ae.get()));
 
-                if (sparse_mode == sparse_file_mode::sparse_disk) {
-                  extents.erase(
-                      std::remove_if(extents.begin(), extents.end(),
-                                     [](auto const& e) {
-                                       return e.kind ==
-                                              dwarfs::extent_kind::hole;
-                                     }),
-                      extents.end());
+              if (sparse_mode == sparse_file_mode::sparse_disk) {
+                extents.erase(std::remove_if(extents.begin(), extents.end(),
+                                             [](auto const& e) {
+                                               return e.kind ==
+                                                      dwarfs::extent_kind::hole;
+                                             }),
+                              extents.end());
+              }
+
+              for (auto const& r : ranges) {
+                assert(!extents.empty());
+                auto& ext = extents.front();
+                assert(!ext.range.empty());
+
+                LOG_TRACE << "writing " << r.size() << " bytes at offset "
+                          << ext.range.offset() << " in " << ext.kind
+                          << " extent for " << path;
+
+                auto const rv = write_range_data(sparse_mode, a, r.data(),
+                                                 r.size(), ext.range.offset());
+
+                check_result(rv);
+
+                if (rv != static_cast<la_ssize_t>(r.size())) {
+                  throw archive_error(
+                      fmt::format("short write: {} != {}", rv, r.size()));
                 }
 
-                for (auto const& r : ranges) {
-                  assert(!extents.empty());
-                  auto& ext = extents.front();
-                  assert(!ext.range.empty());
+                assert(rv <= static_cast<la_ssize_t>(ext.range.size()));
 
-                  LOG_TRACE << "writing " << r.size() << " bytes at offset "
-                            << ext.range.offset() << " in " << ext.kind
-                            << " extent for " << path;
+                ext.range.advance(rv);
 
-                  auto const rv = write_range_data(
-                      sparse_mode, a_, r.data(), r.size(), ext.range.offset());
-
-                  check_result(rv);
-
-                  if (rv != static_cast<la_ssize_t>(r.size())) {
-                    throw archive_error(
-                        fmt::format("short write: {} != {}", rv, r.size()));
-                  }
-
-                  assert(rv <= static_cast<la_ssize_t>(ext.range.size()));
-
-                  ext.range.advance(rv);
-
-                  if (ext.range.empty()) {
-                    extents.erase(extents.begin());
-                  }
-
-                  if (opts.progress) {
-                    bytes_written += r.size();
-                    opts.progress(path, bytes_written, bytes_total);
-                  }
+                if (ext.range.empty()) {
+                  extents.erase(extents.begin());
                 }
 
-                assert(extents.empty());
-              } catch (archive_error const& e) {
-                LOG_ERROR << exception_str(e);
-                ++hard_error;
-              } catch (...) {
-                if (opts.continue_on_error) {
-                  LOG_WARN << exception_str(std::current_exception());
-                  ++soft_error;
-                } else {
-                  LOG_ERROR << exception_str(std::current_exception());
-                  ++hard_error;
+                if (opts.progress) {
+                  bytes_written += r.size();
+                  opts.progress(path, bytes_written, bytes_total);
                 }
               }
-            });
 
-            added = true;
-          }
+              assert(extents.empty());
+            } catch (archive_error const& e) {
+              LOG_ERROR << exception_str(e);
+              ++hard_error;
+            } catch (...) {
+              if (opts.continue_on_error) {
+                LOG_WARN << exception_str(std::current_exception());
+                ++soft_error;
+              } else {
+                LOG_ERROR << exception_str(std::current_exception());
+                ++hard_error;
+              }
+            }
+          });
+
+          added = true;
         }
 
         if (!added) {
-          archiver.add_job([this, ae = std::move(ae), &hard_error] {
+          archiver.add_job([this, a, ae = std::move(ae), &hard_error] {
             try {
-              check_result(::archive_write_header(a_, ae.get()));
+              check_result(::archive_write_header(a, ae.get()));
             } catch (...) {
               LOG_ERROR << exception_str(std::current_exception());
               ++hard_error;
@@ -585,16 +913,17 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       auto link = fs.readlink(inode, ec);
       if (ec) {
         LOG_ERROR << "readlink() failed: " << ec.message();
-      }
-      if (opts.progress) {
-        bytes_written += link.size();
-      }
+      } else {
+        if (opts.progress) {
+          bytes_written += link.size();
+        }
 #ifdef _WIN32
-      std::filesystem::path linkpath(string_to_u8string(link));
-      ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
+        std::filesystem::path linkpath(string_to_u8string(link));
+        ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
 #else
-      ::archive_entry_copy_symlink(ae, link.c_str());
+        ::archive_entry_copy_symlink(ae, link.c_str());
 #endif
+      }
     }
 
     ::archive_entry_linkify(lr, &ae, &sparse);

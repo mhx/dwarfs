@@ -56,7 +56,6 @@ class block_range_iterable::state {
       , ranges_{ranges.begin(), ranges.end()}
       , remaining_{total_size(ranges)}
       , lease_{sem, std::min(remaining_, max_bytes)} {
-    DWARFS_CHECK(!ranges_.empty(), "no ranges");
     if (remaining_ == 0) {
       ranges_.clear();
     }

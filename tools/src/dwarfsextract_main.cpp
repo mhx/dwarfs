@@ -215,7 +215,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     if (format.name.empty()) {
 #endif
-      fsx.open_disk(iol.os->canonical(output));
+      fsx.open_disk_new(iol.os->canonical(output));
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     } else {
       std::ostream* stream{nullptr};

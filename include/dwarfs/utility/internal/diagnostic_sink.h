@@ -39,7 +39,9 @@ class diagnostic_sink {
  public:
   virtual ~diagnostic_sink() = default;
 
-  virtual void warning(std::filesystem::path const& path, std::string_view message, std::optional<std::error_code> ec) = 0;
+  virtual void
+  warning(std::filesystem::path const& path, std::string_view message,
+          std::optional<std::error_code> ec) = 0;
 };
 
 } // namespace dwarfs::utility::internal

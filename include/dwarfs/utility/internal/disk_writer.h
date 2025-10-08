@@ -65,6 +65,8 @@ class disk_writer {
     return impl_->create_file(path, stat, ec);
   }
 
+  void commit(std::error_code& ec) { impl_->commit(ec); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -78,6 +80,7 @@ class disk_writer {
     virtual std::optional<file_writer>
     create_file(std::filesystem::path const& path, file_stat const& stat,
                 std::error_code& ec) = 0;
+    virtual void commit(std::error_code& ec) = 0;
   };
 
   explicit disk_writer(std::unique_ptr<impl>&& impl)

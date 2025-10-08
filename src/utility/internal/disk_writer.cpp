@@ -28,6 +28,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <ranges>
 #include <unordered_map>
 #include <vector>
 
@@ -141,7 +142,7 @@ class file_writer_ : public file_writer::impl {
                           .wstring();
 
     HANDLE h = ::CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE,
-                             FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                             FILE_SHARE_READ, nullptr, CREATE_NEW,
                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE |
                                  FILE_FLAG_OVERLAPPED,
                              nullptr);
@@ -308,7 +309,6 @@ class file_writer_ : public file_writer::impl {
                             diagnostic_sink& ds, std::error_code& ec) {
     ec.clear();
 
-    // TODO: check if this is exactly what we want (e.g. CREATE_ALWAYS)
     HANDLE h = ::CreateFileW(
         path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr,
         CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
@@ -485,29 +485,29 @@ class file_writer_ : public file_writer::impl {
   void commit(std::error_code& ec) override {
     ec.clear();
 
+    if (fd_ != -1) {
 #ifdef F_PUNCHHOLE
-    for (auto const& hole : holes_) {
-      punch_hole(fd_, hole.offset(), hole.size(), ec);
+      for (auto const& hole : holes_) {
+        punch_hole(fd_, hole.offset(), hole.size(), ec);
 
-      if (ec) {
-        ds_.warning(attrib_ ? attrib_->first : fs::path{}, "punch_hole", ec);
+        if (ec) {
+          ds_.warning(attrib_ ? attrib_->first : fs::path{}, "punch_hole", ec);
+        }
       }
-    }
 
-    holes_.clear();
+      holes_.clear();
 #endif
 
-    if (fd_ != -1) {
       if (::close(fd_) == -1 && !ec) {
         ec = std::error_code{errno, std::generic_category()};
         return;
       }
 
       fd_ = -1;
-    }
 
-    if (attrib_) {
-      update_attributes(attrib_->first, attrib_->second, ds_);
+      if (attrib_) {
+        update_attributes(attrib_->first, attrib_->second, ds_);
+      }
     }
   }
 
@@ -522,7 +522,6 @@ class file_writer_ : public file_writer::impl {
                             diagnostic_sink& ds, std::error_code& ec) {
     ec.clear();
 
-    // TODO: check if this is exactly what we want (e.g. O_CREAT)
     auto fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (fd < 0) {
       ec = std::error_code(errno, std::generic_category());
@@ -568,19 +567,34 @@ class file_writer_ : public file_writer::impl {
 
 #endif
 
+struct pending_attrib {
+  fs::path path;
+  file_stat stat;
+};
+
 class disk_writer_ : public disk_writer::impl {
  public:
   disk_writer_(fs::path const& base, diagnostic_sink& ds)
       : base_{base}
       , ds_{ds} {}
 
+  ~disk_writer_() override {
+    std::error_code ec;
+    commit(ec);
+
+    if (ec) {
+      std::cerr << "error finalizing disk writer: " << ec.message() << "\n";
+    }
+  }
+
   void create_entry(fs::path const& path, file_stat const& stat,
                     std::error_code& ec) override {
-    auto const full_path = base_ / path;
-
     ec.clear();
 
-    switch (stat.type()) {
+    auto const full_path = base_ / path;
+    auto const type = stat.type();
+
+    switch (type) {
     case posix_file_type::symlink:
     case posix_file_type::regular:
       // these should be created via create_symlink() and create_file()
@@ -595,6 +609,18 @@ class disk_writer_ : public disk_writer::impl {
       break;
 
     case posix_file_type::directory:
+      if (fs::exists(full_path, ec) && !ec) {
+        if (fs::is_directory(full_path, ec) && !ec) {
+          break;
+        }
+
+        fs::remove(full_path, ec);
+      }
+
+      if (ec) {
+        return;
+      }
+
 #ifdef _WIN32
       fs::create_directory(full_path, ec);
 #else
@@ -606,13 +632,23 @@ class disk_writer_ : public disk_writer::impl {
     }
 
     if (!ec) {
-      update_attributes(full_path, stat, ds_);
+      if (type == posix_file_type::directory) {
+        pending_attribs_.push_back({path, stat});
+      } else {
+        update_attributes(full_path, stat, ds_);
+      }
     }
   }
 
   void create_symlink(fs::path const& path, file_stat const& stat,
                       fs::path const& target, std::error_code& ec) override {
+    ec.clear();
+
     auto const full_path = base_ / path;
+
+    if (!remove_if_exists(full_path, ec)) {
+      return;
+    }
 
 #ifdef _WIN32
     auto const full_target = target.is_absolute() ? target : base_ / target;
@@ -634,15 +670,18 @@ class disk_writer_ : public disk_writer::impl {
   std::optional<file_writer>
   create_file(fs::path const& path, file_stat const& stat,
               std::error_code& ec) override {
-    auto const full_path = base_ / path;
-
     ec.clear();
+
+    auto const full_path = base_ / path;
 
     if (stat.nlink() > 1) {
       auto const [it, inserted] = hardlink_map_.emplace(stat.ino(), full_path);
 
       if (!inserted) {
-        fs::create_hard_link(it->second, full_path, ec);
+        if (remove_if_exists(full_path, ec)) {
+          fs::create_hard_link(it->second, full_path, ec);
+        }
+
         return std::nullopt;
       }
     }
@@ -650,10 +689,37 @@ class disk_writer_ : public disk_writer::impl {
     return file_writer_::create(full_path, stat, ds_, ec);
   }
 
+  void commit(std::error_code& ec) override {
+    ec.clear();
+
+    for (auto const& [path, stat] :
+         std::ranges::reverse_view(pending_attribs_)) {
+      update_attributes(base_ / path, stat, ds_);
+    }
+
+    pending_attribs_.clear();
+    hardlink_map_.clear();
+  }
+
  private:
+  bool remove_if_exists(fs::path const& p, std::error_code& ec) {
+    if (fs::exists(p, ec)) {
+      if (!ec) {
+        fs::remove(p, ec);
+      }
+
+      if (ec) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   fs::path base_;
   diagnostic_sink& ds_;
   std::unordered_map<file_stat::ino_type, fs::path> hardlink_map_;
+  std::vector<pending_attrib> pending_attribs_;
 };
 
 } // namespace

@@ -2288,7 +2288,6 @@ TEST_F(sparse_files_test, random) {
   // disk writing code on both macOS and Windows. While this isn't
   // solved, skip the rest of the tests for these platforms.
 
-#if defined(__linux__) || defined(__FreeBSD__)
   auto extracted = td->path() / "extracted";
 
   ASSERT_NO_THROW(fs::create_directory(extracted));
@@ -2307,6 +2306,7 @@ TEST_F(sparse_files_test, random) {
     EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
   }
 
+#if defined(__linux__) || defined(__FreeBSD__)
 #ifdef DWARFS_WITH_FUSE_DRIVER
   if (!skip_fuse_tests()) {
     std::chrono::seconds const timeout{5};
@@ -2332,7 +2332,6 @@ TEST_F(sparse_files_test, random) {
 
       EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
 
-#ifdef __linux__
       // TODO: Figure out how to make this work on other platforms.
       //       FreeBSD seems to be off by 4096 bytes for some reason,
       //       maybe some FUSE bug?
@@ -2341,7 +2340,6 @@ TEST_F(sparse_files_test, random) {
       //         https://github.com/winfsp/winfsp/issues/632
       EXPECT_EQ(stat.allocated_size(), file.size.data_size)
           << file.path.filename();
-#endif
     }
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
