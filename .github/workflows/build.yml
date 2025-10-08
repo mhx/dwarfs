@@ -213,7 +213,7 @@ jobs:
 
           - build_arch: arm64v8
             build_dist: debian
-            build_type: gcc-release-make-full
+            build_type: gcc-release-dev-make-full
 
           - build_arch: arm64v8
             build_dist: debian
@@ -225,7 +225,7 @@ jobs:
 
           - build_arch: arm64v8
             build_dist: suse
-            build_type: clang-debug-shared-make-full
+            build_type: clang-debug-dev-shared-make-full
 
           - build_arch: arm64v8
             build_dist: ubuntu-2204
