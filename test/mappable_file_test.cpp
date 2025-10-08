@@ -383,6 +383,7 @@ TEST_F(sparse_file_test, basic) {
   sfb.write_data(0, create_random_string(granularity.value(), rng));
   sfb.write_data(2 * granularity.value(),
                  create_random_string(granularity.value(), rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
   sfb.punch_hole(granularity.value(), granularity.value());
   sfb.commit();
 
@@ -411,6 +412,7 @@ TEST_F(sparse_file_test, hole_at_start) {
   auto sfb = sparse_file_builder::create(path);
   sfb.truncate(granularity.value() + 1);
   sfb.write_data(granularity.value(), create_random_string(1, rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
   sfb.punch_hole(0, granularity.value());
   sfb.commit();
 
@@ -483,6 +485,7 @@ TEST_F(sparse_file_test, multiple_holes_and_data_blocks) {
                  create_random_string(granularity.value(), rng));
   sfb.write_data(5 * granularity.value(),
                  create_random_string(granularity.value(), rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
   sfb.punch_hole(granularity.value(), granularity.value());
   sfb.punch_hole(3 * granularity.value(), 2 * granularity.value());
   sfb.commit();
