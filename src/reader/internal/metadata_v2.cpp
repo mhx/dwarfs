@@ -172,6 +172,7 @@ void parse_fs_options(View<thrift::metadata::fs_options> opt,
   func("packed_chunk_table", opt.packed_chunk_table());
   func("packed_directories", opt.packed_directories());
   func("packed_shared_files_table", opt.packed_shared_files_table());
+  func("has_btime", opt.has_btime());
 }
 
 std::vector<std::string>

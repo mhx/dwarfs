@@ -367,6 +367,11 @@ void frozen_analyzer::print(std::ostream& os) const {
   META_ADD_DETAIL_BITS(inodes, atime_offset);
   META_ADD_DETAIL_BITS(inodes, mtime_offset);
   META_ADD_DETAIL_BITS(inodes, ctime_offset);
+  META_ADD_DETAIL_BITS(inodes, btime_offset);
+  META_ADD_DETAIL_BITS(inodes, atime_subsec);
+  META_ADD_DETAIL_BITS(inodes, mtime_subsec);
+  META_ADD_DETAIL_BITS(inodes, ctime_subsec);
+  META_ADD_DETAIL_BITS(inodes, btime_subsec);
   META_ADD_DETAIL_BITS(inodes, name_index_v2_2);
   META_ADD_DETAIL_BITS(inodes, inode_v2_2);
   META_LIST_SIZE_DETAIL_END(inodes);
