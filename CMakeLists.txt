@@ -501,6 +501,11 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   if(WITH_DEV_TOOLS)
     add_executable(treediff test/treediff.cpp)
     target_link_libraries(treediff PRIVATE dwarfs_test_helpers)
+
+    add_executable(sparsedump test/sparsedump.cpp)
+    target_link_libraries(treediff PRIVATE dwarfs_common)
+
+    list(APPEND BINARY_TARGETS treediff sparsedump)
   endif()
 endif()
 
