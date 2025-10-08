@@ -181,6 +181,7 @@ add_library(
   dwarfs_extractor
 
   src/utility/filesystem_extractor.cpp
+  src/utility/internal/disk_writer.cpp
 )
 
 add_library(
