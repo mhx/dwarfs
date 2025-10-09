@@ -525,6 +525,7 @@ if(WITH_TESTS)
       test/entry_test.cpp
       test/error_test.cpp
       test/file_access_test.cpp
+      test/file_range_utils_test.cpp
       test/file_utils_test.cpp
       test/file_view_test.cpp
       test/filesystem_test.cpp
