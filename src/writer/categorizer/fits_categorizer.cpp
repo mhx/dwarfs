@@ -190,7 +190,16 @@ unsigned get_unused_lsb_count<uint16_t>(file_extents_iterable const& extents) {
   return std::countr_zero(b16);
 }
 
+bool has_non_printable_ascii(std::string_view s) {
+  auto bad = [](unsigned char ch) {
+    return (ch - 32U) > 94U;
+  }; // ch < 32 or ch > 126
+  return std::ranges::any_of(s, bad);
+}
+
 std::optional<fits_info> parse_fits(file_view const& mm) {
+  static constexpr int kColumnWidth{80};
+
   fits_info fi;
   fi.component_count = 1;
 
@@ -200,16 +209,20 @@ std::optional<fits_info> parse_fits(file_view const& mm) {
   int ydim = -1;
 
   file_off_t filepos = 0;
+  size_t value_count = 0;
 
-  for (;;) {
+  for (;; filepos += kColumnWidth) {
     std::error_code ec;
-    auto row = mm.read_string(filepos, 80, ec);
+    auto row = mm.read_string(filepos, kColumnWidth, ec);
 
     if (ec) {
       break;
     }
 
-    filepos += 80;
+    // FITS requires that the header is printable US-ASCII
+    if (has_non_printable_ascii(row)) {
+      break;
+    }
 
 #if defined(__apple_build_version__) && __apple_build_version__ < 14000000
     std::string_view rv{row.data(), row.size()};
@@ -217,9 +230,20 @@ std::optional<fits_info> parse_fits(file_view const& mm) {
     std::string_view rv{row.begin(), row.end()};
 #endif
     auto const keyword = trim(rv.substr(0, 8));
-    if (keyword == "COMMENT") {
+
+    if (keyword == "COMMENT" || keyword == "HISTORY" || keyword == "CONTINUE") {
       continue;
     }
+
+    if (filepos >= 2 * FITS_SIZE_GRANULARITY && value_count == 0) {
+      // this is *very* unlikely to be a valid FITS file
+      break;
+    }
+
+    if (keyword.empty()) {
+      continue;
+    }
+
     if (keyword == "END") {
       if (!is_fits || xdim == -1 || ydim == -1 || pixel_bits == -1) {
         return std::nullopt;
@@ -237,13 +261,19 @@ std::optional<fits_info> parse_fits(file_view const& mm) {
           get_unused_lsb_count<uint16_t>(mm.extents(fi.imagedata));
       return fi;
     }
-    if (rv[8] != '=') {
+
+    if (rv[8] != '=' || rv[9] != ' ') {
       continue;
     }
+
     auto value = rv.substr(9);
+
+    ++value_count;
+
     if (auto pos = value.find('/'); pos != std::string_view::npos) {
       value.remove_suffix(value.size() - pos);
     }
+
     value = trim(value);
 
     if (keyword == "SIMPLE") {
