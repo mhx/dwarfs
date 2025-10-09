@@ -594,7 +594,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
         continue;
       }
     } else {
-      relpath = listpath;
+      relpath = listpath.lexically_normal();
     }
 
     auto parent = relpath.parent_path();
