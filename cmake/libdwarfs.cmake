@@ -31,6 +31,7 @@ add_library(
   src/file_access_generic.cpp
   src/file_extent.cpp
   src/file_extents_iterable.cpp
+  src/file_range_utils.cpp
   src/file_segments_iterable.cpp
   src/file_stat.cpp
   src/file_util.cpp
