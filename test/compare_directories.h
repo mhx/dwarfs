@@ -26,8 +26,10 @@
 #include <filesystem>
 #include <iosfwd>
 #include <optional>
+#include <span>
 #include <vector>
 
+#include <dwarfs/detail/file_extent_info.h>
 #include <dwarfs/file_range.h>
 
 namespace dwarfs::test {
@@ -40,6 +42,21 @@ enum class diff_kind {
   file_size_diff,
   file_content_diff,
   error
+};
+
+struct mismatched_range {
+  mismatched_range() = default;
+  mismatched_range(file_range r)
+      : range{r} {}
+  mismatched_range(file_range r, std::span<std::byte const> ld,
+                   std::span<std::byte const> rd)
+      : range{r}
+      , left_data{ld.begin(), ld.end()}
+      , right_data{rd.begin(), rd.end()} {}
+
+  file_range range;
+  std::vector<std::byte> left_data;
+  std::vector<std::byte> right_data;
 };
 
 struct entry_diff {
@@ -59,7 +76,9 @@ struct entry_diff {
   std::optional<std::filesystem::path> right_link_target{};
 
   // For content diffs
-  std::vector<file_range> ranges{};
+  std::vector<detail::file_extent_info> left_extents{};
+  std::vector<detail::file_extent_info> right_extents{};
+  std::vector<mismatched_range> ranges{};
 
   // For errors
   std::optional<std::string> error_message{};

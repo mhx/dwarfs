@@ -31,6 +31,8 @@
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/util.h>
 
+#include <folly/String.h>
+
 #include "compare_directories.h"
 
 namespace dwarfs::test {
@@ -47,9 +49,9 @@ bool is_directory(fs::file_type ft) {
       ;
 }
 
-std::vector<file_range> compare_files(fs::path const& a, fs::path const& b) {
+void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed) {
   static os_access_generic const os;
-  std::vector<file_range> out;
+  auto& out = ed.ranges;
 
   auto fa = os.open_file(a);
   auto fb = os.open_file(b);
@@ -86,7 +88,8 @@ std::vector<file_range> compare_files(fs::path const& a, fs::path const& b) {
         auto const& sb = sit_b->span();
 
         if (std::memcmp(sa.data(), sb.data(), sa.size()) != 0) {
-          out.push_back(sit_a->range());
+          out.emplace_back(sit_a->range(), sa.subspan(0, 64),
+                           sb.subspan(0, 64));
         }
 
         ++sit_a;
@@ -105,13 +108,22 @@ std::vector<file_range> compare_files(fs::path const& a, fs::path const& b) {
   if (eit_a != ext_a.end() || eit_b != ext_b.end()) {
     // there's some extents difference; push a single mismatched range
     if (eit_a != ext_a.end()) {
-      out.push_back(eit_a->range());
+      out.emplace_back(eit_a->range());
     } else if (eit_b != ext_b.end()) {
-      out.push_back(eit_b->range());
+      out.emplace_back(eit_b->range());
     }
   }
 
-  return out;
+  if (!out.empty()) {
+    auto copy_extents = [](auto const& src, auto& dest) {
+      for (auto const& e : src) {
+        dest.emplace_back(e.kind(), e.range());
+      }
+    };
+
+    copy_extents(ext_a, ed.left_extents);
+    copy_extents(ext_b, ed.right_extents);
+  }
 }
 
 std::string_view to_string(fs::file_type ft) {
@@ -297,21 +309,19 @@ void compare_dirs_impl(fs::path const& left_root, fs::path const& right_root,
         continue; // size differs; skip detailed compare
       }
 
-      std::vector<file_range> ranges;
+      entry_diff ed;
 
       if (lsize > 0) {
-        ranges = compare_files(lp, rp);
+        compare_files(lp, rp, ed);
       }
 
-      if (!ranges.empty()) {
-        entry_diff ed;
+      if (!ed.ranges.empty()) {
         ed.relpath = relpath;
         ed.kind = diff_kind::file_content_diff;
         ed.left_type = lt;
         ed.right_type = rt;
         ed.left_size = lsize;
         ed.right_size = rsize;
-        ed.ranges = std::move(ranges);
         out.differences.emplace_back(std::move(ed));
       } else {
         out.matching_regular_files.push_back(relpath);
@@ -415,8 +425,23 @@ std::ostream& operator<<(std::ostream& os, directory_diff const& d) {
       case diff_kind::file_content_diff: {
         os << "File content differs: " << path_str << '\n';
         for (auto const& r : e.ranges) {
-          os << "  range [offset=" << r.offset() << ", size=" << r.size()
-             << ", end=" << r.end() << "]\n";
+          os << "  range [offset=" << r.range.offset()
+             << ", size=" << r.range.size() << ", end=" << r.range.end()
+             << "]\n";
+          if (!r.left_data.empty() && !r.right_data.empty()) {
+            os << "---- left data ----\n"
+               << folly::hexDump(r.left_data.data(), r.left_data.size());
+            os << "---- right data ----\n"
+               << folly::hexDump(r.right_data.data(), r.right_data.size());
+          }
+        }
+        os << "  left extents (" << e.left_extents.size() << "):\n";
+        for (auto const& ex : e.left_extents) {
+          os << "    " << ex << '\n';
+        }
+        os << "  right extents (" << e.right_extents.size() << "):\n";
+        for (auto const& ex : e.right_extents) {
+          os << "    " << ex << '\n';
         }
         break;
       }
