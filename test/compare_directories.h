@@ -79,6 +79,7 @@ struct entry_diff {
   std::vector<detail::file_extent_info> left_extents{};
   std::vector<detail::file_extent_info> right_extents{};
   std::vector<mismatched_range> ranges{};
+  file_size_t total_compared_bytes{0};
 
   // For errors
   std::optional<std::string> error_message{};

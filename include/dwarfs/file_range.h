@@ -31,6 +31,8 @@
 #include <cassert>
 #include <concepts>
 #include <limits>
+#include <span>
+#include <vector>
 
 #include <dwarfs/types.h>
 
@@ -78,6 +80,12 @@ class file_range {
   operator==(file_range const& lhs, file_range const& rhs) noexcept {
     return lhs.offset_ == rhs.offset_ && lhs.size_ == rhs.size_;
   }
+
+  static std::vector<file_range>
+  intersect(std::span<file_range const> a, std::span<file_range const> b);
+
+  static std::vector<file_range>
+  complement(std::span<file_range const> ranges, file_size_t size);
 
  private:
   file_off_t offset_{0};

@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <iostream>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@
 #include <unordered_set>
 
 #include <dwarfs/error.h>
+#include <dwarfs/file_range_utils.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/util.h>
 
@@ -49,80 +51,75 @@ bool is_directory(fs::file_type ft) {
       ;
 }
 
-void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed) {
+void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed,
+                   bool strict_extents = false) {
   static os_access_generic const os;
   auto& out = ed.ranges;
 
   auto fa = os.open_file(a);
   auto fb = os.open_file(b);
 
+  assert(fa.size() == fb.size());
+
   auto ext_a = fa.extents();
   auto ext_b = fb.extents();
 
-  auto eit_a = ext_a.begin();
-  auto eit_b = ext_b.begin();
+  auto get_ranges = [](auto const& exts, extent_kind kind) {
+    std::vector<file_range> holes;
 
-  while (eit_a != ext_a.end() && eit_b != ext_b.end()) {
-    auto const& ea = *eit_a;
-    auto const& eb = *eit_b;
-
-    if (ea.range() != eb.range()) {
-      // ranges differ; cannot continue
-      break;
-    }
-
-    if (ea.kind() != eb.kind()) {
-      // kinds differ; cannot continue
-      break;
-    }
-
-    if (ea.kind() != extent_kind::hole) {
-      auto seg_a = ea.segments();
-      auto seg_b = eb.segments();
-
-      auto sit_a = seg_a.begin();
-      auto sit_b = seg_b.begin();
-
-      while (sit_a != seg_a.end() && sit_b != seg_b.end()) {
-        auto const& sa = sit_a->span();
-        auto const& sb = sit_b->span();
-
-        if (std::memcmp(sa.data(), sb.data(), sa.size()) != 0) {
-          out.emplace_back(sit_a->range(), sa.subspan(0, 64),
-                           sb.subspan(0, 64));
-        }
-
-        ++sit_a;
-        ++sit_b;
+    for (auto const& e : exts) {
+      if (e.kind() == kind) {
+        holes.push_back(e.range());
       }
-
-      DWARFS_CHECK(
-          sit_a == seg_a.end() && sit_b == seg_b.end(),
-          "internal error: segment count mismatch despite equal extents");
     }
 
-    ++eit_a;
-    ++eit_b;
+    return holes;
+  };
+
+  auto copy_extents = [](auto const& src, auto& dest) {
+    for (auto const& e : src) {
+      dest.emplace_back(e.kind(), e.range());
+    }
+  };
+
+  copy_extents(ext_a, ed.left_extents);
+  copy_extents(ext_b, ed.right_extents);
+
+  auto const holes_a = get_ranges(ext_a, extent_kind::hole);
+  auto const holes_b = get_ranges(ext_b, extent_kind::hole);
+
+  if (strict_extents && holes_a != holes_b) {
+    // extents differ; report entire file as mismatched in strict mode
+    out.emplace_back(file_range{0, fa.size()});
+    return;
   }
 
-  if (eit_a != ext_a.end() || eit_b != ext_b.end()) {
-    // there's some extents difference; push a single mismatched range
-    if (eit_a != ext_a.end()) {
-      out.emplace_back(eit_a->range());
-    } else if (eit_b != ext_b.end()) {
-      out.emplace_back(eit_b->range());
+  auto const hole_ranges = intersect_ranges(holes_a, holes_b);
+  auto const data_ranges = complement_ranges(hole_ranges, fa.size());
+
+  for (auto const& r : data_ranges) {
+    std::cerr << "comparing range " << r.begin() << " - " << r.end() << "\n";
+
+    auto seg_a = fa.segment_at(r);
+    auto seg_b = fb.segment_at(r);
+
+    auto sa = seg_a.span();
+    auto sb = seg_b.span();
+
+    if (std::memcmp(sa.data(), sb.data(), sa.size()) != 0) {
+      auto const start =
+          std::mismatch(sa.begin(), sa.end(), sb.begin()).first - sa.begin();
+      auto const end =
+          sa.size() -
+          (std::mismatch(sa.rbegin(), sa.rend(), sb.rbegin()).first -
+           sa.rbegin());
+      auto const len = end - start;
+      auto const snippet_len = std::min<size_t>(len, 64);
+      out.emplace_back(r.subrange(start, len), sa.subspan(start, snippet_len),
+                       sb.subspan(start, snippet_len));
     }
-  }
 
-  if (!out.empty()) {
-    auto copy_extents = [](auto const& src, auto& dest) {
-      for (auto const& e : src) {
-        dest.emplace_back(e.kind(), e.range());
-      }
-    };
-
-    copy_extents(ext_a, ed.left_extents);
-    copy_extents(ext_b, ed.right_extents);
+    ed.total_compared_bytes += r.size();
   }
 }
 
