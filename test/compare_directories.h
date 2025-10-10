@@ -80,6 +80,8 @@ struct entry_diff {
   std::vector<detail::file_extent_info> right_extents{};
   std::vector<mismatched_range> ranges{};
   file_size_t total_compared_bytes{0};
+  file_size_t left_data_size{0};
+  file_size_t right_data_size{0};
 
   // For errors
   std::optional<std::string> error_message{};
@@ -91,6 +93,8 @@ struct directory_diff {
   std::vector<std::filesystem::path> matching_symlinks;
   std::vector<std::filesystem::path> matching_regular_files;
   file_size_t total_matching_regular_file_size{0};
+  file_size_t total_left_data_size{0};
+  file_size_t total_right_data_size{0};
 
   bool identical() const noexcept { return differences.empty(); }
 };

@@ -106,6 +106,8 @@ class file_extents_iterable {
   iterator begin() const noexcept { return iterator{fv_, extents_, range_}; }
   std::default_sentinel_t end() const noexcept { return {}; }
 
+  size_t size() const noexcept { return extents_.size(); }
+
   std::string as_string() const;
 
  private:

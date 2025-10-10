@@ -76,6 +76,7 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/os_access_generic.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
@@ -2290,6 +2291,65 @@ class sparse_files_test : public ::testing::Test {
     return os;
   }
 
+#ifndef _WIN32
+  bool tar_supports_sparse(fs::path const& tarbin) {
+    dwarfs::temporary_directory td("dwarfs-tar");
+    auto const tarball = test_dir / "sparse.tar";
+
+    auto [out, err, ec] = subprocess::run(tarbin, "-xf", tarball.string(), "-C",
+                                          td.path().string());
+
+    if (ec != 0) {
+      std::cerr << "tar -xf failed: " << out << err << "\n";
+      return false;
+    }
+
+    auto const sparse_file = td.path() / "hole_then_data";
+
+    if (!fs::exists(sparse_file)) {
+      std::cerr << "sparse file not found in tarball\n";
+      return false;
+    }
+
+    dwarfs::file_stat stat(sparse_file);
+
+    if (stat.size() != 1'060'864) {
+      std::cerr << "sparse file size incorrect: " << stat.size() << "\n";
+      return false;
+    }
+
+    if (std::cmp_greater(stat.allocated_size(), 256_KiB)) {
+      std::cerr << "sparse file uses too much disk space: "
+                << dwarfs::size_with_unit(stat.allocated_size()) << "\n";
+      return false;
+    }
+
+    return true;
+  }
+#endif
+
+  bool fuse_supports_sparse(fs::path const& mountpoint, sparse_info const& si) {
+    dwarfs::os_access_generic const os;
+
+    for (auto const& sfi : si.files) {
+      if (sfi.extent_count > 1) {
+        auto const path = mountpoint / sfi.path.filename();
+        auto f = os.open_file(path);
+        auto ext = f.extents();
+        if (ext.size() > 1) {
+          std::cerr << "FUSE driver supports sparse files\n";
+          return true;
+        }
+        std::cerr << "File " << path << ": expected " << sfi.extent_count
+                  << " extents, but got " << ext.size() << "\n";
+      }
+    }
+
+    std::cerr << "FUSE driver does not support sparse files\n";
+
+    return false;
+  }
+
   std::mt19937_64 rng;
   std::optional<dwarfs::temporary_directory> td;
   std::optional<size_t> granularity;
@@ -2351,11 +2411,49 @@ TEST_F(sparse_files_test, random_large_files) {
   {
     auto const cdr = compare_directories(input, extracted);
 
-    std::cerr << "Compare extracted files:\n" << cdr;
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
 
     EXPECT_TRUE(cdr.identical()) << cdr;
     EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
   }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+  auto tarball = td->path() / "extracted.tar";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", tarball.string(), "-f", "pax");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  auto const tarball_size = fs::file_size(tarball);
+
+  std::cerr << "Created tarball: " << tarball << " ("
+            << dwarfs::size_with_unit(tarball_size) << ")\n";
+
+  EXPECT_LT(tarball_size, info.total.data_size * 5)
+      << "tarball size is not sufficiently small";
+
+#ifndef _WIN32
+  if (auto const tarbin = dwarfs::test::find_binary("tar");
+      tarbin && tar_supports_sparse(*tarbin)) {
+    ASSERT_NO_THROW(fs::create_directory(extracted));
+
+    auto [out, err, ec] = subprocess::run(*tarbin, "-xf", tarball.string(),
+                                          "-C", extracted.string());
+
+    ASSERT_EQ(0, ec) << out << err;
+
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare tar extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+#endif
 
 #ifdef DWARFS_WITH_FUSE_DRIVER
   if (!skip_fuse_tests()) {
@@ -2371,15 +2469,18 @@ TEST_F(sparse_files_test, random_large_files) {
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
           << runner.cmdline();
 
-#if defined(__linux__) || defined(__FreeBSD__)
-      // Only Linux and FreeBSD currently implement lseek for FUSE
-      // TODO: check new macFUSE version
-      auto const cdr = compare_directories(input, mountpoint);
+      // Only compare if we know the FUSE driver supports sparse files.
+      // Otherwise this will try to actually read hundreds of gigabytes
+      // of data.
+      if (fuse_supports_sparse(mountpoint, info)) {
+        auto const cdr = compare_directories(input, mountpoint);
 
-      EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
-          << runner.cmdline() << ": " << cdr;
-#endif
+        std::cerr << "Compare FUSE mounted files:\n" << cdr;
+
+        EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+            << runner.cmdline() << ": " << cdr;
+      }
 
       for (auto const& file : info.files) {
         auto const p = mountpoint / file.path.filename();

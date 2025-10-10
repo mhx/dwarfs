@@ -81,8 +81,21 @@ void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed,
     }
   };
 
+  auto get_data_size = [](auto const& exts) {
+    file_size_t size = 0;
+    for (auto const& e : exts) {
+      if (e.kind() == extent_kind::data) {
+        size += e.range().size();
+      }
+    }
+    return size;
+  };
+
   copy_extents(ext_a, ed.left_extents);
   copy_extents(ext_b, ed.right_extents);
+
+  ed.left_data_size = get_data_size(ext_a);
+  ed.right_data_size = get_data_size(ext_b);
 
   auto const holes_a = get_ranges(ext_a, extent_kind::hole);
   auto const holes_b = get_ranges(ext_b, extent_kind::hole);
@@ -320,6 +333,8 @@ void compare_dirs_impl(fs::path const& left_root, fs::path const& right_root,
       } else {
         out.matching_regular_files.push_back(relpath);
         out.total_matching_regular_file_size += lsize;
+        out.total_left_data_size += ed.left_data_size;
+        out.total_right_data_size += ed.right_data_size;
       }
     }
   }
@@ -375,12 +390,18 @@ std::ostream& operator<<(std::ostream& os, directory_diff const& d) {
     }
   };
 
+  auto output_size = [&](std::string_view type, size_t count) {
+    os << type << ": " << count << " (" << size_with_unit(count) << ")\n";
+  };
+
   output_list("Matching directories", d.matching_directories);
   output_list("Matching symlinks", d.matching_symlinks);
   output_list("Matching regular files", d.matching_regular_files);
 
-  os << "Total size of matching regular files: "
-     << d.total_matching_regular_file_size << " bytes\n";
+  output_size("Total size of matching regular files",
+              d.total_matching_regular_file_size);
+  output_size("Total left data size", d.total_left_data_size);
+  output_size("Total right data size", d.total_right_data_size);
 
   if (!d.differences.empty()) {
     os << "Differences (" << d.differences.size() << "):\n";
