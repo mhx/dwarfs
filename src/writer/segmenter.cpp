@@ -572,11 +572,7 @@ class segment_queue {
         return *this;
       }
 
-      DWARFS_FORCE_INLINE iterator operator++(int) {
-        auto tmp = *this;
-        ++*this;
-        return tmp;
-      }
+      DWARFS_FORCE_INLINE void operator++(int) { ++*this; }
 
       [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
       operator==(iterator const& a, iterator const& b) noexcept {
@@ -593,6 +589,8 @@ class segment_queue {
       file_off_t offset_{0};
       queue_data::lookup_hint hint_;
     };
+
+    static_assert(std::input_or_output_iterator<iterator>);
 
     iterator begin() { return iterator{data_, range_.begin()}; }
 
@@ -635,11 +633,7 @@ class segment_queue {
         return *this;
       }
 
-      iterator operator++(int) {
-        auto tmp = *this;
-        ++*this;
-        return tmp;
-      }
+      void operator++(int) { ++*this; }
 
       [[maybe_unused]] friend bool
       operator==(iterator const& a, std::default_sentinel_t) noexcept {
@@ -676,6 +670,8 @@ class segment_queue {
       file_off_t cur_{0};
       file_off_t end_{0};
     };
+
+    static_assert(std::input_or_output_iterator<iterator>);
 
     span_range_iterable(queue_data* d, file_range range)
         : data_{d}
