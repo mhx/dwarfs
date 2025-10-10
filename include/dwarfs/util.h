@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <iosfwd>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -83,6 +84,20 @@ void ensure_binary_mode(std::ostream& os);
 
 std::string exception_str(std::exception const& e);
 std::string exception_str(std::exception_ptr const& e);
+
+std::string hexdump(void const* data, size_t size);
+
+template <typename T>
+std::string hexdump(std::span<T const> data) {
+  return hexdump(data.data(), data.size_bytes());
+}
+
+template <std::ranges::contiguous_range R>
+  requires std::ranges::sized_range<R>
+std::string hexdump(R const& r) {
+  using T = std::ranges::range_value_t<R>;
+  return hexdump(std::span<T const>(std::data(r), std::size(r)));
+}
 
 unsigned int hardware_concurrency() noexcept;
 

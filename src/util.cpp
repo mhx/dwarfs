@@ -451,6 +451,10 @@ std::string exception_str(std::exception_ptr const& e) {
 #endif
 }
 
+std::string hexdump(void const* data, size_t size) {
+  return folly::hexDump(data, size);
+}
+
 unsigned int hardware_concurrency() noexcept {
   static auto const env = [] {
     std::optional<int> concurrency;
