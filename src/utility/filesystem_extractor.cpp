@@ -408,9 +408,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     });
   }
 
-  // Workaround for weird MSVC bug...
-  using struct_stat = struct stat;
-
   fs.walk_data_order([&](auto const& entry) {
     // TODO: we can surely early abort walk() somehow
     if (entry.is_root() || hard_error) {
@@ -438,22 +435,26 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     }
 
     auto ae = ::archive_entry_new();
-    auto stbuf = fs.getattr(inode);
-
-    struct_stat st{};
-
-#ifdef _WIN32
-    stbuf.copy_to_without_block_info(&st);
-#else
-    stbuf.copy_to(&st);
-#endif
+    auto stat = fs.getattr(inode);
 
 #ifdef _WIN32
     ::archive_entry_copy_pathname_w(ae, entry.wpath().c_str());
 #else
     ::archive_entry_copy_pathname(ae, entry.path().c_str());
 #endif
-    ::archive_entry_copy_stat(ae, &st);
+
+    ::archive_entry_set_atime(ae, stat.atime(), 0);
+    ::archive_entry_set_ctime(ae, stat.ctime(), 0);
+    ::archive_entry_set_mtime(ae, stat.mtime(), 0);
+    ::archive_entry_unset_birthtime(ae);
+    ::archive_entry_set_dev(ae, stat.dev());
+    ::archive_entry_set_gid(ae, stat.gid());
+    ::archive_entry_set_uid(ae, stat.uid());
+    ::archive_entry_set_ino(ae, stat.ino());
+    ::archive_entry_set_nlink(ae, stat.nlink());
+    ::archive_entry_set_rdev(ae, stat.rdev());
+    ::archive_entry_set_size(ae, stat.size());
+    ::archive_entry_set_mode(ae, stat.mode());
 
     if (inode.is_symlink()) {
       std::error_code ec;
