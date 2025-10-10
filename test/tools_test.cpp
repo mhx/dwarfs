@@ -2543,6 +2543,11 @@ TEST_F(sparse_files_test, random_large_files) {
 }
 
 TEST_F(sparse_files_test, random_small_files_tarball) {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
   auto const tarbin = dwarfs::test::find_binary("tar");
 
   if (!tarbin) {
@@ -2553,11 +2558,6 @@ TEST_F(sparse_files_test, random_small_files_tarball) {
     GTEST_SKIP() << "tar does not support sparse files";
   }
 
-#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  GTEST_SKIP() << "filesystem_extractor format support disabled";
-#elif defined(_WIN32)
-  GTEST_SKIP() << "skipping tarball tests on Windows";
-#else
   static constexpr size_t kNumFiles{20};
   rng.seed(42);
   auto const info = create_random_sparse_files(input, kNumFiles, {});
@@ -2688,6 +2688,11 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
 }
 
 TEST_F(sparse_files_test, huge_holes_tar) {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
   auto const tarbin = dwarfs::test::find_binary("tar");
 
   if (!tarbin) {
@@ -2697,12 +2702,6 @@ TEST_F(sparse_files_test, huge_holes_tar) {
   if (!tar_supports_sparse(*tarbin)) {
     GTEST_SKIP() << "tar does not support sparse files";
   }
-
-#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  GTEST_SKIP() << "filesystem_extractor format support disabled";
-#elif defined(_WIN32)
-  GTEST_SKIP() << "skipping tarball tests on Windows";
-#else
 
   ASSERT_NO_THROW(fs::create_directory(input));
 
