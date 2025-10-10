@@ -69,27 +69,11 @@ class file_extents_iterable {
       return tmp;
     }
 
-    friend bool operator==(iterator const& a, iterator const& b) noexcept {
-      return a.fv_ == b.fv_ && a.it_ == b.it_;
-    }
-
-    friend bool operator!=(iterator const& a, iterator const& b) noexcept {
-      return !(a == b);
-    }
-
     friend bool operator==(iterator const& a, std::default_sentinel_t) {
       return a.it_ == a.extents_.end();
     }
 
-    friend bool operator==(std::default_sentinel_t s, iterator const& a) {
-      return a == s;
-    }
-
     friend bool operator!=(iterator const& a, std::default_sentinel_t s) {
-      return !(a == s);
-    }
-
-    friend bool operator!=(std::default_sentinel_t s, iterator const& a) {
       return !(a == s);
     }
 
