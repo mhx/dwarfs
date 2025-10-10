@@ -84,21 +84,8 @@ class scoped_lease {
   scoped_lease(scoped_lease const&) = delete;
   scoped_lease& operator=(scoped_lease const&) = delete;
 
-  scoped_lease(scoped_lease&& other) noexcept
-      : sem_{other.sem_}
-      , n_{other.n_} {
-    other.n_ = 0;
-  }
-
-  scoped_lease& operator=(scoped_lease&& other) noexcept {
-    if (this != &other) {
-      sem_->post(n_);
-      sem_ = other.sem_;
-      n_ = other.n_;
-      other.n_ = 0;
-    }
-    return *this;
-  }
+  scoped_lease(scoped_lease&& other) noexcept = delete;
+  scoped_lease& operator=(scoped_lease&& other) noexcept = delete;
 
  private:
   counting_semaphore* sem_{nullptr};
