@@ -1302,6 +1302,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     info["created_on"] = fmt::format("{:%FT%T}", safe_localtime(ts.value()));
   }
 
+  if (auto features = meta_.features(); features) {
+    info["features"] = *features;
+  }
+
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
     info["block_size"] = meta_.block_size();
     if (fsinfo) {
@@ -1473,6 +1477,10 @@ void metadata_v2_data::dump(
   if (auto ts = meta_.create_timestamp()) {
     os << "created on: " << fmt::format("{:%F %T}", safe_localtime(*ts))
        << "\n";
+  }
+
+  if (auto features = meta_.features(); features && !features->empty()) {
+    os << "features: " << fmt::format("{}", fmt::join(*features, ", ")) << "\n";
   }
 
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
