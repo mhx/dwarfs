@@ -2162,18 +2162,27 @@ class sparse_files_test : public ::testing::Test {
 
   void SetUp() override {
     td.emplace();
+
+    input = td->path() / "input";
+
     granularity =
         dwarfs::test::sparse_file_builder::hole_granularity(td->path());
 
     if (!granularity) {
       GTEST_SKIP() << "filesystem does not support sparse files";
     }
+
+    std::cerr << "granularity: " << dwarfs::size_with_unit(granularity.value())
+              << "\n";
   }
 
-  void TearDown() override { td.reset(); }
+  void TearDown() override {
+    td.reset();
+    input.clear();
+  }
 
   template <std::integral T>
-  T align_up(T value) {
+  T align_up(T value) const {
     auto const gran = static_cast<T>(granularity.value());
     return ((value + gran - 1) / gran) * gran;
   }
@@ -2269,7 +2278,67 @@ class sparse_files_test : public ::testing::Test {
       info.total.total_size += file_info.size.total_size;
       info.total.data_size += file_info.size.data_size;
     }
+    std::cerr << info;
     return info;
+  }
+
+  bool build_image(fs::path const& image) const {
+    bool const rv = subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin,
+                                          "-i", input.string(), "-o",
+                                          image.string(), "--categorize", "-l4")
+                        .has_value();
+    if (rv) {
+      std::cerr << "Created image: " << image << " ("
+                << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
+    }
+    return rv;
+  }
+
+  std::optional<nlohmann::json> get_fsinfo(fs::path const& image) const {
+    auto const out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                           image.string(), "-j", "-d3");
+
+    if (out) {
+      auto fsinfo = nlohmann::json::parse(*out);
+      std::cerr << "Ran dwarfsck:\n" << fsinfo.dump(2) << "\n";
+      return fsinfo;
+    }
+
+    return std::nullopt;
+  }
+
+  bool extract_to_dir(fs::path const& image, fs::path const& dir) const {
+    std::error_code ec;
+    if (fs::exists(dir, ec)) {
+      fs::remove_all(dir, ec);
+      if (ec) {
+        std::cerr << "Failed to remove existing directory " << dir << ": "
+                  << ec.message() << "\n";
+        return false;
+      }
+    }
+    fs::create_directory(dir, ec);
+    if (ec) {
+      std::cerr << "Failed to create directory " << dir << ": " << ec.message()
+                << "\n";
+      return false;
+    }
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                                 image.string(), "-o", dir.string())
+        .has_value();
+  }
+
+  bool extract_to_format(fs::path const& image, std::string_view format,
+                         fs::path const& output) const {
+    bool const rv = subprocess::check_run(
+                        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", output.string(), "-f", format)
+                        .has_value();
+    if (rv) {
+      std::cerr << "Created " << format << " tarball: " << output << " ("
+                << dwarfs::size_with_unit(fs::file_size(output)) << ")\n";
+    }
+    return rv;
   }
 
   friend std::ostream&
@@ -2292,7 +2361,7 @@ class sparse_files_test : public ::testing::Test {
   }
 
 #ifndef _WIN32
-  bool tar_supports_sparse(fs::path const& tarbin) {
+  bool tar_supports_sparse(fs::path const& tarbin) const {
     dwarfs::temporary_directory td("dwarfs-tar");
     auto const tarball = test_dir / "sparse.tar";
 
@@ -2328,20 +2397,22 @@ class sparse_files_test : public ::testing::Test {
   }
 #endif
 
-  bool fuse_supports_sparse(fs::path const& mountpoint, sparse_info const& si) {
-    dwarfs::os_access_generic const os;
+  size_t get_extent_count(fs::path const& file) const {
+    return os.open_file(file).extents().size();
+  }
 
+  bool fuse_supports_sparse(fs::path const& mountpoint,
+                            sparse_info const& si) const {
     for (auto const& sfi : si.files) {
       if (sfi.extent_count > 1) {
         auto const path = mountpoint / sfi.path.filename();
-        auto f = os.open_file(path);
-        auto ext = f.extents();
-        if (ext.size() > 1) {
+        auto const extent_count = get_extent_count(path);
+        if (extent_count > 1) {
           std::cerr << "FUSE driver supports sparse files\n";
           return true;
         }
         std::cerr << "File " << path << ": expected " << sfi.extent_count
-                  << " extents, but got " << ext.size() << "\n";
+                  << " extents, but got " << extent_count << "\n";
       }
     }
 
@@ -2352,12 +2423,13 @@ class sparse_files_test : public ::testing::Test {
 
   std::mt19937_64 rng;
   std::optional<dwarfs::temporary_directory> td;
+  fs::path input;
   std::optional<size_t> granularity;
+  dwarfs::os_access_generic os;
 };
 
 TEST_F(sparse_files_test, random_large_files) {
   static constexpr size_t kNumFiles{20};
-  auto const input = td->path() / "input";
   rng.seed(42);
   auto const info = create_random_sparse_files(input, kNumFiles,
                                                {
@@ -2366,47 +2438,17 @@ TEST_F(sparse_files_test, random_large_files) {
                                                    .avg_data_size = 25_KiB,
                                                });
 
-  std::cerr << "granularity: " << dwarfs::size_with_unit(granularity.value())
-            << "\n";
-  std::cerr << info;
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
 
-  auto image = td->path() / "sparse.dwarfs";
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
-                        "-o", image.string(), "--categorize", "-l4");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  std::cerr << "Created image: " << image << " ("
-            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
-
-  nlohmann::json fsinfo;
-
-  {
-    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
-                                          image.string(), "-j", "-d3");
-    ASSERT_EQ(0, ec) << out << err;
-    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
-  }
-
-  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
 
   EXPECT_EQ(info.total.total_size,
-            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
-      << fsinfo.dump(2);
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
-  auto extracted = td->path() / "extracted";
-
-  ASSERT_NO_THROW(fs::create_directory(extracted));
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
-                        image.string(), "-o", extracted.string());
-    ASSERT_EQ(0, ec) << out << err;
-  }
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
 
   {
     auto const cdr = compare_directories(input, extracted);
@@ -2421,20 +2463,8 @@ TEST_F(sparse_files_test, random_large_files) {
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
   auto tarball = td->path() / "extracted.tar";
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
-                        image.string(), "-o", tarball.string(), "-f", "pax");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  auto const tarball_size = fs::file_size(tarball);
-
-  std::cerr << "Created tarball: " << tarball << " ("
-            << dwarfs::size_with_unit(tarball_size) << ")\n";
-
-  EXPECT_LT(tarball_size, info.total.data_size * 5)
+  ASSERT_TRUE(extract_to_format(image, "pax", tarball));
+  EXPECT_LT(fs::file_size(tarball), info.total.data_size * 5)
       << "tarball size is not sufficiently small";
 
 #ifndef _WIN32
@@ -2442,10 +2472,8 @@ TEST_F(sparse_files_test, random_large_files) {
       tarbin && tar_supports_sparse(*tarbin)) {
     ASSERT_NO_THROW(fs::create_directory(extracted));
 
-    auto [out, err, ec] = subprocess::run(*tarbin, "-xSf", tarball.string(),
-                                          "-C", extracted.string());
-
-    ASSERT_EQ(0, ec) << out << err;
+    ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", tarball.string(), "-C",
+                                      extracted.string()));
 
     auto const cdr = compare_directories(input, extracted);
 
@@ -2460,7 +2488,7 @@ TEST_F(sparse_files_test, random_large_files) {
 #ifdef DWARFS_WITH_FUSE_DRIVER
   if (!skip_fuse_tests()) {
     std::chrono::seconds const timeout{5};
-    auto mountpoint = td->path() / "mnt";
+    auto const mountpoint = td->path() / "mnt";
 
     fs::create_directory(mountpoint);
 
@@ -2531,49 +2559,20 @@ TEST_F(sparse_files_test, random_small_files_tarball) {
   GTEST_SKIP() << "skipping tarball tests on Windows";
 #else
   static constexpr size_t kNumFiles{20};
-  auto const input = td->path() / "input";
   rng.seed(42);
   auto const info = create_random_sparse_files(input, kNumFiles, {});
 
-  std::cerr << info;
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
 
-  auto image = td->path() / "sparse.dwarfs";
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
-                        "-o", image.string(), "--categorize", "-l4");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  std::cerr << "Created image: " << image << " ("
-            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
-
-  nlohmann::json fsinfo;
-
-  {
-    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
-                                          image.string(), "-j", "-d3");
-    ASSERT_EQ(0, ec) << out << err;
-    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
-  }
-
-  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
 
   EXPECT_EQ(info.total.total_size,
-            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
-      << fsinfo.dump(2);
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
-  auto extracted = td->path() / "extracted";
-
-  ASSERT_NO_THROW(fs::create_directory(extracted));
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
-                        image.string(), "-o", extracted.string());
-    ASSERT_EQ(0, ec) << out << err;
-  }
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
 
   {
     auto const cdr = compare_directories(input, extracted);
@@ -2587,42 +2586,19 @@ TEST_F(sparse_files_test, random_small_files_tarball) {
   ASSERT_NO_THROW(fs::remove_all(extracted));
 
   auto pax_tarball = td->path() / "extracted_pax.tar";
+  ASSERT_TRUE(extract_to_format(image, "pax", pax_tarball));
+
   auto ustar_tarball = td->path() / "extracted_ustar.tar";
+  ASSERT_TRUE(extract_to_format(image, "ustar", ustar_tarball));
 
-  {
-    auto [out, err, ec] = subprocess::run(
-        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i", image.string(), "-o",
-        pax_tarball.string(), "-f", "pax");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  auto const pax_tarball_size = fs::file_size(pax_tarball);
-
-  std::cerr << "Created pax tarball: " << pax_tarball << " ("
-            << dwarfs::size_with_unit(pax_tarball_size) << ")\n";
-
-  {
-    auto [out, err, ec] = subprocess::run(
-        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i", image.string(), "-o",
-        ustar_tarball.string(), "-f", "ustar");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  auto const ustar_tarball_size = fs::file_size(ustar_tarball);
-
-  std::cerr << "Created ustar tarball: " << ustar_tarball << " ("
-            << dwarfs::size_with_unit(ustar_tarball_size) << ")\n";
+  EXPECT_LT(fs::file_size(pax_tarball), fs::file_size(ustar_tarball));
 
   ASSERT_NO_THROW(fs::create_directory(extracted));
 
-  EXPECT_LT(pax_tarball_size, ustar_tarball_size);
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", pax_tarball.string(), "-C",
+                                    extracted.string()));
 
   {
-    auto [out, err, ec] = subprocess::run(*tarbin, "-xSf", pax_tarball.string(),
-                                          "-C", extracted.string());
-
-    ASSERT_EQ(0, ec) << out << err;
-
     auto const cdr = compare_directories(input, extracted);
 
     std::cerr << "Compare pax extracted files:\n" << cdr;
@@ -2634,12 +2610,10 @@ TEST_F(sparse_files_test, random_small_files_tarball) {
   ASSERT_NO_THROW(fs::remove_all(extracted));
   ASSERT_NO_THROW(fs::create_directory(extracted));
 
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xf", ustar_tarball.string(),
+                                    "-C", extracted.string()));
+
   {
-    auto [out, err, ec] = subprocess::run(
-        *tarbin, "-xf", ustar_tarball.string(), "-C", extracted.string());
-
-    ASSERT_EQ(0, ec) << out << err;
-
     auto const cdr = compare_directories(input, extracted);
 
     std::cerr << "Compare ustar extracted files:\n" << cdr;
@@ -2659,43 +2633,22 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
   }
 
   static constexpr size_t kNumFiles{30};
-  auto const input = td->path() / "input";
   rng.seed(43);
   auto const info = create_random_sparse_files(input, kNumFiles, {});
 
-  std::cerr << info;
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
 
-  auto image = td->path() / "sparse.dwarfs";
-
-  {
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
-                        "-o", image.string(), "--categorize", "-l4");
-    ASSERT_EQ(0, ec) << out << err;
-  }
-
-  std::cerr << "Created image: " << image << " ("
-            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
-
-  nlohmann::json fsinfo;
-
-  {
-    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
-                                          image.string(), "-j", "-d3");
-    ASSERT_EQ(0, ec) << out << err;
-    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
-  }
-
-  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
 
   EXPECT_EQ(info.total.total_size,
-            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
-      << fsinfo.dump(2);
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
   std::chrono::seconds const timeout{5};
-  auto mountpoint = td->path() / "mnt";
+  auto const mountpoint = td->path() / "mnt";
 
-  fs::create_directory(mountpoint);
+  ASSERT_NO_THROW(fs::create_directory(mountpoint));
 
   std::vector<fs::path> drivers;
 
