@@ -2283,9 +2283,11 @@ class sparse_files_test : public ::testing::Test {
   }
 
   bool build_image(fs::path const& image) const {
-    bool const rv = subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin,
-                                          "-i", input.string(), "-o",
-                                          image.string(), "--categorize", "-l4")
+    // Use *really* small blocks, so we can be sure to trigger the
+    // `large_hole_size` code paths.
+    bool const rv = subprocess::check_run(
+                        DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4", "-S14")
                         .has_value();
     if (rv) {
       std::cerr << "Created image: " << image << " ("
