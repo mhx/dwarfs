@@ -2139,9 +2139,9 @@ TEST_P(tools_test, fusermount_check) {
 class sparse_files_test : public ::testing::Test {
  protected:
   struct config {
-    double avg_extent_count{100.0};
-    double avg_hole_size{10_MiB};
-    double avg_data_size{10_KiB};
+    double avg_extent_count{10};
+    double avg_hole_size{256_KiB};
+    double avg_data_size{25_KiB};
   };
 
   struct sparse_size_info {
@@ -2419,7 +2419,7 @@ TEST_F(sparse_files_test, random_large_files) {
 
   ASSERT_NO_THROW(fs::remove_all(extracted));
 
-#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
   auto tarball = td->path() / "extracted.tar";
 
   {
@@ -2510,6 +2510,226 @@ TEST_F(sparse_files_test, random_large_files) {
 
       EXPECT_TRUE(runner.unmount()) << runner.cmdline();
     }
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, random_small_files_tarball) {
+  auto const tarbin = dwarfs::test::find_binary("tar");
+
+  if (!tarbin) {
+    GTEST_SKIP() << "tar binary not found";
+  }
+
+  if (!tar_supports_sparse(*tarbin)) {
+    GTEST_SKIP() << "tar does not support sparse files";
+  }
+
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
+  static constexpr size_t kNumFiles{20};
+  auto const input = td->path() / "input";
+  rng.seed(42);
+  auto const info = create_random_sparse_files(input, kNumFiles, {});
+
+  std::cerr << info;
+
+  auto image = td->path() / "sparse.dwarfs";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  std::cerr << "Created image: " << image << " ("
+            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
+
+  nlohmann::json fsinfo;
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-j", "-d3");
+    ASSERT_EQ(0, ec) << out << err;
+    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
+  }
+
+  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+
+  EXPECT_EQ(info.total.total_size,
+            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
+      << fsinfo.dump(2);
+
+  auto extracted = td->path() / "extracted";
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", extracted.string());
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+  auto pax_tarball = td->path() / "extracted_pax.tar";
+  auto ustar_tarball = td->path() / "extracted_ustar.tar";
+
+  {
+    auto [out, err, ec] = subprocess::run(
+        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i", image.string(), "-o",
+        pax_tarball.string(), "-f", "pax");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  auto const pax_tarball_size = fs::file_size(pax_tarball);
+
+  std::cerr << "Created pax tarball: " << pax_tarball << " ("
+            << dwarfs::size_with_unit(pax_tarball_size) << ")\n";
+
+  {
+    auto [out, err, ec] = subprocess::run(
+        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i", image.string(), "-o",
+        ustar_tarball.string(), "-f", "ustar");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  auto const ustar_tarball_size = fs::file_size(ustar_tarball);
+
+  std::cerr << "Created ustar tarball: " << ustar_tarball << " ("
+            << dwarfs::size_with_unit(ustar_tarball_size) << ")\n";
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  EXPECT_LT(pax_tarball_size, ustar_tarball_size);
+
+  {
+    auto [out, err, ec] = subprocess::run(*tarbin, "-xSf", pax_tarball.string(),
+                                          "-C", extracted.string());
+
+    ASSERT_EQ(0, ec) << out << err;
+
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare pax extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  {
+    auto [out, err, ec] = subprocess::run(
+        *tarbin, "-xf", ustar_tarball.string(), "-C", extracted.string());
+
+    ASSERT_EQ(0, ec) << out << err;
+
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare ustar extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, random_small_files_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  static constexpr size_t kNumFiles{30};
+  auto const input = td->path() / "input";
+  rng.seed(43);
+  auto const info = create_random_sparse_files(input, kNumFiles, {});
+
+  std::cerr << info;
+
+  auto image = td->path() / "sparse.dwarfs";
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4");
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  std::cerr << "Created image: " << image << " ("
+            << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
+
+  nlohmann::json fsinfo;
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-j", "-d3");
+    ASSERT_EQ(0, ec) << out << err;
+    ASSERT_NO_THROW(fsinfo = nlohmann::json::parse(out)) << out << err;
+  }
+
+  std::cerr << "Ran dwarfsck\n" << fsinfo.dump(2) << "\n";
+
+  EXPECT_EQ(info.total.total_size,
+            fsinfo["original_filesystem_size"].get<dwarfs::file_size_t>())
+      << fsinfo.dump(2);
+
+  std::chrono::seconds const timeout{5};
+  auto mountpoint = td->path() / "mnt";
+
+  fs::create_directory(mountpoint);
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+        << runner.cmdline();
+
+    auto const cdr = compare_directories(input, mountpoint);
+
+    std::cerr << "Compare FUSE mounted files for " << driver_bin.filename()
+              << ":\n"
+              << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+        << runner.cmdline() << ": " << cdr;
+
+    for (auto const& file : info.files) {
+      auto const p = mountpoint / file.path.filename();
+      dwarfs::file_stat stat(p);
+
+      EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 #endif
 }
