@@ -297,6 +297,9 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
                                            size_t const maxiov,
                                            chunk_range chunks,
                                            std::error_code& ec) const {
+  LOG_TRACE << "read_internal(" << inode << ", " << size << ", " << read_offset
+            << ", " << maxiov << ")";
+
   std::vector<std::future<block_range>> ranges;
 
   auto offset = read_offset;
@@ -350,6 +353,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   }
 
   if (it == end) {
+    LOG_TRACE << "read_internal: reached end of file";
+
     // Offset behind end of file. This is exactly how lseek(2) and read(2)
     // behave when seeking behind the end of the file and reading past EOF.
     ec.clear();
@@ -374,6 +379,9 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
       assert(std::cmp_less_equal(copyoff, std::numeric_limits<size_t>::max()));
       assert(std::cmp_less_equal(copysize, std::numeric_limits<size_t>::max()));
 
+      LOG_TRACE << "read_internal: adding data chunk (block=" << it->block()
+                << ", offset=" << copyoff << ", size=" << copysize << ")";
+
       ranges.emplace_back(cache_.get(it->block(), copyoff, copysize));
 
       num_read += copysize;
@@ -383,6 +391,9 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
       while (copysize > 0) {
         auto const hole_range_size =
             std::min<size_t>(copysize, hole_span.size());
+
+        LOG_TRACE << "read_internal: adding hole chunk (size="
+                  << hole_range_size << ")";
 
         ranges.emplace_back(make_ready_future(
             block_range(hole_span.subspan(0, hole_range_size))));
