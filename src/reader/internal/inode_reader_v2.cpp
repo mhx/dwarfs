@@ -339,9 +339,9 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
 
   // search for the first chunk that contains data from this request
   while (it < end) {
-    size_t chunksize = it->size();
+    auto const chunksize = it->size();
 
-    if (std::cmp_less(offset, chunksize)) {
+    if (offset < chunksize) {
       break;
     }
 
