@@ -68,10 +68,6 @@ class file_view {
     return file_segments_iterable{impl_, range, max_segment_size, overlap_size};
   }
 
-  file_segments_iterable segments() const {
-    return segments({0, this->size()});
-  }
-
   file_extents_iterable extents() const { return impl_->extents(std::nullopt); }
 
   file_extents_iterable extents(file_range range) const {
@@ -83,14 +79,6 @@ class file_view {
   }
 
   std::span<std::byte const> raw_bytes() const { return impl_->raw_bytes(); }
-
-  std::span<std::byte const> raw_bytes(file_off_t offset) const {
-    return raw_bytes().subspan(offset);
-  }
-
-  std::span<std::byte const> raw_bytes(file_off_t offset, size_t size) const {
-    return raw_bytes().subspan(offset, size);
-  }
 
   template <typename T>
     requires(sizeof(T) == 1 && std::is_fundamental_v<T>)
