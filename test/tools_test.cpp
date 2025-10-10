@@ -2449,6 +2449,12 @@ TEST_F(sparse_files_test, random_large_files) {
   EXPECT_EQ(info.total.total_size,
             (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
+  auto const dump = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-d9");
+  ASSERT_TRUE(dump.has_value());
+  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> HOLE (size="));
+  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> DATA (block="));
+
   auto const extracted = td->path() / "extracted";
   ASSERT_TRUE(extract_to_dir(image, extracted));
 
