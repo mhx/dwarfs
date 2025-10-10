@@ -2686,3 +2686,164 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
   }
 #endif
 }
+
+TEST_F(sparse_files_test, huge_holes_tar) {
+  auto const tarbin = dwarfs::test::find_binary("tar");
+
+  if (!tarbin) {
+    GTEST_SKIP() << "tar binary not found";
+  }
+
+  if (!tar_supports_sparse(*tarbin)) {
+    GTEST_SKIP() << "tar does not support sparse files";
+  }
+
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
+
+  ASSERT_NO_THROW(fs::create_directory(input));
+
+  auto const hole_then_data = input / "hole_then_data";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_then_data);
+    sfb.truncate(5_GiB + 16_KiB);
+    sfb.write_data(5_GiB, dwarfs::test::loremipsum(16_KiB));
+    sfb.punch_hole(0, 5_GiB);
+    sfb.commit();
+  }
+
+  auto const hole_only = input / "hole_only";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_only);
+    sfb.truncate(4100_MiB);
+    sfb.punch_hole(0, 4100_MiB);
+    sfb.commit();
+  }
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(5_GiB + 16_KiB + 4100_MiB,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 2) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+  auto tarball = td->path() / "extracted.tar";
+  ASSERT_TRUE(extract_to_format(image, "pax", tarball));
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", tarball.string(), "-C",
+                                    extracted.string()));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 2) << cdr;
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, huge_holes_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  ASSERT_NO_THROW(fs::create_directory(input));
+
+  auto const hole_then_data = input / "hole_then_data";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_then_data);
+    sfb.truncate(5_GiB + 16_KiB);
+    sfb.write_data(5_GiB, dwarfs::test::loremipsum(16_KiB));
+    sfb.punch_hole(0, 5_GiB);
+    sfb.commit();
+  }
+
+  auto const hole_only = input / "hole_only";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_only);
+    sfb.truncate(4100_MiB);
+    sfb.punch_hole(0, 4100_MiB);
+    sfb.commit();
+  }
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(5_GiB + 16_KiB + 4100_MiB,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  std::chrono::seconds const timeout{5};
+  auto const mountpoint = td->path() / "mnt";
+
+  ASSERT_NO_THROW(fs::create_directory(mountpoint));
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "hole_then_data", timeout))
+        << runner.cmdline();
+
+    EXPECT_EQ(fs::file_size(mountpoint / "hole_then_data"), 5_GiB + 16_KiB)
+        << runner.cmdline();
+
+    EXPECT_EQ(fs::file_size(mountpoint / "hole_only"), 4100_MiB)
+        << runner.cmdline();
+
+    if (get_extent_count(mountpoint / "hole_then_data") > 1) {
+      auto const cdr = compare_directories(input, mountpoint);
+
+      std::cerr << "Compare FUSE mounted files for " << driver_bin.filename()
+                << ":\n"
+                << cdr;
+
+      EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), 2)
+          << runner.cmdline() << ": " << cdr;
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
