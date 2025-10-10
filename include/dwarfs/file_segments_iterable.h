@@ -72,32 +72,15 @@ class file_segments_iterable {
       return tmp;
     }
 
-    friend bool operator==(iterator const& a, iterator const& b) noexcept {
-      return equal(a, b);
-    }
-
-    friend bool operator!=(iterator const& a, iterator const& b) noexcept {
-      return !(a == b);
-    }
-
     friend bool operator==(iterator const& a, std::default_sentinel_t) {
       return !a.fv_ || a.at_end_;
-    }
-
-    friend bool operator==(std::default_sentinel_t s, iterator const& a) {
-      return a == s;
     }
 
     friend bool operator!=(iterator const& a, std::default_sentinel_t s) {
       return !(a == s);
     }
 
-    friend bool operator!=(std::default_sentinel_t s, iterator const& a) {
-      return !(a == s);
-    }
-
    private:
-    static bool equal(iterator const& a, iterator const& b) noexcept;
     void advance();
 
     std::shared_ptr<detail::file_view_impl const> fv_;

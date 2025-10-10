@@ -78,11 +78,4 @@ void file_segments_iterable::iterator::advance() {
   }
 }
 
-bool file_segments_iterable::iterator::equal(iterator const& a,
-                                             iterator const& b) noexcept {
-  return a.fv_.get() == b.fv_.get() && a.range_ == b.range_ &&
-         a.offset_ == b.offset_ && a.max_bytes_ == b.max_bytes_ &&
-         a.at_end_ == b.at_end_;
-}
-
 } // namespace dwarfs
