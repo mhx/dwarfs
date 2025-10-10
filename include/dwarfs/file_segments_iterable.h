@@ -117,8 +117,6 @@ class file_segments_iterable {
 
   std::default_sentinel_t end() const noexcept { return {}; }
 
-  file_range const& range() const noexcept { return range_; }
-
  private:
   std::shared_ptr<detail::file_view_impl const> fv_;
   file_range const range_;

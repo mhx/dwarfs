@@ -488,8 +488,6 @@ class segment_queue {
 
     using lookup_hint = std::optional<versioned_iterator>;
 
-    file_range range() const { return segments_.range(); }
-
     std::span<std::byte const> span(file_off_t offset) {
       auto it = find_segment(offset);
       return it->bytes.subspan(offset - it->range.offset());
@@ -699,16 +697,8 @@ class segment_queue {
     return byte_range_iterable{data_.get(), range};
   }
 
-  byte_range_iterable byte_range() {
-    return byte_range_iterable{data_.get(), data_->range()};
-  }
-
   span_range_iterable span_range(file_range range) {
     return span_range_iterable{data_.get(), range};
-  }
-
-  span_range_iterable span_range() {
-    return span_range_iterable{data_.get(), data_->range()};
   }
 
   void release_until(file_off_t offset) { data_->release_until(offset); }
