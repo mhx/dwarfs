@@ -66,4 +66,8 @@ feature_set::get_unsupported(std::set<std::string> const& wanted_features) {
   return missing;
 }
 
+void feature_set::set(std::set<std::string> const& features) {
+  features_ = features;
+}
+
 } // namespace dwarfs::internal

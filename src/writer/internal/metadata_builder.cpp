@@ -73,6 +73,9 @@ class metadata_builder_ final : public metadata_builder::impl {
       : LOG_PROXY_INIT(lgr)
       , md_{std::forward<T>(md)}
       , options_{options} {
+    if (auto const feat = md_.features()) {
+      features_.set(*feat);
+    }
     upgrade_metadata(orig_fs_options, orig_fs_version);
     update_inodes();
   }

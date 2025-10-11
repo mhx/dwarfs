@@ -43,6 +43,7 @@ class feature_set {
 
   void add(feature f);
 
+  void set(std::set<std::string> const& features);
   std::set<std::string> const& get() const { return features_; }
 
  private:

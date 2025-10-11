@@ -103,4 +103,32 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
                 features.end())
         << info.dump(2);
   }
+
+  auto rebuild_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    auto dev = fs.find("/sparse");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
+    EXPECT_TRUE(iv.is_regular_file());
+    auto stat = fs.getattr(iv);
+    EXPECT_EQ(40'000, stat.size());
+    EXPECT_EQ(20'000, stat.allocated_size());
+
+    auto const info = fs.info_as_json({});
+    auto const& features = info["features"];
+    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
+                features.end())
+        << info.dump(2);
+  }
 }
