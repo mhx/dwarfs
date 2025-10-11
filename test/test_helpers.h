@@ -51,6 +51,8 @@
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_interface.h>
 
+#include "test_file_data.h"
+
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #define DWARFS_TEST_RUNNING_ON_ASAN 1
@@ -88,7 +90,8 @@ class os_access_mock : public os_access {
 
  public:
   using value_variant_type =
-      std::variant<std::monostate, std::string, std::function<std::string()>,
+      std::variant<std::monostate, std::string, test_file_data,
+                   std::function<std::string()>,
                    std::unique_ptr<mock_directory>>;
 
   using executable_resolver_type =
@@ -109,12 +112,15 @@ class os_access_mock : public os_access {
   void add(std::filesystem::path const& path, simplestat const& st,
            std::string const& contents);
   void add(std::filesystem::path const& path, simplestat const& st,
+           test_file_data data);
+  void add(std::filesystem::path const& path, simplestat const& st,
            std::function<std::string()> generator);
 
   void add_dir(std::filesystem::path const& path);
   void add_file(std::filesystem::path const& path, file_size_t size,
                 bool random = false);
   void add_file(std::filesystem::path const& path, std::string const& contents);
+  void add_file(std::filesystem::path const& path, test_file_data data);
 
   void add_local_files(std::filesystem::path const& path);
 
