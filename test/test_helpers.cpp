@@ -261,6 +261,11 @@ void os_access_mock::add(fs::path const& path, simplestat const& st,
 }
 
 void os_access_mock::add(fs::path const& path, simplestat const& st,
+                         test_file_data data) {
+  add_internal(path, st, std::move(data));
+}
+
+void os_access_mock::add(fs::path const& path, simplestat const& st,
                          std::function<std::string()> generator) {
   add_internal(path, st, generator);
 }
@@ -324,6 +329,16 @@ void os_access_mock::add_file(fs::path const& path,
   st.gid = 100;
   st.size = contents.size();
   add(path, st, contents);
+}
+
+void os_access_mock::add_file(fs::path const& path, test_file_data data) {
+  simplestat st;
+  st.ino = ino_++;
+  st.mode = posix_file_type::regular | 0644;
+  st.uid = 1000;
+  st.gid = 100;
+  st.size = data.size();
+  add(path, st, data);
 }
 
 void os_access_mock::add_local_files(fs::path const& base_path) {
@@ -474,6 +489,10 @@ file_view os_access_mock::open_file(fs::path const& path) const {
       if (remaining <= 0) {
         std::rethrow_exception(it->second.ep);
       }
+    }
+
+    if (std::holds_alternative<test_file_data>(de->v)) {
+      return make_mock_file_view(std::get<test_file_data>(de->v), path);
     }
 
     auto data = de->v | match{
