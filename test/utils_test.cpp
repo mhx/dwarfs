@@ -468,3 +468,21 @@ TEST(utils, ratio_to_string) {
   EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000));
   EXPECT_EQ("1.78e-12x", ratio_to_string(1.7777, 1'000'000'000'000));
 }
+
+TEST(utils, basename) {
+  using namespace std::string_view_literals;
+  EXPECT_EQ(""sv, dwarfs::basename(""sv));
+  EXPECT_EQ(""sv, dwarfs::basename("/"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("////"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("/foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("///foo"sv));
+  EXPECT_EQ("bar"sv, dwarfs::basename("/foo/bar"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("/foo/bar/"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\\\\\\\"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("\\foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("\\\\foo"sv));
+  EXPECT_EQ("bar"sv, dwarfs::basename("\\foo\\bar"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\foo\\bar\\"sv));
+}
