@@ -32,6 +32,7 @@
 #include <folly/portability/Stdlib.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
 
@@ -485,4 +486,27 @@ TEST(utils, basename) {
   EXPECT_EQ("foo"sv, dwarfs::basename("\\\\foo"sv));
   EXPECT_EQ("bar"sv, dwarfs::basename("\\foo\\bar"sv));
   EXPECT_EQ(""sv, dwarfs::basename("\\foo\\bar\\"sv));
+}
+
+TEST(utils, scoped_env) {
+  using namespace std::string_view_literals;
+
+  {
+    dwarfs::detail::scoped_env env;
+    EXPECT_THAT([&] { env.set("", ""); },
+                ::testing::ThrowsMessage<std::system_error>(
+                    ::testing::HasSubstr("setenv failed")));
+    EXPECT_THAT([&] { env.unset(""); },
+                ::testing::ThrowsMessage<std::system_error>(
+                    ::testing::HasSubstr("unsetenv failed")));
+  }
+
+  ASSERT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
+
+  {
+    dwarfs::detail::scoped_env env("_DWARFS_TEST_SCOPED_ENV_", "something");
+    EXPECT_EQ("something"sv, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
+  }
+
+  EXPECT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
 }
