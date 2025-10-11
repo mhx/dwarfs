@@ -1679,7 +1679,10 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::schema_raw_dump)) {
-    os << ::apache::thrift::debugString(deserialize_schema(schema_)) << '\n';
+    ::apache::thrift::DebugProtocolWriter::Options opts;
+    opts.stringLengthLimit = -1;
+    os << ::apache::thrift::debugString(deserialize_schema(schema_), opts)
+       << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::metadata_details)) {
@@ -1716,7 +1719,9 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
-    os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
+    ::apache::thrift::DebugProtocolWriter::Options opts;
+    opts.stringLengthLimit = -1;
+    os << ::apache::thrift::debugString(meta_.thaw(), opts) << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {
