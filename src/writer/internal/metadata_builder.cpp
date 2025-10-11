@@ -64,23 +64,14 @@ class metadata_builder_ final : public metadata_builder::impl {
       : LOG_PROXY_INIT(lgr)
       , options_{options} {}
 
-  metadata_builder_(logger& lgr, thrift::metadata::metadata const& md,
+  template <typename T>
+    requires(std::same_as<std::decay_t<T>, thrift::metadata::metadata>)
+  metadata_builder_(logger& lgr, T&& md,
                     thrift::metadata::fs_options const* orig_fs_options,
                     filesystem_version const& orig_fs_version,
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
-      , md_{md}
-      , options_{options} {
-    upgrade_metadata(orig_fs_options, orig_fs_version);
-    update_inodes();
-  }
-
-  metadata_builder_(logger& lgr, thrift::metadata::metadata&& md,
-                    thrift::metadata::fs_options const* orig_fs_options,
-                    filesystem_version const& orig_fs_version,
-                    metadata_options const& options)
-      : LOG_PROXY_INIT(lgr)
-      , md_{std::move(md)}
+      , md_{std::forward<T>(md)}
       , options_{options} {
     upgrade_metadata(orig_fs_options, orig_fs_version);
     update_inodes();
