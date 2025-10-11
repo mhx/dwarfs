@@ -30,6 +30,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_range_utils.h>
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/util.h>
 
 #include "compare_directories.h"
@@ -39,6 +40,23 @@ namespace dwarfs::test {
 namespace {
 
 namespace fs = std::filesystem;
+using namespace std::string_view_literals;
+
+constexpr sorted_array_map file_type_name{
+    std::pair{fs::file_type::none, "none"sv},
+    std::pair{fs::file_type::not_found, "not_found"sv},
+    std::pair{fs::file_type::regular, "regular"sv},
+    std::pair{fs::file_type::directory, "directory"sv},
+#ifdef _WIN32
+    std::pair{fs::file_type::junction, "junction"sv},
+#endif
+    std::pair{fs::file_type::symlink, "symlink"sv},
+    std::pair{fs::file_type::block, "block"sv},
+    std::pair{fs::file_type::character, "character"sv},
+    std::pair{fs::file_type::fifo, "fifo"sv},
+    std::pair{fs::file_type::socket, "socket"sv},
+    std::pair{fs::file_type::unknown, "unknown"sv},
+};
 
 bool is_directory(fs::file_type ft) {
   return ft == fs::file_type::directory
@@ -48,117 +66,9 @@ bool is_directory(fs::file_type ft) {
       ;
 }
 
-void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed,
-                   bool strict_extents = false) {
-  static os_access_generic const os;
-  auto& out = ed.ranges;
-
-  auto fa = os.open_file(a);
-  auto fb = os.open_file(b);
-
-  assert(fa.size() == fb.size());
-
-  auto ext_a = fa.extents();
-  auto ext_b = fb.extents();
-
-  auto get_ranges = [](auto const& exts, extent_kind kind) {
-    std::vector<file_range> holes;
-
-    for (auto const& e : exts) {
-      if (e.kind() == kind) {
-        holes.push_back(e.range());
-      }
-    }
-
-    return holes;
-  };
-
-  auto copy_extents = [](auto const& src, auto& dest) {
-    for (auto const& e : src) {
-      dest.emplace_back(e.kind(), e.range());
-    }
-  };
-
-  auto get_data_size = [](auto const& exts) {
-    file_size_t size = 0;
-    for (auto const& e : exts) {
-      if (e.kind() == extent_kind::data) {
-        size += e.range().size();
-      }
-    }
-    return size;
-  };
-
-  copy_extents(ext_a, ed.left_extents);
-  copy_extents(ext_b, ed.right_extents);
-
-  ed.left_data_size = get_data_size(ext_a);
-  ed.right_data_size = get_data_size(ext_b);
-
-  auto const holes_a = get_ranges(ext_a, extent_kind::hole);
-  auto const holes_b = get_ranges(ext_b, extent_kind::hole);
-
-  if (strict_extents && holes_a != holes_b) {
-    // extents differ; report entire file as mismatched in strict mode
-    out.emplace_back(file_range{0, fa.size()});
-    return;
-  }
-
-  auto const hole_ranges = intersect_ranges(holes_a, holes_b);
-  auto const data_ranges = complement_ranges(hole_ranges, fa.size());
-
-  for (auto const& r : data_ranges) {
-    auto seg_a = fa.segment_at(r);
-    auto seg_b = fb.segment_at(r);
-
-    auto sa = seg_a.span();
-    auto sb = seg_b.span();
-
-    if (std::memcmp(sa.data(), sb.data(), sa.size()) != 0) {
-      auto const start =
-          std::mismatch(sa.begin(), sa.end(), sb.begin()).first - sa.begin();
-      auto const end =
-          sa.size() -
-          (std::mismatch(sa.rbegin(), sa.rend(), sb.rbegin()).first -
-           sa.rbegin());
-      auto const len = end - start;
-      auto const snippet_len = std::min<size_t>(len, 64);
-      out.emplace_back(r.subrange(start, len), sa.subspan(start, snippet_len),
-                       sb.subspan(start, snippet_len));
-    }
-
-    ed.total_compared_bytes += r.size();
-  }
-}
-
 std::string_view to_string(fs::file_type ft) {
-  switch (ft) {
-  case fs::file_type::none:
-    return "none";
-  case fs::file_type::not_found:
-    return "not_found";
-  case fs::file_type::regular:
-    return "regular";
-  case fs::file_type::directory:
-    return "directory";
-#ifdef _WIN32
-  case fs::file_type::junction:
-    return "junction";
-#endif
-  case fs::file_type::symlink:
-    return "symlink";
-  case fs::file_type::block:
-    return "block";
-  case fs::file_type::character:
-    return "character";
-  case fs::file_type::fifo:
-    return "fifo";
-  case fs::file_type::socket:
-    return "socket";
-  case fs::file_type::unknown:
-    return "unknown";
-  default:
-    break;
+  if (auto const it = file_type_name.find(ft); it != file_type_name.end()) {
+    return it->second;
   }
   return "invalid";
 }
@@ -317,7 +227,7 @@ void compare_dirs_impl(fs::path const& left_root, fs::path const& right_root,
       entry_diff ed;
 
       if (lsize > 0) {
-        compare_files(lp, rp, ed);
+        test::detail::compare_files(lp, rp, ed);
       }
 
       if (!ed.ranges.empty()) {
@@ -339,6 +249,93 @@ void compare_dirs_impl(fs::path const& left_root, fs::path const& right_root,
 }
 
 } // namespace
+
+namespace detail {
+
+void compare_files(fs::path const& a, fs::path const& b, entry_diff& ed,
+                   bool strict_extents) {
+  static os_access_generic const os;
+  auto& out = ed.ranges;
+
+  auto fa = os.open_file(a);
+  auto fb = os.open_file(b);
+
+  assert(fa.size() == fb.size());
+
+  auto ext_a = fa.extents();
+  auto ext_b = fb.extents();
+
+  auto get_ranges = [](auto const& exts, extent_kind kind) {
+    std::vector<file_range> holes;
+
+    for (auto const& e : exts) {
+      if (e.kind() == kind) {
+        holes.push_back(e.range());
+      }
+    }
+
+    return holes;
+  };
+
+  auto copy_extents = [](auto const& src, auto& dest) {
+    for (auto const& e : src) {
+      dest.emplace_back(e.kind(), e.range());
+    }
+  };
+
+  auto get_data_size = [](auto const& exts) {
+    file_size_t size = 0;
+    for (auto const& e : exts) {
+      if (e.kind() == extent_kind::data) {
+        size += e.range().size();
+      }
+    }
+    return size;
+  };
+
+  copy_extents(ext_a, ed.left_extents);
+  copy_extents(ext_b, ed.right_extents);
+
+  ed.left_data_size = get_data_size(ext_a);
+  ed.right_data_size = get_data_size(ext_b);
+
+  auto const holes_a = get_ranges(ext_a, extent_kind::hole);
+  auto const holes_b = get_ranges(ext_b, extent_kind::hole);
+
+  if (strict_extents && holes_a != holes_b) {
+    // extents differ; report entire file as mismatched in strict mode
+    out.emplace_back(file_range{0, fa.size()});
+    return;
+  }
+
+  auto const hole_ranges = intersect_ranges(holes_a, holes_b);
+  auto const data_ranges = complement_ranges(hole_ranges, fa.size());
+
+  for (auto const& r : data_ranges) {
+    auto seg_a = fa.segment_at(r);
+    auto seg_b = fb.segment_at(r);
+
+    auto sa = seg_a.span();
+    auto sb = seg_b.span();
+
+    if (std::memcmp(sa.data(), sb.data(), sa.size()) != 0) {
+      auto const start =
+          std::mismatch(sa.begin(), sa.end(), sb.begin()).first - sa.begin();
+      auto const end =
+          sa.size() -
+          (std::mismatch(sa.rbegin(), sa.rend(), sb.rbegin()).first -
+           sa.rbegin());
+      auto const len = end - start;
+      auto const snippet_len = std::min<size_t>(len, 64);
+      out.emplace_back(r.subrange(start, len), sa.subspan(start, snippet_len),
+                       sb.subspan(start, snippet_len));
+    }
+
+    ed.total_compared_bytes += r.size();
+  }
+}
+
+} // namespace detail
 
 directory_diff
 compare_directories(fs::path const& left_root, fs::path const& right_root) {

@@ -99,6 +99,14 @@ struct directory_diff {
   bool identical() const noexcept { return differences.empty(); }
 };
 
+namespace detail {
+
+void compare_files(std::filesystem::path const& a,
+                   std::filesystem::path const& b, entry_diff& ed,
+                   bool strict_extents = false);
+
+}
+
 directory_diff compare_directories(std::filesystem::path const& left_root,
                                    std::filesystem::path const& right_root);
 
