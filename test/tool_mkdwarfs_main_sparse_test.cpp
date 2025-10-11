@@ -143,3 +143,62 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
             "cannot disable sparse files when the input filesystem uses them"));
   }
 }
+
+TEST(mkdwarfs_test, huge_sparse_file) {
+  std::string const image_file = "test.dwarfs";
+  std::string image;
+  std::mt19937_64 rng{42};
+  test_file_data tfd;
+  file_size_t total_data_size{0};
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    std::uniform_int_distribution<file_size_t> data_size_dist(1, 2_KiB);
+    std::exponential_distribution<double> hole_size_dist(1.0 / (16_GiB));
+    for (int i = 0; i < 1'000; ++i) {
+      auto const hs = 1 + static_cast<file_size_t>(hole_size_dist(rng));
+      auto const ds = data_size_dist(rng);
+      tfd.add_hole(hs);
+      tfd.add_data(ds, &rng);
+      total_data_size += ds;
+    }
+    t.os->add_file("/sparse", tfd);
+
+    ASSERT_EQ(0,
+              t.run({"-i", "/", "-o", image_file, "-l3", "-S16", "-C", "null"}))
+        << t.err();
+    auto img = t.fa->get_file(image_file);
+    ASSERT_TRUE(img);
+    image = std::move(img.value());
+    auto fs = t.fs_from_file(image_file);
+
+    auto dev = fs.find("/sparse");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
+    EXPECT_TRUE(iv.is_regular_file());
+    auto stat = fs.getattr(iv);
+    EXPECT_EQ(tfd.size(), stat.size());
+    EXPECT_EQ(total_data_size, stat.allocated_size());
+
+    auto const info =
+        fs.info_as_json({.features = reader::fsinfo_features::all()});
+    auto const& features = info["features"];
+    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
+                features.end())
+        << info.dump(2);
+
+    for (auto const& ext : tfd.extents) {
+      if (ext.info.kind == extent_kind::data) {
+        auto const size = ext.info.range.size();
+        auto const offset = ext.info.range.offset();
+        std::error_code ec;
+        auto const data = fs.read_string(iv.inode_num(), size, offset, ec);
+        EXPECT_FALSE(ec) << "error at offset " << offset << ": "
+                         << ec.message();
+        EXPECT_EQ(size, data.size()) << "size mismatch at offset " << offset;
+        EXPECT_EQ(ext.data, data) << "data mismatch at offset " << offset;
+      }
+    }
+  }
+}
