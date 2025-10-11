@@ -1515,8 +1515,8 @@ int run_fuse(struct fuse_args& args,
 
 #else
 
-int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
-             dwarfs_userdata& userdata) {
+int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
+             int fg, dwarfs_userdata& userdata) {
   struct fuse_lowlevel_ops fsops{};
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
@@ -1527,7 +1527,7 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 
   int err = 1;
 
-  if (auto ch = fuse_mount(mountpoint, &args)) {
+  if (auto ch = fuse_mount(mountpoint.c_str(), &args)) {
     if (auto se = fuse_lowlevel_new(&args, &fsops, sizeof(fsops), &userdata)) {
       if (fuse_daemonize(fg) != -1) {
         if (fuse_set_signal_handlers(se) != -1) {
@@ -1539,12 +1539,11 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
       }
       fuse_session_destroy(se);
     }
-    fuse_unmount(mountpoint, ch);
+    fuse_unmount(mountpoint.c_str(), ch);
   } else {
     check_fusermount(userdata);
   }
 
-  ::free(mountpoint);
   fuse_opt_free_args(&args);
 
   return err;
@@ -1688,10 +1687,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   bool foreground = fuse_opts.foreground;
 #else
-  char* mountpoint = nullptr;
+  char* mp_unsafe = nullptr;
   int mt, fg;
 
-  if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
+  if (fuse_parse_cmdline(&args, &mp_unsafe, &mt, &fg) == -1 || !mp_unsafe) {
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (userdata.opts.is_man) {
       tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
@@ -1701,6 +1700,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     usage(iol.out, userdata.progname);
     return userdata.opts.is_help ? 0 : 1;
   }
+
+  std::string mountpoint{mp_unsafe};
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+  ::free(mp_unsafe);
 
 #ifdef DWARFS_STACKTRACE_ENABLED
   if (fg) {
