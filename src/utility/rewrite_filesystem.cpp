@@ -380,8 +380,7 @@ void rewrite_filesystem(
           std::optional<fragment_category::value_type> const& cat =
               std::nullopt) {
         log_rewrite(false, s, cat);
-        auto segment = parser->segment(*s);
-        writer.write_compressed_section(*s, s->data(segment));
+        writer.write_compressed_section(*s, parser->segment(*s));
       };
 
   auto from_none_to_none =
@@ -465,10 +464,7 @@ void rewrite_filesystem(
             cat_metadata = cm->dump();
           }
 
-          auto segment = parser->segment(*s);
-
-          writer.rewrite_section(section_type::BLOCK, s->compression(),
-                                 s->data(segment), cat, cat_metadata);
+          writer.rewrite_section(*s, parser->segment(*s), cat, cat_metadata);
         } else {
           copy_compressed(s, cat);
         }
@@ -505,8 +501,7 @@ void rewrite_filesystem(
       } else {
         if (opts.recompress_metadata && !from_none_to_none(s)) {
           log_recompress(s);
-          auto segment = parser->segment(*s);
-          writer.rewrite_section(s->type(), s->compression(), s->data(segment));
+          writer.rewrite_section(*s, parser->segment(*s));
         } else {
           copy_compressed(s);
         }
