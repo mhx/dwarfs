@@ -392,33 +392,34 @@ TEST(utils, parse_time_point) {
 }
 
 TEST(utils, getenv_is_enabled) {
-  static char const* const test_var = "_DWARFS_THIS_IS_A_TEST_";
+  static constexpr auto test_var{"_DWARFS_UTILS_TEST_"};
+  dwarfs::detail::scoped_env env;
 
-  EXPECT_EQ(0, unsetenv("_DWARFS_THIS_IS_A_TEST_"));
+  ASSERT_NO_THROW(env.unset(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "0", 1));
+  ASSERT_NO_THROW(env.set(test_var, "0"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "1", 1));
+  ASSERT_NO_THROW(env.set(test_var, "1"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "false", 1));
+  ASSERT_NO_THROW(env.set(test_var, "false"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "true", 1));
+  ASSERT_NO_THROW(env.set(test_var, "true"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "off", 1));
+  ASSERT_NO_THROW(env.set(test_var, "off"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "on", 1));
+  ASSERT_NO_THROW(env.set(test_var, "on"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "ThisAintBool", 1));
+  ASSERT_NO_THROW(env.set(test_var, "ThisAintBool"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, unsetenv(test_var));
+  ASSERT_NO_THROW(env.unset(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 }
 

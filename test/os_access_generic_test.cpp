@@ -48,6 +48,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/os_access_generic.h>
 
@@ -323,9 +324,10 @@ TEST(os_access_generic, map_empty_readonly) {
 }
 
 TEST(os_access_generic, getenv) {
-  static char const* const test_var = "_DWARFS_THIS_IS_A_TEST_";
+  static constexpr auto test_var{"_DWARFS_OS_ACCESS_TEST_"};
+  dwarfs::detail::scoped_env env;
 
-  EXPECT_EQ(0, unsetenv(test_var));
+  ASSERT_NO_THROW(env.unset(test_var));
 
   dwarfs::os_access_generic os;
 
@@ -334,7 +336,7 @@ TEST(os_access_generic, getenv) {
     EXPECT_FALSE(value.has_value());
   }
 
-  EXPECT_EQ(0, setenv(test_var, "some_value", 1));
+  ASSERT_NO_THROW(env.set(test_var, "some_value"));
 
   {
     auto value = os.getenv(test_var);
@@ -342,7 +344,7 @@ TEST(os_access_generic, getenv) {
     EXPECT_EQ(*value, "some_value");
   }
 
-  EXPECT_EQ(0, setenv(test_var, "", 1));
+  ASSERT_NO_THROW(env.set(test_var, ""));
 
   {
     auto value = os.getenv(test_var);
@@ -350,7 +352,7 @@ TEST(os_access_generic, getenv) {
     EXPECT_EQ(*value, "");
   }
 
-  EXPECT_EQ(0, unsetenv(test_var));
+  ASSERT_NO_THROW(env.unset(test_var));
 
   {
     auto value = os.getenv(test_var);
