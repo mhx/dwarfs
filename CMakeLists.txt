@@ -611,6 +611,7 @@ if(WITH_TESTS)
       test/tool_mkdwarfs_main_metadata_test.cpp
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp
+      test/tool_mkdwarfs_main_sparse_test.cpp
     )
 
     list(APPEND DWARFS_TESTS
