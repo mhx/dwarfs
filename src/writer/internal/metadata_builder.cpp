@@ -187,7 +187,7 @@ metadata_builder_<LoggerPolicy>::build_inode_size_cache() const {
   uint64_t const block_size = md_.block_size().value();
   assert(std::has_single_bit(block_size));
 
-  for (size_t ino = 1; ino < chunk_table.size() - 1; ++ino) {
+  for (size_t ino = 0; ino < chunk_table.size() - 1; ++ino) {
     auto const begin = chunk_table[ino];
     auto const end = chunk_table[ino + 1];
     auto const num_chunks = end - begin;
