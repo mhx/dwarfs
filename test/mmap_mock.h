@@ -27,6 +27,8 @@
 
 #include <dwarfs/file_view.h>
 
+#include "test_file_data.h"
+
 namespace dwarfs::test {
 
 // TODO: see which of those we actually need
@@ -47,8 +49,10 @@ make_mock_file_view(std::string data, std::filesystem::path const& path,
                     mock_file_view_options const& opts = {});
 
 file_view
-make_mock_file_view(std::string data, std::filesystem::path const& path,
-                    std::vector<detail::file_extent_info> extents,
+make_mock_file_view(test_file_data data, std::filesystem::path const& path,
                     mock_file_view_options const& opts = {});
+
+file_view make_mock_file_view(test_file_data data,
+                              mock_file_view_options const& opts = {});
 
 } // namespace dwarfs::test
