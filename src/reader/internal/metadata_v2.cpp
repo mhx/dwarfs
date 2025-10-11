@@ -1441,6 +1441,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     info["meta"] = std::move(meta);
   }
 
+  if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
+    info["full_metadata"] = nlohmann::json::parse(serialize_as_json(true));
+  }
+
   if (opts.features.has(fsinfo_feature::directory_tree)) {
     info["root"] = as_json(root_);
   }
