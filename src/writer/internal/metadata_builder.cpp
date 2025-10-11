@@ -75,7 +75,12 @@ class metadata_builder_ final : public metadata_builder::impl {
       , options_{options} {
     if (auto const feat = md_.features()) {
       features_.set(*feat);
+      bool const non_sparse_image = !features_.has(feature::sparsefiles);
+      DWARFS_CHECK(
+          non_sparse_image || options_.enable_sparse_files,
+          "image uses sparse files but sparse files support is disabled");
     }
+
     upgrade_metadata(orig_fs_options, orig_fs_version);
     update_inodes();
   }

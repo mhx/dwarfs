@@ -131,4 +131,15 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
                 features.end())
         << info.dump(2);
   }
+
+  {
+    auto t = rebuild_tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--no-sparse-files"}))
+        << t.err();
+    EXPECT_THAT(
+        t.err(),
+        testing::HasSubstr(
+            "cannot disable sparse files when the input filesystem uses them"));
+  }
 }

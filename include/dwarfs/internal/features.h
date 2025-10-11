@@ -42,6 +42,7 @@ class feature_set {
   get_unsupported(std::set<std::string> const& wanted_features);
 
   void add(feature f);
+  bool has(feature f) const;
 
   void set(std::set<std::string> const& features);
   std::set<std::string> const& get() const { return features_; }

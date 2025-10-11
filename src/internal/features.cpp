@@ -47,6 +47,10 @@ std::string feature_name(feature f) {
 
 void feature_set::add(feature f) { features_.insert(feature_name(f)); }
 
+bool feature_set::has(feature f) const {
+  return features_.contains(feature_name(f));
+}
+
 std::set<std::string> feature_set::get_supported() {
   std::set<std::string> rv;
   for (auto f : apache::thrift::TEnumTraits<feature>::values) {
