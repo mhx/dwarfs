@@ -120,7 +120,8 @@ function(add_cpp2_thrift_library idlfile)
       OUTPUT ${_THRIFT_GEN_SRC}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${idlfile}
       ${CMAKE_CURRENT_BINARY_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/${_THRIFTNAME}.thrift
-      COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+      COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0 --
+                  ${CMAKE_CROSSCOMPILING_EMULATOR} ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
                   -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
                   -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/${_THRIFT_OUTPUT_PATH}
                   --gen ${_THRIFT_GEN} ${_THRIFTNAME}.thrift
