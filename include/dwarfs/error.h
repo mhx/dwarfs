@@ -74,10 +74,8 @@ class runtime_error : public error {
 
 class system_error : public error {
  public:
-  system_error(source_location loc);
   system_error(std::string_view s, source_location loc);
   system_error(std::string_view s, int err, source_location loc);
-  system_error(int err, source_location loc);
 
   char const* what() const noexcept override { return syserr_.what(); }
   std::error_code const& code() const noexcept { return syserr_.code(); }
