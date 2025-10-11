@@ -527,6 +527,89 @@ TEST(mock_file_view, extents_raw_bytes) {
   }
 }
 
+TEST(mock_file_view, test_file_data) {
+  test::test_file_data data;
+  data.add_data("Hello,"s);
+  data.add_hole(4);
+  data.add_data("World!"s);
+
+  auto view = test::make_mock_file_view(data);
+
+  EXPECT_FALSE(view.supports_raw_bytes());
+  EXPECT_EQ(view.size(), 16);
+
+  {
+    std::vector<std::string> extents;
+
+    for (auto const& ext : view.extents({2, 11})) {
+      EXPECT_FALSE(ext.supports_raw_bytes());
+      EXPECT_GT(ext.size(), 0);
+
+      auto& buf = extents.emplace_back();
+
+      for (auto const& seg : ext.segments(2)) {
+        auto span = seg.span<char>();
+        buf.append(span.begin(), span.end());
+      }
+    }
+
+    EXPECT_THAT(extents, testing::ElementsAre("llo,"s, "\0\0\0\0"s, "Wor"s));
+  }
+
+  EXPECT_EQ(view.read_string(0, view.size()), "Hello,\0\0\0\0World!"s);
+  EXPECT_EQ(view.read_string(2, 11), "llo,\0\0\0\0Wor"s);
+  EXPECT_EQ(view.read_string(6, 4), "\0\0\0\0"s);
+  EXPECT_EQ(view.read_string(15, 1), "!"s);
+}
+
+TEST(mock_file_view, random_test_file_data) {
+  test::test_file_data data;
+  std::string ref_data(10200, '\0');
+  std::mt19937_64 rng{42};
+
+  for (int i = 0; i < 100; ++i) {
+    data.add_hole(i + 1);
+    data.add_data(100 - i, &rng);
+  }
+  data.add_hole(100);
+
+  for (auto const& ext : data.extents) {
+    if (ext.info.kind == extent_kind::data) {
+      std::copy_n(ext.data.begin(), ext.data.size(),
+                  ref_data.begin() + ext.info.range.offset());
+    }
+  }
+
+  EXPECT_LT(std::ranges::count(ref_data, '\0'), 6000);
+
+  auto view = test::make_mock_file_view(data);
+
+  EXPECT_FALSE(view.supports_raw_bytes());
+  EXPECT_EQ(view.size(), 10200);
+
+  for (file_size_t window_size : {1, 2, 5, 13, 64, 711}) {
+    auto const last_offset = view.size() - window_size;
+
+    for (file_off_t offset = 0; offset <= last_offset; ++offset) {
+      EXPECT_EQ(view.read_string(offset, window_size),
+                ref_data.substr(offset, window_size));
+
+      std::string buf;
+
+      for (auto const& ext : view.extents({offset, window_size})) {
+        EXPECT_GT(ext.size(), 0);
+
+        for (auto const& seg : ext.segments(27)) {
+          auto span = seg.span<char>();
+          buf.append(span.begin(), span.end());
+        }
+      }
+
+      EXPECT_EQ(buf, ref_data.substr(offset, window_size));
+    }
+  }
+}
+
 TEST(mmap_file_view, basic) {
   temporary_directory td;
 

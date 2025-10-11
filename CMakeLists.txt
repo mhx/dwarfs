@@ -496,6 +496,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
     test/loremipsum.cpp
     test/test_dirtree.cpp
     test/filter_test_data.cpp
+    test/test_file_data.cpp
   )
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
