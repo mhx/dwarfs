@@ -129,7 +129,7 @@ class fsblock {
   fsblock(section_type type, compression_type compression,
           std::span<uint8_t const> data);
 
-  fsblock(fs_section sec, std::span<uint8_t const> data,
+  fsblock(fs_section sec, file_segment segment,
           std::shared_ptr<compression_progress> pctx);
 
   fsblock(section_type type, block_compressor const& bc,
@@ -313,11 +313,12 @@ class compressed_fsblock : public fsblock::impl {
       , compression_{compression}
       , range_{range} {}
 
-  compressed_fsblock(fs_section sec, std::span<uint8_t const> range,
+  compressed_fsblock(fs_section sec, file_segment segment,
                      std::shared_ptr<compression_progress> pctx)
       : type_{sec.type()}
       , compression_{sec.compression()}
-      , range_{range}
+      , range_{sec.data(segment)}
+      , segment_{std::move(segment)}
       , pctx_{std::move(pctx)}
       , sec_{std::move(sec)} {}
 
@@ -359,6 +360,8 @@ class compressed_fsblock : public fsblock::impl {
   section_type const type_;
   compression_type const compression_;
   std::span<uint8_t const> range_;
+  // This is only used to keep the file segment data alive.
+  file_segment segment_;
   std::future<void> future_;
   std::optional<uint32_t> number_;
   section_header_v2 header_;
@@ -495,10 +498,10 @@ fsblock::fsblock(section_type type, compression_type compression,
                  std::span<uint8_t const> data)
     : impl_(std::make_unique<compressed_fsblock>(type, compression, data)) {}
 
-fsblock::fsblock(fs_section sec, std::span<uint8_t const> data,
+fsblock::fsblock(fs_section sec, file_segment segment,
                  std::shared_ptr<compression_progress> pctx)
-    : impl_(std::make_unique<compressed_fsblock>(std::move(sec), data,
-                                                 std::move(pctx))) {}
+    : impl_(std::make_unique<compressed_fsblock>(
+          std::move(sec), std::move(segment), std::move(pctx))) {}
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
                  delayed_data_fn_type data, size_t uncompressed_size,
@@ -592,14 +595,14 @@ class filesystem_writer_ final : public filesystem_writer_detail {
                                std::optional<fragment_category::value_type> cat,
                                std::optional<std::string> cat_metadata,
                                block_compression_info* info) override;
-  void rewrite_section(section_type type, compression_type compression,
-                       std::span<uint8_t const> data,
-                       std::optional<fragment_category::value_type> cat,
-                       std::optional<std::string> cat_metadata) override;
+  void
+  rewrite_section(dwarfs::internal::fs_section const& sec, file_segment segment,
+                  std::optional<fragment_category::value_type> cat,
+                  std::optional<std::string> cat_metadata) override;
   void rewrite_block(delayed_data_fn_type data, size_t uncompressed_size,
                      std::optional<fragment_category::value_type> cat) override;
   void write_compressed_section(fs_section const& sec,
-                                std::span<uint8_t const> data) override;
+                                file_segment segment) override;
   void flush() override;
   size_t size() const override { return image_size_; }
 
@@ -955,20 +958,25 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::rewrite_section(
-    section_type type, compression_type compression,
-    std::span<uint8_t const> data,
+    dwarfs::internal::fs_section const& sec, file_segment segment,
     std::optional<fragment_category::value_type> cat,
     std::optional<std::string> cat_metadata) {
+  auto const type = sec.type();
+  auto const compression = sec.compression();
+  auto const data = sec.data(segment);
   auto bd = block_decompressor(compression, data);
-  auto uncompressed_size = bd.uncompressed_size();
+  auto const uncompressed_size = bd.uncompressed_size();
 
   if (!cat_metadata) {
     cat_metadata = bd.metadata();
   }
 
+  // We *must* keep the segment alive since it owns the underlying data,
+  // so we move-capture it in the lambda.
   rewrite_section_delayed_data(
       type,
-      [bd = std::move(bd), meta = std::move(cat_metadata)]() mutable {
+      [bd = std::move(bd), meta = std::move(cat_metadata),
+       segment = std::move(segment)]() mutable {
         auto block = bd.start_decompression(malloc_byte_buffer::create());
         bd.decompress_frame(bd.uncompressed_size());
         return std::pair{std::move(block), meta};
@@ -986,7 +994,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_block(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
-    fs_section const& sec, std::span<uint8_t const> data) {
+    fs_section const& sec, file_segment segment) {
   {
     std::lock_guard lock(mx_);
 
@@ -994,7 +1002,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    auto fsb = std::make_unique<fsblock>(sec, data, pctx_);
+    auto fsb = std::make_unique<fsblock>(sec, segment, pctx_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);
