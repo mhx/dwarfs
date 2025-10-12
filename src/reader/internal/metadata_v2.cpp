@@ -49,6 +49,7 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 #include <folly/small_vector.h>
@@ -60,6 +61,7 @@
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/error.h>
+#include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
@@ -75,8 +77,10 @@
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/unicode_case_folding.h>
+#include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/metadata_analyzer.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
+#include <dwarfs/reader/internal/sparse_file_seeker.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
@@ -642,6 +646,9 @@ class metadata_v2_data {
   metadata_options const options_;
   string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
+  folly::Synchronized<
+      lru_cache<size_t, std::shared_ptr<sparse_file_seeker const>>,
+      std::mutex> mutable seek_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(find_path)
@@ -685,6 +692,7 @@ metadata_v2_data::metadata_v2_data(
                     ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                     : string_table(meta_.symlinks())}
     , dir_icase_cache_{build_dir_icase_cache<LoggerPolicy>(lgr)}
+    , seek_cache_(std::in_place, 64)
     // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "metadata")
       PERFMON_CLS_TIMER_INIT(find)
@@ -1097,33 +1105,35 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
 }
 
 file_off_t
-metadata_v2_data::seek(uint32_t inode, file_off_t offset, seek_whence whence,
-                       std::error_code& ec) const {
-  auto chunks = get_chunks(inode, ec);
+metadata_v2_data::seek(uint32_t const inode, file_off_t const offset,
+                       seek_whence const whence, std::error_code& ec) const {
+  static constexpr size_t kMinChunksForCachedSeeker{16};
+
+  auto const chunks = get_chunks(inode, ec);
+
   if (ec) {
     return -1;
   }
 
-  file_off_t start{0};
-  bool const seek_hole = whence == seek_whence::hole;
-
-  // TODO: this scan can be quite expensive for highly fragmented files
-
-  for (auto const& chk : chunks) {
-    auto const end = start + chk.size();
-    if (offset < end && seek_hole == chk.is_hole()) {
-      return std::max(start, offset);
-    }
-    start = end;
+  if (chunks.size() < kMinChunksForCachedSeeker) {
+    // don't cache seekers for small files
+    return sparse_file_seeker::seek(chunks, offset, whence, ec);
   }
 
-  if (offset < start && seek_hole) {
-    return start;
+  auto seeker = seek_cache_.withLock(
+      [inode](auto& cache) -> std::shared_ptr<sparse_file_seeker const> {
+        if (auto it = cache.find(inode); it != cache.end()) {
+          return it->second;
+        }
+        return nullptr;
+      });
+
+  if (!seeker) {
+    seeker = std::make_shared<sparse_file_seeker>(chunks);
+    seek_cache_.lock()->set(inode, seeker);
   }
 
-  ec = std::make_error_code(std::errc::no_such_device_or_address);
-
-  return -1;
+  return seeker->seek(offset, whence, ec);
 }
 
 int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
