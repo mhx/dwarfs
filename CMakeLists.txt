@@ -561,6 +561,7 @@ if(WITH_TESTS)
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp
       test/sorted_array_map_test.cpp
+      test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
       test/string_test.cpp
       test/terminal_test.cpp
