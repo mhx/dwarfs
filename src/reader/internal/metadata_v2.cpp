@@ -1093,11 +1093,16 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
   // some applications (such as `duf`).
   stbuf->bsize = 1UL;
   stbuf->frsize = 1UL;
-  stbuf->blocks = meta_.total_fs_size();
+  stbuf->blocks =
+      options_.enable_sparse_files
+          ? meta_.total_allocated_fs_size().value_or(meta_.total_fs_size())
+          : meta_.total_fs_size();
   if (!options_.enable_nlink) {
-    if (auto ths = meta_.total_hardlink_size()) {
-      stbuf->blocks += *ths;
-    }
+    auto const hardlink_size = meta_.total_hardlink_size().value_or(0);
+    stbuf->blocks +=
+        options_.enable_sparse_files
+            ? meta_.total_allocated_hardlink_size().value_or(hardlink_size)
+            : hardlink_size;
   }
   stbuf->files = inode_count_;
   stbuf->readonly = true;
@@ -1108,6 +1113,11 @@ file_off_t
 metadata_v2_data::seek(uint32_t const inode, file_off_t const offset,
                        seek_whence const whence, std::error_code& ec) const {
   static constexpr size_t kMinChunksForCachedSeeker{16};
+
+  if (!options_.enable_sparse_files) {
+    ec = make_error_code(std::errc::not_supported);
+    return -1;
+  }
 
   auto const chunks = get_chunks(inode, ec);
 
@@ -1171,6 +1181,7 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
                fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
   file_size_result result;
+  bool const enable_sparse = options_.enable_sparse_files;
 
   if (use_cache) {
     if (auto const cache = meta_.reg_file_size_cache()) {
@@ -1180,8 +1191,10 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
         if (auto const size = cache->size_lookup().getOptional(index)) {
           result.size = *size;
           result.allocated_size =
-              cache->allocated_size_lookup().getOptional(index).value_or(
-                  result.size);
+              enable_sparse
+                  ? cache->allocated_size_lookup().getOptional(index).value_or(
+                        result.size)
+                  : result.size;
           return result;
         }
       }
@@ -1192,7 +1205,7 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
 
   for (auto const& chk : cr) {
     auto const chunk_size = chk.size();
-    if (chk.is_data()) {
+    if (!enable_sparse || chk.is_data()) {
       result.allocated_size += chunk_size;
     }
     result.size += chunk_size;

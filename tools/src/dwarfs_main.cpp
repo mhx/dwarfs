@@ -1580,6 +1580,13 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.allocation_mode = opts.block_allocator;
   fsopts.inode_reader.readahead = opts.readahead;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
+  fsopts.metadata.enable_sparse_files =
+#ifdef DWARFS_FUSE_HAS_LSEEK
+      true
+#else
+      false
+#endif
+      ;
   fsopts.metadata.readonly = bool(opts.readonly);
   fsopts.metadata.case_insensitive_lookup = bool(opts.case_insensitive);
   fsopts.metadata.block_size = opts.blocksize;
