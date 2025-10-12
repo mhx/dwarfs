@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <dwarfs/counting_semaphore.h>
+#include <dwarfs/detail/file_extent_info.h>
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/metadata_types.h>
 
