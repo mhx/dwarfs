@@ -26,11 +26,14 @@
 
 #include <benchmark/benchmark.h>
 
+#include <fmt/format.h>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -132,7 +135,24 @@ make_filesystem(::benchmark::State const* state,
   test::test_logger lgr;
 
   if (!os) {
-    os = test::os_access_mock::create_test_instance();
+    auto mock = test::os_access_mock::create_test_instance();
+    os = mock;
+
+    mock->add_dir("/sparse");
+
+    int next_hole_count{1};
+    test::test_file_data tfd;
+    std::mt19937_64 rng{42};
+
+    for (int i = 0; i <= 512; ++i) {
+      tfd.add_hole(4096);
+      tfd.add_data(4096, &rng);
+
+      if (i == next_hole_count) {
+        mock->add_file(fmt::format("/sparse/file{:03}.bin", i), tfd);
+        next_hole_count *= 2;
+      }
+    }
   }
 
   thread_pool pool(lgr, *os, "writer", 4);
@@ -307,6 +327,17 @@ class filesystem : public ::benchmark::Fixture {
   void getattr_bench(::benchmark::State& state,
                      std::array<std::string_view, N> const& paths) {
     getattr_bench(state, {}, paths);
+  }
+
+  void seek_bench(::benchmark::State& state, char const* file) {
+    auto dev = fs->find(file);
+    auto iv = dev->inode();
+
+    for (auto _ : state) {
+      reader::detail::file_reader fr(*fs, iv);
+      auto r = fr.extents();
+      ::benchmark::DoNotOptimize(r);
+    }
   }
 
   std::unique_ptr<reader::filesystem_v2> fs;
@@ -643,6 +674,46 @@ BENCHMARK_DEFINE_F(filesystem, readv_future_large)(::benchmark::State& state) {
   readv_future_bench(state, "/ipsum.txt");
 }
 
+BENCHMARK_DEFINE_F(filesystem, seek1)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file001.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek2)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file002.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek4)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file004.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek8)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file008.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek16)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file016.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek32)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file032.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek64)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file064.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek128)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file128.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek256)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file256.bin");
+}
+
+BENCHMARK_DEFINE_F(filesystem, seek512)(::benchmark::State& state) {
+  seek_bench(state, "/sparse/file512.bin");
+}
+
 BENCHMARK_DEFINE_F(filesystem_walk, walk)(::benchmark::State& state) {
   for (auto _ : state) {
     fs->walk([](reader::dir_entry_view) {});
@@ -698,6 +769,16 @@ BENCHMARK_REGISTER_F(filesystem, readv_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_large)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_future_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_future_large)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek1)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek2)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek4)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek8)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek16)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek32)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek64)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek128)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek256)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, seek512)->Apply(PackParamsNone);
 
 BENCHMARK_REGISTER_F(filesystem_walk, walk)->Unit(benchmark::kMillisecond);
 BENCHMARK_REGISTER_F(filesystem_walk, walk_data_order)
