@@ -565,6 +565,7 @@ if(WITH_TESTS)
       test/speedometer_test.cpp
       test/string_test.cpp
       test/terminal_test.cpp
+      test/test_iolayer_test.cpp
       test/unicode_test.cpp
       test/utils_test.cpp
       test/worker_group_test.cpp

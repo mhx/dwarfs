@@ -37,18 +37,31 @@ namespace {
 
 class test_input_stream : public input_stream {
  public:
-  explicit test_input_stream(std::string content) {
+  explicit test_input_stream(std::filesystem::path const& path,
+                             std::string content, std::error_code& ec,
+                             test_file_access const* tfa)
+      : path_{path}
+      , tfa_{tfa} {
+    if (auto error = tfa_->get_open_error(path_)) {
+      ec = error.value();
+    }
     is_.str(std::move(content));
   }
 
   std::istream& is() override { return is_; }
 
-  void close(std::error_code& /*ec*/) override {}
+  void close(std::error_code& ec) override {
+    if (auto error = tfa_->get_close_error(path_)) {
+      ec = error.value();
+    }
+  }
 
   void close() override {}
 
  private:
   std::istringstream is_;
+  std::filesystem::path path_;
+  test_file_access const* tfa_;
 };
 
 class test_output_stream : public output_stream {
@@ -100,7 +113,7 @@ test_file_access::open_input(std::filesystem::path const& path,
                              std::error_code& ec) const {
   auto it = files_.find(path);
   if (it != files_.end()) {
-    return std::make_unique<test_input_stream>(it->second);
+    return std::make_unique<test_input_stream>(path, it->second, ec, this);
   }
   ec = std::make_error_code(std::errc::no_such_file_or_directory);
   return nullptr;
