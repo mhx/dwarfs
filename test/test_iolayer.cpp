@@ -402,18 +402,4 @@ void test_iolayer::set_in(std::string in) { in_.str(std::move(in)); }
 std::string test_iolayer::out() const { return out_.str(); }
 std::string test_iolayer::err() const { return err_.str(); }
 
-void test_iolayer::set_os_access(std::shared_ptr<os_access_mock> os) {
-  if (iol_) {
-    throw std::runtime_error("iolayer already created");
-  }
-  os_ = std::move(os);
-}
-
-void test_iolayer::set_file_access(std::shared_ptr<file_access const> fa) {
-  if (iol_) {
-    throw std::runtime_error("iolayer already created");
-  }
-  fa_ = std::move(fa);
-}
-
 } // namespace dwarfs::test
