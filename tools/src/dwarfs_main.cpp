@@ -81,6 +81,10 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#define DWARFS_FUSE_HAS_LSEEK
+#endif
+
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
@@ -265,7 +269,7 @@ struct dwarfs_userdata {
   PERFMON_EXT_TIMER_DECL(op_getattr)
   PERFMON_EXT_TIMER_DECL(op_readlink)
   PERFMON_EXT_TIMER_DECL(op_open)
-#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#ifdef DWARFS_FUSE_HAS_LSEEK
   PERFMON_EXT_TIMER_DECL(op_lseek)
 #endif
   PERFMON_EXT_TIMER_DECL(op_read)
@@ -703,7 +707,7 @@ int op_open(char const* path, struct fuse_file_info* fi) {
 }
 #endif
 
-#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#ifdef DWARFS_FUSE_HAS_LSEEK
 template <typename LogProxy>
 off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata, uint32_t inode,
                       off_t off, int whence) {
@@ -1416,7 +1420,7 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
-#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#ifdef DWARFS_FUSE_HAS_LSEEK
   if (userdata.fs.has_sparse_files()) {
     ops.lseek = &op_lseek<LoggerPolicy>;
   }
@@ -1437,7 +1441,7 @@ void init_fuse_ops(struct fuse_operations& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
-#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#ifdef DWARFS_FUSE_HAS_LSEEK
   if (userdata.fs.has_sparse_files()) {
     ops.lseek = &op_lseek<LoggerPolicy>;
   }
