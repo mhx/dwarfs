@@ -25,7 +25,11 @@
 
 #include <gmock/gmock.h>
 
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/transform.hpp>
+
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/fsinfo_options.h>
 
 #include "test_tool_main_tester.h"
@@ -155,7 +159,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     auto t = mkdwarfs_tester::create_empty();
     t.add_root_dir();
     std::uniform_int_distribution<file_size_t> data_size_dist(1, 2_KiB);
-    std::exponential_distribution<double> hole_size_dist(1.0 / (16_GiB));
+    std::exponential_distribution<double> hole_size_dist(1.0 / (2_GiB));
     for (int i = 0; i < 1'000; ++i) {
       auto const hs = 1 + static_cast<file_size_t>(hole_size_dist(rng));
       auto const ds = data_size_dist(rng);
@@ -183,6 +187,80 @@ TEST(mkdwarfs_test, huge_sparse_file) {
 
     auto const info =
         fs.info_as_json({.features = reader::fsinfo_features::all()});
+    auto const& features = info["features"];
+    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
+                features.end())
+        << info.dump(2);
+    auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
+    ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
+    ASSERT_EQ(1, size_cache["allocated_size_lookup"].size()) << info.dump(2);
+    EXPECT_EQ(tfd.size(), size_cache["size_lookup"]["0"].get<file_size_t>())
+        << info.dump(2);
+    EXPECT_EQ(total_data_size,
+              size_cache["allocated_size_lookup"]["0"].get<file_size_t>())
+        << info.dump(2);
+
+    for (auto const& ext : tfd.extents) {
+      if (ext.info.kind == extent_kind::data) {
+        auto const size = ext.info.range.size();
+        auto const offset = ext.info.range.offset();
+        std::error_code ec;
+        auto const data = fs.read_string(iv.inode_num(), size, offset, ec);
+        EXPECT_FALSE(ec) << "error at offset " << offset << ": "
+                         << ec.message();
+        EXPECT_EQ(size, data.size()) << "size mismatch at offset " << offset;
+        EXPECT_EQ(ext.data, data) << "data mismatch at offset " << offset;
+      }
+    }
+
+    reader::detail::file_reader fr(fs, iv);
+
+    EXPECT_THAT(tfd.extents | ranges::views::transform([](auto const& e) {
+                  return e.info;
+                }) | ranges::to<std::vector>(),
+                testing::ElementsAreArray(fr.extents()));
+  }
+
+  auto rebuild_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  for (int block_size : {20, 25, 13, 10, 17}) {
+    // std::cerr << "=================================================\n";
+    // std::cerr << "Rebuild with block size " << block_size << "\n";
+    // std::cerr << "=================================================\n";
+
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--change-block-size",
+                        "-S", std::to_string(block_size), "-C", "null"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    image = t.out();
+
+    // fs.dump(std::cerr, {.features = reader::fsinfo_features::for_level(2)});
+
+    auto dev = fs.find("/sparse");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
+    EXPECT_TRUE(iv.is_regular_file());
+
+    reader::detail::file_reader fr(fs, iv);
+
+    EXPECT_THAT(tfd.extents | ranges::views::transform([](auto const& e) {
+                  return e.info;
+                }) | ranges::to<std::vector>(),
+                testing::ElementsAreArray(fr.extents()));
+
+    auto stat = fs.getattr(iv);
+    EXPECT_EQ(tfd.size(), stat.size());
+    EXPECT_EQ(total_data_size, stat.allocated_size());
+
+    auto const info =
+        fs.info_as_json({.features = reader::fsinfo_features::all()});
+
     auto const& features = info["features"];
     EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
                 features.end())
