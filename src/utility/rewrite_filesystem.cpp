@@ -495,7 +495,8 @@ void rewrite_filesystem(
 
           if (opts.change_block_size) {
             builder.set_block_size(opts.change_block_size.value());
-            builder.remap_blocks(mapped_blocks.old_to_new);
+            builder.remap_blocks(mapped_blocks.old_to_new,
+                                 mapped_blocks.new_to_old.size());
           }
 
           auto [schema, data] =

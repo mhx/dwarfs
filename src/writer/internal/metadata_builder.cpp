@@ -72,7 +72,8 @@ class metadata_builder_ final : public metadata_builder::impl {
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{std::forward<T>(md)}
-      , options_{options} {
+      , options_{options}
+      , old_block_size_{md_.block_size().value()} {
     if (auto const feat = md_.features()) {
       features_.set(*feat);
       bool const non_sparse_image = !features_.has(feature::sparsefiles);
@@ -143,11 +144,31 @@ class metadata_builder_ final : public metadata_builder::impl {
                       uint32_t num_inodes) override;
 
   void gather_global_entry_data(global_entry_data const& ge_data) override;
-  void remap_blocks(std::span<block_mapping const> mapping) override;
+  void remap_blocks(std::span<block_mapping const> mapping,
+                    size_t new_block_count) override;
 
   thrift::metadata::metadata const& build() override;
 
  private:
+  using chunks_t = typename decltype(std::declval<thrift::metadata::metadata>()
+                                         .chunks())::value_type;
+  using chunk_table_t =
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .chunk_table())::value_type;
+  using categories_t =
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .block_categories())::value_type;
+  using category_metadata_t =
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .block_category_metadata())::value_type;
+
+  static constexpr auto kTmpHoleIx = std::numeric_limits<
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .chunks()[0]
+                            .block())::value_type>::max();
+
+  void remap_holes(chunks_t& new_chunks, size_t new_hole_index,
+                   size_t max_data_chunk_size);
   thrift::metadata::inode_size_cache build_inode_size_cache() const;
   void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
                         filesystem_version const& orig_fs_version);
@@ -170,6 +191,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   thrift::metadata::metadata md_;
   feature_set features_;
   metadata_options const& options_;
+  std::optional<size_t> old_block_size_;
 };
 
 template <typename LoggerPolicy>
@@ -326,14 +348,43 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
 }
 
 template <typename LoggerPolicy>
-void metadata_builder_<LoggerPolicy>::remap_blocks(
-    std::span<block_mapping const> mapping) {
-  using chunks_t = typename decltype(md_.chunks())::value_type;
-  using chunk_table_t = typename decltype(md_.chunk_table())::value_type;
-  using categories_t = typename decltype(md_.block_categories())::value_type;
-  using category_metadata_t =
-      typename decltype(md_.block_category_metadata())::value_type;
+void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
+                                                  size_t new_hole_index,
+                                                  size_t max_data_chunk_size) {
+  LOG_DEBUG << "remapping holes (hole index: " << md_.hole_block_index().value()
+            << " -> " << new_hole_index << ")";
 
+  auto const old_block_size = old_block_size_.value();
+  auto const new_block_size = md_.block_size().value();
+
+  inode_hole_mapper hole_mapper(new_hole_index, new_block_size,
+                                max_data_chunk_size);
+
+  for (auto& c : new_chunks) {
+    if (c.block().value() == kTmpHoleIx) {
+      auto const offset = c.offset().value();
+      auto const size = c.size().value();
+      file_size_t hole_size{0};
+
+      if (offset == kChunkOffsetIsLargeHole) {
+        assert(md_.large_hole_size());
+        assert(size < md_.large_hole_size()->size());
+        hole_size = md_.large_hole_size()->at(size);
+      } else {
+        hole_size = static_cast<file_size_t>(size) * old_block_size + offset;
+      }
+
+      hole_mapper.map_hole(c, hole_size);
+    }
+  }
+
+  md_.hole_block_index() = hole_mapper.hole_block_index();
+  md_.large_hole_size() = hole_mapper.large_hole_sizes();
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::remap_blocks(
+    std::span<block_mapping const> mapping, size_t new_block_count) {
   auto tv = LOG_TIMED_VERBOSE;
 
   std::span<typename chunks_t::value_type> old_chunks = md_.chunks().value();
@@ -342,8 +393,14 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
 
   DWARFS_CHECK(!old_chunk_table.empty(), "chunk table must not be empty");
 
+  auto const old_hole_ix = md_.hole_block_index();
+
+  DWARFS_CHECK(old_hole_ix.has_value() == features_.has(feature::sparsefiles),
+               "inconsistent sparse files feature flag");
+
   chunks_t new_chunks;
   chunk_table_t new_chunk_table;
+  size_t max_data_chunk_size{0};
 
   new_chunk_table.push_back(0);
 
@@ -354,24 +411,45 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
     std::vector<block_chunk> mapped_chunks;
 
     for (auto const& chunk : chunks) {
-      DWARFS_CHECK(chunk.block().value() < mapping.size(),
-                   "chunk block out of range");
-      auto mapped = mapping[chunk.block().value()].map_chunk(
-          chunk.offset().value(), chunk.size().value());
-      DWARFS_CHECK(!mapped.empty(), "mapped chunk list is empty");
+      if (old_hole_ix && chunk.block().value() == *old_hole_ix) {
+        LOG_TRACE << "mapping hole chunk: offset=" << chunk.offset().value()
+                  << ", size=" << chunk.size().value();
 
-      auto first = mapped.begin();
+        mapped_chunks.push_back(
+            {kTmpHoleIx, chunk.offset().value(), chunk.size().value()});
+      } else {
+        LOG_TRACE << "mapping data chunk: block=" << chunk.block().value()
+                  << ", offset=" << chunk.offset().value()
+                  << ", size=" << chunk.size().value();
 
-      if (!mapped_chunks.empty() &&
-          mapped_chunks.back().block == mapped.front().block &&
-          mapped_chunks.back().offset + mapped_chunks.back().size ==
-              mapped.front().offset) {
-        // merge with previous chunk
-        mapped_chunks.back().size += mapped.front().size;
-        ++first;
+        DWARFS_CHECK(chunk.block().value() < mapping.size(),
+                     "chunk block out of range");
+
+        auto mapped = mapping[chunk.block().value()].map_chunk(
+            chunk.offset().value(), chunk.size().value());
+
+        DWARFS_CHECK(!mapped.empty(), "mapped chunk list is empty");
+        LOG_TRACE << "  mapped to " << mapped.size() << " chunks";
+
+        for (auto const& mc : mapped) {
+          LOG_TRACE << "    block=" << mc.block << ", offset=" << mc.offset
+                    << ", size=" << mc.size;
+        }
+
+        auto first = mapped.begin();
+
+        if (!mapped_chunks.empty() &&
+            mapped_chunks.back().block != kTmpHoleIx &&
+            mapped_chunks.back().block == mapped.front().block &&
+            mapped_chunks.back().offset + mapped_chunks.back().size ==
+                mapped.front().offset) {
+          LOG_TRACE << "  merging with previous chunk";
+          mapped_chunks.back().size += mapped.front().size;
+          ++first;
+        }
+
+        mapped_chunks.insert(mapped_chunks.end(), first, mapped.end());
       }
-
-      mapped_chunks.insert(mapped_chunks.end(), first, mapped.end());
     }
 
     for (auto const& chunk : mapped_chunks) {
@@ -379,9 +457,17 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
       nc.block() = chunk.block;
       nc.offset() = chunk.offset;
       nc.size() = chunk.size;
+
+      if (chunk.block != kTmpHoleIx) {
+        max_data_chunk_size = std::max(max_data_chunk_size, chunk.size);
+      }
     }
 
     new_chunk_table.push_back(new_chunks.size());
+  }
+
+  if (old_hole_ix) {
+    remap_holes(new_chunks, new_block_count, max_data_chunk_size);
   }
 
   auto const& old_categories = md_.block_categories();
