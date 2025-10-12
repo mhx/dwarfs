@@ -285,6 +285,7 @@ void file::hardlink(file* other, progress& prog) {
   assert(!data_);
   assert(other->data_);
   prog.hardlink_size += size();
+  prog.allocated_hardlink_size += allocated_size();
   ++prog.hardlinks;
   data_ = other->data_;
   ++data_->refcount;

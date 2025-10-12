@@ -107,8 +107,14 @@ class metadata_builder_ final : public metadata_builder::impl {
     }
   }
 
-  void set_total_hardlink_size(uint64_t total_hardlink_size) override {
+  void
+  set_total_hardlink_size(uint64_t total_hardlink_size,
+                          uint64_t total_allocated_hardlink_size) override {
     md_.total_hardlink_size() = total_hardlink_size;
+
+    if (options_.enable_sparse_files) {
+      md_.total_allocated_hardlink_size() = total_allocated_hardlink_size;
+    }
   }
 
   void set_shared_files_table(std::vector<uint32_t> shared_files) override {

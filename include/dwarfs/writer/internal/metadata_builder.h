@@ -96,8 +96,10 @@ class metadata_builder {
     impl_->set_total_fs_size(total_fs_size, total_allocated_fs_size);
   }
 
-  void set_total_hardlink_size(uint64_t total_hardlink_size) {
-    impl_->set_total_hardlink_size(total_hardlink_size);
+  void set_total_hardlink_size(uint64_t total_hardlink_size,
+                               uint64_t total_allocated_hardlink_size) {
+    impl_->set_total_hardlink_size(total_hardlink_size,
+                                   total_allocated_hardlink_size);
   }
 
   void set_shared_files_table(std::vector<uint32_t> shared_files) {
@@ -155,7 +157,9 @@ class metadata_builder {
     virtual void set_block_size(uint32_t block_size) = 0;
     virtual void set_total_fs_size(uint64_t total_fs_size,
                                    uint64_t total_allocated_fs_size) = 0;
-    virtual void set_total_hardlink_size(uint64_t total_hardlink_size) = 0;
+    virtual void
+    set_total_hardlink_size(uint64_t total_hardlink_size,
+                            uint64_t total_allocated_hardlink_size) = 0;
     virtual void set_shared_files_table(std::vector<uint32_t> shared_files) = 0;
     virtual void
     set_category_names(std::vector<std::string> category_names) = 0;

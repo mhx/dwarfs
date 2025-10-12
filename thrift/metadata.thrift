@@ -510,4 +510,7 @@ struct metadata {
 
    // Total allocated file system size in bytes.
   36: optional UInt64           total_allocated_fs_size
+
+   // Total allocated size of hardlinked files beyond the first link, in bytes.
+  37: optional UInt64           total_allocated_hardlink_size
 }
