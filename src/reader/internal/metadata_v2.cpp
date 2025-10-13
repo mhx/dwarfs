@@ -910,10 +910,13 @@ metadata_v2_data::build_nlinks(logger& lgr,
     auto td = LOG_TIMED_DEBUG;
 
     std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
+    size_t total_links{0};
 
     auto add_link = [&](int index) {
       if (index >= 0 && std::cmp_less(index, nlinks.size())) {
-        ++nlinks[index];
+        if (++nlinks[index] > 1) {
+          ++total_links;
+        }
       }
     };
 
@@ -927,7 +930,10 @@ metadata_v2_data::build_nlinks(logger& lgr,
       }
     }
 
-    {
+    LOG_DEBUG << "found " << total_links << " hardlinks in " << nlinks.size()
+              << " files";
+
+    if (total_links > 0) {
       auto tt = LOG_TIMED_TRACE;
 
       uint32_t max = *std::ranges::max_element(nlinks);
@@ -2034,7 +2040,7 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
     stbuf.set_ctime(resolution * (timebase + ivr.ctime_offset()));
   }
 
-  stbuf.set_nlink(options_.enable_nlink && stbuf.is_regular_file()
+  stbuf.set_nlink(!nlinks_.empty() && stbuf.is_regular_file()
                       ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
                       : 1);
 
