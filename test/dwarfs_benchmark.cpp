@@ -223,7 +223,6 @@ void dwarfs_initialize(::benchmark::State& state) {
   auto mm = test::make_mock_file_view(image);
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
-  opts.metadata.enable_nlink = true;
 
   for (auto _ : state) {
     auto fs = reader::filesystem_v2(lgr, os, mm, opts);
@@ -240,7 +239,6 @@ class filesystem : public ::benchmark::Fixture {
     mm = test::make_mock_file_view(image);
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
-    opts.metadata.enable_nlink = true;
     fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
     inode_views.reserve(NUM_ENTRIES);
     for (int i = 0; inode_views.size() < NUM_ENTRIES; ++i) {
@@ -356,7 +354,6 @@ class filesystem_walk : public ::benchmark::Fixture {
     mm = test::make_mock_file_view(get_image());
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
-    opts.metadata.enable_nlink = true;
     fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
     // fs->dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
   }

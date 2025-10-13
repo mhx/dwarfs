@@ -105,6 +105,7 @@ TEST(mkdwarfs_test, pack_mode_none) {
   for (auto const& opt : info["options"]) {
     fsopt.insert(opt.get<std::string>());
   }
+  fsopt.erase("inodes_have_nlink");
   fsopt.erase("mtime_only");
   EXPECT_TRUE(fsopt.empty()) << info["options"].dump();
 }
@@ -126,6 +127,7 @@ TEST(mkdwarfs_test, pack_mode_all) {
   for (auto const& opt : info["options"]) {
     fsopt.insert(opt.get<std::string>());
   }
+  fsopt.erase("inodes_have_nlink");
   fsopt.erase("mtime_only");
   EXPECT_EQ(expected, fsopt) << info["options"].dump();
 }

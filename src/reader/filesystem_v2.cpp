@@ -1585,7 +1585,6 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
                             int detail_level, size_t num_readers,
                             bool check_integrity, file_off_t image_offset) {
   filesystem_options fsopts;
-  fsopts.metadata.enable_nlink = true;
   fsopts.image_offset = image_offset;
   filesystem_v2 fs(lgr, os, mm, fsopts);
 

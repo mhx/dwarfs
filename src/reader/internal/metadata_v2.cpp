@@ -177,6 +177,7 @@ void parse_fs_options(View<thrift::metadata::fs_options> opt,
   func("packed_directories", opt.packed_directories());
   func("packed_shared_files_table", opt.packed_shared_files_table());
   func("has_btime", opt.has_btime());
+  func("inodes_have_nlink", opt.inodes_have_nlink());
 }
 
 std::vector<std::string>
@@ -457,8 +458,7 @@ class metadata_v2_data {
   build_dir_icase_cache(logger& lgr) const;
 
   template <typename LoggerPolicy>
-  packed_int_vector<uint32_t>
-  build_nlinks(logger& lgr, metadata_options const& options) const;
+  packed_int_vector<uint32_t> build_nlinks(logger& lgr) const;
 
   template <typename LoggerPolicy>
   packed_int_vector<uint32_t> unpack_chunk_table(logger& lgr) const;
@@ -678,7 +678,7 @@ metadata_v2_data::metadata_v2_data(
     , dev_inode_offset_{find_inode_offset(inode_rank::INO_DEV)}
     , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                        : meta_.entry_table_v2_2().size())
-    , nlinks_{build_nlinks<LoggerPolicy>(lgr, options)}
+    , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , chunk_table_{unpack_chunk_table<LoggerPolicy>(lgr)}
     , shared_files_{unpack_shared_files<LoggerPolicy>(lgr)}
     , unique_files_(dev_inode_offset_ - file_inode_offset_ -
@@ -900,12 +900,15 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
 }
 
 template <typename LoggerPolicy>
-packed_int_vector<uint32_t>
-metadata_v2_data::build_nlinks(logger& lgr,
-                               metadata_options const& options) const {
+packed_int_vector<uint32_t> metadata_v2_data::build_nlinks(logger& lgr) const {
   packed_int_vector<uint32_t> packed_nlinks;
 
-  if (options.enable_nlink && dev_inode_offset_ > file_inode_offset_) {
+  if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
+    // Inode nlink values are stored directly in the inode table
+    return packed_nlinks;
+  }
+
+  if (dev_inode_offset_ > file_inode_offset_) {
     LOG_PROXY(LoggerPolicy, lgr);
     auto td = LOG_TIMED_DEBUG;
 
@@ -1103,13 +1106,6 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
       options_.enable_sparse_files
           ? meta_.total_allocated_fs_size().value_or(meta_.total_fs_size())
           : meta_.total_fs_size();
-  if (!options_.enable_nlink) {
-    auto const hardlink_size = meta_.total_hardlink_size().value_or(0);
-    stbuf->blocks +=
-        options_.enable_sparse_files
-            ? meta_.total_allocated_hardlink_size().value_or(hardlink_size)
-            : hardlink_size;
-  }
   stbuf->files = inode_count_;
   stbuf->readonly = true;
   stbuf->namemax = PATH_MAX;
@@ -2040,9 +2036,18 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
     stbuf.set_ctime(resolution * (timebase + ivr.ctime_offset()));
   }
 
-  stbuf.set_nlink(!nlinks_.empty() && stbuf.is_regular_file()
-                      ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                      : 1);
+  if (stbuf.is_regular_file()) {
+    if (auto const opts = meta_.options();
+        opts.has_value() && opts->inodes_have_nlink()) {
+      stbuf.set_nlink(ivr.nlink_minus_one() + 1);
+    } else if (!nlinks_.empty()) {
+      stbuf.set_nlink(DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_)));
+    } else {
+      stbuf.set_nlink(1);
+    }
+  } else {
+    stbuf.set_nlink(1);
+  }
 
   stbuf.set_rdev(stbuf.is_device() ? get_device_id(inode).value() : 0);
 

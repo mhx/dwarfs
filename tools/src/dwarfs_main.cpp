@@ -189,7 +189,6 @@ struct options {
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
 #endif
   int preload_all{0};
-  int enable_nlink{0};
   int readonly{0};
   int case_insensitive{0};
   int cache_files{0};
@@ -307,7 +306,6 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
     DWARFS_OPT("preload_all", preload_all, 1),
-    DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
     DWARFS_OPT("cache_files", cache_files, 1),
@@ -1333,7 +1331,6 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
      << "    -o imagesize=NUM       filesystem image size in bytes\n"
-     << "    -o enable_nlink        show correct hardlink numbers\n"
      << "    -o readonly            show read-only file system\n"
      << "    -o case_insensitive    perform case-insensitive lookups\n"
      << "    -o preload_category=NAME  preload blocks from this category\n"
@@ -1579,7 +1576,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
       opts.seq_detector_threshold;
   fsopts.block_cache.allocation_mode = opts.block_allocator;
   fsopts.inode_reader.readahead = opts.readahead;
-  fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.enable_sparse_files =
 #ifdef DWARFS_FUSE_HAS_LSEEK
       true

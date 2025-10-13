@@ -430,7 +430,7 @@ TEST_P(map_file_error_test, delayed) {
 
   EXPECT_EQ(2, t.run(args)) << t.err();
 
-  auto fs = t.fs_from_file("test.dwarfs", {.metadata = {.enable_nlink = true}});
+  auto fs = t.fs_from_file("test.dwarfs");
   // fs.dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
 
   {

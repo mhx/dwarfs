@@ -191,6 +191,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   }
 
   void update_inodes();
+  void update_nlink();
   void apply_chmod();
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -631,6 +632,59 @@ void metadata_builder_<LoggerPolicy>::apply_chmod() {
 }
 
 template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::update_nlink() {
+  if (md_.options().has_value() &&
+      md_.options().value().inodes_have_nlink().value() !=
+          options_.no_hardlink_table) {
+    LOG_DEBUG << "keeping existing nlink fields";
+    return;
+  }
+
+  if (md_.inodes().value().empty()) {
+    LOG_DEBUG << "no inodes, skipping nlink update";
+    return;
+  }
+
+  auto td = LOG_TIMED_DEBUG;
+
+  if (options_.no_hardlink_table) {
+    LOG_DEBUG << "hardlink table disabled, clearing nlink fields";
+
+    // simply set nlink_minus_one to 0 for all inodes
+    for (auto& inode : md_.inodes().value()) {
+      inode.nlink_minus_one() = 0;
+    }
+  } else {
+    auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
+    auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
+
+    assert(std::ranges::all_of(md_.inodes().value(), [](auto const& inode) {
+      return inode.nlink_minus_one().value() == 0;
+    }));
+
+    if (dev_offset > reg_offset) {
+      for (auto& de : md_.dir_entries().value()) {
+        auto const inode_num = de.inode_num().value();
+        assert(inode_num < md_.inodes()->size());
+        // only need to update regular files
+        if (reg_offset <= inode_num && inode_num < dev_offset) {
+          auto& inode = md_.inodes()->at(inode_num);
+          ++inode.nlink_minus_one().value();
+        }
+      }
+
+      for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
+        auto& inode = md_.inodes()->at(inode_num);
+        assert(inode.nlink_minus_one() >= 1);
+        --inode.nlink_minus_one().value();
+      }
+    }
+  }
+
+  td << "updating inode nlink fields...";
+}
+
+template <typename LoggerPolicy>
 thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   LOG_VERBOSE << "building metadata";
 
@@ -643,6 +697,9 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   fsopts.packed_chunk_table() = options_.pack_chunk_table;
   fsopts.packed_directories() = options_.pack_directories;
   fsopts.packed_shared_files_table() = options_.pack_shared_files_table;
+  fsopts.inodes_have_nlink() = !options_.no_hardlink_table;
+
+  update_nlink();
 
   if (options_.pack_directories) {
     // pack directories

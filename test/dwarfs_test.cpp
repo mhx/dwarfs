@@ -136,11 +136,11 @@ void basic_end_to_end_test(
     std::string const& compressor, unsigned block_size_bits,
     writer::fragment_order_mode file_order, bool with_devices,
     bool with_specials, bool set_uid, bool set_gid, bool set_time,
-    bool keep_all_times, bool enable_nlink, bool pack_chunk_table,
-    bool pack_directories, bool pack_shared_files_table, bool pack_names,
-    bool pack_names_index, bool pack_symlinks, bool pack_symlinks_index,
-    bool plain_names_table, bool plain_symlinks_table, bool access_fail,
-    size_t readahead, std::optional<std::string> file_hash_algo) {
+    bool keep_all_times, bool pack_chunk_table, bool pack_directories,
+    bool pack_shared_files_table, bool pack_names, bool pack_names_index,
+    bool pack_symlinks, bool pack_symlinks_index, bool plain_names_table,
+    bool plain_symlinks_table, bool access_fail, size_t readahead,
+    std::optional<std::string> file_hash_algo) {
   writer::segmenter::config cfg;
   writer::scanner_options options;
 
@@ -243,7 +243,6 @@ void basic_end_to_end_test(
 
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
-  opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
   opts.inode_reader.readahead = readahead;
 
@@ -256,11 +255,7 @@ void basic_end_to_end_test(
 
   EXPECT_EQ(1, vfsbuf.bsize);
   EXPECT_EQ(1, vfsbuf.frsize);
-  if (enable_nlink) {
-    EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.blocks);
-  } else {
-    EXPECT_EQ(access_fail ? 2070390 : 2080390, vfsbuf.blocks);
-  }
+  EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.blocks);
   EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.files);
   EXPECT_TRUE(vfsbuf.readonly);
   EXPECT_GT(vfsbuf.namemax, 0);
@@ -448,10 +443,8 @@ void basic_end_to_end_test(
   auto st2 = fs.getattr(iv2);
 
   EXPECT_EQ(st1.ino(), st2.ino());
-  if (enable_nlink) {
-    EXPECT_EQ(2, st1.nlink());
-    EXPECT_EQ(2, st2.nlink());
-  }
+  EXPECT_EQ(2, st1.nlink());
+  EXPECT_EQ(2, st2.nlink());
 
   dev = fs.find("/");
   ASSERT_TRUE(dev);
@@ -615,7 +608,7 @@ class compression_test
 
 class scanner_test : public testing::TestWithParam<
                          std::tuple<bool, bool, bool, bool, bool, bool, bool,
-                                    bool, std::optional<std::string>>> {};
+                                    std::optional<std::string>>> {};
 
 class hashing_test : public testing::TestWithParam<std::string> {};
 
@@ -641,26 +634,25 @@ TEST_P(compression_test, end_to_end) {
   }
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
-                        false, false, false, false, false, true, true, true,
-                        true, true, true, true, false, false, false, readahead,
+                        false, false, false, false, true, true, true, true,
+                        true, true, true, false, false, false, readahead,
                         file_hash_algo);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        enable_nlink, access_fail, file_hash_algo] = GetParam();
+        access_fail, file_hash_algo] = GetParam();
 
   basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
                         with_devices, with_specials, set_uid, set_gid, set_time,
-                        keep_all_times, enable_nlink, true, true, true, true,
-                        true, true, true, false, false, access_fail, 0,
-                        file_hash_algo);
+                        keep_all_times, true, true, true, true, true, true,
+                        true, false, false, access_fail, 0, file_hash_algo);
 }
 
 TEST_P(hashing_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
                         true, true, true, true, true, true, true, true, true,
-                        true, true, true, true, true, false, false, false, 0,
+                        true, true, true, true, false, false, false, 0,
                         GetParam());
 }
 
@@ -670,7 +662,7 @@ TEST_P(packing_test, end_to_end) {
 
   basic_end_to_end_test(
       compressions[0], 15, writer::fragment_order_mode::NONE, true, true, false,
-      false, false, false, false, pack_chunk_table, pack_directories,
+      false, false, false, pack_chunk_table, pack_directories,
       pack_shared_files_table, pack_names, pack_names_index, pack_symlinks,
       pack_symlinks_index, false, false, false, 0, default_file_hash_algo);
 }
@@ -680,9 +672,8 @@ TEST_P(plain_tables_test, end_to_end) {
 
   basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
                         true, true, false, false, false, false, false, false,
-                        false, false, false, false, false, false,
-                        plain_names_table, plain_symlinks_table, false, 0,
-                        default_file_hash_algo);
+                        false, false, false, false, false, plain_names_table,
+                        plain_symlinks_table, false, 0, default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -751,7 +742,7 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
-                       ::testing::Bool(), ::testing::Bool(),
+                       ::testing::Bool(),
                        ::testing::Values(std::nullopt, "xxh3-128", "sha512")));
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, hashing_test,
@@ -1057,7 +1048,6 @@ TEST_P(filter_test, filesystem) {
 
   reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
-  opts.metadata.enable_nlink = true;
   opts.metadata.check_consistency = true;
 
   reader::filesystem_v2 fs(lgr, *input, mm, opts);
@@ -1419,8 +1409,7 @@ TEST(file_scanner, file_start_hash) {
 
   auto mm = test::make_mock_file_view(std::move(fsimage));
 
-  reader::filesystem_v2 fs(lgr, *input, mm,
-                           {.metadata = {.enable_nlink = true}});
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   auto link1 = fs.find("/hardlink1");
   auto link2 = fs.find("/hardlink2");

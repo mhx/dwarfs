@@ -333,9 +333,8 @@ TEST(mkdwarfs_test, sparse_files_metadata) {
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "-l3"})) << t.err();
 
     {
-      auto fs = t.fs_from_file(
-          image_file,
-          {.metadata = {.enable_nlink = true, .enable_sparse_files = true}});
+      auto fs = t.fs_from_file(image_file,
+                               {.metadata = {.enable_sparse_files = true}});
 
       {
         auto const dev = fs.find("/sparse1");

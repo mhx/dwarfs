@@ -84,16 +84,6 @@ options:
   try or require `mlock()`ing of the file system metadata into
   memory.
 
-- `-o enable_nlink`:
-  Set this option if you want correct hardlink counts for regular
-  files. If this is not specified, the hardlink count will be 1.
-  Enabling this will slow down the initialization of the fuse
-  driver as the hardlink counts will be determined by a full
-  file system scan (it only takes about a millisecond to scan
-  through 100,000 files, so this isn't dramatic). The fuse driver
-  will also consume more memory to hold the hardlink count table.
-  This will be 4 bytes for every regular file inode.
-
 - `-o readonly`:
   Show all file system entries as read-only. By default, DwarFS
   will preserve the original writability, which is obviously a

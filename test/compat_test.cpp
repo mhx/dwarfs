@@ -945,13 +945,12 @@ int compare_versions(std::string_view v1str, std::string_view v2str) {
 }
 
 void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
-                  std::string const& version, bool enable_nlink) {
+                  std::string const& version) {
   bool const has_devices = compare_versions(version, "0.3.0") >= 0;
   bool const has_ac_time = compare_versions(version, "0.3.0") < 0;
   bool const nlink_affects_blocks = compare_versions(version, "0.5.0") >= 0;
   bool const has_section_index = compare_versions(version, "0.6.0") >= 0;
-  auto const expected_blocks =
-      nlink_affects_blocks and enable_nlink ? 2747 : 10614;
+  auto const expected_blocks = nlink_affects_blocks ? 2747 : 10614;
 
   ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 
@@ -1319,6 +1318,9 @@ void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
       ref["statvfs"]["f_files"] = 44;
     }
   }
+  if (compare_versions(version, "0.5.0") >= 0) {
+    ref["statvfs"]["f_blocks"] = 2747;
+  }
 
   if (rebuild_metadata) {
     test::test_logger lgr;
@@ -1366,24 +1368,22 @@ TEST_P(compat_metadata, backwards_compat) {
 INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_metadata,
                          ::testing::ValuesIn(versions));
 
-class compat_filesystem
-    : public testing::TestWithParam<std::tuple<std::string, bool>> {};
+class compat_filesystem : public testing::TestWithParam<std::string> {};
 
 TEST_P(compat_filesystem, backwards_compat) {
-  auto [version, enable_nlink] = GetParam();
+  auto version = GetParam();
 
   test::test_logger lgr;
   test::os_access_mock os;
   auto filename = get_image_path(version);
 
   reader::filesystem_options opts;
-  opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
 
   {
     reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename),
                              opts);
-    check_compat(lgr, fs, version, enable_nlink);
+    check_compat(lgr, fs, version);
   }
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1394,21 +1394,20 @@ TEST_P(compat_filesystem, backwards_compat) {
   for (auto const& hdr : headers) {
     reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
                              opts);
-    check_compat(lgr, fs, version, enable_nlink);
+    check_compat(lgr, fs, version);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
       reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
                                opts);
-      check_compat(lgr, fs, version, enable_nlink);
+      check_compat(lgr, fs, version);
     }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_filesystem,
-                         ::testing::Combine(::testing::ValuesIn(versions),
-                                            ::testing::Bool()));
+                         ::testing::ValuesIn(versions));
 
 class rewrite : public testing::TestWithParam<
                     std::tuple<std::string, bool, rebuild_metadata_type>> {};

@@ -297,8 +297,6 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     reader::filesystem_options fsopts;
 
-    // This is needed to report a correct original file system size.
-    fsopts.metadata.enable_nlink = true;
     fsopts.metadata.check_consistency = check_integrity;
     fsopts.image_offset = reader::parse_image_offset(image_offset);
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);

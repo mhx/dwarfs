@@ -979,7 +979,10 @@ TEST_P(tools_test, end_to_end) {
           << runner.cmdline() << ": " << cdr;
       EXPECT_EQ(cdr.matching_symlinks.size(), 2)
           << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
+#ifndef _WIN32
+      // TODO: https://github.com/winfsp/winfsp/issues/511
+      EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
+#endif
 
       EXPECT_TRUE(fs::is_symlink(unicode_symlink)) << runner.cmdline();
       EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target)
@@ -1067,7 +1070,7 @@ TEST_P(tools_test, end_to_end) {
         "-s",
         "-ocase_insensitive,block_allocator=mmap",
 #ifndef _WIN32
-        "-oenable_nlink,preload_all",
+        "-opreload_all",
         "-oreadonly",
         "-ouid=2345,gid=3456",
 #endif
@@ -1087,7 +1090,6 @@ TEST_P(tools_test, end_to_end) {
       std::vector<std::string> args;
       bool case_insensitive{false};
 #ifndef _WIN32
-      bool enable_nlink{false};
       bool readonly{false};
       bool uid_gid_override{false};
 #endif
@@ -1101,9 +1103,6 @@ TEST_P(tools_test, end_to_end) {
 #ifndef _WIN32
           if (opt.find("-oreadonly") != std::string::npos) {
             readonly = true;
-          }
-          if (opt.find("-oenable_nlink") != std::string::npos) {
-            enable_nlink = true;
           }
           if (opt.find("-ouid=") != std::string::npos) {
             uid_gid_override = true;
@@ -1137,7 +1136,7 @@ TEST_P(tools_test, end_to_end) {
             << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
             << runner.cmdline();
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
@@ -1194,7 +1193,7 @@ TEST_P(tools_test, end_to_end) {
             << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
             << runner.cmdline();
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))

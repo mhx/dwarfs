@@ -683,6 +683,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-category-metadata",
         po::value<bool>(&options.metadata.no_category_metadata)->zero_tokens(),
         "don't add category metadata to file system")
+    ("no-hardlink-table",
+        po::value<bool>(&options.metadata.no_hardlink_table)->zero_tokens(),
+        "don't add hardlink count table to file system")
     ("pack-metadata,P",
         po::value<std::string>(&pack_metadata)->default_value("auto"),
         "pack certain metadata elements (auto, all, none, chunk_table, "

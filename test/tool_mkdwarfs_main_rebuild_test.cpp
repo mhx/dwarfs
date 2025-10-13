@@ -57,18 +57,58 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
 
-    auto dev = fs.find("/somedir/ipsum.py");
-    ASSERT_TRUE(dev);
-    auto iv = dev->inode();
-    EXPECT_TRUE(iv.is_regular_file());
-    auto stat = fs.getattr(iv);
-    EXPECT_EQ(10'000, stat.size());
-    EXPECT_EQ(6001, stat.atime());
-    EXPECT_EQ(6002, stat.mtime());
-    EXPECT_EQ(6003, stat.ctime());
-    EXPECT_EQ(1000, stat.uid());
-    EXPECT_EQ(100, stat.gid());
-    EXPECT_EQ(0644, stat.permissions());
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6001, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6003, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+      EXPECT_EQ(0644, stat.permissions());
+      EXPECT_EQ(1, stat.nlink());
+    }
+
+    {
+      auto foo_dev = fs.find("/foo.pl");
+      auto bar_dev = fs.find("/bar.pl");
+      ASSERT_TRUE(foo_dev);
+      ASSERT_TRUE(bar_dev);
+      auto foo_iv = foo_dev->inode();
+      auto bar_iv = bar_dev->inode();
+      EXPECT_TRUE(foo_iv.is_regular_file());
+      EXPECT_TRUE(bar_iv.is_regular_file());
+      auto foo_stat = fs.getattr(foo_iv);
+      auto bar_stat = fs.getattr(bar_iv);
+      EXPECT_EQ(23'456, foo_stat.size());
+      EXPECT_EQ(4001, foo_stat.atime());
+      EXPECT_EQ(4002, foo_stat.mtime());
+      EXPECT_EQ(4003, foo_stat.ctime());
+      EXPECT_EQ(1337, foo_stat.uid());
+      EXPECT_EQ(0, foo_stat.gid());
+      EXPECT_EQ(0600, foo_stat.permissions());
+      EXPECT_EQ(2, foo_stat.nlink());
+      EXPECT_EQ(23'456, bar_stat.size());
+      EXPECT_EQ(4001, bar_stat.atime());
+      EXPECT_EQ(4002, bar_stat.mtime());
+      EXPECT_EQ(4003, bar_stat.ctime());
+      EXPECT_EQ(1337, bar_stat.uid());
+      EXPECT_EQ(0, bar_stat.gid());
+      EXPECT_EQ(0600, bar_stat.permissions());
+      EXPECT_EQ(2, bar_stat.nlink());
+      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
+    }
+
+    {
+      auto analysis =
+          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      EXPECT_THAT(analysis, ::testing::HasSubstr("nlink_minus_one"));
+      EXPECT_THAT(analysis, ::testing::HasSubstr("inodes_have_nlink"));
+    }
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
@@ -81,7 +121,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
   {
     auto t = rebuild_tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
-                        "--keep-all-times"}))
+                        "--keep-all-times", "--no-hardlink-table"}))
         << t.err();
     auto fs = t.fs_from_stdout();
 
@@ -127,12 +167,66 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     }
 
     {
+      auto foo_dev = fs.find("/foo.pl");
+      auto bar_dev = fs.find("/bar.pl");
+      ASSERT_TRUE(foo_dev);
+      ASSERT_TRUE(bar_dev);
+      auto foo_iv = foo_dev->inode();
+      auto bar_iv = bar_dev->inode();
+      EXPECT_TRUE(foo_iv.is_regular_file());
+      EXPECT_TRUE(bar_iv.is_regular_file());
+      auto foo_stat = fs.getattr(foo_iv);
+      auto bar_stat = fs.getattr(bar_iv);
+      EXPECT_EQ(23'456, foo_stat.size());
+      EXPECT_EQ(4001, foo_stat.atime());
+      EXPECT_EQ(4002, foo_stat.mtime());
+      EXPECT_EQ(4003, foo_stat.ctime());
+      EXPECT_EQ(1337, foo_stat.uid());
+      EXPECT_EQ(0, foo_stat.gid());
+      EXPECT_EQ(0600, foo_stat.permissions());
+      EXPECT_EQ(2, foo_stat.nlink());
+      EXPECT_EQ(23'456, bar_stat.size());
+      EXPECT_EQ(4001, bar_stat.atime());
+      EXPECT_EQ(4002, bar_stat.mtime());
+      EXPECT_EQ(4003, bar_stat.ctime());
+      EXPECT_EQ(1337, bar_stat.uid());
+      EXPECT_EQ(0, bar_stat.gid());
+      EXPECT_EQ(0600, bar_stat.permissions());
+      EXPECT_EQ(2, bar_stat.nlink());
+      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
+    }
+
+    {
       auto analysis =
           fs.dump({.features = reader::fsinfo_features::for_level(2)});
+
       EXPECT_THAT(analysis,
                   ::testing::HasSubstr("1 metadata_version_history..."));
       EXPECT_THAT(analysis,
                   ::testing::HasSubstr("previous metadata versions:"));
+      EXPECT_THAT(analysis,
+                  ::testing::Not(::testing::HasSubstr("nlink_minus_one")));
+
+      std::istringstream iss(analysis);
+      std::string options_line;
+      std::vector<std::string> previous_options;
+
+      for (std::string line; std::getline(iss, line);) {
+        if (line.starts_with("options:")) {
+          options_line = line;
+        }
+        if (line.starts_with("        options:")) {
+          previous_options.push_back(line.substr(4));
+        }
+      }
+
+      EXPECT_FALSE(options_line.empty());
+      EXPECT_THAT(options_line,
+                  ::testing::Not(::testing::HasSubstr("inodes_have_nlink")));
+
+      ASSERT_EQ(1, previous_options.size());
+      EXPECT_THAT(previous_options[0],
+                  ::testing::HasSubstr("inodes_have_nlink"));
     }
   }
 
@@ -181,6 +275,37 @@ TEST(mkdwarfs_test, rebuild_metadata) {
       EXPECT_EQ(1337, stat.uid());
       EXPECT_EQ(0, stat.gid());
       EXPECT_EQ(0600, stat.permissions());
+    }
+
+    {
+      auto foo_dev = fs.find("/foo.pl");
+      auto bar_dev = fs.find("/bar.pl");
+      ASSERT_TRUE(foo_dev);
+      ASSERT_TRUE(bar_dev);
+      auto foo_iv = foo_dev->inode();
+      auto bar_iv = bar_dev->inode();
+      EXPECT_TRUE(foo_iv.is_regular_file());
+      EXPECT_TRUE(bar_iv.is_regular_file());
+      auto foo_stat = fs.getattr(foo_iv);
+      auto bar_stat = fs.getattr(bar_iv);
+      EXPECT_EQ(23'456, foo_stat.size());
+      EXPECT_EQ(1337, foo_stat.uid());
+      EXPECT_EQ(0, foo_stat.gid());
+      EXPECT_EQ(0600, foo_stat.permissions());
+      EXPECT_EQ(2, foo_stat.nlink());
+      EXPECT_EQ(23'456, bar_stat.size());
+      EXPECT_EQ(1337, bar_stat.uid());
+      EXPECT_EQ(0, bar_stat.gid());
+      EXPECT_EQ(0600, bar_stat.permissions());
+      EXPECT_EQ(2, bar_stat.nlink());
+      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
+    }
+
+    {
+      auto analysis =
+          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      EXPECT_THAT(analysis, ::testing::HasSubstr("nlink_minus_one"));
+      EXPECT_THAT(analysis, ::testing::HasSubstr("inodes_have_nlink"));
     }
   }
 

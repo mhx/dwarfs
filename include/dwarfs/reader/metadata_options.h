@@ -36,7 +36,6 @@
 namespace dwarfs::reader {
 
 struct metadata_options {
-  bool enable_nlink{false};
   bool enable_sparse_files{true};
   bool readonly{false};
   bool check_consistency{false};

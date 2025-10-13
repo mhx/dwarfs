@@ -133,6 +133,9 @@ struct inode_data {
    // subsecond part of btime
   13: UInt64 btime_subsec
 
+   // number of hard links; these are only valid
+  14: UInt32 nlink_minus_one
+
    /**
     * ==================================================================
     * NOTE: These fields has been deprecated with filesystem version 2.3
@@ -192,6 +195,9 @@ struct fs_options {
 
    // file system contains btime (birth time) time stamps
    7: bool   has_btime
+
+   // inodes contain valid nlink values in `inode_data.nlink_minus_one`
+   8: bool   inodes_have_nlink
 }
 
 /**

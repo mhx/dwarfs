@@ -446,6 +446,17 @@ Most other options are concerned with compression tuning:
   compression algorithm, this is going to be impossible if the metadata
   information is not available.
 
+- `--no-hardlink-table`:
+  Don't store hardlink counts in the inode table. If your input does not
+  contain any hardlinks, there is no need to disable hardlink counts as
+  counts of one won't consume any space in the metadata. Really the only
+  reason why you might want to disable this is when you have lots of files,
+  only a small number of them have hardlinks, and you want to save metadata
+  space by all means. If you disable hardlink counts, the information will
+  be reconstructed when the file system image is mounted, which consumes
+  both time and memory, although this will usually only be noticeable for
+  file system images with millions of files.
+
 - `--file-hash=none`|*name*:
   Select the hashing function to be used for file deduplication. If `none`
   is chosen, file deduplication is disabled. By default, the built-in
