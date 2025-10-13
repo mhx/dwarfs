@@ -83,6 +83,11 @@ struct simplestat {
   }
 };
 
+struct add_file_options {
+  std::optional<file_stat::ino_type> ino{};
+  std::optional<file_stat::nlink_type> nlink{};
+};
+
 class os_access_mock : public os_access {
  private:
   struct mock_directory;
@@ -117,10 +122,13 @@ class os_access_mock : public os_access {
            std::function<std::string()> generator);
 
   void add_dir(std::filesystem::path const& path);
-  void add_file(std::filesystem::path const& path, file_size_t size,
-                bool random = false);
-  void add_file(std::filesystem::path const& path, std::string const& contents);
-  void add_file(std::filesystem::path const& path, test_file_data data);
+  simplestat add_file(std::filesystem::path const& path, file_size_t size,
+                      bool random = false, add_file_options const& opts = {});
+  simplestat
+  add_file(std::filesystem::path const& path, std::string const& contents,
+           add_file_options const& opts = {});
+  simplestat add_file(std::filesystem::path const& path, test_file_data data,
+                      add_file_options const& opts = {});
 
   void add_local_files(std::filesystem::path const& path);
 
@@ -182,6 +190,7 @@ class os_access_mock : public os_access {
     std::atomic<int> mutable remaining_successful_attempts{0};
   };
 
+  simplestat make_reg_file_stat(add_file_options const& opts);
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
