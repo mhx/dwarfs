@@ -374,6 +374,8 @@ endif()
 if(WITH_FUSE_DRIVER)
   include(${CMAKE_SOURCE_DIR}/cmake/need_fuse.cmake)
 
+  file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
+
   if(FUSE3_FOUND OR WINFSP OR APPLE)
     add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
     target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
@@ -416,13 +418,12 @@ if(WITH_FUSE_DRIVER)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
       install(FILES $<TARGET_PDB_FILE:dwarfs-bin> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     else()
-      file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
-      add_custom_command(OUTPUT  mount.dwarfs
-                         COMMAND ${CMAKE_COMMAND} -E create_symlink ${relative_sbindir_to_bindir}/dwarfs mount.dwarfs
-                         DEPENDS dwarfs-bin)
-      list(APPEND SYMLINKS mount.dwarfs)
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION ${CMAKE_INSTALL_SBINDIR})
       install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+      install(CODE "\
+        file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
+        file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs\"
+                         \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs\"
+                         SYMBOLIC)")
     endif()
     list(APPEND BINARY_TARGETS dwarfs-bin)
     list(APPEND MAIN_TARGETS dwarfs_main)
@@ -445,13 +446,12 @@ if(WITH_FUSE_DRIVER)
       target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
     endif()
     set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-    file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
-    add_custom_command(OUTPUT  mount.dwarfs2
-                       COMMAND ${CMAKE_COMMAND} -E create_symlink ${relative_sbindir_to_bindir}/dwarfs2 mount.dwarfs2
-                       DEPENDS dwarfs2-bin)
-    list(APPEND SYMLINKS mount.dwarfs2)
     install(TARGETS dwarfs2-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION ${CMAKE_INSTALL_SBINDIR})
+    install(CODE "\
+      file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
+      file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs2\"
+                       \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs2\"
+                       SYMBOLIC)")
     list(APPEND BINARY_TARGETS dwarfs2-bin)
     list(APPEND MAIN_TARGETS dwarfs2_main)
     target_link_libraries(dwarfs2_main PRIVATE dwarfs_reader)
@@ -483,8 +483,6 @@ if(WITH_MAN_OPTION)
     target_sources(dwarfs2_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/tools/src/dwarfs_manpage.cpp)
   endif()
 endif()
-
-add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers
