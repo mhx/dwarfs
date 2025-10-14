@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <iosfwd>
 #include <memory>
 #include <type_traits>
 
@@ -55,6 +56,10 @@ class file_stat {
   struct timespec_type {
     time_type sec{0};
     uint32_t nsec{0};
+
+    friend constexpr bool
+    operator==(timespec_type const& a, timespec_type const& b) = default;
+    friend std::ostream& operator<<(std::ostream& os, timespec_type const& ts);
   };
 
   static constexpr valid_fields_type dev_valid = 1 << 0;

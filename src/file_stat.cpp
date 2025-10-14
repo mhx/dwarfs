@@ -31,6 +31,7 @@
 #include <cerrno>
 #include <ctime>
 #include <filesystem>
+#include <ostream>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -695,6 +696,10 @@ file_stat::off_type file_stat::allocated_size() const {
 void file_stat::set_allocated_size(off_type allocated_size) {
   valid_fields_ |= allocated_size_valid;
   allocated_size_ = allocated_size;
+}
+
+std::ostream& operator<<(std::ostream& os, file_stat::timespec_type const& ts) {
+  return os << "{" << ts.sec << ", " << ts.nsec << "}";
 }
 
 } // namespace dwarfs
