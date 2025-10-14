@@ -87,16 +87,22 @@ time_resolution_handler::time_resolution_handler(
 
 void time_resolution_handler::fill_stat_timevals(
     file_stat& st, inode_view_impl const& ivr) const {
-  // TODO subsecond resolution
-
-  st.set_mtime(resolution_ * (timebase_ + ivr.mtime_offset()));
+  auto const mtime_nsec =
+      nsec_multiplier_ > 0 ? ivr.mtime_subsec() * nsec_multiplier_ : 0;
+  st.set_mtimespec(resolution_ * (timebase_ + ivr.mtime_offset()), mtime_nsec);
 
   if (mtime_only_) {
-    st.set_atime(st.mtime_unchecked());
-    st.set_ctime(st.mtime_unchecked());
+    st.set_atimespec(st.mtimespec_unchecked());
+    st.set_ctimespec(st.mtimespec_unchecked());
   } else {
-    st.set_atime(resolution_ * (timebase_ + ivr.atime_offset()));
-    st.set_ctime(resolution_ * (timebase_ + ivr.ctime_offset()));
+    auto const atime_nsec =
+        nsec_multiplier_ > 0 ? ivr.atime_subsec() * nsec_multiplier_ : 0;
+    auto const ctime_nsec =
+        nsec_multiplier_ > 0 ? ivr.ctime_subsec() * nsec_multiplier_ : 0;
+    st.set_atimespec(resolution_ * (timebase_ + ivr.atime_offset()),
+                     atime_nsec);
+    st.set_ctimespec(resolution_ * (timebase_ + ivr.ctime_offset()),
+                     ctime_nsec);
   }
 }
 
