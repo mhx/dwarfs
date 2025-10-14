@@ -64,14 +64,16 @@ namespace fs = std::filesystem;
 
 #ifdef _WIN32
 
-int64_t to_unix_time_seconds(LARGE_INTEGER const& ft) {
+file_stat::timespec_type to_unix_timespec(LARGE_INTEGER const& ft) {
   // FILETIME epoch (1601) → Unix epoch (1970)
   static constexpr int64_t kEpochDiff100ns = INT64_C(116'444'736'000'000'000);
   auto const t100 = static_cast<int64_t>(ft.QuadPart);
-  if (t100 < kEpochDiff100ns) {
-    return 0;
+  file_stat::timespec_type ts{};
+  if (t100 >= kEpochDiff100ns) {
+    ts.sec = (t100 - kEpochDiff100ns) / INT64_C(10'000'000);
+    ts.nsec = static_cast<uint32_t>((t100 % INT64_C(10'000'000)) * 100);
   }
-  return (t100 - kEpochDiff100ns) / INT64_C(10'000'000);
+  return ts;
 };
 
 int utf8_len_of_print_name(WCHAR const* wstr, int wlen_chars) {
@@ -386,9 +388,9 @@ file_stat::file_stat(fs::path const& path) {
 
   blocks_ = (stdinfo.AllocationSize.QuadPart + 511) / 512;
 
-  atime_ = to_unix_time_seconds(basic.LastAccessTime);
-  mtime_ = to_unix_time_seconds(basic.LastWriteTime);
-  ctime_ = to_unix_time_seconds(basic.ChangeTime);
+  atimespec_ = to_unix_timespec(basic.LastAccessTime);
+  mtimespec_ = to_unix_timespec(basic.LastWriteTime);
+  ctimespec_ = to_unix_timespec(basic.ChangeTime);
 }
 
 #else
@@ -419,14 +421,20 @@ file_stat::file_stat(fs::path const& path) {
   }
   blksize_ = st.st_blksize;
   blocks_ = st.st_blocks;
+
+  auto copy_timespec = [](file_stat::timespec_type& dst, auto const& src) {
+    dst.sec = src.tv_sec;
+    dst.nsec = src.tv_nsec;
+  };
+
 #ifdef __APPLE__
-  atime_ = st.st_atimespec.tv_sec;
-  mtime_ = st.st_mtimespec.tv_sec;
-  ctime_ = st.st_ctimespec.tv_sec;
+  copy_timespec(atimespec_, st.st_atimespec);
+  copy_timespec(mtimespec_, st.st_mtimespec);
+  copy_timespec(ctimespec_, st.st_ctimespec);
 #else
-  atime_ = st.st_atim.tv_sec;
-  mtime_ = st.st_mtim.tv_sec;
-  ctime_ = st.st_ctim.tv_sec;
+  copy_timespec(atimespec_, st.st_atim);
+  copy_timespec(mtimespec_, st.st_mtim);
+  copy_timespec(ctimespec_, st.st_ctim);
 #endif
 }
 
@@ -600,32 +608,83 @@ void file_stat::set_blocks(blkcnt_type blocks) {
 
 file_stat::time_type file_stat::atime() const {
   ensure_valid(atime_valid);
-  return atime_;
+  return atimespec_.sec;
 }
 
 void file_stat::set_atime(time_type atime) {
   valid_fields_ |= atime_valid;
-  atime_ = atime;
+  atimespec_.sec = atime;
+  atimespec_.nsec = 0;
 }
 
 file_stat::time_type file_stat::mtime() const {
   ensure_valid(mtime_valid);
-  return mtime_;
+  return mtimespec_.sec;
 }
 
 void file_stat::set_mtime(time_type mtime) {
   valid_fields_ |= mtime_valid;
-  mtime_ = mtime;
+  mtimespec_.sec = mtime;
+  mtimespec_.nsec = 0;
 }
 
 file_stat::time_type file_stat::ctime() const {
   ensure_valid(ctime_valid);
-  return ctime_;
+  return ctimespec_.sec;
 }
 
 void file_stat::set_ctime(time_type ctime) {
   valid_fields_ |= ctime_valid;
-  ctime_ = ctime;
+  ctimespec_.sec = ctime;
+  ctimespec_.nsec = 0;
+}
+
+file_stat::timespec_type file_stat::atimespec() const {
+  ensure_valid(atime_valid);
+  return atimespec_;
+}
+
+void file_stat::set_atimespec(timespec_type atimespec) {
+  valid_fields_ |= atime_valid;
+  atimespec_ = atimespec;
+}
+
+void file_stat::set_atimespec(time_type sec, uint32_t nsec) {
+  valid_fields_ |= atime_valid;
+  atimespec_.sec = sec;
+  atimespec_.nsec = nsec;
+}
+
+file_stat::timespec_type file_stat::mtimespec() const {
+  ensure_valid(mtime_valid);
+  return mtimespec_;
+}
+
+void file_stat::set_mtimespec(timespec_type mtimespec) {
+  valid_fields_ |= mtime_valid;
+  mtimespec_ = mtimespec;
+}
+
+void file_stat::set_mtimespec(time_type sec, uint32_t nsec) {
+  valid_fields_ |= mtime_valid;
+  mtimespec_.sec = sec;
+  mtimespec_.nsec = nsec;
+}
+
+file_stat::timespec_type file_stat::ctimespec() const {
+  ensure_valid(ctime_valid);
+  return ctimespec_;
+}
+
+void file_stat::set_ctimespec(timespec_type ctimespec) {
+  valid_fields_ |= ctime_valid;
+  ctimespec_ = ctimespec;
+}
+
+void file_stat::set_ctimespec(time_type sec, uint32_t nsec) {
+  valid_fields_ |= ctime_valid;
+  ctimespec_.sec = sec;
+  ctimespec_.nsec = nsec;
 }
 
 file_stat::off_type file_stat::allocated_size() const {
