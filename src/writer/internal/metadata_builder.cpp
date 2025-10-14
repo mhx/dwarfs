@@ -30,6 +30,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>
 
@@ -188,6 +189,24 @@ class metadata_builder_ final : public metadata_builder::impl {
       }
     }
     return resolution;
+  }
+
+  uint32_t get_subsec_mult() const {
+    uint32_t mult = 0;
+    if (md_.options()) {
+      if (auto res = md_.options()->subsecond_resolution_nsec_multiplier()) {
+        mult = *res;
+      }
+    }
+    return mult;
+  }
+
+  std::chrono::nanoseconds get_chrono_time_resolution() const {
+    if (auto subsec = get_subsec_mult(); subsec > 0) {
+      assert(subsec < 1'000'000'000);
+      return std::chrono::nanoseconds{subsec};
+    }
+    return std::chrono::seconds{get_time_resolution()};
   }
 
   void update_inodes();
@@ -524,28 +543,65 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
       !options_.keep_all_times &&
       !(md_.options().has_value() && md_.options()->mtime_only().value())};
   bool update_resolution{false};
-  auto orig_resolution = get_time_resolution();
+  auto const orig_resolution = get_time_resolution();
   auto new_resolution = orig_resolution;
+  bool update_subsecond{false};
+  auto const orig_subsec_mult = get_subsec_mult();
+  auto new_subsec_mult = orig_subsec_mult;
 
-  if (options_.time_resolution_sec.has_value()) {
-    auto res = *options_.time_resolution_sec;
+  if (options_.time_resolution.has_value()) {
+    // TODO: clean up & factor out
+    auto const res = options_.time_resolution_sec();
+    assert(res > 0);
     if (res > orig_resolution) {
-      new_resolution = res;
-      update_resolution = true;
+      if (res % orig_resolution == 0) {
+        new_resolution = res;
+        update_resolution = true;
+      } else {
+        LOG_WARN << "cannot change time resolution from "
+                 << time_with_unit(get_chrono_time_resolution()) << " to "
+                 << time_with_unit(*options_.time_resolution)
+                 << " since the new resolution is not a multiple of the old";
+      }
     } else if (res < orig_resolution) {
-      LOG_WARN << "cannot increase time resolution from " << orig_resolution
-               << "s to " << res << "s";
+      LOG_WARN << "cannot increase time resolution from "
+               << time_with_unit(get_chrono_time_resolution()) << " to "
+               << time_with_unit(*options_.time_resolution);
+    }
+
+    auto const mult = options_.subsecond_resolution_nsec_multiplier();
+    assert(mult < 1'000'000'000);
+    if (orig_subsec_mult > 0 && (mult == 0 || mult > orig_subsec_mult)) {
+      if (mult % orig_subsec_mult == 0) {
+        new_subsec_mult = mult;
+        update_subsecond = true;
+      } else {
+        LOG_WARN << "cannot change time resolution from "
+                 << time_with_unit(get_chrono_time_resolution()) << " to "
+                 << time_with_unit(*options_.time_resolution)
+                 << " since the new resolution is not a multiple of the old";
+      }
+    } else if (mult < orig_subsec_mult) {
+      LOG_WARN << "cannot increase time resolution from "
+               << time_with_unit(get_chrono_time_resolution()) << " to "
+               << time_with_unit(*options_.time_resolution);
     }
   }
 
   if (!update_uid && !update_gid && !set_timestamp && !remove_atime_ctime &&
-      !update_resolution && options_.chmod_specifiers.empty()) {
+      !update_resolution && !update_subsecond &&
+      options_.chmod_specifiers.empty()) {
     // nothing to do
     return;
   }
 
   auto transform_timeval = [&](auto val) {
     return (val * orig_resolution) / new_resolution;
+  };
+
+  auto transform_subsec = [&](auto val) {
+    return new_subsec_mult == 0 ? 0
+                                : (val * orig_subsec_mult) / new_subsec_mult;
   };
 
   for (auto& inode : md_.inodes().value()) {
@@ -559,16 +615,27 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
 
     if (set_timestamp) {
       inode.mtime_offset() = 0;
-    } else if (update_resolution) {
-      inode.mtime_offset() = transform_timeval(inode.mtime_offset().value());
+    } else {
+      if (update_resolution) {
+        inode.mtime_offset() = transform_timeval(inode.mtime_offset().value());
+      }
+      if (update_subsecond) {
+        inode.mtime_subsec() = transform_subsec(inode.mtime_subsec().value());
+      }
     }
 
     if (set_timestamp || remove_atime_ctime) {
       inode.atime_offset() = 0;
       inode.ctime_offset() = 0;
-    } else if (update_resolution) {
-      inode.atime_offset() = transform_timeval(inode.atime_offset().value());
-      inode.ctime_offset() = transform_timeval(inode.ctime_offset().value());
+    } else {
+      if (update_resolution) {
+        inode.atime_offset() = transform_timeval(inode.atime_offset().value());
+        inode.ctime_offset() = transform_timeval(inode.ctime_offset().value());
+      }
+      if (update_subsecond) {
+        inode.atime_subsec() = transform_subsec(inode.atime_subsec().value());
+        inode.ctime_subsec() = transform_subsec(inode.ctime_subsec().value());
+      }
     }
   }
 
@@ -690,9 +757,14 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only() = !options_.keep_all_times;
-  if (options_.time_resolution_sec.has_value() &&
-      options_.time_resolution_sec.value() > 1) {
-    fsopts.time_resolution_sec() = options_.time_resolution_sec.value();
+  if (auto const res = options_.time_resolution_sec(); res != 1) {
+    assert(res > 1);
+    fsopts.time_resolution_sec() = res;
+  }
+  if (auto const nsec = options_.subsecond_resolution_nsec_multiplier();
+      nsec > 0) {
+    assert(nsec < 1'000'000'000);
+    fsopts.subsecond_resolution_nsec_multiplier() = nsec;
   }
   fsopts.packed_chunk_table() = options_.pack_chunk_table;
   fsopts.packed_directories() = options_.pack_directories;

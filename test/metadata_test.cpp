@@ -202,7 +202,7 @@ TEST(metadata_options, output_stream) {
   opts.gid = 1000;
   opts.timestamp = 1234567890;
   opts.keep_all_times = true;
-  opts.time_resolution_sec = 1;
+  opts.time_resolution = std::chrono::seconds(1);
   opts.pack_chunk_table = true;
   opts.pack_directories = true;
   opts.pack_shared_files_table = true;
@@ -222,7 +222,7 @@ TEST(metadata_options, output_stream) {
   EXPECT_EQ(
       oss.str(),
       "{uid: 1000, gid: 1000, timestamp: 1234567890, keep_all_times, "
-      "time_resolution_sec: 1, pack_chunk_table, pack_directories, "
+      "time_resolution: 1s, pack_chunk_table, pack_directories, "
       "pack_shared_files_table, plain_names_table, pack_names, "
       "pack_names_index, plain_symlinks_table, pack_symlinks, "
       "pack_symlinks_index, force_pack_string_tables, no_create_timestamp, "

@@ -51,6 +51,11 @@ void index_map(MapT& map) {
 
 } // namespace
 
+global_entry_data::global_entry_data(metadata_options const& options)
+    : options_{options}
+    , time_resolution_sec_{options.time_resolution_sec()}
+    , nsec_multiplier_{options.subsecond_resolution_nsec_multiplier()} {}
+
 template <typename T, typename U>
 std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
   std::vector<std::pair<T, U>> pairs{map.begin(), map.end()};
@@ -84,21 +89,16 @@ void global_entry_data::index() {
 }
 
 uint64_t global_entry_data::get_time_offset(uint64_t time) const {
-  return (time - timestamp_base_) / options_.time_resolution_sec.value_or(1);
+  return (time - timestamp_base_) / time_resolution_sec_;
 }
 
 uint32_t global_entry_data::get_time_subsec(uint32_t nsec) const {
-  if (auto const mult = options_.subsecond_resolution_nsec_multiplier) {
-    assert(*mult > 0 && *mult < 1'000'000'000);
-    return nsec / *mult;
-  }
-
-  return 0;
+  return nsec_multiplier_ == 0 ? 0 : nsec / nsec_multiplier_;
 }
 
 uint64_t global_entry_data::get_timestamp_base() const {
   return (options_.timestamp ? *options_.timestamp : timestamp_base_) /
-         options_.time_resolution_sec.value_or(1);
+         time_resolution_sec_;
 }
 
 void global_entry_data::pack_inode_stat(thrift::metadata::inode_data& inode,

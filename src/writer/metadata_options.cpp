@@ -21,10 +21,45 @@
 
 #include <ostream>
 
+#include <dwarfs/util.h>
 #include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/metadata_options.h>
 
 namespace dwarfs::writer {
+
+uint32_t metadata_options::time_resolution_sec() const {
+  if (time_resolution.has_value()) {
+    if (auto const res = *time_resolution; res > std::chrono::seconds{1}) {
+      if (res % std::chrono::seconds{1} != std::chrono::nanoseconds{0}) {
+        DWARFS_THROW(runtime_error,
+                     "cannot handle time resolution that is larger "
+                     "than one second but not a whole number of "
+                     "seconds");
+      }
+
+      return static_cast<uint32_t>(
+          std::chrono::duration_cast<std::chrono::seconds>(res).count());
+    }
+  }
+
+  return 1;
+}
+
+uint32_t metadata_options::subsecond_resolution_nsec_multiplier() const {
+  if (time_resolution.has_value()) {
+    if (auto const res = *time_resolution; res < std::chrono::seconds{1}) {
+      if (std::chrono::seconds{1} % res != std::chrono::nanoseconds{0}) {
+        DWARFS_THROW(runtime_error,
+                     "cannot handle subsecond time resolution "
+                     "that is not a whole divisor of one second");
+      }
+
+      return static_cast<uint32_t>(res.count());
+    }
+  }
+
+  return 0;
+}
 
 void metadata_options::validate(metadata_options const& opts) {
   internal::chmod_transformer::build_chain(opts.chmod_specifiers, opts.umask);
@@ -44,8 +79,8 @@ std::ostream& operator<<(std::ostream& os, metadata_options const& opts) {
   if (opts.keep_all_times) {
     os << "keep_all_times, ";
   }
-  if (opts.time_resolution_sec) {
-    os << "time_resolution_sec: " << *opts.time_resolution_sec << ", ";
+  if (opts.time_resolution) {
+    os << "time_resolution: " << time_with_unit(*opts.time_resolution) << ", ";
   }
   if (opts.pack_chunk_table) {
     os << "pack_chunk_table, ";

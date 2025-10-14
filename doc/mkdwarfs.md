@@ -321,12 +321,22 @@ Most other options are concerned with compression tuning:
   the `mtime` field in order to save metadata space. If you want to save
   `atime` and `ctime` as well, use this option.
 
-- `--time-resolution=`*sec*|`sec`|`min`|`hour`|`day`:
+- `--time-resolution=`*value*[*unit*]|*unit*:
   Specify the resolution with which time stamps are stored. By default,
   time stamps are stored with second resolution. You can specify "odd"
   resolutions as well, e.g. something like 15 second resolution is
   entirely possible. Moving from second to minute resolution, for example,
   will save roughly 6 bits per file system entry in the metadata block.
+  The value must always be integral. Various units are supported, e.g.
+  `ns`, `us`, `ms`, `s`, `m`, `h`, `d`, or their longer equivalents `nsec`,
+  `usec`, `msec`, `sec`, `min`, `hour`, and `day`. If no unit is given,
+  the value is assumed to be in seconds. Units can also be given without
+  a value, in which case a value of 1 is assumed. When rebuilding the
+  metadata, the resolution can be changed, but it cannot be increased,
+  e.g. you cannot go from minute to second resolution. Also, changing
+  the resolution requires that the new resolution is an integer multiple
+  of the old resolution, e.g. you can go from 15 second to 30 second
+  resolution, but not from 15 second to 20 second resolution.
 
 - `--chmod=`*mode*[`,`*mode*]...|`norm`:
   Recursively changes the mode bits of all entries in the generated file system.

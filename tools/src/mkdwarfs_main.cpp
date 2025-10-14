@@ -127,13 +127,6 @@ constexpr sorted_array_map debug_filter_modes{
     std::pair{"all"sv, writer::debug_filter_mode::ALL},
 };
 
-constexpr sorted_array_map time_resolutions{
-    std::pair{"sec"sv, 1},
-    std::pair{"min"sv, 60},
-    std::pair{"hour"sv, 3600},
-    std::pair{"day"sv, 86400},
-};
-
 constexpr size_t min_block_size_bits{10};
 constexpr size_t max_block_size_bits{30};
 
@@ -447,10 +440,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       fmt::format("show effect of filter rules without producing an image ({})",
                   fmt::join(ranges::views::keys(debug_filter_modes), ", "));
 
-  auto resolution_desc =
-      fmt::format("time resolution in seconds or ({})",
-                  fmt::join(ranges::views::keys(time_resolutions), ", "));
-
   auto hash_list = checksum::available_algorithms();
 
   auto file_hash_desc = fmt::format(
@@ -676,7 +665,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "save atime and ctime in addition to mtime")
     ("time-resolution",
         po::value<std::string>(&time_resolution)->default_value("sec"),
-        resolution_desc.c_str())
+        "resolution of inode timestamps")
     ("no-category-names",
         po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
         "don't add category names to file system")
@@ -1070,19 +1059,20 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (auto it = time_resolutions.find(time_resolution);
-      it != time_resolutions.end()) {
-    options.metadata.time_resolution_sec = it->second;
-  } else if (auto val = try_to<uint32_t>(time_resolution); val && *val != 1) {
-    options.metadata.time_resolution_sec = val;
-    if (options.metadata.time_resolution_sec == 0) {
-      iol.err << "error: the argument to '--time-resolution' must be nonzero\n";
+  if (vm.contains("time-resolution")) {
+    try {
+      auto const res = parse_time_with_unit(time_resolution);
+      if (res.count() == 0) {
+        iol.err
+            << "error: the argument to '--time-resolution' must be nonzero\n";
+        return 1;
+      }
+      options.metadata.time_resolution = res;
+    } catch (std::exception const& e) {
+      iol.err << "error: the argument ('" << time_resolution
+              << "') to '--time-resolution' is invalid (" << e.what() << ")\n";
       return 1;
     }
-  } else {
-    iol.err << "error: the argument ('" << time_resolution
-            << "') to '--time-resolution' is invalid\n";
-    return 1;
   }
 
   if (!pack_metadata.empty() and pack_metadata != "none") {

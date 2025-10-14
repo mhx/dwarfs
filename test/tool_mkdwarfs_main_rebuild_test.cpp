@@ -361,9 +361,8 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     EXPECT_EQ(0, t2.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
                          "--time-resolution=sec"}))
         << t2.err();
-    EXPECT_THAT(
-        t2.err(),
-        ::testing::HasSubstr("cannot increase time resolution from 60s to 1s"));
+    EXPECT_THAT(t2.err(), ::testing::HasSubstr(
+                              "cannot increase time resolution from 1m to 1s"));
     auto fs2 = t2.fs_from_stdout();
 
     {

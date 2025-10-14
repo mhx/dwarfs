@@ -50,8 +50,7 @@ class global_entry_data {
 
   enum class timestamp_type { ATIME, MTIME, CTIME };
 
-  global_entry_data(metadata_options const& options)
-      : options_{options} {}
+  explicit global_entry_data(metadata_options const& options);
 
   void add_uid(uid_type uid);
   void add_gid(gid_type gid);
@@ -109,6 +108,8 @@ class global_entry_data {
   mode_type next_mode_index_{0};
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   metadata_options const& options_;
+  uint32_t time_resolution_sec_{1};
+  uint32_t nsec_multiplier_{0};
 };
 
 } // namespace internal

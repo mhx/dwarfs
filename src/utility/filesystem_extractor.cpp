@@ -570,9 +570,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     stat.ensure_valid(file_stat::all_valid);
 
-    ::archive_entry_set_atime(ae, stat.atime_unchecked(), 0);
-    ::archive_entry_set_ctime(ae, stat.ctime_unchecked(), 0);
-    ::archive_entry_set_mtime(ae, stat.mtime_unchecked(), 0);
+    ::archive_entry_set_atime(ae, stat.atime_unchecked(),
+                              stat.atime_nsec_unchecked());
+    ::archive_entry_set_ctime(ae, stat.ctime_unchecked(),
+                              stat.ctime_nsec_unchecked());
+    ::archive_entry_set_mtime(ae, stat.mtime_unchecked(),
+                              stat.mtime_nsec_unchecked());
     ::archive_entry_unset_birthtime(ae);
     ::archive_entry_set_dev(ae, stat.dev_unchecked());
     ::archive_entry_set_gid(ae, stat.gid_unchecked());
