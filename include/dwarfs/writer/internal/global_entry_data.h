@@ -97,6 +97,7 @@ class global_entry_data {
   }
 
   uint64_t get_time_offset(uint64_t time) const;
+  uint32_t get_time_subsec(uint32_t nsec) const;
 
   map_type<uid_type, uid_type> uids_;
   map_type<gid_type, gid_type> gids_;

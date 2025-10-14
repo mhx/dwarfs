@@ -87,6 +87,15 @@ uint64_t global_entry_data::get_time_offset(uint64_t time) const {
   return (time - timestamp_base_) / options_.time_resolution_sec.value_or(1);
 }
 
+uint32_t global_entry_data::get_time_subsec(uint32_t nsec) const {
+  if (auto const mult = options_.subsecond_resolution_nsec_multiplier) {
+    assert(*mult > 0 && *mult < 1'000'000'000);
+    return nsec / *mult;
+  }
+
+  return 0;
+}
+
 uint64_t global_entry_data::get_timestamp_base() const {
   return (options_.timestamp ? *options_.timestamp : timestamp_base_) /
          options_.time_resolution_sec.value_or(1);
@@ -105,11 +114,24 @@ void global_entry_data::pack_inode_stat(thrift::metadata::inode_data& inode,
       options_.gid ? 0 : DWARFS_NOTHROW(gids_.at(stat.gid_unchecked()));
 
   if (!options_.timestamp) {
-    inode.mtime_offset() = get_time_offset(stat.mtime_unchecked());
+    {
+      auto const mts = stat.mtimespec_unchecked();
+      inode.mtime_offset() = get_time_offset(mts.sec);
+      inode.mtime_subsec() = get_time_subsec(mts.nsec);
+    }
 
     if (options_.keep_all_times) {
-      inode.atime_offset() = get_time_offset(stat.atime_unchecked());
-      inode.ctime_offset() = get_time_offset(stat.ctime_unchecked());
+      {
+        auto const ats = stat.atimespec_unchecked();
+        inode.atime_offset() = get_time_offset(ats.sec);
+        inode.atime_subsec() = get_time_subsec(ats.nsec);
+      }
+
+      {
+        auto const cts = stat.ctimespec_unchecked();
+        inode.ctime_offset() = get_time_offset(cts.sec);
+        inode.ctime_subsec() = get_time_subsec(cts.nsec);
+      }
     }
   }
 }

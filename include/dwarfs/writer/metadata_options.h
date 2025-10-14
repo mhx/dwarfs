@@ -42,6 +42,7 @@ struct metadata_options {
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
   std::optional<uint32_t> time_resolution_sec{};
+  std::optional<uint32_t> subsecond_resolution_nsec_multiplier{};
   std::string_view chmod_specifiers{};
   file_stat::mode_type umask{0};
   bool pack_chunk_table{false};
