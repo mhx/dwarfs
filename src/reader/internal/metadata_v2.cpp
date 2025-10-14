@@ -169,6 +169,23 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
+template <typename T>
+class push_back_if_enabled {
+ public:
+  explicit push_back_if_enabled(T& container)
+      : container_{container} {}
+
+  void operator()(auto const& value, bool enabled) const {
+    if (enabled) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+      container_.push_back(value);
+    }
+  }
+
+ private:
+  T& container_;
+};
+
 template <typename Function>
 void parse_fs_options(View<thrift::metadata::fs_options> opt,
                       Function const& func) {
@@ -183,21 +200,14 @@ void parse_fs_options(View<thrift::metadata::fs_options> opt,
 std::vector<std::string>
 get_fs_options(View<thrift::metadata::fs_options> opt) {
   std::vector<std::string> rv;
-  parse_fs_options(opt, [&](std::string_view name, bool value) {
-    if (value) {
-      rv.emplace_back(name);
-    }
-  });
+  parse_fs_options(opt, push_back_if_enabled(rv));
   return rv;
 }
 
 template <typename Function>
-void parse_metadata_options(
+void parse_string_table_options(
     MappedFrozen<thrift::metadata::metadata> const& meta,
     Function const& func) {
-  if (auto opt = meta.options()) {
-    parse_fs_options(*opt, func);
-  }
   if (auto names = meta.compact_names()) {
     func("packed_names", static_cast<bool>(names->symtab()));
     func("packed_names_index", names->packed_index());
@@ -206,6 +216,42 @@ void parse_metadata_options(
     func("packed_symlinks", static_cast<bool>(symlinks->symtab()));
     func("packed_symlinks_index", symlinks->packed_index());
   }
+}
+
+void
+add_time_resolution(nlohmann::json& info, View<thrift::metadata::fs_options> opt) {
+  auto const res_sec = opt.time_resolution_sec();
+  auto const res_subsec = opt.subsecond_resolution_nsec_multiplier();
+  if (res_sec || res_subsec) {
+    if (res_subsec) {
+      assert(res_sec.value_or(1) == 1);
+      info["time_resolution"] = 1e-9 * res_subsec.value();
+    } else {
+      info["time_resolution"] = res_sec.value();
+    }
+  }
+}
+
+std::optional<std::string>
+get_time_resolution_string(View<thrift::metadata::fs_options> opt) {
+  auto const res_sec = opt.time_resolution_sec();
+  auto const res_subsec = opt.subsecond_resolution_nsec_multiplier();
+  if (res_sec || res_subsec) {
+    if (res_subsec) {
+      assert(res_sec.value_or(1) == 1);
+      assert(*res_subsec < 1'000'000'000);
+      if (*res_subsec % 1'000'000 == 0) {
+        return fmt::format("{} ms", res_subsec.value() / 1'000'000);
+      }
+      if (*res_subsec % 1'000 == 0) {
+        return fmt::format("{} µs", res_subsec.value() / 1'000);
+      }
+      return fmt::format("{} ns", res_subsec.value());
+    } else {
+      return fmt::format("{} seconds", res_sec.value());
+    }
+  }
+  return std::nullopt;
 }
 
 struct category_info {
@@ -1363,15 +1409,14 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
 
     if (auto opt = meta_.options()) {
       nlohmann::json options;
-      parse_metadata_options(meta_, [&](auto const& name, bool value) {
-        if (value) {
-          options.push_back(name);
-        }
-      });
+
+      push_back_if_enabled add_to_options(options);
+      parse_string_table_options(meta_, add_to_options);
+      parse_fs_options(*opt, add_to_options);
+
       info["options"] = std::move(options);
-      if (auto res = opt->time_resolution_sec()) {
-        info["time_resolution"] = *res;
-      }
+
+      add_time_resolution(info, *opt);
     }
 
     if (meta_.block_categories()) {
@@ -1447,17 +1492,11 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
         if (auto entopts = ent.options(); entopts.has_value()) {
           nlohmann::json options;
 
-          parse_fs_options(*entopts, [&](auto const& name, bool value) {
-            if (value) {
-              options.push_back(name);
-            }
-          });
+          parse_fs_options(*entopts, push_back_if_enabled(options));
 
           jent["options"] = std::move(options);
 
-          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
-            jent["time_resolution"] = res.value();
-          }
+          add_time_resolution(info, *entopts);
         }
 
         jhistory.push_back(std::move(jent));
@@ -1567,14 +1606,14 @@ void metadata_v2_data::dump(
     }
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
-      parse_metadata_options(meta_, [&](auto const& name, bool value) {
-        if (value) {
-          options.emplace_back(name);
-        }
-      });
+      push_back_if_enabled add_to_options(options);
+      if (auto opt = meta_.options()) {
+        parse_fs_options(*opt, add_to_options);
+      }
+      parse_string_table_options(meta_, add_to_options);
       os << "options: " << boost::join(options, "\n         ") << "\n";
-      if (auto res = opt->time_resolution_sec()) {
-        os << "time resolution: " << *res << " seconds\n";
+      if (auto res = get_time_resolution_string(*opt)) {
+        os << "time resolution: " << *res;
       }
     }
 
@@ -1616,8 +1655,8 @@ void metadata_v2_data::dump(
         if (auto str_opts = get_fs_options(*he_opts); !str_opts.empty()) {
           os << "        options: " << boost::join(str_opts, ", ") << "\n";
         }
-        if (auto res = he_opts->time_resolution_sec()) {
-          os << "        time resolution: " << *res << " seconds\n";
+        if (auto res = get_time_resolution_string(*he_opts)) {
+          os << "        time resolution: " << *res;
         }
       }
     }
