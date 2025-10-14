@@ -167,15 +167,7 @@ void entry::update(global_entry_data& data) const {
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
-  stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
-                     file_stat::mode_valid | file_stat::atime_valid |
-                     file_stat::mtime_valid | file_stat::ctime_valid);
-  entry_v2.mode_index() = data.get_mode_index(stat_.mode_unchecked());
-  entry_v2.owner_index() = data.get_uid_index(stat_.uid_unchecked());
-  entry_v2.group_index() = data.get_gid_index(stat_.gid_unchecked());
-  entry_v2.atime_offset() = data.get_atime_offset(stat_.atime_unchecked());
-  entry_v2.mtime_offset() = data.get_mtime_offset(stat_.mtime_unchecked());
-  entry_v2.ctime_offset() = data.get_ctime_offset(stat_.ctime_unchecked());
+  data.pack_inode_stat(entry_v2, stat_);
 }
 
 file_size_t entry::size() const { return stat_.size(); }
