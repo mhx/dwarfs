@@ -568,18 +568,20 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     ::archive_entry_copy_pathname(ae, entry.path().c_str());
 #endif
 
-    ::archive_entry_set_atime(ae, stat.atime(), 0);
-    ::archive_entry_set_ctime(ae, stat.ctime(), 0);
-    ::archive_entry_set_mtime(ae, stat.mtime(), 0);
+    stat.ensure_valid(file_stat::all_valid);
+
+    ::archive_entry_set_atime(ae, stat.atime_unchecked(), 0);
+    ::archive_entry_set_ctime(ae, stat.ctime_unchecked(), 0);
+    ::archive_entry_set_mtime(ae, stat.mtime_unchecked(), 0);
     ::archive_entry_unset_birthtime(ae);
-    ::archive_entry_set_dev(ae, stat.dev());
-    ::archive_entry_set_gid(ae, stat.gid());
-    ::archive_entry_set_uid(ae, stat.uid());
-    ::archive_entry_set_ino(ae, stat.ino());
-    ::archive_entry_set_nlink(ae, stat.nlink());
-    ::archive_entry_set_rdev(ae, stat.rdev());
-    ::archive_entry_set_size(ae, stat.size());
-    ::archive_entry_set_mode(ae, stat.mode());
+    ::archive_entry_set_dev(ae, stat.dev_unchecked());
+    ::archive_entry_set_gid(ae, stat.gid_unchecked());
+    ::archive_entry_set_uid(ae, stat.uid_unchecked());
+    ::archive_entry_set_ino(ae, stat.ino_unchecked());
+    ::archive_entry_set_nlink(ae, stat.nlink_unchecked());
+    ::archive_entry_set_rdev(ae, stat.rdev_unchecked());
+    ::archive_entry_set_size(ae, stat.size_unchecked());
+    ::archive_entry_set_mode(ae, stat.mode_unchecked());
 
     if (inode.is_symlink()) {
       std::error_code ec;
