@@ -1414,18 +1414,17 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
         if (auto entopts = ent.options(); entopts.has_value()) {
           nlohmann::json options;
 
-          options["mtime_only"] = entopts->mtime_only();
-
-          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
-            options["time_resolution"] = res.value();
-          }
-
-          options["packed_chunk_table"] = entopts->packed_chunk_table();
-          options["packed_directories"] = entopts->packed_directories();
-          options["packed_shared_files_table"] =
-              entopts->packed_shared_files_table();
+          parse_fs_options(*entopts, [&](auto const& name, bool value) {
+            if (value) {
+              options.push_back(name);
+            }
+          });
 
           jent["options"] = std::move(options);
+
+          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
+            jent["time_resolution"] = res.value();
+          }
         }
 
         jhistory.push_back(std::move(jent));

@@ -1290,24 +1290,15 @@ void check_history(nlohmann::json info, reader::filesystem_v2 const& origfs,
   EXPECT_EQ(hent["block_size"], originfo["block_size"]);
 
   if (originfo.contains("options")) {
-    nlohmann::json expected{
-        {"mtime_only", false},
-        {"packed_chunk_table", false},
-        {"packed_directories", false},
-        {"packed_shared_files_table", false},
-    };
-
-    if (originfo.contains("time_resolution")) {
-      expected["time_resolution"] = originfo["time_resolution"];
-    }
-
-    for (auto const& opt : originfo["options"]) {
-      expected[opt.template get<std::string>()] = true;
-    }
-
-    EXPECT_EQ(expected, hent["options"]);
+    EXPECT_EQ(originfo["options"], hent["options"]);
   } else {
     EXPECT_FALSE(hent.contains("options"));
+  }
+
+  if (originfo.contains("time_resolution")) {
+    EXPECT_EQ(originfo["time_resolution"], hent["time_resolution"]);
+  } else {
+    EXPECT_FALSE(hent.contains("time_resolution"));
   }
 }
 
