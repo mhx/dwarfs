@@ -335,15 +335,36 @@ TEST(utils, offset_cache_prefill) {
 
 TEST(utils, parse_time_with_unit) {
   using namespace std::chrono_literals;
+  EXPECT_EQ(3 * 86400s, parse_time_with_unit("3d"));
+  EXPECT_EQ(86400s, parse_time_with_unit("day"));
+  EXPECT_EQ(7 * 3600s, parse_time_with_unit("7h"));
+  EXPECT_EQ(3600s, parse_time_with_unit("hour"));
   EXPECT_EQ(3ms, parse_time_with_unit("3ms"));
   EXPECT_EQ(4s, parse_time_with_unit("4s"));
   EXPECT_EQ(5s, parse_time_with_unit("5"));
   EXPECT_EQ(6min, parse_time_with_unit("6m"));
   EXPECT_EQ(7h, parse_time_with_unit("7h"));
+  EXPECT_EQ(1ms, parse_time_with_unit("ms"));
+  EXPECT_EQ(1ms, parse_time_with_unit("msec"));
+  EXPECT_EQ(1us, parse_time_with_unit("us"));
+  EXPECT_EQ(1us, parse_time_with_unit("usec"));
+  EXPECT_EQ(1ns, parse_time_with_unit("ns"));
+  EXPECT_EQ(1ns, parse_time_with_unit("nsec"));
+  EXPECT_EQ(1ms, parse_time_with_unit("1 ms"));
+  EXPECT_EQ(1ms, parse_time_with_unit("1 msec"));
+  EXPECT_EQ(1us, parse_time_with_unit("1 us"));
+  EXPECT_EQ(1us, parse_time_with_unit("1 usec"));
+  EXPECT_EQ(1ns, parse_time_with_unit("1 ns"));
+  EXPECT_EQ(1ns, parse_time_with_unit("1 nsec"));
+  EXPECT_EQ(500ms, parse_time_with_unit("500ms"));
+  EXPECT_EQ(500ms, parse_time_with_unit("500msec"));
+  EXPECT_EQ(500us, parse_time_with_unit("500us"));
+  EXPECT_EQ(500us, parse_time_with_unit("500usec"));
+  EXPECT_EQ(500ns, parse_time_with_unit("500ns"));
+  EXPECT_EQ(500ns, parse_time_with_unit("500nsec"));
   EXPECT_THROW(parse_time_with_unit("8y"), dwarfs::runtime_error);
   EXPECT_THROW(parse_time_with_unit("8su"), dwarfs::runtime_error);
   EXPECT_THROW(parse_time_with_unit("8mss"), dwarfs::runtime_error);
-  EXPECT_THROW(parse_time_with_unit("ms"), dwarfs::runtime_error);
 }
 
 TEST(utils, parse_size_with_unit) {

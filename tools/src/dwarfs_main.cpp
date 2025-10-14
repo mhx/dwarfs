@@ -201,8 +201,8 @@ struct options {
   logger_options logopts{};
   reader::cache_tidy_strategy block_cache_tidy_strategy{
       reader::cache_tidy_strategy::NONE};
-  std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
-  std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
+  std::chrono::nanoseconds block_cache_tidy_interval{std::chrono::minutes(5)};
+  std::chrono::nanoseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
   reader::block_cache_allocation_mode block_allocator{
       reader::block_cache_allocation_mode::MALLOC};
   size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};

@@ -178,31 +178,61 @@ std::string ratio_to_string(double num, double den, int precision) {
   return fmt::format("{:.{}g}x", ratio, precision);
 }
 
-std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
+std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
   uint64_t value;
-  auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
+  auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
 
   if (ec != std::errc()) {
-    DWARFS_THROW(runtime_error, "cannot parse time value");
+    if (ec == std::errc::invalid_argument && ptr == str.data()) {
+      value = 1;
+    } else {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("cannot parse time {}: {}", str,
+                               std::make_error_code(ec).message()));
+    }
   }
 
+  while (*ptr == ' ') {
+    ++ptr;
+  }
+
+  std::string_view suffix(ptr, str.data() + str.size() - ptr);
+
   switch (ptr[0]) {
+  case 'd':
+    if (ptr[1] == '\0' || suffix == "day") {
+      return std::chrono::days(value);
+    }
+    break;
+
   case 'h':
-    if (ptr[1] == '\0') {
+    if (ptr[1] == '\0' || suffix == "hour") {
       return std::chrono::hours(value);
     }
     break;
 
   case 'm':
-    if (ptr[1] == '\0') {
+    if (ptr[1] == '\0' || suffix == "min") {
       return std::chrono::minutes(value);
-    } else if (ptr[1] == 's' && ptr[2] == '\0') {
+    } else if (suffix == "ms" || suffix == "msec") {
       return std::chrono::milliseconds(value);
     }
     break;
 
+  case 'u':
+    if (suffix == "us" || suffix == "usec") {
+      return std::chrono::microseconds(value);
+    }
+    break;
+
+  case 'n':
+    if (suffix == "ns" || suffix == "nsec") {
+      return std::chrono::nanoseconds(value);
+    }
+    break;
+
   case 's':
-    if (ptr[1] != '\0') {
+    if (ptr[1] != '\0' && suffix != "sec") {
       break;
     }
     [[fallthrough]];
