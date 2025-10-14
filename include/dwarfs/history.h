@@ -60,7 +60,6 @@ class history {
 
   void parse(std::span<uint8_t const> data);
   void parse_append(std::span<uint8_t const> data);
-  thrift::history::history const& get() const { return *history_; }
   void
   append(std::optional<std::vector<std::string>> args,
          std::function<void(library_dependencies&)> const& extra_deps = {});
