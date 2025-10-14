@@ -469,7 +469,7 @@ class metadata_v2_data {
   build_dir_icase_cache(logger& lgr) const;
 
   template <typename LoggerPolicy>
-  packed_int_vector<uint32_t> build_nlinks(logger& lgr) const;
+  std::optional<packed_int_vector<uint32_t>> build_nlinks(logger& lgr) const;
 
   template <typename LoggerPolicy>
   packed_int_vector<uint32_t> unpack_chunk_table(logger& lgr) const;
@@ -651,7 +651,7 @@ class metadata_v2_data {
   int const file_inode_offset_;
   int const dev_inode_offset_;
   int const inode_count_;
-  packed_int_vector<uint32_t> const nlinks_;
+  std::optional<packed_int_vector<uint32_t>> const nlinks_;
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
   int const unique_files_;
@@ -913,8 +913,9 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
 }
 
 template <typename LoggerPolicy>
-packed_int_vector<uint32_t> metadata_v2_data::build_nlinks(logger& lgr) const {
-  packed_int_vector<uint32_t> packed_nlinks;
+std::optional<packed_int_vector<uint32_t>>
+metadata_v2_data::build_nlinks(logger& lgr) const {
+  std::optional<packed_int_vector<uint32_t>> packed_nlinks;
 
   if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
     // Inode nlink values are stored directly in the inode table
@@ -949,23 +950,25 @@ packed_int_vector<uint32_t> metadata_v2_data::build_nlinks(logger& lgr) const {
     LOG_DEBUG << "found " << total_links << " hardlinks in " << nlinks.size()
               << " files";
 
+    packed_nlinks.emplace();
+
     if (total_links > 0) {
       auto tt = LOG_TIMED_TRACE;
 
       uint32_t max = *std::ranges::max_element(nlinks);
-      packed_nlinks.reset(std::bit_width(max), nlinks.size());
+      packed_nlinks->reset(std::bit_width(max), nlinks.size());
 
       for (size_t i = 0; i < nlinks.size(); ++i) {
-        packed_nlinks.set(i, nlinks[i]);
+        packed_nlinks->set(i, nlinks[i]);
       }
 
       tt << "packed hardlink table from "
          << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
-         << size_with_unit(packed_nlinks.size_in_bytes());
+         << size_with_unit(packed_nlinks->size_in_bytes());
     }
 
-    td << "built hardlink table (" << packed_nlinks.size() << " entries, "
-       << size_with_unit(packed_nlinks.size_in_bytes()) << ")";
+    td << "built hardlink table (" << packed_nlinks->size() << " entries, "
+       << size_with_unit(packed_nlinks->size_in_bytes()) << ")";
   }
 
   return packed_nlinks;
@@ -2025,11 +2028,12 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   timeres_handler_.fill_stat_timevals(stbuf, ivr);
 
   if (stbuf.is_regular_file()) {
-    if (auto const opts = meta_.options();
-        opts.has_value() && opts->inodes_have_nlink()) {
+    if (!nlinks_.has_value()) {
+      // nlink values are stored directly in the inode metadata
       stbuf.set_nlink(ivr.nlink_minus_one() + 1);
-    } else if (!nlinks_.empty()) {
-      stbuf.set_nlink(DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_)));
+    } else if (!nlinks_->empty()) {
+      // nlink values are stored in a separate table
+      stbuf.set_nlink(DWARFS_NOTHROW(nlinks_->at(inode - file_inode_offset_)));
     } else {
       stbuf.set_nlink(1);
     }
