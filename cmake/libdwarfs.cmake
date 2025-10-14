@@ -122,6 +122,7 @@ add_library(
   src/reader/internal/metadata_types.cpp
   src/reader/internal/metadata_v2.cpp
   src/reader/internal/periodic_executor.cpp
+  src/reader/internal/time_resolution_handler.cpp
 )
 
 add_library(

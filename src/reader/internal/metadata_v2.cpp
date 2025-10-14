@@ -81,6 +81,7 @@
 #include <dwarfs/reader/internal/metadata_analyzer.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
 #include <dwarfs/reader/internal/sparse_file_seeker.h>
+#include <dwarfs/reader/internal/time_resolution_handler.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
@@ -216,42 +217,6 @@ void parse_string_table_options(
     func("packed_symlinks", static_cast<bool>(symlinks->symtab()));
     func("packed_symlinks_index", symlinks->packed_index());
   }
-}
-
-void
-add_time_resolution(nlohmann::json& info, View<thrift::metadata::fs_options> opt) {
-  auto const res_sec = opt.time_resolution_sec();
-  auto const res_subsec = opt.subsecond_resolution_nsec_multiplier();
-  if (res_sec || res_subsec) {
-    if (res_subsec) {
-      assert(res_sec.value_or(1) == 1);
-      info["time_resolution"] = 1e-9 * res_subsec.value();
-    } else {
-      info["time_resolution"] = res_sec.value();
-    }
-  }
-}
-
-std::optional<std::string>
-get_time_resolution_string(View<thrift::metadata::fs_options> opt) {
-  auto const res_sec = opt.time_resolution_sec();
-  auto const res_subsec = opt.subsecond_resolution_nsec_multiplier();
-  if (res_sec || res_subsec) {
-    if (res_subsec) {
-      assert(res_sec.value_or(1) == 1);
-      assert(*res_subsec < 1'000'000'000);
-      if (*res_subsec % 1'000'000 == 0) {
-        return fmt::format("{} ms", res_subsec.value() / 1'000'000);
-      }
-      if (*res_subsec % 1'000 == 0) {
-        return fmt::format("{} µs", res_subsec.value() / 1'000);
-      }
-      return fmt::format("{} ns", res_subsec.value());
-    } else {
-      return fmt::format("{} seconds", res_sec.value());
-    }
-  }
-  return std::nullopt;
 }
 
 struct category_info {
@@ -678,6 +643,7 @@ class metadata_v2_data {
   std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
+  time_resolution_handler timeres_handler_;
   global_metadata const global_;
   dir_entry_view root_;
   int const inode_offset_;
@@ -714,6 +680,7 @@ metadata_v2_data::metadata_v2_data(
     : schema_{schema.begin(), schema.end()}
     , data_{data}
     , meta_{check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_))}
+    , timeres_handler_{meta_}
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
                                                   force_consistency_check)}
@@ -1415,9 +1382,9 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
       parse_fs_options(*opt, add_to_options);
 
       info["options"] = std::move(options);
-
-      add_time_resolution(info, *opt);
     }
+
+    timeres_handler_.add_time_resolution_to(info);
 
     if (meta_.block_categories()) {
       auto catnames = *meta_.category_names();
@@ -1495,9 +1462,9 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
           parse_fs_options(*entopts, push_back_if_enabled(options));
 
           jent["options"] = std::move(options);
-
-          add_time_resolution(info, *entopts);
         }
+
+        time_resolution_handler(ent).add_time_resolution_to(jent);
 
         jhistory.push_back(std::move(jent));
       }
@@ -1612,10 +1579,9 @@ void metadata_v2_data::dump(
       }
       parse_string_table_options(meta_, add_to_options);
       os << "options: " << boost::join(options, "\n         ") << "\n";
-      if (auto res = get_time_resolution_string(*opt)) {
-        os << "time resolution: " << *res;
-      }
     }
+    os << "time resolution: " << timeres_handler_.get_time_resolution_string()
+       << "\n";
 
     if (meta_.block_categories()) {
       auto catnames = *meta_.category_names();
@@ -1655,10 +1621,9 @@ void metadata_v2_data::dump(
         if (auto str_opts = get_fs_options(*he_opts); !str_opts.empty()) {
           os << "        options: " << boost::join(str_opts, ", ") << "\n";
         }
-        if (auto res = get_time_resolution_string(*he_opts)) {
-          os << "        time resolution: " << *res;
-        }
       }
+      os << "        time resolution: "
+         << time_resolution_handler(ent).get_time_resolution_string() << "\n";
     }
   }
 
@@ -2032,16 +1997,7 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_dev(0); // TODO: should we make this configurable?
 
   auto mode = iv.mode();
-  auto timebase = meta_.timestamp_base();
   auto inode = iv.inode_num();
-  bool mtime_only = meta_.options() && meta_.options()->mtime_only();
-  uint32_t resolution = 1;
-  if (meta_.options()) {
-    if (auto res = meta_.options()->time_resolution_sec()) {
-      resolution = *res;
-      assert(resolution > 0);
-    }
-  }
 
   if (options_.readonly) {
     mode &= READ_ONLY_MASK;
@@ -2065,15 +2021,8 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_blksize(options_.block_size);
   stbuf.set_uid(options_.fs_uid.value_or(iv.getuid()));
   stbuf.set_gid(options_.fs_gid.value_or(iv.getgid()));
-  stbuf.set_mtime(resolution * (timebase + ivr.mtime_offset()));
 
-  if (mtime_only) {
-    stbuf.set_atime(stbuf.mtime_unchecked());
-    stbuf.set_ctime(stbuf.mtime_unchecked());
-  } else {
-    stbuf.set_atime(resolution * (timebase + ivr.atime_offset()));
-    stbuf.set_ctime(resolution * (timebase + ivr.ctime_offset()));
-  }
+  timeres_handler_.fill_stat_timevals(stbuf, ivr);
 
   if (stbuf.is_regular_file()) {
     if (auto const opts = meta_.options();
