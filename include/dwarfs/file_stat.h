@@ -149,21 +149,7 @@ class file_stat {
 
   template <typename T>
   void copy_to(T* out) const {
-    copy_to_impl<true>(out);
-  }
-
-  template <typename T>
-  void copy_to_without_block_info(T* out) const {
-    copy_to_impl<false>(out);
-  }
-
- private:
-  template <bool with_block_info = true, typename T>
-  void copy_to_impl(T* out) const {
-    constexpr valid_fields_type required_fields{
-        with_block_info ? all_valid
-                        : all_valid & ~(blksize_valid | blocks_valid)};
-    ensure_valid(required_fields);
+    ensure_valid(all_valid);
     out->st_dev = dev_;
     out->st_ino = ino_;
     out->st_nlink = nlink_;
@@ -172,15 +158,14 @@ class file_stat {
     out->st_gid = gid_;
     out->st_rdev = rdev_;
     out->st_size = size_;
-    if constexpr (with_block_info) {
-      out->st_blksize = blksize_;
-      out->st_blocks = blocks_;
-    }
+    out->st_blksize = blksize_;
+    out->st_blocks = blocks_;
     out->st_atime = atime_;
     out->st_mtime = mtime_;
     out->st_ctime = ctime_;
   }
 
+ private:
   uint32_t valid_fields_{0};
   dev_type dev_{};
   ino_type ino_{};
