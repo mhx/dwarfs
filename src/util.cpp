@@ -549,6 +549,7 @@ constexpr std::array kFatalSignals{
 #endif
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag g_signal_handlers_installed;
 
 #ifdef _WIN32
@@ -622,6 +623,7 @@ void fatal_signal_handler_win(int signal) {
 
 #else
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::array<struct ::sigaction, kFatalSignals.size()> old_handlers;
 
 void fatal_signal_handler_posix(int signal) {
