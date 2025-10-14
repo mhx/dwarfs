@@ -73,9 +73,9 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_allocated_size(ss.size);
   rv.set_blocks((ss.size + 511) / 512);
   rv.set_blksize(0);
-  rv.set_atime(ss.atime);
-  rv.set_mtime(ss.mtime);
-  rv.set_ctime(ss.ctime);
+  rv.set_atimespec(ss.atim.ts);
+  rv.set_mtimespec(ss.mtim.ts);
+  rv.set_ctimespec(ss.ctim.ts);
   return rv;
 }
 

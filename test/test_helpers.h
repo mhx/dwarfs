@@ -67,6 +67,16 @@ namespace dwarfs::test {
 extern std::error_code const kMlockQuotaError;
 
 struct simplestat {
+  struct timespec_wrapper {
+    constexpr timespec_wrapper() = default;
+    constexpr explicit(false) timespec_wrapper(file_stat::time_type s)
+        : ts{s, 0} {}
+    constexpr timespec_wrapper(file_stat::time_type s, uint32_t ns)
+        : ts{s, ns} {}
+
+    file_stat::timespec_type ts;
+  };
+
   file_stat::ino_type ino{0};
   file_stat::mode_type mode{0};
   file_stat::nlink_type nlink{1};
@@ -74,9 +84,9 @@ struct simplestat {
   file_stat::gid_type gid{0};
   file_stat::off_type size{0};
   file_stat::dev_type rdev{0};
-  file_stat::time_type atime{0};
-  file_stat::time_type mtime{0};
-  file_stat::time_type ctime{0};
+  timespec_wrapper atim{};
+  timespec_wrapper mtim{};
+  timespec_wrapper ctim{};
 
   posix_file_type::value type() const {
     return static_cast<posix_file_type::value>(mode & posix_file_type::mask);
