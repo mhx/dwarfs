@@ -42,8 +42,7 @@ struct metadata_options {
   std::optional<file_stat::gid_type> gid{};
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
-  std::optional<std::chrono::nanoseconds> time_resolution{
-      std::chrono::seconds{1}};
+  std::optional<std::chrono::nanoseconds> time_resolution{};
   std::string_view chmod_specifiers{};
   file_stat::mode_type umask{0};
   bool pack_chunk_table{false};

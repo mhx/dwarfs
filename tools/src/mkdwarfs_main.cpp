@@ -664,8 +664,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&options.metadata.keep_all_times)->zero_tokens(),
         "save atime and ctime in addition to mtime")
     ("time-resolution",
-        po::value<std::string>(&time_resolution)->default_value("sec"),
-        "resolution of inode timestamps")
+        po::value<std::string>(&time_resolution),
+        "resolution of inode timestamps (default: 1s)")
     ("no-category-names",
         po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
         "don't add category names to file system")
