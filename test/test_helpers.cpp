@@ -270,16 +270,14 @@ void os_access_mock::add(fs::path const& path, simplestat const& st,
   add_internal(path, st, generator);
 }
 
-void os_access_mock::add_dir(fs::path const& path) {
-  simplestat st;
-  st.ino = ino_++;
+void os_access_mock::add_dir(fs::path const& path,
+                             add_file_options const& opts) {
+  auto st = make_simplestat(opts);
   st.mode = posix_file_type::directory | 0755;
-  st.uid = 1000;
-  st.gid = 100;
   add(path, st);
 }
 
-simplestat os_access_mock::make_reg_file_stat(add_file_options const& opts) {
+simplestat os_access_mock::make_simplestat(add_file_options const& opts) {
   simplestat st;
   if (auto const ino = opts.ino) {
     st.ino = *ino;
@@ -287,15 +285,23 @@ simplestat os_access_mock::make_reg_file_stat(add_file_options const& opts) {
     st.ino = ino_++;
   }
   st.nlink = opts.nlink.value_or(1);
-  st.mode = posix_file_type::regular | 0644;
   st.uid = 1000;
   st.gid = 100;
+  st.atim.ts = opts.atim.value_or(file_stat::timespec_type{});
+  st.mtim.ts = opts.mtim.value_or(file_stat::timespec_type{});
+  st.ctim.ts = opts.ctim.value_or(file_stat::timespec_type{});
+  return st;
+}
+
+simplestat os_access_mock::make_reg_simplestat(add_file_options const& opts) {
+  auto st = make_simplestat(opts);
+  st.mode = posix_file_type::regular | 0644;
   return st;
 }
 
 simplestat os_access_mock::add_file(fs::path const& path, file_size_t size,
                                     bool random, add_file_options const& opts) {
-  auto st = make_reg_file_stat(opts);
+  auto st = make_reg_simplestat(opts);
 
   st.size = size;
 
@@ -336,7 +342,7 @@ simplestat os_access_mock::add_file(fs::path const& path, file_size_t size,
 simplestat
 os_access_mock::add_file(fs::path const& path, std::string const& contents,
                          add_file_options const& opts) {
-  auto st = make_reg_file_stat(opts);
+  auto st = make_reg_simplestat(opts);
   st.size = contents.size();
   add(path, st, contents);
   return st;
@@ -344,7 +350,7 @@ os_access_mock::add_file(fs::path const& path, std::string const& contents,
 
 simplestat os_access_mock::add_file(fs::path const& path, test_file_data data,
                                     add_file_options const& opts) {
-  auto st = make_reg_file_stat(opts);
+  auto st = make_reg_simplestat(opts);
   st.size = data.size();
   add(path, st, data);
   return st;

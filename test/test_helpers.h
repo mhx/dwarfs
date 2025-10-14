@@ -96,6 +96,9 @@ struct simplestat {
 struct add_file_options {
   std::optional<file_stat::ino_type> ino{};
   std::optional<file_stat::nlink_type> nlink{};
+  std::optional<file_stat::timespec_type> atim{};
+  std::optional<file_stat::timespec_type> mtim{};
+  std::optional<file_stat::timespec_type> ctim{};
 };
 
 class os_access_mock : public os_access {
@@ -131,7 +134,8 @@ class os_access_mock : public os_access {
   void add(std::filesystem::path const& path, simplestat const& st,
            std::function<std::string()> generator);
 
-  void add_dir(std::filesystem::path const& path);
+  void
+  add_dir(std::filesystem::path const& path, add_file_options const& opts = {});
   simplestat add_file(std::filesystem::path const& path, file_size_t size,
                       bool random = false, add_file_options const& opts = {});
   simplestat
@@ -200,7 +204,8 @@ class os_access_mock : public os_access {
     std::atomic<int> mutable remaining_successful_attempts{0};
   };
 
-  simplestat make_reg_file_stat(add_file_options const& opts);
+  simplestat make_simplestat(add_file_options const& opts);
+  simplestat make_reg_simplestat(add_file_options const& opts);
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
