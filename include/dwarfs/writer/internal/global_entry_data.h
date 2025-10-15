@@ -42,6 +42,8 @@ struct metadata_options;
 
 namespace internal {
 
+class time_resolution_converter;
+
 class global_entry_data {
  public:
   using uid_type = file_stat::uid_type;
@@ -78,8 +80,9 @@ class global_entry_data {
 
   uint64_t get_timestamp_base() const;
 
-  void pack_inode_stat(thrift::metadata::inode_data& inode,
-                       file_stat const& stat) const;
+  void
+  pack_inode_stat(thrift::metadata::inode_data& inode, file_stat const& stat,
+                  time_resolution_converter const& timeres) const;
 
  private:
   template <typename K, typename V>
@@ -95,9 +98,6 @@ class global_entry_data {
     }
   }
 
-  uint64_t get_time_offset(uint64_t time) const;
-  uint32_t get_time_subsec(uint32_t nsec) const;
-
   map_type<uid_type, uid_type> uids_;
   map_type<gid_type, gid_type> gids_;
   map_type<mode_type, mode_type> modes_;
@@ -108,8 +108,6 @@ class global_entry_data {
   mode_type next_mode_index_{0};
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   metadata_options const& options_;
-  uint32_t time_resolution_sec_{1};
-  uint32_t nsec_multiplier_{0};
 };
 
 } // namespace internal

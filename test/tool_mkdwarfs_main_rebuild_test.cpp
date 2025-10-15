@@ -358,27 +358,12 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     }
 
     auto t2 = rebuild_tester(t.out());
-    EXPECT_EQ(0, t2.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+    EXPECT_EQ(1, t2.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
                          "--time-resolution=sec"}))
         << t2.err();
     EXPECT_THAT(t2.err(), ::testing::HasSubstr(
-                              "cannot increase time resolution from 1m to 1s"));
-    auto fs2 = t2.fs_from_stdout();
-
-    {
-      auto dev = fs2.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6000, stat.atime());
-      EXPECT_EQ(6000, stat.mtime());
-      EXPECT_EQ(6000, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
+                              "cannot convert time to a finer resolution (1s) "
+                              "than the old resolution (1m)"));
   }
 
   {

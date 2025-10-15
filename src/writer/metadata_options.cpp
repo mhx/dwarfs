@@ -27,40 +27,6 @@
 
 namespace dwarfs::writer {
 
-uint32_t metadata_options::time_resolution_sec() const {
-  if (time_resolution.has_value()) {
-    if (auto const res = *time_resolution; res > std::chrono::seconds{1}) {
-      if (res % std::chrono::seconds{1} != std::chrono::nanoseconds{0}) {
-        DWARFS_THROW(runtime_error,
-                     "cannot handle time resolution that is larger "
-                     "than one second but not a whole number of "
-                     "seconds");
-      }
-
-      return static_cast<uint32_t>(
-          std::chrono::duration_cast<std::chrono::seconds>(res).count());
-    }
-  }
-
-  return 1;
-}
-
-uint32_t metadata_options::subsecond_resolution_nsec_multiplier() const {
-  if (time_resolution.has_value()) {
-    if (auto const res = *time_resolution; res < std::chrono::seconds{1}) {
-      if (std::chrono::seconds{1} % res != std::chrono::nanoseconds{0}) {
-        DWARFS_THROW(runtime_error,
-                     "cannot handle subsecond time resolution "
-                     "that is not a whole divisor of one second");
-      }
-
-      return static_cast<uint32_t>(res.count());
-    }
-  }
-
-  return 0;
-}
-
 void metadata_options::validate(metadata_options const& opts) {
   internal::chmod_transformer::build_chain(opts.chmod_specifiers, opts.umask);
 }

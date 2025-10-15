@@ -164,6 +164,7 @@ add_library(
   src/writer/internal/scanner_progress.cpp
   src/writer/internal/similarity.cpp
   src/writer/internal/similarity_ordering.cpp
+  src/writer/internal/time_resolution_converter.cpp
 
   # src/writer/categorizer/binary_categorizer.cpp
   src/writer/categorizer/fits_categorizer.cpp

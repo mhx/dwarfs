@@ -63,9 +63,6 @@ struct metadata_options {
   bool no_hardlink_table{false};
   size_t inode_size_cache_min_chunk_count{128};
 
-  uint32_t time_resolution_sec() const;
-  uint32_t subsecond_resolution_nsec_multiplier() const;
-
   static void validate(metadata_options const& opts);
 };
 

@@ -44,6 +44,7 @@
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/metadata_builder.h>
+#include <dwarfs/writer/internal/time_resolution_converter.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
@@ -55,6 +56,22 @@ namespace {
 
 using namespace dwarfs::internal;
 
+time_conversion_factors
+get_conversion_factors(thrift::metadata::fs_options const* fs_options) {
+  time_conversion_factors rv;
+
+  if (fs_options) {
+    if (auto const sec = fs_options->time_resolution_sec()) {
+      rv.sec = *sec;
+    }
+    if (auto const nsec = fs_options->subsecond_resolution_nsec_multiplier()) {
+      rv.nsec = *nsec;
+    }
+  }
+
+  return rv;
+}
+
 template <typename LoggerPolicy>
 class metadata_builder_ final : public metadata_builder::impl {
  public:
@@ -63,7 +80,8 @@ class metadata_builder_ final : public metadata_builder::impl {
 
   metadata_builder_(logger& lgr, metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
-      , options_{options} {}
+      , options_{options}
+      , timeres_{options.time_resolution} {}
 
   template <typename T>
     requires(std::same_as<std::decay_t<T>, thrift::metadata::metadata>)
@@ -74,7 +92,9 @@ class metadata_builder_ final : public metadata_builder::impl {
       : LOG_PROXY_INIT(lgr)
       , md_{std::forward<T>(md)}
       , options_{options}
-      , old_block_size_{md_.block_size().value()} {
+      , old_block_size_{md_.block_size().value()}
+      , timeres_{options.time_resolution,
+                 get_conversion_factors(orig_fs_options)} {
     if (auto const feat = md_.features()) {
       features_.set(*feat);
       bool const non_sparse_image = !features_.has(feature::sparsefiles);
@@ -218,6 +238,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   feature_set features_;
   metadata_options const& options_;
   std::optional<size_t> old_block_size_;
+  time_resolution_converter timeres_;
 };
 
 template <typename LoggerPolicy>
@@ -340,10 +361,10 @@ void metadata_builder_<LoggerPolicy>::gather_entries(
   for (auto p : dirs) {
     if (!p->has_parent()) {
       p->set_entry_index(md_.dir_entries()->size());
-      p->pack_entry(md_, ge_data);
+      p->pack_entry(md_, ge_data, timeres_);
     }
 
-    p->pack(md_, ge_data);
+    p->pack(md_, ge_data, timeres_);
   }
 
   thrift::metadata::directory dummy;
@@ -368,7 +389,7 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
 
   md_.modes() = ge_data.get_modes();
 
-  md_.timestamp_base() = ge_data.get_timestamp_base();
+  md_.timestamp_base() = timeres_.convert_offset(ge_data.get_timestamp_base());
 
   apply_chmod();
 }
@@ -542,67 +563,13 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
   bool const remove_atime_ctime{
       !options_.keep_all_times &&
       !(md_.options().has_value() && md_.options()->mtime_only().value())};
-  bool update_resolution{false};
-  auto const orig_resolution = get_time_resolution();
-  auto new_resolution = orig_resolution;
-  bool update_subsecond{false};
-  auto const orig_subsec_mult = get_subsec_mult();
-  auto new_subsec_mult = orig_subsec_mult;
-
-  if (options_.time_resolution.has_value()) {
-    // TODO: clean up & factor out
-    auto const res = options_.time_resolution_sec();
-    assert(res > 0);
-    if (res > orig_resolution) {
-      if (res % orig_resolution == 0) {
-        new_resolution = res;
-        update_resolution = true;
-      } else {
-        LOG_WARN << "cannot change time resolution from "
-                 << time_with_unit(get_chrono_time_resolution()) << " to "
-                 << time_with_unit(*options_.time_resolution)
-                 << " since the new resolution is not a multiple of the old";
-      }
-    } else if (res < orig_resolution) {
-      LOG_WARN << "cannot increase time resolution from "
-               << time_with_unit(get_chrono_time_resolution()) << " to "
-               << time_with_unit(*options_.time_resolution);
-    }
-
-    auto const mult = options_.subsecond_resolution_nsec_multiplier();
-    assert(mult < 1'000'000'000);
-    if (orig_subsec_mult > 0 && (mult == 0 || mult > orig_subsec_mult)) {
-      if (mult % orig_subsec_mult == 0) {
-        new_subsec_mult = mult;
-        update_subsecond = true;
-      } else {
-        LOG_WARN << "cannot change time resolution from "
-                 << time_with_unit(get_chrono_time_resolution()) << " to "
-                 << time_with_unit(*options_.time_resolution)
-                 << " since the new resolution is not a multiple of the old";
-      }
-    } else if (mult < orig_subsec_mult) {
-      LOG_WARN << "cannot increase time resolution from "
-               << time_with_unit(get_chrono_time_resolution()) << " to "
-               << time_with_unit(*options_.time_resolution);
-    }
-  }
+  bool const update_resolution{timeres_.requires_conversion()};
 
   if (!update_uid && !update_gid && !set_timestamp && !remove_atime_ctime &&
-      !update_resolution && !update_subsecond &&
-      options_.chmod_specifiers.empty()) {
+      !update_resolution && options_.chmod_specifiers.empty()) {
     // nothing to do
     return;
   }
-
-  auto transform_timeval = [&](auto val) {
-    return (val * orig_resolution) / new_resolution;
-  };
-
-  auto transform_subsec = [&](auto val) {
-    return new_subsec_mult == 0 ? 0
-                                : (val * orig_subsec_mult) / new_subsec_mult;
-  };
 
   for (auto& inode : md_.inodes().value()) {
     if (update_uid) {
@@ -615,27 +582,25 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
 
     if (set_timestamp) {
       inode.mtime_offset() = 0;
-    } else {
-      if (update_resolution) {
-        inode.mtime_offset() = transform_timeval(inode.mtime_offset().value());
-      }
-      if (update_subsecond) {
-        inode.mtime_subsec() = transform_subsec(inode.mtime_subsec().value());
-      }
+    } else if (update_resolution) {
+      inode.mtime_offset() =
+          timeres_.convert_offset(inode.mtime_offset().value());
+      inode.mtime_subsec() =
+          timeres_.convert_subsec(inode.mtime_subsec().value());
     }
 
     if (set_timestamp || remove_atime_ctime) {
       inode.atime_offset() = 0;
       inode.ctime_offset() = 0;
-    } else {
-      if (update_resolution) {
-        inode.atime_offset() = transform_timeval(inode.atime_offset().value());
-        inode.ctime_offset() = transform_timeval(inode.ctime_offset().value());
-      }
-      if (update_subsecond) {
-        inode.atime_subsec() = transform_subsec(inode.atime_subsec().value());
-        inode.ctime_subsec() = transform_subsec(inode.ctime_subsec().value());
-      }
+    } else if (update_resolution) {
+      inode.atime_offset() =
+          timeres_.convert_offset(inode.atime_offset().value());
+      inode.atime_subsec() =
+          timeres_.convert_subsec(inode.atime_subsec().value());
+      inode.ctime_offset() =
+          timeres_.convert_offset(inode.ctime_offset().value());
+      inode.ctime_subsec() =
+          timeres_.convert_subsec(inode.ctime_subsec().value());
     }
   }
 
@@ -650,14 +615,10 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
   }
 
   if (set_timestamp) {
-    md_.timestamp_base() = *options_.timestamp / new_resolution;
+    md_.timestamp_base() = timeres_.convert_offset(*options_.timestamp);
   } else if (update_resolution) {
-    md_.timestamp_base() = transform_timeval(md_.timestamp_base().value());
-  }
-
-  if (new_resolution > 1) {
-    md_.options().ensure();
-    md_.options()->time_resolution_sec() = new_resolution;
+    md_.timestamp_base() =
+        timeres_.convert_offset(md_.timestamp_base().value());
   }
 }
 
@@ -757,15 +718,19 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only() = !options_.keep_all_times;
-  if (auto const res = options_.time_resolution_sec(); res != 1) {
-    assert(res > 1);
-    fsopts.time_resolution_sec() = res;
+
+  {
+    auto const new_conv = timeres_.new_conversion_factors();
+
+    if (auto const sec = new_conv.sec) {
+      fsopts.time_resolution_sec() = *sec;
+    }
+
+    if (auto const nsec = new_conv.nsec) {
+      fsopts.subsecond_resolution_nsec_multiplier() = *nsec;
+    }
   }
-  if (auto const nsec = options_.subsecond_resolution_nsec_multiplier();
-      nsec > 0) {
-    assert(nsec < 1'000'000'000);
-    fsopts.subsecond_resolution_nsec_multiplier() = nsec;
-  }
+
   fsopts.packed_chunk_table() = options_.pack_chunk_table;
   fsopts.packed_directories() = options_.pack_directories;
   fsopts.packed_shared_files_table() = options_.pack_shared_files_table;

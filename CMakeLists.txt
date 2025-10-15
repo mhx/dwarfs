@@ -564,6 +564,7 @@ if(WITH_TESTS)
       test/string_test.cpp
       test/terminal_test.cpp
       test/test_iolayer_test.cpp
+      test/time_resolution_converter_test.cpp
       test/unicode_test.cpp
       test/utils_test.cpp
       test/worker_group_test.cpp
@@ -612,6 +613,7 @@ if(WITH_TESTS)
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp
       test/tool_mkdwarfs_main_sparse_test.cpp
+      test/tool_mkdwarfs_main_time_resolution_test.cpp
     )
 
     list(APPEND DWARFS_TESTS

@@ -166,8 +166,9 @@ void entry::update(global_entry_data& data) const {
 }
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
-                 global_entry_data const& data) const {
-  data.pack_inode_stat(entry_v2, stat_);
+                 global_entry_data const& data,
+                 time_resolution_converter const& timeres) const {
+  data.pack_inode_stat(entry_v2, stat_, timeres);
 }
 
 file_size_t entry::size() const { return stat_.size(); }
@@ -324,15 +325,17 @@ void dir::sort() {
 void dir::scan(os_access const&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
-                     global_entry_data const& data) const {
+                     global_entry_data const& data,
+                     time_resolution_converter const& timeres) const {
   auto& de = mv2.dir_entries()->emplace_back();
   de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
   de.inode_num() = DWARFS_NOTHROW(inode_num().value());
-  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
+  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+              timeres);
 }
 
-void dir::pack(thrift::metadata::metadata& mv2,
-               global_entry_data const& data) const {
+void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
+               time_resolution_converter const& timeres) const {
   thrift::metadata::directory d;
   if (has_parent()) {
     auto pd = std::dynamic_pointer_cast<dir>(parent());
@@ -353,7 +356,8 @@ void dir::pack(thrift::metadata::metadata& mv2,
     auto& de = mv2.dir_entries()->emplace_back();
     de.name_index() = data.get_name_index(e->name());
     de.inode_num() = DWARFS_NOTHROW(e->inode_num().value());
-    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
+    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+            timeres);
   }
 }
 
