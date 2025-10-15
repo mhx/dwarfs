@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cerrno>
 #include <chrono>
 #include <concepts>
@@ -91,6 +92,8 @@ namespace {
 namespace bp = boost::process;
 namespace fs = std::filesystem;
 
+using namespace std::chrono_literals;
+using namespace std::string_view_literals;
 using namespace dwarfs::binary_literals;
 
 using dwarfs::test::compare_directories;
@@ -2852,4 +2855,181 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 #endif
+}
+
+namespace {
+
+struct file_times {
+  template <typename D>
+  auto to_sec(std::chrono::time_point<std::chrono::system_clock, D> tp) {
+    return std::chrono::system_clock::to_time_t(
+        std::chrono::time_point_cast<std::chrono::system_clock::duration>(tp));
+  }
+
+  uint32_t truncate_to_res(std::chrono::nanoseconds ns) {
+    return static_cast<uint32_t>(
+        (ns - ns % dwarfs::file_stat::native_time_resolution()).count());
+  }
+
+  file_times() = default;
+  template <typename D>
+  file_times(std::chrono::time_point<std::chrono::system_clock, D> m,
+             std::chrono::nanoseconds mns,
+             std::chrono::time_point<std::chrono::system_clock, D> a,
+             std::chrono::nanoseconds ans,
+             std::chrono::time_point<std::chrono::system_clock, D> c,
+             std::chrono::nanoseconds cns)
+      : mtime{to_sec(m), truncate_to_res(mns)}
+      , atime{to_sec(a), truncate_to_res(ans)}
+      , ctime{to_sec(c), truncate_to_res(cns)} {}
+
+  dwarfs::file_stat::timespec_type mtime;
+  dwarfs::file_stat::timespec_type atime;
+  dwarfs::file_stat::timespec_type ctime;
+};
+
+std::array kFileTimes{
+    std::pair{
+        "file_1w2s3lb6"sv,
+        file_times{std::chrono::sys_days{2021y / 12 / 26} + 8h + 56min + 10s,
+                   723'376'645ns,
+                   std::chrono::sys_days{2021y / 3 / 3} + 20h + 34min + 12s,
+                   91'734'903ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu"sv,
+        file_times{std::chrono::sys_days{2022y / 3 / 22} + 11h + 32min + 27s,
+                   182'893'930ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 24s,
+                   796'111'239ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/file_a45sc57n"sv,
+        file_times{std::chrono::sys_days{2019y / 3 / 8} + 17h + 3min + 42s,
+                   615'891'838ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 3s,
+                   249'965'124ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/file_xh7183o5"sv,
+        file_times{std::chrono::sys_days{2019y / 11 / 06} + 16h + 43min + 43s,
+                   440'687'449ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 49s,
+                   630'593'008ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/link_mpfppenu"sv,
+        file_times{std::chrono::sys_days{2022y / 7 / 16} + 16h + 4min + 21s,
+                   203'054'271ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 32s,
+                   459'548'315ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq"sv,
+        file_times{std::chrono::sys_days{2021y / 10 / 25} + 15h + 46min + 46s,
+                   570'837'717ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 24s,
+                   796'111'239ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq/file_lmyplgqf"sv,
+        file_times{std::chrono::sys_days{2024y / 6 / 10} + 17h + 17min + 12s,
+                   270'375'466ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 49s,
+                   630'593'008ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq/link_pjcnuj7u"sv,
+        file_times{std::chrono::sys_days{2018y / 11 / 8} + 3h + 28min + 36s,
+                   315'733'571ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 32s,
+                   459'548'315ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+};
+
+} // namespace
+
+TEST(tools_test, timestamps_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+  dwarfs::temporary_directory td("dwarfs");
+  auto const mountpoint = td.path() / "mnt";
+  auto const image = test_dir / "timestamps.dwarfs";
+  auto const timeout = std::chrono::seconds(5);
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6", timeout))
+        << runner.cmdline();
+
+    for (auto const& [path, ft] : kFileTimes) {
+      auto const full_path = mountpoint / path;
+
+      dwarfs::file_stat stat(full_path);
+
+      EXPECT_EQ(ft.mtime, stat.mtimespec()) << path << " " << runner.cmdline();
+      EXPECT_EQ(ft.atime, stat.atimespec()) << path << " " << runner.cmdline();
+      EXPECT_EQ(ft.ctime, stat.ctimespec()) << path << " " << runner.cmdline();
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
+
+TEST(tools_test, timestamps_extract) {
+  dwarfs::temporary_directory td("dwarfs");
+  auto const extracted = td.path() / "extracted";
+  auto const image = test_dir / "timestamps.dwarfs";
+
+  ASSERT_TRUE(fs::create_directory(extracted));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", image.string(), "-o",
+                                    extracted.string()));
+
+  for (auto const& [path, ft] : kFileTimes) {
+    auto const full_path = extracted / path;
+
+#ifdef _WIN32
+    if (fs::is_symlink(full_path)) {
+      // Seems like on Windows, symlink timestamps are not settable?
+      continue;
+    }
+#endif
+
+    dwarfs::file_stat stat(full_path);
+
+    EXPECT_EQ(ft.mtime, stat.mtimespec()) << path;
+    EXPECT_EQ(ft.atime, stat.atimespec()) << path;
+  }
 }
