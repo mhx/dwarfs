@@ -98,6 +98,10 @@ using namespace dwarfs::binary_literals;
 
 using dwarfs::test::compare_directories;
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
+auto constexpr kFuseTimeout{5s};
+#endif
+
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
 auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
@@ -196,7 +200,7 @@ bool wait_until_file_ready(fs::path const& path,
 #endif
       std::cerr << "*** exists: " << ec.message() << "\n";
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(1ms);
     if (std::chrono::steady_clock::now() >= end) {
       return false;
     }
@@ -536,7 +540,7 @@ class process_guard {
         ::kill(pid_, SIGTERM);
         return false;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(1ms);
     }
 #endif
   }
@@ -572,7 +576,7 @@ class driver_runner {
                                      mountpoint, std::forward<Args>(args)...);
     process_->run_background();
 
-    wait_until_file_ready(mountpoint, std::chrono::seconds(5));
+    wait_until_file_ready(mountpoint, 5s);
 #else
     std::vector<std::string> options;
     if (!subprocess::check_run(DWARFS_ARG_EMULATOR_ driver,
@@ -625,12 +629,12 @@ class driver_runner {
         std::cerr << "driver failed to unmount:\nout:\n"
                   << out << "err:\n"
                   << err << "exit code: " << ec << "\n";
-        if (std::chrono::steady_clock::now() - t0 > std::chrono::seconds(5)) {
+        if (std::chrono::steady_clock::now() - t0 > 5s) {
           throw std::runtime_error(
               "driver still failed to unmount after 5 seconds");
         }
         std::cerr << "retrying...\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(10ms);
       }
       bool rv{true};
       if (process_) {
@@ -671,7 +675,7 @@ class driver_runner {
             break;
           }
           std::cerr << "retrying umount...\n";
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          std::this_thread::sleep_for(200ms);
         }
 #else
         auto fusermount = find_fusermount();
@@ -680,11 +684,11 @@ class driver_runner {
             break;
           }
           std::cerr << "retrying fusermount...\n";
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          std::this_thread::sleep_for(200ms);
         }
 #endif
         mountpoint_.clear();
-        return dwarfs_guard_.check_exit(std::chrono::seconds(5));
+        return dwarfs_guard_.check_exit(5s);
       }
 #endif
 #endif
@@ -817,9 +821,6 @@ class tools_test : public ::testing::TestWithParam<binary_mode> {};
 TEST_P(tools_test, end_to_end) {
   auto mode = GetParam();
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  std::chrono::seconds const timeout{5};
-#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
@@ -972,7 +973,7 @@ TEST_P(tools_test, end_to_end) {
                            mode == binary_mode::universal_tool, image,
                            mountpoint, args);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
           << runner.cmdline();
       auto const cdr = compare_directories(fsdata_dir, mountpoint);
       ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1123,7 +1124,8 @@ TEST_P(tools_test, end_to_end) {
         driver_runner runner(driver, mode == binary_mode::universal_tool, image,
                              mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+        ASSERT_TRUE(
+            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
@@ -1180,7 +1182,8 @@ TEST_P(tools_test, end_to_end) {
         driver_runner runner(driver, mode == binary_mode::universal_tool,
                              image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+        ASSERT_TRUE(
+            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
@@ -1278,9 +1281,6 @@ TEST_P(tools_test, mutating_and_error_ops) {
     GTEST_SKIP() << "skipping FUSE tests";
   }
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  std::chrono::seconds const timeout{5};
-#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto mountpoint = td / "mnt";
@@ -1320,7 +1320,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
                          mode == binary_mode::universal_tool, test_data_dwarfs,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
         << runner.cmdline();
 
     // remove (unlink)
@@ -1490,7 +1490,6 @@ TEST_P(tools_test, mutating_and_error_ops) {
 TEST_P(tools_test, categorize) {
   auto mode = GetParam();
 
-  std::chrono::seconds const timeout{5};
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
@@ -1601,7 +1600,7 @@ TEST_P(tools_test, categorize) {
                          mode == binary_mode::universal_tool, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
         << runner.cmdline();
     auto const cdr = compare_directories(fsdata_dir, mountpoint);
     ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1645,7 +1644,7 @@ TEST_P(tools_test, categorize) {
                            mountpoint, "-opreload_category=pcmaudio/waveform",
                            "-oanalysis_file=" + analysis_file_str);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
           << runner.cmdline();
 
       std::array const files_to_read{
@@ -2497,7 +2496,6 @@ TEST_F(sparse_files_test, random_large_files) {
 
 #ifdef DWARFS_WITH_FUSE_DRIVER
   if (!skip_fuse_tests()) {
-    std::chrono::seconds const timeout{5};
     auto const mountpoint = td->path() / "mnt";
 
     fs::create_directory(mountpoint);
@@ -2506,7 +2504,8 @@ TEST_F(sparse_files_test, random_large_files) {
       driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
                            mountpoint);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+      ASSERT_TRUE(
+          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
           << runner.cmdline();
 
       // Only compare if we know the FUSE driver supports sparse files.
@@ -2536,7 +2535,8 @@ TEST_F(sparse_files_test, random_large_files) {
       driver_runner runner(driver_runner::foreground, fuse2_bin, false, image,
                            mountpoint);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+      ASSERT_TRUE(
+          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
           << runner.cmdline();
 
       for (auto const& file : info.files) {
@@ -2655,7 +2655,6 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
   EXPECT_EQ(info.total.total_size,
             (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
-  std::chrono::seconds const timeout{5};
   auto const mountpoint = td->path() / "mnt";
 
   ASSERT_NO_THROW(fs::create_directory(mountpoint));
@@ -2672,7 +2671,8 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin", timeout))
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
         << runner.cmdline();
 
     auto const cdr = compare_directories(input, mountpoint);
@@ -2814,7 +2814,6 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
   EXPECT_EQ(5_GiB + 16_KiB + 4100_MiB,
             (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
-  std::chrono::seconds const timeout{5};
   auto const mountpoint = td->path() / "mnt";
 
   ASSERT_NO_THROW(fs::create_directory(mountpoint));
@@ -2831,7 +2830,8 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "hole_then_data", timeout))
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "hole_then_data", kFuseTimeout))
         << runner.cmdline();
 
     EXPECT_EQ(fs::file_size(mountpoint / "hole_then_data"), 5_GiB + 16_KiB)
@@ -2975,7 +2975,6 @@ TEST(tools_test, timestamps_fuse) {
   dwarfs::temporary_directory td("dwarfs");
   auto const mountpoint = td.path() / "mnt";
   auto const image = test_dir / "timestamps.dwarfs";
-  auto const timeout = std::chrono::seconds(5);
 
   std::vector<fs::path> drivers;
 
@@ -2989,7 +2988,8 @@ TEST(tools_test, timestamps_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6", timeout))
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
         << runner.cmdline();
 
     for (auto const& [path, ft] : kFileTimes) {
