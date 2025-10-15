@@ -60,6 +60,11 @@ class time_resolution_converter {
     return (val / conv_sec_) * conv_sec_;
   }
 
+  template <std::integral T>
+  T offset_conversion_remainder(T val) const {
+    return val % conv_sec_;
+  }
+
  private:
   struct init_data;
   explicit time_resolution_converter(init_data const& data);

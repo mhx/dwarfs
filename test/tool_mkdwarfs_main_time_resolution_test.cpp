@@ -315,4 +315,118 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
       EXPECT_EQ(make_ts(50, 50), stat.ctimespec());
     }
   }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--keep-all-times", "--time-resolution=1us"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    image = t.out();
+
+    auto const info =
+        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    EXPECT_FLOAT_EQ(1e-6f, info["time_resolution"].get<float>());
+
+    {
+      auto dev = fs.find("/");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_directory());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(1, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(3, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(5, 0), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/dir");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_directory());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(30, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(50, 0), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/bar.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(1001001, 2002000), stat.atimespec());
+      EXPECT_EQ(make_ts(3003003, 4004000), stat.mtimespec());
+      EXPECT_EQ(make_ts(5005005, 6006000), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/dir/foo.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(2001, 5000), stat.atimespec());
+      EXPECT_EQ(make_ts(4003, 7000), stat.mtimespec());
+      EXPECT_EQ(make_ts(6005, 9000), stat.ctimespec());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--keep-all-times", "--time-resolution=2s"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    image = t.out();
+
+    auto const info =
+        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    EXPECT_FLOAT_EQ(2.0f, info["time_resolution"].get<float>());
+
+    {
+      auto dev = fs.find("/");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_directory());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(0, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(2, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(4, 0), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/dir");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_directory());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(30, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(50, 0), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/bar.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(1001000, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(3003002, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(5005004, 0), stat.ctimespec());
+    }
+
+    {
+      auto dev = fs.find("/dir/foo.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(make_ts(2000, 0), stat.atimespec());
+      EXPECT_EQ(make_ts(4002, 0), stat.mtimespec());
+      EXPECT_EQ(make_ts(6004, 0), stat.ctimespec());
+    }
+  }
 }

@@ -571,6 +571,11 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
     return;
   }
 
+  auto const tb_adjust =
+      update_resolution
+          ? timeres_.offset_conversion_remainder(md_.timestamp_base().value())
+          : 0;
+
   for (auto& inode : md_.inodes().value()) {
     if (update_uid) {
       inode.owner_index() = 0;
@@ -584,7 +589,7 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
       inode.mtime_offset() = 0;
     } else if (update_resolution) {
       inode.mtime_offset() =
-          timeres_.convert_offset(inode.mtime_offset().value());
+          timeres_.convert_offset(inode.mtime_offset().value() + tb_adjust);
       inode.mtime_subsec() =
           timeres_.convert_subsec(inode.mtime_subsec().value());
     }
@@ -594,11 +599,11 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
       inode.ctime_offset() = 0;
     } else if (update_resolution) {
       inode.atime_offset() =
-          timeres_.convert_offset(inode.atime_offset().value());
+          timeres_.convert_offset(inode.atime_offset().value() + tb_adjust);
       inode.atime_subsec() =
           timeres_.convert_subsec(inode.atime_subsec().value());
       inode.ctime_offset() =
-          timeres_.convert_offset(inode.ctime_offset().value());
+          timeres_.convert_offset(inode.ctime_offset().value() + tb_adjust);
       inode.ctime_subsec() =
           timeres_.convert_subsec(inode.ctime_subsec().value());
     }
