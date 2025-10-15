@@ -68,6 +68,7 @@ class os_access_generic : public os_access {
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
+  std::chrono::nanoseconds native_file_time_resolution() const override;
 
  private:
   std::unique_ptr<internal::os_access_generic_data const> data_;

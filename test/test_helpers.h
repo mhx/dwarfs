@@ -187,6 +187,14 @@ class os_access_mock : public os_access {
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
 
+  std::chrono::nanoseconds native_file_time_resolution() const override {
+    return native_file_time_resolution_;
+  }
+
+  void set_native_file_time_resolution(std::chrono::nanoseconds res) {
+    native_file_time_resolution_ = res;
+  }
+
   void set_executable_resolver(executable_resolver_type resolver);
 
   std::set<std::filesystem::path> get_failed_paths() const;
@@ -223,6 +231,7 @@ class os_access_mock : public os_access {
   std::chrono::nanoseconds dir_reader_delay_{0};
   std::map<std::filesystem::path, std::chrono::nanoseconds> map_file_delays_;
   file_size_t map_file_delay_min_size_{0};
+  std::chrono::nanoseconds native_file_time_resolution_{1};
 };
 
 struct filter_transformer_data {

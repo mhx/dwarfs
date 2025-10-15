@@ -702,4 +702,12 @@ std::ostream& operator<<(std::ostream& os, file_stat::timespec_type const& ts) {
   return os << "{" << ts.sec << ", " << ts.nsec << "}";
 }
 
+std::chrono::nanoseconds file_stat::native_time_resolution() {
+#ifdef _WIN32
+  return std::chrono::nanoseconds(100);
+#else
+  return std::chrono::nanoseconds(1);
+#endif
+}
+
 } // namespace dwarfs

@@ -237,6 +237,11 @@ os_access_generic::find_executable(std::filesystem::path const& name) const {
 #endif
 }
 
+std::chrono::nanoseconds
+os_access_generic::native_file_time_resolution() const {
+  return file_stat::native_time_resolution();
+}
+
 os_access_generic::os_access_generic()
     : os_access_generic(std::cerr) {}
 

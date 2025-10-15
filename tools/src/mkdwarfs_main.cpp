@@ -1145,6 +1145,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
+  if (auto const res = options.metadata.time_resolution) {
+    if (auto const native = iol.os->native_file_time_resolution();
+        *res < native) {
+      LOG_WARN << "requested time resolution of " << time_with_unit(*res)
+               << " is finer than the native file timestamp resolution of "
+               << time_with_unit(native);
+    }
+  }
+
   try {
     writer::metadata_options::validate(options.metadata);
   } catch (std::exception const& e) {

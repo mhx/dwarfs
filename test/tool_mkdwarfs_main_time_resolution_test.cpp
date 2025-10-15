@@ -89,6 +89,20 @@ TEST(mkdwarfs_test, time_resolution_default) {
   }
 }
 
+TEST(mkdwarfs_test, time_resolution_finer_than_native) {
+  mkdwarfs_tester t;
+
+  t.os->set_native_file_time_resolution(std::chrono::microseconds(10));
+
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "--keep-all-times",
+                      "--time-resolution=ns"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(),
+              HasSubstr("requested time resolution of 1ns is finer than the "
+                        "native file timestamp resolution of 10us"));
+}
+
 TEST(mkdwarfs_test, subsecond_time_resolution) {
   std::string const image_file = "test.dwarfs";
   std::string image;

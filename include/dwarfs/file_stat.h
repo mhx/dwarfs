@@ -78,6 +78,8 @@ class file_stat {
   static constexpr valid_fields_type allocated_size_valid = 1 << 13;
   static constexpr valid_fields_type all_valid = (1 << 14) - 1;
 
+  static std::chrono::nanoseconds native_time_resolution();
+
   file_stat();
   explicit file_stat(std::filesystem::path const& path);
 

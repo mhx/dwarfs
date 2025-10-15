@@ -76,5 +76,6 @@ class os_access {
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const = 0;
   virtual std::filesystem::path
   find_executable(std::filesystem::path const& name) const = 0;
+  virtual std::chrono::nanoseconds native_file_time_resolution() const = 0;
 };
 } // namespace dwarfs
