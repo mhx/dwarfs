@@ -507,7 +507,62 @@ allows for compression of short strings with random access
 and is typically able to reduce the overall size of the
 string tables by 50%, using a dictionary that is only a few
 hundred bytes long. If a `symtab` is set for the string table,
-this compression is used.
+this compression is used. Note that in this case, the index refers
+to the position and length in the compressed string.
+
+It's recommended to decompress the strings using the official FSST
+code, which is highly optimized and very fast. The rest of this
+section explains how to decompress the names manually, just to
+document all parts of the DwarFS format; you can skip to the next
+section if you're using the `fsst` library.
+
+Decoding an FSST compressed string is very simple: each byte is a
+code, codes `00` to `FE` are an index into a string table, with each
+entry being a string 1-8 bytes in length, which are copied into the
+target buffer; code `FF` is an escape character, indicating that the
+following byte should be copied into the target buffer as-is. For
+example, if the contents of the string table were
+`["FS", "war", "!", "D"]`, the byte sequence `03 01 00 02` decodes
+to `"DwarFS!"`.
+
+The string table is constructed from the `symtab` record as follows:
+
+Bytes 0 to 7 are the header and are of the form `01 ll xx xx 0A 14 34 01`;
+bytes 2 and 3 store encoder parameters; they can be ignored. Byte 1
+(`ll`) stores the number of codes, this information is redundant and
+can also be ignored, but it could be used as an additional sanity check
+if so desired. The rest is fixed and if any of those bytes are
+different, `symtab` should be considered to be corrupt.
+
+Byte 8 should always be `00`. If it's `01`, it means the data was
+compressed as zero-terminated strings and requires slightly different
+decoding of `symtab` (described at the end of this section for
+completeness); DwarFS doesn't use zero-terminated strings; hence, in
+the following paragraphs we assume it's zero.
+
+Bytes 9 to 16 are the histogram of string lengths in the string table:
+byte 9 is the number of 1-byte strings, byte 10 the number of 2-byte
+strings and so on. The sum of those values is always identical to
+byte 1 in the header.
+
+The remaining bytes are the contents of the string table, but it
+starts with all the 2-byte strings concatenated, followed by all
+3-byte strings, and so on until the 8-byte strings are followed by all
+1-byte strings. The indices are assigned sequentially: the first entry
+read gets index 0, the second index 1, and so on.
+
+For example, the string table used earlier would be stored as follows:
+the histogram would start with `02 01 01` with the rest being zeros,
+followed by the ASCII string `"FSwar!D"`.
+
+This concludes the description of FSST decompression. As mentioned
+earlier, byte 8 in the header should always be `00`, but if it were
+`01`, there are only 2 differences that need to be noted: entry zero
+in the string table is fixed to the 1-byte `"\0"` string, and that
+value is not stored in the `symtab`. However it is still counted in
+the histogram; so to construct the string table, the first code
+assigned has to be 1, not 0 and the first entry in the histogram has
+to be decremented by 1.
 
 ### Binary Metadata Format Details
 
