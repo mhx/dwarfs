@@ -306,15 +306,13 @@ if(WITH_TOOLS)
     install(TARGETS ${tgt} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     if(WIN32)
       install(FILES $<TARGET_PDB_FILE:${tgt}> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+    else()
+      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/${tgt}
+              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
+      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_${tgt}
+              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
     endif()
   endforeach()
-
-  if(NOT WIN32)
-    file(GLOB SHELLCOMP_BASH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/*)
-    file(GLOB SHELLCOMP_ZSH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/*)
-    install(FILES "${SHELLCOMP_BASH_FILES}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
-    install(FILES "${SHELLCOMP_ZSH_FILES}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
-  endif()
 
   target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
   target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
@@ -425,6 +423,10 @@ if(WITH_FUSE_DRIVER)
         file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs\"
                          \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs\"
                          SYMBOLIC)")
+      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/dwarfs
+              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
+      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_dwarfs
+              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
     endif()
     list(APPEND BINARY_TARGETS dwarfs-bin)
     list(APPEND MAIN_TARGETS dwarfs_main)

@@ -1,0 +1,40 @@
+#compdef dwarfsck
+#
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# zsh completion for dwarfsck
+#
+# synopsis
+#   dwarfsck [OPTIONS...]
+#
+
+local context state line ret=1
+
+__dwarfsck_disable_man()
+{
+    if ! dwarfsck -h | grep -qe ' *--man'; then
+        echo -n "!"
+    fi
+}
+
+_arguments -S \
+	"--check-integrity[check integrity of each block]" \
+	"--checksum[print checksums for all files]:hashfnc:" \
+	"--export-metadata[export raw metadata as JSON to file]:filename:_files" \
+	"--log-level[log level]:level:(error warn info verbose debug trace)" \
+	"--log-with-context[enable context logging regardless of level]" \
+	"--no-check[don't even verify block checksums]" \
+	{-d,--detail}"[detail level or feature list]:level:(frozen_analysis history metadata_summary version)" \
+	{-h,--help}"[output help message and exit]" \
+	{-H,--print-header}"[print filesystem header to stdout and exit]" \
+	{-i,--input}"[input filesystem]:filename:_files -g '*.dwarfs'" \
+	{-j,--json}"[print information in JSON format]" \
+	{-l,--list}"[list all files and exit]" \
+	{-n,--num-workers=-}"[number of reader worker threads]:num:" \
+	{-O,--image-offset=-}"[filesystem image offset in bytes]:num:" \
+	{-q,--quiet}"[don't print anything unless an error occurs]" \
+	{-v,--verbose}"[produce verbose output]" \
+	"$(__dwarfsck_disable_man)--man[show manual page and exit]" && ret=0
+
+return ret

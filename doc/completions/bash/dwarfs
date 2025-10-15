@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# bash completion for dwarfs
+#
+# synopsis
+#   dwarfs <image.dwarfs> <mountpoint> [-o option]...
+#   dwarfs <image.dwarfs> --auto-mountpoint [-o option]...
+#
+
+__dwarfs_additional_options()
+{
+    if dwarfs -h | grep -qe ' *--man'; then
+        echo "--man"
+    fi
+}
+
+_dwarfs_completion()
+{
+    local cur prev words cword
+    _comp_initialize || return
+
+    # options that show up at any position
+    local OPTIONS_GENERAL=(
+        -d -f -o -s
+    )
+    # options that show up at first position and not followed by anything
+    local OPTIONS_GENERAL_FIRST=(
+        -h --help $(__dwarfs_additional_options)
+    )
+
+    local OPTION_ARG__owitharg=( analysis_file block_allocator blocksize cachesize
+        cache_files debuglevel decratio gid imagesize mlock offset perfmon_trace
+        perfmon preload_category readahead seq_detector tidy_interval
+        tidy_max_age tidy_strategy uid workers max_idle_threads max_threads )
+    local OPTION_ARG__onoarg=( debug clone_fd enable_nlink readonly cache_image
+        case_insensitive preload_all no_cache_files no_cache_image )
+
+    # catch option with known arguments first
+    case $prev in
+        -o )
+            _comp_compgen -- -W '"${OPTION_ARG__owitharg[@]}"' -S "="
+            _comp_compgen -a -- -W '"${OPTION_ARG__onoarg[@]}"'
+            return 0
+            ;;
+        -h | --help | --man )
+            # nothing else to add
+            return 0
+            ;;
+    esac
+
+    # count non-option args (including --a-mp as second arg)
+    local carg=1 i
+    for (( i=1; i < ${cword}; i++ )); do
+        if [[ ( ${words[i]} != -* && ${words[i-1]} != "-o" ) ||
+                ${words[i]} == "--auto-mountpoint" ]]; then
+            carg=$((carg+1))
+        fi
+    done
+
+    if [[ $carg == 2 ]]; then
+        # second arg is dir or --auto-mp
+        _comp_compgen -- -W '"--auto-mountpoint"'
+        _comp_compgen -a -- -d
+    elif [[ $cur == -* || $carg -gt 2 ]]; then
+        # cursor on an option or already have 2 args, show options only
+        _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+        if [[ $carg -eq 1 ]]; then
+            _comp_compgen -a -- -W '"${OPTIONS_GENERAL_FIRST[@]}"'
+        fi
+    else
+        # show all options and dwarfs files to start
+        _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+        _comp_compgen -a -- -W '"${OPTIONS_GENERAL_FIRST[@]}"'
+        _comp_compgen -a filedir dwarfs
+    fi
+
+    return 0
+} &&
+complete -F _dwarfs_completion dwarfs

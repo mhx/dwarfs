@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# bash completion for dwarfsck
+#
+# synopsis
+#   dwarfsck [OPTIONS...]
+#
+
+__dwarfsck_additional_options()
+{
+    if dwarfsck -h | grep -qe ' *--man'; then
+        echo "--man"
+    fi
+}
+
+_dwarfsck_completion()
+{
+    local cur prev words cword
+    _comp_initialize || return
+
+    local OPTIONS_GENERAL=(
+        --check-integrity
+        --checksum
+        --export-metadata
+        --log-level
+        --log-with-context
+        --no-check
+        -d --detail
+        -h --help
+        -H --print-header
+        -i --input
+        -j --json
+        -l --list
+        -n --num-workers
+        -O --image-offset
+        -q --quiet
+        -v --verbose
+        $(__dwarfsck_additional_options)
+    )
+
+    local OPTION_ARG__detail=( frozen_analysis history metadata_summary version )
+    local OPTION_ARG__log_level=( error warn info verbose debug trace )
+    local OPTION_ARG_d=( ${OPTION_ARG__detail[@]} )
+    # silent, no completion
+    local OPTION_ARG_NONE=( --checksum --image-offset --num-workers -n -O )
+
+    # catch option with known arguments first
+    case $prev in
+        --checksum | --detail | --log-level | --image-offset | --num-workers | \
+        -d | -n | -O )
+            prevoption=${prev//-/_}
+            _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
+            return 0
+            ;;
+        -i | --input)
+            _comp_compgen -a filedir dwarfs
+            return 0
+            ;;
+        --export-metadata)
+            _comp_compgen -a filedir
+            return 0
+            ;;
+    esac
+
+    # check if previous option is silent
+    if [[ $prev == -* ]]; then
+        for f in ${OPTION_ARG_NONE[@]}; do
+            [[ "$prev" = "$f" ]] && return 0
+        done
+    fi
+
+    # show all options
+    _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+
+    return 0
+} &&
+complete -F _dwarfsck_completion dwarfsck

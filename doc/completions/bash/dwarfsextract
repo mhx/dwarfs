@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# bash completion for dwarfsextract
+#
+# synopsis
+#   dwarfsextract [OPTIONS...]
+#
+
+__dwarfsextract_additional_options()
+{
+    if dwarfsextract -h | grep -qe ' *--man'; then
+        echo "--man"
+    fi
+}
+
+_dwarfsextract_completion()
+{
+    local cur prev words cword
+    _comp_initialize || return
+
+    local OPTIONS_GENERAL=(
+        --continue-on-error
+        --disable-integrity-check
+        --format-filters
+        --format-options
+        --log-level
+        --log-with-context
+        --pattern
+        --perfmon
+        --perfmon-trace
+        --stdout-progress
+        -f --format
+        -h --help
+        -i --input
+        -n --num-workers
+        -O --image-offset
+        -o --output
+        -s --cache-size
+        $(__dwarfsextract_additional_options)
+    )
+
+    local OPTION_ARG__log_level=( error warn info verbose debug trace )
+    # silent, no completion
+    local OPTION_ARG_NONE=( --cache-size -f --format --format-filters \
+        --format-options --image-offset --pattern --perfmon -n --num-workers \
+        -O -s  )
+
+    # catch option with known arguments first
+    case $prev in
+        --log-level)
+            prevoption=${prev//-/_}
+            _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
+            return 0
+            ;;
+        -i | --input)
+            _comp_compgen -a filedir dwarfs
+            return 0
+            ;;
+        --perfmon-trace | -o | --output)
+            _comp_compgen -a filedir
+            return 0
+            ;;
+    esac
+
+    # check if previous option is silent
+    if [[ $prev == -* ]]; then
+        for f in ${OPTION_ARG_NONE[@]}; do
+            [[ "$prev" = "$f" ]] && return 0
+        done
+    fi
+
+    # show all options
+    _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+
+    return 0
+} &&
+complete -F _dwarfsextract_completion dwarfsextract

@@ -23,7 +23,7 @@ __mkdwarfs_list_comp_algos()
 
 __mkdwarfs_additional_options()
 {
-    if [[ "$(mkdwarfs -h | grep -e ' *--man')" ]]; then
+    if mkdwarfs -h | grep -qe ' *--man'; then
         echo "--man"
     fi
 }
