@@ -27,7 +27,7 @@ __mkdwarfs_list_comp_algos()
 
 __mkdwarfs_disable_man()
 {
-    if [[ ! "$(mkdwarfs -h | grep -e ' *--man')" ]]; then
+    if ! mkdwarfs -h | grep -qe ' *--man'; then
         echo -n "!"
     fi
 }

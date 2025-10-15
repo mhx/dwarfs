@@ -1,0 +1,77 @@
+#compdef dwarfs
+#
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# zsh completion for dwarfs
+#
+# synopsis
+#   dwarfs <image.dwarfs> <mountpoint> [-o option]...
+#   dwarfs <image.dwarfs> --auto-mountpoint [-o option]...
+#
+
+local context state line ret=1
+
+__dwarfs_disable_man()
+{
+    if ! dwarfs -h | grep -qe ' *--man'; then
+        echo -n "!"
+    fi
+}
+
+__dwarfs_mount_point()
+{
+    # complete arg 2 with dirs and auto-mp option
+    _files -/
+    compadd "$@" -- "--auto-mountpoint"
+}
+
+_arguments -S \
+    + "mainoptions" \
+    "(oneonly)-d[enable debug output (implies -f)]" \
+    "(oneonly)-f[foreground operation]" \
+    "(oneonly)*-o[dwarfs or fuse mount options]:option:->mount_options" \
+    "(oneonly)-s[disable multi-threaded operation]" \
+    "(oneonly)1:dwarfs image:_files -g '*.dwarfs'" \
+    "(oneonly)2:mount point:__dwarfs_mount_point" \
+    + "(oneonly)" \
+    "(mainoptions)"{-h,--help}"[output help message and exit]" \
+    "$(__dwarfs_disable_man)(mainoptions)--man[show manual page and exit]" && ret=0
+
+case "$state" in
+    mount_options)
+        _values "mount options" \
+            "analysis_file[write accessed files to this file]:filename:_files" \
+            "block_allocator[(malloc) | mmap]:" \
+            "blocksize[set file I/O block size (512K)]:" \
+            "cache_files[keep files in kernel cache]" \
+            "cache_image[keep image in kernel cache]" \
+            "cachesize[set size of block cache (512M)]:" \
+            "case_insensitive[perform case-insensitive lookups]" \
+            "clone_fd[use separate fuse device fd for each thread]" \
+            "debug[enable debug output (implies -f)]" \
+            "debuglevel[debug level]:level:(error warn info verbose debug trace)" \
+            "decratio[ratio for full decompression (0.8)]:" \
+            "enable_nlink[show correct hardlink numbers]" \
+            "gid[override group ID for file system]:" \
+            "imagesize[filesystem image size in bytes]:" \
+            "mlock[mlock mode]:" \
+            "no_cache_files[do not keep files in kernel cache]" \
+            "no_cache_image[do not keep image in kernel cache]" \
+            "offset[filesystem image offset in bytes (0)]:" \
+            "perfmon_trace[write performance monitor trace file]:filename:_files" \
+            "perfmon[enable performance monitor]:" \
+            "preload_all[preload all file system blocks]" \
+            "preload_category[preload blocks from this category]:" \
+            "readahead[set readahead size (0)]:" \
+            "readonly[show read-only file system]" \
+            "seq_detector[sequential access detector threshold (4)]:" \
+            "tidy_interval[interval for cache tidying (5m)]:" \
+            "tidy_max_age[tidy blocks after this time (10m)]:" \
+            "tidy_strategy[tidy strategy (none)|time|swap]:" \
+            "uid[override user ID for file system]:" \
+            "workers[number of worker threads (2)]:"
+        ;;
+esac
+
+return ret

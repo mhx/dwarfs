@@ -1,0 +1,41 @@
+#compdef dwarfsextract
+#
+# SPDX-License-Identifier: MIT
+# Author: Ahmad Khalifa
+#
+# zsh completion for dwarfsextract
+#
+# synopsis
+#   dwarfsextract [OPTIONS...]
+#
+
+local context state line ret=1
+
+__dwarfsextract_disable_man()
+{
+    if ! dwarfsextract -h | grep -qe ' *--man'; then
+        echo -n "!"
+    fi
+}
+
+_arguments -S \
+	"--continue-on-error[continue if errors are encountered]" \
+	"--disable-integrity-check[disable file system image block integrity check (dangerous)]" \
+	"--format-filters[comma-separated libarchive format filters]:filters:" \
+	"--format-options[options for the specific libarchive format/filters]:options:" \
+	"--log-level[log level]:level:(error warn info verbose debug trace)" \
+	"--log-with-context[enable context logging regardless of level]" \
+	"--pattern[only extract files matching these patterns]:pattern:" \
+	"--perfmon[enable performance monitor]" \
+	"--perfmon-trace[write performance monitor trace file]:filename:_files" \
+	"--stdout-progress[write percentage progress to stdout]" \
+	{-f,--format}"[output format]:format:" \
+	{-h,--help}"[output help message and exit]" \
+	{-i,--input}"[input filesystem]:filename:_files -g '*.dwarfs'" \
+	{-n,--num-workers=-}"[number of reader worker threads]:num:" \
+	{-O,--image-offset=-}"[filesystem image offset in bytes]:num:" \
+	{-o,--output}"[output file or directory]:filename:_files" \
+	{-s,--cache-size}"[block cache size]:size:" \
+	"$(__dwarfsextract_disable_man)--man[show manual page and exit]" && ret=0
+
+return ret
