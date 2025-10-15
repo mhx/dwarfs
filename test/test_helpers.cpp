@@ -70,8 +70,9 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_gid(ss.gid);
   rv.set_rdev(ss.rdev);
   rv.set_size(ss.size);
-  rv.set_allocated_size(ss.size);
-  rv.set_blocks((ss.size + 511) / 512);
+  auto const allocated = ss.allocated_size.value_or(ss.size);
+  rv.set_allocated_size(allocated);
+  rv.set_blocks((allocated + 511) / 512);
   rv.set_blksize(0);
   rv.set_atimespec(ss.atim.ts);
   rv.set_mtimespec(ss.mtim.ts);
@@ -352,6 +353,7 @@ simplestat os_access_mock::add_file(fs::path const& path, test_file_data data,
                                     add_file_options const& opts) {
   auto st = make_reg_simplestat(opts);
   st.size = data.size();
+  st.allocated_size = data.allocated_size();
   add(path, st, data);
   return st;
 }

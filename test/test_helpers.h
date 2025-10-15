@@ -87,6 +87,7 @@ struct simplestat {
   timespec_wrapper atim{};
   timespec_wrapper mtim{};
   timespec_wrapper ctim{};
+  std::optional<file_stat::off_type> allocated_size{};
 
   posix_file_type::value type() const {
     return static_cast<posix_file_type::value>(mode & posix_file_type::mask);

@@ -54,6 +54,7 @@ struct test_file_data {
   void add_hole(file_size_t size);
 
   file_size_t size() const;
+  file_size_t allocated_size() const;
 };
 
 } // namespace dwarfs::test

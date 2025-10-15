@@ -67,4 +67,14 @@ file_size_t test_file_data::size() const {
   return total;
 }
 
+file_size_t test_file_data::allocated_size() const {
+  file_size_t total{0};
+  for (auto const& e : extents) {
+    if (e.info.kind == extent_kind::data) {
+      total += e.info.range.size();
+    }
+  }
+  return total;
+}
+
 } // namespace dwarfs::test
