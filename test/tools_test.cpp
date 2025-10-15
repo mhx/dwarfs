@@ -2867,8 +2867,14 @@ struct file_times {
   }
 
   uint32_t truncate_to_res(std::chrono::nanoseconds ns) {
+#if defined(__s390x__) && defined(DWARFS_CROSSCOMPILING_EMULATOR)
+    // S390x qemu user emulation does not support nanosecond timestamps.
+    // See https://github.com/bytecodealliance/rustix/pull/282/files
+    return 0;
+#else
     return static_cast<uint32_t>(
         (ns - ns % dwarfs::file_stat::native_time_resolution()).count());
+#endif
   }
 
   file_times() = default;
