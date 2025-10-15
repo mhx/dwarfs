@@ -31,6 +31,7 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_tester.h"
 
@@ -71,6 +72,13 @@ TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
   EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") ==
               features.end())
       << info.dump(2);
+
+  vfs_stat vfs;
+  fs.statvfs(&vfs);
+
+  EXPECT_EQ(2, vfs.files); // root dir + sparse file
+  EXPECT_EQ(1, vfs.frsize);
+  EXPECT_EQ(40'000, vfs.blocks);
 }
 
 TEST(mkdwarfs_test, build_with_sparse_files) {
@@ -106,6 +114,13 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
     EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
                 features.end())
         << info.dump(2);
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(2, vfs.files); // root dir + sparse file
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(20'000, vfs.blocks);
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
@@ -134,6 +149,13 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
     EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
                 features.end())
         << info.dump(2);
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(2, vfs.files); // root dir + sparse file
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(20'000, vfs.blocks);
   }
 
   {
@@ -219,6 +241,13 @@ TEST(mkdwarfs_test, huge_sparse_file) {
                   return e.info;
                 }) | ranges::to<std::vector>(),
                 testing::ElementsAreArray(fr.extents()));
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(2, vfs.files); // root dir + sparse file
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(total_data_size, vfs.blocks);
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
@@ -286,6 +315,13 @@ TEST(mkdwarfs_test, huge_sparse_file) {
         EXPECT_EQ(ext.data, data) << "data mismatch at offset " << offset;
       }
     }
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(2, vfs.files); // root dir + sparse file
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(total_data_size, vfs.blocks);
   }
 }
 
@@ -436,6 +472,13 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
 
       EXPECT_EQ(stat.ino(), lstat.ino());
     }
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(5, vfs.files); // root dir + 4 files (no hardlinks)
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(29_KiB, vfs.blocks);
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
@@ -548,6 +591,13 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
 
         EXPECT_EQ(stat.ino(), lstat.ino());
       }
+
+      vfs_stat vfs;
+      fs.statvfs(&vfs);
+
+      EXPECT_EQ(5, vfs.files); // root dir + 4 files (no hardlinks)
+      EXPECT_EQ(1, vfs.frsize);
+      EXPECT_EQ(29_KiB, vfs.blocks);
     }
 
     {
@@ -648,6 +698,13 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
 
         EXPECT_EQ(stat.ino(), lstat.ino());
       }
+
+      vfs_stat vfs;
+      fs.statvfs(&vfs);
+
+      EXPECT_EQ(5, vfs.files); // root dir + 4 files (no hardlinks)
+      EXPECT_EQ(1, vfs.frsize);
+      EXPECT_EQ(29_KiB + 1559_GiB, vfs.blocks);
     }
   }
 }
