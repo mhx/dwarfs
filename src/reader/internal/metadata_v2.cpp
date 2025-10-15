@@ -1373,9 +1373,6 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     if (auto ths = meta_.total_hardlink_size()) {
       info["total_hardlink_size"] = *ths;
     }
-    if (auto const allocated = meta_.total_allocated_hardlink_size()) {
-      info["total_allocated_hardlink_size"] = *allocated;
-    }
 
     if (auto opt = meta_.options()) {
       nlohmann::json options;
@@ -1569,10 +1566,6 @@ void metadata_v2_data::dump(
     }
     if (auto ths = meta_.total_hardlink_size()) {
       os << "total hardlink size: " << size_with_unit(*ths) << "\n";
-    }
-    if (auto const allocated = meta_.total_allocated_hardlink_size()) {
-      os << "total allocated hardlink size: " << size_with_unit(*allocated)
-         << "\n";
     }
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;

@@ -965,7 +965,7 @@ void scanner_<LoggerPolicy>::scan(
   }
 
   mdb.set_total_fs_size(prog.original_size, prog.allocated_original_size);
-  mdb.set_total_hardlink_size(prog.hardlink_size, prog.allocated_hardlink_size);
+  mdb.set_total_hardlink_size(prog.hardlink_size);
   mdb.gather_global_entry_data(ge_data);
 
   auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
