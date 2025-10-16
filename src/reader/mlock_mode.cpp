@@ -26,7 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <fmt/format.h>
+#include <string>
 
 #include <dwarfs/error.h>
 #include <dwarfs/reader/mlock_mode.h>
@@ -43,7 +43,7 @@ mlock_mode parse_mlock_mode(std::string_view mode) {
   if (mode == "must") {
     return mlock_mode::MUST;
   }
-  DWARFS_THROW(runtime_error, fmt::format("invalid lock mode: {}", mode));
+  DWARFS_THROW(runtime_error, "invalid lock mode: " + std::string{mode});
 }
 
 } // namespace dwarfs::reader
