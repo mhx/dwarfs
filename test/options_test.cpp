@@ -27,6 +27,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/reader/mlock_mode.h>
 
 using namespace dwarfs;
 using namespace dwarfs::reader;
@@ -66,7 +67,7 @@ TEST(options, fsinfo_features) {
                   testing::HasSubstr("invalid feature: \"x\"")));
 }
 
-TEST(utils, parse_image_offset) {
+TEST(options, parse_image_offset) {
   EXPECT_EQ(0, parse_image_offset("0"));
   EXPECT_EQ(1, parse_image_offset("1"));
   EXPECT_EQ(1024, parse_image_offset("1024"));
@@ -77,4 +78,13 @@ TEST(utils, parse_image_offset) {
   EXPECT_THAT([] { parse_image_offset("asd"); },
               ::testing::ThrowsMessage<dwarfs::runtime_error>(
                   ::testing::HasSubstr("failed to parse image offset")));
+}
+
+TEST(options, parse_mlock_mode) {
+  EXPECT_EQ(mlock_mode::NONE, parse_mlock_mode("none"));
+  EXPECT_EQ(mlock_mode::TRY, parse_mlock_mode("try"));
+  EXPECT_EQ(mlock_mode::MUST, parse_mlock_mode("must"));
+  EXPECT_THAT([] { parse_mlock_mode("invalid"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("invalid lock mode: invalid")));
 }
