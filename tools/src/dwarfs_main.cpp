@@ -1461,8 +1461,10 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
   }
 #endif
 
-  fuse_opt_add_arg(&args, mountpath.c_str());
+  auto const mp_arg = path_to_utf8_string_sanitized(mountpath);
+  fuse_opt_add_arg(&args, mp_arg.c_str());
   userdata->opts.seen_mountpoint = 1;
+
   return 0;
 }
 
