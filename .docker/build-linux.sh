@@ -267,7 +267,11 @@ if [[ "-$BUILD_TYPE-" == *-mimalloc-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
-  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0"
+  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0"
+fi
+
+if [[ "-$BUILD_TYPE-" == *-noman-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_MAN_OPTION=0"
 fi
 
 if [[ "-$BUILD_TYPE-" == *-stacktrace-* ]]; then
