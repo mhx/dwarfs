@@ -2080,8 +2080,6 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
 
 #ifdef __linux__
 TEST_P(tools_test, fusermount_check) {
-  auto mode = GetParam();
-
 #ifndef DWARFS_WITH_FUSE_DRIVER
 
   GTEST_SKIP() << "FUSE driver not built";
@@ -2091,6 +2089,8 @@ TEST_P(tools_test, fusermount_check) {
   GTEST_SKIP() << "skipping bubblewrap tests when cross-compiling";
 
 #else
+
+  auto const mode = GetParam();
 
   if (skip_fuse_tests()) {
     GTEST_SKIP() << "skipping FUSE tests";
