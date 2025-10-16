@@ -1071,3 +1071,11 @@ TEST(mkdwarfs_test, hotness_categorizer_duplicate_path_in_hotness_list) {
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("duplicate path in hotness list: 'foo.pl'"));
 }
+
+TEST(mkdwarfs_test, unknown_compression) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "WeIrDcOmP"})) << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown compression: WeIrDcOmP"));
+}
