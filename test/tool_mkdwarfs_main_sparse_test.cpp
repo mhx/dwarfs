@@ -266,7 +266,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--change-block-size",
                         "-S", std::to_string(block_size), "-C", "null"}))
         << t.err();
-    auto fs = t.fs_from_stdout();
+    auto fs = t.fs_from_stdout({.metadata = {.check_consistency = true}});
     image = t.out();
 
     // fs.dump(std::cerr, {.features = reader::fsinfo_features::for_level(2)});
@@ -494,7 +494,8 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
         << t.err();
 
     {
-      auto fs = t.fs_from_stdout({.metadata = {.enable_sparse_files = true}});
+      auto fs = t.fs_from_stdout({.metadata = {.enable_sparse_files = true,
+                                               .check_consistency = true}});
 
       {
         auto const dev = fs.find("/sparse1");
