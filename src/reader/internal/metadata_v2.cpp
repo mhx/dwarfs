@@ -761,6 +761,11 @@ metadata_v2_data::metadata_v2_data(
                       other_offset - dev_inode_offset_));
     }
   }
+
+  if (options.check_consistency || force_consistency_check) {
+    LOG_PROXY(LoggerPolicy, lgr);
+    check_inode_size_cache(LOG_PROXY_ARG);
+  }
 }
 
 template <typename LoggerPolicy>
