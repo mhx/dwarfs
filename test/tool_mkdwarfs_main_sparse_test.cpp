@@ -518,6 +518,18 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
         EXPECT_EQ(13_KiB / 512, lstat.blocks());
 
         EXPECT_EQ(stat.ino(), lstat.ino());
+
+        auto const info = fs.get_inode_info(iv);
+        ASSERT_EQ(3, info["chunks"].size()) << info.dump(2);
+        EXPECT_EQ("data", info["chunks"][0]["kind"]) << info.dump(2);
+        EXPECT_EQ(10_KiB, info["chunks"][0]["size"].get<uint64_t>())
+            << info.dump(2);
+        EXPECT_EQ("hole", info["chunks"][1]["kind"]) << info.dump(2);
+        EXPECT_EQ(5_GiB, info["chunks"][1]["size"].get<uint64_t>())
+            << info.dump(2);
+        EXPECT_EQ("data", info["chunks"][2]["kind"]) << info.dump(2);
+        EXPECT_EQ(3_KiB, info["chunks"][2]["size"].get<uint64_t>())
+            << info.dump(2);
       }
 
       {
