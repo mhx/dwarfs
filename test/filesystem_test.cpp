@@ -447,3 +447,15 @@ TEST(filesytem, check_section_index) {
 
   EXPECT_FALSE(make_fs().has_valid_section_index());
 }
+
+TEST(filesystem, future_features) {
+  test::test_logger lgr;
+  test::os_access_mock os;
+  auto const data = read_file(test_dir / "future-features.dwarfs");
+
+  EXPECT_THAT(
+      [&] { reader::filesystem_v2(lgr, os, test::make_mock_file_view(data)); },
+      ::testing::ThrowsMessage<runtime_error>(::testing::HasSubstr(
+          "file system uses the following features unsupported by this build: "
+          "this-feature-will-never-exist")));
+}
