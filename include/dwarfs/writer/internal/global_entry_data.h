@@ -32,11 +32,17 @@
 
 #include <dwarfs/file_stat.h>
 
+namespace dwarfs::thrift::metadata {
+class inode_data;
+}
+
 namespace dwarfs::writer {
 
 struct metadata_options;
 
 namespace internal {
+
+class time_resolution_converter;
 
 class global_entry_data {
  public:
@@ -46,8 +52,7 @@ class global_entry_data {
 
   enum class timestamp_type { ATIME, MTIME, CTIME };
 
-  global_entry_data(metadata_options const& options)
-      : options_{options} {}
+  explicit global_entry_data(metadata_options const& options);
 
   void add_uid(uid_type uid);
   void add_gid(gid_type gid);
@@ -63,16 +68,8 @@ class global_entry_data {
 
   void index();
 
-  size_t get_uid_index(uid_type uid) const;
-  size_t get_gid_index(gid_type gid) const;
-  size_t get_mode_index(mode_type mode) const;
-
   uint32_t get_name_index(std::string const& name) const;
   uint32_t get_symlink_table_entry(std::string const& link) const;
-
-  uint64_t get_mtime_offset(uint64_t time) const;
-  uint64_t get_atime_offset(uint64_t time) const;
-  uint64_t get_ctime_offset(uint64_t time) const;
 
   std::vector<uid_type> get_uids() const;
   std::vector<gid_type> get_gids() const;
@@ -82,6 +79,10 @@ class global_entry_data {
   std::vector<std::string> get_symlinks() const;
 
   uint64_t get_timestamp_base() const;
+
+  void
+  pack_inode_stat(thrift::metadata::inode_data& inode, file_stat const& stat,
+                  time_resolution_converter const& timeres) const;
 
  private:
   template <typename K, typename V>
@@ -96,8 +97,6 @@ class global_entry_data {
       ++next_index;
     }
   }
-
-  uint64_t get_time_offset(uint64_t time) const;
 
   map_type<uid_type, uid_type> uids_;
   map_type<gid_type, gid_type> gids_;

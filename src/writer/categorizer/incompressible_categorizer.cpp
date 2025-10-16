@@ -57,21 +57,20 @@ struct incompressible_categorizer_config {
 };
 
 template <typename LoggerPolicy>
-class incompressible_categorizer_job_ : public sequential_categorizer_job {
+class data_extent_fragments {
  public:
-  incompressible_categorizer_job_(logger& lgr,
-                                  incompressible_categorizer_config const& cfg,
-                                  std::shared_ptr<zstd_context_manager> ctxmgr,
-                                  std::filesystem::path const& path,
-                                  size_t total_size,
-                                  category_mapper const& mapper)
+  data_extent_fragments(logger& lgr,
+                        incompressible_categorizer_config const& cfg,
+                        std::shared_ptr<zstd_context_manager> ctxmgr,
+                        std::filesystem::path const& path, size_t total_size,
+                        category_mapper const& mapper)
       : LOG_PROXY_INIT(lgr)
       , cfg_{cfg}
       , ctxmgr_{std::move(ctxmgr)}
       , path_{path}
       , default_category_{mapper(categorizer::DEFAULT_CATEGORY)}
       , incompressible_category_{mapper(INCOMPRESSIBLE_CATEGORY)} {
-    LOG_TRACE << "{min_input_size=" << cfg_.min_input_size
+    LOG_TRACE << "data_extent_fragments{min_input_size=" << cfg_.min_input_size
               << ", block_size=" << cfg_.block_size
               << ", generate_fragments=" << cfg_.generate_fragments
               << ", max_ratio=" << cfg_.max_ratio
@@ -79,7 +78,21 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     input_.reserve(total_size < cfg_.block_size ? total_size : cfg_.block_size);
   }
 
-  void add(file_segment const& seg) override {
+  void reset() {
+    input_.clear();
+    output_.clear();
+    total_input_size_ = 0;
+    total_output_size_ = 0;
+    total_blocks_ = 0;
+    incompressible_blocks_ = 0;
+    fragments_.clear();
+  }
+
+  fragment_category::value_type get_default_category() const {
+    return default_category_;
+  }
+
+  void add_data(file_segment const& seg) {
     auto data = seg.span<uint8_t>();
     while (!data.empty()) {
       auto part_size = input_.size() + data.size() <= cfg_.block_size
@@ -90,7 +103,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     }
   }
 
-  inode_fragments result() override {
+  inode_fragments get_fragments(bool force_single_default = true) {
     if (!input_.empty()) {
       compress();
     }
@@ -106,14 +119,21 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     if (fragments_.empty()) {
       LOG_TRACE << stats();
 
-      if (total_blocks_ > 0 &&
-          total_output_size_ >= cfg_.max_ratio * total_input_size_) {
-        fragments_.emplace_back(fragment_category(incompressible_category_),
-                                total_input_size_);
+      if (total_input_size_ > 0) {
+        auto const extent_category =
+            total_blocks_ > 0 &&
+                    total_output_size_ >= cfg_.max_ratio * total_input_size_
+                ? incompressible_category_
+                : default_category_;
+
+        if (force_single_default || extent_category != default_category_) {
+          fragments_.emplace_back(fragment_category(extent_category),
+                                  total_input_size_);
+        }
       }
     } else {
       LOG_TRACE << stats() << ", " << fragments_.size() << " fragments";
-      assert(std::cmp_equal(total_input_size_, fragments_.total_size()));
+      assert(total_input_size_ == fragments_.total_size());
     }
 
     return fragments_;
@@ -183,8 +203,8 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   LOG_PROXY_DECL(LoggerPolicy);
   dwarfs::internal::malloc_buffer input_;
   dwarfs::internal::malloc_buffer output_;
-  size_t total_input_size_{0};
-  size_t total_output_size_{0};
+  file_size_t total_input_size_{0};
+  file_size_t total_output_size_{0};
   size_t total_blocks_{0};
   size_t incompressible_blocks_{0};
   incompressible_categorizer_config const& cfg_;
@@ -192,6 +212,47 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   std::filesystem::path const& path_;
   fragment_category::value_type const default_category_;
   fragment_category::value_type const incompressible_category_;
+  inode_fragments fragments_;
+};
+
+template <typename LoggerPolicy>
+class incompressible_categorizer_job_ : public sequential_categorizer_job {
+ public:
+  incompressible_categorizer_job_(logger& lgr,
+                                  incompressible_categorizer_config const& cfg,
+                                  std::shared_ptr<zstd_context_manager> ctxmgr,
+                                  std::filesystem::path const& path,
+                                  size_t total_size,
+                                  category_mapper const& mapper)
+      : current_{lgr, cfg, std::move(ctxmgr), path, total_size, mapper} {}
+
+  void add_data(file_segment const& seg) override {
+    current_.add_data(seg);
+    total_size_ += seg.size();
+  }
+
+  void add_hole(file_extent const& ext) override {
+    fragments_.append(current_.get_fragments());
+    fragments_.emplace_back(fragment_category(current_.get_default_category()),
+                            ext.size());
+    total_size_ += ext.size();
+    current_.reset();
+  }
+
+  inode_fragments result() override {
+    fragments_.append(current_.get_fragments(!fragments_.empty()));
+    current_.reset();
+    if (!fragments_.empty()) {
+      DWARFS_CHECK(
+          total_size_ == fragments_.total_size(),
+          "internal error: size mismatch in incompressible_categorizer_job_");
+    }
+    return fragments_;
+  }
+
+ private:
+  data_extent_fragments<LoggerPolicy> current_;
+  file_size_t total_size_{0};
   inode_fragments fragments_;
 };
 

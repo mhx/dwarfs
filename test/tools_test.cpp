@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cerrno>
 #include <chrono>
 #include <concepts>
@@ -71,20 +72,35 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/os_access_generic.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
+#include "compare_directories.h"
+#include "loremipsum.h"
+#include "sparse_file_builder.h"
 #include "test_helpers.h"
 
 namespace {
 
 namespace bp = boost::process;
 namespace fs = std::filesystem;
+
+using namespace std::chrono_literals;
+using namespace std::string_view_literals;
+using namespace dwarfs::binary_literals;
+
+using dwarfs::test::compare_directories;
+
+#ifdef DWARFS_WITH_FUSE_DRIVER
+auto constexpr kFuseTimeout{5s};
+#endif
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
@@ -184,7 +200,7 @@ bool wait_until_file_ready(fs::path const& path,
 #endif
       std::cerr << "*** exists: " << ec.message() << "\n";
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(1ms);
     if (std::chrono::steady_clock::now() >= end) {
       return false;
     }
@@ -205,6 +221,7 @@ bool read_file(fs::path const& path, std::string& out) {
   return true;
 }
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
 bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   std::ifstream ifs(path);
   if (!ifs.is_open()) {
@@ -216,144 +233,7 @@ bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   }
   return true;
 }
-
-struct compare_directories_result {
-  std::set<fs::path> mismatched;
-  std::set<fs::path> directories;
-  std::set<fs::path> symlinks;
-  std::set<fs::path> regular_files;
-  size_t total_regular_file_size{0};
-};
-
-std::ostream&
-operator<<(std::ostream& os, compare_directories_result const& cdr) {
-  for (auto const& m : cdr.mismatched) {
-    os << "*** mismatched: " << m << "\n";
-  }
-  for (auto const& m : cdr.regular_files) {
-    os << "*** regular: " << m << "\n";
-  }
-  for (auto const& m : cdr.directories) {
-    os << "*** directory: " << m << "\n";
-  }
-  for (auto const& m : cdr.symlinks) {
-    os << "*** symlink: " << m << "\n";
-  }
-  return os;
-}
-
-template <typename T>
-void find_all(fs::path const& root, T const& func) {
-  std::deque<fs::path> q;
-  q.push_back(root);
-  while (!q.empty()) {
-    auto p = q.front();
-    q.pop_front();
-
-    for (auto const& e : fs::directory_iterator(p)) {
-      func(e);
-      if (e.symlink_status().type() == fs::file_type::directory) {
-        q.push_back(e.path());
-      }
-    }
-  }
-}
-
-bool compare_directories(fs::path const& p1, fs::path const& p2,
-                         compare_directories_result* res = nullptr) {
-  std::map<fs::path, fs::directory_entry> m1, m2;
-  std::set<fs::path> s1, s2;
-
-  find_all(p1, [&](auto const& e) {
-    auto rp = e.path().lexically_relative(p1);
-    m1.emplace(rp, e);
-    s1.insert(rp);
-  });
-
-  find_all(p2, [&](auto const& e) {
-    auto rp = e.path().lexically_relative(p2);
-    m2.emplace(rp, e);
-    s2.insert(rp);
-  });
-
-  if (res) {
-    res->mismatched.clear();
-    res->directories.clear();
-    res->symlinks.clear();
-    res->regular_files.clear();
-    res->total_regular_file_size = 0;
-  }
-
-  bool rv = true;
-
-  std::set<fs::path> common;
-  std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(),
-                        std::inserter(common, common.end()));
-
-  if (s1.size() != common.size() || s2.size() != common.size()) {
-    if (res) {
-      std::set_symmetric_difference(
-          s1.begin(), s1.end(), s2.begin(), s2.end(),
-          std::inserter(res->mismatched, res->mismatched.end()));
-    }
-    rv = false;
-  }
-
-  for (auto const& p : common) {
-    auto const& e1 = m1[p];
-    auto const& e2 = m2[p];
-
-    if (e1.symlink_status().type() != e2.symlink_status().type() ||
-        (e1.symlink_status().type() != fs::file_type::directory &&
-         e1.file_size() != e2.file_size())) {
-      if (res) {
-        res->mismatched.insert(p);
-      }
-      rv = false;
-      continue;
-    }
-
-    switch (e1.symlink_status().type()) {
-    case fs::file_type::regular: {
-      std::string c1, c2;
-      if (!read_file(e1.path(), c1) || !read_file(e2.path(), c2) || c1 != c2) {
-        if (res) {
-          res->mismatched.insert(p);
-        }
-        rv = false;
-      }
-    }
-      if (res) {
-        res->regular_files.insert(p);
-        res->total_regular_file_size += e1.file_size();
-      }
-      break;
-
-    case fs::file_type::directory:
-      if (res) {
-        res->directories.insert(p);
-      }
-      break;
-
-    case fs::file_type::symlink:
-      if (fs::read_symlink(e1.path()) != fs::read_symlink(e2.path())) {
-        if (res) {
-          res->mismatched.insert(p);
-        }
-        rv = false;
-      }
-      if (res) {
-        res->symlinks.insert(p);
-      }
-      break;
-
-    default:
-      break;
-    }
-  }
-
-  return rv;
-}
+#endif
 
 #ifdef _WIN32
 struct new_process_group : public ::boost::process::detail::handler_base {
@@ -540,6 +420,7 @@ class subprocess {
 #ifndef _WIN32
 namespace fs_guard_detail {
 
+// TODO: can be replaced with boost::scope::unique_fd (Boost 1.85+)
 struct unique_fd {
   int fd{-1};
   unique_fd() = default;
@@ -567,11 +448,6 @@ struct unique_fd {
     }
   }
   int get() const { return fd; }
-  int release() {
-    int t = fd;
-    fd = -1;
-    return t;
-  }
   explicit operator bool() const { return fd >= 0; }
 };
 
@@ -660,7 +536,7 @@ class process_guard {
         ::kill(pid_, SIGTERM);
         return false;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(1ms);
     }
 #endif
   }
@@ -696,7 +572,7 @@ class driver_runner {
                                      mountpoint, std::forward<Args>(args)...);
     process_->run_background();
 
-    wait_until_file_ready(mountpoint, std::chrono::seconds(5));
+    wait_until_file_ready(mountpoint, 5s);
 #else
     std::vector<std::string> options;
     if (!subprocess::check_run(DWARFS_ARG_EMULATOR_ driver,
@@ -749,12 +625,12 @@ class driver_runner {
         std::cerr << "driver failed to unmount:\nout:\n"
                   << out << "err:\n"
                   << err << "exit code: " << ec << "\n";
-        if (std::chrono::steady_clock::now() - t0 > std::chrono::seconds(5)) {
+        if (std::chrono::steady_clock::now() - t0 > 5s) {
           throw std::runtime_error(
               "driver still failed to unmount after 5 seconds");
         }
         std::cerr << "retrying...\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(10ms);
       }
       bool rv{true};
       if (process_) {
@@ -795,7 +671,7 @@ class driver_runner {
             break;
           }
           std::cerr << "retrying umount...\n";
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          std::this_thread::sleep_for(200ms);
         }
 #else
         auto fusermount = find_fusermount();
@@ -804,11 +680,11 @@ class driver_runner {
             break;
           }
           std::cerr << "retrying fusermount...\n";
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          std::this_thread::sleep_for(200ms);
         }
 #endif
         mountpoint_.clear();
-        return dwarfs_guard_.check_exit(std::chrono::seconds(5));
+        return dwarfs_guard_.check_exit(5s);
       }
 #endif
 #endif
@@ -941,9 +817,6 @@ class tools_test : public ::testing::TestWithParam<binary_mode> {};
 TEST_P(tools_test, end_to_end) {
   auto mode = GetParam();
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  std::chrono::seconds const timeout{5};
-#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
@@ -1096,16 +969,20 @@ TEST_P(tools_test, end_to_end) {
                            mode == binary_mode::universal_tool, image,
                            mountpoint, args);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
           << runner.cmdline();
-      compare_directories_result cdr;
-      ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+      auto const cdr = compare_directories(fsdata_dir, mountpoint);
+      ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), 26)
           << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.regular_files.size(), 26)
+      EXPECT_EQ(cdr.matching_directories.size(), 19)
           << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.directories.size(), 19) << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
-      EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
+      EXPECT_EQ(cdr.matching_symlinks.size(), 2)
+          << runner.cmdline() << ": " << cdr;
+#ifndef _WIN32
+      // TODO: https://github.com/winfsp/winfsp/issues/511
+      EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
+#endif
 
       EXPECT_TRUE(fs::is_symlink(unicode_symlink)) << runner.cmdline();
       EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target)
@@ -1193,7 +1070,7 @@ TEST_P(tools_test, end_to_end) {
         "-s",
         "-ocase_insensitive,block_allocator=mmap",
 #ifndef _WIN32
-        "-oenable_nlink,preload_all",
+        "-opreload_all",
         "-oreadonly",
         "-ouid=2345,gid=3456",
 #endif
@@ -1202,7 +1079,7 @@ TEST_P(tools_test, end_to_end) {
 #ifndef __APPLE__
     // macFUSE is notoriously slow to start, so let's skip these tests
     if (!dwarfs::test::skip_slow_tests()) {
-      all_options.push_back("-omlock=try,no_cache_image");
+      all_options.push_back("-omlock=try");
       all_options.push_back("-otidy_strategy=time,cache_files");
     }
 #endif
@@ -1213,7 +1090,6 @@ TEST_P(tools_test, end_to_end) {
       std::vector<std::string> args;
       bool case_insensitive{false};
 #ifndef _WIN32
-      bool enable_nlink{false};
       bool readonly{false};
       bool uid_gid_override{false};
 #endif
@@ -1228,9 +1104,6 @@ TEST_P(tools_test, end_to_end) {
           if (opt.find("-oreadonly") != std::string::npos) {
             readonly = true;
           }
-          if (opt.find("-oenable_nlink") != std::string::npos) {
-            enable_nlink = true;
-          }
           if (opt.find("-ouid=") != std::string::npos) {
             uid_gid_override = true;
           }
@@ -1241,28 +1114,30 @@ TEST_P(tools_test, end_to_end) {
 
       args.push_back("-otidy_interval=1s");
       args.push_back("-otidy_max_age=2s");
+      args.push_back("-odebuglevel=debug");
 
       {
         driver_runner runner(driver, mode == binary_mode::universal_tool, image,
                              mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+        ASSERT_TRUE(
+            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar")
             << runner.cmdline();
-        compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+        auto const cdr = compare_directories(fsdata_dir, mountpoint);
+        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26)
+        EXPECT_EQ(cdr.matching_directories.size(), 19)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19)
+        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
             << runner.cmdline();
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
@@ -1303,23 +1178,24 @@ TEST_P(tools_test, end_to_end) {
         driver_runner runner(driver, mode == binary_mode::universal_tool,
                              image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+        ASSERT_TRUE(
+            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar")
             << runner.cmdline();
-        compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+        auto const cdr = compare_directories(fsdata_dir, mountpoint);
+        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26)
+        EXPECT_EQ(cdr.matching_directories.size(), 19)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19)
+        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
             << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
             << runner.cmdline();
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
@@ -1365,11 +1241,11 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
-  compare_directories_result cdr;
-  ASSERT_TRUE(compare_directories(fsdata_dir, extracted, &cdr)) << cdr;
-  EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
-  EXPECT_EQ(cdr.directories.size(), 19) << cdr;
-  EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
+  auto const cdr = compare_directories(fsdata_dir, extracted);
+  ASSERT_TRUE(cdr.identical()) << cdr;
+  EXPECT_EQ(cdr.matching_regular_files.size(), 26) << cdr;
+  EXPECT_EQ(cdr.matching_directories.size(), 19) << cdr;
+  EXPECT_EQ(cdr.matching_symlinks.size(), 2) << cdr;
 }
 
 #ifdef DWARFS_WITH_FUSE_DRIVER
@@ -1401,9 +1277,6 @@ TEST_P(tools_test, mutating_and_error_ops) {
     GTEST_SKIP() << "skipping FUSE tests";
   }
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  std::chrono::seconds const timeout{5};
-#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto mountpoint = td / "mnt";
@@ -1443,7 +1316,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
                          mode == binary_mode::universal_tool, test_data_dwarfs,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
         << runner.cmdline();
 
     // remove (unlink)
@@ -1613,7 +1486,6 @@ TEST_P(tools_test, mutating_and_error_ops) {
 TEST_P(tools_test, categorize) {
   auto mode = GetParam();
 
-  std::chrono::seconds const timeout{5};
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
@@ -1724,13 +1596,13 @@ TEST_P(tools_test, categorize) {
                          mode == binary_mode::universal_tool, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
         << runner.cmdline();
-    compare_directories_result cdr;
-    ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+    auto const cdr = compare_directories(fsdata_dir, mountpoint);
+    ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 151)
         << runner.cmdline() << ": " << cdr;
-    EXPECT_EQ(cdr.regular_files.size(), 151) << runner.cmdline() << ": " << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 56'741'701)
+    EXPECT_EQ(cdr.total_matching_regular_file_size, 56'741'701)
         << runner.cmdline() << ": " << cdr;
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -1768,7 +1640,7 @@ TEST_P(tools_test, categorize) {
                            mountpoint, "-opreload_category=pcmaudio/waveform",
                            "-oanalysis_file=" + analysis_file_str);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
           << runner.cmdline();
 
       std::array const files_to_read{
@@ -2184,3 +2056,982 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
                          ::testing::Combine(::testing::ValuesIn(path_types),
                                             ::testing::Bool()));
+
+#ifdef __linux__
+TEST_P(tools_test, fusermount_check) {
+  auto mode = GetParam();
+
+#ifndef DWARFS_WITH_FUSE_DRIVER
+
+  GTEST_SKIP() << "FUSE driver not built";
+
+#elif defined(DWARFS_CROSSCOMPILING_EMULATOR)
+
+  GTEST_SKIP() << "skipping bubblewrap tests when cross-compiling";
+
+#else
+
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  auto bwrap = dwarfs::test::find_binary("bwrap");
+
+  if (!bwrap) {
+    GTEST_SKIP() << "bubblewrap not found";
+  }
+
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto mountpoint = td / "mnt";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
+
+  fs::create_directory(mountpoint);
+
+  if (mode == binary_mode::universal_symlink) {
+    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+  }
+
+  std::vector<fs::path> drivers;
+  std::vector<std::string> dwarfs_tool_arg;
+
+  switch (mode) {
+  case binary_mode::standalone:
+    drivers.push_back(fuse3_bin);
+
+    if (fs::exists(fuse2_bin)) {
+      drivers.push_back(fuse2_bin);
+    }
+    break;
+
+  case binary_mode::universal_tool:
+    drivers.push_back(universal_bin);
+    dwarfs_tool_arg.push_back("--tool=dwarfs");
+    break;
+
+  case binary_mode::universal_symlink:
+    drivers.push_back(universal_symlink_dwarfs_bin);
+    break;
+  }
+
+  for (auto const& driver : drivers) {
+    scoped_no_leak_check no_leak_check;
+    auto const [out, err, ec] = subprocess::run(
+        bwrap.value(), "--unshare-user", "--unshare-pid", "--unshare-uts",
+        "--unshare-net", "--unshare-ipc", "--ro-bind", "/", "/", "--tmpfs",
+        "/usr/bin", "--dev-bind", "/dev", "/dev", "--bind", "/proc", "/proc",
+        driver, dwarfs_tool_arg, test_data_dwarfs, mountpoint, "-f");
+
+    EXPECT_NE(0, ec) << out << err;
+
+    std::string const package = driver == fuse2_bin ? "fuse/fuse2" : "fuse3";
+
+    EXPECT_THAT(err, ::testing::HasSubstr("Do you need to install the `" +
+                                          package + "' package?"));
+  }
+#endif
+}
+#endif
+
+class sparse_files_test : public ::testing::Test {
+ protected:
+  struct config {
+    double avg_extent_count{10};
+    double avg_hole_size{256_KiB};
+    double avg_data_size{25_KiB};
+  };
+
+  struct sparse_size_info {
+    dwarfs::file_size_t total_size{0};
+    dwarfs::file_size_t data_size{0};
+  };
+
+  struct sparse_file_info {
+    fs::path path;
+    sparse_size_info size;
+    size_t extent_count{0};
+  };
+
+  struct sparse_info {
+    std::vector<sparse_file_info> files;
+    sparse_size_info total;
+  };
+
+  void SetUp() override {
+    td.emplace();
+
+    input = td->path() / "input";
+
+    granularity =
+        dwarfs::test::sparse_file_builder::hole_granularity(td->path());
+
+    if (!granularity) {
+      GTEST_SKIP() << "filesystem does not support sparse files";
+    }
+
+    std::cerr << "granularity: " << dwarfs::size_with_unit(granularity.value())
+              << "\n";
+  }
+
+  void TearDown() override {
+    td.reset();
+    input.clear();
+  }
+
+  template <std::integral T>
+  T align_up(T value) const {
+    auto const gran = static_cast<T>(granularity.value());
+    return ((value + gran - 1) / gran) * gran;
+  }
+
+  sparse_file_info
+  create_random_sparse_file(fs::path const& path, config const& cfg) {
+    using dwarfs::file_off_t;
+    using dwarfs::file_range;
+    using dwarfs::file_size_t;
+
+    size_t total_extents;
+
+    if (std::uniform_int_distribution<>(0, 1)(rng) == 0) {
+      total_extents = std::uniform_int_distribution<size_t>(1, 2)(rng);
+    } else {
+      total_extents = static_cast<size_t>(
+          1 + std::exponential_distribution<>(1 / cfg.avg_extent_count)(rng));
+    }
+
+    std::exponential_distribution<> hole_size_dist(1 / cfg.avg_hole_size);
+    std::exponential_distribution<> data_size_dist(1 / cfg.avg_data_size);
+
+    bool is_hole = std::uniform_int_distribution<>(0, 1)(rng) == 0;
+    std::vector<dwarfs::detail::file_extent_info> extents;
+    file_off_t offset{0};
+    file_size_t data_size{0};
+
+    for (size_t i = 0; i < total_extents; ++i) {
+      file_size_t len;
+
+      if (is_hole) {
+        len = align_up(static_cast<file_size_t>(1 + hole_size_dist(rng)));
+      } else {
+        len = static_cast<file_size_t>(1 + data_size_dist(rng));
+        if (i < total_extents - 1) {
+          len = align_up(len);
+        }
+        data_size += len;
+      }
+
+      extents.emplace_back(is_hole ? dwarfs::extent_kind::hole
+                                   : dwarfs::extent_kind::data,
+                           file_range{offset, len});
+
+      offset += len;
+      is_hole = !is_hole;
+    }
+
+    sparse_file_info const info{.path = path,
+                                .size =
+                                    {
+                                        .total_size = offset,
+                                        .data_size = data_size,
+                                    },
+                                .extent_count = extents.size()};
+
+    auto sfb = dwarfs::test::sparse_file_builder::create(path);
+
+    sfb.truncate(extents.back().range.end());
+
+    std::mt19937_64 data_rng(rng());
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::data) {
+        bool const random_data =
+            std::uniform_int_distribution<>(0, 4)(data_rng) != 0;
+        sfb.write_data(e.range.offset(),
+                       random_data ? dwarfs::test::create_random_string(
+                                         e.range.size(), data_rng)
+                                   : dwarfs::test::loremipsum(e.range.size()));
+      }
+    }
+
+    for (auto const& e : extents) {
+      if (e.kind == dwarfs::extent_kind::hole) {
+        sfb.punch_hole(e.range.offset(), e.range.size());
+      }
+    }
+
+    sfb.commit();
+
+    return info;
+  }
+
+  sparse_info create_random_sparse_files(fs::path const& dir, size_t count,
+                                         config const& cfg) {
+    sparse_info info;
+    fs::create_directory(dir);
+    for (size_t i = 0; i < count; ++i) {
+      auto const file_info =
+          create_random_sparse_file(dir / fmt::format("file{:04}.bin", i), cfg);
+      info.files.push_back(file_info);
+      info.total.total_size += file_info.size.total_size;
+      info.total.data_size += file_info.size.data_size;
+    }
+    std::cerr << info;
+    return info;
+  }
+
+  bool build_image(fs::path const& image) const {
+    // Use *really* small blocks, so we can be sure to trigger the
+    // `large_hole_size` code paths.
+    bool const rv = subprocess::check_run(
+                        DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
+                        "-o", image.string(), "--categorize", "-l4", "-S14")
+                        .has_value();
+    if (rv) {
+      std::cerr << "Created image: " << image << " ("
+                << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
+    }
+    return rv;
+  }
+
+  std::optional<nlohmann::json> get_fsinfo(fs::path const& image) const {
+    auto const out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                           image.string(), "-j", "-d3");
+
+    if (out) {
+      auto fsinfo = nlohmann::json::parse(*out);
+      std::cerr << "Ran dwarfsck:\n" << fsinfo.dump(2) << "\n";
+      return fsinfo;
+    }
+
+    return std::nullopt;
+  }
+
+  bool extract_to_dir(fs::path const& image, fs::path const& dir) const {
+    std::error_code ec;
+    if (fs::exists(dir, ec)) {
+      fs::remove_all(dir, ec);
+      if (ec) {
+        std::cerr << "Failed to remove existing directory " << dir << ": "
+                  << ec.message() << "\n";
+        return false;
+      }
+    }
+    fs::create_directory(dir, ec);
+    if (ec) {
+      std::cerr << "Failed to create directory " << dir << ": " << ec.message()
+                << "\n";
+      return false;
+    }
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                                 image.string(), "-o", dir.string())
+        .has_value();
+  }
+
+  bool extract_to_format(fs::path const& image, std::string_view format,
+                         fs::path const& output) const {
+    bool const rv = subprocess::check_run(
+                        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+                        image.string(), "-o", output.string(), "-f", format)
+                        .has_value();
+    if (rv) {
+      std::cerr << "Created " << format << " tarball: " << output << " ("
+                << dwarfs::size_with_unit(fs::file_size(output)) << ")\n";
+    }
+    return rv;
+  }
+
+  friend std::ostream&
+  operator<<(std::ostream& os, sparse_file_info const& info) {
+    os << info.path.filename()
+       << ": total_size=" << dwarfs::size_with_unit(info.size.total_size)
+       << ", data_size=" << dwarfs::size_with_unit(info.size.data_size)
+       << ", extent_count=" << info.extent_count;
+    return os;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, sparse_info const& info) {
+    for (auto const& file : info.files) {
+      os << file << "\n";
+    }
+    os << "Total: total_size=" << dwarfs::size_with_unit(info.total.total_size)
+       << ", data_size=" << dwarfs::size_with_unit(info.total.data_size)
+       << "\n";
+    return os;
+  }
+
+#ifndef _WIN32
+  bool tar_supports_sparse(fs::path const& tarbin) const {
+    dwarfs::temporary_directory td("dwarfs-tar");
+    auto const tarball = test_dir / "sparse.tar";
+
+    auto [out, err, ec] = subprocess::run(tarbin, "-xSf", tarball.string(),
+                                          "-C", td.path().string());
+
+    if (ec != 0) {
+      std::cerr << "tar -xSf failed: " << out << err << "\n";
+      return false;
+    }
+
+    auto const sparse_file = td.path() / "hole_then_data";
+
+    if (!fs::exists(sparse_file)) {
+      std::cerr << "sparse file not found in tarball\n";
+      return false;
+    }
+
+    dwarfs::file_stat stat(sparse_file);
+
+    if (stat.size() != 1'060'864) {
+      std::cerr << "sparse file size incorrect: " << stat.size() << "\n";
+      return false;
+    }
+
+    if (std::cmp_greater(stat.allocated_size(), 256_KiB)) {
+      std::cerr << "sparse file uses too much disk space: "
+                << dwarfs::size_with_unit(stat.allocated_size()) << "\n";
+      return false;
+    }
+
+    return true;
+  }
+#endif
+
+  size_t get_extent_count(fs::path const& file) const {
+    return os.open_file(file).extents().size();
+  }
+
+  bool fuse_supports_sparse(fs::path const& mountpoint,
+                            sparse_info const& si) const {
+    for (auto const& sfi : si.files) {
+      if (sfi.extent_count > 1) {
+        auto const path = mountpoint / sfi.path.filename();
+        auto const extent_count = get_extent_count(path);
+        if (extent_count > 1) {
+          std::cerr << "FUSE driver supports sparse files\n";
+          return true;
+        }
+        std::cerr << "File " << path << ": expected " << sfi.extent_count
+                  << " extents, but got " << extent_count << "\n";
+      }
+    }
+
+    std::cerr << "FUSE driver does not support sparse files\n";
+
+    return false;
+  }
+
+  std::mt19937_64 rng;
+  std::optional<dwarfs::temporary_directory> td;
+  fs::path input;
+  std::optional<size_t> granularity;
+  dwarfs::os_access_generic os;
+};
+
+TEST_F(sparse_files_test, random_large_files) {
+  static constexpr size_t kNumFiles{20};
+  rng.seed(42);
+  auto const info = create_random_sparse_files(input, kNumFiles,
+                                               {
+                                                   .avg_extent_count = 60,
+                                                   .avg_hole_size = 500_MiB,
+                                                   .avg_data_size = 25_KiB,
+                                               });
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(info.total.total_size,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const dump = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
+                                          image.string(), "-d9");
+  ASSERT_TRUE(dump.has_value());
+  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> HOLE (size="));
+  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> DATA (block="));
+
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  auto tarball = td->path() / "extracted.tar";
+  ASSERT_TRUE(extract_to_format(image, "pax", tarball));
+  EXPECT_LT(fs::file_size(tarball), info.total.data_size * 5)
+      << "tarball size is not sufficiently small";
+
+#ifndef _WIN32
+  if (auto const tarbin = dwarfs::test::find_binary("tar");
+      tarbin && tar_supports_sparse(*tarbin)) {
+    ASSERT_NO_THROW(fs::create_directory(extracted));
+
+    ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", tarball.string(), "-C",
+                                      extracted.string()));
+
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare tar extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+#endif
+#endif
+
+#ifdef DWARFS_WITH_FUSE_DRIVER
+  if (!skip_fuse_tests()) {
+    auto const mountpoint = td->path() / "mnt";
+
+    fs::create_directory(mountpoint);
+
+    {
+      driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
+                           mountpoint);
+
+      ASSERT_TRUE(
+          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+          << runner.cmdline();
+
+      // Only compare if we know the FUSE driver supports sparse files.
+      // Otherwise this will try to actually read hundreds of gigabytes
+      // of data.
+      if (fuse_supports_sparse(mountpoint, info)) {
+        auto const cdr = compare_directories(input, mountpoint);
+
+        std::cerr << "Compare FUSE mounted files:\n" << cdr;
+
+        EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+            << runner.cmdline() << ": " << cdr;
+      }
+
+      for (auto const& file : info.files) {
+        auto const p = mountpoint / file.path.filename();
+        dwarfs::file_stat stat(p);
+
+        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+      }
+
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    }
+
+    if (fs::exists(fuse2_bin)) {
+      driver_runner runner(driver_runner::foreground, fuse2_bin, false, image,
+                           mountpoint);
+
+      ASSERT_TRUE(
+          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+          << runner.cmdline();
+
+      for (auto const& file : info.files) {
+        auto const p = mountpoint / file.path.filename();
+        dwarfs::file_stat stat(p);
+
+        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+      }
+
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    }
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, random_small_files_tarball) {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
+  auto const tarbin = dwarfs::test::find_binary("tar");
+
+  if (!tarbin) {
+    GTEST_SKIP() << "tar binary not found";
+  }
+
+  if (!tar_supports_sparse(*tarbin)) {
+    GTEST_SKIP() << "tar does not support sparse files";
+  }
+
+  static constexpr size_t kNumFiles{20};
+  rng.seed(42);
+  auto const info = create_random_sparse_files(input, kNumFiles, {});
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(info.total.total_size,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+  auto pax_tarball = td->path() / "extracted_pax.tar";
+  ASSERT_TRUE(extract_to_format(image, "pax", pax_tarball));
+
+  auto ustar_tarball = td->path() / "extracted_ustar.tar";
+  ASSERT_TRUE(extract_to_format(image, "ustar", ustar_tarball));
+
+  EXPECT_LT(fs::file_size(pax_tarball), fs::file_size(ustar_tarball));
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", pax_tarball.string(), "-C",
+                                    extracted.string()));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare pax extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xf", ustar_tarball.string(),
+                                    "-C", extracted.string()));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare ustar extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles) << cdr;
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, random_small_files_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  static constexpr size_t kNumFiles{30};
+  rng.seed(43);
+  auto const info = create_random_sparse_files(input, kNumFiles, {});
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(info.total.total_size,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const mountpoint = td->path() / "mnt";
+
+  ASSERT_NO_THROW(fs::create_directory(mountpoint));
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+        << runner.cmdline();
+
+    auto const cdr = compare_directories(input, mountpoint);
+
+    std::cerr << "Compare FUSE mounted files for " << driver_bin.filename()
+              << ":\n"
+              << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+        << runner.cmdline() << ": " << cdr;
+
+    for (auto const& file : info.files) {
+      auto const p = mountpoint / file.path.filename();
+      dwarfs::file_stat stat(p);
+
+      EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, huge_holes_tar) {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  GTEST_SKIP() << "filesystem_extractor format support disabled";
+#elif defined(_WIN32)
+  GTEST_SKIP() << "skipping tarball tests on Windows";
+#else
+  auto const tarbin = dwarfs::test::find_binary("tar");
+
+  if (!tarbin) {
+    GTEST_SKIP() << "tar binary not found";
+  }
+
+  if (!tar_supports_sparse(*tarbin)) {
+    GTEST_SKIP() << "tar does not support sparse files";
+  }
+
+  ASSERT_NO_THROW(fs::create_directory(input));
+
+  auto const hole_then_data = input / "hole_then_data";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_then_data);
+    sfb.truncate(5_GiB + 16_KiB);
+    sfb.write_data(5_GiB, dwarfs::test::loremipsum(16_KiB));
+    sfb.punch_hole(0, 5_GiB);
+    sfb.commit();
+  }
+
+  auto const hole_only = input / "hole_only";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_only);
+    sfb.truncate(4100_MiB);
+    sfb.punch_hole(0, 4100_MiB);
+    sfb.commit();
+  }
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(5_GiB + 16_KiB + 4100_MiB,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const extracted = td->path() / "extracted";
+  ASSERT_TRUE(extract_to_dir(image, extracted));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare dwarfsextract extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 2) << cdr;
+  }
+
+  ASSERT_NO_THROW(fs::remove_all(extracted));
+
+  auto tarball = td->path() / "extracted.tar";
+  ASSERT_TRUE(extract_to_format(image, "pax", tarball));
+
+  ASSERT_NO_THROW(fs::create_directory(extracted));
+
+  ASSERT_TRUE(subprocess::check_run(*tarbin, "-xSf", tarball.string(), "-C",
+                                    extracted.string()));
+
+  {
+    auto const cdr = compare_directories(input, extracted);
+
+    std::cerr << "Compare extracted files:\n" << cdr;
+
+    EXPECT_TRUE(cdr.identical()) << cdr;
+    EXPECT_EQ(cdr.matching_regular_files.size(), 2) << cdr;
+  }
+#endif
+}
+
+TEST_F(sparse_files_test, huge_holes_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  ASSERT_NO_THROW(fs::create_directory(input));
+
+  auto const hole_then_data = input / "hole_then_data";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_then_data);
+    sfb.truncate(5_GiB + 16_KiB);
+    sfb.write_data(5_GiB, dwarfs::test::loremipsum(16_KiB));
+    sfb.punch_hole(0, 5_GiB);
+    sfb.commit();
+  }
+
+  auto const hole_only = input / "hole_only";
+
+  {
+    auto sfb = dwarfs::test::sparse_file_builder::create(hole_only);
+    sfb.truncate(4100_MiB);
+    sfb.punch_hole(0, 4100_MiB);
+    sfb.commit();
+  }
+
+  auto const image = td->path() / "sparse.dwarfs";
+  ASSERT_TRUE(build_image(image));
+
+  auto const fsinfo = get_fsinfo(image);
+  ASSERT_TRUE(fsinfo);
+
+  EXPECT_EQ(5_GiB + 16_KiB + 4100_MiB,
+            (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
+
+  auto const mountpoint = td->path() / "mnt";
+
+  ASSERT_NO_THROW(fs::create_directory(mountpoint));
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "hole_then_data", kFuseTimeout))
+        << runner.cmdline();
+
+    EXPECT_EQ(fs::file_size(mountpoint / "hole_then_data"), 5_GiB + 16_KiB)
+        << runner.cmdline();
+
+    EXPECT_EQ(fs::file_size(mountpoint / "hole_only"), 4100_MiB)
+        << runner.cmdline();
+
+    if (get_extent_count(mountpoint / "hole_then_data") > 1) {
+      auto const cdr = compare_directories(input, mountpoint);
+
+      std::cerr << "Compare FUSE mounted files for " << driver_bin.filename()
+                << ":\n"
+                << cdr;
+
+      EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), 2)
+          << runner.cmdline() << ": " << cdr;
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
+
+namespace {
+
+struct file_times {
+  template <typename D>
+  auto to_sec(std::chrono::time_point<std::chrono::system_clock, D> tp) {
+    return std::chrono::system_clock::to_time_t(
+        std::chrono::time_point_cast<std::chrono::system_clock::duration>(tp));
+  }
+
+  uint32_t truncate_to_res(std::chrono::nanoseconds ns) {
+#if defined(__s390x__) && defined(DWARFS_CROSSCOMPILING_EMULATOR)
+    // S390x qemu user emulation does not support nanosecond timestamps.
+    // See https://github.com/bytecodealliance/rustix/pull/282/files
+    return 0;
+#else
+    return static_cast<uint32_t>(
+        (ns - ns % dwarfs::file_stat::native_time_resolution()).count());
+#endif
+  }
+
+  file_times() = default;
+  template <typename D>
+  file_times(std::chrono::time_point<std::chrono::system_clock, D> m,
+             std::chrono::nanoseconds mns,
+             std::chrono::time_point<std::chrono::system_clock, D> a,
+             std::chrono::nanoseconds ans,
+             std::chrono::time_point<std::chrono::system_clock, D> c,
+             std::chrono::nanoseconds cns)
+      : mtime{to_sec(m), truncate_to_res(mns)}
+      , atime{to_sec(a), truncate_to_res(ans)}
+      , ctime{to_sec(c), truncate_to_res(cns)} {}
+
+  dwarfs::file_stat::timespec_type mtime;
+  dwarfs::file_stat::timespec_type atime;
+  dwarfs::file_stat::timespec_type ctime;
+};
+
+std::array kFileTimes{
+    std::pair{
+        "file_1w2s3lb6"sv,
+        file_times{std::chrono::sys_days{2021y / 12 / 26} + 8h + 56min + 10s,
+                   723'376'645ns,
+                   std::chrono::sys_days{2021y / 3 / 3} + 20h + 34min + 12s,
+                   91'734'903ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu"sv,
+        file_times{std::chrono::sys_days{2022y / 3 / 22} + 11h + 32min + 27s,
+                   182'893'930ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 24s,
+                   796'111'239ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/file_a45sc57n"sv,
+        file_times{std::chrono::sys_days{2019y / 3 / 8} + 17h + 3min + 42s,
+                   615'891'838ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 3s,
+                   249'965'124ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/file_xh7183o5"sv,
+        file_times{std::chrono::sys_days{2019y / 11 / 06} + 16h + 43min + 43s,
+                   440'687'449ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 49s,
+                   630'593'008ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_573stdbu/link_mpfppenu"sv,
+        file_times{std::chrono::sys_days{2022y / 7 / 16} + 16h + 4min + 21s,
+                   203'054'271ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 32s,
+                   459'548'315ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq"sv,
+        file_times{std::chrono::sys_days{2021y / 10 / 25} + 15h + 46min + 46s,
+                   570'837'717ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 24s,
+                   796'111'239ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq/file_lmyplgqf"sv,
+        file_times{std::chrono::sys_days{2024y / 6 / 10} + 17h + 17min + 12s,
+                   270'375'466ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 28min + 49s,
+                   630'593'008ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+    std::pair{
+        "dir_sgy2vnnq/link_pjcnuj7u"sv,
+        file_times{std::chrono::sys_days{2018y / 11 / 8} + 3h + 28min + 36s,
+                   315'733'571ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 32s,
+                   459'548'315ns,
+                   std::chrono::sys_days{2025y / 10 / 15} + 15h + 27min + 20s,
+                   819'390'738ns},
+    },
+};
+
+} // namespace
+
+TEST(tools_test, timestamps_fuse) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+  dwarfs::temporary_directory td("dwarfs");
+  auto const mountpoint = td.path() / "mnt";
+  auto const image = test_dir / "timestamps.dwarfs";
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
+                         mountpoint);
+
+    ASSERT_TRUE(
+        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+        << runner.cmdline();
+
+    for (auto const& [path, ft] : kFileTimes) {
+      auto const full_path = mountpoint / path;
+
+      dwarfs::file_stat stat(full_path);
+
+      EXPECT_EQ(ft.mtime, stat.mtimespec()) << path << " " << runner.cmdline();
+      EXPECT_EQ(ft.atime, stat.atimespec()) << path << " " << runner.cmdline();
+      EXPECT_EQ(ft.ctime, stat.ctimespec()) << path << " " << runner.cmdline();
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
+
+TEST(tools_test, timestamps_extract) {
+  dwarfs::temporary_directory td("dwarfs");
+  auto const extracted = td.path() / "extracted";
+  auto const image = test_dir / "timestamps.dwarfs";
+
+  ASSERT_TRUE(fs::create_directory(extracted));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
+                                    "-i", image.string(), "-o",
+                                    extracted.string()));
+
+  for (auto const& [path, ft] : kFileTimes) {
+    auto const full_path = extracted / path;
+
+#ifdef _WIN32
+    if (fs::is_symlink(full_path)) {
+      // Seems like on Windows, symlink timestamps are not settable?
+      continue;
+    }
+#endif
+
+    dwarfs::file_stat stat(full_path);
+
+    EXPECT_EQ(ft.mtime, stat.mtimespec()) << path;
+    EXPECT_EQ(ft.atime, stat.atimespec()) << path;
+  }
+}

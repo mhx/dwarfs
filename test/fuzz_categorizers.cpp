@@ -29,8 +29,10 @@
 #include <dwarfs/file_access_generic.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/writer/categorizer.h>
+
+#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/mmap_file_view.h>
 
 using namespace dwarfs;
 
@@ -49,12 +51,14 @@ int main(int argc, char** argv) {
   boost::program_options::variables_map vm;
   catmgr->add(catreg.create(lgr, "pcmaudio", vm, fa));
 
+  auto const& ops = internal::get_native_memory_mapping_ops();
+
 #ifdef __AFL_LOOP
   while (__AFL_LOOP(10000))
 #endif
   {
     std::filesystem::path p(argv[1]);
-    auto mm = create_mmap_file_view(p);
+    auto mm = create_mmap_file_view(ops, p);
     auto job = catmgr->job(p);
     job.set_total_size(mm.size());
     job.categorize_random_access(mm);

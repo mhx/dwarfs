@@ -166,25 +166,23 @@ void entry::update(global_entry_data& data) const {
 }
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
-                 global_entry_data const& data) const {
-  stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
-                     file_stat::mode_valid | file_stat::atime_valid |
-                     file_stat::mtime_valid | file_stat::ctime_valid);
-  entry_v2.mode_index() = data.get_mode_index(stat_.mode_unchecked());
-  entry_v2.owner_index() = data.get_uid_index(stat_.uid_unchecked());
-  entry_v2.group_index() = data.get_gid_index(stat_.gid_unchecked());
-  entry_v2.atime_offset() = data.get_atime_offset(stat_.atime_unchecked());
-  entry_v2.mtime_offset() = data.get_mtime_offset(stat_.mtime_unchecked());
-  entry_v2.ctime_offset() = data.get_ctime_offset(stat_.ctime_unchecked());
+                 global_entry_data const& data,
+                 time_resolution_converter const& timeres) const {
+  data.pack_inode_stat(entry_v2, stat_, timeres);
 }
 
 file_size_t entry::size() const { return stat_.size(); }
+
+file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
 
 uint64_t entry::raw_inode_num() const { return stat_.ino(); }
 
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 
-void entry::override_size(file_size_t size) { stat_.set_size(size); }
+void entry::set_empty() {
+  stat_.set_size(0);
+  stat_.set_allocated_size(0);
+}
 
 entry::type_t file::type() const { return E_FILE; }
 
@@ -244,11 +242,8 @@ void file::scan(file_view const& mm, progress& prog,
         for (auto const& seg : ext.segments(chunk_size)) {
           auto data = seg.span();
           cs.update(data);
-          // TODO: Do we need this? Should we rather do this in the
-          //       segment's dtor?
-          seg.advise(io_advice::dontneed);
           if (pctx) {
-            pctx->bytes_processed += data.size();
+            pctx->advance(data.size());
           }
         }
       }
@@ -283,6 +278,7 @@ void file::hardlink(file* other, progress& prog) {
   assert(!data_);
   assert(other->data_);
   prog.hardlink_size += size();
+  prog.allocated_hardlink_size += allocated_size();
   ++prog.hardlinks;
   data_ = other->data_;
   ++data_->refcount;
@@ -329,15 +325,17 @@ void dir::sort() {
 void dir::scan(os_access const&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
-                     global_entry_data const& data) const {
+                     global_entry_data const& data,
+                     time_resolution_converter const& timeres) const {
   auto& de = mv2.dir_entries()->emplace_back();
   de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
   de.inode_num() = DWARFS_NOTHROW(inode_num().value());
-  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
+  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+              timeres);
 }
 
-void dir::pack(thrift::metadata::metadata& mv2,
-               global_entry_data const& data) const {
+void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
+               time_resolution_converter const& timeres) const {
   thrift::metadata::directory d;
   if (has_parent()) {
     auto pd = std::dynamic_pointer_cast<dir>(parent());
@@ -358,7 +356,8 @@ void dir::pack(thrift::metadata::metadata& mv2,
     auto& de = mv2.dir_entries()->emplace_back();
     de.name_index() = data.get_name_index(e->name());
     de.inode_num() = DWARFS_NOTHROW(e->inode_num().value());
-    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
+    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+            timeres);
   }
 }
 
@@ -426,6 +425,7 @@ void link::accept(entry_visitor& v, bool) { v.visit(this); }
 void link::scan(os_access const& os, progress& prog) {
   link_ = path_to_utf8_string_sanitized(os.read_symlink(fs_path()));
   prog.original_size += size();
+  prog.allocated_original_size += allocated_size();
   prog.symlink_size += size();
 }
 

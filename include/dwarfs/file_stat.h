@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <iosfwd>
 #include <memory>
 #include <type_traits>
 
@@ -52,6 +53,14 @@ class file_stat {
   using blksize_type = int64_t;
   using blkcnt_type = int64_t;
   using time_type = int64_t;
+  struct timespec_type {
+    time_type sec{0};
+    uint32_t nsec{0};
+
+    friend constexpr bool
+    operator==(timespec_type const& a, timespec_type const& b) = default;
+    friend std::ostream& operator<<(std::ostream& os, timespec_type const& ts);
+  };
 
   static constexpr valid_fields_type dev_valid = 1 << 0;
   static constexpr valid_fields_type ino_valid = 1 << 1;
@@ -66,7 +75,10 @@ class file_stat {
   static constexpr valid_fields_type atime_valid = 1 << 10;
   static constexpr valid_fields_type mtime_valid = 1 << 11;
   static constexpr valid_fields_type ctime_valid = 1 << 12;
-  static constexpr valid_fields_type all_valid = (1 << 13) - 1;
+  static constexpr valid_fields_type allocated_size_valid = 1 << 13;
+  static constexpr valid_fields_type all_valid = (1 << 14) - 1;
+
+  static std::chrono::nanoseconds native_time_resolution();
 
   file_stat();
   explicit file_stat(std::filesystem::path const& path);
@@ -120,16 +132,38 @@ class file_stat {
   void set_blocks(blkcnt_type blocks);
 
   time_type atime() const;
-  time_type atime_unchecked() const { return atime_; }
+  time_type atime_unchecked() const { return atimespec_.sec; }
+  time_type atime_nsec_unchecked() const { return atimespec_.nsec; }
   void set_atime(time_type atime);
 
   time_type mtime() const;
-  time_type mtime_unchecked() const { return mtime_; }
+  time_type mtime_unchecked() const { return mtimespec_.sec; }
+  time_type mtime_nsec_unchecked() const { return mtimespec_.nsec; }
   void set_mtime(time_type mtime);
 
   time_type ctime() const;
-  time_type ctime_unchecked() const { return ctime_; }
+  time_type ctime_unchecked() const { return ctimespec_.sec; }
+  time_type ctime_nsec_unchecked() const { return ctimespec_.nsec; }
   void set_ctime(time_type ctime);
+
+  timespec_type atimespec() const;
+  timespec_type atimespec_unchecked() const { return atimespec_; }
+  void set_atimespec(timespec_type atimespec);
+  void set_atimespec(time_type sec, uint32_t nsec);
+
+  timespec_type mtimespec() const;
+  timespec_type mtimespec_unchecked() const { return mtimespec_; }
+  void set_mtimespec(timespec_type mtimespec);
+  void set_mtimespec(time_type sec, uint32_t nsec);
+
+  timespec_type ctimespec() const;
+  timespec_type ctimespec_unchecked() const { return ctimespec_; }
+  void set_ctimespec(timespec_type ctimespec);
+  void set_ctimespec(time_type sec, uint32_t nsec);
+
+  off_type allocated_size() const;
+  off_type allocated_size_unchecked() const { return allocated_size_; }
+  void set_allocated_size(off_type allocated_size);
 
   bool is_directory() const;
   bool is_regular_file() const;
@@ -144,21 +178,8 @@ class file_stat {
 
   template <typename T>
   void copy_to(T* out) const {
-    copy_to_impl<true>(out);
-  }
+    ensure_valid(all_valid);
 
-  template <typename T>
-  void copy_to_without_block_info(T* out) const {
-    copy_to_impl<false>(out);
-  }
-
- private:
-  template <bool with_block_info = true, typename T>
-  void copy_to_impl(T* out) const {
-    constexpr valid_fields_type required_fields{
-        with_block_info ? all_valid
-                        : all_valid & ~(blksize_valid | blocks_valid)};
-    ensure_valid(required_fields);
     out->st_dev = dev_;
     out->st_ino = ino_;
     out->st_nlink = nlink_;
@@ -167,15 +188,26 @@ class file_stat {
     out->st_gid = gid_;
     out->st_rdev = rdev_;
     out->st_size = size_;
-    if constexpr (with_block_info) {
-      out->st_blksize = blksize_;
-      out->st_blocks = blocks_;
-    }
-    out->st_atime = atime_;
-    out->st_mtime = mtime_;
-    out->st_ctime = ctime_;
+    out->st_blksize = blksize_;
+    out->st_blocks = blocks_;
+
+    auto copy_timespec = [](auto& dst, file_stat::timespec_type const& src) {
+      dst.tv_sec = src.sec;
+      dst.tv_nsec = src.nsec;
+    };
+
+#ifdef __APPLE__
+    copy_timespec(out->st_atimespec, atimespec_);
+    copy_timespec(out->st_mtimespec, mtimespec_);
+    copy_timespec(out->st_ctimespec, ctimespec_);
+#else
+    copy_timespec(out->st_atim, atimespec_);
+    copy_timespec(out->st_mtim, mtimespec_);
+    copy_timespec(out->st_ctim, ctimespec_);
+#endif
   }
 
+ private:
   uint32_t valid_fields_{0};
   dev_type dev_{};
   ino_type ino_{};
@@ -187,9 +219,10 @@ class file_stat {
   off_type size_{};
   blksize_type blksize_{};
   blkcnt_type blocks_{};
-  time_type atime_{};
-  time_type mtime_{};
-  time_type ctime_{};
+  timespec_type atimespec_{};
+  timespec_type mtimespec_{};
+  timespec_type ctimespec_{};
+  off_type allocated_size_{};
   std::exception_ptr exception_;
 };
 

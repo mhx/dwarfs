@@ -358,7 +358,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       if (!debug_filter && pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
         LOG_ERROR << "cannot access " << pe->path_as_string()
                   << ", creating empty file";
-        pe->override_size(0);
+        pe->set_empty();
         prog.errors++;
       }
       break;
@@ -594,7 +594,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
         continue;
       }
     } else {
-      relpath = listpath;
+      relpath = listpath.lexically_normal();
     }
 
     auto parent = relpath.parent_path();
@@ -710,9 +710,22 @@ void scanner_<LoggerPolicy>::scan(
     wg_.wait();
   }
 
-  LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
-           << size_with_unit(prog.original_size) << " in "
-           << prog.duplicate_files << "/" << prog.files_found
+  auto original_size = [&] {
+    return options_.metadata.enable_sparse_files
+               ? prog.allocated_original_size.load()
+               : prog.original_size.load();
+  };
+
+  auto saved_by_deduplication = [&] {
+    return options_.metadata.enable_sparse_files
+               ? prog.allocated_saved_by_deduplication.load()
+               : prog.saved_by_deduplication.load();
+  };
+
+  LOG_INFO << "saved " << size_with_unit(saved_by_deduplication()) << " / "
+           << size_with_unit(original_size()) << " ("
+           << ratio_to_string(saved_by_deduplication(), original_size())
+           << ") in " << prog.duplicate_files << "/" << prog.files_found
            << " duplicate files";
 
   auto frag_info = im.fragment_category_info();
@@ -951,7 +964,7 @@ void scanner_<LoggerPolicy>::scan(
     mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
-  mdb.set_total_fs_size(prog.original_size);
+  mdb.set_total_fs_size(prog.original_size, prog.allocated_original_size);
   mdb.set_total_hardlink_size(prog.hardlink_size);
   mdb.gather_global_entry_data(ge_data);
 
@@ -972,10 +985,22 @@ void scanner_<LoggerPolicy>::scan(
 
   fsw.flush();
 
-  LOG_INFO << "compressed " << size_with_unit(prog.original_size) << " to "
-           << size_with_unit(prog.compressed_size) << " (ratio="
-           << static_cast<double>(prog.compressed_size) / prog.original_size
-           << ")";
+  std::string orig_size = size_with_unit(prog.original_size);
+  std::string comp_pct =
+      ratio_to_string(prog.compressed_size, prog.original_size);
+
+  if (options_.metadata.enable_sparse_files &&
+      prog.original_size != prog.allocated_original_size) {
+    orig_size += fmt::format(" ({} allocated)",
+                             size_with_unit(prog.allocated_original_size));
+    if (prog.allocated_original_size > 0) {
+      comp_pct += " / " + ratio_to_string(prog.compressed_size,
+                                          prog.allocated_original_size);
+    }
+  }
+
+  LOG_INFO << "compressed " << orig_size << " to "
+           << size_with_unit(prog.compressed_size) << " (" << comp_pct << ")";
 }
 
 } // namespace internal

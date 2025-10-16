@@ -225,6 +225,7 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
   p->create_data();
 
   prog_.original_size += p->size();
+  prog_.allocated_original_size += p->allocated_size();
 
   if (opts_.hash_algo) {
     scan_dedupe(p);
@@ -284,7 +285,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
     if (!p->is_invalid()) {
       try {
         auto seg =
-            os_.map_file(p->fs_path()).segment_at(0, kLargeFileStartHashSize);
+            os_.open_file(p->fs_path()).segment_at(0, kLargeFileStartHashSize);
         checksum cs(checksum::xxh3_64);
         cs.update(seg.span());
         cs.finalize(&start_hash);
@@ -400,6 +401,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
             ++prog_.files_scanned;
             ++prog_.duplicate_files;
             prog_.saved_by_deduplication += p->size();
+            prog_.allocated_saved_by_deduplication += p->allocated_size();
           }
 
           ref.push_back(p);
@@ -421,10 +423,18 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   if (size > 0) {
     // TODO: use exception-less variant once provided
     try {
-      mm = os_.map_file(p->fs_path(), size);
+      mm = os_.open_file(p->fs_path());
     } catch (...) {
       LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
                 << exception_str(std::current_exception())
+                << ", creating empty file";
+      ++prog_.errors;
+      p->set_invalid();
+      return;
+    }
+
+    if (mm.size() != size) {
+      LOG_ERROR << "file size changed for " << p->path_as_string()
                 << ", creating empty file";
       ++prog_.errors;
       p->set_invalid();

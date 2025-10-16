@@ -37,8 +37,10 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
+#include <dwarfs/metadata_defs.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
@@ -100,6 +102,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
 
   auto dirent = *dep;
   auto metadir = meta.directories();
+  auto const num_dir_inodes = metadir.size() - 1;
 
   std::vector<thrift::metadata::directory> directories;
 
@@ -137,8 +140,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
         auto end = directories[p_ino + 1].first_entry().value();
 
         for (auto e = beg; e < end; ++e) {
-          if (auto e_ino = dirent[e].inode_num();
-              e_ino < (directories.size() - 1)) {
+          if (auto e_ino = dirent[e].inode_num(); e_ino < num_dir_inodes) {
             directories[e_ino].parent_entry() = parent;
             queue.push(e);
           }
@@ -159,15 +161,24 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   {
     auto tt = LOG_TIMED_TRACE;
 
+    size_t count{0};
+
     for (size_t i = 0; i < dirent.size(); ++i) {
-      auto ino = dirent[i].inode_num();
-      if (ino < directories.size()) {
+      auto const ino = dirent[i].inode_num();
+
+      if (ino < num_dir_inodes) {
         directories[ino].self_entry() = i;
+        ++count;
       }
     }
 
-    tt << "recoverd " << directories.size() << " self entries from "
-       << dirent.size() << " dir entries";
+    DWARFS_CHECK(
+        count == num_dir_inodes,
+        fmt::format("could not recover all self entries, expected {} got {}",
+                    num_dir_inodes, count));
+
+    tt << "recovered " << count << " self entries from " << dirent.size()
+       << " dir entries";
   }
 
   // freeze to save memory
@@ -351,7 +362,9 @@ void check_index_range(global_metadata::Meta const& meta) {
   }
 }
 
-void check_packed_tables(global_metadata::Meta const& meta) {
+void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
   auto const num_inodes = meta.inodes().size();
 
   if (meta.directories().size() > num_inodes + 1) {
@@ -439,9 +452,17 @@ void check_packed_tables(global_metadata::Meta const& meta) {
                           p));
         }
         if (has_self && s != 0) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("[{}] self_entry {} != 0 for root directory", i, s));
+          if (is_last) {
+            LOG_WARN << "self_entry for sentinel directory should be 0, but is "
+                     << s
+                     << ", this is harmless and can be fixed by rebuilding the "
+                        "metadata";
+          } else {
+            DWARFS_THROW(
+                runtime_error,
+                fmt::format("[{}] self_entry {} != 0 for root directory", i,
+                            s));
+          }
         }
       } else if (has_self) {
         if (f == s) {
@@ -624,8 +645,21 @@ void check_string_tables(global_metadata::Meta const& meta) {
   }
 }
 
-void check_chunks(global_metadata::Meta const& meta) {
+void check_chunks(global_metadata::Meta const& meta,
+                  feature_set const& features) {
   auto block_size = meta.block_size();
+  bool const has_sparse = features.has(feature::sparsefiles);
+  auto const hole_ix = meta.hole_block_index();
+
+  if (hole_ix.has_value() && !has_sparse) {
+    DWARFS_THROW(runtime_error,
+                 "hole_block_index set but sparsefiles feature missing");
+  }
+
+  if (!hole_ix.has_value() && has_sparse) {
+    DWARFS_THROW(runtime_error,
+                 "sparsefiles feature set but hole_block_index missing");
+  }
 
   if (!std::has_single_bit(block_size)) {
     DWARFS_THROW(runtime_error,
@@ -635,20 +669,42 @@ void check_chunks(global_metadata::Meta const& meta) {
   // chunks().size() is already covered by check_packed_tables()
 
   for (auto c : meta.chunks()) {
-    if (c.offset() >= block_size) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("chunk offset out of range: {} >= {}",
-                               c.offset(), block_size));
-    }
-    if (c.size() > block_size) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("chunk size out of range: {} > {}", c.size(),
-                               block_size));
-    }
-    if (c.offset() + c.size() > block_size) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("chunk end outside of block: {} + {} > {}",
-                               c.offset(), c.size(), block_size));
+    auto const b = c.block();
+    auto const o = c.offset();
+    auto const s = c.size();
+
+    if (has_sparse && b == hole_ix.value()) {
+      if (o == kChunkOffsetIsLargeHole) {
+        auto lhs = meta.large_hole_size();
+        if (!lhs.has_value()) {
+          DWARFS_THROW(runtime_error,
+                       "large hole chunk but no large_hole_size set");
+        }
+        if (s >= lhs->size()) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format("large hole chunk size index out of range: {} >= {}",
+                          s, lhs->size()));
+        }
+      } else {
+        // pretty much any value here is fair game
+      }
+    } else {
+      if (o >= block_size) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("chunk offset out of range: {} >= {}", o, block_size));
+      }
+      if (s > block_size) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("chunk size out of range: {} > {}", s, block_size));
+      }
+      if (o + s > block_size) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("chunk end outside of block: {} + {} > {}", o,
+                                 s, block_size));
+      }
     }
   }
 }
@@ -696,11 +752,16 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 
     ti << "check metadata consistency";
 
+    feature_set features;
+    if (auto const feat = meta.features()) {
+      features.set(feat->thaw());
+    }
+
     check_empty_tables(meta);
     check_index_range(meta);
-    check_packed_tables(meta);
+    check_packed_tables(lgr, meta);
     check_string_tables(meta);
-    check_chunks(meta);
+    check_chunks(meta, features);
     auto offsets = check_partitioning(meta);
 
     auto num_dir = meta.directories().size() - 1;

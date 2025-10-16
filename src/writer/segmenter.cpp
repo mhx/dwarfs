@@ -488,8 +488,6 @@ class segment_queue {
 
     using lookup_hint = std::optional<versioned_iterator>;
 
-    file_range range() const { return segments_.range(); }
-
     std::span<std::byte const> span(file_off_t offset) {
       auto it = find_segment(offset);
       return it->bytes.subspan(offset - it->range.offset());
@@ -574,11 +572,7 @@ class segment_queue {
         return *this;
       }
 
-      DWARFS_FORCE_INLINE iterator operator++(int) {
-        auto tmp = *this;
-        ++*this;
-        return tmp;
-      }
+      DWARFS_FORCE_INLINE void operator++(int) { ++*this; }
 
       [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
       operator==(iterator const& a, iterator const& b) noexcept {
@@ -595,6 +589,8 @@ class segment_queue {
       file_off_t offset_{0};
       queue_data::lookup_hint hint_;
     };
+
+    static_assert(std::input_or_output_iterator<iterator>);
 
     iterator begin() { return iterator{data_, range_.begin()}; }
 
@@ -637,11 +633,7 @@ class segment_queue {
         return *this;
       }
 
-      iterator operator++(int) {
-        auto tmp = *this;
-        ++*this;
-        return tmp;
-      }
+      void operator++(int) { ++*this; }
 
       [[maybe_unused]] friend bool
       operator==(iterator const& a, std::default_sentinel_t) noexcept {
@@ -679,6 +671,8 @@ class segment_queue {
       file_off_t end_{0};
     };
 
+    static_assert(std::input_or_output_iterator<iterator>);
+
     span_range_iterable(queue_data* d, file_range range)
         : data_{d}
         , range_{range} {}
@@ -699,16 +693,8 @@ class segment_queue {
     return byte_range_iterable{data_.get(), range};
   }
 
-  byte_range_iterable byte_range() {
-    return byte_range_iterable{data_.get(), data_->range()};
-  }
-
   span_range_iterable span_range(file_range range) {
     return span_range_iterable{data_.get(), range};
-  }
-
-  span_range_iterable span_range() {
-    return span_range_iterable{data_.get(), data_->range()};
   }
 
   void release_until(file_off_t offset) { data_->release_until(offset); }

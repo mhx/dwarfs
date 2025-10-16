@@ -34,9 +34,11 @@
 #include <filesystem>
 #include <iosfwd>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include <dwarfs/types.h>
 
@@ -45,9 +47,13 @@ namespace dwarfs {
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
 std::string size_with_unit(file_size_t size);
+std::string ratio_to_string(double num, double den, int precision = 3);
 file_size_t parse_size_with_unit(std::string const& str);
-std::chrono::milliseconds parse_time_with_unit(std::string const& str);
+std::chrono::nanoseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);
+
+std::unordered_map<std::string_view, std::string_view>
+parse_option_string(std::string_view str);
 
 inline std::u8string string_to_u8string(std::string const& in) {
   return {reinterpret_cast<char8_t const*>(in.data()), in.size()};
@@ -79,6 +85,20 @@ void ensure_binary_mode(std::ostream& os);
 
 std::string exception_str(std::exception const& e);
 std::string exception_str(std::exception_ptr const& e);
+
+std::string hexdump(void const* data, size_t size);
+
+template <typename T>
+std::string hexdump(std::span<T const> data) {
+  return hexdump(data.data(), data.size_bytes());
+}
+
+template <std::ranges::contiguous_range R>
+  requires std::ranges::sized_range<R>
+std::string hexdump(R const& r) {
+  using T = std::ranges::range_value_t<R>;
+  return hexdump(std::span<T const>(std::data(r), std::size(r)));
+}
 
 unsigned int hardware_concurrency() noexcept;
 

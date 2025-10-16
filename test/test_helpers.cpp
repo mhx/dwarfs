@@ -29,11 +29,14 @@
 #include <random>
 #include <regex>
 
+#ifdef _WIN32
+#include <winerror.h>
+#endif
+
 #include <fmt/format.h>
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
-#include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
@@ -44,6 +47,14 @@
 #include "test_helpers.h"
 
 namespace dwarfs::test {
+
+std::error_code const kMlockQuotaError =
+#ifdef _WIN32
+    {ERROR_WORKING_SET_QUOTA, std::system_category()}
+#else
+    std::make_error_code(std::errc::not_enough_memory)
+#endif
+;
 
 namespace fs = std::filesystem;
 
@@ -59,11 +70,13 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_gid(ss.gid);
   rv.set_rdev(ss.rdev);
   rv.set_size(ss.size);
-  rv.set_blocks(0);
+  auto const allocated = ss.allocated_size.value_or(ss.size);
+  rv.set_allocated_size(allocated);
+  rv.set_blocks((allocated + 511) / 512);
   rv.set_blksize(0);
-  rv.set_atime(ss.atime);
-  rv.set_mtime(ss.mtime);
-  rv.set_ctime(ss.ctime);
+  rv.set_atimespec(ss.atim.ts);
+  rv.set_mtimespec(ss.mtim.ts);
+  rv.set_ctimespec(ss.ctim.ts);
   return rv;
 }
 
@@ -249,26 +262,48 @@ void os_access_mock::add(fs::path const& path, simplestat const& st,
 }
 
 void os_access_mock::add(fs::path const& path, simplestat const& st,
+                         test_file_data data) {
+  add_internal(path, st, std::move(data));
+}
+
+void os_access_mock::add(fs::path const& path, simplestat const& st,
                          std::function<std::string()> generator) {
   add_internal(path, st, generator);
 }
 
-void os_access_mock::add_dir(fs::path const& path) {
-  simplestat st;
-  st.ino = ino_++;
+void os_access_mock::add_dir(fs::path const& path,
+                             add_file_options const& opts) {
+  auto st = make_simplestat(opts);
   st.mode = posix_file_type::directory | 0755;
-  st.uid = 1000;
-  st.gid = 100;
   add(path, st);
 }
 
-void os_access_mock::add_file(fs::path const& path, file_size_t size,
-                              bool random) {
+simplestat os_access_mock::make_simplestat(add_file_options const& opts) {
   simplestat st;
-  st.ino = ino_++;
-  st.mode = posix_file_type::regular | 0644;
+  if (auto const ino = opts.ino) {
+    st.ino = *ino;
+  } else {
+    st.ino = ino_++;
+  }
+  st.nlink = opts.nlink.value_or(1);
   st.uid = 1000;
   st.gid = 100;
+  st.atim.ts = opts.atim.value_or(file_stat::timespec_type{});
+  st.mtim.ts = opts.mtim.value_or(file_stat::timespec_type{});
+  st.ctim.ts = opts.ctim.value_or(file_stat::timespec_type{});
+  return st;
+}
+
+simplestat os_access_mock::make_reg_simplestat(add_file_options const& opts) {
+  auto st = make_simplestat(opts);
+  st.mode = posix_file_type::regular | 0644;
+  return st;
+}
+
+simplestat os_access_mock::add_file(fs::path const& path, file_size_t size,
+                                    bool random, add_file_options const& opts) {
+  auto st = make_reg_simplestat(opts);
+
   st.size = size;
 
   if (random) {
@@ -284,7 +319,7 @@ void os_access_mock::add_file(fs::path const& path, file_size_t size,
     case 0:
       add(path, st,
           [size, seed = rng()] { return create_random_string(size, seed); });
-      return;
+      return st;
 
     case 1:
     case 2: {
@@ -295,23 +330,32 @@ void os_access_mock::add_file(fs::path const& path, file_size_t size,
         lz_synthetic_generator gen{lzp};
         return gen.generate(size);
       });
-      return;
+      return st;
     }
     }
   }
 
   add(path, st, [size] { return loremipsum(size); });
+
+  return st;
 }
 
-void os_access_mock::add_file(fs::path const& path,
-                              std::string const& contents) {
-  simplestat st;
-  st.ino = ino_++;
-  st.mode = posix_file_type::regular | 0644;
-  st.uid = 1000;
-  st.gid = 100;
+simplestat
+os_access_mock::add_file(fs::path const& path, std::string const& contents,
+                         add_file_options const& opts) {
+  auto st = make_reg_simplestat(opts);
   st.size = contents.size();
   add(path, st, contents);
+  return st;
+}
+
+simplestat os_access_mock::add_file(fs::path const& path, test_file_data data,
+                                    add_file_options const& opts) {
+  auto st = make_reg_simplestat(opts);
+  st.size = data.size();
+  st.allocated_size = data.allocated_size();
+  add(path, st, data);
+  return st;
 }
 
 void os_access_mock::add_local_files(fs::path const& base_path) {
@@ -451,8 +495,7 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
       fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-file_view
-os_access_mock::map_file(fs::path const& path, file_size_t size) const {
+file_view os_access_mock::open_file(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
@@ -465,25 +508,38 @@ os_access_mock::map_file(fs::path const& path, file_size_t size) const {
       }
     }
 
-    if (size >= map_file_delay_min_size_) {
+    if (std::holds_alternative<test_file_data>(de->v)) {
+      return make_mock_file_view(std::get<test_file_data>(de->v), path);
+    }
+
+    auto data = de->v | match{
+                            [](std::string const& str) { return str; },
+                            [](std::function<std::string()> const& fun) {
+                              return fun();
+                            },
+                            [](auto const&) -> std::string {
+                              throw std::runtime_error("oops in match");
+                            },
+                        };
+
+    if (std::cmp_greater_equal(data.size(), map_file_delay_min_size_)) {
       if (auto it = map_file_delays_.find(path); it != map_file_delays_.end()) {
         std::this_thread::sleep_for(it->second);
       }
     }
 
-    return make_mock_file_view(
-        de->v |
-            match{
-                [](std::string const& str) { return str; },
-                [](std::function<std::string()> const& fun) { return fun(); },
-                [](auto const&) -> std::string {
-                  throw std::runtime_error("oops in match");
-                },
-            },
-        size, path);
+    return make_mock_file_view(std::move(data), path);
   }
 
-  throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
+  throw std::runtime_error(fmt::format("oops in open_file: {}", path.string()));
+}
+
+readonly_memory_mapping os_access_mock::map_empty_readonly(size_t size) const {
+  return real_os_->map_empty_readonly(size);
+}
+
+memory_mapping os_access_mock::map_empty(size_t size) const {
+  return real_os_->map_empty(size);
 }
 
 std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
@@ -494,10 +550,6 @@ std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
     }
   }
   return rv;
-}
-
-file_view os_access_mock::map_file(fs::path const& path) const {
-  return map_file(path, std::numeric_limits<size_t>::max());
 }
 
 int os_access_mock::access(fs::path const& path, int) const {
@@ -619,7 +671,8 @@ parse_mtree(std::string_view mtree) {
 }
 
 file_view make_real_file_view(std::filesystem::path const& path) {
-  return create_mmap_file_view(path);
+  os_access_generic os;
+  return os.open_file(path);
 }
 
 bool skip_slow_tests() {

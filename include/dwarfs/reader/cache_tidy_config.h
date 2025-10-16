@@ -36,8 +36,8 @@ enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
 
 struct cache_tidy_config {
   cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
-  std::chrono::milliseconds interval{std::chrono::seconds(1)};
-  std::chrono::milliseconds expiry_time{std::chrono::seconds(60)};
+  std::chrono::nanoseconds interval{std::chrono::seconds(1)};
+  std::chrono::nanoseconds expiry_time{std::chrono::seconds(60)};
 };
 
 } // namespace dwarfs::reader

@@ -35,9 +35,9 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
+#include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_options.h>
 
 #include <dwarfs/reader/internal/filesystem_parser.h>
@@ -45,14 +45,71 @@
 namespace dwarfs::reader::internal {
 
 using namespace dwarfs::internal;
-using namespace dwarfs::binary_literals;
 
 namespace {
 
 constexpr std::array<char, 7> kMagic{
     {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
 
-inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
+constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
+
+template <typename LoggerPolicy>
+class filesystem_parser_ final : public filesystem_parser::impl {
+ public:
+  filesystem_parser_(logger& lgr, file_view const& mm, file_off_t image_offset,
+                     file_off_t image_size);
+
+  void rewind() override;
+  std::optional<dwarfs::internal::fs_section> next_section() override;
+
+  std::optional<file_extents_iterable> header() const override {
+    if (image_offset_ == 0) {
+      return std::nullopt;
+    }
+    return mm_.extents({0, image_offset_});
+  }
+
+  std::string version() const override {
+    return fmt::format("{0}.{1} [{2}]", fs_version_.major, fs_version_.minor,
+                       header_version_);
+  }
+
+  int header_version() const override { return header_version_; }
+  filesystem_version const& fs_version() const override { return fs_version_; }
+
+  file_off_t image_offset() const override { return image_offset_; }
+
+  bool has_checksums() const override { return header_version_ >= 2; }
+
+  bool has_index() const override { return !index_.empty(); }
+
+  size_t filesystem_size() const override {
+    return image_offset_ + image_size_;
+  }
+
+  file_segment segment(fs_section const& s) const override {
+    return s.segment(mm_);
+  }
+
+ private:
+  file_off_t find_image_offset(file_off_t image_offset);
+  void find_index();
+  size_t search_dwarfs_header(std::span<std::byte const> haystack);
+  file_off_t search_image_in_segment(file_segment const& seg);
+
+  LOG_PROXY_DECL(LoggerPolicy);
+  file_view mm_;
+  file_off_t const image_offset_{0};
+  file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
+  file_off_t offset_{0};
+  int header_version_{0};
+  filesystem_version fs_version_{};
+  std::vector<uint64_t> index_;
+};
+
+template <typename LoggerPolicy>
+size_t filesystem_parser_<LoggerPolicy>::search_dwarfs_header(
+    std::span<std::byte const> haystack) {
   size_t const n = haystack.size();
 
   if (n < kMagic.size()) {
@@ -86,29 +143,43 @@ inline size_t search_dwarfs_header(std::span<std::byte const> haystack) {
   return n;
 }
 
-file_off_t search_image_in_segment(file_segment const& seg) {
+template <typename LoggerPolicy>
+file_off_t filesystem_parser_<LoggerPolicy>::search_image_in_segment(
+    file_segment const& seg) {
   file_off_t start = 0;
 
   while (std::cmp_less(start + kMagic.size(), seg.size())) {
     auto ss = seg.span(start);
     auto dp = search_dwarfs_header(ss);
 
+    LOG_TRACE << "searched " << ss.size() << " bytes from " << start
+              << " in segment at offset " << seg.offset();
+
     if (dp >= ss.size()) {
+      LOG_TRACE << "no magic found";
       break;
     }
 
     file_off_t pos = start + dp;
 
+    LOG_TRACE << "found magic at " << pos << " in segment at offset "
+              << seg.offset();
+
     if (std::cmp_greater_equal(pos + sizeof(file_header), seg.size())) {
+      LOG_TRACE << "remaining data in segment is too small for file header";
       break;
     }
 
     auto fh = seg.read<file_header>(pos);
 
     if (fh.minor < 2) {
+      LOG_TRACE << "potential v1 filesystem found";
+
       // v1 section header, presumably
       if (std::cmp_greater_equal(
               pos + sizeof(file_header) + sizeof(section_header), seg.size())) {
+        LOG_TRACE
+            << "remaining data in segment is too small for section header";
         break;
       }
 
@@ -128,27 +199,42 @@ file_off_t search_image_in_segment(file_segment const& seg) {
       if ((shtype == section_type::BLOCK ||
            shtype == section_type::METADATA_V2_SCHEMA) &&
           is_valid_compression(sh.compression) && sh.length > 0) {
-        auto nextshpos =
-            pos + sizeof(file_header) + sizeof(section_header) + sh.length;
-        if (std::cmp_less(nextshpos + sizeof(section_header), seg.size())) {
-          auto nsh = seg.read<section_header>(nextshpos);
-          auto const nshtype = static_cast<section_type>(nsh.type);
-          // the next section must be a block or a metadata schema if the first
-          // section was a block *or* a metadata block if the first section was
-          // a metadata schema
-          if ((shtype == section_type::BLOCK
-                   ? nshtype == section_type::BLOCK ||
-                         nshtype == section_type::METADATA_V2_SCHEMA
-                   : nshtype == section_type::METADATA_V2) &&
-              is_valid_compression(nsh.compression) && nsh.length > 0) {
-            // we can be somewhat sure that this is where the filesystem starts
-            return pos;
-          }
+        auto nextshpos = seg.offset() + pos + sizeof(file_header) +
+                         sizeof(section_header) + sh.length;
+
+        if (nextshpos < sh.length) {
+          LOG_TRACE << "integer overflow in section length";
+          break;
+        }
+
+        if (std::cmp_greater_equal(nextshpos + sizeof(section_header),
+                                   mm_.size())) {
+          LOG_TRACE << "next section header would be beyond file size";
+          break;
+        }
+
+        auto nsh = mm_.read<section_header>(nextshpos);
+        auto const nshtype = static_cast<section_type>(nsh.type);
+        // the next section must be a block or a metadata schema if the first
+        // section was a block *or* a metadata block if the first section was
+        // a metadata schema
+        if ((shtype == section_type::BLOCK
+                 ? nshtype == section_type::BLOCK ||
+                       nshtype == section_type::METADATA_V2_SCHEMA
+                 : nshtype == section_type::METADATA_V2) &&
+            is_valid_compression(nsh.compression) && nsh.length > 0) {
+          // we can be somewhat sure that this is where the filesystem starts
+          LOG_TRACE << "found valid v1 filesystem at offset " << pos;
+          return pos;
         }
       }
     } else {
+      LOG_TRACE << "potential v2 filesystem found";
+
       // do a little more validation before we return
       if (std::cmp_greater_equal(pos + sizeof(section_header_v2), seg.size())) {
+        LOG_TRACE
+            << "remaining data in segment is too small for section header";
         break;
       }
 
@@ -157,18 +243,23 @@ file_off_t search_image_in_segment(file_segment const& seg) {
       if (sh.number == 0) {
         auto endpos = pos + sh.length + 2 * sizeof(section_header_v2);
 
-        if (endpos >= sh.length) {
-          if (std::cmp_greater_equal(endpos, seg.size())) {
-            break;
-          }
+        if (endpos < sh.length) {
+          LOG_TRACE << "integer overflow in section length";
+          break;
+        }
 
-          auto nsh = seg.read<section_header_v2>(pos + sh.length +
-                                                 sizeof(section_header_v2));
+        if (std::cmp_greater_equal(endpos, mm_.size())) {
+          LOG_TRACE << "next section header would be beyond file size";
+          break;
+        }
 
-          if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
-              nsh.number == 1) {
-            return pos;
-          }
+        auto nsh = mm_.read<section_header_v2>(seg.offset() + pos + sh.length +
+                                               sizeof(section_header_v2));
+
+        if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
+            nsh.number == 1) {
+          LOG_TRACE << "found valid v2 filesystem at offset " << pos;
+          return pos;
         }
       }
     }
@@ -179,21 +270,22 @@ file_off_t search_image_in_segment(file_segment const& seg) {
   return -1;
 }
 
-} // namespace
-
-file_off_t filesystem_parser::find_image_offset(file_view const& mm,
-                                                file_off_t image_offset) {
+template <typename LoggerPolicy>
+file_off_t
+filesystem_parser_<LoggerPolicy>::find_image_offset(file_off_t image_offset) {
   if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
     return image_offset;
   }
 
-  for (auto const& ext : mm.extents()) {
+  for (auto const& ext : mm_.extents()) {
     if (ext.kind() == extent_kind::hole) {
       // skip holes
       continue;
     }
 
-    for (auto const& seg : ext.segments(8_MiB, sizeof(section_header_v2))) {
+    LOG_TRACE << "searching data extent at offset " << ext.offset();
+
+    for (auto const& seg : ext.segments(0, sizeof(section_header_v2))) {
       auto pos = search_image_in_segment(seg);
 
       if (pos >= 0) {
@@ -205,11 +297,14 @@ file_off_t filesystem_parser::find_image_offset(file_view const& mm,
   DWARFS_THROW(runtime_error, "no filesystem found");
 }
 
-filesystem_parser::filesystem_parser(file_view const& mm,
-                                     file_off_t image_offset,
-                                     file_off_t image_size)
-    : mm_{mm}
-    , image_offset_{find_image_offset(mm_, image_offset)}
+template <typename LoggerPolicy>
+filesystem_parser_<LoggerPolicy>::filesystem_parser_(logger& lgr,
+                                                     file_view const& mm,
+                                                     file_off_t image_offset,
+                                                     file_off_t image_size)
+    : LOG_PROXY_INIT(lgr)
+    , mm_{mm}
+    , image_offset_{find_image_offset(image_offset)}
     , image_size_{
           std::min<file_off_t>(image_size, mm_.size() - image_offset_)} {
   if (std::cmp_less(image_size_, sizeof(file_header))) {
@@ -241,7 +336,8 @@ filesystem_parser::filesystem_parser(file_view const& mm,
   rewind();
 }
 
-std::optional<fs_section> filesystem_parser::next_section() {
+template <typename LoggerPolicy>
+std::optional<fs_section> filesystem_parser_<LoggerPolicy>::next_section() {
   if (index_.empty()) {
     if (std::cmp_less(offset_, image_offset_ + image_size_)) {
       auto section = fs_section(mm_, offset_, header_version_);
@@ -264,14 +360,8 @@ std::optional<fs_section> filesystem_parser::next_section() {
   return std::nullopt;
 }
 
-std::optional<file_extents_iterable> filesystem_parser::header() const {
-  if (image_offset_ == 0) {
-    return std::nullopt;
-  }
-  return mm_.extents({0, image_offset_});
-}
-
-void filesystem_parser::rewind() {
+template <typename LoggerPolicy>
+void filesystem_parser_<LoggerPolicy>::rewind() {
   if (index_.empty()) {
     offset_ = image_offset_;
     if (header_version_ == 1) {
@@ -282,24 +372,8 @@ void filesystem_parser::rewind() {
   }
 }
 
-std::string filesystem_parser::version() const {
-  return fmt::format("{0}.{1} [{2}]", fs_version_.major, fs_version_.minor,
-                     header_version_);
-}
-
-bool filesystem_parser::has_checksums() const { return header_version_ >= 2; }
-
-bool filesystem_parser::has_index() const { return !index_.empty(); }
-
-size_t filesystem_parser::filesystem_size() const {
-  return image_offset_ + image_size_;
-}
-
-file_segment filesystem_parser::segment(fs_section const& s) const {
-  return s.segment(mm_);
-}
-
-void filesystem_parser::find_index() {
+template <typename LoggerPolicy>
+void filesystem_parser_<LoggerPolicy>::find_index() {
   uint64_t index_pos =
       mm_.read<uint64le_t>(image_offset_ + image_size_ - sizeof(uint64le_t))
           .load();
@@ -365,5 +439,14 @@ void filesystem_parser::find_index() {
     return;
   }
 }
+
+} // namespace
+
+filesystem_parser::filesystem_parser(logger& lgr, file_view const& mm,
+                                     file_off_t image_offset,
+                                     file_off_t image_size)
+    : impl_{
+          make_unique_logging_object<impl, filesystem_parser_, logger_policies>(
+              lgr, mm, image_offset, image_size)} {}
 
 } // namespace dwarfs::reader::internal

@@ -46,9 +46,14 @@ class console_writer : public stream_logger {
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
   using mem_usage_fn = std::function<size_t()>;
 
+  struct options {
+    progress_mode progress{SIMPLE};
+    display_mode display{NORMAL};
+    bool enable_sparse_files{false};
+  };
+
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
-                 progress_mode pg_mode, display_mode mode = NORMAL,
-                 logger_options const& options = {});
+                 options const& opts, logger_options const& logger_opts = {});
 
   void update(writer_progress& prog, bool last);
 
@@ -66,8 +71,7 @@ class console_writer : public stream_logger {
   int rewind_lines_{0};
   double frac_{0.0};
   std::atomic<size_t> counter_{0};
-  progress_mode const pg_mode_;
-  display_mode const mode_;
+  options const opts_;
   mem_usage_fn mem_usage_;
 };
 

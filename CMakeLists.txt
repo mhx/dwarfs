@@ -45,9 +45,11 @@ option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_FUSE_EXTRACT_BINARY "build with fuse-extract binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
+option(WITH_DEV_TOOLS "build with developer tools" OFF)
 option(ENABLE_STACKTRACE "build with stack trace support" OFF)
 option(DISABLE_FILESYSTEM_EXTRACTOR_FORMAT "disable filesystem extractor format support" OFF)
 option(BUILD_FSST_MAIN "build fsst_main application (dev-only)" OFF)
+option(USE_SUBDIR_LIBARCHIVE "use local libarchive subdir (dev-only)" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -218,7 +220,13 @@ if(WITH_LIBDWARFS)
   endif()
 
   pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
-  pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
+  if(USE_SUBDIR_LIBARCHIVE)
+    add_compile_definitions(LIBARCHIVE_STATIC)
+    add_subdirectory(libarchive EXCLUDE_FROM_ALL)
+    add_library(PkgConfig::LIBARCHIVE ALIAS archive_static)
+  else()
+    pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
+  endif()
   pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
   pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
   if(TRY_ENABLE_LZ4)
@@ -367,6 +375,8 @@ endif()
 if(WITH_FUSE_DRIVER)
   include(${CMAKE_SOURCE_DIR}/cmake/need_fuse.cmake)
 
+  file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
+
   if(FUSE3_FOUND OR WINFSP OR APPLE)
     add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
     target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
@@ -409,13 +419,12 @@ if(WITH_FUSE_DRIVER)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
       install(FILES $<TARGET_PDB_FILE:dwarfs-bin> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     else()
-      file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
-      add_custom_command(OUTPUT  mount.dwarfs
-                         COMMAND ${CMAKE_COMMAND} -E create_symlink ${relative_sbindir_to_bindir}/dwarfs mount.dwarfs
-                         DEPENDS dwarfs-bin)
-      list(APPEND SYMLINKS mount.dwarfs)
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION ${CMAKE_INSTALL_SBINDIR})
       install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+      install(CODE "\
+        file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
+        file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs\"
+                         \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs\"
+                         SYMBOLIC)")
     endif()
     list(APPEND BINARY_TARGETS dwarfs-bin)
     list(APPEND MAIN_TARGETS dwarfs_main)
@@ -438,13 +447,12 @@ if(WITH_FUSE_DRIVER)
       target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
     endif()
     set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-    file(RELATIVE_PATH relative_sbindir_to_bindir "${CMAKE_INSTALL_FULL_SBINDIR}" "${CMAKE_INSTALL_FULL_BINDIR}")
-    add_custom_command(OUTPUT  mount.dwarfs2
-                       COMMAND ${CMAKE_COMMAND} -E create_symlink ${relative_sbindir_to_bindir}/dwarfs2 mount.dwarfs2
-                       DEPENDS dwarfs2-bin)
-    list(APPEND SYMLINKS mount.dwarfs2)
     install(TARGETS dwarfs2-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION ${CMAKE_INSTALL_SBINDIR})
+    install(CODE "\
+      file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
+      file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs2\"
+                       \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs2\"
+                       SYMBOLIC)")
     list(APPEND BINARY_TARGETS dwarfs2-bin)
     list(APPEND MAIN_TARGETS dwarfs2_main)
     target_link_libraries(dwarfs2_main PRIVATE dwarfs_reader)
@@ -477,8 +485,6 @@ if(WITH_MAN_OPTION)
   endif()
 endif()
 
-add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
-
 if(WITH_DESKTOP_INTEGRATION AND NOT WIN32)
   install(FILES "data/dwarfs.xml" DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages)
   if(WITH_FUSE_DRIVER)
@@ -488,12 +494,15 @@ endif()
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers
+    test/compare_directories.cpp
     test/mmap_mock.cpp
+    test/sparse_file_builder.cpp
     test/test_helpers.cpp
     test/test_iolayer.cpp
     test/loremipsum.cpp
     test/test_dirtree.cpp
     test/filter_test_data.cpp
+    test/test_file_data.cpp
   )
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
@@ -503,6 +512,15 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   target_compile_definitions(dwarfs_test_helpers
        PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  if(WITH_DEV_TOOLS)
+    add_executable(treediff test/treediff.cpp)
+    target_link_libraries(treediff PRIVATE dwarfs_test_helpers)
+
+    add_executable(sparsedump test/sparsedump.cpp)
+    target_link_libraries(treediff PRIVATE dwarfs_common)
+
+    list(APPEND BINARY_TARGETS treediff sparsedump)
+  endif()
 endif()
 
 if(WITH_TESTS AND WITH_TOOLS)
@@ -515,15 +533,18 @@ endif()
 if(WITH_TESTS)
   if(WITH_LIBDWARFS)
     add_executable(dwarfs_unit_tests
+      test/align_advise_range_test.cpp
       test/badfs_test.cpp
       test/block_merger_test.cpp
       test/block_range_test.cpp
       test/byte_buffer_test.cpp
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
+      test/compare_directories_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
       test/file_access_test.cpp
+      test/file_range_utils_test.cpp
       test/file_utils_test.cpp
       test/file_view_test.cpp
       test/filesystem_test.cpp
@@ -536,17 +557,22 @@ if(WITH_TESTS)
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
       test/mappable_file_test.cpp
+      test/memory_mapping_ops_test.cpp
       test/metadata_requirements_test.cpp
       test/metadata_test.cpp
       test/nilsimsa_test.cpp
       test/options_test.cpp
+      test/os_access_generic_test.cpp
       test/packed_int_vector_test.cpp
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp
       test/sorted_array_map_test.cpp
+      test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
       test/string_test.cpp
       test/terminal_test.cpp
+      test/test_iolayer_test.cpp
+      test/time_resolution_converter_test.cpp
       test/unicode_test.cpp
       test/utils_test.cpp
       test/worker_group_test.cpp
@@ -594,6 +620,8 @@ if(WITH_TESTS)
       test/tool_mkdwarfs_main_metadata_test.cpp
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp
+      test/tool_mkdwarfs_main_sparse_test.cpp
+      test/tool_mkdwarfs_main_time_resolution_test.cpp
     )
 
     list(APPEND DWARFS_TESTS
@@ -620,7 +648,10 @@ if(WITH_TESTS)
   endif()
 
   add_library(dwarfs_test_main OBJECT test/test_main.cpp)
-  target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock)
+  target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock dwarfs_common)
+  if(DWARFS_STACKTRACE_ENABLED)
+    target_link_libraries(dwarfs_test_main PRIVATE cpptrace::cpptrace)
+  endif()
 
   foreach (test ${DWARFS_TESTS})
     if(NOT TARGET ${test})
@@ -765,7 +796,8 @@ foreach(tgt ${LIBDWARFS_TARGETS})
   )
 endforeach()
 
-foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
+foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
+            dwarfs_test_helpers dwarfs_test_main
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(NOT TARGET ${tgt})
     continue()
@@ -784,7 +816,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     # This is a workaround to *enforce* the include path in case we're in a
     # setup where libdwarfs is installed in a local path but some of its
     # dependencies are installed in a system path *AND* there's a different
-    # version of libdwafs *ALSO* installed in the system path.
+    # version of libdwarfs *ALSO* installed in the system path.
     target_include_directories(${tgt} BEFORE PUBLIC ${DWARFS_INCLUDE_DIR})
   endif()
 
@@ -943,7 +975,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
 endif()
 
-foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite
+foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite thrift1
             ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(TARGET ${tgt})

@@ -113,6 +113,9 @@ class progress {
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};
   std::atomic<uint64_t> compressed_size{0};
+  std::atomic<uint64_t> allocated_original_size{0};
+  std::atomic<uint64_t> allocated_hardlink_size{0};
+  std::atomic<uint64_t> allocated_saved_by_deduplication{0};
   // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
   struct scan_progress {

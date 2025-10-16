@@ -29,24 +29,29 @@
 #include <fstream>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <vector>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/file_util.h>
 
 #include <dwarfs/internal/mappable_file.h>
+#include <dwarfs/internal/memory_mapping_ops.h>
 
+#include "sparse_file_builder.h"
 #include "test_helpers.h"
 
 using namespace dwarfs;
 using namespace dwarfs::binary_literals;
 using namespace dwarfs::internal;
 using namespace dwarfs::test;
+using dwarfs::detail::file_extent_info;
 
 namespace {
 
@@ -74,8 +79,10 @@ class map_read_tests : public ::testing::Test {
       ASSERT_TRUE(os.good()) << "failed writing to " << p_;
     }
 
+    auto const& ops = internal::get_native_memory_mapping_ops();
+
     std::error_code ec;
-    mf_ = mappable_file::create(p_, ec);
+    mf_ = mappable_file::create(ops, p_, ec);
     ASSERT_FALSE(ec) << "mappable_file::create: " << ec.message();
 
     auto sz = mf_.size(ec);
@@ -230,11 +237,320 @@ TEST_F(map_read_tests, read_at_eof_returns_zero) {
   EXPECT_EQ(n, 0u);
 }
 
-TEST(zero_memory, basic) {
-  auto zeroes = mappable_file::map_empty_readonly(8_MiB);
+TEST_F(map_read_tests, lock_mapping) {
+  {
+    auto mm = mf_.map_readonly();
+    std::error_code ec;
+    mm.lock(ec);
+    if (ec == std::errc::operation_not_permitted) {
+      GTEST_SKIP() << "mlock not permitted";
+    } else if (ec == kMlockQuotaError) {
+      GTEST_SKIP() << "mlock quota exceeded";
+    }
+    EXPECT_FALSE(ec) << "mapped_memory::lock: " << ec.message() << "/"
+                     << ec.value();
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    EXPECT_NO_THROW(mm.lock());
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    std::error_code ec;
+    mm.lock(123, 456, ec);
+    EXPECT_FALSE(ec) << "mapped_memory::lock: " << ec.message();
+  }
+
+  {
+    auto mm = mf_.map_readonly();
+    EXPECT_NO_THROW(mm.lock(123, 456));
+  }
+}
+
+TEST_F(map_read_tests, lock_mapping_errors) {
+  auto mm = mf_.map_readonly();
+
+  EXPECT_NO_THROW(mm.lock(0, 0));
+
+  EXPECT_THAT([&] { mm.lock(mm.size() + 1, 1); },
+              ::testing::Throws<std::system_error>(::testing::Property(
+                  &std::system_error::code, std::errc::invalid_argument)));
+}
+
+TEST_F(map_read_tests, advise_mapping) {
+  std::error_code ec;
+  auto mm = mf_.map_readonly(ec);
+  ASSERT_FALSE(ec) << "mappable_file::map_readonly: " << ec.message();
+
+  ec.clear();
+  mm.advise(io_advice::willneed, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::normal));
+
+  ec.clear();
+  mm.advise(io_advice::dontneed, 123, 456, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::sequential, 123, 456));
+
+  ec.clear();
+  mm.advise(io_advice::random, 123, kGranularity + 456,
+            io_advice_range::exclude_partial, ec);
+  EXPECT_FALSE(ec) << "mapped_memory::advise: " << ec.message();
+
+  EXPECT_NO_THROW(mm.advise(io_advice::random, 123, kGranularity + 456,
+                            io_advice_range::include_partial));
+}
+
+TEST(map_empty, read_only) {
+  readonly_memory_mapping zeroes;
+
+  EXPECT_FALSE(zeroes);
+  EXPECT_FALSE(zeroes.valid());
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  zeroes = mappable_file::map_empty_readonly(ops, 8_MiB);
   auto span = zeroes.const_span<uint8_t>();
+
+  EXPECT_TRUE(zeroes);
+  EXPECT_TRUE(zeroes.valid());
 
   EXPECT_EQ(zeroes.size(), 8_MiB);
   EXPECT_EQ(span.size(), 8_MiB);
   EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
+
+  zeroes.reset();
+
+  EXPECT_FALSE(zeroes);
+  EXPECT_FALSE(zeroes.valid());
+}
+
+TEST(map_empty, read_write) {
+  memory_mapping mem;
+
+  EXPECT_FALSE(mem);
+  EXPECT_FALSE(mem.valid());
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  mem = mappable_file::map_empty(ops, 8_MiB);
+  auto span = mem.span<uint8_t>();
+
+  EXPECT_TRUE(mem);
+  EXPECT_TRUE(mem.valid());
+
+  EXPECT_EQ(mem.size(), 8_MiB);
+  EXPECT_EQ(span.size(), 8_MiB);
+  EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
+
+  std::fill(span.begin(), span.end(), 0xAB);
+  EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0xAB; }));
+
+  auto bytespan = mem.span();
+  EXPECT_EQ(bytespan.size(), 8_MiB);
+  EXPECT_EQ(bytespan.data(), reinterpret_cast<std::byte*>(span.data()));
+
+  mem.reset();
+
+  EXPECT_FALSE(mem);
+  EXPECT_FALSE(mem.valid());
+}
+
+class sparse_file_test : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    td.emplace();
+    granularity = sparse_file_builder::hole_granularity(td->path());
+
+    if (!granularity) {
+      GTEST_SKIP() << "filesystem does not support sparse files";
+    }
+  }
+
+  void TearDown() override { td.reset(); }
+
+  std::mt19937_64 rng{42};
+  std::optional<temporary_directory> td;
+  std::optional<size_t> granularity;
+};
+
+TEST_F(sparse_file_test, basic) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(3 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.write_data(2 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.commit();
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
+  EXPECT_EQ(mf.size(), 3 * granularity.value());
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(2 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(3, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_at_start) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(granularity.value() + 1);
+  sfb.write_data(granularity.value(), create_random_string(1, rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
+  sfb.punch_hole(0, granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::hole,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(granularity.value()), 1)},
+  };
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
+  EXPECT_EQ(mf.size(), granularity.value() + 1);
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_at_end) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(2 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
+  EXPECT_EQ(mf.size(), 2 * granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, hole_only) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(granularity.value());
+  sfb.punch_hole(0, granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::hole,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
+  EXPECT_EQ(mf.size(), granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(1, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST_F(sparse_file_test, multiple_holes_and_data_blocks) {
+  auto path = td->path() / "sparse.bin";
+  auto sfb = sparse_file_builder::create(path);
+  sfb.truncate(6 * granularity.value());
+  sfb.write_data(0, create_random_string(granularity.value(), rng));
+  sfb.write_data(2 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  sfb.write_data(5 * granularity.value(),
+                 create_random_string(granularity.value(), rng));
+  // Holes *must* be punched after all data is written, at least on macOS.
+  sfb.punch_hole(granularity.value(), granularity.value());
+  sfb.punch_hole(3 * granularity.value(), 2 * granularity.value());
+  sfb.commit();
+
+  std::vector<file_extent_info> const expected_extents = {
+      {extent_kind::data,
+       file_range(0, static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(2 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+      {extent_kind::hole,
+       file_range(static_cast<file_off_t>(3 * granularity.value()),
+                  static_cast<file_size_t>(2 * granularity.value()))},
+      {extent_kind::data,
+       file_range(static_cast<file_off_t>(5 * granularity.value()),
+                  static_cast<file_size_t>(granularity.value()))},
+  };
+
+  auto const& ops = internal::get_native_memory_mapping_ops();
+  auto mf = mappable_file::create(ops, path);
+  EXPECT_EQ(mf.size(), 6 * granularity.value());
+
+  auto const actual_extents = mf.get_extents();
+  EXPECT_EQ(5, actual_extents.size());
+  EXPECT_EQ(expected_extents, actual_extents);
+}
+
+TEST(extent_kind_test, ostream_operator) {
+  std::ostringstream oss;
+  oss << extent_kind::data << " and " << extent_kind::hole << " and "
+      << static_cast<extent_kind>(42);
+  EXPECT_EQ(oss.str(), "data and hole and <42>");
+}
+
+TEST(file_extent_info_test, ostream_operator) {
+  std::ostringstream oss;
+  oss << file_extent_info{extent_kind::data, file_range{123, 456}};
+  EXPECT_EQ(oss.str(), "file_extent_info{kind=data, range=[123, 456]}");
+}
+
+TEST(mappable_file, map_empty_error) {
+  auto const& ops = internal::get_native_memory_mapping_ops();
+
+  EXPECT_THAT(
+      [&] {
+        mappable_file::map_empty(ops, std::numeric_limits<size_t>::max());
+      },
+      ::testing::Throws<std::system_error>());
+
+  EXPECT_THAT(
+      [&] {
+        mappable_file::map_empty_readonly(ops,
+                                          std::numeric_limits<size_t>::max());
+      },
+      ::testing::Throws<std::system_error>());
+}
+
+TEST(mappable_file, create_nonexistent_file) {
+  temporary_directory td;
+  auto const& ops = internal::get_native_memory_mapping_ops();
+
+  EXPECT_THAT(
+      [&] { mappable_file::create(ops, td.path() / "nonexistent.bin"); },
+      ::testing::Throws<std::system_error>());
 }

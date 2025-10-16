@@ -25,10 +25,14 @@ add_library(
   src/checksum.cpp
   src/compression_registry.cpp
   src/conv.cpp
+  src/detail/file_extent_info.cpp
+  src/detail/scoped_env.cpp
   src/error.cpp
+  src/extent_kind.cpp
   src/file_access_generic.cpp
   src/file_extent.cpp
   src/file_extents_iterable.cpp
+  src/file_range_utils.cpp
   src/file_segments_iterable.cpp
   src/file_stat.cpp
   src/file_util.cpp
@@ -39,7 +43,6 @@ add_library(
   src/logger.cpp
   src/malloc_byte_buffer.cpp
   src/mapped_byte_buffer.cpp
-  src/mmap.cpp
   src/option_map.cpp
   src/os_access_generic.cpp
   src/pcm_sample_transformer.cpp
@@ -58,9 +61,13 @@ add_library(
   src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
   src/internal/mappable_file.cpp
-  src/internal/mappable_file_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
+  src/internal/memory_mapping_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
   src/internal/metadata_utils.cpp
+  src/internal/mmap_file_view.cpp
+  src/internal/option_parser.cpp
+  src/internal/os_access_generic_data.cpp
   src/internal/string_table.cpp
+  src/internal/thread_util.cpp
   src/internal/unicode_case_folding.cpp
   src/internal/wcwidth.c
   src/internal/worker_group.cpp
@@ -99,6 +106,7 @@ add_library(
 
   src/reader/block_cache_options.cpp
   src/reader/block_range.cpp
+  src/reader/detail/file_reader.cpp
   src/reader/filesystem_options.cpp
   src/reader/filesystem_v2.cpp
   src/reader/fsinfo_features.cpp
@@ -114,6 +122,7 @@ add_library(
   src/reader/internal/metadata_types.cpp
   src/reader/internal/metadata_v2.cpp
   src/reader/internal/periodic_executor.cpp
+  src/reader/internal/time_resolution_handler.cpp
 )
 
 add_library(
@@ -155,6 +164,7 @@ add_library(
   src/writer/internal/scanner_progress.cpp
   src/writer/internal/similarity.cpp
   src/writer/internal/similarity_ordering.cpp
+  src/writer/internal/time_resolution_converter.cpp
 
   # src/writer/categorizer/binary_categorizer.cpp
   src/writer/categorizer/fits_categorizer.cpp

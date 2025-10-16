@@ -37,6 +37,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <variant>
 #include <vector>
 
@@ -50,18 +51,32 @@
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_interface.h>
 
+#include "test_file_data.h"
+
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #define DWARFS_TEST_RUNNING_ON_ASAN 1
 #endif
-#if __has_feature(address_sanitizer)
+#if __has_feature(thread_sanitizer)
 #define DWARFS_TEST_RUNNING_ON_TSAN 1
 #endif
 #endif
 
 namespace dwarfs::test {
 
+extern std::error_code const kMlockQuotaError;
+
 struct simplestat {
+  struct timespec_wrapper {
+    constexpr timespec_wrapper() = default;
+    constexpr explicit(false) timespec_wrapper(file_stat::time_type s)
+        : ts{s, 0} {}
+    constexpr timespec_wrapper(file_stat::time_type s, uint32_t ns)
+        : ts{s, ns} {}
+
+    file_stat::timespec_type ts;
+  };
+
   file_stat::ino_type ino{0};
   file_stat::mode_type mode{0};
   file_stat::nlink_type nlink{1};
@@ -69,13 +84,22 @@ struct simplestat {
   file_stat::gid_type gid{0};
   file_stat::off_type size{0};
   file_stat::dev_type rdev{0};
-  file_stat::time_type atime{0};
-  file_stat::time_type mtime{0};
-  file_stat::time_type ctime{0};
+  timespec_wrapper atim{};
+  timespec_wrapper mtim{};
+  timespec_wrapper ctim{};
+  std::optional<file_stat::off_type> allocated_size{};
 
   posix_file_type::value type() const {
     return static_cast<posix_file_type::value>(mode & posix_file_type::mask);
   }
+};
+
+struct add_file_options {
+  std::optional<file_stat::ino_type> ino{};
+  std::optional<file_stat::nlink_type> nlink{};
+  std::optional<file_stat::timespec_type> atim{};
+  std::optional<file_stat::timespec_type> mtim{};
+  std::optional<file_stat::timespec_type> ctim{};
 };
 
 class os_access_mock : public os_access {
@@ -85,7 +109,8 @@ class os_access_mock : public os_access {
 
  public:
   using value_variant_type =
-      std::variant<std::monostate, std::string, std::function<std::string()>,
+      std::variant<std::monostate, std::string, test_file_data,
+                   std::function<std::string()>,
                    std::unique_ptr<mock_directory>>;
 
   using executable_resolver_type =
@@ -106,12 +131,19 @@ class os_access_mock : public os_access {
   void add(std::filesystem::path const& path, simplestat const& st,
            std::string const& contents);
   void add(std::filesystem::path const& path, simplestat const& st,
+           test_file_data data);
+  void add(std::filesystem::path const& path, simplestat const& st,
            std::function<std::string()> generator);
 
-  void add_dir(std::filesystem::path const& path);
-  void add_file(std::filesystem::path const& path, file_size_t size,
-                bool random = false);
-  void add_file(std::filesystem::path const& path, std::string const& contents);
+  void
+  add_dir(std::filesystem::path const& path, add_file_options const& opts = {});
+  simplestat add_file(std::filesystem::path const& path, file_size_t size,
+                      bool random = false, add_file_options const& opts = {});
+  simplestat
+  add_file(std::filesystem::path const& path, std::string const& contents,
+           add_file_options const& opts = {});
+  simplestat add_file(std::filesystem::path const& path, test_file_data data,
+                      add_file_options const& opts = {});
 
   void add_local_files(std::filesystem::path const& path);
 
@@ -134,9 +166,9 @@ class os_access_mock : public os_access {
   std::filesystem::path
   read_symlink(std::filesystem::path const& path) const override;
 
-  file_view map_file(std::filesystem::path const& path) const override;
-  file_view
-  map_file(std::filesystem::path const& path, file_size_t size) const override;
+  file_view open_file(std::filesystem::path const& path) const override;
+  readonly_memory_mapping map_empty_readonly(size_t size) const override;
+  memory_mapping map_empty(size_t size) const override;
 
   int access(std::filesystem::path const&, int) const override;
 
@@ -156,6 +188,14 @@ class os_access_mock : public os_access {
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
 
+  std::chrono::nanoseconds native_file_time_resolution() const override {
+    return native_file_time_resolution_;
+  }
+
+  void set_native_file_time_resolution(std::chrono::nanoseconds res) {
+    native_file_time_resolution_ = res;
+  }
+
   void set_executable_resolver(executable_resolver_type resolver);
 
   std::set<std::filesystem::path> get_failed_paths() const;
@@ -173,6 +213,8 @@ class os_access_mock : public os_access {
     std::atomic<int> mutable remaining_successful_attempts{0};
   };
 
+  simplestat make_simplestat(add_file_options const& opts);
+  simplestat make_reg_simplestat(add_file_options const& opts);
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
@@ -190,6 +232,7 @@ class os_access_mock : public os_access {
   std::chrono::nanoseconds dir_reader_delay_{0};
   std::map<std::filesystem::path, std::chrono::nanoseconds> map_file_delays_;
   file_size_t map_file_delay_min_size_{0};
+  std::chrono::nanoseconds native_file_time_resolution_{1};
 };
 
 struct filter_transformer_data {
@@ -325,9 +368,6 @@ class test_iolayer {
   void set_terminal_is_tty(bool is_tty);
   void set_terminal_fancy(bool fancy);
   void set_terminal_width(size_t width);
-
-  void set_os_access(std::shared_ptr<os_access_mock> os);
-  void set_file_access(std::shared_ptr<file_access const> fa);
 
   std::istream& in_stream() { return in_; }
   std::ostream& out_stream() { return out_; }

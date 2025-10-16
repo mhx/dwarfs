@@ -21,6 +21,7 @@
 
 #include <ostream>
 
+#include <dwarfs/util.h>
 #include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/metadata_options.h>
 
@@ -44,8 +45,8 @@ std::ostream& operator<<(std::ostream& os, metadata_options const& opts) {
   if (opts.keep_all_times) {
     os << "keep_all_times, ";
   }
-  if (opts.time_resolution_sec) {
-    os << "time_resolution_sec: " << *opts.time_resolution_sec << ", ";
+  if (opts.time_resolution) {
+    os << "time_resolution: " << time_with_unit(*opts.time_resolution) << ", ";
   }
   if (opts.pack_chunk_table) {
     os << "pack_chunk_table, ";

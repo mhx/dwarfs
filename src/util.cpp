@@ -37,6 +37,7 @@
 #include <mutex>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #ifdef _WIN32
 #define PSAPI_VERSION 1
@@ -83,6 +84,7 @@
 
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 extern "C" int dwarfs_wcwidth(int ucs);
@@ -150,31 +152,87 @@ file_size_t parse_size_with_unit(std::string const& str) {
   DWARFS_THROW(runtime_error, "unsupported size suffix");
 }
 
-std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
-  uint64_t value;
-  auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
-
-  if (ec != std::errc()) {
-    DWARFS_THROW(runtime_error, "cannot parse time value");
+std::string ratio_to_string(double num, double den, int precision) {
+  if (den == 0.0) {
+    return "N/A";
   }
 
+  if (num == 0.0) {
+    return "0x";
+  }
+
+  double const ratio = num / den;
+
+  if (ratio < 1.0) {
+    if (ratio >= 1e-3) {
+      return fmt::format("{:.{}g}%", ratio * 100.0, precision);
+    }
+    if (ratio >= 1e-6) {
+      return fmt::format("{:.{}g}ppm", ratio * 1e6, precision);
+    }
+    if (ratio >= 1e-9) {
+      return fmt::format("{:.{}g}ppb", ratio * 1e9, precision);
+    }
+  }
+
+  return fmt::format("{:.{}g}x", ratio, precision);
+}
+
+std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
+  uint64_t value;
+  auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
+
+  if (ec != std::errc()) {
+    if (ec == std::errc::invalid_argument && ptr == str.data()) {
+      value = 1;
+    } else {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("cannot parse time {}: {}", str,
+                               std::make_error_code(ec).message()));
+    }
+  }
+
+  while (*ptr == ' ') {
+    ++ptr;
+  }
+
+  std::string_view suffix(ptr, str.data() + str.size() - ptr);
+
   switch (ptr[0]) {
+  case 'd':
+    if (ptr[1] == '\0' || suffix == "day") {
+      return std::chrono::days(value);
+    }
+    break;
+
   case 'h':
-    if (ptr[1] == '\0') {
+    if (ptr[1] == '\0' || suffix == "hour") {
       return std::chrono::hours(value);
     }
     break;
 
   case 'm':
-    if (ptr[1] == '\0') {
+    if (ptr[1] == '\0' || suffix == "min") {
       return std::chrono::minutes(value);
-    } else if (ptr[1] == 's' && ptr[2] == '\0') {
+    } else if (suffix == "ms" || suffix == "msec") {
       return std::chrono::milliseconds(value);
     }
     break;
 
+  case 'u':
+    if (suffix == "us" || suffix == "usec") {
+      return std::chrono::microseconds(value);
+    }
+    break;
+
+  case 'n':
+    if (suffix == "ns" || suffix == "nsec") {
+      return std::chrono::nanoseconds(value);
+    }
+    break;
+
   case 's':
-    if (ptr[1] != '\0') {
+    if (ptr[1] != '\0' && suffix != "sec") {
       break;
     }
     [[fallthrough]];
@@ -210,6 +268,23 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "cannot parse time point");
+}
+
+std::unordered_map<std::string_view, std::string_view>
+parse_option_string(std::string_view str) {
+  std::unordered_map<std::string_view, std::string_view> opts;
+
+  for (auto const part : split_to<std::vector<std::string_view>>(str, ',')) {
+    auto const pos = part.find('=');
+
+    if (pos != std::string_view::npos) {
+      opts.emplace(part.substr(0, pos), part.substr(pos + 1));
+    } else {
+      opts.emplace(part, std::string_view{});
+    }
+  }
+
+  return opts;
 }
 
 size_t utf8_display_width(char const* p, size_t len) {
@@ -432,6 +507,10 @@ std::string exception_str(std::exception_ptr const& e) {
 #endif
 }
 
+std::string hexdump(void const* data, size_t size) {
+  return folly::hexDump(data, size);
+}
+
 unsigned int hardware_concurrency() noexcept {
   static auto const env = [] {
     std::optional<int> concurrency;
@@ -470,6 +549,7 @@ constexpr std::array kFatalSignals{
 #endif
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag g_signal_handlers_installed;
 
 #ifdef _WIN32
@@ -543,6 +623,7 @@ void fatal_signal_handler_win(int signal) {
 
 #else
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::array<struct ::sigaction, kFatalSignals.size()> old_handlers;
 
 void fatal_signal_handler_posix(int signal) {

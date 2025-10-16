@@ -49,6 +49,7 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 #include <folly/small_vector.h>
@@ -60,6 +61,7 @@
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/error.h>
+#include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
@@ -75,8 +77,11 @@
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/unicode_case_folding.h>
+#include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/metadata_analyzer.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
+#include <dwarfs/reader/internal/sparse_file_seeker.h>
+#include <dwarfs/reader/internal/time_resolution_handler.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
@@ -165,6 +170,23 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
+template <typename T>
+class push_back_if_enabled {
+ public:
+  explicit push_back_if_enabled(T& container)
+      : container_{container} {}
+
+  void operator()(auto const& value, bool enabled) const {
+    if (enabled) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+      container_.push_back(value);
+    }
+  }
+
+ private:
+  T& container_;
+};
+
 template <typename Function>
 void parse_fs_options(View<thrift::metadata::fs_options> opt,
                       Function const& func) {
@@ -172,26 +194,21 @@ void parse_fs_options(View<thrift::metadata::fs_options> opt,
   func("packed_chunk_table", opt.packed_chunk_table());
   func("packed_directories", opt.packed_directories());
   func("packed_shared_files_table", opt.packed_shared_files_table());
+  func("has_btime", opt.has_btime());
+  func("inodes_have_nlink", opt.inodes_have_nlink());
 }
 
 std::vector<std::string>
 get_fs_options(View<thrift::metadata::fs_options> opt) {
   std::vector<std::string> rv;
-  parse_fs_options(opt, [&](std::string_view name, bool value) {
-    if (value) {
-      rv.emplace_back(name);
-    }
-  });
+  parse_fs_options(opt, push_back_if_enabled(rv));
   return rv;
 }
 
 template <typename Function>
-void parse_metadata_options(
+void parse_string_table_options(
     MappedFrozen<thrift::metadata::metadata> const& meta,
     Function const& func) {
-  if (auto opt = meta.options()) {
-    parse_fs_options(*opt, func);
-  }
   if (auto names = meta.compact_names()) {
     func("packed_names", static_cast<bool>(names->symtab()));
     func("packed_names_index", names->packed_index());
@@ -239,6 +256,35 @@ get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
 uint16_t const READ_ONLY_MASK = ~uint16_t(
     fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
+struct file_size_result {
+  file_size_result() = default;
+  explicit file_size_result(file_size_t sz)
+      : size{sz}
+      , allocated_size{sz} {}
+  file_size_result(file_size_t sz, file_size_t alloc_sz)
+      : size{sz}
+      , allocated_size{alloc_sz} {}
+
+  friend bool operator==(file_size_result const& a, file_size_result const& b) {
+    return a.size == b.size && a.allocated_size == b.allocated_size;
+  }
+
+  friend bool operator!=(file_size_result const& a, file_size_result const& b) {
+    return !(a == b);
+  }
+
+  file_size_t size{0};
+  file_size_t allocated_size{0};
+};
+
+std::ostream& operator<<(std::ostream& os, file_size_result const& fsr) {
+  os << fsr.size;
+  if (fsr.allocated_size != fsr.size) {
+    os << " (allocated: " << fsr.allocated_size << ")";
+  }
+  return os;
+}
+
 } // namespace
 
 class metadata_v2_data {
@@ -258,6 +304,8 @@ class metadata_v2_data {
   size_t block_size() const { return meta_.block_size(); }
 
   bool has_symlinks() const { return !meta_.symlink_table().empty(); }
+
+  bool has_sparse_files() const { return meta_.hole_block_index().has_value(); }
 
   std::optional<inode_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -421,8 +469,7 @@ class metadata_v2_data {
   build_dir_icase_cache(logger& lgr) const;
 
   template <typename LoggerPolicy>
-  packed_int_vector<uint32_t>
-  build_nlinks(logger& lgr, metadata_options const& options) const;
+  std::optional<packed_int_vector<uint32_t>> build_nlinks(logger& lgr) const;
 
   template <typename LoggerPolicy>
   packed_int_vector<uint32_t> unpack_chunk_table(logger& lgr) const;
@@ -441,15 +488,15 @@ class metadata_v2_data {
                          getattr_options const& opts) const;
 
   template <typename TraceFunc>
-  size_t reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
-                            TraceFunc const& trace) const;
+  file_size_result reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
+                                      TraceFunc const& trace) const;
 
-  size_t reg_file_size_notrace(inode_view_impl const& iv) const {
+  file_size_result reg_file_size_notrace(inode_view_impl const& iv) const {
     return reg_file_size_impl(iv, true, [](int) {});
   }
 
   template <typename LoggerPolicy>
-  size_t
+  file_size_result
   reg_file_size_impl(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
                      bool use_cache) const {
     return reg_file_size_impl(iv, use_cache, [&](int index) {
@@ -458,26 +505,27 @@ class metadata_v2_data {
     });
   }
 
-  size_t reg_file_size_notrace(inode_view const& iv) const {
+  file_size_result reg_file_size_notrace(inode_view const& iv) const {
     return reg_file_size_notrace(iv.raw());
   }
 
   template <typename LoggerPolicy>
-  size_t file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
-                   uint32_t mode) const {
+  file_size_result
+  file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
+            uint32_t mode) const {
     switch (posix_file_type::from_mode(mode)) {
     case posix_file_type::regular:
       return reg_file_size_impl(LOG_PROXY_ARG_ iv, true);
     case posix_file_type::symlink:
-      return link_value(iv).size();
+      return file_size_result{static_cast<file_size_t>(link_value(iv).size())};
     default:
-      return 0;
+      return {};
     }
   }
 
   template <typename LoggerPolicy>
-  size_t file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv,
-                   uint32_t mode) const {
+  file_size_result file_size(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv,
+                             uint32_t mode) const {
     return file_size(LOG_PROXY_ARG_ iv.raw(), mode);
   }
 
@@ -595,6 +643,7 @@ class metadata_v2_data {
   std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
+  time_resolution_handler timeres_handler_;
   global_metadata const global_;
   dir_entry_view root_;
   int const inode_offset_;
@@ -602,13 +651,16 @@ class metadata_v2_data {
   int const file_inode_offset_;
   int const dev_inode_offset_;
   int const inode_count_;
-  packed_int_vector<uint32_t> const nlinks_;
+  std::optional<packed_int_vector<uint32_t>> const nlinks_;
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
   int const unique_files_;
   metadata_options const options_;
   string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
+  folly::Synchronized<
+      lru_cache<size_t, std::shared_ptr<sparse_file_seeker const>>,
+      std::mutex> mutable seek_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(find_path)
@@ -628,6 +680,7 @@ metadata_v2_data::metadata_v2_data(
     : schema_{schema.begin(), schema.end()}
     , data_{data}
     , meta_{check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_))}
+    , timeres_handler_{meta_}
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
                                                   force_consistency_check)}
@@ -638,7 +691,7 @@ metadata_v2_data::metadata_v2_data(
     , dev_inode_offset_{find_inode_offset(inode_rank::INO_DEV)}
     , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                        : meta_.entry_table_v2_2().size())
-    , nlinks_{build_nlinks<LoggerPolicy>(lgr, options)}
+    , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , chunk_table_{unpack_chunk_table<LoggerPolicy>(lgr)}
     , shared_files_{unpack_shared_files<LoggerPolicy>(lgr)}
     , unique_files_(dev_inode_offset_ - file_inode_offset_ -
@@ -652,6 +705,7 @@ metadata_v2_data::metadata_v2_data(
                     ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                     : string_table(meta_.symlinks())}
     , dir_icase_cache_{build_dir_icase_cache<LoggerPolicy>(lgr)}
+    , seek_cache_(std::in_place, 64)
     // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "metadata")
       PERFMON_CLS_TIMER_INIT(find)
@@ -707,6 +761,11 @@ metadata_v2_data::metadata_v2_data(
                       other_offset - dev_inode_offset_));
     }
   }
+
+  if (options.check_consistency || force_consistency_check) {
+    LOG_PROXY(LoggerPolicy, lgr);
+    check_inode_size_cache(LOG_PROXY_ARG);
+  }
 }
 
 template <typename LoggerPolicy>
@@ -718,6 +777,7 @@ void metadata_v2_data::check_inode_size_cache(
     auto const min_chunk_count = cache->min_chunk_count();
 
     std::unordered_set<uint32_t> seen;
+    std::unordered_set<uint32_t> seen_sparse;
 
     for (int inode = file_inode_offset_; inode < dev_inode_offset_; ++inode) {
       auto iv = make_inode_view_impl(inode);
@@ -733,43 +793,91 @@ void metadata_v2_data::check_inode_size_cache(
 
       auto index = file_inode_to_chunk_index(inode);
 
-      if (seen.contains(index)) {
-        continue;
+      if (!seen.contains(index)) {
+        if (auto it = cache->size_lookup().find(index);
+            it != cache->size_lookup().end()) {
+          auto size = it->second();
+
+          std::error_code ec;
+          auto cr = get_chunk_range_from_index(index, ec);
+          DWARFS_CHECK(
+              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+
+          LOG_TRACE << "checking inode " << inode << " [index=" << index
+                    << "] size " << size << " (" << cr.size() << " chunks)";
+
+          if (std::cmp_not_equal(size, expected.size)) {
+            LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                      << " does not match expected " << expected.size;
+            ++errors;
+          }
+
+          if (cr.size() < min_chunk_count) {
+            LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                      << " has less than " << min_chunk_count
+                      << " chunks: " << cr.size();
+            ++errors;
+          }
+
+          seen.insert(index);
+        }
       }
 
-      if (auto it = cache->lookup().find(index); it != cache->lookup().end()) {
-        auto size = it->second();
+      if (!seen_sparse.contains(index)) {
+        if (auto it = cache->allocated_size_lookup().find(index);
+            it != cache->allocated_size_lookup().end()) {
+          auto alloc_size = it->second();
 
-        std::error_code ec;
-        auto cr = get_chunk_range_from_index(index, ec);
-        DWARFS_CHECK(
-            !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+          std::error_code ec;
+          auto cr = get_chunk_range_from_index(index, ec);
+          DWARFS_CHECK(
+              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
-        LOG_TRACE << "checking inode " << inode << " [index=" << index
-                  << "] size " << size << " (" << cr.size() << " chunks)";
+          LOG_TRACE << "checking inode " << inode << " [index=" << index
+                    << "] allocated size " << alloc_size << " (" << cr.size()
+                    << " chunks)";
 
-        if (size != expected) {
-          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
-                    << " does not match expected " << expected;
-          ++errors;
+          if (std::cmp_not_equal(alloc_size, expected.allocated_size)) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size
+                      << " does not match expected " << expected.allocated_size;
+            ++errors;
+          }
+
+          if (cr.size() < min_chunk_count) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size << " has less than "
+                      << min_chunk_count << " chunks: " << cr.size();
+            ++errors;
+          }
+
+          if (std::ranges::none_of(cr,
+                                   [](auto const& c) { return c.is_hole(); })) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size
+                      << " has no hole chunks, but is in allocated size cache";
+            ++errors;
+          }
+
+          seen_sparse.insert(index);
         }
-
-        if (cr.size() < min_chunk_count) {
-          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
-                    << " has less than " << min_chunk_count
-                    << " chunks: " << cr.size();
-          ++errors;
-        }
-
-        seen.insert(index);
       }
     }
 
-    for (auto entry : cache->lookup()) {
+    for (auto entry : cache->size_lookup()) {
       auto index = entry.first();
       if (!seen.contains(index)) {
         LOG_ERROR << "unused inode size cache entry for index " << index
                   << " size " << entry.second();
+        ++errors;
+      }
+    }
+
+    for (auto entry : cache->allocated_size_lookup()) {
+      auto index = entry.first();
+      if (!seen_sparse.contains(index)) {
+        LOG_ERROR << "unused inode allocated size cache entry for index "
+                  << index << " size " << entry.second();
         ++errors;
       }
     }
@@ -856,20 +964,27 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
 }
 
 template <typename LoggerPolicy>
-packed_int_vector<uint32_t>
-metadata_v2_data::build_nlinks(logger& lgr,
-                               metadata_options const& options) const {
-  packed_int_vector<uint32_t> packed_nlinks;
+std::optional<packed_int_vector<uint32_t>>
+metadata_v2_data::build_nlinks(logger& lgr) const {
+  std::optional<packed_int_vector<uint32_t>> packed_nlinks;
 
-  if (options.enable_nlink && dev_inode_offset_ > file_inode_offset_) {
+  if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
+    // Inode nlink values are stored directly in the inode table
+    return packed_nlinks;
+  }
+
+  if (dev_inode_offset_ > file_inode_offset_) {
     LOG_PROXY(LoggerPolicy, lgr);
     auto td = LOG_TIMED_DEBUG;
 
     std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
+    size_t total_links{0};
 
     auto add_link = [&](int index) {
       if (index >= 0 && std::cmp_less(index, nlinks.size())) {
-        ++nlinks[index];
+        if (++nlinks[index] > 1) {
+          ++total_links;
+        }
       }
     };
 
@@ -883,23 +998,28 @@ metadata_v2_data::build_nlinks(logger& lgr,
       }
     }
 
-    {
+    LOG_DEBUG << "found " << total_links << " hardlinks in " << nlinks.size()
+              << " files";
+
+    packed_nlinks.emplace();
+
+    if (total_links > 0) {
       auto tt = LOG_TIMED_TRACE;
 
       uint32_t max = *std::ranges::max_element(nlinks);
-      packed_nlinks.reset(std::bit_width(max), nlinks.size());
+      packed_nlinks->reset(std::bit_width(max), nlinks.size());
 
       for (size_t i = 0; i < nlinks.size(); ++i) {
-        packed_nlinks.set(i, nlinks[i]);
+        packed_nlinks->set(i, nlinks[i]);
       }
 
       tt << "packed hardlink table from "
          << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
-         << size_with_unit(packed_nlinks.size_in_bytes());
+         << size_with_unit(packed_nlinks->size_in_bytes());
     }
 
-    td << "built hardlink table (" << packed_nlinks.size() << " entries, "
-       << size_with_unit(packed_nlinks.size_in_bytes()) << ")";
+    td << "built hardlink table (" << packed_nlinks->size() << " entries, "
+       << size_with_unit(packed_nlinks->size_in_bytes()) << ")";
   }
 
   return packed_nlinks;
@@ -1049,45 +1169,50 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
   // some applications (such as `duf`).
   stbuf->bsize = 1UL;
   stbuf->frsize = 1UL;
-  stbuf->blocks = meta_.total_fs_size();
-  if (!options_.enable_nlink) {
-    if (auto ths = meta_.total_hardlink_size()) {
-      stbuf->blocks += *ths;
-    }
-  }
+  stbuf->blocks =
+      options_.enable_sparse_files
+          ? meta_.total_allocated_fs_size().value_or(meta_.total_fs_size())
+          : meta_.total_fs_size();
   stbuf->files = inode_count_;
   stbuf->readonly = true;
   stbuf->namemax = PATH_MAX;
 }
 
 file_off_t
-metadata_v2_data::seek(uint32_t inode, file_off_t offset, seek_whence whence,
-                       std::error_code& ec) const {
-  auto chunks = get_chunks(inode, ec);
+metadata_v2_data::seek(uint32_t const inode, file_off_t const offset,
+                       seek_whence const whence, std::error_code& ec) const {
+  static constexpr size_t kMinChunksForCachedSeeker{16};
+
+  if (!options_.enable_sparse_files) {
+    ec = make_error_code(std::errc::not_supported);
+    return -1;
+  }
+
+  auto const chunks = get_chunks(inode, ec);
+
   if (ec) {
     return -1;
   }
 
-  file_off_t start{0};
-  bool const seek_hole = whence == seek_whence::hole;
-
-  // TODO: this scan can be quite expensive for highly fragmented files
-
-  for (auto const& chk : chunks) {
-    auto const end = start + chk.size();
-    if (offset < end && seek_hole == chk.is_hole()) {
-      return std::max(start, offset);
-    }
-    start = end;
+  if (chunks.size() < kMinChunksForCachedSeeker) {
+    // don't cache seekers for small files
+    return sparse_file_seeker::seek(chunks, offset, whence, ec);
   }
 
-  if (offset < start && seek_hole) {
-    return start;
+  auto seeker = seek_cache_.withLock(
+      [inode](auto& cache) -> std::shared_ptr<sparse_file_seeker const> {
+        if (auto it = cache.find(inode); it != cache.end()) {
+          return it->second;
+        }
+        return nullptr;
+      });
+
+  if (!seeker) {
+    seeker = std::make_shared<sparse_file_seeker>(chunks);
+    seek_cache_.lock()->set(inode, seeker);
   }
 
-  ec = std::make_error_code(std::errc::no_such_device_or_address);
-
-  return -1;
+  return seeker->seek(offset, whence, ec);
 }
 
 int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
@@ -1111,33 +1236,51 @@ int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
 }
 
 template <typename TraceFunc>
-size_t
+file_size_result
 metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
                                      TraceFunc const& trace) const {
   PERFMON_CLS_SCOPED_SECTION(reg_file_size)
 
   // Looking up the chunk range is cheap, and we likely have to do it anyway
   std::error_code ec;
-  auto inode = iv.inode_num();
-  auto index = file_inode_to_chunk_index(inode);
-  auto cr = get_chunk_range_from_index(index, ec);
+  auto const inode = iv.inode_num();
+  auto const index = file_inode_to_chunk_index(inode);
+  auto const cr = get_chunk_range_from_index(index, ec);
   DWARFS_CHECK(!ec,
                fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
+  file_size_result result;
+  bool const enable_sparse = options_.enable_sparse_files;
+
   if (use_cache) {
-    if (auto cache = meta_.reg_file_size_cache()) {
+    if (auto const cache = meta_.reg_file_size_cache()) {
       if (cr.size() >= cache->min_chunk_count()) {
         trace(index);
-        if (auto size = cache->lookup().getOptional(index)) {
-          return *size;
+
+        if (auto const size = cache->size_lookup().getOptional(index)) {
+          result.size = *size;
+          result.allocated_size =
+              enable_sparse
+                  ? cache->allocated_size_lookup().getOptional(index).value_or(
+                        result.size)
+                  : result.size;
+          return result;
         }
       }
     }
   }
 
   // This is the expensive part for highly fragmented inodes
-  return std::accumulate(cr.begin(), cr.end(), static_cast<size_t>(0),
-                         [](size_t s, chunk_view cv) { return s + cv.size(); });
+
+  for (auto const& chk : cr) {
+    auto const chunk_size = chk.size();
+    if (!enable_sparse || chk.is_data()) {
+      result.allocated_size += chunk_size;
+    }
+    result.size += chunk_size;
+  }
+
+  return result;
 }
 
 std::string metadata_v2_data::serialize_as_json(bool simple) const {
@@ -1180,10 +1323,14 @@ nlohmann::json metadata_v2_data::as_json(dir_entry_view const& entry) const {
   }
 
   switch (posix_file_type::from_mode(mode)) {
-  case posix_file_type::regular:
+  case posix_file_type::regular: {
+    auto const sz = reg_file_size_notrace(iv);
     obj["type"] = "file";
-    obj["size"] = reg_file_size_notrace(iv);
-    break;
+    obj["size"] = sz.size;
+    if (sz.allocated_size != sz.size) {
+      obj["allocated_size"] = sz.allocated_size;
+    }
+  } break;
 
   case posix_file_type::directory:
     obj["type"] = "directory";
@@ -1247,6 +1394,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     info["created_on"] = fmt::format("{:%FT%T}", safe_localtime(ts.value()));
   }
 
+  if (auto features = meta_.features(); features) {
+    info["features"] = *features;
+  }
+
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
     info["block_size"] = meta_.block_size();
     if (fsinfo) {
@@ -1256,7 +1407,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     if (auto ps = meta_.preferred_path_separator()) {
       info["preferred_path_separator"] = std::string(1, static_cast<char>(*ps));
     }
-    info["original_filesystem_size"] = stbuf.blocks;
+    info["original_filesystem_size"] = meta_.total_fs_size();
+    if (auto const allocated = meta_.total_allocated_fs_size()) {
+      info["original_allocated_filesystem_size"] = *allocated;
+    }
     if (fsinfo) {
       info["compressed_block_size"] = fsinfo->compressed_block_size;
       if (!fsinfo->uncompressed_block_size_is_estimate) {
@@ -1267,22 +1421,18 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
         info["uncompressed_metadata_size"] = fsinfo->uncompressed_metadata_size;
       }
     }
-    if (auto ths = meta_.total_hardlink_size()) {
-      info["total_hardlink_size"] = *ths;
-    }
 
     if (auto opt = meta_.options()) {
       nlohmann::json options;
-      parse_metadata_options(meta_, [&](auto const& name, bool value) {
-        if (value) {
-          options.push_back(name);
-        }
-      });
+
+      push_back_if_enabled add_to_options(options);
+      parse_string_table_options(meta_, add_to_options);
+      parse_fs_options(*opt, add_to_options);
+
       info["options"] = std::move(options);
-      if (auto res = opt->time_resolution_sec()) {
-        info["time_resolution"] = *res;
-      }
     }
+
+    timeres_handler_.add_time_resolution_to(info);
 
     if (meta_.block_categories()) {
       auto catnames = *meta_.category_names();
@@ -1357,19 +1507,12 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
         if (auto entopts = ent.options(); entopts.has_value()) {
           nlohmann::json options;
 
-          options["mtime_only"] = entopts->mtime_only();
-
-          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
-            options["time_resolution"] = res.value();
-          }
-
-          options["packed_chunk_table"] = entopts->packed_chunk_table();
-          options["packed_directories"] = entopts->packed_directories();
-          options["packed_shared_files_table"] =
-              entopts->packed_shared_files_table();
+          parse_fs_options(*entopts, push_back_if_enabled(options));
 
           jent["options"] = std::move(options);
         }
+
+        time_resolution_handler(ent).add_time_resolution_to(jent);
 
         jhistory.push_back(std::move(jent));
       }
@@ -1378,6 +1521,10 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     }
 
     info["meta"] = std::move(meta);
+  }
+
+  if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
+    info["full_metadata"] = nlohmann::json::parse(serialize_as_json(true));
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {
@@ -1418,6 +1565,10 @@ void metadata_v2_data::dump(
        << "\n";
   }
 
+  if (auto features = meta_.features(); features && !features->empty()) {
+    os << "features: " << fmt::format("{}", fmt::join(*features, ", ")) << "\n";
+  }
+
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
     os << "block size: " << size_with_unit(meta_.block_size()) << "\n";
     if (fsinfo) {
@@ -1427,7 +1578,12 @@ void metadata_v2_data::dump(
     if (auto ps = meta_.preferred_path_separator()) {
       os << "preferred path separator: " << static_cast<char>(*ps) << "\n";
     }
-    os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
+    os << "original filesystem size: " << size_with_unit(meta_.total_fs_size())
+       << "\n";
+    if (auto const allocated = meta_.total_allocated_fs_size()) {
+      os << "original allocated filesystem size: " << size_with_unit(*allocated)
+         << "\n";
+    }
     if (fsinfo) {
       os << "compressed block size: "
          << size_with_unit(fsinfo->compressed_block_size);
@@ -1456,21 +1612,17 @@ void metadata_v2_data::dump(
       }
       os << size_with_unit(fsinfo->uncompressed_metadata_size) << "\n";
     }
-    if (auto ths = meta_.total_hardlink_size()) {
-      os << "total hardlink size: " << size_with_unit(*ths) << "\n";
-    }
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
-      parse_metadata_options(meta_, [&](auto const& name, bool value) {
-        if (value) {
-          options.emplace_back(name);
-        }
-      });
-      os << "options: " << boost::join(options, "\n         ") << "\n";
-      if (auto res = opt->time_resolution_sec()) {
-        os << "time resolution: " << *res << " seconds\n";
+      push_back_if_enabled add_to_options(options);
+      if (auto opt = meta_.options()) {
+        parse_fs_options(*opt, add_to_options);
       }
+      parse_string_table_options(meta_, add_to_options);
+      os << "options: " << boost::join(options, "\n         ") << "\n";
     }
+    os << "time resolution: " << timeres_handler_.get_time_resolution_string()
+       << "\n";
 
     if (meta_.block_categories()) {
       auto catnames = *meta_.category_names();
@@ -1510,10 +1662,9 @@ void metadata_v2_data::dump(
         if (auto str_opts = get_fs_options(*he_opts); !str_opts.empty()) {
           os << "        options: " << boost::join(str_opts, ", ") << "\n";
         }
-        if (auto res = he_opts->time_resolution_sec()) {
-          os << "        time resolution: " << *res << " seconds\n";
-        }
       }
+      os << "        time resolution: "
+         << time_resolution_handler(ent).get_time_resolution_string() << "\n";
     }
   }
 
@@ -1528,7 +1679,9 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::schema_raw_dump)) {
-    os << ::apache::thrift::debugString(deserialize_schema(schema_)) << '\n';
+    ::apache::thrift::DebugProtocolWriter::Options opts;
+    opts.stringLengthLimit = -1;
+    os << ::apache::thrift::debugString(deserialize_schema(schema_), opts) << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::metadata_details)) {
@@ -1565,7 +1718,10 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
-    os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
+    ::apache::thrift::DebugProtocolWriter::Options opts;
+    opts.stringLengthLimit = -1;
+
+    os << ::apache::thrift::debugString(meta_.thaw(), opts) << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {
@@ -1887,16 +2043,7 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_dev(0); // TODO: should we make this configurable?
 
   auto mode = iv.mode();
-  auto timebase = meta_.timestamp_base();
   auto inode = iv.inode_num();
-  bool mtime_only = meta_.options() && meta_.options()->mtime_only();
-  uint32_t resolution = 1;
-  if (meta_.options()) {
-    if (auto res = meta_.options()->time_resolution_sec()) {
-      resolution = *res;
-      assert(resolution > 0);
-    }
-  }
 
   if (options_.readonly) {
     mode &= READ_ONLY_MASK;
@@ -1905,9 +2052,13 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_mode(mode);
 
   if (!opts.no_size) {
-    stbuf.set_size(stbuf.is_directory() ? make_directory_view(iv).entry_count()
-                                        : file_size(LOG_PROXY_ARG_ iv, mode));
-    stbuf.set_blocks((stbuf.size_unchecked() + 511) / 512);
+    auto const sz = stbuf.is_directory()
+                        ? file_size_result{static_cast<file_size_t>(
+                              make_directory_view(iv).entry_count())}
+                        : file_size(LOG_PROXY_ARG_ iv, mode);
+    stbuf.set_size(sz.size);
+    stbuf.set_blocks((sz.allocated_size + 511) / 512);
+    stbuf.set_allocated_size(sz.allocated_size);
   }
 
   auto& ivr = iv.raw();
@@ -1916,19 +2067,22 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   stbuf.set_blksize(options_.block_size);
   stbuf.set_uid(options_.fs_uid.value_or(iv.getuid()));
   stbuf.set_gid(options_.fs_gid.value_or(iv.getgid()));
-  stbuf.set_mtime(resolution * (timebase + ivr.mtime_offset()));
 
-  if (mtime_only) {
-    stbuf.set_atime(stbuf.mtime_unchecked());
-    stbuf.set_ctime(stbuf.mtime_unchecked());
+  timeres_handler_.fill_stat_timevals(stbuf, ivr);
+
+  if (stbuf.is_regular_file()) {
+    if (!nlinks_.has_value()) {
+      // nlink values are stored directly in the inode metadata
+      stbuf.set_nlink(ivr.nlink_minus_one() + 1);
+    } else if (!nlinks_->empty()) {
+      // nlink values are stored in a separate table
+      stbuf.set_nlink(DWARFS_NOTHROW(nlinks_->at(inode - file_inode_offset_)));
+    } else {
+      stbuf.set_nlink(1);
+    }
   } else {
-    stbuf.set_atime(resolution * (timebase + ivr.atime_offset()));
-    stbuf.set_ctime(resolution * (timebase + ivr.ctime_offset()));
+    stbuf.set_nlink(1);
   }
-
-  stbuf.set_nlink(options_.enable_nlink && stbuf.is_regular_file()
-                      ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                      : 1);
 
   stbuf.set_rdev(stbuf.is_device() ? get_device_id(inode).value() : 0);
 
@@ -2045,12 +2199,18 @@ nlohmann::json metadata_v2_data::get_inode_info(inode_view const& iv,
       for (auto const& chunk : chunk_range) {
         nlohmann::json& chk = obj["chunks"].emplace_back();
 
-        chk["block"] = chunk.block();
-        chk["offset"] = chunk.offset();
-        chk["size"] = chunk.size();
+        if (chunk.is_data()) {
+          chk["kind"] = "data";
+          chk["block"] = chunk.block();
+          chk["offset"] = chunk.offset();
+          chk["size"] = chunk.size();
 
-        if (auto catname = get_block_category(chunk.block())) {
-          chk["category"] = catname.value();
+          if (auto catname = get_block_category(chunk.block())) {
+            chk["category"] = catname.value();
+          }
+        } else {
+          chk["kind"] = "hole";
+          chk["size"] = chunk.size();
         }
       }
     } else {
@@ -2231,6 +2391,8 @@ class metadata_ final : public metadata_v2::impl {
   size_t block_size() const override { return data_.block_size(); }
 
   bool has_symlinks() const override { return data_.has_symlinks(); }
+
+  bool has_sparse_files() const override { return data_.has_sparse_files(); }
 
   nlohmann::json
   get_inode_info(inode_view iv, size_t max_chunks) const override {

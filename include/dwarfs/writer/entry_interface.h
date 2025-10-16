@@ -42,6 +42,7 @@ class entry_interface : public object {
   virtual std::string unix_dpath() const = 0;
   virtual std::string const& name() const = 0;
   virtual file_size_t size() const = 0;
+  virtual file_size_t allocated_size() const = 0;
   virtual bool is_directory() const = 0;
 
   virtual mode_type get_permissions() const = 0;

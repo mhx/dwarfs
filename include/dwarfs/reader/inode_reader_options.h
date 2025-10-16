@@ -30,10 +30,26 @@
 
 #include <cstddef>
 
+#include <dwarfs/binary_literals.h>
+#include <dwarfs/platform.h>
+
 namespace dwarfs::reader {
+
+namespace detail {
+
+constexpr size_t default_hole_data_size() {
+  using namespace dwarfs::binary_literals;
+
+  // The hole data only consumes virtual address space, so we can be more
+  // generous on 64-bit systems.
+  return kIs32BitArch ? 256_KiB : 64_MiB;
+}
+
+} // namespace detail
 
 struct inode_reader_options {
   size_t readahead{0};
+  size_t hole_data_size{detail::default_hole_data_size()};
 };
 
 } // namespace dwarfs::reader

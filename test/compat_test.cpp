@@ -945,13 +945,12 @@ int compare_versions(std::string_view v1str, std::string_view v2str) {
 }
 
 void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
-                  std::string const& version, bool enable_nlink) {
+                  std::string const& version) {
   bool const has_devices = compare_versions(version, "0.3.0") >= 0;
   bool const has_ac_time = compare_versions(version, "0.3.0") < 0;
   bool const nlink_affects_blocks = compare_versions(version, "0.5.0") >= 0;
   bool const has_section_index = compare_versions(version, "0.6.0") >= 0;
-  auto const expected_blocks =
-      nlink_affects_blocks and enable_nlink ? 2747 : 10614;
+  auto const expected_blocks = nlink_affects_blocks ? 2747 : 10614;
 
   ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 
@@ -1290,24 +1289,15 @@ void check_history(nlohmann::json info, reader::filesystem_v2 const& origfs,
   EXPECT_EQ(hent["block_size"], originfo["block_size"]);
 
   if (originfo.contains("options")) {
-    nlohmann::json expected{
-        {"mtime_only", false},
-        {"packed_chunk_table", false},
-        {"packed_directories", false},
-        {"packed_shared_files_table", false},
-    };
-
-    if (originfo.contains("time_resolution")) {
-      expected["time_resolution"] = originfo["time_resolution"];
-    }
-
-    for (auto const& opt : originfo["options"]) {
-      expected[opt.template get<std::string>()] = true;
-    }
-
-    EXPECT_EQ(expected, hent["options"]);
+    EXPECT_EQ(originfo["options"], hent["options"]);
   } else {
     EXPECT_FALSE(hent.contains("options"));
+  }
+
+  if (originfo.contains("time_resolution")) {
+    EXPECT_EQ(originfo["time_resolution"], hent["time_resolution"]);
+  } else {
+    EXPECT_FALSE(hent.contains("time_resolution"));
   }
 }
 
@@ -1327,6 +1317,9 @@ void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
         (version.starts_with("0.3.") or version.starts_with("0.4."))) {
       ref["statvfs"]["f_files"] = 44;
     }
+  }
+  if (compare_versions(version, "0.5.0") >= 0) {
+    ref["statvfs"]["f_blocks"] = 2747;
   }
 
   if (rebuild_metadata) {
@@ -1375,24 +1368,22 @@ TEST_P(compat_metadata, backwards_compat) {
 INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_metadata,
                          ::testing::ValuesIn(versions));
 
-class compat_filesystem
-    : public testing::TestWithParam<std::tuple<std::string, bool>> {};
+class compat_filesystem : public testing::TestWithParam<std::string> {};
 
 TEST_P(compat_filesystem, backwards_compat) {
-  auto [version, enable_nlink] = GetParam();
+  auto version = GetParam();
 
   test::test_logger lgr;
   test::os_access_mock os;
   auto filename = get_image_path(version);
 
   reader::filesystem_options opts;
-  opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
 
   {
     reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename),
                              opts);
-    check_compat(lgr, fs, version, enable_nlink);
+    check_compat(lgr, fs, version);
   }
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1403,21 +1394,20 @@ TEST_P(compat_filesystem, backwards_compat) {
   for (auto const& hdr : headers) {
     reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
                              opts);
-    check_compat(lgr, fs, version, enable_nlink);
+    check_compat(lgr, fs, version);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
       reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
                                opts);
-      check_compat(lgr, fs, version, enable_nlink);
+      check_compat(lgr, fs, version);
     }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_filesystem,
-                         ::testing::Combine(::testing::ValuesIn(versions),
-                                            ::testing::Bool()));
+                         ::testing::ValuesIn(versions));
 
 class rewrite : public testing::TestWithParam<
                     std::tuple<std::string, bool, rebuild_metadata_type>> {};
@@ -1455,14 +1445,14 @@ TEST_P(rewrite, filesystem_rewrite) {
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog);
     fsw.add_default_compressor(bc);
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, origmm, idss));
-    EXPECT_FALSE(reader::filesystem_v2::header(origmm));
+    EXPECT_FALSE(reader::filesystem_v2::header(lgr, origmm));
     rewrite_fs(fsw, origmm);
   }
 
   {
     auto mm = test::make_mock_file_view(rewritten.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(reader::filesystem_v2::header(mm));
+    EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm));
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
@@ -1486,7 +1476,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_NO_THROW(reader::filesystem_v2::identify(
         lgr, os, mm, idss, 0, 1, false,
         reader::filesystem_options::IMAGE_OFFSET_AUTO));
-    auto hdr = reader::filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(lgr, mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
                                        rewritten.str().size());
     EXPECT_EQ(format_sh, hdr->as_string());
@@ -1510,7 +1500,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = test::make_mock_file_view(rewritten2.str());
-    auto hdr = reader::filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(lgr, mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
                                        rewritten2.str().size());
     EXPECT_EQ("D", hdr->as_string());
@@ -1526,7 +1516,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = test::make_mock_file_view(rewritten3.str());
-    auto hdr = reader::filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(lgr, mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
                                        rewritten3.str().size());
     EXPECT_EQ("D", hdr->as_string());
@@ -1546,7 +1536,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = test::make_mock_file_view(rewritten4.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(reader::filesystem_v2::header(mm))
+    EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
@@ -1567,7 +1557,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = test::make_mock_file_view(rewritten5.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(reader::filesystem_v2::header(mm))
+    EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());

@@ -321,12 +321,22 @@ Most other options are concerned with compression tuning:
   the `mtime` field in order to save metadata space. If you want to save
   `atime` and `ctime` as well, use this option.
 
-- `--time-resolution=`*sec*|`sec`|`min`|`hour`|`day`:
+- `--time-resolution=`*value*[*unit*]|*unit*:
   Specify the resolution with which time stamps are stored. By default,
   time stamps are stored with second resolution. You can specify "odd"
   resolutions as well, e.g. something like 15 second resolution is
   entirely possible. Moving from second to minute resolution, for example,
   will save roughly 6 bits per file system entry in the metadata block.
+  The value must always be integral. Various units are supported, e.g.
+  `ns`, `us`, `ms`, `s`, `m`, `h`, `d`, or their longer equivalents `nsec`,
+  `usec`, `msec`, `sec`, `min`, `hour`, and `day`. If no unit is given,
+  the value is assumed to be in seconds. Units can also be given without
+  a value, in which case a value of 1 is assumed. When rebuilding the
+  metadata, the resolution can be changed, but it cannot be increased,
+  e.g. you cannot go from minute to second resolution. Also, changing
+  the resolution requires that the new resolution is an integer multiple
+  of the old resolution, e.g. you can go from 15 second to 30 second
+  resolution, but not from 15 second to 20 second resolution.
 
 - `--chmod=`*mode*[`,`*mode*]...|`norm`:
   Recursively changes the mode bits of all entries in the generated file system.
@@ -396,6 +406,13 @@ Most other options are concerned with compression tuning:
   Include named fifos and sockets in the output file system. These are not
   included by default.
 
+- `--no-sparse-files`:
+  By default, sparse files are detected and stored in a space-efficient
+  manner. However, file system images with sparse files cannot be read
+  by older versions of the DwarFS tools. If you need to maintain backward
+  compatibility, you can use this option to disable sparse file support.
+  Sparse files will then be processed and stored like regular files.
+
 - `--header=`*file*:
   Read header from file and place it before the output filesystem image.
   Can be used with `--recompress` to add or replace a header.
@@ -438,6 +455,17 @@ Most other options are concerned with compression tuning:
   categorized blocks from a metadata-independent to a metadata-dependent
   compression algorithm, this is going to be impossible if the metadata
   information is not available.
+
+- `--no-hardlink-table`:
+  Don't store hardlink counts in the inode table. If your input does not
+  contain any hardlinks, there is no need to disable hardlink counts as
+  counts of one won't consume any space in the metadata. Really the only
+  reason why you might want to disable this is when you have lots of files,
+  only a small number of them have hardlinks, and you want to save metadata
+  space by all means. If you disable hardlink counts, the information will
+  be reconstructed when the file system image is mounted, which consumes
+  both time and memory, although this will usually only be noticeable for
+  file system images with millions of files.
 
 - `--file-hash=none`|*name*:
   Select the hashing function to be used for file deduplication. If `none`
@@ -502,6 +530,22 @@ Most other options are concerned with compression tuning:
   option will show the manual page. If supported by the terminal and a
   suitable pager (e.g. `less`) is found, the manual page is displayed
   in the pager.
+
+## ENVIRONMENT VARIABLES
+
+The `DWARFS_IOLAYER_OPTS` environment variable can be used to configure
+certain aspects of the I/O layer used by all DwarFS tools. The value
+consists of a comma-separated list of key-value pairs (or just keys for
+boolean options). The following options are supported:
+
+- `max_eager_map_size`=*value*:
+  The maximum size of a file that will be eagerly mapped into memory
+  when opened. Larger files will be accessed using on-demand mappings.
+  This is mostly relevant for 32-bit systems, where the address space
+  is limited. *value* can be either `unlimited`, a size in bytes, or
+  an integer value with a suffix of `k`, `m`, or `g` to indicate
+  kibibytes, mebibytes, or gibibytes, respectively. The default is
+  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
 
 ## EXIT CODES
 

@@ -44,11 +44,13 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
+#include <dwarfs/counting_semaphore.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -113,47 +115,44 @@ void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
 }
 
 void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
-                 std::string const& algo, size_t num_workers) {
+                 std::string const& algo, size_t num_workers,
+                 size_t max_queued_bytes) {
   LOG_PROXY(debug_logger_policy, lgr);
 
-  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
   std::mutex mx;
+  counting_semaphore sem;
+  sem.post(static_cast<int64_t>(max_queued_bytes));
+
+  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
+
+  size_t const max_queued_per_worker = max_queued_bytes / num_workers;
 
   fs.walk_data_order([&](auto const& de) {
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
-      std::error_code ec;
-      auto ranges = fs.readv(iv.inode_num(), ec);
-
-      if (ec) {
-        LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
-                  << ec.message();
-        return;
-      }
+      reader::detail::file_reader fr(fs, iv);
 
       pool.add_job(
-          [&, de, iv,
-           ranges = std::make_shared<decltype(ranges)>(std::move(ranges))]() {
-            checksum cs(algo);
+          [&, de,
+           ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
+            try {
+              checksum cs(algo);
 
-            for (auto& fut : *ranges) {
-              try {
-                auto range = fut.get();
-                cs.update(range.data(), range.size());
-              } catch (std::exception const& e) {
-                LOG_ERROR << "error reading data from inode " << iv.inode_num()
-                          << ": " << e.what();
-                return;
+              for (auto const& r : ranges) {
+                cs.update(r.data(), r.size());
               }
-            }
 
-            auto output =
-                fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+              auto output =
+                  fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
 
-            {
-              std::lock_guard lock(mx);
-              iol.out << output;
+              {
+                std::lock_guard lock(mx);
+                iol.out << output;
+              }
+            } catch (std::exception const& e) {
+              LOG_ERROR << "error processing inode for " << de.unix_path()
+                        << ": " << e.what();
             }
           });
     }
@@ -177,7 +176,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
   sys_string input, export_metadata;
-  std::string image_offset, checksum_algo;
+  std::string cache_size_str, image_offset, checksum_algo;
   logger_options logopts;
   size_t num_workers;
   std::string detail;
@@ -219,6 +218,9 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
+    ("cache-size,s",
+        po::value<std::string>(&cache_size_str)->default_value("512m"),
+        "block cache size")
     ("check-integrity",
         po::value<bool>(&check_integrity)->zero_tokens(),
         "check integrity of each block")
@@ -295,17 +297,18 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     reader::filesystem_options fsopts;
 
-    // This is needed to report a correct original file system size.
-    fsopts.metadata.enable_nlink = true;
-    fsopts.metadata.check_consistency = check_integrity;
+    fsopts.metadata.check_consistency = !no_check;
     fsopts.image_offset = reader::parse_image_offset(image_offset);
+    fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
+    fsopts.block_cache.num_workers = num_workers;
 
     auto input_path = iol.os->canonical(input);
 
-    auto mm = iol.os->map_file(input_path);
+    auto mm = iol.os->open_file(input_path);
 
     if (print_header) {
-      if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {
+      if (auto hdr =
+              reader::filesystem_v2::header(lgr, mm, fsopts.image_offset)) {
         ensure_binary_mode(iol.out);
         for (auto const& ext : *hdr) {
           for (auto const& seg : ext.segments()) {
@@ -368,7 +371,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         }
 
         if (!checksum_algo.empty()) {
-          do_checksum(lgr, fs, iol, checksum_algo, num_workers);
+          do_checksum(lgr, fs, iol, checksum_algo, num_workers,
+                      fsopts.block_cache.max_bytes);
         }
 
         if (errors > 0) {

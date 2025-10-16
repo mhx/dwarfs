@@ -53,6 +53,7 @@
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/config.h>
+#include <dwarfs/counting_semaphore.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -60,6 +61,7 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
@@ -76,37 +78,44 @@ using namespace dwarfs::internal;
 
 namespace {
 
-class cache_semaphore {
- public:
-  void post(int64_t n) {
-    {
-      std::lock_guard lock(mx_);
-      size_ += n;
-      ++count_;
-    }
-    condition_.notify_one();
-  }
-
-  void wait(int64_t n) {
-    std::unique_lock lock(mx_);
-    while (size_ < n && count_ <= 0) {
-      condition_.wait(lock);
-    }
-    size_ -= n;
-    --count_;
-  }
-
- private:
-  std::mutex mx_;
-  std::condition_variable condition_;
-  int64_t count_{0};
-  int64_t size_{0};
-};
-
 class archive_error : public std::runtime_error {
  public:
   using std::runtime_error::runtime_error;
 };
+
+enum class sparse_file_mode {
+  auto_detect,
+  no_sparse,
+  sparse_archive,
+  sparse_disk,
+};
+
+sparse_file_mode get_sparse_file_mode_for_format(int format) {
+  switch (format) {
+  case ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE:
+  case ARCHIVE_FORMAT_TAR_PAX_RESTRICTED:
+    // I *think* these are the only formats that support sparse files.
+    return sparse_file_mode::sparse_archive;
+
+  default:
+    break;
+  }
+
+  return sparse_file_mode::no_sparse;
+}
+
+la_ssize_t write_range_data(sparse_file_mode mode, struct archive* a,
+                            void const* data, size_t size, la_int64_t offset) {
+  if (mode == sparse_file_mode::sparse_disk) {
+    auto const rv = ::archive_write_data_block(a, data, size, offset);
+    if (rv == ARCHIVE_OK) {
+      return static_cast<la_ssize_t>(size);
+    }
+    return rv;
+  }
+
+  return ::archive_write_data(a, data, size);
+}
 
 } // namespace
 
@@ -193,6 +202,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
         ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
             ARCHIVE_EXTRACT_UNLINK | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS |
             ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_SYMLINKS));
+
+    sparse_mode_ = sparse_file_mode::sparse_disk;
   }
 
   void close() override {
@@ -329,6 +340,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   std::unique_ptr<output_stream> out_;
   std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
+  sparse_file_mode sparse_mode_{sparse_file_mode::auto_detect};
 };
 
 template <typename LoggerPolicy>
@@ -337,23 +349,29 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
+  auto sparse_mode = sparse_mode_;
+
   auto lr = ::archive_entry_linkresolver_new();
 
   scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
 
   if (auto fmt = ::archive_format(a_)) {
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
+
+    if (sparse_mode == sparse_file_mode::auto_detect) {
+      sparse_mode = get_sparse_file_mode_for_format(fmt);
+    }
   }
 
   ::archive_entry* sparse = nullptr;
 
-  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
-  cache_semaphore sem;
-
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
             << " bytes";
 
+  counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
+
+  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
 
   vfs_stat vfs;
   fs.statvfs(&vfs);
@@ -364,71 +382,126 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   uint64_t const bytes_total{vfs.blocks};
 
   auto do_archive =
-      [&](std::shared_ptr<::archive_entry> const& ae,
+      [&](std::shared_ptr<::archive_entry> ae,
           reader::inode_view const& entry) { // TODO: inode vs. entry
-        if (auto size = ::archive_entry_size(ae.get());
+        bool added{false};
+
+        if (auto const size = ::archive_entry_size(ae.get());
             entry.is_regular_file() && size > 0) {
-          auto fd = fs.open(entry);
-          std::string_view path{::archive_entry_pathname(ae.get())};
-          size_t pos = 0;
-          size_t remain = size;
+          reader::detail::file_reader fr(fs, entry);
 
-          while (remain > 0 && hard_error == 0) {
-            size_t bs =
-                remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
+          auto extents = fr.extents();
+          std::vector<file_range> data_ranges;
 
-            sem.wait(bs);
+          for (auto const& e : extents) {
+            if (sparse_mode != sparse_file_mode::sparse_disk ||
+                e.kind == dwarfs::extent_kind::data) {
+              data_ranges.push_back(e.range);
+            }
+          }
 
-            std::error_code ec;
-            auto ranges = fs.readv(fd, bs, pos, ec);
+          archiver.add_job([this, &hard_error, &soft_error, &opts,
+                            extents = std::move(extents),
+                            ranges = fr.read_sequential(data_ranges, sem,
+                                                        opts.max_queued_bytes),
+                            ae = std::move(ae), size, &sparse_mode,
+                            &bytes_written, bytes_total]() mutable {
+            try {
+              assert(ae);
 
-            if (!ec) {
-              archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
-                                ranges = std::move(ranges), ae, pos, bs, size,
-                                path, &bytes_written, bytes_total]() mutable {
-                try {
-                  if (pos == 0) {
-                    LOG_DEBUG << "extracting " << path << " (" << size
-                              << " bytes)";
-                    check_result(::archive_write_header(a_, ae.get()));
-                  }
-                  for (auto& r : ranges) {
-                    auto br = r.get();
-                    LOG_TRACE << "[" << pos << "] writing " << br.size()
-                              << " bytes for " << path;
-                    check_result(
-                        ::archive_write_data(a_, br.data(), br.size()));
-                    if (opts.progress) {
-                      bytes_written += br.size();
-                      opts.progress(path, bytes_written, bytes_total);
+              auto const path = ::archive_entry_pathname(ae.get());
+
+              LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
+
+              bool const hole_only =
+                  extents.size() == 1 && extents[0].kind == extent_kind::hole;
+
+              if (hole_only || extents.size() > 1) {
+                LOG_DEBUG << "sparse file " << path << " with "
+                          << extents.size() << " extents";
+
+                if (sparse_mode != sparse_file_mode::no_sparse) {
+                  if (hole_only) {
+                    LOG_DEBUG << "no data extents found for sparse file, "
+                                 "adding dummy sparse entry";
+                    ::archive_entry_sparse_add_entry(ae.get(), size, 0);
+                  } else {
+                    for (auto const& e : extents) {
+                      if (e.kind == dwarfs::extent_kind::data) {
+                        LOG_DEBUG << "  data offset=" << e.range.offset()
+                                  << ", size=" << e.range.size();
+                        ::archive_entry_sparse_add_entry(
+                            ae.get(), e.range.offset(), e.range.size());
+                      }
                     }
                   }
-                  sem.post(bs);
-                } catch (archive_error const& e) {
-                  LOG_ERROR << exception_str(e);
-                  ++hard_error;
-                } catch (...) {
-                  if (opts.continue_on_error) {
-                    LOG_WARN << exception_str(std::current_exception());
-                    ++soft_error;
-                  } else {
-                    LOG_ERROR << exception_str(std::current_exception());
-                    ++hard_error;
-                  }
                 }
-              });
-            } else {
-              LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
-                        << " from  inode [" << fd << "]: " << ec.message();
-              ++hard_error;
-              break;
-            }
+              }
 
-            pos += bs;
-            remain -= bs;
-          }
-        } else {
-          archiver.add_job([this, ae, &hard_error] {
+              check_result(::archive_write_header(a_, ae.get()));
+
+              if (sparse_mode == sparse_file_mode::sparse_disk) {
+                extents.erase(std::remove_if(extents.begin(), extents.end(),
+                                             [](auto const& e) {
+                                               return e.kind ==
+                                                      dwarfs::extent_kind::hole;
+                                             }),
+                              extents.end());
+              }
+
+              for (auto const& r : ranges) {
+                assert(!extents.empty());
+                auto& ext = extents.front();
+                assert(!ext.range.empty());
+
+                LOG_TRACE << "writing " << r.size() << " bytes at offset "
+                          << ext.range.offset() << " in " << ext.kind
+                          << " extent for " << path;
+
+                auto const rv = write_range_data(sparse_mode, a_, r.data(),
+                                                 r.size(), ext.range.offset());
+
+                check_result(rv);
+
+                if (std::cmp_not_equal(rv, static_cast<la_ssize_t>(r.size()))) {
+                  throw archive_error(
+                      fmt::format("short write: {} != {}", rv, r.size()));
+                }
+
+                assert(rv <= static_cast<la_ssize_t>(ext.range.size()));
+
+                ext.range.advance(rv);
+
+                if (ext.range.empty()) {
+                  extents.erase(extents.begin());
+                }
+
+                if (opts.progress) {
+                  bytes_written += r.size();
+                  opts.progress(path, bytes_written, bytes_total);
+                }
+              }
+
+              assert(extents.empty());
+            } catch (archive_error const& e) {
+              LOG_ERROR << exception_str(e);
+              ++hard_error;
+            } catch (...) {
+              if (opts.continue_on_error) {
+                LOG_WARN << exception_str(std::current_exception());
+                ++soft_error;
+              } else {
+                LOG_ERROR << exception_str(std::current_exception());
+                ++hard_error;
+              }
+            }
+          });
+
+          added = true;
+        }
+
+        if (!added) {
+          archiver.add_job([this, ae = std::move(ae), &hard_error] {
             try {
               check_result(::archive_write_header(a_, ae.get()));
             } catch (...) {
@@ -460,9 +533,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     });
   }
 
-  // Workaround for weird MSVC bug...
-  using struct_stat = struct stat;
-
   fs.walk_data_order([&](auto const& entry) {
     // TODO: we can surely early abort walk() somehow
     if (entry.is_root() || hard_error) {
@@ -490,22 +560,31 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     }
 
     auto ae = ::archive_entry_new();
-    auto stbuf = fs.getattr(inode);
-
-    struct_stat st{};
-
-#ifdef _WIN32
-    stbuf.copy_to_without_block_info(&st);
-#else
-    stbuf.copy_to(&st);
-#endif
+    auto stat = fs.getattr(inode);
 
 #ifdef _WIN32
     ::archive_entry_copy_pathname_w(ae, entry.wpath().c_str());
 #else
     ::archive_entry_copy_pathname(ae, entry.path().c_str());
 #endif
-    ::archive_entry_copy_stat(ae, &st);
+
+    stat.ensure_valid(file_stat::all_valid);
+
+    ::archive_entry_set_atime(ae, stat.atime_unchecked(),
+                              stat.atime_nsec_unchecked());
+    ::archive_entry_set_ctime(ae, stat.ctime_unchecked(),
+                              stat.ctime_nsec_unchecked());
+    ::archive_entry_set_mtime(ae, stat.mtime_unchecked(),
+                              stat.mtime_nsec_unchecked());
+    ::archive_entry_unset_birthtime(ae);
+    ::archive_entry_set_dev(ae, stat.dev_unchecked());
+    ::archive_entry_set_gid(ae, stat.gid_unchecked());
+    ::archive_entry_set_uid(ae, stat.uid_unchecked());
+    ::archive_entry_set_ino(ae, stat.ino_unchecked());
+    ::archive_entry_set_nlink(ae, stat.nlink_unchecked());
+    ::archive_entry_set_rdev(ae, stat.rdev_unchecked());
+    ::archive_entry_set_size(ae, stat.size_unchecked());
+    ::archive_entry_set_mode(ae, stat.mode_unchecked());
 
     if (inode.is_symlink()) {
       std::error_code ec;

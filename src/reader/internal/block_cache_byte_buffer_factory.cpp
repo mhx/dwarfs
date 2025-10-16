@@ -32,6 +32,7 @@
 #include <system_error>
 
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/os_access.h>
 
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
@@ -44,9 +45,9 @@ namespace {
 
 class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
  public:
-  explicit mmap_byte_buffer_impl(size_t size)
-      : mm_{mappable_file::map_empty(size)}
-      , data_{reinterpret_cast<uint8_t*>(mm_.span<uint8_t>().data())} {}
+  mmap_byte_buffer_impl(os_access const& os, size_t size)
+      : mm_{os.map_empty(size)}
+      , data_{mm_.span<uint8_t>().data()} {}
 
   size_t size() const override { return size_; }
 
@@ -108,33 +109,36 @@ class mmap_byte_buffer_impl final : public mutable_byte_buffer_interface {
 class block_cache_byte_buffer_factory_impl
     : public byte_buffer_factory_interface {
  public:
-  explicit block_cache_byte_buffer_factory_impl(
-      block_cache_allocation_mode mode)
-      : mode_{mode} {}
+  block_cache_byte_buffer_factory_impl(os_access const& os,
+                                       block_cache_allocation_mode mode)
+      : os_{os}
+      , mode_{mode} {}
 
   mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const override {
     if (mode_ == block_cache_allocation_mode::MMAP) {
-      return mutable_byte_buffer{std::make_shared<mmap_byte_buffer_impl>(size)};
+      return mutable_byte_buffer{
+          std::make_shared<mmap_byte_buffer_impl>(os_, size)};
     }
     return malloc_byte_buffer::create_reserve(size);
   }
 
  private:
+  os_access const& os_;
   block_cache_allocation_mode mode_;
 };
 
 } // namespace
 
-byte_buffer_factory block_cache_byte_buffer_factory::create() {
-  return byte_buffer_factory{
-      std::make_shared<block_cache_byte_buffer_factory_impl>(
-          block_cache_allocation_mode::MALLOC)};
+byte_buffer_factory
+block_cache_byte_buffer_factory::create(os_access const& os) {
+  return create(os, block_cache_allocation_mode::MALLOC);
 }
 
 byte_buffer_factory
-block_cache_byte_buffer_factory::create(block_cache_allocation_mode mode) {
+block_cache_byte_buffer_factory::create(os_access const& os,
+                                        block_cache_allocation_mode mode) {
   return byte_buffer_factory{
-      std::make_shared<block_cache_byte_buffer_factory_impl>(mode)};
+      std::make_shared<block_cache_byte_buffer_factory_impl>(os, mode)};
 }
 
 } // namespace dwarfs::reader::internal

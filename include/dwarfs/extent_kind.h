@@ -28,8 +28,12 @@
 
 #pragma once
 
+#include <iosfwd>
+
 namespace dwarfs {
 
 enum class extent_kind { hole, data };
+
+std::ostream& operator<<(std::ostream& os, extent_kind kind);
 
 } // namespace dwarfs

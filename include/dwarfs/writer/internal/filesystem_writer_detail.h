@@ -97,15 +97,14 @@ class filesystem_writer_detail {
       std::optional<std::string> cat_metadata = std::nullopt,
       block_compression_info* info = nullptr) = 0;
   virtual void rewrite_section(
-      section_type type, compression_type compression,
-      std::span<uint8_t const> data,
+      dwarfs::internal::fs_section const& sec, file_segment segment,
       std::optional<fragment_category::value_type> cat = std::nullopt,
       std::optional<std::string> cat_metadata = std::nullopt) = 0;
   virtual void rewrite_block(
       delayed_data_fn_type data, size_t uncompressed_size,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
   virtual void write_compressed_section(dwarfs::internal::fs_section const& sec,
-                                        std::span<uint8_t const> data) = 0;
+                                        file_segment segment) = 0;
   virtual void flush() = 0;
   virtual size_t size() const = 0;
 };

@@ -32,6 +32,7 @@
 #include <folly/portability/Stdlib.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
 
@@ -334,15 +335,36 @@ TEST(utils, offset_cache_prefill) {
 
 TEST(utils, parse_time_with_unit) {
   using namespace std::chrono_literals;
+  EXPECT_EQ(3 * 86400s, parse_time_with_unit("3d"));
+  EXPECT_EQ(86400s, parse_time_with_unit("day"));
+  EXPECT_EQ(7 * 3600s, parse_time_with_unit("7h"));
+  EXPECT_EQ(3600s, parse_time_with_unit("hour"));
   EXPECT_EQ(3ms, parse_time_with_unit("3ms"));
   EXPECT_EQ(4s, parse_time_with_unit("4s"));
   EXPECT_EQ(5s, parse_time_with_unit("5"));
   EXPECT_EQ(6min, parse_time_with_unit("6m"));
   EXPECT_EQ(7h, parse_time_with_unit("7h"));
+  EXPECT_EQ(1ms, parse_time_with_unit("ms"));
+  EXPECT_EQ(1ms, parse_time_with_unit("msec"));
+  EXPECT_EQ(1us, parse_time_with_unit("us"));
+  EXPECT_EQ(1us, parse_time_with_unit("usec"));
+  EXPECT_EQ(1ns, parse_time_with_unit("ns"));
+  EXPECT_EQ(1ns, parse_time_with_unit("nsec"));
+  EXPECT_EQ(1ms, parse_time_with_unit("1 ms"));
+  EXPECT_EQ(1ms, parse_time_with_unit("1 msec"));
+  EXPECT_EQ(1us, parse_time_with_unit("1 us"));
+  EXPECT_EQ(1us, parse_time_with_unit("1 usec"));
+  EXPECT_EQ(1ns, parse_time_with_unit("1 ns"));
+  EXPECT_EQ(1ns, parse_time_with_unit("1 nsec"));
+  EXPECT_EQ(500ms, parse_time_with_unit("500ms"));
+  EXPECT_EQ(500ms, parse_time_with_unit("500msec"));
+  EXPECT_EQ(500us, parse_time_with_unit("500us"));
+  EXPECT_EQ(500us, parse_time_with_unit("500usec"));
+  EXPECT_EQ(500ns, parse_time_with_unit("500ns"));
+  EXPECT_EQ(500ns, parse_time_with_unit("500nsec"));
   EXPECT_THROW(parse_time_with_unit("8y"), dwarfs::runtime_error);
   EXPECT_THROW(parse_time_with_unit("8su"), dwarfs::runtime_error);
   EXPECT_THROW(parse_time_with_unit("8mss"), dwarfs::runtime_error);
-  EXPECT_THROW(parse_time_with_unit("ms"), dwarfs::runtime_error);
 }
 
 TEST(utils, parse_size_with_unit) {
@@ -391,32 +413,122 @@ TEST(utils, parse_time_point) {
 }
 
 TEST(utils, getenv_is_enabled) {
-  static char const* const test_var = "_DWARFS_THIS_IS_A_TEST_";
+  static constexpr auto test_var{"_DWARFS_UTILS_TEST_"};
+  dwarfs::detail::scoped_env env;
 
-  EXPECT_EQ(0, unsetenv("_DWARFS_THIS_IS_A_TEST_"));
+  ASSERT_NO_THROW(env.unset(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "0", 1));
+  ASSERT_NO_THROW(env.set(test_var, "0"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "1", 1));
+  ASSERT_NO_THROW(env.set(test_var, "1"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "false", 1));
+  ASSERT_NO_THROW(env.set(test_var, "false"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "true", 1));
+  ASSERT_NO_THROW(env.set(test_var, "true"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "off", 1));
+  ASSERT_NO_THROW(env.set(test_var, "off"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "on", 1));
+  ASSERT_NO_THROW(env.set(test_var, "on"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, setenv(test_var, "ThisAintBool", 1));
+  ASSERT_NO_THROW(env.set(test_var, "ThisAintBool"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
-  EXPECT_EQ(0, unsetenv(test_var));
+  ASSERT_NO_THROW(env.unset(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
+}
+
+TEST(utils, size_with_unit) {
+  EXPECT_EQ("0 B", size_with_unit(0));
+  EXPECT_EQ("1023 B", size_with_unit(1023));
+  EXPECT_EQ("1 KiB", size_with_unit(1024));
+  EXPECT_EQ("1.5 KiB", size_with_unit(1536));
+  EXPECT_EQ("97.66 KiB", size_with_unit(100'000));
+  EXPECT_EQ("256 KiB", size_with_unit(256_KiB));
+  EXPECT_EQ("1024 KiB", size_with_unit(1_MiB - 1));
+  EXPECT_EQ("1 MiB", size_with_unit(1_MiB));
+  EXPECT_EQ("1024 MiB", size_with_unit(1_GiB - 1));
+  EXPECT_EQ("1 GiB", size_with_unit(1_GiB));
+  EXPECT_EQ("1024 GiB", size_with_unit(1_TiB - 1));
+  EXPECT_EQ("1 TiB", size_with_unit(1_TiB));
+  EXPECT_EQ("1024 TiB", size_with_unit(1_TiB * 1024 - 1));
+  EXPECT_EQ("1 PiB", size_with_unit(1_TiB * 1024));
+}
+
+TEST(utils, time_with_unit) {
+  using namespace std::chrono_literals;
+  EXPECT_EQ("0s", time_with_unit(0ms));
+  EXPECT_EQ("999ms", time_with_unit(999ms));
+  EXPECT_EQ("1s", time_with_unit(1000ms));
+  EXPECT_EQ("1.5s", time_with_unit(1500ms));
+  EXPECT_EQ("59s", time_with_unit(59s));
+  EXPECT_EQ("1m", time_with_unit(60s));
+  EXPECT_EQ("1.017m", time_with_unit(61s));
+  EXPECT_EQ("1.75m", time_with_unit(105s));
+  EXPECT_EQ("12.5us", time_with_unit(12500ns));
+}
+
+TEST(utils, ratio_to_string) {
+  EXPECT_EQ("0x", ratio_to_string(0, 1));
+  EXPECT_EQ("1x", ratio_to_string(1, 1));
+  EXPECT_EQ("1.5x", ratio_to_string(3, 2));
+  EXPECT_EQ("10.7x", ratio_to_string(10.744, 1));
+  EXPECT_EQ("11x", ratio_to_string(10.744, 1, 2));
+  EXPECT_EQ("10.74x", ratio_to_string(10.744, 1, 4));
+  EXPECT_EQ("99.9%", ratio_to_string(999, 1000));
+  EXPECT_EQ("0.1%", ratio_to_string(1, 1000));
+  EXPECT_EQ("999ppm", ratio_to_string(999, 1'000'000));
+  EXPECT_EQ("1ppm", ratio_to_string(1, 1'000'000));
+  EXPECT_EQ("1.5ppm", ratio_to_string(3, 2'000'000));
+  EXPECT_EQ("10.7ppm", ratio_to_string(10'744, 1'000'000'000));
+  EXPECT_EQ("999ppb", ratio_to_string(999, 1'000'000'000));
+  EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000));
+  EXPECT_EQ("1.78e-12x", ratio_to_string(1.7777, 1'000'000'000'000));
+}
+
+TEST(utils, basename) {
+  using namespace std::string_view_literals;
+  EXPECT_EQ(""sv, dwarfs::basename(""sv));
+  EXPECT_EQ(""sv, dwarfs::basename("/"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("////"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("/foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("///foo"sv));
+  EXPECT_EQ("bar"sv, dwarfs::basename("/foo/bar"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("/foo/bar/"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\\\\\\\"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("\\foo"sv));
+  EXPECT_EQ("foo"sv, dwarfs::basename("\\\\foo"sv));
+  EXPECT_EQ("bar"sv, dwarfs::basename("\\foo\\bar"sv));
+  EXPECT_EQ(""sv, dwarfs::basename("\\foo\\bar\\"sv));
+}
+
+TEST(utils, scoped_env) {
+  using namespace std::string_view_literals;
+
+  {
+    dwarfs::detail::scoped_env env;
+    EXPECT_THAT([&] { env.set("", ""); },
+                ::testing::ThrowsMessage<std::system_error>(
+                    ::testing::HasSubstr("setenv failed")));
+    EXPECT_THAT([&] { env.unset(""); },
+                ::testing::ThrowsMessage<std::system_error>(
+                    ::testing::HasSubstr("unsetenv failed")));
+  }
+
+  ASSERT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
+
+  {
+    dwarfs::detail::scoped_env env("_DWARFS_TEST_SCOPED_ENV_", "something");
+    EXPECT_EQ("something"sv, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
+  }
+
+  EXPECT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
 }

@@ -38,6 +38,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
+#include <dwarfs/reader/seek_whence.h>
 
 namespace dwarfs::reader {
 
@@ -56,11 +57,6 @@ enum class readlink_mode {
   raw,
   preferred,
   posix,
-};
-
-enum class seek_whence {
-  data,
-  hole,
 };
 
 class inode_view {

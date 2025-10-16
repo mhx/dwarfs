@@ -103,3 +103,7 @@ TEST(error_test, dwarfs_nothrow) {
   EXPECT_EQ(3, DWARFS_NOTHROW(v.at(2)));
   EXPECT_DEATH(DWARFS_NOTHROW(v.at(3)), "Expression `v.at\\(3\\)` threw .*");
 }
+
+TEST(error_test, dwarfs_panic) {
+  EXPECT_DEATH(DWARFS_PANIC("my test panic"), "my test panic");
+}

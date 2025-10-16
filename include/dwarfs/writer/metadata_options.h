@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -41,7 +42,7 @@ struct metadata_options {
   std::optional<file_stat::gid_type> gid{};
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
-  std::optional<uint32_t> time_resolution_sec{};
+  std::optional<std::chrono::nanoseconds> time_resolution{};
   std::string_view chmod_specifiers{};
   file_stat::mode_type umask{0};
   bool pack_chunk_table{false};
@@ -59,6 +60,7 @@ struct metadata_options {
   bool no_category_metadata{false};
   bool no_metadata_version_history{false};
   bool enable_sparse_files{false};
+  bool no_hardlink_table{false};
   size_t inode_size_cache_min_chunk_count{128};
 
   static void validate(metadata_options const& opts);

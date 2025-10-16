@@ -127,13 +127,6 @@ constexpr sorted_array_map debug_filter_modes{
     std::pair{"all"sv, writer::debug_filter_mode::ALL},
 };
 
-constexpr sorted_array_map time_resolutions{
-    std::pair{"sec"sv, 1},
-    std::pair{"min"sv, 60},
-    std::pair{"hour"sv, 3600},
-    std::pair{"day"sv, 86400},
-};
-
 constexpr size_t min_block_size_bits{10};
 constexpr size_t max_block_size_bits{30};
 
@@ -418,7 +411,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       bloom_filter_size, compression;
   size_t num_workers, num_scanner_workers, num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
-       force_overwrite = false, no_history = false,
+       force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false;
   unsigned level;
@@ -446,10 +439,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto debug_filter_desc =
       fmt::format("show effect of filter rules without producing an image ({})",
                   fmt::join(ranges::views::keys(debug_filter_modes), ", "));
-
-  auto resolution_desc =
-      fmt::format("time resolution in seconds or ({})",
-                  fmt::join(ranges::views::keys(time_resolutions), ", "));
 
   auto hash_list = checksum::available_algorithms();
 
@@ -571,6 +560,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("with-specials",
         po::value<bool>(&options.with_specials)->zero_tokens(),
         "include named fifo and sockets")
+    ("no-sparse-files",
+        po::value<bool>(&no_sparse_files)->zero_tokens(),
+        "don't store sparse files as sparse")
     ("header",
         po_sys_value<sys_string>(&header_str),
         "prepend output filesystem with contents of this file")
@@ -672,14 +664,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&options.metadata.keep_all_times)->zero_tokens(),
         "save atime and ctime in addition to mtime")
     ("time-resolution",
-        po::value<std::string>(&time_resolution)->default_value("sec"),
-        resolution_desc.c_str())
+        po::value<std::string>(&time_resolution),
+        "resolution of inode timestamps (default: 1s)")
     ("no-category-names",
         po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
         "don't add category names to file system")
     ("no-category-metadata",
         po::value<bool>(&options.metadata.no_category_metadata)->zero_tokens(),
         "don't add category metadata to file system")
+    ("no-hardlink-table",
+        po::value<bool>(&options.metadata.no_hardlink_table)->zero_tokens(),
+        "don't add hardlink count table to file system")
     ("pack-metadata,P",
         po::value<std::string>(&pack_metadata)->default_value("auto"),
         "pack certain metadata elements (auto, all, none, chunk_table, "
@@ -985,19 +980,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
     return 1;
   }
+
   if (no_progress) {
     progress_mode = "none";
   }
+
   if (progress_mode != "none" && !iol.term->is_tty(iol.err)) {
     progress_mode = "simple";
   }
 
-  auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
+  writer::console_writer::options const cwopts{
+      .progress = DWARFS_NOTHROW(progress_modes.at(progress_mode)),
+      .display = recompress ? writer::console_writer::REWRITE
+                            : writer::console_writer::NORMAL,
+      .enable_sparse_files = !no_sparse_files,
+  };
 
-  writer::console_writer lgr(iol.term, iol.err, pg_mode,
-                             recompress ? writer::console_writer::REWRITE
-                                        : writer::console_writer::NORMAL,
-                             logopts);
+  writer::console_writer lgr(iol.term, iol.err, cwopts, logopts);
 
   if (get_self_memory_usage()) {
     lgr.set_memory_usage_function(
@@ -1060,19 +1059,20 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (auto it = time_resolutions.find(time_resolution);
-      it != time_resolutions.end()) {
-    options.metadata.time_resolution_sec = it->second;
-  } else if (auto val = try_to<uint32_t>(time_resolution); val && *val != 1) {
-    options.metadata.time_resolution_sec = val;
-    if (options.metadata.time_resolution_sec == 0) {
-      iol.err << "error: the argument to '--time-resolution' must be nonzero\n";
+  if (vm.contains("time-resolution")) {
+    try {
+      auto const res = parse_time_with_unit(time_resolution);
+      if (res.count() == 0) {
+        iol.err
+            << "error: the argument to '--time-resolution' must be nonzero\n";
+        return 1;
+      }
+      options.metadata.time_resolution = res;
+    } catch (std::exception const& e) {
+      iol.err << "error: the argument ('" << time_resolution
+              << "') to '--time-resolution' is invalid (" << e.what() << ")\n";
       return 1;
     }
-  } else {
-    iol.err << "error: the argument ('" << time_resolution
-            << "') to '--time-resolution' is invalid\n";
-    return 1;
   }
 
   if (!pack_metadata.empty() and pack_metadata != "none") {
@@ -1125,8 +1125,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  auto interval = pg_mode == writer::console_writer::NONE ||
-                          pg_mode == writer::console_writer::SIMPLE
+  auto interval = cwopts.progress == writer::console_writer::NONE ||
+                          cwopts.progress == writer::console_writer::SIMPLE
                       ? 2000ms
                       : 200ms;
 
@@ -1144,6 +1144,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   LOG_PROXY(debug_logger_policy, lgr);
+
+  if (auto const res = options.metadata.time_resolution) {
+    if (auto const native = iol.os->native_file_time_resolution();
+        *res < native) {
+      LOG_WARN << "requested time resolution of " << time_with_unit(*res)
+               << " is finer than the native file timestamp resolution of "
+               << time_with_unit(native);
+    }
+  }
 
   try {
     writer::metadata_options::validate(options.metadata);
@@ -1354,6 +1363,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     LOG_ERROR << e.what();
     return 1;
   }
+
+  sf_config.enable_sparse_files = !no_sparse_files;
+  options.metadata.enable_sparse_files = !no_sparse_files;
 
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);

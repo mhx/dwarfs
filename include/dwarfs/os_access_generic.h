@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <iosfwd>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,16 +39,24 @@
 
 namespace dwarfs {
 
+namespace internal {
+class os_access_generic_data;
+} // namespace internal
+
 class os_access_generic : public os_access {
  public:
+  os_access_generic();
+  explicit os_access_generic(std::ostream& err);
+  ~os_access_generic() override;
+
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
   file_stat symlink_info(std::filesystem::path const& path) const override;
   std::filesystem::path
   read_symlink(std::filesystem::path const& path) const override;
-  file_view map_file(std::filesystem::path const& path) const override;
-  file_view
-  map_file(std::filesystem::path const& path, file_size_t size) const override;
+  file_view open_file(std::filesystem::path const& path) const override;
+  readonly_memory_mapping map_empty_readonly(size_t size) const override;
+  memory_mapping map_empty(size_t size) const override;
   int access(std::filesystem::path const& path, int mode) const override;
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;
@@ -59,5 +68,10 @@ class os_access_generic : public os_access {
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
+  std::chrono::nanoseconds native_file_time_resolution() const override;
+
+ private:
+  std::unique_ptr<internal::os_access_generic_data const> data_;
 };
+
 } // namespace dwarfs

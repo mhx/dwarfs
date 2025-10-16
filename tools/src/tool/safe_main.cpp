@@ -71,7 +71,7 @@ int safe_main(std::function<int(void)> const& fn) {
   DWARFS_CATCH(...) {
     std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
 #ifdef DWARFS_STACKTRACE_ENABLED
-    auto stacktrace = cpptrace::from_current_exception();
+    auto const& stacktrace = cpptrace::from_current_exception();
 #ifdef DWARFS_CPPTRACE_HAS_FORMATTING
     auto formatter = cpptrace::formatter{}.addresses(
         cpptrace::formatter::address_mode::object);

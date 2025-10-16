@@ -313,6 +313,8 @@ class filesystem_v2_lite {
 
   bool has_symlinks() const { return lite_->has_symlinks(); }
 
+  bool has_sparse_files() const { return lite_->has_sparse_files(); }
+
   nlohmann::json get_inode_info(inode_view entry) const {
     return lite_->get_inode_info(std::move(entry));
   }
@@ -435,6 +437,7 @@ class filesystem_v2_lite {
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual bool has_symlinks() const = 0;
+    virtual bool has_sparse_files() const = 0;
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
     virtual nlohmann::json
     get_inode_info(inode_view entry, size_t max_chunks) const = 0;
@@ -488,10 +491,11 @@ class filesystem_v2 final : public filesystem_v2_lite {
            std::ostream& output, int detail_level = 0, size_t num_readers = 1,
            bool check_integrity = false, file_off_t image_offset = 0);
 
-  static std::optional<file_extents_iterable> header(file_view const& mm);
+  static std::optional<file_extents_iterable>
+  header(logger& lgr, file_view const& mm);
 
   static std::optional<file_extents_iterable>
-  header(file_view const& mm, file_off_t image_offset);
+  header(logger& lgr, file_view const& mm, file_off_t image_offset);
 
   int check(filesystem_check_level level, size_t num_threads = 0) const;
 

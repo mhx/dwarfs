@@ -60,6 +60,7 @@ class device;
 class global_entry_data;
 class inode;
 class progress;
+class time_resolution_converter;
 
 class entry_visitor {
  public:
@@ -86,11 +87,13 @@ class entry : public entry_interface {
   std::string const& name() const override { return name_; }
   bool less_revpath(entry const& rhs) const;
   file_size_t size() const override;
+  file_size_t allocated_size() const override;
   virtual type_t type() const = 0;
   bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
-  void pack(thrift::metadata::inode_data& entry_v2,
-            global_entry_data const& data) const;
+  void
+  pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
+       time_resolution_converter const& timeres) const;
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual void scan(os_access const& os, progress& prog) = 0;
@@ -110,7 +113,7 @@ class entry : public entry_interface {
   uint64_t get_mtime() const override;
   uint64_t get_ctime() const override;
 
-  void override_size(file_size_t size);
+  void set_empty();
 
  private:
 #ifdef _WIN32
@@ -168,10 +171,11 @@ class dir : public entry {
   void walk(std::function<void(entry*)> const& f) override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
+  void pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
+            time_resolution_converter const& timeres) const;
   void
-  pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
-  void pack_entry(thrift::metadata::metadata& mv2,
-                  global_entry_data const& data) const;
+  pack_entry(thrift::metadata::metadata& mv2, global_entry_data const& data,
+             time_resolution_converter const& timeres) const;
   void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);

@@ -84,16 +84,6 @@ options:
   try or require `mlock()`ing of the file system metadata into
   memory.
 
-- `-o enable_nlink`:
-  Set this option if you want correct hardlink counts for regular
-  files. If this is not specified, the hardlink count will be 1.
-  Enabling this will slow down the initialization of the fuse
-  driver as the hardlink counts will be determined by a full
-  file system scan (it only takes about a millisecond to scan
-  through 100,000 files, so this isn't dramatic). The fuse driver
-  will also consume more memory to hold the hardlink count table.
-  This will be 4 bytes for every regular file inode.
-
 - `-o readonly`:
   Show all file system entries as read-only. By default, DwarFS
   will preserve the original writability, which is obviously a
@@ -127,17 +117,6 @@ options:
   the configured cache size. To see the uncompressed block size,
   you can use `dwarfsck`. If the cache size is too small, only as
   many blocks as will fit in the cache will be preloaded.
-
-- `-o (no_)cache_image`:
-  By default, `dwarfs` tries to ensure that the compressed file
-  system image will not be cached by the kernel (i.e. the default
-  is `-o no_cache_image`). This will reduce the memory consumption
-  of the FUSE driver to slightly more than the `cachesize`, plus
-  the size of the metadata block. This usually isn't a problem,
-  especially when the image is stored on an SSD, but if you want
-  to maximize performance it can be beneficial to use
-  `-o cache_image` to keep the compressed image data in the kernel
-  cache.
 
 - `-o (no_)cache_files`:
   By default, files in the mounted file system will be cached by
@@ -238,6 +217,22 @@ a DwarFS image:
   needs access, for example when you're trying to use `overlayfs`
   along with `dwarfs`. If you're running `dwarfs` as `root`, you
   need `allow_other`.
+
+## ENVIRONMENT VARIABLES
+
+The `DWARFS_IOLAYER_OPTS` environment variable can be used to configure
+certain aspects of the I/O layer used by all DwarFS tools. The value
+consists of a comma-separated list of key-value pairs (or just keys for
+boolean options). The following options are supported:
+
+- `max_eager_map_size`=*value*:
+  The maximum size of a file that will be eagerly mapped into memory
+  when opened. Larger files will be accessed using on-demand mappings.
+  This is mostly relevant for 32-bit systems, where the address space
+  is limited. *value* can be either `unlimited`, a size in bytes, or
+  an integer value with a suffix of `k`, `m`, or `g` to indicate
+  kibibytes, mebibytes, or gibibytes, respectively. The default is
+  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
 
 ## TIPS & TRICKS
 

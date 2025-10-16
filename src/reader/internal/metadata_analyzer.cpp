@@ -159,7 +159,7 @@ frozen_analyzer::fmt_size(std::string_view name,
   if (count_opt.has_value()) {
     count_str = fmt::format("{0:" DWARFS_FMT_L "}", count);
   }
-  return fmt::format("{0:>14} {1:.<24}{2:.>16" DWARFS_FMT_L
+  return fmt::format("{0:>14} {1:.<26}{2:.>16" DWARFS_FMT_L
                      "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
                      count_str, name, size, 100.0 * size / total_size_,
                      count > 0 ? static_cast<double>(size) / count : 0.0);
@@ -178,7 +178,7 @@ frozen_analyzer::fmt_detail(std::string_view name, size_t count, size_t size,
     }
   }
   range.append(15, ' ');
-  return fmt::format("{0}{1:<24}{2:>16" DWARFS_FMT_L "} bytes {3:>6} "
+  return fmt::format("{0}{1:<26}{2:>16" DWARFS_FMT_L "} bytes {3:>6} "
                      "{4:5.1f} bytes/item\n",
                      range, name, size, num,
                      count > 0 ? static_cast<double>(size) / count : 0.0);
@@ -367,6 +367,12 @@ void frozen_analyzer::print(std::ostream& os) const {
   META_ADD_DETAIL_BITS(inodes, atime_offset);
   META_ADD_DETAIL_BITS(inodes, mtime_offset);
   META_ADD_DETAIL_BITS(inodes, ctime_offset);
+  META_ADD_DETAIL_BITS(inodes, btime_offset);
+  META_ADD_DETAIL_BITS(inodes, atime_subsec);
+  META_ADD_DETAIL_BITS(inodes, mtime_subsec);
+  META_ADD_DETAIL_BITS(inodes, ctime_subsec);
+  META_ADD_DETAIL_BITS(inodes, btime_subsec);
+  META_ADD_DETAIL_BITS(inodes, nlink_minus_one);
   META_ADD_DETAIL_BITS(inodes, name_index_v2_2);
   META_ADD_DETAIL_BITS(inodes, inode_v2_2);
   META_LIST_SIZE_DETAIL_END(inodes);
@@ -404,8 +410,12 @@ void frozen_analyzer::print(std::ostream& os) const {
 
   if (auto cache = meta_.reg_file_size_cache()) {
     add_list_size(
-        usage, "inode_size_cache", cache->lookup(),
-        l.reg_file_size_cacheField.layout.valueField.layout.lookupField);
+        usage, "inode_size_cache", cache->size_lookup(),
+        l.reg_file_size_cacheField.layout.valueField.layout.size_lookupField);
+    add_list_size(usage, "inode_allocated_size_cache",
+                  cache->allocated_size_lookup(),
+                  l.reg_file_size_cacheField.layout.valueField.layout
+                      .allocated_size_lookupField);
   }
 
   if (auto list = meta_.metadata_version_history()) {
@@ -425,6 +435,8 @@ void frozen_analyzer::print(std::ostream& os) const {
                     version->size());
   }
 
+  META_OPT_LIST_SIZE(large_hole_size);
+
   add_size_unique(usage, "metadata_root", 0, l.size);
   add_size_unique(usage, "padding", total_size_ - LayoutRoot::kPaddingBytes,
                   LayoutRoot::kPaddingBytes);
@@ -442,7 +454,7 @@ void frozen_analyzer::print(std::ostream& os) const {
   if (verbose_) {
     os << fmt::format("  {:08x}..{:08x} ", 0, total_size_);
   }
-  os << fmt::format("               {0:.<24}{1:.>16" DWARFS_FMT_L
+  os << fmt::format("               {0:.<26}{1:.>16" DWARFS_FMT_L
                     "} bytes       {2:6.1f} bytes/inode\n",
                     "total metadata", total_size_,
                     static_cast<double>(total_size_) / meta_.inodes().size());

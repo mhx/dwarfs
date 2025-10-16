@@ -90,9 +90,6 @@ runtime_error::runtime_error(std::string_view s, source_location loc)
     , what_{fmt::format("[{}:{}] {}", basename(loc.file_name()), loc.line(),
                         s)} {}
 
-system_error::system_error(source_location loc)
-    : system_error(errno, loc) {}
-
 system_error::system_error(std::string_view s, source_location loc)
     : system_error(s, errno, loc) {}
 
@@ -101,11 +98,6 @@ system_error::system_error(std::string_view s, int err, source_location loc)
     , syserr_{err, std::generic_category(),
               fmt::format("[{}:{}] {}", basename(loc.file_name()), loc.line(),
                           s)} {}
-
-system_error::system_error(int err, source_location loc)
-    : error{loc}
-    , syserr_{err, std::generic_category(),
-              fmt::format("[{}:{}]", basename(loc.file_name()), loc.line())} {}
 
 void handle_nothrow(std::string_view expr, source_location loc) {
   std::cerr << "Expression `" << expr << "` threw `"

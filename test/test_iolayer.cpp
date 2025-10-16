@@ -37,18 +37,31 @@ namespace {
 
 class test_input_stream : public input_stream {
  public:
-  explicit test_input_stream(std::string content) {
+  explicit test_input_stream(std::filesystem::path const& path,
+                             std::string content, std::error_code& ec,
+                             test_file_access const* tfa)
+      : path_{path}
+      , tfa_{tfa} {
+    if (auto error = tfa_->get_open_error(path_)) {
+      ec = error.value();
+    }
     is_.str(std::move(content));
   }
 
   std::istream& is() override { return is_; }
 
-  void close(std::error_code& /*ec*/) override {}
+  void close(std::error_code& ec) override {
+    if (auto error = tfa_->get_close_error(path_)) {
+      ec = error.value();
+    }
+  }
 
   void close() override {}
 
  private:
   std::istringstream is_;
+  std::filesystem::path path_;
+  test_file_access const* tfa_;
 };
 
 class test_output_stream : public output_stream {
@@ -100,7 +113,7 @@ test_file_access::open_input(std::filesystem::path const& path,
                              std::error_code& ec) const {
   auto it = files_.find(path);
   if (it != files_.end()) {
-    return std::make_unique<test_input_stream>(it->second);
+    return std::make_unique<test_input_stream>(path, it->second, ec, this);
   }
   ec = std::make_error_code(std::errc::no_such_file_or_directory);
   return nullptr;
@@ -401,19 +414,5 @@ void test_iolayer::set_in(std::string in) { in_.str(std::move(in)); }
 
 std::string test_iolayer::out() const { return out_.str(); }
 std::string test_iolayer::err() const { return err_.str(); }
-
-void test_iolayer::set_os_access(std::shared_ptr<os_access_mock> os) {
-  if (iol_) {
-    throw std::runtime_error("iolayer already created");
-  }
-  os_ = std::move(os);
-}
-
-void test_iolayer::set_file_access(std::shared_ptr<file_access const> fa) {
-  if (iol_) {
-    throw std::runtime_error("iolayer already created");
-  }
-  fa_ = std::move(fa);
-}
 
 } // namespace dwarfs::test

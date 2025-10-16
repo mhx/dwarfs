@@ -56,6 +56,14 @@ dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
 
+- `-s`, `--cache-size=`*value*:
+  Size of the block cache, in bytes. You can append suffixes (`k`, `m`, `g`)
+  to specify the size in KiB, MiB and GiB, respectively. Note that this is
+  not the upper memory limit of the process, as there may be blocks in
+  flight that are not stored in the cache. Also, each block that hasn't been
+  fully decompressed yet will carry decompressor state along with it, which
+  can use a significant amount of additional memory.
+
 - `--check-integrity`:
   Instead of performing a fast checksum check, perform a (much slower)
   integrity check using the embedded SHA-512/256 hashes.
@@ -99,6 +107,22 @@ pcmaudio/waveform
   option will show the manual page. If supported by the terminal and a
   suitable pager (e.g. `less`) is found, the manual page is displayed
   in the pager.
+
+## ENVIRONMENT VARIABLES
+
+The `DWARFS_IOLAYER_OPTS` environment variable can be used to configure
+certain aspects of the I/O layer used by all DwarFS tools. The value
+consists of a comma-separated list of key-value pairs (or just keys for
+boolean options). The following options are supported:
+
+- `max_eager_map_size`=*value*:
+  The maximum size of a file that will be eagerly mapped into memory
+  when opened. Larger files will be accessed using on-demand mappings.
+  This is mostly relevant for 32-bit systems, where the address space
+  is limited. *value* can be either `unlimited`, a size in bytes, or
+  an integer value with a suffix of `k`, `m`, or `g` to indicate
+  kibibytes, mebibytes, or gibibytes, respectively. The default is
+  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
 
 ## AUTHOR
 

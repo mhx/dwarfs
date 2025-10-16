@@ -189,7 +189,6 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
     fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;
-    fsopts.metadata.enable_nlink = true;
 
     std::shared_ptr<performance_monitor> perfmon;
 

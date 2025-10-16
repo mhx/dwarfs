@@ -91,8 +91,9 @@ class metadata_builder {
     impl_->set_block_size(block_size);
   }
 
-  void set_total_fs_size(uint64_t total_fs_size) {
-    impl_->set_total_fs_size(total_fs_size);
+  void
+  set_total_fs_size(uint64_t total_fs_size, uint64_t total_allocated_fs_size) {
+    impl_->set_total_fs_size(total_fs_size, total_allocated_fs_size);
   }
 
   void set_total_hardlink_size(uint64_t total_hardlink_size) {
@@ -138,8 +139,9 @@ class metadata_builder {
     impl_->gather_global_entry_data(ge_data);
   }
 
-  void remap_blocks(std::span<block_mapping const> mapping) {
-    impl_->remap_blocks(mapping);
+  void
+  remap_blocks(std::span<block_mapping const> mapping, size_t new_block_count) {
+    impl_->remap_blocks(mapping, new_block_count);
   }
 
   thrift::metadata::metadata const& build() { return impl_->build(); }
@@ -151,7 +153,8 @@ class metadata_builder {
     virtual void set_devices(std::vector<uint64_t> devices) = 0;
     virtual void set_symlink_table_size(size_t size) = 0;
     virtual void set_block_size(uint32_t block_size) = 0;
-    virtual void set_total_fs_size(uint64_t total_fs_size) = 0;
+    virtual void set_total_fs_size(uint64_t total_fs_size,
+                                   uint64_t total_allocated_fs_size) = 0;
     virtual void set_total_hardlink_size(uint64_t total_hardlink_size) = 0;
     virtual void set_shared_files_table(std::vector<uint32_t> shared_files) = 0;
     virtual void
@@ -169,7 +172,8 @@ class metadata_builder {
     gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
                    uint32_t num_inodes) = 0;
     virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
-    virtual void remap_blocks(std::span<block_mapping const> mapping) = 0;
+    virtual void remap_blocks(std::span<block_mapping const> mapping,
+                              size_t new_block_count) = 0;
 
     virtual thrift::metadata::metadata const& build() = 0;
   };

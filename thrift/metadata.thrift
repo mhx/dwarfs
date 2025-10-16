@@ -114,6 +114,28 @@ struct inode_data {
    // ctime relative to `metadata.timestamp_base`
    8: UInt64 ctime_offset
 
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // btime (birth time) relative to `metadata.timestamp_base`
+   9: UInt64 btime_offset
+
+   // subsecond part of atime
+  10: UInt64 atime_subsec
+
+   // subsecond part of mtime
+  11: UInt64 mtime_subsec
+
+   // subsecond part of ctime
+  12: UInt64 ctime_subsec
+
+   // subsecond part of btime
+  13: UInt64 btime_subsec
+
+   // number of hard links; these are only valid
+  14: UInt32 nlink_minus_one
+
    /**
     * ==================================================================
     * NOTE: These fields has been deprecated with filesystem version 2.3
@@ -160,6 +182,22 @@ struct fs_options {
    3: bool   packed_chunk_table
    4: bool   packed_directories
    5: bool   packed_shared_files_table
+
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // if time stamps are stored with subsecond resolution,
+   // this multiplier is used to convert the subsecond part
+   // to nanoseconds; e.g. if the subsecond parts are stored
+   // with millisecond resolution, this would be 1,000,000
+   6: optional UInt32 subsecond_resolution_nsec_multiplier
+
+   // file system contains btime (birth time) time stamps
+   7: bool   has_btime
+
+   // inodes contain valid nlink values in `inode_data.nlink_minus_one`
+   8: bool   inodes_have_nlink
 }
 
 /**
@@ -189,11 +227,20 @@ struct string_table {
  */
 struct inode_size_cache {
    // lookup from inode number to size
-   1: map<UInt32, UInt64>  lookup
+   1: map<UInt32, UInt64>  size_lookup
 
    // minimum number of chunks for a file to be found in the cache,
    // corresponds to scanner_options.inode_size_cache_min_chunk_count
    2: UInt64               min_chunk_count
+
+  //==========================================================//
+  // fields added with dwarfs-0.14.0, file system version 2.5 //
+  //==========================================================//
+
+   // lookup from inode number to allocated_size
+   // only used if the inode is sparse
+   3: map<UInt32, UInt64>  allocated_size_lookup
+
 }
 
 /*
@@ -383,6 +430,8 @@ struct metadata {
   20: optional list<UInt32>     shared_files_table
 
    // total size of hardlinked files beyond the first link, in bytes
+   // NOTE: This is only kept for backwards compatibility, it is no
+   //       longer used in dwarfs-0.14.0 and later.
   21: optional UInt64           total_hardlink_size
 
    // version string
@@ -466,4 +515,15 @@ struct metadata {
   // The size of sparse file holes that are too large to be
   // stored efficiently in the chunk table, in bytes.
   35: optional list<UInt64>     large_hole_size
+
+   // Total allocated file system size in bytes.
+  36: optional UInt64           total_allocated_fs_size
+
+  //-------------------------------------------------------------
+  // This field was never released, but someone may have built
+  // an image from a pre-release version, so we keep this here
+  // as a reminder not to reuse this field number.
+  //
+  // 37: optional UInt64           total_allocated_hardlink_size
+  //-------------------------------------------------------------
 }

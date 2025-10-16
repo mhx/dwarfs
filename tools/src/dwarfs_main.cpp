@@ -81,6 +81,10 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
+#if FUSE_USE_VERSION >= 30 && !defined(_WIN32)
+#define DWARFS_FUSE_HAS_LSEEK
+#endif
+
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
@@ -185,11 +189,9 @@ struct options {
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
 #endif
   int preload_all{0};
-  int enable_nlink{0};
   int readonly{0};
   int case_insensitive{0};
-  int cache_image{0};
-  int cache_files{0};
+  int cache_files{1};
   size_t cachesize{0};
   size_t blocksize{0};
   size_t readahead{0};
@@ -199,8 +201,8 @@ struct options {
   logger_options logopts{};
   reader::cache_tidy_strategy block_cache_tidy_strategy{
       reader::cache_tidy_strategy::NONE};
-  std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
-  std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
+  std::chrono::nanoseconds block_cache_tidy_interval{std::chrono::minutes(5)};
+  std::chrono::nanoseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
   reader::block_cache_allocation_mode block_allocator{
       reader::block_cache_allocation_mode::MALLOC};
   size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};
@@ -267,6 +269,9 @@ struct dwarfs_userdata {
   PERFMON_EXT_TIMER_DECL(op_getattr)
   PERFMON_EXT_TIMER_DECL(op_readlink)
   PERFMON_EXT_TIMER_DECL(op_open)
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  PERFMON_EXT_TIMER_DECL(op_lseek)
+#endif
   PERFMON_EXT_TIMER_DECL(op_read)
   PERFMON_EXT_TIMER_DECL(op_readdir)
   PERFMON_EXT_TIMER_DECL(op_statfs)
@@ -302,11 +307,8 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
     DWARFS_OPT("preload_all", preload_all, 1),
-    DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
-    DWARFS_OPT("cache_image", cache_image, 1),
-    DWARFS_OPT("no_cache_image", cache_image, 0),
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
 #if DWARFS_PERFMON_ENABLED
@@ -379,8 +381,9 @@ void checked_reply_err(LogProxy& log_, fuse_req_t req, T&& f) {
       *reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
 #endif
 
-void check_fusermount(dwarfs_userdata& userdata) {
-#ifndef _WIN32
+void check_fusermount(dwarfs_userdata& userdata [[maybe_unused]]) {
+  // fusermount is Linux-specific
+#ifdef __linux__
 
 #if FUSE_USE_VERSION >= 30
   static constexpr std::string_view const fusermount_name = "fusermount3";
@@ -701,6 +704,76 @@ int op_open(char const* path, struct fuse_file_info* fi) {
     return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
+#endif
+
+#ifdef DWARFS_FUSE_HAS_LSEEK
+template <typename LogProxy>
+off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata, uint32_t inode,
+                      off_t off, int whence) {
+  return checked_call(log_, [&]() -> off_t {
+    reader::seek_whence rwhence;
+
+    switch (whence) {
+    case SEEK_DATA:
+      rwhence = reader::seek_whence::data;
+      break;
+    case SEEK_HOLE:
+      rwhence = reader::seek_whence::hole;
+      break;
+    default:
+      return -EINVAL;
+    }
+
+    std::error_code ec;
+    auto offset = userdata.fs.seek(inode, off, rwhence, ec);
+
+    if (ec) {
+      return -ec.value();
+    }
+
+    return offset;
+  });
+}
+
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
+              struct fuse_file_info* fi) {
+  dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_lseek)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+
+  LOG_DEBUG << __func__ << "(" << ino << ", " << off << ", " << whence << ")"
+            << get_caller_context(req);
+  PERFMON_SET_CONTEXT(ino)
+
+  if (FUSE_ROOT_ID + fi->fh != ino) {
+    fuse_reply_err(req, EIO);
+  }
+
+  auto result = op_lseek_common(log_, userdata, ino, off, whence);
+
+  if (result >= 0) {
+    fuse_reply_lseek(req, result);
+  } else {
+    fuse_reply_err(req, -static_cast<int>(result));
+  }
+}
+#else
+template <typename LoggerPolicy>
+off_t op_lseek(char const* path, off_t off, int whence,
+               struct fuse_file_info* fi) {
+  dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_lseek)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+  PERFMON_SET_CONTEXT(fi->fh)
+
+  LOG_DEBUG << __func__ << "(" << path << ", " << off << ", " << whence << ")"
+            << get_caller_context();
+
+  return op_lseek_common(log_, userdata, fi->fh, off, whence);
+}
+#endif
 #endif
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1261,12 +1334,10 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
      << "    -o imagesize=NUM       filesystem image size in bytes\n"
-     << "    -o enable_nlink        show correct hardlink numbers\n"
      << "    -o readonly            show read-only file system\n"
      << "    -o case_insensitive    perform case-insensitive lookups\n"
      << "    -o preload_category=NAME  preload blocks from this category\n"
      << "    -o preload_all         preload all file system blocks\n"
-     << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
      << "    -o analysis_file=FILE  write accessed files to this file\n"
@@ -1399,6 +1470,11 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  if (userdata.fs.has_sparse_files()) {
+    ops.lseek = &op_lseek<LoggerPolicy>;
+  }
+#endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
@@ -1415,6 +1491,11 @@ void init_fuse_ops(struct fuse_operations& ops,
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
   ops.open = &op_open<LoggerPolicy>;
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  if (userdata.fs.has_sparse_files()) {
+    ops.lseek = &op_lseek<LoggerPolicy>;
+  }
+#endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
@@ -1488,8 +1569,8 @@ int run_fuse(struct fuse_args& args,
 
 #else
 
-int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
-             dwarfs_userdata& userdata) {
+int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
+             int fg, dwarfs_userdata& userdata) {
   struct fuse_lowlevel_ops fsops{};
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
@@ -1500,7 +1581,7 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 
   int err = 1;
 
-  if (auto ch = fuse_mount(mountpoint, &args)) {
+  if (auto ch = fuse_mount(mountpoint.c_str(), &args)) {
     if (auto se = fuse_lowlevel_new(&args, &fsops, sizeof(fsops), &userdata)) {
       if (fuse_daemonize(fg) != -1) {
         if (fuse_set_signal_handlers(se) != -1) {
@@ -1512,12 +1593,11 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
       }
       fuse_session_destroy(se);
     }
-    fuse_unmount(mountpoint, ch);
+    fuse_unmount(mountpoint.c_str(), ch);
   } else {
     check_fusermount(userdata);
   }
 
-  ::free(mountpoint);
   fuse_opt_free_args(&args);
 
   return err;
@@ -1545,12 +1625,17 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.max_bytes = opts.cachesize;
   fsopts.block_cache.num_workers = opts.workers;
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
-  fsopts.block_cache.mm_release = !opts.cache_image;
   fsopts.block_cache.sequential_access_detector_threshold =
       opts.seq_detector_threshold;
   fsopts.block_cache.allocation_mode = opts.block_allocator;
   fsopts.inode_reader.readahead = opts.readahead;
-  fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
+  fsopts.metadata.enable_sparse_files =
+#ifdef DWARFS_FUSE_HAS_LSEEK
+      true
+#else
+      false
+#endif
+      ;
   fsopts.metadata.readonly = bool(opts.readonly);
   fsopts.metadata.case_insensitive_lookup = bool(opts.case_insensitive);
   fsopts.metadata.block_size = opts.blocksize;
@@ -1635,8 +1720,6 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto& opts = userdata.opts;
 
   userdata.progname = std::filesystem::path(argv[0]);
-  opts.cache_image = 0;
-  opts.cache_files = 1;
 
   fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
 
@@ -1669,10 +1752,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   bool foreground = fuse_opts.foreground;
 #else
-  char* mountpoint = nullptr;
+  char* mp_unsafe = nullptr;
   int mt, fg;
 
-  if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
+  if (fuse_parse_cmdline(&args, &mp_unsafe, &mt, &fg) == -1 || !mp_unsafe) {
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (userdata.opts.is_man) {
       tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
@@ -1682,6 +1765,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     usage(iol.out, userdata.progname);
     return userdata.opts.is_help ? 0 : 1;
   }
+
+  std::string mountpoint{mp_unsafe};
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+  ::free(mp_unsafe);
 
 #ifdef DWARFS_STACKTRACE_ENABLED
   if (fg) {

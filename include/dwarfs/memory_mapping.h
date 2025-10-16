@@ -36,7 +36,7 @@
 #include <dwarfs/file_range.h>
 #include <dwarfs/io_advice.h>
 
-namespace dwarfs::internal {
+namespace dwarfs {
 
 namespace detail {
 
@@ -48,7 +48,7 @@ class memory_mapping_impl {
   virtual std::span<std::byte> mutable_span() = 0;
   virtual std::span<std::byte const> const_span() const = 0;
   virtual void advise(io_advice advice, size_t offset, size_t size,
-                      std::error_code* ec) const = 0;
+                      io_advice_range range, std::error_code* ec) const = 0;
   virtual void lock(size_t offset, size_t size, std::error_code* ec) const = 0;
 };
 
@@ -62,6 +62,10 @@ class readonly_memory_mapping {
   explicit readonly_memory_mapping(
       std::unique_ptr<detail::memory_mapping_impl> impl)
       : impl_(std::move(impl)) {}
+
+  explicit operator bool() const noexcept { return static_cast<bool>(impl_); }
+  bool valid() const noexcept { return static_cast<bool>(impl_); }
+  void reset() noexcept { impl_.reset(); }
 
   file_range range() const { return impl_->range(); }
 
@@ -77,20 +81,33 @@ class readonly_memory_mapping {
   }
 
   void advise(io_advice advice) const {
-    impl_->advise(advice, 0, std::numeric_limits<size_t>::max(), nullptr);
+    impl_->advise(advice, 0, std::numeric_limits<size_t>::max(),
+                  io_advice_range::include_partial, nullptr);
   }
 
   void advise(io_advice advice, std::error_code& ec) const {
-    impl_->advise(advice, 0, std::numeric_limits<size_t>::max(), &ec);
+    impl_->advise(advice, 0, std::numeric_limits<size_t>::max(),
+                  io_advice_range::include_partial, &ec);
   }
 
   void advise(io_advice advice, size_t offset, size_t size) const {
-    impl_->advise(advice, offset, size, nullptr);
+    impl_->advise(advice, offset, size, io_advice_range::include_partial,
+                  nullptr);
+  }
+
+  void advise(io_advice advice, size_t offset, size_t size,
+              io_advice_range range) const {
+    impl_->advise(advice, offset, size, range, nullptr);
   }
 
   void advise(io_advice advice, size_t offset, size_t size,
               std::error_code& ec) const {
-    impl_->advise(advice, offset, size, &ec);
+    impl_->advise(advice, offset, size, io_advice_range::include_partial, &ec);
+  }
+
+  void advise(io_advice advice, size_t offset, size_t size,
+              io_advice_range range, std::error_code& ec) const {
+    impl_->advise(advice, offset, size, range, &ec);
   }
 
   void lock() const {
@@ -131,4 +148,4 @@ class memory_mapping final : public readonly_memory_mapping {
   }
 };
 
-} // namespace dwarfs::internal
+} // namespace dwarfs

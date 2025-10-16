@@ -341,6 +341,7 @@ class filesystem_ final {
   }
   size_t num_blocks() const { return ir_.num_blocks(); }
   bool has_symlinks() const { return meta_.has_symlinks(); }
+  bool has_sparse_files() const { return meta_.has_sparse_files(); }
   history get_history() const;
   nlohmann::json get_inode_info(inode_view entry) const {
     return meta_.get_inode_info(std::move(entry),
@@ -359,8 +360,8 @@ class filesystem_ final {
     return meta_.get_all_gids();
   }
   std::shared_ptr<filesystem_parser> get_parser() const {
-    return std::make_shared<filesystem_parser>(mm_, image_offset_,
-                                               options_.image_size);
+    return std::make_shared<filesystem_parser>(
+        LOG_GET_LOGGER, mm_, image_offset_, options_.image_size);
   }
   std::optional<std::string> get_block_category(size_t block_no) const {
     return meta_.get_block_category(block_no);
@@ -414,7 +415,8 @@ class filesystem_ final {
 
  private:
   filesystem_parser make_fs_parser() const {
-    return filesystem_parser(mm_, image_offset_, options_.image_size);
+    return filesystem_parser(LOG_GET_LOGGER, mm_, image_offset_,
+                             options_.image_size);
   }
 
   size_t get_max_cache_blocks() const {
@@ -545,8 +547,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{mm}
-    , image_offset_{filesystem_parser::find_image_offset(mm_,
-                                                         options.image_offset)}
+    , image_offset_{filesystem_parser(lgr, mm_, options.image_offset)
+                        .image_offset()}
     , options_{options} // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
     PERFMON_CLS_TIMER_INIT(find_path)
@@ -629,7 +631,8 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader_v2(lgr, std::move(cache), options.inode_reader, perfmon);
+  ir_ = inode_reader_v2(lgr, os_, std::move(cache), options.inode_reader,
+                        perfmon);
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     history_sections_ = std::move(it->second);
@@ -1425,6 +1428,7 @@ class filesystem_common_ : public Base {
   }
   size_t num_blocks() const override { return fs_.num_blocks(); }
   bool has_symlinks() const override { return fs_.has_symlinks(); }
+  bool has_sparse_files() const override { return fs_.has_sparse_files(); }
   nlohmann::json get_inode_info(inode_view entry) const override {
     return fs_.get_inode_info(entry);
   }
@@ -1529,13 +1533,13 @@ class filesystem_full_
 
 filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
                                        std::filesystem::path const& path)
-    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path))) {}
+    : filesystem_v2_lite(lgr, os, os.open_file(os.canonical(path))) {}
 
 filesystem_v2_lite::filesystem_v2_lite(
     logger& lgr, os_access const& os, std::filesystem::path const& path,
     filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path)), options,
+    : filesystem_v2_lite(lgr, os, os.open_file(os.canonical(path)), options,
                          perfmon) {}
 
 filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
@@ -1554,13 +1558,13 @@ filesystem_v2_lite::filesystem_v2_lite(
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
-    : filesystem_v2(lgr, os, os.map_file(os.canonical(path))) {}
+    : filesystem_v2(lgr, os, os.open_file(os.canonical(path))) {}
 
 filesystem_v2::filesystem_v2(
     logger& lgr, os_access const& os, std::filesystem::path const& path,
     filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : filesystem_v2(lgr, os, os.map_file(os.canonical(path)), options,
+    : filesystem_v2(lgr, os, os.open_file(os.canonical(path)), options,
                     perfmon) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
@@ -1581,7 +1585,6 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
                             int detail_level, size_t num_readers,
                             bool check_integrity, file_off_t image_offset) {
   filesystem_options fsopts;
-  fsopts.metadata.enable_nlink = true;
   fsopts.image_offset = image_offset;
   filesystem_v2 fs(lgr, os, mm, fsopts);
 
@@ -1595,13 +1598,14 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
 }
 
 std::optional<file_extents_iterable>
-filesystem_v2::header(file_view const& mm) {
-  return header(mm, filesystem_options::IMAGE_OFFSET_AUTO);
+filesystem_v2::header(logger& lgr, file_view const& mm) {
+  return header(lgr, mm, filesystem_options::IMAGE_OFFSET_AUTO);
 }
 
 std::optional<file_extents_iterable>
-filesystem_v2::header(file_view const& mm, file_off_t image_offset) {
-  return internal::filesystem_parser(mm, image_offset).header();
+filesystem_v2::header(logger& lgr, file_view const& mm,
+                      file_off_t image_offset) {
+  return internal::filesystem_parser(lgr, mm, image_offset).header();
 }
 
 int filesystem_v2::check(filesystem_check_level level,

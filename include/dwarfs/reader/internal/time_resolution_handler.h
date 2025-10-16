@@ -28,14 +28,41 @@
 
 #pragma once
 
-#include <filesystem>
+#include <cstdint>
+#include <string>
 
-#include <dwarfs/file_view.h>
+#include <nlohmann/json.hpp>
+
+#include <dwarfs/gen-cpp2/metadata_layouts.h>
 
 namespace dwarfs {
 
-file_view create_mmap_file_view(std::filesystem::path const& path);
-file_view
-create_mmap_file_view(std::filesystem::path const& path, file_size_t size);
+class file_stat;
 
+namespace reader::internal {
+
+class inode_view_impl;
+
+class time_resolution_handler {
+ public:
+  explicit time_resolution_handler(
+      ::apache::thrift::frozen::View<thrift::metadata::metadata> meta);
+  explicit time_resolution_handler(
+      ::apache::thrift::frozen::View<thrift::metadata::history_entry> hist);
+
+  void fill_stat_timevals(file_stat& st, inode_view_impl const& ivr) const;
+  void add_time_resolution_to(nlohmann::json& j) const;
+  std::string get_time_resolution_string() const;
+
+ private:
+  template <typename T>
+  time_resolution_handler(T const& obj, uint64_t timebase);
+
+  uint64_t const timebase_{0};
+  uint32_t const resolution_{1};
+  uint32_t const nsec_multiplier_{0};
+  bool const mtime_only_{false};
+};
+
+} // namespace reader::internal
 } // namespace dwarfs

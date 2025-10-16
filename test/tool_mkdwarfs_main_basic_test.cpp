@@ -246,6 +246,44 @@ TEST(mkdwarfs_test, input_list_large) {
   EXPECT_EQ(expected, actual);
 }
 
+TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list = "./ipsum.py\n././ipsum.py\n./empty\n";
+  mkdwarfs_tester t;
+
+  t.iol->set_in(input_list);
+
+  ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
+                      "--log-level=trace"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "skipping duplicate entry 'ipsum.py' in input list"));
+
+  std::ostringstream oss;
+  t.add_stream_logger(oss, logger::DEBUG);
+
+  auto fs = t.fs_from_file(image_file);
+
+  auto ipsum = fs.find("/ipsum.py");
+  auto empty = fs.find("/empty");
+
+  ASSERT_TRUE(ipsum);
+  ASSERT_TRUE(empty);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
+  EXPECT_TRUE(empty->inode().is_regular_file());
+
+  std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
+  std::set<fs::path> actual;
+  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+  EXPECT_EQ(expected, actual);
+}
+
 TEST(mkdwarfs_test, metadata_inode_info) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
