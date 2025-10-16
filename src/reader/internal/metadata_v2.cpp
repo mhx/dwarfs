@@ -777,6 +777,7 @@ void metadata_v2_data::check_inode_size_cache(
     auto const min_chunk_count = cache->min_chunk_count();
 
     std::unordered_set<uint32_t> seen;
+    std::unordered_set<uint32_t> seen_sparse;
 
     for (int inode = file_inode_offset_; inode < dev_inode_offset_; ++inode) {
       auto iv = make_inode_view_impl(inode);
@@ -792,39 +793,75 @@ void metadata_v2_data::check_inode_size_cache(
 
       auto index = file_inode_to_chunk_index(inode);
 
-      if (seen.contains(index)) {
-        continue;
+      if (!seen.contains(index)) {
+        if (auto it = cache->size_lookup().find(index);
+            it != cache->size_lookup().end()) {
+          auto size = it->second();
+
+          std::error_code ec;
+          auto cr = get_chunk_range_from_index(index, ec);
+          DWARFS_CHECK(
+              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+
+          LOG_TRACE << "checking inode " << inode << " [index=" << index
+                    << "] size " << size << " (" << cr.size() << " chunks)";
+
+          if (std::cmp_not_equal(size, expected.size)) {
+            LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                      << " does not match expected " << expected.size;
+            ++errors;
+          }
+
+          if (cr.size() < min_chunk_count) {
+            LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                      << " has less than " << min_chunk_count
+                      << " chunks: " << cr.size();
+            ++errors;
+          }
+
+          seen.insert(index);
+        }
       }
 
-      if (auto it = cache->size_lookup().find(index);
-          it != cache->size_lookup().end()) {
-        auto size = it->second();
+      if (!seen_sparse.contains(index)) {
+        if (auto it = cache->allocated_size_lookup().find(index);
+            it != cache->allocated_size_lookup().end()) {
+          auto alloc_size = it->second();
 
-        std::error_code ec;
-        auto cr = get_chunk_range_from_index(index, ec);
-        DWARFS_CHECK(
-            !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+          std::error_code ec;
+          auto cr = get_chunk_range_from_index(index, ec);
+          DWARFS_CHECK(
+              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
-        LOG_TRACE << "checking inode " << inode << " [index=" << index
-                  << "] size " << size << " (" << cr.size() << " chunks)";
+          LOG_TRACE << "checking inode " << inode << " [index=" << index
+                    << "] allocated size " << alloc_size << " (" << cr.size()
+                    << " chunks)";
 
-        if (std::cmp_not_equal(size, expected.size)) {
-          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
-                    << " does not match expected " << expected.size;
-          ++errors;
+          if (std::cmp_not_equal(alloc_size, expected.allocated_size)) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size
+                      << " does not match expected " << expected.allocated_size;
+            ++errors;
+          }
+
+          if (cr.size() < min_chunk_count) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size << " has less than "
+                      << min_chunk_count << " chunks: " << cr.size();
+            ++errors;
+          }
+
+          if (std::ranges::none_of(cr,
+                                   [](auto const& c) { return c.is_hole(); })) {
+            LOG_ERROR << "inode " << inode << " [" << index
+                      << "] allocated size " << alloc_size
+                      << " has no hole chunks, but is in allocated size cache";
+            ++errors;
+          }
+
+          seen_sparse.insert(index);
         }
-
-        if (cr.size() < min_chunk_count) {
-          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
-                    << " has less than " << min_chunk_count
-                    << " chunks: " << cr.size();
-          ++errors;
-        }
-
-        seen.insert(index);
       }
-
-      // TODO: also add checks for allocated size
     }
 
     for (auto entry : cache->size_lookup()) {
@@ -832,6 +869,15 @@ void metadata_v2_data::check_inode_size_cache(
       if (!seen.contains(index)) {
         LOG_ERROR << "unused inode size cache entry for index " << index
                   << " size " << entry.second();
+        ++errors;
+      }
+    }
+
+    for (auto entry : cache->allocated_size_lookup()) {
+      auto index = entry.first();
+      if (!seen_sparse.contains(index)) {
+        LOG_ERROR << "unused inode allocated size cache entry for index "
+                  << index << " size " << entry.second();
         ++errors;
       }
     }
