@@ -191,7 +191,7 @@ struct options {
   int preload_all{0};
   int readonly{0};
   int case_insensitive{0};
-  int cache_files{0};
+  int cache_files{1};
   size_t cachesize{0};
   size_t blocksize{0};
   size_t readahead{0};
@@ -1667,7 +1667,6 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto& opts = userdata.opts;
 
   userdata.progname = std::filesystem::path(argv[0]);
-  opts.cache_files = 1;
 
   fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
 
