@@ -183,6 +183,10 @@ TEST_P(manpage_coverage_test, options) {
     man_opts.erase("perfmon");
     man_opts.erase("perfmon_trace");
 #endif
+#if defined(_WIN32) || defined(__APPLE__)
+    // TODO: check with newer macFUSE
+    man_opts.erase("(no_)cache_sparse");
+#endif
   } else {
     EXPECT_TRUE(help_opts.contains("help"))
         << tool_name << " missing help option";

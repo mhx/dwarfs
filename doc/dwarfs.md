@@ -137,6 +137,17 @@ options:
   though it's likely that the kernel will already do the right thing
   even when the cache is enabled.
 
+- `-o (no_)cache_sparse`:
+  If a file system image contains sparse files, these will not be
+  cached by default (i.e. the default is `-o no_cache_sparse`).
+  It is assumed that sparse files are typically large and mostly
+  filled with zeros, so caching them is quite wasteful. Also, if
+  you have tools that don't treat sparse files different from
+  non-sparse files, enabling caching will slow down reads quite
+  significantly due to the overhead of caching. *If* your tools
+  handle sparse files properly, you can safely enable caching and
+  it will potentially improve performance.
+
 - `-o debuglevel=`*name*:
   Use this for different levels of verbosity along with either
   the `-f` or `-d` FUSE options. This can give you some insight

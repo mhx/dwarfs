@@ -192,6 +192,9 @@ struct options {
   int readonly{0};
   int case_insensitive{0};
   int cache_files{1};
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  int cache_sparse{0};
+#endif
   size_t cachesize{0};
   size_t blocksize{0};
   size_t readahead{0};
@@ -263,6 +266,9 @@ struct dwarfs_userdata {
   iolayer const& iol;
   std::optional<dwarfs_analysis> analysis;
   std::shared_ptr<performance_monitor> perfmon;
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  bool fs_has_sparse_files{false};
+#endif
   PERFMON_EXT_PROXY_DECL
   PERFMON_EXT_TIMER_DECL(op_init)
   PERFMON_EXT_TIMER_DECL(op_lookup)
@@ -311,6 +317,10 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
+#ifdef DWARFS_FUSE_HAS_LSEEK
+    DWARFS_OPT("cache_sparse", cache_sparse, 1),
+    DWARFS_OPT("no_cache_sparse", cache_sparse, 0),
+#endif
 #if DWARFS_PERFMON_ENABLED
     DWARFS_OPT("perfmon=%s", perfmon_enabled_str, 0),
     DWARFS_OPT("perfmon_trace=%s", perfmon_trace_file_str, 0),
@@ -441,6 +451,10 @@ void op_init_common(void* data) {
   } else if (userdata.opts.preload_all) {
     userdata.fs.cache_all_blocks();
   }
+
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  userdata.fs_has_sparse_files = userdata.fs.has_sparse_files();
+#endif
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -654,9 +668,30 @@ int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
       userdata.analysis->add_open(iv->inode_num());
     }
 
+    bool do_cache = userdata.opts.cache_files;
+
+#ifdef DWARFS_FUSE_HAS_LSEEK
+    if (do_cache && !userdata.opts.cache_sparse &&
+        userdata.fs_has_sparse_files) {
+      // TODO: we probably don't need a full-blown getattr here
+      std::error_code ec;
+      auto stat = userdata.fs.getattr(*iv, ec);
+
+      if (!ec) {
+        if (stat.size() != stat.allocated_size()) {
+          do_cache = false;
+          LOG_DEBUG << "disabling cache for sparse inode " << iv->inode_num();
+        }
+      } else {
+        LOG_DEBUG << "getattr failed unexpectedly for inode " << iv->inode_num()
+                  << ": " << ec.message();
+      }
+    }
+#endif
+
     fi->fh = iv->inode_num();
-    fi->direct_io = !userdata.opts.cache_files;
-    fi->keep_cache = userdata.opts.cache_files;
+    fi->direct_io = !do_cache;
+    fi->keep_cache = do_cache;
 
     return 0;
   });
@@ -1339,6 +1374,9 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o preload_category=NAME  preload blocks from this category\n"
      << "    -o preload_all         preload all file system blocks\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
+#ifdef DWARFS_FUSE_HAS_LSEEK
+     << "    -o (no_)cache_sparse   (don't) keep sparse files in kernel cache\n"
+#endif
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
      << "    -o analysis_file=FILE  write accessed files to this file\n"
      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
