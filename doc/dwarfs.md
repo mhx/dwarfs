@@ -3,6 +3,7 @@
 ## SYNOPSIS
 
 `dwarfs` *image* *mountpoint* [*options*...]
+`dwarfs` --auto-mountpoint *image* [*options*...]
 
 ## DESCRIPTION
 
@@ -16,6 +17,12 @@ file system image using mkdwarfs(1), you can mount it with:
 ```
 dwarfs image.dwarfs /path/to/mountpoint
 ```
+
+Alternatively, you can use the `--auto-mountpoint` option to use a directory
+with the same path and base name as the image file as the mount point. If
+that directory doesn't exist, it will be created automatically. Note, however,
+that this directory will not be removed automatically when the file system is
+unmounted.
 
 ## OPTIONS
 
