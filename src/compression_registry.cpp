@@ -26,9 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <cstdlib>
-#include <iostream>
-#include <string>
+#include <fmt/format.h>
 
 #include <dwarfs/detail/compression_registry.h>
 #include <dwarfs/error.h>
@@ -37,11 +35,9 @@ namespace dwarfs::detail {
 
 void compression_registry_base::register_name(compression_type type,
                                               std::string_view name) {
-  if (!names_.emplace(std::string{name}, type).second) {
-    std::cerr << "compression factory name conflict (" << name << ", "
-              << static_cast<int>(type) << ")\n";
-    ::abort();
-  }
+  DWARFS_CHECK(names_.emplace(std::string{name}, type).second,
+               fmt::format("compression factory name conflict: {}, {}", name,
+                           static_cast<int>(type)));
 }
 
 compression_type
