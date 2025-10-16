@@ -179,6 +179,10 @@ TEST_P(manpage_coverage_test, options) {
     man_opts.erase("uid");
     man_opts.erase("gid");
 #endif
+#ifndef DWARFS_PERFMON_ENABLED
+    man_opts.erase("perfmon");
+    man_opts.erase("perfmon_trace");
+#endif
   } else {
     EXPECT_TRUE(help_opts.contains("help"))
         << tool_name << " missing help option";
@@ -199,6 +203,10 @@ TEST_P(manpage_coverage_test, options) {
     man_opts.erase("format");
     man_opts.erase("format-filters");
     man_opts.erase("format-options");
+#endif
+#ifndef DWARFS_PERFMON_ENABLED
+    man_opts.erase("perfmon");
+    man_opts.erase("perfmon-trace");
 #endif
     man_opts.erase("pattern");
   }
