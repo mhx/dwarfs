@@ -297,7 +297,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     reader::filesystem_options fsopts;
 
-    fsopts.metadata.check_consistency = check_integrity;
+    fsopts.metadata.check_consistency = !no_check;
     fsopts.image_offset = reader::parse_image_offset(image_offset);
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
