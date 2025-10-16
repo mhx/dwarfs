@@ -28,6 +28,7 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 
 #include "test_tool_main_tester.h"
@@ -136,4 +137,43 @@ TEST(mkdwarfs_test, pack_mode_invalid) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--pack-metadata=grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("'--pack-metadata' is invalid"));
+}
+
+TEST(mkdwarfs_test, bug_sentinel_self_entry_nonzero) {
+  auto const bug_file =
+      test_dir / "bugs" / "dir-sentinel-self-entry-nonzero.dwarfs";
+  auto bug_image_data = read_file(bug_file);
+
+  {
+    std::ostringstream oss;
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_stream_logger(oss, logger::INFO);
+    auto fs = t.fs_from_data(bug_image_data);
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::INTEGRITY));
+    EXPECT_THAT(
+        oss.str(),
+        ::testing::HasSubstr(
+            "self_entry for sentinel directory should be 0, but is 2, this is "
+            "harmless and can be fixed by rebuilding the metadata"));
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file("bug.dwarfs", bug_image_data);
+
+    EXPECT_EQ(0, t.run({"-i", "bug.dwarfs", "-o", "-", "--rebuild-metadata"}))
+        << t.err();
+
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr("fixing inconsistent sentinel directory"));
+
+    std::ostringstream oss;
+    t.add_stream_logger(oss, logger::INFO);
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::INTEGRITY));
+    EXPECT_THAT(oss.str(), ::testing::IsEmpty())
+        << "no warnings should be emitted when checking the rebuilt image";
+  }
 }

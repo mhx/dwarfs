@@ -331,7 +331,7 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
 
   bm.map_logical_blocks(md_.chunks().value(), hole_mapper);
 
-  // insert dummy inode to help determine number of chunks per inode
+  // insert sentinel inode to help determine number of chunks per inode
   DWARFS_NOTHROW(md_.chunk_table()->at(im.count())) = md_.chunks()->size();
 
   if (hole_mapper && hole_mapper->has_holes()) {
@@ -361,11 +361,11 @@ void metadata_builder_<LoggerPolicy>::gather_entries(
     p->pack(md_, ge_data, timeres_);
   }
 
-  thrift::metadata::directory dummy;
-  dummy.parent_entry() = 0;
-  dummy.first_entry() = md_.dir_entries()->size();
-  dummy.self_entry() = 0;
-  md_.directories()->push_back(dummy);
+  thrift::metadata::directory sentinel;
+  sentinel.parent_entry() = 0;
+  sentinel.first_entry() = md_.dir_entries()->size();
+  sentinel.self_entry() = 0;
+  md_.directories()->push_back(sentinel);
 }
 
 template <typename LoggerPolicy>
@@ -747,6 +747,19 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
       auto delta = d.first_entry().value() - last_first_entry;
       last_first_entry = d.first_entry().value();
       d.first_entry() = delta;
+    }
+  } else {
+    // Check sentinel directory and fix if necessary.
+    //
+    // For the sentinel, only the `first_entry` field is relevant, but due to
+    // an off-by-one bug in `unpack_directories()`, the `self_entry` field
+    // could get populated with a non-zero value. We simply clear it here.
+
+    auto& sentinel = md_.directories()->back();
+
+    if (sentinel.self_entry().value() != 0) {
+      LOG_INFO << "fixing inconsistent sentinel directory";
+      sentinel.self_entry() = 0;
     }
   }
 

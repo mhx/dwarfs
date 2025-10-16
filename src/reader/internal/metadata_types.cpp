@@ -102,6 +102,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
 
   auto dirent = *dep;
   auto metadir = meta.directories();
+  auto const num_dir_inodes = metadir.size() - 1;
 
   std::vector<thrift::metadata::directory> directories;
 
@@ -139,8 +140,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
         auto end = directories[p_ino + 1].first_entry().value();
 
         for (auto e = beg; e < end; ++e) {
-          if (auto e_ino = dirent[e].inode_num();
-              e_ino < (directories.size() - 1)) {
+          if (auto e_ino = dirent[e].inode_num(); e_ino < num_dir_inodes) {
             directories[e_ino].parent_entry() = parent;
             queue.push(e);
           }
@@ -161,15 +161,24 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   {
     auto tt = LOG_TIMED_TRACE;
 
+    size_t count{0};
+
     for (size_t i = 0; i < dirent.size(); ++i) {
-      auto ino = dirent[i].inode_num();
-      if (ino < directories.size()) {
+      auto const ino = dirent[i].inode_num();
+
+      if (ino < num_dir_inodes) {
         directories[ino].self_entry() = i;
+        ++count;
       }
     }
 
-    tt << "recoverd " << directories.size() << " self entries from "
-       << dirent.size() << " dir entries";
+    DWARFS_CHECK(
+        count == num_dir_inodes,
+        fmt::format("could not recover all self entries, expected {} got {}",
+                    num_dir_inodes, count));
+
+    tt << "recovered " << count << " self entries from " << dirent.size()
+       << " dir entries";
   }
 
   // freeze to save memory
@@ -353,7 +362,9 @@ void check_index_range(global_metadata::Meta const& meta) {
   }
 }
 
-void check_packed_tables(global_metadata::Meta const& meta) {
+void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
   auto const num_inodes = meta.inodes().size();
 
   if (meta.directories().size() > num_inodes + 1) {
@@ -441,9 +452,17 @@ void check_packed_tables(global_metadata::Meta const& meta) {
                           p));
         }
         if (has_self && s != 0) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("[{}] self_entry {} != 0 for root directory", i, s));
+          if (is_last) {
+            LOG_WARN << "self_entry for sentinel directory should be 0, but is "
+                     << s
+                     << ", this is harmless and can be fixed by rebuilding the "
+                        "metadata";
+          } else {
+            DWARFS_THROW(
+                runtime_error,
+                fmt::format("[{}] self_entry {} != 0 for root directory", i,
+                            s));
+          }
         }
       } else if (has_self) {
         if (f == s) {
@@ -740,7 +759,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 
     check_empty_tables(meta);
     check_index_range(meta);
-    check_packed_tables(meta);
+    check_packed_tables(lgr, meta);
     check_string_tables(meta);
     check_chunks(meta, features);
     auto offsets = check_partitioning(meta);

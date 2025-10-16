@@ -32,6 +32,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 
@@ -394,4 +395,18 @@ TEST(dwarfsck_test, checksum_files) {
   };
 
   EXPECT_EQ(expected, actual);
+}
+
+TEST(dwarfsck_test, bug_sentinel_self_entry_nonzero) {
+  auto const bug_file =
+      test_dir / "bugs" / "dir-sentinel-self-entry-nonzero.dwarfs";
+  auto bug_image = read_file(bug_file);
+  auto t = dwarfsck_tester::create_with_image(bug_image);
+  EXPECT_EQ(0, t.run({"image.dwarfs"})) << t.err();
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "self_entry for sentinel directory should be 0, but is 2, this is "
+          "harmless and can be fixed by rebuilding the metadata"))
+      << t.err();
 }
