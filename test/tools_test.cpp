@@ -420,6 +420,7 @@ class subprocess {
 #ifndef _WIN32
 namespace fs_guard_detail {
 
+// TODO: can be replaced with boost::scope::unique_fd (Boost 1.85+)
 struct unique_fd {
   int fd{-1};
   unique_fd() = default;
@@ -447,11 +448,6 @@ struct unique_fd {
     }
   }
   int get() const { return fd; }
-  int release() {
-    int t = fd;
-    fd = -1;
-    return t;
-  }
   explicit operator bool() const { return fd >= 0; }
 };
 
