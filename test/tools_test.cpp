@@ -557,7 +557,10 @@ class process_guard {
 class driver_runner {
  public:
   struct foreground_t {};
-  static constexpr foreground_t foreground = foreground_t();
+  static constexpr foreground_t foreground{};
+
+  struct automount_t {};
+  static constexpr automount_t automount{};
 
   driver_runner() = default;
 
@@ -596,6 +599,24 @@ class driver_runner {
         "-f",
 #endif
         std::forward<Args>(args)...);
+    process_->run_background();
+#ifndef _WIN32
+    dwarfs_guard_ = process_guard(process_->pid());
+#endif
+  }
+
+  template <typename... Args>
+  driver_runner(automount_t, fs::path const& driver, bool tool_arg,
+                fs::path const& image, fs::path const& mountpoint,
+                Args&&... args)
+      : mountpoint_{mountpoint} {
+    process_ = std::make_unique<subprocess>(DWARFS_ARG_EMULATOR_ driver,
+                                            make_tool_arg(tool_arg),
+                                            "--auto-mountpoint", image,
+#ifndef _WIN32
+                                            "-f",
+#endif
+                                            std::forward<Args>(args)...);
     process_->run_background();
 #ifndef _WIN32
     dwarfs_guard_ = process_guard(process_->pid());
@@ -3034,4 +3055,45 @@ TEST(tools_test, timestamps_extract) {
     EXPECT_EQ(ft.mtime, stat.mtimespec()) << path;
     EXPECT_EQ(ft.atime, stat.atimespec()) << path;
   }
+}
+
+TEST(tools_test, dwarfs_automount) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  dwarfs::temporary_directory td("dwarfs");
+
+  auto const image = td.path() / "timestamps.dwarfs";
+  fs::copy(test_dir / "timestamps.dwarfs", image);
+
+  auto const mountpoint = td.path() / "timestamps";
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_runner::automount, driver_bin, false, image,
+                         mountpoint);
+
+    EXPECT_TRUE(
+        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+        << runner.cmdline();
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+
+#ifndef _WIN32
+    EXPECT_TRUE(fs::exists(mountpoint));
+    EXPECT_NO_THROW(fs::remove(mountpoint));
+#endif
+  }
+#endif
 }
