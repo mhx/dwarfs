@@ -697,6 +697,15 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
         EXPECT_EQ(lstat.size() / 512, lstat.blocks());
 
         EXPECT_EQ(stat.ino(), lstat.ino());
+
+        // seek is only supported with sparse files enabled
+        EXPECT_THAT(
+            [&] { fs.seek(iv.inode_num(), 0, reader::seek_whence::data); },
+            testing::Throws<std::system_error>(testing::Property(
+                &std::system_error::code,
+                testing::Property(
+                    &std::error_code::value,
+                    testing::Eq(static_cast<int>(std::errc::not_supported))))));
       }
 
       vfs_stat vfs;
