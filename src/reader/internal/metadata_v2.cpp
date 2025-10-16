@@ -1680,7 +1680,7 @@ void metadata_v2_data::dump(
 
   if (opts.features.has(fsinfo_feature::schema_raw_dump)) {
     ::apache::thrift::DebugProtocolWriter::Options dpwo;
-    dpwo.stringLengthLimit = std::numeric_limits<size_t>::max();
+    dpwo.stringLengthLimit = 0; // no limit
     os << ::apache::thrift::debugString(deserialize_schema(schema_), dpwo)
        << '\n';
   }
@@ -1720,7 +1720,7 @@ void metadata_v2_data::dump(
 
   if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
     ::apache::thrift::DebugProtocolWriter::Options dpwo;
-    dpwo.stringLengthLimit = std::numeric_limits<size_t>::max();
+    dpwo.stringLengthLimit = 0; // no limit
     os << ::apache::thrift::debugString(meta_.thaw(), dpwo) << '\n';
   }
 
