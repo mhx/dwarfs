@@ -323,10 +323,10 @@ jobs:
           #                       aarch64 builds (cross)                      #
           #####################################################################
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-libressl-lto-ninja-static
-          ###   cross_arch: aarch64
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-libressl-lto-ninja-static
+            cross_arch: aarch64
 
           #####################################################################
           #                       riscv64 builds (cross)                      #
@@ -347,10 +347,10 @@ jobs:
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: riscv64
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-minimal-libressl-lto-ninja-static
-          ###   cross_arch: riscv64
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+            cross_arch: riscv64
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -384,20 +384,20 @@ jobs:
           #skip#   build_type: clang-release-lto-ninja-static
           #skip#   cross_arch: i386
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-lto-ninja-static
-          ###   cross_arch: i386
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: i386
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: i386
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-minimal-libressl-lto-ninja-static
-          ###   cross_arch: i386
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+            cross_arch: i386
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -431,20 +431,20 @@ jobs:
           #skip#   build_type: clang-release-lto-ninja-static
           #skip#   cross_arch: arm
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-lto-ninja-static
-          ###   cross_arch: arm
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-lto-ninja-static
+            cross_arch: arm
 
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-libressl-lto-ninja-static
             cross_arch: arm
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-minimal-libressl-lto-ninja-static
-          ###   cross_arch: arm
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-libressl-lto-ninja-static
+            cross_arch: arm
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -478,20 +478,20 @@ jobs:
           #skip#   cross_arch: ppc64le
           #skip#   skip_slow_tests: true
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: gcc-release-lto-ninja-static
-          ###   cross_arch: ppc64le
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
+            cross_arch: ppc64le
 
           - build_arch: amd64
             build_dist: alpine
             build_type: gcc-release-libressl-lto-ninja-static
             cross_arch: ppc64le
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: gcc-release-minimal-libressl-lto-ninja-static
-          ###   cross_arch: ppc64le
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-libressl-lto-ninja-static
+            cross_arch: ppc64le
 
           ######## blocked by https://github.com/llvm/llvm-project/issues/150913
           # - build_arch: amd64
@@ -515,11 +515,11 @@ jobs:
             cross_arch: ppc64
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: gcc-release-minimal-libressl-ninja-static
-          ###   cross_arch: ppc64
-          ###   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-libressl-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
           ######## blocked by https://github.com/rui314/mold/issues/1498
           # - build_arch: amd64
@@ -548,10 +548,10 @@ jobs:
             build_type: clang-relsize-lto-ninja-static
             cross_arch: loongarch64
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: clang-relsize-minimal-lto-ninja-static
-          ###   cross_arch: loongarch64
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-minimal-lto-ninja-static
+            cross_arch: loongarch64
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
@@ -600,11 +600,11 @@ jobs:
             cross_arch: s390x
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
-          ### - build_arch: amd64
-          ###   build_dist: alpine
-          ###   build_type: gcc-release-minimal-lto-ninja-static
-          ###   cross_arch: s390x
-          ###   skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-minimal-lto-ninja-static
+            cross_arch: s390x
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
