@@ -321,8 +321,8 @@ The `inodes` list is strictly in the following order:
 
 - directory inodes (`S_IFDIR`)
 - symlink inodes (`S_IFLNK`)
-- regular *unique* file inodes (`S_IREG`)
-- regular *shared* file inodes (`S_IREG`)
+- regular *unique* file inodes (`S_IFREG`)
+- regular *shared* file inodes (`S_IFREG`)
 - character/block device inodes (`S_IFCHR`, `S_IFBLK`)
 - socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
 
