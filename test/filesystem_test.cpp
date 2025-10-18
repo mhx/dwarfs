@@ -248,8 +248,7 @@ TEST(filesystem, find_image_offset) {
   std::string valid_fs;
   {
     auto mm = test::make_real_file_view(test_dir / "unixlink.dwarfs");
-    auto data = mm.raw_bytes<char>();
-    valid_fs.assign(data.data(), data.size());
+    valid_fs = mm.read_string(0, mm.size());
   }
   auto v1_header = valid_v1_header();
   auto v2_header = valid_v2_header();
