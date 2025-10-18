@@ -33,8 +33,8 @@
 #include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
 
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mappable_file.h>
-#include <dwarfs/internal/memory_mapping_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 
 #include "mmap_mock.h"
@@ -211,7 +211,7 @@ class mm_ops_lowlevel_mock {
   }
 };
 
-class fake_mm_ops_adapter : public internal::memory_mapping_ops {
+class fake_mm_ops_adapter : public internal::io_ops {
  public:
   explicit fake_mm_ops_adapter(mm_ops_lowlevel_mock& ll)
       : ll_{ll} {}

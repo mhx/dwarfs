@@ -35,15 +35,15 @@
 
 namespace dwarfs::internal {
 
-class memory_mapping_ops;
+class io_ops;
 
 struct mmap_file_view_options {
   std::optional<file_size_t> max_eager_map_size;
 };
 
-file_view create_mmap_file_view(internal::memory_mapping_ops const& ops,
+file_view create_mmap_file_view(internal::io_ops const& ops,
                                 std::filesystem::path const& path);
-file_view create_mmap_file_view(internal::memory_mapping_ops const& ops,
+file_view create_mmap_file_view(internal::io_ops const& ops,
                                 std::filesystem::path const& path,
                                 mmap_file_view_options const& opts);
 

@@ -26,8 +26,8 @@
 
 #include <dwarfs/file_util.h>
 
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mappable_file.h>
-#include <dwarfs/internal/memory_mapping_ops.h>
 
 #include "compare_directories.h"
 #include "sparse_file_builder.h"

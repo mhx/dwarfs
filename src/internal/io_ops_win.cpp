@@ -33,7 +33,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/scope_exit.h>
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 
 namespace dwarfs::internal {
 
@@ -198,7 +198,7 @@ get_file_extents(HANDLE h, uint64_t size, std::error_code& ec) {
   return extents;
 }
 
-class memory_mapping_ops_win : public memory_mapping_ops {
+class io_ops_win : public io_ops {
  public:
   struct win_handle {
     HANDLE file{INVALID_HANDLE_VALUE};
@@ -360,8 +360,8 @@ class memory_mapping_ops_win : public memory_mapping_ops {
 
 } // namespace
 
-memory_mapping_ops const& get_native_memory_mapping_ops() {
-  static memory_mapping_ops_win const ops;
+io_ops const& get_native_memory_mapping_ops() {
+  static io_ops_win const ops;
   return ops;
 }
 

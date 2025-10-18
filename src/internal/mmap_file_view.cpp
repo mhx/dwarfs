@@ -47,7 +47,7 @@ class zero_filled_mapping {
   zero_filled_mapping() = default;
 
   std::shared_ptr<readonly_memory_mapping const>
-  get(memory_mapping_ops const& ops, size_t size) {
+  get(io_ops const& ops, size_t size) {
     std::lock_guard lock{mx_};
     if (!mapping_ || mapping_->size() < size) {
       mapping_ = std::make_shared<readonly_memory_mapping>(
@@ -65,8 +65,7 @@ class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
-  mmap_file_view(memory_mapping_ops const& ops,
-                 std::filesystem::path const& path,
+  mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
                  mmap_file_view_options const& opts)
       : file_{mappable_file::create(ops, path)}
       , path_{path}
@@ -125,7 +124,7 @@ class mmap_file_view final
   std::vector<detail::file_extent_info> const extents_;
   std::once_flag mutable zero_filled_mapping_init_;
   std::unique_ptr<zero_filled_mapping> mutable zero_filled_mapping_;
-  memory_mapping_ops const& ops_;
+  io_ops const& ops_;
 };
 
 class mmap_ref_file_segment final : public detail::file_segment_impl {
@@ -304,14 +303,14 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
 } // namespace
 
-file_view create_mmap_file_view(memory_mapping_ops const& ops,
-                                std::filesystem::path const& path,
-                                mmap_file_view_options const& opts) {
+file_view
+create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
+                      mmap_file_view_options const& opts) {
   return file_view(std::make_shared<mmap_file_view>(ops, path, opts));
 }
 
-file_view create_mmap_file_view(memory_mapping_ops const& ops,
-                                std::filesystem::path const& path) {
+file_view
+create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path) {
   return create_mmap_file_view(ops, path, {});
 }
 

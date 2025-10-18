@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 
 namespace dwarfs::internal {
@@ -40,11 +40,11 @@ class os_access_generic_data {
   os_access_generic_data(std::ostream& err, get_env_func const& get_env);
 
   mmap_file_view_options const& fv_opts() const { return fv_opts_; }
-  memory_mapping_ops const& mm_ops() const { return mm_ops_; }
+  io_ops const& mm_ops() const { return mm_ops_; }
 
  private:
   mmap_file_view_options fv_opts_;
-  memory_mapping_ops const& mm_ops_;
+  io_ops const& mm_ops_;
 };
 
 } // namespace dwarfs::internal

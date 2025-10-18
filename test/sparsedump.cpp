@@ -25,7 +25,7 @@
 
 #include <dwarfs/scope_exit.h>
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 
 int main(int argc, char* argv[]) {
   if (argc != 2) {

@@ -41,24 +41,23 @@
 
 namespace dwarfs::internal {
 
-class memory_mapping_ops;
+class io_ops;
 
 class mappable_file {
  public:
   static readonly_memory_mapping
-  map_empty_readonly(memory_mapping_ops const& ops, size_t size);
+  map_empty_readonly(io_ops const& ops, size_t size);
   static readonly_memory_mapping
-  map_empty_readonly(memory_mapping_ops const& ops, size_t size,
-                     std::error_code& ec);
+  map_empty_readonly(io_ops const& ops, size_t size, std::error_code& ec);
 
-  static memory_mapping map_empty(memory_mapping_ops const& ops, size_t size);
+  static memory_mapping map_empty(io_ops const& ops, size_t size);
   static memory_mapping
-  map_empty(memory_mapping_ops const& ops, size_t size, std::error_code& ec);
+  map_empty(io_ops const& ops, size_t size, std::error_code& ec);
 
   static mappable_file
-  create(memory_mapping_ops const& ops, std::filesystem::path const& path);
+  create(io_ops const& ops, std::filesystem::path const& path);
   static mappable_file
-  create(memory_mapping_ops const& ops, std::filesystem::path const& path,
+  create(io_ops const& ops, std::filesystem::path const& path,
          std::error_code& ec);
 
   mappable_file() = default;

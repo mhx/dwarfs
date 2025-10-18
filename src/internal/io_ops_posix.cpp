@@ -36,7 +36,7 @@
 
 #include <dwarfs/detail/file_extent_info.h>
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 
 namespace dwarfs::internal {
 
@@ -134,7 +134,7 @@ get_file_extents(int /*fd*/, std::error_code& ec) {
 
 #endif
 
-class memory_mapping_ops_posix : public memory_mapping_ops {
+class io_ops_posix : public io_ops {
  public:
   struct posix_handle {
     int fd;
@@ -289,8 +289,8 @@ class memory_mapping_ops_posix : public memory_mapping_ops {
 
 } // namespace
 
-memory_mapping_ops const& get_native_memory_mapping_ops() {
-  static memory_mapping_ops_posix const ops;
+io_ops const& get_native_memory_mapping_ops() {
+  static io_ops_posix const ops;
   return ops;
 }
 

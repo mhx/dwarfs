@@ -55,8 +55,8 @@
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mappable_file.h>
-#include <dwarfs/internal/memory_mapping_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 #include <dwarfs/internal/os_access_generic_data.h>
 #include <dwarfs/internal/thread_util.h>

@@ -31,7 +31,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/categorizer.h>
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 
 using namespace dwarfs;

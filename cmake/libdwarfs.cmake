@@ -61,7 +61,7 @@ add_library(
   src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
   src/internal/mappable_file.cpp
-  src/internal/memory_mapping_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
+  src/internal/io_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
   src/internal/metadata_utils.cpp
   src/internal/mmap_file_view.cpp
   src/internal/option_parser.cpp

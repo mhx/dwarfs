@@ -33,8 +33,8 @@
 #include <dwarfs/error.h>
 
 #include <dwarfs/internal/detail/align_advise_range.h>
+#include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mappable_file.h>
-#include <dwarfs/internal/memory_mapping_ops.h>
 
 namespace dwarfs::internal {
 
@@ -118,7 +118,7 @@ constexpr virtual_alloc_tag virtual_alloc{};
 
 class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
  public:
-  memory_mapping_(memory_mapping_ops const& ops, void* addr, size_t page_offset,
+  memory_mapping_(io_ops const& ops, void* addr, size_t page_offset,
                   size_t mapped_size, file_range range, bool readonly,
                   size_t granularity)
       : addr_{addr}
@@ -129,7 +129,7 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
       , granularity_{granularity}
       , ops_{ops} {}
 
-  memory_mapping_(virtual_alloc_tag, memory_mapping_ops const& ops, void* addr,
+  memory_mapping_(virtual_alloc_tag, io_ops const& ops, void* addr,
                   size_t page_offset, size_t mapped_size, file_range range,
                   bool readonly, size_t granularity)
       : addr_{addr}
@@ -235,13 +235,12 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
   bool const readonly_{true};
   bool const is_virtual_{false};
   size_t const granularity_{0};
-  memory_mapping_ops const& ops_;
+  io_ops const& ops_;
 };
 
 class mappable_file_ final : public mappable_file::impl {
  public:
-  mappable_file_(memory_mapping_ops const& ops, std::any handle,
-                 file_size_t size)
+  mappable_file_(io_ops const& ops, std::any handle, file_size_t size)
       : handle_{std::move(handle)}
       , size_{size}
       , ops_{ops} {}
@@ -347,12 +346,12 @@ class mappable_file_ final : public mappable_file::impl {
  private:
   std::any handle_;
   file_size_t size_{0};
-  memory_mapping_ops const& ops_;
+  io_ops const& ops_;
 };
 
 std::unique_ptr<memory_mapping_>
-create_empty_mapping(memory_mapping_ops const& ops, size_t size,
-                     memory_access access, std::error_code& ec) {
+create_empty_mapping(io_ops const& ops, size_t size, memory_access access,
+                     std::error_code& ec) {
   ec.clear();
 
   auto const addr = ops.virtual_alloc(size, access, ec);
@@ -386,14 +385,14 @@ mappable_file::get_extents_noexcept() const noexcept {
 }
 
 readonly_memory_mapping
-mappable_file::map_empty_readonly(memory_mapping_ops const& ops, size_t size,
+mappable_file::map_empty_readonly(io_ops const& ops, size_t size,
                                   std::error_code& ec) {
   return readonly_memory_mapping{
       create_empty_mapping(ops, size, memory_access::readonly, ec)};
 }
 
 readonly_memory_mapping
-mappable_file::map_empty_readonly(memory_mapping_ops const& ops, size_t size) {
+mappable_file::map_empty_readonly(io_ops const& ops, size_t size) {
   std::error_code ec;
   auto mapping = map_empty_readonly(ops, size, ec);
   if (ec) {
@@ -402,14 +401,13 @@ mappable_file::map_empty_readonly(memory_mapping_ops const& ops, size_t size) {
   return mapping;
 }
 
-memory_mapping mappable_file::map_empty(memory_mapping_ops const& ops,
-                                        size_t size, std::error_code& ec) {
+memory_mapping
+mappable_file::map_empty(io_ops const& ops, size_t size, std::error_code& ec) {
   return memory_mapping{
       create_empty_mapping(ops, size, memory_access::readwrite, ec)};
 }
 
-memory_mapping
-mappable_file::map_empty(memory_mapping_ops const& ops, size_t size) {
+memory_mapping mappable_file::map_empty(io_ops const& ops, size_t size) {
   std::error_code ec;
   auto mapping = map_empty(ops, size, ec);
   if (ec) {
@@ -419,8 +417,8 @@ mappable_file::map_empty(memory_mapping_ops const& ops, size_t size) {
 }
 
 mappable_file
-mappable_file::create(memory_mapping_ops const& ops,
-                      std::filesystem::path const& path, std::error_code& ec) {
+mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
+                      std::error_code& ec) {
   ec.clear();
 
   auto const handle = ops.open(path, ec);
@@ -439,8 +437,8 @@ mappable_file::create(memory_mapping_ops const& ops,
   return mappable_file{std::make_unique<mappable_file_>(ops, handle, size)};
 }
 
-mappable_file mappable_file::create(memory_mapping_ops const& ops,
-                                    std::filesystem::path const& path) {
+mappable_file
+mappable_file::create(io_ops const& ops, std::filesystem::path const& path) {
   std::error_code ec;
   auto file = create(ops, path, ec);
   if (ec) {

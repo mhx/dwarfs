@@ -34,7 +34,7 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/file_util.h>
 
-#include <dwarfs/internal/memory_mapping_ops.h>
+#include <dwarfs/internal/io_ops.h>
 
 #include "test_helpers.h"
 
@@ -87,18 +87,17 @@ void* const kBadPtr =
 
 } // namespace
 
-class memory_mapping_ops_test : public ::testing::Test {
+class io_ops_test : public ::testing::Test {
  protected:
   void SetUp() override { td.emplace("dwarfs_mmap_ops"); }
 
   void TearDown() override { td.reset(); }
 
   std::optional<temporary_directory> td;
-  dwarfs::internal::memory_mapping_ops const& ops{
-      get_native_memory_mapping_ops()};
+  dwarfs::internal::io_ops const& ops{get_native_memory_mapping_ops()};
 };
 
-TEST(memory_mapping_ops, invalid_handle) {
+TEST(io_ops, invalid_handle) {
   auto const& ops = get_native_memory_mapping_ops();
 
   std::error_code ec;
@@ -129,7 +128,7 @@ TEST(memory_mapping_ops, invalid_handle) {
   EXPECT_EQ(p, nullptr);
 }
 
-TEST(memory_mapping_ops, granularity) {
+TEST(io_ops, granularity) {
   auto const& ops = get_native_memory_mapping_ops();
 
   auto const gran = ops.granularity();
@@ -137,7 +136,7 @@ TEST(memory_mapping_ops, granularity) {
   EXPECT_TRUE(std::has_single_bit(gran)); // power of two
 }
 
-TEST(memory_mapping_ops, virtual_alloc_readonly) {
+TEST(io_ops, virtual_alloc_readonly) {
   auto const& ops = get_native_memory_mapping_ops();
 
   static constexpr size_t kSize{256_KiB};
@@ -161,7 +160,7 @@ TEST(memory_mapping_ops, virtual_alloc_readonly) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST(memory_mapping_ops, virtual_alloc_readwrite) {
+TEST(io_ops, virtual_alloc_readwrite) {
   auto const& ops = get_native_memory_mapping_ops();
 
   static constexpr size_t kSize{97_KiB};
@@ -195,7 +194,7 @@ TEST(memory_mapping_ops, virtual_alloc_readwrite) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST(memory_mapping_ops, virtual_alloc_too_large) {
+TEST(io_ops, virtual_alloc_too_large) {
   auto const& ops = get_native_memory_mapping_ops();
 
   std::error_code ec;
@@ -206,7 +205,7 @@ TEST(memory_mapping_ops, virtual_alloc_too_large) {
   EXPECT_EQ(p, nullptr);
 }
 
-TEST(memory_mapping_ops, virtual_free_bad_ptr) {
+TEST(io_ops, virtual_free_bad_ptr) {
   auto const& ops = get_native_memory_mapping_ops();
 
   std::error_code ec;
@@ -215,7 +214,7 @@ TEST(memory_mapping_ops, virtual_free_bad_ptr) {
                              (ERROR_INVALID_PARAMETER));
 }
 
-TEST(memory_mapping_ops, unmap_bad_ptr) {
+TEST(io_ops, unmap_bad_ptr) {
   auto const& ops = get_native_memory_mapping_ops();
 
   std::error_code ec;
@@ -224,7 +223,7 @@ TEST(memory_mapping_ops, unmap_bad_ptr) {
                              (ERROR_INVALID_ADDRESS));
 }
 
-TEST(memory_mapping_ops, lock_bad_ptr) {
+TEST(io_ops, lock_bad_ptr) {
 #if DWARFS_TEST_RUNNING_ON_ASAN || DWARFS_TEST_RUNNING_ON_TSAN
   GTEST_SKIP() << "bad pointer test won't fail with ASAN/TSAN";
 #else
@@ -243,7 +242,7 @@ TEST(memory_mapping_ops, lock_bad_ptr) {
 
 #ifndef _WIN32
 // advice() isn't currently implemented on Windows
-TEST(memory_mapping_ops, advise_bad_ptr) {
+TEST(io_ops, advise_bad_ptr) {
   auto const& ops = get_native_memory_mapping_ops();
 
   std::error_code ec;
@@ -253,7 +252,7 @@ TEST(memory_mapping_ops, advise_bad_ptr) {
 }
 #endif
 
-TEST(memory_mapping_ops, virtual_alloc_advise) {
+TEST(io_ops, virtual_alloc_advise) {
   auto const& ops = get_native_memory_mapping_ops();
 
   static constexpr size_t kSize{128_KiB};
@@ -282,7 +281,7 @@ TEST(memory_mapping_ops, virtual_alloc_advise) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, open_size_close) {
+TEST_F(io_ops_test, open_size_close) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -299,7 +298,7 @@ TEST_F(memory_mapping_ops_test, open_size_close) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, open_non_existing_file) {
+TEST_F(io_ops_test, open_non_existing_file) {
   auto const p = td->path() / "non-existing-file.dat";
 
   std::error_code ec;
@@ -309,7 +308,7 @@ TEST_F(memory_mapping_ops_test, open_non_existing_file) {
                              (ERROR_FILE_NOT_FOUND));
 }
 
-TEST_F(memory_mapping_ops_test, pread) {
+TEST_F(io_ops_test, pread) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -328,7 +327,7 @@ TEST_F(memory_mapping_ops_test, pread) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, pread_beyond_eof) {
+TEST_F(io_ops_test, pread_beyond_eof) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -347,7 +346,7 @@ TEST_F(memory_mapping_ops_test, pread_beyond_eof) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, pread_bad_ptr) {
+TEST_F(io_ops_test, pread_bad_ptr) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -366,7 +365,7 @@ TEST_F(memory_mapping_ops_test, pread_bad_ptr) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, map_readonly) {
+TEST_F(io_ops_test, map_readonly) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -392,7 +391,7 @@ TEST_F(memory_mapping_ops_test, map_readonly) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, map_errors) {
+TEST_F(io_ops_test, map_errors) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 
@@ -435,7 +434,7 @@ TEST_F(memory_mapping_ops_test, map_errors) {
   EXPECT_NO_ERROR(ec);
 }
 
-TEST_F(memory_mapping_ops_test, lock_mapping) {
+TEST_F(io_ops_test, lock_mapping) {
   auto const p = td->path() / "file.dat";
   write_file(p, "Hello, World!");
 

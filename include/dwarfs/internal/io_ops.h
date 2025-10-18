@@ -45,9 +45,9 @@ enum class memory_access {
   readwrite,
 };
 
-class memory_mapping_ops {
+class io_ops {
  public:
-  virtual ~memory_mapping_ops() = default;
+  virtual ~io_ops() = default;
 
   virtual std::any
   open(std::filesystem::path const& path, std::error_code& ec) const = 0;
@@ -77,6 +77,6 @@ class memory_mapping_ops {
   virtual void lock(void* addr, size_t size, std::error_code& ec) const = 0;
 };
 
-memory_mapping_ops const& get_native_memory_mapping_ops();
+io_ops const& get_native_memory_mapping_ops();
 
 } // namespace dwarfs::internal
