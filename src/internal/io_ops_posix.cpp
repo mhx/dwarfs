@@ -153,6 +153,25 @@ class io_ops_posix : public io_ops {
       return {};
     }
 
+    // Ensure that we don't accidentally use stdin, stdout, or stderr
+    //
+    // This is necessary because in the FUSE driver, if we open a file
+    // before the FUSE library forks into the background, and we still
+    // need the fd of the file in the child process, our fd is not going
+    // to survive the fork if it is 0, 1, or 2.
+    if (fd <= 2) {
+      int const new_fd = ::fcntl(fd, F_DUPFD, 3);
+
+      ::close(fd);
+
+      if (new_fd == -1) {
+        ec = std::error_code{errno, std::generic_category()};
+        return {};
+      }
+
+      fd = new_fd;
+    }
+
     auto const size = ::lseek(fd, 0, SEEK_END);
 
     if (size == -1) {
