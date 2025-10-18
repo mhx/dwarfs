@@ -45,6 +45,7 @@ namespace dwarfs {
 
 constexpr uint8_t MAJOR_VERSION = 2;
 constexpr uint8_t MINOR_VERSION = 5;
+constexpr uint8_t MINOR_VERSION_ACCEPTED = 6;
 
 enum class section_type : uint16_t {
   BLOCK = 0,

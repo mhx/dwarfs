@@ -338,7 +338,7 @@ TEST(filesystem, check_valid_image) {
 
   {
     auto tmp = data;
-    ++tmp[7]; // unsupported minor version
+    tmp[7] = MINOR_VERSION_ACCEPTED + 1; // unsupported minor version
 
     EXPECT_THAT(
         [&] { reader::filesystem_v2(lgr, os, test::make_mock_file_view(tmp)); },

@@ -321,7 +321,7 @@ filesystem_parser_<LoggerPolicy>::filesystem_parser_(logger& lgr,
     DWARFS_THROW(runtime_error, "unsupported major version");
   }
 
-  if (fh.minor > MINOR_VERSION) {
+  if (fh.minor > MINOR_VERSION_ACCEPTED) {
     DWARFS_THROW(runtime_error, "unsupported minor version");
   }
 
