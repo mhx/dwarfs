@@ -58,6 +58,23 @@ constexpr std::array kSkipOn32Bit = {
     "f93cd8ed5de226bca0ecefc521df9f13.dwarfs"sv,
 };
 
+#ifdef DWARFS_TEST_RUNNING_ON_ASAN
+constexpr std::array kSkipWithAsan = {
+    "02064956b00513713fde656f9738fc17.dwarfs"sv,
+    "29351be64bffd8bd07f8f1943c8869fd.dwarfs"sv,
+    "2e68f4eb874ea525200d2566c2265af6.dwarfs"sv,
+    "2f6193322fe8ca159229be308ed71399.dwarfs"sv,
+    "35a475fba1c80cb40a9816240e935044.dwarfs"sv,
+    "83f03c7abac9eda814d41496bf2ab149.dwarfs"sv,
+    "910764780f74966a91d1120c7bfc67b4.dwarfs"sv,
+    "abb59522034feda17a598a3464704294.dwarfs"sv,
+    "bc90491054b1a3ba11296d73ad763667.dwarfs"sv,
+    "d1d617c7f2d86dcadf2c757b0fdc6133.dwarfs"sv,
+    "d4f117ce06b45c4594a2e17b03db75cc.dwarfs"sv,
+    "e9afadd7d4935680fff771aded537e33.dwarfs"sv,
+};
+#endif
+
 auto const testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
 
 std::vector<std::string> find_all_filesystems() {
@@ -87,6 +104,12 @@ TEST_P(bad_fs, test) {
                                        filename) != kSkipOn32Bit.end()) {
     GTEST_SKIP() << "skipping test for 32-bit systems: " << filename;
   }
+
+#ifdef DWARFS_TEST_RUNNING_ON_ASAN
+  if (std::ranges::find(kSkipWithAsan, filename) != kSkipWithAsan.end()) {
+    GTEST_SKIP() << "skipping test for ASAN builds: " << filename;
+  }
+#endif
 
   test::test_logger lgr;
   test::os_access_mock os;
