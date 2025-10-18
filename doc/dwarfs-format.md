@@ -311,6 +311,35 @@ single (zero) value, e.g. a `group_index` that's always zero because
 all files belong to the same group, does not occupy any space in the
 metadata section.
 
+### Features
+
+Up until v0.7.2, there were quite regular bumps to the minor version
+of the DwarFS format. This was a bit annoying, since it meant you could
+not upgrade `mkdwarfs` without also upgrading the FUSE driver, as an
+old driver would reject new file system images. The v0.7.3 release
+made two changes to address this:
+
+- Any new section types would be ignored as long as the minor version
+  number is unchanged. This means that new features that require new
+  sections can be added without breaking backwards compatibility.
+
+- New features, even ones that break compatibility, can be added without
+  the need to bump the minor version number by adding a feature flag in
+  the metadata (the `features` set). Each release knows which features
+  it can support, and if it encounters a feature it doesn't know, it will
+  refuse to mount the file system.
+
+There's one small version gap that needs to be mentioned for completeness.
+Since v0.7.3 did *not* increment the minor version, releases v0.7.0 to
+v0.7.2 cat accept file system images with any features set. In practice,
+however, they will likely bail out because these releases do not accept
+unknown section types, and by default `mkdwarfs` has been adding `HISTORY`
+sections since v0.7.3. In hindsight, we should have bumped the *accepted*
+minor version in v0.7.3, but keep the *written* minor version the same
+until actually adding a feature. v0.14.0 finally increments the accepted
+minor version, and v0.16.0 will increment the written minor version, so
+long term this gap will be closed.
+
 ### Determining Inode Offsets
 
 Before you can start traversing the metadata, you need to determine
@@ -483,6 +512,34 @@ must be unpacked accordingly.
 
 The packed format is used when `options.packed_chunk_table`
 is true.
+
+### Hardlink Count Table
+
+This isn't really "packing" per se, but more of an optimization.
+Hardlink counts (i.e. `stat.st_nlink`) can always be reconstructed
+by traversing the `dir_entries` and counting how many times each
+inode is referenced. This is reasonably fast, but can still cause
+a noticeable delay when mounting file systems with millions of
+entries (e.g. about 300ms for 10 million entries). It also uses
+4 bytes per inode temporarily to store these counts.
+
+However, correct hardlink counts are necessary, otherwise the fact
+that two directory entries reference the same inode can be very
+confusing to applications.
+
+So by default, unless `--no-hardlink-table` is passed to `mkdwarfs`,
+the `nlink_minus_one` field will be populated for each inode. The
+`inodes_have_nlink` option will signal whether or not this field
+is valid. If it is *not* valid, the hardlink count table will be
+built each time the file system is mounted.
+
+The reason for calling the field `nlink_minus_one` is that inodes
+must have at least one link, and storing *only* zeroes for a field
+requires no space at all. So, if the input to `mkdwarfs` has no
+hardlinks, there's no metadata overhead at all. (And that's what
+the `inodes_have_nlink` option is for: it helps determine if the
+fields are all zero because they were never set, or because the
+hardlink counts are actually all one.)
 
 ### Names and Symlinks String Table Packing
 
