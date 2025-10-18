@@ -732,6 +732,21 @@ if(WITH_TESTS)
       PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw"
     )
   endforeach()
+
+  foreach(tgt dwarfs_categorizer_tests tools_test)
+    if(TARGET ${tgt})
+      gtest_discover_tests(${tgt}
+        DISCOVERY_TIMEOUT 120
+        TEST_SUFFIX ".iolayer-read"
+        PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw\;DWARFS_IOLAYER_OPTS=open_mode=read"
+      )
+      gtest_discover_tests(${tgt}
+        DISCOVERY_TIMEOUT 120
+        TEST_SUFFIX ".iolayer-map-size"
+        PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw\;DWARFS_IOLAYER_OPTS=max_eager_map_size=4k"
+      )
+    endif()
+  endforeach()
 endif()
 
 if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
