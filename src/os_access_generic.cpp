@@ -59,6 +59,7 @@
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/mmap_file_view.h>
 #include <dwarfs/internal/os_access_generic_data.h>
+#include <dwarfs/internal/read_file_view.h>
 #include <dwarfs/internal/thread_util.h>
 
 namespace dwarfs {
@@ -102,8 +103,12 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::open_file(fs::path const& path) const {
-  return internal::create_mmap_file_view(data_->mm_ops(), path,
-                                         data_->fv_opts());
+  if (data_->open_mode() == internal::open_file_mode::mmap) {
+    return internal::create_mmap_file_view(data_->mm_ops(), path,
+                                           data_->fv_opts());
+  }
+
+  return internal::create_read_file_view(data_->mm_ops(), path);
 }
 
 readonly_memory_mapping

@@ -43,6 +43,7 @@ namespace {
 
 constexpr auto kIolayerOptsVar = "DWARFS_IOLAYER_OPTS";
 constexpr auto kMaxEagerMapSizeOpt = "max_eager_map_size";
+constexpr auto kOpenModeOpt = "open_mode";
 
 } // namespace
 
@@ -68,6 +69,18 @@ os_access_generic_data::os_access_generic_data(std::ostream& err,
                              kIolayerOptsVar, kMaxEagerMapSizeOpt,
                              exception_str(e));
         }
+      }
+    }
+
+    if (auto const open_mode = parser.get(kOpenModeOpt)) {
+      if (*open_mode == "mmap") {
+        open_mode_ = open_file_mode::mmap;
+      } else if (*open_mode == "read") {
+        open_mode_ = open_file_mode::read;
+      } else {
+        err << fmt::format("warning: ignoring invalid {} option '{}': "
+                           "expected 'mmap' or 'read'\n",
+                           kIolayerOptsVar, kOpenModeOpt);
       }
     }
 

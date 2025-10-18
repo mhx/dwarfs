@@ -33,6 +33,11 @@
 
 namespace dwarfs::internal {
 
+enum class open_file_mode {
+  mmap,
+  read,
+};
+
 class os_access_generic_data {
  public:
   using get_env_func = std::function<char const*(char const*)>;
@@ -41,10 +46,12 @@ class os_access_generic_data {
 
   mmap_file_view_options const& fv_opts() const { return fv_opts_; }
   io_ops const& mm_ops() const { return mm_ops_; }
+  open_file_mode open_mode() const { return open_mode_; }
 
  private:
   mmap_file_view_options fv_opts_;
   io_ops const& mm_ops_;
+  open_file_mode open_mode_{open_file_mode::mmap};
 };
 
 } // namespace dwarfs::internal
