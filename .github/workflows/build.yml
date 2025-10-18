@@ -171,17 +171,17 @@ jobs:
             build_dist: alpine
             build_type: gcc-release-ninja-static
 
-          #skip# - build_arch: amd64
-          #skip#   build_dist: alpine
-          #skip#   build_type: gcc-release-lto-ninja-static
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: gcc-release-lto-ninja-static
 
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-release-ninja-static
 
-          #skip# - build_arch: amd64
-          #skip#   build_dist: alpine
-          #skip#   build_type: clang-release-lto-ninja-static
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-release-lto-ninja-static
 
           - build_arch: amd64
             build_dist: alpine
