@@ -1,5 +1,147 @@
 # Change Log
 
+## Version 0.14.0 - TBD
+
+- (fix) Leading dots in `--input-list` file paths were incorrectly treated
+  as literal directory names instead of being expanded. This has been fixed.
+  Fixes github #292.
+
+- (fix) The license identifier in the CITATION.cff file incorrectly used
+  `GPL-3.0-only` instead of `GPL-3.0-or-later`. This has been corrected.
+  Fixes github #275.
+
+- (fix) Fixed an off-by-one error when recovering `self_index` fields in
+  metadata, which could cause the sentinel directory to have a non-zero
+  `self_entry` (though this was relatively harmless as the index is never
+  actually used). The metadata consistency checks now only emit a warning
+  when this is encountered, and `mkdwarfs` will automatically fix it.
+
+- (fix) Several issues related to building and preserving filesystem
+  metadata have been fixed, including proper preservation of original
+  filesystem features when rewriting images, correct handling of holes
+  in sparse files during block remapping, and proper initialization of
+  time resolution settings.
+
+- (fix) Fixed the FUSE driver to send positive error code values to
+  libfuse, as the library expects positive values rather than negative
+  errno values.
+
+- (fix) Fixed handling of `dwarfs2` symlink when building shared libraries.
+  (Thanks to Ahmad Khalifa for the fix.)
+
+- (fix) Fixed several platform-specific issues, including proper handling
+  of closed stdio file descriptors in the POSIX I/O layer and consistent
+  use of 64-bit values in the FSST library hash function.
+
+- (fix) Various minor fixes including correct initialization of empty file
+  extent ranges, proper handling of unused code in non-optimized builds,
+  and missing header includes.
+
+- (feature) Full support for sparse files. `mkdwarfs` now detects and
+  efficiently stores sparse files, preserving holes in the filesystem
+  image. The FUSE driver implements `lseek()` with `SEEK_DATA` and
+  `SEEK_HOLE` support, and `dwarfsextract` can extract sparse files
+  preserving their sparse structure. A new `--no-sparse-files` option
+  disables this behavior if needed. Files with holes will show correct
+  allocated sizes via `statvfs` and in metadata. The implementation uses
+  a cache to speed up `seek()` operations on large sparse files.
+
+- (feature) Support for subsecond timestamp resolution. The default time
+  resolution remains at 1 second for backwards compatibility, but finer
+  resolutions (down to nanoseconds) can now be specified using the
+  `--time-resolution` option. This also includes support for storing
+  birth time (btime) on systems that provide it. `mkdwarfs` will warn
+  if the requested resolution is finer than the native filesystem
+  resolution.
+
+- (feature) Desktop integration for Linux systems. A new `--auto-mountpoint`
+  option automatically creates or selects a mount point directory, making
+  it easier to mount DwarFS images from file managers. Desktop files and
+  MIME type definitions are now installed to enable automatic mounting
+  when double-clicking `.dwarfs` files. (Thanks to Ahmad Khalifa for the
+  implementation.)
+
+- (feature) Improved error handling when the FUSE driver encounters
+  `SIGBUS` signals (typically from accessing memory-mapped files on
+  failing storage). The driver now attempts to show a helpful error
+  message instead of just crashing, and properly handles both
+  `std::runtime_error` and `std::system_error` exceptions.
+
+- (feature) New I/O layer abstraction that supports fully memory-map-less
+  file access via `read_file_view`. This can be controlled using the
+  `DWARFS_IOLAYER_OPTS` environment variable with options like
+  `open_mode=mmap|read` and `max_eager_map_size`. This is particularly
+  useful for systems with limited address space or when avoiding mmap
+  for other reasons.
+
+- (feature) `dwarfsck` now checks metadata consistency by default (unless
+  `--no-check` is given), providing better detection of filesystem image
+  corruption. The tool also shows the `inode_allocated_size_cache` map
+  in the metadata analyzer output.
+
+- (feature) Sparse file caching can now be controlled in the FUSE driver
+  using new options to optionally cache or not cache sparse files,
+  providing better control over memory usage.
+
+- (feature) The metadata format has been enhanced with several new fields
+  to support sparse files and improved size reporting, including
+  `hole_block_index`, `large_hole_size`, `allocated_size_lookup`,
+  `total_allocated_fs_size`, and `total_allocated_hardlink_size`. The
+  hardlink table is now only stored when actually needed, saving space
+  for filesystems without hardlinks. A new `--no-hardlink-table` option
+  allows further space savings at the cost of incorrect hardlink counts.
+
+- (feature) Enhanced metadata dumping capabilities. The JSON output from
+  `dwarfsck` now includes a complete metadata dump, and the tool no
+  longer artificially limits string sizes when dumping metadata. (Thanks
+  to Dennis Brakhane for the contribution.)
+
+- (feature) Several optimizations to the filesystem parser, including
+  an optimized search for section headers and better handling of file
+  extents and segments. The `file_view` interface has been enhanced
+  with new methods for better flexibility.
+
+- (feature) Improved self-extracting binary stub with better compatibility
+  for qemu/binfmt_misc and older kernels.
+
+- (feature) New `file_range_utils` to help with sparse file comparison
+  and handling.
+
+- (feature) Added support for `file_extent::raw_bytes()` to access
+  underlying memory-mapped data more efficiently when available.
+
+- (feature) Better Windows support for getting file extents via the mmap
+  layer, and improved handling of segment cleanup with `MADV_DONTNEED`.
+
+- (docs) Documentation improvements including a new `dwarfs-env.7` man page
+  describing environment variables, expanded documentation on sparse files
+  in `dwarfs-format.md`, and documentation on manual FSST decoding.
+  (Thanks to Dennis Brakhane for the FSST documentation.)
+
+- (docs) Added documentation for filesystem features and hardlinks in the
+  format documentation.
+
+- (build) Removed dependency on Boost.Iostreams, simplifying the build
+  process. The build system now only creates symbolic mount links at
+  install time rather than in the build directory.
+
+- (build) Various build fixes including proper handling of multiple
+  environment variables in `ctest`, correct FUSE3 target usage for
+  manpage tests, and fixes for the SuSE dockerfile.
+
+- (build) Added development-only options like `USE_SUBDIR_LIBARCHIVE` and
+  support for building with ThreadSanitizer (TSAN).
+
+- (test) Extensive test coverage for sparse files, subsecond resolution,
+  auto-mountpoint functionality, and I/O layer options. Added benchmarks
+  for `seek()` operations and various metadata consistency checks.
+
+- (refactor) Massive internal refactoring to improve code quality and
+  maintainability, including introduction of `time_resolution_handler`,
+  `sparse_file_seeker`, reorganization of I/O operations (renamed from
+  `memory_mapping_ops` to `io_ops`), and cleaner handling of metadata
+  options.
+
 ## Version 0.13.0 - 2025-08-29
 
 - (fix) The linker configuration for the release binaries was broken. The
