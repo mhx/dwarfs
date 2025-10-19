@@ -30,6 +30,7 @@
 #include <array>
 #include <charconv>
 #include <clocale>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -67,15 +68,15 @@
 
 #ifdef _WIN32
 #include <psapi.h>
+#include <tlhelp32.h>
+#endif
+
+#if !defined(_WIN32) || defined(DWARFS_STACKTRACE_ENABLED)
+#define DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
 #endif
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
-#include <csignal>
-
-#ifdef _WIN32
-#include <tlhelp32.h>
-#endif
 #endif
 
 #ifdef __APPLE__
@@ -531,7 +532,7 @@ int get_current_umask() {
   return mask;
 }
 
-#ifdef DWARFS_STACKTRACE_ENABLED
+#ifdef DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
 
 namespace {
 
@@ -541,9 +542,11 @@ struct fatal_signal {
 };
 
 constexpr std::array kFatalSignals{
+#ifdef DWARFS_STACKTRACE_ENABLED
     fatal_signal{SIGSEGV, "SIGSEGV"}, fatal_signal{SIGILL, "SIGILL"},
     fatal_signal{SIGFPE, "SIGFPE"},   fatal_signal{SIGABRT, "SIGABRT"},
     fatal_signal{SIGTERM, "SIGTERM"},
+#endif
 #ifndef _WIN32
     fatal_signal{SIGBUS, "SIGBUS"},
 #endif
@@ -600,7 +603,7 @@ void resume_suspended_threads(std::vector<HANDLE> const& handles) {
 void fatal_signal_handler_win(int signal) {
   auto suspended = suspend_other_threads();
 
-  std::optional<std::string> signame;
+  std::optional<std::string_view> signame;
 
   for (size_t i = 0; i < kFatalSignals.size(); ++i) {
     if (signal == kFatalSignals[i].signum) {
@@ -614,7 +617,9 @@ void fatal_signal_handler_win(int signal) {
   }
 
   std::cerr << "Caught signal " << *signame << "\n";
-  cpptrace::generate_trace().print();
+#ifdef DWARFS_STACKTRACE_ENABLED
+  cpptrace::generate_trace().print(std::cerr);
+#endif
 
   resume_suspended_threads(suspended);
 
@@ -627,7 +632,7 @@ void fatal_signal_handler_win(int signal) {
 std::array<struct ::sigaction, kFatalSignals.size()> old_handlers;
 
 void fatal_signal_handler_posix(int signal) {
-  std::optional<std::string> signame;
+  std::optional<std::string_view> signame;
 
   for (size_t i = 0; i < kFatalSignals.size(); ++i) {
     if (signal == kFatalSignals[i].signum) {
@@ -644,8 +649,27 @@ void fatal_signal_handler_posix(int signal) {
     signame = std::to_string(signal);
   }
 
-  std::cerr << "Caught signal " << *signame << "\n";
-  cpptrace::generate_trace().print();
+  std::cerr << "*** Caught signal " << *signame << "\n";
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+  cpptrace::generate_trace().print(std::cerr);
+#endif
+
+  if (signal == SIGBUS) {
+    std::cerr << R"EOF(
+*******************************************************************************
+*
+* SIGBUS is often caused by memory mapping files that are stored on faulty or
+* unreliable storage devices, e.g. network shares or USB drives. You can try
+* re-running the command with the following environment variable set to use
+* regular reads instead of memory mapping:
+*
+*   export DWARFS_IOLAYER_OPTS=open_mode=read
+*
+*******************************************************************************
+
+)EOF";
+  }
 
   if (::raise(signal) != 0) {
     std::cerr << "Failed to re-raise signal " << *signame << "\n";
@@ -671,10 +695,10 @@ void install_signal_handlers_impl() {
 
 } // namespace
 
-#endif
+#endif // DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
 
 void install_signal_handlers() {
-#ifdef DWARFS_STACKTRACE_ENABLED
+#ifdef DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
   std::call_once(g_signal_handlers_installed, install_signal_handlers_impl);
 #endif
 }
