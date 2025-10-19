@@ -446,11 +446,13 @@ size_t inode_reader_<LoggerPolicy>::read_internal(
       num_read += br.size();
     }
     return num_read;
+  } catch (std::system_error const& e) {
+    LOG_ERROR << exception_str(e);
+    ec = e.code();
   } catch (...) {
     LOG_ERROR << exception_str(std::current_exception());
+    ec = std::make_error_code(std::errc::io_error);
   }
-
-  ec = std::make_error_code(std::errc::io_error);
 
   return 0;
 }
