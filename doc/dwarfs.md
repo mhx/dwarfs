@@ -238,19 +238,8 @@ a DwarFS image:
 
 ## ENVIRONMENT VARIABLES
 
-The `DWARFS_IOLAYER_OPTS` environment variable can be used to configure
-certain aspects of the I/O layer used by all DwarFS tools. The value
-consists of a comma-separated list of key-value pairs (or just keys for
-boolean options). The following options are supported:
-
-- `max_eager_map_size`=*value*:
-  The maximum size of a file that will be eagerly mapped into memory
-  when opened. Larger files will be accessed using on-demand mappings.
-  This is mostly relevant for 32-bit systems, where the address space
-  is limited. *value* can be either `unlimited`, a size in bytes, or
-  an integer value with a suffix of `k`, `m`, or `g` to indicate
-  kibibytes, mebibytes, or gibibytes, respectively. The default is
-  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
+See [dwarfs-env(7)](dwarfs-env.md) for environment variables that
+influence the behavior of `dwarfs`.
 
 ## TIPS & TRICKS
 
@@ -472,4 +461,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-[mkdwarfs(1)](mkdwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-format(5)](dwarfs-format.md), [dwarfs-env(7)](dwarfs-env.md)
