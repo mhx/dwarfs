@@ -733,10 +733,20 @@ if(WITH_TESTS)
     endif()
   endforeach()
 
+  if(ENABLE_COVERAGE)
+    list(APPEND GTEST_COMMON_PROPERTIES
+         "ENVIRONMENT" "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw")
+  endif()
+
+  if(ENABLE_TSAN)
+    list(APPEND GTEST_COMMON_PROPERTIES
+         "ENVIRONMENT" "TSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/tsan.supp")
+  endif()
+
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt}
       DISCOVERY_TIMEOUT 120
-      PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw"
+      PROPERTIES ${GTEST_COMMON_PROPERTIES}
     )
   endforeach()
 
@@ -745,12 +755,14 @@ if(WITH_TESTS)
       gtest_discover_tests(${tgt}
         DISCOVERY_TIMEOUT 120
         TEST_SUFFIX ".iolayer-read"
-        PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw\;DWARFS_IOLAYER_OPTS=open_mode=read"
+        PROPERTIES ${GTEST_COMMON_PROPERTIES}
+                   ENVIRONMENT "DWARFS_IOLAYER_OPTS=open_mode=read"
       )
       gtest_discover_tests(${tgt}
         DISCOVERY_TIMEOUT 120
         TEST_SUFFIX ".iolayer-map-size"
-        PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw\;DWARFS_IOLAYER_OPTS=max_eager_map_size=4k"
+        PROPERTIES ${GTEST_COMMON_PROPERTIES}
+                   ENVIRONMENT "DWARFS_IOLAYER_OPTS=max_eager_map_size=4k"
       )
     endif()
   endforeach()
