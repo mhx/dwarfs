@@ -836,7 +836,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
               << num << " [size = " << buf.buf.size() << "]: " << ec.message();
 
     if (ec) {
-      return -ec.value();
+      return ec.value();
     }
 
     return -fuse_reply_iov(req, buf.buf.empty() ? nullptr : buf.buf.data(),
