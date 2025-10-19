@@ -364,6 +364,9 @@ auto checked_call(LogProxy& log_, T&& f) -> decltype(std::forward<T>(f)()) {
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << exception_str(e);
     return e.get_errno();
+  } catch (std::system_error const& e) {
+    LOG_ERROR << exception_str(e);
+    return e.code().value();
   } catch (std::exception const& e) {
     LOG_ERROR << exception_str(e);
     return EIO;
