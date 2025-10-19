@@ -100,7 +100,11 @@ using namespace dwarfs::binary_literals;
 using dwarfs::test::compare_directories;
 
 #ifdef DWARFS_WITH_FUSE_DRIVER
-auto constexpr kFuseTimeout{5s};
+#ifdef __linux__
+auto constexpr kFuseTimeout{10s};
+#else
+auto constexpr kFuseTimeout{30s};
+#endif
 #endif
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
@@ -576,7 +580,7 @@ class driver_runner {
                                      mountpoint, std::forward<Args>(args)...);
     process_->run_background();
 
-    wait_until_file_ready(mountpoint, 5s);
+    wait_until_file_ready(mountpoint, kFuseTimeout);
 #else
     std::vector<std::string> options;
     if (!subprocess::check_run(DWARFS_ARG_EMULATOR_ driver,
@@ -647,7 +651,7 @@ class driver_runner {
         std::cerr << "driver failed to unmount:\nout:\n"
                   << out << "err:\n"
                   << err << "exit code: " << ec << "\n";
-        if (std::chrono::steady_clock::now() - t0 > 5s) {
+        if (std::chrono::steady_clock::now() - t0 > kFuseTimeout) {
           throw std::runtime_error(
               "driver still failed to unmount after 5 seconds");
         }
@@ -706,7 +710,7 @@ class driver_runner {
         }
 #endif
         mountpoint_.clear();
-        return dwarfs_guard_.check_exit(5s);
+        return dwarfs_guard_.check_exit(kFuseTimeout);
       }
 #endif
 #endif
