@@ -79,6 +79,7 @@
 #include <dwarfs/file_util.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/scope_exit.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
@@ -2135,13 +2136,41 @@ TEST_P(tools_test, fusermount_check) {
     break;
   }
 
+  std::vector<std::string> bwrap_args{
+      "--unshare-user",
+      "--unshare-pid",
+      "--unshare-uts",
+      "--unshare-net",
+      "--unshare-ipc",
+      "--tmpfs",
+      "/",
+  };
+
+  std::vector<fs::path> bind_paths{
+      "/proc",      "/dev", "/lib", "/lib64",  "/usr/lib",
+      "/usr/lib64", "/etc", td,     tools_dir, DWARFS_SOURCE_DIR,
+  };
+
+#ifdef DWARFS_CMAKE_PREFIX_PATH
+  for (auto const& p : dwarfs::split_to<std::vector<std::string>>(
+           DWARFS_CMAKE_PREFIX_PATH, ':')) {
+    bind_paths.emplace_back(p);
+  }
+#endif
+
+  for (auto const& p : bind_paths) {
+    if (fs::exists(p)) {
+      bwrap_args.push_back("--ro-bind");
+      bwrap_args.push_back(p.string());
+      bwrap_args.push_back(p.string());
+    }
+  }
+
   for (auto const& driver : drivers) {
     scoped_no_leak_check no_leak_check;
-    auto const [out, err, ec] = subprocess::run(
-        bwrap.value(), "--unshare-user", "--unshare-pid", "--unshare-uts",
-        "--unshare-net", "--unshare-ipc", "--ro-bind", "/", "/", "--tmpfs",
-        "/usr/bin", "--dev-bind", "/dev", "/dev", "--bind", "/proc", "/proc",
-        driver, dwarfs_tool_arg, test_data_dwarfs, mountpoint, "-f");
+    auto const [out, err, ec] =
+        subprocess::run(bwrap.value(), bwrap_args, driver, dwarfs_tool_arg,
+                        test_data_dwarfs, mountpoint, "-f");
 
     EXPECT_NE(0, ec) << out << err;
 
