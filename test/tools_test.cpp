@@ -3127,3 +3127,96 @@ TEST(tools_test, dwarfs_automount) {
   }
 #endif
 }
+
+#ifndef _WIN32
+TEST(tools_test, dwarfs_fsname_and_subtype) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+#ifdef __linux__
+  fs::path proc_mounts{"/proc/self/mounts"};
+
+  if (!fs::exists(proc_mounts)) {
+    GTEST_SKIP() << proc_mounts << " not found";
+  }
+#else
+  auto mountbin = dwarfs::test::find_binary("mount");
+
+  if (!mountbin) {
+    GTEST_SKIP() << "`mount` binary not found";
+  }
+#endif
+
+  dwarfs::temporary_directory td("dwarfs");
+
+  auto const image = fs::canonical(test_dir) / "timestamps.dwarfs";
+  auto const mountpoint = fs::canonical(td.path()) / "mnt";
+  ASSERT_NO_THROW(fs::create_directory(mountpoint));
+
+  std::vector<fs::path> drivers;
+
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver_bin : drivers) {
+    driver_runner runner(driver_bin, false, image, mountpoint);
+
+    EXPECT_TRUE(
+        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+        << runner.cmdline();
+
+    std::optional<std::string> out;
+
+#ifdef __linux__
+    out.emplace(dwarfs::read_file(proc_mounts));
+#else
+    out = subprocess::check_run(*mountbin);
+#endif
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+
+    ASSERT_TRUE(out.has_value()) << runner.cmdline();
+    std::optional<std::string> mpline;
+
+    {
+      std::istringstream iss(*out);
+      std::string line;
+
+      while (std::getline(iss, line)) {
+        if (line.find(mountpoint.string()) != std::string::npos) {
+          mpline.emplace(line);
+          break;
+        }
+      }
+    }
+
+    // Linux: <image> <mountpoint> fuse.dwarfs ...
+    // macOS: <image> on <mountpoint> (macfuse_dwarfs, ...)
+    // FreeBSD: <image> on <mountpoint> (fusefs.dwarfs, ...)
+
+    ASSERT_TRUE(mpline.has_value()) << runner.cmdline() << "\n" << *out;
+
+#if defined(__linux__)
+    EXPECT_THAT(*mpline,
+                ::testing::HasSubstr(image.string() + " " +
+                                     mountpoint.string() + " fuse.dwarfs "));
+#elif defined(__APPLE__)
+    // It seems that macFUSE currently truncates the `fsname` string, so
+    // we don't check for the full image path here (yet).
+    EXPECT_THAT(*mpline, ::testing::HasSubstr("(macfuse_dwarfs"));
+#else // FreeBSD
+    EXPECT_THAT(*mpline, ::testing::HasSubstr(image.string() + " on " +
+                                              mountpoint.string() + " "));
+    EXPECT_THAT(*mpline, ::testing::HasSubstr("(fusefs.dwarfs"));
+#endif
+  }
+#endif
+}
+#endif
