@@ -20,8 +20,8 @@ dwarfs image.dwarfs /path/to/mountpoint
 
 Alternatively, you can use the `--auto-mountpoint` option to use a directory
 with the same path and base name as the image file as the mount point. If
-that directory doesn't exist, it will be created automatically. Note, however,
-that this directory will not be removed automatically when the file system is
+that directory doesn't exist, it will be created automatically. If it was
+created automatically, it will also be removed again when the file system is
 unmounted.
 
 ## OPTIONS

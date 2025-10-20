@@ -256,6 +256,8 @@ struct dwarfs_userdata {
       : lgr{iol.term, iol.err}
       , iol{iol} {}
 
+  ~dwarfs_userdata();
+
   dwarfs_userdata(dwarfs_userdata const&) = delete;
   dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
 
@@ -268,6 +270,9 @@ struct dwarfs_userdata {
   std::shared_ptr<performance_monitor> perfmon;
 #ifdef DWARFS_FUSE_HAS_LSEEK
   bool fs_has_sparse_files{false};
+#endif
+#ifndef _WIN32
+  std::optional<std::filesystem::path> auto_mountpoint;
 #endif
   PERFMON_EXT_PROXY_DECL
   PERFMON_EXT_TIMER_DECL(op_init)
@@ -284,6 +289,21 @@ struct dwarfs_userdata {
   PERFMON_EXT_TIMER_DECL(op_getxattr)
   PERFMON_EXT_TIMER_DECL(op_listxattr)
 };
+
+dwarfs_userdata::~dwarfs_userdata() {
+#ifndef _WIN32
+  if (auto_mountpoint.has_value()) {
+    std::error_code ec;
+    std::filesystem::remove(*auto_mountpoint, ec);
+    // we only care about errors; if the directory was already gone, that's fine
+    if (ec) {
+      std::cerr << "failed to remove temporary mountpoint '"
+                << path_to_utf8_string_sanitized(*auto_mountpoint)
+                << "': " << ec.message() << "\n";
+    }
+  }
+#endif
+}
 
 // TODO: better error handling
 
@@ -1494,10 +1514,14 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
   }
   if (!std::filesystem::exists(mountpath)) {
     std::error_code ec;
-    if (!std::filesystem::create_directory(mountpath, ec) && ec) {
+    bool const mp_created = std::filesystem::create_directory(mountpath, ec);
+    if (!mp_created && ec) {
       iol.err << "error: unable to create mountpoint directory: "
               << ec.message() << "\n";
       return 1;
+    }
+    if (mp_created) {
+      userdata->auto_mountpoint.emplace(userdata->iol.os->canonical(mountpath));
     }
   }
 #endif
