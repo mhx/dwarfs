@@ -1,5 +1,182 @@
 # Change Log
 
+## Version 0.14.0 - TBD
+
+- (fix) Leading dots in `--input-list` file paths were incorrectly treated
+  as literal directory names instead of being expanded. This has been fixed.
+  Fixes github #292.
+
+- (fix) The SPDX license identifier in GPL-licensed source files was
+  incorrectly specified as `GPL-3.0-only` instead of `GPL-3.0-or-later`.
+  This has been corrected. Fixes github #275.
+
+- (fix) Fixed an off-by-one error when recovering `self_index` fields in
+  metadata, which could cause the sentinel directory to have a non-zero
+  `self_entry`. While harmless by itself (since that entry is never actually
+  used), this would cause the metadata consistency check to fail. The fix
+  covers three aspects: correcting the off-by-one error; ensuring the
+  `self_entry` recovery code does not run for the sentinel directory; and
+  changing the metadata consistency check to only warn about a non-zero
+  `self_entry` rather than fail. Running `mkdwarfs` with `--rebuild-metadata`
+  will also reset a non-zero sentinel `self_entry` to zero.
+
+- (fix) Fixed the implementation of the `read` operation in the FUSE driver
+  to send positive error code values to libfuse. This was likely never
+  triggered in practice, but in cases where parts of the filesystem image
+  vanish while being accessed (which previously caused SIGBUS crashes),
+  libfuse would not understand the negative error codes.
+
+- (fix) Moved the FUSE driver binaries from `sbin` to `bin` and kept only the
+  `mount.dwarfs`/`mount.dwarfs2` symlinks in `sbin`. This better aligns with
+  user expectations, other FUSE drivers, and the fact that the man pages are
+  installed in section 1. (Thanks to Ahmad Khalifa for the fix.)
+
+- (fix) The `dwarfs2` binary was broken in builds using shared libraries.
+  (Thanks to Ahmad Khalifa for the fix.)
+
+- (fix) When setting CPU thread affinity for worker group threads via
+  `DWARFS_WORKER_GROUP_AFFINITY`, the code did not `CPU_ZERO` the `cpu_set_t`
+  structure before setting individual CPUs. This could pin threads to random
+  CPUs in addition to the requested ones.
+
+- (fix) The FITS categorizer would scan entire files for the end-of-header
+  marker if their size was a multiple of 2880 bytes, causing significant
+  slowdowns on large non-FITS files. Additional checks now ensure scanning
+  only continues if the data truly looks like a standards-compliant FITS
+  header.
+
+- (fix) GCC caught a potential null-pointer dereference on error when opening
+  a file in `mkdwarfs`. This has been fixed.
+
+- (fix) Numerous fixes for 32-bit architectures, mostly related to integer
+  overflows with file sizes larger than 4 GiB.
+
+- (fix) Another off-by-one error caused the first regular file inode to be
+  excluded from the file-size cache. This would be hard to notice unless that
+  file was highly fragmented. The cache will be fixed when rebuilding the
+  metadata.
+
+- (fix) The FUSE driver’s `enable_nlink` option is now the default behavior
+  and cannot be disabled. The previous optimization skipped building a table
+  of hardlink counts, which produced inherently incorrect file status
+  information (hardlinked files share an inode, so reporting a link count
+  of 1 is wrong). The hardlink table is now stored in the metadata by default;
+  if there are no hardlinks, it consumes no space. You can still omit the
+  hardlink table with `--no-hardlink-table`, at the cost of building it
+  on-the-fly when the filesystem image is loaded (typically fast — e.g.,
+  ~300 ms for 14 million files).
+
+- (fix) Fixed a typo in `dwarfs-format.md`. (Thanks to Dennis Brakhane for
+  spotting this and sending a PR.)
+
+- (feature) New I/O layer abstraction that supports “classic” `mmap`-based
+  file access, granular `mmap`-based access on 32-bit systems, and fully
+  `mmap`-less access if desired. This applies to all DwarFS tools. By default,
+  tools use the most efficient method—memory-mapping whole files on 64-bit
+  systems and mapping file segments on 32-bit systems (to conserve address
+  space). This can be controlled via the new `DWARFS_IOLAYER_OPTS` environment
+  variable described in `dwarfs-env(7)`.
+
+- (feature) Full support for sparse files. `mkdwarfs` now detects and
+  efficiently processes sparse files, skipping holes where possible and
+  preserving them in the filesystem image. This is supported on all platforms.
+  The FUSE driver implements `lseek()` where supported by the FUSE library
+  (currently Linux and FreeBSD); Windows and macOS fall back to showing files
+  as non-sparse. `dwarfsextract` extracts sparse files as such and preserves
+  sparse representations when extracting to archive formats that support them
+  (e.g., tar). **Note:** Sparse file support is not backwards compatible;
+  images containing sparse files cannot be processed by DwarFS versions prior
+  to 0.14.0. By default, `mkdwarfs` enables sparse file support if it detects
+  sparse input. Use `--no-sparse-files` to disable it and ensure compatibility
+  with older versions.
+
+- (feature) Support for subsecond timestamp resolution. The default remains
+  one second, but finer resolutions (down to nanoseconds) can be specified
+  with `--time-resolution`. `mkdwarfs` will warn if the requested resolution
+  is finer than the native filesystem resolution. This is fully backwards
+  compatible: older DwarFS versions will handle such images but ignore the
+  subsecond parts.
+
+- (feature) Desktop integration for Linux. A new `--auto-mountpoint` option
+  automatically creates or selects a mount-point directory, making it easier
+  to mount DwarFS images from file managers. Desktop files and MIME type
+  definitions are now installed to enable double-click mounting of `.dwarfs`
+  files. (Thanks to Ahmad Khalifa for the implementation.)
+
+- (feature) Shell completion for `mkdwarfs` (bash and zsh). (Thanks to Ahmad
+  Khalifa for the contribution.)
+
+- (feature) Improved error handling when DwarFS tools encounter `SIGBUS`
+  (usually caused by accessing memory-mapped files on unreliable or faulty
+  storage like network shares or flaky USB drives). When `SIGBUS` is caught,
+  tools now print an error suggesting switching from `mmap`- to `read`-based
+  I/O via `DWARFS_IOLAYER_OPTS`.
+
+- (feature) `dwarfsck` now checks metadata consistency by default (unless
+  `--no-check` is given), improving detection of filesystem image corruption.
+
+- (feature) If sparse files are supported by the FUSE library, the FUSE driver
+  exposes new options `cache_sparse` and `no_cache_sparse` to control whether
+  sparse files should be cached in the kernel page cache. See `dwarfs(1)` for
+  details.
+
+- (feature) The JSON output from `dwarfsck` now contains a complete raw
+  metadata dump when the detail level includes `metadata_full_dump`.
+
+- (feature) `dwarfsck` no longer artificially limits string sizes when dumping
+  metadata. (Thanks to Dennis Brakhane for the contribution.)
+
+- (feature) Accelerated search for the start of a DwarFS image in files with
+  custom headers; the new code is about four times faster, scanning at more
+  than 6 GiB/s on a modern CPU.
+
+- (feature) The cache size can now be configured for `dwarfsck`, useful with
+  the `--checksum` option.
+
+- (feature) Both `dwarfsck` and `dwarfsextract` now limit the amount of data
+  requested from the filesystem image at once to avoid exhausting memory (and
+  virtual address space on 32-bit systems).
+
+- (feature) Improved self-extracting binary stub with better compatibility for
+  `qemu`, `binfmt_misc`, and old kernels. The stub now works on Linux kernels
+  as old as 2.6.21 (and possibly older), and it now uses `nanoprintf` to
+  further reduce binary size.
+
+- (feature) The *accepted* minor version for the DwarFS image format has been
+  incremented. Release v0.16.0 will also increment the *written* minor version.
+  This means images produced with v0.16.0 will not be readable by DwarFS tools
+  prior to v0.14.0. See the “Features” section in `dwarfs-format(7)` for
+  details.
+
+- (feature) The FUSE driver will now show the name of the mounted file system
+  image in the mount point listing (e.g., in `df` or `mount` output) on Linux,
+  FreeBSD and macOS, as well as the filesystem subtype (`dwarfs`) on Linux and
+  FreeBSD.
+
+- (compat) The `(no_)cache_image` option has been removed from the FUSE driver.
+
+- (docs) Added documentation on manual FSST decoding to `dwarfs-format.md`.
+  (Thanks to Dennis Brakhane for the PR.)
+
+- (docs) Several cleanups and additions to `dwarfs-format.md`, including a
+  glossary of terms, clarification of blocks vs. sections, and descriptions
+  of compatibility handling via features, plus details on the representation
+  of sparse files and hardlinks.
+
+- (docs) New manual page `dwarfs-env(7)` documenting DwarFS-specific
+  environment variables.
+
+- (build) Removed the dependency on Boost.Iostreams and the hard dependency
+  on Boost.System.
+
+- (build) Removed the hard dependency on the `date` library, which caused
+  build issues on distributions that no longer bundle it (e.g., SUSE).
+
+- (build) The build system now creates symbolic mount links at install time
+  rather than in the build directory.
+
+- (test) Significantly improved test coverage.
+
 ## Version 0.13.0 - 2025-08-29
 
 - (fix) The linker configuration for the release binaries was broken. The
