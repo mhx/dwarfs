@@ -1806,6 +1806,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     auto const fsname_opt =
         "-ofsname=" + userdata.iol.os->canonical(*opts.fsimage).string();
     fuse_opt_add_arg(&args, fsname_opt.c_str());
+#if defined(__linux__) || defined(__FreeBSD__)
+    fuse_opt_add_arg(&args, "-osubtype=dwarfs");
+#elif defined(__APPLE__)
+    fuse_opt_add_arg(&args, "-ofstypename=dwarfs");
+#endif
   }
 #endif
 
