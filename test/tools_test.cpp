@@ -3123,10 +3123,7 @@ TEST(tools_test, dwarfs_automount) {
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
 
-#ifndef _WIN32
-    EXPECT_TRUE(fs::exists(mountpoint));
-    EXPECT_NO_THROW(fs::remove(mountpoint));
-#endif
+    EXPECT_FALSE(fs::exists(mountpoint));
   }
 #endif
 }
