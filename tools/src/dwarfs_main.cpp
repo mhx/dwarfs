@@ -1801,6 +1801,14 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
+#ifndef _WIN32
+  if (opts.fsimage) {
+    auto const fsname_opt =
+        "-ofsname=" + userdata.iol.os->canonical(*opts.fsimage).string();
+    fuse_opt_add_arg(&args, fsname_opt.c_str());
+  }
+#endif
+
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
   struct fuse_cmdline_opts fuse_opts;
