@@ -1,6 +1,6 @@
 # Change Log
 
-## Version 0.14.0 - TBD
+## Version 0.14.0 - 2025-10-21
 
 - (fix) Leading dots in `--input-list` file paths were incorrectly treated
   as literal directory names instead of being expanded. This has been fixed.
