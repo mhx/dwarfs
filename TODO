@@ -1,45 +1,29 @@
-- Idea for the segmenter:
+==================
 
-  - Provide another policy for the granular_span_adapter that abstracts
-    out std::span vs. dwarfs::file_view; if file_view::supports_raw_bytes,
-    we can still use the "optimized" adapter; otherwise we fall back back
-    to the generic one that handles discontinuities between segments.
+- test `file_stat` and its various methods
 
-- Factor out cross-platform `mmap` code that is currently spread over a
-  number of files; get rid of `boost::iostream::mapped_file` in that
-  process.
+- test `file_segment` methods, along with all the other stuff
+  that's not covered in `file_extent`, `file_view`, the iterable
+  stuff, ...
 
-- What's the fallback for *not* using sparse files? I think we'll have
-  to disable sparse files already in the segmenter so it won't produce
-  any hole chunks and references actual chunks of zeroes in a block.
+- maybe add some "generic" way of configuring certain options
 
-- Refactoring fragments/chunkables for file_view API will be interesting.
-  The current `span` based API won't cut it. Good thing is that this
-  will make sparse file handling much easier once it's done.
+  - e.g. `hole_data_size`
 
-- Sequential categorizers will need to be aware of sparse file so they
-  can skip over holes. Again, the `span` based API isn't adequate.
+  => maybe:
 
-- One of the first things we probably need is a way to define a "hole"
-  fragment.
+    --option inode_reader.hole_data_size=1M
 
-- Also, some docs on fragments / files / chunks / sections / segments /
-  views / extents would be good .... :D
+- macFUSE: update and test with fuse3 API, including lseek
 
+- more flexible FUSE driver configuration of `keep_cache` and `direct_io`
 
+- properly test `file_reader`
 
-- Idea for `mmap` refactoring: add a layer of abstraction for getting a
-  "block" of data. That is, instead of the current `mmap` instance, well
-  have something like a "file view" with an interface that allows to get
-  a block of data from the file, which we can subsequently retrieve a
-  `std::span` from. The block will be refcounted and may be just a cheap
-  pointer into a large `mmap` block, or a (still relatively cheap) memory
-  mapping of *just that block* with the file, or it may be allocated memory
-  that is filled by reading from a file, reading from an archive, whatever.
-  That should make sure we don't really break any existing interfaces, e.g.
-  unit tests. It's only that we switch from a "whole-file" view to a chunked
-  view of the file internally.
-  This API could also be used to abstract out sparse files.
+- Also, support mtime + atime in addition to mtime / m+a+ctime. Also
+  support birthtime.  => not for 0.14 release.
+
+==================
 
 - More "real" benchmarks
 
@@ -63,50 +47,7 @@
     - However, inode numbers aren't straightforward in
       case of adding/removing images.
 
-- Sparse files: implement by adding a "chunk type" field
-  to each chunk; for now, there are only "normal" and
-  "sequence" chunks, with sequence chunks encoding as
-  follows:
-
-    block: byte value
-    offset: sequence_length % block_size
-    size: sequence_length / block_size
-
-  Distribution of size values usually leans towards
-  smaller values, so this stores the quotient, not the
-  remainder.
-
-  Will need a feature bit. Also, we probably want a
-  sparse file categorizer? (see further below)
-
-  We'll probably have to do this along with refactoring
-  the code to support both mmap- and read-based APIs.
-
-  Alternative idea (save the extra bit-per-chunk for
-  file systems with sparse files):
-
-    block: N  (number of blocks)
-    offset: sequence_length % block_size
-    size: sequence_length / block_size
-
-  If offset == (block_size - 1), then size is an index
-  into a new list of huge hole sizes (for sizes that
-  are larger than block_size**2).
-
-  This concept could in theory also be used for other
-  sequences: with yet another list encoding the byte
-  value of the sequence, the index into that list could
-  be encoded in the block number as well (i.e. N would
-  be index 0, N + 2 would be index 2). It's also fully
-  compatible if we only do holes for the first release.
-
-  Note: this is all going to be very interesting when
-  it comes to metadata rebuilding / block size change. :)
-
 - Add support for logging to file (with different level?)
-
-- When hashing, start by only hashing the first, say, 4KiB,
-  and only if the hashes are identical, hash the whole file
 
 - Add support for compressing uncompressed image formats,
   currently primarily FITS, using different formats (e.g.
