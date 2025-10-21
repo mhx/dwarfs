@@ -2150,24 +2150,35 @@ TEST_P(tools_test, fusermount_check) {
       "/",
   };
 
-  std::vector<fs::path> bind_paths{
-      "/proc",      "/dev", "/lib", "/lib64",  "/usr/lib",
-      "/usr/lib64", "/etc", td,     tools_dir, DWARFS_SOURCE_DIR,
+  std::vector<fs::path> ro_bind_paths{
+      "/proc",    "/dev",       "/lib", "/lib64",
+      "/usr/lib", "/usr/lib64", "/etc", DWARFS_SOURCE_DIR,
+  };
+
+  std::vector<fs::path> rw_bind_paths{
+      tools_dir,
+      td,
   };
 
 #ifdef DWARFS_CMAKE_PREFIX_PATH
   for (auto const& p : dwarfs::split_to<std::vector<std::string>>(
            DWARFS_CMAKE_PREFIX_PATH, ':')) {
-    bind_paths.emplace_back(p);
+    ro_bind_paths.emplace_back(p);
   }
 #endif
 
-  for (auto const& p : bind_paths) {
+  for (auto const& p : ro_bind_paths) {
     if (fs::exists(p)) {
       bwrap_args.push_back("--ro-bind");
       bwrap_args.push_back(p.string());
       bwrap_args.push_back(p.string());
     }
+  }
+
+  for (auto const& p : rw_bind_paths) {
+    bwrap_args.push_back("--bind");
+    bwrap_args.push_back(p.string());
+    bwrap_args.push_back(p.string());
   }
 
   for (auto const& driver : drivers) {
