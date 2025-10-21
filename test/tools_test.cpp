@@ -583,11 +583,15 @@ class driver_runner {
     wait_until_file_ready(mountpoint, kFuseTimeout);
 #else
     std::vector<std::string> options;
-    if (!subprocess::check_run(DWARFS_ARG_EMULATOR_ driver,
-                               make_tool_arg(tool_arg), image, mountpoint,
-                               options, std::forward<Args>(args)...)) {
-      throw std::runtime_error("error running " + driver.string());
+    auto const [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ driver, make_tool_arg(tool_arg),
+                        image, mountpoint, std::forward<Args>(args)...);
+    if (ec != 0) {
+      throw std::runtime_error(
+          fmt::format("error running {}: exit code {}\n{}{}", driver.string(),
+                      ec, out, err));
     }
+    errs_ = err;
     dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
 #endif
   }
@@ -668,6 +672,7 @@ class driver_runner {
                     << process_->err() << "exit code: " << ec << "\n";
           rv = false;
         }
+        errs_ = process_->err();
       }
       process_.reset();
       mountpoint_.clear();
@@ -685,6 +690,7 @@ class driver_runner {
                     << process_->out() << "err:\n"
                     << process_->err() << "exit code: " << ec << "\n";
         }
+        errs_ = process_->err();
         process_.reset();
         mountpoint_.clear();
         return is_expected_exit_code;
@@ -725,6 +731,8 @@ class driver_runner {
     }
     return rv;
   }
+
+  std::string const& err() const { return errs_; }
 
   ~driver_runner() {
     if (!mountpoint_.empty()) {
@@ -777,6 +785,7 @@ class driver_runner {
 
   fs::path mountpoint_;
   std::unique_ptr<subprocess> process_;
+  std::string errs_;
 #ifndef _WIN32
   process_guard dwarfs_guard_;
 #endif
@@ -3363,6 +3372,38 @@ TEST(tools_test, dwarfs_image_size) {
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
+
+TEST(tools_test, dwarfs_obsolete_options) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  dwarfs::temporary_directory td("dwarfs");
+
+  static constexpr std::array obsolete_opts{
+      "enable_nlink",
+      "cache_image",
+      "no_cache_image",
+  };
+
+  for (auto const& opt : obsolete_opts) {
+    driver_runner runner(fuse3_bin, false, test_dir / "data.dwarfs", td.path(),
+                         std::string{"-o"} + opt);
+
+    EXPECT_TRUE(wait_until_file_ready(td.path() / "format.sh", kFuseTimeout))
+        << runner.cmdline();
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+
+    EXPECT_THAT(runner.err(),
+                ::testing::HasSubstr("`" + std::string{opt} +
+                                     "` is obsolete and has no effect"));
   }
 #endif
 }
