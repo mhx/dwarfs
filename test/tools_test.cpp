@@ -3128,6 +3128,99 @@ TEST(tools_test, dwarfs_automount) {
 #endif
 }
 
+TEST(tools_test, dwarfs_automount_error) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  dwarfs::temporary_directory td("dwarfs");
+  scoped_no_leak_check no_leak_check;
+
+  auto const image_noext = td.path() / "data";
+  fs::copy(test_dir / "data.dwarfs", image_noext);
+
+  auto const mountpoint = td.path() / "data";
+
+  {
+    auto const [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+                        image_noext.string(), mountpoint.string());
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err, ::testing::HasSubstr(
+                 "error: cannot combine <mountpoint> with --auto-mountpoint"));
+  }
+
+  {
+    auto const [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+                        image_noext.string());
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err,
+                ::testing::HasSubstr("error: cannot select mountpoint "
+                                     "directory for file with no extension"));
+  }
+
+  {
+    auto const [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint");
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(out, ::testing::HasSubstr("Usage: dwarfs"));
+  }
+
+#ifndef _WIN32
+  auto const image = td.path() / "data.dwarfs";
+  fs::rename(image_noext, image);
+  fs::create_directory(mountpoint);
+  fs::create_directory(mountpoint / "subdir");
+
+  {
+    auto const [out, err, ec] = subprocess::run(
+        DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint", image.string());
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err, ::testing::HasSubstr(
+                 "error: cannot find a suitable empty mountpoint directory"));
+  }
+
+  fs::remove_all(mountpoint);
+  dwarfs::write_file(mountpoint, "not a directory");
+
+  {
+    auto const [out, err, ec] = subprocess::run(
+        DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint", image.string());
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err, ::testing::HasSubstr(
+                 "error: cannot find a suitable empty mountpoint directory"));
+  }
+
+  fs::remove(mountpoint);
+  fs::remove(image);
+
+  {
+    driver_runner runner(fuse3_bin, false, test_dir / "datadata.dwarfs",
+                         mountpoint);
+
+    EXPECT_TRUE(wait_until_file_ready(mountpoint / "data.dwarfs", kFuseTimeout))
+        << runner.cmdline();
+
+    auto const [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+                        mountpoint / "data.dwarfs");
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr(
+                         "error: unable to create mountpoint directory: "));
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+#endif
+}
+
 #ifndef _WIN32
 TEST(tools_test, dwarfs_fsname_and_subtype) {
 #ifndef DWARFS_WITH_FUSE_DRIVER
