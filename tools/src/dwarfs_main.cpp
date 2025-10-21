@@ -189,8 +189,10 @@ struct options {
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
 #endif
   int preload_all{0};
+  int enable_nlink{0}; // TODO: this is obsolete; remove in v0.16.0
   int readonly{0};
   int case_insensitive{0};
+  int cache_image{0}; // TODO: this is obsolete; remove in v0.16.0
   int cache_files{1};
 #ifdef DWARFS_FUSE_HAS_LSEEK
   int cache_sparse{0};
@@ -333,8 +335,11 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
     DWARFS_OPT("preload_all", preload_all, 1),
+    DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
+    DWARFS_OPT("cache_image", cache_image, 1),
+    DWARFS_OPT("no_cache_image", cache_image, 2),
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
 #ifdef DWARFS_FUSE_HAS_LSEEK
@@ -1972,6 +1977,18 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_INFO << "dwarfs (" << DWARFS_GIT_ID << ", fuse version "
            << FUSE_USE_VERSION << ")";
+
+  if (opts.enable_nlink) {
+    LOG_WARN << "`enable_nlink` is obsolete and has no effect";
+  }
+
+  if (opts.cache_image == 1) {
+    LOG_WARN << "`cache_image` is obsolete and has no effect";
+  }
+
+  if (opts.cache_image == 2) {
+    LOG_WARN << "`no_cache_image` is obsolete and has no effect";
+  }
 
   try {
     if (userdata.opts.logopts.threshold >= logger::DEBUG) {
