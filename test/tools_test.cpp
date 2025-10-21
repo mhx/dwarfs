@@ -3324,3 +3324,45 @@ TEST(tools_test, dwarfs_fsname_and_subtype) {
 #endif
 }
 #endif
+
+TEST(tools_test, dwarfs_image_size) {
+#ifndef DWARFS_WITH_FUSE_DRIVER
+  GTEST_SKIP() << "FUSE driver not built";
+#else
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
+
+  dwarfs::temporary_directory td("dwarfs");
+  scoped_no_leak_check no_leak_check;
+
+  auto const header = dwarfs::read_file(test_dir / "tools_test.cpp");
+  auto const image = dwarfs::read_file(test_dir / "data.dwarfs");
+  auto const image_size = image.size();
+
+  dwarfs::write_file(td.path() / "test.dwarfs", header + image + header);
+  fs::create_directory(td.path() / "mnt");
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin,
+                                          td.path() / "test.dwarfs",
+                                          td.path() / "mnt", "-ooffset=auto");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr("error initializing file system"));
+  }
+
+  {
+    driver_runner runner(driver_runner::foreground, fuse3_bin, false,
+                         td.path() / "test.dwarfs", td.path() / "mnt",
+                         "-ooffset=auto",
+                         "-oimagesize=" + std::to_string(image_size));
+
+    EXPECT_TRUE(
+        wait_until_file_ready(td.path() / "mnt" / "format.sh", kFuseTimeout))
+        << runner.cmdline();
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+#endif
+}
