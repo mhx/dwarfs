@@ -104,6 +104,22 @@ cd "$HOME"/pkgs
 rm -rf musl-${MUSL_VERSION}
 tar xf ${MUSL_TARBALL}
 cd musl-${MUSL_VERSION}
+patch -p0 <<'PATCH'
+--- src/thread/pthread_cond_timedwait.c.orig	2025-10-22 11:57:35.500780438 +0200
++++ src/thread/pthread_cond_timedwait.c	2025-10-22 12:21:49.620780188 +0200
+@@ -49,8 +49,9 @@
+ {
+ 	a_store(l, 0);
+ 	if (w) __wake(l, 1, 1);
+-	else __syscall(SYS_futex, l, FUTEX_REQUEUE|FUTEX_PRIVATE, 0, 1, r) != -ENOSYS
+-		|| __syscall(SYS_futex, l, FUTEX_REQUEUE, 0, 1, r);
++	else if (__syscall(SYS_futex, l, FUTEX_REQUEUE|FUTEX_PRIVATE, 0, 1, r) < 0
++		&& __syscall(SYS_futex, l, FUTEX_REQUEUE, 0, 1, r) < 0) __wake(l, 1, 1);
++		// __wake() as fallback for Linuxulator, which doesn't support FUTEX_REQUEUE
+ }
+ 
+ enum {
+PATCH
 fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/3.22-stable/main/musl/__stack_chk_fail_local.c
 ${MUSL_CC} $CFLAGS -c __stack_chk_fail_local.c -o __stack_chk_fail_local.o
 ${TARGET}-ar r libssp_nonshared.a __stack_chk_fail_local.o
