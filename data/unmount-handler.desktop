@@ -1,0 +1,36 @@
+# Sample desktop unmount handler
+#
+# dwarfs ships with a handler for *.dwarfs files that can mount dwarfs files
+# to a new directory next to the filesystem image. In some desktop
+# environments (KDE dolphin), there may not be an obvious way to unmount those
+# directories without opening a terminal.
+#
+# This is a sample unmount handler that attaches to **all directories**
+# and mountpoints to call unmount.
+# Since some desktop environments (Gnome Files) already have a built-in
+# Unmount action and others don't distinguish 'mountpoints' mimetype correctly,
+# this is not installed by default. It would show up for all directories and
+# would try to unmount anything (dwarfs or not, hence the name).
+#
+# While it may be harmless for normal directories, unmounting the wrong
+# directory, even as current user, not root, could still be dangerous or cause
+# undesired effects, especially if used on non-dwarfs mounts.
+#
+# How to use this?
+# 1. copy this file to ~/.local/share/applications
+#      (or globally with sudo to /usr/local/share/applications)
+# 2. update the desktop database cache for that dir
+#    $ update-desktop-database ~/.local/share/applications
+# 3. Right-click any mounted dir and Open With -> Unmount Directory
+#
+[Desktop Entry]
+Name=Unmount Directory
+TryExec=umount
+Exec=umount %f
+Icon=media-eject
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+Type=Application
+Categories=Utility;
+MimeType=inode/directory;inode/mount-point;
