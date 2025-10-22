@@ -132,3 +132,19 @@ if(APPLE)
     add_link_options("-Wl,-no_warn_duplicate_libraries")
   endif()
 endif()
+
+function(brand_elf_linux target)
+  if(STATIC_BUILD_DO_NOT_USE)
+    if(NOT CMAKE_ELFEDIT)
+      if(DEFINED ENV{ELFEDIT_TOOL})
+        set(CMAKE_ELFEDIT $ENV{ELFEDIT_TOOL})
+      endif()
+    endif()
+    if(CMAKE_ELFEDIT)
+      add_custom_command(TARGET "${target}" POST_BUILD
+        COMMAND "${CMAKE_ELFEDIT}" --output-osabi=Linux "$<TARGET_FILE:${target}>"
+        VERBATIM
+      )
+    endif()
+  endif()
+endfunction()

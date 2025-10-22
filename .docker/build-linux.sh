@@ -335,6 +335,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
   export STRIP_TOOL="${_TARGET}-strip"
+  export ELFEDIT_TOOL="${_TARGET}-elfedit"
   export PATH="$_SYSROOT/usr/bin:$PATH"
 
   _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
@@ -387,6 +388,7 @@ export PATH='$PATH'
 export CC='$CC'
 export CXX='$CXX'
 export STRIP_TOOL='$STRIP_TOOL'
+export ELFEDIT_TOOL='$ELFEDIT_TOOL'
 export CFLAGS='$CFLAGS'
 export CXXFLAGS='$CXXFLAGS'
 export LDFLAGS='$LDFLAGS'

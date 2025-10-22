@@ -1163,6 +1163,7 @@ add_custom_target(
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
     foreach(tgt ${BINARY_TARGETS})
+      brand_elf_linux(${tgt})
       list(APPEND FILES_TO_STRIP $<TARGET_FILE:${tgt}>)
     endforeach()
     if(APPLE)
