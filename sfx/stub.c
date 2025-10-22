@@ -319,19 +319,6 @@ static void print_extract_hint(char const* prog_name) {
          prog_name);
 }
 
-static char const* get_error_name(int err) {
-  switch (err) {
-  case ENOEXEC:
-    return "ENOEXEC";
-  case ENOENT:
-    return "ENOENT";
-  case ENOSYS:
-    return "ENOSYS";
-  default:
-    return "?";
-  }
-}
-
 int main(int argc, char** argv, char** envp) {
   int self_fd = open_self_ro();
   if (self_fd < 0) {
@@ -454,14 +441,12 @@ int main(int argc, char** argv, char** envp) {
   lseek(app_fd, 0, SEEK_SET);
   fexecve(app_fd, argv, envp);
 
-  if (errno == ENOEXEC || errno == ENOENT || errno == ENOSYS) {
-    fmterr("fexecve() failed with %s, are you using QEMU?\n",
-           get_error_name(errno));
-    print_extract_hint(argv[0]);
-  } else {
-    perror("fexecve");
-  }
+  // ===== fexecve only returns on error =====
+
+  perror("fexecve");
+  print_extract_hint(argv[0]);
 
   close(app_fd);
+
   return 127;
 }
