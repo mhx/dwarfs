@@ -1,0 +1,32 @@
+# Sample unmount KDE servicemenu
+#
+# dwarfs ships with a handler for *.dwarfs files that can mount dwarfs files
+# to a new directory next to the filesystem image. Currently, KDE dolphin
+# does not have any obvious way to unmount those directories without opening
+# a terminal (as doesn't show under Remote or Devices panels).
+#
+# This is a sample service menu that attaches to **all directories**
+# and mountpoints to call unmount.
+#
+# While it may be harmless for normal directories, unmounting the wrong
+# directory, even as current user, not root, could still be dangerous or cause
+# undesired effects, especially if used on non-dwarfs mounts.
+#
+# How to use this?
+# 1. Copy this file to ~/.local/share/kio/servicemenus
+#      (or globally with sudo to /usr/share/kio/servicemenus)
+# 2. make it executable
+#    $ chmod ug+x ~/.local/share/kio/servicemenus/unmount-servicemenu.desktop
+# 2. Reopen Dolphin
+# 3. Right-click any mounted dir and click 'Unmount Directory'
+#
+[Desktop Entry]
+Type=Service
+MimeType=inode/mount-point;inode/directory;
+Icon=media-eject
+Actions=unmount
+
+[Desktop Action unmount]
+Name=Unmount Directory
+Icon=media-eject
+Exec=findmnt -n "%f" && ( umount "%f" && kdialog --msgbox "Directory unmounted OK") || kdialog --error "Directory is not a mountpoint"
