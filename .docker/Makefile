@@ -38,10 +38,10 @@ build_debian:
 run_debian:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
 
-Dockerfile.alpine_x86_64: build_dockerfile.pl
+Dockerfile.alpine_x86_64: Makefile build_dockerfile.pl
 	perl build_dockerfile.pl --targets=x86_64,aarch64,loongarch64,riscv64,ppc64,ppc64le,s390x,arm,i386 --upx=amd64 --with-bloaty > $@
 
-Dockerfile.alpine_aarch64: build_dockerfile.pl
+Dockerfile.alpine_aarch64: Makefile build_dockerfile.pl
 	perl build_dockerfile.pl --targets=aarch64 --upx=arm64 > $@
 
 dockerfiles: Dockerfile.alpine_x86_64 Dockerfile.alpine_aarch64
