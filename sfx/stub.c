@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <linux/memfd.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,6 +41,7 @@
 #include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #ifdef DWARFS_SFX_STUB_USE_LZ4
@@ -54,6 +56,8 @@
 #define TRAILER_SIZE 32
 static uint8_t const trailer_magic[8] = {'S', 'Q', 'U', 'E',
                                          'E', 'Z', 'E', '!'};
+
+static char const* const fexecve_test_flag = "--sfx-test-fexecve";
 
 static uint64_t read_le64(uint8_t const b[8]) {
   return ((uint64_t)b[0]) | ((uint64_t)b[1] << 8) | ((uint64_t)b[2] << 16) |
@@ -137,9 +141,8 @@ static int create_exec_memfd(size_t size) {
 static int reopen_readonly(int fd) {
   char path[64];
   npf_snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
-  int ro_fd = open(path, O_RDONLY);
+  int ro_fd = open(path, O_RDONLY | O_CLOEXEC);
   if (ro_fd < 0) {
-    perror("open(readonly)");
     return -1;
   }
   close(fd);
@@ -157,27 +160,27 @@ static int dir_allows_exec(char const* dir) {
   return access(dir, W_OK | X_OK) == 0;
 }
 
-static int try_create_tmpfd_in_dir(char const* dir, size_t size) {
+static int try_create_tmpfd_in_dir(char* template, size_t template_size,
+                                   char const* dir, size_t size) {
   if (!dir_allows_exec(dir)) {
     return -1;
   }
 
-  char template[1024];
-  npf_snprintf(template, sizeof(template), "%s/sfx-XXXXXX", dir);
+  npf_snprintf(template, template_size, "%s/sfx-XXXXXX", dir);
 
   int fd = mkstemp(template);
   if (fd < 0) {
     return -1;
   }
 
-  unlink(template);
-
   if (fchmod(fd, 0700) != 0) {
+    unlink(template);
     close(fd);
     return -1;
   }
 
   if (ftruncate(fd, size) != 0) {
+    unlink(template);
     close(fd);
     return -1;
   }
@@ -185,7 +188,8 @@ static int try_create_tmpfd_in_dir(char const* dir, size_t size) {
   return fd;
 }
 
-static int create_exec_tmpfd(size_t size) {
+static int
+create_exec_tmpfd(char* template, size_t template_size, size_t size) {
   char const* dirs[] = {"TMPDIR",   "XDG_RUNTIME_DIR", "/dev/shm", "/tmp",
                         "/usr/tmp", "/var/tmp",        NULL};
 
@@ -199,7 +203,7 @@ static int create_exec_tmpfd(size_t size) {
       }
     }
 
-    int fd = try_create_tmpfd_in_dir(dir, size);
+    int fd = try_create_tmpfd_in_dir(template, template_size, dir, size);
 
     if (fd >= 0) {
       return fd;
@@ -209,7 +213,7 @@ static int create_exec_tmpfd(size_t size) {
   return -1;
 }
 
-static int add_seals_immutable_exec(int fd) {
+static int memfd_add_seals_immutable_exec(int fd) {
   int seals = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL;
   if (fcntl(fd, F_ADD_SEALS, seals) != 0) {
     if (errno == EINVAL) {
@@ -273,7 +277,7 @@ xxh64_verify(void const* addr, uint64_t expect_hash, uint64_t expect_size) {
 
 static int extract_to_path_verified(char const* path, uint8_t const* addr,
                                     const struct trailer_info* ti) {
-  int out = open(path, O_CREAT | O_EXCL | O_TRUNC | O_RDWR | O_CLOEXEC, 0755);
+  int out = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0755);
   if (out < 0) {
     perror("open(output)");
     return -1;
@@ -319,7 +323,62 @@ static void print_extract_hint(char const* prog_name) {
          prog_name);
 }
 
+static int test_fexecve(uint8_t const* stub_addr, off_t stub_size, char** argv,
+                        char** envp) {
+  int fd = create_exec_memfd(stub_size);
+  if (fd < 0) {
+    return 0;
+  }
+
+  void* test_addr =
+      mmap(NULL, stub_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+  if (test_addr == MAP_FAILED) {
+    close(fd);
+    return 0;
+  }
+
+  memcpy(test_addr, stub_addr, stub_size);
+
+  if (munmap(test_addr, stub_size) != 0) {
+    close(fd);
+    return 0;
+  }
+
+  fd = reopen_readonly(fd);
+
+  if (fd < 0) {
+    return 0;
+  }
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    close(fd);
+    return 0;
+  }
+
+  if (pid == 0) {
+    char const* av[] = {argv[0], fexecve_test_flag, NULL};
+    lseek(fd, 0, SEEK_SET);
+    fexecve(fd, (char* const*)av, envp);
+    _exit(1);
+  }
+
+  close(fd);
+
+  int st = 0;
+  waitpid(pid, &st, 0);
+
+  return WIFEXITED(st) && WEXITSTATUS(st) == 0 ? 1 : 0;
+}
+
 int main(int argc, char** argv, char** envp) {
+  if (argc == 2 && strcmp(argv[1], fexecve_test_flag) == 0) {
+    // exit immediately with success to indicate fexecve support
+    return 0;
+  }
+
   int self_fd = open_self_ro();
   if (self_fd < 0) {
     return 1;
@@ -355,17 +414,24 @@ int main(int argc, char** argv, char** envp) {
     return rc == 0 ? 0 : 1;
   }
 
-  int needs_reopen = 0;
-  int app_fd = create_exec_memfd(ti.u_size);
+  int use_memfd_fexecve = test_fexecve(self_addr, ti.c_off, argv, envp);
+
+  char template[1024];
+  char const* tmpfile = NULL;
+  int app_fd = -1;
+
+  if (use_memfd_fexecve) {
+    app_fd = create_exec_memfd(ti.u_size);
+  } else {
+    tmpfile = template;
+    app_fd = create_exec_tmpfd(template, sizeof(template), ti.u_size);
+  }
+
   if (app_fd < 0) {
-    app_fd = create_exec_tmpfd(ti.u_size);
-    if (app_fd < 0) {
-      munmap((void*)self_addr, self_st.st_size);
-      msgerr("could not create temporary executable file\n");
-      print_extract_hint(argv[0]);
-      return 1;
-    }
-    needs_reopen = 1;
+    munmap((void*)self_addr, self_st.st_size);
+    msgerr("could not create temporary executable file\n");
+    print_extract_hint(argv[0]);
+    return 1;
   }
 
   void* app_addr =
@@ -374,8 +440,7 @@ int main(int argc, char** argv, char** envp) {
   if (app_addr == MAP_FAILED) {
     perror("mmap");
     munmap((void*)self_addr, self_st.st_size);
-    close(app_fd);
-    return 1;
+    goto on_error_hint;
   }
 
   int decompress_rv =
@@ -390,8 +455,7 @@ int main(int argc, char** argv, char** envp) {
   }
 
   if (decompress_rv != 0) {
-    close(app_fd);
-    return 1;
+    goto on_error;
   }
 
   if (fchmod(app_fd, 0755) != 0) {
@@ -399,19 +463,15 @@ int main(int argc, char** argv, char** envp) {
     // We'll still try to execute the file, but it may fail.
   }
 
-  if (add_seals_immutable_exec(app_fd) != 0) {
-    print_extract_hint(argv[0]);
-    close(app_fd);
-    return 1;
+  if (use_memfd_fexecve && memfd_add_seals_immutable_exec(app_fd) != 0) {
+    goto on_error_hint;
   }
 
   app_addr = mmap(NULL, ti.u_size, PROT_READ, MAP_PRIVATE, app_fd, 0);
 
   if (app_addr == MAP_FAILED) {
     perror("mmap (read-only)");
-    print_extract_hint(argv[0]);
-    close(app_fd);
-    return 1;
+    goto on_error_hint;
   }
 
   int verify_rv = xxh64_verify(app_addr, ti.u_xxh64, ti.u_size);
@@ -421,32 +481,101 @@ int main(int argc, char** argv, char** envp) {
   }
 
   if (verify_rv != 0) {
-    close(app_fd);
-    return 1;
+    goto on_error;
   }
 
-  if (needs_reopen) {
-    int ro_fd = reopen_readonly(app_fd);
+  if (use_memfd_fexecve) {
+    app_fd = reopen_readonly(app_fd);
 
-    close(app_fd);
-
-    if (ro_fd < 0) {
-      print_extract_hint(argv[0]);
-      return 1;
+    if (app_fd < 0) {
+      perror("open(readonly)");
+      goto on_error_hint;
     }
 
-    app_fd = ro_fd;
+    lseek(app_fd, 0, SEEK_SET);
+    fexecve(app_fd, argv, envp);
+
+    // we only get here if fexecve failed
+
+    perror("fexecve");
+
+    goto on_error_hint;
   }
 
-  lseek(app_fd, 0, SEEK_SET);
-  fexecve(app_fd, argv, envp);
-
-  // ===== fexecve only returns on error =====
-
-  perror("fexecve");
-  print_extract_hint(argv[0]);
+  // use execve on tmpfile
 
   close(app_fd);
+  app_fd = -1;
 
-  return 127;
+  int px[2];
+
+  if (pipe2(px, O_CLOEXEC) != 0) {
+    goto on_error_hint;
+  }
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    perror("fork");
+    goto on_error_hint;
+  }
+
+  if (pid == 0) {
+    pid_t pid2 = fork();
+
+    if (pid2 < 0) {
+      _exit(1);
+    }
+
+    if (pid2 == 0) {
+      close(px[1]); // close write end, keep read end open
+      char dummy;
+
+      // we'll never read anything here, just wait for EOF to signal that
+      // the parent has either succeeded or failed the `execve`
+      (void)read(px[0], &dummy, 1);
+      close(px[0]);
+
+      // in any case, now is the time to clean up
+      unlink(tmpfile);
+    }
+
+    _exit(0);
+  }
+
+  int st = 0;
+
+  waitpid(pid, &st, 0);
+
+  if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) {
+    msgerr("could not fork janitor process\n");
+    goto on_error_hint;
+  }
+
+  close(px[0]); // close read end, keep write end open
+
+  execve(tmpfile, argv, envp);
+
+  // we only get here if execve failed
+
+  perror("execve(temp)");
+
+  close(px[1]);   // close write end explicitly to trigger janitor cleanup
+  tmpfile = NULL; // no need to unlink since that's handled by janitor
+
+  // fall through to print hint
+
+on_error_hint:
+  print_extract_hint(argv[0]);
+
+on_error:
+  if (tmpfile != NULL) {
+    unlink(tmpfile);
+  }
+
+  if (app_fd >= 0) {
+    close(app_fd);
+  }
+
+  return 1;
 }
