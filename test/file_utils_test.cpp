@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_util.h>
 
 #include <dwarfs/internal/file_status_conv.h>
 
@@ -163,4 +164,28 @@ TEST(file_utils, file_stat) {
   EXPECT_THAT([&] { file_stat::mode_string(0110000); },
               testing::ThrowsMessage<dwarfs::runtime_error>(
                   testing::HasSubstr("unknown file type: 0x9000")));
+}
+
+TEST(file_utils, file_stat_symlink) {
+  using namespace dwarfs;
+
+  temporary_directory td("dwarfs");
+
+  write_file(td.path() / "target_file", "Hello, this is a long string!\n");
+  fs::copy(td.path() / "target_file", td.path() / u8"我爱你.txt");
+
+  fs::create_symlink("target_file", td.path() / "link_to_target");
+  fs::create_symlink(u8"我爱你.txt", td.path() / "link_to_unicode");
+
+  {
+    file_stat st(td.path() / "link_to_target");
+    EXPECT_TRUE(st.is_symlink());
+    EXPECT_EQ(11, st.size());
+  }
+
+  {
+    file_stat st(td.path() / "link_to_unicode");
+    EXPECT_TRUE(st.is_symlink());
+    EXPECT_EQ(13, st.size());
+  }
 }
