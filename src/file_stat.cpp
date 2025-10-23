@@ -281,11 +281,14 @@ file_stat::file_stat(fs::path const& path) {
     return;
   }
 
-  scope_exit close_handle([h]() { ::CloseHandle(h); });
+  scope_exit close_handle([&h]() {
+    if (h != INVALID_HANDLE_VALUE) {
+      ::CloseHandle(h);
+    }
+  });
 
   BY_HANDLE_FILE_INFORMATION bhfi{};
   FILE_BASIC_INFO basic{};
-  FILE_STANDARD_INFO stdinfo{};
 
   if (!GetFileInformationByHandle(h, &bhfi)) {
     set_exception("GetFileInformationByHandle failed");
@@ -294,12 +297,6 @@ file_stat::file_stat(fs::path const& path) {
 
   if (!GetFileInformationByHandleEx(h, FileBasicInfo, &basic, sizeof(basic))) {
     set_exception("GetFileInformationByHandleEx(FileBasicInfo) failed");
-    return;
-  }
-
-  if (!GetFileInformationByHandleEx(h, FileStandardInfo, &stdinfo,
-                                    sizeof(stdinfo))) {
-    set_exception("GetFileInformationByHandleEx(FileStandardInfo) failed");
     return;
   }
 
@@ -335,8 +332,6 @@ file_stat::file_stat(fs::path const& path) {
     }
   }
 
-  nlink_ = stdinfo.NumberOfLinks;
-
   dev_ = bhfi.dwVolumeSerialNumber;
   ino_ = (static_cast<uint64_t>(bhfi.nFileIndexHigh) << 32) |
          static_cast<uint64_t>(bhfi.nFileIndexLow);
@@ -344,10 +339,9 @@ file_stat::file_stat(fs::path const& path) {
   // These don't make sense on Windows
   uid_ = 0;
   gid_ = 0;
+  size_ = 0;
 
   if (is_symlink) {
-    size_ = 0;
-
     // Read reparse buffer to get the target path length.
     std::vector<uint8_t> buffer(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
     DWORD returned_len = 0;
@@ -386,19 +380,53 @@ file_stat::file_stat(fs::path const& path) {
         size_ = get_symlink_size(reparse->SymbolicLinkReparseBuffer);
       } else if (reparse->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT) {
         size_ = get_symlink_size(reparse->MountPointReparseBuffer);
+      } else {
+        DWARFS_PANIC(fmt::format("unexpected reparse tag for symlink: {:#x}",
+                                 reparse->ReparseTag));
       }
     }
-  } else {
+  } else if (!is_directory) {
+    ::CloseHandle(h);
+
+    // Reopen the file without FILE_FLAG_OPEN_REPARSE_POINT to get the
+    // actual allocated size.
+    h = ::CreateFileW(path.c_str(), GENERIC_READ,
+                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                      nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+    if (h == INVALID_HANDLE_VALUE) {
+      set_exception("CreateFileW failed");
+      return;
+    }
+
+    // Update basic info after reopening (better safe than sorry).
+    if (!GetFileInformationByHandleEx(h, FileBasicInfo, &basic,
+                                      sizeof(basic))) {
+      set_exception("GetFileInformationByHandleEx(FileBasicInfo) failed");
+      return;
+    }
+  }
+
+  FILE_STANDARD_INFO stdinfo{};
+
+  if (!GetFileInformationByHandleEx(h, FileStandardInfo, &stdinfo,
+                                    sizeof(stdinfo))) {
+    set_exception("GetFileInformationByHandleEx(FileStandardInfo) failed");
+    return;
+  }
+
+  if (!is_symlink && !is_directory) {
     size_ = stdinfo.EndOfFile.QuadPart; // logical size
   }
 
-  allocated_size_ = size_;
-
   if (basic.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) {
     allocated_size_ = get_sparse_file_allocated_size_win(h, size_);
+  } else {
+    allocated_size_ = size_;
   }
 
-  blocks_ = (stdinfo.AllocationSize.QuadPart + 511) / 512;
+  blocks_ = (allocated_size_ + 511) / 512;
+  nlink_ = stdinfo.NumberOfLinks;
 
   atimespec_ = to_unix_timespec(basic.LastAccessTime);
   mtimespec_ = to_unix_timespec(basic.LastWriteTime);
