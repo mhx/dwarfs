@@ -360,10 +360,21 @@ file_stat::file_stat(fs::path const& path) {
 
       auto get_symlink_size =
           [total_size = reparse->ReparseDataLength](auto const& buffer) -> int {
-        size_t const end = buffer.PrintNameOffset + buffer.PrintNameLength;
-        if (end > total_size) {
-          return 0;
-        }
+        static constexpr size_t kReparseHeaderSize =
+            offsetof(std::decay_t<decltype(buffer)>, PathBuffer);
+        size_t const end = kReparseHeaderSize + buffer.PrintNameOffset +
+                           buffer.PrintNameLength;
+        DWARFS_CHECK(
+            end <= total_size,
+            fmt::format("invalid reparse buffer size: {} + {} + {} > {}",
+                        kReparseHeaderSize, buffer.PrintNameOffset,
+                        buffer.PrintNameLength, total_size));
+        DWARFS_CHECK(
+            buffer.PrintNameOffset % sizeof(WCHAR) == 0,
+            fmt::format("invalid PrintNameOffset: {}", buffer.PrintNameOffset));
+        DWARFS_CHECK(
+            buffer.PrintNameLength % sizeof(WCHAR) == 0,
+            fmt::format("invalid PrintNameLength: {}", buffer.PrintNameLength));
         auto const base = reinterpret_cast<BYTE const*>(buffer.PathBuffer);
         auto const w_print =
             reinterpret_cast<WCHAR const*>(base + buffer.PrintNameOffset);
