@@ -357,6 +357,18 @@ void console_writer::update(writer_progress& prog, bool last) {
 
   frac_ = std::max(frac, frac_);
 
+  DWARFS_CHECK(
+      frac_ >= 0.0 && frac_ <= 1.0,
+      fmt::format(
+          "invalid progress fraction: {} (frac={}, frac_fs={}, frac_comp={}, "
+          "original_size={}, saved_by_deduplication={}, symlink_size={}, "
+          "filesystem_size={}, saved_by_segmentation={}, blocks_written={}, "
+          "block_count={})",
+          frac_, frac, frac_fs, frac_comp, original_size(),
+          saved_by_deduplication(), p.symlink_size.load(),
+          p.filesystem_size.load(), p.saved_by_segmentation.load(),
+          p.blocks_written.load(), p.block_count.load()));
+
   if (opts_.progress == SIMPLE) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
