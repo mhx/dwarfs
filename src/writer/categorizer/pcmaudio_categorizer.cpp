@@ -951,6 +951,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   static_assert(sizeof(chunk_hdr_t) == FormatPolicy::chunk_header_size);
 
   static constexpr uint16_t const DWARFS_WAVE_FORMAT_PCM{0x0001};
+  static constexpr uint16_t const DWARFS_WAVE_FORMAT_IEEE_FLOAT{0x0003};
   static constexpr uint16_t const DWARFS_WAVE_FORMAT_EXTENSIBLE{0xFFFE};
 
   using wav_parser =
@@ -1021,7 +1022,12 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       fmt.avg_bytes_per_sec = folly::Endian::little(fmt.avg_bytes_per_sec);
       fmt.block_align = folly::Endian::little(fmt.block_align);
       fmt.bits_per_sample = folly::Endian::little(fmt.bits_per_sample);
-      if (chunk->size() == 40) {
+
+      bool const is_extensible =
+          chunk->size() == 40 &&
+          fmt.format_code == DWARFS_WAVE_FORMAT_EXTENSIBLE;
+
+      if (is_extensible) {
         fmt.valid_bits_per_sample =
             folly::Endian::little(fmt.valid_bits_per_sample);
         fmt.sub_format_code = folly::Endian::little(fmt.sub_format_code);
@@ -1029,13 +1035,19 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         fmt.sub_format_code = 0;
       }
 
-      if (!(fmt.format_code == DWARFS_WAVE_FORMAT_PCM ||
-            (fmt.format_code == DWARFS_WAVE_FORMAT_EXTENSIBLE &&
-             chunk->size() == 40 &&
-             fmt.sub_format_code == DWARFS_WAVE_FORMAT_PCM))) {
-        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
-                 << ": unsupported format: " << fmt.format_code << "/"
-                 << fmt.sub_format_code;
+      auto is_format = [&fmt, is_extensible](uint16_t code) {
+        return code == (is_extensible ? fmt.sub_format_code : fmt.format_code);
+      };
+
+      if (!is_format(DWARFS_WAVE_FORMAT_PCM)) {
+        if (is_format(DWARFS_WAVE_FORMAT_IEEE_FLOAT)) {
+          LOG_INFO << "[" << FormatPolicy::format_name << "] " << path
+                   << ": floating point format not supported";
+        } else {
+          LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                   << ": unsupported format: " << fmt.format_code << "/"
+                   << fmt.sub_format_code;
+        }
         return false;
       }
 
