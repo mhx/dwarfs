@@ -342,21 +342,20 @@ void console_writer::update(writer_progress& prog, bool last) {
     return;
   }
 
-  size_t orig = original_size() - (saved_by_deduplication() + p.symlink_size);
-  double frac_fs =
+  size_t const orig =
+      original_size() - (saved_by_deduplication() + p.symlink_size);
+  double const frac_fs =
       orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
                : 0.0;
-  double frac_comp =
+  double const frac_comp =
       p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
-  double frac =
-      opts_.display == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
-
-  if (last) {
-    frac = 1.0;
-  }
+  double const frac = last                      ? 1.0
+                      : opts_.display == NORMAL ? (frac_fs + frac_comp) / 2.0
+                                                : frac_comp;
 
   frac_ = std::max(frac, frac_);
 
+#ifdef DWARFS_DEBUG_PROGRESS_PERCENTAGE
   DWARFS_CHECK(
       frac_ >= 0.0 && frac_ <= 1.0,
       fmt::format(
@@ -368,6 +367,17 @@ void console_writer::update(writer_progress& prog, bool last) {
           saved_by_deduplication(), p.symlink_size.load(),
           p.filesystem_size.load(), p.saved_by_segmentation.load(),
           p.blocks_written.load(), p.block_count.load()));
+#else
+  /* Clamp to [0, 1] to avoid weird progress bars. This shouldn't really
+   * happen, but there are cases where a file system (looking at you, ZFS)
+   * reorganizes data while we initially determine the allocated size and
+   * then later that size has changed when we actually read the file.
+   * So yeah, this isn't ideal and we may end up with progress display
+   * that is actually wrong, but at least we don't crash or show totally
+   * nonsense values outside [0%, 100%].
+   */
+  frac_ = std::clamp(frac_, 0.0, 1.0);
+#endif
 
   if (opts_.progress == SIMPLE) {
     std::string tmp =
