@@ -620,6 +620,47 @@ TEST_F(pcmaudio_error_test_wav, unsupported_format_code) {
   EXPECT_EQ(0, frag.size());
 }
 
+TEST_F(pcmaudio_error_test_wav, unsupported_ieee_float_format_github_309) {
+  wav_fmt_chunk.format_code = 3;
+
+  auto builder = build_file();
+  auto frag = categorize(builder);
+  auto const& log = logger.get_log();
+
+  ASSERT_EQ(1, log.size());
+
+  EXPECT_THAT(log.front().output,
+              testing::HasSubstr(
+                  "[WAV] \"test.wav\": floating point format not supported"));
+
+  EXPECT_EQ(0, frag.size());
+}
+
+TEST_F(pcmaudio_error_test_wav, unsupported_ieee_float_extensible_github_309) {
+  wav_file_hdr.size += 24;
+  wav_fmt_chunk_hdr.size += 24;
+  wav_fmt_chunk.format_code = 65534;
+  wav_fmt_chunk.sub_format_code = 3;
+
+  pcmfile_builder builder;
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 40);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
+  builder.add_bytes(16, 42);
+
+  auto frag = categorize(builder);
+  auto const& log = logger.get_log();
+
+  ASSERT_EQ(1, log.size());
+
+  EXPECT_THAT(log.front().output,
+              testing::HasSubstr(
+                  "[WAV] \"test.wav\": floating point format not supported"));
+
+  EXPECT_EQ(0, frag.size());
+}
+
 TEST_F(pcmaudio_error_test_wav, metadata_check_failed) {
   wav_fmt_chunk.bits_per_sample = 13;
 
