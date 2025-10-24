@@ -272,10 +272,11 @@ There are some things to be aware of:
 ### Prebuilt Binaries
 
 [Each release](https://github.com/mhx/dwarfs/releases) has pre-built,
-statically linked binaries for `Linux-x86_64`, `Linux-aarch64` and
-`Windows-AMD64` available for download. These *should* run without
-any dependencies and can be useful especially on older distributions
-where you can't easily build the tools from source.
+statically linked binaries for a number of architectures available
+for download. These *should* run without any dependencies and can be
+useful especially on older distributions where you can't easily build
+the tools from source. For example, these binaries will work perfectly
+fine on Linux distributions from 2007.
 
 ### Universal Binaries
 
