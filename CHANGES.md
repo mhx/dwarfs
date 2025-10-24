@@ -1,5 +1,91 @@
 # Change Log
 
+## Version 0.14.1 - 2025-10-24
+
+- (fix) The new Windows code from the v0.14.0 release that implemented
+  `lstat()`-like functionality to get file status information did not
+  work correctly for reparse points that were *not* symbolic links (i.e.
+  "real" symlinks or junctions). When dealing with such reparse points,
+  the code would incorrectly determine the allocated size of the file
+  to be zero, since it tried to determine that size from the reparse
+  point and not from the target. This caused the progress percentage
+  to be calculated incorrectly, since *much* more data was processed
+  than was expected, leading to progress percentages well over 100%.
+  Thankfully, @lunighty not only reported this issue, but also provided
+  significant context by mentioning that this was on a Windows Server
+  NTFS volume with deduplication enabled. Fortunately, this was also
+  reproducible on "regular" Windows using a mounted WIM image. The fix
+  will now correctly handle reparse points by re-opening the handle
+  without `FILE_FLAG_OPEN_REPARSE_POINT` in order to open the target.
+  This bug only affected Windows builds of `mkdwarfs`, and only when
+  actually used on filesystems with reparse points that were not symlinks.
+  Even then, the resulting DwarFS image would still be correct, except
+  for a way too small `total_allocated_fs_size` metadata entry. However,
+  this entry is purely informational. Huge thanks to @lunighty for both
+  reporting and helping to debug this issue! Fixes github #307.
+
+- (fix) A bunch of changes were made to make the static (Linux) release
+  binaries work on FreeBSD with the Linux emulation layer. While you *can*
+  easily build DwarFS on FreeBSD natively, the static binaries might be
+  bundled in Linux application images that you may want to run on FreeBSD
+  as well. This required patching `musl` to fall back to `FUTEX_WAKE` if
+  `FUTEX_REQUEUE` is not supported (which is the case on FreeBSD's Linux
+  emulation); otherwise, the binaries would regularly hang when trying to
+  shut down thread pools. Furthermore, the SFX stub did not work with the
+  emulation layer due to lack of support for `fexecve`; so it now uses a
+  fallback of temporary file + `execve` in case `create_memfd` and/or
+  `fexecve` are not supported. This fallback is very similar to the one
+  that was already in use for old Linux kernels, only that cleanup of the
+  temporary file is now done using a child "janitor" process as soon as
+  the `execve` call succeeds. Lastly, all static binaries are now branded
+  as using the Linux ABI rather than the generic "System V" in the ELF
+  header, which makes it unnecessary to explicitly `brandelf` the binaries
+  on FreeBSD.
+
+- (fix) The `pcmaudio` categorizer had two minor issues discovered by
+  @lunighty when compressing a large number of WAV files. One was reporting
+  an `unsupported format: 3/0` or `unsupported format: 65,534/3` warning,
+  which isn't very useful for the end user. These format codes correspond
+  to IEEE floating point formats, which are indeed unsupported. However,
+  the format appears to be quite common, so the warning has been downgraded
+  to an info message that explicitly mentions the floating point format.
+  The second issue was an unexpected `fmt` chunk size of 20 bytes, which
+  caused the file to be rejected as a PCM audio file (meaning it was added
+  using a generic compressor instead of FLAC). It turns out that these
+  non-conforming `fmt` chunks are also quite common in practice, so the
+  code has been changed to accept the non-conforming file, but also logging
+  an info message mentioning the non-conformance. Fixes github #309.
+
+- (fix) The `test_helpers` library used for unit tests was not explicitly
+  listing `xxhash` as a dependency, which caused linker errors on macOS.
+  These unfortunately only showed up in the Homebrew CI. The dependency has
+  been added.
+
+- (fix) Instead of making the FUSE drivers fail hard when seeing the options
+  that were removed in v0.14.0, they now just log a warning and ignore them.
+  The options may still be fully removed in a future release. Fixes github
+  #303.
+
+- (feat) Added shell completion for `dwarfsck` and `dwarfsextract`. (Thanks
+  to Ahmad Khalifa for the contribution.)
+
+- (feat) Added sample desktop unmount handlers. (Thanks to Ahmad Khalifa
+  for the contribution.)
+
+- (build) Bumped `libarchive`, `libressl`, and `libdwarf` versions in the
+  static build pipeline.
+
+- (test) Added test for `file_stat` on symbolic links containing multibyte
+  characters on Windows.
+
+- (test) Added test for obsolete FUSE driver options being ignored and
+  producing a warning.
+
+- (test) Added test for the FUSE driver's `imagesize` option.
+
+- (test) Added more tests for the `--auto-mountpoint` option in the FUSE
+  driver.
+
 ## Version 0.14.0 - 2025-10-21
 
 - (fix) Leading dots in `--input-list` file paths were incorrectly treated
