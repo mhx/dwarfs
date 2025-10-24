@@ -992,10 +992,16 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   while (auto chunk = parser.next_chunk()) {
     if (chunk->is(FormatPolicy::fmt_id)) {
       if (chunk->size() != 16 && chunk->size() != 18 && chunk->size() != 40) {
-        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
-                 << ": unexpected size for `" << chunk->fourcc()
-                 << "` chunk: " << chunk->size() << " (expected 16, 18, 40)";
-        return false;
+        if (chunk->size() == 20 && FormatPolicy::format_name == "WAV") {
+          // lots of broken files out there with 20-byte fmt chunks...
+          LOG_INFO << "[" << FormatPolicy::format_name << "] " << path
+                   << ": accepting legacy 20-byte `fmt ` chunk";
+        } else {
+          LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                   << ": unexpected size for `" << chunk->fourcc()
+                   << "` chunk: " << chunk->size() << " (expected 16, 18, 40)";
+          return false;
+        }
       }
 
       if (meta_valid) {
