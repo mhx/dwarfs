@@ -535,6 +535,29 @@ TEST_F(pcmaudio_error_test_wav, unexpected_end_of_file) {
 }
 
 TEST_F(pcmaudio_error_test_wav, unexpected_fmt_chunk_size) {
+  wav_file_hdr.size += 6;
+  wav_fmt_chunk_hdr.size += 6;
+
+  pcmfile_builder builder;
+  builder.add(as_little_endian(wav_file_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk_hdr));
+  builder.add(as_little_endian(wav_fmt_chunk), 22);
+  builder.add(as_little_endian(wav_data_chunk_hdr));
+  builder.add_bytes(16, 42);
+
+  auto frag = categorize(builder);
+  auto const& log = logger.get_log();
+
+  ASSERT_EQ(1, log.size());
+
+  EXPECT_THAT(log.front().output,
+              testing::HasSubstr("[WAV] \"test.wav\": unexpected size for `fmt "
+                                 "` chunk: 22 (expected 16, 18, 40)"));
+
+  EXPECT_EQ(0, frag.size());
+}
+
+TEST_F(pcmaudio_error_test_wav, legacy_20_byte_fmt_chunk_github_309) {
   wav_file_hdr.size += 4;
   wav_fmt_chunk_hdr.size += 4;
 
@@ -551,10 +574,10 @@ TEST_F(pcmaudio_error_test_wav, unexpected_fmt_chunk_size) {
   ASSERT_EQ(1, log.size());
 
   EXPECT_THAT(log.front().output,
-              testing::HasSubstr("[WAV] \"test.wav\": unexpected size for `fmt "
-                                 "` chunk: 20 (expected 16, 18, 40)"));
+              testing::HasSubstr("[WAV] \"test.wav\": accepting legacy 20-byte "
+                                 "`fmt ` chunk"));
 
-  EXPECT_EQ(0, frag.size());
+  EXPECT_EQ(2, frag.size());
 }
 
 TEST_F(pcmaudio_error_test_wav, unexpected_second_fmt_chunk) {
