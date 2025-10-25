@@ -1585,6 +1585,30 @@ sys     3m47.876s
 
 That's 700 times slower than extracting the DwarFS image.
 
+A few years later, it was pointed out to me that using `-summary 1` would
+suppress most of the output. Also, most people seem to use the default
+compression level instead of `-m5`, so let's try that again:
+
+```
+$ time zpaq a perl-install.default.zpaq perl-install -summary 1
+zpaq v7.15 journaling archiver, compiled Oct 25 2025
+Creating perl-install.default.zpaq at offset 0 + 0
+Adding 51161.953159 MB in 1927501 files -method 14 -threads 32 at 2025-10-25 07:07:09.
+2258234 +added, 0 -removed.
+
+0.000000 + (51161.953159 -> 8932.000297 -> 1143.401788) = 1143.401788 MB
+381.062 seconds (all OK)
+
+user	6:24.01
+system	42.189
+total	6:21.10
+```
+
+That is considerably faster, but the resulting archive is also considerably
+bigger. Also, the machine I'm running this on is a lot faster, and `mkdwarfs`
+takes about 2 minutes to build a 310 MiB image (albeit using significantly
+more CPU time).
+
 ### With zpaqfranz
 
 [zpaqfranz](https://github.com/fcorbelli/zpaqfranz) is a derivative of zpaq.
