@@ -1,6 +1,6 @@
 # Change Log
 
-## Version 0.14.1 - 2025-10-24
+## Version 0.14.1 - 2025-10-25
 
 - (fix) The new Windows code from the v0.14.0 release that implemented
   `lstat()`-like functionality to get file status information did not
@@ -23,6 +23,14 @@
   for a way too small `total_allocated_fs_size` metadata entry. However,
   this entry is purely informational. Huge thanks to @lunighty for both
   reporting and helping to debug this issue! Fixes github #307.
+
+- (fix) Related to the above, the `metadata_builder` now recomputes
+  all total sizes (`total_fs_size`, `total_allocated_fs_size`, and
+  `total_hardlink_size`) as part of the `build()` function. This not
+  only ensures that the totals are correct even if the allocated size
+  changes between scanning and segmenting (which has been happening at
+  least on ZFS volumes), but it also allows images affected by the above
+  bug to be fixed by rebuilding the metadata.
 
 - (fix) A bunch of changes were made to make the static (Linux) release
   binaries work on FreeBSD with the Linux emulation layer. While you *can*
@@ -66,11 +74,19 @@
   The options may still be fully removed in a future release. Fixes github
   #303.
 
+- (fix) The help text for the `mkdwarfs` compress level option (`-l`) was
+  misleading in combination with the manual page as neither mentioned that
+  the table with details was shown only by `-H` / `--long-help`. Fixes
+  github #312.
+
 - (feat) Added shell completion for `dwarfsck` and `dwarfsextract`. (Thanks
   to Ahmad Khalifa for the contribution.)
 
 - (feat) Added sample desktop unmount handlers. (Thanks to Ahmad Khalifa
   for the contribution.)
+
+- (docs) Updated diagram in `dwarfs-format.md` to show new inode metadata
+  fields.
 
 - (build) Bumped `libarchive`, `libressl`, and `libdwarf` versions in the
   static build pipeline.
