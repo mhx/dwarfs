@@ -188,6 +188,7 @@ class metadata_builder_ final : public metadata_builder::impl {
     md_.block_size() = block_size;
   }
 
+#if 0
   void set_total_fs_size(uint64_t total_fs_size,
                          uint64_t total_allocated_fs_size) override {
     md_.total_fs_size() = total_fs_size;
@@ -200,6 +201,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   void set_total_hardlink_size(uint64_t total_hardlink_size) override {
     md_.total_hardlink_size() = total_hardlink_size;
   }
+#endif
 
   void set_shared_files_table(std::vector<uint32_t> shared_files) override {
     md_.shared_files_table() = std::move(shared_files);
