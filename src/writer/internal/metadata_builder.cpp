@@ -72,6 +72,75 @@ get_conversion_factors(thrift::metadata::fs_options const* fs_options) {
   return rv;
 }
 
+class inode_size_provider {
+ public:
+  struct inode_size_info {
+    size_t num_chunks;
+    uint64_t size;
+    uint64_t allocated_size;
+  };
+
+  inode_size_provider(thrift::metadata::metadata const& md)
+      : chunk_table_{md.chunk_table().value()}
+      , chunks_{md.chunks().value()}
+      , block_size_{md.block_size().value()}
+      , hole_ix_{md.hole_block_index().value_or(UINT32_MAX)} {
+    if (md.large_hole_size()) {
+      large_hole_size_ = &md.large_hole_size().value();
+    }
+    assert(std::has_single_bit(block_size_));
+  }
+
+  inode_size_info get(size_t index) const {
+    assert(index + 1 < chunk_table_.size());
+
+    auto const begin = chunk_table_[index];
+    auto const end = chunk_table_[index + 1];
+    auto const num_chunks = end - begin;
+    uint64_t size{0};
+    uint64_t allocated_size{0};
+
+    for (uint32_t ix = begin; ix < end; ++ix) {
+      auto const& chunk = chunks_[ix];
+      auto const b = chunk.block().value();
+      auto const o = chunk.offset().value();
+      auto const s = chunk.size().value();
+
+      if (b == hole_ix_) {
+        if (o == kChunkOffsetIsLargeHole) {
+          assert(large_hole_size_);
+          assert(s < large_hole_size_->size());
+          size += large_hole_size_->at(s);
+        } else {
+          assert(o < block_size_);
+          size += s * block_size_ + o;
+        }
+      } else {
+        size += s;
+        allocated_size += s;
+      }
+    }
+
+    return inode_size_info{num_chunks, size, allocated_size};
+  }
+
+ private:
+  using chunks_t = typename decltype(std::declval<thrift::metadata::metadata>()
+                                         .chunks())::value_type;
+  using chunk_table_t =
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .chunk_table())::value_type;
+  using large_hole_size_t =
+      typename decltype(std::declval<thrift::metadata::metadata>()
+                            .large_hole_size())::value_type;
+
+  chunk_table_t const& chunk_table_;
+  chunks_t const& chunks_;
+  uint64_t block_size_;
+  uint32_t hole_ix_;
+  large_hole_size_t const* large_hole_size_{nullptr};
+};
+
 template <typename LoggerPolicy>
 class metadata_builder_ final : public metadata_builder::impl {
  public:
@@ -190,7 +259,6 @@ class metadata_builder_ final : public metadata_builder::impl {
 
   void remap_holes(chunks_t& new_chunks, size_t new_hole_index,
                    size_t max_data_chunk_size);
-  thrift::metadata::inode_size_cache build_inode_size_cache() const;
   void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
                         filesystem_version const& orig_fs_version);
   void upgrade_from_pre_v2_2();
@@ -225,6 +293,7 @@ class metadata_builder_ final : public metadata_builder::impl {
 
   void update_inodes();
   void update_nlink();
+  void update_totals_and_size_cache();
   void apply_chmod();
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -234,71 +303,6 @@ class metadata_builder_ final : public metadata_builder::impl {
   std::optional<size_t> old_block_size_;
   time_resolution_converter timeres_;
 };
-
-template <typename LoggerPolicy>
-thrift::metadata::inode_size_cache
-metadata_builder_<LoggerPolicy>::build_inode_size_cache() const {
-  auto tv = LOG_TIMED_VERBOSE;
-
-  thrift::metadata::inode_size_cache cache;
-  cache.min_chunk_count() = options_.inode_size_cache_min_chunk_count;
-
-  auto const& chunk_table = md_.chunk_table().value();
-  auto const& chunks = md_.chunks().value();
-
-  uint32_t const hole_ix = md_.hole_block_index().value_or(UINT32_MAX);
-  uint64_t const block_size = md_.block_size().value();
-  assert(std::has_single_bit(block_size));
-
-  for (size_t ino = 0; ino < chunk_table.size() - 1; ++ino) {
-    auto const begin = chunk_table[ino];
-    auto const end = chunk_table[ino + 1];
-    auto const num_chunks = end - begin;
-
-    if (num_chunks >= options_.inode_size_cache_min_chunk_count) {
-      uint64_t size = 0;
-      uint64_t allocated_size = 0;
-
-      for (uint32_t ix = begin; ix < end; ++ix) {
-        auto const& chunk = chunks[ix];
-        auto const b = chunk.block().value();
-        auto const o = chunk.offset().value();
-        auto const s = chunk.size().value();
-
-        if (b == hole_ix) {
-          if (o == kChunkOffsetIsLargeHole) {
-            assert(md_.large_hole_size());
-            assert(s < md_.large_hole_size()->size());
-            size += md_.large_hole_size()->at(s);
-          } else {
-            assert(o < block_size);
-            size += s * block_size + o;
-          }
-        } else {
-          size += s;
-          allocated_size += s;
-        }
-      }
-
-      LOG_DEBUG << "caching size " << size << " for inode " << ino << " with "
-                << num_chunks << " chunks";
-
-      cache.size_lookup()->emplace(ino, size);
-
-      if (allocated_size != size) {
-        LOG_DEBUG << "caching allocated size " << allocated_size
-                  << " for inode " << ino << " with " << num_chunks
-                  << " chunks";
-
-        cache.allocated_size_lookup()->emplace(ino, allocated_size);
-      }
-    }
-  }
-
-  tv << "building inode size cache...";
-
-  return cache;
-}
 
 template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
@@ -659,6 +663,161 @@ void metadata_builder_<LoggerPolicy>::apply_chmod() {
 }
 
 template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
+  auto tv = LOG_TIMED_VERBOSE;
+
+  uint64_t total_fs_size{0};
+  uint64_t total_allocated_fs_size{0};
+  uint64_t total_hardlink_size{0};
+
+  auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
+  auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
+
+  auto const& symlink_table = md_.symlink_table().value();
+  assert(symlink_table.size() ==
+         reg_offset - find_inode_rank_offset(md_, inode_rank::INO_LNK));
+
+  if (!symlink_table.empty()) {
+    auto const& symlinks = md_.symlinks().value();
+
+    for (auto const ix : symlink_table) {
+      assert(ix < symlinks.size());
+      auto const size = symlinks[ix].size();
+      total_fs_size += size;
+      total_allocated_fs_size += size;
+    }
+  }
+
+  if (reg_offset < dev_offset) {
+    std::vector<uint32_t> nlink_table;
+
+    if (options_.no_hardlink_table) {
+      nlink_table.resize(dev_offset - reg_offset);
+
+      for (auto& de : md_.dir_entries().value()) {
+        auto const inode_num = de.inode_num().value();
+        assert(inode_num < md_.inodes()->size());
+
+        if (reg_offset <= inode_num && inode_num < dev_offset) {
+          ++nlink_table[inode_num - reg_offset];
+        }
+      }
+    }
+
+    md_.reg_file_size_cache().ensure();
+    auto& cache = md_.reg_file_size_cache().value();
+    cache.min_chunk_count() = options_.inode_size_cache_min_chunk_count;
+
+    auto const& shared = md_.shared_files_table().value();
+    auto const num_unique_files = (dev_offset - reg_offset) - shared.size();
+    inode_size_provider isp(md_);
+
+    for (auto inode_num = reg_offset; inode_num < dev_offset;) {
+      auto const reg_inode_num = inode_num - reg_offset;
+      auto const nlink =
+          options_.no_hardlink_table
+              ? nlink_table[reg_inode_num]
+              : md_.inodes()->at(inode_num).nlink_minus_one().value() + 1;
+      std::optional<uint32_t> const shared_index =
+          reg_inode_num >= num_unique_files
+              ? std::optional<uint32_t>{shared.at(reg_inode_num -
+                                                  num_unique_files)}
+              : std::nullopt;
+      auto const chunk_table_index = shared_index.has_value()
+                                         ? num_unique_files + *shared_index
+                                         : reg_inode_num;
+      auto const info = isp.get(chunk_table_index);
+
+      if (info.num_chunks >= options_.inode_size_cache_min_chunk_count) {
+        LOG_DEBUG << "caching size " << info.size << " for chunk table index "
+                  << chunk_table_index << " with " << info.num_chunks
+                  << " chunks";
+
+        cache.size_lookup()->emplace(chunk_table_index, info.size);
+
+        if (info.allocated_size != info.size) {
+          LOG_DEBUG << "caching allocated size " << info.allocated_size
+                    << " for chunk table index " << chunk_table_index
+                    << " with " << info.num_chunks << " chunks";
+
+          cache.allocated_size_lookup()->emplace(chunk_table_index,
+                                                 info.allocated_size);
+        }
+      }
+
+      size_t shared_count{1};
+      ++inode_num;
+
+      if (shared_index.has_value()) {
+        while (inode_num < dev_offset &&
+               shared.at(inode_num - reg_offset - num_unique_files) ==
+                   *shared_index) {
+          ++shared_count;
+          ++inode_num;
+        }
+      }
+
+      total_fs_size += shared_count * info.size;
+      total_allocated_fs_size += shared_count * info.allocated_size;
+      total_hardlink_size += shared_count * info.size * (nlink - 1);
+    }
+  }
+
+  if (auto const orig = md_.total_fs_size().value();
+      orig > 0 && orig != total_fs_size) {
+    LOG_WARN << "correcting total file system size: was " << orig << ", now "
+             << total_fs_size;
+  }
+
+  md_.total_fs_size() = total_fs_size;
+
+  if (options_.enable_sparse_files) {
+    if (md_.total_allocated_fs_size().has_value() &&
+        md_.total_allocated_fs_size().value() != total_allocated_fs_size) {
+      if (total_allocated_fs_size == total_fs_size) {
+        LOG_WARN
+            << "clearing total allocated file system size for non-sparse image";
+        md_.total_allocated_fs_size().reset();
+      } else {
+        LOG_WARN << "correcting total allocated file system size: was "
+                 << md_.total_allocated_fs_size().value() << ", now "
+                 << total_allocated_fs_size;
+        md_.total_allocated_fs_size() = total_allocated_fs_size;
+      }
+    } else if (total_allocated_fs_size != total_fs_size) {
+      LOG_DEBUG << "setting total allocated file system size to "
+                << total_allocated_fs_size;
+      md_.total_allocated_fs_size() = total_allocated_fs_size;
+    }
+  } else {
+    assert(!md_.total_allocated_fs_size().has_value());
+    if (total_allocated_fs_size != total_fs_size) {
+      LOG_WARN << "non-sparse image has allocated size different from total "
+                  "size: allocated="
+               << total_allocated_fs_size << ", total=" << total_fs_size;
+    }
+  }
+
+  if (md_.total_hardlink_size().has_value() &&
+      md_.total_hardlink_size().value() != total_hardlink_size) {
+    if (total_hardlink_size == 0) {
+      LOG_WARN << "clearing total hardlink size";
+      md_.total_hardlink_size().reset();
+    } else {
+      LOG_WARN << "correcting total hardlink size: was "
+               << md_.total_hardlink_size().value() << ", now "
+               << total_hardlink_size;
+      md_.total_hardlink_size() = total_hardlink_size;
+    }
+  } else if (total_hardlink_size != 0) {
+    LOG_DEBUG << "setting total hardlink size to " << total_hardlink_size;
+    md_.total_hardlink_size() = total_hardlink_size;
+  }
+
+  tv << "updating total sizes and inode size cache...";
+}
+
+template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::update_nlink() {
   if (md_.options().has_value() &&
       md_.options().value().inodes_have_nlink().value() !=
@@ -736,6 +895,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   fsopts.inodes_have_nlink() = !options_.no_hardlink_table;
 
   update_nlink();
+  update_totals_and_size_cache();
 
   if (options_.pack_directories) {
     // pack directories
@@ -762,8 +922,6 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
       sentinel.self_entry() = 0;
     }
   }
-
-  md_.reg_file_size_cache() = build_inode_size_cache();
 
   if (options_.pack_chunk_table) {
     // delta-compress chunk table
