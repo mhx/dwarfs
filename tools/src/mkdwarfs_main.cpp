@@ -483,7 +483,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "force overwrite of existing output image")
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
-        "compression level (0=fast, 9=best, please see man page for details)")
+        "compression level (0=fast, 9=best, see -H and man page for details)")
     ;
   tool::add_common_options(basic_opts, logopts);
   basic_opts.add_options()

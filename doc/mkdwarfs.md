@@ -67,7 +67,7 @@ Most other options are concerned with compression tuning:
   interface to configure `mkdwarfs`, and it will actually pick defaults
   for seven distinct options: `--block-size-bits`, `--compression`,
   `--schema-compression`, `--metadata-compression`, `--window-size`,
-  `--window-step` and `--order`. See the output of `mkdwarfs --help` for
+  `--window-step` and `--order`. See the output of `mkdwarfs -H` for
   a table listing the exact defaults used for each compression level.
 
 - `--categorize`[`=`*categorizer*[`,`...]]:
