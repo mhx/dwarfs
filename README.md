@@ -18,6 +18,9 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
     <img src="https://repology.org/badge/vertical-allrepos/dwarfs.svg" alt="Packaging status" align="right">
 </a>
 
+- [What is DwarFS (in plain words)?](#what-is-dwarfs-in-plain-words)
+- [Why not just use .zip or .tar.gz?](#why-not-just-use-zip-or-targz)
+  - [Performance comparison](#performance-comparison)
 - [Quick Start](#quick-start)
 - [Overview](#overview)
 - [History](#history)
@@ -54,12 +57,90 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
 - [Notable users](#notable-users)
 - [Stargazers over Time](#stargazers-over-time)
 
-## Quick Start
+## What is DwarFS (in plain words)?
 
-DwarFS is a bit of a hybrid. You can use it as a file system, like
-SquashFS. But you can also use it like an archiver, similar to
-`tar` or `zip`. You don't have to choose one or the other, the
-file system image is the archive and vice versa.
+DwarFS is a **mountable archive**: you pack a directory into one file
+(an "image"), then **open it instantly like a normal folder** — no full
+extraction, no temporary files. It’s read-only when mounted, so you can
+browse, open, and run files safely in place. This works particularly well
+for big collections with lots of **similar or repeated content** — think
+many versions of a project or dataset, folders of documents and text
+files, backups/snapshots that mostly overlap, or libraries with many
+near-duplicates. The image can be mounted in fractions of a second, you
+can use the contents immediately with no delay, and you extract only if
+you actually need to.
+
+## Why not just use .zip or .tar.gz?
+
+Traditional archives are fine for storage, but they’re usually slow to
+open and awkward for random access (jumping around inside large files or
+across many files). DwarFS is built for **fast random reads** *and*
+**space savings**. It groups similar files and removes duplication, so
+images are **often smaller** than a simple tar/zip, while reads stay
+snappy — even when accessing lots of files simultaneously. In practice,
+you keep huge directories compressed, mount them in milliseconds, and
+work as if they were already unpacked.
+
+### Performance comparison
+
+This comparison uses DwarFS 0.14.1, 7-Zip 25.00 (x64), and `tar` +
+[pigz](https://github.com/madler/pigz) for all `.tar.gz` tests since plain
+`gzip` would have been incredibly slow. Both `.tar.gz` and `7zip` archives
+were mounted using [fuse-archive](https://github.com/google/fuse-archive)
+v1.16 with the `-olazycache` option since the default of caching the entire
+archive in memory is infeasible for large archives.
+
+#### 1139 complete Perl installations
+
+| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (xz)   | DwarFS (zstd) |
+|---------------------------------------|--------------------:|---------------:|--------------:|--------------:|
+| Compression time                      |              4m 59s |        23m 27s |    **2m 13s** |         5m 3s |
+| Compression CPU time                  |              1h 47m |          5h 5m |   **31m 17s** |       49m 51s |
+| Compressed size                       |           12.17 GiB |      1.219 GiB | **0.310 GiB** |     0.352 GiB |
+| Compression ratio                     |              25.6 % |         2.57 % |    **0.65 %** |        0.74 % |
+| Decompression time                    |              2m 19s |     **1m 14s** |    **1m 14s** |    **1m 14s** |
+| Decompression CPU time                |              3m 44s |         2m 28s |        1m 47s |    **1m 30s** |
+| Mount time                            |              2m 07s |         3.638s |        0.420s |    **0.009s** |
+| Checksum 1139 files (2.58 GiB) [^pl1] |          ❌  [^pl2] |     ~5h [^pl3] |        4.330s |    **1.134s** |
+
+[^pl1]: `$ ls -1 mnt/*/perl*/bin/perl5* | xargs -d $'\n' -n1 -P16 sha256sum`
+[^pl2]: killed after making no progress for 15 minutes
+[^pl3]: killed when only 78 files were finished after about 20 minutes
+
+#### All artifacts from 205 DwarFS CI builds
+
+| **DwarFS CI** (465.2 GiB, 3.6M files) | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (zstd) |
+|---------------------------------------|--------------------:|---------------:|--------------:|
+| Compression time                      |         **40m 28s** |       141m 46s |        68m 6s |
+| Compression CPU time                  |         **13h 55m** |        42h 47m |       31h 12m |
+| Compressed size                       |           142.9 GiB |      60.04 GiB | **28.63 GiB** |
+| Compression ratio                     |              30.7 % |         12.9 % |    **6.15 %** |
+| Decompression time                    |             26m 17s |         8m 15s |    **7m 21s** |
+| Decompression CPU time                |             35m 16s |        41m 29s |    **8m 59s** |
+| Mount time                            |             22m 18s |          10.5s |    **0.024s** |
+| Run 441 binaries (2.72 GiB) [^ci1]    |          ❌  [^ci2] |     ❌  [^ci3] |    **0.774s** |
+
+[^ci1]: `$ ls -1 mnt/*/dwarfs-*-Linux-x86_64-*-minsize*/bin/mkdwarfs | xargs -d $'\n' -n1 -P16 sh -c '$0 -h'`
+[^ci2]: killed after making no progress for 15 minutes
+[^ci3]: killed after making no progress and consuming more than 32 GiB of RAM
+
+#### Game audio assets from sonniss.com
+
+| **Sonniss** (3.072 GiB, 171 files) [^wav1] | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (categorize) |
+|--------------------------------------------|--------------------:|---------------:|--------------------:|
+| Compression time                           |               5.34s |         6m 21s |           **3.98s** |
+| Compression CPU time                       |               2m 1s |        19m 14s |           **29.0s** |
+| Compressed size                            |           2.725 GiB |      2.255 GiB |       **1.664 GiB** |
+| Compression ratio                          |              88.8 % |         73.4 % |          **54.2 %** |
+| Decompression time                         |               13.7s |         1m 50s |           **1.32s** |
+| Decompression CPU time                     |               17.8s |         1m 52s |           **9.15s** |
+| Mount time                                 |               13.6s |         0.014s |          **0.008s** |
+| Checksum all files [^wav2]                 |               3m 2s |        30m 42s |           **2.64s** |
+
+[^wav1]: https://hippolytus.feralhosting.com/sonniss/Sonniss.com-GDC2024-GameAudioBundle1of9.zip
+[^wav2]: `$ find mnt -type f | xargs -d $'\n' -n1 -P16 sha256sum`
+
+## Quick Start
 
 To create a DwarFS image from a directory, use [`mkdwarfs`](doc/mkdwarfs.md):
 
