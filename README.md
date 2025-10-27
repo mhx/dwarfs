@@ -20,7 +20,7 @@ A fast high-compression read-only file system for Linux, FreeBSD, macOS and Wind
 
 - [What is DwarFS (in plain words)?](#what-is-dwarfs-in-plain-words)
 - [Why not just use .zip or .tar.gz?](#why-not-just-use-zip-or-targz)
-  - [Performance comparison](#performance-comparison)
+- [Performance comparison overview](#performance-comparison-overview)
 - [Quick Start](#quick-start)
 - [Overview](#overview)
 - [History](#history)
@@ -81,7 +81,7 @@ snappy — even when accessing lots of files simultaneously. In practice,
 you keep huge directories compressed, mount them in milliseconds, and
 work as if they were already unpacked.
 
-### Performance comparison
+## Performance comparison overview
 
 This comparison uses DwarFS 0.14.1, 7-Zip 25.00 (x64), and `tar` +
 [pigz](https://github.com/madler/pigz) for all `.tar.gz` tests since plain
@@ -90,7 +90,15 @@ were mounted using [fuse-archive](https://github.com/google/fuse-archive)
 v1.16 with the `-olazycache` option since the default of caching the entire
 archive in memory is infeasible for large archives.
 
-#### 1139 complete Perl installations
+### 1139 complete Perl installations
+
+![Perl • Compression ratio](doc/perf/perl_compression_ratio.svg)
+![Perl • Compression speed](doc/perf/perl_compression_speed.svg)
+![Perl • Compression CPU time](doc/perf/perl_compression_cpu_time.svg)
+![Perl • Decompression speed](doc/perf/perl_decompression_speed.svg)
+![Perl • Decompression CPU time](doc/perf/perl_decompression_cpu_time.svg)
+![Perl • Mount time](doc/perf/perl_mount_time.svg)
+![Perl • Random access speed](doc/perf/perl_random_access_speed.svg)
 
 | **Perl** (47.49 GiB, 1.9M files)      | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (xz)   | DwarFS (zstd) |
 |---------------------------------------|--------------------:|---------------:|--------------:|--------------:|
@@ -107,7 +115,15 @@ archive in memory is infeasible for large archives.
 [^pl2]: killed after making no progress for 15 minutes
 [^pl3]: killed when only 78 files were finished after about 20 minutes
 
-#### All artifacts from 205 DwarFS CI builds
+### All artifacts from 205 DwarFS CI builds
+
+![DwarFS CI • Compression ratio](doc/perf/dwarfsci_compression_ratio.svg)
+![DwarFS CI • Compression speed](doc/perf/dwarfsci_compression_speed.svg)
+![DwarFS CI • Compression CPU time](doc/perf/dwarfsci_compression_cpu_time.svg)
+![DwarFS CI • Decompression speed](doc/perf/dwarfsci_decompression_speed.svg)
+![DwarFS CI • Decompression CPU time](doc/perf/dwarfsci_decompression_cpu_time.svg)
+![DwarFS CI • Mount time](doc/perf/dwarfsci_mount_time.svg)
+![DwarFS CI • Random access speed](doc/perf/dwarfsci_random_access_speed.svg)
 
 | **DwarFS CI** (465.2 GiB, 3.6M files) | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (zstd) |
 |---------------------------------------|--------------------:|---------------:|--------------:|
@@ -124,7 +140,15 @@ archive in memory is infeasible for large archives.
 [^ci2]: killed after making no progress for 15 minutes
 [^ci3]: killed after making no progress and consuming more than 32 GiB of RAM
 
-#### Game audio assets from sonniss.com
+### Game audio assets from sonniss.com
+
+![Sonniss • Compression ratio](doc/perf/sonniss_compression_ratio.svg)
+![Sonniss • Compression speed](doc/perf/sonniss_compression_speed.svg)
+![Sonniss • Compression CPU time](doc/perf/sonniss_compression_cpu_time.svg)
+![Sonniss • Decompression speed](doc/perf/sonniss_decompression_speed.svg)
+![Sonniss • Decompression CPU time](doc/perf/sonniss_decompression_cpu_time.svg)
+![Sonniss • Mount time](doc/perf/sonniss_mount_time.svg)
+![Sonniss • Random access speed](doc/perf/sonniss_random_access_speed.svg)
 
 | **Sonniss** (3.072 GiB, 171 files) [^wav1] | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (categorize) |
 |--------------------------------------------|--------------------:|---------------:|--------------------:|

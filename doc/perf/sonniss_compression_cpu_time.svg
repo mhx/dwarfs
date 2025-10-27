@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="250" viewBox="0 0 800 250" role="img" aria-label="Sonniss • Compression CPU time (lower is better)">
+  <style>
+    :root {
+      color: var(--fgColor-default, #24292f);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { color: var(--fgColor-default, #c9d1d9); }
+    }
+    .t { fill: currentColor; font-size: 12px; dominant-baseline: middle; }
+    .title { font-weight: 600; font-size: 14px; dominant-baseline: hanging; }
+    .axis { stroke: currentColor; stroke-width: 1; }
+    .grid { stroke: currentColor; stroke-width: 1; opacity: .2; }
+    .bar { fill: currentColor; opacity: .8; }
+    .unit { opacity: .7; font-size: 11px; }
+  </style>
+  <rect x="0" y="0" width="800" height="250" fill="none"/>
+  <text x="128" y="20" class="t title">Sonniss • Compression CPU time (lower is better)</text>
+
+  <line x1="128" y1="206" x2="772" y2="206" class="axis"/>
+  <line x1="128" y1="48" x2="128" y2="206" class="axis"/>
+  <line x1="128.00" y1="48" x2="128.00" y2="206" class="grid"/>
+  <text x="128.00" y="222" class="t" text-anchor="middle">0</text>
+  <line x1="256.80" y1="48" x2="256.80" y2="206" class="grid"/>
+  <text x="256.80" y="222" class="t" text-anchor="middle">400</text>
+  <line x1="385.60" y1="48" x2="385.60" y2="206" class="grid"/>
+  <text x="385.60" y="222" class="t" text-anchor="middle">800</text>
+  <line x1="514.40" y1="48" x2="514.40" y2="206" class="grid"/>
+  <text x="514.40" y="222" class="t" text-anchor="middle">1200</text>
+  <line x1="643.20" y1="48" x2="643.20" y2="206" class="grid"/>
+  <text x="643.20" y="222" class="t" text-anchor="middle">1600</text>
+  <line x1="772.00" y1="48" x2="772.00" y2="206" class="grid"/>
+  <text x="772.00" y="222" class="t" text-anchor="middle">2000</text>
+  <text x="772" y="236" class="t unit" text-anchor="end">seconds</text>
+  <rect class="bar" x="128.00" y="53.79" width="38.96" height="41.08" rx="3" ry="3"/>
+  <text x="118.00" y="67.33" class="t" text-anchor="end">.tar.gz</text>
+  <text x="118.00" y="81.33" class="t" text-anchor="end">(pigz)</text>
+  <text x="172.96" y="74.33" class="t">121</text>
+  <rect class="bar" x="128.00" y="106.46" width="371.59" height="41.08" rx="3" ry="3"/>
+  <text x="118.00" y="120.00" class="t" text-anchor="end">7zip</text>
+  <text x="118.00" y="134.00" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="505.59" y="127.00" class="t">1154</text>
+  <rect class="bar" x="128.00" y="159.13" width="9.34" height="41.08" rx="3" ry="3"/>
+  <text x="118.00" y="172.67" class="t" text-anchor="end">DwarFS</text>
+  <text x="118.00" y="186.67" class="t" text-anchor="end">(categorize)</text>
+  <text x="143.34" y="179.67" class="t">29</text>
+</svg>

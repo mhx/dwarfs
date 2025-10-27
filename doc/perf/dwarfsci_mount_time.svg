@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="250" viewBox="0 0 800 250" role="img" aria-label="DwarFS CI • Mount time (lower is better)">
+  <style>
+    :root {
+      color: var(--fgColor-default, #24292f);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { color: var(--fgColor-default, #c9d1d9); }
+    }
+    .t { fill: currentColor; font-size: 12px; dominant-baseline: middle; }
+    .title { font-weight: 600; font-size: 14px; dominant-baseline: hanging; }
+    .axis { stroke: currentColor; stroke-width: 1; }
+    .grid { stroke: currentColor; stroke-width: 1; opacity: .2; }
+    .bar { fill: currentColor; opacity: .8; }
+    .unit { opacity: .7; font-size: 11px; }
+  </style>
+  <rect x="0" y="0" width="800" height="250" fill="none"/>
+  <text x="93" y="20" class="t title">DwarFS CI • Mount time (lower is better)</text>
+
+  <line x1="93" y1="206" x2="772" y2="206" class="axis"/>
+  <line x1="93" y1="48" x2="93" y2="206" class="axis"/>
+  <line x1="93.00" y1="48" x2="93.00" y2="206" class="grid"/>
+  <text x="93.00" y="222" class="t" text-anchor="middle">0.000</text>
+  <line x1="228.80" y1="48" x2="228.80" y2="206" class="grid"/>
+  <text x="228.80" y="222" class="t" text-anchor="middle">400.000</text>
+  <line x1="364.60" y1="48" x2="364.60" y2="206" class="grid"/>
+  <text x="364.60" y="222" class="t" text-anchor="middle">800.000</text>
+  <line x1="500.40" y1="48" x2="500.40" y2="206" class="grid"/>
+  <text x="500.40" y="222" class="t" text-anchor="middle">1200.000</text>
+  <line x1="636.20" y1="48" x2="636.20" y2="206" class="grid"/>
+  <text x="636.20" y="222" class="t" text-anchor="middle">1600.000</text>
+  <line x1="772.00" y1="48" x2="772.00" y2="206" class="grid"/>
+  <text x="772.00" y="222" class="t" text-anchor="middle">2000.000</text>
+  <text x="772" y="236" class="t unit" text-anchor="end">seconds</text>
+  <rect class="bar" x="93.00" y="53.79" width="454.25" height="41.08" rx="3" ry="3"/>
+  <text x="83.00" y="67.33" class="t" text-anchor="end">.tar.gz</text>
+  <text x="83.00" y="81.33" class="t" text-anchor="end">(pigz)</text>
+  <text x="553.25" y="74.33" class="t">1338.000</text>
+  <rect class="bar" x="93.00" y="106.46" width="3.56" height="41.08" rx="3" ry="3"/>
+  <text x="83.00" y="120.00" class="t" text-anchor="end">7zip</text>
+  <text x="83.00" y="134.00" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="102.56" y="127.00" class="t">10.500</text>
+  <rect class="bar" x="93.00" y="159.13" width="0.01" height="41.08" rx="3" ry="3"/>
+  <text x="83.00" y="172.67" class="t" text-anchor="end">DwarFS</text>
+  <text x="83.00" y="186.67" class="t" text-anchor="end">(zstd)</text>
+  <text x="99.01" y="179.67" class="t">0.024</text>
+</svg>
