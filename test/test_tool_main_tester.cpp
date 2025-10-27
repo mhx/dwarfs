@@ -45,6 +45,7 @@ inline void setup_locale() { static locale_setup_helper helper; }
 fs::path const test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 fs::path const audio_data_dir = test_dir / "pcmaudio";
 fs::path const fits_data_dir = test_dir / "fits";
+fs::path const binary_data_dir = test_dir / "binary";
 
 std::ostream& operator<<(std::ostream& os, input_mode m) {
   switch (m) {

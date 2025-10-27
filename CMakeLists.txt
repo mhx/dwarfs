@@ -582,6 +582,7 @@ if(WITH_TESTS)
     )
 
     add_executable(dwarfs_categorizer_tests
+      test/binary_categorizer_test.cpp
       test/fits_categorizer_test.cpp
       test/incompressible_categorizer_test.cpp
       test/pcmaudio_categorizer_test.cpp

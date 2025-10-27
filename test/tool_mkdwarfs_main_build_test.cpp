@@ -71,6 +71,7 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   t.add_random_file_tree();
   t.os->add_local_files(audio_data_dir);
   t.os->add_local_files(fits_data_dir);
+  t.os->add_local_files(binary_data_dir);
 
   ASSERT_EQ(0, t.run(args));
 

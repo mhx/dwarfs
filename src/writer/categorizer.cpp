@@ -422,7 +422,7 @@ std::vector<std::string> categorizer_registry::categorizer_names() const {
 categorizer_registry::categorizer_registry() {
   using namespace ::dwarfs::writer::detail;
 
-  // binary_categorizer_factory_registrar(*this);
+  binary_categorizer_factory_registrar(*this);
   fits_categorizer_factory_registrar(*this);
   hotness_categorizer_factory_registrar(*this);
   incompressible_categorizer_factory_registrar(*this);
