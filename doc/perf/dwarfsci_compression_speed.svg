@@ -15,33 +15,33 @@
     .unit { opacity: .8; font-size: 14px; }
   </style>
   <rect x="0" y="0" width="800" height="229" fill="none"/>
-  <text x="93" y="20" class="t title">DwarFS CI • Compression speed (higher is better)</text>
+  <text x="107" y="20" class="t title">DwarFS CI • Compression speed (higher is better)</text>
 
-  <line x1="93" y1="185" x2="772" y2="185" class="axis"/>
-  <line x1="93" y1="48" x2="93" y2="185" class="axis"/>
-  <line x1="93.00" y1="48" x2="93.00" y2="185" class="grid"/>
-  <text x="93.00" y="201" class="t" text-anchor="middle">0.0</text>
-  <line x1="228.80" y1="48" x2="228.80" y2="185" class="grid"/>
-  <text x="228.80" y="201" class="t" text-anchor="middle">40.0</text>
-  <line x1="364.60" y1="48" x2="364.60" y2="185" class="grid"/>
-  <text x="364.60" y="201" class="t" text-anchor="middle">80.0</text>
-  <line x1="500.40" y1="48" x2="500.40" y2="185" class="grid"/>
-  <text x="500.40" y="201" class="t" text-anchor="middle">120.0</text>
-  <line x1="636.20" y1="48" x2="636.20" y2="185" class="grid"/>
-  <text x="636.20" y="201" class="t" text-anchor="middle">160.0</text>
+  <line x1="107" y1="185" x2="772" y2="185" class="axis"/>
+  <line x1="107" y1="48" x2="107" y2="185" class="axis"/>
+  <line x1="107.00" y1="48" x2="107.00" y2="185" class="grid"/>
+  <text x="107.00" y="201" class="t" text-anchor="middle">0.0</text>
+  <line x1="240.00" y1="48" x2="240.00" y2="185" class="grid"/>
+  <text x="240.00" y="201" class="t" text-anchor="middle">40.0</text>
+  <line x1="373.00" y1="48" x2="373.00" y2="185" class="grid"/>
+  <text x="373.00" y="201" class="t" text-anchor="middle">80.0</text>
+  <line x1="506.00" y1="48" x2="506.00" y2="185" class="grid"/>
+  <text x="506.00" y="201" class="t" text-anchor="middle">120.0</text>
+  <line x1="639.00" y1="48" x2="639.00" y2="185" class="grid"/>
+  <text x="639.00" y="201" class="t" text-anchor="middle">160.0</text>
   <line x1="772.00" y1="48" x2="772.00" y2="185" class="grid"/>
   <text x="772.00" y="201" class="t" text-anchor="middle">200.0</text>
   <text x="772" y="215" class="t unit" text-anchor="end">MiB/s</text>
-  <rect class="bar" x="93.00" y="54.85" width="666.09" height="31.97" rx="3" ry="3"/>
-  <text x="83.00" y="63.83" class="t" text-anchor="end">.tar.gz</text>
-  <text x="83.00" y="77.83" class="t" text-anchor="end">(pigz)</text>
-  <text x="765.09" y="70.83" class="t">196.2</text>
-  <rect class="bar" x="93.00" y="100.52" width="190.13" height="31.97" rx="3" ry="3"/>
-  <text x="83.00" y="109.50" class="t" text-anchor="end">7zip</text>
-  <text x="83.00" y="123.50" class="t" text-anchor="end">(-mx=7)</text>
-  <text x="289.13" y="116.50" class="t">56.0</text>
-  <rect class="bar" x="93.00" y="146.18" width="395.80" height="31.97" rx="3" ry="3"/>
-  <text x="83.00" y="155.17" class="t" text-anchor="end">DwarFS</text>
-  <text x="83.00" y="169.17" class="t" text-anchor="end">(zstd)</text>
-  <text x="494.80" y="162.17" class="t">116.6</text>
+  <rect class="bar" x="107.00" y="54.85" width="652.35" height="31.97" rx="3" ry="3"/>
+  <text x="97.00" y="63.83" class="t" text-anchor="end">.tar.gz</text>
+  <text x="97.00" y="77.83" class="t" text-anchor="end">(pigz -9)</text>
+  <text x="765.35" y="70.83" class="t">196.2</text>
+  <rect class="bar" x="107.00" y="100.52" width="186.21" height="31.97" rx="3" ry="3"/>
+  <text x="97.00" y="109.50" class="t" text-anchor="end">7zip</text>
+  <text x="97.00" y="123.50" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="299.21" y="116.50" class="t">56.0</text>
+  <rect class="bar" x="107.00" y="146.18" width="387.64" height="31.97" rx="3" ry="3"/>
+  <text x="97.00" y="155.17" class="t" text-anchor="end">DwarFS</text>
+  <text x="97.00" y="169.17" class="t" text-anchor="end">(zstd)</text>
+  <text x="500.64" y="162.17" class="t">116.6</text>
 </svg>

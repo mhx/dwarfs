@@ -100,20 +100,23 @@ archive in memory is infeasible for large archives.
 ![Perl • Mount time](doc/perf/perl_mount_time.svg)
 ![Perl • Random access speed](doc/perf/perl_random_access_speed.svg)
 
-| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (xz)   | DwarFS (zstd) |
-|---------------------------------------|--------------------:|---------------:|--------------:|--------------:|
-| Compression time                      |              4m 59s |        23m 27s |    **2m 13s** |         5m 3s |
-| Compression CPU time                  |              1h 47m |          5h 5m |   **31m 17s** |       49m 51s |
-| Compressed size                       |           12.17 GiB |      1.219 GiB | **0.310 GiB** |     0.352 GiB |
-| Compression ratio                     |               3.902 |          38.96 |     **153.2** |         134.9 |
-| Decompression time                    |              2m 19s |     **1m 14s** |    **1m 14s** |    **1m 14s** |
-| Decompression CPU time                |              3m 44s |         2m 28s |        1m 47s |    **1m 30s** |
-| Mount time                            |              2m 07s |         3.638s |        0.420s |    **0.009s** |
-| Checksum 1139 files (2.58 GiB) [^pl1] |          ❌  [^pl2] |     ~5h [^pl3] |        4.330s |    **1.134s** |
+| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz [^pl1] | .tar.zst [^pl2] | 7zip (`-mx=7`) | DwarFS (xz)   | DwarFS (zstd) |
+|---------------------------------------|---------------:|----------------:|---------------:|--------------:|--------------:|
+| Compression time                      |         4m 59s |          8m 06s |        23m 27s |    **2m 13s** |         5m 3s |
+| Compression CPU time                  |         1h 47m |          2h 18m |          5h 5m |   **31m 17s** |       49m 51s |
+| Compressed size                       |      12.17 GiB |       0.387 GiB |      1.219 GiB | **0.310 GiB** |     0.352 GiB |
+| Compression ratio                     |          3.902 |           122.7 |          38.96 |     **153.2** |         134.9 |
+| Decompression time                    |         2m 19s |       **57.2s** |         1m 14s |        1m 14s |        1m 14s |
+| Decompression CPU time                |         3m 44s |      **1m 21s** |         2m 28s |        1m 47s |        1m 30s |
+| Mount time                            |         2m 07s |      ❌  [^pl3] |         3.638s |        0.420s |    **0.009s** |
+| Checksum 1139 files (2.58 GiB) [^pl4] |     ❌  [^pl5] |      ❌  [^pl3] |     ~5h [^pl6] |        4.330s |    **1.134s** |
 
-[^pl1]: `$ ls -1 mnt/*/perl*/bin/perl5* | xargs -d $'\n' -n1 -P16 sha256sum`
-[^pl2]: killed after making no progress for 15 minutes
-[^pl3]: killed when only 78 files were finished after about 20 minutes
+[^pl1]: using `pigz -9`
+[^pl2]: using `zstd --long=31 --ultra -22 -T0`
+[^pl3]: not supported by fuse-archive
+[^pl4]: `$ ls -1 mnt/*/perl*/bin/perl5* | xargs -d $'\n' -n1 -P16 sha256sum`
+[^pl5]: killed after making no progress for 15 minutes
+[^pl7]: killed when only 78 files were finished after about 20 minutes
 
 ### All artifacts from 205 DwarFS CI builds
 

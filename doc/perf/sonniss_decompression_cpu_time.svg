@@ -15,33 +15,33 @@
     .unit { opacity: .8; font-size: 14px; }
   </style>
   <rect x="0" y="0" width="800" height="229" fill="none"/>
-  <text x="128" y="20" class="t title">Sonniss • Decompression CPU time (lower is better)</text>
+  <text x="142" y="20" class="t title">Sonniss • Decompression CPU time (lower is better)</text>
 
-  <line x1="128" y1="185" x2="772" y2="185" class="axis"/>
-  <line x1="128" y1="48" x2="128" y2="185" class="axis"/>
-  <line x1="128.00" y1="48" x2="128.00" y2="185" class="grid"/>
-  <text x="128.00" y="201" class="t" text-anchor="middle">0.0</text>
-  <line x1="256.80" y1="48" x2="256.80" y2="185" class="grid"/>
-  <text x="256.80" y="201" class="t" text-anchor="middle">40.0</text>
-  <line x1="385.60" y1="48" x2="385.60" y2="185" class="grid"/>
-  <text x="385.60" y="201" class="t" text-anchor="middle">80.0</text>
-  <line x1="514.40" y1="48" x2="514.40" y2="185" class="grid"/>
-  <text x="514.40" y="201" class="t" text-anchor="middle">120.0</text>
-  <line x1="643.20" y1="48" x2="643.20" y2="185" class="grid"/>
-  <text x="643.20" y="201" class="t" text-anchor="middle">160.0</text>
+  <line x1="142" y1="185" x2="772" y2="185" class="axis"/>
+  <line x1="142" y1="48" x2="142" y2="185" class="axis"/>
+  <line x1="142.00" y1="48" x2="142.00" y2="185" class="grid"/>
+  <text x="142.00" y="201" class="t" text-anchor="middle">0.0</text>
+  <line x1="268.00" y1="48" x2="268.00" y2="185" class="grid"/>
+  <text x="268.00" y="201" class="t" text-anchor="middle">40.0</text>
+  <line x1="394.00" y1="48" x2="394.00" y2="185" class="grid"/>
+  <text x="394.00" y="201" class="t" text-anchor="middle">80.0</text>
+  <line x1="520.00" y1="48" x2="520.00" y2="185" class="grid"/>
+  <text x="520.00" y="201" class="t" text-anchor="middle">120.0</text>
+  <line x1="646.00" y1="48" x2="646.00" y2="185" class="grid"/>
+  <text x="646.00" y="201" class="t" text-anchor="middle">160.0</text>
   <line x1="772.00" y1="48" x2="772.00" y2="185" class="grid"/>
   <text x="772.00" y="201" class="t" text-anchor="middle">200.0</text>
   <text x="772" y="215" class="t unit" text-anchor="end">seconds</text>
-  <rect class="bar" x="128.00" y="54.85" width="57.32" height="31.97" rx="3" ry="3"/>
-  <text x="118.00" y="63.83" class="t" text-anchor="end">.tar.gz</text>
-  <text x="118.00" y="77.83" class="t" text-anchor="end">(pigz)</text>
-  <text x="191.32" y="70.83" class="t">17.8</text>
-  <rect class="bar" x="128.00" y="100.52" width="360.64" height="31.97" rx="3" ry="3"/>
-  <text x="118.00" y="109.50" class="t" text-anchor="end">7zip</text>
-  <text x="118.00" y="123.50" class="t" text-anchor="end">(-mx=7)</text>
-  <text x="494.64" y="116.50" class="t">112.0</text>
-  <rect class="bar" x="128.00" y="146.18" width="29.46" height="31.97" rx="3" ry="3"/>
-  <text x="118.00" y="155.17" class="t" text-anchor="end">DwarFS</text>
-  <text x="118.00" y="169.17" class="t" text-anchor="end">(categorize)</text>
-  <text x="163.46" y="162.17" class="t">9.2</text>
+  <rect class="bar" x="142.00" y="54.85" width="56.07" height="31.97" rx="3" ry="3"/>
+  <text x="132.00" y="63.83" class="t" text-anchor="end">.tar.gz</text>
+  <text x="132.00" y="77.83" class="t" text-anchor="end">(pigz -9)</text>
+  <text x="204.07" y="70.83" class="t">17.8</text>
+  <rect class="bar" x="142.00" y="100.52" width="352.80" height="31.97" rx="3" ry="3"/>
+  <text x="132.00" y="109.50" class="t" text-anchor="end">7zip</text>
+  <text x="132.00" y="123.50" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="500.80" y="116.50" class="t">112.0</text>
+  <rect class="bar" x="142.00" y="146.18" width="28.82" height="31.97" rx="3" ry="3"/>
+  <text x="132.00" y="155.17" class="t" text-anchor="end">DwarFS</text>
+  <text x="132.00" y="169.17" class="t" text-anchor="end">(--categorize)</text>
+  <text x="176.82" y="162.17" class="t">9.2</text>
 </svg>

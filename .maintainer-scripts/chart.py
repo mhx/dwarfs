@@ -143,56 +143,57 @@ if __name__ == "__main__":
     charts = [
         {
             "title": "Perl • Compression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [48629/299, 48629/1407, 48629/133, 48629/303],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [48629/299, 48629/486, 48629/1407, 48629/133, 48629/303],
             "decimals": 1,
             "units": "MiB/s",
             "filename": "perl_compression_speed.svg",
         },
         {
             "title": "Perl • Decompression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [48629/139, 48629/74, 48629/74, 48629/74],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [48629/139, 48629/57.2, 48629/74, 48629/74, 48629/74],
             "decimals": 0,
             "units": "MiB/s",
             "filename": "perl_decompression_speed.svg",
         },
         {
             "title": "Perl • Compression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [107, 305, 31, 50],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [107, 138, 305, 31, 50],
             "decimals": 0,
             "units": "minutes",
             "filename": "perl_compression_cpu_time.svg",
         },
         {
             "title": "Perl • Decompression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [224, 148, 107, 90],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [224, 81, 148, 107, 90],
             "decimals": 0,
             "units": "seconds",
             "filename": "perl_decompression_cpu_time.svg",
         },
         {
             "title": "Perl • Compression ratio (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [47.49/12.17, 47.49/1.219, 47.49/0.310, 47.49/0.352],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [47.49/12.17, 47.49/0.387, 47.49/1.219, 47.49/0.310, 47.49/0.352],
             "decimals": 1,
             "units": "",
             "filename": "perl_compression_ratio.svg",
         },
         {
             "title": "Perl • Mount time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [127, 3.638, 0.420, 0.009],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+            "values": [127, None, 3.638, 0.420, 0.009],
             "decimals": 3,
             "units": "seconds",
             "filename": "perl_mount_time.svg",
         },
         {
             "title": "Perl • Random access speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
-            "values": [None, 2642/(5*3600), 2642/4.33, 2642/1.134],
+            "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "DwarFS\n(xz)", "DwarFS\n(zstd)"],
+
+            "values": [None, None, 2642/(5*3600), 2642/4.33, 2642/1.134],
             "decimals": 2,
             "units": "MiB/s",
             "filename": "perl_random_access_speed.svg",
@@ -200,7 +201,7 @@ if __name__ == "__main__":
         #########################################################################################
         {
             "title": "DwarFS CI • Compression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [476365/2428, 476365/8506, 476365/4086],
             "decimals": 1,
             "units": "MiB/s",
@@ -208,7 +209,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Decompression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [476365/1577, 476365/495, 476365/441],
             "decimals": 0,
             "units": "MiB/s",
@@ -216,7 +217,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Compression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [835, 2567, 1872],
             "decimals": 0,
             "units": "minutes",
@@ -224,7 +225,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Decompression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [2116, 495, 441],
             "decimals": 0,
             "units": "seconds",
@@ -232,7 +233,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Compression ratio (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [465.2/142.9, 465.2/60.04, 465.2/28.63],
             "decimals": 1,
             "units": "",
@@ -240,7 +241,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Mount time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [1338, 10.5, 0.024],
             "decimals": 3,
             "units": "seconds",
@@ -248,7 +249,7 @@ if __name__ == "__main__":
         },
         {
             "title": "DwarFS CI • Random access speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(zstd)"],
             "values": [None, None, 2785/0.774],
             "decimals": 2,
             "units": "MiB/s",
@@ -257,7 +258,7 @@ if __name__ == "__main__":
         #########################################################################################
         {
             "title": "Sonniss • Compression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [3146/5.34, 3146/381, 3146/3.98],
             "decimals": 1,
             "units": "MiB/s",
@@ -265,7 +266,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Decompression speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [3146/13.7, 3146/110, 3146/1.32],
             "decimals": 0,
             "units": "MiB/s",
@@ -273,7 +274,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Compression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [121, 1154, 29.0],
             "decimals": 0,
             "units": "seconds",
@@ -281,7 +282,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Decompression CPU time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [17.8, 112, 9.15],
             "decimals": 1,
             "units": "seconds",
@@ -289,7 +290,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Compression ratio (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [3.072/2.725, 3.072/2.255, 3.072/1.664],
             "decimals": 2,
             "units": "",
@@ -297,7 +298,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Mount time (lower is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [13.6, 0.014, 0.008],
             "decimals": 3,
             "units": "seconds",
@@ -305,7 +306,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Sonniss • Random access speed (higher is better)",
-            "categories": [".tar.gz\n(pigz)", "7zip\n(-mx=7)", "DwarFS\n(categorize)"],
+            "categories": [".tar.gz\n(pigz -9)", "7zip\n(-mx=7)", "DwarFS\n(--categorize)"],
             "values": [3146/182, 3146/1842, 3146/2.64],
             "decimals": 2,
             "units": "MiB/s",
