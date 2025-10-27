@@ -97,7 +97,7 @@ archive in memory is infeasible for large archives.
 | Compression time                      |              4m 59s |        23m 27s |    **2m 13s** |         5m 3s |
 | Compression CPU time                  |              1h 47m |          5h 5m |   **31m 17s** |       49m 51s |
 | Compressed size                       |           12.17 GiB |      1.219 GiB | **0.310 GiB** |     0.352 GiB |
-| Compression ratio                     |              25.6 % |         2.57 % |    **0.65 %** |        0.74 % |
+| Compression ratio                     |               3.902 |          38.96 |     **153.2** |         134.9 |
 | Decompression time                    |              2m 19s |     **1m 14s** |    **1m 14s** |    **1m 14s** |
 | Decompression CPU time                |              3m 44s |         2m 28s |        1m 47s |    **1m 30s** |
 | Mount time                            |              2m 07s |         3.638s |        0.420s |    **0.009s** |
@@ -114,7 +114,7 @@ archive in memory is infeasible for large archives.
 | Compression time                      |         **40m 28s** |       141m 46s |        68m 6s |
 | Compression CPU time                  |         **13h 55m** |        42h 47m |       31h 12m |
 | Compressed size                       |           142.9 GiB |      60.04 GiB | **28.63 GiB** |
-| Compression ratio                     |              30.7 % |         12.9 % |    **6.15 %** |
+| Compression ratio                     |               3.255 |          7.748 |     **16.25** |
 | Decompression time                    |             26m 17s |         8m 15s |    **7m 21s** |
 | Decompression CPU time                |             35m 16s |        41m 29s |    **8m 59s** |
 | Mount time                            |             22m 18s |          10.5s |    **0.024s** |
@@ -131,7 +131,7 @@ archive in memory is infeasible for large archives.
 | Compression time                           |               5.34s |         6m 21s |           **3.98s** |
 | Compression CPU time                       |               2m 1s |        19m 14s |           **29.0s** |
 | Compressed size                            |           2.725 GiB |      2.255 GiB |       **1.664 GiB** |
-| Compression ratio                          |              88.8 % |         73.4 % |          **54.2 %** |
+| Compression ratio                          |               1.127 |          1.362 |           **1.846** |
 | Decompression time                         |               13.7s |         1m 50s |           **1.32s** |
 | Decompression CPU time                     |               17.8s |         1m 52s |           **9.15s** |
 | Mount time                                 |               13.6s |         0.014s |          **0.008s** |
