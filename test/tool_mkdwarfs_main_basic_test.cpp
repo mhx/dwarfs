@@ -246,6 +246,65 @@ TEST(mkdwarfs_test, input_list_large) {
   EXPECT_EQ(expected, actual);
 }
 
+TEST(mkdwarfs_test, input_list_preserve_order) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  // make sure files are large enough that there are no duplicates
+  auto paths = t.add_random_file_tree({
+      .avg_size = 32.0,
+      .min_size = 16,
+      .dimension = 20,
+      .only_random_contents = true,
+  });
+
+  {
+    std::ostringstream os;
+    for (auto const& p : paths) {
+      os << p.first.string() << '\n';
+    }
+    t.iol->set_in(os.str());
+  }
+
+  // Disable segmentation (-B0) to ensure *every* file has its data
+  // written directly to the output. However, we rely on "background"
+  // file hashing (for deduplication) to process files in parallel
+  // and add some randomness to inode order before it is being restored
+  // to input order by --order=none later.
+  ASSERT_EQ(0, t.run({"-l3", "--input-list", "-", "-o", "-", "--order=none",
+                      "-B0", "-S16"}))
+      << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  std::vector<fs::path> expected;
+  for (auto const& p : paths) {
+    expected.push_back(p.first);
+  }
+
+  std::vector<std::pair<fs::path, size_t>> actual_with_offset;
+
+  fs.walk([&](auto const& e) {
+    if (e.inode().is_regular_file()) {
+      auto const info = fs.get_inode_info(e.inode());
+      auto const first_chunk = info["chunks"][0];
+      auto const offset = (first_chunk["block"].template get<size_t>() << 16) +
+                          first_chunk["offset"].template get<size_t>();
+      actual_with_offset.emplace_back(e.fs_path(), offset);
+    }
+  });
+
+  std::ranges::sort(actual_with_offset, [](auto const& a, auto const& b) {
+    return a.second < b.second;
+  });
+
+  std::vector<fs::path> actual;
+  for (auto const& [path, _] : actual_with_offset) {
+    actual.push_back(path);
+  }
+
+  EXPECT_THAT(actual, ::testing::ElementsAreArray(expected));
+}
+
 TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
   std::string const image_file = "test.dwarfs";
   std::string const input_list = "./ipsum.py\n././ipsum.py\n./empty\n";

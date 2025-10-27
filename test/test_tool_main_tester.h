@@ -114,10 +114,12 @@ class tester_common {
 
 struct random_file_tree_options {
   double avg_size{4096.0};
+  size_t min_size{0};
   int dimension{20};
   int max_name_len{50};
   bool with_errors{false};
   bool with_invalid_utf8{false};
+  bool only_random_contents{false};
 };
 
 constexpr auto default_fs_opts = reader::filesystem_options{

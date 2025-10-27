@@ -149,6 +149,9 @@ class file : public entry {
 
   uint32_t refcount() const { return data_->refcount; }
 
+  void set_order_index(uint32_t index) { order_index_ = index; }
+  uint32_t order_index() const { return order_index_; }
+
  private:
   struct data {
     using hash_type = small_vector<char, 16>;
@@ -160,6 +163,7 @@ class file : public entry {
 
   std::shared_ptr<data> data_;
   std::shared_ptr<inode> inode_;
+  uint32_t order_index_{0};
 };
 
 class dir : public entry {
