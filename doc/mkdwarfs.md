@@ -348,7 +348,8 @@ Most other options are concerned with compression tuning:
 
 - `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]|`explicit:file=`*file*:
   The order in which inodes will be written to the file system. Choosing `none`,
-  the inodes will be stored in the order in which they are discovered. With
+  the inodes will be stored in the order in which they are discovered. When
+  using `--input-list`, this will preserve the order of the input list. With
   `path`, they will be sorted asciibetically by path name of the first file
   representing this inode. With `revpath`, they will also be ordered by path
   name, but the path is being traversed from the leaf to the root, i.e. files

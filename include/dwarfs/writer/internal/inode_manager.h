@@ -80,7 +80,7 @@ class inode_manager {
 
   inode_manager(logger& lgr, progress& prog,
                 std::filesystem::path const& root_path,
-                inode_options const& opts);
+                inode_options const& opts, bool list_mode);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
 

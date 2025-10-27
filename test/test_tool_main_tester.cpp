@@ -169,11 +169,11 @@ mkdwarfs_tester::add_random_file_tree(random_file_tree_options const& opt) {
 
       for (int z = 0; z < opt.dimension; ++z) {
         fs::path f{d2 / (random_path_component() + std::to_string(z))};
-        auto const size =
-            std::min(max_size, static_cast<size_t>(size_dist(rng)));
+        auto const size = std::clamp(static_cast<size_t>(size_dist(rng)),
+                                     opt.min_size, max_size);
         std::string data;
 
-        auto const choice = rng() % 4;
+        auto const choice = opt.only_random_contents ? 0 : rng() % 4;
         switch (choice) {
         case 0:
           data = test::create_random_string(size, rng);

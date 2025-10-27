@@ -58,6 +58,10 @@ class inode_ordering {
     impl_->by_inode_number(sp);
   }
 
+  void by_input_order(sortable_inode_span& sp) const {
+    impl_->by_input_order(sp);
+  }
+
   void by_path(sortable_inode_span& sp) const { impl_->by_path(sp); }
 
   void by_reverse_path(sortable_inode_span& sp) const {
@@ -85,6 +89,7 @@ class inode_ordering {
     virtual ~impl() = default;
 
     virtual void by_inode_number(sortable_inode_span& sp) const = 0;
+    virtual void by_input_order(sortable_inode_span& sp) const = 0;
     virtual void by_path(sortable_inode_span& sp) const = 0;
     virtual void by_reverse_path(sortable_inode_span& sp) const = 0;
     virtual void

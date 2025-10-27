@@ -565,12 +565,13 @@ template <typename LoggerPolicy>
 class inode_manager_ final : public inode_manager::impl {
  public:
   inode_manager_(logger& lgr, progress& prog, fs::path const& root_path,
-                 inode_options const& opts)
+                 inode_options const& opts, bool list_mode)
       : LOG_PROXY_INIT(lgr)
       , prog_(prog)
       , root_path_{root_path}
       , opts_{opts}
-      , inodes_need_scanning_{inodes_need_scanning(opts_)} {}
+      , inodes_need_scanning_{inodes_need_scanning(opts_)}
+      , list_mode_{list_mode} {}
 
   std::shared_ptr<inode> create_inode() override {
     auto ino = std::make_shared<inode_>();
@@ -683,6 +684,7 @@ class inode_manager_ final : public inode_manager::impl {
   fs::path const root_path_;
   inode_options opts_;
   bool const inodes_need_scanning_;
+  bool const list_mode_;
   std::atomic<size_t> mutable num_invalid_inodes_{0};
 };
 
@@ -807,7 +809,15 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
 
   switch (opts.mode) {
   case fragment_order_mode::NONE:
-    LOG_VERBOSE << prefix << "keeping inode order";
+    if (list_mode_) {
+      LOG_VERBOSE << prefix << "ordering " << span.size()
+                  << " inodes by input list order...";
+      auto tv = LOG_CPU_TIMED_VERBOSE;
+      order.by_input_order(span);
+      tv << prefix << span.size() << " inodes ordered";
+    } else {
+      LOG_VERBOSE << prefix << "keeping inode order";
+    }
     break;
 
   case fragment_order_mode::PATH: {
@@ -877,9 +887,9 @@ size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
 
 inode_manager::inode_manager(logger& lgr, progress& prog,
                              fs::path const& root_path,
-                             inode_options const& opts)
+                             inode_options const& opts, bool list_mode)
     : impl_(make_unique_logging_object<impl, internal::inode_manager_,
                                        logger_policies>(lgr, prog, root_path,
-                                                        opts)) {}
+                                                        opts, list_mode)) {}
 
 } // namespace dwarfs::writer::internal

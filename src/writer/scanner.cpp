@@ -564,6 +564,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
   };
 
   std::unordered_map<std::string, std::shared_ptr<dir>> dir_cache;
+  uint32_t file_order_index{0};
 
   for (auto const& listpath : list) {
     std::filesystem::path relpath;
@@ -631,6 +632,9 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     if (auto pe = add_entry(rootpath / relpath, pd, prog, fs)) {
       if (pe->type() == entry::E_DIR) {
         prog.dirs_scanned++;
+      } else if (pe->type() == entry::E_FILE) {
+        auto fp = dynamic_cast<file*>(pe.get());
+        fp->set_order_index(file_order_index++);
       }
     }
   }
@@ -656,7 +660,8 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  inode_manager im(LOG_GET_LOGGER, prog, path, options_.inode);
+  inode_manager im(LOG_GET_LOGGER, prog, path, options_.inode,
+                   list.has_value());
   file_scanner fs(LOG_GET_LOGGER, wg_, os_, im, prog,
                   {.hash_algo = options_.file_hash_algorithm,
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
