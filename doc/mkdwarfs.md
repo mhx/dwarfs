@@ -551,23 +551,24 @@ assign them a category. Each categorizer can define a set of categories,
 and each of these categories can optionally support subcategories.
 
 Running `mkdwarfs` with the `-H` or `--long-help` option will display the
-list of available categorizers and the categories they emit. At the moment,
-`mkdwarfs` supports two categorizers, `incompressible` and `pcmaudio`. The
-`incompressible` categorizer comes with its own set of options while the
-`pcmaudio` categorizer doesn't need any further configuration.
+list of available categorizers and the categories they emit. Categorizers
+may come with their own set of options if they allow for configuration.
 
-Categorizers are only useful if at least some of the `mkdwarfs` configuration
-is category-dependent. The options that can be configured per category are
-`--compression`, `--order`, `--max-lookback-blocks`, `--window-size`,
-`--window-step`, and `--bloom-filter-size`.
+Some categorizers are only useful if at least some of the configuration for
+`mkdwarfs` is category-dependent. The options that can be configured per
+category are `--compression`, `--order`, `--max-lookback-blocks`,
+`--window-size`, `--window-step`, and `--bloom-filter-size`. For example,
+the `incompressible` categorizer is really only useful if set the compression
+to `null` for this category.
 
 The resulting configuration matrix can be quite overwhelming, which is why
 `mkdwarfs` will run with a reasonable set of defaults if you specify the
 `--categorize` option with no arguments. These defaults are also dependent
 on the chosen compression level.
 
-Note that in case of the `pcmaudio` categorizer, you can override each option
-per category (in this case `pcmaudio/waveform` and `pcmaudio/metadata`).
+In case of categorizers with multiple categories, you can override each
+option per category (e.g. `pcmaudio/waveform` and `pcmaudio/metadata` for
+the `pcmaudio` categorizer).
 
 It's also worth noting that the order in which the categorizers are given
 is important. The first categorizer that will successfully categorize a
@@ -614,6 +615,47 @@ It is worth noting that options such as `--window-size` will operate on
 for each channel. For example, a 16-bit stereo file would have a
 granularity of 4 bytes and thus `--window-size=10` would refer to a
 4 KiB window instead of a 1 KiB windows.
+
+### "fits" Categorizer
+
+The `fits` categorizer identifies [FITS](https://fits.gsfc.nasa.gov/) files
+used primarily in astrophotography.
+
+Like the `pcmaudio` categorizer, it produces two categories: `fits/image`
+for the actual image data, and `fits/metadata` for all other data in the
+file such as the file header. Also like the `pcmaudio/waveform` category,
+the `fits/image` category is further divided into subcategories depending
+on the type of image data (e.g. bits per pixel, number of components).
+
+In order to efficiently compress `fits/image` data, `mkdwarfs` offers the
+`ricepp` compression algorithm, which is a C++ implementation of the
+[Rice compression algorithm](https://arc.aiaa.org/doi/10.2514/6.1993-4541).
+
+Just like for `pcmaudio`, options such as `--window-size` will operate on
+*pixel* granularity instead of *byte* granularity when processing `fits/image`
+data, where *pixel* granularity means *all* components of a pixel (e.g. a
+16-bit RGB image would have a granularity of 6 bytes).
+
+### "binary" Categorizer
+
+The `binary` categorizer identifies executable files and shared libraries,
+though currently only for ELF and PE formats. More formats may be added in
+the future. Subcategories will be created based on attributes such as
+architecture or endianness. Currently, the whole file will be categorized
+as a single fragment. In the future, e.g. when support for fat binaries is
+added, the file may be broken down into multiple fragments, each mapped to
+a different subcategory.
+
+### "hotness" Categorizer
+
+The `hotness` categorizer will simply categorize files given in a hotness
+list as `hot`. All other files will be passed to categorizers further down
+the chain. This is intended to be used along with the `analysis_file` and
+`preload_category` options of the `dwarfs` FUSE driver to keep "hot" files
+clustered and potentially pre-cache them when mounting the file system.
+
+It is quite possible that this categorizer will be replaced by a more
+general mechanism to specify per-file categories in the future.
 
 ## TIPS & TRICKS
 
