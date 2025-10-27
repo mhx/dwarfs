@@ -33,7 +33,7 @@ def bar_chart_svg_horizontal(
     values: list[float],
     units: str = "",
     width: int = 800,
-    height: int = 250,
+    height: int = None,
     margin: tuple[int, int, int, int] | None = None,  # top,right,bottom,left (left auto if None)
     tick_count: int = 5,
     decimals: int = 2,
@@ -50,9 +50,13 @@ def bar_chart_svg_horizontal(
         mt, mr, mb, ml = margin
         ml = max(ml, int(12 + label_col))  # ensure labels fit
 
-    cw, ch = W - ml - mr, H - mt - mb
     n = max(1, len(values))
-    bar_gap = 0.22
+    bar_gap = 0.3
+
+    if H is None:
+        H = int(mt + mb + 32 * n / (1 - bar_gap))
+
+    cw, ch = W - ml - mr, H - mt - mb
     bh = ch / n * (1 - bar_gap)
     gap = ch / n * bar_gap
 
@@ -71,12 +75,12 @@ def bar_chart_svg_horizontal(
     @media (prefers-color-scheme: dark) {{
       :root {{ color: var(--fgColor-default, #c9d1d9); }}
     }}
-    .t {{ fill: currentColor; font-size: 12px; dominant-baseline: middle; }}
-    .title {{ font-weight: 600; font-size: 14px; dominant-baseline: hanging; }}
+    .t {{ fill: currentColor; font-size: 14px; dominant-baseline: middle; }}
+    .title {{ font-weight: 600; font-size: 18px; dominant-baseline: hanging; }}
     .axis {{ stroke: currentColor; stroke-width: 1; }}
     .grid {{ stroke: currentColor; stroke-width: 1; opacity: .2; }}
     .bar {{ fill: currentColor; opacity: .8; }}
-    .unit {{ opacity: .7; font-size: 11px; }}
+    .unit {{ opacity: .8; font-size: 14px; }}
   </style>
   <rect x="0" y="0" width="{W}" height="{H}" fill="none"/>
   <text x="{ml}" y="{mt-28}" class="t title">{title}</text>

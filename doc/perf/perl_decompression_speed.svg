@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="250" viewBox="0 0 800 250" role="img" aria-label="Perl • Decompression speed (higher is better)">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="274" viewBox="0 0 800 274" role="img" aria-label="Perl • Decompression speed (higher is better)">
   <style>
     :root {
       color: var(--fgColor-default, #24292f);
@@ -7,45 +7,45 @@
     @media (prefers-color-scheme: dark) {
       :root { color: var(--fgColor-default, #c9d1d9); }
     }
-    .t { fill: currentColor; font-size: 12px; dominant-baseline: middle; }
-    .title { font-weight: 600; font-size: 14px; dominant-baseline: hanging; }
+    .t { fill: currentColor; font-size: 14px; dominant-baseline: middle; }
+    .title { font-weight: 600; font-size: 18px; dominant-baseline: hanging; }
     .axis { stroke: currentColor; stroke-width: 1; }
     .grid { stroke: currentColor; stroke-width: 1; opacity: .2; }
     .bar { fill: currentColor; opacity: .8; }
-    .unit { opacity: .7; font-size: 11px; }
+    .unit { opacity: .8; font-size: 14px; }
   </style>
-  <rect x="0" y="0" width="800" height="250" fill="none"/>
+  <rect x="0" y="0" width="800" height="274" fill="none"/>
   <text x="93" y="20" class="t title">Perl • Decompression speed (higher is better)</text>
 
-  <line x1="93" y1="206" x2="772" y2="206" class="axis"/>
-  <line x1="93" y1="48" x2="93" y2="206" class="axis"/>
-  <line x1="93.00" y1="48" x2="93.00" y2="206" class="grid"/>
-  <text x="93.00" y="222" class="t" text-anchor="middle">0</text>
-  <line x1="228.80" y1="48" x2="228.80" y2="206" class="grid"/>
-  <text x="228.80" y="222" class="t" text-anchor="middle">200</text>
-  <line x1="364.60" y1="48" x2="364.60" y2="206" class="grid"/>
-  <text x="364.60" y="222" class="t" text-anchor="middle">400</text>
-  <line x1="500.40" y1="48" x2="500.40" y2="206" class="grid"/>
-  <text x="500.40" y="222" class="t" text-anchor="middle">600</text>
-  <line x1="636.20" y1="48" x2="636.20" y2="206" class="grid"/>
-  <text x="636.20" y="222" class="t" text-anchor="middle">800</text>
-  <line x1="772.00" y1="48" x2="772.00" y2="206" class="grid"/>
-  <text x="772.00" y="222" class="t" text-anchor="middle">1000</text>
-  <text x="772" y="236" class="t unit" text-anchor="end">MiB/s</text>
-  <rect class="bar" x="93.00" y="52.34" width="237.55" height="30.81" rx="3" ry="3"/>
-  <text x="83.00" y="60.75" class="t" text-anchor="end">.tar.gz</text>
-  <text x="83.00" y="74.75" class="t" text-anchor="end">(pigz)</text>
-  <text x="336.55" y="67.75" class="t">350</text>
-  <rect class="bar" x="93.00" y="91.84" width="446.20" height="30.81" rx="3" ry="3"/>
-  <text x="83.00" y="100.25" class="t" text-anchor="end">7zip</text>
-  <text x="83.00" y="114.25" class="t" text-anchor="end">(-mx=7)</text>
-  <text x="545.20" y="107.25" class="t">657</text>
-  <rect class="bar" x="93.00" y="131.34" width="446.20" height="30.81" rx="3" ry="3"/>
-  <text x="83.00" y="139.75" class="t" text-anchor="end">DwarFS</text>
-  <text x="83.00" y="153.75" class="t" text-anchor="end">(xz)</text>
-  <text x="545.20" y="146.75" class="t">657</text>
-  <rect class="bar" x="93.00" y="170.84" width="446.20" height="30.81" rx="3" ry="3"/>
-  <text x="83.00" y="179.25" class="t" text-anchor="end">DwarFS</text>
-  <text x="83.00" y="193.25" class="t" text-anchor="end">(zstd)</text>
-  <text x="545.20" y="186.25" class="t">657</text>
+  <line x1="93" y1="230" x2="772" y2="230" class="axis"/>
+  <line x1="93" y1="48" x2="93" y2="230" class="axis"/>
+  <line x1="93.00" y1="48" x2="93.00" y2="230" class="grid"/>
+  <text x="93.00" y="246" class="t" text-anchor="middle">0</text>
+  <line x1="228.80" y1="48" x2="228.80" y2="230" class="grid"/>
+  <text x="228.80" y="246" class="t" text-anchor="middle">200</text>
+  <line x1="364.60" y1="48" x2="364.60" y2="230" class="grid"/>
+  <text x="364.60" y="246" class="t" text-anchor="middle">400</text>
+  <line x1="500.40" y1="48" x2="500.40" y2="230" class="grid"/>
+  <text x="500.40" y="246" class="t" text-anchor="middle">600</text>
+  <line x1="636.20" y1="48" x2="636.20" y2="230" class="grid"/>
+  <text x="636.20" y="246" class="t" text-anchor="middle">800</text>
+  <line x1="772.00" y1="48" x2="772.00" y2="230" class="grid"/>
+  <text x="772.00" y="246" class="t" text-anchor="middle">1000</text>
+  <text x="772" y="260" class="t unit" text-anchor="end">MiB/s</text>
+  <rect class="bar" x="93.00" y="54.83" width="237.55" height="31.85" rx="3" ry="3"/>
+  <text x="83.00" y="63.75" class="t" text-anchor="end">.tar.gz</text>
+  <text x="83.00" y="77.75" class="t" text-anchor="end">(pigz)</text>
+  <text x="336.55" y="70.75" class="t">350</text>
+  <rect class="bar" x="93.00" y="100.33" width="446.20" height="31.85" rx="3" ry="3"/>
+  <text x="83.00" y="109.25" class="t" text-anchor="end">7zip</text>
+  <text x="83.00" y="123.25" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="545.20" y="116.25" class="t">657</text>
+  <rect class="bar" x="93.00" y="145.82" width="446.20" height="31.85" rx="3" ry="3"/>
+  <text x="83.00" y="154.75" class="t" text-anchor="end">DwarFS</text>
+  <text x="83.00" y="168.75" class="t" text-anchor="end">(xz)</text>
+  <text x="545.20" y="161.75" class="t">657</text>
+  <rect class="bar" x="93.00" y="191.32" width="446.20" height="31.85" rx="3" ry="3"/>
+  <text x="83.00" y="200.25" class="t" text-anchor="end">DwarFS</text>
+  <text x="83.00" y="214.25" class="t" text-anchor="end">(zstd)</text>
+  <text x="545.20" y="207.25" class="t">657</text>
 </svg>
