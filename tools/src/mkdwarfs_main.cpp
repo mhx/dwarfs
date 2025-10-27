@@ -531,7 +531,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "only recompress blocks of these categories")
     ("categorize",
         po::value<categorize_optval>(&categorizer_list)
-          ->implicit_value(categorize_optval("fits,pcmaudio,incompressible")),
+          ->implicit_value(categorize_optval("fits,pcmaudio,binary,incompressible")),
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)

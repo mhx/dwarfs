@@ -62,6 +62,7 @@ struct fs_path_hash {
 extern std::filesystem::path const test_dir;
 extern std::filesystem::path const audio_data_dir;
 extern std::filesystem::path const fits_data_dir;
+extern std::filesystem::path const binary_data_dir;
 
 constexpr std::array<std::string_view, 6> const log_level_strings{
     "error", "warn", "info", "verbose", "debug", "trace"};

@@ -168,7 +168,7 @@ add_library(
   src/writer/internal/similarity_ordering.cpp
   src/writer/internal/time_resolution_converter.cpp
 
-  # src/writer/categorizer/binary_categorizer.cpp
+  src/writer/categorizer/binary_categorizer.cpp
   src/writer/categorizer/fits_categorizer.cpp
   src/writer/categorizer/hotness_categorizer.cpp
   src/writer/categorizer/incompressible_categorizer.cpp
