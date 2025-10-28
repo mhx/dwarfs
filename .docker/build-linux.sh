@@ -74,7 +74,6 @@ rm -rf build
 mkdir build
 cd build
 
-# Stick to clang-18, clang-19 has a regression for nilsimsa performance
 if [[ "$BUILD_DIST" == "alpine" ]]; then
   GCC_VERSION=
   CLANG_VERSION=-20
@@ -83,7 +82,7 @@ elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
   CLANG_VERSION=-15
 else
   GCC_VERSION=-14
-  CLANG_VERSION=-18
+  CLANG_VERSION=-19
 fi
 
 case "-$BUILD_TYPE-" in
