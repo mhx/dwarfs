@@ -1779,21 +1779,12 @@ void load_filesystem(dwarfs_userdata& userdata) {
 } // namespace
 
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
-#ifdef _WIN32
-  std::vector<std::string> argv_strings;
-  std::vector<char*> argv_copy;
-  argv_strings.reserve(argc);
-  argv_copy.reserve(argc);
+  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
 
   for (int i = 0; i < argc; ++i) {
-    argv_strings.push_back(sys_string_to_string(argv[i]));
-    argv_copy.push_back(argv_strings.back().data());
+    auto const argstr = sys_string_to_string(argv[i]);
+    fuse_opt_add_arg(&args, argstr.c_str());
   }
-
-  struct fuse_args args = FUSE_ARGS_INIT(argc, argv_copy.data());
-#else
-  struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-#endif
 
   dwarfs_userdata userdata(iol);
   auto& opts = userdata.opts;
