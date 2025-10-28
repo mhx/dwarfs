@@ -1,15 +1,13 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
 FROM $ARCH/debian:testing
-RUN apt update
-RUN apt upgrade -y
+RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
         wget \
         curl \
         vim \
-        less
-RUN apt install -y \
+        less \
         gcc \
         g++ \
         gcc-12 \
@@ -65,7 +63,8 @@ RUN apt install -y \
         libutfcpp-dev \
         libflac++-dev \
         nlohmann-json3-dev \
-        xz-utils
+        xz-utils \
+        python3-mistletoe
 RUN useradd -g users -u 1000 -m mhx
 USER mhx
 ENTRYPOINT /workspace/.docker/build-linux.sh
