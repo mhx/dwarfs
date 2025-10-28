@@ -100,7 +100,7 @@ archive in memory is infeasible for large archives.
 ![Perl • Mount time](doc/perf/perl_mount_time.svg)
 ![Perl • Random access speed](doc/perf/perl_random_access_speed.svg)
 
-| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz [^pl1] | .tar.zst [^pl2] | 7zip (`-mx=7`) | DwarFS (xz)   | DwarFS (zstd) |
+| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz [^pl1] | .tar.zst [^pl2] | 7zip (`-mx=7`) | DwarFS (lzma) | DwarFS (zstd) |
 |---------------------------------------|---------------:|----------------:|---------------:|--------------:|--------------:|
 | Compression time                      |         4m 59s |          8m 06s |        23m 27s |    **2m 13s** |         5m 3s |
 | Compression CPU time                  |         1h 47m |          2h 18m |          5h 5m |   **31m 17s** |       49m 51s |

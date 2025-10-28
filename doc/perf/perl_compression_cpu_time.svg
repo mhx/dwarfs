@@ -46,7 +46,7 @@
   <text x="535.03" y="162.00" class="t">305</text>
   <rect class="bar" x="149.00" y="191.64" width="38.63" height="31.92" rx="3" ry="3"/>
   <text x="139.00" y="200.60" class="t" text-anchor="end">DwarFS</text>
-  <text x="139.00" y="214.60" class="t" text-anchor="end">(xz)</text>
+  <text x="139.00" y="214.60" class="t" text-anchor="end">(lzma)</text>
   <text x="193.63" y="207.60" class="t">31</text>
   <rect class="bar" x="149.00" y="237.24" width="62.30" height="31.92" rx="3" ry="3"/>
   <text x="139.00" y="246.20" class="t" text-anchor="end">DwarFS</text>
