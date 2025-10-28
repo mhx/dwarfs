@@ -102,6 +102,12 @@ class file_view {
 
   template <typename T>
     requires std::is_trivially_copyable_v<T>
+  void copy_to(std::span<T> t, file_off_t offset, std::error_code& ec) const {
+    impl_->copy_bytes(t.data(), file_range{offset, t.size_bytes()}, ec);
+  }
+
+  template <typename T>
+    requires std::is_trivially_copyable_v<T>
   void
   copy_to(T& t, file_off_t offset, file_size_t len, std::error_code& ec) const {
     if (std::cmp_less_equal(len, sizeof(T))) {

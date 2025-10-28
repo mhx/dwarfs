@@ -21,7 +21,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <array>
 #include <cassert>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -31,6 +33,7 @@
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/type_list.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -43,6 +46,8 @@ namespace {
 
 constexpr std::string_view const ELF_CATEGORY{"binary/elf"};
 constexpr std::string_view const PE_CATEGORY{"binary/pe"};
+constexpr std::string_view const MACHO_HEADER_CATEGORY{"binary/macho-header"};
+constexpr std::string_view const MACHO_SECTION_CATEGORY{"binary/macho-section"};
 
 //----- Helper classes --------------------------------------------------------
 
@@ -204,6 +209,179 @@ struct minimal_dos_stub {
   }
 };
 
+//----- Minimal Mach-O definitions ---------------------------------------------
+
+struct minimal_macho_thin_header {
+  static constexpr uint32_t MH_MAGIC = 0xfeedface;    // 32-bit BE
+  static constexpr uint32_t MH_MAGIC_64 = 0xfeedfacf; // 64-bit BE
+  static constexpr uint32_t MH_CIGAM = 0xcefaedfe;    // 32-bit LE
+  static constexpr uint32_t MH_CIGAM_64 = 0xcffaedfe; // 64-bit LE
+
+  uint32be_t magic;
+  uint32_t cpu_type;
+  uint32_t cpu_subtype;
+  uint32_t file_type;
+
+  // This works regardless of host endianness
+  bool is_valid() const {
+    return magic == MH_MAGIC || magic == MH_MAGIC_64 || magic == MH_CIGAM ||
+           magic == MH_CIGAM_64;
+  }
+
+  uint64_t key() const {
+    bool const kIsBigEndian = magic == MH_MAGIC || magic == MH_MAGIC_64;
+    bool const kIs64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64;
+    auto const cputype = kIsBigEndian ? folly::Endian::big(cpu_type)
+                                      : folly::Endian::little(cpu_type);
+    auto const subtype = kIsBigEndian ? folly::Endian::big(cpu_subtype)
+                                      : folly::Endian::little(cpu_subtype);
+    auto const filetype = kIsBigEndian ? folly::Endian::big(file_type)
+                                       : folly::Endian::little(file_type);
+    return (kIsBigEndian ? 1ULL << 63 : 0ULL) | (kIs64Bit ? 1ULL << 62 : 0ULL) |
+           ((static_cast<uint64_t>(filetype) & ((1ULL << 20) - 1)) << 40) |
+           ((static_cast<uint64_t>(subtype) & ((1ULL << 20) - 1)) << 20) |
+           ((static_cast<uint64_t>(cputype) & ((1ULL << 20) - 1)) << 0);
+  }
+
+  static bool check(inode_fragments& fragments, std::span<uint8_t const> buf,
+                    file_size_t size, category_mapper const& mapper,
+                    sync_subcat_map& subcats) {
+    if (buf.size() < sizeof(minimal_macho_thin_header)) {
+      return false;
+    }
+
+    minimal_macho_thin_header macho;
+    std::memcpy(&macho, buf.data(), sizeof(macho));
+
+    if (macho.is_valid()) {
+      auto const cat = mapper(MACHO_SECTION_CATEGORY);
+      fragments.emplace_back(subcats.wlock()->add(cat, macho.key()), size);
+      return true;
+    }
+
+    return false;
+  }
+
+  static bool check(inode_fragments& fragments, std::span<uint8_t const> buf,
+                    file_view const& mm, category_mapper const& mapper,
+                    sync_subcat_map& subcats) {
+    return check(fragments, buf, mm.size(), mapper, subcats);
+  }
+};
+
+struct minimal_macho_fat_header {
+  static constexpr uint32_t FAT_MAGIC = 0xcafebabe;
+  static constexpr uint32_t FAT_MAGIC_64 = 0xcafebabf;
+
+  uint32be_t magic;
+  uint32be_t count;
+
+  struct arch32 {
+    uint32be_t cputype;
+    uint32be_t cpusubtype;
+    uint32be_t offset;
+    uint32be_t size;
+    uint32be_t align;
+  };
+
+  struct arch64 {
+    uint32be_t cputype;
+    uint32be_t cpusubtype;
+    uint64be_t offset;
+    uint64be_t size;
+    uint32be_t align;
+    uint32be_t reserved;
+  };
+
+  bool is_valid() const { return magic == FAT_MAGIC || magic == FAT_MAGIC_64; }
+
+  template <typename T>
+  static bool parse_archs(inode_fragments& fragments, size_t const arch_count,
+                          file_view const& mm, category_mapper const& mapper,
+                          sync_subcat_map& subcats) {
+    fragment_category const header{mapper(MACHO_HEADER_CATEGORY)};
+
+    small_vector<T, 8> archs;
+    archs.resize(arch_count);
+
+    std::error_code ec;
+    mm.copy_to(std::span{archs.data(), archs.size()},
+               sizeof(minimal_macho_fat_header), ec);
+
+    if (ec) {
+      return false;
+    }
+
+    // sort them by offset, just in case
+    std::ranges::sort(archs, std::ranges::less{}, &T::offset);
+
+    file_off_t pos{0};
+    file_size_t const end{mm.size()};
+    std::array<uint8_t, sizeof(minimal_macho_thin_header)> hdr_buf;
+    inode_fragments tmp;
+
+    for (auto const& arch : archs) {
+      file_off_t const offset = arch.offset.load();
+      file_size_t const size = arch.size.load();
+
+      if (pos > offset) {
+        return false;
+      }
+
+      if (pos < offset) {
+        tmp.emplace_back(header, offset - pos);
+        pos = offset;
+      }
+
+      pos += size;
+
+      if (pos > end) {
+        return false;
+      }
+
+      mm.copy_to(hdr_buf, offset, ec);
+
+      if (ec) {
+        return false;
+      }
+
+      if (!minimal_macho_thin_header::check(tmp, hdr_buf, size, mapper,
+                                            subcats)) {
+        return false;
+      }
+    }
+
+    if (pos < end) {
+      tmp.emplace_back(header, end - pos);
+    }
+
+    tmp.swap(fragments);
+
+    return true;
+  };
+
+  static bool check(inode_fragments& fragments, std::span<uint8_t const> buf,
+                    file_view const& mm, category_mapper const& mapper,
+                    sync_subcat_map& subcats) {
+    if (buf.size() < sizeof(minimal_macho_fat_header)) {
+      return false;
+    }
+
+    minimal_macho_fat_header macho;
+    std::memcpy(&macho, buf.data(), sizeof(macho));
+
+    if (macho.is_valid()) {
+      if (macho.magic == FAT_MAGIC_64) {
+        return parse_archs<arch64>(fragments, macho.count, mm, mapper, subcats);
+      }
+
+      return parse_archs<arch32>(fragments, macho.count, mm, mapper, subcats);
+    }
+
+    return false;
+  }
+};
+
 //----- Categorizer implementation ---------------------------------------------
 
 class binary_categorizer_base : public random_access_categorizer {
@@ -232,6 +410,8 @@ std::span<std::string_view const> binary_categorizer_base::categories() const {
   static constexpr std::array const s_categories{
       ELF_CATEGORY,
       PE_CATEGORY,
+      MACHO_HEADER_CATEGORY,
+      MACHO_SECTION_CATEGORY,
   };
   return s_categories;
 }
@@ -249,7 +429,9 @@ inode_fragments binary_categorizer_<LoggerPolicy>::categorize(
     mm.copy_to(header_buf, 0, ec);
 
     if (!ec) {
-      using header_types = type_list<minimal_elf_header, minimal_dos_stub>;
+      using header_types =
+          type_list<minimal_elf_header, minimal_dos_stub,
+                    minimal_macho_thin_header, minimal_macho_fat_header>;
 
       for_each_type_until_true(header_types{}, [&]<typename T>() {
         return T::check(fragments, header_buf, mm, mapper, subcats_);
