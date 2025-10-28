@@ -34,6 +34,8 @@
 #include <thread>
 #include <unordered_map>
 
+#include <boost/chrono/thread_clock.hpp>
+
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/block_decompressor.h>
@@ -148,6 +150,7 @@ class fsblock {
   size_t uncompressed_size() const { return impl_->uncompressed_size(); }
   size_t size() const { return impl_->size(); }
   size_t estimated_mem_usage() const { return impl_->estimated_mem_usage(); }
+  double compression_time() const { return impl_->compression_time(); }
   void set_block_no(uint32_t number) { impl_->set_block_no(number); }
   uint32_t block_no() const { return impl_->block_no(); }
   section_header_v2 const& header() const { return impl_->header(); }
@@ -166,6 +169,7 @@ class fsblock {
     virtual size_t uncompressed_size() const = 0;
     virtual size_t size() const = 0;
     virtual size_t estimated_mem_usage() const = 0;
+    virtual double compression_time() const = 0;
     virtual void set_block_no(uint32_t number) = 0;
     virtual uint32_t block_no() const = 0;
     virtual section_header_v2 const& header() const = 0;
@@ -221,6 +225,7 @@ class raw_fsblock : public fsblock::impl {
         [this, prom = std::move(prom), meta = std::move(meta)]() mutable {
           try {
             shared_byte_buffer tmp;
+            auto const start = boost::chrono::thread_clock::now();
 
             if (meta) {
               tmp = bc_.compress(data_, *meta);
@@ -228,12 +233,16 @@ class raw_fsblock : public fsblock::impl {
               tmp = bc_.compress(data_);
             }
 
+            boost::chrono::duration<double> const duration =
+                boost::chrono::thread_clock::now() - start;
+
             pctx_->bytes_in += data_.size();
             pctx_->bytes_out += tmp.size();
 
             {
               std::lock_guard lock(mx_);
               data_.swap(tmp);
+              compression_time_ = duration.count();
             }
           } catch (bad_compression_ratio_error const&) {
             comp_type_ = compression_type::NONE;
@@ -258,6 +267,11 @@ class raw_fsblock : public fsblock::impl {
   size_t size() const override {
     std::lock_guard lock(mx_);
     return data_.size();
+  }
+
+  double compression_time() const override {
+    std::lock_guard lock(mx_);
+    return compression_time_;
   }
 
   size_t estimated_mem_usage() const override {
@@ -303,6 +317,7 @@ class raw_fsblock : public fsblock::impl {
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
   folly::Function<void(size_t)> set_block_cb_;
+  double compression_time_{0.0};
 };
 
 class compressed_fsblock : public fsblock::impl {
@@ -349,6 +364,7 @@ class compressed_fsblock : public fsblock::impl {
 
   size_t uncompressed_size() const override { return range_.size(); }
   size_t size() const override { return range_.size(); }
+  double compression_time() const override { return 0.0; }
   size_t estimated_mem_usage() const override { return range_.size(); }
 
   void set_block_no(uint32_t number) override { number_ = number; }
@@ -416,6 +432,11 @@ class rewritten_fsblock : public fsblock::impl {
     return block_data_->size();
   }
 
+  double compression_time() const override {
+    std::lock_guard lock(mx_);
+    return compression_time_;
+  }
+
   size_t estimated_mem_usage() const override {
     std::lock_guard lock(mx_);
     return block_data_.has_value() ? block_data_->capacity() : 0;
@@ -450,6 +471,8 @@ class rewritten_fsblock : public fsblock::impl {
 
       pctx_->bytes_in += block.size(); // TODO: data_.size()?
 
+      auto const start = boost::chrono::thread_clock::now();
+
       try {
         if (meta) {
           block = bc_.compress(block, *meta);
@@ -460,11 +483,15 @@ class rewritten_fsblock : public fsblock::impl {
         comp_type_ = compression_type::NONE;
       }
 
+      boost::chrono::duration<double> const duration =
+          boost::chrono::thread_clock::now() - start;
+
       pctx_->bytes_out += block.size();
 
       {
         std::lock_guard lock(mx_);
         block_data_.emplace(std::move(block));
+        compression_time_ = duration.count();
       }
 
       prom.set_value();
@@ -484,6 +511,7 @@ class rewritten_fsblock : public fsblock::impl {
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
   size_t const uncompressed_size_;
+  double compression_time_{0.0};
 };
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
@@ -730,7 +758,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
               << fsb->block_no() << "] compressed from "
               << size_with_unit(fsb->uncompressed_size()) << " to "
               << size_with_unit(fsb->size()) << " [" << fsb->description()
-              << "]";
+              << "] in " << time_with_unit(fsb->compression_time());
 
     write(*fsb);
   }
