@@ -638,13 +638,14 @@ data, where *pixel* granularity means *all* components of a pixel (e.g. a
 
 ### "binary" Categorizer
 
-The `binary` categorizer identifies executable files and shared libraries,
-though currently only for ELF and PE formats. More formats may be added in
-the future. Subcategories will be created based on attributes such as
-architecture or endianness. Currently, the whole file will be categorized
-as a single fragment. In the future, e.g. when support for fat binaries is
-added, the file may be broken down into multiple fragments, each mapped to
-a different subcategory.
+The `binary` categorizer identifies executable files and shared libraries
+in ELF, PE, and Mach-O formats. More formats may be added in the future.
+Subcategories will be created based on attributes such as architecture or
+endianness. For ELF, PE, and thin Mach-O, the whole file will be categorized
+as a single fragment. For fat Mach-O files, each architecture slice will be
+treated as a separate fragment and any data/padding before, between, or after
+slices will be categorized separately. Fat Mach-O slices and thin Mach-O files
+share the same subcategories.
 
 ### "hotness" Categorizer
 

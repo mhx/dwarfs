@@ -161,6 +161,8 @@ class inode_fragments {
 
   void append(inode_fragments const& other);
 
+  void swap(inode_fragments& other) { fragments_.swap(other.fragments_); }
+
   size_t size() const { return fragments_.size(); }
 
   bool empty() const { return fragments_.empty(); }
