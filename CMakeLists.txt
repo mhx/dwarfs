@@ -86,7 +86,7 @@ if(NOT WIN32)
   set(ZSH_INSTALL_PATH "zsh/site-functions" CACHE STRING "Zsh completion install dir")
 endif()
 
-set(DWARFS_CXX_STANDARD 20)
+set(DWARFS_CXX_STANDARD 23)
 
 # Libraries that we can fetch on demand if necessary
 #
