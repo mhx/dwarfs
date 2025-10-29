@@ -98,7 +98,6 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
@@ -109,6 +108,7 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/Malloc.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeLeak.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
