@@ -24,10 +24,9 @@
 #pragma once
 
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <vector>
-
-#include <folly/Function.h>
 
 #include <dwarfs/writer/internal/block_merger.h>
 #include <dwarfs/writer/internal/detail/multi_queue_block_merger_impl.h>
@@ -103,7 +102,7 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
   using block_type = BlockT;
   using block_holder_type = merged_block_holder<block_type>;
   using on_block_merged_callback_type =
-      folly::Function<void(block_holder_type)>;
+      std::move_only_function<void(block_holder_type)>;
 
   multi_queue_block_merger() = default;
 

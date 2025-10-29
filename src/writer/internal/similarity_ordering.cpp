@@ -23,13 +23,13 @@
 
 #include <algorithm>
 #include <bit>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <numeric>
 #include <unordered_map>
 #include <variant>
 
-#include <folly/Function.h>
 #include <folly/lang/BitsClass.h>
 
 #include <range/v3/view/enumerate.hpp>
@@ -50,7 +50,7 @@ namespace {
 // TODO: move out of here
 class job_tracker {
  public:
-  explicit job_tracker(folly::Function<void()>&& on_jobs_done)
+  explicit job_tracker(std::move_only_function<void()>&& on_jobs_done)
       : on_jobs_done_{std::move(on_jobs_done)} {}
 
   void start_job() {
@@ -74,7 +74,7 @@ class job_tracker {
  private:
   std::mutex mx_;
   size_t active_{0};
-  folly::Function<void()> on_jobs_done_;
+  std::move_only_function<void()> on_jobs_done_;
 };
 
 template <typename T, size_t N>

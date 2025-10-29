@@ -38,8 +38,6 @@
 #include <optional>
 #include <utility>
 
-#include <folly/Function.h>
-
 namespace dwarfs {
 
 class logger;
@@ -57,7 +55,7 @@ namespace internal {
 class worker_group {
  public:
   using job_t = std::function<void()>;
-  using moveonly_job_t = folly::Function<void()>;
+  using moveonly_job_t = std::move_only_function<void()>;
 
   /**
    * Create a worker group
