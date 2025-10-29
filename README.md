@@ -98,25 +98,29 @@ archive in memory is infeasible for large archives.
 ![Perl • Decompression speed](doc/perf/perl_decompression_speed.svg)
 ![Perl • Decompression CPU time](doc/perf/perl_decompression_cpu_time.svg)
 ![Perl • Mount time](doc/perf/perl_mount_time.svg)
+![Perl • Lookup speed](doc/perf/perl_lookup_speed.svg)
 ![Perl • Random access speed](doc/perf/perl_random_access_speed.svg)
 
-| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz [^pl1] | .tar.zst [^pl2] | 7zip (`-mx=7`) | DwarFS (lzma) | DwarFS (zstd) |
-|---------------------------------------|---------------:|----------------:|---------------:|--------------:|--------------:|
-| Compression time                      |         4m 59s |          8m 06s |        23m 27s |    **2m 13s** |         5m 3s |
-| Compression CPU time                  |         1h 47m |          2h 18m |          5h 5m |   **31m 17s** |       49m 51s |
-| Compressed size                       |      12.17 GiB |       0.387 GiB |      1.219 GiB | **0.310 GiB** |     0.352 GiB |
-| Compression ratio                     |          3.902 |           122.7 |          38.96 |     **153.2** |         134.9 |
-| Decompression time                    |         2m 19s |       **57.2s** |         1m 14s |        1m 14s |        1m 14s |
-| Decompression CPU time                |         3m 44s |      **1m 21s** |         2m 28s |        1m 47s |        1m 30s |
-| Mount time                            |         2m 07s |      ❌  [^pl3] |         3.638s |        0.420s |    **0.009s** |
-| Checksum 1139 files (2.58 GiB) [^pl4] |     ❌  [^pl5] |      ❌  [^pl3] |     ~5h [^pl6] |        4.330s |    **1.134s** |
+| **Perl** (47.49 GiB, 1.9M files)      | .tar.gz [^pl1] | .tar.zst [^pl2] | 7zip (`-mx=7`) | SquashFS [^pl7] | DwarFS (lzma) | DwarFS (zstd) |
+|---------------------------------------|---------------:|----------------:|---------------:|----------------:|--------------:|--------------:|
+| Compression time                      |         4m 59s |          8m 06s |        23m 27s |          5m 37s |    **2m 13s** |         5m 3s |
+| Compression CPU time                  |         1h 47m |          2h 18m |          5h 5m |          2h 29m |   **31m 17s** |       49m 51s |
+| Compressed size                       |      12.17 GiB |       0.387 GiB |      1.219 GiB |       3.245 GiB | **0.310 GiB** |     0.352 GiB |
+| Compression ratio                     |          3.902 |           122.7 |          38.96 |           14.63 |     **153.2** |         134.9 |
+| Decompression time                    |         2m 19s |           57.2s |         1m 14s |       **39.3s** |        1m 14s |        1m 14s |
+| Decompression CPU time                |         3m 44s |      **1m 21s** |         2m 28s |          1m 25s |        1m 47s |        1m 30s |
+| Mount time                            |         2m 07s |      ❌  [^pl3] |         3.638s |          0.011s |        0.420s |    **0.009s** |
+| Find all 1.9M files [^pl8]            |         5.670s |      ❌  [^pl3] |         5.695s |          5.311s |    **2.800s** |        2.821s |
+| Checksum 1139 files (2.58 GiB) [^pl4] |     ❌  [^pl5] |      ❌  [^pl3] |     ~5h [^pl6] |          1.541s |        4.330s |    **1.134s** |
 
 [^pl1]: using `pigz -9`
 [^pl2]: using `zstd --long=31 --ultra -22 -T0`
 [^pl3]: not supported by fuse-archive
 [^pl4]: `$ ls -1 mnt/*/perl*/bin/perl5* | xargs -d $'\n' -n1 -P16 sha256sum`
 [^pl5]: killed after making no progress for 15 minutes
-[^pl7]: killed when only 78 files were finished after about 20 minutes
+[^pl6]: killed when only 78 files were finished after about 20 minutes
+[^pl7]: using `-comp zstd -Xcompression-level 22 -b 1M -tailends`; using `squashfuse_ll` 0.6.0
+[^pl8]: `$ fd -t f . mnt | wc -l`
 
 ### All artifacts from 205 DwarFS CI builds
 
@@ -153,19 +157,20 @@ archive in memory is infeasible for large archives.
 ![Sonniss • Mount time](doc/perf/sonniss_mount_time.svg)
 ![Sonniss • Random access speed](doc/perf/sonniss_random_access_speed.svg)
 
-| **Sonniss** (3.072 GiB, 171 files) [^wav1] | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | DwarFS (categorize) |
-|--------------------------------------------|--------------------:|---------------:|--------------------:|
-| Compression time                           |               5.34s |         6m 21s |           **3.98s** |
-| Compression CPU time                       |               2m 1s |        19m 14s |           **29.0s** |
-| Compressed size                            |           2.725 GiB |      2.255 GiB |       **1.664 GiB** |
-| Compression ratio                          |               1.127 |          1.362 |           **1.846** |
-| Decompression time                         |               13.7s |         1m 50s |           **1.32s** |
-| Decompression CPU time                     |               17.8s |         1m 52s |           **9.15s** |
-| Mount time                                 |               13.6s |         0.014s |          **0.008s** |
-| Checksum all files [^wav2]                 |               3m 2s |        30m 42s |           **2.64s** |
+| **Sonniss** (3.072 GiB, 171 files) [^wav1] | .tar.gz (`pigz -9`) | 7zip (`-mx=7`) | SquashFS [^wav3] | DwarFS (categorize) |
+|--------------------------------------------|--------------------:|---------------:|-----------------:|--------------------:|
+| Compression time                           |               5.34s |         6m 21s |           19.52s |           **3.98s** |
+| Compression CPU time                       |               2m 1s |        19m 14s |           9m 47s |           **29.0s** |
+| Compressed size                            |           2.725 GiB |      2.255 GiB |        2.711 GiB |       **1.664 GiB** |
+| Compression ratio                          |               1.127 |          1.362 |            1.133 |           **1.846** |
+| Decompression time                         |               13.7s |         1m 50s |       **0.774s** |               1.32s |
+| Decompression CPU time                     |               17.8s |         1m 52s |        **4.60s** |               9.15s |
+| Mount time                                 |               13.6s |         0.014s |           0.018s |          **0.008s** |
+| Checksum all files [^wav2]                 |               3m 2s |        30m 42s |            2.81s |           **2.64s** |
 
 [^wav1]: https://hippolytus.feralhosting.com/sonniss/Sonniss.com-GDC2024-GameAudioBundle1of9.zip
 [^wav2]: `$ find mnt -type f | xargs -d $'\n' -n1 -P16 sha256sum`
+[^wav3]: using `-comp zstd -Xcompression-level 22 -b 1M -tailends`
 
 ## Quick Start
 

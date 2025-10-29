@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="320" viewBox="0 0 800 320" role="img" aria-label="Perl • Random access speed (higher is better)">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="366" viewBox="0 0 800 366" role="img" aria-label="Perl • Random access speed (higher is better)">
   <style>
     :root {
       color: var(--fgColor-default, #24292f);
@@ -14,42 +14,46 @@
     .bar { fill: currentColor; opacity: .8; }
     .unit { opacity: .8; font-size: 14px; }
   </style>
-  <rect x="0" y="0" width="800" height="320" fill="none"/>
+  <rect x="0" y="0" width="800" height="366" fill="none"/>
   <text x="149" y="20" class="t title">Perl • Random access speed (higher is better)</text>
 
-  <line x1="149" y1="276" x2="772" y2="276" class="axis"/>
-  <line x1="149" y1="48" x2="149" y2="276" class="axis"/>
-  <line x1="149.00" y1="48" x2="149.00" y2="276" class="grid"/>
-  <text x="149.00" y="292" class="t" text-anchor="middle">0.00</text>
-  <line x1="273.60" y1="48" x2="273.60" y2="276" class="grid"/>
-  <text x="273.60" y="292" class="t" text-anchor="middle">1000.00</text>
-  <line x1="398.20" y1="48" x2="398.20" y2="276" class="grid"/>
-  <text x="398.20" y="292" class="t" text-anchor="middle">2000.00</text>
-  <line x1="522.80" y1="48" x2="522.80" y2="276" class="grid"/>
-  <text x="522.80" y="292" class="t" text-anchor="middle">3000.00</text>
-  <line x1="647.40" y1="48" x2="647.40" y2="276" class="grid"/>
-  <text x="647.40" y="292" class="t" text-anchor="middle">4000.00</text>
-  <line x1="772.00" y1="48" x2="772.00" y2="276" class="grid"/>
-  <text x="772.00" y="292" class="t" text-anchor="middle">5000.00</text>
-  <text x="772" y="306" class="t unit" text-anchor="end">MiB/s</text>
-  <rect class="bar" x="149.00" y="54.84" width="0.00" height="31.92" rx="3" ry="3"/>
-  <text x="139.00" y="63.80" class="t" text-anchor="end">.tar.gz</text>
-  <text x="139.00" y="77.80" class="t" text-anchor="end">(pigz -9)</text>
-  <text x="155.00" y="70.80" class="t">❌</text>
-  <rect class="bar" x="149.00" y="100.44" width="0.00" height="31.92" rx="3" ry="3"/>
-  <text x="139.00" y="109.40" class="t" text-anchor="end">.tar.zst</text>
-  <text x="139.00" y="123.40" class="t" text-anchor="end">(--long=31 -22)</text>
-  <text x="155.00" y="116.40" class="t">❌</text>
-  <rect class="bar" x="149.00" y="146.04" width="0.02" height="31.92" rx="3" ry="3"/>
-  <text x="139.00" y="155.00" class="t" text-anchor="end">7zip</text>
-  <text x="139.00" y="169.00" class="t" text-anchor="end">(-mx=7)</text>
-  <text x="155.02" y="162.00" class="t">0.15</text>
-  <rect class="bar" x="149.00" y="191.64" width="76.03" height="31.92" rx="3" ry="3"/>
-  <text x="139.00" y="200.60" class="t" text-anchor="end">DwarFS</text>
-  <text x="139.00" y="214.60" class="t" text-anchor="end">(lzma)</text>
-  <text x="231.03" y="207.60" class="t">610.16</text>
-  <rect class="bar" x="149.00" y="237.24" width="290.29" height="31.92" rx="3" ry="3"/>
-  <text x="139.00" y="246.20" class="t" text-anchor="end">DwarFS</text>
-  <text x="139.00" y="260.20" class="t" text-anchor="end">(zstd)</text>
-  <text x="445.29" y="253.20" class="t">2329.81</text>
+  <line x1="149" y1="322" x2="772" y2="322" class="axis"/>
+  <line x1="149" y1="48" x2="149" y2="322" class="axis"/>
+  <line x1="149.00" y1="48" x2="149.00" y2="322" class="grid"/>
+  <text x="149.00" y="338" class="t" text-anchor="middle">0.00</text>
+  <line x1="273.60" y1="48" x2="273.60" y2="322" class="grid"/>
+  <text x="273.60" y="338" class="t" text-anchor="middle">1000.00</text>
+  <line x1="398.20" y1="48" x2="398.20" y2="322" class="grid"/>
+  <text x="398.20" y="338" class="t" text-anchor="middle">2000.00</text>
+  <line x1="522.80" y1="48" x2="522.80" y2="322" class="grid"/>
+  <text x="522.80" y="338" class="t" text-anchor="middle">3000.00</text>
+  <line x1="647.40" y1="48" x2="647.40" y2="322" class="grid"/>
+  <text x="647.40" y="338" class="t" text-anchor="middle">4000.00</text>
+  <line x1="772.00" y1="48" x2="772.00" y2="322" class="grid"/>
+  <text x="772.00" y="338" class="t" text-anchor="middle">5000.00</text>
+  <text x="772" y="352" class="t unit" text-anchor="end">MiB/s</text>
+  <rect class="bar" x="149.00" y="54.85" width="0.00" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="63.83" class="t" text-anchor="end">.tar.gz</text>
+  <text x="139.00" y="77.83" class="t" text-anchor="end">(pigz -9)</text>
+  <text x="155.00" y="70.83" class="t">❌</text>
+  <rect class="bar" x="149.00" y="100.52" width="0.00" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="109.50" class="t" text-anchor="end">.tar.zst</text>
+  <text x="139.00" y="123.50" class="t" text-anchor="end">(--long=31 -22)</text>
+  <text x="155.00" y="116.50" class="t">❌</text>
+  <rect class="bar" x="149.00" y="146.18" width="0.02" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="155.17" class="t" text-anchor="end">7zip</text>
+  <text x="139.00" y="169.17" class="t" text-anchor="end">(-mx=7)</text>
+  <text x="155.02" y="162.17" class="t">0.15</text>
+  <rect class="bar" x="149.00" y="191.85" width="213.62" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="200.83" class="t" text-anchor="end">SquashFS</text>
+  <text x="139.00" y="214.83" class="t" text-anchor="end">(1M,zstd)</text>
+  <text x="368.62" y="207.83" class="t">1714.47</text>
+  <rect class="bar" x="149.00" y="237.52" width="76.03" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="246.50" class="t" text-anchor="end">DwarFS</text>
+  <text x="139.00" y="260.50" class="t" text-anchor="end">(lzma)</text>
+  <text x="231.03" y="253.50" class="t">610.16</text>
+  <rect class="bar" x="149.00" y="283.18" width="290.29" height="31.97" rx="3" ry="3"/>
+  <text x="139.00" y="292.17" class="t" text-anchor="end">DwarFS</text>
+  <text x="139.00" y="306.17" class="t" text-anchor="end">(zstd)</text>
+  <text x="445.29" y="299.17" class="t">2329.81</text>
 </svg>
