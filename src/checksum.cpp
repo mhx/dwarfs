@@ -117,9 +117,7 @@ class checksum_evp : public checksum::impl {
     std::vector<std::string> available;
     ::EVP_MD_do_all(
         [](::EVP_MD const*, char const* from, char const* to, void* vec) {
-          // TODO: C++23: use std::ranges::contains
-          if (!to && std::ranges::find(unsupported_algorithms, from) ==
-                         unsupported_algorithms.end()) {
+          if (!to && std::ranges::contains(unsupported_algorithms, from)) {
             reinterpret_cast<std::vector<std::string>*>(vec)->emplace_back(
                 from);
           }
@@ -225,9 +223,7 @@ bool verify_impl(T&& alg, void const* data, size_t size, void const* digest,
 } // namespace
 
 bool checksum::is_available(std::string const& algo) {
-  // TODO: C++23: use std::ranges::contains
-  return std::ranges::find(supported_algorithms, algo) !=
-             supported_algorithms.end() ||
+  return std::ranges::contains(supported_algorithms, algo) ||
          checksum_evp::is_available(algo);
 }
 
