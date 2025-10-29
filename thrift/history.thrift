@@ -26,9 +26,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-include "thrift/annotation/cpp.thrift"
+package "dwarfs.dev/thrift/history"
 
-namespace cpp2 dwarfs.thrift.history
+include "thrift/annotation/cpp.thrift"
 
 @cpp.Type{name = "uint8_t"}
 typedef byte UInt8

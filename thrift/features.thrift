@@ -26,7 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-namespace cpp2 dwarfs
+package "dwarfs.dev/internal"
 
 // It is actually ok to change the values of the enumerators,
 // to add new enumerators, or to remove existing enumerators.

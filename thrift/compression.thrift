@@ -26,9 +26,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-include "thrift/annotation/cpp.thrift"
+package "dwarfs.dev/thrift/compression"
 
-namespace cpp2 dwarfs.thrift.compression
+include "thrift/annotation/cpp.thrift"
 
 @cpp.Type{name = "uint8_t"}
 typedef byte UInt8
