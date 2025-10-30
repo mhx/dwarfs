@@ -6,7 +6,7 @@ export CCACHE_CONFIGPATH=/workspace/.docker/ccache.conf
 
 LOCAL_REPO_PATH=/local/repos
 mkdir -p "$LOCAL_REPO_PATH"
-LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
+LAST_UPDATE_BASE="$LOCAL_REPO_PATH/last-update"
 
 WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
 NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
@@ -19,31 +19,34 @@ log() {
     echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
 }
 
-if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
-    echo "Skipping git repo update because it already ran in the last three hours."
-else
-    echo "Running git repo update."
+log "begin:repo-update"
 
-    log "begin:repo-update"
+for repo in "BLAKE3-team/BLAKE3" \
+            "fmtlib/fmt" \
+            "google/googletest" \
+            "ericniebler/range-v3" \
+            "greg7mdp/parallel-hashmap"; do
+  reponame=$(basename "$repo")
+  cd "$LOCAL_REPO_PATH"
+  last_update_path="$LAST_UPDATE_BASE.$reponame"
 
-    for repo in "fmtlib/fmt" \
-                "google/googletest" \
-                "ericniebler/range-v3" \
-                "greg7mdp/parallel-hashmap"; do
-      reponame=$(basename "$repo")
-      cd "$LOCAL_REPO_PATH"
-      if [ -d "$reponame" ]; then
-        cd "$reponame"
-        time git fetch
-      else
-        time git clone "https://github.com/$repo.git"
-      fi
-    done
+  if [ -d "$reponame" ] && [ -f "$last_update_path" ] && [ $(find "$last_update_path" -mmin -180) ]; then
+    echo "[$reponame] skipping repo update because it already ran in the last three hours"
+  else
+    echo "[$reponame] running git repo update..."
 
-    log "end:repo-update"
+    if [ -d "$reponame" ]; then
+      cd "$reponame"
+      time git fetch
+    else
+      time git clone "https://github.com/$repo.git"
+    fi
 
-    touch "$LAST_UPDATE_FILE"
-fi
+    touch "$last_update_path"
+  fi
+done
+
+log "end:repo-update"
 
 if [[ "$BUILD_TYPE" != "clang-release-ninja-static" ]]; then
   export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"

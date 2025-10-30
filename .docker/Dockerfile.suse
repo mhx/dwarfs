@@ -2,16 +2,11 @@
 FROM opensuse/tumbleweed
 
 # Refresh & update the base. For Tumbleweed, a normal update is fine in a fresh image.
-RUN zypper -n refresh && zypper -n update
-
-# Nice-to-haves
-RUN zypper -n in --no-recommends \
+RUN zypper -n refresh && zypper -n update && \
+    zypper -n in --no-recommends \
     bash-completion \
     vim \
-    less
-
-# Build toolchain & essentials
-RUN zypper -n in --no-recommends \
+    less \
     mold \
     gcc \
     gcc-c++ \
@@ -33,6 +28,7 @@ RUN zypper -n in --no-recommends \
     pkgconf-pkg-config \
     binutils-devel \
     libarchive-devel \
+    blake3-devel \
     benchmark-devel \
     boost-devel \
     libboost_chrono-devel \

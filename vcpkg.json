@@ -2,6 +2,7 @@
   "builtin-baseline": "ce613c41372b23b1f51333815feb3edd87ef8a8b",
   "dependencies": [
     {"name": "benchmark", "version>=": "1.9.4"},
+    {"name": "blake3", "version>=": "1.8.1"},
     {"name": "boost-asio", "version>=": "1.88.0", "default-features": false, "features": []},
     {"name": "boost-chrono", "version>=": "1.88.0"},
     {"name": "boost-convert", "version>=": "1.88.0"},

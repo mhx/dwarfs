@@ -109,6 +109,9 @@ set(RANGE_V3_PREFERRED_VERSION 0.12.0)
 set(PARALLEL_HASHMAP_REQUIRED_VERSION 1.3.8)
 set(PARALLEL_HASHMAP_PREFERRED_VERSION 2.0.0)
 
+set(BLAKE3_REQUIRED_VERSION 1.2.0)
+set(BLAKE3_PREFERRED_VERSION 1.8.2)
+
 set(BOOST_REQUIRED_VERSION 1.67.0)
 set(LIBCRYPTO_REQUIRED_VERSION 3.0.0)
 set(LIBLZ4_REQUIRED_VERSION 1.9.3)
@@ -127,11 +130,13 @@ if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
   set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
+  set(BLAKE3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/BLAKE3)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
   set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
+  set(BLAKE3_GIT_REPO https://github.com/BLAKE3-team/BLAKE3.git)
 endif()
 
 if(APPLE)
@@ -198,6 +203,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 
 if(WITH_LIBDWARFS)
+  include(${CMAKE_SOURCE_DIR}/cmake/need_blake3.cmake)
   include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
 
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG

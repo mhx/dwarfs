@@ -8,6 +8,7 @@ repositories = [
     "xiph/flac",
     "libunwind/libunwind",
     "google/benchmark",
+    "BLAKE3-team/BLAKE3",
     "boostorg/boost",
     "openssl/openssl",
     "libressl/portable",

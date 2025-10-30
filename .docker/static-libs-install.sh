@@ -18,7 +18,7 @@ if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
+    PKGS="benchmark,blake3,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
 fi
 
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
@@ -268,6 +268,18 @@ fi
 if use_lib nlohmann; then
     mkdir -p "$INSTALL_DIR/include/nlohmann"
     cp "$HOME/pkgs/json.hpp" "$INSTALL_DIR/include/nlohmann/json.hpp"
+fi
+
+if use_lib blake3; then
+    opt_size
+    cd "$WORKDIR"
+    tar xf ${WORKROOT}/${BLAKE3_TARBALL}
+    cd BLAKE3-${BLAKE3_VERSION}/c
+    mkdir build
+    cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+    $NINJA_PARALLEL
+    ninja install
 fi
 
 if use_lib utfcpp; then

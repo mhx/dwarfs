@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM archlinux:latest
-RUN pacman -Syu --noconfirm
-RUN pacman -S --noconfirm --needed \
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm --needed \
         bash-completion \
         vim \
         devtools \
-        less
-RUN pacman -S --noconfirm --needed \
+        less \
         gcc \
         clang \
         man \
@@ -26,6 +25,7 @@ RUN pacman -S --noconfirm --needed \
         pkg-config \
         binutils \
         libarchive \
+        libblake3 \
         benchmark \
         boost \
         brotli \

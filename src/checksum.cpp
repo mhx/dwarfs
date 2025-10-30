@@ -31,6 +31,7 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include <ranges>
 #include <string_view>
@@ -38,6 +39,8 @@
 #include <openssl/evp.h>
 
 #include <xxhash.h>
+
+#include <blake3.h>
 
 #include <boost/algorithm/hex.hpp>
 
@@ -55,6 +58,7 @@ using namespace std::string_view_literals;
 constexpr std::array supported_algorithms{
     "xxh3-64"sv,
     "xxh3-128"sv,
+    "blake3-256"sv,
 };
 
 constexpr std::array unsupported_algorithms{
@@ -208,8 +212,39 @@ class checksum_xxh3 : public checksum::impl {
   std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state_;
 };
 
+template <size_t DigestBytes>
+class checksum_blake3 : public checksum::impl {
+ public:
+  explicit checksum_blake3() {
+    hasher_.emplace();
+    ::blake3_hasher_init(&hasher_.value());
+  }
+
+  void update(void const* data, size_t size) override {
+    ::blake3_hasher_update(&hasher_.value(), data, size);
+  }
+
+  bool finalize(void* digest) override {
+    if (!hasher_.has_value()) {
+      return false;
+    }
+    ::blake3_hasher_finalize(&hasher_.value(),
+                             reinterpret_cast<uint8_t*>(digest), DigestBytes);
+    hasher_.reset();
+    return true;
+  }
+
+  std::string hexdigest() override { return make_hexdigest(*this); }
+
+  size_t digest_size() override { return DigestBytes; }
+
+ private:
+  std::optional<blake3_hasher> hasher_;
+};
+
 using checksum_xxh3_64 = checksum_xxh3<xxh3_64_policy>;
 using checksum_xxh3_128 = checksum_xxh3<xxh3_128_policy>;
+using checksum_blake3_256 = checksum_blake3<256 / 8>;
 
 template <typename T>
 bool verify_impl(T&& alg, void const* data, size_t size, void const* digest,
@@ -251,6 +286,11 @@ bool checksum::verify(sha2_512_256_tag, void const* data, size_t size,
   return verify_impl(sha2_512_256, data, size, digest, digest_size);
 }
 
+bool checksum::verify(blake3_256_tag, void const* data, size_t size,
+                      void const* digest, size_t digest_size) {
+  return verify_impl(blake3_256, data, size, digest, digest_size);
+}
+
 bool checksum::verify(std::string const& alg, void const* data, size_t size,
                       void const* digest, size_t digest_size) {
   return verify_impl(alg, data, size, digest, digest_size);
@@ -262,11 +302,16 @@ checksum::checksum(xxh3_64_tag)
 checksum::checksum(sha2_512_256_tag)
     : impl_(std::make_unique<checksum_evp>(::EVP_sha512_256())) {}
 
+checksum::checksum(blake3_256_tag)
+    : impl_(std::make_unique<checksum_blake3_256>()) {}
+
 checksum::checksum(std::string const& alg) {
   if (alg == "xxh3-64") {
     impl_ = std::make_unique<checksum_xxh3_64>();
   } else if (alg == "xxh3-128") {
     impl_ = std::make_unique<checksum_xxh3_128>();
+  } else if (alg == "blake3-256") {
+    impl_ = std::make_unique<checksum_blake3_256>();
   } else if (auto md = ::EVP_get_digestbyname(alg.c_str())) {
     impl_ = std::make_unique<checksum_evp>(md);
   } else {

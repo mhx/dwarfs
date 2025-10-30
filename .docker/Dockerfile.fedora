@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
 FROM $ARCH/fedora:rawhide
-RUN dnf update -y
-RUN dnf install -y \
+RUN dnf update -y && \
+    dnf install -y \
         bash-completion \
         vim \
-        less
-RUN dnf install -y \
+        less \
         gcc \
         g++ \
         clang \
@@ -27,6 +26,7 @@ RUN dnf install -y \
         pkg-config \
         binutils-devel \
         libarchive-devel \
+        blake3-devel \
         google-benchmark \
         boost-devel \
         brotli-devel \

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
 FROM $ARCH/debian:testing
-RUN apt update && apt upgrade -y
-RUN apt install -y \
+RUN apt update && apt upgrade -y && \
+    apt install -y \
         bash-completion \
         wget \
         curl \
