@@ -433,6 +433,8 @@ if use_lib brotli; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${BROTLI_TARBALL}
     cd brotli-${BROTLI_VERSION}
+    # https://github.com/google/brotli/pull/1369
+    fetch.sh https://github.com/google/brotli/commit/7f91406a2fa6e3a649cc93e9b147ee1c6e3a3543.diff - | patch -p1
     mkdir build
     cd build
     cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBROTLI_BUILD_TOOLS=OFF -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
