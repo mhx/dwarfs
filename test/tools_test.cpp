@@ -33,6 +33,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <latch>
 #include <regex>
 #include <sstream>
 #include <string_view>
@@ -99,12 +100,10 @@ using namespace dwarfs::binary_literals;
 
 using dwarfs::test::compare_directories;
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
 #ifdef __linux__
-auto constexpr kFuseTimeout{10s};
+auto constexpr kDefaultTimeout{10s};
 #else
-auto constexpr kFuseTimeout{30s};
-#endif
+auto constexpr kDefaultTimeout{30s};
 #endif
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
@@ -181,6 +180,44 @@ class scoped_no_leak_check {
 #endif
 };
 
+struct default_wait_policy {
+  static constexpr auto const kInitialWait{1ms};
+  static constexpr auto const kMaxWait{500ms};
+  static constexpr auto const kTimeout{kDefaultTimeout};
+
+  static std::chrono::milliseconds
+  next_wait(std::chrono::milliseconds duration) {
+    return std::min(2 * duration, kMaxWait);
+  }
+};
+
+template <typename Policy, typename Fn>
+bool wait_until(std::string_view desc, Fn const& fn) {
+  auto const start = std::chrono::steady_clock::now();
+  auto const end = start + Policy::kTimeout;
+  auto wait = Policy::kInitialWait;
+
+  while (!fn()) {
+    auto const now = std::chrono::steady_clock::now();
+
+    std::cerr << desc << " after "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(now -
+                                                                       start)
+                     .count()
+              << " ms, waiting " << wait.count() << " ms...\n";
+
+    std::this_thread::sleep_for(wait);
+
+    if (now >= end) {
+      return false;
+    }
+
+    wait = Policy::next_wait(wait);
+  }
+
+  return true;
+}
+
 #ifdef DWARFS_WITH_FUSE_DRIVER
 
 bool skip_fuse_tests() {
@@ -193,11 +230,12 @@ pid_t get_dwarfs_pid(fs::path const& path) {
 }
 #endif
 
-bool wait_until_file_ready(fs::path const& path,
-                           std::chrono::milliseconds timeout) {
-  auto end = std::chrono::steady_clock::now() + timeout;
-  std::error_code ec;
-  while (!fs::exists(path, ec)) {
+bool wait_until_file_ready(fs::path const& path) {
+  return wait_until<default_wait_policy>(path.string() + " not ready", [&path] {
+    std::error_code ec;
+    if (fs::exists(path, ec)) {
+      return true;
+    }
 #ifdef _WIN32
     if (ec && ec.value() != ERROR_OPERATION_ABORTED) {
 #else
@@ -205,12 +243,8 @@ bool wait_until_file_ready(fs::path const& path,
 #endif
       std::cerr << "*** exists: " << ec.message() << "\n";
     }
-    std::this_thread::sleep_for(1ms);
-    if (std::chrono::steady_clock::now() >= end) {
-      return false;
-    }
-  }
-  return true;
+    return false;
+  });
 }
 
 #endif
@@ -288,7 +322,7 @@ class subprocess {
     if (pt_) {
       std::cerr << "subprocess still running in destructor: " << cmdline()
                 << "\n";
-      pt_->join();
+      join_process_thread();
     }
   }
 
@@ -319,15 +353,18 @@ class subprocess {
     if (pt_) {
       throw std::runtime_error("already running in background");
     }
-    pt_ = std::make_unique<std::thread>([this] { run(); });
+    latch_.emplace(1);
+    pt_ = std::make_unique<std::thread>([this] {
+      run();
+      latch_->count_down();
+    });
   }
 
   void wait_background() {
     if (!pt_) {
       throw std::runtime_error("no process running in background");
     }
-    pt_->join();
-    pt_.reset();
+    join_process_thread();
   }
 
   void interrupt() {
@@ -369,6 +406,20 @@ class subprocess {
   }
 
  private:
+  void join_process_thread() {
+    std::cerr << "waiting for: " << cmdline() << " to finish\n";
+    if (!wait_until<default_wait_policy>(
+            "still waiting for: " + cmdline(),
+            [this] { return latch_->try_wait(); })) {
+      std::cerr << "timeout waiting for: " << cmdline() << "\n";
+      interrupt();
+    }
+    pt_->join();
+    pt_.reset();
+    latch_.reset();
+    std::cerr << "finished waiting for: " << cmdline() << "\n";
+  }
+
   template <subprocess_arg... Args>
   subprocess(boost::asio::io_context* ios, std::filesystem::path const& prog,
              Args&&... args)
@@ -383,7 +434,7 @@ class subprocess {
     }
 
     try {
-      // std::cerr << "running: " << cmdline() << "\n";
+      std::cerr << "running: " << cmdline() << "\n";
       c_ = bp::child(prog_.string(), bp::args(cmdline_), bp::std_in.close(),
                      bp::std_out > out_, bp::std_err > err_, *ios
 #ifdef _WIN32
@@ -418,6 +469,7 @@ class subprocess {
   std::string outs_;
   std::string errs_;
   std::unique_ptr<std::thread> pt_;
+  std::optional<std::latch> latch_;
   std::filesystem::path const prog_;
   std::vector<std::string> cmdline_;
 };
@@ -580,7 +632,7 @@ class driver_runner {
                                      mountpoint, std::forward<Args>(args)...);
     process_->run_background();
 
-    wait_until_file_ready(mountpoint, kFuseTimeout);
+    wait_until_file_ready(mountpoint);
 #else
     std::vector<std::string> options;
     auto const [out, err, ec] =
@@ -645,25 +697,31 @@ class driver_runner {
       if (!diskutil) {
         throw std::runtime_error("no diskutil binary found");
       }
-      auto t0 = std::chrono::steady_clock::now();
-      for (;;) {
-        auto [out, err, ec] =
-            subprocess::run(diskutil.value(), "unmount", mountpoint_);
-        if (ec == 0) {
-          break;
-        }
-        std::cerr << "driver failed to unmount:\nout:\n"
-                  << out << "err:\n"
-                  << err << "exit code: " << ec << "\n";
-        if (std::chrono::steady_clock::now() - t0 > kFuseTimeout) {
-          throw std::runtime_error(
-              "driver still failed to unmount after 5 seconds");
-        }
-        std::cerr << "retrying...\n";
-        std::this_thread::sleep_for(10ms);
-      }
+      bool const unmount_success =
+          is_mounted(mountpoint_) &&
+          wait_until<default_wait_policy>(
+              "diskutil unmount " + mountpoint_.string() + " failed",
+              [this, &diskutil] {
+                auto const [out, err, ec] =
+                    subprocess::run(diskutil.value(), "unmount", mountpoint_);
+                if (ec == 0) {
+                  return true;
+                }
+                std::cerr << "unmount " << mountpoint_ << " failed:\nout:\n"
+                          << out << "err:\n"
+                          << err << "exit code: " << ec << "\n";
+                if (!is_mounted(mountpoint_)) {
+                  std::cerr << "mountpoint " << mountpoint_
+                            << " no longer mounted\n";
+                  return true;
+                }
+                return false;
+              });
       bool rv{true};
       if (process_) {
+        if (!unmount_success) {
+          process_->interrupt();
+        }
         process_->wait_background();
         auto ec = process_->exit_code();
         if (ec != 0) {
@@ -671,10 +729,17 @@ class driver_runner {
                     << process_->out() << "err:\n"
                     << process_->err() << "exit code: " << ec << "\n";
           rv = false;
+        } else {
+          std::cerr << "driver successfully finished:\nout:\n"
+                    << process_->out() << "err:\n"
+                    << process_->err();
         }
         errs_ = process_->err();
       }
       process_.reset();
+      wait_until<default_wait_policy>(
+          "mountpoint " + mountpoint_.string() + " not fully unmounted",
+          [this] { return !is_mounted(mountpoint_); });
       mountpoint_.clear();
       return rv;
 #else
@@ -716,7 +781,7 @@ class driver_runner {
         }
 #endif
         mountpoint_.clear();
-        return dwarfs_guard_.check_exit(kFuseTimeout);
+        return dwarfs_guard_.check_exit(kDefaultTimeout);
       }
 #endif
 #endif
@@ -772,6 +837,20 @@ class driver_runner {
     return *fusermount_bin;
   }
 #endif
+#endif
+
+#ifdef __APPLE__
+  static bool is_mounted(fs::path const& mp) {
+    struct statfs buf;
+    if (::statfs(mp.c_str(), &buf) == 0) {
+      std::cerr << "statfs(" << mp << "): fstypename=" << buf.f_fstypename
+                << ", f_mnttoname=" << buf.f_mntonname
+                << ", f_mntfromname=" << buf.f_mntfromname << "\n";
+      return buf.f_fstypename == "macfuse_dwarfs"sv;
+    }
+    std::cerr << "statfs(" << mp << "): " << std::strerror(errno) << "\n";
+    return false;
+  }
 #endif
 
   static void setup_mountpoint(fs::path const& mp) {
@@ -1004,7 +1083,7 @@ TEST_P(tools_test, end_to_end) {
                            mode == binary_mode::universal_tool, image,
                            mountpoint, args);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
           << runner.cmdline();
       auto const cdr = compare_directories(fsdata_dir, mountpoint);
       ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1155,8 +1234,7 @@ TEST_P(tools_test, end_to_end) {
         driver_runner runner(driver, mode == binary_mode::universal_tool, image,
                              mountpoint, args);
 
-        ASSERT_TRUE(
-            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
@@ -1213,8 +1291,7 @@ TEST_P(tools_test, end_to_end) {
         driver_runner runner(driver, mode == binary_mode::universal_tool,
                              image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(
-            wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
             << runner.cmdline();
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
@@ -1351,7 +1428,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
                          mode == binary_mode::universal_tool, test_data_dwarfs,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
         << runner.cmdline();
 
     // remove (unlink)
@@ -1631,7 +1708,7 @@ TEST_P(tools_test, categorize) {
                          mode == binary_mode::universal_tool, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
         << runner.cmdline();
     auto const cdr = compare_directories(fsdata_dir, mountpoint);
     ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1675,7 +1752,7 @@ TEST_P(tools_test, categorize) {
                            mountpoint, "-opreload_category=pcmaudio/waveform",
                            "-oanalysis_file=" + analysis_file_str);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", kFuseTimeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
           << runner.cmdline();
 
       std::array const files_to_read{
@@ -2574,8 +2651,7 @@ TEST_F(sparse_files_test, random_large_files) {
       driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
                            mountpoint);
 
-      ASSERT_TRUE(
-          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
           << runner.cmdline();
 
       // Only compare if we know the FUSE driver supports sparse files.
@@ -2605,8 +2681,7 @@ TEST_F(sparse_files_test, random_large_files) {
       driver_runner runner(driver_runner::foreground, fuse2_bin, false, image,
                            mountpoint);
 
-      ASSERT_TRUE(
-          wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
           << runner.cmdline();
 
       for (auto const& file : info.files) {
@@ -2741,8 +2816,7 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(
-        wait_until_file_ready(mountpoint / "file0000.bin", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
         << runner.cmdline();
 
     auto const cdr = compare_directories(input, mountpoint);
@@ -2900,8 +2974,7 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(
-        wait_until_file_ready(mountpoint / "hole_then_data", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "hole_then_data"))
         << runner.cmdline();
 
     EXPECT_EQ(fs::file_size(mountpoint / "hole_then_data"), 5_GiB + 16_KiB)
@@ -3064,8 +3137,7 @@ TEST(tools_test, timestamps_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(
-        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
         << runner.cmdline();
 
     for (auto const& [path, ft] : kFileTimes) {
@@ -3137,8 +3209,7 @@ TEST(tools_test, dwarfs_automount) {
     driver_runner runner(driver_runner::automount, driver_bin, false, image,
                          mountpoint);
 
-    EXPECT_TRUE(
-        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+    EXPECT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -3225,7 +3296,7 @@ TEST(tools_test, dwarfs_automount_error) {
     driver_runner runner(fuse3_bin, false, test_dir / "datadata.dwarfs",
                          mountpoint);
 
-    EXPECT_TRUE(wait_until_file_ready(mountpoint / "data.dwarfs", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "data.dwarfs"))
         << runner.cmdline();
 
     auto const [out, err, ec] =
@@ -3281,8 +3352,7 @@ TEST(tools_test, dwarfs_fsname_and_subtype) {
   for (auto const& driver_bin : drivers) {
     driver_runner runner(driver_bin, false, image, mountpoint);
 
-    EXPECT_TRUE(
-        wait_until_file_ready(mountpoint / "file_1w2s3lb6", kFuseTimeout))
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
         << runner.cmdline();
 
     std::optional<std::string> out;
@@ -3367,8 +3437,7 @@ TEST(tools_test, dwarfs_image_size) {
                          "-ooffset=auto",
                          "-oimagesize=" + std::to_string(image_size));
 
-    EXPECT_TRUE(
-        wait_until_file_ready(td.path() / "mnt" / "format.sh", kFuseTimeout))
+    EXPECT_TRUE(wait_until_file_ready(td.path() / "mnt" / "format.sh"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -3396,7 +3465,7 @@ TEST(tools_test, dwarfs_obsolete_options) {
     driver_runner runner(fuse3_bin, false, test_dir / "data.dwarfs", td.path(),
                          std::string{"-o"} + opt);
 
-    EXPECT_TRUE(wait_until_file_ready(td.path() / "format.sh", kFuseTimeout))
+    EXPECT_TRUE(wait_until_file_ready(td.path() / "format.sh"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
