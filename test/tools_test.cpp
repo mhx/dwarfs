@@ -697,32 +697,29 @@ class driver_runner {
       if (!diskutil) {
         throw std::runtime_error("no diskutil binary found");
       }
-      auto t0 = std::chrono::steady_clock::now();
-      int unmount_attempts{0};
-      for (;;) {
-        if (!is_mounted(mountpoint_)) {
-          std::cerr << "mountpoint " << mountpoint_ << " no longer mounted\n";
-          break;
-        }
-        ++unmount_attempts;
-        auto [out, err, ec] =
-            subprocess::run(diskutil.value(), "unmount", mountpoint_);
-        if (ec == 0) {
-          break;
-        }
-        std::cerr << "unmount " << mountpoint_ << " failed:\nout:\n"
-                  << out << "err:\n"
-                  << err << "exit code: " << ec << "\n";
-        if (std::chrono::steady_clock::now() - t0 > kFuseTimeout) {
-          throw std::runtime_error(
-              "driver still failed to unmount after kFuseTimeout");
-        }
-        std::cerr << "retrying...\n";
-        std::this_thread::sleep_for(10ms);
-      }
+      bool const unmount_success =
+          is_mounted(mountpoint_) &&
+          wait_until<default_wait_policy>(
+              "diskutil unmount " + mountpoint_.string() + " failed",
+              [this, &diskutil] {
+                auto const [out, err, ec] =
+                    subprocess::run(diskutil.value(), "unmount", mountpoint_);
+                if (ec == 0) {
+                  return true;
+                }
+                std::cerr << "unmount " << mountpoint_ << " failed:\nout:\n"
+                          << out << "err:\n"
+                          << err << "exit code: " << ec << "\n";
+                if (!is_mounted(mountpoint_)) {
+                  std::cerr << "mountpoint " << mountpoint_
+                            << " no longer mounted\n";
+                  return true;
+                }
+                return false;
+              });
       bool rv{true};
       if (process_) {
-        if (unmount_attempts == 0) {
+        if (!unmount_success) {
           process_->interrupt();
         }
         process_->wait_background();
