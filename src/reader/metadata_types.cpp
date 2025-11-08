@@ -135,8 +135,12 @@ uint32_t directory_view::first_entry(uint32_t ino) const {
   return g_->first_dir_entry(ino);
 }
 
-uint32_t directory_view::parent_entry(uint32_t ino) const {
-  return g_->parent_dir_entry(ino);
+uint32_t directory_view::parent_entry() const {
+  return g_->parent_dir_entry(inode_);
+}
+
+uint32_t directory_view::self_entry() const {
+  return g_->self_dir_entry(inode_);
 }
 
 uint32_t directory_view::entry_count() const {

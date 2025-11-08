@@ -2107,8 +2107,7 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
   switch (offset) {
   case 0:
     return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
-        global_.self_dir_entry(dir.inode()), global_,
-        dir_entry_view_impl::entry_name_type::self)};
+        dir.self_entry(), global_, dir_entry_view_impl::entry_name_type::self)};
 
   case 1:
     return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
@@ -2122,9 +2121,9 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
       break;
     }
 
-    auto index = dir.first_entry() + offset;
     return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
-        index, global_.self_dir_entry(dir.inode()), global_)};
+        dir.first_entry() + offset, global_.self_dir_entry(dir.inode()),
+        global_)};
   }
 
   return std::nullopt;

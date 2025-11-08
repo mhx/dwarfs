@@ -153,7 +153,8 @@ class directory_view {
   uint32_t inode() const { return inode_; }
 
   uint32_t first_entry() const { return first_entry(inode_); }
-  uint32_t parent_entry() const { return parent_entry(inode_); }
+  uint32_t parent_entry() const;
+  uint32_t self_entry() const;
   uint32_t entry_count() const;
   boost::integer_range<uint32_t> entry_range() const;
 
@@ -168,7 +169,6 @@ class directory_view {
       , g_{&g} {}
 
   uint32_t first_entry(uint32_t ino) const;
-  uint32_t parent_entry(uint32_t ino) const;
 
   uint32_t inode_{0};
   internal::global_metadata const* g_{nullptr};
