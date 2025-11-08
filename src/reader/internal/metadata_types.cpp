@@ -869,11 +869,11 @@ uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
 }
 
 uint32_t global_metadata::self_dir_entry(uint32_t ino) const {
-  if (!meta_.entry_table_v2_2().empty()) {
-    return meta_.entry_table_v2_2()[ino];
+  if (meta_.entry_table_v2_2().empty()) {
+    return directories_[ino].self_entry();
   }
 
-  return directories_[ino].self_entry();
+  return meta_.entry_table_v2_2()[ino];
 }
 
 auto global_metadata::bundled_directories() const
