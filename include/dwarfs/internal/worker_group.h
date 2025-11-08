@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <any>
 #include <chrono>
 #include <concepts>
 #include <cstddef>
@@ -37,6 +38,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 
 #include <folly/Function.h>
 
@@ -47,6 +49,51 @@ class os_access;
 
 namespace internal {
 
+class thread_state {
+ public:
+  virtual ~thread_state() = default;
+
+  virtual void apply(std::any&& job_any) = 0;
+};
+
+template <typename... Args>
+class basic_thread_state : public thread_state {
+ public:
+  using job_t = std::function<void(Args...)>;
+  using moveonly_job_t = folly::Function<void(Args...)>;
+  using any_job_t = std::variant<job_t, moveonly_job_t>;
+
+  explicit basic_thread_state(Args... args)
+      : args_(std::make_tuple(std::forward<Args>(args)...)) {}
+
+  void apply(std::any&& job_any) override {
+    std::visit(
+        [this](auto&& j) {
+          static_assert(std::is_rvalue_reference_v<decltype(j)>);
+          auto job = std::forward<decltype(j)>(j);
+          std::apply(job, args_);
+        },
+        std::move(
+            *std::any_cast<std::shared_ptr<any_job_t>>(std::move(job_any))));
+  }
+
+  static std::any make_job(job_t&& job) {
+    return std::any(std::make_shared<any_job_t>(std::move(job)));
+  }
+
+  static std::any make_job(moveonly_job_t&& job) {
+    return std::any(std::make_shared<any_job_t>(std::move(job)));
+  }
+
+  template <std::invocable<Args...> T>
+  static std::any make_job(T&& job) {
+    return make_job(moveonly_job_t(std::forward<T>(job)));
+  }
+
+ private:
+  std::tuple<Args...> args_;
+};
+
 /**
  * A group of worker threads
  *
@@ -56,17 +103,20 @@ namespace internal {
  */
 class worker_group {
  public:
-  using job_t = std::function<void()>;
-  using moveonly_job_t = folly::Function<void()>;
-
   /**
    * Create a worker group
    *
    * \param num_workers     Number of worker threads.
    */
-  explicit worker_group(
+  worker_group(logger& lgr, os_access const& os, char const* group_name,
+               size_t num_workers = 1,
+               size_t max_queue_len = std::numeric_limits<size_t>::max(),
+               int niceness = 0);
+
+  worker_group(
       logger& lgr, os_access const& os, char const* group_name,
-      size_t num_workers = 1,
+      size_t num_workers,
+      std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
       int niceness = 0);
 
@@ -82,14 +132,10 @@ class worker_group {
   void wait() { impl_->wait(); }
   bool running() const { return impl_->running(); }
 
-  bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
-  bool add_job(moveonly_job_t&& job) {
-    return impl_->add_moveonly_job(std::move(job));
-  }
-
-  template <std::invocable T>
-  bool add_job(T&& job) {
-    return add_job(moveonly_job_t{std::forward<T>(job)});
+  template <typename... Args>
+  bool add_job(std::invocable<Args...> auto&& job) {
+    return impl_->add_job(basic_thread_state<Args...>::make_job(
+        std::forward<decltype(job)>(job)));
   }
 
   size_t size() const { return impl_->size(); }
@@ -119,8 +165,7 @@ class worker_group {
     virtual void stop() = 0;
     virtual void wait() = 0;
     virtual bool running() const = 0;
-    virtual bool add_job(job_t&& job) = 0;
-    virtual bool add_moveonly_job(moveonly_job_t&& job) = 0;
+    virtual bool add_job(std::any&& job) = 0;
     virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
     virtual std::chrono::nanoseconds

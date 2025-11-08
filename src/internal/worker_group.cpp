@@ -38,7 +38,6 @@
 #include <string>
 #include <thread>
 #include <type_traits>
-#include <variant>
 #include <vector>
 
 #include <fmt/format.h>
@@ -62,9 +61,11 @@ template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
-  basic_worker_group(logger& lgr, os_access const& os, char const* group_name,
-                     size_t num_workers, size_t max_queue_len,
-                     int niceness [[maybe_unused]], Args&&... args)
+  basic_worker_group(
+      logger& lgr, os_access const& os, char const* group_name,
+      size_t num_workers,
+      std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
+      size_t max_queue_len, int niceness [[maybe_unused]], Args&&... args)
       : Policy(std::forward<Args>(args)...)
       , LOG_PROXY_INIT(lgr)
       , os_{os}
@@ -80,11 +81,12 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     }
 
     for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([this, niceness, group_name, i] {
-        folly::setThreadName(fmt::format("{}{}", group_name, i + 1));
-        set_thread_niceness(niceness);
-        do_work(niceness > 10);
-      });
+      workers_.emplace_back(
+          [this, niceness, group_name, i, state = thread_state_factory(i)] {
+            folly::setThreadName(fmt::format("{}{}", group_name, i + 1));
+            set_thread_niceness(niceness);
+            do_work(*state, niceness > 10);
+          });
     }
 
     check_set_affinity_from_enviroment(group_name);
@@ -146,19 +148,21 @@ class basic_worker_group final : public worker_group::impl, private Policy {
    *
    * \param job             The job to add to the dispatcher.
    */
-  bool add_job(worker_group::job_t&& job) override {
-    return add_job_impl(std::move(job));
-  }
+  bool add_job(std::any&& job) override {
+    if (running_) {
+      {
+        std::unique_lock lock(mx_);
+        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
+        jobs_.emplace(std::move(job));
+        ++pending_;
+      }
 
-  /**
-   * Add a new move-only job to the worker group
-   *
-   * The new job will be dispatched to the first available worker thread.
-   *
-   * \param job             The job to add to the dispatcher.
-   */
-  bool add_moveonly_job(worker_group::moveonly_job_t&& job) override {
-    return add_job_impl(std::move(job));
+      cond_.notify_one();
+
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -219,26 +223,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   }
 
  private:
-  using any_job_t =
-      std::variant<worker_group::job_t, worker_group::moveonly_job_t>;
-  using jobs_t = std::queue<any_job_t>;
-
-  bool add_job_impl(any_job_t&& job) {
-    if (running_) {
-      {
-        std::unique_lock lock(mx_);
-        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
-        jobs_.emplace(std::move(job));
-        ++pending_;
-      }
-
-      cond_.notify_one();
-
-      return true;
-    }
-
-    return false;
-  }
+  using jobs_t = std::queue<std::any>;
 
   void check_set_affinity_from_enviroment(char const* group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
@@ -276,12 +261,12 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     }
   }
 
-  void do_work(bool is_background [[maybe_unused]]) {
+  void do_work(thread_state& state, bool is_background [[maybe_unused]]) {
 #ifdef _WIN32
     auto hthr = ::GetCurrentThread();
 #endif
     for (;;) {
-      any_job_t job;
+      std::any job;
 
       {
         std::unique_lock lock(mx_);
@@ -310,13 +295,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
         }
 #endif
         try {
-          std::visit(
-              [](auto&& j) {
-                static_assert(std::is_rvalue_reference_v<decltype(j)>);
-                auto job = std::forward<decltype(j)>(j);
-                job();
-              },
-              std::move(job));
+          state.apply(std::move(job));
         } catch (...) {
           LOG_FATAL << "exception thrown in worker thread: "
                     << exception_str(std::current_exception());
@@ -364,11 +343,22 @@ using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
 
 } // namespace
 
+worker_group::worker_group(
+    logger& lgr, os_access const& os, char const* group_name,
+    size_t num_workers,
+    std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
+    size_t max_queue_len, int niceness)
+    : impl_{make_unique_logging_object<impl, default_worker_group,
+                                       logger_policies>(
+          lgr, os, group_name, num_workers, thread_state_factory, max_queue_len,
+          niceness)} {}
+
 worker_group::worker_group(logger& lgr, os_access const& os,
                            char const* group_name, size_t num_workers,
                            size_t max_queue_len, int niceness)
-    : impl_{make_unique_logging_object<impl, default_worker_group,
-                                       logger_policies>(
-          lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
+    : worker_group(
+          lgr, os, group_name, num_workers,
+          [](size_t) { return std::make_unique<basic_thread_state<>>(); },
+          max_queue_len, niceness) {}
 
 } // namespace dwarfs::internal
