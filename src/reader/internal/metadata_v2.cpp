@@ -373,6 +373,8 @@ class metadata_v2_data {
     walk_data_order_impl(LOG_PROXY_ARG_ func);
   }
 
+  void walk_directories(std::function<void(dir_entry_view)> const& func) const;
+
   std::optional<std::string> get_block_category(size_t block_number) const {
     if (auto catnames = meta_.category_names()) {
       if (auto categories = meta_.block_categories()) {
@@ -1946,6 +1948,15 @@ void metadata_v2_data::walk_data_order_impl(LOG_PROXY_REF_(
   }
 }
 
+void metadata_v2_data::walk_directories(
+    std::function<void(dir_entry_view)> const& func) const {
+  for (uint32_t ino = 0; std::cmp_less(ino, symlink_inode_offset_); ++ino) {
+    auto const self_index = global_.self_dir_entry(ino);
+    auto const parent_index = global_.parent_dir_entry(ino);
+    walk_call(func, self_index, parent_index);
+  }
+}
+
 std::optional<dir_entry_view>
 metadata_v2_data::find(directory_view dir, std::string_view name) const {
   PERFMON_CLS_SCOPED_SECTION(find)
@@ -2298,6 +2309,11 @@ class metadata_ final : public metadata_v2::impl {
   void walk_data_order(
       std::function<void(dir_entry_view)> const& func) const override {
     data_.walk_data_order(LOG_PROXY_ARG_ func);
+  }
+
+  void walk_directories(
+      std::function<void(dir_entry_view)> const& func) const override {
+    data_.walk_directories(func);
   }
 
   dir_entry_view root() const override { return data_.root(); }

@@ -93,6 +93,10 @@ class metadata_v2 {
     impl_->walk_data_order(func);
   }
 
+  void walk_directories(std::function<void(dir_entry_view)> const& func) const {
+    impl_->walk_directories(func);
+  }
+
   dir_entry_view root() const { return impl_->root(); }
 
   std::optional<dir_entry_view> find(std::string_view path) const {
@@ -203,6 +207,9 @@ class metadata_v2 {
 
     virtual void
     walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
+
+    virtual void
+    walk_directories(std::function<void(dir_entry_view)> const& func) const = 0;
 
     virtual dir_entry_view root() const = 0;
 

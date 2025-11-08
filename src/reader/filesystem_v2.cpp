@@ -277,6 +277,7 @@ class filesystem_ final {
   bool has_valid_section_index() const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
   void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
+  void walk_directories(std::function<void(dir_entry_view)> const& func) const;
   dir_entry_view root() const;
   std::optional<dir_entry_view> find(std::string_view path) const;
   std::optional<inode_view> find(int inode) const;
@@ -915,6 +916,12 @@ void filesystem_<LoggerPolicy>::walk_data_order(
 }
 
 template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::walk_directories(
+    std::function<void(dir_entry_view)> const& func) const {
+  meta_.walk_directories(func);
+}
+
+template <typename LoggerPolicy>
 dir_entry_view filesystem_<LoggerPolicy>::root() const {
   return meta_.root();
 }
@@ -1288,6 +1295,10 @@ class filesystem_common_ : public Base {
   void walk_data_order(
       std::function<void(dir_entry_view)> const& func) const override {
     fs_.walk_data_order(func);
+  }
+  void walk_directories(
+      std::function<void(dir_entry_view)> const& func) const override {
+    fs_.walk_directories(func);
   }
   dir_entry_view root() const override { return fs_.root(); }
   std::optional<dir_entry_view> find(std::string_view path) const override {

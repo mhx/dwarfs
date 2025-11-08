@@ -724,6 +724,13 @@ BENCHMARK_DEFINE_F(filesystem_walk, walk_data_order)
   }
 }
 
+BENCHMARK_DEFINE_F(filesystem_walk, walk_directories)
+(::benchmark::State& state) {
+  for (auto _ : state) {
+    fs->walk_directories([](reader::dir_entry_view) {});
+  }
+}
+
 } // namespace
 
 BENCHMARK(frozen_legacy_string_table_lookup);
@@ -779,6 +786,8 @@ BENCHMARK_REGISTER_F(filesystem, seek512)->Apply(PackParamsNone);
 
 BENCHMARK_REGISTER_F(filesystem_walk, walk)->Unit(benchmark::kMillisecond);
 BENCHMARK_REGISTER_F(filesystem_walk, walk_data_order)
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_REGISTER_F(filesystem_walk, walk_directories)
     ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();

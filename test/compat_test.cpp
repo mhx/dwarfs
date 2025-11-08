@@ -1243,6 +1243,29 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
     EXPECT_TRUE(dev->inode().is_directory());
     EXPECT_FALSE(dev->parent());
   }
+
+  {
+    std::vector<std::string> dirs;
+    fs.walk_directories(
+        [&](auto const& de) { dirs.push_back(de.unix_path()); });
+    std::vector<std::string> expected_dirs{
+        "",
+        "dev",
+        "empty",
+        "empty/alsoempty",
+        "foo",
+        "foo/1",
+        "foo/1/2",
+        "foo/1/2/3",
+        "foo/1/2/3/4",
+        "foo/1/2/3/4/5",
+        "foo/1/2/3/4/5/6",
+        "foo/1/2/3/4/5/6/7",
+        "foo/1/2/3/4/5/6/7/8",
+        "foo/1/2/3/4/5/6/7/8/9",
+    };
+    EXPECT_EQ(expected_dirs, dirs);
+  }
 }
 
 auto get_image_path(std::string const& version) {
