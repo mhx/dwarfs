@@ -151,7 +151,6 @@ class directory_view {
 
  public:
   uint32_t inode() const { return inode_; }
-  uint32_t parent_inode() const;
 
   uint32_t first_entry() const { return first_entry(inode_); }
   uint32_t parent_entry() const { return parent_entry(inode_); }

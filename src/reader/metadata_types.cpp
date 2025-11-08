@@ -147,20 +147,6 @@ boost::integer_range<uint32_t> directory_view::entry_range() const {
   return boost::irange(first_entry(), first_entry(inode_ + 1));
 }
 
-uint32_t directory_view::parent_inode() const {
-  if (inode_ == 0) {
-    return 0;
-  }
-
-  auto ent = parent_entry(inode_);
-
-  if (auto e = g_->meta().dir_entries()) {
-    ent = (*e)[ent].inode_num();
-  }
-
-  return ent;
-}
-
 dir_entry_view directory_view::self_entry_view() const {
   return dir_entry_view{
       internal::dir_entry_view_impl::from_dir_entry_index_shared(

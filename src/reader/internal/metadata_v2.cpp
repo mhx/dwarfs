@@ -2112,7 +2112,7 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
 
   case 1:
     return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
-        global_.self_dir_entry(dir.parent_inode()), global_,
+        dir.parent_entry(), global_,
         dir_entry_view_impl::entry_name_type::parent)};
 
   default:
