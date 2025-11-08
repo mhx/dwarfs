@@ -859,7 +859,13 @@ uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
-  return directories_[ino].parent_entry();
+  auto const ent = directories_[ino].parent_entry();
+
+  if (meta_.entry_table_v2_2().empty()) {
+    return ent;
+  }
+
+  return meta_.entry_table_v2_2()[ent];
 }
 
 uint32_t global_metadata::self_dir_entry(uint32_t ino) const {

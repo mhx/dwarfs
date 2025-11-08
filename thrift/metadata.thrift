@@ -77,6 +77,8 @@ struct chunk {
  * fields.
  */
 struct directory {
+   // NOTE: Up to version 2.2, this field was named `parent_inode`
+   //       and contained the *inode* number of the parent.
    1: UInt32 parent_entry      // indexes into `dir_entries`
 
    2: UInt32 first_entry       // indexes into `dir_entries`
