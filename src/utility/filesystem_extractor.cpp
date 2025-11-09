@@ -510,54 +510,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         }
       };
 
-  // Don't use an unordered_set<std::filesystem::path> here, this will break
-  // on macOS 13 due to clang not knowing how to hash std::filesystem::path.
-  std::unordered_set<std::string> matched_dirs;
-
-  if (matcher) {
-    // Collect all directories that contain matching files to make sure
-    // we descend into them during the extraction walk below.
-    fs.walk([&](auto entry) {
-      if (!entry.inode().is_directory()) {
-        if (matcher->match(entry.unix_path())) {
-          while (auto parent = entry.parent()) {
-            if (!matched_dirs.insert(parent->unix_path()).second) {
-              break;
-            }
-            entry = *parent;
-          }
-        }
-      }
-    });
-  }
-
-  fs.walk_data_order([&](auto const& entry) {
-    // TODO: we can surely early abort walk() somehow
-    if (entry.is_root() || hard_error) {
-      return;
-    }
-
-    auto inode = entry.inode();
-
-    if (matcher) {
-      auto const unix_path = entry.unix_path();
-      LOG_TRACE << "checking " << unix_path;
-      if (inode.is_directory()) {
-        if (!matched_dirs.contains(unix_path)) {
-          LOG_TRACE << "skipping directory " << unix_path;
-          // no need to extract this directory
-          return;
-        }
-      } else {
-        if (!matcher->match(unix_path)) {
-          LOG_TRACE << "skipping " << unix_path;
-          // no match, skip this entry
-          return;
-        }
-      }
-    }
-
+  auto do_archive_entry = [&](auto const& entry) {
     auto ae = ::archive_entry_new();
+    auto inode = entry.inode();
     auto stat = fs.getattr(inode);
 
 #ifdef _WIN32
@@ -619,6 +574,54 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       LOG_INFO << "archiving sparse entry " << ::archive_entry_pathname(sparse);
       do_archive(shared_entry_ptr(sparse), *ev);
     }
+  };
+
+  // Don't use an unordered_set<std::filesystem::path> here, this will break
+  // on macOS 13 due to clang not knowing how to hash std::filesystem::path.
+  std::unordered_set<std::string> matched_dirs;
+
+  if (matcher) {
+    // Collect all directories that contain matching files to make sure
+    // we descend into them during the extraction walk below.
+    fs.walk([&](auto entry) {
+      if (!entry.inode().is_directory()) {
+        if (matcher->match(entry.unix_path())) {
+          while (auto parent = entry.parent()) {
+            if (!matched_dirs.insert(parent->unix_path()).second) {
+              break;
+            }
+            entry = *parent;
+          }
+        }
+      }
+    });
+  }
+
+  fs.walk_data_order([&](auto const& entry) {
+    // TODO: we can surely early abort walk() somehow
+    if (entry.is_root() || hard_error) {
+      return;
+    }
+
+    if (matcher) {
+      auto const unix_path = entry.unix_path();
+      LOG_TRACE << "checking " << unix_path;
+      if (entry.inode().is_directory()) {
+        if (!matched_dirs.contains(unix_path)) {
+          LOG_TRACE << "skipping directory " << unix_path;
+          // no need to extract this directory
+          return;
+        }
+      } else {
+        if (!matcher->match(unix_path)) {
+          LOG_TRACE << "skipping " << unix_path;
+          // no match, skip this entry
+          return;
+        }
+      }
+    }
+
+    do_archive_entry(entry);
   });
 
   archiver.wait();
