@@ -120,6 +120,9 @@ la_ssize_t write_range_data(sparse_file_mode mode, struct archive* a,
 template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
+  using archive_ptr = std::shared_ptr<struct ::archive>;
+  static constexpr size_t kRegFileDiskThreads{4};
+
   explicit filesystem_extractor_(logger& lgr, os_access const& os,
                                  std::shared_ptr<file_access const> fa)
       : LOG_PROXY_INIT(lgr)
@@ -145,16 +148,18 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 #else
     LOG_DEBUG << "opening archive file in " << format.description();
 
-    a_ = ::archive_write_new();
+    // return std::shared_ptr<::archive_entry>(e, ::archive_entry_free);
+    a_.reset(::archive_write_new(), ::archive_write_free);
 
     configure_format(format, &output);
 
     if (output.empty()) {
-      check_result(::archive_write_open_filename(a_, nullptr));
+      check_result(a_, ::archive_write_open_filename(a_.get(), nullptr));
     } else {
       out_ = fa_->open_output_binary(output);
-      check_result(::archive_write_open2(a_, this, nullptr, on_stream_write,
-                                         on_stream_close, on_stream_free));
+      check_result(a_, ::archive_write_open2(a_.get(), this, nullptr,
+                                             on_stream_write, on_stream_close,
+                                             on_stream_free));
     }
 #endif
   }
@@ -180,11 +185,11 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
     LOG_DEBUG << "opening archive stream in " << format.description();
 
-    a_ = ::archive_write_new();
+    a_.reset(::archive_write_new(), ::archive_write_free);
 
     configure_format(format);
 
-    check_result(::archive_write_open_fd(a_, pipefd_[1]));
+    check_result(a_, ::archive_write_open_fd(a_.get(), pipefd_[1]));
 #endif
   }
 
@@ -193,24 +198,43 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       std::filesystem::current_path(output);
     }
 
-    a_ = ::archive_write_disk_new();
+    a_.reset(::archive_write_disk_new(), ::archive_write_free);
 
-    check_result(::archive_write_disk_set_options(
-        a_,
-        ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
-            ARCHIVE_EXTRACT_UNLINK | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS |
-            ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_SYMLINKS));
+    check_result(
+        a_, ::archive_write_disk_set_options(
+                a_.get(), ARCHIVE_EXTRACT_NO_AUTODIR | ARCHIVE_EXTRACT_OWNER |
+                              ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
+                              ARCHIVE_EXTRACT_UNLINK |
+                              ARCHIVE_EXTRACT_SECURE_SYMLINKS));
+
+    for (size_t i = 0; i < kRegFileDiskThreads; ++i) {
+      auto ar = archive_ptr{::archive_write_disk_new(), ::archive_write_free};
+      check_result(
+          ar, ::archive_write_disk_set_options(
+                  ar.get(), ARCHIVE_EXTRACT_NO_AUTODIR | ARCHIVE_EXTRACT_OWNER |
+                                ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
+                                ARCHIVE_EXTRACT_UNLINK));
+      a_reg_.push_back(std::move(ar));
+    }
 
     sparse_mode_ = sparse_file_mode::sparse_disk;
   }
 
   void close() override {
+    if (!a_reg_.empty()) {
+      for (auto& ar : a_reg_) {
+        LOG_DEBUG << "closing regular file disk archive";
+        check_result(ar, ::archive_write_close(ar.get()));
+      }
+      LOG_TRACE << "freeing regular file disk archives";
+      a_reg_.clear();
+    }
+
     if (a_) {
       LOG_DEBUG << "closing archive";
-      check_result(::archive_write_close(a_));
+      check_result(a_, ::archive_write_close(a_.get()));
       LOG_TRACE << "freeing archive";
-      ::archive_write_free(a_);
-      a_ = nullptr;
+      a_.reset();
     }
 
     if (iot_) {
@@ -268,17 +292,21 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       auto fn = output->filename().string();
 
       LOG_DEBUG << "setting archive format by extension for " << fn;
-      check_result(::archive_write_set_format_filter_by_ext(a_, fn.c_str()));
+      check_result(
+          a_, ::archive_write_set_format_filter_by_ext(a_.get(), fn.c_str()));
     } else {
-      check_result(::archive_write_set_format_by_name(a_, format.name.c_str()));
+      check_result(a_, ::archive_write_set_format_by_name(a_.get(),
+                                                          format.name.c_str()));
 
       for (auto const& filter : format.filters) {
-        check_result(::archive_write_add_filter_by_name(a_, filter.c_str()));
+        check_result(
+            a_, ::archive_write_add_filter_by_name(a_.get(), filter.c_str()));
       }
     }
 
-    check_result(::archive_write_set_options(a_, format.options.c_str()));
-    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
+    check_result(a_,
+                 ::archive_write_set_options(a_.get(), format.options.c_str()));
+    check_result(a_, ::archive_write_set_bytes_in_last_block(a_.get(), 1));
 #endif
   }
 
@@ -315,26 +343,31 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  void check_result(int res) {
+  void check_result(struct archive* a, int res) {
     switch (res) {
     case ARCHIVE_OK:
     case ARCHIVE_EOF:
     default:
       break;
     case ARCHIVE_WARN:
-      LOG_WARN << std::string(archive_error_string(a_));
+      LOG_WARN << std::string(::archive_error_string(a));
       break;
     case ARCHIVE_RETRY:
     case ARCHIVE_FAILED:
     case ARCHIVE_FATAL:
-      throw archive_error(std::string(archive_error_string(a_)));
+      throw archive_error(std::string(::archive_error_string(a)));
     }
+  }
+
+  void check_result(archive_ptr const& a, int res) {
+    check_result(a.get(), res);
   }
 
   LOG_PROXY_DECL(debug_logger_policy);
   os_access const& os_;
   std::shared_ptr<file_access const> fa_;
-  struct ::archive* a_{nullptr};
+  archive_ptr a_;
+  std::vector<archive_ptr> a_reg_;
   std::unique_ptr<output_stream> out_;
   std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
@@ -353,7 +386,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
 
-  if (auto fmt = ::archive_format(a_)) {
+  if (auto fmt = ::archive_format(a_.get())) {
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
 
     if (sparse_mode == sparse_file_mode::auto_detect) {
@@ -369,7 +402,23 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
 
-  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
+  using worker_ptr = std::shared_ptr<worker_group>;
+
+  worker_ptr archiver = std::make_shared<worker_group>(
+      LOG_GET_LOGGER, os_, "archiver", 1, [this](size_t) {
+        return std::make_unique<basic_thread_state<struct archive*>>(a_.get());
+      });
+  worker_ptr reg_archiver;
+
+  if (a_reg_.empty()) {
+    reg_archiver = archiver;
+  } else {
+    reg_archiver = std::make_shared<worker_group>(
+        LOG_GET_LOGGER, os_, "arch-reg", a_reg_.size(), [this](size_t idx) {
+          return std::make_unique<basic_thread_state<struct archive*>>(
+              a_reg_[idx].get());
+        });
+  }
 
   vfs_stat vfs;
   fs.statvfs(&vfs);
@@ -379,31 +428,29 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   std::atomic<uint64_t> bytes_written{0};
   uint64_t const bytes_total{vfs.blocks};
 
-  auto do_archive =
-      [&](std::shared_ptr<::archive_entry> ae,
-          reader::inode_view const& entry) { // TODO: inode vs. entry
-        bool added{false};
+  auto do_archive = [&](worker_ptr aptr, std::shared_ptr<::archive_entry> ae,
+                        reader::inode_view const& entry) {
+    bool added{false};
 
-        if (auto const size = ::archive_entry_size(ae.get());
-            entry.is_regular_file() && size > 0) {
-          reader::detail::file_reader fr(fs, entry);
+    if (auto const size = ::archive_entry_size(ae.get());
+        entry.is_regular_file() && size > 0) {
+      reader::detail::file_reader fr(fs, entry);
 
-          auto extents = fr.extents();
-          std::vector<file_range> data_ranges;
+      auto extents = fr.extents();
+      std::vector<file_range> data_ranges;
 
-          for (auto const& e : extents) {
-            if (sparse_mode != sparse_file_mode::sparse_disk ||
-                e.kind == dwarfs::extent_kind::data) {
-              data_ranges.push_back(e.range);
-            }
-          }
+      for (auto const& e : extents) {
+        if (sparse_mode != sparse_file_mode::sparse_disk ||
+            e.kind == dwarfs::extent_kind::data) {
+          data_ranges.push_back(e.range);
+        }
+      }
 
-          archiver.add_job([this, &hard_error, &soft_error, &opts,
-                            extents = std::move(extents),
-                            ranges = fr.read_sequential(data_ranges, sem,
-                                                        opts.max_queued_bytes),
-                            ae = std::move(ae), size, &sparse_mode,
-                            &bytes_written, bytes_total]() mutable {
+      aptr->add_job<struct archive*>(
+          [this, &hard_error, &soft_error, &opts, extents = std::move(extents),
+           ranges = fr.read_sequential(data_ranges, sem, opts.max_queued_bytes),
+           ae = std::move(ae), size, &sparse_mode, &bytes_written,
+           bytes_total](struct archive* a) mutable {
             try {
               assert(ae);
 
@@ -436,7 +483,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                 }
               }
 
-              check_result(::archive_write_header(a_, ae.get()));
+              check_result(a, ::archive_write_header(a, ae.get()));
 
               if (sparse_mode == sparse_file_mode::sparse_disk) {
                 extents.erase(std::remove_if(extents.begin(), extents.end(),
@@ -456,10 +503,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                           << ext.range.offset() << " in " << ext.kind
                           << " extent for " << path;
 
-                auto const rv = write_range_data(sparse_mode, a_, r.data(),
+                auto const rv = write_range_data(sparse_mode, a, r.data(),
                                                  r.size(), ext.range.offset());
 
-                check_result(rv);
+                check_result(a, rv);
 
                 if (std::cmp_not_equal(rv, static_cast<la_ssize_t>(r.size()))) {
                   throw archive_error(
@@ -495,20 +542,21 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
             }
           });
 
-          added = true;
-        }
+      added = true;
+    }
 
-        if (!added) {
-          archiver.add_job([this, ae = std::move(ae), &hard_error] {
+    if (!added) {
+      aptr->add_job<struct archive*>(
+          [this, ae = std::move(ae), &hard_error](struct archive* a) {
             try {
-              check_result(::archive_write_header(a_, ae.get()));
+              check_result(a, ::archive_write_header(a, ae.get()));
             } catch (...) {
               LOG_ERROR << exception_str(std::current_exception());
               ++hard_error;
             }
           });
-        }
-      };
+    }
+  };
 
   // Asynchronously prepare walking all entries in data order
   auto ordered_entries = std::async(
@@ -536,13 +584,17 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   }
 
   auto do_archive_entry = [&](auto const& entry) {
-    auto ae = ::archive_entry_new();
+    if (entry.is_root()) {
+      // skip root entry
+      return;
+    }
+
     auto inode = entry.inode();
 
     if (matcher) {
       auto const unix_path = entry.unix_path();
       LOG_TRACE << "checking " << unix_path;
-      if (entry.inode().is_directory()) {
+      if (inode.is_directory()) {
         if (!matched_dirs.contains(unix_path)) {
           LOG_TRACE << "skipping directory " << unix_path;
           // no need to extract this directory
@@ -557,6 +609,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       }
     }
 
+    auto ae = ::archive_entry_new();
     auto stat = fs.getattr(inode);
 
 #ifdef _WIN32
@@ -607,7 +660,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     };
 
     if (ae) {
-      do_archive(shared_entry_ptr(ae), inode);
+      do_archive(inode.is_regular_file() && stat.nlink_unchecked() == 1
+                     ? reg_archiver
+                     : archiver,
+                 shared_entry_ptr(ae), inode);
     }
 
     if (sparse) {
@@ -616,21 +672,35 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         LOG_ERROR << "find() failed";
       }
       LOG_INFO << "archiving sparse entry " << ::archive_entry_pathname(sparse);
-      do_archive(shared_entry_ptr(sparse), *ev);
+      do_archive(archiver, shared_entry_ptr(sparse), *ev);
     }
   };
+
+  for (auto const& entry : fs.directory_entries()) {
+    if (hard_error) {
+      break;
+    }
+
+    do_archive_entry(entry);
+  }
+
+  archiver->wait();
 
   for (auto const& entry : ordered_entries.get()) {
     if (hard_error) {
       break;
     }
 
-    if (!entry.is_root()) {
-      do_archive_entry(entry);
+    if (entry.inode().is_directory()) {
+      // directories have already been processed above
+      continue;
     }
+
+    do_archive_entry(entry);
   }
 
-  archiver.wait();
+  archiver->wait();
+  reg_archiver->wait();
 
   if (hard_error) {
     DWARFS_THROW(runtime_error, "extraction aborted");
