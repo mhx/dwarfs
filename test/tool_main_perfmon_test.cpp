@@ -43,7 +43,6 @@ TEST(dwarfsextract_test, perfmon) {
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.getattr]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readlink_ec]"));
-  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.statvfs]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[inode_reader_v2.readv_future]"));
   static std::regex const perfmon_re{R"(\[filesystem_v2\.getattr\])"
                                      R"(\s+samples:\s+\d+)"

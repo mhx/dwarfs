@@ -29,8 +29,8 @@
 #pragma once
 
 #include <filesystem>
-#include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -57,11 +57,16 @@ struct filesystem_extractor_archive_format;
 struct filesystem_extractor_options {
   size_t max_queued_bytes{static_cast<size_t>(512) << 20};
   bool continue_on_error{false};
-  std::function<void(std::string_view, uint64_t, uint64_t)> progress;
+  bool enable_progress{false};
 };
 
 class filesystem_extractor {
  public:
+  struct progress_info {
+    uint64_t extracted_bytes{0};
+    std::optional<uint64_t> total_bytes{};
+  };
+
   filesystem_extractor(logger& lgr, os_access const& os,
                        std::shared_ptr<file_access const> fa = nullptr);
 
@@ -96,6 +101,8 @@ class filesystem_extractor {
     return impl_->extract(fs, matcher, opts);
   }
 
+  progress_info get_progress() const { return impl_->get_progress(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -111,6 +118,7 @@ class filesystem_extractor {
     virtual bool
     extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
             filesystem_extractor_options const& opts) = 0;
+    virtual progress_info get_progress() const = 0;
   };
 
  private:

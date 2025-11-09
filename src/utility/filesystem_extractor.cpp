@@ -254,6 +254,21 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
           filesystem_extractor_options const& opts) override;
 
+  filesystem_extractor::progress_info get_progress() const override {
+    filesystem_extractor::progress_info pi;
+
+    {
+      std::lock_guard lock(bytes_total_mx_);
+      if (bytes_total_) {
+        pi.total_bytes = *bytes_total_;
+      }
+    }
+
+    pi.extracted_bytes = bytes_written_.load();
+
+    return pi;
+  }
+
  private:
   static la_ssize_t on_stream_write(struct archive* /*a*/, void* client_data,
                                     void const* buffer, size_t length) {
@@ -372,6 +387,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
   sparse_file_mode sparse_mode_{sparse_file_mode::auto_detect};
+  std::atomic<uint64_t> bytes_written_{0};
+  std::mutex mutable bytes_total_mx_;
+  std::optional<uint64_t> bytes_total_{};
 };
 
 template <typename LoggerPolicy>
@@ -420,18 +438,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         });
   }
 
-  vfs_stat vfs;
-  fs.statvfs(&vfs);
-
   std::atomic<size_t> hard_error{0};
   std::atomic<size_t> soft_error{0};
-  std::atomic<uint64_t> bytes_written{0};
-  uint64_t const bytes_total{vfs.blocks};
 
   auto do_archive = [&](worker_ptr aptr, std::shared_ptr<::archive_entry> ae,
                         reader::inode_view const& entry) {
-    bool added{false};
-
+    // hard links will have size 0
     if (auto const size = ::archive_entry_size(ae.get());
         entry.is_regular_file() && size > 0) {
       reader::detail::file_reader fr(fs, entry);
@@ -449,8 +461,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       aptr->add_job<struct archive*>(
           [this, &hard_error, &soft_error, &opts, extents = std::move(extents),
            ranges = fr.read_sequential(data_ranges, sem, opts.max_queued_bytes),
-           ae = std::move(ae), size, &sparse_mode, &bytes_written,
-           bytes_total](struct archive* a) mutable {
+           ae = std::move(ae), size, &sparse_mode](struct archive* a) mutable {
             try {
               assert(ae);
 
@@ -521,9 +532,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                   extents.erase(extents.begin());
                 }
 
-                if (opts.progress) {
-                  bytes_written += r.size();
-                  opts.progress(path, bytes_written, bytes_total);
+                if (opts.enable_progress) {
+                  bytes_written_ += r.size();
+                  LOG_TRACE << "progress: " << bytes_written_.load()
+                            << " bytes written";
                 }
               }
 
@@ -541,11 +553,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
               }
             }
           });
-
-      added = true;
-    }
-
-    if (!added) {
+    } else {
       aptr->add_job<struct archive*>(
           [this, ae = std::move(ae), &hard_error](struct archive* a) {
             try {
@@ -567,11 +575,22 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   std::unordered_set<std::string> matched_dirs;
 
   if (matcher) {
+    std::unordered_set<uint32_t> seen_hardlinks;
+    uint64_t data_size{0};
+
     // Collect all directories that contain matching files to make sure
     // we descend into them during the extraction walk below.
     fs.walk([&](auto entry) {
-      if (!entry.inode().is_directory()) {
+      auto inode = entry.inode();
+      if (!inode.is_directory()) {
         if (matcher->match(entry.unix_path())) {
+          if (opts.enable_progress) {
+            auto stat = fs.getattr(inode);
+            if (stat.nlink() == 1 ||
+                seen_hardlinks.insert(inode.inode_num()).second) {
+              data_size += stat.allocated_size();
+            }
+          }
           while (auto parent = entry.parent()) {
             if (!matched_dirs.insert(parent->unix_path()).second) {
               break;
@@ -581,6 +600,21 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         }
       }
     });
+
+    if (opts.enable_progress) {
+      std::lock_guard lock(bytes_total_mx_);
+      bytes_total_.emplace(data_size);
+    }
+  } else if (opts.enable_progress) {
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+    std::lock_guard lock(bytes_total_mx_);
+    bytes_total_.emplace(vfs.blocks);
+  }
+
+  if (opts.enable_progress) {
+    LOG_DEBUG << "progress: " << bytes_total_.value()
+              << " total bytes to extract";
   }
 
   auto do_archive_entry = [&](auto const& entry) {
@@ -642,8 +676,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       if (ec) {
         LOG_ERROR << "readlink() failed: " << ec.message();
       }
-      if (opts.progress) {
-        bytes_written += link.size();
+      if (opts.enable_progress) {
+        bytes_written_ += link.size();
+        LOG_TRACE << "progress: " << bytes_written_.load() << " bytes written";
       }
 #ifdef _WIN32
       std::filesystem::path linkpath(string_to_u8string(link));
@@ -702,6 +737,11 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   archiver->wait();
   reg_archiver->wait();
 
+  if (opts.enable_progress) {
+    LOG_DEBUG << "progress: " << bytes_written_.load() << "/"
+              << bytes_total_.value() << " bytes written";
+  }
+
   if (hard_error) {
     DWARFS_THROW(runtime_error, "extraction aborted");
   }
@@ -720,7 +760,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     return false;
   }
 
-  LOG_INFO << "extraction finished without errors";
+  LOG_VERBOSE << "extraction finished without errors";
 
   return true;
 }

@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -52,6 +53,7 @@
 #include <dwarfs_tool_manpage.h>
 
 namespace po = boost::program_options;
+using namespace std::chrono_literals;
 
 namespace dwarfs::tool {
 
@@ -64,6 +66,49 @@ constexpr std::wstring_view kDash{L"-"};
 constexpr std::string_view kDash{"-"};
 #endif
 #endif
+
+class progress_thread {
+ public:
+  using fn_type = std::function<void(bool last)>;
+
+  progress_thread(std::chrono::nanoseconds interval, fn_type fn)
+      : thread_([this, interval, fn] { this->run(interval, fn); }) {}
+
+  ~progress_thread() { stop(); }
+
+  void stop() {
+    try {
+      {
+        std::lock_guard lock(running_mx_);
+        if (!running_) {
+          return;
+        }
+        running_ = false;
+      }
+      cond_.notify_all();
+      thread_.join();
+    } catch (...) {
+      DWARFS_PANIC(
+          fmt::format("exception thrown in writer_progress destructor: {}",
+                      exception_str(std::current_exception())));
+    }
+  }
+
+ private:
+  void run(std::chrono::nanoseconds interval, fn_type fn) {
+    std::unique_lock lock(running_mx_);
+    do {
+      fn(false);
+      cond_.wait_for(lock, interval);
+    } while (running_);
+    fn(true);
+  }
+
+  mutable std::mutex running_mx_;
+  bool running_{true};
+  std::condition_variable cond_;
+  std::thread thread_;
+};
 
 } // namespace
 
@@ -247,25 +292,36 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
     fsx_opts.max_queued_bytes = fsopts.block_cache.max_bytes;
     fsx_opts.continue_on_error = continue_on_error;
-    int prog{-1};
+    fsx_opts.enable_progress = stdout_progress;
+
+    std::optional<progress_thread> prog;
+
     if (stdout_progress) {
-      fsx_opts.progress = [&prog, &iol](std::string_view, uint64_t extracted,
-                                        uint64_t total) {
-        int p = 100 * extracted / total;
-        if (p > prog) {
-          prog = p;
-          iol.out << "\r" << prog << "%";
-          iol.out.flush();
+      prog.emplace(40ms, [&fsx, &iol](bool last) {
+        if (!last) {
+          auto const info = fsx.get_progress();
+          int pct = 0;
+          if (info.total_bytes) {
+            if (info.total_bytes.value() > 0) {
+              pct = static_cast<int>(100 * info.extracted_bytes /
+                                     info.total_bytes.value());
+            } else {
+              pct = 100;
+            }
+          }
+          iol.out << "\r" << pct << "%";
+        } else {
+          iol.out << "\r100%\n";
         }
-        if (extracted == total) {
-          iol.out << "\n";
-        }
-      };
+        iol.out.flush();
+      });
     }
 
     rv = fsx.extract(fs, matcher.get(), fsx_opts) ? 0 : 2;
 
     fsx.close();
+
+    prog.reset();
 
     if (perfmon) {
       perfmon->summarize(iol.err);

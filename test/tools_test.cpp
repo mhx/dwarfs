@@ -1952,7 +1952,7 @@ TEST(tools_test, dwarfsextract_progress) {
 #endif
 
   ASSERT_TRUE(out);
-  EXPECT_GT(out->size(), 100) << *out;
+  EXPECT_GT(out->size(), 1) << *out;
 #ifdef _WIN32
   EXPECT_THAT(*out, ::testing::EndsWith("100%\r\n"));
 #else
