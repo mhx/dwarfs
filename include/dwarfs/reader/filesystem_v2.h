@@ -120,6 +120,10 @@ class filesystem_v2_lite {
     lite_->walk_directories(func);
   }
 
+  dir_entry_view_iterable entries_in_data_order() const {
+    return lite_->entries_in_data_order();
+  }
+
   dir_entry_view root() const { return lite_->root(); }
 
   std::optional<dir_entry_view> find(std::string_view path) const {
@@ -370,6 +374,7 @@ class filesystem_v2_lite {
     walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual void
     walk_directories(std::function<void(dir_entry_view)> const& func) const = 0;
+    virtual dir_entry_view_iterable entries_in_data_order() const = 0;
     virtual dir_entry_view root() const = 0;
     virtual std::optional<dir_entry_view> find(std::string_view path) const = 0;
     virtual std::optional<inode_view> find(int inode) const = 0;

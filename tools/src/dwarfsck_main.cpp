@@ -127,7 +127,7 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
 
   size_t const max_queued_per_worker = max_queued_bytes / num_workers;
 
-  fs.walk_data_order([&](auto const& de) {
+  for (auto const& de : fs.entries_in_data_order()) {
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
@@ -156,7 +156,7 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
             }
           });
     }
-  });
+  }
 
   pool.wait();
 }

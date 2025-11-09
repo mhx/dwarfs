@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 
 #include <boost/range/irange.hpp>
@@ -172,6 +173,66 @@ class directory_view {
 
   uint32_t inode_{0};
   internal::global_metadata const* g_{nullptr};
+};
+
+class dir_entry_view_iterable {
+ public:
+  friend class internal::metadata_v2_data;
+
+  class dir_entry_range {
+   public:
+    virtual ~dir_entry_range() = default;
+
+    virtual size_t size() const noexcept = 0;
+    virtual dir_entry_view at(size_t index) const = 0;
+  };
+
+  class iterator {
+   public:
+    using value_type = dir_entry_view;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::input_iterator_tag;
+    using reference = value_type const&;
+    using pointer = value_type const*;
+
+    iterator() = default;
+    iterator(dir_entry_range& range);
+
+    reference operator*() const noexcept { return cur_; }
+    pointer operator->() const noexcept { return &cur_; }
+
+    iterator& operator++();
+
+    iterator operator++(int) {
+      auto tmp = *this;
+      ++*this;
+      return tmp;
+    }
+
+    friend bool operator==(iterator const& a, std::default_sentinel_t);
+
+    friend bool operator!=(iterator const& a, std::default_sentinel_t s) {
+      return !(a == s);
+    }
+
+   private:
+    value_type cur_;
+    size_t index_{0};
+    dir_entry_range* range_{nullptr};
+  };
+
+  static_assert(std::input_iterator<iterator>);
+
+  iterator begin() const noexcept { return iterator{*range_}; }
+  std::default_sentinel_t end() const noexcept { return {}; }
+
+  size_t size() const noexcept;
+
+ private:
+  dir_entry_view_iterable(std::unique_ptr<dir_entry_range> range)
+      : range_{std::move(range)} {}
+
+  std::unique_ptr<dir_entry_range> range_;
 };
 
 } // namespace dwarfs::reader

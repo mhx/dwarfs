@@ -597,10 +597,13 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     });
   }
 
-  fs.walk_data_order([&](auto const& entry) {
-    // TODO: we can surely early abort walk() somehow
-    if (entry.is_root() || hard_error) {
-      return;
+  for (auto const& entry : fs.entries_in_data_order()) {
+    if (hard_error) {
+      break;
+    }
+
+    if (entry.is_root()) {
+      continue;
     }
 
     if (matcher) {
@@ -610,19 +613,19 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         if (!matched_dirs.contains(unix_path)) {
           LOG_TRACE << "skipping directory " << unix_path;
           // no need to extract this directory
-          return;
+          continue;
         }
       } else {
         if (!matcher->match(unix_path)) {
           LOG_TRACE << "skipping " << unix_path;
           // no match, skip this entry
-          return;
+          continue;
         }
       }
     }
 
     do_archive_entry(entry);
-  });
+  }
 
   archiver.wait();
 

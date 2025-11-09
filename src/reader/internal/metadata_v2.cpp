@@ -285,6 +285,29 @@ std::ostream& operator<<(std::ostream& os, file_size_result const& fsr) {
   return os;
 }
 
+class data_order_dir_entry_range
+    : public dir_entry_view_iterable::dir_entry_range {
+ public:
+  using ordered_entries_type = std::vector<std::pair<uint32_t, uint32_t>>;
+
+  data_order_dir_entry_range(ordered_entries_type&& entries,
+                             global_metadata const& g)
+      : entries_{std::move(entries)}
+      , g_{g} {}
+
+  size_t size() const noexcept override { return entries_.size(); }
+
+  dir_entry_view at(size_t index) const override {
+    auto const& [self_index, parent_index] = entries_.at(index);
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+        self_index, parent_index, g_)};
+  }
+
+ private:
+  ordered_entries_type entries_;
+  global_metadata const& g_;
+};
+
 } // namespace
 
 class metadata_v2_data {
@@ -366,14 +389,11 @@ class metadata_v2_data {
     });
   }
 
-  template <typename LoggerPolicy>
-  void
-  walk_data_order(LOG_PROXY_REF_(LoggerPolicy)
-                      std::function<void(dir_entry_view)> const& func) const {
-    walk_data_order_impl(LOG_PROXY_ARG_ func);
-  }
-
   void walk_directories(std::function<void(dir_entry_view)> const& func) const;
+
+  template <typename LoggerPolicy>
+  dir_entry_view_iterable
+      entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const;
 
   std::optional<std::string> get_block_category(size_t block_number) const {
     if (auto catnames = meta_.category_names()) {
@@ -534,10 +554,6 @@ class metadata_v2_data {
   template <typename LoggerPolicy, typename T>
   void walk(LOG_PROXY_REF_(LoggerPolicy) uint32_t self_index,
             uint32_t parent_index, set_type<int>& seen, T const& func) const;
-
-  template <typename LoggerPolicy>
-  void walk_data_order_impl(LOG_PROXY_REF_(
-      LoggerPolicy) std::function<void(dir_entry_view)> const& func) const;
 
   template <typename LoggerPolicy, typename T>
   void walk_tree(LOG_PROXY_REF_(LoggerPolicy) T&& func) const {
@@ -1842,9 +1858,9 @@ void metadata_v2_data::walk(LOG_PROXY_REF_(LoggerPolicy) uint32_t self_index,
 }
 
 template <typename LoggerPolicy>
-void metadata_v2_data::walk_data_order_impl(LOG_PROXY_REF_(
-    LoggerPolicy) std::function<void(dir_entry_view)> const& func) const {
-  std::vector<std::pair<uint32_t, uint32_t>> entries;
+dir_entry_view_iterable
+metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
+  data_order_dir_entry_range::ordered_entries_type entries;
 
   {
     auto tv = LOG_TIMED_VERBOSE;
@@ -1943,9 +1959,8 @@ void metadata_v2_data::walk_data_order_impl(LOG_PROXY_REF_(
     tv << "ordered " << entries.size() << " entries by file data order";
   }
 
-  for (auto [self_index, parent_index] : entries) {
-    walk_call(func, self_index, parent_index);
-  }
+  return dir_entry_view_iterable{std::make_unique<data_order_dir_entry_range>(
+      std::move(entries), global_)};
 }
 
 void metadata_v2_data::walk_directories(
@@ -2305,14 +2320,13 @@ class metadata_ final : public metadata_v2::impl {
     data_.walk(LOG_PROXY_ARG_ func);
   }
 
-  void walk_data_order(
-      std::function<void(dir_entry_view)> const& func) const override {
-    data_.walk_data_order(LOG_PROXY_ARG_ func);
-  }
-
   void walk_directories(
       std::function<void(dir_entry_view)> const& func) const override {
     data_.walk_directories(func);
+  }
+
+  dir_entry_view_iterable entries_in_data_order() const override {
+    return data_.entries_in_data_order(LOG_PROXY_ARG);
   }
 
   dir_entry_view root() const override { return data_.root(); }

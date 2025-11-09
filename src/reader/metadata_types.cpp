@@ -157,4 +157,29 @@ dir_entry_view directory_view::self_entry_view() const {
           g_->self_dir_entry(inode_), *g_)};
 }
 
+dir_entry_view_iterable::iterator::iterator(dir_entry_range& range)
+    : range_{&range} {
+  if (index_ < range.size()) {
+    cur_ = range.at(index_);
+  }
+}
+
+dir_entry_view_iterable::iterator&
+dir_entry_view_iterable::iterator::operator++() {
+  if (++index_ < range_->size()) {
+    cur_ = range_->at(index_);
+  } else {
+    cur_ = dir_entry_view{};
+  }
+
+  return *this;
+}
+
+bool operator==(dir_entry_view_iterable::iterator const& a,
+                std::default_sentinel_t) {
+  return a.index_ == a.range_->size();
+}
+
+size_t dir_entry_view_iterable::size() const noexcept { return range_->size(); }
+
 } // namespace dwarfs::reader
