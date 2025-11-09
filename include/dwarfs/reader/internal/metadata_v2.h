@@ -89,8 +89,8 @@ class metadata_v2 {
     impl_->walk(func);
   }
 
-  void walk_directories(std::function<void(dir_entry_view)> const& func) const {
-    impl_->walk_directories(func);
+  dir_entry_view_iterable directory_entries() const {
+    return impl_->directory_entries();
   }
 
   dir_entry_view_iterable entries_in_data_order() const {
@@ -205,9 +205,7 @@ class metadata_v2 {
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
 
-    virtual void
-    walk_directories(std::function<void(dir_entry_view)> const& func) const = 0;
-
+    virtual dir_entry_view_iterable directory_entries() const = 0;
     virtual dir_entry_view_iterable entries_in_data_order() const = 0;
 
     virtual dir_entry_view root() const = 0;

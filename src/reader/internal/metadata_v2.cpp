@@ -308,6 +308,32 @@ class data_order_dir_entry_range
   global_metadata const& g_;
 };
 
+class directories_dir_entry_range
+    : public dir_entry_view_iterable::dir_entry_range {
+ public:
+  directories_dir_entry_range(size_t count, global_metadata const& g)
+      : count_{count}
+      , g_{g} {}
+
+  size_t size() const noexcept override { return count_; }
+
+  dir_entry_view at(size_t index) const override {
+    if (index < count_) {
+      auto const self_index = g_.self_dir_entry(index);
+      auto const parent_index = g_.parent_dir_entry(index);
+      return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+          self_index, parent_index, g_)};
+    }
+
+    throw std::out_of_range(
+        fmt::format("index {} out of range (size={})", index, count_));
+  }
+
+ private:
+  size_t const count_{0};
+  global_metadata const& g_;
+};
+
 } // namespace
 
 class metadata_v2_data {
@@ -389,7 +415,11 @@ class metadata_v2_data {
     });
   }
 
-  void walk_directories(std::function<void(dir_entry_view)> const& func) const;
+  dir_entry_view_iterable directory_entries() const {
+    return dir_entry_view_iterable{
+        std::make_unique<directories_dir_entry_range>(symlink_inode_offset_,
+                                                      global_)};
+  }
 
   template <typename LoggerPolicy>
   dir_entry_view_iterable
@@ -1963,15 +1993,6 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
       std::move(entries), global_)};
 }
 
-void metadata_v2_data::walk_directories(
-    std::function<void(dir_entry_view)> const& func) const {
-  for (uint32_t ino = 0; std::cmp_less(ino, symlink_inode_offset_); ++ino) {
-    auto const self_index = global_.self_dir_entry(ino);
-    auto const parent_index = global_.parent_dir_entry(ino);
-    walk_call(func, self_index, parent_index);
-  }
-}
-
 std::optional<dir_entry_view>
 metadata_v2_data::find(directory_view dir, std::string_view name) const {
   PERFMON_CLS_SCOPED_SECTION(find)
@@ -2320,9 +2341,8 @@ class metadata_ final : public metadata_v2::impl {
     data_.walk(LOG_PROXY_ARG_ func);
   }
 
-  void walk_directories(
-      std::function<void(dir_entry_view)> const& func) const override {
-    data_.walk_directories(func);
+  dir_entry_view_iterable directory_entries() const override {
+    return data_.directory_entries();
   }
 
   dir_entry_view_iterable entries_in_data_order() const override {

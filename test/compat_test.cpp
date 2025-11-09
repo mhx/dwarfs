@@ -1247,8 +1247,9 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
 
   {
     std::vector<std::string> dirs;
-    fs.walk_directories(
-        [&](auto const& de) { dirs.push_back(de.unix_path()); });
+    for (auto const& de : fs.directory_entries()) {
+      dirs.push_back(de.unix_path());
+    }
     std::vector<std::string> expected_dirs{
         "",
         "dev",

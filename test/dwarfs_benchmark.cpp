@@ -727,7 +727,9 @@ BENCHMARK_DEFINE_F(filesystem_walk, walk_data_order)
 BENCHMARK_DEFINE_F(filesystem_walk, walk_directories)
 (::benchmark::State& state) {
   for (auto _ : state) {
-    fs->walk_directories([](reader::dir_entry_view) {});
+    for (auto const& de : fs->directory_entries()) {
+      ::benchmark::DoNotOptimize(&de);
+    }
   }
 }
 

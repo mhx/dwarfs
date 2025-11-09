@@ -277,7 +277,7 @@ class filesystem_ final {
   bool has_valid_section_index() const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
   void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
-  void walk_directories(std::function<void(dir_entry_view)> const& func) const;
+  dir_entry_view_iterable directory_entries() const;
   dir_entry_view_iterable entries_in_data_order() const;
   dir_entry_view root() const;
   std::optional<dir_entry_view> find(std::string_view path) const;
@@ -919,9 +919,8 @@ void filesystem_<LoggerPolicy>::walk_data_order(
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::walk_directories(
-    std::function<void(dir_entry_view)> const& func) const {
-  meta_.walk_directories(func);
+dir_entry_view_iterable filesystem_<LoggerPolicy>::directory_entries() const {
+  return meta_.directory_entries();
 }
 
 template <typename LoggerPolicy>
@@ -1305,9 +1304,8 @@ class filesystem_common_ : public Base {
       std::function<void(dir_entry_view)> const& func) const override {
     fs_.walk_data_order(func);
   }
-  void walk_directories(
-      std::function<void(dir_entry_view)> const& func) const override {
-    fs_.walk_directories(func);
+  dir_entry_view_iterable directory_entries() const override {
+    return fs_.directory_entries();
   }
   dir_entry_view_iterable entries_in_data_order() const override {
     return fs_.entries_in_data_order();
