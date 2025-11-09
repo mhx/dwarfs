@@ -187,6 +187,7 @@ add_library(
   dwarfs_extractor
 
   src/utility/filesystem_extractor.cpp
+  src/utility/filesystem_extractor_archive_format.cpp
 )
 
 add_library(

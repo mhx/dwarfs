@@ -49,6 +49,7 @@
 #include <dwarfs/string.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/utility/filesystem_extractor.h>
+#include <dwarfs/utility/filesystem_extractor_archive_format.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
 #include <dwarfs/utility/rewrite_options.h>
 #include <dwarfs/vfs_stat.h>

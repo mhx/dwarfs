@@ -47,6 +47,7 @@
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/filesystem_extractor.h>
+#include <dwarfs/utility/filesystem_extractor_archive_format.h>
 #include <dwarfs_tool_main.h>
 #include <dwarfs_tool_manpage.h>
 

@@ -43,9 +43,6 @@
 #include <archive_entry.h>
 
 #include <fmt/format.h>
-#if FMT_VERSION >= 110000
-#include <fmt/ranges.h>
-#endif
 
 #include <folly/ExceptionString.h>
 #include <folly/portability/Fcntl.h>
@@ -66,6 +63,7 @@
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/filesystem_extractor.h>
+#include <dwarfs/utility/filesystem_extractor_archive_format.h>
 #include <dwarfs/vfs_stat.h>
 
 #include <dwarfs/internal/worker_group.h>
@@ -649,20 +647,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 }
 
 } // namespace internal
-
-std::string filesystem_extractor_archive_format::description() const {
-  std::string desc = name;
-
-  if (!filters.empty()) {
-    desc += fmt::format(" ({})", fmt::join(filters, ", "));
-  }
-
-  if (!options.empty()) {
-    desc += " with options '" + options + "'";
-  }
-
-  return desc;
-}
 
 filesystem_extractor::filesystem_extractor(
     logger& lgr, os_access const& os, std::shared_ptr<file_access const> fa)
