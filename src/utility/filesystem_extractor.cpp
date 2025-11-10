@@ -412,7 +412,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     }
   }
 
-  ::archive_entry* sparse = nullptr;
+  ::archive_entry* spare = nullptr;
 
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
             << " bytes";
@@ -719,7 +719,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 #endif
     }
 
-    ::archive_entry_linkify(lr, &ae, &sparse);
+    ::archive_entry_linkify(lr, &ae, &spare);
 
     auto shared_entry_ptr = [](::archive_entry* e) {
       return std::shared_ptr<::archive_entry>(e, ::archive_entry_free);
@@ -732,13 +732,13 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                  shared_entry_ptr(ae), inode);
     }
 
-    if (sparse) {
-      auto ev = fs.find(::archive_entry_ino(sparse));
+    if (spare) {
+      auto ev = fs.find(::archive_entry_ino(spare));
       if (!ev) {
         LOG_ERROR << "find() failed";
       }
-      LOG_INFO << "archiving sparse entry " << ::archive_entry_pathname(sparse);
-      do_archive(archiver, shared_entry_ptr(sparse), *ev);
+      LOG_DEBUG << "archiving spare entry " << ::archive_entry_pathname(spare);
+      do_archive(archiver, shared_entry_ptr(spare), *ev);
     }
   };
 
@@ -780,7 +780,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   // As we're visiting *all* hardlinks, we should never see any deferred
   // entries.
   ::archive_entry* ae = nullptr;
-  ::archive_entry_linkify(lr, &ae, &sparse);
+  ::archive_entry_linkify(lr, &ae, &spare);
   if (ae) {
     ::archive_entry_free(ae);
     DWARFS_THROW(runtime_error, "unexpected deferred entry");
