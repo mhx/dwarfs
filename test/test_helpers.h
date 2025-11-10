@@ -403,6 +403,18 @@ parse_mtree(std::string_view mtree);
 
 file_view make_real_file_view(std::filesystem::path const& path);
 
+struct archive_format_info {
+  std::string_view name;
+  bool supports_devices;
+  bool supports_specials;
+  bool is_disk{false};
+};
+
+std::ostream& operator<<(std::ostream& os, archive_format_info const& info);
+
+std::span<archive_format_info const>
+supported_libarchive_formats(bool with_disk = false);
+
 bool skip_slow_tests();
 
 #define DWARFS_SLOW_TEST()                                                     \

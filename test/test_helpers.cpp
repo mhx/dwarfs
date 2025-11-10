@@ -675,6 +675,50 @@ file_view make_real_file_view(std::filesystem::path const& path) {
   return os.open_file(path);
 }
 
+std::ostream& operator<<(std::ostream& os, archive_format_info const& info) {
+  return os << info.name;
+}
+
+std::span<archive_format_info const>
+supported_libarchive_formats(bool with_disk) {
+  using namespace std::string_view_literals;
+  static constexpr std::array formats{
+      archive_format_info{"<disk>"sv, true, true, true},
+      archive_format_info{"7zip"sv, true, true},
+      archive_format_info{"bin"sv, true, false},
+      archive_format_info{"bsdtar"sv, true, true},
+      archive_format_info{"cd9660"sv, true, true},
+      archive_format_info{"cpio"sv, true, true},
+      archive_format_info{"gnutar"sv, true, true},
+      archive_format_info{"iso"sv, true, true},
+      archive_format_info{"iso9660"sv, true, true},
+      archive_format_info{"mtree"sv, true, true},
+      archive_format_info{"mtree-classic"sv, true, true},
+      archive_format_info{"newc"sv, true, true},
+      archive_format_info{"odc"sv, true, true},
+      archive_format_info{"oldtar"sv, false, false},
+      archive_format_info{"pax"sv, true, true},
+      archive_format_info{"paxr"sv, true, true},
+      archive_format_info{"posix"sv, true, true},
+      archive_format_info{"rpax"sv, true, true},
+      archive_format_info{"shar"sv, true, true},
+      archive_format_info{"shardump"sv, true, true},
+      archive_format_info{"ustar"sv, true, true},
+      archive_format_info{"v7tar"sv, false, false},
+      archive_format_info{"v7"sv, false, false},
+      archive_format_info{"xar"sv, true, true},
+      archive_format_info{"zip"sv, false, false},
+  };
+
+  std::span<archive_format_info const> rv{formats};
+
+  if (!with_disk) {
+    rv = rv.subspan(1);
+  }
+
+  return rv;
+}
+
 bool skip_slow_tests() {
   static bool skip = getenv_is_enabled("DWARFS_SKIP_SLOW_TESTS");
   return skip;
