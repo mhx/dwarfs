@@ -479,6 +479,10 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
     EXPECT_EQ(5, vfs.files); // root dir + 4 files (no hardlinks)
     EXPECT_EQ(1, vfs.frsize);
     EXPECT_EQ(29_KiB, vfs.blocks);
+
+    EXPECT_EQ(1_TiB + 535_GiB + 29_KiB, vfs.total_fs_size);
+    EXPECT_EQ((1_TiB + 535_GiB + 29_KiB) * 2, vfs.total_hardlink_size);
+    EXPECT_EQ(29_KiB, vfs.total_allocated_fs_size);
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {

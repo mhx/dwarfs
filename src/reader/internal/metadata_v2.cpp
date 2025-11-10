@@ -1263,6 +1263,20 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
   stbuf->files = inode_count_;
   stbuf->readonly = true;
   stbuf->namemax = PATH_MAX;
+
+  stbuf->total_fs_size = meta_.total_fs_size();
+
+  if (auto const thls = meta_.total_hardlink_size(); thls.has_value()) {
+    stbuf->total_hardlink_size = *thls;
+  } else if (nlinks_.has_value()) {
+    stbuf->total_hardlink_size = nlinks_->total_hardlink_size.value_or(0);
+    stbuf->total_fs_size -= stbuf->total_hardlink_size;
+  } else {
+    stbuf->total_hardlink_size = 0;
+  }
+
+  stbuf->total_allocated_fs_size =
+      meta_.total_allocated_fs_size().value_or(stbuf->total_fs_size);
 }
 
 file_off_t

@@ -42,6 +42,9 @@ struct vfs_stat {
   filcnt_type files;
   uint64_t namemax;
   bool readonly;
+  uint64_t total_fs_size;
+  uint64_t total_allocated_fs_size;
+  uint64_t total_hardlink_size;
 };
 
 template <typename T>
