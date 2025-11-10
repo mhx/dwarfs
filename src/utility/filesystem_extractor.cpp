@@ -576,6 +576,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   if (matcher) {
     std::unordered_set<uint32_t> seen_hardlinks;
+    uint64_t match_count{0};
     uint64_t data_size{0};
 
     // Collect all directories that contain matching files to make sure
@@ -584,6 +585,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       auto inode = entry.inode();
       if (!inode.is_directory()) {
         if (matcher->match(entry.unix_path())) {
+          ++match_count;
+
           if (opts.enable_progress) {
             auto stat = fs.getattr(inode);
             if (stat.nlink() == 1 ||
@@ -605,6 +608,13 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       std::lock_guard lock(bytes_total_mx_);
       bytes_total_.emplace(data_size);
     }
+
+    if (match_count == 0) {
+      LOG_WARN << "no matching files found";
+      return true;
+    }
+
+    LOG_VERBOSE << "found " << match_count << " matching files";
   } else if (opts.enable_progress) {
     vfs_stat vfs;
     fs.statvfs(&vfs);
