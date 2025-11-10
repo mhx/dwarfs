@@ -334,6 +334,11 @@ class directories_dir_entry_range
   global_metadata const& g_;
 };
 
+struct nlink_info {
+  packed_int_vector<uint32_t> nlink_minus_one;
+  std::optional<file_size_t> total_hardlink_size;
+};
+
 } // namespace
 
 class metadata_v2_data {
@@ -521,7 +526,7 @@ class metadata_v2_data {
   build_dir_icase_cache(logger& lgr) const;
 
   template <typename LoggerPolicy>
-  std::optional<packed_int_vector<uint32_t>> build_nlinks(logger& lgr) const;
+  std::optional<nlink_info> build_nlinks(logger& lgr) const;
 
   template <typename LoggerPolicy>
   packed_int_vector<uint32_t> unpack_chunk_table(logger& lgr) const;
@@ -542,6 +547,11 @@ class metadata_v2_data {
   template <typename TraceFunc>
   file_size_result reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
                                       TraceFunc const& trace) const;
+
+  template <typename TraceFunc>
+  file_size_result
+  reg_file_size_impl_noperfmon(inode_view_impl const& iv, bool use_cache,
+                               TraceFunc const& trace) const;
 
   file_size_result reg_file_size_notrace(inode_view_impl const& iv) const {
     return reg_file_size_impl(iv, true, [](int) {});
@@ -699,10 +709,10 @@ class metadata_v2_data {
   int const file_inode_offset_;
   int const dev_inode_offset_;
   int const inode_count_;
-  std::optional<packed_int_vector<uint32_t>> const nlinks_;
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
   int const unique_files_;
+  std::optional<nlink_info> const nlinks_;
   metadata_options const options_;
   string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
@@ -739,7 +749,6 @@ metadata_v2_data::metadata_v2_data(
     , dev_inode_offset_{find_inode_offset(inode_rank::INO_DEV)}
     , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                        : meta_.entry_table_v2_2().size())
-    , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , chunk_table_{unpack_chunk_table<LoggerPolicy>(lgr)}
     , shared_files_{unpack_shared_files<LoggerPolicy>(lgr)}
     , unique_files_(dev_inode_offset_ - file_inode_offset_ -
@@ -748,6 +757,7 @@ metadata_v2_data::metadata_v2_data(
                                ? meta_.shared_files_table()->size()
                                : 0
                          : shared_files_.size()))
+    , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , options_{options}
     , symlinks_{meta_.compact_symlinks()
                     ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
@@ -1012,9 +1022,8 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<packed_int_vector<uint32_t>>
-metadata_v2_data::build_nlinks(logger& lgr) const {
-  std::optional<packed_int_vector<uint32_t>> packed_nlinks;
+std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
+  std::optional<nlink_info> packed_nlinks;
 
   if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
     // Inode nlink values are stored directly in the inode table
@@ -1041,6 +1050,12 @@ metadata_v2_data::build_nlinks(logger& lgr) const {
         add_link(int(e.inode_num()) - file_inode_offset_);
       }
     } else {
+      // NOTE: Technically, this isn't correct. In the 2.2 format and earlier,
+      //       shared files would be represented as hardlinks, so there was no
+      //       way to distinguish "real" hardlinks from shared files. However,
+      //       we can't really fix this on the fly as it would require all
+      //       inodes to be reassigned. This can be done explicitly by
+      //       rebuilding the metadata.
       for (auto e : meta_.inodes()) {
         add_link(int(e.inode_v2_2()) - file_inode_offset_);
       }
@@ -1050,24 +1065,48 @@ metadata_v2_data::build_nlinks(logger& lgr) const {
               << " files";
 
     packed_nlinks.emplace();
+    auto& nlm1 = packed_nlinks->nlink_minus_one;
 
     if (total_links > 0) {
-      auto tt = LOG_TIMED_TRACE;
+      {
+        auto tt = LOG_TIMED_TRACE;
 
-      uint32_t max = *std::ranges::max_element(nlinks);
-      packed_nlinks->reset(std::bit_width(max), nlinks.size());
+        uint32_t max = *std::ranges::max_element(nlinks);
+        nlm1.reset(std::bit_width(max - 1), nlinks.size());
 
-      for (size_t i = 0; i < nlinks.size(); ++i) {
-        packed_nlinks->set(i, nlinks[i]);
+        for (size_t i = 0; i < nlinks.size(); ++i) {
+          nlm1.set(i, nlinks[i] - 1);
+        }
+
+        tt << "packed hardlink table from "
+           << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
+           << size_with_unit(nlm1.size_in_bytes());
       }
 
-      tt << "packed hardlink table from "
-         << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
-         << size_with_unit(packed_nlinks->size_in_bytes());
+      if (!meta_.total_hardlink_size().has_value()) {
+        // This is an old (v2.2) filesystem (pre-0.5.0) that doesn't yet have
+        // the total hardlink size stored; we need to calculate it now.
+
+        auto tt = LOG_TIMED_TRACE;
+
+        file_size_t total_size{0};
+
+        for (int ino = file_inode_offset_; ino < dev_inode_offset_; ++ino) {
+          if (auto const num = nlinks[ino - file_inode_offset_]; num > 1) {
+            auto const iv = make_inode_view_impl(ino);
+            auto const sz = reg_file_size_impl_noperfmon(iv, true, [](int) {});
+            total_size += sz.size * (num - 1);
+          }
+        }
+
+        packed_nlinks->total_hardlink_size.emplace(total_size);
+
+        tt << "calculated total hardlink size as " << total_size << " bytes";
+      }
     }
 
-    td << "built hardlink table (" << packed_nlinks->size() << " entries, "
-       << size_with_unit(packed_nlinks->size_in_bytes()) << ")";
+    td << "built hardlink table (" << nlm1.size() << " entries, "
+       << size_with_unit(nlm1.size_in_bytes()) << ")";
   }
 
   return packed_nlinks;
@@ -1289,6 +1328,14 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
                                      TraceFunc const& trace) const {
   PERFMON_CLS_SCOPED_SECTION(reg_file_size)
 
+  return reg_file_size_impl_noperfmon(iv, use_cache, trace);
+}
+
+template <typename TraceFunc>
+file_size_result
+metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
+                                               bool use_cache,
+                                               TraceFunc const& trace) const {
   // Looking up the chunk range is cheap, and we likely have to do it anyway
   std::error_code ec;
   auto const inode = iv.inode_num();
@@ -2121,9 +2168,9 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
     if (!nlinks_.has_value()) {
       // nlink values are stored directly in the inode metadata
       stbuf.set_nlink(ivr.nlink_minus_one() + 1);
-    } else if (!nlinks_->empty()) {
+    } else if (auto const& nlm1 = nlinks_->nlink_minus_one; !nlm1.empty()) {
       // nlink values are stored in a separate table
-      stbuf.set_nlink(DWARFS_NOTHROW(nlinks_->at(inode - file_inode_offset_)));
+      stbuf.set_nlink(DWARFS_NOTHROW(nlm1.at(inode - file_inode_offset_)) + 1);
     } else {
       stbuf.set_nlink(1);
     }

@@ -432,8 +432,6 @@ struct metadata {
   20: optional list<UInt32>     shared_files_table
 
    // total size of hardlinked files beyond the first link, in bytes
-   // NOTE: This is only kept for backwards compatibility, it is no
-   //       longer used in dwarfs-0.14.0 and later.
   21: optional UInt64           total_hardlink_size
 
    // version string
