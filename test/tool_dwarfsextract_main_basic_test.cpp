@@ -28,6 +28,9 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/utility/filesystem_extractor.h>
+#include <dwarfs/utility/filesystem_extractor_archive_format.h>
+
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
@@ -165,6 +168,30 @@ TEST(dwarfsextract_test, archive_error) {
   EXPECT_EQ(1, t.run({"-i", "image.dwarfs", "-f", "ustar"})) << t.err();
   EXPECT_THAT(t.err(), ::testing::HasSubstr("archive_error"));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("extraction aborted"));
+}
+
+TEST(dwarfsextract_test, supports_format) {
+  // Assuming "gnutar" is supported everywhere
+  std::string const supported = "gnutar";
+
+  EXPECT_TRUE(
+      utility::filesystem_extractor::supports_format({.name = supported}));
+
+  EXPECT_FALSE(utility::filesystem_extractor::supports_format(
+      {.name = "nonexistent_format"}));
+
+  EXPECT_FALSE(utility::filesystem_extractor::supports_format(
+      {.name = supported, .filters = {"nonexistent_filter"}}));
+
+  EXPECT_TRUE(utility::filesystem_extractor::supports_format(
+      {.name = supported,
+       .filters = {"zstd"},
+       .options = "zstd:compression-level=3"}));
+
+  EXPECT_FALSE(utility::filesystem_extractor::supports_format(
+      {.name = supported,
+       .filters = {"zstd"},
+       .options = "zstd:nonexistent-option=3"}));
 }
 
 namespace {

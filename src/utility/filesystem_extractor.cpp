@@ -800,4 +800,29 @@ void filesystem_extractor::add_library_dependencies(
   deps.add_library(::archive_version_string());
 }
 
+bool filesystem_extractor::supports_format(
+    filesystem_extractor_archive_format const& format [[maybe_unused]]) {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  return false;
+#else
+  std::unique_ptr<struct ::archive, decltype(&::archive_write_free)> ap(
+      ::archive_write_new(), ::archive_write_free);
+
+  auto supported = [&](auto fn, std::string const& name,
+                       bool accept_warn = false) {
+    auto const res = fn(ap.get(), name.c_str());
+    return res == ARCHIVE_OK || (accept_warn && res == ARCHIVE_WARN);
+  };
+
+  return supported(&::archive_write_set_format_by_name, format.name) &&
+         std::ranges::all_of(format.filters,
+                             [&](auto const& filter) {
+                               return supported(
+                                   &::archive_write_add_filter_by_name, filter,
+                                   true);
+                             }) &&
+         supported(&::archive_write_set_options, format.options);
+#endif
+}
+
 } // namespace dwarfs::utility

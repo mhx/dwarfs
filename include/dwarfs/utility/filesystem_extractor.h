@@ -74,6 +74,9 @@ class filesystem_extractor {
 
   static void add_library_dependencies(library_dependencies& deps);
 
+  static bool
+  supports_format(filesystem_extractor_archive_format const& format);
+
   void open_archive(std::filesystem::path const& output,
                     filesystem_extractor_archive_format const& format) {
     impl_->open_archive(output, format);
