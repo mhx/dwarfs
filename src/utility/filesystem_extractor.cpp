@@ -102,6 +102,32 @@ sparse_file_mode get_sparse_file_mode_for_format(int format) {
   return sparse_file_mode::no_sparse;
 }
 
+bool format_supports_hardlinks(int const format) {
+  switch (format) {
+  case ARCHIVE_FORMAT_CPIO_SVR4_NOCRC:
+  case ARCHIVE_FORMAT_CPIO_SVR4_CRC:
+    return true;
+
+  default:
+    break;
+  }
+
+  int const fmtbase = format & ARCHIVE_FORMAT_BASE_MASK;
+
+  switch (fmtbase) {
+  case ARCHIVE_FORMAT_ISO9660:
+  case ARCHIVE_FORMAT_SHAR:
+  case ARCHIVE_FORMAT_TAR:
+  case ARCHIVE_FORMAT_XAR:
+    return true;
+
+  default:
+    break;
+  }
+
+  return false;
+}
+
 la_ssize_t write_range_data(sparse_file_mode mode, struct archive* a,
                             void const* data, size_t size, la_int64_t offset) {
   if (mode == sparse_file_mode::sparse_disk) {
@@ -399,17 +425,22 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto sparse_mode = sparse_mode_;
+  bool supports_hardlinks{true};
 
   auto lr = ::archive_entry_linkresolver_new();
 
   scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
 
   if (auto fmt = ::archive_format(a_.get())) {
+    LOG_DEBUG << "setting link resolver strategy for format " << fmt;
+
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
 
     if (sparse_mode == sparse_file_mode::auto_detect) {
       sparse_mode = get_sparse_file_mode_for_format(fmt);
     }
+
+    supports_hardlinks = format_supports_hardlinks(fmt);
   }
 
   ::archive_entry* spare = nullptr;
@@ -589,11 +620,14 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
           if (opts.enable_progress) {
             auto stat = fs.getattr(inode);
-            if (stat.nlink() == 1 ||
+            if (!supports_hardlinks || stat.nlink() == 1 ||
                 seen_hardlinks.insert(inode.inode_num()).second) {
-              data_size += stat.allocated_size();
+              data_size += sparse_mode == sparse_file_mode::sparse_disk
+                               ? stat.allocated_size()
+                               : stat.size();
             }
           }
+
           while (auto parent = entry.parent()) {
             if (!matched_dirs.insert(parent->unix_path()).second) {
               break;
@@ -618,8 +652,19 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   } else if (opts.enable_progress) {
     vfs_stat vfs;
     fs.statvfs(&vfs);
+
+    uint64_t data_size;
+
+    if (sparse_mode == sparse_file_mode::sparse_disk) {
+      data_size = vfs.total_allocated_fs_size;
+    } else if (supports_hardlinks) {
+      data_size = vfs.total_fs_size;
+    } else {
+      data_size = vfs.total_fs_size + vfs.total_hardlink_size;
+    }
+
     std::lock_guard lock(bytes_total_mx_);
-    bytes_total_.emplace(vfs.blocks);
+    bytes_total_.emplace(data_size);
   }
 
   if (opts.enable_progress) {
@@ -766,11 +811,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   archiver->wait();
   reg_archiver->wait();
 
-  if (opts.enable_progress) {
-    LOG_DEBUG << "progress: " << bytes_written_.load() << "/"
-              << bytes_total_.value() << " bytes written";
-  }
-
   if (hard_error) {
     DWARFS_THROW(runtime_error, "extraction aborted");
   }
@@ -797,6 +837,15 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
       archiver->wait();
     }
+  }
+
+  if (opts.enable_progress) {
+    DWARFS_CHECK(bytes_written_.load() == bytes_total_.value(),
+                 fmt::format("progress mismatch: {} (written) != {} (total)",
+                             bytes_written_.load(), bytes_total_.value()));
+
+    LOG_DEBUG << "progress: " << bytes_written_.load() << "/"
+              << bytes_total_.value() << " bytes written";
   }
 
   if (soft_error > 0) {

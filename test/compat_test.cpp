@@ -42,6 +42,8 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_util.h>
+#include <dwarfs/glob_matcher.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
@@ -1161,7 +1163,14 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
   std::ostringstream oss;
 
   EXPECT_NO_THROW(ext.open_stream(oss, {.name = "mtree"}));
-  EXPECT_NO_THROW(ext.extract(fs));
+  EXPECT_NO_THROW(ext.extract(fs, {.enable_progress = true}));
+
+  {
+    auto const pi = ext.get_progress();
+    ASSERT_TRUE(pi.total_bytes.has_value());
+    EXPECT_EQ(pi.total_bytes.value(), pi.extracted_bytes);
+  }
+
   EXPECT_NO_THROW(ext.close());
 
   ref_entries.erase("");
@@ -1268,6 +1277,72 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
     };
     EXPECT_EQ(expected_dirs, dirs);
   }
+}
+
+void check_extract_format(logger& lgr, test::os_access_mock& os,
+                          reader::filesystem_v2 const& fs,
+                          std::optional<std::string_view> format = std::nullopt,
+                          glob_matcher const* matcher = nullptr) {
+  utility::filesystem_extractor fsx(lgr, os);
+
+  auto do_extract = [&] {
+    auto const context = fmt::format("{}{}", format.value_or("disk"),
+                                     matcher ? " with matcher" : "");
+
+    EXPECT_NO_THROW(fsx.extract(fs, matcher,
+                                {
+                                    .enable_progress = true,
+                                    .skip_devices = true,
+                                    .skip_specials = true,
+                                }))
+        << context;
+
+    auto const pi = fsx.get_progress();
+    ASSERT_TRUE(pi.total_bytes.has_value()) << context;
+    EXPECT_EQ(pi.total_bytes.value(), pi.extracted_bytes) << context;
+
+    EXPECT_NO_THROW(fsx.close()) << context;
+  };
+
+  if (format.has_value()) {
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    std::ostringstream oss;
+    EXPECT_NO_THROW(fsx.open_stream(oss, {.name = std::string{*format}}));
+    do_extract();
+#endif
+  } else {
+    temporary_directory tempdir("dwarfs");
+    auto const td = tempdir.path();
+    EXPECT_NO_THROW(fsx.open_disk(td));
+    do_extract();
+  }
+}
+
+void check_extract_matcher(logger& lgr, test::os_access_mock& os,
+                           reader::filesystem_v2 const& fs,
+                           glob_matcher const* matcher = nullptr) {
+  // check extract-to-disk
+  check_extract_format(lgr, os, fs, std::nullopt, matcher);
+
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  // check extract to various formats
+  for (auto const& fmt : test::supported_libarchive_formats()) {
+    if (utility::filesystem_extractor::supports_format(
+            {.name = std::string{fmt.name}})) {
+      check_extract_format(lgr, os, fs, fmt.name, matcher);
+    }
+  }
+#endif
+}
+
+void check_extract(logger& lgr, test::os_access_mock& os,
+                   reader::filesystem_v2 const& fs) {
+  // no matcher - extract all
+  check_extract_matcher(lgr, os, fs);
+
+  // extract only .sh files
+  glob_matcher matcher{"**/*.sh"};
+  check_extract_matcher(lgr, os, fs, &matcher);
 }
 
 auto get_image_path(std::string const& version) {
@@ -1409,6 +1484,7 @@ TEST_P(compat_filesystem, backwards_compat) {
     reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename),
                              opts);
     check_compat(lgr, fs, version);
+    check_extract(lgr, os, fs);
   }
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1481,6 +1557,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
+    check_extract(lgr, os, fs);
     EXPECT_TRUE(fs.has_valid_section_index());
   }
 
@@ -1566,6 +1643,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
+    check_extract(lgr, os, fs);
   }
 
   std::ostringstream rewritten5;
@@ -1587,6 +1665,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
+    check_extract(lgr, os, fs);
   }
 }
 

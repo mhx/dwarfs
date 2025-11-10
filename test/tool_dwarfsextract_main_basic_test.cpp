@@ -32,6 +32,7 @@
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/filesystem_extractor_archive_format.h>
 #include <dwarfs/vfs_stat.h>
@@ -259,16 +260,22 @@ std::vector<libarchive_format_def> const libarchive_formats{
 } // namespace
 
 class dwarfsextract_format_test
-    : public testing::TestWithParam<libarchive_format_def> {};
+    : public testing::TestWithParam<std::tuple<libarchive_format_def, bool>> {};
 
 TEST_P(dwarfsextract_format_test, basic) {
-  auto fmt = GetParam();
+  auto const [fmt, use_matcher] = GetParam();
   bool const is_ar = fmt.name.starts_with("ar");
   bool const is_shar = fmt.name.starts_with("shar");
   auto t = dwarfsextract_tester::create_with_image();
   int const expected_exit = fmt.expected_error ? 1 : 0;
-  int exit_code =
-      t.run({"-i", "image.dwarfs", "-f", fmt.name, "--log-level=debug"});
+  std::vector<std::string> args{"-i", "image.dwarfs", "-f", fmt.name,
+                                "--log-level=debug"};
+  if (use_matcher) {
+    args.push_back("**/b*.pl");
+    args.push_back("**/ipsum.*");
+    args.push_back("**/*link");
+  }
+  int exit_code = t.run(args);
   if (!fmt.expected_error && exit_code != 0) {
     if (t.err().find("not supported on this platform") != std::string::npos) {
       GTEST_SKIP();
@@ -280,13 +287,20 @@ TEST_P(dwarfsextract_format_test, basic) {
     EXPECT_THAT(t.err(), ::testing::HasSubstr("extraction aborted"));
   } else if (!is_shar and !is_ar) {
     auto out = t.out();
-    EXPECT_GE(out.size(), fmt.min_size);
+
+    if (!use_matcher) {
+      EXPECT_GE(out.size(), fmt.min_size);
+    }
 
     std::set<std::string> paths;
     std::set<std::string> expected_paths{
         "bar.pl",           "baz.pl",   "empty",       "foo.pl",
         "ipsum.txt",        "somedir",  "somedir/bad", "somedir/empty",
         "somedir/ipsum.py", "somelink", "test.pl",
+    };
+    std::set<std::string> expected_paths_with_matcher{
+        "bar.pl",  "baz.pl",           "ipsum.txt",
+        "somedir", "somedir/ipsum.py", "somelink",
     };
 
     auto ar = ::archive_read_new();
@@ -319,12 +333,18 @@ TEST_P(dwarfsextract_format_test, basic) {
     EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar))
         << ::archive_error_string(ar);
 
-    EXPECT_EQ(expected_paths, paths);
+    if (use_matcher) {
+      EXPECT_EQ(expected_paths_with_matcher, paths);
+    } else {
+      EXPECT_EQ(expected_paths, paths);
+    }
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_format_test,
-                         ::testing::ValuesIn(libarchive_formats));
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, dwarfsextract_format_test,
+    ::testing::Combine(::testing::ValuesIn(libarchive_formats),
+                       ::testing::Bool()));
 
 #endif
 
