@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <filesystem>
+
 #include <gmock/gmock.h>
 
 #include <archive.h>
@@ -28,13 +30,18 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/binary_literals.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/filesystem_extractor_archive_format.h>
+#include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
+using namespace dwarfs::binary_literals;
 using namespace dwarfs;
+namespace fs = std::filesystem;
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 TEST(dwarfsextract_test, mtree) {
@@ -320,3 +327,175 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_format_test,
                          ::testing::ValuesIn(libarchive_formats));
 
 #endif
+
+class dwarfsextract_sparse_test
+    : public testing::TestWithParam<std::tuple<archive_format_info, bool>> {};
+
+TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
+  auto const [fmt, use_matcher] = GetParam();
+
+  if (!fmt.is_disk && !utility::filesystem_extractor::supports_format(
+                          {.name = std::string{fmt.name}})) {
+    GTEST_SKIP() << "format " << fmt.name << " not supported on this platform";
+  }
+
+  std::string const image_file = "test.dwarfs";
+  std::string image;
+  std::mt19937_64 rng{42};
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    auto const stat1 = t.os->add_file("/sparse1",
+                                      {
+                                          {extent_kind::data, 10_KiB, &rng},
+                                          {extent_kind::hole, 500_KiB},
+                                          {extent_kind::data, 3_KiB, &rng},
+                                      },
+                                      {.nlink = 3});
+    auto const stat2 = t.os->add_file("/sparse2",
+                                      {
+                                          {extent_kind::hole, 300_KiB},
+                                      },
+                                      {.nlink = 3});
+    auto const stat3 = t.os->add_file("/sparse3",
+                                      {
+                                          {extent_kind::hole, 400_KiB},
+                                          {extent_kind::data, 7_KiB, nullptr},
+                                      },
+                                      {.nlink = 3});
+    auto const stat4 = t.os->add_file("/sparse4",
+                                      {
+                                          {extent_kind::data, 9_KiB, nullptr},
+                                          {extent_kind::hole, 200_KiB},
+                                      },
+                                      {.nlink = 3});
+    t.os->add("/hardlink1a", stat1);
+    t.os->add("/hardlink1b", stat1);
+    t.os->add("/hardlink2a", stat2);
+    t.os->add("/hardlink2b", stat2);
+    t.os->add("/hardlink3a", stat3);
+    t.os->add("/hardlink3b", stat3);
+    t.os->add("/hardlink4a", stat4);
+    t.os->add("/hardlink4b", stat4);
+
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "-l3"})) << t.err();
+
+    auto img = t.fa->get_file(image_file);
+    ASSERT_TRUE(img);
+    image = std::move(img.value());
+
+    auto fs =
+        t.fs_from_file(image_file, {.metadata = {.enable_sparse_files = true}});
+
+    vfs_stat vfs;
+    fs.statvfs(&vfs);
+
+    EXPECT_EQ(5, vfs.files); // root dir + 4 files (no hardlinks)
+    EXPECT_EQ(1, vfs.frsize);
+    EXPECT_EQ(29_KiB, vfs.blocks);
+
+    EXPECT_EQ(1400_KiB + 29_KiB, vfs.total_fs_size);
+    EXPECT_EQ((1400_KiB + 29_KiB) * 2, vfs.total_hardlink_size);
+    EXPECT_EQ(29_KiB, vfs.total_allocated_fs_size);
+  }
+
+  auto t = dwarfsextract_tester::create_with_image(image);
+
+  std::vector<std::string> args{"-i", "image.dwarfs", "--log-level=debug"};
+  std::optional<temporary_directory> temp_dir;
+
+  if (fmt.is_disk) {
+    temp_dir.emplace("dwarfs");
+    args.push_back("-o");
+    args.push_back(path_to_utf8_string_sanitized(temp_dir->path()));
+  } else {
+    args.push_back("-f");
+    args.push_back(std::string{fmt.name});
+  }
+
+  if (use_matcher) {
+    args.push_back("**/sparse*");
+    args.push_back("**/*b");
+  }
+
+  int exit_code = t.run(args);
+
+  if (exit_code != 0) {
+    if (t.err().find("not supported on this platform") != std::string::npos) {
+      GTEST_SKIP() << "format " << fmt.name
+                   << " not supported on this platform";
+    }
+  }
+
+  ASSERT_EQ(0, exit_code) << t.err();
+
+  bool const is_ar = fmt.name.starts_with("ar");
+  bool const is_shar = fmt.name.starts_with("shar");
+
+  if (!is_shar and !is_ar) {
+    auto out = t.out();
+
+    std::set<std::string> paths;
+    std::set<std::string> expected_paths{
+        "sparse1",    "sparse2",    "sparse3",    "sparse4",
+        "hardlink1a", "hardlink1b", "hardlink2a", "hardlink2b",
+        "hardlink3a", "hardlink3b", "hardlink4a", "hardlink4b",
+    };
+    std::set<std::string> expected_paths_with_matcher{
+        "sparse1",    "sparse2",    "sparse3",    "sparse4",
+        "hardlink1b", "hardlink2b", "hardlink3b", "hardlink4b",
+    };
+
+    if (fmt.is_disk) {
+      for (auto const& entry :
+           fs::recursive_directory_iterator(temp_dir->path())) {
+        if (entry.path() != temp_dir->path()) {
+          paths.insert(path_to_utf8_string_sanitized(
+              fs::relative(entry.path(), temp_dir->path())));
+        }
+      }
+    } else {
+      auto ar = ::archive_read_new();
+      ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
+          << ::archive_error_string(ar);
+      ASSERT_EQ(ARCHIVE_OK,
+                ::archive_read_open_memory(ar, out.data(), out.size()))
+          << ::archive_error_string(ar);
+
+      for (;;) {
+        struct archive_entry* entry;
+        int ret = ::archive_read_next_header(ar, &entry);
+        if (ret == ARCHIVE_EOF) {
+          break;
+        }
+        ASSERT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
+        std::string path{::archive_entry_pathname(entry)};
+        if (path != ".") {
+          if (path.back() == '/') {
+            path.pop_back();
+          }
+          if (path.starts_with("./")) {
+            path.erase(0, 2);
+          }
+          std::replace(path.begin(), path.end(), '\\', '/');
+          EXPECT_TRUE(paths.insert(path).second) << path;
+        }
+      }
+
+      EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar))
+          << ::archive_error_string(ar);
+    }
+
+    if (use_matcher) {
+      EXPECT_EQ(expected_paths_with_matcher, paths);
+    } else {
+      EXPECT_EQ(expected_paths, paths);
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, dwarfsextract_sparse_test,
+    ::testing::Combine(::testing::ValuesIn(supported_libarchive_formats(true)),
+                       ::testing::Bool()));

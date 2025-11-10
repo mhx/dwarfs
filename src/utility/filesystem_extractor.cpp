@@ -627,6 +627,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
               << " total bytes to extract";
   }
 
+  auto shared_entry_ptr = [](::archive_entry* e) {
+    return std::shared_ptr<::archive_entry>(e, ::archive_entry_free);
+  };
+
   auto do_archive_entry = [&](auto const& entry) {
     if (entry.is_root()) {
       // skip root entry
@@ -721,10 +725,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     ::archive_entry_linkify(lr, &ae, &spare);
 
-    auto shared_entry_ptr = [](::archive_entry* e) {
-      return std::shared_ptr<::archive_entry>(e, ::archive_entry_free);
-    };
-
     if (ae) {
       do_archive(inode.is_regular_file() && stat.nlink_unchecked() == 1
                      ? reg_archiver
@@ -734,9 +734,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     if (spare) {
       auto ev = fs.find(::archive_entry_ino(spare));
-      if (!ev) {
-        LOG_ERROR << "find() failed";
-      }
+      DWARFS_CHECK(ev, "find() failed for spare hard link entry");
       LOG_DEBUG << "archiving spare entry " << ::archive_entry_pathname(spare);
       do_archive(archiver, shared_entry_ptr(spare), *ev);
     }
@@ -777,13 +775,28 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     DWARFS_THROW(runtime_error, "extraction aborted");
   }
 
-  // As we're visiting *all* hardlinks, we should never see any deferred
-  // entries.
-  ::archive_entry* ae = nullptr;
-  ::archive_entry_linkify(lr, &ae, &spare);
-  if (ae) {
-    ::archive_entry_free(ae);
-    DWARFS_THROW(runtime_error, "unexpected deferred entry");
+  // process any deferred hard link entries
+  {
+    ::archive_entry* ae = nullptr;
+    ::archive_entry_linkify(lr, &ae, &spare);
+
+    if (ae) {
+      do {
+        auto ev = fs.find(::archive_entry_ino(ae));
+
+        DWARFS_CHECK(ev, "find() failed for deferred hard link entry");
+
+        LOG_DEBUG << "archiving deferred entry "
+                  << ::archive_entry_pathname(ae);
+
+        do_archive(archiver, shared_entry_ptr(ae), *ev);
+
+        ae = nullptr;
+        ::archive_entry_linkify(lr, &ae, &spare);
+      } while (ae);
+
+      archiver->wait();
+    }
   }
 
   if (soft_error > 0) {
