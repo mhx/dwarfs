@@ -55,6 +55,17 @@ to disk:
   `*` and `?`, character classes (`[avt]`), ranges (`[a-h]`), complementation
   (`[!a-h]`) and globstar (`**`).
 
+- `--skip-devices`:
+  Do not extract device nodes. Extracting device nodes to disk requires
+  elevated privileges. Similarly, some archive formats do not support device
+  nodes at all. This option can be used to avoid errors if you only want to
+  extract non-device files.
+
+- `--skip-specials`:
+  Do not extract special files (sockets, fifos). This can be useful
+  when extracting to a filesystem or archive format that does not support
+  special files.
+
 - `-O`, `--image-offset=`*value*|`auto`:
   Specify the byte offset at which the filesystem is located in the image.
   Use `auto` to detect the offset automatically. This is also the default.

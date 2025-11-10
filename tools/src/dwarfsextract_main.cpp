@@ -125,7 +125,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
   size_t num_workers;
   bool continue_on_error{false}, disable_integrity_check{false},
-      stdout_progress{false};
+      stdout_progress{false}, skip_devices{false}, skip_specials{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -139,6 +139,12 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("pattern",
         po::value<std::vector<std::string>>(),
         "only extract files matching these patterns")
+    ("skip-devices",
+        po::value<bool>(&skip_devices)->zero_tokens(),
+        "do not extract device files")
+    ("skip-specials",
+        po::value<bool>(&skip_specials)->zero_tokens(),
+        "do not extract special files (sockets, fifos, etc.)")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
@@ -293,6 +299,8 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     fsx_opts.max_queued_bytes = fsopts.block_cache.max_bytes;
     fsx_opts.continue_on_error = continue_on_error;
     fsx_opts.enable_progress = stdout_progress;
+    fsx_opts.skip_devices = skip_devices;
+    fsx_opts.skip_specials = skip_specials;
 
     std::optional<progress_thread> prog;
 

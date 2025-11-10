@@ -58,6 +58,8 @@ struct filesystem_extractor_options {
   size_t max_queued_bytes{static_cast<size_t>(512) << 20};
   bool continue_on_error{false};
   bool enable_progress{false};
+  bool skip_devices{false};
+  bool skip_specials{false};
 };
 
 class filesystem_extractor {

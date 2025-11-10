@@ -625,6 +625,27 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     auto inode = entry.inode();
 
+    switch (inode.type()) {
+    case posix_file_type::block:
+    case posix_file_type::character:
+      if (opts.skip_devices) {
+        LOG_TRACE << "skipping device " << entry.unix_path();
+        return;
+      }
+      break;
+
+    case posix_file_type::socket:
+    case posix_file_type::fifo:
+      if (opts.skip_specials) {
+        LOG_TRACE << "skipping special file " << entry.unix_path();
+        return;
+      }
+      break;
+
+    default:
+      break;
+    }
+
     if (matcher) {
       auto const unix_path = entry.unix_path();
       LOG_TRACE << "checking " << unix_path;
