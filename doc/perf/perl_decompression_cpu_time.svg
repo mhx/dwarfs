@@ -48,12 +48,12 @@
   <text x="139.00" y="200.83" class="t" text-anchor="end">SquashFS</text>
   <text x="139.00" y="214.83" class="t" text-anchor="end">(1M,zstd)</text>
   <text x="260.91" y="207.83" class="t">85</text>
-  <rect class="bar" x="149.00" y="237.52" width="133.32" height="31.97" rx="3" ry="3"/>
+  <rect class="bar" x="149.00" y="237.52" width="178.18" height="31.97" rx="3" ry="3"/>
   <text x="139.00" y="246.50" class="t" text-anchor="end">DwarFS</text>
   <text x="139.00" y="260.50" class="t" text-anchor="end">(lzma)</text>
-  <text x="288.32" y="253.50" class="t">107</text>
-  <rect class="bar" x="149.00" y="283.18" width="112.14" height="31.97" rx="3" ry="3"/>
+  <text x="333.18" y="253.50" class="t">143</text>
+  <rect class="bar" x="149.00" y="283.18" width="148.27" height="31.97" rx="3" ry="3"/>
   <text x="139.00" y="292.17" class="t" text-anchor="end">DwarFS</text>
   <text x="139.00" y="306.17" class="t" text-anchor="end">(zstd)</text>
-  <text x="267.14" y="299.17" class="t">90</text>
+  <text x="303.27" y="299.17" class="t">119</text>
 </svg>

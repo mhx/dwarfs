@@ -152,7 +152,7 @@ if __name__ == "__main__":
         {
             "title": "Perl • Decompression speed (higher is better)",
             "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "SquashFS\n(1M,zstd)", "DwarFS\n(lzma)", "DwarFS\n(zstd)"],
-            "values": [48629/139, 48629/57.2, 48629/74, 48629/39.3, 48629/74, 48629/74],
+            "values": [48629/139, 48629/57.2, 48629/74, 48629/39.3, 48629/48.7, 48629/46.5],
             "decimals": 0,
             "units": "MiB/s",
             "filename": "perl_decompression_speed.svg",
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         {
             "title": "Perl • Decompression CPU time (lower is better)",
             "categories": [".tar.gz\n(pigz -9)", ".tar.zst\n(--long=31 -22)", "7zip\n(-mx=7)", "SquashFS\n(1M,zstd)", "DwarFS\n(lzma)", "DwarFS\n(zstd)"],
-            "values": [224, 81, 148, 85, 107, 90],
+            "values": [224, 81, 148, 85, 143, 119],
             "decimals": 0,
             "units": "seconds",
             "filename": "perl_decompression_cpu_time.svg",

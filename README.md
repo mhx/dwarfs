@@ -107,8 +107,8 @@ archive in memory is infeasible for large archives.
 | Compression CPU time                  |         1h 47m |          2h 18m |          5h 5m |          2h 29m |   **31m 17s** |       49m 51s |
 | Compressed size                       |      12.17 GiB |       0.387 GiB |      1.219 GiB |       3.245 GiB | **0.310 GiB** |     0.352 GiB |
 | Compression ratio                     |          3.902 |           122.7 |          38.96 |           14.63 |     **153.2** |         134.9 |
-| Decompression time                    |         2m 19s |           57.2s |         1m 14s |       **39.3s** |        1m 14s |        1m 14s |
-| Decompression CPU time                |         3m 44s |      **1m 21s** |         2m 28s |          1m 25s |        1m 47s |        1m 30s |
+| Decompression time                    |         2m 19s |           57.2s |         1m 14s |       **39.3s** |         48.7s |         46.5s |
+| Decompression CPU time                |         3m 44s |      **1m 21s** |         2m 28s |          1m 25s |        2m 23s |        1m 59s |
 | Mount time                            |         2m 07s |      ❌  [^pl3] |         3.638s |          0.011s |        0.420s |    **0.009s** |
 | Find all 1.9M files [^pl8]            |         5.670s |      ❌  [^pl3] |         5.695s |          5.311s |    **2.800s** |        2.821s |
 | Checksum 1139 files (2.58 GiB) [^pl4] |     ❌  [^pl5] |      ❌  [^pl3] |     ~5h [^pl6] |          1.541s |        4.330s |    **1.134s** |
