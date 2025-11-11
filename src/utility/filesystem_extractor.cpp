@@ -147,7 +147,6 @@ template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
   using archive_ptr = std::shared_ptr<struct ::archive>;
-  static constexpr size_t kRegFileDiskThreads{4};
 
   explicit filesystem_extractor_(logger& lgr, os_access const& os,
                                  std::shared_ptr<file_access const> fa)
@@ -219,7 +218,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 #endif
   }
 
-  void open_disk(std::filesystem::path const& output) override {
+  void open_disk(std::filesystem::path const& output,
+                 size_t num_data_writers) override {
     if (!output.empty()) {
       std::filesystem::current_path(output);
     }
@@ -233,7 +233,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
                               ARCHIVE_EXTRACT_UNLINK |
                               ARCHIVE_EXTRACT_SECURE_SYMLINKS));
 
-    for (size_t i = 0; i < kRegFileDiskThreads; ++i) {
+    for (size_t i = 0; i < num_data_writers; ++i) {
       auto ar = archive_ptr{::archive_write_disk_new(), ::archive_write_free};
       check_result(
           ar, ::archive_write_disk_set_options(

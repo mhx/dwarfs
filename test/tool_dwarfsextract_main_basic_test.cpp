@@ -422,7 +422,8 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
 
   auto t = dwarfsextract_tester::create_with_image(image);
 
-  std::vector<std::string> args{"-i", "image.dwarfs", "--log-level=debug"};
+  std::vector<std::string> args{"-i", "image.dwarfs", "--log-level=debug",
+                                "--num-disk-writers=8"};
   std::optional<temporary_directory> temp_dir;
 
   if (fmt.is_disk) {

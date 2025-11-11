@@ -109,6 +109,13 @@ to disk:
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for extracting the filesystem.
 
+- `--num-disk-writers=`*value*:
+  When extracting to disk (instead of an archive), use this number of extra
+  writer threads to create and write regular files. This can improve throughput
+  at the cost of higher CPU usage, in particular when extracting a large number
+  of small files. The default value of `0` means that only a single writer is
+  used for all file system entries.
+
 - `-s`, `--cache-size=`*value*:
   Size of the block cache, in bytes. You can append suffixes (`k`, `m`, `g`)
   to specify the size in KiB, MiB and GiB, respectively. Note that this is

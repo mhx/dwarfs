@@ -123,7 +123,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
 #endif
-  size_t num_workers;
+  size_t num_workers, num_disk_writers;
   bool continue_on_error{false}, disable_integrity_check{false},
       stdout_progress{false}, skip_devices{false}, skip_specials{false};
 
@@ -171,6 +171,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(4),
         "number of worker threads")
+    ("num-disk-writers",
+        po::value<size_t>(&num_disk_writers)->default_value(0),
+        "number of disk data writers")
     ("cache-size,s",
         po::value<std::string>(&cache_size_str)->default_value("512m"),
         "block cache size")
@@ -266,9 +269,16 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     if (format.name.empty()) {
 #endif
-      fsx.open_disk(iol.os->canonical(output));
+      fsx.open_disk(iol.os->canonical(output), num_disk_writers);
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     } else {
+      LOG_PROXY(debug_logger_policy, lgr);
+
+      if (vm.contains("num-disk-writers")) {
+        LOG_INFO
+            << "--num-disk-writers option is only used when extracting to disk";
+      }
+
       std::ostream* stream{nullptr};
 
       if (output.empty() or output == kDash) {
