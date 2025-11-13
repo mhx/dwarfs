@@ -947,8 +947,8 @@ int compare_versions(std::string_view v1str, std::string_view v2str) {
   return 0;
 }
 
-void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
-                  std::string const& version) {
+void check_compat(test::test_logger& lgr [[maybe_unused]],
+                  reader::filesystem_v2 const& fs, std::string const& version) {
   bool const has_devices = compare_versions(version, "0.3.0") >= 0;
   bool const has_ac_time = compare_versions(version, "0.3.0") < 0;
   bool const nlink_affects_blocks = compare_versions(version, "0.5.0") >= 0;
@@ -1162,8 +1162,8 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
   utility::filesystem_extractor ext(lgr, os);
   std::ostringstream oss;
 
-  EXPECT_NO_THROW(ext.open_stream(oss, {.name = "mtree"}));
-  EXPECT_NO_THROW(ext.extract(fs, {.enable_progress = true}));
+  EXPECT_NO_THROW(ext.open_stream(oss, {.name = "mtree"})) << lgr;
+  EXPECT_NO_THROW(ext.extract(fs, {.enable_progress = true})) << lgr;
 
   {
     auto const pi = ext.get_progress();
@@ -1171,7 +1171,7 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
     EXPECT_EQ(pi.total_bytes.value(), pi.extracted_bytes);
   }
 
-  EXPECT_NO_THROW(ext.close());
+  EXPECT_NO_THROW(ext.close()) << lgr;
 
   ref_entries.erase("");
 
@@ -1279,7 +1279,7 @@ void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
   }
 }
 
-void check_extract_format(logger& lgr, test::os_access_mock& os,
+void check_extract_format(test::test_logger& lgr, test::os_access_mock& os,
                           reader::filesystem_v2 const& fs,
                           std::optional<std::string_view> format = std::nullopt,
                           glob_matcher const* matcher = nullptr) {
@@ -1295,30 +1295,32 @@ void check_extract_format(logger& lgr, test::os_access_mock& os,
                                     .skip_devices = true,
                                     .skip_specials = true,
                                 }))
-        << context;
+        << context << "\n"
+        << lgr;
 
     auto const pi = fsx.get_progress();
     ASSERT_TRUE(pi.total_bytes.has_value()) << context;
     EXPECT_EQ(pi.total_bytes.value(), pi.extracted_bytes) << context;
 
-    EXPECT_NO_THROW(fsx.close()) << context;
+    EXPECT_NO_THROW(fsx.close()) << context << "\n" << lgr;
   };
 
   if (format.has_value()) {
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     std::ostringstream oss;
-    EXPECT_NO_THROW(fsx.open_stream(oss, {.name = std::string{*format}}));
+    EXPECT_NO_THROW(fsx.open_stream(oss, {.name = std::string{*format}}))
+        << lgr;
     do_extract();
 #endif
   } else {
     temporary_directory tempdir("dwarfs");
     auto const td = tempdir.path();
-    EXPECT_NO_THROW(fsx.open_disk(td));
+    EXPECT_NO_THROW(fsx.open_disk(td)) << lgr;
     do_extract();
   }
 }
 
-void check_extract_matcher(logger& lgr, test::os_access_mock& os,
+void check_extract_matcher(test::test_logger& lgr, test::os_access_mock& os,
                            reader::filesystem_v2 const& fs,
                            glob_matcher const* matcher = nullptr) {
   // check extract-to-disk
@@ -1335,7 +1337,7 @@ void check_extract_matcher(logger& lgr, test::os_access_mock& os,
 #endif
 }
 
-void check_extract(logger& lgr, test::os_access_mock& os,
+void check_extract(test::test_logger& lgr, test::os_access_mock& os,
                    reader::filesystem_v2 const& fs) {
   // no matcher - extract all
   check_extract_matcher(lgr, os, fs);

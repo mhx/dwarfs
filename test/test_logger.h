@@ -93,6 +93,11 @@ class test_logger : public ::dwarfs::logger {
 
   void clear() { log_.clear(); }
 
+  friend std::ostream& operator<<(std::ostream& os, test_logger const& logger) {
+    os << logger.as_string();
+    return os;
+  }
+
  private:
   static level_type default_threshold() { return level_type::INFO; }
 
