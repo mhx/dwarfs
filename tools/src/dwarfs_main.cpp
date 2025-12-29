@@ -30,6 +30,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1802,7 +1803,9 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #ifndef _WIN32
   if (opts.fsimage) {
     auto const fsname_opt =
-        "-ofsname=" + userdata.iol.os->canonical(*opts.fsimage).string();
+        "-ofsname=" +
+        std::regex_replace(userdata.iol.os->canonical(*opts.fsimage).string(),
+                           std::regex(","), "\\,");
     fuse_opt_add_arg(&args, fsname_opt.c_str());
 #if defined(__linux__) || defined(__FreeBSD__)
     fuse_opt_add_arg(&args, "-osubtype=dwarfs");
