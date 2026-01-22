@@ -773,6 +773,18 @@ $ brew tap gromgit/homebrew-fuse
 $ brew install dwarfs-fuse-mac
 ```
 
+Occasionally, when the main Homebrew repository switches to newer library
+versions, the bottles in the homebrew-fuse tap can break. In that case,
+you will see the FUSE driver fail to run with errors about missing libraries
+from `dyld`. If that happens, you can
+[file an issue](https://github.com/gromgit/homebrew-fuse/issues) for the
+homebrew-fuse tap. You can also temporarily work around the problem by
+building the FUSE driver from source:
+
+```
+$ brew reinstall --build-from-source dwarfs-fuse-mac
+```
+
 ## Use Cases
 
 ### Astrophotography
