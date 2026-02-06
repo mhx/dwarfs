@@ -500,7 +500,9 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
     parser.rewind();
 
     while (auto s = parser.next_section()) {
-      check_section(*s);
+      if (opts.block_access >= block_access_level::unrestricted) {
+        check_section(*s);
+      }
 
       auto section = section_wrapper(mm_, *s);
 
