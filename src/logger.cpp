@@ -34,7 +34,6 @@
 
 #include <folly/Conv.h>
 #include <folly/lang/Assume.h>
-#include <folly/small_vector.h>
 
 #include <boost/chrono/thread_clock.hpp>
 
@@ -53,6 +52,7 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal_ansi.h>
 #include <dwarfs/util.h>
@@ -252,7 +252,7 @@ void stream_logger::write(level_type level, std::string_view output,
     }
 
     std::string tmp;
-    folly::small_vector<std::string_view, 2> lines;
+    small_vector<std::string_view, 2> lines;
 
     if (output.find('\r') != std::string::npos) {
       tmp.reserve(output.size());

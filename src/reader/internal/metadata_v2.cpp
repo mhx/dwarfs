@@ -52,7 +52,6 @@
 #include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
-#include <folly/small_vector.h>
 #include <folly/stats/Histogram.h>
 
 #include <parallel_hashmap/phmap.h>
@@ -69,6 +68,7 @@
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/metadata_options.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
@@ -974,7 +974,7 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       });
 
       // Check and report any collisions in the directory
-      phmap::flat_hash_map<std::string_view, folly::small_vector<uint32_t, 1>>
+      phmap::flat_hash_map<std::string_view, small_vector<uint32_t, 1>>
           collisions;
       collisions.reserve(range.size());
       for (size_t i = 0; i < names.size(); ++i) {
