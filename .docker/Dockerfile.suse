@@ -23,7 +23,7 @@ RUN zypper -n in --no-recommends \
     ninja \
     cmake \
     make \
-    ruby3.4-rubygem-ronn-ng \
+    ruby4.0-rubygem-ronn-ng \
     python313-mistletoe \
     bubblewrap \
     fuse \
