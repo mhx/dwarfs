@@ -30,9 +30,11 @@
 
 #include <compare>
 #include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
-#include <vector>
+#include <utility>
 
 namespace dwarfs {
 
