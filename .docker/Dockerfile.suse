@@ -55,7 +55,6 @@ RUN zypper -n in --no-recommends \
     xxhash-devel \
     libunwind-devel \
     libdwarf-devel \
-    gflags-devel \
     glog-devel \
     flac-devel \
     utfcpp-devel \
