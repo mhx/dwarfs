@@ -67,7 +67,7 @@ RUN apk add --no-cache \\
         less \\
         gcc \\
         g++ \\
-        clang20 \\
+        clang21 \\
         lld \\
         git \\
         xz \\
