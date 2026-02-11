@@ -1005,8 +1005,13 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
       type,
       [bd = std::move(bd), meta = std::move(cat_metadata),
        segment = std::move(segment)]() mutable {
+        // TODO: For uncompressed input data, we shouldn't be allocating a new
+        //       buffer here, but rather just use a section mapping. This will
+        //       require a bit of refactoring, though.
         auto block = bd.start_decompression(malloc_byte_buffer::create());
+        segment.advise(io_advice::sequential);
         bd.decompress_frame(bd.uncompressed_size());
+        segment.advise(io_advice::dontneed);
         return std::pair{std::move(block), meta};
       },
       uncompressed_size, cat);
