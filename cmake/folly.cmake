@@ -59,6 +59,11 @@ set(CMAKE_DISABLE_FIND_PACKAGE_LibUring ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_Libsodium ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_LibDwarf ON)
 
+if(NOT WIN32)
+  # TODO: somehow gflags is still needed on Windows
+  set(CMAKE_DISABLE_FIND_PACKAGE_Gflags ON)
+endif()
+
 if(NOT PREFER_SYSTEM_FAST_FLOAT)
   set(FASTFLOAT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fast_float)
 endif()

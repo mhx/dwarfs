@@ -163,9 +163,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(USE_STATIC_DEPS_ON_UNIX
       ON
       CACHE BOOL "yes")
-  set(GFLAGS_SHARED
-      OFF
-      CACHE BOOL "static")
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
   list(APPEND PKG_CONFIG_EXECUTABLE "--static")
