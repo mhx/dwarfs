@@ -267,7 +267,8 @@ void rewrite_filesystem(
                  "change_block_size requires rebuild_metadata");
   }
 
-  if (fs.has_sparse_files() && !opts.rebuild_metadata->enable_sparse_files) {
+  if (opts.rebuild_metadata.has_value() && fs.has_sparse_files() &&
+      !opts.rebuild_metadata->enable_sparse_files) {
     DWARFS_THROW(
         runtime_error,
         "cannot disable sparse files when the input filesystem uses them");
