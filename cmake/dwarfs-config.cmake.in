@@ -20,7 +20,6 @@ endif()
 
 find_dependency(Threads REQUIRED)
 find_dependency(fmt CONFIG REQUIRED)
-find_dependency(gflags CONFIG REQUIRED)
 find_dependency(Boost @BOOST_REQUIRED_VERSION@ REQUIRED CONFIG
                 COMPONENTS chrono context filesystem program_options regex thread
                 OPTIONAL_COMPONENTS process system)
