@@ -281,7 +281,7 @@ void rewrite_filesystem(
 
   auto& writer = fs_writer.get_internal();
 
-  if (opts.recompress_block) {
+  if (opts.recompress_block && (!opts.no_check || opts.change_block_size)) {
     parser->rewind();
 
     {

@@ -43,6 +43,7 @@ struct rewrite_options {
   bool enable_history{true};
   std::optional<std::vector<std::string>> command_line_arguments;
   history_config history;
+  bool no_check{false};
 };
 
 } // namespace dwarfs::utility

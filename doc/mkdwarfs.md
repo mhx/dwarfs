@@ -483,6 +483,14 @@ Most other options are concerned with compression tuning:
   Enable logging context regardless of level. By default, context is enabled
   if the level is `verbose`, `debug` or `trace`.
 
+- `--no-check`:
+  Skip the upfront integrity / checksum scan of the input filesystem before
+  starting recompression. For large, potentially remote filesystems, this can
+  save a significant amount of time because that initial validation pass is
+  avoided. Errors will still be encountered if the input filesystem is not
+  valid, but potentially only after a significant amount of time has been
+  spent on recompression.
+
 - `--no-progress`:
   Don't show progress output while building filesystem.
 
