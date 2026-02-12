@@ -1225,27 +1225,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   // No more streaming to iol.err after this point as this would
   // cause a race with the progress thread.
 
-  size_t mem_limit = 0;
-
-  if (memory_limit == "auto") {
-    mem_limit = compute_memory_limit(UINT64_C(1) << sf_config.block_size_bits,
-                                     num_workers);
-    LOG_VERBOSE << "using memory limit of " << size_with_unit(mem_limit);
-  } else {
-    mem_limit = parse_size_with_unit(memory_limit);
-  }
-
-  auto min_memory_req =
-      num_workers * (UINT64_C(1) << sf_config.block_size_bits);
-
-  // TODO:
-  if (mem_limit < min_memory_req /* && compression != "null" */) {
-    LOG_WARN << "low memory limit (" << size_with_unit(mem_limit) << "), need "
-             << size_with_unit(min_memory_req) << " to efficiently compress "
-             << size_with_unit(UINT64_C(1) << sf_config.block_size_bits)
-             << " blocks with " << num_workers << " threads";
-  }
-
   std::filesystem::path output(output_str);
 
   std::variant<std::monostate, std::unique_ptr<output_stream>,
@@ -1347,6 +1326,32 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   } else {
     cat_resolver = options.inode.categorizer_mgr;
+  }
+
+  size_t mem_limit = 0;
+
+  {
+    auto const output_block_size = recompress && !change_block_size
+                                       ? input_filesystem->block_size()
+                                       : UINT64_C(1)
+                                             << sf_config.block_size_bits;
+
+    if (memory_limit == "auto") {
+      mem_limit = compute_memory_limit(output_block_size, num_workers);
+      LOG_VERBOSE << "using memory limit of " << size_with_unit(mem_limit);
+    } else {
+      mem_limit = parse_size_with_unit(memory_limit);
+    }
+
+    // TODO:
+    if (auto const min_memory_req = num_workers * output_block_size;
+        mem_limit < min_memory_req /* && compression != "null" */) {
+      LOG_WARN << "low memory limit (" << size_with_unit(mem_limit)
+               << "), need " << size_with_unit(min_memory_req)
+               << " to efficiently compress "
+               << size_with_unit(output_block_size) << " blocks with "
+               << num_workers << " threads";
+    }
   }
 
   std::unordered_set<std::string_view> accepted_categories;
