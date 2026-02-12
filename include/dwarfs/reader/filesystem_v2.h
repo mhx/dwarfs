@@ -319,6 +319,8 @@ class filesystem_v2_lite {
 
   size_t num_blocks() const { return lite_->num_blocks(); }
 
+  size_t block_size() const { return lite_->block_size(); }
+
   bool has_symlinks() const { return lite_->has_symlinks(); }
 
   bool has_sparse_files() const { return lite_->has_sparse_files(); }
@@ -446,6 +448,7 @@ class filesystem_v2_lite {
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
+    virtual size_t block_size() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual bool has_sparse_files() const = 0;
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
