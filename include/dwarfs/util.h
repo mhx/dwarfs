@@ -118,6 +118,12 @@ struct memory_usage {
   std::optional<size_t> shmem;
 };
 
-memory_usage get_self_memory_usage();
+enum class memory_usage_mode {
+  fast,
+  accurate,
+};
+
+memory_usage
+get_self_memory_usage(memory_usage_mode mode = memory_usage_mode::fast);
 
 } // namespace dwarfs
