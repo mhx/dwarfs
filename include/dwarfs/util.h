@@ -44,6 +44,8 @@
 
 namespace dwarfs {
 
+class os_access;
+
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
 std::string size_with_unit(file_size_t size);
@@ -76,6 +78,7 @@ std::filesystem::path canonical_path(std::filesystem::path p);
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p);
 
 bool getenv_is_enabled(char const* var);
+bool getenv_is_enabled(os_access const& os, char const* var);
 
 void setup_default_locale();
 
