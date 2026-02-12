@@ -303,7 +303,12 @@ void rewrite_filesystem(
             cat_metadata = cm->dump();
           }
 
+          LOG_TRACE << "parsing section header " << block_no
+                    << ", category: " << catstr.value_or("<none>")
+                    << ", metadata: " << cat_metadata.value_or("<none>");
+
           auto segment = parser->segment(*s);
+          segment.advise(io_advice::random);
 
           writer.check_block_compression(
               s->compression(), s->data(segment), cat, cat_metadata,
