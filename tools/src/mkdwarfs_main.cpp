@@ -413,7 +413,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
-       rebuild_metadata = false, change_block_size = false;
+       rebuild_metadata = false, change_block_size = false, no_check = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -550,6 +550,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-progress",
         po::value<bool>(&no_progress)->zero_tokens(),
         "don't show progress")
+    ("no-check",
+        po::value<bool>(&no_check)->zero_tokens(),
+        "don't check input filesystem when recompressing")
     ;
 
   po::options_description filesystem_opts("File system options");
@@ -933,6 +936,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       rw_opts.recompress_categories =
           split_to<std::unordered_set<std::string>>(input, ',');
     }
+
+    rw_opts.no_check = no_check;
   }
 
   if (file_hash_algo == "none") {
@@ -1269,20 +1274,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         reader::filesystem_options{
             .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
 
-    LOG_INFO << "checking input filesystem...";
+    if (!no_check) {
+      LOG_INFO << "checking input filesystem...";
 
-    {
-      auto tv = LOG_TIMED_VERBOSE;
+      {
+        auto tv = LOG_TIMED_VERBOSE;
 
-      if (auto num_errors =
-              input_filesystem->check(reader::filesystem_check_level::CHECKSUM);
-          num_errors != 0) {
-        LOG_ERROR << "input filesystem is corrupt: detected " << num_errors
-                  << " error(s)";
-        return 1;
+        if (auto num_errors = input_filesystem->check(
+                reader::filesystem_check_level::CHECKSUM);
+            num_errors != 0) {
+          LOG_ERROR << "input filesystem is corrupt: detected " << num_errors
+                    << " error(s)";
+          return 1;
+        }
+
+        tv << "checked input filesystem";
       }
-
-      tv << "checked input filesystem";
     }
 
     cat_resolver = std::make_shared<writer::filesystem_block_category_resolver>(

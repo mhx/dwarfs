@@ -483,6 +483,13 @@ Most other options are concerned with compression tuning:
   Enable logging context regardless of level. By default, context is enabled
   if the level is `verbose`, `debug` or `trace`.
 
+- `--no-check`:
+  Don't check the input filesystem before starting recompression. In case of
+  large, potentially remote filesystems, this can save a significant amount
+  of time as the data doesn't have to be read twice. Errors will still be
+  encountered if the input filesystem is not valid, but potentially only
+  after a significant amount of time has been spent on recompression.
+
 - `--no-progress`:
   Don't show progress output while building filesystem.
 
