@@ -99,23 +99,35 @@ class segment_byte_buffer : public byte_buffer_interface {
  public:
   segment_byte_buffer(std::span<uint8_t const> data, file_segment&& segment)
       : data_{data}
-      , segment_{std::move(segment)} {
-    segment_.advise(io_advice::sequential);
-  }
+      , segment_{std::move(segment)} {}
 
   ~segment_byte_buffer() override {
     std::error_code ec;
     segment_.advise(io_advice::dontneed, ec);
   }
 
-  uint8_t const* data() const override { return data_.data(); }
+  std::span<uint8_t const> span() const override {
+    advise_sequential_once();
+    return data_;
+  }
+
+  uint8_t const* data() const override {
+    advise_sequential_once();
+    return data_.data();
+  }
+
   size_t size() const override { return data_.size(); }
   size_t capacity() const override { return data_.size(); }
-  std::span<uint8_t const> span() const override { return data_; }
 
  private:
+  void advise_sequential_once() const {
+    std::call_once(advise_flag_,
+                   [this] { segment_.advise(io_advice::sequential); });
+  }
+
   std::span<uint8_t const> data_;
   file_segment segment_;
+  std::once_flag mutable advise_flag_;
 };
 
 class compression_progress : public progress::context {
@@ -158,8 +170,8 @@ class fsblock {
           std::shared_ptr<compression_progress> pctx);
 
   fsblock(section_type type, block_compressor const& bc,
-          delayed_data_fn_type data, size_t uncompressed_size,
-          std::shared_ptr<compression_progress> pctx);
+          delayed_data_fn_type data, size_t compressed_size,
+          size_t uncompressed_size, std::shared_ptr<compression_progress> pctx);
 
   void
   compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
@@ -411,14 +423,17 @@ class compressed_fsblock : public fsblock::impl {
 class rewritten_fsblock : public fsblock::impl {
  public:
   rewritten_fsblock(section_type type, block_compressor const& bc,
-                    delayed_data_fn_type data, size_t uncompressed_size,
+                    delayed_data_fn_type data, size_t compressed_size,
+                    size_t uncompressed_size,
                     std::shared_ptr<compression_progress> pctx)
       : type_{type}
       , bc_{bc}
       , data_{std::move(data)}
       , comp_type_{bc_.type()}
       , pctx_{std::move(pctx)}
-      , uncompressed_size_{uncompressed_size} {
+      , compressed_size_{compressed_size}
+      , uncompressed_size_{uncompressed_size}
+      , compressor_mem_usage_{bc.estimate_memory_usage(uncompressed_size)} {
     DWARFS_CHECK(bc_, "block_compressor must not be null");
   }
 
@@ -461,8 +476,9 @@ class rewritten_fsblock : public fsblock::impl {
   }
 
   size_t estimated_mem_usage() const override {
-    std::lock_guard lock(mx_);
-    return block_data_.has_value() ? block_data_->capacity() : 0;
+    // std::lock_guard lock(mx_);
+    // return block_data_.has_value() ? block_data_->capacity() : 0;
+    return compressed_size_ + uncompressed_size_ + compressor_mem_usage_;
   }
 
   void set_block_no(uint32_t number) override {
@@ -533,7 +549,9 @@ class rewritten_fsblock : public fsblock::impl {
   std::optional<section_header_v2> mutable header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
+  size_t const compressed_size_;
   size_t const uncompressed_size_;
+  size_t const compressor_mem_usage_;
   double compression_time_{0.0};
 };
 
@@ -555,10 +573,12 @@ fsblock::fsblock(fs_section sec, file_segment segment,
           std::move(sec), std::move(segment), std::move(pctx))) {}
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
-                 delayed_data_fn_type data, size_t uncompressed_size,
+                 delayed_data_fn_type data, size_t compressed_size,
+                 size_t uncompressed_size,
                  std::shared_ptr<compression_progress> pctx)
     : impl_(std::make_unique<rewritten_fsblock>(
-          type, bc, std::move(data), uncompressed_size, std::move(pctx))) {}
+          type, bc, std::move(data), compressed_size, uncompressed_size,
+          std::move(pctx))) {}
 
 void fsblock::build_section_header(section_header_v2& sh,
                                    fsblock::impl const& fsb,
@@ -670,7 +690,8 @@ class filesystem_writer_ final : public filesystem_writer_detail {
                    block_compressor const& bc, std::optional<std::string> meta,
                    physical_block_cb_type physical_block_cb);
   void rewrite_section_delayed_data(
-      section_type type, delayed_data_fn_type data, size_t uncompressed_size,
+      section_type type, delayed_data_fn_type data, size_t compressed_size,
+      size_t uncompressed_size,
       std::optional<fragment_category::value_type> cat);
   void on_block_merged(block_holder_type holder);
   void write_section_impl(section_type type, shared_byte_buffer data);
@@ -794,8 +815,6 @@ size_t filesystem_writer_<LoggerPolicy>::mem_used() const {
   for (auto const& holder : queue_) {
     s += holder.value()->estimated_mem_usage();
   }
-
-  LOG_VERBOSE << "mem_used: " << s;
 
   return s;
 }
@@ -978,7 +997,8 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
-    section_type type, delayed_data_fn_type data, size_t uncompressed_size,
+    section_type type, delayed_data_fn_type data, size_t compressed_size,
+    size_t uncompressed_size,
     std::optional<fragment_category::value_type> cat) {
   {
     std::unique_lock lock(mx_);
@@ -988,15 +1008,24 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
     }
 
     // TODO: this isn't currently working
-    while (mem_used() > options_.max_queue_size) {
-      LOG_VERBOSE << "waiting for queue to drain";
+    for (;;) {
+      auto const mem = mem_used();
+
+      if (mem <= options_.max_queue_size) {
+        break;
+      }
+
+      LOG_VERBOSE << "waiting for queue to drain (mem_used: "
+                  << size_with_unit(mem) << ", queue_size: " << queue_.size()
+                  << ")";
+
       cond_.wait(lock);
     }
 
     auto& bc = get_compressor(type, cat);
 
-    auto fsb = std::make_unique<fsblock>(type, bc, std::move(data),
-                                         uncompressed_size, pctx_);
+    auto fsb = std::make_unique<fsblock>(
+        type, bc, std::move(data), compressed_size, uncompressed_size, pctx_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);
@@ -1014,8 +1043,10 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
     std::optional<std::string> cat_metadata) {
   auto const type = sec.type();
   auto const compression = sec.compression();
+  segment.advise(io_advice::random); // TODO: check if this makes sense
   auto const data = sec.data(segment);
   std::optional<block_decompressor> bd;
+  size_t const compressed_size{data.size()};
   size_t uncompressed_size{0};
   if (compression != compression_type::NONE) {
     bd.emplace(compression, data);
@@ -1045,7 +1076,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
         }
         return std::pair{std::move(block), meta};
       },
-      uncompressed_size, cat);
+      compressed_size, uncompressed_size, cat);
 }
 
 template <typename LoggerPolicy>
@@ -1053,7 +1084,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_block(
     delayed_data_fn_type data, size_t uncompressed_size,
     std::optional<fragment_category::value_type> cat) {
   rewrite_section_delayed_data(section_type::BLOCK, std::move(data),
-                               uncompressed_size, cat);
+                               uncompressed_size, uncompressed_size, cat);
 }
 
 template <typename LoggerPolicy>
