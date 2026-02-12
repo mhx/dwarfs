@@ -1067,6 +1067,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
           segment.advise(io_advice::sequential);
           bd->decompress_frame(bd->uncompressed_size());
           segment.advise(io_advice::dontneed);
+          bd.reset();
         } else {
           block = shared_byte_buffer(
               std::make_shared<segment_byte_buffer>(data, std::move(segment)));
