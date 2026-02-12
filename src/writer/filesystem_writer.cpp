@@ -367,7 +367,17 @@ class compressed_fsblock : public fsblock::impl {
       , range_{sec.data(segment)}
       , segment_{std::move(segment)}
       , pctx_{std::move(pctx)}
-      , sec_{std::move(sec)} {}
+      , sec_{std::move(sec)} {
+    if (segment_) {
+      segment_.advise(io_advice::sequential);
+    }
+  }
+
+  ~compressed_fsblock() {
+    if (segment_) {
+      segment_.advise(io_advice::dontneed);
+    }
+  }
 
   void
   compress(worker_group& wg, std::optional<std::string> /* meta */) override {
