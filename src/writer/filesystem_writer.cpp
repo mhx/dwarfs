@@ -95,6 +95,26 @@ std::string get_friendly_section_name(section_type type) {
   return get_section_name(type);
 }
 
+class segment_byte_buffer : public byte_buffer_interface {
+ public:
+  segment_byte_buffer(std::span<uint8_t const> data, file_segment&& segment)
+      : data_{data}
+      , segment_{std::move(segment)} {
+    segment_.advise(io_advice::sequential);
+  }
+
+  ~segment_byte_buffer() { segment_.advise(io_advice::dontneed); }
+
+  uint8_t const* data() const override { return data_.data(); }
+  size_t size() const override { return data_.size(); }
+  size_t capacity() const override { return data_.size(); }
+  std::span<uint8_t const> span() const override { return data_; }
+
+ private:
+  std::span<uint8_t const> data_;
+  file_segment segment_;
+};
+
 class compression_progress : public progress::context {
  public:
   using status = progress::context::status;
@@ -992,26 +1012,34 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
   auto const type = sec.type();
   auto const compression = sec.compression();
   auto const data = sec.data(segment);
-  auto bd = block_decompressor(compression, data);
-  auto const uncompressed_size = bd.uncompressed_size();
-
-  if (!cat_metadata) {
-    cat_metadata = bd.metadata();
+  std::optional<block_decompressor> bd;
+  size_t uncompressed_size{0};
+  if (compression != compression_type::NONE) {
+    bd.emplace(compression, data);
+    uncompressed_size = bd->uncompressed_size();
+    if (!cat_metadata) {
+      cat_metadata = bd->metadata();
+    }
+  } else {
+    uncompressed_size = data.size();
   }
 
   // We *must* keep the segment alive since it owns the underlying data,
   // so we move-capture it in the lambda.
   rewrite_section_delayed_data(
       type,
-      [bd = std::move(bd), meta = std::move(cat_metadata),
+      [data, bd = std::move(bd), meta = std::move(cat_metadata),
        segment = std::move(segment)]() mutable {
-        // TODO: For uncompressed input data, we shouldn't be allocating a new
-        //       buffer here, but rather just use a section mapping. This will
-        //       require a bit of refactoring, though.
-        auto block = bd.start_decompression(malloc_byte_buffer::create());
-        segment.advise(io_advice::sequential);
-        bd.decompress_frame(bd.uncompressed_size());
-        segment.advise(io_advice::dontneed);
+        shared_byte_buffer block;
+        if (bd.has_value()) {
+          block = bd->start_decompression(malloc_byte_buffer::create());
+          segment.advise(io_advice::sequential);
+          bd->decompress_frame(bd->uncompressed_size());
+          segment.advise(io_advice::dontneed);
+        } else {
+          block = shared_byte_buffer(
+              std::make_shared<segment_byte_buffer>(data, std::move(segment)));
+        }
         return std::pair{std::move(block), meta};
       },
       uncompressed_size, cat);
