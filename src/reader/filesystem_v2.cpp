@@ -342,6 +342,7 @@ class filesystem_ final {
     ir_.set_cache_tidy_config(cfg);
   }
   size_t num_blocks() const { return ir_.num_blocks(); }
+  size_t block_size() const { return meta_.block_size(); }
   bool has_symlinks() const { return meta_.has_symlinks(); }
   bool has_sparse_files() const { return meta_.has_sparse_files(); }
   history get_history() const;
@@ -1450,6 +1451,7 @@ class filesystem_common_ : public Base {
     fs_.set_cache_tidy_config(cfg);
   }
   size_t num_blocks() const override { return fs_.num_blocks(); }
+  size_t block_size() const override { return fs_.block_size(); }
   bool has_symlinks() const override { return fs_.has_symlinks(); }
   bool has_sparse_files() const override { return fs_.has_sparse_files(); }
   nlohmann::json get_inode_info(inode_view entry) const override {
