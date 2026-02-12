@@ -86,6 +86,7 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
@@ -728,7 +729,7 @@ std::tm safe_localtime(std::time_t t) {
   return buf;
 }
 
-memory_usage get_self_memory_usage() {
+memory_usage get_self_memory_usage(memory_usage_mode mode [[maybe_unused]]) {
   memory_usage usage;
 
 #if defined(_WIN32)
@@ -752,14 +753,20 @@ memory_usage get_self_memory_usage() {
     // TODO: others?
   }
 #elif defined(__linux__)
+  static constexpr auto kStatusPath{"/proc/self/status"};
   static constexpr auto kSmapsPath{"/proc/self/smaps_rollup"};
-  std::ifstream smaps(kSmapsPath);
+  bool const kAccurate = mode == memory_usage_mode::accurate;
+  auto const kSourcePath = kAccurate ? kSmapsPath : kStatusPath;
+  std::string_view const kTotalPrefix = kAccurate ? "Pss:" : "VmRSS:";
+  std::string_view const kAnonPrefix = kAccurate ? "Pss_Anon:" : "RssAnon:";
+  std::string_view const kFilePrefix = kAccurate ? "Pss_File:" : "RssFile:";
+  std::string_view const kShmemPrefix = kAccurate ? "Pss_Shmem:" : "RssShmem:";
 
-  if (smaps) {
-    std::string line;
+  using file_ptr = std::unique_ptr<std::FILE, decltype(&std::fclose)>;
 
-    auto try_parse_line = [&line](std::string_view prefix,
-                                  std::optional<size_t>& field) {
+  if (auto fh = file_ptr(std::fopen(kSourcePath, "r"), &std::fclose)) {
+    auto try_parse_line = [](std::string_view line, std::string_view prefix,
+                             std::optional<size_t>& field) {
       if (!field.has_value() && line.starts_with(prefix)) {
         std::string_view size_str(line);
         size_str.remove_prefix(
@@ -773,11 +780,25 @@ memory_usage get_self_memory_usage() {
       }
     };
 
-    while (std::getline(smaps, line)) {
-      try_parse_line("Pss:", usage.total);
-      try_parse_line("Pss_Anon:", usage.anon);
-      try_parse_line("Pss_File:", usage.file);
-      try_parse_line("Pss_Shmem:", usage.shmem);
+    char* linebuf{nullptr};
+    size_t linebuf_size{0};
+
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    scope_exit free_linebuf([&linebuf]() { std::free(linebuf); });
+
+    for (;;) {
+      auto const read = getline(&linebuf, &linebuf_size, fh.get());
+
+      if (read == -1) {
+        break;
+      }
+
+      auto line = std::string_view(linebuf, static_cast<size_t>(read));
+
+      try_parse_line(line, kTotalPrefix, usage.total);
+      try_parse_line(line, kAnonPrefix, usage.anon);
+      try_parse_line(line, kFilePrefix, usage.file);
+      try_parse_line(line, kShmemPrefix, usage.shmem);
 
       if (usage.total && usage.anon && usage.file && usage.shmem) {
         break;
