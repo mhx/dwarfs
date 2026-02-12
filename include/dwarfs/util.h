@@ -108,6 +108,13 @@ void install_signal_handlers();
 
 std::tm safe_localtime(std::time_t t);
 
-std::optional<size_t> get_self_memory_usage();
+struct memory_usage {
+  std::optional<size_t> total;
+  std::optional<size_t> anon;
+  std::optional<size_t> file;
+  std::optional<size_t> shmem;
+};
+
+memory_usage get_self_memory_usage();
 
 } // namespace dwarfs

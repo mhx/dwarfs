@@ -29,6 +29,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -67,6 +68,8 @@ void add_common_options(boost::program_options::options_description& opts,
 #ifdef DWARFS_BUILTIN_MANPAGE
 void show_manpage(manpage::document doc, iolayer const& iol);
 #endif
+
+std::optional<size_t> get_allocated_memory();
 
 } // namespace tool
 

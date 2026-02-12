@@ -718,7 +718,9 @@ std::tm safe_localtime(std::time_t t) {
   return buf;
 }
 
-std::optional<size_t> get_self_memory_usage() {
+memory_usage get_self_memory_usage() {
+  memory_usage usage;
+
 #if defined(_WIN32)
   PROCESS_MEMORY_COUNTERS_EX pmc{};
 
@@ -726,7 +728,8 @@ std::optional<size_t> get_self_memory_usage() {
                              reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&pmc),
                              sizeof(pmc))) {
     if (pmc.PrivateUsage > 0) {
-      return static_cast<size_t>(pmc.PrivateUsage);
+      usage.total = static_cast<size_t>(pmc.PrivateUsage);
+      // TODO: others?
     }
   }
 #elif defined(__APPLE__)
@@ -735,7 +738,8 @@ std::optional<size_t> get_self_memory_usage() {
 
   if (task_info(mach_task_self(), TASK_VM_INFO,
                 reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS) {
-    return info.phys_footprint;
+    usage.total = info.phys_footprint;
+    // TODO: others?
   }
 #elif defined(__linux__)
   static constexpr auto kSmapsPath{"/proc/self/smaps_rollup"};
@@ -744,21 +748,38 @@ std::optional<size_t> get_self_memory_usage() {
   if (smaps) {
     std::string line;
 
-    while (std::getline(smaps, line)) {
-      if (line.starts_with("Pss:")) {
+    auto try_parse_line = [&line](std::string_view prefix,
+                                  std::optional<size_t>& field) {
+      if (!field.has_value() && line.starts_with(prefix)) {
         std::string_view size_str(line);
-        size_str.remove_prefix(size_str.find_first_not_of(" \t", 4));
+        auto const pos = size_str.find_first_not_of(" \t", prefix.size());
+        if (pos == std::string_view::npos) {
+          return;
+        }
+        size_str.remove_prefix(pos);
         size_t size;
         auto [endp, ec] = std::from_chars(
             size_str.data(), size_str.data() + size_str.size(), size);
         if (ec == std::errc() && std::string_view(endp).starts_with(" kB")) {
-          return size * 1024;
+          field = size * 1024;
         }
+      }
+    };
+
+    while (std::getline(smaps, line)) {
+      try_parse_line("Pss:", usage.total);
+      try_parse_line("Pss_Anon:", usage.anon);
+      try_parse_line("Pss_File:", usage.file);
+      try_parse_line("Pss_Shmem:", usage.shmem);
+
+      if (usage.total && usage.anon && usage.file && usage.shmem) {
+        break;
       }
     }
   }
 #endif
-  return std::nullopt; // Not implemented
+
+  return usage;
 }
 
 } // namespace dwarfs

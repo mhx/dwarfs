@@ -25,8 +25,14 @@
 
 #include <fmt/format.h>
 
+#ifdef DWARFS_USE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif
+
+#include <dwarfs/conv.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/sorted_array_map.h>
+#include <dwarfs/string.h>
 
 #include "test_tool_main_tester.h"
 
@@ -1160,3 +1166,63 @@ TEST(mkdwarfs_test, block_number_out_of_range) {
               ::testing::ThrowsMessage<runtime_error>(
                   ::testing::HasSubstr("block number out of range")));
 }
+
+class mkdwarfs_log_mem_usage_test : public testing::TestWithParam<bool> {};
+
+TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
+  auto const kAccurate = GetParam();
+
+  std::string const mem_usage_file{"memusage.log"};
+  mkdwarfs_tester t;
+  t.os->setenv("DWARFS_LOG_MEMORY_USAGE", mem_usage_file);
+  if (kAccurate) {
+    t.os->setenv("DWARFS_ACCURATE_MEMORY_USAGE", "1");
+  }
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4"})) << t.err();
+  auto log = t.fa->get_file(mem_usage_file);
+  ASSERT_TRUE(log);
+
+  auto const lines = split_to<std::vector<std::string_view>>(*log, '\n');
+  EXPECT_GT(lines.size(), 2);
+
+  auto const title =
+      split_to<std::vector<std::string_view>>(lines.front(), '\t');
+  EXPECT_THAT(title, ::testing::ElementsAre("time", "total", "anon", "file",
+                                            "allocated"));
+
+  auto const row = split_to<std::vector<std::string_view>>(lines.at(1), '\t');
+  EXPECT_EQ(row.size(), title.size());
+
+  auto const time = to<double>(row[0]);
+  auto const total = to<uint64_t>(row[1]);
+  auto const anon = to<uint64_t>(row[2]);
+  auto const file = to<uint64_t>(row[3]);
+  auto const allocated = to<uint64_t>(row[4]);
+
+  EXPECT_GT(time, 0.0);
+  EXPECT_GT(total, 0);
+
+#ifdef __linux__
+  EXPECT_GT(anon, 0);
+  EXPECT_GT(file, 0);
+#else
+  EXPECT_EQ(anon, 0);
+  EXPECT_EQ(file, 0);
+#endif
+
+#ifdef DWARFS_USE_JEMALLOC
+  bool jemalloc_has_stats = false;
+  size_t sz = sizeof(jemalloc_has_stats);
+  ::mallctl("config.stats", &jemalloc_has_stats, &sz, nullptr, 0);
+  if (jemalloc_has_stats) {
+    EXPECT_GT(allocated, 0);
+  } else {
+    EXPECT_EQ(allocated, 0);
+  }
+#else
+  EXPECT_EQ(allocated, 0);
+#endif
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_log_mem_usage_test,
+                         ::testing::Bool());
