@@ -85,6 +85,7 @@
 
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
+#include <dwarfs/os_access.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
@@ -399,6 +400,15 @@ std::string path_to_utf8_string_sanitized(std::filesystem::path const& p) {
 bool getenv_is_enabled(char const* var) {
   if (auto val = std::getenv(var)) {
     if (auto maybeBool = try_to<bool>(val); maybeBool && *maybeBool) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getenv_is_enabled(os_access const& os, char const* var) {
+  if (auto val = os.getenv(var)) {
+    if (auto maybeBool = try_to<bool>(*val); maybeBool && *maybeBool) {
       return true;
     }
   }
