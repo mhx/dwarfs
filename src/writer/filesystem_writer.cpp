@@ -476,8 +476,14 @@ class rewritten_fsblock : public fsblock::impl {
   }
 
   size_t estimated_mem_usage() const override {
-    // std::lock_guard lock(mx_);
-    // return block_data_.has_value() ? block_data_->capacity() : 0;
+    {
+      std::lock_guard lock(mx_);
+      if (block_data_.has_value()) {
+        return block_data_->capacity();
+      }
+    }
+
+    // some worst case estimate before compression is done
     return compressed_size_ + uncompressed_size_ + compressor_mem_usage_;
   }
 
