@@ -1047,15 +1047,21 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
           iol.file->open_output(*file), {"total", "anon", "file", "allocated"});
     }
 
-    lgr.set_memory_usage_function([mem_logger = std::move(mem_logger)] {
-      auto const mem = get_self_memory_usage();
-      if (mem_logger) {
-        mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
-                        mem.file.value_or(0),
-                        get_allocated_memory().value_or(0));
-      }
-      return mem.total.value_or(0);
-    });
+    auto const mem_usage_mode =
+        getenv_is_enabled(*iol.os, "DWARFS_ACCURATE_MEMORY_USAGE")
+            ? memory_usage_mode::accurate
+            : memory_usage_mode::fast;
+
+    lgr.set_memory_usage_function(
+        [mem_logger = std::move(mem_logger), mem_usage_mode] {
+          auto const mem = get_self_memory_usage(mem_usage_mode);
+          if (mem_logger) {
+            mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
+                            mem.file.value_or(0),
+                            get_allocated_memory().value_or(0));
+          }
+          return mem.total.value_or(0);
+        });
   }
 
   std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
