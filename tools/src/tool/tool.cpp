@@ -182,4 +182,21 @@ void show_manpage(manpage::document doc, iolayer const& iol) {
 }
 #endif
 
+std::optional<size_t> get_allocated_memory() {
+  std::optional<size_t> allocated;
+#ifdef DWARFS_USE_JEMALLOC
+  // refresh cached stats
+  uint64_t epoch = 1;
+  size_t sz = sizeof(epoch);
+  mallctl("epoch", &epoch, &sz, &epoch, sz);
+
+  // read current allocated bytes
+  size_t tmp = 0;
+  sz = sizeof(tmp);
+  mallctl("stats.allocated", &tmp, &sz, nullptr, 0);
+  allocated = tmp;
+#endif
+  return allocated;
+}
+
 } // namespace dwarfs::tool

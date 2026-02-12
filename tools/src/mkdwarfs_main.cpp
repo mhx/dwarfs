@@ -49,6 +49,7 @@
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
@@ -390,6 +391,35 @@ compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
   }
   return std::min(wanted_mem, sys_mem / 8);
 }
+
+class time_value_tsv_logger {
+ public:
+  time_value_tsv_logger(std::unique_ptr<output_stream> output,
+                        std::initializer_list<std::string_view> header)
+      : output_{std::move(output)}
+      , start_time_{std::chrono::steady_clock::now()} {
+    fmt::print(output_->os(), "{}\t{}\n", "time", fmt::join(header, "\t"));
+  }
+
+  template <typename... Args>
+  void log(Args&&... args) const {
+    auto const now = std::chrono::steady_clock::now();
+    auto const elapsed =
+        std::chrono::duration_cast<std::chrono::duration<double>>(now -
+                                                                  start_time_)
+            .count();
+    auto& os = output_->os();
+    fmt::print(os, "{}", elapsed);
+    ((fmt::print(os, "\t{}", std::forward<Args>(args))), ...);
+    fmt::print(os, "\n");
+    os.flush();
+  }
+
+ private:
+  // use a shared_ptr to allow copy-construction with std::function
+  std::shared_ptr<output_stream> output_;
+  std::chrono::steady_clock::time_point start_time_;
+};
 
 } // namespace
 
@@ -1003,9 +1033,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   writer::console_writer lgr(iol.term, iol.err, cwopts, logopts);
 
-  if (get_self_memory_usage()) {
-    lgr.set_memory_usage_function(
-        [] { return get_self_memory_usage().value_or(0); });
+  if (auto usage = get_self_memory_usage(); usage.total.has_value()) {
+    std::optional<time_value_tsv_logger> mem_logger;
+
+    if (auto file = iol.os->getenv("DWARFS_LOG_MEMORY_USAGE")) {
+      mem_logger = time_value_tsv_logger(
+          iol.file->open_output(*file), {"total", "anon", "file", "allocated"});
+    }
+
+    lgr.set_memory_usage_function([mem_logger = std::move(mem_logger)] {
+      auto const mem = get_self_memory_usage();
+      if (mem_logger) {
+        mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
+                        mem.file.value_or(0),
+                        get_allocated_memory().value_or(0));
+      }
+      return mem.total.value_or(0);
+    });
   }
 
   std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
