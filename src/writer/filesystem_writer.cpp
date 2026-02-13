@@ -525,8 +525,7 @@ class rewritten_fsblock : public fsblock::impl {
     try {
       auto [block, meta] = data_();
 
-      pctx_->bytes_in += block.size(); // TODO: data_.size()?
-
+      auto const orig_size = block.size();
       auto const start = boost::chrono::thread_clock::now();
 
       try {
@@ -542,6 +541,7 @@ class rewritten_fsblock : public fsblock::impl {
       boost::chrono::duration<double> const duration =
           boost::chrono::thread_clock::now() - start;
 
+      pctx_->bytes_in += orig_size;
       pctx_->bytes_out += block.size();
 
       {
