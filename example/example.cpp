@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
   try {
     os_access_generic os;
-    stream_logger lgr(std::cerr);
+    stream_logger lgr(os);
 
     reader::filesystem_v2 fs(lgr, os, argv[2]);
 

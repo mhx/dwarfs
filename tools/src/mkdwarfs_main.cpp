@@ -826,7 +826,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.out << "\nCategories:\n";
 
     for (auto const& name : catreg.categorizer_names()) {
-      stream_logger lgr(iol.term, iol.err);
+      stream_logger lgr(iol.term, iol.err, *iol.os);
       auto categorizer = catreg.create(lgr, name, vm, iol.file);
       iol.out << "  [" << name << "]\n";
       for (auto cat : categorizer->categories()) {
@@ -1037,7 +1037,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       .enable_sparse_files = !no_sparse_files,
   };
 
-  writer::console_writer lgr(iol.term, iol.err, cwopts, logopts);
+  writer::console_writer lgr(iol.term, iol.err, *iol.os, cwopts, logopts);
 
   if (auto usage = get_self_memory_usage(); usage.total.has_value()) {
     std::optional<time_value_tsv_logger> mem_logger;
@@ -1369,7 +1369,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::unordered_set<std::string_view> accepted_categories;
 
   for (auto const& name : catreg.categorizer_names()) {
-    stream_logger lgr(iol.term, iol.err);
+    stream_logger lgr(iol.term, iol.err, *iol.os);
     auto categorizer = catreg.create(lgr, name, vm, iol.file);
     for (auto cat : categorizer->categories()) {
       accepted_categories.insert(cat);
