@@ -237,7 +237,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   int rv = 0;
 
   try {
-    stream_logger lgr(iol.term, iol.err, logopts);
+    stream_logger lgr(iol.term, iol.err, *iol.os, logopts);
     reader::filesystem_options fsopts;
 
     fsopts.image_offset = reader::parse_image_offset(image_offset);

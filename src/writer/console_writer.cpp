@@ -164,9 +164,10 @@ void output_context_line(terminal const& term, std::ostream& os,
 } // namespace
 
 console_writer::console_writer(std::shared_ptr<terminal const> term,
-                               std::ostream& os, options const& opts,
+                               std::ostream& os, os_access const& acc,
+                               options const& opts,
                                logger_options const& logger_opts)
-    : stream_logger{std::move(term), os, logger_opts}
+    : stream_logger{std::move(term), os, acc, logger_opts}
     , opts_{opts} {}
 
 void console_writer::rewind(std::ostream& os, int next_rewind_lines) {

@@ -274,7 +274,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   try {
-    stream_logger lgr(iol.term, iol.err, logopts);
+    stream_logger lgr(iol.term, iol.err, *iol.os, logopts);
     LOG_PROXY(debug_logger_policy, lgr);
 
     if (no_check && check_integrity) {
