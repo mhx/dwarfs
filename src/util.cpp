@@ -156,6 +156,10 @@ file_size_t parse_size_with_unit(std::string const& str) {
 }
 
 std::string ratio_to_string(double num, double den, int precision) {
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
   if (den == 0.0) {
     return "N/A";
   }
@@ -163,6 +167,9 @@ std::string ratio_to_string(double num, double den, int precision) {
   if (num == 0.0) {
     return "0x";
   }
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
   double const ratio = num / den;
 

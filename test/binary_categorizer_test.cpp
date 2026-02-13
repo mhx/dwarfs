@@ -350,7 +350,7 @@ TEST_F(binary_categorizer, macho_fail_fat) {
 
   for (auto const idx : significant_bytes) {
     auto corrupted = data;
-    corrupted[idx] = 0xFF;
+    corrupted[idx] = ~corrupted[idx];
     auto job = catmgr->job("fail");
     auto mm = test::make_mock_file_view(corrupted);
     job.set_total_size(mm.size());
