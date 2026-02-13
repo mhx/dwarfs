@@ -168,7 +168,8 @@ class fsblock {
 
   fsblock(section_type type, block_compressor const& bc,
           delayed_data_fn_type data, size_t compressed_size,
-          size_t uncompressed_size, std::shared_ptr<compression_progress> pctx);
+          size_t uncompressed_size, std::shared_ptr<compression_progress> pctx,
+          std::condition_variable& cond);
 
   void
   compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
@@ -432,7 +433,8 @@ class rewritten_fsblock : public fsblock::impl {
   rewritten_fsblock(section_type type, block_compressor const& bc,
                     delayed_data_fn_type data, size_t compressed_size,
                     size_t uncompressed_size,
-                    std::shared_ptr<compression_progress> pctx)
+                    std::shared_ptr<compression_progress> pctx,
+                    std::condition_variable& cond)
       : type_{type}
       , bc_{bc}
       , data_{std::move(data)}
@@ -440,7 +442,8 @@ class rewritten_fsblock : public fsblock::impl {
       , pctx_{std::move(pctx)}
       , compressed_size_{compressed_size}
       , uncompressed_size_{uncompressed_size}
-      , compressor_mem_usage_{bc.estimate_memory_usage(uncompressed_size)} {
+      , compressor_mem_usage_{bc.estimate_memory_usage(uncompressed_size)}
+      , cond_{cond} {
     DWARFS_CHECK(bc_, "block_compressor must not be null");
   }
 
@@ -491,7 +494,7 @@ class rewritten_fsblock : public fsblock::impl {
     }
 
     // some worst case estimate before compression is done
-    return compressed_size_ + uncompressed_size_ + compressor_mem_usage_;
+    return compressed_size_ + compressor_mem_usage_;
   }
 
   void set_block_no(uint32_t number) override {
@@ -546,6 +549,8 @@ class rewritten_fsblock : public fsblock::impl {
         compression_time_ = duration.count();
       }
 
+      cond_.notify_one();
+
       prom.set_value();
     } catch (...) {
       prom.set_exception(std::current_exception());
@@ -566,6 +571,7 @@ class rewritten_fsblock : public fsblock::impl {
   size_t const uncompressed_size_;
   size_t const compressor_mem_usage_;
   double compression_time_{0.0};
+  std::condition_variable& cond_;
 };
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
@@ -588,10 +594,11 @@ fsblock::fsblock(fs_section sec, file_segment segment,
 fsblock::fsblock(section_type type, block_compressor const& bc,
                  delayed_data_fn_type data, size_t compressed_size,
                  size_t uncompressed_size,
-                 std::shared_ptr<compression_progress> pctx)
+                 std::shared_ptr<compression_progress> pctx,
+                 std::condition_variable& cond)
     : impl_(std::make_unique<rewritten_fsblock>(
           type, bc, std::move(data), compressed_size, uncompressed_size,
-          std::move(pctx))) {}
+          std::move(pctx), cond)) {}
 
 void fsblock::build_section_header(section_header_v2& sh,
                                    fsblock::impl const& fsb,
@@ -784,7 +791,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
   folly::setThreadName("writer");
 
   for (;;) {
-    block_holder_type holder;
+    block_holder_type* holder{nullptr};
 
     {
       std::unique_lock lock(mx_);
@@ -800,13 +807,10 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
         continue;
       }
 
-      std::swap(holder, queue_.front());
-      queue_.pop_front();
+      holder = &queue_.front();
     }
 
-    cond_.notify_one();
-
-    auto const& fsb = holder.value();
+    auto const& fsb = holder->value();
 
     // TODO: this may throw
     fsb->wait_until_compressed();
@@ -818,6 +822,18 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
               << "] in " << time_with_unit(fsb->compression_time());
 
     write(*fsb);
+
+    {
+      block_holder_type tmp;
+
+      {
+        std::unique_lock lock(mx_);
+        std::swap(tmp, queue_.front());
+        queue_.pop_front();
+      }
+    }
+
+    cond_.notify_one();
   }
 }
 
@@ -1020,25 +1036,28 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    // TODO: this isn't currently working
-    for (;;) {
+    auto& bc = get_compressor(type, cat);
+    auto const this_section_mem =
+        compressed_size + bc.estimate_memory_usage(uncompressed_size);
+
+    while (!queue_.empty()) {
       auto const mem = mem_used();
 
-      if (mem <= options_.max_queue_size) {
+      if (mem + this_section_mem <= options_.max_queue_size) {
         break;
       }
 
-      LOG_VERBOSE << "waiting for queue to drain (mem_used: "
-                  << size_with_unit(mem) << ", queue_size: " << queue_.size()
-                  << ")";
+      LOG_VERBOSE << "waiting for queue to drain (" << queue_.size()
+                  << " jobs, " << size_with_unit(mem) << " + "
+                  << size_with_unit(this_section_mem) << " > "
+                  << size_with_unit(options_.max_queue_size) << ")";
 
       cond_.wait(lock);
     }
 
-    auto& bc = get_compressor(type, cat);
-
-    auto fsb = std::make_unique<fsblock>(
-        type, bc, std::move(data), compressed_size, uncompressed_size, pctx_);
+    auto fsb =
+        std::make_unique<fsblock>(type, bc, std::move(data), compressed_size,
+                                  uncompressed_size, pctx_, cond_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);
