@@ -83,6 +83,13 @@
 #include <mach/mach.h>
 #endif
 
+#ifdef __FreeBSD__
+#include <sys/sysctl.h>
+#include <sys/types.h>
+#include <sys/user.h>
+#include <unistd.h>
+#endif
+
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
@@ -758,6 +765,17 @@ memory_usage get_self_memory_usage(memory_usage_mode mode [[maybe_unused]]) {
                 reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS) {
     usage.total = info.phys_footprint;
     // TODO: others?
+  }
+#elif defined(__FreeBSD__)
+  std::array<int, 4> mib{CTL_KERN, KERN_PROC, KERN_PROC_PID,
+                         static_cast<int>(::getpid())};
+  struct kinfo_proc kp;
+  size_t len = sizeof(kp);
+
+  if (::sysctl(mib.data(), 4, &kp, &len, nullptr, 0) == 0 &&
+      len == sizeof(kp)) {
+    size_t const page_sz = static_cast<size_t>(::getpagesize());
+    usage.total = static_cast<size_t>(kp.ki_rssize) * page_sz;
   }
 #elif defined(__linux__)
   static constexpr auto kStatusPath{"/proc/self/status"};
