@@ -34,6 +34,7 @@
 
 namespace dwarfs {
 
+class os_access;
 class terminal;
 
 namespace writer {
@@ -53,7 +54,8 @@ class console_writer : public stream_logger {
   };
 
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
-                 options const& opts, logger_options const& logger_opts = {});
+                 os_access const& acc, options const& opts,
+                 logger_options const& logger_opts = {});
 
   void update(writer_progress& prog, bool last);
 

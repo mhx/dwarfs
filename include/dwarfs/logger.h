@@ -46,6 +46,7 @@
 
 namespace dwarfs {
 
+class os_access;
 class terminal;
 
 class logger {
@@ -96,10 +97,12 @@ struct logger_options {
 
 class stream_logger : public logger {
  public:
-  explicit stream_logger(logger_options const& options = {});
-  explicit stream_logger(std::ostream& os, logger_options const& options = {});
+  explicit stream_logger(os_access const& acc,
+                         logger_options const& options = {});
+  explicit stream_logger(std::ostream& os, os_access const& acc,
+                         logger_options const& options = {});
   stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
-                logger_options const& options = {});
+                os_access const& acc, logger_options const& options = {});
 
   void write(level_type level, std::string_view output,
              source_location loc) override;

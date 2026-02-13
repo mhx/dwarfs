@@ -115,7 +115,8 @@ mkdwarfs_tester mkdwarfs_tester::create_empty() {
 void mkdwarfs_tester::add_stream_logger(std::ostream& st,
                                         logger::level_type level) {
   lgr = std::make_unique<stream_logger>(std::make_shared<test::test_terminal>(),
-                                        st, logger_options{.threshold = level});
+                                        st, *os,
+                                        logger_options{.threshold = level});
 }
 
 void mkdwarfs_tester::add_root_dir() {

@@ -256,7 +256,7 @@ class dwarfs_analysis {
 
 struct dwarfs_userdata {
   explicit dwarfs_userdata(iolayer const& iol)
-      : lgr{iol.term, iol.err}
+      : lgr{iol.term, iol.err, *iol.os}
       , iol{iol} {}
 
   ~dwarfs_userdata();

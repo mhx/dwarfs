@@ -137,17 +137,20 @@ std::string logger::all_level_names() {
 
 null_logger::null_logger() { set_policy<prod_logger_policy>(); }
 
-stream_logger::stream_logger(logger_options const& options)
-    : stream_logger(std::cerr, options) {}
+stream_logger::stream_logger(os_access const& acc,
+                             logger_options const& options)
+    : stream_logger(std::cerr, acc, options) {}
 
-stream_logger::stream_logger(std::ostream& os, logger_options const& options)
-    : stream_logger(std::make_shared<terminal_ansi>(), os, options) {}
+stream_logger::stream_logger(std::ostream& os, os_access const& acc,
+                             logger_options const& options)
+    : stream_logger(std::make_shared<terminal_ansi>(), os, acc, options) {}
 
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
-                             std::ostream& os, logger_options const& options)
+                             std::ostream& os, os_access const& acc,
+                             logger_options const& options)
     : os_(os)
     , color_(term->is_tty(os) && term->is_fancy())
-    , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
+    , enable_stack_trace_{getenv_is_enabled(acc, "DWARFS_LOGGER_STACK_TRACE")}
     , with_context_(options.with_context ? options.with_context.value()
                                          : options.threshold >= logger::VERBOSE)
     , term_{std::move(term)} {
