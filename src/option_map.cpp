@@ -66,7 +66,7 @@ option_map::option_map(std::string_view const spec) {
   }
 }
 
-size_t option_map::get_size(std::string const& key, size_t default_value) {
+size_t option_map::get_size(std::string_view key, size_t default_value) {
   auto i = opt_.find(key);
 
   if (i != opt_.end()) {

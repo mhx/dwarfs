@@ -28,59 +28,27 @@
 
 #pragma once
 
-#include <optional>
+#include <cstddef>
+#include <functional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
-#include <dwarfs/conv.h>
-#include <dwarfs/detail/string_like_hash.h>
+namespace dwarfs::detail {
 
-namespace dwarfs {
+struct string_like_hash {
+  using is_transparent = void;
 
-class option_map {
- public:
-  explicit option_map(std::string_view spec);
-
-  std::string const& choice() const { return choice_; }
-
-  bool has_options() const { return !opt_.empty(); }
-
-  template <typename T>
-  T get(std::string_view key, T const& default_value = T()) {
-    auto i = opt_.find(key);
-
-    if (i != opt_.end()) {
-      std::string val = i->second;
-      opt_.erase(i);
-      return to<T>(val);
-    }
-
-    return default_value;
+  [[nodiscard]] size_t operator()(char const* txt) const {
+    return std::hash<std::string_view>{}(txt);
   }
 
-  template <typename T>
-  std::optional<T> get_optional(std::string_view key) {
-    auto i = opt_.find(key);
-
-    if (i != opt_.end()) {
-      std::string val = i->second;
-      opt_.erase(i);
-      return to<T>(val);
-    }
-
-    return std::nullopt;
+  [[nodiscard]] size_t operator()(std::string_view txt) const {
+    return std::hash<std::string_view>{}(txt);
   }
 
-  size_t get_size(std::string_view key, size_t default_value = 0);
-
-  void report();
-
- private:
-  std::unordered_map<std::string, std::string, detail::string_like_hash,
-                     std::equal_to<>>
-      opt_;
-  std::string choice_;
+  [[nodiscard]] size_t operator()(std::string const& txt) const {
+    return std::hash<std::string_view>{}(txt);
+  }
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::detail
