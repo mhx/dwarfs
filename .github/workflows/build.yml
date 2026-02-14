@@ -648,6 +648,7 @@ jobs:
       - ${{ matrix.arch }}
 
     strategy:
+      fail-fast: false
       matrix:
         arch:
           - ARM64
