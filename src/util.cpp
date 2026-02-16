@@ -129,7 +129,9 @@ file_size_t parse_size_with_unit(std::string const& str) {
   auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
 
   if (ec != std::errc()) {
-    DWARFS_THROW(runtime_error, "cannot parse size value");
+    DWARFS_THROW(runtime_error,
+                 fmt::format("cannot parse size value: {}: {}", str,
+                             std::make_error_code(ec).message()));
   }
 
   if (ptr[0] == '\0') {
@@ -159,7 +161,7 @@ file_size_t parse_size_with_unit(std::string const& str) {
     }
   }
 
-  DWARFS_THROW(runtime_error, "unsupported size suffix");
+  DWARFS_THROW(runtime_error, fmt::format("unsupported size suffix: {}", ptr));
 }
 
 std::string ratio_to_string(double num, double den, int precision) {
@@ -260,7 +262,8 @@ std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
     break;
   }
 
-  DWARFS_THROW(runtime_error, "unsupported time suffix");
+  DWARFS_THROW(runtime_error,
+               fmt::format("unsupported time suffix: {}", suffix));
 }
 
 std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
