@@ -1011,7 +1011,7 @@ TEST_F(mkdwarfs_main_test, order_explicit_failed_to_open_file) {
 TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_option) {
   EXPECT_NE(0, run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
   EXPECT_THAT(err(), ::testing::HasSubstr(
-                         "invalid option(s) for choice nilsimsa: grmpf"));
+                         "invalid option(s) for choice 'nilsimsa': grmpf"));
 }
 
 TEST_F(mkdwarfs_main_test, order_nilsimsa_invalid_max_childre_value) {
@@ -1039,7 +1039,7 @@ TEST_F(mkdwarfs_main_test, order_nilsimsa_duplicate_option) {
                  "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"}));
   EXPECT_THAT(err(),
               ::testing::HasSubstr(
-                  "duplicate option max-cluster-size for choice nilsimsa"));
+                  "duplicate option 'max-cluster-size' for choice 'nilsimsa'"));
 }
 
 TEST_F(mkdwarfs_main_test, unknown_file_hash) {
