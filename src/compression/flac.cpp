@@ -514,8 +514,8 @@ class flac_compressor_factory final
 
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {
-    return std::make_unique<flac_block_compressor>(
-        om.get<uint32_t>("level", 5), om.get<bool>("exhaustive", false));
+    return std::make_unique<flac_block_compressor>(om.get<uint32_t>("level", 5),
+                                                   om.get<bool>("exhaustive"));
   }
 
  private:

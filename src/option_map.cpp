@@ -48,34 +48,35 @@ option_map::option_map(std::string_view const spec) {
 
   for (size_t i = 1; i < arg.size(); ++i) {
     std::string key;
-    std::string val;
+    std::optional<std::string> val;
 
-    if (auto eqpos = arg[i].find('='); eqpos != std::string_view::npos) {
+    if (auto const eqpos = arg[i].find('='); eqpos != std::string_view::npos) {
       key.assign(arg[i].substr(0, eqpos));
-      val.assign(arg[i].substr(eqpos + 1));
+      val.emplace(arg[i].substr(eqpos + 1));
     } else {
       key.assign(arg[i]);
-      val.assign("1");
     }
 
     if (!opt_.emplace(key, val).second) {
       DWARFS_THROW(
           runtime_error,
-          fmt::format("duplicate option {} for choice {}", key, choice_));
+          fmt::format("duplicate option '{}' for choice '{}'", key, choice_));
     }
   }
 }
 
 size_t option_map::get_size(std::string_view key, size_t default_value) {
-  auto i = opt_.find(key);
+  auto const tv = take(key);
 
-  if (i != opt_.end()) {
-    std::string val = i->second;
-    opt_.erase(i);
-    return parse_size_with_unit(val);
+  if (!tv) {
+    return default_value;
   }
 
-  return default_value;
+  if (!tv->has_value()) {
+    throw_missing_value(key);
+  }
+
+  return parse_size_with_unit(**tv);
 }
 
 void option_map::report() {
@@ -85,9 +86,27 @@ void option_map::report() {
                            [](auto const& p) { return p.first; });
     std::ranges::sort(invalid);
     DWARFS_THROW(runtime_error,
-                 fmt::format("invalid option(s) for choice {}: {}", choice_,
+                 fmt::format("invalid option(s) for choice '{}': {}", choice_,
                              fmt::join(invalid, ", ")));
   }
+}
+
+void option_map::throw_missing_value(std::string_view key) {
+  DWARFS_THROW(runtime_error,
+               fmt::format("missing value for option '{}' of choice '{}'", key,
+                           choice_));
+}
+
+void option_map::throw_value_not_allowed(std::string_view key) {
+  DWARFS_THROW(runtime_error,
+               fmt::format("value not allowed for option '{}' of choice '{}'",
+                           key, choice_));
+}
+
+void option_map::check_consumed(std::string_view key) {
+  DWARFS_CHECK(consumed_keys_.emplace(key).second,
+               fmt::format("option '{}' of choice '{}' consumed multiple times",
+                           key, choice_));
 }
 
 } // namespace dwarfs

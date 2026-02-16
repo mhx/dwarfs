@@ -31,7 +31,9 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <dwarfs/conv.h>
 #include <dwarfs/detail/string_like_hash.h>
@@ -46,40 +48,142 @@ class option_map {
 
   bool has_options() const { return !opt_.empty(); }
 
-  template <typename T>
-  T get(std::string_view key, T const& default_value = T()) {
-    auto i = opt_.find(key);
+  // om.get<T>(key)                    -> value *must* be present
+  //
+  //   ""          -> error: mandatory option/value combo
+  //   "key"       -> error (no value)
+  //   "key=value" -> value
+  //
+  // om.get<T>(key, default)           -> value or default if not present
+  //
+  //   ""          -> default
+  //   "key"       -> error (no value)
+  //   "key=value" -> value
+  //
+  // om.get<bool>(key)                 -> true if present, false if not present;
+  //                                      must not have a value
+  //
+  //   ""          -> false
+  //   "key"       -> true
+  //   "key=value" -> error (value not allowed)
+  //
+  // om.get_optional<T>(key)           -> either not present (-> std::nullopt)
+  //                                      or present with mandatory value
+  //
+  //   ""          -> std::nullopt
+  //   "key"       -> error (value required)
+  //   "key=value" -> value
+  //
+  // om.get_optional<T>(key, default)  -> either not present (-> std::nullopt),
+  //                                      present without value (-> default) or
+  //                                      present with value (-> value)
+  //
+  //   ""          -> std::nullopt
+  //   "key"       -> default
+  //   "key=value" -> value
+  //
+  // om.get_size(key, default)         -> value as size_t or default if not
+  //                                      present
+  //
+  //   ""          -> default
+  //   "key"       -> error (no value)
+  //   "key=value" -> value
 
-    if (i != opt_.end()) {
-      std::string val = i->second;
-      opt_.erase(i);
-      return to<T>(val);
+  template <typename T>
+  T get(std::string_view key) {
+    auto const tv = take(key);
+
+    if constexpr (std::is_same_v<T, bool>) {
+      if (tv && tv->has_value()) {
+        throw_value_not_allowed(key);
+      }
+
+      return tv.has_value();
     }
 
-    return default_value;
+    if (!tv || !tv->has_value()) {
+      throw_missing_value(key);
+    }
+
+    return to<T>(**tv);
   }
 
   template <typename T>
-  std::optional<T> get_optional(std::string_view key) {
-    auto i = opt_.find(key);
+    requires(!std::is_same_v<T, bool>)
+  T get(std::string_view key, T const& default_value) {
+    auto const tv = take(key);
 
-    if (i != opt_.end()) {
-      std::string val = i->second;
-      opt_.erase(i);
-      return to<T>(val);
+    if (!tv) {
+      return default_value;
+    }
+
+    if (!tv->has_value()) {
+      throw_missing_value(key);
+    }
+
+    return to<T>(**tv);
+  }
+
+  template <typename T>
+    requires(!std::is_same_v<T, bool>)
+  std::optional<T> get_optional(std::string_view key) {
+    auto const tv = take(key);
+
+    if (!tv) {
+      return std::nullopt;
+    }
+
+    if (!tv->has_value()) {
+      throw_missing_value(key);
+    }
+
+    return to<T>(**tv);
+  }
+
+  template <typename T>
+    requires(!std::is_same_v<T, bool>)
+  std::optional<T> get_optional(std::string_view key, T const& default_value) {
+    auto const tv = take(key);
+
+    if (!tv) {
+      return std::nullopt;
+    }
+
+    if (!tv->has_value()) {
+      return default_value;
+    }
+
+    return to<T>(**tv);
+  }
+
+  size_t get_size(std::string_view key, size_t default_value);
+
+  void report();
+
+ private:
+  std::optional<std::optional<std::string>> take(std::string_view key) {
+    auto it = opt_.find(key);
+
+    check_consumed(key);
+
+    if (it != opt_.end()) {
+      auto val = it->second;
+      opt_.erase(it);
+      return val;
     }
 
     return std::nullopt;
   }
 
-  size_t get_size(std::string_view key, size_t default_value = 0);
+  [[noreturn]] void throw_missing_value(std::string_view key);
+  [[noreturn]] void throw_value_not_allowed(std::string_view key);
+  void check_consumed(std::string_view key);
 
-  void report();
-
- private:
-  std::unordered_map<std::string, std::string, detail::string_like_hash,
-                     std::equal_to<>>
+  std::unordered_map<std::string, std::optional<std::string>,
+                     detail::string_like_hash, std::equal_to<>>
       opt_;
+  std::unordered_set<std::string, detail::string_like_hash, std::equal_to<>>
+      consumed_keys_;
   std::string choice_;
 };
 

@@ -172,7 +172,7 @@ class lzma_block_compressor final : public block_compressor::impl {
 
 lzma_block_compressor::lzma_block_compressor(option_map& om) {
   auto level = om.get<unsigned>("level", 9U);
-  auto extreme = om.get<bool>("extreme", false);
+  auto extreme = om.get<bool>("extreme");
   auto binary_mode = om.get_optional<std::string>("binary");
   auto dict_size = om.get_optional<unsigned>("dict_size");
   auto mode = om.get_optional<std::string>("mode");
