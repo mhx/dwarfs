@@ -472,6 +472,32 @@ if use_lib zstd; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${ZSTD_TARBALL}
     cd zstd-${ZSTD_VERSION}
+    patch -p1 <<'PATCH'
+--- a/lib/compress/zstd_compress.c
++++ b/lib/compress/zstd_compress.c
+@@ -1755,15 +1755,20 @@ size_t ZSTD_estimateCCtxSize_usingCCtxParams(const ZSTD_CCtx_params* params)
+ {
+     ZSTD_compressionParameters const cParams =
+                 ZSTD_getCParamsFromCCtxParams(params, ZSTD_CONTENTSIZE_UNKNOWN, 0, ZSTD_cpm_noAttachDict);
++    ldmParams_t ldmParams = params->ldmParams;
+     ZSTD_ParamSwitch_e const useRowMatchFinder = ZSTD_resolveRowMatchFinderMode(params->useRowMatchFinder,
+                                                                                &cParams);
+ 
+     RETURN_ERROR_IF(params->nbWorkers > 0, GENERIC, "Estimate CCtx size is supported for single-threaded compression only.");
++    if (ldmParams.enableLdm == ZSTD_ps_enable) {
++        /* Adjust long distance matching parameters */
++        ZSTD_ldm_adjustParameters(&ldmParams, &cParams);
++    }
+     /* estimateCCtxSize is for one-shot compression. So no buffers should
+      * be needed. However, we still allocate two 0-sized buffers, which can
+      * take space under ASAN. */
+     return ZSTD_estimateCCtxSize_usingCCtxParams_internal(
+-        &cParams, &params->ldmParams, 1, useRowMatchFinder, 0, 0, ZSTD_CONTENTSIZE_UNKNOWN, ZSTD_hasExtSeqProd(params), params->maxBlockSize);
++        &cParams, &ldmParams, 1, useRowMatchFinder, 0, 0, ZSTD_CONTENTSIZE_UNKNOWN, ZSTD_hasExtSeqProd(params), params->maxBlockSize);
+ }
+ 
+ size_t ZSTD_estimateCCtxSize_usingCParams(ZSTD_compressionParameters cParams)
+PATCH
     mkdir meson-build
     cd meson-build
     meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
