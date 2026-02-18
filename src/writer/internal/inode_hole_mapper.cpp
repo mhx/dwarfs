@@ -23,7 +23,6 @@
 
 #include <cassert>
 
-#include <dwarfs/bits.h>
 #include <dwarfs/metadata_defs.h>
 
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
@@ -49,7 +48,7 @@ inode_hole_mapper::inode_hole_mapper(size_t hole_block_index, size_t block_size,
     : hole_block_index_{hole_block_index}
     , block_size_bits_{std::countr_zero(block_size)}
     , inline_hole_size_limit_{compute_inline_hole_size_limit(
-          used_bits(max_data_chunk_size), block_size_bits_)} {
+          std::bit_width(max_data_chunk_size), block_size_bits_)} {
   assert(std::has_single_bit(block_size));
 }
 

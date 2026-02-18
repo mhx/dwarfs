@@ -34,14 +34,6 @@
 
 namespace dwarfs {
 
-template <std::unsigned_integral T>
-inline int used_bits(T value) {
-  if (value == 0) {
-    return 0;
-  }
-  return std::numeric_limits<T>::digits - std::countl_zero(value);
-}
-
 // Equivalent to `static_cast<int>(std::log2(std::bit_ceil(value)))`.
 template <std::unsigned_integral T>
 constexpr int log2_bit_ceil(T value) {
