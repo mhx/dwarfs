@@ -286,6 +286,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     {
       std::lock_guard lock(bytes_total_mx_);
       if (bytes_total_) {
+        // NOLINTNEXTLINE(bugprone-optional-value-conversion)
         pi.total_bytes = *bytes_total_;
       }
     }
@@ -472,7 +473,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   std::atomic<size_t> hard_error{0};
   std::atomic<size_t> soft_error{0};
 
-  auto do_archive = [&](worker_ptr aptr, std::shared_ptr<::archive_entry> ae,
+  auto do_archive = [&](worker_ptr const& aptr,
+                        std::shared_ptr<::archive_entry> ae,
                         reader::inode_view const& entry) {
     // hard links will have size 0
     if (auto const size = ::archive_entry_size(ae.get());

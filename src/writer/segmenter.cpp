@@ -269,8 +269,8 @@ class alignas(64) bloom_filter {
   }
 
   bits_type* bits_{nullptr};
-  size_t const index_mask_;
-  size_t const size_;
+  size_t const index_mask_{0};
+  size_t const size_{0};
 };
 
 /**

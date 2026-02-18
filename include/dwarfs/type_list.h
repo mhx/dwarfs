@@ -34,12 +34,12 @@ template <typename... Ts>
 struct type_list {};
 
 template <typename... Ts, typename F>
-void for_each_type(type_list<Ts...>, F&& f) {
+void for_each_type(type_list<Ts...>, F const& f) {
   (f.template operator()<Ts>(), ...);
 }
 
 template <typename... Ts, typename F>
-void for_each_type_until_true(type_list<Ts...>, F&& f) {
+void for_each_type_until_true(type_list<Ts...>, F const& f) {
   (f.template operator()<Ts>() || ...);
 }
 

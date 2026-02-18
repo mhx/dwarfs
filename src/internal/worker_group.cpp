@@ -61,11 +61,12 @@ template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
-  basic_worker_group(
-      logger& lgr, os_access const& os, char const* group_name,
-      size_t num_workers,
-      std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
-      size_t max_queue_len, int niceness [[maybe_unused]], Args&&... args)
+  basic_worker_group(logger& lgr, os_access const& os, char const* group_name,
+                     size_t num_workers,
+                     std::function<std::unique_ptr<thread_state>(size_t)> const&
+                         thread_state_factory,
+                     size_t max_queue_len, int niceness [[maybe_unused]],
+                     Args&&... args)
       : Policy(std::forward<Args>(args)...)
       , LOG_PROXY_INIT(lgr)
       , os_{os}
@@ -346,7 +347,8 @@ using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
 worker_group::worker_group(
     logger& lgr, os_access const& os, char const* group_name,
     size_t num_workers,
-    std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
+    std::function<std::unique_ptr<thread_state>(size_t)> const&
+        thread_state_factory,
     size_t max_queue_len, int niceness)
     : impl_{make_unique_logging_object<impl, default_worker_group,
                                        logger_policies>(

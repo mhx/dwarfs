@@ -160,6 +160,7 @@ class io_ops_posix : public io_ops {
     // need the fd of the file in the child process, our fd is not going
     // to survive the fork if it is 0, 1, or 2.
     if (fd <= 2) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
       int const new_fd = ::fcntl(fd, F_DUPFD, 3);
 
       ::close(fd);

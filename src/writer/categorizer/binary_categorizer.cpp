@@ -98,6 +98,8 @@ using sync_subcat_map =
 
 //----- Minimal ELF definitions ------------------------------------------------
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
+
 struct minimal_elf_header {
   static constexpr size_t MINELF_EI_CLASS{4};
   static constexpr size_t MINELF_EI_DATA{5};
@@ -208,6 +210,8 @@ struct minimal_dos_stub {
     return false;
   }
 };
+
+// NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
 //----- Minimal Mach-O definitions ---------------------------------------------
 

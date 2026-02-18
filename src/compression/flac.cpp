@@ -207,7 +207,7 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
   std::vector<FLAC__int32> tmp_;
   std::span<uint8_t const> data_;
   thrift::compression::flac_block_header const& header_;
-  int const bytes_per_sample_;
+  int const bytes_per_sample_{0};
   pcm_sample_transformer<FLAC__int32> xfm_;
   size_t pos_{0};
 };
@@ -464,6 +464,7 @@ class flac_block_decompressor final : public block_decompressor_base {
     }
 
     if (decompressed_.size() == uncompressed_size_) {
+      // NOLINTNEXTLINE(readability-ambiguous-smartptr-reset-call)
       decoder_.reset();
       return true;
     }
