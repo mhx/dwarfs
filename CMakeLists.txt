@@ -526,7 +526,7 @@ if(WITH_DESKTOP_INTEGRATION AND NOT WIN32)
   endif()
 endif()
 
-if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
+if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
   add_library(dwarfs_test_helpers
     test/compare_directories.cpp
     test/mmap_mock.cpp
@@ -552,6 +552,12 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
 
     add_executable(sparsedump test/sparsedump.cpp)
     target_link_libraries(treediff PRIVATE dwarfs_common)
+
+    if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
+      add_executable(zstd_memory test/zstd_memory.cpp)
+      target_link_libraries(zstd_memory PRIVATE dwarfs_common dwarfs_compressor)
+      list(APPEND BINARY_TARGETS zstd_memory)
+    endif()
 
     list(APPEND BINARY_TARGETS treediff sparsedump)
   endif()
