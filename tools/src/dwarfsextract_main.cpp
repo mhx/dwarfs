@@ -71,7 +71,7 @@ class progress_thread {
  public:
   using fn_type = std::function<void(bool last)>;
 
-  progress_thread(std::chrono::nanoseconds interval, fn_type fn)
+  progress_thread(std::chrono::nanoseconds interval, fn_type const& fn)
       : thread_([this, interval, fn] { this->run(interval, fn); }) {}
 
   ~progress_thread() { stop(); }
@@ -95,7 +95,7 @@ class progress_thread {
   }
 
  private:
-  void run(std::chrono::nanoseconds interval, fn_type fn) {
+  void run(std::chrono::nanoseconds interval, fn_type const& fn) {
     std::unique_lock lock(running_mx_);
     do {
       fn(false);

@@ -113,12 +113,12 @@ class worker_group {
                size_t max_queue_len = std::numeric_limits<size_t>::max(),
                int niceness = 0);
 
-  worker_group(
-      logger& lgr, os_access const& os, char const* group_name,
-      size_t num_workers,
-      std::function<std::unique_ptr<thread_state>(size_t)> thread_state_factory,
-      size_t max_queue_len = std::numeric_limits<size_t>::max(),
-      int niceness = 0);
+  worker_group(logger& lgr, os_access const& os, char const* group_name,
+               size_t num_workers,
+               std::function<std::unique_ptr<thread_state>(size_t)> const&
+                   thread_state_factory,
+               size_t max_queue_len = std::numeric_limits<size_t>::max(),
+               int niceness = 0);
 
   worker_group() = default;
   ~worker_group() = default;

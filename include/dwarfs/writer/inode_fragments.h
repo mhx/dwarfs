@@ -161,6 +161,7 @@ class inode_fragments {
 
   void append(inode_fragments const& other);
 
+  // NOLINTNEXTLINE(bugprone-exception-escape,cppcoreguidelines-noexcept-swap,performance-noexcept-swap)
   void swap(inode_fragments& other) { fragments_.swap(other.fragments_); }
 
   size_t size() const { return fragments_.size(); }

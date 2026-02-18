@@ -123,8 +123,7 @@ class read_file_segment final : public detail::file_segment_impl {
 
   std::span<std::byte const> raw_bytes() const override {
     auto const data = buf_.span();
-    return std::span<std::byte const>(
-        reinterpret_cast<std::byte const*>(data.data()), data.size());
+    return {reinterpret_cast<std::byte const*>(data.data()), data.size()};
   }
 
   void advise(io_advice /*adv*/, std::error_code& /*ec*/) const override {
