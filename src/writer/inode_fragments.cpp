@@ -33,6 +33,8 @@ namespace dwarfs::writer {
 
 void single_inode_fragment::add_chunk(size_t block, size_t offset,
                                       size_t size) {
+  // This function triggers clang's array bound checker in folly/lang/ToAscii.h
+  // NOLINTBEGIN(clang-analyzer-security.ArrayBound)
   if (!chunks_.empty()) {
     auto& last = chunks_.back();
     if (last.is_data() && last.block() == block &&
@@ -46,6 +48,7 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
   chunks_.emplace_back(folly::to<chunk::block_type>(block),
                        folly::to<chunk::offset_type>(offset),
                        folly::to<chunk::size_type>(size));
+  // NOLINTEND(clang-analyzer-security.ArrayBound)
 }
 
 void single_inode_fragment::add_hole(file_size_t size) {
