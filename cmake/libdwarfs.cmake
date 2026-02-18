@@ -218,6 +218,13 @@ target_link_libraries(dwarfs_writer PRIVATE zstd::preferred)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
+if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
+  set_source_files_properties(
+    src/compression/zstd.cpp
+    PROPERTIES COMPILE_DEFINITIONS DWARFS_ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS
+  )
+endif()
+
 target_include_directories(dwarfs_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
 )
