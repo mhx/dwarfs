@@ -537,6 +537,7 @@ if(WITH_TESTS)
     add_executable(dwarfs_unit_tests
       test/align_advise_range_test.cpp
       test/badfs_test.cpp
+      test/bits_test.cpp
       test/block_merger_test.cpp
       test/block_range_test.cpp
       test/byte_buffer_test.cpp
