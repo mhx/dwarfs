@@ -18,7 +18,12 @@ Checks:
   - -cppcoreguidelines-narrowing-conversions
   - -cppcoreguidelines-pro-bounds-constant-array-index
   - -cppcoreguidelines-special-member-functions
+  # fully agree, but there are some cases where it's currently not
+  # done on purpose; TODO: revisit
+  - -cppcoreguidelines-use-enum-class
   - modernize-*
+  # a good idea, but only for more than one mutex
+  - -modernize-use-scoped-lock
   - -modernize-use-trailing-return-type
   - -modernize-macro-to-enum
   # already covered by cppcoreguidelines-avoid-c-arrays
@@ -26,6 +31,7 @@ Checks:
   - performance-*
   - -performance-enum-size
   - portability-*
+  - -portability-avoid-pragma-once
   - -portability-template-virtual-member-function
   - readability-*
   - -readability-magic-numbers
@@ -36,6 +42,7 @@ Checks:
   - -readability-math-missing-parentheses
   - -readability-isolate-declaration
   - -readability-qualified-auto
+  - -readability-use-concise-preprocessor-directives
 # TODO
   - -cppcoreguidelines-init-variables
   - -cppcoreguidelines-pro-bounds-pointer-arithmetic
