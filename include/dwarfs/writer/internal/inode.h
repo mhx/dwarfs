@@ -48,6 +48,7 @@ class chunk;
 
 }
 
+struct open_file_options;
 class os_access;
 
 namespace writer {
@@ -88,7 +89,7 @@ class inode : public object {
   // TODO: WTH is this interface???
   virtual std::tuple<file_view, file const*,
                      std::vector<std::pair<file const*, std::exception_ptr>>>
-  mmap_any(os_access const& os) const = 0;
+  mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
 };
 
 using sortable_inode_span =

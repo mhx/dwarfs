@@ -26,6 +26,7 @@
 #include <string>
 
 #include <dwarfs/file_view.h>
+#include <dwarfs/open_file_options.h>
 
 #include "test_file_data.h"
 
@@ -34,7 +35,8 @@ namespace dwarfs::test {
 // TODO: see which of those we actually need
 
 struct mock_file_view_options {
-  std::optional<bool> support_raw_bytes;
+  std::optional<bool> support_raw_bytes{};
+  open_file_options of_opts{};
 };
 
 file_view

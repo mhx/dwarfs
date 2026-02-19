@@ -41,6 +41,8 @@ class file_view_impl;
 
 class file_extents_iterable {
  public:
+  using value_type = file_extent;
+
   file_extents_iterable(std::shared_ptr<detail::file_view_impl const> fv,
                         std::span<detail::file_extent_info const> extents,
                         file_range range);
