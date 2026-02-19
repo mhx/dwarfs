@@ -32,6 +32,7 @@
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/sorted_array_map.h>
+#include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_tester.h"
 
@@ -1367,4 +1368,40 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
 
     EXPECT_EQ(kTotalSymlinkSize, symlink_size);
   }
+}
+
+TEST(mkdwarfs_test, metadata_repair_allocated_gh307) {
+  std::string const image_file = "gh307.dwarfs";
+  auto const catdata_image = test_dir / "bugs" / image_file;
+  auto const image_data = read_file(catdata_image);
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_file(image_file, image_data);
+
+  ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
+      << t.err();
+
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "clearing total allocated file system size for non-sparse image"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("correcting total hardlink size"));
+
+  auto origfs = t.fs_from_data(image_data);
+  auto newfs = t.fs_from_stdout();
+
+  vfs_stat origstat;
+  vfs_stat newstat;
+
+  origfs.statvfs(&origstat);
+  newfs.statvfs(&newstat);
+
+  EXPECT_EQ(7481, origstat.total_fs_size);
+  EXPECT_EQ(401, origstat.total_allocated_fs_size);
+  EXPECT_EQ(3222, origstat.total_hardlink_size);
+
+  EXPECT_EQ(7481, newstat.total_fs_size);
+  EXPECT_EQ(7481, newstat.total_allocated_fs_size);
+  EXPECT_EQ(12136, newstat.total_hardlink_size);
 }
