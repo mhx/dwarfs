@@ -218,7 +218,7 @@ void file::scan(os_access const& /*os*/, progress& /*prog*/) {
 
 void file::scan(file_view const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
-  auto s = size();
+  auto const s = size();
 
   if (hash_alg) {
     progress::scan_updater supd(prog.hash, s);
