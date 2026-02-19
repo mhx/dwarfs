@@ -60,7 +60,8 @@ class mmap_mock final : public detail::file_view_impl,
       : data_{std::move(data)}
       , path_{path}
       , extents_{default_extent(std::move(extents),
-                                std::get<std::string>(data_).size())}
+                                std::get<std::string>(data_).size(),
+                                opts.of_opts)}
       , opts_{opts}
       , supports_raw_bytes_{
             get_supports_raw_bytes(std::get<std::string>(data_), opts_)} {
@@ -71,7 +72,8 @@ class mmap_mock final : public detail::file_view_impl,
             mock_file_view_options const& opts)
       : data_{std::move(data)}
       , path_{path}
-      , extents_{extents_from_data(std::get<test_file_data>(data_))}
+      , extents_{extents_from_data(std::get<test_file_data>(data_),
+                                   opts.of_opts)}
       , opts_{opts}
       , supports_raw_bytes_{false} {
     DWARFS_CHECK(check_data(std::get<test_file_data>(data_)), "invalid data");
@@ -176,18 +178,31 @@ class mmap_mock final : public detail::file_view_impl,
   }
 
   static std::vector<detail::file_extent_info>
-  extents_from_data(test_file_data const& data) {
+  extents_from_data(test_file_data const& data, open_file_options const& opts) {
     std::vector<detail::file_extent_info> extents;
-    extents.reserve(data.extents.size());
-    for (auto const& e : data.extents) {
-      extents.push_back(e.info);
+    if (opts.hollow) {
+      auto const size = data.size();
+      if (size > 0) {
+        extents.emplace_back(extent_kind::hole, file_range{0, size});
+      }
+    } else {
+      extents.reserve(data.extents.size());
+      for (auto const& e : data.extents) {
+        extents.push_back(e.info);
+      }
     }
     return extents;
   }
 
   static std::vector<detail::file_extent_info>
-  default_extent(std::vector<detail::file_extent_info> ext, file_size_t size) {
-    if (ext.empty() && size > 0) {
+  default_extent(std::vector<detail::file_extent_info> ext, file_size_t size,
+                 open_file_options const& opts) {
+    if (opts.hollow) {
+      ext.clear();
+      if (size > 0) {
+        ext.emplace_back(extent_kind::hole, file_range{0, size});
+      }
+    } else if (ext.empty() && size > 0) {
       ext.emplace_back(extent_kind::data, file_range{0, size});
     }
     return ext;

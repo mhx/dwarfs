@@ -51,6 +51,8 @@ class dir_reader {
   virtual bool read(std::filesystem::path& name) = 0;
 };
 
+struct open_file_options;
+
 // TODO: refactor this so we avoid all the smart pointers everywhere
 class os_access {
  public:
@@ -62,6 +64,9 @@ class os_access {
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
   virtual file_view open_file(std::filesystem::path const& path) const = 0;
+  virtual file_view
+  open_file_with_options(std::filesystem::path const& path,
+                         open_file_options const& opts) const = 0;
   virtual readonly_memory_mapping map_empty_readonly(size_t size) const = 0;
   virtual memory_mapping map_empty(size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;

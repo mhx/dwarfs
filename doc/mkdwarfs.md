@@ -397,6 +397,16 @@ Most other options are concerned with compression tuning:
   This is particularly useful when using scripts that filter out a lot of
   file system entries.
 
+- `--hollow`:
+  Instead of actual file data, store each file as an empty sparse file with
+  the same size as the original file. When accessing such a hollow file
+  system, it will behave just as if all files were actually present, but
+  the data will be read as zeros. This can be useful if you want a somewhat
+  realistic representation of a file system, but you don't actually care
+  about the file contents. This does not work with `--no-sparse-files`.
+  You may want to set `--file-hash=none` and `--order=none` when using this
+  option to speed up the build process.
+
 - `--with-devices`:
   Include character and block devices in the output file system. These are
   not included by default, and due to security measures in FUSE, they will

@@ -621,6 +621,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-history-command-line",
         po::value<bool>(&no_history_command_line)->zero_tokens(),
         "don't add command line to file system history")
+    ("hollow",
+        po::value<bool>(&options.hollow_filesystem)->zero_tokens(),
+        "create hollow filesystem (only zero-filled files)")
     ;
 
   po::options_description segmenter_opts("Segmenter options");
@@ -877,6 +880,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       sf_config.block_size_bits > max_block_size_bits) {
     iol.err << "error: block size must be between " << min_block_size_bits
             << " and " << max_block_size_bits << "\n";
+    return 1;
+  }
+
+  if (options.hollow_filesystem && no_sparse_files) {
+    iol.err << "error: cannot use --hollow with --no-sparse-files\n";
     return 1;
   }
 
@@ -1205,6 +1213,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   LOG_PROXY(debug_logger_policy, lgr);
+
+  if (options.hollow_filesystem) {
+    LOG_WARN
+        << "creating hollow filesystem, no actual file data will be stored";
+  }
 
   if (auto const res = options.metadata.time_resolution) {
     if (auto const native = iol.os->native_file_time_resolution();
