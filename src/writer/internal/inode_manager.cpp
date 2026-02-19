@@ -49,6 +49,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
+#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
@@ -335,7 +336,8 @@ class inode_ : public inode {
 
   std::tuple<file_view, file const*,
              std::vector<std::pair<file const*, std::exception_ptr>>>
-  mmap_any(os_access const& os) const override {
+  mmap_any(os_access const& os,
+           open_file_options const& of_opts) const override {
     file_view mm;
     std::vector<std::pair<file const*, std::exception_ptr>> errors;
     file const* rfp{nullptr};
@@ -343,7 +345,7 @@ class inode_ : public inode {
     for (auto fp : files_) {
       if (!fp->is_invalid()) {
         try {
-          mm = os.open_file(fp->fs_path());
+          mm = os.open_file_with_options(fp->fs_path(), of_opts);
           if (mm.size() != fp->size()) {
             auto const now_size = mm.size();
             mm.reset();
@@ -756,7 +758,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
       auto const& fv = ino->all();
 
       if (fv.size() > 1) {
-        auto [mm, p, err] = ino->mmap_any(os);
+        auto [mm, p, err] = ino->mmap_any(os, {});
 
         if (mm) {
           LOG_DEBUG << "successfully opened: " << p->path_as_string();

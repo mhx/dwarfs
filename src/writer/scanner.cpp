@@ -49,6 +49,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -844,7 +845,8 @@ void scanner_<LoggerPolicy>::scan(
           auto f = ino->any();
 
           if (auto size = f->size(); size > 0 && !f->is_invalid()) {
-            auto [mm, _, errors] = ino->mmap_any(os_);
+            auto [mm, _, errors] =
+                ino->mmap_any(os_, {.hollow = options_.hollow_filesystem});
 
             if (mm) {
               file_off_t offset{0};

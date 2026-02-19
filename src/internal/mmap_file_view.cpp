@@ -32,6 +32,7 @@
 #include <mutex>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/open_file_options.h>
 
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/mmap_file_view.h>
@@ -61,15 +62,31 @@ class zero_filled_mapping {
   std::shared_ptr<readonly_memory_mapping const> mapping_;
 };
 
+std::vector<detail::file_extent_info>
+get_file_extents(mappable_file const& file, open_file_options const& opts) {
+  if (opts.hollow) {
+    auto const size = file.size();
+
+    if (size > 0) {
+      return {{extent_kind::hole, {0, size}}};
+    }
+
+    return {};
+  }
+
+  return file.get_extents_noexcept();
+}
+
 class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
   mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
-                 mmap_file_view_options const& opts)
+                 mmap_file_view_options const& opts,
+                 open_file_options const& of_opts)
       : file_{mappable_file::create(ops, path)}
       , path_{path}
-      , extents_{file_.get_extents_noexcept()}
+      , extents_{get_file_extents(file_, of_opts)}
       , ops_{ops} {
     if (!opts.max_eager_map_size.has_value() ||
         file_.size() <= opts.max_eager_map_size.value()) {
@@ -305,13 +322,20 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
 file_view
 create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
+                      mmap_file_view_options const& opts,
+                      open_file_options const& of_opts) {
+  return file_view(std::make_shared<mmap_file_view>(ops, path, opts, of_opts));
+}
+
+file_view
+create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
                       mmap_file_view_options const& opts) {
-  return file_view(std::make_shared<mmap_file_view>(ops, path, opts));
+  return create_mmap_file_view(ops, path, opts, {});
 }
 
 file_view
 create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path) {
-  return create_mmap_file_view(ops, path, {});
+  return create_mmap_file_view(ops, path, {}, {});
 }
 
 } // namespace dwarfs::internal
