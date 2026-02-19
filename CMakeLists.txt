@@ -619,6 +619,7 @@ if(WITH_TESTS)
       test/utils_test.cpp
       test/worker_group_test.cpp
       test/xattr_test.cpp
+      test/zstd_compressor_test.cpp
     )
 
     add_executable(dwarfs_categorizer_tests
