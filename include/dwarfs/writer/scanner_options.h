@@ -52,6 +52,7 @@ struct scanner_options {
   std::optional<std::vector<std::string>> command_line_arguments;
   history_config history;
   metadata_options metadata;
+  bool hollow_filesystem{false};
 };
 
 } // namespace dwarfs::writer

@@ -50,6 +50,7 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access_generic.h>
 
 #include <dwarfs/internal/os_access_generic_data.h>
@@ -60,6 +61,10 @@
 
 using namespace dwarfs::binary_literals;
 using dwarfs::internal::os_access_generic_data;
+
+using testing::ElementsAre;
+using testing::Property;
+using testing::Throws;
 
 namespace fs = std::filesystem;
 
@@ -472,3 +477,94 @@ TEST(os_access_generic, symlink_info) {
   // directory size is very platform-dependent
   EXPECT_EQ(st_dir.size(), st_dir.allocated_size());
 }
+
+class open_file_test : public testing::TestWithParam<std::string> {
+ protected:
+  void SetUp() override {
+    auto const mode = GetParam();
+    env.emplace();
+    env->set("DWARFS_IOLAYER_OPTS", "open_mode=" + mode);
+    td.emplace();
+    os.emplace();
+  }
+
+  void TearDown() override {
+    os.reset();
+    td.reset();
+    env.reset();
+  }
+
+  std::optional<dwarfs::detail::scoped_env> env;
+  std::optional<dwarfs::temporary_directory> td;
+  std::optional<dwarfs::os_access_generic> os;
+};
+
+TEST_P(open_file_test, non_existent_file) {
+  auto const expected_code =
+#ifdef _WIN32
+      std::error_code(ERROR_FILE_NOT_FOUND, std::system_category());
+#else
+      std::make_error_code(std::errc::no_such_file_or_directory);
+#endif
+  ;
+
+  auto const path = td->path() / "non_existent_file";
+
+  EXPECT_THAT([&] { os->open_file(path); },
+              Throws<std::system_error>(
+                  Property(&std::system_error::code, expected_code)));
+}
+
+TEST_P(open_file_test, open_regular_file) {
+  auto const path = td->path() / "file";
+
+  dwarfs::write_file(path, "Hello World!");
+
+  auto fv = os->open_file(path);
+
+  ASSERT_TRUE(fv.valid());
+  EXPECT_EQ(12, fv.size());
+  EXPECT_EQ(path, fv.path());
+  EXPECT_EQ("World", fv.read_string(6, 5));
+
+  auto extents = fv.extents();
+  EXPECT_EQ(1, extents.size());
+  EXPECT_THAT(extents, ElementsAre(Property(&dwarfs::file_extent::kind,
+                                            dwarfs::extent_kind::data)));
+}
+
+TEST_P(open_file_test, open_hollow) {
+  auto const path = td->path() / "file";
+
+  dwarfs::write_file(path, "Hello World!");
+
+  auto fv = os->open_file_with_options(path, {.hollow = true});
+
+  ASSERT_TRUE(fv.valid());
+  EXPECT_EQ(12, fv.size());
+  EXPECT_EQ(path, fv.path());
+  // reading from a hollow file view *should* yield zeroes, but currently
+  // "hellow" only affects extents
+
+  auto extents = fv.extents();
+  EXPECT_EQ(1, extents.size());
+  EXPECT_THAT(extents, ElementsAre(Property(&dwarfs::file_extent::kind,
+                                            dwarfs::extent_kind::hole)));
+}
+
+TEST_P(open_file_test, open_empty_hollow) {
+  auto const path = td->path() / "file";
+
+  dwarfs::write_file(path, "");
+
+  auto fv = os->open_file_with_options(path, {.hollow = true});
+
+  ASSERT_TRUE(fv.valid());
+  EXPECT_EQ(0, fv.size());
+  EXPECT_EQ(path, fv.path());
+
+  EXPECT_EQ(0, fv.extents().size());
+}
+
+INSTANTIATE_TEST_SUITE_P(iolayer_modes, open_file_test,
+                         ::testing::Values("mmap", "read"));

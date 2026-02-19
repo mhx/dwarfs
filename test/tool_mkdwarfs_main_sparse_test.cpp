@@ -734,3 +734,24 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
     }
   }
 }
+
+TEST(mkdwarfs_test, hollow_filesystem) {
+  mkdwarfs_tester t;
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "--hollow"})) << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  auto ipsum = fs.find("/somedir/ipsum.py");
+  ASSERT_TRUE(ipsum);
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
+
+  auto ipsum_str = fs.read_string(fs.open(ipsum->inode()));
+  EXPECT_EQ(10000, ipsum_str.size());
+  EXPECT_THAT(ipsum_str, testing::Each('\0'));
+
+  auto empty = fs.find("/empty");
+  ASSERT_TRUE(empty);
+  EXPECT_TRUE(empty->inode().is_regular_file());
+  EXPECT_EQ(0, fs.getattr(empty->inode()).size());
+  EXPECT_TRUE(fs.read_string(fs.open(empty->inode())).empty());
+}

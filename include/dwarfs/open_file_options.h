@@ -26,42 +26,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <dwarfs/open_file_options.h>
+#pragma once
 
-#include <dwarfs/internal/io_ops_helpers.h>
+namespace dwarfs {
 
-namespace dwarfs::internal {
+struct open_file_options {
+  bool hollow{false};
+};
 
-std::vector<dwarfs::detail::file_extent_info>
-get_file_extents_noexcept(io_ops const& ops, std::any const& handle,
-                          open_file_options const& opts) {
-  if (opts.hollow) {
-    std::error_code ec;
-    auto const size = ops.size(handle, ec);
-
-    if (!ec) {
-      if (size > 0) {
-        return {{extent_kind::hole, {0, size}}};
-      }
-
-      return {};
-    }
-  }
-
-  std::error_code ec;
-  auto extents = ops.get_extents(handle, ec);
-
-  if (ec) {
-    ec.clear();
-    extents.clear();
-    auto const size = ops.size(handle, ec);
-
-    if (!ec && size > 0) {
-      extents.emplace_back(extent_kind::data, file_range{0, size});
-    }
-  }
-
-  return extents;
-}
-
-} // namespace dwarfs::internal
+} // namespace dwarfs

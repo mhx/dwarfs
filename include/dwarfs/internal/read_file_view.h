@@ -32,11 +32,17 @@
 
 #include <dwarfs/file_view.h>
 
-namespace dwarfs::internal {
+namespace dwarfs {
+
+struct open_file_options;
+
+namespace internal {
 
 class io_ops;
 
 file_view create_read_file_view(internal::io_ops const& ops,
-                                std::filesystem::path const& path);
+                                std::filesystem::path const& path,
+                                open_file_options const& of_opts);
 
-} // namespace dwarfs::internal
+} // namespace internal
+} // namespace dwarfs
