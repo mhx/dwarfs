@@ -33,6 +33,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <system_error>
 
 namespace dwarfs {
@@ -57,7 +58,7 @@ class thread_pool {
   using job_type = std::function<void()>;
 
   thread_pool();
-  thread_pool(logger& lgr, os_access const& os, char const* group_name,
+  thread_pool(logger& lgr, os_access const& os, std::string_view group_name,
               size_t num_workers = 1,
               size_t max_queue_len = std::numeric_limits<size_t>::max(),
               int niceness = 0);
