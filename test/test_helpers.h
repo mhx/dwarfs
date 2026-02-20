@@ -116,6 +116,9 @@ class os_access_mock : public os_access {
   using executable_resolver_type =
       std::function<std::filesystem::path(std::filesystem::path const&)>;
 
+  using thread_get_cpu_time_type = std::function<std::chrono::nanoseconds(
+      std::thread::id tid, std::error_code& ec)>;
+
   os_access_mock();
   ~os_access_mock();
 
@@ -155,6 +158,11 @@ class os_access_mock : public os_access {
 
   void set_map_file_delay_min_size(file_size_t size) {
     map_file_delay_min_size_ = size;
+  }
+
+  void set_thread_get_cpu_time_impl(
+      std::optional<thread_get_cpu_time_type> impl = std::nullopt) {
+    thread_get_cpu_time_impl_ = std::move(impl);
   }
 
   void setenv(std::string name, std::string value);
@@ -236,6 +244,7 @@ class os_access_mock : public os_access {
   std::map<std::filesystem::path, std::chrono::nanoseconds> map_file_delays_;
   file_size_t map_file_delay_min_size_{0};
   std::chrono::nanoseconds native_file_time_resolution_{1};
+  std::optional<thread_get_cpu_time_type> thread_get_cpu_time_impl_;
 };
 
 struct filter_transformer_data {
