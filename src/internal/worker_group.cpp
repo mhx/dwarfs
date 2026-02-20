@@ -169,16 +169,6 @@ class basic_worker_group final : public worker_group::impl, private Policy {
    */
   size_t size() const override { return workers_.size(); }
 
-  /**
-   * Return the number of queued jobs
-   *
-   * \returns The number of queued jobs.
-   */
-  size_t queue_size() const override {
-    std::lock_guard lock(mx_);
-    return jobs_.size();
-  }
-
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const override {
     ec.clear();
 

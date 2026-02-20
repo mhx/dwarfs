@@ -140,7 +140,6 @@ class worker_group {
   }
 
   size_t size() const { return impl_->size(); }
-  size_t queue_size() const { return impl_->queue_size(); }
 
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const {
     return impl_->get_cpu_time(ec);
@@ -168,7 +167,6 @@ class worker_group {
     virtual bool running() const = 0;
     virtual bool add_job(std::any&& job) = 0;
     virtual size_t size() const = 0;
-    virtual size_t queue_size() const = 0;
     virtual std::chrono::nanoseconds
     get_cpu_time(std::error_code& ec) const = 0;
     virtual std::optional<std::chrono::nanoseconds>
