@@ -37,6 +37,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -108,12 +109,12 @@ class worker_group {
    *
    * \param num_workers     Number of worker threads.
    */
-  worker_group(logger& lgr, os_access const& os, char const* group_name,
+  worker_group(logger& lgr, os_access const& os, std::string_view group_name,
                size_t num_workers = 1,
                size_t max_queue_len = std::numeric_limits<size_t>::max(),
                int niceness = 0);
 
-  worker_group(logger& lgr, os_access const& os, char const* group_name,
+  worker_group(logger& lgr, os_access const& os, std::string_view group_name,
                size_t num_workers,
                std::function<std::unique_ptr<thread_state>(size_t)> const&
                    thread_state_factory,

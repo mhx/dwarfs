@@ -61,8 +61,8 @@ template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
-  basic_worker_group(logger& lgr, os_access const& os, char const* group_name,
-                     size_t num_workers,
+  basic_worker_group(logger& lgr, os_access const& os,
+                     std::string_view group_name, size_t num_workers,
                      std::function<std::unique_ptr<thread_state>(size_t)> const&
                          thread_state_factory,
                      size_t max_queue_len, int niceness [[maybe_unused]],
@@ -75,10 +75,6 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       , max_queue_len_(max_queue_len) {
     if (num_workers < 1) {
       num_workers = std::max(hardware_concurrency(), 1U);
-    }
-
-    if (!group_name) {
-      group_name = "worker";
     }
 
     for (size_t i = 0; i < num_workers; ++i) {
@@ -226,7 +222,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
  private:
   using jobs_t = std::queue<std::any>;
 
-  void check_set_affinity_from_enviroment(char const* group_name) {
+  void check_set_affinity_from_enviroment(std::string_view group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
       auto groups = split_to<std::vector<std::string_view>>(var.value(), ':');
 
@@ -345,7 +341,7 @@ using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
 } // namespace
 
 worker_group::worker_group(
-    logger& lgr, os_access const& os, char const* group_name,
+    logger& lgr, os_access const& os, std::string_view group_name,
     size_t num_workers,
     std::function<std::unique_ptr<thread_state>(size_t)> const&
         thread_state_factory,
@@ -356,7 +352,7 @@ worker_group::worker_group(
           niceness)} {}
 
 worker_group::worker_group(logger& lgr, os_access const& os,
-                           char const* group_name, size_t num_workers,
+                           std::string_view group_name, size_t num_workers,
                            size_t max_queue_len, int niceness)
     : worker_group(
           lgr, os, group_name, num_workers,

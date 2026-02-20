@@ -39,7 +39,7 @@ thread_pool::thread_pool(thread_pool&&) noexcept = default;
 thread_pool& thread_pool::operator=(thread_pool&&) noexcept = default;
 
 thread_pool::thread_pool(logger& lgr, os_access const& os,
-                         char const* group_name, size_t num_workers,
+                         std::string_view group_name, size_t num_workers,
                          size_t max_queue_len, int niceness)
     : wg_{std::make_unique<internal::worker_group>(
           lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
