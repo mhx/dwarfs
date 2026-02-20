@@ -501,6 +501,22 @@ TEST(mock_file_view, extents) {
     EXPECT_THAT(segment_offsets, testing::ElementsAre(2, 4));
     EXPECT_THAT(segment_sizes, testing::ElementsAre(3, 2));
   }
+
+  {
+    std::vector<file_off_t> extent_offsets;
+    std::vector<file_size_t> extent_sizes;
+    auto const iterable = view.extents();
+    auto it = iterable.begin();
+
+    while (it != iterable.end()) {
+      auto const ext = it++;
+      extent_offsets.push_back(ext->offset());
+      extent_sizes.push_back(ext->size());
+    }
+
+    EXPECT_THAT(extent_offsets, testing::ElementsAre(0, 6, 10));
+    EXPECT_THAT(extent_sizes, testing::ElementsAre(6, 4, 6));
+  }
 }
 
 TEST(mock_file_view, extents_raw_bytes) {
