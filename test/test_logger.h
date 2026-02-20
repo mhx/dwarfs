@@ -50,7 +50,12 @@ class test_logger : public ::dwarfs::logger {
   };
 
   test_logger(std::optional<level_type> threshold = std::nullopt)
-      : threshold_{threshold ? *threshold : default_threshold()}
+      : test_logger(std::cerr, threshold) {}
+
+  test_logger(std::ostream& os,
+              std::optional<level_type> threshold = std::nullopt)
+      : os_{os}
+      , threshold_{threshold ? *threshold : default_threshold()}
       , output_threshold_{output_threshold(default_threshold())}
       , output_{::dwarfs::getenv_is_enabled("DWARFS_TEST_LOGGER_OUTPUT")} {
     if (threshold_ >= level_type::DEBUG ||
@@ -61,15 +66,17 @@ class test_logger : public ::dwarfs::logger {
     }
   }
 
-  level_type threshold() const override { return threshold_; }
+  level_type threshold() const override {
+    return output_ ? std::max(threshold_, output_threshold_) : threshold_;
+  }
 
   void write(level_type level, std::string_view output,
              source_location loc) override {
     if (output_ && level <= output_threshold_) {
       auto const t = get_current_time_string();
       std::lock_guard lock(mx_);
-      std::cerr << level_char(level) << ' ' << t << " [" << loc.file_name()
-                << ":" << loc.line() << "] " << output << "\n";
+      os_ << level_char(level) << ' ' << t << " [" << loc.file_name() << ":"
+          << loc.line() << "] " << output << "\n";
     }
 
     if (level <= threshold_) {
@@ -109,6 +116,7 @@ class test_logger : public ::dwarfs::logger {
   }
 
   std::mutex mx_;
+  std::ostream& os_;
   std::vector<log_entry> log_;
   level_type const threshold_;
   level_type const output_threshold_;
