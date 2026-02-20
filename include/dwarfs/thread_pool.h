@@ -64,12 +64,14 @@ class thread_pool {
 
   ~thread_pool();
 
-  thread_pool(thread_pool&&) = default;
-  thread_pool& operator=(thread_pool&&) = default;
+  thread_pool(thread_pool&&) noexcept;
+  thread_pool& operator=(thread_pool&&) noexcept;
 
   explicit operator bool() const { return static_cast<bool>(wg_); }
 
   bool add_job(job_type job);
+
+  size_t num_workers() const;
 
   void stop();
   void wait();
@@ -77,7 +79,6 @@ class thread_pool {
   std::optional<std::chrono::nanoseconds> try_get_cpu_time() const;
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const;
 
-  internal::worker_group* operator->() { return wg_.get(); }
   internal::worker_group& get_worker_group() { return *wg_; }
 
  private:
