@@ -24,6 +24,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/terminal_ansi.h>
+
 #include "test_helpers.h"
 
 namespace fs = std::filesystem;
@@ -100,5 +102,29 @@ TEST(test_iolayer, file_access) {
                 Throws<std::system_error>(Property(
                     &std::system_error::code,
                     Eq(std::make_error_code(std::errc::bad_address)))));
+  }
+}
+
+TEST(test_iolayer, test_terminal) {
+  test::test_terminal term;
+
+  EXPECT_EQ("<bg-normal>", term.bgcolor(termcolor::NORMAL));
+  EXPECT_EQ("<bg-dim-white>", term.bgcolor(termcolor::DIM_WHITE));
+}
+
+TEST(test_iolayer, use_real_terminal) {
+  {
+    test::test_iolayer io;
+    auto const& iol = io.get();
+    auto const& term = *iol.term;
+    EXPECT_EQ(typeid(term), typeid(test::test_terminal));
+  }
+
+  {
+    test::test_iolayer io;
+    io.use_real_terminal(true);
+    auto const& iol = io.get();
+    auto const& term = *iol.term;
+    EXPECT_EQ(typeid(term), typeid(terminal_ansi));
   }
 }
