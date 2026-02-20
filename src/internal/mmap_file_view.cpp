@@ -297,6 +297,8 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
   auto const offset = range.offset();
   auto const size = range.size();
 
+  ec.clear();
+
   if (size == 0) {
     return;
   }
