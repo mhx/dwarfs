@@ -27,11 +27,15 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
+#include <dwarfs/detail/string_like_hash.h>
 #include <dwarfs/string.h>
 
 using namespace dwarfs;
+using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 TEST(string, split_to) {
   EXPECT_THAT(split_to<std::vector<std::string>>("a,b,c", ','),
@@ -52,4 +56,16 @@ TEST(string, split_to) {
               testing::ElementsAre(1, 2, 3));
   EXPECT_THAT(split_to<std::set<int>>("3,4,3", ','),
               testing::ElementsAre(3, 4));
+}
+
+TEST(string, string_like_hash) {
+  std::unordered_set<std::string, detail::string_like_hash, std::equal_to<>> s;
+
+  s.emplace("abc");
+  s.emplace("def"s);
+  s.emplace("ghi"sv);
+
+  EXPECT_TRUE(s.contains("abc"s));
+  EXPECT_TRUE(s.contains("def"sv));
+  EXPECT_TRUE(s.contains("ghi"));
 }
