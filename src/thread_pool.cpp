@@ -35,6 +35,9 @@ namespace dwarfs {
 thread_pool::thread_pool() = default;
 thread_pool::~thread_pool() = default;
 
+thread_pool::thread_pool(thread_pool&&) noexcept = default;
+thread_pool& thread_pool::operator=(thread_pool&&) noexcept = default;
+
 thread_pool::thread_pool(logger& lgr, os_access const& os,
                          char const* group_name, size_t num_workers,
                          size_t max_queue_len, int niceness)
@@ -42,6 +45,8 @@ thread_pool::thread_pool(logger& lgr, os_access const& os,
           lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
 
 bool thread_pool::add_job(job_type job) { return wg_->add_job(std::move(job)); }
+
+size_t thread_pool::num_workers() const { return wg_->size(); }
 
 void thread_pool::stop() { wg_->stop(); }
 
