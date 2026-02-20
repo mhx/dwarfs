@@ -594,6 +594,9 @@ void os_access_mock::thread_set_affinity(std::thread::id tid,
 std::chrono::nanoseconds
 os_access_mock::thread_get_cpu_time(std::thread::id tid,
                                     std::error_code& ec) const {
+  if (thread_get_cpu_time_impl_.has_value()) {
+    return (*thread_get_cpu_time_impl_)(tid, ec);
+  }
   return real_os_->thread_get_cpu_time(tid, ec);
 }
 
