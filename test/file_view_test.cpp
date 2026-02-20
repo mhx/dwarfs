@@ -36,6 +36,7 @@
 #include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mappable_file.h>
 #include <dwarfs/internal/mmap_file_view.h>
+#include <dwarfs/internal/read_file_view.h>
 
 #include "mmap_mock.h"
 
@@ -46,6 +47,7 @@ namespace fs = std::filesystem;
 
 using ::testing::_;
 using ::testing::Invoke;
+using ::testing::NiceMock;
 using ::testing::StrictMock;
 
 namespace {
@@ -1002,4 +1004,119 @@ TEST(mappable_file, virtual_alloc_free_readonly) {
   mapping.reset();
 
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+}
+
+TEST(read_file_view, get_extents_error) {
+  static constexpr size_t kGran{4096};
+  static constexpr size_t kFileSize{1_MiB};
+  fake_mm_ops_lowlevel fake(kGran);
+  StrictMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, kFileSize);
+
+  EXPECT_CALL(mock_ops, open(path, _)).Times(1);
+  EXPECT_CALL(mock_ops, size(handle, _)).Times(1);
+
+  EXPECT_CALL(mock_ops, get_extents(handle, _))
+      .WillOnce(Invoke(
+          [](fake_mm_ops_lowlevel::handle_type const&, std::error_code& ec) {
+            ec = std::make_error_code(std::errc::io_error);
+            return std::vector<dwarfs::detail::file_extent_info>{};
+          }));
+
+  auto view = create_read_file_view(ops, path, {});
+
+  EXPECT_TRUE(view);
+  EXPECT_EQ(kFileSize, view.size());
+
+  std::vector<file_off_t> extent_offsets;
+  std::vector<file_size_t> extent_sizes;
+
+  for (auto const& ext : view.extents()) {
+    extent_offsets.push_back(ext.offset());
+    extent_sizes.push_back(ext.size());
+  }
+
+  EXPECT_THAT(extent_offsets, testing::ElementsAre(0));
+  EXPECT_THAT(extent_sizes, testing::ElementsAre(kFileSize));
+
+  EXPECT_CALL(mock_ops, close(handle, _)).Times(1);
+}
+
+TEST(mmap_file_view, sparse_file) {
+  static constexpr size_t kGran{4096};
+  static constexpr size_t kFileSize{1_MiB};
+  fake_mm_ops_lowlevel fake(kGran);
+  NiceMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, kFileSize);
+
+  EXPECT_CALL(mock_ops, get_extents(handle, _))
+      .WillOnce(Invoke(
+          [](fake_mm_ops_lowlevel::handle_type const&, std::error_code& ec) {
+            ec.clear();
+            return std::vector<dwarfs::detail::file_extent_info>{
+                {extent_kind::data, file_range{0, 512_KiB}},
+                {extent_kind::hole, file_range{512_KiB, 256_KiB}},
+                {extent_kind::data, file_range{768_KiB, 256_KiB}},
+            };
+          }));
+
+  internal::mmap_file_view_options const opts{
+      .max_eager_map_size = 1_MiB, // map the whole test file eagerly
+  };
+
+  auto view = create_mmap_file_view(ops, path, opts);
+
+  EXPECT_TRUE(view);
+  EXPECT_EQ(kFileSize, view.size());
+
+  std::vector<file_off_t> extent_offsets;
+  std::vector<file_size_t> extent_sizes;
+  std::vector<extent_kind> extent_kinds;
+  std::vector<file_off_t> segment_offsets;
+  std::vector<file_size_t> segment_sizes;
+  std::vector<file_range> segment_ranges;
+  std::vector<bool> segment_zero_flags;
+
+  for (auto const& ext : view.extents()) {
+    extent_offsets.push_back(ext.offset());
+    extent_sizes.push_back(ext.size());
+    extent_kinds.push_back(ext.kind());
+
+    for (auto const& seg : ext.segments(128_KiB)) {
+      segment_offsets.push_back(seg.offset());
+      segment_sizes.push_back(seg.size());
+      segment_ranges.push_back(seg.range());
+      segment_zero_flags.push_back(seg.is_zero());
+    }
+  }
+
+  EXPECT_THAT(extent_offsets, testing::ElementsAre(0, 512_KiB, 768_KiB));
+  EXPECT_THAT(extent_sizes, testing::ElementsAre(512_KiB, 256_KiB, 256_KiB));
+  EXPECT_THAT(extent_kinds,
+              testing::ElementsAre(extent_kind::data, extent_kind::hole,
+                                   extent_kind::data));
+
+  EXPECT_THAT(segment_offsets,
+              testing::ElementsAre(0, 128_KiB, 256_KiB, 384_KiB, 512_KiB,
+                                   640_KiB, 768_KiB, 896_KiB));
+  EXPECT_THAT(segment_sizes,
+              testing::ElementsAre(128_KiB, 128_KiB, 128_KiB, 128_KiB, 128_KiB,
+                                   128_KiB, 128_KiB, 128_KiB));
+  EXPECT_THAT(segment_ranges,
+              testing::ElementsAre(
+                  file_range{0, 128_KiB}, file_range{128_KiB, 128_KiB},
+                  file_range{256_KiB, 128_KiB}, file_range{384_KiB, 128_KiB},
+                  file_range{512_KiB, 128_KiB}, file_range{640_KiB, 128_KiB},
+                  file_range{768_KiB, 128_KiB}, file_range{896_KiB, 128_KiB}));
+  EXPECT_THAT(segment_zero_flags,
+              testing::ElementsAre(false, false, false, false, true, true,
+                                   false, false));
 }
