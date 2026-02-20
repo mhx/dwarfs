@@ -614,6 +614,7 @@ if(WITH_TESTS)
       test/string_test.cpp
       test/terminal_test.cpp
       test/test_iolayer_test.cpp
+      test/test_logger_test.cpp
       test/thread_pool_test.cpp
       test/time_resolution_converter_test.cpp
       test/unicode_test.cpp
