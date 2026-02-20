@@ -665,6 +665,17 @@ TEST(mmap_file_view, basic) {
     EXPECT_EQ(data, ""s);
   }
 
+  {
+    std::array<char, 1> buf;
+    std::error_code ec;
+    mm.copy_to(buf, -1, ec);
+    EXPECT_EQ(ec, std::make_error_code(std::errc::invalid_argument));
+    mm.copy_to(buf, 13, ec);
+    EXPECT_EQ(ec, std::make_error_code(std::errc::result_out_of_range));
+    mm.copy_to(std::span(buf).subspan(0, 0), 0, ec);
+    EXPECT_FALSE(ec);
+  }
+
   EXPECT_THAT(([&] {
                 std::array<char, 8> buf;
                 mm.copy_to(buf, 10, 10);
