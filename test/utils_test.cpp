@@ -38,8 +38,13 @@
 
 #include <dwarfs/reader/internal/offset_cache.h>
 
+#include "test_helpers.h"
+
 using namespace dwarfs;
 using namespace dwarfs::binary_literals;
+
+using testing::HasSubstr;
+using testing::ThrowsMessage;
 
 #ifdef GTEST_NO_U8STRING
 #define EXPECT_EQ_U8STR(a, b) EXPECT_TRUE((a) == (b))
@@ -362,9 +367,33 @@ TEST(utils, parse_time_with_unit) {
   EXPECT_EQ(500us, parse_time_with_unit("500usec"));
   EXPECT_EQ(500ns, parse_time_with_unit("500ns"));
   EXPECT_EQ(500ns, parse_time_with_unit("500nsec"));
-  EXPECT_THROW(parse_time_with_unit("8y"), dwarfs::runtime_error);
-  EXPECT_THROW(parse_time_with_unit("8su"), dwarfs::runtime_error);
-  EXPECT_THROW(parse_time_with_unit("8mss"), dwarfs::runtime_error);
+}
+
+TEST(utils, parse_time_with_unit_error) {
+  EXPECT_THAT([] { parse_time_with_unit("18446744073709551616s"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("cannot parse time 18446744073709551616s: ")));
+  EXPECT_THAT([] { parse_time_with_unit("8y"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: y")));
+  EXPECT_THAT([] { parse_time_with_unit("8su"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: su")));
+  EXPECT_THAT([] { parse_time_with_unit("8mss"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: mss")));
+  EXPECT_THAT([] { parse_time_with_unit("8hourd"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: hourd")));
+  EXPECT_THAT([] { parse_time_with_unit("8da"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: da")));
+  EXPECT_THAT([] { parse_time_with_unit("8um"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: um")));
+  EXPECT_THAT([] { parse_time_with_unit("8nm"); },
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("unsupported time suffix: nm")));
 }
 
 TEST(utils, parse_size_with_unit) {
@@ -405,11 +434,11 @@ TEST(utils, parse_time_point) {
             parse_time_point("20200101T010203.123"));
 
   EXPECT_THAT([] { parse_time_point("InVaLiD"); },
-              ::testing::ThrowsMessage<dwarfs::runtime_error>(
-                  ::testing::HasSubstr("cannot parse time point")));
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("cannot parse time point")));
   EXPECT_THAT([] { parse_time_point("2020-01-01 01:02x"); },
-              ::testing::ThrowsMessage<dwarfs::runtime_error>(
-                  ::testing::HasSubstr("cannot parse time point")));
+              ThrowsMessage<dwarfs::runtime_error>(
+                  HasSubstr("cannot parse time point")));
 }
 
 TEST(utils, getenv_is_enabled) {
@@ -442,6 +471,19 @@ TEST(utils, getenv_is_enabled) {
 
   ASSERT_NO_THROW(env.unset(test_var));
   EXPECT_FALSE(getenv_is_enabled(test_var));
+}
+
+TEST(utils, getenv_is_enabled_os) {
+  static constexpr auto test_var{"_DWARFS_UTILS_TEST_"};
+  test::os_access_mock os;
+
+  EXPECT_FALSE(getenv_is_enabled(os, test_var));
+
+  os.setenv(test_var, "0");
+  EXPECT_FALSE(getenv_is_enabled(os, test_var));
+
+  os.setenv(test_var, "1");
+  EXPECT_TRUE(getenv_is_enabled(os, test_var));
 }
 
 TEST(utils, size_with_unit) {
@@ -516,11 +558,9 @@ TEST(utils, scoped_env) {
   {
     dwarfs::detail::scoped_env env;
     EXPECT_THAT([&] { env.set("", ""); },
-                ::testing::ThrowsMessage<std::system_error>(
-                    ::testing::HasSubstr("setenv failed")));
+                ThrowsMessage<std::system_error>(HasSubstr("setenv failed")));
     EXPECT_THAT([&] { env.unset(""); },
-                ::testing::ThrowsMessage<std::system_error>(
-                    ::testing::HasSubstr("unsetenv failed")));
+                ThrowsMessage<std::system_error>(HasSubstr("unsetenv failed")));
   }
 
   ASSERT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
