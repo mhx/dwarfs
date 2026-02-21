@@ -348,7 +348,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     if (exclude) {
       if (!debug_filter) {
-        LOG_DEBUG << "excluding " << pe->dpath();
+        LOG_DEBUG << "excluding " << pe->unix_dpath();
       }
 
       return nullptr;
