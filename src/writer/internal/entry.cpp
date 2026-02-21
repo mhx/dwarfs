@@ -98,16 +98,6 @@ std::string entry::path_as_string() const {
   return path_to_utf8_string_sanitized(fs_path());
 }
 
-std::string entry::dpath() const {
-  auto p = path_as_string();
-  if (is_root_path(p)) {
-    p = std::string(1, kLocalPathSeparator);
-  } else if (type() == E_DIR) {
-    p += kLocalPathSeparator;
-  }
-  return p;
-}
-
 std::string entry::unix_dpath() const {
   std::string p;
 

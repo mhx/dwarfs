@@ -82,7 +82,6 @@ class entry : public entry_interface {
   std::shared_ptr<entry> parent() const;
   std::filesystem::path fs_path() const;
   std::string path_as_string() const override;
-  std::string dpath() const override;
   std::string unix_dpath() const override;
   std::string const& name() const override { return name_; }
   bool less_revpath(entry const& rhs) const;
