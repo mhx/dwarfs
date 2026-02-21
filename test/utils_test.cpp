@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <csignal>
 #include <numeric>
 #include <tuple>
 #include <vector>
@@ -32,6 +33,7 @@
 #include <folly/portability/Stdlib.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/config.h>
 #include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
@@ -571,4 +573,17 @@ TEST(utils, scoped_env) {
   }
 
   EXPECT_EQ(nullptr, std::getenv("_DWARFS_TEST_SCOPED_ENV_"));
+}
+
+TEST(utils, fatal_signal_handler) {
+  install_signal_handlers();
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+  EXPECT_DEATH(raise(SIGFPE), "Caught signal SIGFPE");
+#endif
+
+#ifndef _WIN32
+  EXPECT_DEATH(raise(SIGBUS),
+               "Caught signal SIGBUS.*export DWARFS_IOLAYER_OPTS=");
+#endif
 }
