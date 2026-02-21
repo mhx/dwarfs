@@ -699,10 +699,14 @@ void fatal_signal_handler_posix(int signal) {
 )EOF";
   }
 
+#ifdef DWARFS_COVERAGE_ENABLED
+  std::exit(1);
+#else
   if (::raise(signal) != 0) {
     std::cerr << "Failed to re-raise signal " << *signame << "\n";
     std::abort();
   }
+#endif
 }
 
 #endif
