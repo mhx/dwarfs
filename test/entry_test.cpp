@@ -69,7 +69,6 @@ TEST_F(entry_test, path) {
   EXPECT_EQ(sep.string(), e1->name());
   EXPECT_EQ(sep, e1->fs_path());
   EXPECT_EQ(sep.string(), e1->path_as_string());
-  EXPECT_EQ(sep.string(), e1->dpath());
   EXPECT_EQ("/", e1->unix_dpath());
 
   EXPECT_TRUE(e2->has_parent());
@@ -79,7 +78,6 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("somelink", e2->name());
   EXPECT_EQ(sep / "somelink", e2->fs_path());
   EXPECT_EQ((sep / "somelink").string(), e2->path_as_string());
-  EXPECT_EQ((sep / "somelink").string(), e2->dpath());
   EXPECT_EQ("/somelink", e2->unix_dpath());
 
   EXPECT_TRUE(e3->has_parent());
@@ -89,7 +87,6 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("somedir", e3->name());
   EXPECT_EQ(sep / "somedir", e3->fs_path());
   EXPECT_EQ((sep / "somedir").string(), e3->path_as_string());
-  EXPECT_EQ((sep / "somedir").string() + sep.string(), e3->dpath());
   EXPECT_EQ("/somedir/", e3->unix_dpath());
 
   EXPECT_TRUE(e4->has_parent());
@@ -99,6 +96,5 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("ipsum.py", e4->name());
   EXPECT_EQ(sep / "somedir" / "ipsum.py", e4->fs_path());
   EXPECT_EQ((sep / "somedir" / "ipsum.py").string(), e4->path_as_string());
-  EXPECT_EQ((sep / "somedir" / "ipsum.py").string(), e4->dpath());
   EXPECT_EQ("/somedir/ipsum.py", e4->unix_dpath());
 }
