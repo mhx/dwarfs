@@ -228,15 +228,17 @@ class io_ops_win : public io_ops {
       return {};
     }
 
-    DWARFS_CHECK(size_li.QuadPart > 0, "attempt to open an empty file");
+    HANDLE mapping = nullptr;
 
-    HANDLE mapping =
-        ::CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+    if (size_li.QuadPart > 0) {
+      mapping =
+          ::CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
 
-    if (!mapping) {
-      ::CloseHandle(file);
-      ec = std::error_code(::GetLastError(), std::system_category());
-      return {};
+      if (!mapping) {
+        ::CloseHandle(file);
+        ec = std::error_code(::GetLastError(), std::system_category());
+        return {};
+      }
     }
 
     return win_handle{file, mapping, static_cast<uint64_t>(size_li.QuadPart)};
@@ -314,6 +316,8 @@ class io_ops_win : public io_ops {
       auto const map_offset = static_cast<uint64_t>(offset);
       auto const off_low = static_cast<DWORD>(map_offset & 0xFFFFFFFF);
       auto const off_high = static_cast<DWORD>((map_offset >> 32) & 0xFFFFFFFF);
+
+      DWARFS_CHECK(h->mapping, "file mapping not available for mapping");
 
       auto const addr =
           ::MapViewOfFile(h->mapping, FILE_MAP_READ, off_high, off_low, size);
