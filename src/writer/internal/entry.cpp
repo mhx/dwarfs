@@ -271,7 +271,7 @@ void file::hardlink(file* other, progress& prog) {
   prog.allocated_hardlink_size += allocated_size();
   ++prog.hardlinks;
   data_ = other->data_;
-  ++data_->refcount;
+  ++data_->hardlink_count;
 }
 
 entry::type_t dir::type() const { return E_DIR; }
