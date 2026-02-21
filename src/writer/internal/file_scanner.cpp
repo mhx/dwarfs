@@ -495,7 +495,8 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   for (auto& [k, fv] : fmap) {
     if (!fv.empty()) {
       if constexpr (UniqueOnly) {
-        DWARFS_CHECK(fv.size() == fv.front()->refcount(), "internal error");
+        DWARFS_CHECK(fv.size() == fv.front()->hardlink_count(),
+                     "internal error");
       }
       ent.emplace_back(std::move(k), std::move(fv));
     }
@@ -534,7 +535,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
                                p.first));
 
       // this is true regardless of how the files are ordered
-      if (files.size() > files.front()->refcount()) {
+      if (files.size() > files.front()->hardlink_count()) {
         continue;
       }
 
@@ -587,7 +588,8 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
      << R"(        "path": )" << nlohmann::json{p->path_as_string()}.dump()
      << ",\n"
      << R"(        "size": )" << fmt::format("{}", p->size()) << ",\n"
-     << R"(        "refcnt": )" << fmt::format("{}", p->refcount()) << ",\n"
+     << R"(        "nlink": )" << fmt::format("{}", p->hardlink_count())
+     << ",\n"
      << R"(        "hash": ")" << folly::hexlify(p->hash()) << "\",\n"
      << R"(        "invalid": )" << (p->is_invalid() ? "true" : "false")
      << ",\n"

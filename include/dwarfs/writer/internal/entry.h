@@ -146,7 +146,7 @@ class file : public entry {
   void set_invalid() { data_->invalid.store(true); }
   bool is_invalid() const { return data_->invalid.load(); }
 
-  uint32_t refcount() const { return data_->refcount; }
+  uint32_t hardlink_count() const { return data_->hardlink_count; }
 
   void set_order_index(uint32_t index) { order_index_ = index; }
   uint32_t order_index() const { return order_index_; }
@@ -155,7 +155,7 @@ class file : public entry {
   struct data {
     using hash_type = small_vector<char, 16>;
     hash_type hash;
-    uint32_t refcount{1};
+    uint32_t hardlink_count{1};
     std::optional<uint32_t> inode_num;
     std::atomic<bool> invalid{false};
   };
