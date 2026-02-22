@@ -200,6 +200,16 @@ add_library(
   fsst/fsst_avx512_unroll4.inc
 )
 
+add_library(
+  dwarfs_thrift_lite_v2 OBJECT
+  src/thrift_lite/assert.cpp
+  src/thrift_lite/compact_reader.cpp
+  src/thrift_lite/compact_writer.cpp
+  src/thrift_lite/debug_writer.cpp
+  src/thrift_lite/internal/compact_wire.cpp
+  src/thrift_lite/internal/protocol_methods.cpp
+)
+
 add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_cpp2_thrift_library(thrift/compression.thrift
@@ -209,6 +219,11 @@ add_cpp2_thrift_library(thrift/history.thrift
 add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
+add_thrift_lite_library(test/thrift_lite_test.thrift
+                        TARGET dwarfs_thrift_lite_test_thrift OUTPUT_PATH dwarfs)
+add_thrift_lite_library(thrift/metadata_lite.thrift
+                        TARGET dwarfs_metadata_thrift_lite OUTPUT_PATH dwarfs)
+
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH zstd::preferred)
 target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_decompressor PRIVATE dwarfs_common)
@@ -217,6 +232,8 @@ target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compressor dwarf
 target_link_libraries(dwarfs_writer PRIVATE zstd::preferred)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
+
+target_link_libraries(dwarfs_thrift_lite_test_thrift PRIVATE dwarfs_folly_lite)
 
 if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
   set_source_files_properties(
@@ -240,6 +257,7 @@ if(ENABLE_RICEPP)
 endif()
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2)
 
 if(WIN32)
   target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
@@ -301,6 +319,8 @@ list(APPEND LIBDWARFS_TARGETS
 list(APPEND LIBDWARFS_OBJECT_TARGETS
   dwarfs_folly_lite
   dwarfs_thrift_lite
+  dwarfs_thrift_lite_v2
+  dwarfs_thrift_lite_test_thrift
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
