@@ -200,6 +200,13 @@ add_library(
   fsst/fsst_avx512_unroll4.inc
 )
 
+add_library(
+  dwarfs_thrift_lite_v2 OBJECT
+  src/thrift_lite/compact_reader.cpp
+  src/thrift_lite/compact_writer.cpp
+  src/thrift_lite/debug_writer.cpp
+)
+
 add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_cpp2_thrift_library(thrift/compression.thrift
@@ -240,6 +247,7 @@ if(ENABLE_RICEPP)
 endif()
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2)
 
 if(WIN32)
   target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
@@ -301,6 +309,7 @@ list(APPEND LIBDWARFS_TARGETS
 list(APPEND LIBDWARFS_OBJECT_TARGETS
   dwarfs_folly_lite
   dwarfs_thrift_lite
+  dwarfs_thrift_lite_v2
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift

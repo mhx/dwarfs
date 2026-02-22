@@ -285,6 +285,7 @@ if(WITH_LIBDWARFS)
   endif()
 
   include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
+  include(${CMAKE_SOURCE_DIR}/cmake/thrift_lite_library.cmake)
 
   include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
   include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
@@ -636,10 +637,32 @@ if(WITH_TESTS)
       test/dwarfs_test.cpp
     )
 
+    add_thrift_lite_library(test/thrift_lite_test.thrift
+                            TARGET thrift_lite_test_thrift OUTPUT_PATH dwarfs)
+    target_link_libraries(thrift_lite_test_thrift PRIVATE dwarfs_folly_lite)
+
+    add_thrift_lite_library(thrift/metadata_lite.thrift
+                            TARGET dwarfs_metadata_thrift_lite OUTPUT_PATH dwarfs)
+
+    add_executable(dwarfs_thrift_lite_tests
+      test/thrift_lite_codegen_compat_test.cpp
+      test/thrift_lite_codegen_debug_test.cpp
+      test/thrift_lite_codegen_roundtrip_test.cpp
+      test/thrift_lite_compact_reader_test.cpp
+      test/thrift_lite_compact_writer_test.cpp
+      test/thrift_lite_debug_writer_test.cpp
+      test/thrift_lite_field_ref_test.cpp
+      test/thrift_lite_test_message.cpp
+      test/thrift_lite_test_message_data.cpp
+    )
+
+    target_link_libraries(dwarfs_thrift_lite_tests PRIVATE thrift_lite_test_thrift dwarfs_metadata_thrift_lite)
+
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
       dwarfs_expensive_tests
       dwarfs_unit_tests
+      dwarfs_thrift_lite_tests
     )
 
     if(FLAC_FOUND OR ENABLE_RICEPP)
