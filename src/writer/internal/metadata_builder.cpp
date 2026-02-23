@@ -1198,11 +1198,7 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
     histent.options() = *orig_fs_options;
   }
 
-  if (apache::thrift::is_non_optional_field_set_manually_or_by_serializer(
-          md_.entry_table_v2_2())) {
-    DWARFS_CHECK(!md_.dir_entries().has_value(),
-                 "unexpected dir_entries in metadata");
-
+  if (!md_.dir_entries()) {
     upgrade_from_pre_v2_2();
   }
 
