@@ -35,21 +35,23 @@ namespace dwarfs::internal {
 std::vector<dwarfs::detail::file_extent_info>
 get_file_extents_noexcept(io_ops const& ops, std::any const& handle,
                           open_file_options const& opts) {
+  std::vector<dwarfs::detail::file_extent_info> extents;
+
   if (opts.hollow) {
     std::error_code ec;
     auto const size = ops.size(handle, ec);
 
     if (!ec) {
       if (size > 0) {
-        return {{extent_kind::hole, {0, size}}};
+        extents.emplace_back(extent_kind::hole, file_range{0, size});
       }
 
-      return {};
+      return extents;
     }
   }
 
   std::error_code ec;
-  auto extents = ops.get_extents(handle, ec);
+  extents = ops.get_extents(handle, ec);
 
   if (ec) {
     ec.clear();
