@@ -49,6 +49,8 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
       : data_{data.data(), data.size()} {}
   explicit malloc_byte_buffer_impl(std::span<uint8_t const> data)
       : data_{data} {}
+  explicit malloc_byte_buffer_impl(std::span<std::byte const> data)
+      : data_{data.data(), data.size()} {}
   explicit malloc_byte_buffer_impl(internal::malloc_buffer&& data)
       : data_{std::move(data)} {}
 
@@ -148,6 +150,11 @@ mutable_byte_buffer malloc_byte_buffer::create(std::string_view data) {
 }
 
 mutable_byte_buffer malloc_byte_buffer::create(std::span<uint8_t const> data) {
+  return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>(data)};
+}
+
+mutable_byte_buffer
+malloc_byte_buffer::create(std::span<std::byte const> data) {
   return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>(data)};
 }
 
