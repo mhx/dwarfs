@@ -362,7 +362,7 @@ struct minimal_macho_fat_header {
     tmp.swap(fragments);
 
     return true;
-  };
+  }
 
   static bool check(inode_fragments& fragments, std::span<uint8_t const> buf,
                     file_view const& mm, category_mapper const& mapper,
