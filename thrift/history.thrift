@@ -26,18 +26,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-package "dwarfs.dev/thrift/history"
+namespace cpp dwarfs.thrift.history
 
-include "thrift/annotation/cpp.thrift"
-
-@cpp.Type{name = "uint8_t"}
-typedef byte UInt8
-@cpp.Type{name = "uint16_t"}
-typedef i16 UInt16
-@cpp.Type{name = "uint32_t"}
-typedef i32 UInt32
-@cpp.Type{name = "uint64_t"}
-typedef i64 UInt64
+typedef byte UInt8 (cpp.type = "std::uint8_t")
+typedef i16 UInt16 (cpp.type = "std::uint16_t")
+typedef i32 UInt32 (cpp.type = "std::uint32_t")
+typedef i64 UInt64 (cpp.type = "std::uint64_t")
 
 struct dwarfs_version {
    1: UInt16 major
