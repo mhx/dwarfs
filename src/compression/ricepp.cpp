@@ -26,8 +26,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <thrift/lib/cpp2/protocol/Serializer.h>
-
 #include <fmt/format.h>
 
 #include <nlohmann/json.hpp>
@@ -40,9 +38,11 @@
 #include <dwarfs/error.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
 #include <dwarfs/varint.h>
 
-#include <dwarfs/gen-cpp2/compression_types.h>
+#include <dwarfs/gen-cpp-lite/compression_types.h>
 
 #include "base.h"
 
@@ -103,8 +103,6 @@ class ricepp_block_compressor final : public block_compressor::impl {
 
     // TODO: see if we can resize just once...
     {
-      using namespace ::apache::thrift;
-
       compressed.resize(varint::max_size);
 
       size_t pos = 0;
@@ -119,8 +117,9 @@ class ricepp_block_compressor final : public block_compressor::impl {
       hdr.big_endian() = byteorder == std::endian::big;
       hdr.ricepp_version() = RICEPP_VERSION;
 
-      std::string hdrbuf;
-      CompactSerializer::serialize(hdr, &hdrbuf);
+      std::vector<std::byte> hdrbuf;
+      thrift_lite::compact_writer w(hdrbuf);
+      hdr.write(w);
 
       compressed.append(hdrbuf.data(), hdrbuf.size());
     }
@@ -235,11 +234,10 @@ class ricepp_block_decompressor final : public block_decompressor_base {
  private:
   static thrift::compression::ricepp_block_header
   decode_header(std::span<uint8_t const>& span) {
-    using namespace ::apache::thrift;
     thrift::compression::ricepp_block_header hdr;
-    auto size = CompactSerializer::deserialize(
-        folly::ByteRange{span.data(), span.size()}, hdr);
-    span = span.subspan(size);
+    thrift_lite::compact_reader r(std::as_bytes(span));
+    hdr.read(r);
+    span = span.subspan(r.consumed_bytes());
     if (hdr.ricepp_version().value() > RICEPP_VERSION) {
       DWARFS_THROW(runtime_error,
                    fmt::format("[RICEPP] unsupported version: {}",
