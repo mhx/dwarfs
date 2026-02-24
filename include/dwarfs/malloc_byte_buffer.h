@@ -46,6 +46,7 @@ class malloc_byte_buffer {
   static mutable_byte_buffer create_reserve(size_t size);
   static mutable_byte_buffer create(std::string_view data);
   static mutable_byte_buffer create(std::span<uint8_t const> data);
+  static mutable_byte_buffer create(std::span<std::byte const> data);
   static mutable_byte_buffer create(internal::malloc_buffer&& data);
 };
 
