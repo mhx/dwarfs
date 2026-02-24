@@ -794,9 +794,13 @@ memory_usage get_self_memory_usage(memory_usage_mode mode [[maybe_unused]]) {
   std::string_view const kFilePrefix = kAccurate ? "Pss_File:" : "RssFile:";
   std::string_view const kShmemPrefix = kAccurate ? "Pss_Shmem:" : "RssShmem:";
 
-  using file_ptr = std::unique_ptr<std::FILE, decltype(&std::fclose)>;
+  struct fclose_deleter {
+    // NOLINTNEXTLINE(cert-err33-c,cppcoreguidelines-owning-memory)
+    void operator()(std::FILE* fh) { std::fclose(fh); }
+  };
+  using file_ptr = std::unique_ptr<std::FILE, fclose_deleter>;
 
-  if (auto fh = file_ptr(std::fopen(kSourcePath, "r"), &std::fclose)) {
+  if (auto fh = file_ptr(std::fopen(kSourcePath, "r"))) {
     auto try_parse_line = [](std::string_view line, std::string_view prefix,
                              std::optional<size_t>& field) {
       if (!field.has_value() && line.starts_with(prefix)) {
