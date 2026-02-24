@@ -214,7 +214,7 @@ add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_thrift_lite_library(thrift/compression.thrift
                         TARGET dwarfs_compression_thrift OUTPUT_PATH dwarfs)
-add_cpp2_thrift_library(thrift/history.thrift
+add_thrift_lite_library(thrift/history.thrift
                         TARGET dwarfs_history_thrift OUTPUT_PATH dwarfs)
 add_thrift_lite_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)

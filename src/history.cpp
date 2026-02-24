@@ -31,16 +31,16 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-#include <thrift/lib/cpp2/protocol/Serializer.h>
-
 #include <dwarfs/config.h>
 #include <dwarfs/history.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 
-#include <dwarfs/gen-cpp2/history_types.h>
+#include <dwarfs/gen-cpp-lite/history_types.h>
 
 namespace dwarfs {
 
@@ -58,9 +58,9 @@ void history::parse(std::span<uint8_t const> data) {
 }
 
 void history::parse_append(std::span<uint8_t const> data) {
-  folly::Range<uint8_t const*> range{data.data(), data.size()};
   thrift::history::history tmp;
-  apache::thrift::CompactSerializer::deserialize(range, tmp);
+  thrift_lite::compact_reader r(std::as_bytes(data));
+  tmp.read(r);
   if (!cfg_.with_timestamps) {
     for (auto& entry : *tmp.entries()) {
       entry.timestamp().reset();
@@ -102,8 +102,9 @@ void history::append(
 size_t history::size() const { return history_->entries()->size(); }
 
 shared_byte_buffer history::serialize() const {
-  std::string buf;
-  ::apache::thrift::CompactSerializer::serialize(*history_, &buf);
+  std::vector<std::byte> buf;
+  thrift_lite::compact_writer w(buf);
+  history_->write(w);
   return malloc_byte_buffer::create(buf).share();
 }
 
