@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include <thrift/lib/cpp/util/EnumUtils.h>
+#include <dwarfs/thrift_lite/enum_utils.h>
 
 #include <dwarfs/internal/features.h>
 
@@ -40,7 +40,7 @@ namespace {
 constexpr bool is_supported_feature(feature /*f*/) { return true; }
 
 std::string feature_name(feature f) {
-  return apache::thrift::util::enumNameOrThrow(f);
+  return std::string(thrift_lite::enum_to_string(f).value());
 }
 
 } // namespace
@@ -53,7 +53,7 @@ bool feature_set::has(feature f) const {
 
 std::set<std::string> feature_set::get_supported() {
   std::set<std::string> rv;
-  for (auto f : apache::thrift::TEnumTraits<feature>::values) {
+  for (auto f : thrift_lite::enum_traits<feature>::values()) {
     if (is_supported_feature(f)) {
       rv.insert(feature_name(f));
     }
