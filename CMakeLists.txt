@@ -1320,6 +1320,8 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
           COMMAND ${CMAKE_COMMAND} -E remove ${UNIVERSAL_OUT}.extracted
           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
           COMMENT "UPX not found/supported, using ${_sfx_stub_target} for universal binary"
+          DEPENDS ${CMAKE_SOURCE_DIR}/sfx/pack.py
+                  ${_sfx_stub_target} ${tgt}
         )
       else()
         add_custom_command(
