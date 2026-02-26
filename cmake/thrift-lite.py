@@ -887,7 +887,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
               auto operator=({s.name} const&) -> {s.name}&;
               auto operator=({s.name}&&) noexcept -> {s.name}&;
 
-              bool operator==(const {s.name}&) const = default;
+              bool operator==({s.name} const&) const = default;
 
               void read(::dwarfs::thrift_lite::protocol_reader& r);
               void write(::dwarfs::thrift_lite::protocol_writer& w) const;
@@ -906,17 +906,13 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                 annotations=f.annotations,
             )
             if f.required == "optional":
-                idx = opt_index[f.name]
                 idx_c = f"{f.name}_isset_index"
-                n = len(optional_fields)
                 h.emit(
                     f"""
-                    auto {f.name}() & noexcept
-                        -> ::dwarfs::thrift_lite::optional_field_ref<{cpp_t}&, std::bitset<{n}>::reference> {{
-                      return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t}&, std::bitset<{n}>::reference>{{{f.name}_, isset_[{idx_c}]}};
+                    auto {f.name}() & noexcept {{
+                      return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t}&, isset_ref>{{{f.name}_, isset_[{idx_c}]}};
                     }}
-                    auto {f.name}() const& noexcept
-                        -> ::dwarfs::thrift_lite::optional_field_ref<{cpp_t} const&, bool> {{
+                    auto {f.name}() const& noexcept {{
                       return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t} const&, bool>{{{f.name}_, isset_.test({idx_c})}};
                     }}
 
@@ -926,10 +922,10 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             else:
                 h.emit(
                     f"""
-                    auto {f.name}() & noexcept -> ::dwarfs::thrift_lite::field_ref<{cpp_t}&> {{
+                    auto {f.name}() & noexcept {{
                       return ::dwarfs::thrift_lite::field_ref<{cpp_t}&>{{{f.name}_}};
                     }}
-                    auto {f.name}() const& noexcept -> ::dwarfs::thrift_lite::field_ref<{cpp_t} const&> {{
+                    auto {f.name}() const& noexcept {{
                       return ::dwarfs::thrift_lite::field_ref<{cpp_t} const&>{{{f.name}_}};
                     }}
 
@@ -939,13 +935,19 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
         h.emit("private:\n", indent=1)
         if has_optional:
-            n = len(optional_fields)
             for i, f in enumerate(optional_fields):
                 h.emit(
                     f"static constexpr auto {f.name}_isset_index = std::size_t{{{i}}};\n",
                     indent=2,
                 )
-            h.emit(f"std::bitset<{n}> isset_{{}};\n", indent=2)
+            h.emit(
+                f"""
+                using isset_type = std::bitset<{len(optional_fields)}>;
+                using isset_ref = isset_type::reference;
+                isset_type isset_{{}};
+                """,
+                indent=2,
+            )
 
         for f in s.fields:
             cpp_t = cpp_type_for(
