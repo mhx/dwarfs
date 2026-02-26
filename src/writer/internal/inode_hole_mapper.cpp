@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <bit>
 #include <cassert>
 
 #include <dwarfs/metadata_defs.h>
