@@ -187,6 +187,21 @@ TEST(thrift_lite, handle_mismatched_types_gracefully) {
     EXPECT_TRUE(out.opt_map()->empty());
     ASSERT_TRUE(out.unchanged().has_value());
     EXPECT_EQ(123, out.unchanged().value());
+
+    // make sure _ref() aliases work the same
+    EXPECT_TRUE(out.a_string_ref()->empty());
+    EXPECT_TRUE(out.a_list_ref()->empty());
+    EXPECT_TRUE(out.a_set_ref()->empty());
+    EXPECT_TRUE(out.a_map_ref()->empty());
+    EXPECT_FALSE(out.opt_string_ref().has_value());
+    EXPECT_TRUE(out.opt_list_ref().has_value());
+    EXPECT_TRUE(out.opt_list_ref()->empty());
+    EXPECT_TRUE(out.opt_set_ref().has_value());
+    EXPECT_TRUE(out.opt_set_ref()->empty());
+    EXPECT_TRUE(out.opt_map_ref().has_value());
+    EXPECT_TRUE(out.opt_map_ref()->empty());
+    ASSERT_TRUE(out.unchanged_ref().has_value());
+    EXPECT_EQ(123, out.unchanged_ref().value());
   }
 
   {
@@ -205,6 +220,22 @@ TEST(thrift_lite, handle_mismatched_types_gracefully) {
     EXPECT_TRUE(out.opt_map().has_value());
     EXPECT_THAT(out.opt_map().value(), UnorderedElementsAre(Pair(2, "world")));
     EXPECT_EQ(123, out.unchanged().value());
+
+    // make sure _ref() aliases work the same
+    EXPECT_TRUE(out.a_bool_ref().value());
+    EXPECT_THAT(out.a_list_ref().value(), ElementsAre(42));
+    EXPECT_THAT(out.a_set_ref().value(), UnorderedElementsAre("foo"));
+    EXPECT_THAT(out.a_map_ref().value(), UnorderedElementsAre(Pair(1, "bar")));
+    EXPECT_TRUE(out.opt_bool_ref().has_value());
+    EXPECT_TRUE(out.opt_bool_ref().value());
+    EXPECT_TRUE(out.opt_list_ref().has_value());
+    EXPECT_THAT(out.opt_list_ref().value(), ElementsAre(43));
+    EXPECT_TRUE(out.opt_set_ref().has_value());
+    EXPECT_THAT(out.opt_set_ref().value(), UnorderedElementsAre("hello"));
+    EXPECT_TRUE(out.opt_map_ref().has_value());
+    EXPECT_THAT(out.opt_map_ref().value(),
+                UnorderedElementsAre(Pair(2, "world")));
+    EXPECT_EQ(123, out.unchanged_ref().value());
   }
 }
 

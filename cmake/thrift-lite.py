@@ -912,7 +912,13 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                     auto {f.name}() & noexcept {{
                       return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t}&, isset_ref>{{{f.name}_, isset_[{idx_c}]}};
                     }}
+                    auto {f.name}_ref() & noexcept {{
+                      return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t}&, isset_ref>{{{f.name}_, isset_[{idx_c}]}};
+                    }}
                     auto {f.name}() const& noexcept {{
+                      return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t} const&, bool>{{{f.name}_, isset_.test({idx_c})}};
+                    }}
+                    auto {f.name}_ref() const& noexcept {{
                       return ::dwarfs::thrift_lite::optional_field_ref<{cpp_t} const&, bool>{{{f.name}_, isset_.test({idx_c})}};
                     }}
 
@@ -925,7 +931,13 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                     auto {f.name}() & noexcept {{
                       return ::dwarfs::thrift_lite::field_ref<{cpp_t}&>{{{f.name}_}};
                     }}
+                    auto {f.name}_ref() & noexcept {{
+                      return ::dwarfs::thrift_lite::field_ref<{cpp_t}&>{{{f.name}_}};
+                    }}
                     auto {f.name}() const& noexcept {{
+                      return ::dwarfs::thrift_lite::field_ref<{cpp_t} const&>{{{f.name}_}};
+                    }}
+                    auto {f.name}_ref() const& noexcept {{
                       return ::dwarfs::thrift_lite::field_ref<{cpp_t} const&>{{{f.name}_}};
                     }}
 
