@@ -1194,6 +1194,8 @@ add_custom_target(
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
+        ${CMAKE_CURRENT_SOURCE_DIR}/frozen/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/frozen/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
