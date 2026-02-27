@@ -322,3 +322,149 @@ TEST(optional_field_ref, assignment_from_compatible_non_array_rvalue) {
   EXPECT_TRUE(ref.has_value());
   EXPECT_EQ(s, "moved");
 }
+
+TEST(field_ref, copy_from_copies_value) {
+  auto a = int{1};
+  auto b = int{2};
+
+  auto ra = tl::field_ref<int&>{a};
+  auto rb = tl::field_ref<int&>{b};
+
+  ra.copy_from(rb);
+  EXPECT_EQ(a, 2);
+}
+
+TEST(field_ref, copy_from_allows_convertible_assignment) {
+  auto a = long{0};
+  auto b = int{5};
+
+  auto ra = tl::field_ref<long&>{a};
+  auto rb = tl::field_ref<int&>{b};
+
+  ra.copy_from(rb);
+  EXPECT_EQ(a, 5);
+}
+
+TEST(field_ref, reset_assigns_default_value) {
+  auto x = int{7};
+  auto rx = tl::field_ref<int&>{x};
+
+  rx.reset();
+  EXPECT_EQ(x, 0);
+
+  auto s = std::string{"hello"};
+  auto rs = tl::field_ref<std::string&>{s};
+
+  rs.reset();
+  EXPECT_TRUE(s.empty());
+}
+
+TEST(field_ref, ensure_returns_reference_to_underlying_value) {
+  auto x = int{3};
+  auto r = tl::field_ref<int&>{x};
+
+  auto& ref = r.ensure();
+  ref = 9;
+
+  EXPECT_EQ(x, 9);
+  EXPECT_EQ(r.value(), 9);
+}
+
+TEST(field_ref, subscript_forwards_to_underlying_container) {
+  auto v = std::vector<int>{1, 2, 3};
+  auto r = tl::field_ref<std::vector<int>&>{v};
+
+  EXPECT_EQ(r[1], 2);
+
+  r[1] = 42;
+  EXPECT_EQ(v[1], 42);
+
+  auto m = std::map<int, int>{};
+  auto rm = tl::field_ref<std::map<int, int>&>{m};
+
+  rm[7] = 11;
+  EXPECT_EQ(m[7], 11);
+}
+
+TEST(optional_field_ref, copy_from_propagates_set_state_and_value) {
+  auto a = int{123};
+  auto b = int{0};
+
+  auto bits_a = std::bitset<1>{};
+  auto bits_b = std::bitset<1>{};
+
+  bits_a.set(0);
+  bits_b.reset(0);
+
+  auto ra =
+      tl::optional_field_ref<int&, std::bitset<1>::reference>{a, bits_a[0]};
+  auto rb =
+      tl::optional_field_ref<int&, std::bitset<1>::reference>{b, bits_b[0]};
+
+  rb.copy_from(ra);
+  EXPECT_TRUE(rb.has_value());
+  EXPECT_EQ(b, 123);
+
+  ra.reset();
+  EXPECT_FALSE(ra.has_value());
+
+  b = 777;
+  rb.copy_from(ra);
+  EXPECT_FALSE(rb.has_value());
+  EXPECT_EQ(
+      b, 777); // value is irrelevant when unset; copy_from doesn't overwrite it
+}
+
+TEST(optional_field_ref, copy_from_allows_convertible_assignment) {
+  auto a = int{5};
+  auto b = long{0};
+
+  auto bits_a = std::bitset<1>{};
+  auto bits_b = std::bitset<1>{};
+
+  bits_a.set(0);
+  bits_b.reset(0);
+
+  auto ra =
+      tl::optional_field_ref<int&, std::bitset<1>::reference>{a, bits_a[0]};
+  auto rb =
+      tl::optional_field_ref<long&, std::bitset<1>::reference>{b, bits_b[0]};
+
+  rb.copy_from(ra);
+  EXPECT_TRUE(rb.has_value());
+  EXPECT_EQ(b, 5);
+}
+
+TEST(optional_field_ref, ensure_emplaces_when_unset_and_returns_reference) {
+  auto x = int{99};
+  auto bits = std::bitset<1>{};
+  bits.reset(0);
+
+  auto r = tl::optional_field_ref<int&, std::bitset<1>::reference>{x, bits[0]};
+
+  EXPECT_FALSE(r.has_value());
+
+  auto& ref = r.ensure();
+  EXPECT_TRUE(r.has_value());
+  EXPECT_EQ(ref, 0); // default-constructed by emplace()
+
+  ref = 7;
+  EXPECT_EQ(x, 7);
+  EXPECT_EQ(r.value(), 7);
+}
+
+TEST(optional_field_ref, ensure_does_not_reinitialize_when_set) {
+  auto s = std::string{};
+  auto bits = std::bitset<1>{};
+
+  auto r = tl::optional_field_ref<std::string&, std::bitset<1>::reference>{
+      s, bits[0]};
+
+  r.emplace("x");
+  EXPECT_TRUE(r.has_value());
+  EXPECT_EQ(r.value(), "x");
+
+  auto& ref = r.ensure();
+  EXPECT_EQ(ref, "x");
+  EXPECT_EQ(s, "x");
+}
