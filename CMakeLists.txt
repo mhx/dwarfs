@@ -571,6 +571,14 @@ if(WITH_TESTS AND WITH_TOOLS)
   set_property(TARGET dwarfs_tool_main_tester PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 endif()
 
+if(WITH_LIBDWARFS)
+  # need to build this for packaging even if we don't run any test
+  add_thrift_lite_library(test/thrift_lite_test.thrift
+                          TARGET dwarfs_thrift_lite_test_thrift OUTPUT_PATH dwarfs)
+  target_link_libraries(dwarfs_thrift_lite_test_thrift PRIVATE dwarfs_folly_lite)
+  list(APPEND THRIFT_LITE_LIB_TARGETS dwarfs_thrift_lite_test_thrift)
+endif()
+
 if(WITH_TESTS)
   if(WITH_LIBDWARFS)
     add_executable(dwarfs_unit_tests
@@ -653,7 +661,7 @@ if(WITH_TESTS)
       test/thrift_lite_test_message_data.cpp
     )
 
-    target_link_libraries(dwarfs_thrift_lite_tests PRIVATE dwarfs_thrift_lite_test_thrift dwarfs_metadata_thrift_lite)
+    target_link_libraries(dwarfs_thrift_lite_tests PRIVATE dwarfs_thrift_lite_test_thrift)
 
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
@@ -897,6 +905,7 @@ foreach(tgt ${LIBDWARFS_TARGETS})
 endforeach()
 
 foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
+            ${THRIFT_LITE_LIB_TARGETS}
             dwarfs_test_helpers dwarfs_test_main
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(NOT TARGET ${tgt})
