@@ -89,8 +89,12 @@ std::string_view type_label(ttype const type) {
 
 } // namespace
 
-debug_writer::debug_writer(std::ostream& os) noexcept
-    : os_{&os} {}
+debug_writer::debug_writer(std::ostream& os,
+                           writer_options const& options) noexcept
+    : os_{&os}
+    , options_{options} {}
+
+auto debug_writer::options() const -> writer_options const& { return options_; }
 
 auto& debug_writer::top() {
   TL_CHECK(!stack_.empty(), "invalid state (no container)");

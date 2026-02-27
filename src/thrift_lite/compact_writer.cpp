@@ -35,6 +35,15 @@ using namespace dwarfs::thrift_lite::internal;
 
 namespace dwarfs::thrift_lite {
 
+compact_writer::compact_writer(std::vector<std::byte>& out,
+                               writer_options const& options) noexcept
+    : out_{&out}
+    , options_{options} {}
+
+auto compact_writer::options() const -> writer_options const& {
+  return options_;
+}
+
 void compact_writer::ensure_no_pending_bool() const {
   if (pending_bool_field_id_.has_value()) {
     throw protocol_error("bool field pending: write_bool() must follow "

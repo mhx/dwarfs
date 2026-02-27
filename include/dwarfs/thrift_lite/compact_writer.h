@@ -38,13 +38,16 @@
 
 #include <dwarfs/thrift_lite/protocol_writer.h>
 #include <dwarfs/thrift_lite/types.h>
+#include <dwarfs/thrift_lite/writer_options.h>
 
 namespace dwarfs::thrift_lite {
 
 class compact_writer : public protocol_writer {
  public:
-  explicit compact_writer(std::vector<std::byte>& out)
-      : out_(&out) {}
+  explicit compact_writer(std::vector<std::byte>& out,
+                          writer_options const& options = {}) noexcept;
+
+  auto options() const -> writer_options const& override;
 
   void write_struct_begin(std::string_view name) override;
   void write_struct_end() override;
@@ -83,6 +86,7 @@ class compact_writer : public protocol_writer {
   std::vector<std::int16_t> last_field_stack_{};
   std::int16_t last_field_id_{0};
   std::optional<std::int16_t> pending_bool_field_id_{};
+  writer_options options_;
 };
 
 } // namespace dwarfs::thrift_lite

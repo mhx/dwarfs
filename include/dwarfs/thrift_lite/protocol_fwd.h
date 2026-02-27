@@ -31,4 +31,6 @@ namespace dwarfs::thrift_lite {
 class protocol_reader;
 class protocol_writer;
 
+struct writer_options;
+
 } // namespace dwarfs::thrift_lite
