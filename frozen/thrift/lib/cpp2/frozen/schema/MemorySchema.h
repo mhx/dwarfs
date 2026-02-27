@@ -23,7 +23,7 @@
 
 #include <folly/hash/Hash.h>
 #include <thrift/lib/cpp/DistinctTable.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_types.h>
+#include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 #define THRIFT_DECLARE_HASH(T)           \
   namespace std {                        \
