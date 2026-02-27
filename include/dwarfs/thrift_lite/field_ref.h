@@ -95,6 +95,8 @@ class field_ref {
     *ptr_ = other.value();
   }
 
+  auto has_value() const noexcept -> bool { return true; }
+
   auto value() const noexcept -> Ref { return static_cast<Ref>(*ptr_); }
 
   auto operator*() const noexcept -> Ref { return value(); }
