@@ -79,11 +79,6 @@ function(add_thrift_lite_library idlfile)
     target_include_directories(${_THRIFT_TARGET} PUBLIC
       $<BUILD_INTERFACE:${_THRIFT_GENERATED_DIR}/thrift>
     )
-    if(FROZEN)
-      target_include_directories(${_THRIFT_TARGET} PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fbthrift>
-      )
-    endif()
     target_link_libraries(${_THRIFT_TARGET} PUBLIC dwarfs_thrift_lite_v2)
     set_property(TARGET ${_THRIFT_TARGET} PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   endif()

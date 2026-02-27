@@ -40,7 +40,7 @@
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/scanner_progress.h>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 namespace dwarfs::writer::internal {
 

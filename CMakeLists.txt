@@ -284,11 +284,9 @@ if(WITH_LIBDWARFS)
     find_package(mimalloc ${MIMALLOC_REQUIRED_VERSION} REQUIRED CONFIG)
   endif()
 
-  include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
   include(${CMAKE_SOURCE_DIR}/cmake/thrift_lite_library.cmake)
 
   include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
-  include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
 
   if(ENABLE_RICEPP)
     # TODO: support FetchContent
