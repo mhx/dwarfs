@@ -74,7 +74,6 @@ class MallocFreezer final : public FreezeRoot {
 
  private:
   size_t distanceToEnd(const byte* origin) const;
-  size_t offsetOf(const byte* origin) const;
 
   folly::MutableByteRange appendBuffer(size_t size);
 

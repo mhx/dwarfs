@@ -55,18 +55,6 @@ MallocFreezer::Segment::~Segment() {
   }
 }
 
-size_t MallocFreezer::offsetOf(const byte* ptr) const {
-  if (offsets_.empty() || !ptr) {
-    return 0;
-  }
-  auto offsetIt = offsets_.upper_bound(ptr);
-  if (offsetIt == offsets_.begin()) {
-    throw std::runtime_error("offset");
-  }
-  --offsetIt;
-  return ptr - offsetIt->first;
-}
-
 size_t MallocFreezer::distanceToEnd(const byte* ptr) const {
   if (offsets_.empty()) {
     return 0;
