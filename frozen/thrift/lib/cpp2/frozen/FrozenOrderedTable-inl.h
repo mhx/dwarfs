@@ -17,7 +17,6 @@
 #include <type_traits>
 #include <folly/Traits.h>
 #include <folly/container/Reserve.h>
-#include <thrift/lib/cpp2/protocol/detail/protocol_methods.h>
 
 namespace apache {
 namespace thrift {
