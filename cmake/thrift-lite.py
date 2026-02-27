@@ -707,23 +707,28 @@ def cpp_type_for(
     fq = "::" if fully_qualified else ""
     if t.kind == "base":
         b = t.base
+        cpp_type = None
         if b == "bool":
-            return "bool"
-        if b == "byte":
-            return fq + "std::int8_t"
-        if b == "i16":
-            return fq + "std::int16_t"
-        if b == "i32":
-            return fq + "std::int32_t"
-        if b == "i64":
-            return fq + "std::int64_t"
-        if b == "double":
-            return "double"
-        if b == "string":
-            return fq + "std::string"
-        if b == "binary":
-            return f"{fq}std::vector<{fq}std::byte>"
-        die(f"unsupported base type {b!r}")
+            cpp_type = "bool"
+        elif b == "byte":
+            cpp_type = fq + "std::int8_t"
+        elif b == "i16":
+            cpp_type = fq + "std::int16_t"
+        elif b == "i32":
+            cpp_type = fq + "std::int32_t"
+        elif b == "i64":
+            cpp_type = fq + "std::int64_t"
+        elif b == "double":
+            cpp_type = "double"
+        elif b == "string":
+            cpp_type = fq + "std::string"
+        elif b == "binary":
+            cpp_type = f"{fq}std::vector<{fq}std::byte>"
+        if cpp_type is None:
+            die(f"unsupported base type {b!r}")
+        if annotations is not None:
+            cpp_type = annotations.get("cpp.type", cpp_type)
+        return cpp_type
 
     if t.kind == "id":
         assert t.type_id is not None
