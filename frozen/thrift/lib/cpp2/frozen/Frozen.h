@@ -1056,20 +1056,6 @@ void thawField(ViewPosition self, const Field<T>& f, field_ref<T&> ref) {
 }
 
 /**
- * Helper for thawing a ref field into an unique_ptr field
- */
-template <
-    class T,
-    class D,
-    std::enable_if_t<!std::is_same_v<T, folly::IOBuf>>>
-void thawField(
-    ViewPosition self,
-    const Field<std::unique_ptr<T, D>>& f,
-    std::unique_ptr<T, D>& out) {
-  f.layout.thaw(self(f.pos), out);
-}
-
-/**
  * Helper for thawing a ref field into an shared_ptr field
  */
 template <class T>
@@ -1077,17 +1063,6 @@ void thawField(
     ViewPosition self,
     const Field<std::shared_ptr<T>>& f,
     std::shared_ptr<T>& out) {
-  f.layout.thaw(self(f.pos), out);
-}
-
-/**
- * Helper for thawing a ref field into a boxed field
- */
-template <class T>
-void thawField(
-    ViewPosition self,
-    const Field<T>& f,
-    optional_boxed_field_ref<T&> out) {
   f.layout.thaw(self(f.pos), out);
 }
 
