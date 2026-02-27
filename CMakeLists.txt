@@ -664,11 +664,25 @@ if(WITH_TESTS)
 
     target_link_libraries(dwarfs_thrift_lite_tests PRIVATE dwarfs_thrift_lite_test_thrift)
 
+    add_executable(frozen_tests
+      # frozen/thrift/lib/cpp2/frozen/test/CompatibilityTest.cpp
+      # frozen/thrift/lib/cpp2/frozen/test/FrozenAssociativeTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenHintTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenIntegralTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenRangeTest.cpp
+      # frozen/thrift/lib/cpp2/frozen/test/FrozenReferenceTest.cpp
+      # frozen/thrift/lib/cpp2/frozen/test/FrozenTest.cpp
+      # frozen/thrift/lib/cpp2/frozen/test/FrozenUnionTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenUtilTest.cpp
+      # frozen/thrift/lib/cpp2/frozen/test/FrozenVectorAssociativeTest.cpp
+    )
+
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
       dwarfs_expensive_tests
       dwarfs_unit_tests
       dwarfs_thrift_lite_tests
+      frozen_tests
     )
 
     if(FLAC_FOUND OR ENABLE_RICEPP)
