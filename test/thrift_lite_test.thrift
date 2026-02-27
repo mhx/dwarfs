@@ -209,3 +209,6 @@ struct Everything {
   29: optional map<string, list<string>> opt_nested_map
   30: optional TestMessage opt_struct
 }
+
+struct EmptyStruct {
+}

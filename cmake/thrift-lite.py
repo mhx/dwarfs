@@ -1054,7 +1054,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         # --- emit has_any_fields_for_write() before write() ---
 
         c.emit(
-            f"[[nodiscard]] auto {s.name}::has_any_fields_for_write(::dtl::writer_options const& opts) const noexcept -> bool {{\n"
+            f"[[nodiscard]] auto {s.name}::has_any_fields_for_write(::dtl::writer_options const& opts [[maybe_unused]]) const noexcept -> bool {{\n"
         )
 
         any_fields_checks = []
@@ -1086,7 +1086,12 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             if struct_name is not None:
                 any_fields_checks.append(f"{f.name}_.has_any_fields_for_write(opts)")
             else:
-                any_fields_checks.append(f"::dtli::should_write_regular(opts, {f.name}_)")
+                any_fields_checks.append(
+                    f"::dtli::should_write_regular(opts, {f.name}_)"
+                )
+
+        if not any_fields_checks:
+            any_fields_checks.append("false")
 
         checks_str = " ||\n                     ".join(any_fields_checks)
 
@@ -1104,11 +1109,18 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         c.emit(
             f"""
             void {s.name}::write(::dtl::protocol_writer& w) const {{
-              auto const& opts = w.options();
+            """
+        )
 
+        if len(fields_sorted) > len(optional_fields):
+            c.emit("auto const& opts = w.options();\n\n", indent=2)
+
+        c.emit(
+            f"""
               w.write_struct_begin("{s.name}");
 
-            """
+            """,
+            indent=2,
         )
 
         for f in fields_sorted:
@@ -1149,6 +1161,8 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             c.emit("isset_.reset();\n", indent=2)
         for f in s.fields:
             c.emit(f"{f.name}_ = {{}};\n", indent=2)
+        if s.fields:
+            c.emit("\n", strip=False)
         c.emit(
             """
             r.read_struct_begin();
@@ -1168,7 +1182,6 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
               switch (field_id) {
             """,
             indent=2,
-            strip=False,
         )
 
         fields_by_id = {f.field_id: f for f in s.fields}
