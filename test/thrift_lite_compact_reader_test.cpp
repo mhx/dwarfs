@@ -794,8 +794,25 @@ TEST(compact_reader, skip_binary_too_large_throws) {
               ThrowsMessage<tl::protocol_error>(HasSubstr("binary too large")));
 }
 
-TEST(compact_reader, skip_of_unknown_type_dies) {
+TEST(compact_reader, skip_of_unknown_type_throws) {
   auto const bytes = make_bytes({0xFF});
   auto r = tl::compact_reader{bytes};
-  EXPECT_DEATH(r.skip(static_cast<tl::ttype>(100)), "unknown ttype: 100");
+
+  EXPECT_THAT(
+      [&] { r.skip(static_cast<tl::ttype>(100)); },
+      ThrowsMessage<tl::protocol_error>(HasSubstr("unknown ttype: 100")));
+}
+
+TEST(compact_reader, invalid_compact_type_in_field_header_throws) {
+  auto const bytes = make_bytes({0x1F}); // field id=1, type=0x0F (invalid)
+  auto r = tl::compact_reader{bytes};
+
+  r.read_struct_begin();
+
+  auto type = tl::ttype::stop_t;
+  std::int16_t fid{0};
+
+  EXPECT_THAT(
+      [&] { r.read_field_begin(type, fid); },
+      ThrowsMessage<tl::protocol_error>(HasSubstr("invalid compact type: 15")));
 }
