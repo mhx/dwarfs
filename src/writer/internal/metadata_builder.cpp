@@ -693,8 +693,8 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
     auto& cache = md_.reg_file_size_cache().value();
     cache.min_chunk_count() = options_.inode_size_cache_min_chunk_count;
 
-    auto const& shared = md_.shared_files_table().value();
-    auto const num_unique_files = (dev_offset - reg_offset) - shared.size();
+    auto const& shared = md_.shared_files_table();
+    auto const num_unique_files = (dev_offset - reg_offset) - shared->size();
     inode_size_provider isp(md_);
 
     for (auto inode_num = reg_offset; inode_num < dev_offset;) {
@@ -705,8 +705,8 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
               : md_.inodes()->at(inode_num).nlink_minus_one().value() + 1;
       std::optional<uint32_t> const shared_index =
           reg_inode_num >= num_unique_files
-              ? std::optional<uint32_t>{shared.at(reg_inode_num -
-                                                  num_unique_files)}
+              ? std::optional<uint32_t>{shared->at(reg_inode_num -
+                                                   num_unique_files)}
               : std::nullopt;
       auto const chunk_table_index = shared_index.has_value()
                                          ? num_unique_files + *shared_index
@@ -735,7 +735,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
 
       if (shared_index.has_value()) {
         while (inode_num < dev_offset &&
-               shared.at(inode_num - reg_offset - num_unique_files) ==
+               shared->at(inode_num - reg_offset - num_unique_files) ==
                    *shared_index) {
           ++shared_count;
           ++inode_num;
