@@ -1206,7 +1206,7 @@ add_custom_target(
       CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
       CTestTestfile.cmake Testing
       fbthrift folly zstd ricepp tools fake_folly
-      include src thrift universal bin lib man1 man5
+      include src thrift universal bin lib man1 man5 man7
       vcpkg-manifest-install.log
       Makefile compile_commands.json
       artifacts.env source-artifacts.env
