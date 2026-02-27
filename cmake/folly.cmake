@@ -96,35 +96,18 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Demangle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/dynamic.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json_pointer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/CString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/Malloc.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeLeak.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/QuantileEstimator.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/TDigest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/detail/DoubleRadixSort.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/HardwareConcurrency.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
 )
@@ -143,11 +126,11 @@ if(WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/PThread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysMman.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysResource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
   )
 endif()
 
