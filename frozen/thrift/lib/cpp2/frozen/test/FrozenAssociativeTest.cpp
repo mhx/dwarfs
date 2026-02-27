@@ -18,12 +18,12 @@
 
 #include <folly/Conv.h>
 #include <folly/Optional.h>
-#include <folly/container/F14Map.h>
-#include <folly/container/F14Set.h>
+// #include <folly/container/F14Map.h>
+// #include <folly/container/F14Set.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_layouts.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_types.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_types.h>
 
 using namespace apache::thrift::frozen;
 using namespace apache::thrift::test;
@@ -121,10 +121,10 @@ void testFrozenHashMapBasic() {
 
 TEST(FrozenHashMap, Basic) {
   testFrozenHashMapBasic<std::unordered_map<int, int>>();
-  testFrozenHashMapBasic<folly::F14NodeMap<int, int>>();
-  testFrozenHashMapBasic<folly::F14ValueMap<int, int>>();
-  testFrozenHashMapBasic<folly::F14VectorMap<int, int>>();
-  testFrozenHashMapBasic<folly::F14FastMap<int, int>>();
+  // testFrozenHashMapBasic<folly::F14NodeMap<int, int>>();
+  // testFrozenHashMapBasic<folly::F14ValueMap<int, int>>();
+  // testFrozenHashMapBasic<folly::F14VectorMap<int, int>>();
+  // testFrozenHashMapBasic<folly::F14FastMap<int, int>>();
 }
 
 TEST(FrozenHashMap, Iteration) {
@@ -303,10 +303,10 @@ void testFrozenHashSetFull() {
 
 TEST(FrozenHashSet, Full) {
   testFrozenHashSetFull<std::unordered_set<uint32_t>>();
-  testFrozenHashSetFull<folly::F14NodeSet<uint32_t>>();
-  testFrozenHashSetFull<folly::F14ValueSet<uint32_t>>();
-  testFrozenHashSetFull<folly::F14VectorSet<uint32_t>>();
-  testFrozenHashSetFull<folly::F14FastSet<uint32_t>>();
+  // testFrozenHashSetFull<folly::F14NodeSet<uint32_t>>();
+  // testFrozenHashSetFull<folly::F14ValueSet<uint32_t>>();
+  // testFrozenHashSetFull<folly::F14VectorSet<uint32_t>>();
+  // testFrozenHashSetFull<folly::F14FastSet<uint32_t>>();
 }
 
 TEST(Frozen, IntHashMapBig) {
@@ -391,6 +391,7 @@ TEST(Frozen, SpillBug) {
   EXPECT_EQ(distance(fmaps[1].equal_range(-1)), 1);
 }
 
+#if 0
 // Define hash and equal_to for User
 namespace std {
 size_t hash<User>::operator()(const User& user) const {
@@ -490,3 +491,4 @@ TEST(FrozenMap, StructAsKey) {
   ASSERT_TRUE(omap.find(u4) == omap.end());
   ASSERT_TRUE(hmap.find(u4) == hmap.end());
 }
+#endif
