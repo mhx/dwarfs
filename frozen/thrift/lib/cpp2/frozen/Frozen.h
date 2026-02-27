@@ -29,6 +29,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <folly/Conv.h>
 #include <folly/Demangle.h>
 #include <folly/FBVector.h>
 #include <folly/MapUtil.h>
@@ -48,9 +49,12 @@
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
 #include <thrift/lib/cpp2/frozen/Traits.h>
 #include <thrift/lib/cpp2/frozen/schema/MemorySchema.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_types.h>
+#include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace apache::thrift::frozen {
+
+using namespace ::dwarfs::thrift_lite;
+
 /**
  *          \__  __/             \__  __/             \__  __/
  *          /_/  \_\             /_/  \_\             /_/  \_\
@@ -725,12 +729,12 @@ class LayoutRoot : public FieldCycleHolder {
     return nextPos;
   }
 
-  template <class T, class Layout>
+  template <class T, class Layout, typename BitRef>
   FieldPosition layoutOptionalField(
       LayoutPosition self,
       FieldPosition fieldPos,
       Field<folly::Optional<T>, Layout>& field,
-      optional_field_ref<const T&> ref) {
+      optional_field_ref<const T&, BitRef> ref) {
     return layoutField(
         self, fieldPos, field, ref ? folly::make_optional(*ref) : folly::none);
   }
@@ -847,11 +851,11 @@ class FreezeRoot {
     field.layout.freeze(*this, value, self(field.pos));
   }
 
-  template <class T, class Layout>
+  template <class T, class Layout, typename BitRef>
   void freezeOptionalField(
       FreezePosition self,
       const Field<folly::Optional<T>, Layout>& field,
-      optional_field_ref<const T&> ref) {
+      optional_field_ref<const T&, BitRef> ref) {
     freezeField(self, field, ref ? folly::make_optional(*ref) : folly::none);
   }
 
@@ -1032,11 +1036,11 @@ void thawField(ViewPosition self, const Field<T, Layout>& f, T& out) {
  * Helper for thawing a field holding an optional into a Thrift optional field
  * and corresponding __isset marker.
  */
-template <class T>
+template <class T, typename BitRef>
 void thawField(
     ViewPosition self,
     const Field<folly::Optional<T>>& f,
-    optional_field_ref<T&> ref) {
+    optional_field_ref<T&, BitRef> ref) {
   folly::Optional<T> opt;
   f.layout.thaw(self(f.pos), opt);
   if (opt) {
