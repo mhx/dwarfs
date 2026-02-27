@@ -18,9 +18,11 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenTestUtil.h>
 #include <thrift/lib/cpp2/frozen/VectorAssociative.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_layouts.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_types_custom_protocol.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_types.h>
+
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
 
 using namespace apache::thrift;
 using namespace apache::thrift::frozen;
@@ -159,13 +161,17 @@ void populate(TestType& x) {
 
 template <class T>
 class FrozenStructsWithVectors : public ::testing::Test {};
-TYPED_TEST_CASE_P(FrozenStructsWithVectors);
+TYPED_TEST_SUITE_P(FrozenStructsWithVectors);
 
 TYPED_TEST_P(FrozenStructsWithVectors, Serializable) {
   TypeParam input;
   populate(input);
-  auto serialized = CompactSerializer::serialize<std::string>(input);
-  auto output = CompactSerializer::deserialize<TypeParam>(serialized);
+  std::vector<std::byte> serialized;
+  dwarfs::thrift_lite::compact_writer w(serialized);
+  input.write(w);
+  dwarfs::thrift_lite::compact_reader r(serialized);
+  TypeParam output;
+  output.read(r);
   EXPECT_EQ(input, output);
 }
 
@@ -185,6 +191,6 @@ TYPED_TEST_P(FrozenStructsWithVectors, Freezable) {
   EXPECT_EQ(f.fbVector()[0], 8);
 }
 
-REGISTER_TYPED_TEST_CASE_P(FrozenStructsWithVectors, Freezable, Serializable);
+REGISTER_TYPED_TEST_SUITE_P(FrozenStructsWithVectors, Freezable, Serializable);
 using MyTypes = ::testing::Types<VectorTest>;
-INSTANTIATE_TYPED_TEST_CASE_P(CppVerions, FrozenStructsWithVectors, MyTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(CppVerions, FrozenStructsWithVectors, MyTypes);

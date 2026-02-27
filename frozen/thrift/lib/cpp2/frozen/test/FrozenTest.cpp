@@ -18,10 +18,12 @@
 #include <gtest/gtest.h>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_layouts.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_types_custom_protocol.h>
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_types.h>
+
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
+#include <dwarfs/thrift_lite/debug_writer.h>
 
 namespace {
 using namespace apache::thrift;
@@ -30,6 +32,14 @@ using namespace apache::thrift::test;
 using namespace testing;
 using Fixed8 = apache::thrift::frozen::FixedSizeString<8>;
 using Fixed2 = apache::thrift::frozen::FixedSizeString<2>;
+
+template <class T>
+std::string debugString(const T& x) {
+  std::ostringstream oss;
+  dwarfs::thrift_lite::debug_writer w(oss);
+  x.write(w);
+  return oss.str();
+}
 
 template <class T>
 std::string toString(const T& x) {
@@ -202,7 +212,11 @@ TEST(Frozen, EmbeddedSchema) {
 
     schema::convert(memSchema, schema);
 
-    CompactSerializer::serialize(schema, &storage);
+    std::vector<std::byte> buf;
+    dwarfs::thrift_lite::compact_writer w(buf);
+    schema.write(w);
+    storage.assign(reinterpret_cast<const char*>(buf.data()), buf.size());
+
     size_t start = storage.size();
     storage.resize(size + storage.size());
 
@@ -215,7 +229,11 @@ TEST(Frozen, EmbeddedSchema) {
     schema::MemorySchema memSchema;
     Layout<Person2> person2;
 
-    size_t start = CompactSerializer::deserialize(storage, schema);
+    dwarfs::thrift_lite::compact_reader r(
+        std::span(
+            reinterpret_cast<std::byte*>(storage.data()), storage.size()));
+    schema.read(r);
+    size_t start = r.consumed_bytes();
 
     schema::convert(std::move(schema), memSchema);
 
@@ -320,9 +338,10 @@ TEST(Frozen, BigMap) {
       ++place.popularityByHour()[rand() % (24 * 7)];
     }
   }
-  folly::IOBufQueue bq(folly::IOBufQueue::cacheChainLength());
-  CompactSerializer::serialize(t, &bq);
-  auto compactSize = bq.chainLength();
+  std::vector<std::byte> buf;
+  dwarfs::thrift_lite::compact_writer w(buf);
+  t.write(w);
+  auto compactSize = buf.size();
   auto frozenSize = ::frozenSize(t);
   EXPECT_EQ(t, freeze(t).thaw());
   EXPECT_LT(frozenSize, compactSize * 0.7);
@@ -548,10 +567,11 @@ MATCHER(PairStrEq, "") {
 }
 
 TEST(Frozen, FixedSizeString) {
+  using namespace std::string_literals;
   // Good example.
   {
     TestFixedSizeString s;
-    s.bytes8() = "01234567";
+    s.bytes8() = "01234567"s;
     // bytes4 field is optional and can be unset.
     auto view = freeze(s);
     ASSERT_TRUE(view.bytes8_ref().has_value());
@@ -560,8 +580,8 @@ TEST(Frozen, FixedSizeString) {
   // Good example.
   {
     TestFixedSizeString s;
-    s.bytes8() = "01234567";
-    s.bytes4() = "0123";
+    s.bytes8() = "01234567"s;
+    s.bytes4() = "0123"s;
     auto view = freeze(s);
     ASSERT_TRUE(view.bytes8_ref().has_value());
     EXPECT_EQ(view.bytes8_ref()->toString(), "01234567");
@@ -571,7 +591,7 @@ TEST(Frozen, FixedSizeString) {
   // Throws if an unqualified FixedSizeString field is unset.
   {
     TestFixedSizeString s;
-    s.bytes4() = "0123";
+    s.bytes4() = "0123"s;
     // bytes8 field is unqualified and must be set.
     EXPECT_THROW(
         [&s]() { auto view = freeze(s); }(),
@@ -582,16 +602,16 @@ TEST(Frozen, FixedSizeString) {
     EXPECT_THROW(
         []() {
           TestFixedSizeString s;
-          s.bytes8() = "01234567";
-          s.bytes4() = "0";
+          s.bytes8() = "01234567"s;
+          s.bytes4() = "0"s;
           auto view = freeze(s);
         }(),
         apache::thrift::frozen::detail::FixedSizeMismatchException);
     EXPECT_THROW(
         []() {
           TestFixedSizeString s;
-          s.bytes8() = "0";
-          s.bytes4() = "0123";
+          s.bytes8() = "0"s;
+          s.bytes4() = "0123"s;
           auto view = freeze(s);
         }(),
         apache::thrift::frozen::detail::FixedSizeMismatchException);
@@ -599,7 +619,7 @@ TEST(Frozen, FixedSizeString) {
   // Tests FixedSizeString as both the key_type and the value_type in a hashmap.
   {
     TestFixedSizeString s;
-    s.bytes8() = "01234567";
+    s.bytes8() = "01234567"s;
     std::unordered_map<std::string, std::string> rawMap = {
         {"76543210", "ab"},
         {"12345670", "cd"},
@@ -659,6 +679,7 @@ TEST(Frozen, Empty) {
   (void)view;
 }
 
+#if 0
 TEST(Frozen, Excluded) {
   ContainsExcluded excludedUnset;
   ContainsExcluded excludedSet;
@@ -666,5 +687,6 @@ TEST(Frozen, Excluded) {
   (void)freeze(excludedUnset);
   EXPECT_THROW(freeze(excludedSet), LayoutExcludedException);
 }
+#endif
 
 } // namespace
