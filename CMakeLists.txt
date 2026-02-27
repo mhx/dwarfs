@@ -1094,7 +1094,7 @@ if(ENABLE_COVERAGE)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
     COMMAND llvm-profdata merge -sparse ${CMAKE_BINARY_DIR}/profile/*.profraw -o ${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
     COMMAND llvm-cov export -instr-profile=${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
-                -skip-branches -ignore-filename-regex="\(fsst\|folly\|fbthrift\|build[^/]*\)/"
+                -skip-branches -ignore-filename-regex="\(fsst\|folly\|build[^/]*\)/"
                 -format=lcov ${_PROFILE_OBJECTS} > ${CMAKE_BINARY_DIR}/coverage/coverage.info
     COMMAND genhtml -o ${CMAKE_BINARY_DIR}/coverage/html
                 --no-branch-coverage --missed --show-details
