@@ -73,14 +73,87 @@ TEST(thrift_lite, debug_output_snapshot_for_small_object) {
   EXPECT_EQ(expected, got);
 }
 
-TEST(thrift_lite, debug_output_everything_empty) {
+TEST(thrift_lite, debug_output_everything_empty_terse) {
   auto msg = gen::Everything{};
 
   auto oss = std::ostringstream{};
   auto w = tl::debug_writer{oss};
   msg.write(w);
 
-  EXPECT_EQ("Everything{}", oss.str());
+  EXPECT_EQ("Everything{}"sv, oss.str());
+}
+
+TEST(thrift_lite, debug_output_everything_empty_verbose) {
+  auto msg = gen::Everything{};
+
+  auto oss = std::ostringstream{};
+  auto w = tl::debug_writer{oss, {.terse = false}};
+  msg.write(w);
+
+  static constexpr auto expected = R"dbg(Everything{
+  1: a_bool (bool) = false,
+  2: a_byte (byte) = 0,
+  3: a_int8 (byte) = 0,
+  4: a_uint8 (byte) = 0,
+  5: a_i16 (i16) = 0,
+  6: a_int16 (i16) = 0,
+  7: a_uint16 (i16) = 0,
+  8: a_i32 (i32) = 0,
+  9: a_int32 (i32) = 0,
+  10: a_uint32 (i32) = 0,
+  11: a_i64 (i64) = 0,
+  12: a_int64 (i64) = 0,
+  13: a_uint64 (i64) = 0,
+  14: a_binary (binary) = binary(len=0, hex=0x),
+  15: a_blob (binary) = binary(len=0, hex=0x),
+  16: a_kind (i32) = 0,
+  17: a_string (string) = "",
+  18: a_list (list) = [],
+  19: a_set (set) = set{},
+  20: a_map (map) = map{},
+  21: a_struct (struct) = TestMessage{
+    1: header (struct) = Header{
+      1: version (i32) = 0,
+      4: flags (i16) = 0
+    },
+    3: records (list) = [],
+    4: containers (struct) = Containers{
+      1: small_ints (list) = [],
+      2: small_tags (set) = set{},
+      3: id_to_name (map) = map{},
+      4: name_to_value (map) = map{},
+      5: nested_int_lists (list) = [],
+      6: id_to_extents (map) = map{}
+    },
+    5: v1 (struct) = CompatV1{
+      1: a (i32) = 0,
+      3: c (i64) = 0,
+      5: containers (struct) = Containers{
+        1: small_ints (list) = [],
+        2: small_tags (set) = set{},
+        3: id_to_name (map) = map{},
+        4: name_to_value (map) = map{},
+        5: nested_int_lists (list) = [],
+        6: id_to_extents (map) = map{}
+      }
+    },
+    6: v2 (struct) = CompatV2{
+      1: a (i32) = 0,
+      3: c (i64) = 0,
+      5: containers (struct) = Containers{
+        1: small_ints (list) = [],
+        2: small_tags (set) = set{},
+        3: id_to_name (map) = map{},
+        4: name_to_value (map) = map{},
+        5: nested_int_lists (list) = [],
+        6: id_to_extents (map) = map{}
+      }
+    },
+    300: far_regular (i32) = 0
+  }
+})dbg"sv;
+
+  EXPECT_EQ(expected, oss.str());
 }
 
 TEST(thrift_lite, debug_output_everything_full) {
