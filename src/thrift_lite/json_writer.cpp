@@ -39,6 +39,13 @@
 #include <utility>
 #include <vector>
 
+#if __has_include(<utf8cpp/utf8.h>)
+#include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
+
+#include <dwarfs/thrift_lite/assert.h>
 #include <dwarfs/thrift_lite/json_writer.h>
 
 namespace dwarfs::thrift_lite {
@@ -51,9 +58,7 @@ json_writer::json_writer(std::ostream& os,
 auto json_writer::options() const -> writer_options const& { return options_; }
 
 auto json_writer::top_ctx() -> container_ctx& {
-  if (stack_.empty()) {
-    throw protocol_error("json_writer: internal error: empty stack");
-  }
+  TL_CHECK(!stack_.empty(), "json_writer: internal error: empty stack");
   return stack_.back();
 }
 
@@ -135,9 +140,8 @@ void json_writer::write_number(T const v) {
   auto* last = buf.data() + buf.size();
   auto const res = std::to_chars(first, last, v);
 
-  if (res.ec != std::errc{}) {
-    throw protocol_error("json_writer: number formatting failed");
-  }
+  TL_CHECK(res.ec == std::errc{}, "json_writer: number formatting failed: " +
+                                      std::make_error_code(res.ec).message());
 
   begin_value();
   os_->write(first, res.ptr - first);
@@ -154,14 +158,15 @@ void json_writer::begin_value() {
 
   auto& ctx = top_ctx();
 
-  if (ctx.kind == container_kind::struct_k) {
+  switch (ctx.kind) {
+  case container_kind::struct_k:
     if (!ctx.expecting_value) {
       throw protocol_error("json_writer: value written without matching field");
     }
     return; // field_begin already emitted separators and key/colon
-  }
 
-  if (ctx.kind == container_kind::list_k || ctx.kind == container_kind::set_k) {
+  case container_kind::list_k:
+  case container_kind::set_k:
     if (ctx.remaining <= 0) {
       throw protocol_error("json_writer: too many container elements written");
     }
@@ -171,9 +176,8 @@ void json_writer::begin_value() {
     }
     write_newline_and_indent(indent_);
     return;
-  }
 
-  if (ctx.kind == container_kind::map_k) {
+  case container_kind::map_k:
     if (ctx.remaining <= 0) {
       throw protocol_error("json_writer: too many map entries written");
     }
@@ -193,7 +197,7 @@ void json_writer::begin_value() {
     return;
   }
 
-  throw protocol_error("json_writer: internal error: unknown container kind");
+  TL_PANIC("json_writer: internal error: unknown container kind");
 }
 
 void json_writer::end_value() {
@@ -204,25 +208,14 @@ void json_writer::end_value() {
 
   auto& ctx = top_ctx();
 
-  if (ctx.kind == container_kind::struct_k) {
+  switch (ctx.kind) {
+  case container_kind::struct_k:
     ctx.expecting_value = false;
     return;
-  }
 
-  if (ctx.kind == container_kind::list_k || ctx.kind == container_kind::set_k) {
-    --ctx.remaining;
-    if (ctx.remaining < 0) {
-      throw protocol_error("json_writer: too many elements written");
-    }
-    ctx.wrote_any = true;
-    return;
-  }
-
-  if (ctx.kind == container_kind::map_k) {
-    if (ctx.expecting_key) {
-      throw protocol_error(
-          "json_writer: internal error: end_value while expecting key");
-    }
+  case container_kind::map_k:
+    TL_CHECK(!ctx.expecting_key,
+             "json_writer: internal error: end_value while expecting key");
 
     if (!ctx.key_written_in_pair) {
       // just finished key: emit comma between key and value
@@ -238,15 +231,19 @@ void json_writer::end_value() {
     (*os_) << ']';
     ctx.expecting_key = true;
     ctx.key_written_in_pair = false;
+
+    [[fallthrough]];
+
+  case container_kind::list_k:
+  case container_kind::set_k:
     --ctx.remaining;
-    if (ctx.remaining < 0) {
-      throw protocol_error("json_writer: too many map entries written");
-    }
+    TL_CHECK(ctx.remaining >= 0,
+             "json_writer: internal error: negative remaining count");
     ctx.wrote_any = true;
     return;
   }
 
-  throw protocol_error("json_writer: internal error: unknown container kind");
+  TL_PANIC("json_writer: internal error: unknown container kind");
 }
 
 void json_writer::write_struct_begin(std::string_view const /*name*/) {

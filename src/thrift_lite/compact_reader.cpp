@@ -150,7 +150,8 @@ auto compact_reader::to_ttype(std::uint8_t const compact_type) -> ttype {
   default:
     break;
   }
-  throw protocol_error("invalid compact type: " + std::to_string(compact_type));
+  throw protocol_error("invalid compact type: " +
+                       std::to_string(static_cast<int>(compact_type)));
 }
 
 void compact_reader::read_struct_begin() {
@@ -478,7 +479,8 @@ void compact_reader::skip_impl(ttype const type, std::uint32_t const depth) {
   }
   }
 
-  TL_PANIC("unknown ttype: " + std::to_string(static_cast<int>(type)));
+  throw protocol_error("unknown ttype: " +
+                       std::to_string(static_cast<int>(type)));
 }
 
 } // namespace dwarfs::thrift_lite
