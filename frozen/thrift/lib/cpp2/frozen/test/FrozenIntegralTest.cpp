@@ -77,9 +77,9 @@ TEST(FrozenIntegral, UIntPacking) {
       apache::thrift::frozen::Layout<size_t> l;
       l.bits = bits;
       size_t container = 0xDEADBEEFDEADBEEF;
-      FreezePosition fpos{(byte*)&container, start};
+      FreezePosition fpos{reinterpret_cast<byte*>(&container), start};
       l.freeze(fr, value, fpos);
-      ViewPosition vpos{(byte*)&container, start};
+      ViewPosition vpos{reinterpret_cast<byte*>(&container), start};
       size_t confirm;
       l.thaw(vpos, confirm);
       EXPECT_EQ(value, confirm) << bits << "@" << start;
