@@ -30,6 +30,7 @@
 
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 #include <dwarfs/thrift_lite/writer_options.h>
 
@@ -56,5 +57,13 @@ template <typename T>
 concept reservable_container_type = requires(T& v, typename T::size_type n) {
   { v.reserve(n) } -> std::same_as<void>;
 };
+
+template <typename T>
+concept emplaceable_map_type =
+    requires(T& v, typename T::key_type k, typename T::mapped_type m) {
+      {
+        v.emplace(k, m)
+      } -> std::same_as<std::pair<typename T::iterator, bool>>;
+    };
 
 } // namespace dwarfs::thrift_lite::internal
