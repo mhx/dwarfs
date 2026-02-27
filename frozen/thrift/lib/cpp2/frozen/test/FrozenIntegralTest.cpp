@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+#include <limits>
+
 #include <gtest/gtest.h>
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>
@@ -76,7 +79,7 @@ TEST(FrozenIntegral, UIntPacking) {
     for (size_t bits = width; bits <= 64 - start; bits += 5) {
       apache::thrift::frozen::Layout<size_t> l;
       l.bits = bits;
-      size_t container = 0xDEADBEEFDEADBEEF;
+      uint64_t container = 0xDEADBEEFDEADBEEF;
       FreezePosition fpos{reinterpret_cast<byte*>(&container), start};
       l.freeze(fr, value, fpos);
       ViewPosition vpos{reinterpret_cast<byte*>(&container), start};
