@@ -206,6 +206,8 @@ add_library(
   src/thrift_lite/compact_reader.cpp
   src/thrift_lite/compact_writer.cpp
   src/thrift_lite/debug_writer.cpp
+  src/thrift_lite/json_writer.cpp
+
   src/thrift_lite/internal/compact_wire.cpp
   src/thrift_lite/internal/protocol_methods.cpp
 )
