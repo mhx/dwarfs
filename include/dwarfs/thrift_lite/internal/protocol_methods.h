@@ -137,6 +137,13 @@ struct protocol_methods<type_class::integral, std::uint64_t> {
   }
 };
 
+template <>
+struct protocol_methods<type_class::floating, double> {
+  using type = double;
+  static void read(protocol_reader& r, type& out) { out = r.read_double(); }
+  static void write(protocol_writer& w, type v) { w.write_double(v); }
+};
+
 template <enumeration_type T>
 struct protocol_methods<type_class::enumeration, T> {
   using type = T;

@@ -37,6 +37,8 @@
 
 namespace {
 
+using namespace std::string_view_literals;
+
 using testing::HasSubstr;
 using testing::Not;
 using testing::StartsWith;
@@ -330,13 +332,54 @@ TEST(debug_writer, throws_if_too_many_map_entries_written) {
           HasSubstr("too many map entries written")));
 }
 
-TEST(debug_writer, write_double_is_not_supported) {
+TEST(debug_writer, write_double_with_finite_values) {
   auto oss = std::ostringstream{};
   auto w = tl::debug_writer{oss};
 
-  EXPECT_THAT([&] { w.write_double(1.0); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr(
-                  "double type not supported in this implementation")));
+  w.write_struct_begin("S");
+  w.write_field_begin("d", tl::ttype::double_t, 1);
+  w.write_double(3.14);
+  w.write_field_end();
+  w.write_field_begin("e", tl::ttype::double_t, 2);
+  w.write_double(-2.71828e-100);
+  w.write_field_end();
+  w.write_field_stop();
+  w.write_struct_end();
+
+  auto const got = oss.str();
+  static constexpr auto expected = R"dbg(S{
+  1: d (double) = 3.14,
+  2: e (double) = -2.71828e-100
+})dbg"sv;
+
+  EXPECT_EQ(expected, got);
+}
+
+TEST(debug_writer, write_double_with_special_values) {
+  auto oss = std::ostringstream{};
+  auto w = tl::debug_writer{oss};
+
+  w.write_struct_begin("S");
+  w.write_field_begin("a", tl::ttype::double_t, 1);
+  w.write_double(std::numeric_limits<double>::quiet_NaN());
+  w.write_field_end();
+  w.write_field_begin("b", tl::ttype::double_t, 2);
+  w.write_double(std::numeric_limits<double>::infinity());
+  w.write_field_end();
+  w.write_field_begin("c", tl::ttype::double_t, 3);
+  w.write_double(-std::numeric_limits<double>::infinity());
+  w.write_field_end();
+  w.write_field_stop();
+  w.write_struct_end();
+
+  auto const got = oss.str();
+  static constexpr auto expected = R"dbg(S{
+  1: a (double) = nan,
+  2: b (double) = inf,
+  3: c (double) = -inf
+})dbg"sv;
+
+  EXPECT_EQ(expected, got);
 }
 
 TEST(debug_writer, type_errors) {

@@ -246,8 +246,10 @@ void debug_writer::write_field_end() {
 
 void debug_writer::write_field_stop() {}
 
-void debug_writer::write_double(double) {
-  throw protocol_error("double type not supported in this implementation");
+void debug_writer::write_double(double const v) {
+  begin_value(ttype::double_t);
+  (*os_) << v;
+  end_value();
 }
 
 void debug_writer::write_bool(bool const v) {

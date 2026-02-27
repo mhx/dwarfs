@@ -77,13 +77,40 @@ TEST(compact_writer, throws_on_unbalanced_struct_end) {
                   "write_struct_end without matching write_struct_begin")));
 }
 
-TEST(compact_writer, write_double_is_not_supported) {
+TEST(compact_writer, write_double_byte_order_is_little_endian) {
   std::vector<std::byte> out;
   auto w = tl::compact_writer{out};
+  w.write_double(1.0);
+  // 1.0: sign=0, exponent=1023, significand=0 => 0x3ff0000000000000
+  EXPECT_THAT(as_u8s(out),
+              ElementsAre(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f));
+}
 
-  EXPECT_THAT([&] { w.write_double(1.0); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr(
-                  "double type not supported in this implementation")));
+TEST(compact_writer, write_double_nan_is_encoded_as_canonical_nan) {
+  std::vector<std::byte> out;
+  auto w = tl::compact_writer{out};
+  w.write_double(std::numeric_limits<double>::quiet_NaN());
+  // NaN: sign=0, exponent=all 1s, significand MSB=1 => 0x7ff8000000000000
+  EXPECT_THAT(as_u8s(out),
+              ElementsAre(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f));
+}
+
+TEST(compact_writer, write_double_inf_is_encoded_as_canonical_inf) {
+  std::vector<std::byte> out;
+  auto w = tl::compact_writer{out};
+  w.write_double(std::numeric_limits<double>::infinity());
+  // +Inf: sign=0, exponent=all 1s, significand=0 => 0x7ff0000000000000
+  EXPECT_THAT(as_u8s(out),
+              ElementsAre(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f));
+}
+
+TEST(compact_writer, write_double_neg_inf_is_encoded_as_canonical_neg_inf) {
+  std::vector<std::byte> out;
+  auto w = tl::compact_writer{out};
+  w.write_double(-std::numeric_limits<double>::infinity());
+  // -Inf: sign=1, exponent=all 1s, significand=0 => 0xfff0000000000000
+  EXPECT_THAT(as_u8s(out),
+              ElementsAre(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xff));
 }
 
 TEST(compact_writer,

@@ -37,6 +37,8 @@
 
 namespace {
 
+using namespace std::string_view_literals;
+
 using testing::HasSubstr;
 using testing::Not;
 using testing::StartsWith;
@@ -308,13 +310,55 @@ TEST(json_writer, throws_if_too_many_map_entries_written) {
           HasSubstr("too many map entries written")));
 }
 
-TEST(json_writer, write_double_is_not_supported) {
+TEST(json_writer, write_double_preserves_precision) {
   auto oss = std::ostringstream{};
   auto w = tl::json_writer{oss};
 
-  EXPECT_THAT([&] { w.write_double(1.0); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr(
-                  "double type not supported in this implementation")));
+  w.write_double(1.234567890123456);
+
+  auto const got = oss.str();
+  static constexpr auto expected = "1.234567890123456"sv;
+
+  EXPECT_EQ(expected, got);
+}
+
+TEST(json_writer, write_double_uses_scientific_notation) {
+  auto oss = std::ostringstream{};
+  auto w = tl::json_writer{oss};
+
+  w.write_double(1.234567890123456e+300);
+
+  auto const got = oss.str();
+  static constexpr auto expected = "1.234567890123456e+300"sv;
+
+  EXPECT_EQ(expected, got);
+}
+
+TEST(json_writer, write_double_preserves_special_values) {
+  auto oss = std::ostringstream{};
+  auto w = tl::json_writer{oss};
+
+  w.write_struct_begin("S");
+  w.write_field_begin("a", tl::ttype::double_t, 1);
+  w.write_double(std::numeric_limits<double>::quiet_NaN());
+  w.write_field_end();
+  w.write_field_begin("b", tl::ttype::double_t, 2);
+  w.write_double(std::numeric_limits<double>::infinity());
+  w.write_field_end();
+  w.write_field_begin("c", tl::ttype::double_t, 3);
+  w.write_double(-std::numeric_limits<double>::infinity());
+  w.write_field_end();
+  w.write_field_stop();
+  w.write_struct_end();
+
+  auto const got = oss.str();
+  static constexpr auto expected = R"dbg({
+  "a": "NaN",
+  "b": "Infinity",
+  "c": "-Infinity"
+})dbg"sv;
+
+  EXPECT_EQ(expected, got);
 }
 
 TEST(json_writer, logic_errors) {
