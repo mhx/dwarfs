@@ -641,12 +641,14 @@ if(WITH_TESTS)
       test/thrift_lite_assert_test.cpp
       test/thrift_lite_codegen_compat_test.cpp
       test/thrift_lite_codegen_debug_test.cpp
+      test/thrift_lite_codegen_json_test.cpp
       test/thrift_lite_codegen_roundtrip_test.cpp
       test/thrift_lite_compact_reader_test.cpp
       test/thrift_lite_compact_writer_test.cpp
       test/thrift_lite_debug_writer_test.cpp
       test/thrift_lite_enum_test.cpp
       test/thrift_lite_field_ref_test.cpp
+      test/thrift_lite_json_writer_test.cpp
       test/thrift_lite_test_message.cpp
       test/thrift_lite_test_message_data.cpp
     )
