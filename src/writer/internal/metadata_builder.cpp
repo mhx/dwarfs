@@ -25,8 +25,6 @@
 #include <filesystem>
 #include <optional>
 
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
@@ -46,9 +44,9 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/time_resolution_converter.h>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
+#include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace dwarfs::writer::internal {
 
@@ -848,7 +846,7 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
 
       for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
         auto& inode = md_.inodes()->at(inode_num);
-        assert(inode.nlink_minus_one() >= 1);
+        assert(inode.nlink_minus_one().value() >= 1);
         --inode.nlink_minus_one().value();
       }
     }

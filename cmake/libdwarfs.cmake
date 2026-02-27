@@ -208,6 +208,7 @@ endif()
 
 add_library(
   dwarfs_thrift_lite_v2 OBJECT
+
   src/thrift_lite/assert.cpp
   src/thrift_lite/compact_reader.cpp
   src/thrift_lite/compact_writer.cpp
@@ -216,12 +217,22 @@ add_library(
 
   src/thrift_lite/internal/compact_wire.cpp
   src/thrift_lite/internal/protocol_methods.cpp
+
+  frozen/thrift/lib/cpp2/frozen/Frozen.cpp
+  frozen/thrift/lib/cpp2/frozen/FrozenUtil.cpp
+  frozen/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
+
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
 )
 
 set_property(TARGET dwarfs_thrift_lite_v2 PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_folly_lite)
+target_include_directories(dwarfs_thrift_lite_v2 PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
+)
 
-add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
+add_thrift_lite_library(thrift/metadata_lite.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_thrift_lite_library(thrift/compression.thrift
                         TARGET dwarfs_compression_thrift OUTPUT_PATH dwarfs)
@@ -229,9 +240,8 @@ add_thrift_lite_library(thrift/history.thrift
                         TARGET dwarfs_history_thrift OUTPUT_PATH dwarfs)
 add_thrift_lite_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
-
-add_thrift_lite_library(thrift/metadata_lite.thrift
-                        TARGET dwarfs_metadata_thrift_lite OUTPUT_PATH dwarfs)
+add_thrift_lite_library(frozen/thrift/lib/thrift/frozen.thrift
+                        OUTPUT_PATH lib/thrift NO_LIBRARY)
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH zstd::preferred)
 target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
@@ -263,7 +273,6 @@ if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
 endif()
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
 target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2)
 
 if(WIN32)
@@ -325,7 +334,6 @@ list(APPEND LIBDWARFS_TARGETS
 
 list(APPEND LIBDWARFS_OBJECT_TARGETS
   dwarfs_folly_lite
-  dwarfs_thrift_lite
   dwarfs_thrift_lite_v2
   dwarfs_compression_thrift
   dwarfs_metadata_thrift

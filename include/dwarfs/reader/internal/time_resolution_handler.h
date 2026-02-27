@@ -33,7 +33,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/gen-cpp2/metadata_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
 
 namespace dwarfs {
 
