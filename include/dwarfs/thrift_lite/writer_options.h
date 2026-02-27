@@ -28,33 +28,10 @@
 
 #pragma once
 
-#include <concepts>
-#include <type_traits>
+namespace dwarfs::thrift_lite {
 
-#include <dwarfs/thrift_lite/writer_options.h>
-
-namespace dwarfs::thrift_lite::internal {
-
-template <typename T>
-concept writeable_type = requires(T const& v, writer_options const& opts) {
-  { v.has_any_fields_for_write(opts) } -> std::same_as<bool>;
+struct writer_options {
+  bool terse = true;
 };
 
-template <typename T>
-concept collection_type = requires(T const& v) {
-  typename T::value_type;
-  { v.empty() } -> std::same_as<bool>;
-};
-
-template <typename T>
-concept basic_type = std::is_integral_v<T> || std::is_enum_v<T>;
-
-template <typename T>
-concept enumeration_type = std::is_enum_v<T>;
-
-template <typename T>
-concept reservable_container_type = requires(T& v, typename T::size_type n) {
-  { v.reserve(n) } -> std::same_as<void>;
-};
-
-} // namespace dwarfs::thrift_lite::internal
+} // namespace dwarfs::thrift_lite

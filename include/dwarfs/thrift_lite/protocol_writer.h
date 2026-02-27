@@ -40,9 +40,13 @@
 
 namespace dwarfs::thrift_lite {
 
+struct writer_options;
+
 class protocol_writer {
  public:
   virtual ~protocol_writer() = default;
+
+  virtual auto options() const -> writer_options const& = 0;
 
   virtual void write_struct_begin(std::string_view name) = 0;
   virtual void write_struct_end() = 0;
