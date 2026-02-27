@@ -32,6 +32,8 @@ namespace dwarfs::thrift_lite::internal::type_class {
 
 struct integral {};
 
+struct floating {};
+
 struct enumeration {};
 
 struct binary {};

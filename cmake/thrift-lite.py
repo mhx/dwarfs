@@ -421,10 +421,10 @@ class _Parser:
             )
 
         name = self._ident()
-        if name in ("bool", "byte", "i16", "i32", "i64", "string", "binary"):
+        if name in ("bool", "byte", "i16", "i32", "i64", "double", "string", "binary"):
             return TypeRef(kind="base", base=name)
 
-        if name in ("double", "uuid"):
+        if name in ("uuid"):
             raise ParseError(f"type {name!r} not supported")
 
         return TypeRef(kind="id", type_id=name)
@@ -680,6 +680,8 @@ def ttype_expr(wire: TypeRef, no_string: bool = False) -> str:
             return "::dtl::ttype::i32_t"
         if b == "i64":
             return "::dtl::ttype::i64_t"
+        if b == "double":
+            return "::dtl::ttype::double_t"
         if not no_string and b == "string":
             return "::dtl::ttype::string_t"
         if b == "binary" or b == "string":
@@ -715,6 +717,8 @@ def cpp_type_for(
             return fq + "std::int32_t"
         if b == "i64":
             return fq + "std::int64_t"
+        if b == "double":
+            return "double"
         if b == "string":
             return fq + "std::string"
         if b == "binary":
@@ -781,6 +785,8 @@ def gen_type_class(
             return f"{ns}::integral"
         if b in ("binary", "string"):
             return f"{ns}::{b}"
+        if b == "double":
+            return f"{ns}::floating"
         die(f"unsupported base read type {b!r}")
 
     if t.kind == "id":
