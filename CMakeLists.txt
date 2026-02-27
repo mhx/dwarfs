@@ -660,16 +660,17 @@ if(WITH_TESTS)
 
     add_executable(frozen_tests
       # frozen/thrift/lib/cpp2/frozen/test/CompatibilityTest.cpp
-      # frozen/thrift/lib/cpp2/frozen/test/FrozenAssociativeTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenAssociativeTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenHintTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenIntegralTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenRangeTest.cpp
       # frozen/thrift/lib/cpp2/frozen/test/FrozenReferenceTest.cpp
-      # frozen/thrift/lib/cpp2/frozen/test/FrozenTest.cpp
-      # frozen/thrift/lib/cpp2/frozen/test/FrozenUnionTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenUtilTest.cpp
-      # frozen/thrift/lib/cpp2/frozen/test/FrozenVectorAssociativeTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenVectorAssociativeTest.cpp
     )
+
+    target_link_libraries(frozen_tests PRIVATE frozen_example_thrift)
 
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
