@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-cpp_include "folly/sorted_vector_types.h"
+cpp_include "<folly/sorted_vector_types.h>"
 
-namespace cpp2 apache.thrift.frozen.schema
-
-include "thrift/annotation/cpp.thrift"
-include "thrift/annotation/thrift.thrift"
-
-@thrift.AllowLegacyMissingUris
-package;
+namespace cpp apache.thrift.frozen.schema
 
 struct Field {
   // layout id, indexes into layouts
@@ -30,26 +24,24 @@ struct Field {
   // field offset:
   //  < 0: -(bit offset)
   //  >= 0: byte offset
-  2: i16 offset = 0;
+  2: i16 offset;
 }
 
 struct Layout {
-  1: i32 size = 0;
-  2: i16 bits = 0;
-  @cpp.Type{template = "folly::sorted_vector_map"}
-  3: map<i16, Field> fields;
+  1: i32 size;
+  2: i16 bits;
+  3: map<i16, Field> fields (cpp.template = "folly::sorted_vector_map");
   4: string typeName;
 }
 
-const i32 kCurrentFrozenFileVersion = 1;
+// const i32 kCurrentFrozenFileVersion = 1;
 
 struct Schema {
   // File format version, incremented on breaking changes to Frozen2
   // implementation.  Only backwards-compatibility is guaranteed.
-  4: i32 fileVersion = 0;
+  4: i32 fileVersion;
   // Field type names may not change unless relaxTypeChecks is set.
-  1: bool relaxTypeChecks = 0;
-  @cpp.Type{template = "folly::sorted_vector_map"}
-  2: map<i16, Layout> layouts;
-  3: i16 rootLayout = 0;
+  1: bool relaxTypeChecks;
+  2: map<i16, Layout> layouts (cpp.template = "folly::sorted_vector_map");
+  3: i16 rootLayout;
 }
