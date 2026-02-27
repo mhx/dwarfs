@@ -26,7 +26,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <bit>
 #include <cstring>
+#include <limits>
+#include <span>
 
 #include <dwarfs/thrift_lite/compact_writer.h>
 #include <dwarfs/thrift_lite/internal/compact_wire.h>
@@ -139,8 +142,18 @@ void compact_writer::write_i64(std::int64_t const v) {
   write_varint(*out_, zigzag_encode(v));
 }
 
-void compact_writer::write_double(double const) {
-  throw protocol_error("double type not supported in this implementation");
+void compact_writer::write_double(double const v) {
+  static_assert(sizeof(double) == sizeof(std::uint64_t),
+                "unsupported double size");
+  static_assert(std::numeric_limits<double>::is_iec559,
+                "only IEEE 754 double supported");
+
+  auto const bits = std::bit_cast<std::uint64_t>(v);
+
+  // double is encoded in little-endian
+  for (int i = 0; i < 8; ++i) {
+    write_u8(*out_, static_cast<std::uint8_t>((bits >> (i * 8)) & 0xFF));
+  }
 }
 
 void compact_writer::write_binary(std::span<std::byte const> const bytes) {

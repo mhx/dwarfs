@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <limits>
 #include <ostream>
 #include <random>
 
@@ -281,6 +282,21 @@ gen::TestMessage make_random_thrift_lite_test_message(unsigned seed) {
           fill_small_strings(inner);
         }
       }
+    }
+  }
+
+  if (bool_dist(rng)) {
+    // don't use NaNs since they won't compare equal after a round trip
+    switch (std::uniform_int_distribution<int>{0, 2}(rng)) {
+    case 0:
+      msg.float_value() = 1.5;
+      break;
+    case 1:
+      msg.float_value() = std::numeric_limits<double>::infinity();
+      break;
+    case 2:
+      msg.float_value() = -std::numeric_limits<double>::infinity();
+      break;
     }
   }
 

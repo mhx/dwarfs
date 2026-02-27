@@ -145,6 +145,8 @@ struct TestMessage {
   5: CompatV1 v1
   6: CompatV2 v2
 
+  7: double float_value
+
   100: optional i32 far_optional
   300: i32 far_regular
 }

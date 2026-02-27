@@ -212,7 +212,7 @@ TEST(thrift_lite, json_output_everything_full) {
         ]]
       ]
     },
-    "far_optional": 465621985
+    "float_value": 1.5
   },
   "opt_bool": false,
   "opt_kind": 1,

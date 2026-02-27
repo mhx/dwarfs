@@ -488,13 +488,40 @@ TEST(compact_reader, throws_when_max_struct_depth_exceeded) {
                   HasSubstr("max struct depth exceeded")));
 }
 
-TEST(compact_reader, read_double_is_not_supported) {
-  auto const bytes = make_bytes({});
+TEST(compact_reader, read_double_byte_order_is_little_endian) {
+  // 1.0: sign=0, exponent=1023, significand=0 => 0x3ff0000000000000
+  auto const bytes =
+      make_bytes({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f});
   auto r = tl::compact_reader{bytes};
+  double const d = r.read_double();
+  EXPECT_DOUBLE_EQ(1.0, d);
+}
 
-  EXPECT_THAT([&] { r.read_double(); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr(
-                  "double type not supported in this implementation")));
+TEST(compact_reader, read_double_nan_is_nan) {
+  // NaN: sign=0, exponent=all 1s, significand MSB=1 => 0x7ff8000000000000
+  auto const bytes =
+      make_bytes({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f});
+  auto r = tl::compact_reader{bytes};
+  double const d = r.read_double();
+  EXPECT_TRUE(std::isnan(d));
+}
+
+TEST(compact_reader, read_double_inf_is_inf) {
+  // +Inf: sign=0, exponent=all 1s, significand=0 => 0x7ff0000000000000
+  auto const bytes =
+      make_bytes({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f});
+  auto r = tl::compact_reader{bytes};
+  double const d = r.read_double();
+  EXPECT_DOUBLE_EQ(std::numeric_limits<double>::infinity(), d);
+}
+
+TEST(compact_reader, read_double_negative_inf_is_negative_inf) {
+  // -Inf: sign=1, exponent=all 1s, significand=0 => 0xfff0000000000000
+  auto const bytes =
+      make_bytes({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xff});
+  auto r = tl::compact_reader{bytes};
+  double const d = r.read_double();
+  EXPECT_DOUBLE_EQ(-std::numeric_limits<double>::infinity(), d);
 }
 
 TEST(compact_reader, read_binary_succeeds) {
@@ -684,6 +711,16 @@ TEST(compact_reader,
       0x55,
       0x02,
       0x04,
+      // field 7: double 1.0 => 0x3ff0000000000000
+      0x17,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0xf0,
+      0x3f,
       // stop
       ct_stop,
   });
@@ -733,32 +770,17 @@ TEST(compact_reader,
   r.read_field_end();
 
   r.read_field_begin(type, fid);
+  EXPECT_EQ(type, tl::ttype::double_t);
+  EXPECT_EQ(fid, 7);
+  r.skip(type);
+  r.read_field_end();
+
+  r.read_field_begin(type, fid);
   EXPECT_EQ(type, tl::ttype::stop_t);
 
   r.read_struct_end();
   EXPECT_EQ(r.remaining_bytes(), 0U);
   EXPECT_EQ(r.consumed_bytes(), bytes.size());
-}
-
-TEST(compact_reader, read_field_begin_maps_double_and_skip_hits_double_case) {
-  // field 1: double => header (1<<4)|ct_double = 0x17
-  // (payload bytes included but read_double/skip will throw before consuming
-  // them)
-  auto const bytes = make_bytes({0x17, 0, 0, 0, 0, 0, 0, 0, 0, ct_stop});
-  auto r = tl::compact_reader{bytes};
-
-  r.read_struct_begin();
-
-  auto type = tl::ttype::stop_t;
-  std::int16_t fid{0};
-  r.read_field_begin(type, fid);
-
-  EXPECT_EQ(type, tl::ttype::double_t);
-  EXPECT_EQ(fid, 1);
-
-  EXPECT_THAT([&] { r.skip(type); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr(
-                  "double type not supported in this implementation")));
 }
 
 TEST(compact_reader, skip_binary_exceeds_max_string_bytes_throws) {
