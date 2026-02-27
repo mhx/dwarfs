@@ -22,17 +22,16 @@
  */
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
 
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
-#include <dwarfs/gen-cpp2/metadata_layouts.h>
-#include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
+#include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace dwarfs::writer::internal {
 

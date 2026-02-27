@@ -39,10 +39,6 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
-
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
@@ -82,11 +78,14 @@
 #include <dwarfs/reader/internal/metadata_v2.h>
 #include <dwarfs/reader/internal/sparse_file_seeker.h>
 #include <dwarfs/reader/internal/time_resolution_handler.h>
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/debug_writer.h>
+#include <dwarfs/thrift_lite/json_writer.h>
 
-#include <dwarfs/gen-cpp2/metadata_layouts.h>
-#include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
+#include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace dwarfs::reader::internal {
 
@@ -101,11 +100,13 @@ using ::apache::thrift::frozen::View;
 ::apache::thrift::frozen::schema::Schema
 deserialize_schema(std::span<uint8_t const> data) {
   ::apache::thrift::frozen::schema::Schema schema;
-  size_t schema_size =
-      ::apache::thrift::CompactSerializer::deserialize(data, schema);
-  if (schema_size != data.size()) {
+  thrift_lite::compact_reader reader(std::as_bytes(data));
+  schema.read(reader);
+
+  if (reader.remaining_bytes() > 0) {
     DWARFS_THROW(runtime_error, "invalid schema size");
   }
+
   return schema;
 }
 
@@ -1392,15 +1393,11 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
   return result;
 }
 
-std::string metadata_v2_data::serialize_as_json(bool simple) const {
-  using namespace apache::thrift;
-  std::string json;
-  if (simple) {
-    SimpleJSONSerializer::serialize(unpack_metadata(), &json);
-  } else {
-    JSONSerializer::serialize(unpack_metadata(), &json);
-  }
-  return json;
+std::string metadata_v2_data::serialize_as_json(bool /*simple*/) const {
+  std::ostringstream oss;
+  thrift_lite::json_writer writer(oss);
+  unpack_metadata().write(writer);
+  return oss.str();
 }
 
 nlohmann::json metadata_v2_data::as_json(directory_view dir,
@@ -1788,10 +1785,9 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::schema_raw_dump)) {
-    ::apache::thrift::DebugProtocolWriter::Options dpwo;
-    dpwo.stringLengthLimit = 0; // no limit
-    os << ::apache::thrift::debugString(deserialize_schema(schema_), dpwo)
-       << '\n';
+    thrift_lite::debug_writer dw(os);
+    deserialize_schema(schema_).write(dw);
+    os << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::metadata_details)) {
@@ -1828,9 +1824,9 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
-    ::apache::thrift::DebugProtocolWriter::Options dpwo;
-    dpwo.stringLengthLimit = 0; // no limit
-    os << ::apache::thrift::debugString(meta_.thaw(), dpwo) << '\n';
+    thrift_lite::debug_writer dw(os);
+    meta_.thaw().write(dw);
+    os << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {

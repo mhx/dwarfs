@@ -37,7 +37,7 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 namespace dwarfs::utility {
 

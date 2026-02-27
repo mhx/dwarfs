@@ -25,10 +25,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <thrift/lib/cpp2/debug_thrift_data_difference/debug.h>
-#include <thrift/lib/cpp2/debug_thrift_data_difference/diff.h>
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-
 #include <fmt/format.h>
 
 #include <dwarfs/config.h>
@@ -39,6 +35,7 @@
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/metadata_options.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/thrift_lite/debug_writer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -52,8 +49,7 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
-// #include <dwarfs/gen-cpp2/metadata_types.h>
-#include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 #include "loremipsum.h"
 #include "mmap_mock.h"
@@ -88,11 +84,16 @@ auto rebuild_metadata(logger& lgr, thrift::metadata::metadata const& md,
 }
 
 template <typename T>
-std::string thrift_diff(T const& t1, T const& t2) {
-  using namespace ::facebook::thrift;
+std::string debug(T const& t) {
   std::ostringstream oss;
-  debug_thrift_data_difference(t1, t2, make_diff_output_callback(oss));
+  thrift_lite::debug_writer w(oss);
+  t.write(w);
   return oss.str();
+}
+
+template <typename T>
+std::string thrift_diff(T const& t1, T const& t2) {
+  return fmt::format("-----\n{}\n-----\n{}\n-----", debug(t1), debug(t2));
 }
 
 } // namespace

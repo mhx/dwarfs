@@ -44,7 +44,7 @@
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
-#include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 namespace dwarfs::reader::internal {
 
