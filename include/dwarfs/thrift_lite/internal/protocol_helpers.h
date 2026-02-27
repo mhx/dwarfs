@@ -28,23 +28,28 @@
 
 #pragma once
 
+#include <dwarfs/thrift_lite/writer_options.h>
+
 #include <dwarfs/thrift_lite/internal/concepts.h>
 
 namespace dwarfs::thrift_lite::internal {
 
 [[nodiscard]] auto
-should_write_regular(writeable_type auto const& v) noexcept -> bool {
-  return v.has_any_fields_for_write();
+should_write_regular(writer_options const& opts,
+                     writeable_type auto const& v) noexcept -> bool {
+  return !opts.terse || v.has_any_fields_for_write(opts);
 }
 
 [[nodiscard]] auto
-should_write_regular(collection_type auto const& v) noexcept -> bool {
-  return !v.empty();
+should_write_regular(writer_options const& opts,
+                     collection_type auto const& v) noexcept -> bool {
+  return !opts.terse || !v.empty();
 }
 
 [[nodiscard]] auto
-should_write_regular(basic_type auto const& v) noexcept -> bool {
-  return v != decltype(v){};
+should_write_regular(writer_options const& opts,
+                     basic_type auto const& v) noexcept -> bool {
+  return !opts.terse || v != decltype(v){};
 }
 
 } // namespace dwarfs::thrift_lite::internal

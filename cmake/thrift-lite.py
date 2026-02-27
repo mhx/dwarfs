@@ -892,7 +892,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
               void read(::dwarfs::thrift_lite::protocol_reader& r);
               void write(::dwarfs::thrift_lite::protocol_writer& w) const;
 
-              [[nodiscard]] auto has_any_fields_for_write() const noexcept -> bool;
+              [[nodiscard]] auto has_any_fields_for_write(::dwarfs::thrift_lite::writer_options const& opts) const noexcept -> bool;
 
             """
         )
@@ -1011,6 +1011,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
         #include <dwarfs/thrift_lite/protocol_reader.h>
         #include <dwarfs/thrift_lite/protocol_writer.h>
+        #include <dwarfs/thrift_lite/writer_options.h>
 
         #include <dwarfs/thrift_lite/internal/protocol_helpers.h>
         #include <dwarfs/thrift_lite/internal/protocol_methods.h>
@@ -1047,7 +1048,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         # --- emit has_any_fields_for_write() before write() ---
 
         c.emit(
-            f"[[nodiscard]] auto {s.name}::has_any_fields_for_write() const noexcept -> bool {{\n"
+            f"[[nodiscard]] auto {s.name}::has_any_fields_for_write(::dtl::writer_options const& opts) const noexcept -> bool {{\n"
         )
 
         any_fields_checks = []
@@ -1077,9 +1078,9 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
             struct_name = resolves_to_struct(f.type_ref)
             if struct_name is not None:
-                any_fields_checks.append(f"{f.name}_.has_any_fields_for_write()")
+                any_fields_checks.append(f"{f.name}_.has_any_fields_for_write(opts)")
             else:
-                any_fields_checks.append(f"::dtli::should_write_regular({f.name}_)")
+                any_fields_checks.append(f"::dtli::should_write_regular(opts, {f.name}_)")
 
         checks_str = " ||\n                     ".join(any_fields_checks)
 
@@ -1094,8 +1095,15 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         # write(): sort by field id (ascending)
         fields_sorted = sorted(s.fields, key=lambda f: f.field_id)
 
-        c.emit(f"void {s.name}::write(::dtl::protocol_writer& w) const {{\n")
-        c.emit(f'w.write_struct_begin("{s.name}");\n\n', indent=2)
+        c.emit(
+            f"""
+            void {s.name}::write(::dtl::protocol_writer& w) const {{
+              auto const& opts = w.options();
+
+              w.write_struct_begin("{s.name}");
+
+            """
+        )
 
         for f in fields_sorted:
             wire = resolve_wire_type(f.type_ref, idl)
@@ -1104,7 +1112,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             should_write = (
                 f"isset_.test({f.name}_isset_index)"
                 if f.required == "optional"
-                else f"::dtli::should_write_regular({f.name}_)"
+                else f"::dtli::should_write_regular(opts, {f.name}_)"
             )
             type_class = type_class_for(f.type_ref)
 
