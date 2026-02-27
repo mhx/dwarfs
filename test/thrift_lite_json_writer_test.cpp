@@ -363,26 +363,47 @@ TEST(json_writer, write_double_preserves_special_values) {
 
 TEST(json_writer, logic_errors) {
   auto oss = std::ostringstream{};
-  auto w = std::optional<tl::json_writer>{};
-  w.emplace(oss);
-  EXPECT_THAT([&] { w->write_field_end(); },
+  auto w = tl::json_writer{oss};
+  EXPECT_THAT([&] { w.write_field_end(); },
               ThrowsMessage<tl::protocol_error>(
                   HasSubstr("write_field_end outside of a struct")));
-  w->write_struct_begin("TestStruct");
-  EXPECT_THAT([&] { w->write_list_end(); },
+  w.write_struct_begin("TestStruct");
+  EXPECT_THAT([&] { w.write_list_end(); },
               ThrowsMessage<tl::protocol_error>(HasSubstr(
                   "write_list_end without matching write_list_begin")));
-  EXPECT_THAT([&] { w->write_set_end(); },
+  EXPECT_THAT([&] { w.write_set_end(); },
               ThrowsMessage<tl::protocol_error>(
                   HasSubstr("write_set_end without matching write_set_begin")));
-  EXPECT_THAT([&] { w->write_map_end(); },
+  EXPECT_THAT([&] { w.write_map_end(); },
               ThrowsMessage<tl::protocol_error>(
                   HasSubstr("write_map_end without matching write_map_begin")));
-  w->write_field_begin("a_list", tl::ttype::list_t, 1);
-  EXPECT_THAT([&] { w->write_field_begin("oops", tl::ttype::i32_t, 2); },
+  w.write_field_begin("a_list", tl::ttype::list_t, 1);
+  EXPECT_THAT([&] { w.write_field_begin("oops", tl::ttype::i32_t, 2); },
               ThrowsMessage<tl::protocol_error>(
                   HasSubstr("write_field_begin while expecting a value")));
-  EXPECT_THAT([&] { w->write_struct_end(); },
+  EXPECT_THAT([&] { w.write_struct_end(); },
               ThrowsMessage<tl::protocol_error>(
                   HasSubstr("struct ended while expecting a value")));
+}
+
+TEST(json_writer, writing_multiple_root_value_throws) {
+  auto oss = std::ostringstream{};
+  auto w = tl::json_writer{oss};
+
+  w.write_i32(42);
+
+  EXPECT_THAT([&] { w.write_string("oops"); },
+              ThrowsMessage<tl::protocol_error>(
+                  HasSubstr("multiple root values written")));
+}
+
+TEST(json_writer, value_written_without_matching_field_throws) {
+  auto oss = std::ostringstream{};
+  auto w = tl::json_writer{oss};
+
+  w.write_struct_begin("S");
+
+  EXPECT_THAT([&] { w.write_i32(42); },
+              ThrowsMessage<tl::protocol_error>(
+                  HasSubstr("value written without matching field")));
 }
