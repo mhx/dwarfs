@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-namespace folly {
-class IOBuf;
-}
-
 namespace apache {
 namespace thrift {
 namespace frozen {
@@ -37,25 +33,6 @@ struct BufferHelpers {
   static void thawTo(folly::Range<const Item*> src, T& dst) {
     dst.assign(src.begin(), src.end());
   }
-};
-
-template <>
-struct BufferHelpers<std::unique_ptr<folly::IOBuf>> {
-  typedef uint8_t Item;
-  static size_t size(const std::unique_ptr<folly::IOBuf>& src);
-
-  static void copyTo(
-      const std::unique_ptr<folly::IOBuf>& src, folly::MutableByteRange dst);
-  static void thawTo(folly::ByteRange src, std::unique_ptr<folly::IOBuf>& dst);
-};
-
-template <>
-struct BufferHelpers<folly::IOBuf> {
-  typedef uint8_t Item;
-  static size_t size(const folly::IOBuf& src);
-
-  static void copyTo(const folly::IOBuf& src, folly::MutableByteRange dst);
-  static void thawTo(folly::ByteRange src, folly::IOBuf& dst);
 };
 
 /**
@@ -157,6 +134,3 @@ struct Layout<T, typename std::enable_if<IsString<T>::value>::type>
 } // namespace apache
 
 THRIFT_DECLARE_TRAIT(IsString, std::string)
-THRIFT_DECLARE_TRAIT(IsString, folly::fbstring)
-THRIFT_DECLARE_TRAIT(IsString, std::unique_ptr<folly::IOBuf>)
-THRIFT_DECLARE_TRAIT(IsString, folly::IOBuf)

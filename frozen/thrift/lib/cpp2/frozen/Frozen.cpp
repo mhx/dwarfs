@@ -16,9 +16,6 @@
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
-#include <folly/io/Cursor.h>
-#include <folly/io/IOBuf.h>
-
 namespace apache::thrift::frozen {
 
 std::ostream& operator<<(std::ostream& os, DebugLine dl) {
@@ -127,37 +124,6 @@ void BlockLayout::print(std::ostream& os, int level) const {
 void BlockLayout::clear() {
   maskField.clear();
   offsetField.clear();
-}
-
-size_t BufferHelpers<std::unique_ptr<folly::IOBuf>>::size(
-    const std::unique_ptr<folly::IOBuf>& src) {
-  return src != nullptr ? src->computeChainDataLength() : 0;
-}
-
-void BufferHelpers<std::unique_ptr<folly::IOBuf>>::copyTo(
-    const std::unique_ptr<folly::IOBuf>& src, folly::MutableByteRange dst) {
-  if (src != nullptr) {
-    folly::io::Cursor(src.get()).pull(dst.begin(), dst.size());
-  }
-}
-
-void BufferHelpers<std::unique_ptr<folly::IOBuf>>::thawTo(
-    folly::ByteRange src, std::unique_ptr<folly::IOBuf>& dst) {
-  dst = folly::IOBuf::copyBuffer(src.begin(), src.size());
-}
-
-size_t BufferHelpers<folly::IOBuf>::size(const folly::IOBuf& src) {
-  return src.computeChainDataLength();
-}
-
-void BufferHelpers<folly::IOBuf>::copyTo(
-    const folly::IOBuf& src, folly::MutableByteRange dst) {
-  folly::io::Cursor(&src).pull(dst.begin(), dst.size());
-}
-
-void BufferHelpers<folly::IOBuf>::thawTo(
-    folly::ByteRange src, folly::IOBuf& dst) {
-  dst = folly::IOBuf(folly::IOBuf::COPY_BUFFER, src);
 }
 
 } // namespace detail
