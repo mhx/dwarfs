@@ -960,7 +960,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
     target_compile_options(${tgt} PRIVATE -Wno-stringop-overflow)
   endif()
 
-  if(NOT ${tgt} MATCHES "folly|fsst|thrift")
+  if(NOT ${tgt} MATCHES "folly|fsst")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
        "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       target_compile_options(${tgt} PRIVATE
@@ -988,14 +988,20 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
       target_compile_options(${tgt} PRIVATE
-        $<$<COMPILE_LANGUAGE:CXX>:-Wuseless-cast>
         -Wlogical-op
         -Wduplicated-cond
         -Wduplicated-branches
         -Wmisleading-indentation
       )
+      if(NOT ${tgt} MATCHES "frozen")
+        target_compile_options(${tgt} PRIVATE
+          $<$<COMPILE_LANGUAGE:CXX>:-Wuseless-cast>
+        )
+      endif()
       if("${CMAKE_CXX_COMPILER_VERSION}" VERSION_GREATER_EQUAL "14")
-        target_compile_options(${tgt} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wnrvo -Wno-error=nrvo>)
+        if(NOT ${tgt} MATCHES "frozen")
+          target_compile_options(${tgt} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wnrvo -Wno-error=nrvo>)
+        endif()
       endif()
     endif()
 

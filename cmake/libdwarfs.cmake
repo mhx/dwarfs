@@ -207,6 +207,23 @@ else()
 endif()
 
 add_library(
+  dwarfs_frozen OBJECT
+
+  frozen/thrift/lib/cpp2/frozen/Frozen.cpp
+  frozen/thrift/lib/cpp2/frozen/FrozenUtil.cpp
+  frozen/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
+
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
+)
+
+set_property(TARGET dwarfs_frozen PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
+target_link_libraries(dwarfs_frozen PUBLIC dwarfs_folly_lite)
+target_include_directories(dwarfs_frozen PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
+)
+
+add_library(
   dwarfs_thrift_lite_v2 OBJECT
 
   src/thrift_lite/assert.cpp
@@ -217,17 +234,11 @@ add_library(
 
   src/thrift_lite/internal/compact_wire.cpp
   src/thrift_lite/internal/protocol_methods.cpp
-
-  frozen/thrift/lib/cpp2/frozen/Frozen.cpp
-  frozen/thrift/lib/cpp2/frozen/FrozenUtil.cpp
-  frozen/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
-
-  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
 )
 
 set_property(TARGET dwarfs_thrift_lite_v2 PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
-target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_folly_lite)
-target_include_directories(dwarfs_thrift_lite_v2 PUBLIC
+target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_frozen)
+target_include_directories(dwarfs_frozen PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
@@ -273,7 +284,7 @@ if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
 endif()
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2 dwarfs_frozen)
 
 if(WIN32)
   target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
@@ -334,6 +345,7 @@ list(APPEND LIBDWARFS_TARGETS
 
 list(APPEND LIBDWARFS_OBJECT_TARGETS
   dwarfs_folly_lite
+  dwarfs_frozen
   dwarfs_thrift_lite_v2
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
