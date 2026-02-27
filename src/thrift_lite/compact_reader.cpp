@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -257,7 +258,19 @@ auto compact_reader::read_i64() -> std::int64_t {
 }
 
 auto compact_reader::read_double() -> double {
-  throw protocol_error("double type not supported in this implementation");
+  static_assert(sizeof(double) == sizeof(std::uint64_t),
+                "unsupported double size");
+  static_assert(std::numeric_limits<double>::is_iec559,
+                "only IEEE 754 double supported");
+
+  uint64_t bits{0};
+
+  // double is encoded in little-endian
+  for (int i = 0; i < 8; ++i) {
+    bits |= (static_cast<uint64_t>(take_u8()) << (i * 8));
+  }
+
+  return std::bit_cast<double>(bits);
 }
 
 auto compact_reader::read_size_i32(char const* const what) -> std::int32_t {

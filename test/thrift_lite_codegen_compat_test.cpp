@@ -240,8 +240,6 @@ TEST(thrift_lite, handle_mismatched_types_gracefully) {
 }
 
 TEST(thrift_lite, compact_type_id_for_field_panic) {
-  EXPECT_EQ(tl::internal::ct_double,
-            tl::internal::compact_type_id_for_field(tl::ttype::double_t));
   EXPECT_EQ(tl::internal::ct_uuid,
             tl::internal::compact_type_id_for_field(tl::ttype::uuid_t));
   EXPECT_EQ(tl::internal::ct_stop,

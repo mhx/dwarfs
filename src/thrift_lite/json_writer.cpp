@@ -27,7 +27,9 @@
  */
 
 #include <array>
+#include <cassert>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -112,16 +114,40 @@ void json_writer::write_json_string(std::string_view const s) {
   (*os_) << '"';
 }
 
-template <typename I>
-void json_writer::write_integer(I const v) {
-  auto buf = std::array<char, 32>{};
+template <typename T>
+  requires std::is_arithmetic_v<T>
+void json_writer::write_number(T const v) {
+  if constexpr (std::is_floating_point_v<T>) {
+    switch (std::fpclassify(v)) {
+    case FP_INFINITE:
+      if (v > 0) {
+        write_string("Infinity");
+      } else {
+        write_string("-Infinity");
+      }
+      return;
+    case FP_NAN:
+      write_string("NaN");
+      return;
+    default:
+      break;
+    }
+
+    assert(std::isfinite(v));
+  }
+
+  auto buf = std::array<char, 64>{};
   auto* first = buf.data();
   auto* last = buf.data() + buf.size();
   auto const res = std::to_chars(first, last, v);
+
   if (res.ec != std::errc{}) {
-    throw protocol_error("json_writer: integer formatting failed");
+    throw protocol_error("json_writer: number formatting failed");
   }
+
+  begin_value();
   os_->write(first, res.ptr - first);
+  end_value();
 }
 
 void json_writer::begin_value() {
@@ -306,33 +332,15 @@ void json_writer::write_bool(bool const v) {
   end_value();
 }
 
-void json_writer::write_byte(std::int8_t const v) {
-  begin_value();
-  write_integer(static_cast<std::int32_t>(v));
-  end_value();
-}
+void json_writer::write_byte(std::int8_t const v) { write_number(v); }
 
-void json_writer::write_i16(std::int16_t const v) {
-  begin_value();
-  write_integer(v);
-  end_value();
-}
+void json_writer::write_i16(std::int16_t const v) { write_number(v); }
 
-void json_writer::write_i32(std::int32_t const v) {
-  begin_value();
-  write_integer(v);
-  end_value();
-}
+void json_writer::write_i32(std::int32_t const v) { write_number(v); }
 
-void json_writer::write_i64(std::int64_t const v) {
-  begin_value();
-  write_integer(v);
-  end_value();
-}
+void json_writer::write_i64(std::int64_t const v) { write_number(v); }
 
-void json_writer::write_double(double const /*v*/) {
-  throw protocol_error("double type not supported in this implementation");
-}
+void json_writer::write_double(double const v) { write_number(v); }
 
 void json_writer::write_binary(std::span<std::byte const> const v) {
   begin_value();

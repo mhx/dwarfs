@@ -149,6 +149,7 @@ TEST(thrift_lite, debug_output_everything_empty_verbose) {
         6: id_to_extents (map) = map{}
       }
     },
+    7: float_value (double) = 0,
     300: far_regular (i32) = 0
   }
 })dbg"sv;
@@ -267,7 +268,7 @@ TEST(thrift_lite, debug_output_everything_full) {
         ]
       }
     },
-    100: far_optional (i32) = 465621985
+    7: float_value (double) = 1.5
   },
   22: opt_bool (bool) = false,
   23: opt_kind (i32) = 1,

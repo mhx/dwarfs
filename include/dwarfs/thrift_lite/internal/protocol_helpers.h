@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <cmath>
+
 #include <dwarfs/thrift_lite/writer_options.h>
 
 #include <dwarfs/thrift_lite/internal/concepts.h>
@@ -50,6 +52,12 @@ should_write_regular(writer_options const& opts,
 should_write_regular(writer_options const& opts,
                      basic_type auto const& v) noexcept -> bool {
   return !opts.terse || v != decltype(v){};
+}
+
+[[nodiscard]] inline auto
+should_write_regular(writer_options const& opts, double const& v) noexcept
+    -> bool {
+  return !opts.terse || std::fpclassify(v) != FP_ZERO;
 }
 
 } // namespace dwarfs::thrift_lite::internal

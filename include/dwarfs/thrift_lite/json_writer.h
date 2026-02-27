@@ -110,8 +110,9 @@ class json_writer final : public protocol_writer {
   void write_newline_and_indent(std::size_t level);
   void write_json_string(std::string_view s);
 
-  template <typename I>
-  void write_integer(I v);
+  template <typename T>
+    requires std::is_arithmetic_v<T>
+  void write_number(T v);
 
   auto top_ctx() -> container_ctx&;
 
