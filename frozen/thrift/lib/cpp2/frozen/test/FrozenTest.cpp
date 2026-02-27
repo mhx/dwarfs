@@ -271,7 +271,7 @@ TEST(Frozen, NoLayout) {
 
   Layout<Person1> emptyPersonLayout;
   std::array<uint8_t, 100> storage;
-  folly::MutableByteRange bytes(storage.begin(), storage.end());
+  folly::MutableByteRange bytes(storage);
   EXPECT_THROW(
       ByteRangeFreezer::freeze(emptyPersonLayout, tom1, bytes),
       LayoutException);
@@ -286,7 +286,7 @@ void testMaxLayout(const T& value) {
   EXPECT_GT(valLayout.size, 0);
   ASSERT_GT(maxLayout.size, 0);
   std::array<uint8_t, 1000> storage;
-  folly::MutableByteRange bytes(storage.begin(), storage.end());
+  folly::MutableByteRange bytes(storage);
   EXPECT_THROW(
       ByteRangeFreezer::freeze(minLayout, value, bytes), LayoutException);
   auto f = ByteRangeFreezer::freeze(maxLayout, value, bytes);
