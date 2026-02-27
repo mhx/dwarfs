@@ -28,7 +28,7 @@
 
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 namespace dwarfs::writer::internal {
 

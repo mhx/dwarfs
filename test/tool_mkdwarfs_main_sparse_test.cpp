@@ -216,10 +216,10 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
     ASSERT_EQ(1, size_cache["allocated_size_lookup"].size()) << info.dump(2);
-    EXPECT_EQ(tfd.size(), size_cache["size_lookup"]["0"].get<file_size_t>())
+    EXPECT_EQ(tfd.size(), size_cache["size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
     EXPECT_EQ(total_data_size,
-              size_cache["allocated_size_lookup"]["0"].get<file_size_t>())
+              size_cache["allocated_size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
 
     for (auto const& ext : tfd.extents) {
@@ -297,10 +297,10 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
     ASSERT_EQ(1, size_cache["allocated_size_lookup"].size()) << info.dump(2);
-    EXPECT_EQ(tfd.size(), size_cache["size_lookup"]["0"].get<file_size_t>())
+    EXPECT_EQ(tfd.size(), size_cache["size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
     EXPECT_EQ(total_data_size,
-              size_cache["allocated_size_lookup"]["0"].get<file_size_t>())
+              size_cache["allocated_size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
 
     for (auto const& ext : tfd.extents) {

@@ -26,7 +26,7 @@
 
 #include <dwarfs/reader/internal/metadata_types.h>
 
-#include <dwarfs/gen-cpp2/metadata_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
 
 #include "test_logger.h"
 
