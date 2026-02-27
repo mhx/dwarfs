@@ -276,7 +276,11 @@ struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
         key_protocol_methods::read(r, tmp_key);
         mapped_type tmp_mapped;
         mapped_protocol_methods::read(r, tmp_mapped);
-        out.emplace(std::move(tmp_key), std::move(tmp_mapped));
+        if constexpr (emplaceable_map_type<type>) {
+          out.emplace(std::move(tmp_key), std::move(tmp_mapped));
+        } else {
+          out[std::move(tmp_key)] = std::move(tmp_mapped);
+        }
       }
     } else {
       detail::skip_elements(r, size, {key_tt, mapped_tt});
