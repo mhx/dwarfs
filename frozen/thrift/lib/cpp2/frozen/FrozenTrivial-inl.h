@@ -38,7 +38,7 @@ struct TrivialLayout : public LayoutBase {
 
   void freeze(FreezeRoot&, const T& o, FreezePosition self) const {
     if (size == sizeof(T)) {
-      *reinterpret_cast<T*>(self.start) = o;
+      std::memcpy(self.start, &o, sizeof(T));
     } else {
       throw LayoutException();
     }
@@ -46,7 +46,7 @@ struct TrivialLayout : public LayoutBase {
 
   void thaw(ViewPosition self, T& out) const {
     if (size == sizeof(T)) {
-      out = *reinterpret_cast<const T*>(self.start);
+      std::memcpy(&out, self.start, sizeof(T));
     } else {
       out = T{};
     }
