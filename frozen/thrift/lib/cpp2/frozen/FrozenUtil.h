@@ -23,13 +23,22 @@
 #include <folly/portability/GFlags.h>
 #include <folly/system/MemoryMapping.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_constants.h>
+
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
 
 FOLLY_GFLAGS_DECLARE_bool(thrift_frozen_util_disable_mlock);
 FOLLY_GFLAGS_DECLARE_bool(thrift_frozen_util_mlock_on_fault);
 
 namespace apache::thrift::frozen {
+
+namespace schema::frozen_constants {
+
+constexpr inline std::int32_t kCurrentFrozenFileVersion() {
+  return 1;
+}
+
+} // namespace schema::frozen_constants
 
 class FrozenFileForwardIncompatible : public std::runtime_error {
  public:
@@ -128,14 +137,20 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
   schema::convert(memSchema, schema);
 
   *schema.fileVersion() = schema::frozen_constants::kCurrentFrozenFileVersion();
-  out.clear();
-  CompactSerializer::serialize(schema, &out);
+  std::vector<std::byte> buffer;
+  dwarfs::thrift_lite::compact_writer writer(buffer);
+  schema.write(writer);
+  out.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
 }
 
 template <class T>
 void deserializeRootLayout(folly::ByteRange& range, Layout<T>& layoutOut) {
   schema::Schema schema;
-  size_t schemaSize = CompactSerializer::deserialize(range, schema);
+  dwarfs::thrift_lite::compact_reader reader(
+      std::span(
+          reinterpret_cast<std::byte const*>(range.data()), range.size()));
+  schema.read(reader);
+  size_t schemaSize = reader.consumed_bytes();
 
   if (*schema.fileVersion() >
       schema::frozen_constants::kCurrentFrozenFileVersion()) {
