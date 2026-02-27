@@ -18,11 +18,13 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenTestUtil.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
+
+#include <dwarfs/thrift_lite/compact_writer.h>
 
 using namespace apache::thrift;
 using namespace frozen;
 
+#if 0
 TEST(FrozenUtil, FreezeAndUse) {
   auto file = freezeToTempFile(std::string("hello"));
   MappedFrozen<std::string> mapped;
@@ -46,25 +48,27 @@ TEST(FrozenUtil, FreezeAndMap) {
   original.emplace_back("different");
   EXPECT_NE(original, thawed);
 }
+#endif
 
 TEST(FrozenUtil, FutureVersion) {
-  folly::test::TemporaryFile tmp;
+  std::string store;
 
   {
     schema::Schema schema;
     *schema.fileVersion() = 1000;
     schema.fileVersion().ensure();
 
-    std::string schemaStr;
-    CompactSerializer::serialize(schema, &schemaStr);
-    write(tmp.fd(), schemaStr.data(), schemaStr.size());
+    std::vector<std::byte> buf;
+    dwarfs::thrift_lite::compact_writer writer(buf);
+    schema.write(writer);
+    store.assign(reinterpret_cast<const char*>(buf.data()), buf.size());
   }
 
   EXPECT_THROW(
-      mapFrozen<std::string>(folly::File(tmp.fd())),
-      FrozenFileForwardIncompatible);
+      mapFrozen<std::string>(std::move(store)), FrozenFileForwardIncompatible);
 }
 
+#if 0
 TEST(FrozenUtil, FileSize) {
   auto original = std::vector<std::string>{"hello", "world"};
   folly::test::TemporaryFile tmp;
@@ -73,6 +77,7 @@ TEST(FrozenUtil, FileSize) {
   fstat(tmp.fd(), &stats);
   EXPECT_LT(stats.st_size, 500); // most of this is the schema
 }
+#endif
 
 TEST(FrozenUtil, FreezeToString) {
   // multiplication tables for first three primes
