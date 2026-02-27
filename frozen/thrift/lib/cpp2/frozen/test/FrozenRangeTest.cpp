@@ -25,7 +25,7 @@ using namespace frozen;
 
 template <class T>
 class FrozenRange : public ::testing::Test {};
-TYPED_TEST_CASE_P(FrozenRange);
+TYPED_TEST_SUITE_P(FrozenRange);
 
 TYPED_TEST_P(FrozenRange, ArrayLike) {
   TypeParam v{10, 11, 12, 13};
@@ -149,14 +149,14 @@ TYPED_TEST_P(FrozenRange, Zeros) {
   EXPECT_EQ(n, 1000);
 }
 
-REGISTER_TYPED_TEST_CASE_P(
+REGISTER_TYPED_TEST_SUITE_P(
     FrozenRange, ArrayLike, Iterators, IteratorComparisons, Zeros);
 using MyTypes = ::testing::Types<std::vector<int>, folly::fbvector<int>>;
-INSTANTIATE_TYPED_TEST_CASE_P(Ranges, FrozenRange, MyTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(Ranges, FrozenRange, MyTypes);
 
 template <class T>
 class FrozenRangeNested : public ::testing::Test {};
-TYPED_TEST_CASE_P(FrozenRangeNested);
+TYPED_TEST_SUITE_P(FrozenRangeNested);
 
 TYPED_TEST_P(FrozenRangeNested, VectorVectorInt) {
   TypeParam vvi{{2, 3, 5, 7}, {11, 13, 17, 19}};
@@ -174,12 +174,12 @@ TYPED_TEST_P(FrozenRangeNested, FrontBack) {
   EXPECT_EQ(11, fvvi.back().back());
 }
 
-REGISTER_TYPED_TEST_CASE_P(FrozenRangeNested, VectorVectorInt, FrontBack);
+REGISTER_TYPED_TEST_SUITE_P(FrozenRangeNested, VectorVectorInt, FrontBack);
 using MyTypesNested = ::testing::Types<
     std::vector<std::vector<int>>,
     std::vector<folly::fbvector<int>>,
     folly::fbvector<folly::fbvector<int>>,
     folly::fbvector<std::vector<int>>>;
-INSTANTIATE_TYPED_TEST_CASE_P(RangesNested, FrozenRangeNested, MyTypesNested);
+INSTANTIATE_TYPED_TEST_SUITE_P(RangesNested, FrozenRangeNested, MyTypesNested);
 
 } // namespace apache::thrift
