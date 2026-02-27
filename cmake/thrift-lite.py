@@ -1191,47 +1191,53 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
               bool skip = true;
 
-              switch (field_id) {
             """,
             indent=2,
         )
 
-        fields_by_id = {f.field_id: f for f in s.fields}
-        for fid in sorted(fields_by_id.keys()):
-            f = fields_by_id[fid]
-            wire = resolve_wire_type(f.type_ref, idl)
-            expected = ttype_expr(wire, no_string=True)
+        if s.fields:
+            c.emit("switch (field_id) {\n", indent=4)
 
-            type_class = type_class_for(f.type_ref)
+            fields_by_id = {f.field_id: f for f in s.fields}
+            for fid in sorted(fields_by_id.keys()):
+                f = fields_by_id[fid]
+                wire = resolve_wire_type(f.type_ref, idl)
+                expected = ttype_expr(wire, no_string=True)
+
+                type_class = type_class_for(f.type_ref)
+
+                c.emit(
+                    f"""
+                    case {fid}:
+                      if (field_type == {expected}) {{
+                        ::dtli::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::read(r, {f.name}_);
+                    """,
+                    indent=6,
+                )
+
+                if f.required == "optional":
+                    c.emit(f"isset_.set({f.name}_isset_index);\n", indent=10)
+
+                c.emit(
+                    f"""
+                        skip = false;
+                      }}
+                      break;
+
+                    """,
+                    indent=8,
+                )
 
             c.emit(
-                f"""
-                case {fid}:
-                  if (field_type == {expected}) {{
-                    ::dtli::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::read(r, {f.name}_);
-                """,
-                indent=6,
-            )
-
-            if f.required == "optional":
-                c.emit(f"isset_.set({f.name}_isset_index);\n", indent=10)
-
-            c.emit(
-                f"""
-                    skip = false;
-                  }}
-                  break;
-
-                """,
-                indent=8,
+                """
+                      default:
+                        break;
+                    }
+                """
             )
 
         c.emit(
             """
-                  default:
-                    break;
-                }
-
                 if (skip) {
                   r.skip(field_type);
                 }
