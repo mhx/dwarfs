@@ -898,7 +898,14 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
               auto operator=({s.name} const&) -> {s.name}&;
               auto operator=({s.name}&&) noexcept -> {s.name}&;
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
               bool operator==({s.name} const&) const = default;
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
               void read(::dwarfs::thrift_lite::protocol_reader& r);
               void write(::dwarfs::thrift_lite::protocol_writer& w) const;
