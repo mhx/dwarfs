@@ -87,6 +87,14 @@ class field_ref {
     return *this;
   }
 
+  template <typename U>
+  void copy_from(field_ref<U> const& other) noexcept(
+      std::is_nothrow_assignable_v<Ref, U>)
+    requires(is_mutable && std::assignable_from<Ref, U>)
+  {
+    *ptr_ = other.value();
+  }
+
   auto value() const noexcept -> Ref { return static_cast<Ref>(*ptr_); }
 
   auto operator*() const noexcept -> Ref { return value(); }
@@ -111,6 +119,23 @@ class field_ref {
   auto operator=(U&& v) -> field_ref& {
     *ptr_ = std::data(std::forward<U>(v));
     return *this;
+  }
+
+  void reset() noexcept
+    requires(is_mutable)
+  {
+    *ptr_ = value_type{};
+  }
+
+  auto ensure() noexcept -> Ref
+    requires(is_mutable)
+  {
+    return value();
+  }
+
+  template <typename I>
+  auto operator[](I&& i) const -> decltype(auto) {
+    return value()[std::forward<I>(i)];
   }
 
  private:
@@ -151,6 +176,18 @@ class optional_field_ref {
     *ptr_ = std::move(v);
     is_set_ = true;
     return *this;
+  }
+
+  template <typename U, typename V>
+  void copy_from(optional_field_ref<U, V> const& other) noexcept(
+      std::is_nothrow_assignable_v<Ref, U>)
+    requires(is_mutable)
+  {
+    bool const other_has_value = other.has_value();
+    if (other_has_value) {
+      *ptr_ = other.value();
+    }
+    is_set_ = other_has_value;
   }
 
   auto has_value() const noexcept -> bool { return static_cast<bool>(is_set_); }
@@ -249,6 +286,15 @@ class optional_field_ref {
   {
     *ptr_ = value_type{};
     is_set_ = false;
+  }
+
+  auto ensure() -> Ref
+    requires(is_mutable)
+  {
+    if (!has_value()) {
+      emplace();
+    }
+    return value();
   }
 
  private:
