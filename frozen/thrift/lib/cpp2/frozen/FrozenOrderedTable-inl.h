@@ -27,7 +27,7 @@ template <typename Container>
 using detect_key_compare = typename Container::key_compare;
 
 template <typename Container>
-constexpr bool isOrderedContainer() {
+consteval bool isOrderedContainer() {
   if constexpr (folly::is_detected_v<detect_key_compare, Container>) {
     return std::is_same_v<
         typename Container::key_compare,
