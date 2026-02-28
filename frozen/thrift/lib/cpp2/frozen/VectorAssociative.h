@@ -46,10 +46,10 @@ class VectorAsSet : public std::vector<V> {
     }
   }
 
-  template <class T>
-  void insert(T&& value) {
-    this->emplace_back(std::forward<T>(value));
-  }
+  // template <class T>
+  // void insert(T&& value) {
+  //   this->emplace_back(std::forward<T>(value));
+  // }
 
   /**
    * Insert value into the set with a specified hint location.
