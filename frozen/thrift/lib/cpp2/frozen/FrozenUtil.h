@@ -20,15 +20,11 @@
 
 #include <folly/Exception.h>
 #include <folly/File.h>
-#include <folly/portability/GFlags.h>
 #include <folly/system/MemoryMapping.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
 #include <dwarfs/thrift_lite/compact_reader.h>
 #include <dwarfs/thrift_lite/compact_writer.h>
-
-FOLLY_GFLAGS_DECLARE_bool(thrift_frozen_util_disable_mlock);
-FOLLY_GFLAGS_DECLARE_bool(thrift_frozen_util_mlock_on_fault);
 
 namespace apache::thrift::frozen {
 
@@ -303,9 +299,7 @@ template <class T>
 MappedFrozen<T> mapFrozen(
     folly::File file, folly::MemoryMapping::LockMode lockMode) {
   folly::MemoryMapping mapping(std::move(file), 0);
-  folly::MemoryMapping::LockFlags flags{};
-  flags.lockOnFault = FLAGS_thrift_frozen_util_mlock_on_fault;
-  mapping.mlock(lockMode, flags);
+  mapping.mlock(lockMode);
   return mapFrozen<T>(std::move(mapping));
 }
 
