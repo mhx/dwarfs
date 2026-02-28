@@ -30,12 +30,8 @@ struct Block {
   size_t offset = 0;
   static constexpr size_t bits = 64;
 
-  auto mask_ref() { return ::dwarfs::thrift_lite::field_ref<uint64_t&>{mask}; }
   auto mask_ref() const {
     return ::dwarfs::thrift_lite::field_ref<const uint64_t&>{mask};
-  }
-  auto offset_ref() {
-    return ::dwarfs::thrift_lite::field_ref<size_t&>{offset};
   }
   auto offset_ref() const {
     return ::dwarfs::thrift_lite::field_ref<const size_t&>{offset};
