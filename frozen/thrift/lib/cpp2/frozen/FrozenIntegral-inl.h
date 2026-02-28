@@ -20,16 +20,15 @@ namespace frozen {
 
 namespace detail {
 
-template <
-    class T,
-    class = typename std::enable_if<std::is_integral<T>::value>::type>
-size_t bitsNeeded(const T& x) {
-  using UT = typename std::make_unsigned<T>::type;
-  auto ux = static_cast<UT>(x);
-  return ux
-      ? folly::findLastSet(
-            std::is_signed<T>::value ? static_cast<UT>(ux ^ (ux << 1)) : ux)
-      : 0;
+template <std::integral T>
+[[nodiscard]] constexpr size_t bitsNeeded(T const x) {
+  using UT = typename std::make_unsigned_t<T>;
+  if (x == 0) {
+    return 0;
+  }
+  auto const ux = static_cast<UT>(x);
+  auto const arg = std::is_signed_v<T> ? static_cast<UT>(ux ^ (ux << 1)) : ux;
+  return std::bit_width(arg);
 }
 
 /**

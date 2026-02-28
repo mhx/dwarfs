@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <bit>
+#include <concepts>
 #include <iosfwd>
 #include <iterator>
 #include <map>
@@ -40,7 +42,6 @@
 // #include <folly/container/F14Set-fwd.h>
 #include <folly/container/heap_vector_types.h>
 #include <folly/hash/Hash.h>
-#include <folly/lang/Bits.h>
 #include <folly/lang/BitsClass.h>
 #include <folly/sorted_vector_types.h>
 #include <thrift/lib/cpp2/frozen/FixedSizeStringHash.h>
