@@ -79,6 +79,7 @@ struct PairLayout : public LayoutBase {
   }
 
   void clear() final {
+    LayoutBase::clear();
     firstField.clear();
     secondField.clear();
   }
