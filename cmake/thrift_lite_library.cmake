@@ -39,6 +39,7 @@ function(add_thrift_lite_library idlfile)
 
   list(APPEND _THRIFT_SRC
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp-lite/${_THRIFTNAME}_types.h
+    ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp-lite/${_THRIFTNAME}_types-inl.h
     ${_THRIFT_GENERATED_DIR}/thrift/${_THRIFT_OUTPUT_PATH}/gen-cpp-lite/${_THRIFTNAME}_types.cpp
   )
 

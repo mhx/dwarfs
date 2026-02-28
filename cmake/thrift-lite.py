@@ -667,34 +667,37 @@ def resolve_wire_type(
     die(f"cannot resolve wire type for {t!r}")
 
 
-def ttype_expr(wire: TypeRef, no_string: bool = False) -> str:
+def ttype_expr(wire: TypeRef, no_string: bool = False, dtl: str = None) -> str:
+    if dtl is None:
+        dtl = "::dwarfs::thrift_lite"
+
     if wire.kind == "base":
         b = wire.base
         if b == "bool":
-            return "::dtl::ttype::bool_t"
+            return f"{dtl}::ttype::bool_t"
         if b == "byte":
-            return "::dtl::ttype::byte_t"
+            return f"{dtl}::ttype::byte_t"
         if b == "i16":
-            return "::dtl::ttype::i16_t"
+            return f"{dtl}::ttype::i16_t"
         if b == "i32":
-            return "::dtl::ttype::i32_t"
+            return f"{dtl}::ttype::i32_t"
         if b == "i64":
-            return "::dtl::ttype::i64_t"
+            return f"{dtl}::ttype::i64_t"
         if b == "double":
-            return "::dtl::ttype::double_t"
+            return f"{dtl}::ttype::double_t"
         if not no_string and b == "string":
-            return "::dtl::ttype::string_t"
+            return f"{dtl}::ttype::string_t"
         if b == "binary" or b == "string":
-            return "::dtl::ttype::binary_t"
+            return f"{dtl}::ttype::binary_t"
         die(f"unsupported base wire type {b!r}")
     if wire.kind == "id":
-        return "::dtl::ttype::struct_t"
+        return f"{dtl}::ttype::struct_t"
     if wire.kind == "list":
-        return "::dtl::ttype::list_t"
+        return f"{dtl}::ttype::list_t"
     if wire.kind == "set":
-        return "::dtl::ttype::set_t"
+        return f"{dtl}::ttype::set_t"
     if wire.kind == "map":
-        return "::dtl::ttype::map_t"
+        return f"{dtl}::ttype::map_t"
     die(f"unsupported wire kind {wire.kind!r}")
 
 
@@ -781,8 +784,12 @@ def typedef_cpp_underlying(
 def gen_type_class(
     t: TypeRef,
     idl: ParsedIDL,
+    dtld: str = None,
 ) -> str:
-    ns = "::dtli::type_class"
+    if dtld is None:
+        dtld = "::dwarfs::thrift_lite::detail"
+
+    ns = f"{dtld}::type_class"
 
     if t.kind == "base":
         b = t.base
@@ -811,17 +818,17 @@ def gen_type_class(
         if wire_true.kind == "base" and wire_true.base in ("i16", "i32", "i64", "byte"):
             true_t = wire_true
 
-        return gen_type_class(true_t, idl)
+        return gen_type_class(true_t, idl, dtld=dtld)
 
     if t.kind in ("list", "set"):
         assert t.elem is not None
-        elem_type_class = gen_type_class(t.elem, idl)
+        elem_type_class = gen_type_class(t.elem, idl, dtld=dtld)
         return f"{ns}::{t.kind}<{elem_type_class}>"
 
     if t.kind == "map":
         assert t.key is not None and t.val is not None
-        key_type_class = gen_type_class(t.key, idl)
-        val_type_class = gen_type_class(t.val, idl)
+        key_type_class = gen_type_class(t.key, idl, dtld=dtld)
+        val_type_class = gen_type_class(t.val, idl, dtld=dtld)
         return f"{ns}::map<{key_type_class}, {val_type_class}>"
 
     die(f"unsupported read kind {t.kind!r}")
@@ -851,9 +858,9 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         #include <string_view>
         #include <vector>
 
+        #include <dwarfs/thrift_lite/concepts.h>
         #include <dwarfs/thrift_lite/enum_traits.h>
         #include <dwarfs/thrift_lite/field_ref.h>
-        #include <dwarfs/thrift_lite/protocol_fwd.h>
         #include <dwarfs/thrift_lite/types.h>
 
         """
@@ -865,6 +872,17 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             header = inc if inc.startswith("<") and inc.endswith(">") else f'"{inc}"'
             h.emit(f"#include {header}\n")
         h.emit("\n", strip=False)
+
+    h.emit(
+        """
+        namespace dwarfs::thrift_lite {
+
+        struct writer_options;
+
+        } // namespace dwarfs::thrift_lite
+
+        """
+    )
 
     if idl.cpp_namespace:
         h.emit(f"namespace {idl.cpp_namespace} {{\n\n")
@@ -898,17 +916,17 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
               auto operator=({s.name} const&) -> {s.name}&;
               auto operator=({s.name}&&) noexcept -> {s.name}&;
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wfloat-equal"
-#endif
+            #ifdef __GNUC__
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wfloat-equal"
+            #endif
               bool operator==({s.name} const&) const = default;
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
+            #ifdef __GNUC__
+            #pragma GCC diagnostic pop
+            #endif
 
-              void read(::dwarfs::thrift_lite::protocol_reader& r);
-              void write(::dwarfs::thrift_lite::protocol_writer& w) const;
+              void read(::dwarfs::thrift_lite::protocol_reader_type auto& r);
+              void write(::dwarfs::thrift_lite::protocol_writer_type auto& w) const;
 
               [[nodiscard]] auto has_any_fields_for_write(::dwarfs::thrift_lite::writer_options const& opts) const noexcept -> bool;
 
@@ -1007,38 +1025,201 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
             """
         )
-    h.emit("} // namespace dwarfs::thrift_lite\n")
+
+    h.emit(
+        f"""
+        }} // namespace dwarfs::thrift_lite
+
+        #include "{out_stem}_types-inl.h"
+        """
+    )
+
+    # Inline Header
+    hi = Emitter()
+
+    hi.emit(
+        """
+        #pragma once
+
+        // @generated by thrift-lite.py; do not edit.
+
+        #include <cstddef>
+        #include <cstdint>
+        #include <type_traits>
+        #include <utility>
+
+        #include <dwarfs/thrift_lite/detail/protocol_helpers.h>
+        #include <dwarfs/thrift_lite/detail/protocol_methods.h>
+
+        """
+    )
+
+    dtl = "::dwarfs::thrift_lite"
+    dtld = "::dwarfs::thrift_lite::detail"
+
+    if idl.cpp_namespace:
+        hi.emit(f"namespace {idl.cpp_namespace} {{\n\n")
+
+    for s in idl.structs:
+        optional_fields = [f for f in s.fields if f.required == "optional"]
+        has_optional = bool(optional_fields)
+
+        # write(): sort by field id (ascending)
+        fields_sorted = sorted(s.fields, key=lambda f: f.field_id)
+
+        hi.emit(
+            f"""
+            inline void {s.name}::write({dtl}::protocol_writer_type auto& w) const {{
+            """
+        )
+
+        if len(fields_sorted) > len(optional_fields):
+            hi.emit("auto const& opts = w.options();\n\n", indent=2)
+
+        hi.emit(
+            f"""
+              w.write_struct_begin("{s.name}");
+
+            """,
+            indent=2,
+        )
+
+        for f in fields_sorted:
+            wire = resolve_wire_type(f.type_ref, idl)
+            texpr = ttype_expr(wire)
+
+            should_write = (
+                f"isset_.test({f.name}_isset_index)"
+                if f.required == "optional"
+                else f"{dtld}::should_write_regular(opts, {f.name}_)"
+            )
+            type_class = type_class_for(f.type_ref)
+
+            hi.emit(
+                f"""
+                if ({should_write}) {{
+                  w.write_field_begin("{f.name}", {texpr}, {f.field_id});
+                  {dtld}::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::write(w, {f.name}_);
+                  w.write_field_end();
+                }}
+
+                """,
+                indent=2,
+            )
+
+        hi.emit(
+            """
+              w.write_field_stop();
+              w.write_struct_end();
+            }
+
+            """
+        )
+
+        # read()
+        hi.emit(f"inline void {s.name}::read({dtl}::protocol_reader_type auto& r) {{\n")
+        if has_optional:
+            hi.emit("isset_.reset();\n", indent=2)
+        for f in s.fields:
+            hi.emit(f"{f.name}_ = {{}};\n", indent=2)
+        if s.fields:
+            hi.emit("\n", strip=False)
+        hi.emit(
+            f"""
+            r.read_struct_begin();
+
+            for (;;) {{
+              auto field_type = {dtl}::ttype{{}};
+              auto field_id = std::int16_t{{}};
+
+              r.read_field_begin(field_type, field_id);
+
+              if (field_type == {dtl}::ttype::stop_t) {{
+                break;
+              }}
+
+              bool skip = true;
+
+            """,
+            indent=2,
+        )
+
+        if s.fields:
+            hi.emit("switch (field_id) {\n", indent=4)
+
+            fields_by_id = {f.field_id: f for f in s.fields}
+            for fid in sorted(fields_by_id.keys()):
+                f = fields_by_id[fid]
+                wire = resolve_wire_type(f.type_ref, idl)
+                expected = ttype_expr(wire, no_string=True)
+
+                type_class = type_class_for(f.type_ref)
+
+                hi.emit(
+                    f"""
+                    case {fid}:
+                      if (field_type == {expected}) {{
+                        {dtld}::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::read(r, {f.name}_);
+                    """,
+                    indent=6,
+                )
+
+                if f.required == "optional":
+                    hi.emit(f"isset_.set({f.name}_isset_index);\n", indent=10)
+
+                hi.emit(
+                    f"""
+                        skip = false;
+                      }}
+                      break;
+
+                    """,
+                    indent=8,
+                )
+
+            hi.emit(
+                """
+                      default:
+                        break;
+                    }
+                """
+            )
+
+        hi.emit(
+            """
+                if (skip) {
+                  r.skip(field_type);
+                }
+
+                r.read_field_end();
+              }
+
+              r.read_struct_end();
+            }
+
+            """
+        )
+
+    if idl.cpp_namespace:
+        hi.emit(f"}} // namespace {idl.cpp_namespace}\n\n")
 
     # Source
     c = Emitter()
+
     c.emit(
         f"""
         // @generated by thrift-lite.py; do not edit.
 
         #include <array>
-        #include <cstddef>
-        #include <cstdint>
-        #include <map>
-        #include <set>
-        #include <span>
-        #include <string>
         #include <string_view>
-        #include <type_traits>
-        #include <utility>
-        #include <vector>
 
-        #include <dwarfs/thrift_lite/protocol_reader.h>
-        #include <dwarfs/thrift_lite/protocol_writer.h>
-        #include <dwarfs/thrift_lite/writer_options.h>
-
-        #include <dwarfs/thrift_lite/internal/protocol_helpers.h>
-        #include <dwarfs/thrift_lite/internal/protocol_methods.h>
+        #include <dwarfs/thrift_lite/detail/protocol_helpers.h>
 
         #include "{out_stem}_types.h"
 
         using namespace std::string_view_literals;
         namespace dtl = ::dwarfs::thrift_lite;
-        namespace dtli = ::dwarfs::thrift_lite::internal;
+        namespace dtld = ::dwarfs::thrift_lite::detail;
 
         """
     )
@@ -1066,7 +1247,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         # --- emit has_any_fields_for_write() before write() ---
 
         c.emit(
-            f"[[nodiscard]] auto {s.name}::has_any_fields_for_write(::dtl::writer_options const& opts [[maybe_unused]]) const noexcept -> bool {{\n"
+            f"auto {s.name}::has_any_fields_for_write(::dtl::writer_options const& opts [[maybe_unused]]) const noexcept -> bool {{\n"
         )
 
         any_fields_checks = []
@@ -1099,7 +1280,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                 any_fields_checks.append(f"{f.name}_.has_any_fields_for_write(opts)")
             else:
                 any_fields_checks.append(
-                    f"::dtli::should_write_regular(opts, {f.name}_)"
+                    f"::dtld::should_write_regular(opts, {f.name}_)"
                 )
 
         if not any_fields_checks:
@@ -1111,142 +1292,6 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             f"""
               return {checks_str};
             }}
-
-            """
-        )
-
-        # write(): sort by field id (ascending)
-        fields_sorted = sorted(s.fields, key=lambda f: f.field_id)
-
-        c.emit(
-            f"""
-            void {s.name}::write(::dtl::protocol_writer& w) const {{
-            """
-        )
-
-        if len(fields_sorted) > len(optional_fields):
-            c.emit("auto const& opts = w.options();\n\n", indent=2)
-
-        c.emit(
-            f"""
-              w.write_struct_begin("{s.name}");
-
-            """,
-            indent=2,
-        )
-
-        for f in fields_sorted:
-            wire = resolve_wire_type(f.type_ref, idl)
-            texpr = ttype_expr(wire)
-
-            should_write = (
-                f"isset_.test({f.name}_isset_index)"
-                if f.required == "optional"
-                else f"::dtli::should_write_regular(opts, {f.name}_)"
-            )
-            type_class = type_class_for(f.type_ref)
-
-            c.emit(
-                f"""
-                if ({should_write}) {{
-                  w.write_field_begin("{f.name}", {texpr}, {f.field_id});
-                  ::dtli::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::write(w, {f.name}_);
-                  w.write_field_end();
-                }}
-
-                """,
-                indent=2,
-            )
-
-        c.emit(
-            """
-              w.write_field_stop();
-              w.write_struct_end();
-            }
-
-            """
-        )
-
-        # read()
-        c.emit(f"void {s.name}::read(::dtl::protocol_reader& r) {{\n")
-        if has_optional:
-            c.emit("isset_.reset();\n", indent=2)
-        for f in s.fields:
-            c.emit(f"{f.name}_ = {{}};\n", indent=2)
-        if s.fields:
-            c.emit("\n", strip=False)
-        c.emit(
-            """
-            r.read_struct_begin();
-
-            for (;;) {
-              auto field_type = ::dtl::ttype{};
-              auto field_id = std::int16_t{};
-
-              r.read_field_begin(field_type, field_id);
-
-              if (field_type == ::dtl::ttype::stop_t) {
-                break;
-              }
-
-              bool skip = true;
-
-            """,
-            indent=2,
-        )
-
-        if s.fields:
-            c.emit("switch (field_id) {\n", indent=4)
-
-            fields_by_id = {f.field_id: f for f in s.fields}
-            for fid in sorted(fields_by_id.keys()):
-                f = fields_by_id[fid]
-                wire = resolve_wire_type(f.type_ref, idl)
-                expected = ttype_expr(wire, no_string=True)
-
-                type_class = type_class_for(f.type_ref)
-
-                c.emit(
-                    f"""
-                    case {fid}:
-                      if (field_type == {expected}) {{
-                        ::dtli::protocol_methods<{type_class}, std::remove_cvref_t<decltype({f.name}_)>>::read(r, {f.name}_);
-                    """,
-                    indent=6,
-                )
-
-                if f.required == "optional":
-                    c.emit(f"isset_.set({f.name}_isset_index);\n", indent=10)
-
-                c.emit(
-                    f"""
-                        skip = false;
-                      }}
-                      break;
-
-                    """,
-                    indent=8,
-                )
-
-            c.emit(
-                """
-                      default:
-                        break;
-                    }
-                """
-            )
-
-        c.emit(
-            """
-                if (skip) {
-                  r.skip(field_type);
-                }
-
-                r.read_field_end();
-              }
-
-              r.read_struct_end();
-            }
 
             """
         )
@@ -1298,7 +1343,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
     c.emit("} // namespace dwarfs::thrift_lite\n")
 
-    return h.text(), c.text()
+    return h.text(), hi.text(), c.text()
 
 
 def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
@@ -1424,7 +1469,7 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         """
     )
 
-    return h.text(), c.text()
+    return h.text(), None, c.text()
 
 
 def main(argv: Sequence[str]) -> int:
@@ -1460,12 +1505,16 @@ def main(argv: Sequence[str]) -> int:
         outputs.append(("layouts", get_layouts))
 
     for suffix, generator in outputs:
+        header_text, hdrinl_text, source_text = generator(out_stem=out_stem, idl=idl)
+
         header_name = f"{out_stem}_{suffix}.h"
-        source_name = f"{out_stem}_{suffix}.cpp"
-
-        header_text, source_text = generator(out_stem=out_stem, idl=idl)
-
         (output_dir / header_name).write_text(header_text, encoding="utf-8")
+
+        if hdrinl_text is not None:
+            hdrinl_name = f"{out_stem}_{suffix}-inl.h"
+            (output_dir / hdrinl_name).write_text(hdrinl_text, encoding="utf-8")
+
+        source_name = f"{out_stem}_{suffix}.cpp"
         (output_dir / source_name).write_text(source_text, encoding="utf-8")
 
     return 0

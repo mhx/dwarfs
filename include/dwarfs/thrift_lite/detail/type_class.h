@@ -28,36 +28,27 @@
 
 #pragma once
 
-#include <cmath>
+namespace dwarfs::thrift_lite::detail::type_class {
 
-#include <dwarfs/thrift_lite/writer_options.h>
+struct integral {};
 
-#include <dwarfs/thrift_lite/internal/concepts.h>
+struct floating {};
 
-namespace dwarfs::thrift_lite::internal {
+struct enumeration {};
 
-[[nodiscard]] auto
-should_write_regular(writer_options const& opts,
-                     writeable_type auto const& v) noexcept -> bool {
-  return !opts.terse || v.has_any_fields_for_write(opts);
-}
+struct binary {};
 
-[[nodiscard]] auto
-should_write_regular(writer_options const& opts,
-                     collection_type auto const& v) noexcept -> bool {
-  return !opts.terse || !v.empty();
-}
+struct string {};
 
-[[nodiscard]] auto
-should_write_regular(writer_options const& opts,
-                     basic_type auto const& v) noexcept -> bool {
-  return !opts.terse || v != decltype(v){};
-}
+struct structure {};
 
-[[nodiscard]] inline auto
-should_write_regular(writer_options const& opts, double const& v) noexcept
-    -> bool {
-  return !opts.terse || std::fpclassify(v) != FP_ZERO;
-}
+template <typename ValueTypeClass>
+struct list {};
 
-} // namespace dwarfs::thrift_lite::internal
+template <typename ValueTypeClass>
+struct set {};
+
+template <typename KeyTypeClass, typename MappedTypeClass>
+struct map {};
+
+} // namespace dwarfs::thrift_lite::detail::type_class
