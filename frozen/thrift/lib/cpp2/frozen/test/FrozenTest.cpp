@@ -159,13 +159,12 @@ TEST(Frozen, Compatibility) {
   loadRoot(person2, schema);
 
   std::string storage(size, 'X');
-  folly::MutableStringPiece charRange(&storage.front(), size);
-  const folly::MutableByteRange bytes(charRange);
-  folly::MutableByteRange freezeRange = bytes;
+  auto const bytes = make_mutable_byte_span(storage);
+  auto freezeRange = std::span(bytes);
 
   ByteRangeFreezer::freeze(person1, tom1, freezeRange);
-  auto view12 = person1.view({bytes.begin(), 0});
-  auto view21 = person2.view({bytes.begin(), 0});
+  auto view12 = person1.view({bytes.data(), 0});
+  auto view21 = person2.view({bytes.data(), 0});
   EXPECT_EQ(view12.name(), view21.name());
   EXPECT_EQ(view12.age(), view21.age());
   EXPECT_TRUE(view12.height());
@@ -222,8 +221,7 @@ TEST(Frozen, EmbeddedSchema) {
     size_t start = storage.size();
     storage.resize(size + storage.size());
 
-    folly::MutableStringPiece charRange(&storage[start], size);
-    folly::MutableByteRange bytes(charRange);
+    auto bytes = make_mutable_byte_span(storage).subspan(start);
     ByteRangeFreezer::freeze(person1a, tom1, bytes);
   }
   {
@@ -232,8 +230,7 @@ TEST(Frozen, EmbeddedSchema) {
     Layout<Person2> person2;
 
     dwarfs::thrift_lite::compact_reader r(
-        std::span(
-            reinterpret_cast<std::byte*>(storage.data()), storage.size()));
+        std::as_bytes(make_mutable_byte_span(storage)));
     schema.read(r);
     size_t start = r.consumed_bytes();
 
@@ -241,9 +238,8 @@ TEST(Frozen, EmbeddedSchema) {
 
     loadRoot(person2, memSchema);
 
-    folly::StringPiece charRange(&storage[start], storage.size() - start);
-    folly::ByteRange bytes(charRange);
-    auto view = person2.view({bytes.begin(), 0});
+    auto bytes = make_mutable_byte_span(storage).subspan(start);
+    auto view = person2.view({bytes.data(), 0});
     EXPECT_EQ(*tom1.name(), view.name());
     ASSERT_EQ(tom1.age().has_value(), view.age().has_value());
     if (auto age = tom1.age()) {
@@ -273,7 +269,7 @@ TEST(Frozen, NoLayout) {
 
   Layout<Person1> emptyPersonLayout;
   std::array<uint8_t, 100> storage;
-  folly::MutableByteRange bytes(storage);
+  auto bytes = std::span<uint8_t>(storage);
   EXPECT_THROW(
       ByteRangeFreezer::freeze(emptyPersonLayout, tom1, bytes),
       LayoutException);
@@ -288,7 +284,7 @@ void testMaxLayout(const T& value) {
   EXPECT_GT(valLayout.size, 0);
   ASSERT_GT(maxLayout.size, 0);
   std::array<uint8_t, 1000> storage;
-  folly::MutableByteRange bytes(storage);
+  auto bytes = std::span<uint8_t>(storage);
   EXPECT_THROW(
       ByteRangeFreezer::freeze(minLayout, value, bytes), LayoutException);
   auto f = ByteRangeFreezer::freeze(maxLayout, value, bytes);
@@ -318,8 +314,8 @@ TEST(Frozen, MaxLayoutStress) {
 TEST(Frozen, String) {
   std::string str = "Hello";
   auto fstr = freeze(str);
-  EXPECT_EQ(str, folly::StringPiece(fstr));
-  EXPECT_EQ(std::string(), folly::StringPiece(freeze(std::string())));
+  EXPECT_EQ(str, std::string_view(fstr));
+  EXPECT_EQ(std::string(), std::string_view(freeze(std::string())));
 }
 
 TEST(Frozen, VectorString) {
@@ -572,7 +568,7 @@ TEST(Frozen, TypeHelpers) {
 TEST(Frozen, RangeTrivialRange) {
   auto data = std::vector<float>{3.0, 4.0, 5.0};
   auto view = freeze(data);
-  auto r = folly::Range<const float*>(view.range());
+  auto r = view.range();
   EXPECT_EQ(data, std::vector<float>(r.begin(), r.end()));
 }
 
@@ -588,12 +584,12 @@ TEST(Frozen, PaddingLayout) {
   auto testLayout = layout(test, size);
   for (size_t offset = 0; offset < 8; ++offset) {
     std::unique_ptr<byte[]> store(new byte[size + offset + 16]);
-    folly::MutableByteRange bytes(store.get() + offset, size + 16);
+    auto bytes = std::span(store.get() + offset, size + 16);
 
     auto view = ByteRangeFreezer::freeze(testLayout, test, bytes);
     auto range = view[10][0].range();
     EXPECT_EQ(range[0], 1.0);
-    EXPECT_EQ(reinterpret_cast<intptr_t>(range.begin()) % alignof(double), 0);
+    EXPECT_EQ(reinterpret_cast<intptr_t>(range.data()) % alignof(double), 0);
   }
 }
 
@@ -724,9 +720,7 @@ TEST(Frozen, FixedSizeString) {
 
     {
       std::string key = "hellosnw";
-      auto iter = view.aMap_ref()->find(
-          folly::ByteRange{
-              reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+      auto iter = view.aMap_ref()->find(make_byte_span(key));
       ASSERT_NE(iter, view.aMap_ref()->end());
       EXPECT_EQ(iter->first().toString(), "hellosnw");
       EXPECT_EQ(iter->second().toString(), "ef");

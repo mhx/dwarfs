@@ -141,8 +141,7 @@ map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
   using namespace ::apache::thrift::frozen;
   check_schema(schema);
   auto layout = std::make_unique<Layout<T>>();
-  folly::ByteRange tmp(schema.data(), schema.size());
-  deserializeRootLayout(tmp, *layout);
+  deserializeRootLayout(schema, *layout);
   MappedFrozen<T> ret(layout->view({data.data(), 0}));
   ret.hold(std::move(layout));
   return ret;

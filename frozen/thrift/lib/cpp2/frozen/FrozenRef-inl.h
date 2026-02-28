@@ -127,7 +127,7 @@ struct RefLayout : public LayoutBase {
     size_t valueBits = valueBytes ? 0 : valueField_->layout.bits;
     size_t align = IsBlitType<T>::value ? alignof(T) : 1;
     size_t dist;
-    folly::MutableByteRange range;
+    std::span<uint8_t> range;
     root.appendBytes(
         self.start,
         valueBits ? (valueBits + 7) / 8 : valueBytes,

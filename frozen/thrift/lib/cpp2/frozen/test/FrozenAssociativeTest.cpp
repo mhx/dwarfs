@@ -395,7 +395,7 @@ TEST(Frozen, SpillBug) {
 namespace std {
 size_t hash<User>::operator()(const User& user) const {
   return folly::hash::hash_combine_generic(
-      folly::Hash{}, folly::StringPiece(*user.name()), *user.uid());
+      folly::Hash{}, std::string_view(*user.name()), *user.uid());
 }
 
 bool equal_to<User>::operator()(const User& lhs, const User& rhs) const {
@@ -407,12 +407,12 @@ namespace apache::thrift::frozen {
 
 size_t Layout<test::User>::hash(const test::User& user) {
   return folly::hash::hash_combine_generic(
-      folly::Hash{}, 12345, folly::StringPiece(*user.name()), *user.uid());
+      folly::Hash{}, 12345, std::string_view(*user.name()), *user.uid());
 }
 
 size_t Layout<test::User>::hash(const Layout<test::User>::View& user) {
   return folly::hash::hash_combine_generic(
-      folly::Hash{}, 12345, folly::StringPiece(user.name()), user.uid());
+      folly::Hash{}, 12345, std::string_view(user.name()), user.uid());
 }
 
 bool Layout<test::User>::View::operator==(
