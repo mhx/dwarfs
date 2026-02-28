@@ -16,12 +16,12 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <vector>
 
-#include <glog/logging.h>
+#include <boost/container_hash/hash.hpp>
 
-#include <folly/hash/Hash.h>
 #include <thrift/lib/cpp/DistinctTable.h>
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
@@ -60,8 +60,16 @@ class MemoryField {
  public:
   MemoryField() = default;
 
-  inline size_t hash() const {
-    return folly::hash::hash_combine(id, layoutId, offset);
+  inline size_t hash() const noexcept {
+    size_t seed = 0;
+    boost::hash_combine(seed, id);
+    boost::hash_combine(seed, layoutId);
+    boost::hash_combine(seed, offset);
+    return seed;
+  }
+
+  friend std::size_t hash_value(MemoryField const& obj) noexcept {
+    return obj.hash();
   }
 
   inline bool operator==(const MemoryField& other) const {
@@ -102,7 +110,16 @@ class MemoryLayoutBase {
   MemoryLayoutBase() = default;
   virtual ~MemoryLayoutBase() = default;
 
-  inline size_t hash() const { return folly::hash::hash_combine(bits, size); }
+  inline size_t hash() const noexcept {
+    size_t seed = 0;
+    boost::hash_combine(seed, bits);
+    boost::hash_combine(seed, size);
+    return seed;
+  }
+
+  friend std::size_t hash_value(MemoryLayoutBase const& obj) noexcept {
+    return obj.hash();
+  }
 
   inline bool operator==(const MemoryLayoutBase& other) const {
     return bits == other.bits && size == other.size;
@@ -125,10 +142,14 @@ class MemoryLayout : public MemoryLayoutBase {
  public:
   using MemoryLayoutBase::MemoryLayoutBase;
 
-  inline size_t hash() const {
-    return folly::hash::hash_combine(
-        MemoryLayoutBase::hash(),
-        folly::hash::hash_range(fields.begin(), fields.end()));
+  inline size_t hash() const noexcept {
+    size_t seed = MemoryLayoutBase::hash();
+    boost::hash_combine(seed, boost::hash_range(fields.begin(), fields.end()));
+    return seed;
+  }
+
+  friend std::size_t hash_value(MemoryLayout const& obj) noexcept {
+    return obj.hash();
   }
 
   inline bool operator==(const MemoryLayout& other) const {
@@ -155,9 +176,16 @@ class MemorySchema {
   MemorySchema() = default;
   ~MemorySchema() = default;
 
-  inline size_t hash() const {
-    return folly::hash::hash_combine(
-        folly::hash::hash_range(layouts.begin(), layouts.end()), rootLayout);
+  inline size_t hash() const noexcept {
+    size_t seed = 0;
+    boost::hash_combine(
+        seed, boost::hash_range(layouts.begin(), layouts.end()));
+    boost::hash_combine(seed, rootLayout);
+    return seed;
+  }
+
+  friend std::size_t hash_value(MemorySchema const& obj) noexcept {
+    return obj.hash();
   }
 
   inline bool operator==(const MemorySchema& other) const {
@@ -165,7 +193,7 @@ class MemorySchema {
   }
 
   inline void setRootLayoutId(int16_t rootId) {
-    DCHECK(rootId < static_cast<int16_t>(layouts.size()));
+    assert(rootId < static_cast<int16_t>(layouts.size()));
     rootLayout = rootId;
   }
 
