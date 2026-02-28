@@ -95,6 +95,36 @@ class field_ref {
     *ptr_ = other.value();
   }
 
+  template <typename U>
+  friend bool operator==(field_ref const& lhs, field_ref<U> const& rhs) {
+    return lhs.value() == rhs.value();
+  }
+
+  template <typename U>
+  friend auto operator<=>(field_ref const& lhs, field_ref<U> const& rhs) {
+    return lhs.value() <=> rhs.value();
+  }
+
+  template <typename U>
+  friend bool operator==(field_ref const& lhs, U const& rhs) {
+    return lhs.value() == rhs;
+  }
+
+  template <typename U>
+  friend auto operator<=>(field_ref const& lhs, U const& rhs) {
+    return lhs.value() <=> rhs;
+  }
+
+  template <typename U>
+  friend bool operator==(U const& lhs, field_ref const& rhs) {
+    return rhs == lhs;
+  }
+
+  template <typename U>
+  friend auto operator<=>(U const& lhs, field_ref const& rhs) {
+    return rhs <=> lhs;
+  }
+
   auto has_value() const noexcept -> bool { return true; }
 
   auto value() const noexcept -> Ref { return static_cast<Ref>(*ptr_); }
@@ -190,6 +220,47 @@ class optional_field_ref {
       *ptr_ = other.value();
     }
     is_set_ = other_has_value;
+  }
+
+  template <typename U, typename V>
+  friend bool operator==(optional_field_ref const& lhs,
+                         optional_field_ref<U, V> const& rhs) {
+    if (lhs.has_value() && rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+
+  template <typename U, typename V>
+  friend auto operator<=>(optional_field_ref const& lhs,
+                          optional_field_ref<U, V> const& rhs) {
+    if (lhs.has_value() && rhs.has_value()) {
+      return lhs.value() <=> rhs.value();
+    }
+    return lhs.has_value() <=> rhs.has_value();
+  }
+
+  template <typename U>
+  friend bool operator==(optional_field_ref const& lhs, U const& rhs) {
+    return lhs.has_value() && lhs.value() == rhs;
+  }
+
+  template <typename U>
+  friend auto operator<=>(optional_field_ref const& lhs, U const& rhs) {
+    if (!lhs.has_value()) {
+      return std::strong_ordering::less;
+    }
+    return lhs.value() <=> rhs;
+  }
+
+  template <typename U>
+  friend bool operator==(U const& lhs, optional_field_ref const& rhs) {
+    return rhs == lhs;
+  }
+
+  template <typename U>
+  friend auto operator<=>(U const& lhs, optional_field_ref const& rhs) {
+    return rhs <=> lhs;
   }
 
   auto has_value() const noexcept -> bool { return static_cast<bool>(is_set_); }
