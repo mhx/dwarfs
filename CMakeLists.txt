@@ -672,7 +672,6 @@ if(WITH_TESTS)
       frozen/thrift/lib/cpp2/frozen/test/FrozenHintTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenIntegralTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenRangeTest.cpp
-      # frozen/thrift/lib/cpp2/frozen/test/FrozenReferenceTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenUtilTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenVectorAssociativeTest.cpp
