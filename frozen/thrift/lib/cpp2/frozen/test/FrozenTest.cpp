@@ -472,6 +472,59 @@ TEST(Frozen, SchemaConversion) {
   EXPECT_EQ(memSchema, schemaSaved);
 }
 
+template <typename T>
+class FrozenLayout : public testing::Test {
+ protected:
+  static T value() {
+    if constexpr (std::is_same_v<T, EveryLayout>) {
+      return stressValue2;
+    } else if constexpr (std::is_same_v<T, Person1>) {
+      return tom1;
+    } else if constexpr (std::is_same_v<T, TestFixedSizeString>) {
+      using namespace std::string_literals;
+      TestFixedSizeString s;
+      s.bytes8() = "01234567"s;
+      s.bytes4() = "abcd"s;
+      s.aMapToFreeze()[Fixed8("key1")] = "1"s;
+      s.aMap()[Fixed8("key2")] = "2"s;
+      return s;
+    }
+  }
+};
+
+TYPED_TEST_SUITE_P(FrozenLayout);
+
+TYPED_TEST_P(FrozenLayout, PrintAndClear) {
+  Layout<TypeParam> layout;
+  EXPECT_GT(LayoutRoot::layout(this->value(), layout), 0);
+
+  {
+    std::ostringstream oss;
+    layout.print(oss, 0);
+    auto const& got = oss.str();
+    EXPECT_THAT(got, testing::HasSubstr("@ bit "));
+    EXPECT_THAT(got, testing::HasSubstr("@ offset "));
+  }
+
+  layout.clear();
+
+  {
+    std::ostringstream oss;
+    layout.print(oss, 0);
+    auto const& got = oss.str();
+    EXPECT_THAT(got, testing::HasSubstr("empty"));
+    EXPECT_THAT(got, testing::HasSubstr("@ start"));
+    EXPECT_THAT(got, testing::Not(testing::HasSubstr("@ offset ")));
+    EXPECT_THAT(got, testing::Not(testing::HasSubstr(" byte ")));
+    EXPECT_THAT(got, testing::Not(testing::HasSubstr(" bit ")));
+  }
+}
+
+REGISTER_TYPED_TEST_SUITE_P(FrozenLayout, PrintAndClear);
+using TypesToLayout =
+    ::testing::Types<EveryLayout, Person1, TestFixedSizeString>;
+INSTANTIATE_TYPED_TEST_SUITE_P(Frozen, FrozenLayout, TypesToLayout);
+
 TEST(Frozen, SparseSchema) {
   {
     auto l = layout(tiny1);
