@@ -19,6 +19,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -34,7 +35,6 @@
 #include <folly/FBVector.h>
 #include <folly/MapUtil.h>
 #include <folly/Memory.h>
-#include <folly/Optional.h>
 #include <folly/Range.h>
 #include <folly/Utility.h>
 // #include <folly/container/F14Map-fwd.h>
@@ -736,10 +736,10 @@ class LayoutRoot : public FieldCycleHolder {
   FieldPosition layoutOptionalField(
       LayoutPosition self,
       FieldPosition fieldPos,
-      Field<folly::Optional<T>, Layout>& field,
+      Field<std::optional<T>, Layout>& field,
       optional_field_ref<const T&, BitRef> ref) {
     return layoutField(
-        self, fieldPos, field, ref ? folly::make_optional(*ref) : folly::none);
+        self, fieldPos, field, ref ? std::make_optional(*ref) : std::nullopt);
   }
 
   /**
@@ -857,9 +857,9 @@ class FreezeRoot {
   template <class T, class Layout, typename BitRef>
   void freezeOptionalField(
       FreezePosition self,
-      const Field<folly::Optional<T>, Layout>& field,
+      const Field<std::optional<T>, Layout>& field,
       optional_field_ref<const T&, BitRef> ref) {
-    freezeField(self, field, ref ? folly::make_optional(*ref) : folly::none);
+    freezeField(self, field, ref ? std::make_optional(*ref) : std::nullopt);
   }
 
   /**
@@ -1042,9 +1042,9 @@ void thawField(ViewPosition self, const Field<T, Layout>& f, T& out) {
 template <class T, typename BitRef>
 void thawField(
     ViewPosition self,
-    const Field<folly::Optional<T>>& f,
+    const Field<std::optional<T>>& f,
     optional_field_ref<T&, BitRef> ref) {
-  folly::Optional<T> opt;
+  std::optional<T> opt;
   f.layout.thaw(self(f.pos), opt);
   if (opt) {
     ref = opt.value();
