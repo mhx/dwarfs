@@ -89,17 +89,6 @@ bool operator!=(const OptionalFieldView<L>& lhs, const R& rhs) {
   return lhs.toStd() != rhs;
 }
 
-template <typename U>
-[[deprecated("comparison with std::optional is deprecated")]] bool operator==(
-    const OptionalFieldView<U>& lhs, const std::optional<U>& rhs) {
-  return lhs.toStd() == rhs;
-}
-template <typename U>
-[[deprecated("comparison with std::optional is deprecated")]] bool operator==(
-    const std::optional<U>& lhs, const OptionalFieldView<U>& rhs) {
-  return lhs == rhs.toStd();
-}
-
 namespace detail {
 
 /**
