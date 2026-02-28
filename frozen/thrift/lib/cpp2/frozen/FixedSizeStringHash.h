@@ -21,7 +21,6 @@
 #include <vector>
 
 #include <folly/hash/Hash.h>
-#include <folly/lang/Bits.h>
 
 #include <thrift/lib/cpp2/frozen/Traits.h>
 
