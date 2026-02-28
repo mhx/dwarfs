@@ -28,42 +28,36 @@
 
 #pragma once
 
-#include <concepts>
-#include <type_traits>
-#include <utility>
+#include <cmath>
 
 #include <dwarfs/thrift_lite/writer_options.h>
 
-namespace dwarfs::thrift_lite::internal {
+#include <dwarfs/thrift_lite/detail/concepts.h>
 
-template <typename T>
-concept writeable_type = requires(T const& v, writer_options const& opts) {
-  { v.has_any_fields_for_write(opts) } -> std::same_as<bool>;
-};
+namespace dwarfs::thrift_lite::detail {
 
-template <typename T>
-concept collection_type = requires(T const& v) {
-  typename T::value_type;
-  { v.empty() } -> std::same_as<bool>;
-};
+[[nodiscard]] auto
+should_write_regular(writer_options const& opts,
+                     writeable_type auto const& v) noexcept -> bool {
+  return !opts.terse || v.has_any_fields_for_write(opts);
+}
 
-template <typename T>
-concept basic_type = std::is_integral_v<T> || std::is_enum_v<T>;
+[[nodiscard]] auto
+should_write_regular(writer_options const& opts,
+                     collection_type auto const& v) noexcept -> bool {
+  return !opts.terse || !v.empty();
+}
 
-template <typename T>
-concept enumeration_type = std::is_enum_v<T>;
+[[nodiscard]] auto
+should_write_regular(writer_options const& opts,
+                     basic_type auto const& v) noexcept -> bool {
+  return !opts.terse || v != decltype(v){};
+}
 
-template <typename T>
-concept reservable_container_type = requires(T& v, typename T::size_type n) {
-  { v.reserve(n) } -> std::same_as<void>;
-};
+[[nodiscard]] inline auto
+should_write_regular(writer_options const& opts, double const& v) noexcept
+    -> bool {
+  return !opts.terse || std::fpclassify(v) != FP_ZERO;
+}
 
-template <typename T>
-concept emplaceable_map_type =
-    requires(T& v, typename T::key_type k, typename T::mapped_type m) {
-      {
-        v.emplace(k, m)
-      } -> std::same_as<std::pair<typename T::iterator, bool>>;
-    };
-
-} // namespace dwarfs::thrift_lite::internal
+} // namespace dwarfs::thrift_lite::detail

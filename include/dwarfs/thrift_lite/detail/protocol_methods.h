@@ -31,15 +31,14 @@
 #include <initializer_list>
 #include <type_traits>
 
-#include <dwarfs/thrift_lite/internal/concepts.h>
-#include <dwarfs/thrift_lite/internal/protocol_type.h>
-#include <dwarfs/thrift_lite/internal/type_class.h>
+#include <dwarfs/thrift_lite/detail/concepts.h>
+#include <dwarfs/thrift_lite/detail/protocol_type.h>
+#include <dwarfs/thrift_lite/detail/type_class.h>
 
-#include <dwarfs/thrift_lite/protocol_reader.h>
-#include <dwarfs/thrift_lite/protocol_writer.h>
+#include <dwarfs/thrift_lite/concepts.h>
 #include <dwarfs/thrift_lite/types.h>
 
-namespace dwarfs::thrift_lite::internal {
+namespace dwarfs::thrift_lite::detail {
 
 namespace detail {
 
@@ -50,8 +49,14 @@ void try_reserve(T& v, typename T::size_type n) {
   }
 }
 
-void skip_elements(protocol_reader& r, std::int32_t size,
-                   std::initializer_list<ttype> element_types);
+inline void skip_elements(protocol_reader_type auto& r, std::int32_t const size,
+                          std::initializer_list<ttype> element_types) {
+  for (auto i = std::int32_t{0}; i < size; ++i) {
+    for (auto t : element_types) {
+      r.skip(t);
+    }
+  }
+}
 
 } // namespace detail
 
@@ -61,24 +66,28 @@ struct protocol_methods;
 template <>
 struct protocol_methods<type_class::integral, bool> {
   using type = bool;
-  static void read(protocol_reader& r, type& out) { out = r.read_bool(); }
-  static void write(protocol_writer& w, type v) { w.write_bool(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_bool();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_bool(v); }
 };
 
 template <>
 struct protocol_methods<type_class::integral, std::int8_t> {
   using type = std::int8_t;
-  static void read(protocol_reader& r, type& out) { out = r.read_byte(); }
-  static void write(protocol_writer& w, type v) { w.write_byte(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_byte();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_byte(v); }
 };
 
 template <>
 struct protocol_methods<type_class::integral, std::uint8_t> {
   using type = std::uint8_t;
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     out = static_cast<type>(r.read_byte());
   }
-  static void write(protocol_writer& w, type v) {
+  static void write(protocol_writer_type auto& w, type v) {
     w.write_byte(static_cast<std::int8_t>(v));
   }
 };
@@ -86,17 +95,19 @@ struct protocol_methods<type_class::integral, std::uint8_t> {
 template <>
 struct protocol_methods<type_class::integral, std::int16_t> {
   using type = std::int16_t;
-  static void read(protocol_reader& r, type& out) { out = r.read_i16(); }
-  static void write(protocol_writer& w, type v) { w.write_i16(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_i16();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_i16(v); }
 };
 
 template <>
 struct protocol_methods<type_class::integral, std::uint16_t> {
   using type = std::uint16_t;
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     out = static_cast<type>(r.read_i16());
   }
-  static void write(protocol_writer& w, type v) {
+  static void write(protocol_writer_type auto& w, type v) {
     w.write_i16(static_cast<std::int16_t>(v));
   }
 };
@@ -104,17 +115,19 @@ struct protocol_methods<type_class::integral, std::uint16_t> {
 template <>
 struct protocol_methods<type_class::integral, std::int32_t> {
   using type = std::int32_t;
-  static void read(protocol_reader& r, type& out) { out = r.read_i32(); }
-  static void write(protocol_writer& w, type v) { w.write_i32(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_i32();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_i32(v); }
 };
 
 template <>
 struct protocol_methods<type_class::integral, std::uint32_t> {
   using type = std::uint32_t;
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     out = static_cast<type>(r.read_i32());
   }
-  static void write(protocol_writer& w, type v) {
+  static void write(protocol_writer_type auto& w, type v) {
     w.write_i32(static_cast<std::int32_t>(v));
   }
 };
@@ -122,17 +135,19 @@ struct protocol_methods<type_class::integral, std::uint32_t> {
 template <>
 struct protocol_methods<type_class::integral, std::int64_t> {
   using type = std::int64_t;
-  static void read(protocol_reader& r, type& out) { out = r.read_i64(); }
-  static void write(protocol_writer& w, type v) { w.write_i64(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_i64();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_i64(v); }
 };
 
 template <>
 struct protocol_methods<type_class::integral, std::uint64_t> {
   using type = std::uint64_t;
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     out = static_cast<type>(r.read_i64());
   }
-  static void write(protocol_writer& w, type v) {
+  static void write(protocol_writer_type auto& w, type v) {
     w.write_i64(static_cast<std::int64_t>(v));
   }
 };
@@ -140,17 +155,19 @@ struct protocol_methods<type_class::integral, std::uint64_t> {
 template <>
 struct protocol_methods<type_class::floating, double> {
   using type = double;
-  static void read(protocol_reader& r, type& out) { out = r.read_double(); }
-  static void write(protocol_writer& w, type v) { w.write_double(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    out = r.read_double();
+  }
+  static void write(protocol_writer_type auto& w, type v) { w.write_double(v); }
 };
 
 template <enumeration_type T>
 struct protocol_methods<type_class::enumeration, T> {
   using type = T;
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     out = static_cast<type>(r.read_i32());
   }
-  static void write(protocol_writer& w, type v) {
+  static void write(protocol_writer_type auto& w, type v) {
     w.write_i32(static_cast<std::int32_t>(v));
   }
 };
@@ -158,22 +175,30 @@ struct protocol_methods<type_class::enumeration, T> {
 template <typename T>
 struct protocol_methods<type_class::binary, T> {
   using type = T;
-  static void read(protocol_reader& r, type& out) { r.read_binary(out); }
-  static void write(protocol_writer& w, type const& v) { w.write_binary(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    r.read_binary(out);
+  }
+  static void write(protocol_writer_type auto& w, type const& v) {
+    w.write_binary(v);
+  }
 };
 
 template <typename T>
 struct protocol_methods<type_class::string, T> {
   using type = T;
-  static void read(protocol_reader& r, type& out) { r.read_string(out); }
-  static void write(protocol_writer& w, type const& v) { w.write_string(v); }
+  static void read(protocol_reader_type auto& r, type& out) {
+    r.read_string(out);
+  }
+  static void write(protocol_writer_type auto& w, type const& v) {
+    w.write_string(v);
+  }
 };
 
 template <typename T>
 struct protocol_methods<type_class::structure, T> {
   using type = T;
-  static void read(protocol_reader& r, type& out) { out.read(r); }
-  static void write(protocol_writer& w, type const& v) { v.write(w); }
+  static void read(protocol_reader_type auto& r, type& out) { out.read(r); }
+  static void write(protocol_writer_type auto& w, type const& v) { v.write(w); }
 };
 
 template <typename ValueTypeClass, typename T>
@@ -182,7 +207,7 @@ struct protocol_methods<type_class::list<ValueTypeClass>, T> {
   using value_type = typename type::value_type;
   using value_protocol_methods = protocol_methods<ValueTypeClass, value_type>;
 
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     auto elem_type = ttype{};
     auto size = std::int32_t{};
 
@@ -202,7 +227,7 @@ struct protocol_methods<type_class::list<ValueTypeClass>, T> {
     r.read_list_end();
   }
 
-  static void write(protocol_writer& w, type const& v) {
+  static void write(protocol_writer_type auto& w, type const& v) {
     w.write_list_begin(ttype_v<ValueTypeClass, value_type>,
                        static_cast<std::int32_t>(v.size()));
     for (auto const& elem : v) {
@@ -218,7 +243,7 @@ struct protocol_methods<type_class::set<ValueTypeClass>, T> {
   using value_type = typename type::value_type;
   using value_protocol_methods = protocol_methods<ValueTypeClass, value_type>;
 
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     auto elem_type = ttype{};
     auto size = std::int32_t{};
 
@@ -240,7 +265,7 @@ struct protocol_methods<type_class::set<ValueTypeClass>, T> {
     r.read_set_end();
   }
 
-  static void write(protocol_writer& w, type const& v) {
+  static void write(protocol_writer_type auto& w, type const& v) {
     w.write_set_begin(ttype_v<ValueTypeClass, value_type>,
                       static_cast<std::int32_t>(v.size()));
     for (auto const& elem : v) {
@@ -259,7 +284,7 @@ struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
   using mapped_protocol_methods =
       protocol_methods<MappedTypeClass, mapped_type>;
 
-  static void read(protocol_reader& r, type& out) {
+  static void read(protocol_reader_type auto& r, type& out) {
     auto key_tt = ttype{};
     auto mapped_tt = ttype{};
     auto size = std::int32_t{};
@@ -289,7 +314,7 @@ struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
     r.read_map_end();
   }
 
-  static void write(protocol_writer& w, type const& v) {
+  static void write(protocol_writer_type auto& w, type const& v) {
     w.write_map_begin(ttype_v<KeyTypeClass, key_type>,
                       ttype_v<MappedTypeClass, mapped_type>,
                       static_cast<std::int32_t>(v.size()));
@@ -301,4 +326,4 @@ struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
   }
 };
 
-} // namespace dwarfs::thrift_lite::internal
+} // namespace dwarfs::thrift_lite::detail
