@@ -22,7 +22,7 @@
  */
 #define FROZEN_FIELD(NAME, ID, /*TYPE*/...) Field<__VA_ARGS__> NAME##Field;
 #define FROZEN_FIELD_OPT(NAME, ID, /*TYPE*/...) \
-  Field<folly::Optional<__VA_ARGS__>> NAME##Field;
+  Field<std::optional<__VA_ARGS__>> NAME##Field;
 #define FROZEN_FIELD_REQ FROZEN_FIELD
 #define FROZEN_FIELD_REF FROZEN_FIELD
 
