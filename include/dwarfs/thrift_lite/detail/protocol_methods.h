@@ -36,18 +36,12 @@
 #include <dwarfs/thrift_lite/detail/type_class.h>
 
 #include <dwarfs/thrift_lite/concepts.h>
+#include <dwarfs/thrift_lite/container.h>
 #include <dwarfs/thrift_lite/types.h>
 
 namespace dwarfs::thrift_lite::detail {
 
 namespace detail {
-
-template <typename T>
-void try_reserve(T& v, typename T::size_type n) {
-  if constexpr (reservable_container_type<T>) {
-    v.reserve(n);
-  }
-}
 
 inline void skip_elements(protocol_reader_type auto& r, std::int32_t const size,
                           std::initializer_list<ttype> element_types) {
@@ -215,7 +209,7 @@ struct protocol_methods<type_class::list<ValueTypeClass>, T> {
     out.clear();
 
     if (elem_type == ttype_v<ValueTypeClass, value_type>) {
-      detail::try_reserve(out, size);
+      try_reserve(out, size);
 
       for (auto i = std::int32_t{0}; i < size; ++i) {
         value_protocol_methods::read(r, out.emplace_back());
@@ -251,7 +245,7 @@ struct protocol_methods<type_class::set<ValueTypeClass>, T> {
     out.clear();
 
     if (elem_type == ttype_v<ValueTypeClass, value_type>) {
-      detail::try_reserve(out, size);
+      try_reserve(out, size);
 
       for (auto i = std::int32_t{0}; i < size; ++i) {
         value_type tmp;
@@ -294,7 +288,7 @@ struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
 
     if (key_tt == ttype_v<KeyTypeClass, key_type> &&
         mapped_tt == ttype_v<MappedTypeClass, mapped_type>) {
-      detail::try_reserve(out, size);
+      try_reserve(out, size);
 
       for (auto i = std::int32_t{0}; i < size; ++i) {
         key_type tmp_key;
