@@ -920,7 +920,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wfloat-equal"
             #endif
-              bool operator==({s.name} const&) const = default;
+              friend bool operator==({s.name} const& lhs, {s.name} const& rhs) = default;
             #ifdef __GNUC__
             #pragma GCC diagnostic pop
             #endif
