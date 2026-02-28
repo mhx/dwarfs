@@ -21,8 +21,8 @@
 
 using namespace apache::thrift::frozen;
 using namespace apache::thrift::test;
-using folly::ByteRange;
-using folly::StringPiece;
+using std::span<uint8_t const>;
+using std::string_view;
 
 namespace {
 byte test[]{0xDE, 0xAD, 0x00, 0xBE, 0xEF};

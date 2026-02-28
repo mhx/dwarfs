@@ -28,7 +28,7 @@ TEST(FrozenVectorTypes, Unpacked) {
   auto fiu = freeze(viu);
   EXPECT_EQ(fiu[2], 5);
   EXPECT_EQ(fiu.end()[-1], 17);
-  const int* raw = fiu.begin();
+  const int* raw = fiu.data();
   EXPECT_EQ(raw[3], 7);
 }
 } // namespace apache::thrift::frozen

@@ -71,7 +71,7 @@ BENCHMARK_RELATIVE(FrozenFreezePreallocate, iters) {
   setup.dismiss();
   while (iters--) {
     std::array<byte, 1024> buffer;
-    auto write = folly::MutableByteRange(buffer.begin(), buffer.end());
+    auto write = std::span<uint8_t>(buffer.begin(), buffer.end());
     ByteRangeFreezer::freeze(layout, stressValue2, write);
     s += buffer.size() - write.size();
   }

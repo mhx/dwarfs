@@ -95,7 +95,7 @@ struct ArrayLayout : public LayoutBase {
     }
     size_t itemBytes = itemField.layout.size;
     size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
-    folly::MutableByteRange range;
+    std::span<uint8_t> range;
     size_t dist;
     size_t align = IsBlitType<Item>::value ? alignof(Item) : 1;
     root.appendBytes(
@@ -107,7 +107,7 @@ struct ArrayLayout : public LayoutBase {
 
     root.freezeField(self, distanceField, dist);
 
-    FreezePosition write{range.begin(), 0};
+    FreezePosition write{range.data(), 0};
     FieldPosition writeStep(itemBytes, itemBits);
     freezeItems(root, coll, self, write, writeStep);
   }
@@ -215,7 +215,7 @@ struct ArrayLayout : public LayoutBase {
     bool empty() const { return !count_; }
     size_t size() const { return count_; }
 
-    folly::Range<const Item*> range() const {
+    std::span<const Item> range() const {
       static_assert(apache::thrift::frozen::detail::IsBlitType<Item>::value);
       auto data = reinterpret_cast<const Item*>(data_);
       return {data, data + count_};

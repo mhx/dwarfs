@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cassert>
+
 namespace apache {
 namespace thrift {
 namespace frozen {
@@ -32,8 +34,9 @@ class FOLLY_EXPORT FixedSizeMismatchException : public std::length_error {
 
 /**
  * Serializes a string blob with a fixed size. Similar to TrivialLayout, but
- * uses folly::ByteRange as the view. During freezing, an exception will be
- * thrown if the actual size doesn't match what's specified in the IDL schema.
+ * uses std::span<uint8_t const> as the view. During freezing, an exception will
+ * be thrown if the actual size doesn't match what's specified in the IDL
+ * schema.
  */
 template <typename T>
 struct FixedSizeStringLayout : public LayoutBase {
@@ -66,17 +69,21 @@ struct FixedSizeStringLayout : public LayoutBase {
     os << folly::demangle(type.name());
   }
 
-  struct View : public folly::ByteRange {
+  struct View final : public std::span<uint8_t const> {
    public:
-    using folly::ByteRange::ByteRange;
+    using std::span<uint8_t const>::span;
 
-    View(folly::ByteRange bytes) : folly::ByteRange(bytes) {}
+    View(std::span<uint8_t const> bytes) : std::span<uint8_t const>(bytes) {
+      assert(bytes.size() == T::kFixedSize);
+    }
 
-    bool operator==(View rhs) {
+    bool operator==(View rhs) const {
       return memcmp(this->data(), rhs.data(), T::kFixedSize) == 0;
     }
 
-    using folly::ByteRange::toString;
+    std::string toString() const {
+      return {reinterpret_cast<const char*>(this->data()), this->size()};
+    }
   };
 
   View view(ViewPosition self) const { return View(self.start, T::kFixedSize); }

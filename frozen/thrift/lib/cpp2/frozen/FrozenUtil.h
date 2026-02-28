@@ -71,12 +71,12 @@ class MallocFreezer final : public FreezeRoot {
  private:
   size_t distanceToEnd(const byte* origin) const;
 
-  folly::MutableByteRange appendBuffer(size_t size);
+  std::span<uint8_t> appendBuffer(size_t size);
 
   void doAppendBytes(
       byte* origin,
       size_t n,
-      folly::MutableByteRange& range,
+      std::span<uint8_t>& range,
       size_t& distance,
       size_t alignment) override;
 
@@ -95,6 +95,16 @@ class MallocFreezer final : public FreezeRoot {
   std::vector<Segment> segments_;
   size_t size_{0};
 };
+
+[[nodiscard]] inline std::span<uint8_t> make_mutable_byte_span(
+    std::string& str) {
+  return {reinterpret_cast<uint8_t*>(str.data()), str.size()};
+}
+
+[[nodiscard]] inline std::span<uint8_t const> make_byte_span(
+    std::string_view sv) {
+  return {reinterpret_cast<uint8_t const*>(sv.data()), sv.size()};
+}
 
 /**
  * Returns an upper bound estimate of the number of bytes required to freeze
@@ -139,11 +149,10 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
 }
 
 template <class T>
-void deserializeRootLayout(folly::ByteRange& range, Layout<T>& layoutOut) {
+void deserializeRootLayout(
+    std::span<uint8_t const>& range, Layout<T>& layoutOut) {
   schema::Schema schema;
-  ::dwarfs::thrift_lite::compact_reader reader(
-      std::span(
-          reinterpret_cast<std::byte const*>(range.data()), range.size()));
+  ::dwarfs::thrift_lite::compact_reader reader(std::as_bytes(range));
   schema.read(reader);
   size_t schemaSize = reader.consumed_bytes();
 
@@ -155,7 +164,7 @@ void deserializeRootLayout(folly::ByteRange& range, Layout<T>& layoutOut) {
   schema::MemorySchema memSchema;
   schema::convert(std::move(schema), memSchema);
   loadRoot(layoutOut, memSchema);
-  range.advance(schemaSize);
+  range = range.subspan(schemaSize);
 }
 
 template <class T>
@@ -190,8 +199,8 @@ void freezeToString(const T& x, std::string& out) {
   size_t schemaSize = out.size();
   size_t bufferSize = schemaSize + contentSize;
   out.resize(bufferSize, 0);
-  folly::MutableByteRange writeRange(
-      reinterpret_cast<byte*>(&out[schemaSize]), contentSize);
+  auto writeRange =
+      make_mutable_byte_span(out).subspan(schemaSize, contentSize);
   ByteRangeFreezer::freeze(layout, x, writeRange);
   out.resize(out.size() - writeRange.size());
 }
@@ -244,17 +253,17 @@ template <class T>
 using MappedFrozen = Bundled<typename Layout<T>::View>;
 
 template <class T>
-MappedFrozen<T> mapFrozen(folly::ByteRange range) {
+MappedFrozen<T> mapFrozen(std::span<uint8_t const> range) {
   auto layout = std::make_unique<Layout<T>>();
   deserializeRootLayout(range, *layout);
-  MappedFrozen<T> ret(layout->view({range.begin(), 0}));
+  MappedFrozen<T> ret(layout->view({range.data(), 0}));
   ret.hold(std::move(layout));
   return ret;
 }
 
 template <class T>
-MappedFrozen<T> mapFrozen(folly::StringPiece range) {
-  return mapFrozen<T>(folly::ByteRange(range));
+MappedFrozen<T> mapFrozen(std::string_view range) {
+  return mapFrozen<T>(make_byte_span(range));
 }
 
 template <class T>
@@ -274,16 +283,16 @@ MappedFrozen<T> mapFrozen(std::string&& str, bool trim = true) {
   auto layout = std::make_unique<Layout<T>>();
   auto holder = std::make_unique<HolderImpl<std::string>>(std::move(str));
   auto& ownedStr = holder->t_;
-  folly::ByteRange rangeBefore = folly::StringPiece(ownedStr);
-  folly::ByteRange range = rangeBefore;
+  auto const rangeBefore = make_byte_span(ownedStr);
+  auto range = rangeBefore;
   deserializeRootLayout(range, *layout);
   if (trim) {
-    size_t trimSize = range.begin() - rangeBefore.begin();
+    size_t trimSize = range.data() - rangeBefore.data();
     ownedStr.erase(ownedStr.begin(), ownedStr.begin() + trimSize);
     ownedStr.shrink_to_fit();
-    range = folly::StringPiece(ownedStr);
+    range = make_byte_span(ownedStr);
   }
-  MappedFrozen<T> ret(layout->view({range.begin(), 0}));
+  MappedFrozen<T> ret(layout->view({range.data(), 0}));
   ret.holdImpl(std::move(holder));
   ret.hold(std::move(layout));
   return ret;
