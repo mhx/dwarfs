@@ -183,6 +183,7 @@ struct OptionalLayout : public LayoutBase {
   }
 
   void clear() final {
+    LayoutBase::clear();
     issetField.clear();
     valueField.clear();
   }
