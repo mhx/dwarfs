@@ -30,7 +30,7 @@ using namespace apache::thrift::test;
 
 class CompatibilityTest : public ::testing::TestWithParam<Case> {
  public:
-  static std::string filePath(folly::StringPiece name) {
+  static std::string filePath(std::string_view name) {
     return folly::to<std::string>(
         "thrift/lib/cpp2/frozen/test/compatibility/", name);
   }

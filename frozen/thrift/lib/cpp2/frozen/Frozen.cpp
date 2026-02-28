@@ -71,24 +71,24 @@ void LayoutBase::clear() {
 void ByteRangeFreezer::doAppendBytes(
     byte* origin,
     size_t n,
-    folly::MutableByteRange& range,
+    std::span<uint8_t>& range,
     size_t& distance,
     size_t alignment) {
-  CHECK_LE(origin, write_.begin());
+  CHECK_LE(origin, write_.data());
   if (!n) {
     distance = 0;
-    range.reset(nullptr, 0);
+    range = {};
     return;
   }
-  auto start = reinterpret_cast<intptr_t>(write_.begin());
+  auto start = reinterpret_cast<intptr_t>(write_.data());
   auto aligned = alignBy(start, alignment);
   auto padding = aligned - start;
   if (padding + n > write_.size()) {
     throw std::length_error("Insufficient buffer allocated");
   }
-  range.reset(write_.begin() + padding, n);
-  write_.advance(padding + n);
-  distance = range.begin() - origin;
+  range = write_.subspan(padding, n);
+  write_ = write_.subspan(padding + n);
+  distance = range.data() - origin;
 }
 
 namespace detail {

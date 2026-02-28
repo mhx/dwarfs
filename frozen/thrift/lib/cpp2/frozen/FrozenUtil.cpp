@@ -61,11 +61,11 @@ size_t MallocFreezer::distanceToEnd(const byte* ptr) const {
   return (size_ - offsetIt->second) - (ptr - offsetIt->first);
 }
 
-folly::MutableByteRange MallocFreezer::appendBuffer(size_t size) {
+std::span<uint8_t> MallocFreezer::appendBuffer(size_t size) {
   Segment segment(size);
   offsets_.emplace(segment.buffer, size_);
 
-  folly::MutableByteRange range(segment.buffer, size);
+  std::span<uint8_t> range(segment.buffer, size);
   size_ += segment.size;
   segments_.push_back(std::move(segment));
   return range;
@@ -74,18 +74,18 @@ folly::MutableByteRange MallocFreezer::appendBuffer(size_t size) {
 void MallocFreezer::doAppendBytes(
     byte* origin,
     size_t n,
-    folly::MutableByteRange& range,
+    std::span<uint8_t>& range,
     size_t& distance,
     size_t alignment) {
   if (!n) {
     distance = 0;
-    range.reset(nullptr, 0);
+    range = {};
     return;
   }
   auto aligned = alignBy(size_, alignment);
   auto padding = aligned - size_;
   distance = distanceToEnd(origin) + padding;
   range = appendBuffer(padding + n);
-  range.advance(padding);
+  range = range.subspan(padding);
 }
 } // namespace apache::thrift::frozen

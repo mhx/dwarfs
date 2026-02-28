@@ -35,7 +35,6 @@
 #include <folly/FBVector.h>
 #include <folly/MapUtil.h>
 #include <folly/Memory.h>
-#include <folly/Range.h>
 #include <folly/Utility.h>
 // #include <folly/container/F14Map-fwd.h>
 // #include <folly/container/F14Set-fwd.h>
@@ -830,12 +829,13 @@ class FreezeRoot {
 
   template <class T>
   typename Layout<T>::View doFreeze(const Layout<T>& layout, const T& root) {
-    folly::MutableByteRange range, tail;
+    std::span<uint8_t> range, tail;
     size_t dist;
     appendBytes(nullptr, layout.size, range, dist, 1);
-    layout.freeze(*this, root, {range.begin(), 0});
-    appendBytes(range.end(), LayoutRoot::kPaddingBytes, tail, dist, 1);
-    return layout.view({range.begin(), 0});
+    layout.freeze(*this, root, {range.data(), 0});
+    appendBytes(
+        range.data() + range.size(), LayoutRoot::kPaddingBytes, tail, dist, 1);
+    return layout.view({range.data(), 0});
   }
 
  public:
@@ -885,7 +885,7 @@ class FreezeRoot {
   void appendBytes(
       byte* origin,
       size_t n,
-      folly::MutableByteRange& range,
+      std::span<uint8_t>& range,
       size_t& distance,
       size_t align) {
     doAppendBytes(origin, n, range, distance, align);
@@ -895,7 +895,7 @@ class FreezeRoot {
   virtual void doAppendBytes(
       byte* origin,
       size_t n,
-      folly::MutableByteRange& range,
+      std::span<uint8_t>& range,
       size_t& distance,
       size_t align) = 0;
 };
@@ -909,12 +909,12 @@ inline size_t alignBy(size_t start, size_t alignment) {
  */
 class ByteRangeFreezer final : public FreezeRoot {
  protected:
-  explicit ByteRangeFreezer(folly::MutableByteRange& write) : write_(write) {}
+  explicit ByteRangeFreezer(std::span<uint8_t>& write) : write_(write) {}
 
  public:
   template <class T>
   static typename Layout<T>::View freeze(
-      const Layout<T>& layout, const T& root, folly::MutableByteRange& write) {
+      const Layout<T>& layout, const T& root, std::span<uint8_t>& write) {
     ByteRangeFreezer freezer(write);
     auto view = freezer.doFreeze(layout, root);
     return view;
@@ -924,11 +924,11 @@ class ByteRangeFreezer final : public FreezeRoot {
   void doAppendBytes(
       byte* origin,
       size_t n,
-      folly::MutableByteRange& range,
+      std::span<uint8_t>& range,
       size_t& distance,
       size_t alignment) override;
 
-  folly::MutableByteRange& write_;
+  std::span<uint8_t>& write_;
 };
 
 /**
@@ -1018,7 +1018,7 @@ Return freeze(const T& x, Frozen2 = Frozen2::Marker) {
   std::unique_ptr<Layout<T>> layout(new Layout<T>);
   size_t size = LayoutRoot::layout(x, *layout);
   std::unique_ptr<byte[]> storage(new byte[size]);
-  folly::MutableByteRange write(storage.get(), size);
+  std::span<uint8_t> write(storage.get(), size);
   Return ret(ByteRangeFreezer::freeze(*layout, x, write));
   ret.hold(std::move(layout));
   ret.hold(std::move(storage));

@@ -52,7 +52,7 @@ std::pair<shared_byte_buffer, shared_byte_buffer> freeze_to_buffer(T const& x) {
 
   auto data_buffer = malloc_byte_buffer::create_zeroed(content_size);
 
-  folly::MutableByteRange content_range(data_buffer.data(), data_buffer.size());
+  std::span<uint8_t> content_range(data_buffer.data(), data_buffer.size());
   ByteRangeFreezer::freeze(layout, x, content_range);
 
   data_buffer.resize(data_buffer.size() - content_range.size());
