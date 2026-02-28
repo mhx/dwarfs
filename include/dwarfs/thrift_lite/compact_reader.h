@@ -37,7 +37,7 @@
 #include <string>
 #include <vector>
 
-#include <dwarfs/thrift_lite/protocol_reader.h>
+#include <dwarfs/thrift_lite/concepts.h>
 #include <dwarfs/thrift_lite/types.h>
 
 namespace dwarfs::thrift_lite {
@@ -48,42 +48,41 @@ struct decode_options {
   std::uint32_t max_string_bytes{std::numeric_limits<std::uint32_t>::max()};
 };
 
-class compact_reader : public protocol_reader {
+class compact_reader final {
  public:
   explicit compact_reader(std::span<std::byte const> in,
                           decode_options const& options = {});
 
-  auto consumed_bytes() const noexcept -> std::size_t override;
-  auto remaining_bytes() const noexcept -> std::size_t override;
+  auto consumed_bytes() const noexcept -> std::size_t;
+  auto remaining_bytes() const noexcept -> std::size_t;
 
-  void read_struct_begin() override;
-  void read_struct_end() override;
+  void read_struct_begin();
+  void read_struct_end();
 
-  void read_field_begin(ttype& type, std::int16_t& field_id) override;
-  void read_field_end() override;
+  void read_field_begin(ttype& type, std::int16_t& field_id);
+  void read_field_end();
 
-  auto read_bool() -> bool override;
-  auto read_byte() -> std::int8_t override;
-  auto read_i16() -> std::int16_t override;
-  auto read_i32() -> std::int32_t override;
-  auto read_i64() -> std::int64_t override;
+  auto read_bool() -> bool;
+  auto read_byte() -> std::int8_t;
+  auto read_i16() -> std::int16_t;
+  auto read_i32() -> std::int32_t;
+  auto read_i64() -> std::int64_t;
 
-  auto read_double() -> double override;
+  auto read_double() -> double;
 
-  void read_binary(std::vector<std::byte>& out) override;
-  void read_string(std::string& out) override;
+  void read_binary(std::vector<std::byte>& out);
+  void read_string(std::string& out);
 
-  void read_list_begin(ttype& elem_type, std::int32_t& size) override;
-  void read_list_end() override;
+  void read_list_begin(ttype& elem_type, std::int32_t& size);
+  void read_list_end();
 
-  void read_set_begin(ttype& elem_type, std::int32_t& size) override;
-  void read_set_end() override;
+  void read_set_begin(ttype& elem_type, std::int32_t& size);
+  void read_set_end();
 
-  void
-  read_map_begin(ttype& key_type, ttype& val_type, std::int32_t& size) override;
-  void read_map_end() override;
+  void read_map_begin(ttype& key_type, ttype& val_type, std::int32_t& size);
+  void read_map_end();
 
-  void skip(ttype type) override;
+  void skip(ttype type);
 
  private:
   auto take_u8() -> std::uint8_t;
@@ -112,5 +111,7 @@ class compact_reader : public protocol_reader {
   std::uint32_t struct_depth_{0};
   std::optional<bool> pending_bool_value_{};
 };
+
+static_assert(protocol_reader_type<compact_reader>);
 
 } // namespace dwarfs::thrift_lite

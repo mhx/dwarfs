@@ -36,7 +36,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include <dwarfs/thrift_lite/protocol_writer.h>
+#include <dwarfs/thrift_lite/concepts.h>
 #include <dwarfs/thrift_lite/types.h>
 #include <dwarfs/thrift_lite/writer_options.h>
 
@@ -46,41 +46,40 @@ struct json_writer_options : public writer_options {
   std::size_t indent_step = 2;
 };
 
-class json_writer final : public protocol_writer {
+class json_writer final {
  public:
   explicit json_writer(std::ostream& os,
                        json_writer_options const& options = {}) noexcept;
 
-  auto options() const -> writer_options const& override;
+  auto options() const -> writer_options const&;
 
-  void write_struct_begin(std::string_view name) override;
-  void write_struct_end() override;
-
-  void write_field_begin(std::string_view name, ttype type,
-                         std::int16_t field_id) override;
-  void write_field_end() override;
-  void write_field_stop() override;
-
-  void write_bool(bool v) override;
-  void write_byte(std::int8_t v) override;
-  void write_i16(std::int16_t v) override;
-  void write_i32(std::int32_t v) override;
-  void write_i64(std::int64_t v) override;
-
-  void write_double(double v) override;
-
-  void write_binary(std::span<std::byte const> v) override;
-  void write_string(std::string_view v) override;
-
-  void write_list_begin(ttype elem_type, std::int32_t size) override;
-  void write_list_end() override;
-
-  void write_set_begin(ttype elem_type, std::int32_t size) override;
-  void write_set_end() override;
+  void write_struct_begin(std::string_view name);
+  void write_struct_end();
 
   void
-  write_map_begin(ttype key_type, ttype val_type, std::int32_t size) override;
-  void write_map_end() override;
+  write_field_begin(std::string_view name, ttype type, std::int16_t field_id);
+  void write_field_end();
+  void write_field_stop();
+
+  void write_bool(bool v);
+  void write_byte(std::int8_t v);
+  void write_i16(std::int16_t v);
+  void write_i32(std::int32_t v);
+  void write_i64(std::int64_t v);
+
+  void write_double(double v);
+
+  void write_binary(std::span<std::byte const> v);
+  void write_string(std::string_view v);
+
+  void write_list_begin(ttype elem_type, std::int32_t size);
+  void write_list_end();
+
+  void write_set_begin(ttype elem_type, std::int32_t size);
+  void write_set_end();
+
+  void write_map_begin(ttype key_type, ttype val_type, std::int32_t size);
+  void write_map_end();
 
  private:
   enum class container_kind {
@@ -122,5 +121,7 @@ class json_writer final : public protocol_writer {
   std::vector<container_ctx> stack_;
   json_writer_options options_;
 };
+
+static_assert(protocol_writer_type<json_writer>);
 
 } // namespace dwarfs::thrift_lite

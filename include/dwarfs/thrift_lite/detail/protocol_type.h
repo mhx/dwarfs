@@ -30,13 +30,13 @@
 
 #include <concepts>
 
-#include <dwarfs/thrift_lite/internal/concepts.h>
-#include <dwarfs/thrift_lite/internal/type_class.h>
+#include <dwarfs/thrift_lite/detail/concepts.h>
+#include <dwarfs/thrift_lite/detail/type_class.h>
 
 #include <dwarfs/thrift_lite/traits.h>
 #include <dwarfs/thrift_lite/types.h>
 
-namespace dwarfs::thrift_lite::internal {
+namespace dwarfs::thrift_lite::detail {
 
 namespace detail {
 
@@ -125,4 +125,4 @@ template <typename TypeClass, typename T>
 constexpr inline auto ttype_v =
     detail::protocol_type<TypeClass>::template get_ttype<T>();
 
-} // namespace dwarfs::thrift_lite::internal
+} // namespace dwarfs::thrift_lite::detail

@@ -233,7 +233,6 @@ add_library(
   src/thrift_lite/json_writer.cpp
 
   src/thrift_lite/internal/compact_wire.cpp
-  src/thrift_lite/internal/protocol_methods.cpp
 )
 
 set_property(TARGET dwarfs_thrift_lite_v2 PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})

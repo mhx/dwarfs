@@ -28,27 +28,42 @@
 
 #pragma once
 
-namespace dwarfs::thrift_lite::internal::type_class {
+#include <concepts>
+#include <type_traits>
+#include <utility>
 
-struct integral {};
+#include <dwarfs/thrift_lite/writer_options.h>
 
-struct floating {};
+namespace dwarfs::thrift_lite::detail {
 
-struct enumeration {};
+template <typename T>
+concept writeable_type = requires(T const& v, writer_options const& opts) {
+  { v.has_any_fields_for_write(opts) } -> std::same_as<bool>;
+};
 
-struct binary {};
+template <typename T>
+concept collection_type = requires(T const& v) {
+  typename T::value_type;
+  { v.empty() } -> std::same_as<bool>;
+};
 
-struct string {};
+template <typename T>
+concept basic_type = std::is_integral_v<T> || std::is_enum_v<T>;
 
-struct structure {};
+template <typename T>
+concept enumeration_type = std::is_enum_v<T>;
 
-template <typename ValueTypeClass>
-struct list {};
+template <typename T>
+concept reservable_container_type = requires(T& v, typename T::size_type n) {
+  { v.reserve(n) } -> std::same_as<void>;
+};
 
-template <typename ValueTypeClass>
-struct set {};
+template <typename T>
+concept emplaceable_map_type =
+    requires(T& v, typename T::key_type k, typename T::mapped_type m) {
+      {
+        v.emplace(k, m)
+      } -> std::same_as<std::pair<typename T::iterator, bool>>;
+    };
 
-template <typename KeyTypeClass, typename MappedTypeClass>
-struct map {};
-
-} // namespace dwarfs::thrift_lite::internal::type_class
+} // namespace dwarfs::thrift_lite::detail
