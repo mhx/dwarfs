@@ -17,6 +17,7 @@
 #pragma once
 
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <iosfwd>
 #include <iterator>
@@ -50,6 +51,8 @@
 #include <thrift/lib/cpp2/frozen/Traits.h>
 #include <thrift/lib/cpp2/frozen/schema/MemorySchema.h>
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
+
+#include <dwarfs/thrift_lite/assert.h>
 
 namespace apache::thrift::frozen {
 
@@ -104,7 +107,7 @@ struct FieldPosition {
   int32_t bitOffset; // bit offset from owning structure's start
   explicit FieldPosition(int32_t _offset = 0, int32_t _bitOffset = 0)
       : offset(_offset), bitOffset(_bitOffset) {
-    DCHECK(!offset || !bitOffset);
+    assert(!offset || !bitOffset);
   }
 };
 
@@ -565,7 +568,7 @@ class FieldCycleHolder {
       }
       slot.field = owned.get();
     }
-    CHECK(slot.field);
+    TL_CHECK(slot.field, "internal error");
     return static_cast<Field<T>*>(slot.field);
   }
 
@@ -573,11 +576,11 @@ class FieldCycleHolder {
   void popCycle(std::unique_ptr<Field<T>, D>& owned) {
     auto& slot = cyclicFields_[typeid(T)];
     if (--slot.refCount == 0) {
-      CHECK(owned != nullptr);
-      CHECK(owned.get() == slot.field);
+      TL_CHECK(owned != nullptr, "internal error");
+      TL_CHECK(owned.get() == slot.field, "internal error");
       slot.field = nullptr;
     } else {
-      CHECK(owned == nullptr);
+      TL_CHECK(owned == nullptr, "internal error");
     }
   }
 
@@ -591,7 +594,7 @@ class FieldCycleHolder {
       }
       slot.field = owned.get();
     }
-    CHECK(slot.field);
+    TL_CHECK(slot.field, "internal error");
     return static_cast<Field<T>*>(slot.field);
   }
 
@@ -599,20 +602,20 @@ class FieldCycleHolder {
   void popCycle(std::shared_ptr<Field<T>>& owned) {
     auto& slot = cyclicFields_[typeid(T)];
     if (--slot.refCount == 0) {
-      CHECK(owned != nullptr);
-      CHECK(owned.get() == slot.field);
+      TL_CHECK(owned != nullptr, "internal error");
+      TL_CHECK(owned.get() == slot.field, "internal error");
       slot.field = nullptr;
     } else {
-      CHECK(owned == nullptr);
+      TL_CHECK(owned == nullptr, "internal error");
     }
   }
 
   template <class T>
   void updateCycle(std::shared_ptr<Field<T>>& owned) {
-    CHECK(owned != nullptr);
+    TL_CHECK(owned != nullptr, "internal error");
     auto& slot = cyclicFields_[typeid(T)];
     // only the first one can update, otherwise we have no way to inform others
-    CHECK_EQ(slot.refCount, 1);
+    TL_CHECK(slot.refCount == 1, "internal error");
     slot.field = owned.get();
   }
 
@@ -778,7 +781,7 @@ class LayoutRoot : public FieldCycleHolder {
   template <typename T>
   void registerLayoutPosition(const T* ptr, LayoutPosition pos) {
     auto key = reinterpret_cast<uintptr_t>(ptr);
-    DCHECK_EQ(positions_.count(key), 0);
+    assert(positions_.count(key) == 0);
     positions_[key] = pos;
   }
 
@@ -875,7 +878,7 @@ class FreezeRoot {
   template <typename T>
   void registerFreezePosition(const T* ptr, FreezePosition pos) {
     auto key = reinterpret_cast<uintptr_t>(ptr);
-    DCHECK_EQ(positions_.count(key), 0);
+    assert(positions_.count(key) == 0);
     positions_[key] = pos;
   }
 
