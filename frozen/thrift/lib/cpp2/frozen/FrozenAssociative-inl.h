@@ -110,11 +110,11 @@ struct MapTableLayout
       return found->second();
     }
 
-    folly::Optional<mapped_type> getOptional(const key_type& key) const {
-      folly::Optional<mapped_type> rv;
+    std::optional<mapped_type> getOptional(const key_type& key) const {
+      std::optional<mapped_type> rv;
       auto found = this->find(key);
       if (found != this->end()) {
-        rv.assign(found->second());
+        rv.emplace(found->second());
       }
       return rv;
     }

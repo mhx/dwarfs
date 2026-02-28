@@ -83,6 +83,12 @@ struct IsStdPair : public std::false_type {};
 template <class T1, class T2>
 struct IsStdPair<std::pair<T1, T2>> : public std::true_type {};
 
+template <class T>
+struct IsStdOptional : public std::false_type {};
+
+template <class T>
+struct IsStdOptional<std::optional<T>> : public std::true_type {};
+
 } // namespace detail
 
 template <class T>
@@ -92,6 +98,7 @@ struct Layout<
         apache::thrift::frozen::detail::IsBlitType<T>::value &&
         !apache::thrift::frozen::IsExcluded<T>::value &&
         !apache::thrift::frozen::detail::IsStdPair<T>::value &&
+        !apache::thrift::frozen::detail::IsStdOptional<T>::value &&
         !std::is_pointer<T>::value>::type>
     : apache::thrift::frozen::detail::TrivialLayout<T> {};
 } // namespace frozen

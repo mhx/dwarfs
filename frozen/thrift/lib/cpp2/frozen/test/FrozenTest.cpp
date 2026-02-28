@@ -262,7 +262,7 @@ TEST(Frozen, NoLayout) {
   EXPECT_EQ(0.0f, Layout<float>().view(null));
   EXPECT_EQ(
       apache::thrift::frozen::OptionalFieldView<int>(),
-      Layout<folly::Optional<int>>().view(null));
+      Layout<std::optional<int>>().view(null));
   EXPECT_EQ(std::string(), Layout<std::string>().view(null));
   EXPECT_EQ(std::vector<int>(), Layout<std::vector<int>>().view(null).thaw());
   EXPECT_EQ(Person1(), Layout<Person1>().view(null).thaw());

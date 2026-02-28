@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 
 #include <folly/Conv.h>
-#include <folly/Optional.h>
 // #include <folly/container/F14Map.h>
 // #include <folly/container/F14Set.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
