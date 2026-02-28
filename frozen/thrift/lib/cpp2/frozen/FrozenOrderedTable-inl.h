@@ -16,7 +16,8 @@
 
 #include <type_traits>
 #include <folly/Traits.h>
-#include <folly/container/Reserve.h>
+
+#include <dwarfs/thrift_lite/container.h>
 
 namespace apache {
 namespace thrift {
@@ -66,7 +67,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
       out = T{folly::sorted_unique, std::move(outBuffer)};
     } else {
       out.clear();
-      folly::reserve_if_available(out, v.size());
+      ::dwarfs::thrift_lite::try_reserve(out, v.size());
       for (auto it = v.begin(); it != v.end(); ++it) {
         out.insert(out.end(), it.thaw());
       }
