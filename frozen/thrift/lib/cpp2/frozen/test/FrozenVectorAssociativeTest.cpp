@@ -70,7 +70,7 @@ TEST(FrozenVectorTypes, VectorAsHashMap) {
 }
 
 TEST(FrozenVectorTypes, OptionalVectorAsHashMap) {
-  folly::Optional<VectorAsHashMap<int, int>> dm;
+  std::optional<VectorAsHashMap<int, int>> dm;
   dm.emplace();
   dm->insert({1, 2});
   dm->insert(dm->end(), {3, 4});
