@@ -73,7 +73,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
       }
     }
     if constexpr (isOrderedContainer<T>()) {
-      DCHECK(containerIsSorted(out));
+      assert(containerIsSorted(out));
     }
   }
 
@@ -81,7 +81,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   static void maybeIndex(const T& coll, std::vector<const Item*>& index) {
     index.clear();
     if constexpr (isOrderedContainer<T>()) {
-      DCHECK(containerIsSorted(coll));
+      assert(containerIsSorted(coll));
       return;
     } else {
       if (containerIsSorted(coll)) {
@@ -143,7 +143,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
           lastKey = itemKey;
         }
       } else {
-        LOG(FATAL) << "can't happen!";
+        TL_PANIC("can't happen!");
       }
     }
 
