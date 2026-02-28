@@ -53,8 +53,6 @@
 
 namespace apache::thrift::frozen {
 
-using namespace ::dwarfs::thrift_lite;
-
 /**
  *          \__  __/             \__  __/             \__  __/
  *          /_/  \_\             /_/  \_\             /_/  \_\
@@ -737,7 +735,7 @@ class LayoutRoot : public FieldCycleHolder {
       LayoutPosition self,
       FieldPosition fieldPos,
       Field<std::optional<T>, Layout>& field,
-      optional_field_ref<const T&, BitRef> ref) {
+      ::dwarfs::thrift_lite::optional_field_ref<const T&, BitRef> ref) {
     return layoutField(
         self, fieldPos, field, ref ? std::make_optional(*ref) : std::nullopt);
   }
@@ -858,7 +856,7 @@ class FreezeRoot {
   void freezeOptionalField(
       FreezePosition self,
       const Field<std::optional<T>, Layout>& field,
-      optional_field_ref<const T&, BitRef> ref) {
+      ::dwarfs::thrift_lite::optional_field_ref<const T&, BitRef> ref) {
     freezeField(self, field, ref ? std::make_optional(*ref) : std::nullopt);
   }
 
@@ -1043,7 +1041,7 @@ template <class T, typename BitRef>
 void thawField(
     ViewPosition self,
     const Field<std::optional<T>>& f,
-    optional_field_ref<T&, BitRef> ref) {
+    ::dwarfs::thrift_lite::optional_field_ref<T&, BitRef> ref) {
   std::optional<T> opt;
   f.layout.thaw(self(f.pos), opt);
   if (opt) {
@@ -1054,7 +1052,10 @@ void thawField(
 }
 
 template <class T>
-void thawField(ViewPosition self, const Field<T>& f, field_ref<T&> ref) {
+void thawField(
+    ViewPosition self,
+    const Field<T>& f,
+    ::dwarfs::thrift_lite::field_ref<T&> ref) {
   if (f.layout.empty()) {
     ref.reset();
   } else {
