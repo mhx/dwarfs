@@ -337,7 +337,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
             return this->end();
           }
           auto found = this->begin() + offset +
-              folly::popcount(mask & ((1ULL << minor) - 1)) /* subOffset */;
+              std::popcount(mask & ((1ULL << minor) - 1)) /* subOffset */;
           if (KeyExtractor::getViewKey(*found) == key) {
             return found;
           }
