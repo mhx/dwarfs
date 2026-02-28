@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <unordered_set>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -470,6 +472,12 @@ TEST(Frozen, SchemaConversion) {
   schema::convert(std::move(schema), memSchema);
 
   EXPECT_EQ(memSchema, schemaSaved);
+
+  std::unordered_set<schema::MemorySchema> schemaSet;
+  schemaSet.insert(memSchema);
+  EXPECT_TRUE(schemaSet.contains(memSchema));
+  EXPECT_FALSE(schemaSet.contains(schema::MemorySchema()));
+  EXPECT_TRUE(schemaSet.contains(schemaSaved));
 }
 
 template <typename T>
