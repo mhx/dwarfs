@@ -122,6 +122,7 @@ void BlockLayout::print(std::ostream& os, int level) const {
 }
 
 void BlockLayout::clear() {
+  LayoutBase::clear();
   maskField.clear();
   offsetField.clear();
 }

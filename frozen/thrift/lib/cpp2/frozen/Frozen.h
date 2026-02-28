@@ -366,7 +366,10 @@ struct Field final : public FieldBase {
   /**
    * Clears this subtree's layout, changing the layout to 0 bytes.
    */
-  void clear() override { layout.clear(); }
+  void clear() override {
+    layout.clear();
+    pos = FieldPosition();
+  }
 
   /**
    * Populates the layout information for this field from the description of
