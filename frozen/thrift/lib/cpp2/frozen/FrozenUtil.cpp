@@ -57,7 +57,7 @@ size_t MallocFreezer::distanceToEnd(const byte* ptr) const {
     throw std::runtime_error("dist");
   }
   --offsetIt;
-  CHECK_GE(ptr, offsetIt->first);
+  TL_CHECK(ptr >= offsetIt->first, "internal error");
   return (size_ - offsetIt->second) - (ptr - offsetIt->first);
 }
 

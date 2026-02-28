@@ -372,7 +372,7 @@ TEST(Frozen, Tiny) {
 TEST(Frozen, SchemaSaving) {
   // calculate a layout
   Layout<EveryLayout> stressLayoutCalculated;
-  CHECK(LayoutRoot::layout(stressValue2, stressLayoutCalculated));
+  EXPECT_GT(LayoutRoot::layout(stressValue2, stressLayoutCalculated), 0);
 
   // save it
   schema::MemorySchema schemaSaved;
@@ -459,7 +459,7 @@ TEST(Frozen, SchemaConversion) {
   schema::Schema schema;
 
   Layout<EveryLayout> stressLayoutCalculated;
-  CHECK(LayoutRoot::layout(stressValue2, stressLayoutCalculated));
+  EXPECT_GT(LayoutRoot::layout(stressValue2, stressLayoutCalculated), 0);
 
   schema::MemorySchema schemaSaved;
   saveRoot(stressLayoutCalculated, schemaSaved);

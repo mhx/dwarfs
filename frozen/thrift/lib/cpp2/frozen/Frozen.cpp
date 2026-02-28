@@ -74,7 +74,7 @@ void ByteRangeFreezer::doAppendBytes(
     std::span<uint8_t>& range,
     size_t& distance,
     size_t alignment) {
-  CHECK_LE(origin, write_.data());
+  TL_CHECK(origin <= write_.data(), "internal error");
   if (!n) {
     distance = 0;
     range = {};
