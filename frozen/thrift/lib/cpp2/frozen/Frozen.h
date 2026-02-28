@@ -33,6 +33,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <xxhash.h>
+
 #include <folly/Conv.h>
 #include <folly/Demangle.h>
 #include <folly/FBVector.h>
