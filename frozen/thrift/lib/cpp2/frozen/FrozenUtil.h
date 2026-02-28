@@ -133,7 +133,7 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
 
   *schema.fileVersion() = schema::frozen_constants::kCurrentFrozenFileVersion();
   std::vector<std::byte> buffer;
-  dwarfs::thrift_lite::compact_writer writer(buffer);
+  ::dwarfs::thrift_lite::compact_writer writer(buffer);
   schema.write(writer);
   out.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
 }
@@ -141,7 +141,7 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
 template <class T>
 void deserializeRootLayout(folly::ByteRange& range, Layout<T>& layoutOut) {
   schema::Schema schema;
-  dwarfs::thrift_lite::compact_reader reader(
+  ::dwarfs::thrift_lite::compact_reader reader(
       std::span(
           reinterpret_cast<std::byte const*>(range.data()), range.size()));
   schema.read(reader);
