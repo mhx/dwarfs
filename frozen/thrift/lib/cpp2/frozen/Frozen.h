@@ -1096,7 +1096,6 @@ using View = typename Layout<T>::View;
 #include <thrift/lib/cpp2/frozen/FrozenOptional-inl.h> // @nolint
 #include <thrift/lib/cpp2/frozen/FrozenPair-inl.h> // @nolint
 #include <thrift/lib/cpp2/frozen/FrozenRange-inl.h> // @nolint
-// #include <thrift/lib/cpp2/frozen/FrozenRef-inl.h> // @nolint
 #include <thrift/lib/cpp2/frozen/FrozenString-inl.h> // @nolint
 // depends on Range
 #include <thrift/lib/cpp2/frozen/FrozenHashTable-inl.h> // @nolint
@@ -1105,4 +1104,3 @@ using View = typename Layout<T>::View;
 #include <thrift/lib/cpp2/frozen/FrozenAssociative-inl.h> // @nolint
 // depends on Integral
 #include <thrift/lib/cpp2/frozen/FrozenEnum-inl.h> // @nolint
-// #include <thrift/lib/cpp2/frozen/FrozenExcluded-inl.h> // @nolint
