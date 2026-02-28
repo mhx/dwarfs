@@ -390,54 +390,78 @@ TEST(Frozen, SpillBug) {
   EXPECT_EQ(distance(fmaps[1].equal_range(-1)), 1);
 }
 
-#if 0
 // Define hash and equal_to for User
 namespace std {
-size_t hash<User>::operator()(const User& user) const {
-  return folly::hash::hash_combine_generic(
-      folly::Hash{}, std::string_view(*user.name()), *user.uid());
-}
+template <>
+struct hash<::apache::thrift::test::User> {
+  size_t operator()(const ::apache::thrift::test::User& user) const {
+    size_t seed = 0;
+    boost::hash_combine(seed, *user.name());
+    boost::hash_combine(seed, *user.uid());
+    return seed;
+  }
+};
 
-bool equal_to<User>::operator()(const User& lhs, const User& rhs) const {
-  return *lhs.uid() == *rhs.uid() && *lhs.name() == *rhs.name();
-}
+template <>
+struct equal_to<::apache::thrift::test::User> {
+  bool operator()(
+      const ::apache::thrift::test::User& lhs,
+      const ::apache::thrift::test::User& rhs) const {
+    return *lhs.uid() == *rhs.uid() && *lhs.name() == *rhs.name();
+  }
+};
 } // namespace std
 
 namespace apache::thrift::frozen {
 
-size_t Layout<test::User>::hash(const test::User& user) {
-  return folly::hash::hash_combine_generic(
-      folly::Hash{}, 12345, std::string_view(*user.name()), *user.uid());
+inline size_t Layout<test::User>::hash(const test::User& user) {
+  size_t seed = 0;
+  boost::hash_combine(seed, *user.name());
+  boost::hash_combine(seed, *user.uid());
+  return seed;
 }
 
-size_t Layout<test::User>::hash(const Layout<test::User>::View& user) {
-  return folly::hash::hash_combine_generic(
-      folly::Hash{}, 12345, std::string_view(user.name()), user.uid());
+inline size_t Layout<test::User>::hash(const Layout<test::User>::View& user) {
+  size_t seed = 0;
+  boost::hash_combine(seed, user.name());
+  boost::hash_combine(seed, user.uid());
+  return seed;
 }
 
-bool Layout<test::User>::View::operator==(
+inline bool Layout<test::User>::View::operator==(
     const Layout<test::User>::View& rhs) const {
   return std::make_tuple(uid(), name()) ==
       std::make_tuple(rhs.uid(), rhs.name());
 }
 
-bool Layout<test::User>::View::operator<(
+inline bool Layout<test::User>::View::operator<(
     const Layout<test::User>::View& rhs) const {
   return std::make_tuple(uid(), name()) <
       std::make_tuple(rhs.uid(), rhs.name());
 }
 
-bool operator==(const Layout<test::User>::View& lhs, const User& rhs) {
+inline bool operator==(
+    const Layout<test::User>::View& lhs, const test::User& rhs) {
   return std::make_tuple(lhs.uid(), rhs.name()) ==
       std::make_tuple(*rhs.uid(), *rhs.name());
 }
 
-bool operator<(const Layout<test::User>::View& lhs, const User& rhs) {
+inline bool operator<(
+    const Layout<test::User>::View& lhs, const test::User& rhs) {
   return std::make_tuple(lhs.uid(), rhs.name()) <
       std::make_tuple(*rhs.uid(), *rhs.name());
 }
 
 } // namespace apache::thrift::frozen
+
+namespace apache::thrift::test {
+
+inline bool operator<(const User& lhs, const User& rhs) {
+  return std::make_tuple(*lhs.uid(), *lhs.name()) <
+      std::make_tuple(*rhs.uid(), *rhs.name());
+}
+
+} // namespace apache::thrift::test
 
 TEST(FrozenMap, StructAsKey) {
   auto user = [](int64_t uid, std::string name) {
@@ -490,4 +514,3 @@ TEST(FrozenMap, StructAsKey) {
   ASSERT_TRUE(omap.find(u4) == omap.end());
   ASSERT_TRUE(hmap.find(u4) == hmap.end());
 }
-#endif
