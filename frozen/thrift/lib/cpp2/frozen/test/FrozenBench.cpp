@@ -178,12 +178,12 @@ struct OwnedKey {
 };
 
 template <>
-struct OwnedKey<folly::StringPiece> {
+struct OwnedKey<std::string_view> {
   using type = std::string;
 };
 
 template <>
-struct OwnedKey<folly::ByteRange> {
+struct OwnedKey<std::span<uint8_t const>> {
   using type = FixedSizeString<8>;
 };
 
@@ -206,7 +206,7 @@ typename M::const_iterator mapFind(const M& map, const T& key) {
 }
 
 // Enabled for hashmaps with FixedSizeString as the key_type, where the
-// corresponding view map would have folly::ByteRange as the key_type.
+// corresponding view map would have std::span<uint8_t const> as the key_type.
 template <
     typename M,
     typename T,
@@ -217,7 +217,7 @@ template <
         bool> = true>
 typename M::const_iterator mapFind(const M& map, const T& key) {
   static_assert(std::is_same<T, FixedSizeString<8>>::value);
-  auto keyView = folly::ByteRange{
+  auto keyView = std::span<uint8_t const>{
       reinterpret_cast<const uint8_t*>(key.data()), key.size()};
   return map.find(keyView);
 }
@@ -295,8 +295,7 @@ void benchmarkOldFreezeDataToString(size_t iters, const T& data) {
   while (iters--) {
     std::string out;
     out.resize(frozenSize(data, layout));
-    folly::MutableByteRange writeRange(
-        reinterpret_cast<byte*>(&out[0]), out.size());
+    std::span<uint8_t> writeRange(reinterpret_cast<byte*>(&out[0]), out.size());
     ByteRangeFreezer::freeze(layout, data, writeRange);
     out.resize(out.size() - writeRange.size());
     s += out.size();

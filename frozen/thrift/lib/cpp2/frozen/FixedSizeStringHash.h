@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/Range.h>
 #include <folly/hash/Hash.h>
 #include <folly/lang/Bits.h>
 
@@ -34,9 +33,9 @@ inline const uint8_t* rangeDataStart(const T& value) {
 }
 
 template <>
-inline const uint8_t* rangeDataStart<folly::ByteRange>(
-    const folly::ByteRange& value) {
-  return value.begin();
+inline const uint8_t* rangeDataStart<std::span<uint8_t const>>(
+    const std::span<uint8_t const>& value) {
+  return value.data();
 }
 
 } // namespace detail

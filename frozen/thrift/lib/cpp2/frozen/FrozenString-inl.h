@@ -27,10 +27,10 @@ struct BufferHelpers {
       std::is_arithmetic<Item>::value || std::is_enum<Item>::value,
       "String storage requires simple item types");
   static size_t size(const T& src) { return src.size(); }
-  static void copyTo(const T& src, folly::Range<Item*> dst) {
-    std::copy(src.begin(), src.end(), reinterpret_cast<Item*>(dst.begin()));
+  static void copyTo(const T& src, std::span<Item> dst) {
+    std::copy(src.begin(), src.end(), dst.begin());
   }
-  static void thawTo(folly::Range<const Item*> src, T& dst) {
+  static void thawTo(std::span<const Item> src, T& dst) {
     dst.assign(src.begin(), src.end());
   }
 };
@@ -73,12 +73,12 @@ struct StringLayout : public LayoutBase {
 
   void freeze(FreezeRoot& root, const T& o, FreezePosition self) const {
     size_t n = Helper::size(o);
-    folly::MutableByteRange range;
+    std::span<uint8_t> range;
     size_t dist;
     root.appendBytes(self.start, n * sizeof(Item), range, dist, alignof(Item));
     root.freezeField(self, distanceField, dist);
     root.freezeField(self, countField, n);
-    folly::Range<Item*> target(reinterpret_cast<Item*>(range.begin()), n);
+    std::span<Item> target(reinterpret_cast<Item*>(range.data()), n);
     Helper::copyTo(o, target);
   }
 
@@ -86,7 +86,10 @@ struct StringLayout : public LayoutBase {
     Helper::thawTo(view(self), out);
   }
 
-  typedef folly::Range<const Item*> View;
+  using View = std::conditional_t<
+      std::is_same_v<Item, char>,
+      std::string_view,
+      std::span<const Item>>;
 
   View view(ViewPosition self) const {
     View range;
@@ -95,7 +98,7 @@ struct StringLayout : public LayoutBase {
     if (n) {
       thawField(self, distanceField, dist);
       const byte* read = self.start + dist;
-      range.reset(reinterpret_cast<const Item*>(read), n);
+      range = {reinterpret_cast<const Item*>(read), n};
     }
     return range;
   }

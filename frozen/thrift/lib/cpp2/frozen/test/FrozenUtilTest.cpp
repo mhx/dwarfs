@@ -29,7 +29,7 @@ TEST(FrozenUtil, FreezeAndUse) {
   auto file = freezeToTempFile(std::string("hello"));
   MappedFrozen<std::string> mapped;
   mapped = mapFrozen<std::string>(folly::File(file.fd()));
-  EXPECT_EQ(folly::StringPiece(mapped), "hello");
+  EXPECT_EQ(std::string_view(mapped), "hello");
 }
 
 TEST(FrozenUtil, FreezeAndMap) {
