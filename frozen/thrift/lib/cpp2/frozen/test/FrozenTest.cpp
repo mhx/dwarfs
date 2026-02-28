@@ -188,7 +188,7 @@ TEST(Frozen, HashCompatibility) {
   using View = StrLayout::View;
 
   auto follyHash = [](const View v) -> size_t {
-    return folly::hash::fnv64_buf_BROKEN(v.begin(), v.size());
+    return XXH3_64bits(v.data(), v.size());
   };
 
   std::vector<std::string> strs{
