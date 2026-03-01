@@ -43,6 +43,7 @@
 #include <dwarfs/thrift_lite/assert.h>
 #include <dwarfs/thrift_lite/compact_reader.h>
 #include <dwarfs/thrift_lite/types.h>
+#include <dwarfs/thrift_lite/varint.h>
 
 using namespace dwarfs::thrift_lite::internal;
 
@@ -85,37 +86,24 @@ void compact_reader::ensure_no_pending_bool() const {
   }
 }
 
-template <std::unsigned_integral T>
+template <std::integral T>
 auto compact_reader::read_varint() -> T {
-  T result{0};
-  int shift{0};
+  auto it = in_.begin() + static_cast<std::ptrdiff_t>(pos_);
+  auto const before = it;
+  auto ec = std::error_code{};
+  auto const val = varint_decode<T>(it, in_.end(), ec);
 
-  // varint of T fits in at most ceil(sizeof(T) * 8 / 7) bytes
-  static constexpr int max_bytes = (sizeof(T) * 8 + 6) / 7;
-  for (int i = 0; i < max_bytes; ++i) {
-    auto const byte = take_u8();
-    result |= (static_cast<T>(byte & 0x7f) << shift);
-
-    if ((byte & 0x80) == 0) {
-      return result;
-    }
-
-    shift += 7;
+  if (ec) [[unlikely]] {
+    throw protocol_error("read_varint: " + ec.message());
   }
 
-  throw protocol_error("varint too long");
+  pos_ += static_cast<std::size_t>(std::distance(before, it));
+
+  return val;
 }
 
 auto compact_reader::read_i16_unchecked() -> std::int16_t {
-  auto const u = read_varint<std::uint32_t>();
-  auto const v = zigzag_decode(u);
-
-  if (v < std::numeric_limits<std::int16_t>::min() ||
-      v > std::numeric_limits<std::int16_t>::max()) {
-    throw protocol_error("i16 out of range");
-  }
-
-  return static_cast<std::int16_t>(v);
+  return read_varint<std::int16_t>();
 }
 
 auto compact_reader::to_ttype(std::uint8_t const compact_type) -> ttype {
@@ -248,14 +236,12 @@ auto compact_reader::read_i16() -> std::int16_t {
 
 auto compact_reader::read_i32() -> std::int32_t {
   ensure_no_pending_bool();
-  auto const u = read_varint<std::uint32_t>();
-  return zigzag_decode(u);
+  return read_varint<std::int32_t>();
 }
 
 auto compact_reader::read_i64() -> std::int64_t {
   ensure_no_pending_bool();
-  auto const u = read_varint<std::uint64_t>();
-  return zigzag_decode(u);
+  return read_varint<std::int64_t>();
 }
 
 auto compact_reader::read_double() -> double {
@@ -291,39 +277,41 @@ auto compact_reader::read_size_i32(char const* const what) -> std::int32_t {
   return size;
 }
 
-void compact_reader::read_binary(std::vector<std::byte>& out) {
+auto compact_reader::read_size(std::string_view what) -> std::int32_t {
   ensure_no_pending_bool();
 
-  auto const ulen = read_varint<std::uint32_t>();
-  if (ulen >
-      static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max())) {
-    throw protocol_error("binary too large");
-  }
-  if (ulen > options_.max_string_bytes) {
-    throw protocol_error("binary exceeds max_string_bytes");
+  auto const size = read_varint<std::uint32_t>();
+
+  if (std::cmp_greater(size, std::numeric_limits<std::int32_t>::max())) {
+    throw protocol_error(std::string{what} + " too large");
   }
 
-  ensure_available(ulen);
-  out.assign(in_.begin() + static_cast<std::ptrdiff_t>(pos_),
-             in_.begin() + static_cast<std::ptrdiff_t>(pos_ + ulen));
-  pos_ += ulen;
+  if (size > options_.max_string_bytes) {
+    throw protocol_error(std::string{what} + " exceeds max_string_bytes");
+  }
+
+  return static_cast<std::int32_t>(size);
+}
+
+auto compact_reader::read_data(std::string_view what)
+    -> std::span<std::byte const> {
+  auto const sz = read_size(what);
+  ensure_available(sz);
+
+  auto const span = std::span{in_}.subspan(pos_, static_cast<std::size_t>(sz));
+  pos_ += sz;
+
+  return span;
+}
+
+void compact_reader::read_binary(std::vector<std::byte>& out) {
+  auto const span = read_data("binary");
+  out.assign(span.begin(), span.end());
 }
 
 void compact_reader::read_string(std::string& out) {
-  ensure_no_pending_bool();
-
-  auto const ulen = read_varint<std::uint32_t>();
-  if (ulen >
-      static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max())) {
-    throw protocol_error("string too large");
-  }
-  if (ulen > options_.max_string_bytes) {
-    throw protocol_error("string exceeds max_string_bytes");
-  }
-
-  ensure_available(ulen);
-  out.assign(reinterpret_cast<char const*>(in_.data() + pos_), ulen);
-  pos_ += ulen;
+  auto const span = read_data("string");
+  out.assign(reinterpret_cast<char const*>(span.data()), span.size());
 }
 
 void compact_reader::read_list_begin(ttype& elem_type, std::int32_t& size) {
@@ -410,20 +398,9 @@ void compact_reader::skip_impl(ttype const type, std::uint32_t const depth) {
     read_double();
     return;
   case ttype::binary_t:
-  case ttype::string_t: {
-    ensure_no_pending_bool();
-
-    auto const ulen = read_varint<std::uint32_t>();
-    if (ulen >
-        static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max())) {
-      throw protocol_error("binary too large");
-    }
-    if (ulen > options_.max_string_bytes) {
-      throw protocol_error("binary exceeds max_string_bytes");
-    }
-    skip_bytes(ulen);
+  case ttype::string_t:
+    skip_bytes(read_size(type == ttype::binary_t ? "binary" : "string"));
     return;
-  }
   case ttype::uuid_t:
     ensure_no_pending_bool();
     skip_bytes(16);

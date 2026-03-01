@@ -35,6 +35,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <dwarfs/thrift_lite/concepts.h>
@@ -91,10 +92,12 @@ class compact_reader final {
 
   void ensure_no_pending_bool() const;
 
-  template <std::unsigned_integral T>
+  template <std::integral T>
   auto read_varint() -> T;
 
   auto read_i16_unchecked() -> std::int16_t;
+  auto read_size(std::string_view what) -> std::int32_t;
+  auto read_data(std::string_view what) -> std::span<std::byte const>;
 
   auto to_ttype(std::uint8_t compact_type) -> ttype;
 
