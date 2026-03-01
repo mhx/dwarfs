@@ -16,38 +16,27 @@
 
 #pragma once
 
-#include <string>
+#include <cassert>
+#include <cstring>
+#include <span>
 #include <utility>
-#include <vector>
 
 #include <folly/hash/Hash.h>
 
 #include <thrift/lib/cpp2/frozen/Traits.h>
 
 namespace apache::thrift::frozen {
-namespace detail {
-template <typename T>
-inline const uint8_t* rangeDataStart(const T& value) {
-  return reinterpret_cast<const uint8_t*>(value.data());
-}
-
-template <>
-inline const uint8_t* rangeDataStart<std::span<uint8_t const>>(
-    const std::span<uint8_t const>& value) {
-  return value.data();
-}
-
-} // namespace detail
 
 template <size_t kSize, typename RangeType>
 struct FixedSizeStringHash {
   static uint64_t hash(const RangeType& value) {
+    assert(value.size() == kSize);
     if constexpr (kSize <= 8) {
       uint64_t tmp = 0;
-      memcpy(&tmp, detail::rangeDataStart(value), kSize);
+      std::memcpy(&tmp, value.data(), kSize);
       return std::hash<uint64_t>()(tmp);
     } else {
-      return XXH3_64bits(detail::rangeDataStart(value), value.size());
+      return XXH3_64bits(value.data(), value.size());
     }
   }
 };
