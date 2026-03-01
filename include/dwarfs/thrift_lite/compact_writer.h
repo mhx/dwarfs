@@ -77,6 +77,10 @@ class compact_writer final {
   void write_map_end();
 
  private:
+  void write_u8(std::uint8_t b);
+  void write_bytes(std::span<std::byte const> bytes);
+  template <std::integral Out, std::integral T>
+  void write_varint(T v);
   void ensure_no_pending_bool() const;
   void write_field_header(std::uint8_t compact_type_id, std::int16_t field_id);
   void flush_pending_bool_field(bool value);
