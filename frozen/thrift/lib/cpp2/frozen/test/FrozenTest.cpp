@@ -489,8 +489,8 @@ class FrozenLayout : public testing::Test {
       TestFixedSizeString s;
       s.bytes8() = "01234567"s;
       s.bytes4() = "abcd"s;
-      s.aMapToFreeze()[Fixed8("key1")] = "1"s;
-      s.aMap()[Fixed8("key2")] = "2"s;
+      s.aMapToFreeze()[Fixed8("key1key1")] = "1"s;
+      s.aMap()[Fixed8("key2key2")] = "2"s;
       return s;
     }
   }
