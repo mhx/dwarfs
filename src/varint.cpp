@@ -26,20 +26,27 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <folly/Varint.h>
+#include <iterator>
 
+#include <dwarfs/thrift_lite/varint.h>
 #include <dwarfs/varint.h>
 
 namespace dwarfs {
 
-auto varint::encode(value_type value, uint8_t* buffer) -> size_t {
-  return folly::encodeVarint(value, buffer);
+static_assert(varint::max_size ==
+              thrift_lite::max_varint_size<varint::value_type>);
+
+auto varint::encode(value_type value, uint8_t* const buffer) -> size_t {
+  auto const begin = reinterpret_cast<std::byte*>(buffer);
+  auto const end = thrift_lite::varint_encode(value, begin);
+  return std::distance(begin, end);
 }
 
 auto varint::decode(std::span<uint8_t const>& buffer) -> value_type {
-  folly::ByteRange range(buffer.data(), buffer.size());
-  auto value = folly::decodeVarint(range);
-  buffer = {range.data(), range.size()};
+  auto const begin = buffer.begin();
+  auto it = begin;
+  auto const value = thrift_lite::varint_decode<value_type>(it, buffer.end());
+  buffer = buffer.subspan(std::distance(begin, it));
   return value;
 }
 
