@@ -43,7 +43,6 @@
 
 #include <folly/lang/Bits.h>
 #include <folly/portability/Unistd.h>
-#include <folly/stats/Histogram.h>
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
@@ -55,6 +54,8 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/value_stream_quantile_estimator.h>
 
 namespace dwarfs {
 
@@ -68,8 +69,7 @@ class single_timer {
 
   single_timer(std::string const& name_space, std::string const& name,
                std::initializer_list<std::string_view> context)
-      : log_hist_{1, 0, 64}
-      , namespace_{name_space}
+      : namespace_{name_space}
       , name_{name}
       , context_{context.begin(), context.end()} {
     total_time_.store(0);
@@ -79,9 +79,8 @@ class single_timer {
     total_time_.fetch_add(elapsed);
 
     if ((samples_.fetch_add(1) % histogram_interval) == 0) {
-      auto log_time = folly::findLastSet(elapsed);
-      std::lock_guard lock(log_hist_mutex_);
-      log_hist_.addValue(log_time);
+      std::lock_guard lock(latency_mutex_);
+      latency_.add(elapsed);
     }
   }
 
@@ -96,21 +95,21 @@ class single_timer {
       return;
     }
 
-    size_t log_p50, log_p90, log_p99;
+    double p50_raw, p90_raw, p99_raw;
     {
-      std::lock_guard lock(log_hist_mutex_);
-      log_p50 = log_hist_.getPercentileEstimate(0.5);
-      log_p90 = log_hist_.getPercentileEstimate(0.9);
-      log_p99 = log_hist_.getPercentileEstimate(0.99);
+      std::lock_guard lock(latency_mutex_);
+      p50_raw = latency_.quantile(0.50);
+      p90_raw = latency_.quantile(0.90);
+      p99_raw = latency_.quantile(0.99);
     }
     auto samples = samples_.load();
     auto total_time = total_time_.load();
 
     auto tot = timebase * total_time;
     auto avg = tot / samples;
-    auto p50 = timebase * (UINT64_C(1) << log_p50);
-    auto p90 = timebase * (UINT64_C(1) << log_p90);
-    auto p99 = timebase * (UINT64_C(1) << log_p99);
+    auto p50 = timebase * p50_raw;
+    auto p90 = timebase * p90_raw;
+    auto p99 = timebase * p99_raw;
 
     os << "[" << namespace_ << "." << name_ << "]\n";
     os << "      samples: " << samples << "\n";
@@ -126,8 +125,8 @@ class single_timer {
  private:
   std::atomic<uint64_t> samples_{};
   std::atomic<uint64_t> total_time_{};
-  folly::Histogram<size_t> log_hist_;
-  std::mutex mutable log_hist_mutex_;
+  std::mutex mutable latency_mutex_;
+  value_stream_quantile_estimator latency_{0.50, 0.90, 0.99};
   std::string const namespace_;
   std::string const name_;
   std::vector<std::string> const context_;

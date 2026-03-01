@@ -71,6 +71,7 @@ add_library(
   src/internal/string_table.cpp
   src/internal/thread_util.cpp
   src/internal/unicode_case_folding.cpp
+  src/internal/value_stream_quantile_estimator.cpp
   src/internal/wcwidth.c
   src/internal/worker_group.cpp
 
