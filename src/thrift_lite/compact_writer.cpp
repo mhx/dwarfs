@@ -26,12 +26,15 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <bit>
+#include <array>
 #include <cstring>
 #include <limits>
 #include <span>
+#include <type_traits>
 
 #include <dwarfs/thrift_lite/compact_writer.h>
+#include <dwarfs/thrift_lite/varint.h>
+
 #include <dwarfs/thrift_lite/internal/compact_wire.h>
 
 using namespace dwarfs::thrift_lite::internal;
@@ -45,6 +48,22 @@ compact_writer::compact_writer(std::vector<std::byte>& out,
 
 auto compact_writer::options() const -> writer_options const& {
   return options_;
+}
+
+void compact_writer::write_u8(std::uint8_t const b) {
+  out_->push_back(static_cast<std::byte>(b));
+}
+
+void compact_writer::write_bytes(std::span<std::byte const> const bytes) {
+  out_->insert(out_->end(), bytes.begin(), bytes.end());
+}
+
+template <std::integral Out, std::integral T>
+void compact_writer::write_varint(T v) {
+  std::array<std::byte, max_varint_size<std::make_unsigned_t<Out>>> buf;
+  auto const it = varint_encode(static_cast<Out>(v), buf.begin());
+  auto const size = std::distance(buf.begin(), it);
+  write_bytes(std::span(buf).first(size));
 }
 
 void compact_writer::ensure_no_pending_bool() const {
@@ -76,9 +95,9 @@ void compact_writer::write_field_header(std::uint8_t const compact_type_id,
       static_cast<int>(field_id) - static_cast<int>(last_field_id_);
 
   if (field_id > last_field_id_ && delta >= 1 && delta <= 15) {
-    write_u8(*out_, static_cast<std::uint8_t>((delta << 4) | compact_type_id));
+    write_u8(static_cast<std::uint8_t>((delta << 4) | compact_type_id));
   } else {
-    write_u8(*out_, compact_type_id); // 0000tttt
+    write_u8(compact_type_id); // 0000tttt
     write_i16(field_id);
   }
 
@@ -110,7 +129,7 @@ void compact_writer::write_field_end() {}
 
 void compact_writer::write_field_stop() {
   ensure_no_pending_bool();
-  write_u8(*out_, ct_stop);
+  write_u8(ct_stop);
 }
 
 void compact_writer::write_bool(bool const v) {
@@ -119,27 +138,27 @@ void compact_writer::write_bool(bool const v) {
     return;
   }
 
-  write_u8(*out_, v ? ct_boolean_true : ct_boolean_false);
+  write_u8(v ? ct_boolean_true : ct_boolean_false);
 }
 
 void compact_writer::write_byte(std::int8_t const v) {
   ensure_no_pending_bool();
-  write_u8(*out_, static_cast<std::uint8_t>(v));
+  write_u8(static_cast<std::uint8_t>(v));
 }
 
 void compact_writer::write_i16(std::int16_t const v) {
   ensure_no_pending_bool();
-  write_varint(*out_, zigzag_encode(static_cast<std::int32_t>(v)));
+  write_varint<std::int16_t>(v);
 }
 
 void compact_writer::write_i32(std::int32_t const v) {
   ensure_no_pending_bool();
-  write_varint(*out_, zigzag_encode(v));
+  write_varint<std::int32_t>(v);
 }
 
 void compact_writer::write_i64(std::int64_t const v) {
   ensure_no_pending_bool();
-  write_varint(*out_, zigzag_encode(v));
+  write_varint<std::int64_t>(v);
 }
 
 void compact_writer::write_double(double const v) {
@@ -152,7 +171,7 @@ void compact_writer::write_double(double const v) {
 
   // double is encoded in little-endian
   for (int i = 0; i < 8; ++i) {
-    write_u8(*out_, static_cast<std::uint8_t>((bits >> (i * 8)) & 0xFF));
+    write_u8(static_cast<std::uint8_t>((bits >> (i * 8)) & 0xFF));
   }
 }
 
@@ -164,10 +183,10 @@ void compact_writer::write_binary(std::span<std::byte const> const bytes) {
     throw protocol_error("binary too large");
   }
 
-  write_varint(*out_, static_cast<std::uint32_t>(bytes.size()));
+  write_varint<std::uint32_t>(bytes.size());
 
   if (!bytes.empty()) {
-    write_bytes(*out_, bytes.data(), bytes.size());
+    write_bytes(bytes);
   }
 }
 
@@ -186,10 +205,10 @@ void compact_writer::write_list_begin(ttype const elem_type,
   auto const et = compact_type_id_for_collection(elem_type);
 
   if (size <= 14) {
-    write_u8(*out_, static_cast<std::uint8_t>((size << 4) | et));
+    write_u8(static_cast<std::uint8_t>((size << 4) | et));
   } else {
-    write_u8(*out_, static_cast<std::uint8_t>(0xF0 | et));
-    write_varint(*out_, static_cast<std::uint32_t>(size));
+    write_u8(static_cast<std::uint8_t>(0xF0 | et));
+    write_varint<std::uint32_t>(size);
   }
 }
 
@@ -210,7 +229,7 @@ void compact_writer::write_map_begin(ttype const key_type, ttype const val_type,
     throw protocol_error("negative map size");
   }
 
-  write_varint(*out_, static_cast<std::uint32_t>(size));
+  write_varint<std::uint32_t>(size);
 
   if (size == 0) {
     return;
@@ -218,7 +237,7 @@ void compact_writer::write_map_begin(ttype const key_type, ttype const val_type,
 
   auto const kt = compact_type_id_for_collection(key_type);
   auto const vt = compact_type_id_for_collection(val_type);
-  write_u8(*out_, static_cast<std::uint8_t>((kt << 4) | vt));
+  write_u8(static_cast<std::uint8_t>((kt << 4) | vt));
 }
 
 void compact_writer::write_map_end() {}

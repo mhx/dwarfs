@@ -28,16 +28,9 @@
 
 #pragma once
 
-#include <bit>
-#include <concepts>
-#include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <span>
-#include <vector>
 
 #include <dwarfs/thrift_lite/types.h>
-#include <dwarfs/thrift_lite/varint.h>
 
 namespace dwarfs::thrift_lite::internal {
 
@@ -56,23 +49,6 @@ constexpr inline std::uint8_t ct_set = 0x0a;
 constexpr inline std::uint8_t ct_map = 0x0b;
 constexpr inline std::uint8_t ct_struct = 0x0c;
 constexpr inline std::uint8_t ct_uuid = 0x0d;
-
-inline void write_u8(std::vector<std::byte>& out, std::uint8_t const b) {
-  out.push_back(static_cast<std::byte>(b));
-}
-
-inline void write_bytes(std::vector<std::byte>& out, void const* const p,
-                        std::size_t const n) {
-  auto const* const bytes = static_cast<std::byte const*>(p);
-  out.insert(out.end(), bytes, bytes + n);
-}
-
-template <std::unsigned_integral T>
-void write_varint(std::vector<std::byte>& out, T v) {
-  std::array<std::byte, max_varint_size<T>> buf;
-  auto const it = varint_encode(v, buf.begin());
-  write_bytes(out, buf.data(), std::distance(buf.begin(), it));
-}
 
 [[nodiscard]] std::uint8_t compact_type_id_for_field(ttype t);
 
