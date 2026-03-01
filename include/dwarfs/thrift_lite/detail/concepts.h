@@ -29,6 +29,9 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <type_traits>
 #include <utility>
 
@@ -65,5 +68,14 @@ concept emplaceable_map_type =
         v.emplace(k, m)
       } -> std::same_as<std::pair<typename T::iterator, bool>>;
     };
+
+template <typename T>
+concept byte_like_type =
+    std::is_same_v<T, std::byte> ||
+    (std::is_integral_v<T> && sizeof(T) == 1 && !std::same_as<T, bool>);
+
+template <typename It>
+concept byte_input_iterator =
+    std::input_iterator<It> && byte_like_type<std::iter_value_t<It>>;
 
 } // namespace dwarfs::thrift_lite::detail
