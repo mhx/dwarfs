@@ -36,8 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/stats/Histogram.h>
-
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/fstypes.h>
@@ -49,12 +47,15 @@
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/inode_reader_v2.h>
 #include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/offset_cache.h>
 
 namespace dwarfs::reader::internal {
+
+using dwarfs::internal::value_stream_quantile_estimator;
 
 namespace {
 
@@ -130,19 +131,13 @@ class inode_reader_ final : public inode_reader_v2::impl {
       PERFMON_CLS_TIMER_INIT(readv_iovec, "offset", "size")
       PERFMON_CLS_TIMER_INIT(readv_future, "offset", "size") // clang-format on
       , offset_cache_{offset_cache_size}
-      , readahead_cache_{readahead_cache_size}
-      , iovec_sizes_(1, 0, 256) {}
+      , readahead_cache_{readahead_cache_size} {}
 
   ~inode_reader_() override {
     std::lock_guard lock(iovec_sizes_mutex_);
-    if (iovec_sizes_.computeTotalCount() > 0) {
-      LOG_VERBOSE << "iovec size p90: "
-                  << iovec_sizes_.getPercentileEstimate(0.9);
-      LOG_VERBOSE << "iovec size p95: "
-                  << iovec_sizes_.getPercentileEstimate(0.95);
-      LOG_VERBOSE << "iovec size p99: "
-                  << iovec_sizes_.getPercentileEstimate(0.99);
-    }
+    LOG_VERBOSE << "iovec size p90: " << iovec_sizes_.quantile(0.9);
+    LOG_VERBOSE << "iovec size p95: " << iovec_sizes_.quantile(0.95);
+    LOG_VERBOSE << "iovec size p99: " << iovec_sizes_.quantile(0.99);
   }
 
   std::string
@@ -218,7 +213,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   mutable std::mutex readahead_cache_mutex_;
   mutable readahead_cache_type readahead_cache_;
   mutable std::mutex iovec_sizes_mutex_;
-  mutable folly::Histogram<size_t> iovec_sizes_;
+  mutable value_stream_quantile_estimator iovec_sizes_{0.9, 0.95, 0.99};
   mutable std::once_flag hole_data_init_flag_;
   mutable readonly_memory_mapping hole_data_;
 };
@@ -535,7 +530,7 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
 
   {
     std::lock_guard lock(iovec_sizes_mutex_);
-    iovec_sizes_.addValue(buf.buf.size());
+    iovec_sizes_.add(buf.buf.size());
   }
 
   return rv;

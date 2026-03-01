@@ -41,7 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/stats/Histogram.h>
 #include <folly/system/ThreadName.h>
 
 #include <parallel_hashmap/phmap.h>
@@ -55,6 +54,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
@@ -312,14 +312,11 @@ class block_cache_ final : public block_cache::impl {
 
     LOG_VERBOSE << "expired active requests: " << active_expired_.load();
 
-    auto active_pct = [&](double p) {
-      return active_set_size_.getPercentileEstimate(p);
-    };
+    auto pct = [&](double p) { return active_set_size_.quantile(p / 100.0); };
 
-    LOG_VERBOSE << "active set size p50: " << active_pct(0.5)
-                << ", p75: " << active_pct(0.75) << ", p90: " << active_pct(0.9)
-                << ", p95: " << active_pct(0.95)
-                << ", p99: " << active_pct(0.99);
+    LOG_VERBOSE << "active set size p50: " << pct(50) << ", p75: " << pct(75)
+                << ", p90: " << pct(90) << ", p95: " << pct(95)
+                << ", p99: " << pct(99);
   }
 
   size_t block_count() const override { return block_.size(); }
@@ -498,7 +495,7 @@ class block_cache_ final : public block_cache::impl {
 
           if (!add_to_set) {
             ia->second.emplace_back(brs);
-            active_set_size_.addValue(ia->second.size());
+            active_set_size_.add(ia->second.size());
             enqueue_job(std::move(brs));
           }
         }
@@ -533,7 +530,7 @@ class block_cache_ final : public block_cache::impl {
 
         auto& active = active_[block_no];
         active.emplace_back(brs);
-        active_set_size_.addValue(active.size());
+        active_set_size_.add(active.size());
         enqueue_job(std::move(brs));
       }
 
@@ -589,7 +586,7 @@ class block_cache_ final : public block_cache::impl {
 
       auto& active = active_[block_no];
       active.emplace_back(brs);
-      active_set_size_.addValue(active.size());
+      active_set_size_.add(active.size());
       enqueue_job(std::move(brs));
     } catch (...) {
       promise.set_exception(std::current_exception());
@@ -802,7 +799,8 @@ class block_cache_ final : public block_cache::impl {
   mutable std::atomic<size_t> blocks_tidied_{0};
   mutable std::atomic<size_t> active_expired_{0};
   mutable std::atomic<size_t> sequential_prefetches_{0};
-  mutable folly::Histogram<size_t> active_set_size_{1, 0, 1024};
+  mutable value_stream_quantile_estimator active_set_size_{0.5, 0.75, 0.9, 0.95,
+                                                           0.99};
 
   mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;

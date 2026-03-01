@@ -40,7 +40,6 @@
 
 #include <folly/hash/Hash.h>
 #include <folly/sorted_vector_types.h>
-#include <folly/stats/Histogram.h>
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
@@ -53,6 +52,7 @@
 #include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/malloc_buffer.h>
+#include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 #include <dwarfs/writer/internal/cyclic_hash.h>
@@ -62,6 +62,8 @@
 namespace dwarfs::writer {
 
 namespace internal {
+
+using dwarfs::internal::value_stream_quantile_estimator;
 
 namespace {
 
@@ -89,10 +91,8 @@ namespace {
  */
 
 struct segmenter_stats {
-  segmenter_stats()
-      : l2_collision_vec_size(1, 0, 128) {}
-
   uint64_t total_hashes{0};
+  uint64_t l1_collisions{0};
   uint64_t l2_collisions{0};
   uint64_t total_matches{0};
   uint64_t good_matches{0};
@@ -100,7 +100,8 @@ struct segmenter_stats {
   uint64_t bloom_lookups{0};
   uint64_t bloom_hits{0};
   uint64_t bloom_true_positives{0};
-  folly::Histogram<uint64_t> l2_collision_vec_size;
+  value_stream_quantile_estimator l2_collision_vec_size{0.5, 0.75, 0.9, 0.95,
+                                                        0.99};
 };
 
 template <typename KeyT, typename ValT, size_t MaxCollInline = 2>
@@ -1177,8 +1178,9 @@ class active_block : private GranularityPolicy {
     stats.total_hashes += offsets_.values().size();
     for (auto& c : offsets_.collisions()) {
       stats.total_hashes += c.second.size();
+      stats.l1_collisions += 1;
       stats.l2_collisions += c.second.size() - 1;
-      stats.l2_collision_vec_size.addValue(c.second.size());
+      stats.l2_collision_vec_size.add(c.second.size());
     }
   }
 
@@ -1273,8 +1275,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_in_frames_{block_size_in_frames(cfg)}
-      , global_filter_{bloom_filter_size(cfg)}
-      , match_counts_{1, 0, 128} {
+      , global_filter_{bloom_filter_size(cfg)} {
     if constexpr (is_segmentation_enabled()) {
       LOG_VERBOSE << cfg_.context << "using a "
                   << size_with_unit(frames_to_bytes(window_size_))
@@ -1366,7 +1367,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   repeating_sequence_map_type repeating_sequence_hash_values_;
   repeating_collisions_map_type repeating_collisions_;
 
-  folly::Histogram<uint64_t> match_counts_;
+  value_stream_quantile_estimator match_counts_{0.5, 0.75, 0.9, 0.95, 0.99};
 };
 
 template <typename LoggerPolicy, typename GranularityPolicy>
@@ -1567,8 +1568,6 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
     block_ready();
   }
 
-  auto l1_collisions = stats_.l2_collision_vec_size.computeTotalCount();
-
   if (stats_.bloom_lookups > 0) {
     LOG_VERBOSE << cfg_.context << "bloom filter reject rate: "
                 << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
@@ -1587,29 +1586,30 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
   }
   if (stats_.total_hashes > 0) {
     LOG_VERBOSE << cfg_.context << "segmentation collisions: L1="
-                << fmt::format("{:.3f}%",
-                               100.0 * (l1_collisions + stats_.l2_collisions) /
-                                   stats_.total_hashes)
+                << fmt::format(
+                       "{:.3f}%",
+                       100.0 * (stats_.l1_collisions + stats_.l2_collisions) /
+                           stats_.total_hashes)
                 << ", L2="
                 << fmt::format("{:.3f}%", 100.0 * stats_.l2_collisions /
                                               stats_.total_hashes)
                 << " [" << stats_.total_hashes << " hashes]";
   }
 
-  if (l1_collisions > 0) {
+  if (stats_.l1_collisions > 0) {
     auto pct = [&](double p) {
-      return stats_.l2_collision_vec_size.getPercentileEstimate(p);
+      return stats_.l2_collision_vec_size.quantile(p / 100.0);
     };
-    LOG_VERBOSE << cfg_.context << "collision vector size p50: " << pct(0.5)
-                << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
-                << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+    LOG_VERBOSE << cfg_.context << "collision vector size p50: " << pct(50)
+                << ", p75: " << pct(75) << ", p90: " << pct(90)
+                << ", p95: " << pct(95) << ", p99: " << pct(99);
   }
 
-  auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
+  auto pct = [&](double p) { return match_counts_.quantile(p / 100.0); };
 
-  LOG_VERBOSE << cfg_.context << "match counts p50: " << pct(0.5)
-              << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
-              << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+  LOG_VERBOSE << cfg_.context << "match counts p50: " << pct(50)
+              << ", p75: " << pct(75) << ", p90: " << pct(90)
+              << ", p95: " << pct(95) << ", p99: " << pct(99);
 
   for (auto [k, v] : repeating_collisions_) {
     LOG_VERBOSE << cfg_.context
@@ -1773,7 +1773,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
       if (!matches.empty()) [[unlikely]] {
         ++stats_.bloom_true_positives;
-        match_counts_.addValue(matches.size());
+        match_counts_.add(matches.size());
 
         LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
                   << frames_to_bytes(blocks_.back().size_in_frames())
