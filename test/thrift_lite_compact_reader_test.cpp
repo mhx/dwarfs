@@ -437,8 +437,8 @@ TEST(compact_reader, throws_on_varint_u32_too_long) {
   auto const bytes = make_bytes({0x80, 0x80, 0x80, 0x80, 0x80, 0x00});
   auto r = tl::compact_reader{bytes};
 
-  EXPECT_THAT([&] { r.read_i32(); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr("varint too long")));
+  EXPECT_THAT([&] { r.read_i32(); }, ThrowsMessage<tl::protocol_error>(
+                                         HasSubstr("integer result overflow")));
 }
 
 TEST(compact_reader, throws_on_i16_out_of_range) {
@@ -447,8 +447,8 @@ TEST(compact_reader, throws_on_i16_out_of_range) {
   auto const bytes = make_bytes({0x80, 0xf1, 0x04});
   auto r = tl::compact_reader{bytes};
 
-  EXPECT_THAT([&] { r.read_i16(); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr("i16 out of range")));
+  EXPECT_THAT([&] { r.read_i16(); }, ThrowsMessage<tl::protocol_error>(
+                                         HasSubstr("integer result overflow")));
 }
 
 TEST(compact_reader, throws_on_unexpected_end_of_input) {
@@ -543,8 +543,8 @@ TEST(compact_reader, throws_on_varint_u64_too_long) {
       make_bytes({0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80});
   auto r = tl::compact_reader{bytes};
 
-  EXPECT_THAT([&] { r.read_i64(); },
-              ThrowsMessage<tl::protocol_error>(HasSubstr("varint too long")));
+  EXPECT_THAT([&] { r.read_i64(); }, ThrowsMessage<tl::protocol_error>(
+                                         HasSubstr("integer result overflow")));
 }
 
 TEST(compact_reader, list_elem_type_nibble_false_maps_to_bool_t) {

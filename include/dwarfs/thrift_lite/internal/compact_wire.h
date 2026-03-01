@@ -37,6 +37,7 @@
 #include <vector>
 
 #include <dwarfs/thrift_lite/types.h>
+#include <dwarfs/thrift_lite/varint.h>
 
 namespace dwarfs::thrift_lite::internal {
 
@@ -56,21 +57,6 @@ constexpr inline std::uint8_t ct_map = 0x0b;
 constexpr inline std::uint8_t ct_struct = 0x0c;
 constexpr inline std::uint8_t ct_uuid = 0x0d;
 
-template <std::signed_integral T>
-[[nodiscard]] constexpr std::make_unsigned_t<T>
-zigzag_encode(T const v) noexcept {
-  using U = std::make_unsigned_t<T>;
-  auto const uv = static_cast<U>(v);
-  return (uv << 1) ^ -(uv >> std::numeric_limits<T>::digits);
-}
-
-template <std::unsigned_integral T>
-[[nodiscard]] constexpr std::make_signed_t<T>
-zigzag_decode(T const v) noexcept {
-  using S = std::make_signed_t<T>;
-  return static_cast<S>((v >> 1) ^ -(v & 1));
-}
-
 inline void write_u8(std::vector<std::byte>& out, std::uint8_t const b) {
   out.push_back(static_cast<std::byte>(b));
 }
@@ -83,11 +69,9 @@ inline void write_bytes(std::vector<std::byte>& out, void const* const p,
 
 template <std::unsigned_integral T>
 void write_varint(std::vector<std::byte>& out, T v) {
-  while (v >= 0x80) {
-    write_u8(out, static_cast<std::uint8_t>(v) | 0x80);
-    v >>= 7;
-  }
-  write_u8(out, static_cast<std::uint8_t>(v));
+  std::array<std::byte, max_varint_size<T>> buf;
+  auto const it = varint_encode(v, buf.begin());
+  write_bytes(out, buf.data(), std::distance(buf.begin(), it));
 }
 
 [[nodiscard]] std::uint8_t compact_type_id_for_field(ttype t);
