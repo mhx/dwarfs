@@ -45,11 +45,13 @@ set(
   "The C++ standard argument to pass to the compiler."
 )
 
-set(
-  MSVC_LANGUAGE_VERSION "c++${DWARFS_CXX_STANDARD}"
-  CACHE STRING
-  "The C++ standard argument to pass to the compiler."
-)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  set(
+    MSVC_LANGUAGE_VERSION "c++${DWARFS_MSVC_CXX_STANDARD}"
+    CACHE STRING
+    "The C++ standard argument to pass to the compiler."
+  )
+endif()
 
 set(CMAKE_DISABLE_FIND_PACKAGE_ZLIB ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_BZip2 ON)
