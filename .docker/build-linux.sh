@@ -120,7 +120,7 @@ case "-$BUILD_TYPE-" in
     export COMPILER=gcc
     ;;
   *-oldgcc-*)
-    export CC=gcc-11 CXX=g++-11
+    export CC=gcc-12 CXX=g++-12
     ;;
   *-clang-*)
     case "-$BUILD_DIST-" in
@@ -134,7 +134,7 @@ case "-$BUILD_TYPE-" in
     export COMPILER=clang
     ;;
   *-oldclang-*)
-    export CC=clang-16 CXX=clang++-16
+    export CC=clang-18 CXX=clang++-18
     ;;
   *)
     echo "missing compiler in: $BUILD_TYPE"
