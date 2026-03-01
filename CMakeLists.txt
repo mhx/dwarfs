@@ -631,6 +631,7 @@ if(WITH_TESTS)
       test/time_resolution_converter_test.cpp
       test/unicode_test.cpp
       test/utils_test.cpp
+      test/value_stream_quantile_estimator_test.cpp
       test/worker_group_test.cpp
       test/xattr_test.cpp
       test/zstd_compressor_test.cpp

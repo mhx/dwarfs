@@ -48,7 +48,6 @@
 #include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
-#include <folly/stats/Histogram.h>
 
 #include <parallel_hashmap/phmap.h>
 
@@ -73,6 +72,7 @@
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/unicode_case_folding.h>
+#include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/metadata_analyzer.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
@@ -1169,8 +1169,9 @@ metadata_v2_data::unpack_shared_files(logger& lgr) const {
 }
 
 void metadata_v2_data::analyze_chunks(std::ostream& os) const {
-  folly::Histogram<size_t> block_refs{1, 0, 1024};
-  folly::Histogram<size_t> chunk_count{1, 0, 65536};
+  static constexpr std::array quantiles{0.5, 0.75, 0.9, 0.95, 0.99, 0.999};
+  value_stream_quantile_estimator block_refs{quantiles};
+  value_stream_quantile_estimator chunk_count{quantiles};
   size_t mergeable_chunks{0};
 
   for (size_t i = 1; i < meta_.chunk_table().size(); ++i) {
@@ -1197,28 +1198,28 @@ void metadata_v2_data::analyze_chunks(std::ostream& os) const {
         }
       }
 
-      block_refs.addValue(blocks.size());
+      block_refs.add(blocks.size());
     } else {
-      block_refs.addValue(num);
+      block_refs.add(num);
     }
 
-    chunk_count.addValue(num);
+    chunk_count.add(num);
   }
 
   {
-    auto pct = [&](double p) { return block_refs.getPercentileEstimate(p); };
+    auto pct = [&](double p) { return block_refs.quantile(p / 100.0); };
 
-    os << "single file block refs p50: " << pct(0.5) << ", p75: " << pct(0.75)
-       << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
-       << ", p99: " << pct(0.99) << ", p99.9: " << pct(0.999) << "\n";
+    os << "single file block refs p50: " << pct(50) << ", p75: " << pct(75)
+       << ", p90: " << pct(90) << ", p95: " << pct(95) << ", p99: " << pct(99)
+       << ", p99.9: " << pct(99.9) << "\n";
   }
 
   {
-    auto pct = [&](double p) { return chunk_count.getPercentileEstimate(p); };
+    auto pct = [&](double p) { return chunk_count.quantile(p / 100.0); };
 
-    os << "single file chunk count p50: " << pct(0.5) << ", p75: " << pct(0.75)
-       << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
-       << ", p99: " << pct(0.99) << ", p99.9: " << pct(0.999) << "\n";
+    os << "single file chunk count p50: " << pct(50) << ", p75: " << pct(75)
+       << ", p90: " << pct(90) << ", p95: " << pct(95) << ", p99: " << pct(99)
+       << ", p99.9: " << pct(99.9) << "\n";
   }
 
   // TODO: we can remove this once we have no more mergeable chunks :-)
