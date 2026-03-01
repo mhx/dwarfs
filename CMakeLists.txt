@@ -665,6 +665,7 @@ if(WITH_TESTS)
       test/thrift_lite_json_writer_test.cpp
       test/thrift_lite_test_message.cpp
       test/thrift_lite_test_message_data.cpp
+      test/thrift_lite_varint_test.cpp
     )
 
     target_link_libraries(dwarfs_thrift_lite_tests PRIVATE dwarfs_thrift_lite_test_thrift)

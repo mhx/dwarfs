@@ -231,6 +231,7 @@ add_library(
   src/thrift_lite/compact_writer.cpp
   src/thrift_lite/debug_writer.cpp
   src/thrift_lite/json_writer.cpp
+  src/thrift_lite/varint.cpp
 
   src/thrift_lite/internal/compact_wire.cpp
 )
