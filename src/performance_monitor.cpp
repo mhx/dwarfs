@@ -41,7 +41,6 @@
 #include <sys/time.h>
 #endif
 
-#include <folly/lang/Bits.h>
 #include <folly/portability/Unistd.h>
 
 #include <fmt/format.h>
