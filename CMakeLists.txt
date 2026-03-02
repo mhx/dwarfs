@@ -629,6 +629,7 @@ if(WITH_TESTS)
       test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
       test/string_test.cpp
+      test/synchronized_test.cpp
       test/terminal_test.cpp
       test/test_iolayer_test.cpp
       test/test_logger_test.cpp
