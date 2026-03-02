@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <dwarfs/config.h>
+#include <dwarfs/util.h>
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/from_current.hpp>
@@ -10,6 +11,9 @@
 
 GTEST_API_ int main(int argc, char** argv) {
   int result{1};
+
+  dwarfs::install_signal_handlers();
+
 #ifdef DWARFS_STACKTRACE_ENABLED
   CPPTRACE_TRY {
 #endif
