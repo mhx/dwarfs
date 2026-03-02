@@ -75,6 +75,11 @@
 #define DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
 #endif
 
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#include <cstdio>
+#endif
+
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
 #endif
@@ -560,9 +565,9 @@ int get_current_umask() {
   return mask;
 }
 
-#ifdef DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
-
 namespace {
+
+#ifdef DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
 
 struct fatal_signal {
   int signum;
@@ -725,13 +730,35 @@ void install_signal_handlers_impl() {
   }
 }
 
-} // namespace
-
 #endif // DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
+
+#ifdef _MSC_VER
+int __cdecl
+crt_report_hook(int report_type, char* message, int* /*return_value*/) {
+  if (report_type == _CRT_ASSERT) {
+    std::fputs("\n=== CRT ASSERT ===\n", stderr);
+    if (message)
+      std::fputs(message, stderr);
+#ifdef DWARFS_STACKTRACE_ENABLED
+    cpptrace::generate_trace(2).print();
+#endif
+    std::fflush(stderr);
+  }
+  return FALSE; // let CRT continue its normal handling
+}
+#endif
+
+} // namespace
 
 void install_signal_handlers() {
 #ifdef DWARFS_INSTALL_FATAL_SIGNAL_HANDLERS
   std::call_once(g_signal_handlers_installed, install_signal_handlers_impl);
+#endif
+#ifdef _MSC_VER
+  // Route asserts to stderr (avoids GUI dialogs in many setups)
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+  _CrtSetReportHook2(_CRT_RPTHOOK_INSTALL, crt_report_hook);
 #endif
 }
 
