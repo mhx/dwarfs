@@ -23,7 +23,6 @@
 
 #include <array>
 #include <map>
-#include <shared_mutex>
 #include <stack>
 #include <unordered_set>
 #include <vector>
@@ -32,13 +31,13 @@
 
 #include <fmt/format.h>
 
-#include <folly/Synchronized.h>
-
 #include <magic.h>
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/categorizer.h>
+
+#include <dwarfs/internal/synchronized.h>
 
 namespace dwarfs::writer {
 
@@ -57,12 +56,10 @@ class magic_wrapper {
  public:
   magic_wrapper() = default;
 
-  size_t cookie_count() const {
-    auto rlock = cookies_.rlock();
-    return rlock->size();
-  }
+  size_t cookie_count() const { return cookies_.rlock()->size(); }
 
-  std::string identify(std::span<uint8_t const> data) const {
+  std::string identify(file_view const& mm) const {
+    auto data = mm.raw_bytes(); // TODO
     std::string rv;
     scoped_cookie m(*this);
     if (auto id = ::magic_buffer(m.get(), data.data(), data.size())) {
@@ -100,29 +97,28 @@ class magic_wrapper {
         : cookie_{get_scoped_cookie(w)}
         , w_{w} {}
 
-    ~scoped_cookie() {
-      auto wlock = w_.cookies_.wlock();
-      wlock->push(std::move(cookie_));
-    }
+    ~scoped_cookie() { w_.cookies_.wlock()->push(std::move(cookie_)); }
 
     ::magic_t get() const { return cookie_.get(); }
 
    private:
     static magic_cookie_t get_scoped_cookie(magic_wrapper const& w) {
-      auto wlock = w.cookies_.wlock();
-      if (wlock->empty()) [[unlikely]] {
-        return w.new_cookie();
-      }
-      auto cookie = std::move(wlock->top());
-      wlock->pop();
-      return cookie;
+      return w.cookies_.with_wlock([&](auto& cookies) {
+        if (cookies.empty()) [[unlikely]] {
+          return w.new_cookie();
+        }
+        auto cookie = std::move(cookies.top());
+        cookies.pop();
+        return cookie;
+      });
     }
 
     magic_cookie_t cookie_;
     magic_wrapper const& w_;
   };
 
-  mutable folly::Synchronized<std::stack<magic_cookie_t>, std::shared_mutex>
+  mutable dwarfs::internal::synchronized<std::stack<magic_cookie_t>,
+                                         std::shared_mutex>
       cookies_;
 };
 
@@ -139,17 +135,15 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
 
   ~libmagic_categorizer_() {
     LOG_INFO << m_.cookie_count() << " magic cookies were used";
-    {
-      auto rlock = mimetypes_.rlock();
-      for (auto const& [k, v] : *rlock) {
+    mimetypes_.with_rlock([&](auto& m) {
+      for (auto const& [k, v] : m) {
         LOG_INFO << k << " -> " << v;
       }
-    }
+    });
   }
 
-  inode_fragments
-  categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
-             category_mapper const& mapper) const override;
+  inode_fragments categorize(file_path_info const& path, file_view const& mm,
+                             category_mapper const& mapper) const override;
 
   bool
   subcategory_less(fragment_category a, fragment_category b) const override;
@@ -157,7 +151,8 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   magic_wrapper m_;
-  mutable folly::Synchronized<std::map<std::string, size_t>, std::shared_mutex>
+  mutable dwarfs::internal::synchronized<std::map<std::string, size_t>,
+                                         std::shared_mutex>
       mimetypes_;
 };
 
@@ -171,11 +166,11 @@ libmagic_categorizer_base::categories() const {
 
 template <typename LoggerPolicy>
 inode_fragments libmagic_categorizer_<LoggerPolicy>::categorize(
-    std::filesystem::path const& path, std::span<uint8_t const> data,
+    file_path_info const& path, file_view const& mm,
     category_mapper const& /*mapper*/) const {
   inode_fragments fragments; // TODO: actually fill this :-)
-  auto id = m_.identify(data);
-  LOG_DEBUG << path << " -> (magic) " << id;
+  auto id = m_.identify(mm);
+  LOG_DEBUG << path.full_path() << " -> (magic) " << id;
   {
     auto wlock = mimetypes_.wlock();
     ++(*wlock)[id];
@@ -199,7 +194,8 @@ class libmagic_categorizer_factory : public categorizer_factory {
   }
 
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/) const override {
+  create(logger& lgr, po::variables_map const& /*vm*/,
+         std::shared_ptr<file_access const> const& /*fa*/) const override {
     return make_unique_logging_object<categorizer, libmagic_categorizer_,
                                       logger_policies>(lgr);
   }
