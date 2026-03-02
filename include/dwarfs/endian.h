@@ -78,23 +78,7 @@ class boxed_endian {
       return value;
     } else {
       static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
-#ifdef _MSC_VER
-      if constexpr (sizeof(T) == 2) {
-        return _byteswap_ushort(value);
-      } else if constexpr (sizeof(T) == 4) {
-        return _byteswap_ulong(value);
-      } else if constexpr (sizeof(T) == 8) {
-        return _byteswap_uint64(value);
-      }
-#else
-      if constexpr (sizeof(T) == 2) {
-        return __builtin_bswap16(value);
-      } else if constexpr (sizeof(T) == 4) {
-        return __builtin_bswap32(value);
-      } else if constexpr (sizeof(T) == 8) {
-        return __builtin_bswap64(value);
-      }
-#endif
+      return std::byteswap(value);
     }
   }
 };
