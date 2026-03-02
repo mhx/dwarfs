@@ -215,11 +215,11 @@ void frozen_analyzer::add_string_list_size(std::vector<usage_info>& usage,
                                            std::string_view name,
                                            auto const& list,
                                            auto const& field) const {
-  if (auto count = list.size(); count > 0) {
-    auto index_size = list_size(list, field);
-    auto data_size = list.back().end() - list.front().begin();
-    auto size = index_size + data_size;
-    auto fmt =
+  if (auto const count = list.size(); count > 0) {
+    auto const index_size = list_size(list, field);
+    auto const data_size = frozen_string_table_size(list);
+    auto const size = index_size + data_size;
+    auto const fmt =
         fmt_size(name, count, size) +
         fmt_detail_pct("|- index", count, index_size, get_list_offset(list)) +
         fmt_detail_pct("'- data", count, data_size,

@@ -112,6 +112,13 @@ class string_table {
   std::unique_ptr<impl const> impl_;
 };
 
+[[nodiscard]] inline std::ptrdiff_t
+frozen_string_table_size(auto const& table) {
+  // MSVC in debug mode barfs when doing fishy string_view operations...
+  return std::distance(table.front().data(),
+                       table.back().data() + table.back().size());
+}
+
 } // namespace internal
 
 } // namespace dwarfs
