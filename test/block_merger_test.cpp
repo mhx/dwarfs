@@ -36,8 +36,8 @@
 
 #include <fmt/format.h>
 #include <folly/String.h>
-#include <folly/Synchronized.h>
 
+#include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>
 
 #include "test_helpers.h"
@@ -130,9 +130,8 @@ struct timed_release_block {
   }
 };
 
-// Use std::shared_mutex because folly::SharedMutex might trigger TSAN
 template <typename T>
-using synchronized = folly::Synchronized<T, std::shared_mutex>;
+using synchronized = ::dwarfs::internal::synchronized<T, std::shared_mutex>;
 
 template <typename T>
 using sync_queue = synchronized<std::queue<T>>;
@@ -187,7 +186,7 @@ template <typename BlockMergerT,
           typename BlockT = typename BlockMergerT::block_type>
 void emitter(sync_queue<source<BlockT>>& sources, BlockMergerT& merger) {
   for (;;) {
-    auto src = sources.withWLock([](auto&& q) {
+    auto src = sources.with_wlock([](auto&& q) {
       std::optional<source<BlockT>> src;
 
       if (!q.empty()) {
@@ -284,12 +283,12 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
       if constexpr (PartialRelease) {
         auto when = std::chrono::steady_clock::now() +
                     std::chrono::microseconds(release_after_us_dist(delay_rng));
-        merged_queue.withWLock([&](auto&& q) {
+        merged_queue.with_wlock([&](auto&& q) {
           q.emplace_back(when, std::move(holder));
           std::push_heap(begin(q), end(q));
         });
       } else {
-        merged_queue.withWLock([&](auto&& q) {
+        merged_queue.with_wlock([&](auto&& q) {
           q.emplace_back(std::chrono::steady_clock::time_point{},
                          std::move(holder));
         });
@@ -319,7 +318,7 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
       std::chrono::steady_clock::time_point next;
       std::vector<internal::merged_block_holder<BlockT>> holders;
 
-      merged_queue.withWLock([&](auto&& q) {
+      merged_queue.with_wlock([&](auto&& q) {
         while (!q.empty()) {
           if constexpr (PartialRelease) {
             std::pop_heap(begin(q), end(q));
@@ -352,7 +351,7 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
           }
         }
 
-        merged_queue.withWLock([&](auto&& q) {
+        merged_queue.with_wlock([&](auto&& q) {
           for (auto& h : partial) {
             auto when = now + std::chrono::microseconds(
                                   release_after_us_dist(partial_rng));

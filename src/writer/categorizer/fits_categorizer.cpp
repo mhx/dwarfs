@@ -28,15 +28,12 @@
 #include <cstring>
 #include <functional>
 #include <map>
-#include <shared_mutex>
 #include <string_view>
 #include <vector>
 
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
-
-#include <folly/Synchronized.h>
 
 #include <range/v3/algorithm/fold_left.hpp>
 #include <range/v3/view/chunk.hpp>
@@ -47,6 +44,8 @@
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
+
+#include <dwarfs/internal/synchronized.h>
 
 template <>
 struct fmt::formatter<std::endian> : formatter<std::string_view> {
@@ -423,7 +422,8 @@ class fits_categorizer_ final : public fits_categorizer_base {
   bool check_metadata(fits_metadata const& meta, fs::path const& path) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  folly::Synchronized<fits_metadata_store, std::shared_mutex> mutable meta_;
+  dwarfs::internal::synchronized<fits_metadata_store,
+                                 std::shared_mutex> mutable meta_;
   compression_metadata_requirements<fits_metadata> image_req_;
 };
 

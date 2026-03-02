@@ -27,7 +27,6 @@
 #include <concepts>
 #include <cstring>
 #include <map>
-#include <shared_mutex>
 #include <stack>
 #include <string_view>
 #include <unordered_set>
@@ -38,7 +37,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
-#include <folly/Synchronized.h>
+#include <folly/Portability.h>
 
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
@@ -46,6 +45,8 @@
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
+
+#include <dwarfs/internal/synchronized.h>
 
 namespace dwarfs::writer {
 
@@ -564,7 +565,8 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                      file_off_t pcm_start, file_size_t pcm_length) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  folly::Synchronized<pcmaudio_metadata_store, std::shared_mutex> mutable meta_;
+  dwarfs::internal::synchronized<pcmaudio_metadata_store,
+                                 std::shared_mutex> mutable meta_;
   compression_metadata_requirements<pcmaudio_metadata> waveform_req_;
 };
 
