@@ -33,10 +33,10 @@
 #include <boost/program_options.hpp>
 
 #include <folly/String.h>
-#include <folly/lang/Bits.h>
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/endian.h>
 #include <dwarfs/writer/categorizer.h>
 
 #include "mmap_mock.h"
@@ -137,7 +137,7 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
     for (auto& pixel : image) {
       for (unsigned unused_lsb_count = 0; unused_lsb_count <= 8;
            ++unused_lsb_count) {
-        pixel = folly::Endian::big<uint16_t>(1 << unused_lsb_count);
+        pixel = convert<std::endian::big, uint16_t>(1 << unused_lsb_count);
 
         auto job = catmgr->job(
             fmt::format("test-{}-{}-{}", offset, pixel, unused_lsb_count));
