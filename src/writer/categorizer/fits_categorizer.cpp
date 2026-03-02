@@ -29,6 +29,7 @@
 #include <functional>
 #include <map>
 #include <shared_mutex>
+#include <string_view>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -36,14 +37,14 @@
 #include <fmt/format.h>
 
 #include <folly/Synchronized.h>
-#include <folly/lang/Bits.h>
 
 #include <range/v3/algorithm/fold_left.hpp>
 #include <range/v3/view/chunk.hpp>
 
+#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/map_util.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
@@ -68,6 +69,8 @@ struct fmt::formatter<std::endian> : formatter<std::string_view> {
 
 namespace dwarfs::writer {
 
+using namespace std::string_view_literals;
+
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
@@ -79,11 +82,11 @@ constexpr std::string_view const IMAGE_CATEGORY{"fits/image"};
 constexpr file_size_t const FITS_SIZE_GRANULARITY{2880};
 
 std::optional<std::endian> parse_endian(std::string_view e) {
-  static std::unordered_map<std::string_view, std::endian> const lookup{
-      {"big", std::endian::big},
-      {"little", std::endian::little},
+  static constexpr sorted_array_map lookup{
+      std::pair{"big"sv, std::endian::big},
+      std::pair{"little"sv, std::endian::little},
   };
-  return get_optional(lookup, e);
+  return lookup.get(e);
 }
 
 std::optional<std::endian> parse_endian_dyn(nlohmann::json const& e) {
@@ -169,7 +172,7 @@ uint16_t merge_sample_bits<uint16_t>(std::span<uint8_t const> imagedata) {
   b16 |= fold_left_bit_or<uint16_t>(imagedata.subspan(
       size * kAlignment, imagedata.size_bytes() % kAlignment));
 
-  return folly::Endian::big(b16);
+  return convert<std::endian::big>(b16);
 }
 
 template <>
