@@ -21,13 +21,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
-
-#include <folly/Synchronized.h>
 
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
@@ -35,6 +34,8 @@
 #include <dwarfs/small_vector.h>
 #include <dwarfs/type_list.h>
 #include <dwarfs/writer/categorizer.h>
+
+#include <dwarfs/internal/synchronized.h>
 
 namespace dwarfs::writer {
 
@@ -93,7 +94,7 @@ class category_subcategory_map {
 };
 
 using sync_subcat_map =
-    folly::Synchronized<category_subcategory_map, std::shared_mutex>;
+    dwarfs::internal::synchronized<category_subcategory_map, std::shared_mutex>;
 
 //----- Minimal ELF definitions ------------------------------------------------
 

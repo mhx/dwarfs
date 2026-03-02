@@ -45,7 +45,6 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 
@@ -71,6 +70,7 @@
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
+#include <dwarfs/internal/synchronized.h>
 #include <dwarfs/internal/unicode_case_folding.h>
 #include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/reader/internal/lru_cache.h>
@@ -716,9 +716,8 @@ class metadata_v2_data {
   metadata_options const options_;
   string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
-  folly::Synchronized<
-      lru_cache<size_t, std::shared_ptr<sparse_file_seeker const>>,
-      std::mutex> mutable seek_cache_;
+  synchronized<lru_cache<
+      size_t, std::shared_ptr<sparse_file_seeker const>>> mutable seek_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(find_path)
@@ -1301,7 +1300,7 @@ metadata_v2_data::seek(uint32_t const inode, file_off_t const offset,
     return sparse_file_seeker::seek(chunks, offset, whence, ec);
   }
 
-  auto seeker = seek_cache_.withLock(
+  auto seeker = seek_cache_.with_lock(
       [inode](auto& cache) -> std::shared_ptr<sparse_file_seeker const> {
         if (auto it = cache.find(inode); it != cache.end()) {
           return it->second;
