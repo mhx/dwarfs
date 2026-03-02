@@ -31,9 +31,9 @@
 #include <exception>
 #include <iterator>
 #include <stdexcept>
+#include <utility>
 
 #include <folly/Conv.h>
-#include <folly/lang/Assume.h>
 
 #include <boost/chrono/thread_clock.hpp>
 
@@ -90,7 +90,7 @@ char logger::level_char(level_type level) {
   case TRACE:
     return 'T';
   }
-  folly::assume_unreachable();
+  std::unreachable();
 }
 
 std::ostream& operator<<(std::ostream& os, logger::level_type const& optval) {
