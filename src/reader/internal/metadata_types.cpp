@@ -576,8 +576,8 @@ void check_plain_strings(
   }
 
   if (!v.empty()) {
-    auto expected = static_cast<size_t>(v.back().end() - v.front().begin());
-    if (total_size != expected) {
+    auto const expected = frozen_string_table_size(v);
+    if (std::cmp_not_equal(total_size, expected)) {
       DWARFS_THROW(runtime_error,
                    fmt::format("unexpected data size in {0}: {1} != {2}", what,
                                total_size, expected));
