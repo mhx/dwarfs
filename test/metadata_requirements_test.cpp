@@ -22,6 +22,7 @@
  */
 
 #include <stdexcept>
+#include <string_view>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -31,10 +32,11 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/map_util.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
 using namespace dwarfs;
+using namespace std::string_view_literals;
 
 TEST(metadata_requirements, dynamic_test) {
   std::string requirements = R"({
@@ -277,11 +279,12 @@ struct test_metadata {
 };
 
 std::optional<test_enum> parse_enum(nlohmann::json const& value) {
-  static std::unordered_map<std::string_view, test_enum> const enum_map{
-      {"foo", test_enum::foo},
-      {"bar", test_enum::bar},
-      {"baz", test_enum::baz}};
-  return get_optional(enum_map, value.get<std::string>());
+  static constexpr sorted_array_map enum_map{
+      std::pair{"foo"sv, test_enum::foo},
+      std::pair{"bar"sv, test_enum::bar},
+      std::pair{"baz"sv, test_enum::baz},
+  };
+  return enum_map.get(value.get<std::string_view>());
 }
 
 std::ostream& operator<<(std::ostream& os, test_enum e) {
