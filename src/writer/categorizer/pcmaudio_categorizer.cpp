@@ -22,6 +22,7 @@
  */
 
 #include <array>
+#include <bit>
 #include <cassert>
 #include <concepts>
 #include <cstring>
@@ -38,15 +39,17 @@
 #include <fmt/ostream.h>
 
 #include <folly/Synchronized.h>
-#include <folly/lang/Bits.h>
 
+#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/map_util.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
 namespace dwarfs::writer {
+
+using namespace std::string_view_literals;
 
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
@@ -58,11 +61,6 @@ constexpr std::string_view const WAVEFORM_CATEGORY{"pcmaudio/waveform"};
 
 constexpr file_size_t const MIN_PCMAUDIO_SIZE{32};
 
-enum class endianness : uint8_t {
-  BIG,
-  LITTLE,
-};
-
 enum class signedness : uint8_t {
   SIGNED,
   UNSIGNED,
@@ -73,29 +71,15 @@ enum class padding : uint8_t {
   MSB,
 };
 
-std::ostream& operator<<(std::ostream& os, endianness e) {
-  switch (e) {
-  case endianness::BIG:
-    os << "big";
-    break;
-  case endianness::LITTLE:
-    os << "little";
-    break;
-  default:
-    DWARFS_PANIC("internal error: unhandled endianness value");
-  }
-  return os;
-}
-
-std::optional<endianness> parse_endianness(std::string_view e) {
-  static std::unordered_map<std::string_view, endianness> const lookup{
-      {"big", endianness::BIG},
-      {"little", endianness::LITTLE},
+std::optional<std::endian> parse_endianness(std::string_view e) {
+  static constexpr sorted_array_map lookup{
+      std::pair{"big"sv, std::endian::big},
+      std::pair{"little"sv, std::endian::little},
   };
-  return get_optional(lookup, e);
+  return lookup.get(e);
 }
 
-std::optional<endianness> parse_endianness_dyn(nlohmann::json const& e) {
+std::optional<std::endian> parse_endianness_dyn(nlohmann::json const& e) {
   return parse_endianness(e.get<std::string>());
 }
 
@@ -114,11 +98,11 @@ std::ostream& operator<<(std::ostream& os, signedness e) {
 }
 
 std::optional<signedness> parse_signedness(std::string_view s) {
-  static std::unordered_map<std::string_view, signedness> const lookup{
-      {"signed", signedness::SIGNED},
-      {"unsigned", signedness::UNSIGNED},
+  static constexpr sorted_array_map lookup{
+      std::pair{"signed"sv, signedness::SIGNED},
+      std::pair{"unsigned"sv, signedness::UNSIGNED},
   };
-  return get_optional(lookup, s);
+  return lookup.get(s);
 }
 
 std::optional<signedness> parse_signedness_dyn(nlohmann::json const& s) {
@@ -140,11 +124,11 @@ std::ostream& operator<<(std::ostream& os, padding e) {
 }
 
 std::optional<padding> parse_padding(std::string_view p) {
-  static std::unordered_map<std::string_view, padding> const lookup{
-      {"lsb", padding::LSB},
-      {"msb", padding::MSB},
+  static constexpr sorted_array_map lookup{
+      std::pair{"lsb"sv, padding::LSB},
+      std::pair{"msb"sv, padding::MSB},
   };
-  return get_optional(lookup, p);
+  return lookup.get(p);
 }
 
 std::optional<padding> parse_padding_dyn(nlohmann::json const& p) {
@@ -154,8 +138,26 @@ std::optional<padding> parse_padding_dyn(nlohmann::json const& p) {
 } // namespace
 } // namespace dwarfs::writer
 
+namespace std {
+
+inline ostream& operator<<(ostream& os, endian e) {
+  switch (e) {
+  case endian::big:
+    os << "big";
+    break;
+  case endian::little:
+    os << "little";
+    break;
+  default:
+    DWARFS_PANIC("internal error: unhandled endianness value");
+  }
+  return os;
+}
+
+} // namespace std
+
 template <>
-struct fmt::formatter<dwarfs::writer::endianness> : ostream_formatter {};
+struct fmt::formatter<std::endian> : ostream_formatter {};
 template <>
 struct fmt::formatter<dwarfs::writer::signedness> : ostream_formatter {};
 template <>
@@ -165,7 +167,7 @@ namespace dwarfs::writer {
 namespace {
 
 struct pcmaudio_metadata {
-  endianness sample_endianness;
+  std::endian sample_endianness;
   signedness sample_signedness;
   padding sample_padding;
   uint8_t bits_per_sample;
@@ -211,25 +213,6 @@ struct pcmaudio_metadata {
   }
 };
 
-template <endianness>
-struct endian;
-
-template <>
-struct endian<endianness::BIG> {
-  template <typename T>
-  static T convert(T x) {
-    return folly::Endian::big(x);
-  }
-};
-
-template <>
-struct endian<endianness::LITTLE> {
-  template <typename T>
-  static T convert(T x) {
-    return folly::Endian::little(x);
-  }
-};
-
 struct WavPolicy {
   using SizeType = uint32_t;
   static constexpr bool const size_includes_header{false};
@@ -265,7 +248,7 @@ struct Wav64Policy {
 struct AiffChunkPolicy {
   static constexpr std::string_view const format_name{"AIFF"};
   static constexpr size_t const alignment{2};
-  static constexpr endianness const endian{endianness::BIG};
+  static constexpr auto const endian{std::endian::big};
   static constexpr bool const size_includes_header{false};
   static void preprocess(auto&, file_view const&) {}
 };
@@ -273,7 +256,7 @@ struct AiffChunkPolicy {
 struct CafChunkPolicy {
   static constexpr std::string_view const format_name{"CAF"};
   static constexpr size_t const alignment{1};
-  static constexpr endianness const endian{endianness::BIG};
+  static constexpr auto const endian{std::endian::big};
   static constexpr bool const size_includes_header{false};
   static void preprocess(auto& c, file_view const& mm) {
     if (c.header.size == std::numeric_limits<decltype(c.header.size)>::max() &&
@@ -288,7 +271,7 @@ struct WavChunkPolicy {
   static constexpr std::string_view const format_name{
       FormatPolicy::format_name};
   static constexpr size_t const alignment{FormatPolicy::chunk_align};
-  static constexpr endianness const endian{endianness::LITTLE};
+  static constexpr auto const endian{std::endian::little};
   static constexpr bool const size_includes_header{
       FormatPolicy::size_includes_header};
   static void preprocess(auto&, file_view const&) {}
@@ -361,7 +344,7 @@ class iff_parser final {
       c.emplace();
 
       DWARFS_CHECK(read(c->header, pos_), "iff_parser::read failed");
-      c->header.size = endian<ChunkPolicy::endian>::convert(c->header.size);
+      c->header.size = convert<ChunkPolicy::endian>(c->header.size);
       c->pos = pos_;
 
       ChunkPolicy::preprocess(*c, mm_);
@@ -647,7 +630,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
     return false;
   }
 
-  file_header.size = folly::Endian::big(file_header.size);
+  file_header.size = convert<std::endian::big>(file_header.size);
 
   parser.check_size("file", file_header.size,
                     mm.size() - offsetof(file_hdr_t, form));
@@ -672,13 +655,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
-      meta.sample_endianness = endianness::BIG;
+      meta.sample_endianness = std::endian::big;
       meta.sample_signedness = signedness::SIGNED;
       meta.sample_padding = padding::LSB;
-      meta.bits_per_sample = folly::Endian::big(comm.sample_size);
+      meta.bits_per_sample = convert<std::endian::big>(comm.sample_size);
       meta.bytes_per_sample = (meta.bits_per_sample + 7) / 8;
-      meta.number_of_channels = folly::Endian::big(comm.num_chan);
-      num_sample_frames = folly::Endian::big(comm.num_sample_frames);
+      meta.number_of_channels = convert<std::endian::big>(comm.num_chan);
+      num_sample_frames = convert<std::endian::big>(comm.num_sample_frames);
 
       meta_valid = check_metadata(meta, "AIFF", path);
 
@@ -697,8 +680,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
-      ssnd.offset = folly::Endian::big(ssnd.offset);
-      ssnd.block_size = folly::Endian::big(ssnd.block_size);
+      ssnd.offset = convert<std::endian::big>(ssnd.offset);
+      ssnd.block_size = convert<std::endian::big>(ssnd.block_size);
 
       file_off_t pcm_start =
           chunk->pos + sizeof(chunk_hdr_t) + sizeof(ssnd) + ssnd.offset;
@@ -788,8 +771,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     return false;
   }
 
-  caff_hdr.version = folly::Endian::big(caff_hdr.version);
-  caff_hdr.flags = folly::Endian::big(caff_hdr.flags);
+  caff_hdr.version = convert<std::endian::big>(caff_hdr.version);
+  caff_hdr.flags = convert<std::endian::big>(caff_hdr.flags);
 
   if (caff_hdr.version != 1 || caff_hdr.flags != 0) {
     LOG_WARN << "[CAF] " << path
@@ -824,7 +807,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.format_flags = folly::Endian::big(fmt.format_flags);
+      fmt.format_flags = convert<std::endian::big>(fmt.format_flags);
 
       if (fmt.format_flags & kCAFLinearPCMFormatFlagIsFloat) {
         LOG_VERBOSE << "[CAF] " << path
@@ -832,7 +815,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.frames_per_packet = folly::Endian::big(fmt.frames_per_packet);
+      fmt.frames_per_packet = convert<std::endian::big>(fmt.frames_per_packet);
 
       if (fmt.frames_per_packet != 1) {
         LOG_WARN << "[CAF] " << path << ": unsupported frames per packet: "
@@ -840,16 +823,17 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.bytes_per_packet = folly::Endian::big(fmt.bytes_per_packet);
+      fmt.bytes_per_packet = convert<std::endian::big>(fmt.bytes_per_packet);
 
       meta.sample_endianness =
           (fmt.format_flags & kCAFLinearPCMFormatFlagIsLittleEndian)
-              ? endianness::LITTLE
-              : endianness::BIG;
+              ? std::endian::little
+              : std::endian::big;
       meta.sample_signedness = signedness::SIGNED;
       meta.sample_padding = padding::LSB;
-      meta.bits_per_sample = folly::Endian::big(fmt.bits_per_channel);
-      meta.number_of_channels = folly::Endian::big(fmt.channels_per_frame);
+      meta.bits_per_sample = convert<std::endian::big>(fmt.bits_per_channel);
+      meta.number_of_channels =
+          convert<std::endian::big>(fmt.channels_per_frame);
 
       if (fmt.bytes_per_packet == 0) {
         LOG_WARN << "[CAF] " << path << ": bytes per packet must not be zero";
@@ -973,7 +957,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     return false;
   }
 
-  file_header.size = folly::Endian::little(file_header.size);
+  file_header.size = convert<std::endian::little>(file_header.size);
 
   if (file_header.form_sv() != FormatPolicy::wave_id) {
     return false;
@@ -1016,12 +1000,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         return false;
       }
 
-      fmt.format_code = folly::Endian::little(fmt.format_code);
-      fmt.num_channels = folly::Endian::little(fmt.num_channels);
-      fmt.samples_per_sec = folly::Endian::little(fmt.samples_per_sec);
-      fmt.avg_bytes_per_sec = folly::Endian::little(fmt.avg_bytes_per_sec);
-      fmt.block_align = folly::Endian::little(fmt.block_align);
-      fmt.bits_per_sample = folly::Endian::little(fmt.bits_per_sample);
+      fmt.format_code = convert<std::endian::little>(fmt.format_code);
+      fmt.num_channels = convert<std::endian::little>(fmt.num_channels);
+      fmt.samples_per_sec = convert<std::endian::little>(fmt.samples_per_sec);
+      fmt.avg_bytes_per_sec =
+          convert<std::endian::little>(fmt.avg_bytes_per_sec);
+      fmt.block_align = convert<std::endian::little>(fmt.block_align);
+      fmt.bits_per_sample = convert<std::endian::little>(fmt.bits_per_sample);
 
       bool const is_extensible =
           chunk->size() == 40 &&
@@ -1029,8 +1014,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
 
       if (is_extensible) {
         fmt.valid_bits_per_sample =
-            folly::Endian::little(fmt.valid_bits_per_sample);
-        fmt.sub_format_code = folly::Endian::little(fmt.sub_format_code);
+            convert<std::endian::little>(fmt.valid_bits_per_sample);
+        fmt.sub_format_code = convert<std::endian::little>(fmt.sub_format_code);
       } else {
         fmt.sub_format_code = 0;
       }
@@ -1051,7 +1036,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         return false;
       }
 
-      meta.sample_endianness = endianness::LITTLE;
+      meta.sample_endianness = std::endian::little;
       meta.sample_signedness =
           fmt.bits_per_sample > 8 ? signedness::SIGNED : signedness::UNSIGNED;
       meta.sample_padding = padding::LSB;
