@@ -36,6 +36,26 @@
 
 namespace dwarfs {
 
+template <std::endian Endian, std::integral T>
+  requires(!std::same_as<T, bool>)
+constexpr auto convert(T value) noexcept -> T {
+  if constexpr (std::endian::native == Endian || sizeof(T) == 1) {
+    return value;
+  } else {
+    static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
+    return std::byteswap(value);
+  }
+}
+
+template <std::integral T>
+  requires(!std::same_as<T, bool>)
+constexpr auto convert_endian(std::endian e, T value) noexcept -> T {
+  if (e == std::endian::native || sizeof(T) == 1) {
+    return value;
+  }
+  return std::byteswap(value);
+}
+
 template <std::unsigned_integral T, std::endian Endian>
 class boxed_endian {
  public:
@@ -73,14 +93,7 @@ class boxed_endian {
  private:
   T raw_{};
 
-  static constexpr T swap(T value) noexcept {
-    if constexpr (std::endian::native == Endian || sizeof(T) == 1) {
-      return value;
-    } else {
-      static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
-      return std::byteswap(value);
-    }
-  }
+  static constexpr T swap(T value) noexcept { return convert<Endian>(value); }
 };
 
 using uint16le_t = boxed_endian<uint16_t, std::endian::little>;

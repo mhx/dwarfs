@@ -598,6 +598,7 @@ if(WITH_TESTS)
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
       test/compare_directories_test.cpp
+      test/endian_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
       test/file_access_test.cpp
