@@ -28,7 +28,6 @@
 #include <vector>
 
 #include <folly/Synchronized.h>
-#include <folly/lang/Bits.h>
 
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
@@ -117,11 +116,10 @@ struct minimal_elf_header {
   }
 
   uint64_t key() const {
-    bool const kIsBigEndian = e_ident[MINELF_EI_DATA] == 2;
-    auto const type = kIsBigEndian ? folly::Endian::big(e_type)
-                                   : folly::Endian::little(e_type);
-    auto const machine = kIsBigEndian ? folly::Endian::big(e_machine)
-                                      : folly::Endian::little(e_machine);
+    auto const byte_order =
+        e_ident[MINELF_EI_DATA] == 2 ? std::endian::big : std::endian::little;
+    auto const type = convert_endian(byte_order, e_type);
+    auto const machine = convert_endian(byte_order, e_machine);
 
     return static_cast<uint64_t>(e_ident[MINELF_EI_CLASS]) << 56 |
            static_cast<uint64_t>(e_ident[MINELF_EI_DATA]) << 48 |
@@ -233,15 +231,15 @@ struct minimal_macho_thin_header {
   }
 
   uint64_t key() const {
-    bool const kIsBigEndian = magic == MH_MAGIC || magic == MH_MAGIC_64;
+    auto const byte_order = magic == MH_MAGIC || magic == MH_MAGIC_64
+                                ? std::endian::big
+                                : std::endian::little;
     bool const kIs64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64;
-    auto const cputype = kIsBigEndian ? folly::Endian::big(cpu_type)
-                                      : folly::Endian::little(cpu_type);
-    auto const subtype = kIsBigEndian ? folly::Endian::big(cpu_subtype)
-                                      : folly::Endian::little(cpu_subtype);
-    auto const filetype = kIsBigEndian ? folly::Endian::big(file_type)
-                                       : folly::Endian::little(file_type);
-    return (kIsBigEndian ? 1ULL << 63 : 0ULL) | (kIs64Bit ? 1ULL << 62 : 0ULL) |
+    auto const cputype = convert_endian(byte_order, cpu_type);
+    auto const subtype = convert_endian(byte_order, cpu_subtype);
+    auto const filetype = convert_endian(byte_order, file_type);
+    return (byte_order == std::endian::big ? 1ULL << 63 : 0ULL) |
+           (kIs64Bit ? 1ULL << 62 : 0ULL) |
            ((static_cast<uint64_t>(filetype) & ((1ULL << 20) - 1)) << 40) |
            ((static_cast<uint64_t>(subtype) & ((1ULL << 20) - 1)) << 20) |
            ((static_cast<uint64_t>(cputype) & ((1ULL << 20) - 1)) << 0);
