@@ -31,8 +31,8 @@
 
 #include <folly/Portability.h>
 #include <folly/String.h>
-#include <folly/lang/Bits.h>
 
+#include <dwarfs/endian.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -59,7 +59,7 @@ struct aiff_file_hdr_t {
 
 aiff_file_hdr_t as_big_endian(aiff_file_hdr_t const& hdr) {
   aiff_file_hdr_t result{hdr};
-  result.size = folly::Endian::big(result.size);
+  result.size = convert<std::endian::big>(result.size);
   return result;
 }
 
@@ -70,7 +70,7 @@ struct aiff_chunk_hdr_t {
 
 aiff_chunk_hdr_t as_big_endian(aiff_chunk_hdr_t const& hdr) {
   aiff_chunk_hdr_t result{hdr};
-  result.size = folly::Endian::big(result.size);
+  result.size = convert<std::endian::big>(result.size);
   return result;
 }
 
@@ -83,9 +83,10 @@ struct aiff_comm_chk_t {
 
 aiff_comm_chk_t as_big_endian(aiff_comm_chk_t const& chk) {
   aiff_comm_chk_t result{chk};
-  result.num_chan = folly::Endian::big(result.num_chan);
-  result.num_sample_frames = folly::Endian::big(result.num_sample_frames);
-  result.sample_size = folly::Endian::big(result.sample_size);
+  result.num_chan = convert<std::endian::big>(result.num_chan);
+  result.num_sample_frames =
+      convert<std::endian::big>(result.num_sample_frames);
+  result.sample_size = convert<std::endian::big>(result.sample_size);
   return result;
 }
 
@@ -96,8 +97,8 @@ struct aiff_ssnd_chk_t {
 
 aiff_ssnd_chk_t as_big_endian(aiff_ssnd_chk_t const& chk) {
   aiff_ssnd_chk_t result{chk};
-  result.offset = folly::Endian::big(result.offset);
-  result.block_size = folly::Endian::big(result.block_size);
+  result.offset = convert<std::endian::big>(result.offset);
+  result.block_size = convert<std::endian::big>(result.block_size);
   return result;
 }
 
@@ -109,8 +110,8 @@ struct caff_file_hdr_t {
 
 caff_file_hdr_t as_big_endian(caff_file_hdr_t const& hdr) {
   caff_file_hdr_t result{hdr};
-  result.version = folly::Endian::big(result.version);
-  result.flags = folly::Endian::big(result.flags);
+  result.version = convert<std::endian::big>(result.version);
+  result.flags = convert<std::endian::big>(result.flags);
   return result;
 }
 
@@ -121,7 +122,7 @@ struct caff_chunk_hdr_t {
 
 caff_chunk_hdr_t as_big_endian(caff_chunk_hdr_t const& hdr) {
   caff_chunk_hdr_t result{hdr};
-  result.size = folly::Endian::big(result.size);
+  result.size = convert<std::endian::big>(result.size);
   return result;
 }
 
@@ -137,11 +138,13 @@ struct caff_format_chk_t {
 
 caff_format_chk_t as_big_endian(caff_format_chk_t const& chk) {
   caff_format_chk_t result{chk};
-  result.format_flags = folly::Endian::big(result.format_flags);
-  result.bytes_per_packet = folly::Endian::big(result.bytes_per_packet);
-  result.frames_per_packet = folly::Endian::big(result.frames_per_packet);
-  result.channels_per_frame = folly::Endian::big(result.channels_per_frame);
-  result.bits_per_channel = folly::Endian::big(result.bits_per_channel);
+  result.format_flags = convert<std::endian::big>(result.format_flags);
+  result.bytes_per_packet = convert<std::endian::big>(result.bytes_per_packet);
+  result.frames_per_packet =
+      convert<std::endian::big>(result.frames_per_packet);
+  result.channels_per_frame =
+      convert<std::endian::big>(result.channels_per_frame);
+  result.bits_per_channel = convert<std::endian::big>(result.bits_per_channel);
   return result;
 }
 
@@ -151,7 +154,7 @@ struct caff_data_chk_t {
 
 caff_data_chk_t as_big_endian(caff_data_chk_t const& chk) {
   caff_data_chk_t result{chk};
-  result.edit_count = folly::Endian::big(result.edit_count);
+  result.edit_count = convert<std::endian::big>(result.edit_count);
   return result;
 }
 
@@ -163,7 +166,7 @@ struct wav_file_hdr_t {
 
 wav_file_hdr_t as_little_endian(wav_file_hdr_t const& hdr) {
   wav_file_hdr_t result{hdr};
-  result.size = folly::Endian::little(result.size);
+  result.size = convert<std::endian::little>(result.size);
   return result;
 }
 
@@ -174,7 +177,7 @@ struct wav_chunk_hdr_t {
 
 wav_chunk_hdr_t as_little_endian(wav_chunk_hdr_t const& hdr) {
   wav_chunk_hdr_t result{hdr};
-  result.size = folly::Endian::little(result.size);
+  result.size = convert<std::endian::little>(result.size);
   return result;
 }
 
@@ -186,7 +189,7 @@ struct wav64_file_hdr_t {
 
 wav64_file_hdr_t as_little_endian(wav64_file_hdr_t const& hdr) {
   wav64_file_hdr_t result{hdr};
-  result.size = folly::Endian::little(result.size);
+  result.size = convert<std::endian::little>(result.size);
   return result;
 }
 
@@ -197,7 +200,7 @@ struct wav64_chunk_hdr_t {
 
 wav64_chunk_hdr_t as_little_endian(wav64_chunk_hdr_t const& hdr) {
   wav64_chunk_hdr_t result{hdr};
-  result.size = folly::Endian::little(result.size);
+  result.size = convert<std::endian::little>(result.size);
   return result;
 }
 
@@ -217,17 +220,18 @@ struct wav_fmt_chunk_t {
 
 wav_fmt_chunk_t as_little_endian(wav_fmt_chunk_t const& chk) {
   wav_fmt_chunk_t result{chk};
-  result.format_code = folly::Endian::little(result.format_code);
-  result.num_channels = folly::Endian::little(result.num_channels);
-  result.samples_per_sec = folly::Endian::little(result.samples_per_sec);
-  result.avg_bytes_per_sec = folly::Endian::little(result.avg_bytes_per_sec);
-  result.block_align = folly::Endian::little(result.block_align);
-  result.bits_per_sample = folly::Endian::little(result.bits_per_sample);
-  result.ext_size = folly::Endian::little(result.ext_size);
+  result.format_code = convert<std::endian::little>(result.format_code);
+  result.num_channels = convert<std::endian::little>(result.num_channels);
+  result.samples_per_sec = convert<std::endian::little>(result.samples_per_sec);
+  result.avg_bytes_per_sec =
+      convert<std::endian::little>(result.avg_bytes_per_sec);
+  result.block_align = convert<std::endian::little>(result.block_align);
+  result.bits_per_sample = convert<std::endian::little>(result.bits_per_sample);
+  result.ext_size = convert<std::endian::little>(result.ext_size);
   result.valid_bits_per_sample =
-      folly::Endian::little(result.valid_bits_per_sample);
-  result.channel_mask = folly::Endian::little(result.channel_mask);
-  result.sub_format_code = folly::Endian::little(result.sub_format_code);
+      convert<std::endian::little>(result.valid_bits_per_sample);
+  result.channel_mask = convert<std::endian::little>(result.channel_mask);
+  result.sub_format_code = convert<std::endian::little>(result.sub_format_code);
   return result;
 }
 
