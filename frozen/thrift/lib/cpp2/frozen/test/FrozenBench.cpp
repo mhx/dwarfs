@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
+
 #include <folly/Benchmark.h>
 #include <folly/Random.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
@@ -373,9 +377,8 @@ benchmarkOldFreezeDataToString(hashMap_i32)     42.461%   133.95ms      7.47
 } // namespace
 } // namespace apache::thrift::frozen
 
-int main(int argc, char** argv) {
+int main(int, char** argv) {
   google::InitGoogleLogging(argv[0]);
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
   folly::runBenchmarks();
   return 0;
 }
