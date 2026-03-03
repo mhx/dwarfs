@@ -16,9 +16,11 @@
 
 #include <folly/Benchmark.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_layouts.h>
-#include <thrift/lib/cpp2/frozen/test/gen-cpp2/Example_types.h>
-#include <thrift/lib/cpp2/protocol/Serializer.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
+#include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_types.h>
+
+#include <dwarfs/thrift_lite/compact_reader.h>
+#include <dwarfs/thrift_lite/compact_writer.h>
 
 using namespace apache::thrift;
 using namespace apache::thrift::frozen;
@@ -43,8 +45,9 @@ BENCHMARK(CompactSerialize, iters) {
   size_t s = 0;
 
   while (iters--) {
-    std::string out;
-    CompactSerializer::serialize(stressValue2, &out);
+    std::vector<std::byte> out;
+    dwarfs::thrift_lite::compact_writer w(out);
+    stressValue2.write(w);
     s += out.size();
   }
   folly::doNotOptimizeAway(s);
@@ -83,13 +86,15 @@ BENCHMARK_DRAW_LINE();
 BENCHMARK(CompactDeserialize, iters) {
   size_t s = 0;
   folly::BenchmarkSuspender setup;
-  std::string out;
-  CompactSerializer::serialize(stressValue2, &out);
+  std::vector<std::byte> out;
+  dwarfs::thrift_lite::compact_writer w(out);
+  stressValue2.write(w);
   setup.dismiss();
 
   while (iters--) {
     EveryLayout copy;
-    CompactSerializer::deserialize(out, copy);
+    dwarfs::thrift_lite::compact_reader r(out);
+    copy.read(r);
     s += out.size();
   }
   folly::doNotOptimizeAway(s);
@@ -122,9 +127,8 @@ CompactDeserialize                                         787.59ns    1.27M
 FrozenThaw                                        98.97%   795.77ns    1.26M
 ============================================================================
 #endif
-int main(int argc, char** argv) {
+int main(int, char** argv) {
   google::InitGoogleLogging(argv[0]);
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
   folly::runBenchmarks();
   return 0;
 }

@@ -898,6 +898,16 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
       target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
       list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
+
+      if(NOT WIN32)
+        add_executable(frozen_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenBench.cpp)
+        target_link_libraries(frozen_benchmark PRIVATE dwarfs_follybenchmark_lite)
+        list(APPEND BENCHMARK_TARGETS frozen_benchmark)
+
+        add_executable(frozen_serialization_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenSerializationBench.cpp)
+        target_link_libraries(frozen_serialization_benchmark PRIVATE dwarfs_follybenchmark_lite frozen_example_thrift)
+        list(APPEND BENCHMARK_TARGETS frozen_serialization_benchmark)
+      endif()
     endif()
 
     list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
