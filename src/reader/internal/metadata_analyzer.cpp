@@ -219,11 +219,13 @@ void frozen_analyzer::add_string_list_size(std::vector<usage_info>& usage,
     auto const index_size = list_size(list, field);
     auto const data_size = frozen_string_table_size(list);
     auto const size = index_size + data_size;
+    // NOLINTNEXTBEGIN(bugprone-suspicious-stringview-data-usage)
     auto const fmt =
         fmt_size(name, count, size) +
         fmt_detail_pct("|- index", count, index_size, get_list_offset(list)) +
         fmt_detail_pct("'- data", count, data_size,
                        get_offset(list.front().data()));
+    // NOLINTNEXTEND(bugprone-suspicious-stringview-data-usage)
     usage.emplace_back(get_list_offset(list), size, fmt);
   }
 }
@@ -233,6 +235,7 @@ void frozen_analyzer::add_string_table_size(std::vector<usage_info>& usage,
                                             auto const& table,
                                             auto const& field) const {
   if (auto data_size = table.buffer().size(); data_size > 0) {
+    // NOLINTBEGIN(bugprone-suspicious-stringview-data-usage)
     auto dict_size =
         table.symtab() ? table.symtab()->size() : static_cast<size_t>(0);
     auto index_size = list_size(table.index(), field.layout.indexField);
@@ -255,6 +258,7 @@ void frozen_analyzer::add_string_table_size(std::vector<usage_info>& usage,
     fmt += fmt_detail_pct("'- index", count, index_size,
                           get_list_offset(table.index()));
     usage.emplace_back(get_offset(table.buffer().data()), size, fmt);
+    // NOLINTEND(bugprone-suspicious-stringview-data-usage)
   }
 }
 
@@ -431,6 +435,7 @@ void frozen_analyzer::print(std::ostream& os) const {
   }
 
   if (auto version = meta_.dwarfs_version()) {
+    // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
     add_size_unique(usage, "dwarfs_version", get_offset(version->data()),
                     version->size());
   }
