@@ -28,23 +28,26 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
-#include <folly/lang/BitsClass.h>
+#include <dwarfs/bit_view.h>
 
 namespace dwarfs::internal {
 
-template <typename T>
+template <std::integral T>
+  requires(!std::same_as<T, bool>)
 class packed_int_vector {
  public:
   using value_type = T;
-  using bits_type = folly::Bits<T>;
-  using underlying_type = typename bits_type::UnderlyingType;
+  using underlying_type = std::make_unsigned_t<T>;
   using size_type = size_t;
 
-  static constexpr size_type bits_per_block{bits_type::bitsPerBlock};
+  static constexpr size_type bits_per_block{
+      std::numeric_limits<underlying_type>::digits};
 
   class value_proxy {
    public:
@@ -121,7 +124,9 @@ class packed_int_vector {
   }
 
   T get(size_type i) const {
-    return bits_ > 0 ? bits_type::get(data_.data(), i * bits_, bits_) : 0;
+    return bits_ > 0
+               ? bit_view(data_.data()).template read<T>({i * bits_, bits_})
+               : 0;
   }
 
   value_proxy operator[](size_type i) { return value_proxy{*this, i}; }
@@ -135,7 +140,7 @@ class packed_int_vector {
 
   void set(size_type i, T value) {
     if (bits_ > 0) {
-      bits_type::set(data_.data(), i * bits_, bits_, value);
+      bit_view(data_.data()).write({i * bits_, bits_}, value);
     }
   }
 
