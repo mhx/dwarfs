@@ -330,49 +330,55 @@ BENCHMARK_PARAM(benchmarkFreezeDataToString, hashMap_i32)
 BENCHMARK_RELATIVE_PARAM(benchmarkOldFreezeDataToString, hashMap_i32)
 
 #if 0
+clang version 21.1.8, i9-13900K
+
 ============================================================================
 [...]/lib/cpp2/frozen/test/FrozenBench.cpp     relative  time/iter   iters/s
 ============================================================================
-benchmarkSum(vvi16)                                         8.07us   123.86K
-benchmarkSum(fvvi16)                            9.9010%    81.54us    12.26K
-benchmarkSum(fuvvi16)                           67.153%    12.02us    83.18K
-benchmarkSum(vvi32)                                         7.76us   128.95K
-benchmarkSum(fvvi32)                            10.262%    75.57us    13.23K
-benchmarkSum(fuvvi32)                           63.143%    12.28us    81.42K
-benchmarkSum(vvi64)                                         7.12us   140.37K
-benchmarkSum(fvvi64)                            9.2079%    77.37us    12.92K
-benchmarkSum(fuvvi64)                           73.036%     9.75us   102.52K
-benchmarkSum(vvf32)                                       115.17us     8.68K
-benchmarkSum(fvvf32)                            117.60%    97.93us    10.21K
-benchmarkSumCols(vvi32)                                    32.00us    31.25K
-benchmarkSumCols(fvvi32)                        16.875%   189.60us     5.27K
-benchmarkSumCols(fuvvi32)                       46.952%    68.14us    14.67K
-benchmarkSumSavedCols(fvvi32)                   28.056%   114.04us     8.77K
-benchmarkSumSavedCols(fuvvi32)                  125.46%    25.50us    39.21K
-benchmarkLookup(hashMap_f32)                              106.48ns     9.39M
-benchmarkLookup(frozenHashMap_f32)              217.32%    49.00ns    20.41M
-benchmarkLookup(hashMap_i32)                               32.01ns    31.24M
-benchmarkLookup(frozenHashMap_i32)              83.883%    38.16ns    26.20M
-benchmarkLookup(hashMap_i64)                               35.72ns    27.99M
-benchmarkLookup(frozenHashMap_i64)              99.159%    36.02ns    27.76M
-benchmarkLookup(hashMap_str)                              183.60ns     5.45M
-benchmarkLookup(frozenHashMap_str)              193.29%    94.98ns    10.53M
-benchmarkLookup(hashMap_fixedStr)                          78.53ns    12.73M
-benchmarkLookup(frozenHashMap_fixedStr)         306.00%    25.66ns    38.97M
-benchmarkLookup(map_f32)                                  366.51ns     2.73M
-benchmarkLookup(frozenMap_f32)                  150.87%   242.94ns     4.12M
-benchmarkLookup(map_i32)                                  284.44ns     3.52M
-benchmarkLookup(frozenMap_i32)                  87.612%   324.66ns     3.08M
-benchmarkLookup(map_i64)                                  282.78ns     3.54M
-benchmarkLookup(frozenMap_i64)                  91.557%   308.86ns     3.24M
-benchmarkFreezeDataToString(vvf32)                        178.13us     5.61K
-benchmarkOldFreezeDataToString(vvf32)           80.474%   221.35us     4.52K
-benchmarkFreezeDataToString(tuple)                        266.18ns     3.76M
-benchmarkOldFreezeDataToString(tuple)           157.88%   168.59ns     5.93M
-benchmarkFreezeDataToString(strings)                        1.04us   960.33K
-benchmarkOldFreezeDataToString(strings)         216.76%   480.41ns     2.08M
-benchmarkFreezeDataToString(hashMap_i32)                   56.88ms     17.58
-benchmarkOldFreezeDataToString(hashMap_i32)     42.461%   133.95ms      7.47
+benchmarkSum(vvi16)                                         2.22us   450.75K
+benchmarkSum(fvvi16)                            4.5174%    49.11us    20.36K
+benchmarkSum(fuvvi16)                           55.505%     4.00us   250.19K
+benchmarkSum(vvi32)                                         2.23us   448.25K
+benchmarkSum(fvvi32)                            5.5731%    40.03us    24.98K
+benchmarkSum(fuvvi32)                           67.262%     3.32us   301.51K
+benchmarkSum(vvi64)                                         3.09us   323.80K
+benchmarkSum(fvvi64)                            6.4686%    47.74us    20.95K
+benchmarkSum(fuvvi64)                           57.879%     5.34us   187.42K
+benchmarkSum(vvf32)                                        93.91us    10.65K
+benchmarkSum(fvvf32)                            123.19%    76.24us    13.12K
+----------------------------------------------------------------------------
+benchmarkSumCols(vvi32)                                    13.55us    73.83K
+benchmarkSumCols(fvvi32)                        12.479%   108.55us     9.21K
+benchmarkSumCols(fuvvi32)                       53.794%    25.18us    39.71K
+benchmarkSumSavedCols(fvvi32)                   27.131%    49.93us    20.03K
+benchmarkSumSavedCols(fuvvi32)                  227.70%     5.95us   168.10K
+----------------------------------------------------------------------------
+benchmarkLookup(hashMap_f32)                               48.77ns    20.51M
+benchmarkLookup(frozenHashMap_f32)              186.47%    26.15ns    38.24M
+benchmarkLookup(hashMap_i32)                               14.79ns    67.61M
+benchmarkLookup(frozenHashMap_i32)              88.392%    16.73ns    59.76M
+benchmarkLookup(hashMap_i64)                               15.94ns    62.72M
+benchmarkLookup(frozenHashMap_i64)              101.75%    15.67ns    63.82M
+benchmarkLookup(hashMap_str)                               74.52ns    13.42M
+benchmarkLookup(frozenHashMap_str)              178.29%    41.80ns    23.92M
+benchmarkLookup(hashMap_fixedStr)                          30.06ns    33.27M
+benchmarkLookup(frozenHashMap_fixedStr)         232.93%    12.90ns    77.49M
+----------------------------------------------------------------------------
+benchmarkLookup(map_f32)                                  173.01ns     5.78M
+benchmarkLookup(frozenMap_f32)                  128.71%   134.42ns     7.44M
+benchmarkLookup(map_i32)                                  127.30ns     7.86M
+benchmarkLookup(frozenMap_i32)                  74.101%   171.80ns     5.82M
+benchmarkLookup(map_i64)                                  129.24ns     7.74M
+benchmarkLookup(frozenMap_i64)                  73.227%   176.49ns     5.67M
+----------------------------------------------------------------------------
+benchmarkFreezeDataToString(vvf32)                         67.52us    14.81K
+benchmarkOldFreezeDataToString(vvf32)           52.733%   128.04us     7.81K
+benchmarkFreezeDataToString(tuple)                        102.29ns     9.78M
+benchmarkOldFreezeDataToString(tuple)           195.08%    52.44ns    19.07M
+benchmarkFreezeDataToString(strings)                      425.90ns     2.35M
+benchmarkOldFreezeDataToString(strings)         260.85%   163.27ns     6.12M
+benchmarkFreezeDataToString(hashMap_i32)                   29.37ms     34.04
+benchmarkOldFreezeDataToString(hashMap_i32)     58.223%    50.45ms     19.82
 #endif
 } // namespace
 } // namespace apache::thrift::frozen
