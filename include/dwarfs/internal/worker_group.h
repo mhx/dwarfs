@@ -41,7 +41,7 @@
 #include <utility>
 #include <variant>
 
-#include <folly/Function.h>
+#include <dwarfs/internal/move_only_function.h>
 
 namespace dwarfs {
 
@@ -61,7 +61,7 @@ template <typename... Args>
 class basic_thread_state : public thread_state {
  public:
   using job_t = std::function<void(Args...)>;
-  using moveonly_job_t = folly::Function<void(Args...)>;
+  using moveonly_job_t = move_only_function<void(Args...)>;
   using any_job_t = std::variant<job_t, moveonly_job_t>;
 
   explicit basic_thread_state(Args... args)
