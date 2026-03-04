@@ -30,10 +30,10 @@
 #include <variant>
 
 #include <folly/Function.h>
-#include <folly/lang/BitsClass.h>
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/bit_view.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/logger.h>
 
@@ -193,7 +193,6 @@ class basic_centroid {
   static_assert(Bits % (8 * sizeof(BitsType)) == 0);
   static constexpr size_t const array_size = Bits / (8 * sizeof(BitsType));
   using value_type = std::array<BitsType, array_size>;
-  using bits_type = folly::Bits<BitsType>;
 
   basic_centroid() {
     std::fill(centroid_.begin(), centroid_.end(), 0);
@@ -205,11 +204,12 @@ class basic_centroid {
   void add(value_type const& vec) {
     ++veccount_;
     for (size_t bit = 0; bit < Bits; ++bit) {
-      bitcounts_[bit] += bits_type::test(vec.data(), bit) ? 1 : 0;
+      bitcounts_[bit] += bit_view(vec.data()).test(bit) ? 1 : 0;
+      auto centroid_bits = bit_view(centroid_.data());
       if (bitcounts_[bit] > veccount_ / 2) {
-        bits_type::set(centroid_.data(), bit);
+        centroid_bits.set(bit);
       } else {
-        bits_type::clear(centroid_.data(), bit);
+        centroid_bits.clear(bit);
       }
     }
   }
