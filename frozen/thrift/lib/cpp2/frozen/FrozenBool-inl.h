@@ -48,16 +48,16 @@ struct BoolLayout : public LayoutBase {
   void freeze(FreezeRoot&, const T& o, FreezePosition self) const {
     if (bits) {
       if (o) {
-        folly::Bits<uint8_t>::set(self.start, self.bitOffset);
+        dwarfs::bit_view(self.start).set(self.bitOffset);
       } else {
-        folly::Bits<uint8_t>::clear(self.start, self.bitOffset);
+        dwarfs::bit_view(self.start).clear(self.bitOffset);
       }
     }
   }
 
   void thaw(ViewPosition self, T& out) const {
     if (bits) {
-      out = folly::Bits<uint8_t>::test(self.start, self.bitOffset);
+      out = dwarfs::bit_view(self.start).test(self.bitOffset);
     } else {
       out = false;
     }

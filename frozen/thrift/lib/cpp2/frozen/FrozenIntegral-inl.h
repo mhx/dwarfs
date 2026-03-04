@@ -62,11 +62,7 @@ struct PackedIntegerLayout : public LayoutBase {
     if (!bits) {
       return;
     }
-    folly::Bits<folly::Unaligned<T>>::set(
-        reinterpret_cast<folly::Unaligned<T>*>(self.start),
-        self.bitOffset,
-        bits,
-        x);
+    dwarfs::bit_view(self.start).write({self.bitOffset, bits}, x);
   }
 
   void thaw(ViewPosition self, T& out) const {
@@ -74,10 +70,7 @@ struct PackedIntegerLayout : public LayoutBase {
       out = 0;
       return;
     }
-    out = folly::Bits<folly::Unaligned<T>>::get(
-        reinterpret_cast<const folly::Unaligned<T>*>(self.start),
-        self.bitOffset,
-        this->bits);
+    out = dwarfs::bit_view(self.start).template read<T>({self.bitOffset, bits});
   }
 
   void print(std::ostream& os, int level) const override {
