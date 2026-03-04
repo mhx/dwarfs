@@ -589,6 +589,7 @@ if(WITH_TESTS)
       test/align_advise_range_test.cpp
       test/badfs_test.cpp
       test/bits_test.cpp
+      test/bit_view_test.cpp
       test/block_merger_test.cpp
       test/block_range_test.cpp
       test/byte_buffer_test.cpp
