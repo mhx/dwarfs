@@ -6,7 +6,7 @@ set -eu
 # Config / Inputs (env-driven)
 # ----------------------------
 FREEBSD_VER_TAG="${FREEBSD_VERSION:-14_3}"
-SNAP_LABEL="${FREEBSD_SNAPSHOT:-base-20250809}"
+SNAP_LABEL="${FREEBSD_SNAPSHOT:-base-20260304}"
 ZPOOL="${ZPOOL:-zroot}"
 JAILS_DS="${JAILS_DS:-${ZPOOL}/z/jails}"
 JAILS_MP="${JAILS_MP:-/z/jails}"
