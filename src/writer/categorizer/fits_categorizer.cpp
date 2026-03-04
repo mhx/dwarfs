@@ -47,24 +47,7 @@
 
 #include <dwarfs/internal/synchronized.h>
 
-template <>
-struct fmt::formatter<std::endian> : formatter<std::string_view> {
-  template <typename FormatContext>
-  auto format(std::endian e, FormatContext& ctx) const {
-    std::string_view sv{"<unknown endian>"};
-    switch (e) {
-    case std::endian::little: // unused, there are no little-endian FITS files
-      sv = "little";
-      break;
-    case std::endian::big:
-      sv = "big";
-      break;
-    default:
-      DWARFS_PANIC("internal error: unhandled endianness value");
-    }
-    return formatter<std::string_view>::format(sv, ctx);
-  }
-};
+#include "endian_formatter.h"
 
 namespace dwarfs::writer {
 
