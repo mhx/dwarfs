@@ -44,7 +44,6 @@
 // #include <folly/container/F14Set-fwd.h>
 #include <folly/container/heap_vector_types.h>
 #include <folly/hash/Hash.h>
-#include <folly/lang/BitsClass.h>
 #include <folly/sorted_vector_types.h>
 #include <thrift/lib/cpp2/frozen/FixedSizeStringHash.h>
 #include <thrift/lib/cpp2/frozen/FrozenMacros.h>
@@ -53,6 +52,7 @@
 #include <thrift/lib/cpp2/frozen/schema/MemorySchema.h>
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
+#include <dwarfs/bit_view.h>
 #include <dwarfs/thrift_lite/assert.h>
 
 namespace apache::thrift::frozen {
