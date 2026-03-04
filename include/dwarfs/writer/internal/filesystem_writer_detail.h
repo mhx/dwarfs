@@ -32,14 +32,14 @@
 #include <utility>
 #include <vector>
 
-#include <folly/Function.h>
-
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/byte_buffer.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/writer/fragment_category.h>
+
+#include <dwarfs/internal/move_only_function.h>
 
 namespace dwarfs {
 
@@ -57,7 +57,7 @@ struct block_compression_info {
   std::optional<compression_constraints> constraints;
 };
 
-using delayed_data_fn_type = folly::Function<
+using delayed_data_fn_type = dwarfs::internal::move_only_function<
     std::pair<shared_byte_buffer, std::optional<std::string>>()>;
 
 class filesystem_writer_detail {
