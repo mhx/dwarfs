@@ -48,6 +48,8 @@
 
 #include <dwarfs/internal/synchronized.h>
 
+#include "endian_formatter.h"
+
 namespace dwarfs::writer {
 
 using namespace std::string_view_literals;
@@ -139,26 +141,6 @@ std::optional<padding> parse_padding_dyn(nlohmann::json const& p) {
 } // namespace
 } // namespace dwarfs::writer
 
-namespace std {
-
-inline ostream& operator<<(ostream& os, endian e) {
-  switch (e) {
-  case endian::big:
-    os << "big";
-    break;
-  case endian::little:
-    os << "little";
-    break;
-  default:
-    DWARFS_PANIC("internal error: unhandled endianness value");
-  }
-  return os;
-}
-
-} // namespace std
-
-template <>
-struct fmt::formatter<std::endian> : ostream_formatter {};
 template <>
 struct fmt::formatter<dwarfs::writer::signedness> : ostream_formatter {};
 template <>
@@ -446,8 +428,8 @@ class iff_parser final {
 };
 
 std::ostream& operator<<(std::ostream& os, pcmaudio_metadata const& m) {
-  os << "[" << m.sample_endianness << ", " << m.sample_signedness << ", "
-     << m.sample_padding << ", "
+  os << "[" << fmt::format("{}", m.sample_endianness) << ", "
+     << m.sample_signedness << ", " << m.sample_padding << ", "
      << "bits=" << static_cast<int>(m.bits_per_sample) << ", "
      << "bytes=" << static_cast<int>(m.bytes_per_sample) << ", "
      << "channels=" << static_cast<int>(m.number_of_channels) << "]";
