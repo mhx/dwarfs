@@ -118,15 +118,16 @@ BENCHMARK_RELATIVE(FrozenThaw, iters) {
 #if 0
 clang version 21.1.8, i9-13900K
 
-============================================================================
-[...]zen/test/FrozenSerializationBench.cpp     relative  time/iter   iters/s
-============================================================================
-CompactSerialize                                          266.55ns     3.75M
-FrozenFreeze                                    29.739%   896.30ns     1.12M
-FrozenFreezePreallocate                         78.275%   340.53ns     2.94M
-----------------------------------------------------------------------------
-CompactDeserialize                                        441.23ns     2.27M
-FrozenThaw                                      155.76%   283.28ns     3.53M
+                               [folly::Bits]        [dwarfs::bit_view]
+=======================================================================
+FrozenSerializationBench.cpp   time/iter  iters/s    time/iter  iters/s
+=======================================================================
+CompactSerialize                266.55ns    3.75M     258.52ns    3.87M
+FrozenFreeze                    896.30ns    1.12M     848.98ns    1.18M
+FrozenFreezePreallocate         340.53ns    2.94M     327.70ns    3.05M
+-----------------------------------------------------------------------
+CompactDeserialize              441.23ns    2.27M     452.37ns    2.21M
+FrozenThaw                      283.28ns    3.53M     269.96ns    3.70M
 #endif
 int main(int, char** argv) {
   google::InitGoogleLogging(argv[0]);
