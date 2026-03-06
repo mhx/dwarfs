@@ -116,7 +116,7 @@ void BlockLayout::freeze(
 
 void BlockLayout::print(std::ostream& os, int level) const {
   LayoutBase::print(os, level);
-  os << folly::demangle(type.name());
+  os << dwarfs::thrift_lite::demangle(type.name());
   maskField.print(os, level + 1);
   offsetField.print(os, level + 1);
 }

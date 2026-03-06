@@ -41,7 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/Demangle.h>
 #include <folly/sorted_vector_types.h>
 
 #include <dwarfs/compiler.h>
@@ -51,6 +50,7 @@
 #include <dwarfs/match.h>
 #include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/thrift_lite/demangle.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/inode_options.h>
@@ -380,14 +380,14 @@ class inode_ : public inode {
   template <typename T>
   T const* find_similarity(fragment_category cat) const {
     DWARFS_CHECK(!fragments_.empty(), fmt::format("inode has no fragments ({})",
-                                                  folly::demangle(typeid(T))));
+                                                  thrift_lite::demangle<T>()));
     if (std::holds_alternative<std::monostate>(similarity_)) {
       return nullptr;
     }
     if (fragments_.size() == 1) {
       DWARFS_CHECK(
           fragments_.get_single_category() == cat,
-          fmt::format("category mismatch ({})", folly::demangle(typeid(T))));
+          fmt::format("category mismatch ({})", thrift_lite::demangle<T>()));
       return &std::get<T>(similarity_);
     }
     auto& m = std::get<similarity_map_type>(similarity_);

@@ -135,7 +135,7 @@ struct ArrayLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
-    os << "range of " << folly::demangle(type.name());
+    os << "range of " << dwarfs::thrift_lite::demangle(type.name());
     distanceField.print(os, level + 1);
     countField.print(os, level + 1);
     itemField.print(os, level + 1);

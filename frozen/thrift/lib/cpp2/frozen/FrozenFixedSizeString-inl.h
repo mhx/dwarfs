@@ -66,7 +66,7 @@ struct FixedSizeStringLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
-    os << folly::demangle(type.name());
+    os << dwarfs::thrift_lite::demangle(type.name());
   }
 
   struct View final : public std::span<uint8_t const> {
