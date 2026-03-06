@@ -39,7 +39,6 @@
 #include <folly/Demangle.h>
 #include <folly/FBVector.h>
 #include <folly/Memory.h>
-#include <folly/Utility.h>
 // #include <folly/container/F14Map-fwd.h>
 // #include <folly/container/F14Set-fwd.h>
 #include <folly/container/heap_vector_types.h>
@@ -54,6 +53,7 @@
 
 #include <dwarfs/bit_view.h>
 #include <dwarfs/thrift_lite/assert.h>
+#include <dwarfs/thrift_lite/utility.h>
 
 namespace apache::thrift::frozen {
 
@@ -236,8 +236,9 @@ struct LayoutBase {
    * Convenience function for placing the first field for layout.
    */
   FieldPosition startFieldPosition() const {
-    uint32_t offset = folly::to_narrow(inlined ? 0 : (bits + 7) / 8);
-    return FieldPosition(folly::to_signed(offset));
+    uint32_t offset =
+        dwarfs::thrift_lite::to_narrow(inlined ? 0 : (bits + 7) / 8);
+    return FieldPosition(dwarfs::thrift_lite::to_signed(offset));
   }
 
   /**
@@ -269,7 +270,8 @@ struct LayoutBase {
       typename SchemaInfo::Helper&) const {
     layout.setSize(size);
     // TODO: declare bits as int16_t instead of casting it
-    layout.setBits(folly::to_narrow(folly::to_signed(bits)));
+    layout.setBits(
+        dwarfs::thrift_lite::to_narrow(dwarfs::thrift_lite::to_signed(bits)));
   }
 
   /**
@@ -407,11 +409,12 @@ struct Field final : public FieldBase {
 
     typename SchemaInfo::Field field;
     field.setId(key);
-    // TODO: declare offset as int16_t instead of using folly::to_narrow
+    // TODO: declare offset as int16_t instead of using
+    // dwarfs::thrift_lite::to_narrow
     if (pos.bitOffset) {
-      field.setOffset(folly::to_narrow(-pos.bitOffset));
+      field.setOffset(dwarfs::thrift_lite::to_narrow(-pos.bitOffset));
     } else {
-      field.setOffset(folly::to_narrow(pos.offset));
+      field.setOffset(dwarfs::thrift_lite::to_narrow(pos.offset));
     }
 
     typename SchemaInfo::Layout myLayout;
@@ -527,7 +530,7 @@ FieldPosition maximizeField(FieldPosition fieldPos, Field<T, Layout>& field) {
       layout.resize(after, true);
       field.pos = inlinedField;
 
-      uint32_t bits = folly::to_narrow(layout.bits);
+      uint32_t bits = dwarfs::thrift_lite::to_narrow(layout.bits);
       nextPos.bitOffset += bits;
     }
   }
@@ -536,7 +539,7 @@ FieldPosition maximizeField(FieldPosition fieldPos, Field<T, Layout>& field) {
     FieldPosition after = layout.maximize();
     layout.resize(after, false);
     field.pos = normalField;
-    uint32_t size = folly::to_narrow(layout.size);
+    uint32_t size = dwarfs::thrift_lite::to_narrow(layout.size);
     nextPos.offset += size;
   }
   return nextPos;
@@ -716,7 +719,7 @@ class LayoutRoot : public FieldCycleHolder {
         resized_ = _layout.resize(after, true) || resized_;
         if (!_layout.empty()) {
           field.pos = inlinedField;
-          uint32_t bits = folly::to_narrow(_layout.bits);
+          uint32_t bits = dwarfs::thrift_lite::to_narrow(_layout.bits);
           nextPos.bitOffset += bits;
         }
       }
@@ -727,7 +730,7 @@ class LayoutRoot : public FieldCycleHolder {
       resized_ = _layout.resize(after, false) || resized_;
       if (!_layout.empty()) {
         field.pos = normalField;
-        uint32_t size = folly::to_narrow(_layout.size);
+        uint32_t size = dwarfs::thrift_lite::to_narrow(_layout.size);
         nextPos.offset += size;
       }
     }
