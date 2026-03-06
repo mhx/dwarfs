@@ -22,13 +22,12 @@
  */
 
 #include <filesystem>
+#include <utility>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <fmt/format.h>
-
-#include <folly/Utility.h>
 
 #include <dwarfs/file_util.h>
 #include <dwarfs/fstypes.h>
@@ -196,7 +195,7 @@ namespace {
 
 std::string valid_v1_header() {
   section_header hdr{};
-  hdr.type = folly::to_underlying(section_type::BLOCK);
+  hdr.type = std::to_underlying(section_type::BLOCK);
   hdr.compression = compression_type_v1::NONE;
   hdr.length = 1;
   std::string buf;
@@ -212,8 +211,8 @@ std::string valid_v2_header(uint32_t section_number = 0) {
   hdr.major = 2;
   hdr.minor = 3;
   hdr.number = section_number;
-  hdr.type = folly::to_underlying(section_type::BLOCK);
-  hdr.compression = folly::to_underlying(compression_type::NONE);
+  hdr.type = std::to_underlying(section_type::BLOCK);
+  hdr.compression = std::to_underlying(compression_type::NONE);
   hdr.length = 1;
   std::string buf;
   buf.resize(sizeof(hdr));
