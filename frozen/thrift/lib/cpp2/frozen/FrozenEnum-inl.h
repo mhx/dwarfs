@@ -49,7 +49,7 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
 
   void print(std::ostream& os, int level) const override {
     Base::print(os, level);
-    os << " as enum " << folly::demangle(this->type.name());
+    os << " as enum " << dwarfs::thrift_lite::demangle(this->type.name());
   }
 
   typedef T View;
