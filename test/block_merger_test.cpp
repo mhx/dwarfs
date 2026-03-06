@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -35,7 +36,6 @@
 #include <vector>
 
 #include <fmt/format.h>
-#include <folly/String.h>
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>
@@ -488,7 +488,7 @@ TEST(block_merger, random) {
   auto [passes, fails] = block_merger_test<merger_type>(max_runs);
 
   EXPECT_EQ(max_runs * num_repetitions, passes);
-  EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
+  EXPECT_THAT(fails, testing::IsEmpty());
 }
 
 TEST(block_merger, random_sized) {
@@ -503,7 +503,7 @@ TEST(block_merger, random_sized) {
   auto [passes, fails] = block_merger_test<merger_type>(max_runs);
 
   EXPECT_EQ(max_runs * num_repetitions, passes);
-  EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
+  EXPECT_THAT(fails, testing::IsEmpty());
 }
 
 TEST(block_merger, random_sized_partial) {
@@ -518,5 +518,5 @@ TEST(block_merger, random_sized_partial) {
   auto [passes, fails] = block_merger_test<merger_type, true>(max_runs);
 
   EXPECT_EQ(max_runs * num_repetitions, passes);
-  EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
+  EXPECT_THAT(fails, testing::IsEmpty());
 }
