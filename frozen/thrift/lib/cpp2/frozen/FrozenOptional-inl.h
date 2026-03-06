@@ -164,7 +164,7 @@ struct OptionalLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const final {
     LayoutBase::print(os, level);
-    os << "optional " << folly::demangle(type.name());
+    os << "optional " << dwarfs::thrift_lite::demangle(type.name());
     issetField.print(os, level + 1);
     valueField.print(os, level + 1);
   }

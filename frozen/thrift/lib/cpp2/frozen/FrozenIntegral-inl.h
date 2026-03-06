@@ -76,7 +76,7 @@ struct PackedIntegerLayout : public LayoutBase {
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
     os << "packed " << (std::is_signed<T>::value ? "signed" : "unsigned") << " "
-       << folly::demangle(type.name());
+       << dwarfs::thrift_lite::demangle(type.name());
   }
 
   typedef T View;

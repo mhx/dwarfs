@@ -54,7 +54,7 @@ struct TrivialLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
-    os << "blitted " << folly::demangle(type.name());
+    os << "blitted " << dwarfs::thrift_lite::demangle(type.name());
   }
 
   typedef T View;

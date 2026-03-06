@@ -36,7 +36,6 @@
 #include <xxhash.h>
 
 #include <folly/Conv.h>
-#include <folly/Demangle.h>
 #include <folly/FBVector.h>
 #include <folly/Memory.h>
 // #include <folly/container/F14Map-fwd.h>
@@ -53,6 +52,7 @@
 
 #include <dwarfs/bit_view.h>
 #include <dwarfs/thrift_lite/assert.h>
+#include <dwarfs/thrift_lite/demangle.h>
 #include <dwarfs/thrift_lite/utility.h>
 
 namespace apache::thrift::frozen {
