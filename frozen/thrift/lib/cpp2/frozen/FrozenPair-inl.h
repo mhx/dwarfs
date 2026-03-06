@@ -73,7 +73,7 @@ struct PairLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const final {
     LayoutBase::print(os, level);
-    os << folly::demangle(type.name());
+    os << dwarfs::thrift_lite::demangle(type.name());
     firstField.print(os, level + 1);
     secondField.print(os, level + 1);
   }
