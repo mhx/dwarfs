@@ -82,13 +82,13 @@ void check_section_logger(logger& lgr, fs_section const& section) {
             << " [" << section.length() << " bytes]";
 
   if (!section.is_known_type()) {
-    LOG_WARN << "unknown section type " << folly::to_underlying(section.type())
+    LOG_WARN << "unknown section type " << std::to_underlying(section.type())
              << " in section @ " << section.start();
   }
 
   if (!section.is_known_compression()) {
     LOG_WARN << "unknown compression type "
-             << folly::to_underlying(section.compression()) << " in section @ "
+             << std::to_underlying(section.compression()) << " in section @ "
              << section.start();
   }
 }
