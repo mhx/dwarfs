@@ -41,8 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/sorted_vector_types.h>
-
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
@@ -55,6 +53,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/inode_options.h>
 
+#include <dwarfs/internal/associative_vector_types.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/inode_manager.h>
@@ -537,9 +536,8 @@ class inode_ : public inode {
     }
   }
 
-  using similarity_map_type =
-      folly::sorted_vector_map<fragment_category,
-                               std::variant<nilsimsa::hash_type, uint32_t>>;
+  using similarity_map_type = dwarfs::internal::small_vector_map<
+      fragment_category, std::variant<nilsimsa::hash_type, uint32_t>>;
 
   static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
 
@@ -561,6 +559,8 @@ class inode_ : public inode {
       similarity_map_type // 24 bytes
       >
       similarity_;
+
+  static_assert(sizeof(similarity_map_type) <= sizeof(nilsimsa::hash_type));
 };
 
 template <typename LoggerPolicy>
