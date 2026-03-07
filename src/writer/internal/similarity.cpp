@@ -25,11 +25,29 @@
 #include <array>
 #include <utility>
 
-#include <folly/Hash.h>
-
 #include <dwarfs/writer/internal/similarity.h>
 
 namespace dwarfs::writer::internal {
+
+namespace {
+
+// See https://github.com/skeeto/hash-prospector/issues/19
+constexpr auto low_bias_mix32(std::uint32_t x) noexcept -> std::uint32_t {
+  x ^= x >> 16;
+  x *= 0x21f0aaad;
+  x ^= x >> 15;
+  x *= 0x735a2d97;
+  x ^= x >> 15;
+  return x;
+}
+
+constexpr auto
+rehash_to_bits(std::uint32_t x, unsigned num_bits) noexcept -> std::uint32_t {
+  std::uint32_t const mixed = low_bias_mix32(x + 0x9e3779b9);
+  return mixed >> (32 - num_bits);
+}
+
+} // namespace
 
 /**
  * Simple locality sensitive hashing function
@@ -48,7 +66,6 @@ namespace dwarfs::writer::internal {
 
 class similarity::impl {
   static constexpr size_t hist_bits = 8;
-  static constexpr uint32_t mask = (1 << hist_bits) - 1;
 
  public:
   impl() {
@@ -62,8 +79,7 @@ class similarity::impl {
     for (size_t off = 0; off < size; ++off) {
       val_ = (val_ << 8) | data[off];
       if (size_ + off >= 3) {
-        auto hv = folly::hash::jenkins_rev_mix32(val_);
-        ++vec_[hv & mask].first;
+        ++vec_[rehash_to_bits(val_, hist_bits)].first;
       }
     }
     size_ += size;
