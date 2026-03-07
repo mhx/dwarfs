@@ -21,14 +21,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <folly/hash/Hash.h>
+#include <boost/container_hash/hash.hpp>
 
 #include <dwarfs/writer/fragment_category.h>
 
 namespace dwarfs::writer {
 
 size_t fragment_category::hash() const {
-  return folly::hash::hash_combine(value_, subcategory_);
+  size_t seed = 0;
+  boost::hash_combine(seed, value_);
+  boost::hash_combine(seed, subcategory_);
+  return seed;
 }
 
 } // namespace dwarfs::writer
