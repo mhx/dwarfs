@@ -39,7 +39,6 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <folly/hash/Hash.h>
-#include <folly/sorted_vector_types.h>
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
@@ -51,6 +50,7 @@
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/associative_vector_types.h>
 #include <dwarfs/internal/malloc_buffer.h>
 #include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/writer/internal/block_manager.h>
@@ -178,7 +178,7 @@ class fast_multimap {
 };
 
 using repeating_sequence_map_type =
-    phmap::flat_hash_map<uint32_t, folly::sorted_vector_set<uint8_t>>;
+    phmap::flat_hash_map<uint32_t, dwarfs::internal::small_vector_set<uint8_t>>;
 using repeating_collisions_map_type = std::unordered_map<uint8_t, uint32_t>;
 
 /**
@@ -1291,7 +1291,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       for (int i = 0; i < 256; ++i) {
         auto val =
             rsync_hash::repeating_window(i, frames_to_bytes(window_size_));
-        DWARFS_CHECK(repeating_sequence_hash_values_[val].emplace(i).second,
+        DWARFS_CHECK(repeating_sequence_hash_values_[val].insert(i).second,
                      "repeating sequence hash value / byte collision");
       }
     }
