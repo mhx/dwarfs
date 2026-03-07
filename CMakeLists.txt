@@ -587,6 +587,7 @@ if(WITH_TESTS)
   if(WITH_LIBDWARFS)
     add_executable(dwarfs_unit_tests
       test/align_advise_range_test.cpp
+      test/associative_vector_types_test.cpp
       test/badfs_test.cpp
       test/bits_test.cpp
       test/bit_view_test.cpp
