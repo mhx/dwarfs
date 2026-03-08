@@ -62,7 +62,6 @@
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/SysStat.h>
 #include <folly/portability/Windows.h>
-#include <folly/system/HardwareConcurrency.h>
 
 #include <dwarfs/config.h>
 
@@ -95,6 +94,10 @@
 #include <unistd.h>
 #endif
 
+#if defined(__linux__) || defined(__FreeBSD__)
+#include <sched.h>
+#endif
+
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
@@ -113,6 +116,20 @@ inline std::string trimmed(std::string in) {
     in.pop_back();
   }
   return in;
+}
+
+auto hardware_concurrency_impl() noexcept -> unsigned int {
+#if defined(__linux__) || defined(__FreeBSD__)
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  if (sched_getaffinity(0, sizeof(cpuset), &cpuset) == 0) {
+    auto const count = CPU_COUNT(&cpuset);
+    if (count > 0) {
+      return static_cast<unsigned int>(count);
+    }
+  }
+#endif
+  return std::thread::hardware_concurrency();
 }
 
 } // namespace
@@ -553,7 +570,7 @@ unsigned int hardware_concurrency() noexcept {
     }
     return concurrency;
   }();
-  return env.value_or(folly::hardware_concurrency());
+  return env.value_or(hardware_concurrency_impl());
 }
 
 int get_current_umask() {
