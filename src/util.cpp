@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <charconv>
 #include <clocale>
 #include <csignal>
@@ -39,6 +40,8 @@
 #include <optional>
 #include <type_traits>
 #include <vector>
+
+#include <fmt/format.h>
 
 #ifdef _WIN32
 #define PSAPI_VERSION 1
@@ -111,13 +114,6 @@ namespace dwarfs {
 
 namespace {
 
-inline std::string trimmed(std::string in) {
-  while (!in.empty() && in.back() == ' ') {
-    in.pop_back();
-  }
-  return in;
-}
-
 auto hardware_concurrency_impl() noexcept -> unsigned int {
 #if defined(__linux__) || defined(__FreeBSD__)
   cpu_set_t cpuset;
@@ -134,12 +130,102 @@ auto hardware_concurrency_impl() noexcept -> unsigned int {
 
 } // namespace
 
-std::string size_with_unit(file_size_t size) {
-  return trimmed(folly::prettyPrint(size, folly::PRETTY_BYTES_IEC, true));
+std::string size_with_unit(file_size_t const size) {
+  static constexpr std::array units{"B",   "KiB", "MiB", "GiB",
+                                    "TiB", "PiB", "EiB"};
+  auto const mag =
+      (std::bit_width(
+           static_cast<std::make_unsigned_t<file_size_t>>(size | 1)) -
+       1) /
+      10;
+  return fmt::format("{:.4g} {}",
+                     static_cast<double>(size) / (1ULL << (mag * 10)),
+                     units[mag]);
 }
 
-std::string time_with_unit(double sec) {
-  return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME_HMS, false));
+std::string time_with_unit(double const sec) {
+  static constexpr int kPrecision = 4;
+
+  assert(sec >= 0.0);
+
+  auto truncate_to_decimals = [](double value, int decimals) {
+    auto const factor = std::pow(10.0, decimals);
+    return std::trunc(value * factor) / factor;
+  };
+
+  if (sec < 60.0) {
+    static constexpr std::array units{"s", "ms", "us", "ns"};
+    auto val = sec;
+    int mag = 0;
+
+    while (val < 1.0 && std::cmp_less(mag, units.size())) {
+      val *= 1000.0;
+      ++mag;
+    }
+
+    if (std::cmp_less(mag, units.size())) {
+      val = truncate_to_decimals(val, kPrecision - std::ceil(std::log10(val)));
+      return fmt::format("{:.{}g}{}", val, kPrecision, units[mag]);
+    }
+
+    return {"0s"};
+  }
+
+  struct unit_spec {
+    int scale;
+    std::string_view suffix;
+  };
+
+  static constexpr std::array units{
+      unit_spec{86400, "d"},
+      unit_spec{3600, "h"},
+      unit_spec{60, "m"},
+  };
+
+  auto num_digits = [](int n) {
+    int digits = 0;
+    while (n > 0) {
+      n /= 10;
+      ++digits;
+    }
+    return digits;
+  };
+
+  std::string result;
+  double remainder = sec;
+  int rem_digits = kPrecision;
+
+  for (auto const& [scale, suffix] : units) {
+    auto const value = static_cast<int>(remainder / scale);
+    auto const digits = result.empty() ? num_digits(value) : 2;
+
+    if (value > 0) {
+      if (!result.empty()) {
+        result += ' ';
+      }
+      fmt::format_to(std::back_inserter(result), "{}{}", value, suffix);
+    }
+
+    rem_digits -= digits;
+    remainder -= value * scale;
+
+    if (rem_digits <= 0) {
+      break;
+    }
+  }
+
+  if (rem_digits > 0) {
+    auto const seconds =
+        truncate_to_decimals(remainder, std::max(0, rem_digits - 2));
+    if (seconds > 0.0) {
+      fmt::format_to(std::back_inserter(result), " {:.{}g}s", seconds,
+                     kPrecision);
+    }
+  }
+
+  assert(!result.empty());
+
+  return result;
 }
 
 std::string time_with_unit(std::chrono::nanoseconds ns) {
