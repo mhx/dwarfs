@@ -38,6 +38,7 @@
 #include <iostream>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <type_traits>
 #include <vector>
 
@@ -65,7 +66,8 @@
 #define DWARFS_USE_HH_DATE 0
 #endif
 
-#include <folly/String.h>
+#include <range/v3/view/chunk.hpp>
+
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/SysStat.h>
 #include <folly/portability/Windows.h>
@@ -660,7 +662,42 @@ std::string exception_str(std::exception_ptr const& e) {
 }
 
 std::string hexdump(void const* data, size_t size) {
-  return folly::hexDump(data, size);
+  static constexpr size_t kBytesPerRow = 16;
+  std::ostringstream oss;
+  std::span<uint8_t const> bytes(static_cast<uint8_t const*>(data), size);
+  std::uint64_t addr{0};
+
+  for (auto const row : bytes | ranges::views::chunk(kBytesPerRow)) {
+    oss << fmt::format("{:08x} ", addr);
+
+    for (size_t i = 0; i < kBytesPerRow; ++i) {
+      if (i % 8 == 0) {
+        oss << " ";
+      }
+      if (i < row.size()) {
+        oss << fmt::format("{:02x} ", row[i]);
+      } else {
+        oss << "   ";
+      }
+    }
+
+    oss << " |";
+
+    for (size_t i = 0; i < kBytesPerRow; ++i) {
+      if (i < row.size()) {
+        uint8_t const byte = row[i];
+        oss << (std::isprint(byte) ? static_cast<char>(byte) : '.');
+      } else {
+        oss << ' ';
+      }
+    }
+
+    oss << "|\n";
+
+    addr += kBytesPerRow;
+  }
+
+  return oss.str();
 }
 
 unsigned int hardware_concurrency() noexcept {
