@@ -700,6 +700,24 @@ std::string hexdump(void const* data, size_t size) {
   return oss.str();
 }
 
+std::string hexlify(std::span<std::byte const> data) {
+  using namespace std::string_view_literals;
+  static constexpr auto hex_digits = "0123456789abcdef"sv;
+  std::string result;
+  result.reserve(data.size() * 2);
+
+  for (std::byte const b : data) {
+    result += hex_digits[static_cast<uint8_t>(b) >> 4];
+    result += hex_digits[static_cast<uint8_t>(b) & 0x0F];
+  }
+
+  return result;
+}
+
+std::string hexlify(std::string_view data) {
+  return hexlify(std::as_bytes(std::span(data)));
+}
+
 unsigned int hardware_concurrency() noexcept {
   static auto const env = [] {
     std::optional<int> concurrency;

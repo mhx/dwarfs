@@ -103,6 +103,9 @@ std::string hexdump(R const& r) {
   return hexdump(std::span<T const>(std::data(r), std::size(r)));
 }
 
+std::string hexlify(std::span<std::byte const> data);
+std::string hexlify(std::string_view data);
+
 unsigned int hardware_concurrency() noexcept;
 
 int get_current_umask();
