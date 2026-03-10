@@ -25,8 +25,7 @@
 #include <ostream>
 #include <sstream>
 
-#include <folly/Conv.h>
-
+#include <dwarfs/conv.h>
 #include <dwarfs/writer/inode_fragments.h>
 
 namespace dwarfs::writer {
@@ -45,9 +44,9 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
     }
   }
 
-  chunks_.emplace_back(folly::to<chunk::block_type>(block),
-                       folly::to<chunk::offset_type>(offset),
-                       folly::to<chunk::size_type>(size));
+  chunks_.emplace_back(to<chunk::block_type>(block),
+                       to<chunk::offset_type>(offset),
+                       to<chunk::size_type>(size));
   // NOLINTEND(clang-analyzer-security.ArrayBound)
 }
 
