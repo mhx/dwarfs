@@ -23,7 +23,7 @@
 
 #include <filesystem>
 
-#include <folly/FileUtil.h>
+#include <dwarfs/file_util.h>
 
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
@@ -44,10 +44,7 @@ int main(int argc, char** argv) {
   while (__AFL_LOOP(10000))
 #endif
   {
-    std::string cmdline;
-    if (!folly::readFile(argv[1], cmdline)) {
-      std::terminate();
-    }
+    auto cmdline = read_file(argv[1]);
 
     std::shared_ptr<test::test_file_access> fa{
         std::make_shared<test::test_file_access>()};

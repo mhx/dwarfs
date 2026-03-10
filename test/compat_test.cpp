@@ -35,8 +35,7 @@
 #include <tuple>
 #include <vector>
 
-#include <folly/FileUtil.h>
-#include <folly/String.h>
+#include <folly/portability/Unistd.h>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/checksum.h>
@@ -1491,8 +1490,7 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
 
-  std::string fsdata;
-  ASSERT_TRUE(folly::readFile(filename.string().c_str(), fsdata));
+  auto const fsdata = read_file(filename);
 
   for (auto const& hdr : headers) {
     reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(hdr + fsdata),
