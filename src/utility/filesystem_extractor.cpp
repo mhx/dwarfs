@@ -44,10 +44,8 @@
 
 #include <fmt/format.h>
 
-#include <folly/ExceptionString.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Unistd.h>
-#include <folly/system/ThreadName.h>
 
 #include <dwarfs/config.h>
 #include <dwarfs/counting_semaphore.h>
@@ -362,7 +360,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   }
 
   void pump(std::ostream& os, int fd) {
-    folly::setThreadName("pump");
+    set_thread_name("pump");
 
     std::array<char, 1024> buf;
 
