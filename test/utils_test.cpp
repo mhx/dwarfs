@@ -707,3 +707,25 @@ TEST(utils, hexdump) {
 
   EXPECT_EQ(expected.substr(expected.find_first_not_of("\r\n")), hexdump(data));
 }
+
+TEST(utils, hexlify_bytes) {
+  using namespace std::string_view_literals;
+
+  static constexpr std::array<uint8_t, 9> data{
+      0, 1, 3, 42, 255, 254, 128, 127, 80,
+  };
+
+  static constexpr auto expected = "0001032afffe807f50"sv;
+
+  EXPECT_EQ(expected, hexlify(std::as_bytes(std::span{data})));
+}
+
+TEST(utils, hexlify_string_view) {
+  using namespace std::string_view_literals;
+
+  static constexpr auto strv = "Hell\0, World!\n"sv;
+
+  static constexpr auto expected = "48656c6c002c20576f726c64210a"sv;
+
+  EXPECT_EQ(expected, hexlify(strv));
+}

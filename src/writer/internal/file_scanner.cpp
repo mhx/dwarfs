@@ -27,8 +27,6 @@
 #include <string_view>
 #include <vector>
 
-#include <folly/String.h>
-
 #include <nlohmann/json.hpp>
 
 #include <parallel_hashmap/phmap.h>
@@ -106,7 +104,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   std::string format_key(std::string_view key) const {
-    return fmt::format("{}", folly::hexlify(key));
+    return fmt::format("{}", hexlify(key));
   }
 
   void dump_value(std::ostream& os, std::integral auto val) const {
@@ -590,7 +588,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
      << R"(        "size": )" << fmt::format("{}", p->size()) << ",\n"
      << R"(        "nlink": )" << fmt::format("{}", p->hardlink_count())
      << ",\n"
-     << R"(        "hash": ")" << folly::hexlify(p->hash()) << "\",\n"
+     << R"(        "hash": ")" << hexlify(p->hash()) << "\",\n"
      << R"(        "invalid": )" << (p->is_invalid() ? "true" : "false")
      << ",\n"
      << R"(        "inode_num": )"
