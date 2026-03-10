@@ -16,24 +16,25 @@
 
 #pragma once
 
-#include <assert.h>
-#include <folly/Traits.h>
+#include <cassert>
+#include <boost/config.hpp>
 
 namespace apache::thrift::frozen::detail {
 class Fast64BitRemainderCalculator {
-#if FOLLY_HAVE_INT128_T
+#ifdef BOOST_HAS_INT128
+  using uint128_t = boost::uint128_type;
+
  public:
   Fast64BitRemainderCalculator() = default;
   explicit Fast64BitRemainderCalculator(uint64_t divisor)
-      : fastRemainderConstant_(
-            divisor ? (~folly::uint128_t(0) / divisor + 1) : 0) {
+      : fastRemainderConstant_(divisor ? (~uint128_t(0) / divisor + 1) : 0) {
 #ifndef NDEBUG
     divisor_ = divisor;
 #endif
   }
 
   size_t remainder(size_t lhs, size_t rhs) const {
-    const folly::uint128_t lowBits = fastRemainderConstant_ * lhs;
+    const uint128_t lowBits = fastRemainderConstant_ * lhs;
     auto result = mul128_u64(lowBits, rhs);
     assert(rhs == divisor_);
     assert(result == lhs % rhs);
@@ -41,12 +42,12 @@ class Fast64BitRemainderCalculator {
   }
 
  private:
-  static uint64_t mul128_u64(folly::uint128_t lowbits, uint64_t d) {
-    folly::uint128_t bottom = ((lowbits & 0xFFFFFFFFFFFFFFFFUL) * d) >> 64;
-    folly::uint128_t top = (lowbits >> 64) * d;
+  static uint64_t mul128_u64(uint128_t lowbits, uint64_t d) {
+    uint128_t bottom = ((lowbits & 0xFFFFFFFFFFFFFFFFUL) * d) >> 64;
+    uint128_t top = (lowbits >> 64) * d;
     return static_cast<uint64_t>((bottom + top) >> 64);
   }
-  folly::uint128_t fastRemainderConstant_ = 0;
+  uint128_t fastRemainderConstant_ = 0;
 #ifndef NDEBUG
   size_t divisor_ = 0;
 #endif
