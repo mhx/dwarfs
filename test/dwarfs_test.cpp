@@ -940,8 +940,8 @@ TEST_P(file_scanner, inode_ordering) {
     auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts);
     EXPECT_EQ(ref, fs);
     // if (ref != fs) {
-    //   folly::writeFile(ref, "ref.dwarfs");
-    //   folly::writeFile(fs, fmt::format("test{}.dwarfs", i).c_str());
+    //   dwarfs::write_file(ref, "ref.dwarfs");
+    //   dwarfs::write_file(fs, fmt::format("test{}.dwarfs", i).c_str());
     // }
   }
 }
