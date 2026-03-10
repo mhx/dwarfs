@@ -26,8 +26,6 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <folly/Conv.h>
-
 #include <dwarfs/integral_value_parser.h>
 
 using namespace dwarfs;
@@ -35,8 +33,7 @@ using namespace dwarfs;
 namespace {
 
 auto throws_conversion_error() {
-  return testing::AnyOf(testing::Throws<folly::ConversionError>(),
-                        testing::Throws<boost::bad_lexical_cast>(),
+  return testing::AnyOf(testing::Throws<boost::bad_lexical_cast>(),
                         testing::Throws<std::bad_optional_access>());
 }
 

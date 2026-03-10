@@ -26,16 +26,68 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <folly/Conv.h>
+#include <algorithm>
+#include <cctype>
 
 #include <dwarfs/conv.h>
 
 namespace dwarfs::detail {
 
+namespace {
+
+bool eq_nocase(std::string_view const a, std::string_view const b) {
+  return std::ranges::equal(a, b, [](char const a, char const b) {
+    return std::tolower(a) == std::tolower(b);
+  });
+}
+
+} // namespace
+
 std::optional<bool> str_to_bool(std::string_view s) {
-  if (auto r = folly::tryTo<bool>(s)) {
-    return *r;
+  auto const len = s.size();
+
+  if (len > 0) {
+    switch (s.front()) {
+    case '0':
+    case '1':
+      if (len == 1) {
+        return s.front() == '1';
+      }
+      break;
+
+    case 'f':
+    case 'F':
+      if (len == 1 || eq_nocase(s, "false")) {
+        return false;
+      }
+      break;
+
+    case 'n':
+    case 'N':
+      if (len == 1 || eq_nocase(s, "no")) {
+        return false;
+      }
+      break;
+
+    case 't':
+    case 'T':
+      if (len == 1 || eq_nocase(s, "true")) {
+        return true;
+      }
+      break;
+
+    case 'y':
+    case 'Y':
+      if (len == 1 || eq_nocase(s, "yes")) {
+        return true;
+      }
+      break;
+
+    default:
+      break;
+    }
   }
+
   return std::nullopt;
 }
 

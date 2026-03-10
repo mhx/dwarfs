@@ -33,8 +33,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include <folly/Conv.h>
-
 #include <boost/chrono/thread_clock.hpp>
 
 #include <dwarfs/config.h>
@@ -248,9 +246,9 @@ void stream_logger::write(level_type level, std::string_view output,
       context = get_logger_context(loc);
       context_len = context.size();
       if (color_) {
-        context = folly::to<std::string>(
-            suffix, term_->color(termcolor::DIM_MAGENTA), context,
-            term_->color(termcolor::NORMAL), prefix);
+        context = fmt::format("{}{}{}{}{}", suffix,
+                              term_->color(termcolor::DIM_MAGENTA), context,
+                              term_->color(termcolor::NORMAL), prefix);
       }
     }
 
