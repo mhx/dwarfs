@@ -665,3 +665,36 @@ TEST(utils, fatal_signal_handler) {
                "Caught signal SIGBUS.*export DWARFS_IOLAYER_OPTS=");
 #endif
 }
+
+TEST(utils, exception_string) {
+  try {
+    throw std::runtime_error("this is a test error");
+    FAIL() << "exception was not thrown";
+  } catch (std::exception const& ex) {
+    EXPECT_THAT(exception_str(ex),
+                HasSubstr("runtime_error: this is a test error"));
+  }
+
+  try {
+    throw std::system_error(std::make_error_code(std::errc::permission_denied),
+                            "this is a test system error");
+    FAIL() << "exception was not thrown";
+  } catch (...) {
+    EXPECT_THAT(exception_str(std::current_exception()),
+                HasSubstr("system_error: this is a test system error"));
+  }
+
+  class non_std_exception {};
+
+  try {
+    throw non_std_exception{};
+    FAIL() << "exception was not thrown";
+  } catch (...) {
+    auto str = exception_str(std::current_exception());
+#if defined(_WIN32) || defined(__FreeBSD__)
+    EXPECT_THAT(str, HasSubstr("unknown non-standard exception"));
+#else
+    EXPECT_THAT(str, HasSubstr("non_std_exception"));
+#endif
+  }
+}
