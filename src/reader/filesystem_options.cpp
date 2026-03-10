@@ -28,8 +28,7 @@
 
 #include <fmt/format.h>
 
-#include <folly/Conv.h>
-
+#include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/util.h>
@@ -41,13 +40,10 @@ file_off_t parse_image_offset(std::string const& str) {
     return filesystem_options::IMAGE_OFFSET_AUTO;
   }
 
-  auto off = folly::tryTo<file_off_t>(str);
+  auto off = try_to<file_off_t>(str);
 
   if (!off) {
-    auto ce = folly::makeConversionError(off.error(), str);
-    DWARFS_THROW(runtime_error,
-                 fmt::format("failed to parse image offset: {} ({})", str,
-                             exception_str(ce)));
+    DWARFS_THROW(runtime_error, "failed to parse image offset: " + str);
   }
 
   if (off.value() < 0) {

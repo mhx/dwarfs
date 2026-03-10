@@ -30,7 +30,9 @@
 #include <boost/convert/spirit.hpp>
 #include <boost/convert/stream.hpp>
 #include <boost/lexical_cast.hpp>
+#ifdef WITH_FOLLY
 #include <folly/Conv.h>
+#endif
 
 // bug in boost: this should include make_default.hpp, but doesn't
 #include <boost/convert/charconv.hpp>
@@ -47,6 +49,7 @@ constexpr std::array<std::string_view, 5> integer_strings_invalid = {
 
 constexpr std::array<int, 5> integer_values = {0, 4711, 42, 1337, 1234567890};
 
+#ifdef WITH_FOLLY
 void int_to_string_folly_to(::benchmark::State& state) {
   for (auto _ : state) {
     for (auto i : integer_values) {
@@ -55,6 +58,7 @@ void int_to_string_folly_to(::benchmark::State& state) {
     }
   }
 }
+#endif
 
 void int_to_string_lexical_cast(::benchmark::State& state) {
   for (auto _ : state) {
@@ -65,6 +69,7 @@ void int_to_string_lexical_cast(::benchmark::State& state) {
   }
 }
 
+#ifdef WITH_FOLLY
 void string_to_int_folly_to(::benchmark::State& state) {
   for (auto _ : state) {
     for (auto s : integer_strings) {
@@ -73,6 +78,7 @@ void string_to_int_folly_to(::benchmark::State& state) {
     }
   }
 }
+#endif
 
 void string_to_int_lexical_cast(::benchmark::State& state) {
   for (auto _ : state) {
@@ -83,6 +89,7 @@ void string_to_int_lexical_cast(::benchmark::State& state) {
   }
 }
 
+#ifdef WITH_FOLLY
 void string_to_int_folly_to_invalid(::benchmark::State& state) {
   for (auto _ : state) {
     for (auto s : integer_strings_invalid) {
@@ -91,6 +98,7 @@ void string_to_int_folly_to_invalid(::benchmark::State& state) {
     }
   }
 }
+#endif
 
 void string_to_int_lexical_cast_invalid(::benchmark::State& state) {
   for (auto _ : state) {
@@ -224,21 +232,27 @@ void string_to_int_convert_charconv_invalid(::benchmark::State& state) {
 
 } // namespace
 
+#ifdef WITH_FOLLY
 BENCHMARK(int_to_string_folly_to);
+#endif
 BENCHMARK(int_to_string_lexical_cast);
 BENCHMARK(int_to_string_convert_lexical_cast);
 BENCHMARK(int_to_string_convert_cstream);
 BENCHMARK(int_to_string_convert_spirit);
 BENCHMARK(int_to_string_convert_charconv);
 
+#ifdef WITH_FOLLY
 BENCHMARK(string_to_int_folly_to);
+#endif
 BENCHMARK(string_to_int_lexical_cast);
 BENCHMARK(string_to_int_convert_lexical_cast);
 BENCHMARK(string_to_int_convert_cstream);
 BENCHMARK(string_to_int_convert_spirit);
 BENCHMARK(string_to_int_convert_charconv);
 
+#ifdef WITH_FOLLY
 BENCHMARK(string_to_int_folly_to_invalid);
+#endif
 BENCHMARK(string_to_int_lexical_cast_invalid);
 BENCHMARK(string_to_int_convert_lexical_cast_invalid);
 BENCHMARK(string_to_int_convert_cstream_invalid);

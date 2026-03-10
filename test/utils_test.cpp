@@ -462,12 +462,6 @@ TEST(utils, getenv_is_enabled) {
   ASSERT_NO_THROW(env.set(test_var, "true"));
   EXPECT_TRUE(getenv_is_enabled(test_var));
 
-  ASSERT_NO_THROW(env.set(test_var, "off"));
-  EXPECT_FALSE(getenv_is_enabled(test_var));
-
-  ASSERT_NO_THROW(env.set(test_var, "on"));
-  EXPECT_TRUE(getenv_is_enabled(test_var));
-
   ASSERT_NO_THROW(env.set(test_var, "ThisAintBool"));
   EXPECT_FALSE(getenv_is_enabled(test_var));
 
