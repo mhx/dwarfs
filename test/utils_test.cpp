@@ -698,3 +698,18 @@ TEST(utils, exception_string) {
 #endif
   }
 }
+
+TEST(utils, hexdump) {
+  using namespace std::string_view_literals;
+
+  std::array<uint8_t, 19> data;
+  std::iota(data.begin(), data.end(), 28);
+
+  static constexpr auto expected =
+      R"(
+00000000  1c 1d 1e 1f 20 21 22 23  24 25 26 27 28 29 2a 2b  |.... !"#$%&'()*+|
+00000010  2c 2d 2e                                          |,-.             |
+)"sv;
+
+  EXPECT_EQ(expected.substr(expected.find_first_not_of("\r\n")), hexdump(data));
+}
