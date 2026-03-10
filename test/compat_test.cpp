@@ -1581,8 +1581,7 @@ TEST_P(rewrite, filesystem_rewrite) {
         lgr, os, mm, idss, 0, 1, false,
         reader::filesystem_options::IMAGE_OFFSET_AUTO));
     auto hdr = reader::filesystem_v2::header(lgr, mm);
-    ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
-                                       rewritten.str().size());
+    ASSERT_TRUE(hdr) << hexdump(rewritten.str());
     EXPECT_EQ(format_sh, hdr->as_string());
     reader::filesystem_options fsopts;
     fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1605,8 +1604,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = test::make_mock_file_view(rewritten2.str());
     auto hdr = reader::filesystem_v2::header(lgr, mm);
-    ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
-                                       rewritten2.str().size());
+    ASSERT_TRUE(hdr) << hexdump(rewritten2.str());
     EXPECT_EQ("D", hdr->as_string());
   }
 
@@ -1621,8 +1619,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = test::make_mock_file_view(rewritten3.str());
     auto hdr = reader::filesystem_v2::header(lgr, mm);
-    ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
-                                       rewritten3.str().size());
+    ASSERT_TRUE(hdr) << hexdump(rewritten3.str());
     EXPECT_EQ("D", hdr->as_string());
   }
 
@@ -1641,7 +1638,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto mm = test::make_mock_file_view(rewritten4.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
-        << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
+        << hexdump(rewritten4.str());
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
@@ -1663,7 +1660,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto mm = test::make_mock_file_view(rewritten5.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
-        << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
+        << hexdump(rewritten5.str());
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
