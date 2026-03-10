@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+#include <format>
+#include <string>
+
 #include <gtest/gtest.h>
 
-#include <folly/Conv.h>
 // #include <folly/container/F14Map.h>
 // #include <folly/container/F14Set.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
@@ -141,7 +143,7 @@ TEST(FrozenHashMap, Iteration) {
 TEST(FrozenMap, Strings) {
   std::map<std::string, std::string> map;
   for (uint32_t i = 0; i < 100; ++i) {
-    map[folly::to<std::string>(i)] = folly::to<std::string>(sqrt(i));
+    map[std::to_string(i)] = std::format("{}", sqrt(i));
   }
   auto fmap = freeze(map);
   EXPECT_EQ(map.at("4"), fmap.at("4"));
@@ -160,7 +162,7 @@ TEST(FrozenMap, Strings) {
 TEST(FrozenHashMap, Strings) {
   std::unordered_map<std::string, std::string> map;
   for (uint32_t i = 0; i < 100; ++i) {
-    map[folly::to<std::string>(i)] = folly::to<std::string>(sqrt(i));
+    map[std::to_string(i)] = std::format("{}", sqrt(i));
   }
   auto fmap = freeze(map);
   EXPECT_EQ(map.at("4"), fmap.at("4"));
@@ -328,16 +330,16 @@ TEST(Frozen, IntHashMapBig) {
 TEST(Frozen, StringHashSetBig) {
   std::unordered_set<std::string> set;
   for (int i = 0; i < 100; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     set.insert(k);
   }
   auto fset = freeze(set);
   for (int i = 0; i < 100; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     EXPECT_TRUE(fset.count(k));
   }
   for (int i = 100; i < 200; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     EXPECT_FALSE(fset.count(k));
   }
 }
@@ -362,16 +364,16 @@ TEST(Frozen, IntHashSetBig) {
 TEST(Frozen, StringHashMapBig) {
   std::unordered_map<std::string, int> map;
   for (int i = 0; i < 100; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     map[k] = i;
   }
   auto fmap = freeze(map);
   for (int i = 0; i < 100; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     EXPECT_EQ(i, fmap.at(k));
   }
   for (int i = 100; i < 200; ++i) {
-    auto k = folly::to<std::string>(i);
+    auto k = std::to_string(i);
     EXPECT_EQ(0, fmap.count(k));
   }
 }

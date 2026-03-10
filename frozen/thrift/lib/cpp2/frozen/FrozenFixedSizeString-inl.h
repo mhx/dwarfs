@@ -25,11 +25,9 @@ class FOLLY_EXPORT FixedSizeMismatchException : public std::length_error {
  public:
   FixedSizeMismatchException(size_t expected, size_t actual)
       : std::length_error(
-            folly::to<std::string>(
-                "Size mismatch. FixedSizeString specifies ",
-                expected,
-                ", actual size is ",
-                actual)) {}
+            "Size mismatch. FixedSizeString specifies " +
+            std::to_string(expected) + ", actual size is " +
+            std::to_string(actual)) {}
 };
 
 /**

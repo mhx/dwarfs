@@ -18,18 +18,15 @@
 
 #include <cstdlib>
 
-#include <folly/Conv.h>
-
 namespace apache::thrift::frozen {
 
 FrozenFileForwardIncompatible::FrozenFileForwardIncompatible(int fileVersion)
     : std::runtime_error(
-          folly::to<std::string>(
-              "Frozen File version ",
-              fileVersion,
-              " cannot be read, only versions up to ",
-              schema::frozen_constants::kCurrentFrozenFileVersion(),
-              " are supported.")),
+          "Frozen File version " + std::to_string(fileVersion) +
+          " cannot be read, only versions up to " +
+          std::to_string(
+              schema::frozen_constants::kCurrentFrozenFileVersion()) +
+          " are supported."),
       fileVersion_(fileVersion) {}
 
 MallocFreezer::Segment::Segment(size_t _size)
