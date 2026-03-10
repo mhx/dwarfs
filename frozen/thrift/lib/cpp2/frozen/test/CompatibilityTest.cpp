@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-#include <glog/logging.h>
+#include <format>
 
-#include <fmt/core.h>
 #include <gtest/gtest.h>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
@@ -31,8 +30,7 @@ using namespace apache::thrift::test;
 class CompatibilityTest : public ::testing::TestWithParam<Case> {
  public:
   static std::string filePath(std::string_view name) {
-    return folly::to<std::string>(
-        "thrift/lib/cpp2/frozen/test/compatibility/", name);
+    return "thrift/lib/cpp2/frozen/test/compatibility/" + std::string(name);
   }
 };
 
@@ -53,7 +51,7 @@ TEST_P(CompatibilityTest, Write) {
 TEST_P(CompatibilityTest, Read) {
   auto test = GetParam();
   auto path =
-      fmt::format("{}/{}", getenv("THRIFT_COMPATIBILITY_DIR"), *test.name());
+      std::format("{}/{}", getenv("THRIFT_COMPATIBILITY_DIR"), *test.name());
 
   try {
     auto root = mapFrozen<Root>(folly::File(path));
