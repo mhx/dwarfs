@@ -129,4 +129,6 @@ enum class memory_usage_mode {
 memory_usage
 get_self_memory_usage(memory_usage_mode mode = memory_usage_mode::fast);
 
+bool set_thread_name(std::string_view name);
+
 } // namespace dwarfs

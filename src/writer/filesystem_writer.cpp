@@ -36,8 +36,6 @@
 
 #include <boost/chrono/thread_clock.hpp>
 
-#include <folly/system/ThreadName.h>
-
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
@@ -792,7 +790,7 @@ filesystem_writer_<LoggerPolicy>::~filesystem_writer_() noexcept {
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::writer_thread() {
-  folly::setThreadName("writer");
+  set_thread_name("writer");
 
   for (;;) {
     block_holder_type* holder{nullptr};
