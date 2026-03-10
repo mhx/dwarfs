@@ -31,7 +31,7 @@
 #include <optional>
 #include <thread>
 
-#include <folly/system/ThreadName.h>
+#include <dwarfs/util.h>
 
 #include <dwarfs/reader/internal/periodic_executor.h>
 
@@ -84,7 +84,7 @@ class periodic_executor_ final : public periodic_executor::impl {
 
  private:
   void run() const {
-    folly::setThreadName(name_);
+    set_thread_name(name_);
     std::unique_lock lock(mx_);
     while (running_.load()) {
       if (cv_.wait_for(lock, period_) == std::cv_status::timeout) {
