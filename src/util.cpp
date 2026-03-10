@@ -53,6 +53,11 @@
 #include <utf8.h>
 #endif
 
+#if __has_include(<cxxabi.h>)
+#include <cxxabi.h>
+#define DWARFS_UTIL_HAVE_CXXABI_H 1
+#endif
+
 #if __has_include(<date/date.h>)
 #include <date/date.h>
 #define DWARFS_USE_HH_DATE 1
@@ -60,7 +65,6 @@
 #define DWARFS_USE_HH_DATE 0
 #endif
 
-#include <folly/ExceptionString.h>
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/SysStat.h>
@@ -106,6 +110,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
+#include <dwarfs/thrift_lite/demangle.h>
 #include <dwarfs/util.h>
 
 extern "C" int dwarfs_wcwidth(int ucs);
@@ -624,24 +629,34 @@ void ensure_binary_mode(std::ostream& os [[maybe_unused]]) {
 }
 
 std::string exception_str(std::exception const& e) {
-  return folly::exceptionStr(e).toStdString();
+  return fmt::format("{}: {}", thrift_lite::demangle(typeid(e)), e.what());
 }
 
-std::string exception_str(std::exception_ptr const& e) {
-#if defined(__linux__) && defined(__arm__)
-  try {
-    if (e) {
-      std::rethrow_exception(e);
-    }
-  } catch (std::exception const& ex) {
-    return folly::exceptionStr(ex).toStdString();
-  } catch (...) {
-    return "unknown exception";
-  }
-  return "no exception";
+namespace {
+
+std::type_info const* get_current_exception_type_info() {
+#ifdef DWARFS_UTIL_HAVE_CXXABI_H
+  return __cxxabiv1::__cxa_current_exception_type();
 #else
-  return folly::exceptionStr(e).toStdString();
+  return nullptr;
 #endif
+}
+
+} // namespace
+
+std::string exception_str(std::exception_ptr const& e) {
+  try {
+    std::rethrow_exception(e);
+  } catch (std::exception const& ex) {
+    return exception_str(ex);
+  } catch (...) {
+    if (auto const ti = get_current_exception_type_info()) {
+      return fmt::format("unknown exception of type {}",
+                         thrift_lite::demangle(*ti));
+    } else {
+      return "unknown non-standard exception";
+    }
+  }
 }
 
 std::string hexdump(void const* data, size_t size) {
