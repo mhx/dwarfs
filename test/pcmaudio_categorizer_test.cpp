@@ -341,7 +341,7 @@ class pcmaudio_error_test : public testing::Test {
   writer::categorizer_manager catmgr{logger, "/"};
 
   auto categorize(pcmfile_builder const& builder) {
-    // std::cout << folly::hexDump(builder.data.data(), builder.data.size());
+    // std::cout << hexdump(builder.data);
     auto job = catmgr.job(filename());
     job.set_total_size(builder.size());
     job.categorize_random_access(builder.view());

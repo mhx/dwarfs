@@ -510,8 +510,7 @@ TEST_P(map_file_error_test, delayed) {
     auto it = original_files.find(path.relative_path());
     ASSERT_NE(original_files.end(), it);
     std::cout << "--- original (" << it->second.size() << " bytes) ---\n";
-    // std::cout << folly::hexDump(it->second.data(), it->second.size()) <<
-    // "\n";
+    std::cout << hexdump(it->second) << "\n";
   }
 
   auto dump = t.fa->get_file("inodes.dump");
