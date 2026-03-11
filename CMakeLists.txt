@@ -581,6 +581,11 @@ if(WITH_LIBDWARFS)
                           TARGET frozen_example_thrift OUTPUT_PATH lib/cpp2/frozen/test)
   target_link_libraries(frozen_example_thrift PRIVATE dwarfs_folly_lite)
   list(APPEND THRIFT_LITE_LIB_TARGETS frozen_example_thrift)
+
+  add_thrift_lite_library(frozen/thrift/lib/cpp2/frozen/test/Compatibility.thrift FROZEN
+                          TARGET frozen_compat_thrift OUTPUT_PATH lib/cpp2/frozen/test)
+  target_link_libraries(frozen_compat_thrift PRIVATE dwarfs_folly_lite)
+  list(APPEND THRIFT_LITE_LIB_TARGETS frozen_compat_thrift)
 endif()
 
 if(WITH_TESTS)
@@ -675,7 +680,7 @@ if(WITH_TESTS)
     target_link_libraries(dwarfs_thrift_lite_tests PRIVATE dwarfs_thrift_lite_test_thrift)
 
     add_executable(frozen_tests
-      # frozen/thrift/lib/cpp2/frozen/test/CompatibilityTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/CompatibilityTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenAssociativeTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenHintTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenIntegralTest.cpp
@@ -685,7 +690,8 @@ if(WITH_TESTS)
       frozen/thrift/lib/cpp2/frozen/test/FrozenVectorAssociativeTest.cpp
     )
 
-    target_link_libraries(frozen_tests PRIVATE frozen_example_thrift)
+    target_link_libraries(frozen_tests PRIVATE frozen_example_thrift frozen_compat_thrift)
+    target_compile_definitions(frozen_tests PRIVATE FROZEN_COMPAT_DATA_DIR=\"${CMAKE_SOURCE_DIR}/frozen/thrift/lib/cpp2/frozen/test/compatibility\")
 
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
