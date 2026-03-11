@@ -35,11 +35,12 @@
 
 #include <xxhash.h>
 
+#include <parallel_hashmap/btree.h>
+#include <parallel_hashmap/phmap.h>
+
 #include <folly/Conv.h>
 #include <folly/FBVector.h>
 #include <folly/Memory.h>
-// #include <folly/container/F14Map-fwd.h>
-// #include <folly/container/F14Set-fwd.h>
 #include <folly/container/heap_vector_types.h>
 #include <folly/hash/Hash.h>
 #include <folly/sorted_vector_types.h>

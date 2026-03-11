@@ -200,6 +200,32 @@ add_library(
   fsst/fsst_avx512_unroll4.inc
 )
 
+if(DWARFS_GIT_BUILD)
+  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
+else()
+  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
+add_library(
+  dwarfs_frozen OBJECT
+
+  frozen/thrift/lib/cpp2/frozen/Frozen.cpp
+  frozen/thrift/lib/cpp2/frozen/FrozenUtil.cpp
+  frozen/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
+
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
+)
+
+set_property(TARGET dwarfs_frozen PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
+target_link_libraries(dwarfs_frozen PUBLIC dwarfs_folly_lite)
+target_include_directories(dwarfs_frozen PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
+)
+target_include_directories(dwarfs_frozen SYSTEM PUBLIC
+  $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+)
+
 add_library(
   dwarfs_thrift_lite_v2 OBJECT
   src/thrift_lite/assert.cpp
