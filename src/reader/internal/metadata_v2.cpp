@@ -565,7 +565,7 @@ class metadata_v2_data {
   file_size_result
   reg_file_size_impl(LOG_PROXY_REF_(LoggerPolicy) inode_view_impl const& iv,
                      bool use_cache) const {
-    return reg_file_size_impl(iv, use_cache, [&](int index) {
+    return reg_file_size_impl(iv, use_cache, [&](int index [[maybe_unused]]) {
       LOG_TRACE << "using size cache lookup for inode " << iv.inode_num()
                 << " (index " << index << ")";
     });

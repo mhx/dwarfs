@@ -90,8 +90,9 @@ class logging_class_factory {
     if constexpr (sizeof...(Rest) > 0) {
       return create_impl<T, CreatePolicy, Rest...>(lgr,
                                                    std::forward<Args>(args)...);
+    } else {
+      on_policy_not_found(lgr);
     }
-    on_policy_not_found(lgr);
   }
 
   static bool is_policy_name(logger const& lgr, std::string_view name);

@@ -55,7 +55,7 @@ TEST(FrozenIntegral, IntBounds) {
   EXPECT_EQ(7, frozenSize(0x7FFFFFFFFFFFFFL));
   EXPECT_EQ(7, frozenSize(-0x80000000000000L));
   EXPECT_EQ(8, frozenSize(0x7FFFFFFFFFFFFFFFL));
-  EXPECT_EQ(8, frozenSize(-0x8000000000000000L));
+  EXPECT_EQ(8, frozenSize(0x0L - 0x8000000000000000L));
   EXPECT_EQ(8, frozenSize(std::numeric_limits<int64_t>::min()));
   EXPECT_EQ(8, frozenSize(std::numeric_limits<int64_t>::max()));
   EXPECT_EQ(4, frozenSize(std::numeric_limits<int32_t>::min()));
