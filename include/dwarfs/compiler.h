@@ -53,3 +53,53 @@
 #else
 #define DWARFS_FORCE_INLINE inline
 #endif
+
+#define DWARFS_STRINGIFY2(x) #x
+#define DWARFS_STRINGIFY(x) DWARFS_STRINGIFY2(x)
+
+#if defined(__GNUC__) || defined(__clang__)
+
+#define DWARFS_PACK_ATTR __attribute__((__packed__))
+#define DWARFS_PACK_PUSH
+#define DWARFS_PACK_POP
+
+#define DWARFS_PUSH_WARNING _Pragma("GCC diagnostic push")
+#define DWARFS_POP_WARNING _Pragma("GCC diagnostic pop")
+#define DWARFS_GNU_DISABLE_WARNING(wname)                                      \
+  _Pragma(DWARFS_STRINGIFY2(GCC diagnostic ignored wname))
+#ifdef __clang__
+#define DWARFS_CLANG_DISABLE_WARNING(wname) DWARFS_GNU_DISABLE_WARNING(wname)
+#define DWARFS_GCC_DISABLE_WARNING(wname)
+#else
+#define DWARFS_CLANG_DISABLE_WARNING(wname)
+#define DWARFS_GCC_DISABLE_WARNING(wname) DWARFS_GNU_DISABLE_WARNING(wname)
+#endif
+#define DWARFS_MSVC_DISABLE_WARNING(wnum)
+
+#elif defined(_MSC_VER)
+
+#define DWARFS_PACK_ATTR
+#define DWARFS_PACK_PUSH __pragma(pack(push, 1))
+#define DWARFS_PACK_POP __pragma(pack(pop))
+
+#define DWARFS_PUSH_WARNING __pragma(warning(push))
+#define DWARFS_POP_WARNING __pragma(warning(pop))
+#define DWARFS_GNU_DISABLE_WARNING(wname)
+#define DWARFS_GCC_DISABLE_WARNING(wname)
+#define DWARFS_CLANG_DISABLE_WARNING(wname)
+#define DWARFS_MSVC_DISABLE_WARNING(wnum) __pragma(warning(disable : wnum))
+
+#else
+
+#define DWARFS_PACK_ATTR
+#define DWARFS_PACK_PUSH
+#define DWARFS_PACK_POP
+
+#define DWARFS_PUSH_WARNING
+#define DWARFS_POP_WARNING
+#define DWARFS_GNU_DISABLE_WARNING(wname)
+#define DWARFS_GCC_DISABLE_WARNING(wname)
+#define DWARFS_CLANG_DISABLE_WARNING(wname)
+#define DWARFS_MSVC_DISABLE_WARNING(wnum)
+
+#endif

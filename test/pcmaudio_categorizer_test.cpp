@@ -29,8 +29,7 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/Portability.h>
-
+#include <dwarfs/compiler.h>
 #include <dwarfs/endian.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/writer/categorizer.h>
@@ -48,13 +47,13 @@ namespace {
 
 auto test_dir = fs::path(TEST_DATA_DIR);
 
-FOLLY_PACK_PUSH
+DWARFS_PACK_PUSH
 
 struct aiff_file_hdr_t {
   uint8_t id[4];
   uint32_t size;
   uint8_t form[4];
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 aiff_file_hdr_t as_big_endian(aiff_file_hdr_t const& hdr) {
   aiff_file_hdr_t result{hdr};
@@ -65,7 +64,7 @@ aiff_file_hdr_t as_big_endian(aiff_file_hdr_t const& hdr) {
 struct aiff_chunk_hdr_t {
   uint8_t id[4];
   uint32_t size;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 aiff_chunk_hdr_t as_big_endian(aiff_chunk_hdr_t const& hdr) {
   aiff_chunk_hdr_t result{hdr};
@@ -78,7 +77,7 @@ struct aiff_comm_chk_t {
   uint32_t num_sample_frames;
   uint16_t sample_size;
   uint8_t sample_rate[10]; // long double, but we can't pack that
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 aiff_comm_chk_t as_big_endian(aiff_comm_chk_t const& chk) {
   aiff_comm_chk_t result{chk};
@@ -92,7 +91,7 @@ aiff_comm_chk_t as_big_endian(aiff_comm_chk_t const& chk) {
 struct aiff_ssnd_chk_t {
   uint32_t offset;
   uint32_t block_size;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 aiff_ssnd_chk_t as_big_endian(aiff_ssnd_chk_t const& chk) {
   aiff_ssnd_chk_t result{chk};
@@ -105,7 +104,7 @@ struct caff_file_hdr_t {
   uint8_t id[4];
   uint16_t version;
   uint16_t flags;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 caff_file_hdr_t as_big_endian(caff_file_hdr_t const& hdr) {
   caff_file_hdr_t result{hdr};
@@ -117,7 +116,7 @@ caff_file_hdr_t as_big_endian(caff_file_hdr_t const& hdr) {
 struct caff_chunk_hdr_t {
   uint8_t id[4];
   uint64_t size;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 caff_chunk_hdr_t as_big_endian(caff_chunk_hdr_t const& hdr) {
   caff_chunk_hdr_t result{hdr};
@@ -133,7 +132,7 @@ struct caff_format_chk_t {
   uint32_t frames_per_packet;
   uint32_t channels_per_frame;
   uint32_t bits_per_channel;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 caff_format_chk_t as_big_endian(caff_format_chk_t const& chk) {
   caff_format_chk_t result{chk};
@@ -149,7 +148,7 @@ caff_format_chk_t as_big_endian(caff_format_chk_t const& chk) {
 
 struct caff_data_chk_t {
   uint32_t edit_count;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 caff_data_chk_t as_big_endian(caff_data_chk_t const& chk) {
   caff_data_chk_t result{chk};
@@ -161,7 +160,7 @@ struct wav_file_hdr_t {
   uint8_t id[4];
   uint32_t size;
   uint8_t form[4];
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 wav_file_hdr_t as_little_endian(wav_file_hdr_t const& hdr) {
   wav_file_hdr_t result{hdr};
@@ -172,7 +171,7 @@ wav_file_hdr_t as_little_endian(wav_file_hdr_t const& hdr) {
 struct wav_chunk_hdr_t {
   uint8_t id[4];
   uint32_t size;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 wav_chunk_hdr_t as_little_endian(wav_chunk_hdr_t const& hdr) {
   wav_chunk_hdr_t result{hdr};
@@ -184,7 +183,7 @@ struct wav64_file_hdr_t {
   uint8_t id[16];
   uint64_t size;
   uint8_t form[16];
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 wav64_file_hdr_t as_little_endian(wav64_file_hdr_t const& hdr) {
   wav64_file_hdr_t result{hdr};
@@ -195,7 +194,7 @@ wav64_file_hdr_t as_little_endian(wav64_file_hdr_t const& hdr) {
 struct wav64_chunk_hdr_t {
   uint8_t id[16];
   uint64_t size;
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 wav64_chunk_hdr_t as_little_endian(wav64_chunk_hdr_t const& hdr) {
   wav64_chunk_hdr_t result{hdr};
@@ -215,7 +214,7 @@ struct wav_fmt_chunk_t {
   uint32_t channel_mask{0};
   uint16_t sub_format_code{0};
   uint8_t guid_remainder[14]{0};
-} FOLLY_PACK_ATTR;
+} DWARFS_PACK_ATTR;
 
 wav_fmt_chunk_t as_little_endian(wav_fmt_chunk_t const& chk) {
   wav_fmt_chunk_t result{chk};
@@ -234,7 +233,7 @@ wav_fmt_chunk_t as_little_endian(wav_fmt_chunk_t const& chk) {
   return result;
 }
 
-FOLLY_PACK_POP
+DWARFS_PACK_POP
 
 struct pcmfile_builder {
   template <typename T>
