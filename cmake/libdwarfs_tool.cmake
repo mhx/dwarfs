@@ -45,7 +45,7 @@ if(WITH_MAN_OPTION)
   )
 endif()
 
-target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
+target_link_libraries(dwarfs_tool PUBLIC dwarfs_common Boost::program_options)
 target_include_directories(dwarfs_tool PUBLIC tools/include)
 
 if(USE_JEMALLOC AND JEMALLOC_FOUND)

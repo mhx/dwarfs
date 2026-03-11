@@ -287,8 +287,6 @@ if(WITH_LIBDWARFS)
 
   include(${CMAKE_SOURCE_DIR}/cmake/thrift_lite_library.cmake)
 
-  include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
-
   if(ENABLE_RICEPP)
     # TODO: support FetchContent
     add_subdirectory(ricepp)
@@ -541,7 +539,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
   endif()
-  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool dwarfs_folly_lite PkgConfig::XXHASH)
+  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool PkgConfig::XXHASH)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   target_compile_definitions(dwarfs_test_helpers
        PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
@@ -577,17 +575,14 @@ if(WITH_LIBDWARFS)
   # need to build this for packaging even if we don't run any test
   add_thrift_lite_library(test/thrift_lite_test.thrift
                           TARGET dwarfs_thrift_lite_test_thrift OUTPUT_PATH dwarfs)
-  target_link_libraries(dwarfs_thrift_lite_test_thrift PRIVATE dwarfs_folly_lite)
   list(APPEND THRIFT_LITE_LIB_TARGETS dwarfs_thrift_lite_test_thrift)
 
   add_thrift_lite_library(frozen/thrift/lib/cpp2/frozen/test/Example.thrift FROZEN
                           TARGET frozen_example_thrift OUTPUT_PATH lib/cpp2/frozen/test)
-  target_link_libraries(frozen_example_thrift PRIVATE dwarfs_folly_lite)
   list(APPEND THRIFT_LITE_LIB_TARGETS frozen_example_thrift)
 
   add_thrift_lite_library(frozen/thrift/lib/cpp2/frozen/test/Compatibility.thrift FROZEN
                           TARGET frozen_compat_thrift OUTPUT_PATH lib/cpp2/frozen/test)
-  target_link_libraries(frozen_compat_thrift PRIVATE dwarfs_folly_lite)
   list(APPEND THRIFT_LITE_LIB_TARGETS frozen_compat_thrift)
 endif()
 
@@ -984,7 +979,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
     target_compile_options(${tgt} PRIVATE -Wno-stringop-overflow)
   endif()
 
-  if(NOT ${tgt} MATCHES "folly|fsst")
+  if(NOT ${tgt} MATCHES "fsst")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
        "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       target_compile_options(${tgt} PRIVATE
@@ -1115,7 +1110,7 @@ if(ENABLE_COVERAGE)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
     COMMAND llvm-profdata merge -sparse ${CMAKE_BINARY_DIR}/profile/*.profraw -o ${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
     COMMAND llvm-cov export -instr-profile=${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
-                -skip-branches -ignore-filename-regex="\(fsst\|folly\|build[^/]*\)/"
+                -skip-branches -ignore-filename-regex="\(fsst\|build[^/]*\)/"
                 -format=lcov ${_PROFILE_OBJECTS} > ${CMAKE_BINARY_DIR}/coverage/coverage.info
     COMMAND genhtml -o ${CMAKE_BINARY_DIR}/coverage/html
                 --no-branch-coverage --missed --show-details
@@ -1132,7 +1127,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
 endif()
 
-foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite thrift1
+foreach(tgt dwarfs_test_helpers thrift1
             ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(TARGET ${tgt})
@@ -1168,7 +1163,7 @@ foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
 endforeach()
 
 foreach(tgt ${TEST_TARGETS})
-  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor dwarfs_folly_lite)
+  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -1229,7 +1224,7 @@ add_custom_target(
       dwarfs_install.cmake package_version.cmake
       CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
       CTestTestfile.cmake Testing
-      fbthrift folly zstd ricepp tools fake_folly
+      zstd ricepp tools
       include src thrift universal bin lib man1 man5 man7
       vcpkg-manifest-install.log
       Makefile compile_commands.json
