@@ -151,7 +151,7 @@ TYPED_TEST_P(FrozenRange, Zeros) {
 
 REGISTER_TYPED_TEST_SUITE_P(
     FrozenRange, ArrayLike, Iterators, IteratorComparisons, Zeros);
-using MyTypes = ::testing::Types<std::vector<int>, folly::fbvector<int>>;
+using MyTypes = ::testing::Types<std::vector<int>, std::deque<int>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(Ranges, FrozenRange, MyTypes);
 
 template <class T>
@@ -177,9 +177,9 @@ TYPED_TEST_P(FrozenRangeNested, FrontBack) {
 REGISTER_TYPED_TEST_SUITE_P(FrozenRangeNested, VectorVectorInt, FrontBack);
 using MyTypesNested = ::testing::Types<
     std::vector<std::vector<int>>,
-    std::vector<folly::fbvector<int>>,
-    folly::fbvector<folly::fbvector<int>>,
-    folly::fbvector<std::vector<int>>>;
+    std::vector<std::deque<int>>,
+    std::deque<std::deque<int>>,
+    std::deque<std::vector<int>>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(RangesNested, FrozenRangeNested, MyTypesNested);
 
 } // namespace apache::thrift
