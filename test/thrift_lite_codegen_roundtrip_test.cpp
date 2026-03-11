@@ -92,7 +92,7 @@ static_assert(
     std::is_same_v<
         std::remove_cvref_t<
             decltype(std::declval<gen::Containers>().opt_map().value())>,
-        folly::sorted_vector_map<std::int32_t, std::string>>,
+        phmap::btree_map<std::int32_t, std::string>>,
     "unexpected type for Containers::opt_map");
 
 static_assert(
@@ -106,7 +106,7 @@ static_assert(
     std::is_same_v<
         std::remove_cvref_t<
             decltype(std::declval<gen::Containers>().opt_set().value())>,
-        folly::sorted_vector_set<std::int32_t>>,
+        phmap::btree_set<std::int32_t>>,
     "unexpected type for Containers::opt_set");
 
 TEST(generated, compact_roundtrip_smoke_test_message) {
