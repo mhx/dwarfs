@@ -19,8 +19,6 @@
 
 #include <gtest/gtest.h>
 
-// #include <folly/container/F14Map.h>
-// #include <folly/container/F14Set.h>
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
@@ -72,6 +70,7 @@ TYPED_TEST_P(FrozenMapBasic, Basic) {
 REGISTER_TYPED_TEST_SUITE_P(FrozenMapBasic, Basic);
 using FrozenMapTypes = testing::Types<
     std::map<int, int>,
+    phmap::btree_map<int, int>,
     folly::sorted_vector_map<int, int>,
     folly::heap_vector_map<int, int>,
     folly::small_heap_vector_map<int, int>>;
@@ -122,10 +121,8 @@ void testFrozenHashMapBasic() {
 
 TEST(FrozenHashMap, Basic) {
   testFrozenHashMapBasic<std::unordered_map<int, int>>();
-  // testFrozenHashMapBasic<folly::F14NodeMap<int, int>>();
-  // testFrozenHashMapBasic<folly::F14ValueMap<int, int>>();
-  // testFrozenHashMapBasic<folly::F14VectorMap<int, int>>();
-  // testFrozenHashMapBasic<folly::F14FastMap<int, int>>();
+  testFrozenHashMapBasic<phmap::flat_hash_map<int, int>>();
+  testFrozenHashMapBasic<phmap::node_hash_map<int, int>>();
 }
 
 TEST(FrozenHashMap, Iteration) {
@@ -272,6 +269,7 @@ TYPED_TEST_P(FrozenSetFull, Full) {
 REGISTER_TYPED_TEST_SUITE_P(FrozenSetFull, Full);
 using FrozenSetTypes = testing::Types<
     std::set<uint32_t>,
+    phmap::btree_set<uint32_t>,
     folly::sorted_vector_set<uint32_t>,
     folly::heap_vector_set<uint32_t>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(
@@ -304,10 +302,8 @@ void testFrozenHashSetFull() {
 
 TEST(FrozenHashSet, Full) {
   testFrozenHashSetFull<std::unordered_set<uint32_t>>();
-  // testFrozenHashSetFull<folly::F14NodeSet<uint32_t>>();
-  // testFrozenHashSetFull<folly::F14ValueSet<uint32_t>>();
-  // testFrozenHashSetFull<folly::F14VectorSet<uint32_t>>();
-  // testFrozenHashSetFull<folly::F14FastSet<uint32_t>>();
+  testFrozenHashSetFull<phmap::flat_hash_set<uint32_t>>();
+  testFrozenHashSetFull<phmap::node_hash_set<uint32_t>>();
 }
 
 TEST(Frozen, IntHashMapBig) {

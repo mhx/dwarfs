@@ -223,6 +223,9 @@ target_include_directories(dwarfs_frozen PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
+target_include_directories(dwarfs_frozen SYSTEM PUBLIC
+  $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+)
 
 add_library(
   dwarfs_thrift_lite_v2 OBJECT

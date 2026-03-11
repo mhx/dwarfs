@@ -180,23 +180,21 @@ struct Layout<T, typename std::enable_if<IsHashSet<T>::value>::type>
 } // namespace apache
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, std::unordered_map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, phmap::flat_hash_map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, phmap::node_hash_map)
+
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, std::unordered_set)
-
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, folly::F14NodeMap)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, folly::F14ValueMap)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, folly::F14VectorMap)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, folly::F14FastMap)
-
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, folly::F14NodeSet)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, folly::F14ValueSet)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, folly::F14VectorSet)
-// THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, folly::F14FastSet)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, phmap::flat_hash_set)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, phmap::node_hash_set)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, std::map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, phmap::btree_map)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::sorted_vector_map)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::heap_vector_map)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::small_heap_vector_map)
+
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, std::set)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, phmap::btree_set)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, folly::sorted_vector_set)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, folly::heap_vector_set)
 
