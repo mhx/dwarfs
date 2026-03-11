@@ -1025,6 +1025,8 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
     endif()
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+      target_compile_definitions(${tgt} PRIVATE _CRT_SECURE_NO_WARNINGS)
+
       # See: https://github.com/cpp-best-practices/cppbestpractices/blob/master/02-Use_the_Tools_Available.md
       target_compile_options(${tgt} PRIVATE
         /W4 # Baseline reasonable warnings
