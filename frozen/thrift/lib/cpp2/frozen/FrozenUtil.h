@@ -19,10 +19,6 @@
 #include <filesystem>
 #include <stdexcept>
 
-#include <folly/Exception.h>
-#include <folly/File.h>
-#include <folly/system/MemoryMapping.h>
-
 #include <boost/iostreams/device/mapped_file.hpp>
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>

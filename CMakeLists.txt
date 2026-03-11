@@ -541,7 +541,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
   endif()
-  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool PkgConfig::XXHASH)
+  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool dwarfs_folly_lite PkgConfig::XXHASH)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   target_compile_definitions(dwarfs_test_helpers
        PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
@@ -1168,7 +1168,7 @@ foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
 endforeach()
 
 foreach(tgt ${TEST_TARGETS})
-  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
+  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor dwarfs_folly_lite)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)

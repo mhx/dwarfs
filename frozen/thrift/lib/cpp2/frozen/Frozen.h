@@ -38,9 +38,6 @@
 #include <parallel_hashmap/btree.h>
 #include <parallel_hashmap/phmap.h>
 
-#include <folly/FBVector.h>
-#include <folly/Memory.h>
-
 #include <thrift/lib/cpp2/frozen/FixedSizeStringHash.h>
 #include <thrift/lib/cpp2/frozen/FrozenMacros.h>
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
@@ -805,7 +802,7 @@ class LayoutRoot : public FieldCycleHolder {
  * LayoutException is thrown if freezing is attempted without a sufficient
  * layout
  */
-class FOLLY_EXPORT LayoutException : public std::length_error {
+class LayoutException : public std::length_error {
  public:
   LayoutException()
       : std::length_error("Existing layouts insufficient for this object") {}
@@ -816,7 +813,7 @@ class FOLLY_EXPORT LayoutException : public std::length_error {
  * type specified in a schema. This may be relaxed by setting
  * 'schema.relaxTypeChecks'.
  */
-class FOLLY_EXPORT LayoutTypeMismatchException : public std::logic_error {
+class LayoutTypeMismatchException : public std::logic_error {
  public:
   LayoutTypeMismatchException(
       const std::string& expected, const std::string& actual)

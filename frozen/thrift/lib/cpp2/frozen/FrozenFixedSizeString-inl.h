@@ -21,7 +21,7 @@ namespace thrift {
 namespace frozen {
 namespace detail {
 
-class FOLLY_EXPORT FixedSizeMismatchException : public std::length_error {
+class FixedSizeMismatchException : public std::length_error {
  public:
   FixedSizeMismatchException(size_t expected, size_t actual)
       : std::length_error(
