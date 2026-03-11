@@ -59,14 +59,14 @@ template <std::signed_integral T>
 zigzag_encode(T const v) noexcept -> std::make_unsigned_t<T> {
   using U = std::make_unsigned_t<T>;
   auto const uv = static_cast<U>(v);
-  return (uv << 1) ^ -(uv >> std::numeric_limits<T>::digits);
+  return (uv << 1) ^ (U{} - (uv >> std::numeric_limits<T>::digits));
 }
 
 template <std::unsigned_integral T>
 [[nodiscard]] constexpr auto
 zigzag_decode(T const v) noexcept -> std::make_signed_t<T> {
   using S = std::make_signed_t<T>;
-  return static_cast<S>((v >> 1) ^ static_cast<T>(-(v & 1)));
+  return static_cast<S>((v >> 1) ^ static_cast<T>(T{} - (v & 1)));
 }
 
 template <std::unsigned_integral T>
