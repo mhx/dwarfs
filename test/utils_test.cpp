@@ -26,11 +26,10 @@
 
 #include <array>
 #include <csignal>
+#include <cstdlib>
 #include <numeric>
 #include <tuple>
 #include <vector>
-
-#include <folly/portability/Stdlib.h>
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/config.h>
