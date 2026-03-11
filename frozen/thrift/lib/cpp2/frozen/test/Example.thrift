@@ -102,7 +102,7 @@ struct VectorTest {
   3: map<i32, i32> aMap (cpp.template = "apache::thrift::frozen::VectorAsMap");
   4: set<i32> aHashSet (cpp.template = "apache::thrift::frozen::VectorAsHashSet");
   5: map<i32, i32> aHashMap (cpp.template = "apache::thrift::frozen::VectorAsHashMap");
-  6: list<i32> fbVector (cpp.template = "folly::fbvector");
+  6: list<i32> stdDeque (cpp.template = "std::deque");
 }
 
 struct EnumAsKeyTest {

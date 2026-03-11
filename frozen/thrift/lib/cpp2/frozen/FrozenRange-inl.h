@@ -353,4 +353,3 @@ struct Layout<T, typename std::enable_if<IsList<T>::value>::type>
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::vector)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::deque)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, folly::fbvector)
