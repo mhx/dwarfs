@@ -218,7 +218,7 @@ add_library(
 )
 
 set_property(TARGET dwarfs_frozen PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
-target_link_libraries(dwarfs_frozen PUBLIC dwarfs_folly_lite)
+target_link_libraries(dwarfs_frozen PUBLIC dwarfs_folly_lite Boost::iostreams)
 target_include_directories(dwarfs_frozen PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
