@@ -16,11 +16,15 @@
 
 #pragma once
 
+#include <filesystem>
 #include <stdexcept>
 
 #include <folly/Exception.h>
 #include <folly/File.h>
 #include <folly/system/MemoryMapping.h>
+
+#include <boost/iostreams/device/mapped_file.hpp>
+
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
 #include <dwarfs/thrift_lite/compact_reader.h>
@@ -168,7 +172,7 @@ void deserializeRootLayout(
 }
 
 template <class T>
-void freezeToFile(const T& x, folly::File file) {
+void freezeToFile(const T& x, const std::filesystem::path& path) {
   std::string schemaStr;
   auto layout = std::make_unique<Layout<T>>();
   auto contentSize = LayoutRoot::layout(x, *layout);
@@ -176,17 +180,21 @@ void freezeToFile(const T& x, folly::File file) {
   serializeRootLayout(*layout, schemaStr);
 
   size_t initialBufferSize = contentSize + schemaStr.size();
-  folly::MemoryMapping mapping(
-      file.dup(), 0, initialBufferSize, folly::MemoryMapping::writable());
-  auto mappingRange = mapping.writableRange();
-  auto writeRange = mapping.writableRange();
+  auto params = boost::iostreams::mapped_file_params(path.string());
+  params.new_file_size = initialBufferSize;
+  auto mapping = boost::iostreams::mapped_file_sink(params);
+  auto const mappingRange =
+      std::span{reinterpret_cast<uint8_t*>(mapping.data()), mapping.size()};
+  auto writeRange = mappingRange;
   std::copy(schemaStr.begin(), schemaStr.end(), writeRange.begin());
-  writeRange.advance(schemaStr.size());
+  writeRange = writeRange.subspan(schemaStr.size());
   ByteRangeFreezer::freeze(*layout, x, writeRange);
-  size_t finalBufferSize = writeRange.begin() - mappingRange.begin();
-  folly::checkUnixError(
-      ftruncate(file.fd(), finalBufferSize),
-      "MallocFreezer: ftruncate() failed");
+  mapping.close();
+  auto const finalBufferSize =
+      std::distance(mappingRange.data(), writeRange.data());
+  if (std::cmp_less(finalBufferSize, initialBufferSize)) {
+    std::filesystem::resize_file(path, finalBufferSize);
+  }
 }
 
 template <class T>
@@ -267,8 +275,10 @@ MappedFrozen<T> mapFrozen(std::string_view range) {
 }
 
 template <class T>
-MappedFrozen<T> mapFrozen(folly::MemoryMapping mapping) {
-  auto ret = mapFrozen<T>(mapping.range());
+MappedFrozen<T> mapFrozen(boost::iostreams::mapped_file_source&& mapping) {
+  auto const range = std::span{
+      reinterpret_cast<uint8_t const*>(mapping.data()), mapping.size()};
+  auto ret = mapFrozen<T>(range);
   ret.hold(std::move(mapping));
   return ret;
 }
@@ -305,17 +315,9 @@ template <class T>
 mapFrozen(const std::string& str) = delete;
 
 template <class T>
-MappedFrozen<T> mapFrozen(
-    folly::File file, folly::MemoryMapping::LockMode lockMode) {
-  folly::MemoryMapping mapping(std::move(file), 0);
-  mapping.mlock(lockMode);
+MappedFrozen<T> mapFrozen(const std::filesystem::path& path) {
+  boost::iostreams::mapped_file_source mapping(path.string());
   return mapFrozen<T>(std::move(mapping));
-}
-
-template <class T>
-MappedFrozen<T> mapFrozen(folly::File file) {
-  return mapFrozen<T>(
-      std::move(file), folly::MemoryMapping::LockMode::TRY_LOCK);
 }
 
 } // namespace apache::thrift::frozen

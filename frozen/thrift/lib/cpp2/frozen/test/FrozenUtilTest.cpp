@@ -18,28 +18,31 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/thrift_lite/compact_writer.h>
 
 using namespace apache::thrift;
 using namespace frozen;
 
-#if 0
 TEST(FrozenUtil, FreezeAndUse) {
-  auto file = freezeToTempFile(std::string("hello"));
+  auto td = dwarfs::temporary_directory("frozen");
+  auto file = td.path() / "frozen_test_file";
+  freezeToFile(std::string("hello"), file);
   MappedFrozen<std::string> mapped;
-  mapped = mapFrozen<std::string>(folly::File(file.fd()));
+  mapped = mapFrozen<std::string>(file);
   EXPECT_EQ(std::string_view(mapped), "hello");
 }
 
 TEST(FrozenUtil, FreezeAndMap) {
+  auto td = dwarfs::temporary_directory("frozen");
+  auto file = td.path() / "frozen_test_file";
   auto original = std::vector<std::string>{"hello", "world"};
-  folly::test::TemporaryFile tmp;
 
-  freezeToFile(original, folly::File(tmp.fd()));
+  freezeToFile(original, file);
 
   MappedFrozen<std::vector<std::string>> mapped;
   EXPECT_FALSE(mapped);
-  mapped = mapFrozen<std::vector<std::string>>(folly::File(tmp.fd()));
+  mapped = mapFrozen<std::vector<std::string>>(file);
   EXPECT_TRUE(mapped);
 
   auto thawed = mapped.thaw();
@@ -47,7 +50,6 @@ TEST(FrozenUtil, FreezeAndMap) {
   original.emplace_back("different");
   EXPECT_NE(original, thawed);
 }
-#endif
 
 TEST(FrozenUtil, FutureVersion) {
   std::string store;
@@ -67,16 +69,14 @@ TEST(FrozenUtil, FutureVersion) {
       mapFrozen<std::string>(std::move(store)), FrozenFileForwardIncompatible);
 }
 
-#if 0
 TEST(FrozenUtil, FileSize) {
+  auto td = dwarfs::temporary_directory("frozen");
+  auto file = td.path() / "frozen_test_file";
   auto original = std::vector<std::string>{"hello", "world"};
-  folly::test::TemporaryFile tmp;
-  freezeToFile(original, folly::File(tmp.fd()));
-  struct stat stats;
-  fstat(tmp.fd(), &stats);
-  EXPECT_LT(stats.st_size, 500); // most of this is the schema
+  freezeToFile(original, file);
+  EXPECT_LT(
+      std::filesystem::file_size(file), 500); // most of this is the schema
 }
-#endif
 
 TEST(FrozenUtil, FreezeToString) {
   // multiplication tables for first three primes
