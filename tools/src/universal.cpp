@@ -35,8 +35,6 @@
 #include <string_view>
 #include <vector>
 
-#include <folly/portability/Windows.h>
-
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
