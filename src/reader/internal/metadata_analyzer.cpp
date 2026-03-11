@@ -35,6 +35,8 @@
 #include <string_view>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 
