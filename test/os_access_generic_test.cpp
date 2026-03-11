@@ -150,7 +150,7 @@ TEST(os_access_generic_data, empty_environment) {
 
   EXPECT_TRUE(err.str().empty());
 
-  if (sizeof(void*) == 4) {
+  if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
     EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());
@@ -187,7 +187,7 @@ TEST(os_access_generic_data, invalid_max_eager_map_size) {
 
   os_access_generic_data data{err, env};
 
-  if (sizeof(void*) == 4) {
+  if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
     EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());
@@ -205,7 +205,7 @@ TEST(os_access_generic_data, unknown_option) {
 
   os_access_generic_data data{err, env};
 
-  if (sizeof(void*) == 4) {
+  if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
     EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());

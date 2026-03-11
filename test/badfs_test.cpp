@@ -100,9 +100,10 @@ TEST_P(bad_fs, test) {
   auto const filename = GetParam();
   auto const filepath = testdata / GetParam();
 
-  if (sizeof(size_t) == 4 && std::find(kSkipOn32Bit.begin(), kSkipOn32Bit.end(),
-                                       filename) != kSkipOn32Bit.end()) {
-    GTEST_SKIP() << "skipping test for 32-bit systems: " << filename;
+  if constexpr (sizeof(size_t) == 4) {
+    if (std::ranges::find(kSkipOn32Bit, filename) != kSkipOn32Bit.end()) {
+      GTEST_SKIP() << "skipping test for 32-bit systems: " << filename;
+    }
   }
 
 #ifdef DWARFS_TEST_RUNNING_ON_ASAN

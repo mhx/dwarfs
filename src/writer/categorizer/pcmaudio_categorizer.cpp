@@ -619,8 +619,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
                     mm.size() - offsetof(file_hdr_t, form));
 
   bool meta_valid{false};
-  uint32_t num_sample_frames;
-  pcmaudio_metadata meta;
+  uint32_t num_sample_frames{};
+  pcmaudio_metadata meta{};
 
   while (auto chunk = parser.next_chunk()) {
     if (chunk->is("COMM")) {
@@ -823,7 +823,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      if (fmt.bytes_per_packet > 4 * meta.number_of_channels) {
+      if (std::cmp_greater(fmt.bytes_per_packet, 4 * meta.number_of_channels)) {
         LOG_WARN << "[CAF] " << path
                  << ": bytes per packet out of range: " << fmt.bytes_per_packet
                  << ", expected <= " << 4 * meta.number_of_channels;

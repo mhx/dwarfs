@@ -130,7 +130,7 @@ std::error_code error_code_from_nt_status(NTSTATUS status) {
   case STATUS_NONEXISTENT_EA_ENTRY:
   case STATUS_NO_EAS_ON_FILE:
   case STATUS_NO_MORE_EAS:
-    return std::make_error_code(std::errc::no_message_available);
+    return std::make_error_code(std::errc::no_message);
   case STATUS_EA_CORRUPT_ERROR:
     return std::error_code(ERROR_EA_FILE_CORRUPT, std::system_category());
   case STATUS_INVALID_EA_NAME:

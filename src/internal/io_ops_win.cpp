@@ -190,7 +190,7 @@ get_file_extents(HANDLE h, uint64_t size, std::error_code& ec) {
     }
   }
 
-  if (last_end < size) {
+  if (std::cmp_less(last_end, size)) {
     extents.emplace_back(extent_kind::hole,
                          file_range{last_end, size - last_end});
   }
@@ -298,8 +298,8 @@ class io_ops_win : public io_ops {
     return addr;
   }
 
-  void
-  virtual_free(void* addr, size_t size, std::error_code& ec) const override {
+  void virtual_free(void* addr, size_t /*size*/,
+                    std::error_code& ec) const override {
     if (!::VirtualFree(addr, 0, MEM_RELEASE)) {
       ec = std::error_code(::GetLastError(), std::system_category());
     }

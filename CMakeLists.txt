@@ -1052,6 +1052,9 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
         /w14928 # illegal copy-initialization; more than one user-defined conversion has been implicitly applied
 
         /wd4456 # declaration hides previous local declaration
+        /wd4324 # structure was padded due to alignment specifier
+        /wd4996 # the POSIX name for this item is deprecated
+        /wd4702 # unreachable code
       )
       if(DWARFS_GIT_BUILD)
         target_compile_options(${tgt} PRIVATE /WX)

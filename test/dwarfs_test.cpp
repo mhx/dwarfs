@@ -578,7 +578,7 @@ void basic_end_to_end_test(
   }
 }
 
-std::vector<std::string> const compressions{
+std::vector<std::string> const kCompressionOpts{
     "null",
 #ifdef DWARFS_HAVE_LIBLZ4
     "lz4",
@@ -643,17 +643,18 @@ TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
         access_fail, file_hash_algo] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
-                        with_devices, with_specials, set_uid, set_gid, set_time,
+  basic_end_to_end_test(kCompressionOpts[0], 15,
+                        writer::fragment_order_mode::NONE, with_devices,
+                        with_specials, set_uid, set_gid, set_time,
                         keep_all_times, true, true, true, true, true, true,
                         true, false, false, access_fail, 0, file_hash_algo);
 }
 
 TEST_P(hashing_test, end_to_end) {
-  basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
+  basic_end_to_end_test(kCompressionOpts[0], 15,
+                        writer::fragment_order_mode::NONE, true, true, true,
                         true, true, true, true, true, true, true, true, true,
-                        true, true, true, true, false, false, false, 0,
-                        GetParam());
+                        true, false, false, false, 0, GetParam());
 }
 
 TEST_P(packing_test, end_to_end) {
@@ -661,8 +662,8 @@ TEST_P(packing_test, end_to_end) {
         pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
 
   basic_end_to_end_test(
-      compressions[0], 15, writer::fragment_order_mode::NONE, true, true, false,
-      false, false, false, pack_chunk_table, pack_directories,
+      kCompressionOpts[0], 15, writer::fragment_order_mode::NONE, true, true,
+      false, false, false, false, pack_chunk_table, pack_directories,
       pack_shared_files_table, pack_names, pack_names_index, pack_symlinks,
       pack_symlinks_index, false, false, false, 0, default_file_hash_algo);
 }
@@ -670,10 +671,11 @@ TEST_P(packing_test, end_to_end) {
 TEST_P(plain_tables_test, end_to_end) {
   auto [plain_names_table, plain_symlinks_table] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, writer::fragment_order_mode::NONE,
-                        true, true, false, false, false, false, false, false,
-                        false, false, false, false, false, plain_names_table,
-                        plain_symlinks_table, false, 0, default_file_hash_algo);
+  basic_end_to_end_test(kCompressionOpts[0], 15,
+                        writer::fragment_order_mode::NONE, true, true, false,
+                        false, false, false, false, false, false, false, false,
+                        false, false, plain_names_table, plain_symlinks_table,
+                        false, 0, default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -730,7 +732,8 @@ TEST_P(packing_test, regression_empty_fs) {
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, compression_test,
     ::testing::Combine(
-        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
+        ::testing::ValuesIn(kCompressionOpts),
+        ::testing::Values(12, 15, 20, 28),
         ::testing::Values(writer::fragment_order_mode::NONE,
                           writer::fragment_order_mode::PATH,
                           writer::fragment_order_mode::REVPATH,
@@ -885,7 +888,7 @@ TEST_P(compression_regression, github45) {
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
-                         ::testing::ValuesIn(compressions));
+                         ::testing::ValuesIn(kCompressionOpts));
 
 class file_scanner
     : public testing::TestWithParam<
