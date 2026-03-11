@@ -73,15 +73,17 @@
 
 #include <range/v3/view/chunk.hpp>
 
-#include <folly/portability/Fcntl.h>
-#include <folly/portability/SysStat.h>
-#include <folly/portability/Windows.h>
-
 #include <dwarfs/config.h>
+
+#include <dwarfs/portability/windows.h>
+
+#include <fcntl.h>
 
 #ifdef _WIN32
 #include <psapi.h>
 #include <tlhelp32.h>
+#else
+#include <sys/stat.h>
 #endif
 
 #if !defined(_WIN32) || defined(DWARFS_STACKTRACE_ENABLED)

@@ -26,7 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <folly/portability/Windows.h>
+#include <dwarfs/portability/windows.h>
 #include <winioctl.h>
 
 #include <dwarfs/detail/file_extent_info.h>

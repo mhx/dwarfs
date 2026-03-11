@@ -35,7 +35,7 @@
 #include <folly/portability/Stdlib.h>
 
 #ifdef _WIN32
-#include <folly/portability/Windows.h>
+#include <dwarfs/portability/windows.h>
 #else
 #include <sys/resource.h>
 #endif

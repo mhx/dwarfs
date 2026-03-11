@@ -28,6 +28,10 @@
 
 #include <vector>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <ntstatus.h>
 #include <tchar.h>
 #include <windows.h>

@@ -25,6 +25,8 @@
 
 #include <gmock/gmock.h>
 
+#include <dwarfs/portability/windows.h>
+
 #include <archive.h>
 #include <archive_entry.h>
 
