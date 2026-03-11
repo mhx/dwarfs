@@ -38,12 +38,9 @@
 #include <parallel_hashmap/btree.h>
 #include <parallel_hashmap/phmap.h>
 
-#include <folly/Conv.h>
 #include <folly/FBVector.h>
 #include <folly/Memory.h>
-#include <folly/container/heap_vector_types.h>
-#include <folly/hash/Hash.h>
-#include <folly/sorted_vector_types.h>
+
 #include <thrift/lib/cpp2/frozen/FixedSizeStringHash.h>
 #include <thrift/lib/cpp2/frozen/FrozenMacros.h>
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
