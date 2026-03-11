@@ -30,8 +30,6 @@
 
 #include <boost/algorithm/hex.hpp>
 
-#include <folly/String.h>
-
 #include <dwarfs/checksum.h>
 
 using namespace dwarfs;

@@ -32,8 +32,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/String.h>
-
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/writer/categorizer.h>
 

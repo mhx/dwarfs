@@ -29,8 +29,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <folly/String.h>
-
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
 
