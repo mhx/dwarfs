@@ -342,7 +342,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
             return found;
           }
           minor += ++p;
-          if (LIKELY(minor < Block::bits)) {
+          if (minor < Block::bits) [[likely]] {
             bucket += p; // same block shortcut
           } else {
             --p; // undo

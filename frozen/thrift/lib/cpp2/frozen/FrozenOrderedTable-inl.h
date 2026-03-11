@@ -15,7 +15,6 @@
  */
 
 #include <type_traits>
-#include <folly/Traits.h>
 
 #include <dwarfs/thrift_lite/container.h>
 

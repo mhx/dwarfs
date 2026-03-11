@@ -21,8 +21,6 @@
 #include <span>
 #include <utility>
 
-#include <folly/hash/Hash.h>
-
 #include <thrift/lib/cpp2/frozen/Traits.h>
 
 namespace apache::thrift::frozen {
