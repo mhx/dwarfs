@@ -189,17 +189,6 @@ THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, phmap::node_hash_set)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, std::map)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, phmap::btree_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::sorted_vector_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::heap_vector_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, folly::small_heap_vector_map)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, std::set)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, phmap::btree_set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, folly::sorted_vector_set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, folly::heap_vector_set)
-
-THRIFT_DECLARE_TRAIT_TEMPLATE(HasSortedUniqueCtor, folly::sorted_vector_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(HasSortedUniqueCtor, folly::heap_vector_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(HasSortedUniqueCtor, folly::small_heap_vector_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(HasSortedUniqueCtor, folly::sorted_vector_set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(HasSortedUniqueCtor, folly::heap_vector_set)
