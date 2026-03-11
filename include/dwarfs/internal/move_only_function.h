@@ -42,7 +42,14 @@ using move_only_function = std::move_only_function<Args...>;
 
 #else
 
+#include <boost/version.hpp>
+
+#if BOOST_VERSION >= 109100
 #include <boost/compat/move_only_function.hpp>
+#else
+// https://github.com/boostorg/compat/issues/23
+#include "boost_move_only_function.hpp"
+#endif
 
 namespace dwarfs::internal {
 
