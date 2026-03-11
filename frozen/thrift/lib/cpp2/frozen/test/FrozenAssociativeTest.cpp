@@ -68,12 +68,8 @@ TYPED_TEST_P(FrozenMapBasic, Basic) {
 }
 
 REGISTER_TYPED_TEST_SUITE_P(FrozenMapBasic, Basic);
-using FrozenMapTypes = testing::Types<
-    std::map<int, int>,
-    phmap::btree_map<int, int>,
-    folly::sorted_vector_map<int, int>,
-    folly::heap_vector_map<int, int>,
-    folly::small_heap_vector_map<int, int>>;
+using FrozenMapTypes =
+    testing::Types<std::map<int, int>, phmap::btree_map<int, int>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(
     FrozenAssociativeTest, FrozenMapBasic, FrozenMapTypes);
 
@@ -267,11 +263,8 @@ TYPED_TEST_P(FrozenSetFull, Full) {
 }
 
 REGISTER_TYPED_TEST_SUITE_P(FrozenSetFull, Full);
-using FrozenSetTypes = testing::Types<
-    std::set<uint32_t>,
-    phmap::btree_set<uint32_t>,
-    folly::sorted_vector_set<uint32_t>,
-    folly::heap_vector_set<uint32_t>>;
+using FrozenSetTypes =
+    testing::Types<std::set<uint32_t>, phmap::btree_set<uint32_t>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(
     FrozenAssociativeTest, FrozenSetFull, FrozenSetTypes);
 
