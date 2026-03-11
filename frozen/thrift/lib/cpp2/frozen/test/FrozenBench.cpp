@@ -18,8 +18,22 @@
 #pragma GCC diagnostic ignored "-Wfloat-equal"
 #endif
 
-#include <folly/Benchmark.h>
-#include <folly/Random.h>
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <random>
+#include <span>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <benchmark/benchmark.h>
+
+#include <dwarfs/conv.h>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
 
@@ -29,134 +43,159 @@ namespace {
 constexpr int kRows = 490;
 constexpr int kCols = 51;
 
+uint32_t rand32(uint32_t max) {
+  static thread_local std::mt19937 rng{42};
+  std::uniform_int_distribution<uint32_t> dist(0, max - 1);
+  return dist(rng);
+}
+
 template <class T, class Inner = std::vector<T>>
-std::vector<Inner> makeMatrix() {
-  std::vector<Inner> vals;
+std::vector<Inner> make_matrix() {
+  std::vector<Inner> values;
+  values.reserve(kRows);
+
   for (int y = 0; y < kRows; ++y) {
-    vals.emplace_back();
-    auto& row = vals.back();
+    auto& row = values.emplace_back();
+    row.reserve(kCols);
     for (int x = 0; x < kCols; ++x) {
-      row.push_back(folly::Random::rand32(12000) - 6000);
+      row.push_back(rand32(12000) - 6000);
     }
   }
-  return vals;
+
+  return values;
 }
 
-template <class F>
-void benchmarkSum(size_t iters, const F& matrix) {
-  int s = 0;
-  while (iters--) {
-    for (const auto& row : matrix) {
-      for (auto val : row) {
-        s += val;
+template <class Matrix>
+using matrix_element_t = std::remove_cvref_t<
+    decltype(std::declval<Matrix const&>()[std::size_t{}][std::size_t{}])>;
+
+template <class Matrix>
+using matrix_sum_t = std::conditional_t<
+    std::is_floating_point_v<matrix_element_t<Matrix>>,
+    double,
+    std::int64_t>;
+
+constexpr std::int64_t k_sum_items_per_iteration =
+    static_cast<std::int64_t>(kRows) * kCols;
+
+constexpr std::int64_t k_sum_cols_items_per_iteration =
+    static_cast<std::int64_t>(kCols) * kRows -
+    static_cast<std::int64_t>(kCols) * (kCols - 1) / 2;
+
+template <class Matrix>
+void benchmark_sum(benchmark::State& state, Matrix const& matrix) {
+  using sum_type = matrix_sum_t<Matrix>;
+  sum_type sum = 0;
+
+  for (auto _ : state) {
+    for (auto const& row : matrix) {
+      for (auto const& value : row) {
+        sum += static_cast<sum_type>(value);
       }
     }
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(sum);
+  state.SetItemsProcessed(state.iterations() * k_sum_items_per_iteration);
 }
 
-template <class F>
-void benchmarkSumCols(size_t iters, const F& matrix) {
-  int s = 0;
-  while (iters--) {
-    for (size_t x = 0; x < kCols; ++x) {
-      for (size_t y = x; y < kRows; ++y) {
-        s += matrix[y][x];
+template <class Matrix>
+void benchmark_sum_cols(benchmark::State& state, Matrix const& matrix) {
+  using sum_type = matrix_sum_t<Matrix>;
+  sum_type sum = 0;
+
+  for (auto _ : state) {
+    for (std::size_t x = 0; x < kCols; ++x) {
+      for (std::size_t y = x; y < kRows; ++y) {
+        sum += static_cast<sum_type>(matrix[y][x]);
       }
     }
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(sum);
+  state.SetItemsProcessed(state.iterations() * k_sum_cols_items_per_iteration);
 }
 
-template <class F>
-void benchmarkSumSavedCols(size_t iters, const F& matrix) {
-  folly::BenchmarkSuspender setup;
-  std::vector<typename F::value_type> rows;
-  for (size_t y = 0; y < kRows; ++y) {
+template <class Matrix>
+void benchmark_sum_saved_cols(benchmark::State& state, Matrix const& matrix) {
+  using sum_type = matrix_sum_t<Matrix>;
+
+  std::vector<typename Matrix::value_type> rows;
+  rows.reserve(kRows);
+  for (std::size_t y = 0; y < kRows; ++y) {
     rows.push_back(matrix[y]);
   }
-  setup.dismiss();
 
-  int s = 0;
-  while (iters--) {
-    for (size_t x = 0; x < kCols; ++x) {
-      for (size_t y = x; y < kRows; ++y) {
-        s += rows[y][x];
+  sum_type sum = 0;
+  for (auto _ : state) {
+    for (std::size_t x = 0; x < kCols; ++x) {
+      for (std::size_t y = x; y < kRows; ++y) {
+        sum += static_cast<sum_type>(rows[y][x]);
       }
     }
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(sum);
+  state.SetItemsProcessed(state.iterations() * k_sum_cols_items_per_iteration);
 }
 
-auto vvi16 = makeMatrix<int16_t>();
-auto vvi32 = makeMatrix<int32_t>();
-auto vvi64 = makeMatrix<int64_t>();
-auto fvvi16 = freeze(vvi16);
-auto fvvi32 = freeze(vvi32);
-auto fvvi64 = freeze(vvi64);
-auto fuvvi16 = freeze(makeMatrix<int16_t, VectorUnpacked<int16_t>>());
-auto fuvvi32 = freeze(makeMatrix<int32_t, VectorUnpacked<int32_t>>());
-auto fuvvi64 = freeze(makeMatrix<int64_t, VectorUnpacked<int64_t>>());
-auto vvf32 = makeMatrix<float>();
-auto fvvf32 = freeze(vvf32);
+const auto vvi16 = make_matrix<std::int16_t>();
+const auto vvi32 = make_matrix<std::int32_t>();
+const auto vvi64 = make_matrix<std::int64_t>();
+const auto fvvi16 = freeze(vvi16);
+const auto fvvi32 = freeze(vvi32);
+const auto fvvi64 = freeze(vvi64);
+const auto fuvvi16 =
+    freeze(make_matrix<std::int16_t, VectorUnpacked<std::int16_t>>());
+const auto fuvvi32 =
+    freeze(make_matrix<std::int32_t, VectorUnpacked<std::int32_t>>());
+const auto fuvvi64 =
+    freeze(make_matrix<std::int64_t, VectorUnpacked<std::int64_t>>());
+const auto vvf32 = make_matrix<float>();
+const auto fvvf32 = freeze(vvf32);
 
-BENCHMARK_PARAM(benchmarkSum, vvi16)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fvvi16)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fuvvi16)
-BENCHMARK_PARAM(benchmarkSum, vvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fvvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fuvvi32)
-BENCHMARK_PARAM(benchmarkSum, vvi64)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fvvi64)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fuvvi64)
-BENCHMARK_PARAM(benchmarkSum, vvf32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSum, fvvf32)
-BENCHMARK_DRAW_LINE();
-BENCHMARK_PARAM(benchmarkSumCols, vvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSumCols, fvvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSumCols, fuvvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSumSavedCols, fvvi32)
-BENCHMARK_RELATIVE_PARAM(benchmarkSumSavedCols, fuvvi32)
-
-constexpr size_t kEntries = 1000000;
-constexpr size_t kChunkSize = 1000;
+constexpr std::size_t k_entries = 1'000'000;
+constexpr std::size_t k_chunk_size = 1'000;
 
 template <typename T>
-FixedSizeString<sizeof(T)> copyToFixedSizeStr(T value) {
-  FixedSizeString<sizeof(T)> valueStr;
-  valueStr.resize(sizeof(T));
-  memcpy(&valueStr[0], reinterpret_cast<const void*>(&value), sizeof(T));
-  return valueStr;
+FixedSizeString<sizeof(T)> copy_to_fixed_size_str(T value) {
+  static_assert(std::is_trivially_copyable_v<T>);
+
+  FixedSizeString<sizeof(T)> value_str;
+  value_str.resize(sizeof(T));
+  std::memcpy(
+      value_str.data(), reinterpret_cast<void const*>(&value), sizeof(T));
+  return value_str;
 }
 
 template <typename K>
-K makeKey() {
-  return folly::to<K>(folly::Random::rand32(kEntries));
+K make_key() {
+  return dwarfs::to<K>(rand32(k_entries));
 }
 
 template <>
-FixedSizeString<8> makeKey<FixedSizeString<8>>() {
-  return copyToFixedSizeStr(
-      folly::to<int64_t>(folly::Random::rand32(kEntries)));
+FixedSizeString<8> make_key<FixedSizeString<8>>() {
+  return copy_to_fixed_size_str(dwarfs::to<std::int64_t>(rand32(k_entries)));
 }
 
 template <typename K>
-const std::vector<K>& makeKeys() {
-  // static to reuse storage across iterations.
-  static std::vector<K> keys(kChunkSize);
+std::vector<K> make_keys() {
+  std::vector<K> keys(k_chunk_size);
   for (auto& key : keys) {
-    key = makeKey<K>();
+    key = make_key<K>();
   }
   return keys;
 }
 
 template <class Map>
-Map makeMap() {
+Map make_map() {
   Map hist;
-  using K = typename Map::key_type;
-  for (size_t y = 0; y < kEntries; ++y) {
-    ++hist[makeKey<K>()];
+  using key_type = typename Map::key_type;
+
+  for (std::size_t i = 0; i < k_entries; ++i) {
+    ++hist[make_key<key_type>()];
   }
+
   return hist;
 }
 
@@ -164,172 +203,280 @@ template <
     typename K,
     typename V,
     template <typename, typename> class ContainerType>
-auto convertToFixedSizeMap(const ContainerType<K, V>& map) {
-  ContainerType<FixedSizeString<sizeof(K)>, FixedSizeString<sizeof(V)>> strMap;
-  strMap.reserve(map.size());
-  for (const auto& [key, value] : map) {
-    strMap[copyToFixedSizeStr(key)] = copyToFixedSizeStr(value);
+auto convert_to_fixed_size_map(ContainerType<K, V> const& map) {
+  ContainerType<FixedSizeString<sizeof(K)>, FixedSizeString<sizeof(V)>> str_map;
+  if constexpr (requires { str_map.reserve(map.size()); }) {
+    str_map.reserve(map.size());
   }
-  return strMap;
+
+  for (auto const& [key, value] : map) {
+    str_map[copy_to_fixed_size_str(key)] = copy_to_fixed_size_str(value);
+  }
+
+  return str_map;
 }
 
 template <typename K, typename V>
-using UnorderedMapType = std::unordered_map<K, V>;
+using unordered_map_type = std::unordered_map<K, V>;
 
 template <typename K>
-struct OwnedKey {
+struct owned_key {
   using type = K;
 };
 
 template <>
-struct OwnedKey<std::string_view> {
+struct owned_key<std::string_view> {
   using type = std::string;
 };
 
 template <>
-struct OwnedKey<std::span<uint8_t const>> {
+struct owned_key<std::span<std::uint8_t const>> {
   using type = FixedSizeString<8>;
 };
+
+using fixed_size_string_view =
+    typename detail::FixedSizeStringLayout<FixedSizeString<8>>::View;
 
 template <>
-struct OwnedKey<
-    typename detail::FixedSizeStringLayout<FixedSizeString<8>>::View> {
+struct owned_key<fixed_size_string_view> {
   using type = FixedSizeString<8>;
 };
 
-template <
-    typename M,
-    typename T,
-    std::enable_if_t<
-        !std::is_same<
-            typename M::key_type,
-            detail::FixedSizeStringLayout<FixedSizeString<8>>::View>::value,
-        bool> = true>
-typename M::const_iterator mapFind(const M& map, const T& key) {
+template <class M, class T>
+  requires(!std::same_as<typename M::key_type, fixed_size_string_view>)
+auto map_find(M const& map, T const& key) -> typename M::const_iterator {
   return map.find(key);
 }
 
-// Enabled for hashmaps with FixedSizeString as the key_type, where the
-// corresponding view map would have std::span<uint8_t const> as the key_type.
-template <
-    typename M,
-    typename T,
-    std::enable_if_t<
-        std::is_same<
-            typename M::key_type,
-            detail::FixedSizeStringLayout<FixedSizeString<8>>::View>::value,
-        bool> = true>
-typename M::const_iterator mapFind(const M& map, const T& key) {
-  static_assert(std::is_same<T, FixedSizeString<8>>::value);
-  auto keyView = std::span<uint8_t const>{
-      reinterpret_cast<const uint8_t*>(key.data()), key.size()};
-  return map.find(keyView);
+template <class M, class T>
+  requires std::same_as<typename M::key_type, fixed_size_string_view> &&
+    std::same_as<T, FixedSizeString<8>>
+auto map_find(M const& map, T const& key) -> typename M::const_iterator {
+  auto key_view = std::span<std::uint8_t const>{
+      reinterpret_cast<std::uint8_t const*>(key.data()), key.size()};
+  return map.find(key_view);
 }
 
 template <class Map>
-void benchmarkLookup(size_t iters, const Map& map) {
-  using K = typename OwnedKey<typename Map::key_type>::type;
-  int s = 0;
-  for (;;) {
-    folly::BenchmarkSuspender setup;
-    auto& keys = makeKeys<K>();
-    setup.dismiss();
+void benchmark_lookup(benchmark::State& state, Map const& map) {
+  using lookup_key_type = typename owned_key<typename Map::key_type>::type;
 
-    for (auto& key : keys) {
-      if (iters-- == 0) {
-        folly::doNotOptimizeAway(s);
-        return;
-      }
-      auto found = mapFind(map, key);
-      if (found != map.end()) {
-        ++s;
-      }
+  // Pre-generate a key chunk outside the timed loop and cycle through it.
+  // That keeps setup out of the measurement without needing PauseTiming().
+  auto keys = make_keys<lookup_key_type>();
+
+  std::size_t key_index = 0;
+  std::size_t hits = 0;
+
+  for (auto _ : state) {
+    auto const& key = keys[key_index];
+    key_index = (key_index + 1) % keys.size();
+
+    auto found = map_find(map, key);
+    if (found != map.end()) {
+      ++hits;
     }
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(hits);
+  state.SetItemsProcessed(state.iterations());
 }
 
-BENCHMARK_DRAW_LINE();
+const auto hash_map_f32 = make_map<std::unordered_map<float, int>>();
+const auto hash_map_i32 = make_map<std::unordered_map<std::int32_t, int>>();
+const auto hash_map_i64 = make_map<std::unordered_map<std::int64_t, int>>();
+const auto hash_map_str = make_map<std::unordered_map<std::string, int>>();
+const auto hash_map_fixed_str =
+    convert_to_fixed_size_map<std::int64_t, int, unordered_map_type>(
+        hash_map_i64);
 
-auto hashMap_f32 = makeMap<std::unordered_map<float, int>>();
-auto hashMap_i32 = makeMap<std::unordered_map<int32_t, int>>();
-auto hashMap_i64 = makeMap<std::unordered_map<int64_t, int>>();
-auto hashMap_str = makeMap<std::unordered_map<std::string, int>>();
-auto hashMap_fixedStr =
-    convertToFixedSizeMap<int64_t, int, UnorderedMapType>(hashMap_i64);
-auto frozenHashMap_f32 = freeze(hashMap_f32);
-auto frozenHashMap_i32 = freeze(hashMap_i32);
-auto frozenHashMap_i64 = freeze(hashMap_i64);
-auto frozenHashMap_str = freeze(hashMap_str);
-auto frozenHashMap_fixedStr = freeze(hashMap_fixedStr);
+const auto frozen_hash_map_f32 = freeze(hash_map_f32);
+const auto frozen_hash_map_i32 = freeze(hash_map_i32);
+const auto frozen_hash_map_i64 = freeze(hash_map_i64);
+const auto frozen_hash_map_str = freeze(hash_map_str);
+const auto frozen_hash_map_fixed_str = freeze(hash_map_fixed_str);
 
-BENCHMARK_PARAM(benchmarkLookup, hashMap_f32)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenHashMap_f32)
-BENCHMARK_PARAM(benchmarkLookup, hashMap_i32)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenHashMap_i32)
-BENCHMARK_PARAM(benchmarkLookup, hashMap_i64)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenHashMap_i64)
-BENCHMARK_PARAM(benchmarkLookup, hashMap_str)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenHashMap_str)
-BENCHMARK_PARAM(benchmarkLookup, hashMap_fixedStr)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenHashMap_fixedStr)
+const auto map_f32 =
+    std::map<float, int>(hash_map_f32.begin(), hash_map_f32.end());
+const auto map_i32 =
+    std::map<std::int32_t, int>(hash_map_i32.begin(), hash_map_i32.end());
+const auto map_i64 =
+    std::map<std::int64_t, int>(hash_map_i64.begin(), hash_map_i64.end());
 
-BENCHMARK_DRAW_LINE();
-
-auto map_f32 = std::map<float, int>(hashMap_f32.begin(), hashMap_f32.end());
-auto map_i32 = std::map<int32_t, int>(hashMap_i32.begin(), hashMap_i32.end());
-auto map_i64 = std::map<int64_t, int>(hashMap_i64.begin(), hashMap_i64.end());
-auto frozenMap_f32 = freeze(map_f32);
-auto frozenMap_i32 = freeze(map_i32);
-auto frozenMap_i64 = freeze(map_i64);
-
-BENCHMARK_PARAM(benchmarkLookup, map_f32)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenMap_f32)
-BENCHMARK_PARAM(benchmarkLookup, map_i32)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenMap_i32)
-BENCHMARK_PARAM(benchmarkLookup, map_i64)
-BENCHMARK_RELATIVE_PARAM(benchmarkLookup, frozenMap_i64)
-
-BENCHMARK_DRAW_LINE();
+const auto frozen_map_f32 = freeze(map_f32);
+const auto frozen_map_i32 = freeze(map_i32);
+const auto frozen_map_i64 = freeze(map_i64);
 
 template <class T>
-void benchmarkOldFreezeDataToString(size_t iters, const T& data) {
+void benchmark_old_freeze_data_to_string(
+    benchmark::State& state, T const& data) {
   const auto layout = maximumLayout<T>();
-  size_t s = 0;
-  while (iters--) {
+  std::size_t total_size = 0;
+
+  for (auto _ : state) {
     std::string out;
     out.resize(frozenSize(data, layout));
-    std::span<uint8_t> writeRange(reinterpret_cast<byte*>(&out[0]), out.size());
-    ByteRangeFreezer::freeze(layout, data, writeRange);
-    out.resize(out.size() - writeRange.size());
-    s += out.size();
+
+    auto write_range = std::span<std::uint8_t>{
+        reinterpret_cast<std::uint8_t*>(out.data()), out.size()};
+
+    ByteRangeFreezer::freeze(layout, data, write_range);
+    out.resize(out.size() - write_range.size());
+
+    total_size += out.size();
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(total_size);
+  state.SetItemsProcessed(state.iterations());
 }
 
 template <class T>
-void benchmarkFreezeDataToString(size_t iters, const T& data) {
+void benchmark_freeze_data_to_string(benchmark::State& state, T const& data) {
   const auto layout = maximumLayout<T>();
-  size_t s = 0;
-  while (iters--) {
-    s += freezeDataToString(data, layout).size();
+  std::size_t total_size = 0;
+
+  for (auto _ : state) {
+    total_size += freezeDataToString(data, layout).size();
   }
-  folly::doNotOptimizeAway(s);
+
+  benchmark::DoNotOptimize(total_size);
+  state.SetItemsProcessed(state.iterations());
 }
 
-auto strings = std::vector<std::string>{"one", "two", "three", "four", "five"};
-auto tuple = std::make_pair(std::make_pair(1.3, 2.4), std::make_pair(4.5, 'x'));
+const auto strings =
+    std::vector<std::string>{"one", "two", "three", "four", "five"};
+const auto tuple =
+    std::make_pair(std::make_pair(1.3, 2.4), std::make_pair(4.5, 'x'));
 
-BENCHMARK_PARAM(benchmarkFreezeDataToString, vvf32)
-BENCHMARK_RELATIVE_PARAM(benchmarkOldFreezeDataToString, vvf32)
-BENCHMARK_PARAM(benchmarkFreezeDataToString, tuple)
-BENCHMARK_RELATIVE_PARAM(benchmarkOldFreezeDataToString, tuple)
-BENCHMARK_PARAM(benchmarkFreezeDataToString, strings)
-BENCHMARK_RELATIVE_PARAM(benchmarkOldFreezeDataToString, strings)
-BENCHMARK_PARAM(benchmarkFreezeDataToString, hashMap_i32)
-BENCHMARK_RELATIVE_PARAM(benchmarkOldFreezeDataToString, hashMap_i32)
+template <class Fn, class Arg>
+void register_case(std::string const& name, Fn fn, Arg const& arg) {
+  benchmark::RegisterBenchmark(
+      name.c_str(), [fn, &arg](benchmark::State& state) { fn(state, arg); });
+}
+
+void register_benchmarks() {
+  constexpr auto run_sum = [](benchmark::State& state, auto const& arg) {
+    benchmark_sum(state, arg);
+  };
+  constexpr auto run_sum_cols = [](benchmark::State& state, auto const& arg) {
+    benchmark_sum_cols(state, arg);
+  };
+  constexpr auto run_sum_saved_cols = [](benchmark::State& state,
+                                         auto const& arg) {
+    benchmark_sum_saved_cols(state, arg);
+  };
+  constexpr auto run_lookup = [](benchmark::State& state, auto const& arg) {
+    benchmark_lookup(state, arg);
+  };
+  constexpr auto run_freeze_data_to_string = [](benchmark::State& state,
+                                                auto const& arg) {
+    benchmark_freeze_data_to_string(state, arg);
+  };
+  constexpr auto run_old_freeze_data_to_string = [](benchmark::State& state,
+                                                    auto const& arg) {
+    benchmark_old_freeze_data_to_string(state, arg);
+  };
+
+  register_case("benchmark_sum/vvi16", run_sum, vvi16);
+  register_case("benchmark_sum/fvvi16", run_sum, fvvi16);
+  register_case("benchmark_sum/fuvvi16", run_sum, fuvvi16);
+  register_case("benchmark_sum/vvi32", run_sum, vvi32);
+  register_case("benchmark_sum/fvvi32", run_sum, fvvi32);
+  register_case("benchmark_sum/fuvvi32", run_sum, fuvvi32);
+  register_case("benchmark_sum/vvi64", run_sum, vvi64);
+  register_case("benchmark_sum/fvvi64", run_sum, fvvi64);
+  register_case("benchmark_sum/fuvvi64", run_sum, fuvvi64);
+  register_case("benchmark_sum/vvf32", run_sum, vvf32);
+  register_case("benchmark_sum/fvvf32", run_sum, fvvf32);
+
+  register_case("benchmark_sum_cols/vvi32", run_sum_cols, vvi32);
+  register_case("benchmark_sum_cols/fvvi32", run_sum_cols, fvvi32);
+  register_case("benchmark_sum_cols/fuvvi32", run_sum_cols, fuvvi32);
+  register_case("benchmark_sum_saved_cols/fvvi32", run_sum_saved_cols, fvvi32);
+  register_case(
+      "benchmark_sum_saved_cols/fuvvi32", run_sum_saved_cols, fuvvi32);
+
+  register_case("benchmark_lookup/hash_map_f32", run_lookup, hash_map_f32);
+  register_case(
+      "benchmark_lookup/frozen_hash_map_f32", run_lookup, frozen_hash_map_f32);
+  register_case("benchmark_lookup/hash_map_i32", run_lookup, hash_map_i32);
+  register_case(
+      "benchmark_lookup/frozen_hash_map_i32", run_lookup, frozen_hash_map_i32);
+  register_case("benchmark_lookup/hash_map_i64", run_lookup, hash_map_i64);
+  register_case(
+      "benchmark_lookup/frozen_hash_map_i64", run_lookup, frozen_hash_map_i64);
+  register_case("benchmark_lookup/hash_map_str", run_lookup, hash_map_str);
+  register_case(
+      "benchmark_lookup/frozen_hash_map_str", run_lookup, frozen_hash_map_str);
+  register_case(
+      "benchmark_lookup/hash_map_fixed_str", run_lookup, hash_map_fixed_str);
+  register_case(
+      "benchmark_lookup/frozen_hash_map_fixed_str",
+      run_lookup,
+      frozen_hash_map_fixed_str);
+
+  register_case("benchmark_lookup/map_f32", run_lookup, map_f32);
+  register_case("benchmark_lookup/frozen_map_f32", run_lookup, frozen_map_f32);
+  register_case("benchmark_lookup/map_i32", run_lookup, map_i32);
+  register_case("benchmark_lookup/frozen_map_i32", run_lookup, frozen_map_i32);
+  register_case("benchmark_lookup/map_i64", run_lookup, map_i64);
+  register_case("benchmark_lookup/frozen_map_i64", run_lookup, frozen_map_i64);
+
+  register_case(
+      "benchmark_freeze_data_to_string/vvf32",
+      run_freeze_data_to_string,
+      vvf32);
+  register_case(
+      "benchmark_old_freeze_data_to_string/vvf32",
+      run_old_freeze_data_to_string,
+      vvf32);
+
+  register_case(
+      "benchmark_freeze_data_to_string/tuple",
+      run_freeze_data_to_string,
+      tuple);
+  register_case(
+      "benchmark_old_freeze_data_to_string/tuple",
+      run_old_freeze_data_to_string,
+      tuple);
+
+  register_case(
+      "benchmark_freeze_data_to_string/strings",
+      run_freeze_data_to_string,
+      strings);
+  register_case(
+      "benchmark_old_freeze_data_to_string/strings",
+      run_old_freeze_data_to_string,
+      strings);
+
+  register_case(
+      "benchmark_freeze_data_to_string/hash_map_i32",
+      run_freeze_data_to_string,
+      hash_map_i32);
+  register_case(
+      "benchmark_old_freeze_data_to_string/hash_map_i32",
+      run_old_freeze_data_to_string,
+      hash_map_i32);
+}
+
+} // namespace
+} // namespace apache::thrift::frozen
+
+int main(int argc, char** argv) {
+  benchmark::Initialize(&argc, argv);
+  if (benchmark::ReportUnrecognizedArguments(argc, argv)) {
+    return 1;
+  }
+
+  apache::thrift::frozen::register_benchmarks();
+  benchmark::RunSpecifiedBenchmarks();
+  benchmark::Shutdown();
+  return 0;
+}
 
 #if 0
+Old results using folly-benchmark:
+
 clang version 21.1.8, i9-13900K
                                          [folly::Bits]        [dwarfs::bit_view]
 ================================================================================
@@ -380,11 +527,3 @@ benchmarkOldFreezeDataToString(strings)     163.27ns   6.12M    163.72ns   6.11M
 benchmarkFreezeDataToString(hashMap_i32)     29.37ms   34.04     29.62ms   33.76
 benchmarkOldFreezeDataToString(hashMap_i32)  50.45ms   19.82     50.92ms   19.64
 #endif
-} // namespace
-} // namespace apache::thrift::frozen
-
-int main(int, char** argv) {
-  google::InitGoogleLogging(argv[0]);
-  folly::runBenchmarks();
-  return 0;
-}
