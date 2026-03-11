@@ -21,6 +21,7 @@ cmake_minimum_required(VERSION 3.28.0)
 project(ricepp)
 
 include(FetchContent)
+include(CheckCXXCompilerFlag)
 
 if(NOT TARGET range-v3::range-v3)
   FetchContent_Declare(
