@@ -16,6 +16,8 @@
 
 namespace cpp apache.thrift.test
 
+cpp_include "<deque>"
+cpp_include "<unordered_map>"
 cpp_include "<unordered_set>"
 cpp_include "thrift/lib/cpp2/frozen/VectorAssociative.h"
 cpp_include "thrift/lib/cpp2/frozen/HintTypes.h"
