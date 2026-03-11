@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-namespace cpp2 apache.thrift.test
+namespace cpp apache.thrift.test
 
-include "thrift/annotation/cpp.thrift"
-include "thrift/annotation/thrift.thrift"
-
-@thrift.AllowLegacyMissingUris
-package;
+cpp_include "<unordered_map>"
 
 struct Person {
   3: optional double dob;
@@ -29,47 +25,5 @@ struct Person {
 
 struct Root {
   1: string title;
-  @cpp.Type{template = "std::unordered_map"}
-  2: map<i64, Person> people;
+  2: map<i64, Person> people (cpp.template = "std::unordered_map");
 }
-
-struct Case {
-  1: string name;
-  2: optional Root root;
-  3: bool fails = 0;
-}
-
-const list<Case> kTestCases = [
-  {
-    "name": "beforeUnique",
-    "root": {
-      "title": "version 0",
-      "people": {
-        101: {"dob": 1.23e9, "name": "alice"},
-        102: {"dob": 1.21e9, "name": "bob"},
-      },
-    },
-  },
-  {
-    "name": "afterUnique",
-    "root": {
-      "title": "version 0",
-      "people": {
-        101: {"dob": 1.23e9, "name": "alice"},
-        102: {"dob": 1.21e9, "name": "bob"},
-      },
-    },
-  },
-  {
-    "name": "withFileVersion",
-    "root": {
-      "title": "version 0",
-      "people": {
-        101: {"dob": 1.23e9, "name": "alice"},
-        102: {"dob": 1.21e9, "name": "bob"},
-      },
-    },
-  },
-  {"name": "futureVersion", "fails": 1},
-  {"name": "missing", "fails": 1},
-];
