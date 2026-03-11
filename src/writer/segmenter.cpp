@@ -38,8 +38,6 @@
 
 #include <parallel_hashmap/phmap.h>
 
-#include <folly/hash/Hash.h>
-
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/error.h>

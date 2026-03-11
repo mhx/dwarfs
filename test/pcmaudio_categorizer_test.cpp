@@ -30,7 +30,6 @@
 #include <boost/program_options.hpp>
 
 #include <folly/Portability.h>
-#include <folly/String.h>
 
 #include <dwarfs/endian.h>
 #include <dwarfs/file_view.h>
