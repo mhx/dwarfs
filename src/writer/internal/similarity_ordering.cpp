@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cassert>
 #include <limits>
 #include <mutex>
 #include <numeric>
