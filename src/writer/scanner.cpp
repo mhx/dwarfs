@@ -37,8 +37,8 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/portability/unistd.h>
 #include <folly/CPortability.h>
-#include <folly/portability/Unistd.h>
 
 #include <fmt/format.h>
 

@@ -45,8 +45,8 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <dwarfs/portability/unistd.h>
 #include <folly/portability/Stdlib.h>
-#include <folly/portability/Unistd.h>
 
 #include <parallel_hashmap/phmap.h>
 

@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 
 // This needs to be included *after* gtest.h
-#include <folly/portability/Unistd.h>
+#include <dwarfs/portability/unistd.h>
 
 #include <fmt/format.h>
 

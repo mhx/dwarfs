@@ -42,8 +42,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/portability/unistd.h>
 #include <folly/portability/Fcntl.h>
-#include <folly/portability/Unistd.h>
 
 #include <dwarfs/config.h>
 #include <dwarfs/counting_semaphore.h>
