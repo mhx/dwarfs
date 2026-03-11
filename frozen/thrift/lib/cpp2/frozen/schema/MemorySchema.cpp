@@ -75,25 +75,25 @@ void convert(Schema&& schema, MemorySchema& memSchema) {
 
 void convert(const MemorySchema& memSchema, Schema& schema) {
   using LayoutsType = std::decay_t<decltype(*schema.layouts())>;
-  LayoutsType::container_type layouts;
+  LayoutsType layouts;
   for (const auto& memLayout : memSchema.getLayouts()) {
     Layout newLayout;
     newLayout.size() = memLayout.getSize();
     newLayout.bits() = memLayout.getBits();
 
     using FieldsType = std::decay_t<decltype(*newLayout.fields())>;
-    FieldsType::container_type fields;
+    FieldsType fields;
     for (const auto& field : memLayout.getFields()) {
       Field newField;
       newField.layoutId() = field.getLayoutId();
       newField.offset() = field.getOffset();
-      fields.emplace_back(field.getId(), std::move(newField));
+      fields.emplace(field.getId(), std::move(newField));
     }
-    newLayout.fields() = FieldsType{std::move(fields)};
+    newLayout.fields() = std::move(fields);
 
-    layouts.emplace_back(layouts.size(), std::move(newLayout));
+    layouts.emplace(layouts.size(), std::move(newLayout));
   }
-  schema.layouts() = LayoutsType{std::move(layouts)};
+  schema.layouts() = std::move(layouts);
 
   //
   // Type information is discarded when transforming from memSchema to
