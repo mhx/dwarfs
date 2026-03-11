@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-cpp_include "<folly/sorted_vector_types.h>"
+cpp_include "<parallel_hashmap/btree.h>"
 
 namespace cpp apache.thrift.frozen.schema
 
@@ -30,7 +30,7 @@ struct Field {
 struct Layout {
   1: i32 size;
   2: i16 bits;
-  3: map<i16, Field> fields (cpp.template = "folly::sorted_vector_map");
+  3: map<i16, Field> fields (cpp.template = "phmap::btree_map");
   4: string typeName;
 }
 
@@ -42,6 +42,6 @@ struct Schema {
   4: i32 fileVersion;
   // Field type names may not change unless relaxTypeChecks is set.
   1: bool relaxTypeChecks;
-  2: map<i16, Layout> layouts (cpp.template = "folly::sorted_vector_map");
+  2: map<i16, Layout> layouts (cpp.template = "phmap::btree_map");
   3: i16 rootLayout;
 }
