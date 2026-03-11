@@ -519,21 +519,21 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
 
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p) {
 #ifdef _WIN32
-  if constexpr (std::is_same_v<std::filesystem::path::value_type, wchar_t>) {
-    auto const& in = p.native();
-    if (in.empty()) {
-      return {};
-    }
-    int size_needed = ::WideCharToMultiByte(
-        CP_UTF8, 0, in.data(), (int)in.size(), NULL, 0, NULL, NULL);
-    std::string out(size_needed, 0);
-    ::WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(), &out[0],
-                          size_needed, NULL, NULL);
-    return out;
-  }
-#endif
+  static_assert(std::is_same_v<std::filesystem::path::value_type, wchar_t>);
 
+  auto const& in = p.native();
+  if (in.empty()) {
+    return {};
+  }
+  int size_needed = ::WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(),
+                                          NULL, 0, NULL, NULL);
+  std::string out(size_needed, 0);
+  ::WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(), &out[0],
+                        size_needed, NULL, NULL);
+  return out;
+#else
   return u8string_to_string(p.u8string());
+#endif
 }
 
 bool getenv_is_enabled(char const* var) {

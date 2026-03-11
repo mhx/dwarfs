@@ -1326,9 +1326,9 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
           std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
                         (block_size_in_frames(cfg) / window_step(cfg)));
       return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
+    } else {
+      return 0;
     }
-
-    return 0;
   }
 
   size_t DWARFS_FORCE_INLINE
