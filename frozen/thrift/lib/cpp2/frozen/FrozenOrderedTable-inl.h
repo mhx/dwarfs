@@ -25,18 +25,17 @@ namespace frozen {
 namespace detail {
 
 template <typename Container>
-using detect_key_compare = typename Container::key_compare;
+concept OrderedAssocContainer = requires { typename Container::key_compare; } &&
+    std::same_as<typename Container::key_compare,
+                 std::less<typename Container::key_type>>;
 
-template <typename Container>
-consteval bool isOrderedContainer() {
-  if constexpr (folly::is_detected_v<detect_key_compare, Container>) {
-    return std::is_same_v<
-        typename Container::key_compare,
-        std::less<typename Container::key_type>>;
-  } else {
-    return false;
-  }
-}
+static_assert(
+    OrderedAssocContainer<std::set<int>>,
+    "std::set should satisfy OrderedAssocContainer");
+
+static_assert(
+    !OrderedAssocContainer<std::unordered_set<int>>,
+    "std::unordered_set should not satisfy OrderedAssocContainer");
 
 /**
  * Layout specialization for unique ordered range types which support
@@ -72,7 +71,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
         out.insert(out.end(), it.thaw());
       }
     }
-    if constexpr (isOrderedContainer<T>()) {
+    if constexpr (OrderedAssocContainer<T>) {
       assert(containerIsSorted(out));
     }
   }
@@ -80,7 +79,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   // provide indirect sort table if the collection isn't pre-sorted
   static void maybeIndex(const T& coll, std::vector<const Item*>& index) {
     index.clear();
-    if constexpr (isOrderedContainer<T>()) {
+    if constexpr (OrderedAssocContainer<T>) {
       assert(containerIsSorted(coll));
       return;
     } else {
@@ -130,7 +129,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
         lastKey = itemKey;
       }
     } else {
-      if constexpr (!isOrderedContainer<T>()) {
+      if constexpr (!OrderedAssocContainer<T>) {
         // collection was non-empty and non-sorted, needs indirection table.
         for (auto ptr : index) {
           root.layoutField(write, noField, this->itemField, *ptr);
