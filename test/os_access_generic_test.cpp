@@ -32,11 +32,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <folly/portability/PThread.h>
-
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
 #else
+#include <pthread.h>
 #include <sys/resource.h>
 #endif
 
