@@ -156,7 +156,7 @@ void populate(TestType& x) {
   x.aMap()[3] = 4;
   x.aHashSet()->insert(5);
   x.aHashMap()[6] = 7;
-  x.fbVector()->push_back(8);
+  x.stdDeque()->push_back(8);
 }
 
 template <class T>
@@ -188,7 +188,7 @@ TYPED_TEST_P(FrozenStructsWithVectors, Freezable) {
   EXPECT_EQ(f.aHashSet().count(6), 0);
   EXPECT_EQ(f.aHashMap().getDefault(6, 9), 7);
   EXPECT_EQ(f.aHashMap().getDefault(7, 9), 9);
-  EXPECT_EQ(f.fbVector()[0], 8);
+  EXPECT_EQ(f.stdDeque()[0], 8);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(FrozenStructsWithVectors, Freezable, Serializable);
