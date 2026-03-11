@@ -31,6 +31,7 @@
 #include <cassert>
 #include <cerrno>
 #include <climits>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -46,7 +47,6 @@
 #endif
 
 #include <dwarfs/portability/unistd.h>
-#include <folly/portability/Stdlib.h>
 
 #include <parallel_hashmap/phmap.h>
 
@@ -86,6 +86,10 @@
 #include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
 
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
+
+#ifdef _WIN32
+#define PATH_MAX _MAX_PATH
+#endif
 
 namespace dwarfs::reader::internal {
 

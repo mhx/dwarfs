@@ -22,6 +22,7 @@
  */
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <latch>
 #include <random>
@@ -32,7 +33,6 @@
 #include <unordered_set>
 
 #include <folly/portability/PThread.h>
-#include <folly/portability/Stdlib.h>
 
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
@@ -349,6 +349,7 @@ TEST(os_access_generic, getenv) {
     EXPECT_EQ(*value, "some_value");
   }
 
+#ifndef _WIN32
   ASSERT_NO_THROW(env.set(test_var, ""));
 
   {
@@ -356,6 +357,7 @@ TEST(os_access_generic, getenv) {
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "");
   }
+#endif
 
   ASSERT_NO_THROW(env.unset(test_var));
 
