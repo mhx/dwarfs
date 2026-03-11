@@ -218,7 +218,7 @@ add_library(
 )
 
 set_property(TARGET dwarfs_frozen PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
-target_link_libraries(dwarfs_frozen PUBLIC dwarfs_folly_lite Boost::iostreams)
+target_link_libraries(dwarfs_frozen PUBLIC Boost::iostreams)
 target_include_directories(dwarfs_frozen PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
@@ -263,8 +263,10 @@ target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_decompressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common dwarfs_decompressor)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compressor dwarfs_decompressor)
-target_link_libraries(dwarfs_writer PRIVATE zstd::preferred)
+target_link_libraries(dwarfs_reader PRIVATE dwarfs_folly_lite)
+target_link_libraries(dwarfs_writer PRIVATE zstd::preferred dwarfs_folly_lite)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
+target_link_libraries(dwarfs_extractor PRIVATE dwarfs_folly_lite)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
 if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
