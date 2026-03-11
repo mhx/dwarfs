@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include <thrift/lib/cpp2/frozen/FrozenTestUtil.h>
+#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
 
 namespace apache::thrift::frozen {
