@@ -33,6 +33,8 @@
 #include <thread>
 #include <unordered_set>
 
+#include <fcntl.h>
+
 // This is required to avoid Windows.h being pulled in by libarchive
 // and polluting our environment with all sorts of shit.
 #include <dwarfs/portability/windows.h>
@@ -43,7 +45,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/portability/unistd.h>
-#include <folly/portability/Fcntl.h>
 
 #include <dwarfs/config.h>
 #include <dwarfs/counting_semaphore.h>
