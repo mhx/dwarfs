@@ -37,8 +37,8 @@
 #include <sys/ioctl.h>
 #endif
 
+#include <dwarfs/portability/windows.h>
 #include <folly/portability/Unistd.h>
-#include <folly/portability/Windows.h>
 
 #include <dwarfs/terminal_ansi.h>
 

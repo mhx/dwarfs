@@ -35,12 +35,9 @@
 #include <system_error>
 #include <utility>
 
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#else
+#include <dwarfs/portability/windows.h>
+
+#ifndef _WIN32
 #include <cerrno>
 #include <fcntl.h>
 #include <sys/stat.h>

@@ -35,9 +35,7 @@
 
 // This is required to avoid Windows.h being pulled in by libarchive
 // and polluting our environment with all sorts of shit.
-#ifdef _WIN32
-#include <folly/portability/Windows.h>
-#endif
+#include <dwarfs/portability/windows.h>
 
 #include <archive.h>
 #include <archive_entry.h>

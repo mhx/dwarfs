@@ -25,7 +25,7 @@
 #include <cstdint>
 
 #ifdef _WIN32
-#include <folly/portability/Windows.h>
+#include <dwarfs/portability/windows.h>
 #include <winioctl.h>
 #else
 #include <cerrno>

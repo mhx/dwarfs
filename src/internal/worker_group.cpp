@@ -42,7 +42,7 @@
 
 #include <fmt/format.h>
 
-#include <folly/portability/Windows.h>
+#include <dwarfs/portability/windows.h>
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>

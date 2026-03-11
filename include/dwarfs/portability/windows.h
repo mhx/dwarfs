@@ -28,20 +28,43 @@
 
 #pragma once
 
-#include <thread>
-
 #ifdef _WIN32
-#include <dwarfs/portability/windows.h>
-#else
-#include <folly/portability/PThread.h>
+
+#include <stdio.h>
+
+#include <direct.h>
+#include <io.h>
+
+#if defined(min) || defined(max)
+#error windows.h must be included by this header
 #endif
 
-namespace dwarfs::internal {
-
-#ifdef _WIN32
-DWORD std_to_win_thread_id(std::thread::id tid);
-#else
-pthread_t std_to_pthread_id(std::thread::id tid);
+#ifndef NOMINMAX
+#define NOMINMAX
 #endif
 
-} // namespace dwarfs::internal
+#include <winsock2.h>
+
+#include <windows.h>
+
+#ifdef ERROR
+#undef ERROR
+#endif
+
+#ifdef NO_ERROR
+#undef NO_ERROR
+#endif
+
+#ifdef IN
+#undef IN
+#endif
+
+#ifdef OUT
+#undef OUT
+#endif
+
+#ifdef STRICT
+#undef STRICT
+#endif
+
+#endif
