@@ -258,15 +258,13 @@ add_thrift_lite_library(thrift/features.thrift
 add_thrift_lite_library(frozen/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH zstd::preferred)
+target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO PkgConfig::XXHASH zstd::preferred)
 target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_decompressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common dwarfs_decompressor)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compressor dwarfs_decompressor)
-target_link_libraries(dwarfs_reader PRIVATE dwarfs_folly_lite)
-target_link_libraries(dwarfs_writer PRIVATE zstd::preferred dwarfs_folly_lite)
+target_link_libraries(dwarfs_writer PRIVATE zstd::preferred)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
-target_link_libraries(dwarfs_extractor PRIVATE dwarfs_folly_lite)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
 if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
@@ -350,7 +348,6 @@ list(APPEND LIBDWARFS_TARGETS
 )
 
 list(APPEND LIBDWARFS_OBJECT_TARGETS
-  dwarfs_folly_lite
   dwarfs_frozen
   dwarfs_thrift_lite_v2
   dwarfs_compression_thrift
@@ -393,7 +390,6 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
 
             # other
             ${RICEPP_OBJECT_TARGETS}
-            folly_deps
     EXPORT dwarfs-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
