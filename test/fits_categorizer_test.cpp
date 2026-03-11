@@ -32,8 +32,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/String.h>
-
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/endian.h>

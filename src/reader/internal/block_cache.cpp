@@ -41,8 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/system/ThreadName.h>
-
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/file_view.h>
