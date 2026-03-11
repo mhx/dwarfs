@@ -31,8 +31,6 @@ template <class>
 struct IsOrderedSet : std::false_type {};
 template <class>
 struct IsList : std::false_type {};
-template <class>
-struct HasSortedUniqueCtor : std::false_type {};
 
 namespace frozen {
 template <class>
