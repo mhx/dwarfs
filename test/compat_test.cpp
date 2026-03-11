@@ -35,7 +35,7 @@
 #include <tuple>
 #include <vector>
 
-#include <folly/portability/Unistd.h>
+#include <dwarfs/portability/unistd.h>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/checksum.h>

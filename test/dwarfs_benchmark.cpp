@@ -26,7 +26,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include <folly/portability/Unistd.h>
+#include <dwarfs/portability/unistd.h>
 
 #include <fmt/format.h>
 

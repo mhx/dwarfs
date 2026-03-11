@@ -43,7 +43,7 @@
 #include <fcntl.h>
 #endif
 
-#include <folly/portability/Unistd.h>
+#include <dwarfs/portability/unistd.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
