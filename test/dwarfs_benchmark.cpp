@@ -26,6 +26,8 @@
 
 #include <benchmark/benchmark.h>
 
+#include <folly/portability/Unistd.h>
+
 #include <fmt/format.h>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
