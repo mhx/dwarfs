@@ -41,7 +41,7 @@
 #include <sys/time.h>
 #endif
 
-#include <folly/portability/Unistd.h>
+#include <dwarfs/portability/unistd.h>
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
