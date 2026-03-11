@@ -27,10 +27,9 @@
  */
 
 #include <cerrno>
+#include <cstdlib>
 #include <iostream>
 #include <system_error>
-
-#include <folly/portability/Stdlib.h>
 
 #include <dwarfs/detail/scoped_env.h>
 
@@ -39,17 +38,31 @@ namespace dwarfs::detail {
 namespace {
 
 void setenv_impl(std::string const& name, std::string const& value) {
+#ifdef _WIN32
+  if (auto const err = ::_putenv_s(name.c_str(), value.c_str()); err != 0) {
+    throw std::system_error(err, std::generic_category(),
+                            "setenv failed for " + name);
+  }
+#else
   if (::setenv(name.c_str(), value.c_str(), 1) != 0) {
     throw std::system_error(errno, std::generic_category(),
                             "setenv failed for " + name);
   }
+#endif
 }
 
 void unsetenv_impl(std::string const& name) {
+#ifdef _WIN32
+  if (auto const err = ::_putenv_s(name.c_str(), ""); err != 0) {
+    throw std::system_error(err, std::generic_category(),
+                            "unsetenv failed for " + name);
+  }
+#else
   if (::unsetenv(name.c_str()) != 0) {
     throw std::system_error(errno, std::generic_category(),
                             "unsetenv failed for " + name);
   }
+#endif
 }
 
 } // namespace
