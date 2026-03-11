@@ -38,12 +38,12 @@
 #include <vector>
 
 #include <dwarfs/portability/unistd.h>
-#include <folly/CPortability.h>
 
 #include <fmt/format.h>
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
@@ -304,8 +304,8 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , entry_factory_{ef}
     , os_{os} {}
 
-FOLLY_PUSH_WARNING
-FOLLY_GCC_DISABLE_WARNING("-Wnrvo")
+DWARFS_PUSH_WARNING
+DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 entry_factory::node
@@ -431,7 +431,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
   return nullptr;
 }
 
-FOLLY_POP_WARNING
+DWARFS_POP_WARNING
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::dump_state(

@@ -36,6 +36,8 @@
 #include <boost/convert.hpp>
 #include <boost/convert/spirit.hpp>
 
+#include <dwarfs/compiler.h>
+
 namespace dwarfs {
 
 namespace detail {
@@ -48,16 +50,12 @@ template <typename T, typename U>
 std::optional<T> try_to(U&& s)
   requires(!std::same_as<T, bool> && !std::convertible_to<U, T>)
 {
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wmaybe-uninitialized")
   if (auto r = boost::convert<T>(std::forward<U>(s), boost::cnv::spirit())) {
     return r.value();
   }
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+  DWARFS_POP_WARNING
   return std::nullopt;
 }
 

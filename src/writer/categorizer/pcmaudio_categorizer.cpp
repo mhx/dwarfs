@@ -37,8 +37,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
-#include <folly/Portability.h>
-
+#include <dwarfs/compiler.h>
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
@@ -565,32 +564,32 @@ template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
     inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  FOLLY_PACK_PUSH
+  DWARFS_PACK_PUSH
 
   struct file_hdr_t {
     std::array<char, 4> id;
     uint32_t size;
     std::array<char, 4> form;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct chunk_hdr_t {
     std::array<char, 4> id;
     uint32_t size;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct comm_chk_t {
     uint16_t num_chan;
     uint32_t num_sample_frames;
     uint16_t sample_size;
     // long double sample_rate;  // we can't pack this :/
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct ssnd_chk_t {
     uint32_t offset;
     uint32_t block_size;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
-  FOLLY_PACK_POP
+  DWARFS_PACK_POP
 
   static_assert(sizeof(chunk_hdr_t) == 8);
   static_assert(sizeof(comm_chk_t) == 8);
@@ -695,18 +694,18 @@ template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  FOLLY_PACK_PUSH
+  DWARFS_PACK_PUSH
 
   struct caff_hdr_t {
     std::array<char, 4> id;
     uint16_t version;
     uint16_t flags;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct chunk_hdr_t {
     std::array<char, 4> id;
     uint64_t size;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct format_chk_t {
     double sample_rate;
@@ -720,13 +719,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     constexpr std::string_view format_id_sv() const {
       return {format_id.data(), format_id.size()};
     }
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct data_chk_t {
     uint32_t edit_count;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
-  FOLLY_PACK_POP
+  DWARFS_PACK_POP
 
   static_assert(sizeof(caff_hdr_t) == 8);
   static_assert(sizeof(chunk_hdr_t) == 12);
@@ -882,7 +881,7 @@ template <typename FormatPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     inode_fragments& frag, fs::path const& path, file_view const& mm,
     category_mapper const& mapper) const {
-  FOLLY_PACK_PUSH
+  DWARFS_PACK_PUSH
 
   struct file_hdr_t {
     std::array<char, FormatPolicy::id_size> id;
@@ -892,12 +891,12 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     constexpr std::string_view form_sv() const {
       return {form.data(), form.size()};
     }
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct chunk_hdr_t {
     std::array<char, FormatPolicy::id_size> id;
     typename FormatPolicy::SizeType size;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
   struct fmt_chunk_t {
     uint16_t format_code;
@@ -911,9 +910,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     uint32_t channel_mask;
     uint16_t sub_format_code;
     std::array<uint8_t, 14> guid_remainder;
-  } FOLLY_PACK_ATTR;
+  } DWARFS_PACK_ATTR;
 
-  FOLLY_PACK_POP
+  DWARFS_PACK_POP
 
   static_assert(sizeof(file_hdr_t) == FormatPolicy::file_header_size);
   static_assert(sizeof(chunk_hdr_t) == FormatPolicy::chunk_header_size);
