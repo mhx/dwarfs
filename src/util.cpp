@@ -114,6 +114,7 @@
 #include <sched.h>
 #endif
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
@@ -287,10 +288,9 @@ file_size_t parse_size_with_unit(std::string const& str) {
 }
 
 std::string ratio_to_string(double num, double den, int precision) {
-#if defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wfloat-equal"
-#endif
+  DWARFS_PUSH_WARNING
+  DWARFS_GNU_DISABLE_WARNING("-Wfloat-equal")
+
   if (den == 0.0) {
     return "N/A";
   }
@@ -298,9 +298,8 @@ std::string ratio_to_string(double num, double den, int precision) {
   if (num == 0.0) {
     return "0x";
   }
-#if defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
+
+  DWARFS_POP_WARNING
 
   double const ratio = num / den;
 
