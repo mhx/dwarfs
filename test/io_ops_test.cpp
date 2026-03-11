@@ -25,7 +25,7 @@
 #include <limits>
 
 #ifdef _WIN32
-#include <folly/portability/Windows.h>
+#include <dwarfs/portability/windows.h>
 #endif
 
 #include <gmock/gmock.h>

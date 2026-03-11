@@ -71,7 +71,7 @@
 #endif
 
 #ifdef _WIN32
-#include <windows.h>
+#include <dwarfs/portability/windows.h>
 // --- windows.h must be included before delayimp.h ---
 #include <delayimp.h>
 
