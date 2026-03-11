@@ -16,7 +16,6 @@
 
 #include <gtest/gtest.h>
 
-#include <thrift/lib/cpp2/frozen/FrozenTestUtil.h>
 #include <thrift/lib/cpp2/frozen/VectorAssociative.h>
 #include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_layouts.h>
 #include <thrift/lib/cpp2/frozen/test/gen-cpp-lite/Example_types.h>
