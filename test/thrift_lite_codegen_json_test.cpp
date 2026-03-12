@@ -59,7 +59,9 @@ TEST(thrift_lite, json_output_snapshot_for_small_object) {
   s.tag().emplace("t");
 
   auto oss = std::ostringstream{};
-  auto w = tl::json_writer{oss, {.indent_step = 4}};
+  auto opts = tl::json_writer_options{};
+  opts.indent_step = 4;
+  auto w = tl::json_writer{oss, opts};
 
   s.write(w);
 
@@ -80,7 +82,9 @@ TEST(thrift_lite, json_output_no_indent) {
   s.tag().emplace("t");
 
   auto oss = std::ostringstream{};
-  auto w = tl::json_writer{oss, {.indent_step = 0}};
+  auto opts = tl::json_writer_options{};
+  opts.indent_step = 0;
+  auto w = tl::json_writer{oss, opts};
 
   s.write(w);
 
