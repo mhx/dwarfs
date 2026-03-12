@@ -29,19 +29,16 @@ RUN pacman -S --noconfirm --needed \
         benchmark \
         boost \
         brotli \
-        libevent \
         openssl \
         fmt \
         range-v3 \
         nlohmann-json \
         jemalloc \
-        double-conversion \
         lz4 \
         xz \
         xxhash \
         libunwind \
         libdwarf \
-        google-glog \
         flac \
         utf8cpp
 RUN useradd -g users -u 1000 -m mhx

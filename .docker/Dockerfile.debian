@@ -41,9 +41,7 @@ RUN apt install -y \
         libboost-regex-dev \
         libboost-thread-dev \
         libbrotli-dev \
-        libevent-dev \
         libjemalloc-dev \
-        libdouble-conversion-dev \
         libiberty-dev \
         liblz4-dev \
         liblzma-dev \
@@ -59,7 +57,6 @@ RUN apt install -y \
         libfmt-dev \
         libfuse-dev \
         libfuse3-dev \
-        libgoogle-glog-dev \
         libutfcpp-dev \
         libflac++-dev \
         nlohmann-json3-dev \
