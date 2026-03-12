@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 
+#include <dwarfs/file_util.h>
 #include <dwarfs/util.h>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
@@ -109,7 +110,7 @@ TEST_P(CompatibilityTest, Write) {
   }
   auto test = GetParam();
   if (test.root) {
-    freezeToFile(*test.root, filePath(test.name));
+    dwarfs::write_file(filePath(test.name), freezeToString(*test.root));
   }
 }
 
@@ -118,7 +119,7 @@ TEST_P(CompatibilityTest, Read) {
   auto path = filePath(test.name);
 
   try {
-    auto root = mapFrozen<Root>(path);
+    auto root = mapFrozen<Root>(dwarfs::read_file(path));
     EXPECT_FALSE(test.fails);
     EXPECT_EQ(test.root.value(), root.thaw());
   } catch (const std::exception&) {
