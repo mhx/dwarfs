@@ -239,11 +239,10 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
         class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
     iterator find(const K& key) const {
       auto found = lower_bound(key);
-      if (found != this->end() && KeyExtractor::getViewKey(*found) == key) {
-        return found;
-      } else {
-        return this->end();
+      if (found != this->end() && KeyExtractor::getViewKey(*found) != key) {
+        found = this->end();
       }
+      return found;
     }
 
     iterator find(const KeyView& key) const { return find<KeyView, void>(key); }
