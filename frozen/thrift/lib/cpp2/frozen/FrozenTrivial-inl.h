@@ -39,6 +39,7 @@ struct TrivialLayout : public LayoutBase {
   void freeze(FreezeRoot&, const T& o, FreezePosition self) const {
     if (size == sizeof(T)) {
       std::memcpy(self.start, &o, sizeof(T));
+      swap<T>(self.start);
     } else {
       throw LayoutException();
     }
@@ -47,6 +48,7 @@ struct TrivialLayout : public LayoutBase {
   void thaw(ViewPosition self, T& out) const {
     if (size == sizeof(T)) {
       std::memcpy(&out, self.start, sizeof(T));
+      swap<T>(&out);
     } else {
       out = T{};
     }
@@ -65,6 +67,23 @@ struct TrivialLayout : public LayoutBase {
   }
 
   static size_t hash(const T& value) { return std::hash<T>()(value); }
+
+ private:
+  template <class O, class P>
+  static void swap(P* ptr) {
+    if constexpr (
+        std::is_floating_point_v<O> &&
+        std::endian::native == std::endian::big) {
+      static_assert(
+          std::is_same_v<O, P> || sizeof(P) == 1, "unexpected pointer type");
+      using U = std::conditional_t<sizeof(O) == 4, uint32_t, uint64_t>;
+      static_assert(sizeof(O) == sizeof(U), "unexpected float size");
+      U tmp;
+      std::memcpy(&tmp, ptr, sizeof(U));
+      tmp = std::byteswap(tmp);
+      std::memcpy(ptr, &tmp, sizeof(U));
+    }
+  }
 };
 
 template <class T>
