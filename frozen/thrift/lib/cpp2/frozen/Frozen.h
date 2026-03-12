@@ -153,7 +153,7 @@ struct FreezePosition {
   }
 
   int64_t byteOffset(FreezePosition that) const {
-    return static_cast<int64_t>(start - that.start);
+    return std::distance(that.start, start);
   }
 };
 
