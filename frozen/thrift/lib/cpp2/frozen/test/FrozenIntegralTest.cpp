@@ -19,6 +19,8 @@
 
 #include <gtest/gtest.h>
 
+#include <dwarfs/compiler.h>
+
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
@@ -77,15 +79,19 @@ TEST(FrozenIntegral, UIntPacking) {
   size_t width = 3;
   for (size_t start = 0; start <= 64 - width; start += 7) {
     for (size_t bits = width; bits <= 64 - start; bits += 5) {
+      DWARFS_PUSH_WARNING
+      DWARFS_GCC_DISABLE_WARNING("-Warray-bounds")
       apache::thrift::frozen::Layout<size_t> l;
       l.bits = bits;
-      uint64_t container = 0xDEADBEEFDEADBEEF;
-      FreezePosition fpos{reinterpret_cast<byte*>(&container), start};
+      // allocate on the heap so ASAN will catch out of bounds accesses
+      auto container = std::make_unique<uint64_t>(0xDEADBEEFDEADBEEF);
+      FreezePosition fpos{reinterpret_cast<byte*>(container.get()), start};
       l.freeze(fr, value, fpos);
-      ViewPosition vpos{reinterpret_cast<byte*>(&container), start};
+      ViewPosition vpos{reinterpret_cast<byte*>(container.get()), start};
       size_t confirm;
       l.thaw(vpos, confirm);
       EXPECT_EQ(value, confirm) << bits << "@" << start;
+      DWARFS_POP_WARNING
     }
   }
 }
