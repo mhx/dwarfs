@@ -16,10 +16,7 @@
 
 #pragma once
 
-#include <filesystem>
 #include <stdexcept>
-
-#include <boost/iostreams/device/mapped_file.hpp>
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
@@ -168,32 +165,6 @@ void deserializeRootLayout(
 }
 
 template <class T>
-void freezeToFile(const T& x, const std::filesystem::path& path) {
-  std::string schemaStr;
-  auto layout = std::make_unique<Layout<T>>();
-  auto contentSize = LayoutRoot::layout(x, *layout);
-
-  serializeRootLayout(*layout, schemaStr);
-
-  size_t initialBufferSize = contentSize + schemaStr.size();
-  auto params = boost::iostreams::mapped_file_params(path.string());
-  params.new_file_size = initialBufferSize;
-  auto mapping = boost::iostreams::mapped_file_sink(params);
-  auto const mappingRange =
-      std::span{reinterpret_cast<uint8_t*>(mapping.data()), mapping.size()};
-  auto writeRange = mappingRange;
-  std::copy(schemaStr.begin(), schemaStr.end(), writeRange.begin());
-  writeRange = writeRange.subspan(schemaStr.size());
-  ByteRangeFreezer::freeze(*layout, x, writeRange);
-  mapping.close();
-  auto const finalBufferSize =
-      std::distance(mappingRange.data(), writeRange.data());
-  if (std::cmp_less(finalBufferSize, initialBufferSize)) {
-    std::filesystem::resize_file(path, finalBufferSize);
-  }
-}
-
-template <class T>
 void freezeToString(const T& x, std::string& out) {
   out.clear();
   Layout<T> layout;
@@ -270,15 +241,6 @@ MappedFrozen<T> mapFrozen(std::string_view range) {
   return mapFrozen<T>(make_byte_span(range));
 }
 
-template <class T>
-MappedFrozen<T> mapFrozen(boost::iostreams::mapped_file_source&& mapping) {
-  auto const range = std::span{
-      reinterpret_cast<uint8_t const*>(mapping.data()), mapping.size()};
-  auto ret = mapFrozen<T>(range);
-  ret.hold(std::move(mapping));
-  return ret;
-}
-
 /**
  * Maps from the given string, taking ownership of it and bundling it with the
  * return object to ensure its lifetime.
@@ -309,11 +271,5 @@ template <class T>
     "std::string values must be passed by move with std::move(str) or "
     "passed through non-owning StringPiece")]] MappedFrozen<T>
 mapFrozen(const std::string& str) = delete;
-
-template <class T>
-MappedFrozen<T> mapFrozen(const std::filesystem::path& path) {
-  boost::iostreams::mapped_file_source mapping(path.string());
-  return mapFrozen<T>(std::move(mapping));
-}
 
 } // namespace apache::thrift::frozen
