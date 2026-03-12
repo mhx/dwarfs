@@ -30,18 +30,15 @@ RUN dnf install -y \
         google-benchmark \
         boost-devel \
         brotli-devel \
-        libevent-devel \
         openssl-devel \
         fmt-devel \
         jemalloc-devel \
-        double-conversion-devel \
         lz4-devel \
         xz-devel \
         libzstd-devel \
         xxhash-devel \
         libunwind-devel \
         libdwarf-devel \
-        glog-devel \
         flac-devel \
         utf8cpp-devel \
         json-devel \

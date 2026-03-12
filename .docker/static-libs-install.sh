@@ -18,7 +18,7 @@ if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,fuse3,glog,jemalloc,libarchive,libdwarf,libevent,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,flac,fmt,fuse,fuse3,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
 fi
 
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
@@ -335,18 +335,6 @@ if use_lib mimalloc; then
     ninja install
 fi
 
-if use_lib double-conversion; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${DOUBLE_CONVERSION_TARBALL}
-    cd double-conversion-${DOUBLE_CONVERSION_VERSION}
-    mkdir build
-    cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
-    $NINJA_PARALLEL
-    ninja install
-fi
-
 if use_lib fmt; then
     opt_size
     cd "$WORKDIR"
@@ -382,18 +370,6 @@ if use_lib fuse3; then
     # meson configure ${TRIPLETS} -D utils=false -D tests=false -D examples=false
     meson configure -D utils=false -D tests=false -D examples=false
     meson setup --reconfigure ..
-    $NINJA_PARALLEL
-    ninja install
-fi
-
-if use_lib glog; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${GLOG_TARBALL}
-    cd glog-${GLOG_VERSION}
-    mkdir build
-    cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF ${CMAKE_ARGS}
     $NINJA_PARALLEL
     ninja install
 fi
@@ -534,23 +510,6 @@ if use_lib libressl; then
     cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR_LIBRESSL" \
              -DBUILD_SHARED_LIBS=OFF -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF \
              ${CMAKE_ARGS}
-    $NINJA_PARALLEL
-    ninja install
-fi
-
-if use_lib libevent; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${LIBEVENT_TARBALL}
-    cd libevent-${LIBEVENT_VERSION}-stable
-    fetch.sh https://github.com/libevent/libevent/commit/883630f76cbf512003b81de25cd96cb75c6cf0f9.diff - | patch -p1
-    mkdir build
-    cd build
-    cmake .. -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS} \
-             -DEVENT__DISABLE_DEBUG_MODE=ON -DEVENT__DISABLE_THREAD_SUPPORT=ON -DEVENT__DISABLE_OPENSSL=ON \
-             -DEVENT__DISABLE_MBEDTLS=ON -DEVENT__DISABLE_BENCHMARK=ON -DEVENT__DISABLE_TESTS=ON \
-             -DEVENT__DISABLE_REGRESS=ON -DEVENT__DISABLE_SAMPLES=ON -DEVENT__LIBRARY_TYPE=STATIC \
-             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     $NINJA_PARALLEL
     ninja install
 fi

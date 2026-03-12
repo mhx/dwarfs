@@ -43,19 +43,16 @@ RUN zypper -n in --no-recommends \
     libboost_regex-devel \
     libboost_thread-devel \
     libbrotli-devel \
-    libevent-devel \
     libopenssl-3-devel \
     fmt-devel \
     nlohmann_json-devel \
     jemalloc-devel \
-    double-conversion-devel \
     liblz4-devel \
     xz-devel \
     libzstd-devel \
     xxhash-devel \
     libunwind-devel \
     libdwarf-devel \
-    glog-devel \
     flac-devel \
     utfcpp-devel \
     parallel-hashmap-devel \
