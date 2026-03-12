@@ -198,6 +198,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 if(WITH_LIBDWARFS)
   include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
 
+  find_package(Threads REQUIRED)
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
                COMPONENTS chrono iostreams program_options
                OPTIONAL_COMPONENTS process)
@@ -948,7 +949,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
 
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
-  target_link_libraries(${tgt} PUBLIC Boost::boost)
+  target_link_libraries(${tgt} PUBLIC Threads::Threads Boost::boost)
 
   if(WITH_LIBDWARFS)
     target_include_directories(${tgt} PUBLIC
