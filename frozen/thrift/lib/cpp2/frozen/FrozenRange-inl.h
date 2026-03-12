@@ -217,6 +217,9 @@ struct ArrayLayout : public LayoutBase {
 
     std::span<const Item> range() const {
       static_assert(apache::thrift::frozen::detail::IsBlitType<Item>::value);
+      static_assert(
+          !std::is_floating_point_v<Item> ||
+          std::endian::native == std::endian::little);
       auto data = reinterpret_cast<const Item*>(data_);
       return {data, data + count_};
     }

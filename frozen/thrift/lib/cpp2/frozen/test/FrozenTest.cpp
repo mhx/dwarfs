@@ -569,8 +569,14 @@ TEST(Frozen, TypeHelpers) {
 TEST(Frozen, RangeTrivialRange) {
   auto data = std::vector<float>{3.0, 4.0, 5.0};
   auto view = freeze(data);
-  auto r = view.range();
-  EXPECT_EQ(data, std::vector<float>(r.begin(), r.end()));
+  [&]<std::endian Endian = std::endian::native>() {
+    if constexpr (Endian == std::endian::little) {
+      auto r = view.range();
+      EXPECT_THAT(r, ElementsAreArray(data));
+    } else {
+      EXPECT_THAT(view, ElementsAreArray(data));
+    }
+  }();
 }
 
 TEST(Frozen, PaddingLayout) {
@@ -586,11 +592,17 @@ TEST(Frozen, PaddingLayout) {
   for (size_t offset = 0; offset < 8; ++offset) {
     std::unique_ptr<byte[]> store(new byte[size + offset + 16]);
     auto bytes = std::span(store.get() + offset, size + 16);
-
     auto view = ByteRangeFreezer::freeze(testLayout, test, bytes);
-    auto range = view[10][0].range();
-    EXPECT_EQ(range[0], 1.0);
-    EXPECT_EQ(reinterpret_cast<intptr_t>(range.data()) % alignof(double), 0);
+    [&]<std::endian Endian = std::endian::native>() {
+      if constexpr (Endian == std::endian::little) {
+        auto range = view[10][0].range();
+        EXPECT_EQ(range[0], 1.0);
+        EXPECT_EQ(
+            reinterpret_cast<intptr_t>(range.data()) % alignof(double), 0);
+      } else {
+        EXPECT_EQ(view[10][0][0], 1.0);
+      }
+    }();
   }
 }
 
