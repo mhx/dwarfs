@@ -168,6 +168,8 @@ std::string time_with_unit(double const sec) {
     return std::trunc(value * factor) / factor;
   };
 
+  std::string result;
+
   if (sec < 60.0) {
     static constexpr std::array units{"s", "ms", "us", "ns"};
     auto val = sec;
@@ -180,10 +182,12 @@ std::string time_with_unit(double const sec) {
 
     if (std::cmp_less(mag, units.size())) {
       val = truncate_to_decimals(val, kPrecision - std::ceil(std::log10(val)));
-      return fmt::format("{:.{}g}{}", val, kPrecision, units[mag]);
+      result = fmt::format("{:.{}g}{}", val, kPrecision, units[mag]);
+    } else {
+      result = "0s";
     }
 
-    return {"0s"};
+    return result;
   }
 
   struct unit_spec {
@@ -206,7 +210,6 @@ std::string time_with_unit(double const sec) {
     return digits;
   };
 
-  std::string result;
   double remainder = sec;
   int rem_digits = kPrecision;
 
