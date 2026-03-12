@@ -18,38 +18,10 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
-#include <dwarfs/file_util.h>
 #include <dwarfs/thrift_lite/compact_writer.h>
 
 using namespace apache::thrift;
 using namespace frozen;
-
-TEST(FrozenUtil, FreezeAndUse) {
-  auto td = dwarfs::temporary_directory("frozen");
-  auto file = td.path() / "frozen_test_file";
-  freezeToFile(std::string("hello"), file);
-  MappedFrozen<std::string> mapped;
-  mapped = mapFrozen<std::string>(file);
-  EXPECT_EQ(std::string_view(mapped), "hello");
-}
-
-TEST(FrozenUtil, FreezeAndMap) {
-  auto td = dwarfs::temporary_directory("frozen");
-  auto file = td.path() / "frozen_test_file";
-  auto original = std::vector<std::string>{"hello", "world"};
-
-  freezeToFile(original, file);
-
-  MappedFrozen<std::vector<std::string>> mapped;
-  EXPECT_FALSE(mapped);
-  mapped = mapFrozen<std::vector<std::string>>(file);
-  EXPECT_TRUE(mapped);
-
-  auto thawed = mapped.thaw();
-  EXPECT_EQ(original, thawed);
-  original.emplace_back("different");
-  EXPECT_NE(original, thawed);
-}
 
 TEST(FrozenUtil, FutureVersion) {
   std::string store;
@@ -69,13 +41,10 @@ TEST(FrozenUtil, FutureVersion) {
       mapFrozen<std::string>(std::move(store)), FrozenFileForwardIncompatible);
 }
 
-TEST(FrozenUtil, FileSize) {
-  auto td = dwarfs::temporary_directory("frozen");
-  auto file = td.path() / "frozen_test_file";
+TEST(FrozenUtil, FrozenSize) {
   auto original = std::vector<std::string>{"hello", "world"};
-  freezeToFile(original, file);
-  EXPECT_LT(
-      std::filesystem::file_size(file), 500); // most of this is the schema
+  auto frozen = freezeToString(original);
+  EXPECT_LT(frozen.size(), 500); // most of this is the schema
 }
 
 TEST(FrozenUtil, FreezeToString) {
