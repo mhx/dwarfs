@@ -25,9 +25,7 @@ fetch_lib benchmark https://github.com/google/benchmark/archive/refs/tags/v${BEN
 fetch_lib openssl https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/${OPENSSL_TARBALL}
 fetch_lib libressl https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/${LIBRESSL_TARBALL}
 fetch_lib cpptrace https://github.com/jeremy-rifkin/cpptrace/archive/refs/tags/v${CPPTRACE_VERSION}.tar.gz ${CPPTRACE_TARBALL}
-fetch_lib double-conversion https://github.com/google/double-conversion/archive/refs/tags/v${DOUBLE_CONVERSION_VERSION}.tar.gz ${DOUBLE_CONVERSION_TARBALL}
 fetch_lib fmt https://github.com/fmtlib/fmt/archive/refs/tags/${FMT_VERSION}.tar.gz ${FMT_TARBALL}
-fetch_lib glog https://github.com/google/glog/archive/refs/tags/v${GLOG_VERSION}.tar.gz ${GLOG_TARBALL}
 fetch_lib xxhash https://github.com/Cyan4973/xxHash/archive/refs/tags/v${XXHASH_VERSION}.tar.gz ${XXHASH_TARBALL}
 fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4_TARBALL}
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
@@ -38,7 +36,6 @@ fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MI
 fetch_lib jemalloc https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/${JEMALLOC_TARBALL}
 fetch_lib xz https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/${XZ_TARBALL}
 fetch_lib libdwarf https://github.com/davea42/libdwarf-code/releases/download/v${LIBDWARF_VERSION}/${LIBDWARF_TARBALL}
-fetch_lib libevent https://github.com/libevent/libevent/releases/download/release-${LIBEVENT_VERSION}-stable/${LIBEVENT_TARBALL}
 fetch_lib nlohmann https://github.com/nlohmann/json/releases/download/v${NLOHMANN_VERSION}/json.hpp
 fetch_lib utfcpp https://github.com/nemtrif/utfcpp/archive/refs/tags/v${UTFCPP_VERSION}.tar.gz ${UTFCPP_TARBALL}
 fetch_lib range-v3 https://github.com/ericniebler/range-v3/archive/refs/tags/${RANGE_V3_VERSION}.tar.gz ${RANGE_V3_TARBALL}
