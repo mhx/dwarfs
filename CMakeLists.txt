@@ -1208,7 +1208,9 @@ if(STATIC_BUILD_DO_NOT_USE)
 endif(STATIC_BUILD_DO_NOT_USE)
 
 foreach(tgt ${TEST_TARGETS})
-  list(APPEND REALCLEAN_FILES "${tgt}[1]_include.cmake")
+  foreach(num IN ITEMS 1 2 3)
+    list(APPEND REALCLEAN_FILES "${tgt}[${num}]_include.cmake")
+  endforeach()
 endforeach()
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
@@ -1238,13 +1240,13 @@ add_custom_target(
       .ninja_deps .ninja_log build.ninja
       CMakeCache.txt
       ${REALCLEAN_FILES}
+  COMMAND ${CMAKE_COMMAND} -E rm -rf CMakeFiles
 )
 
 add_custom_target(
   distclean
   COMMAND ${CMAKE_MAKE_PROGRAM} realclean
   COMMAND ${CMAKE_COMMAND} -E rm -rf _deps
-  COMMAND ${CMAKE_COMMAND} -E rm -rf CMakeFiles
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
