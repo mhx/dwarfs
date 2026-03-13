@@ -318,7 +318,7 @@ for quite some time. Last but not least, I had been thinking about
 the problem of compressed file systems for a bit and had some ideas
 that I definitely wanted to try.
 
-The majority of the code was written in 2013, then I did a couple
+A lot of the initial code was written in 2013, then I did a couple
 of cleanups, bugfixes and refactors every once in a while, but I
 never really got it to a state where I would feel happy releasing
 it. It was too awkward to build with its dependency on Facebook's
@@ -326,9 +326,28 @@ it. It was too awkward to build with its dependency on Facebook's
 have any documentation.
 
 Digging out the project again in 2020, things didn't look as grim
-as they used to. Folly now built with CMake and so I just pulled
+as they used to. Folly was building with CMake and so I just pulled
 it in as a submodule. Most other dependencies could be satisfied
 from packages that should be widely available.
+
+However, the folly and fbthrift dependencies were still a bit of
+a pain. DwarFS used only a small fraction of folly, and an even
+tinier fraction of fbthrift. Folly had so many dependencies that
+it was getting harder and harder to build. Often, when upgrading,
+there were new build problems. So in 2026, after some of my pull
+requests for folly and fbthrift had been stuck in review with no
+feedback for more than half a year, I decided to ditch folly,
+fork the bits I needed from fbthrift, and re-write the thrift
+code generation in Python. That was quite a bit of work, but less
+than I anticipated. A lot of the folly features could be replaced
+by Boost or the C++ standard library. Some other, more unique
+features had to be re-implemented. This, however, gave me the
+freedom to just fix the things I previously had pull requests for,
+and it turned out that the new implementation was measurably faster
+in some cases. Also, some re-implementations were kept much simpler
+than the original folly code, making the resulting binaries smaller.
+A bunch of dependencies, such as `gflags`, `glog`, `libevent`,
+`double-conversion`, and `fast_float`, could be removed entirely.
 
 ## Building and Installing
 
@@ -348,34 +367,16 @@ that can help with determining an up-to-date set of dependencies.
 Note that building from the release tarball requires less dependencies
 than building from the git repository, notably the `ronn` tool as well
 as Python and the `mistletoe` Python module are not required when
-building from the release tarball. Also, the release tarball build
-doesn't require to build the thrift compiler, which makes the build
-a lot faster.
+building from the release tarball.
 
 There are some things to be aware of:
 
-- There's a tendency to try to unbundle the [folly](https://github.com/facebook/folly/)
-  and [fbthrift](https://github.com/facebook/fbthrift) libraries that
-  are included as submodules and are built along with DwarFS.
-  While I agree with the sentiment, it's unfortunately a bad idea.
-  Besides the fact that folly does not make any claims about ABI
-  stability (i.e. you can't just dynamically link a binary built
-  against one version of folly against another version), it's not
-  even possible to safely link against a folly library built with
-  different compile options. Even subtle differences, such as the
-  C++ standard version, can cause run-time errors.
-  See [this issue](https://github.com/facebook/folly/pull/1949)
-  for details. Currently, it is not even possible to use external
-  versions of folly/fbthrift as DwarFS is building minimal subsets of
-  both libraries; these are bundled in the `dwarfs_common` library
-  and they are strictly used internally, i.e. none of the folly or
-  fbthrift headers are required to build against DwarFS' libraries.
-
-- Similar issues can arise when using a system-installed version
-  of GoogleTest. GoogleTest recommends downloading it as part of
-  the build. However, you can use the system-installed version by
-  passing `-DPREFER_SYSTEM_GTEST=ON` to the `cmake` call. Use at
-  your own risk.
+- While supported by the `CMakeLists.txt` via `-DPREFER_SYSTEM_GTEST=ON`,
+  it is not recommended to use a system-installed version of GoogleTest.
+  GoogleTest itself recommends downloading it as part of the build, and
+  issues like [this one](https://github.com/mhx/dwarfs/issues/188) can
+  arise quickly if the system-installed version is built with different
+  compiler flags than the DwarFS build.
 
 - For other bundled libraries (namely `fmt`, `parallel-hashmap`,
   `range-v3`), the system-installed version is used as long as it
