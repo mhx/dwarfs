@@ -114,6 +114,9 @@ class string_table {
 
 [[nodiscard]] inline std::ptrdiff_t
 frozen_string_table_size(auto const& table) {
+  if (table.empty()) {
+    return 0;
+  }
   // MSVC in debug mode barfs when doing fishy string_view operations...
   // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
   return std::distance(table.front().data(),
