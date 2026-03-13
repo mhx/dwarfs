@@ -185,19 +185,15 @@ TEST(FrozenMap, Nested) {
   for (uint32_t i = 0; i < 100; ++i) {
     roots[i][sqrt(i)] = sqrt(sqrt(i));
   }
-  // TDOO(T44041774): fix over-alignment of maps leading to oversized
+  // TODO(T44041774): fix over-alignment of maps leading to oversized
   // single-element maps.
   EXPECT_LT(frozenSize(roots), 640);
   auto froots = freeze(roots);
-  if (auto l1 = froots.getDefault(4)) {
-    if (auto l2 = l1.getDefault(2)) {
-      EXPECT_EQ(l2, 1);
-    } else {
-      EXPECT_EQ(0, 1);
-    }
-  } else {
-    EXPECT_EQ(0, 1);
-  }
+  auto l1 = froots.getOptional(81);
+  ASSERT_TRUE(l1.has_value());
+  auto l2 = l1->getOptional(9);
+  ASSERT_TRUE(l2.has_value());
+  EXPECT_EQ(l2.value(), 3);
 }
 
 TEST(Frozen, Empty) {
