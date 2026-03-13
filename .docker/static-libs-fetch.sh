@@ -15,7 +15,6 @@ fetch_lib() {
     fetch.sh "$url" "$tarball"
 }
 
-fetch_lib bzip2 https://sourceware.org/pub/bzip2/${BZIP2_TARBALL}
 fetch_lib boost https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz ${BOOST_TARBALL}
 fetch_lib libarchive https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/${LIBARCHIVE_TARBALL}
 fetch_lib flac https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/${FLAC_TARBALL}
