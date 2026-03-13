@@ -126,10 +126,6 @@ struct LayoutPosition {
   LayoutPosition operator()(FieldPosition f) const {
     return {start + f.offset, bitOffset + f.bitOffset};
   }
-
-  int64_t byteOffset(LayoutPosition that) const {
-    return static_cast<int64_t>(start) - static_cast<int64_t>(that.start);
-  }
 };
 
 /**
@@ -150,10 +146,6 @@ struct FreezePosition {
    */
   FreezePosition operator()(FieldPosition f) const {
     return {start + f.offset, bitOffset + f.bitOffset};
-  }
-
-  int64_t byteOffset(FreezePosition that) const {
-    return std::distance(that.start, start);
   }
 };
 
