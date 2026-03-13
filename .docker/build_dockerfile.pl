@@ -219,7 +219,7 @@ if ($opt{upx}) {
 
 # Install UPX
 RUN $WITH_CACHES \\
-    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-$opt{upx}_linux.tar.xz - \\
+    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-$opt{upx}_linux.tar.xz - \\
         | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
 ENDUPX
 }

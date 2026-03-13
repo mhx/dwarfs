@@ -180,7 +180,7 @@ COPY --link --from=staticlibs_aarch64_clang-minsize-lto /opt/static-libs/ /opt/s
 
 # Install UPX
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-arm64_linux.tar.xz - \
+    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-arm64_linux.tar.xz - \
         | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
 
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
