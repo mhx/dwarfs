@@ -164,8 +164,6 @@ struct ViewPosition {
     return {start + f.offset, bitOffset + f.bitOffset};
   }
 
-  ViewPosition operator()(int64_t bytes) const { return {start + bytes, 0}; }
-
   int64_t toBits() const noexcept {
     return reinterpret_cast<int64_t>(start) * 8 + bitOffset;
   }
