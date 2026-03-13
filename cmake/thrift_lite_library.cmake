@@ -81,6 +81,5 @@ function(add_thrift_lite_library idlfile)
       $<BUILD_INTERFACE:${_THRIFT_GENERATED_DIR}/thrift>
     )
     target_link_libraries(${_THRIFT_TARGET} PUBLIC dwarfs_thrift_lite_v2)
-    set_property(TARGET ${_THRIFT_TARGET} PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   endif()
 endfunction()

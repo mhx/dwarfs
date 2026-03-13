@@ -77,6 +77,7 @@ set(default_build_type "Release")
 
 set(CMAKE_CXX_STANDARD ${DWARFS_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}'")
