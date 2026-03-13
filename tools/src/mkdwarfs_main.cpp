@@ -110,14 +110,17 @@ namespace {
 using namespace std::string_view_literals;
 using namespace dwarfs::binary_literals;
 
-constexpr sorted_array_map progress_modes{
-    std::pair{"none"sv, writer::console_writer::NONE},
-    std::pair{"simple"sv, writer::console_writer::SIMPLE},
-    std::pair{"ascii"sv, writer::console_writer::ASCII},
-    std::pair{"unicode"sv, writer::console_writer::UNICODE},
-};
+constexpr auto kProgressModeNone = "none"sv;
+constexpr auto kProgressModeSimple = "simple"sv;
+constexpr auto kProgressModeAscii = "ascii"sv;
+constexpr auto kProgressModeUnicode = "unicode"sv;
 
-constexpr auto default_progress_mode = "unicode";
+constexpr sorted_array_map progress_modes{
+    std::pair{kProgressModeNone, writer::console_writer::NONE},
+    std::pair{kProgressModeSimple, writer::console_writer::SIMPLE},
+    std::pair{kProgressModeAscii, writer::console_writer::ASCII},
+    std::pair{kProgressModeUnicode, writer::console_writer::UNICODE},
+};
 
 constexpr sorted_array_map debug_filter_modes{
     std::pair{"included"sv, writer::debug_filter_mode::INCLUDED},
@@ -435,6 +438,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   size_t const num_cpu = std::max(hardware_concurrency(), 1U);
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
   static constexpr size_t const kDefaultBloomFilterSize{4};
+
+  std::string const default_progress_mode{[&iol] {
+    if (!iol.term->is_tty(iol.err)) {
+      return kProgressModeNone;
+    }
+    if (iol.is_utf8_locale) {
+      return kProgressModeUnicode;
+    }
+    return kProgressModeAscii;
+  }()};
 
   writer::segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
@@ -1031,11 +1044,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (no_progress) {
-    progress_mode = "none";
-  }
-
-  if (progress_mode != "none" && !iol.term->is_tty(iol.err)) {
-    progress_mode = "simple";
+    progress_mode = kProgressModeNone;
   }
 
   writer::console_writer::options const cwopts{
