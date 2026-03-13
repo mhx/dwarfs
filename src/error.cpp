@@ -27,7 +27,6 @@
  */
 
 #include <cerrno>
-#include <clocale>
 #include <cstdlib>
 #include <iostream>
 
