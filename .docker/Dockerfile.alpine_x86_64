@@ -38,6 +38,7 @@ RUN apk add --no-cache \
         flex \
         ronn \
         perf \
+        hyperfine \
         py3-pip \
         py3-xxhash \
         py3-zstd \
