@@ -395,15 +395,6 @@ if use_lib xxhash; then
     make install PREFIX="$INSTALL_DIR"
 fi
 
-if use_lib bzip2; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${BZIP2_TARBALL}
-    cd bzip2-${BZIP2_VERSION}
-    $MAKE_PARALLEL
-    make PREFIX="$INSTALL_DIR" install
-fi
-
 if use_lib brotli; then
     opt_size
     cd "$WORKDIR"
