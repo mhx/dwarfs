@@ -23,6 +23,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <type_traits>
 
 #include <benchmark/benchmark.h>
 
@@ -61,9 +62,14 @@
 
 namespace {
 
+// finds the `Benchmark` type regardless of the namespace it's defined in
+using benchmark_type =
+    std::remove_pointer_t<decltype(::benchmark::RegisterBenchmark({},
+                                                                  nullptr))>;
+
 using namespace dwarfs;
 
-void PackParams(::benchmark::internal::Benchmark* b) {
+void PackParams(benchmark_type* b) {
   for (auto pack_directories : {false, true}) {
     for (auto plain_tables : {false, true}) {
       if (plain_tables) {
@@ -80,7 +86,7 @@ void PackParams(::benchmark::internal::Benchmark* b) {
   }
 }
 
-void PackParamsStrings(::benchmark::internal::Benchmark* b) {
+void PackParamsStrings(benchmark_type* b) {
   for (auto plain_tables : {false, true}) {
     if (plain_tables) {
       b->Args({true, true, false, false});
@@ -94,11 +100,9 @@ void PackParamsStrings(::benchmark::internal::Benchmark* b) {
   }
 }
 
-void PackParamsNone(::benchmark::internal::Benchmark* b) {
-  b->Args({true, false, true, true});
-}
+void PackParamsNone(benchmark_type* b) { b->Args({true, false, true, true}); }
 
-void PackParamsDirs(::benchmark::internal::Benchmark* b) {
+void PackParamsDirs(benchmark_type* b) {
   for (auto pack_directories : {false, true}) {
     b->Args({pack_directories, false, true, true});
   }
