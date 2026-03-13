@@ -48,6 +48,7 @@ struct iolayer {
   std::istream& in;
   std::ostream& out;
   std::ostream& err;
+  bool is_utf8_locale{false};
 };
 
 } // namespace tool

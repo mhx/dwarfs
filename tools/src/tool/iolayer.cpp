@@ -26,7 +26,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <clocale>
 #include <iostream>
+#include <string_view>
 
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_access_generic.h>
@@ -36,6 +38,24 @@
 
 namespace dwarfs::tool {
 
+namespace {
+
+bool get_is_utf8_locale() {
+  auto const* locale = std::setlocale(LC_CTYPE, nullptr);
+  if (!locale) {
+    return false;
+  }
+  auto const loc = std::string_view(locale);
+  auto const dot = loc.rfind('.');
+  if (dot == std::string_view::npos) {
+    return false;
+  }
+  auto const enc = loc.substr(dot + 1);
+  return enc == "UTF-8" || enc == "utf8" || enc == "utf-8" || enc == "UTF8";
+}
+
+} // namespace
+
 iolayer const& iolayer::system_default() {
   static iolayer const iol{
       .os = std::make_shared<os_access_generic>(),
@@ -44,6 +64,7 @@ iolayer const& iolayer::system_default() {
       .in = std::cin,
       .out = std::cout,
       .err = std::cerr,
+      .is_utf8_locale = get_is_utf8_locale(),
   };
   return iol;
 }
