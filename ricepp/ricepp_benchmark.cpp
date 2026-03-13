@@ -28,6 +28,7 @@
 
 #include <iostream>
 #include <random>
+#include <type_traits>
 
 #include <benchmark/benchmark.h>
 
@@ -36,6 +37,11 @@
 #include <ricepp/create_encoder.h>
 
 namespace {
+
+// finds the `Benchmark` type regardless of the namespace it's defined in
+using benchmark_type =
+    std::remove_pointer_t<decltype(::benchmark::RegisterBenchmark({},
+                                                                  nullptr))>;
 
 struct random_config {
   std::endian byteorder{std::endian::big};
@@ -105,7 +111,7 @@ class ricepp_bm : public ::benchmark::Fixture {
   std::vector<uint8_t> encoded_;
 };
 
-void ricepp_params(benchmark::internal::Benchmark* b) {
+void ricepp_params(benchmark_type* b) {
   b->ArgNames({"size", "bo", "ulsb", "noise", "full", "freq", "bs", "cs"});
   for (int64_t size : {1024 * 1024, 8 * 1024 * 1024}) {
     for (int bo : {0, 1}) {
