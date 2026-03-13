@@ -1,7 +1,7 @@
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 
-LIBARCHIVE_VERSION=3.8.5                 # 2026-01-05
+LIBARCHIVE_VERSION=3.8.6                 # 2026-03-10
 FLAC_VERSION=1.5.0                       # 2025-02-11
 LIBUCONTEXT_VERSION=1.3.2                # 2024-10-07
 LIBUNWIND_VERSION=1.8.3                  # 2026-01-21
@@ -22,7 +22,7 @@ LIBFUSE3_VERSION=3.18.1                  # 2025-12-20
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 JEMALLOC_VERSION=5.3.0                   # 2022-05-02
 XZ_VERSION=5.8.2                         # 2025-12-17
-LIBDWARF_VERSION=2.3.0                   # 2025-10-08
+LIBDWARF_VERSION=2.3.1                   # 2025-10-08
 LIBEVENT_VERSION=2.1.12                  # 2020-07-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 UTFCPP_VERSION=4.0.9                     # 2025-12-29
