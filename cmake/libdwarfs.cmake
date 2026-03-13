@@ -217,7 +217,6 @@ add_library(
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
 )
 
-set_property(TARGET dwarfs_frozen PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 target_include_directories(dwarfs_frozen PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
@@ -239,7 +238,6 @@ add_library(
   src/thrift_lite/internal/compact_wire.cpp
 )
 
-set_property(TARGET dwarfs_thrift_lite_v2 PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_frozen)
 target_include_directories(dwarfs_frozen PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
@@ -316,9 +314,6 @@ endif()
 target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
 target_include_directories(dwarfs_common SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
-set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(
   dwarfs_common

@@ -86,7 +86,6 @@ if(NOT WIN32)
 endif()
 
 set(DWARFS_CXX_STANDARD 23)
-set(DWARFS_MSVC_CXX_STANDARD "latest")
 
 # Libraries that we can fetch on demand if necessary
 #
@@ -540,7 +539,6 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
   endif()
   target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool PkgConfig::XXHASH)
-  set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
   target_compile_definitions(dwarfs_test_helpers
        PUBLIC TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
@@ -565,7 +563,6 @@ if(WITH_TESTS AND WITH_TOOLS)
   add_library(dwarfs_tool_main_tester test/test_tool_main_tester.cpp)
   target_link_libraries(dwarfs_tool_main_tester PUBLIC dwarfs_test_helpers GTest::gtest)
   target_link_libraries(dwarfs_tool_main_tester PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
-  set_property(TARGET dwarfs_tool_main_tester PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
 endif()
 
 if(WITH_LIBDWARFS)
@@ -1067,10 +1064,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
       -Wno-old-style-cast
     )
   endif()
-
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD ${DWARFS_CXX_STANDARD})
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
-  set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
