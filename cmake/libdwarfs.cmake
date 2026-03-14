@@ -224,6 +224,7 @@ target_include_directories(dwarfs_frozen PRIVATE
 target_include_directories(dwarfs_frozen SYSTEM PUBLIC
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
 )
+target_link_libraries(dwarfs_frozen PUBLIC PkgConfig::XXHASH)
 
 add_library(
   dwarfs_thrift_lite_v2 OBJECT
