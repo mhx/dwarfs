@@ -34,8 +34,12 @@
 
 namespace ricepp {
 
-template <std::unsigned_integral PixelT>
+template <typename PixelT>
 class decoder_interface {
+  // work around for https://github.com/llvm/llvm-project/issues/186624
+  static_assert(std::unsigned_integral<PixelT>,
+                "PixelT must be an unsigned integral type");
+
  public:
   using pixel_type = PixelT;
 
