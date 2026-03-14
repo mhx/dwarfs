@@ -90,9 +90,12 @@ export_cache:
 import_cache:
 	@docker buildx build -f Dockerfile.importcache -t import-cache .
 
+list_cache:
+	@./list_docker_cache_mounts.sh
+
 prune_build_cache:
-	@docker builder prune -af
-	@docker buildx prune -af
+	@docker builder prune --filter 'type!=exec.cachemount' -af
+	@docker buildx prune --filter 'type!=exec.cachemount' -af
 
 prune_images:
 	@docker image prune -af
