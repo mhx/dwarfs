@@ -320,6 +320,7 @@ target_link_libraries(
   PUBLIC
   Boost::boost
   Boost::chrono
+  Boost::filesystem
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
