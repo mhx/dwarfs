@@ -89,3 +89,10 @@ export_cache:
 
 import_cache:
 	@docker buildx build -f Dockerfile.importcache -t import-cache .
+
+prune_build_cache:
+	@docker builder prune -af
+	@docker buildx prune -af
+
+prune_images:
+	@docker image prune -af
