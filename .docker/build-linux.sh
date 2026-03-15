@@ -80,6 +80,9 @@ if [[ "$BUILD_DIST" == "alpine" ]]; then
 elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
   GCC_VERSION=-12
   CLANG_VERSION=-15
+elif [[ "$BUILD_DIST" == "ubuntu" ]]; then
+  GCC_VERSION=-16
+  CLANG_VERSION=-22
 elif [[ "$BUILD_DIST" == "debian-testing" ]]; then
   GCC_VERSION=-16
   CLANG_VERSION=-21

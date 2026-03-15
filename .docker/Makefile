@@ -5,6 +5,7 @@ IMAGE_ALPINE="dwarfs-buildenv-alpine"
 IMAGE_ALPINE_NEWARCH="dwarfs-buildenv-alpine-newarch"
 IMAGE_ALPINE_APK="dwarfs-alpine-apk"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
+IMAGE_UBUNTU2404="dwarfs-buildenv-ubuntu2404"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_SUSE="dwarfs-buildenv-suse"
 IMAGE_ARCH="dwarfs-buildenv-arch"
@@ -72,6 +73,12 @@ build_ubuntu2204:
 
 run_ubuntu2204:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_UBUNTU2204)
+
+build_ubuntu2404:
+	docker build -f Dockerfile.ubuntu-2404 -t $(IMAGE_UBUNTU2404) .
+
+run_ubuntu2404:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_UBUNTU2404)
 
 build_fedora:
 	docker build -f Dockerfile.fedora -t $(IMAGE_FEDORA) .

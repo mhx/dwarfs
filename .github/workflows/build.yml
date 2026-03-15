@@ -261,19 +261,19 @@ jobs:
             build_type: clang-release-ninja-split
 
           - build_arch: arm64v8
-            build_dist: ubuntu
+            build_dist: ubuntu-2404
             build_type: gcc-debug-shared-ninja-full
 
           - build_arch: arm64v8
-            build_dist: ubuntu
+            build_dist: ubuntu-2404
             build_type: clang-release-shared-ninja-full
 
           - build_arch: arm64v8
-            build_dist: ubuntu
+            build_dist: ubuntu-2404
             build_type: oldgcc-debug-shared-make-split
 
           - build_arch: arm64v8
-            build_dist: ubuntu
+            build_dist: ubuntu-2404
             build_type: oldclang-debug-shared-make-split
 
           - build_arch: arm64v8

@@ -1,18 +1,25 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
-FROM $ARCH/ubuntu:26.04
+FROM $ARCH/ubuntu:24.04
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
         curl \
         vim \
         less \
-        gcc-15 \
-        g++-15 \
-        gcc-16 \
-        g++-16 \
-        clang-21 \
-        clang-22 \
+        gcc-11 \
+        g++-11 \
+        gcc-12 \
+        g++-12 \
+        gcc-13 \
+        g++-13 \
+        gcc-14 \
+        g++-14 \
+        clang-15 \
+        clang-16 \
+        clang-17 \
+        clang-18 \
+        clang-19 \
         git \
         zstd \
         ccache \
@@ -30,11 +37,11 @@ RUN apt install -y \
         libboost-chrono-dev \
         libboost-context-dev \
         libboost-filesystem-dev \
-        libboost-process-dev \
         libboost-program-options-dev \
         libboost-regex-dev \
         libboost-thread-dev \
         libbrotli-dev \
+        libhowardhinnant-date-dev \
         libjemalloc-dev \
         libiberty-dev \
         liblz4-dev \
