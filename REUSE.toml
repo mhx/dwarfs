@@ -1,0 +1,74 @@
+version = 1
+SPDX-PackageName = "DwarFS"
+SPDX-PackageSupplier = "Marcus Holland-Moritz"
+SPDX-PackageDownloadLocation = "https://github.com/mhx/dwarfs"
+
+[[annotations]]
+path = "folly-memcpy/folly/memcpy.S"
+precedence = "aggregate"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "frozen/thrift/.clang-format",
+  "frozen/thrift/lib/cpp2/frozen/test/compatibility/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "Meta Platforms, Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["fsst/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "CWI, TU Munich, FSU Jena"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "include/dwarfs/internal/boost_move_only_function.hpp"
+precedence = "aggregate"
+SPDX-License-Identifier = "BSL-1.0"
+
+[[annotations]]
+path = "src/internal/wcwidth.c"
+precedence = "aggregate"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "sfx/nanoprintf.h"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "charles.nicholson+nanoprintf@gmail.com"
+SPDX-License-Identifier = "0BSD OR Unlicense"
+
+[[annotations]]
+path = "sfx/zstddeclib.c"
+precedence = "aggregate"
+SPDX-License-Identifier = "BSD-3-Clause OR GPL-2.0-only"
+
+[[annotations]]
+path = [
+  ".clang-format",
+  ".clang-tidy",
+  ".codecov.yml",
+  ".docker/.dockerignore",
+  ".docker/docker-0.2.x/.dockerignore",
+  ".docker/docker-0.2.x/.gitignore",
+  ".gitignore",
+  "CHANGES.md",
+  "CITATION.cff",
+  "doc/**.gif",
+  "doc/**.png",
+  "doc/**.svg",
+  "ricepp/.clang-format",
+  "ricepp/.gitignore",
+  "TODO",
+  "test/**.dwarfs",
+  "test/binary/**",
+  "test/fits/**",
+  "test/pcmaudio/**",
+  "test/sparse.tar",
+  "tsan.supp",
+  "vcpkg.json",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "Marcus Holland-Moritz"
+SPDX-License-Identifier = "CC0-1.0"
