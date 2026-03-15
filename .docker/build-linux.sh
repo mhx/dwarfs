@@ -220,7 +220,7 @@ case "-$BUILD_TYPE-" in
     fi
     ;;
   *)
-    if [[ "-$BUILD_TYPE-" == *-gcc-* ]]; then
+    if [[ "-$BUILD_TYPE-" == *-gcc-* ]] && [[ "-$BUILD_TYPE-" != *-static-* ]]; then
       # We're using fat LTO objects with GCC, so need to disable LTO explicitly
       export CFLAGS="${CFLAGS} -fno-lto -fno-use-linker-plugin"
       export CXXFLAGS="${CXXFLAGS} -fno-lto -fno-use-linker-plugin"
