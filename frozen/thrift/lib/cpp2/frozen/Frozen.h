@@ -780,7 +780,7 @@ class LayoutRoot : public FieldCycleHolder {
     return it == positions_.end() ? nullptr : &it->second;
   }
 
- protected:
+ private:
   bool resized_;
   size_t cursor_;
   std::unordered_map<uintptr_t, std::shared_ptr<FieldBase>> sharedFields_;
