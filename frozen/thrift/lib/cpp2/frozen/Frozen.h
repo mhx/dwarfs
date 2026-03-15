@@ -1007,7 +1007,7 @@ enum class Frozen2 { Marker };
  */
 template <class T, class Return = Bundled<typename Layout<T>::View>>
 Return freeze(const T& x, Frozen2 = Frozen2::Marker) {
-  std::unique_ptr<Layout<T>> layout(new Layout<T>);
+  auto layout = std::make_unique<Layout<T>>();
   size_t size = LayoutRoot::layout(x, *layout);
   std::unique_ptr<byte[]> storage(new byte[size]);
   std::span<uint8_t> write(storage.get(), size);
