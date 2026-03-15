@@ -816,9 +816,9 @@ class LayoutTypeMismatchException : public std::logic_error {
  * management is defined by a child class of FreezeRoot.
  */
 class FreezeRoot {
- protected:
   std::unordered_map<uintptr_t, FreezePosition> positions_;
 
+ protected:
   template <class T>
   typename Layout<T>::View doFreeze(const Layout<T>& layout, const T& root) {
     std::span<uint8_t> range, tail;
