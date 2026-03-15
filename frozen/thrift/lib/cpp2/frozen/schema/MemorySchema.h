@@ -54,7 +54,7 @@ class MemoryField {
  public:
   MemoryField() = default;
 
-  inline size_t hash() const noexcept {
+  size_t hash() const noexcept {
     size_t seed = 0;
     boost::hash_combine(seed, id);
     boost::hash_combine(seed, layoutId);
@@ -66,22 +66,22 @@ class MemoryField {
     return obj.hash();
   }
 
-  inline bool operator==(const MemoryField& other) const {
+  bool operator==(const MemoryField& other) const {
     return id == other.id && layoutId == other.layoutId &&
         offset == other.offset;
   }
 
-  inline void setId(int16_t i) { id = i; }
+  void setId(int16_t i) { id = i; }
 
-  inline int16_t getId() const { return id; }
+  int16_t getId() const { return id; }
 
-  inline void setLayoutId(int16_t lid) { layoutId = lid; }
+  void setLayoutId(int16_t lid) { layoutId = lid; }
 
-  inline int16_t getLayoutId() const { return layoutId; }
+  int16_t getLayoutId() const { return layoutId; }
 
-  inline void setOffset(int16_t o) { offset = o; }
+  void setOffset(int16_t o) { offset = o; }
 
-  inline int16_t getOffset() const { return offset; }
+  int16_t getOffset() const { return offset; }
 
  private:
   // Thrift field index
@@ -104,7 +104,7 @@ class MemoryLayoutBase {
   MemoryLayoutBase() = default;
   virtual ~MemoryLayoutBase() = default;
 
-  inline size_t hash() const noexcept {
+  size_t hash() const noexcept {
     size_t seed = 0;
     boost::hash_combine(seed, bits);
     boost::hash_combine(seed, size);
@@ -115,17 +115,17 @@ class MemoryLayoutBase {
     return obj.hash();
   }
 
-  inline bool operator==(const MemoryLayoutBase& other) const {
+  bool operator==(const MemoryLayoutBase& other) const {
     return bits == other.bits && size == other.size;
   }
 
-  inline void setSize(int32_t s) { size = s; }
+  void setSize(int32_t s) { size = s; }
 
-  inline int32_t getSize() const { return size; }
+  int32_t getSize() const { return size; }
 
-  inline void setBits(int16_t b) { bits = b; }
+  void setBits(int16_t b) { bits = b; }
 
-  inline int16_t getBits() const { return bits; }
+  int16_t getBits() const { return bits; }
 
  private:
   int32_t size;
@@ -136,7 +136,7 @@ class MemoryLayout : public MemoryLayoutBase {
  public:
   using MemoryLayoutBase::MemoryLayoutBase;
 
-  inline size_t hash() const noexcept {
+  size_t hash() const noexcept {
     size_t seed = MemoryLayoutBase::hash();
     boost::hash_combine(seed, boost::hash_range(fields.begin(), fields.end()));
     return seed;
@@ -146,19 +146,15 @@ class MemoryLayout : public MemoryLayoutBase {
     return obj.hash();
   }
 
-  inline bool operator==(const MemoryLayout& other) const {
+  bool operator==(const MemoryLayout& other) const {
     return MemoryLayoutBase::operator==(other) && fields == other.fields;
   }
 
-  inline void addField(MemoryField&& field) {
-    fields.push_back(std::move(field));
-  }
+  void addField(MemoryField&& field) { fields.push_back(std::move(field)); }
 
-  inline void setFields(std::vector<MemoryField>&& fs) {
-    fields = std::move(fs);
-  }
+  void setFields(std::vector<MemoryField>&& fs) { fields = std::move(fs); }
 
-  inline const std::vector<MemoryField>& getFields() const { return fields; }
+  const std::vector<MemoryField>& getFields() const { return fields; }
 
  private:
   std::vector<MemoryField> fields;
@@ -170,7 +166,7 @@ class MemorySchema {
   MemorySchema() = default;
   ~MemorySchema() = default;
 
-  inline size_t hash() const noexcept {
+  size_t hash() const noexcept {
     size_t seed = 0;
     boost::hash_combine(
         seed, boost::hash_range(layouts.begin(), layouts.end()));
@@ -182,26 +178,24 @@ class MemorySchema {
     return obj.hash();
   }
 
-  inline bool operator==(const MemorySchema& other) const {
+  bool operator==(const MemorySchema& other) const {
     return layouts == other.layouts;
   }
 
-  inline void setRootLayoutId(int16_t rootId) {
+  void setRootLayoutId(int16_t rootId) {
     assert(rootId < static_cast<int16_t>(layouts.size()));
     rootLayout = rootId;
   }
 
-  inline int16_t getRootLayoutId() const { return rootLayout; }
+  int16_t getRootLayoutId() const { return rootLayout; }
 
-  inline const MemoryLayout& getRootLayout() const {
-    return layouts.at(rootLayout);
-  }
+  const MemoryLayout& getRootLayout() const { return layouts.at(rootLayout); }
 
-  inline const MemoryLayout& getLayoutForField(const MemoryField& field) const {
+  const MemoryLayout& getLayoutForField(const MemoryField& field) const {
     return layouts.at(field.getLayoutId());
   }
 
-  inline const std::vector<MemoryLayout>& getLayouts() const { return layouts; }
+  const std::vector<MemoryLayout>& getLayouts() const { return layouts; }
 
   class Helper {
     // Add helper structures here to help minimize size of schema during

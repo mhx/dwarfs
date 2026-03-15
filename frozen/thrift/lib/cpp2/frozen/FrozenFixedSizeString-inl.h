@@ -10,9 +10,7 @@
 
 #include <cassert>
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 namespace detail {
 
 class FixedSizeMismatchException : public std::length_error {
@@ -97,6 +95,4 @@ class FixedSizeString;
 template <size_t kSize>
 struct Layout<FixedSizeString<kSize>>
     : detail::FixedSizeStringLayout<FixedSizeString<kSize>> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

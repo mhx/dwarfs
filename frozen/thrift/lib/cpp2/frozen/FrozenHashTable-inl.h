@@ -14,9 +14,7 @@
 #include <dwarfs/thrift_lite/field_ref.h>
 #include <thrift/lib/cpp2/frozen/Fast64BitRemainderCalculator.h>
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 namespace detail {
 
 struct Block {
@@ -33,9 +31,9 @@ struct Block {
 };
 
 struct BlockLayout : public LayoutBase {
-  typedef LayoutBase Base;
-  typedef Block T;
-  typedef BlockLayout LayoutSelf;
+  using Base = LayoutBase;
+  using T = Block;
+  using LayoutSelf = BlockLayout;
 
   Field<uint64_t, TrivialLayout<uint64_t>> maskField;
   Field<uint64_t> offsetField;
@@ -44,8 +42,8 @@ struct BlockLayout : public LayoutBase {
       : LayoutBase(typeid(T)), maskField(1, "mask"), offsetField(2, "offset") {}
 
   FieldPosition maximize();
-  FieldPosition layout(LayoutRoot& root, const T& o, LayoutPosition self);
-  void freeze(FreezeRoot& root, const T& o, FreezePosition self) const;
+  FieldPosition layout(LayoutRoot& root, const T& x, LayoutPosition self);
+  void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;
   void print(std::ostream& os, int level) const final;
   void clear() final;
 
@@ -54,7 +52,7 @@ struct BlockLayout : public LayoutBase {
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(mask, 1) FROZEN_LOAD_FIELD(offset, 2))
 
   struct View : public ViewBase<View, LayoutSelf, T> {
-    View() {}
+    View() = default;
     View(const LayoutSelf* layout, ViewPosition position)
         : ViewBase<View, LayoutSelf, T>(layout, position) {}
 
@@ -68,7 +66,7 @@ struct BlockLayout : public LayoutBase {
     }
   };
 
-  View view(ViewPosition self) const { return View(this, self); }
+  View view(ViewPosition self) const { return {this, self}; }
 };
 } // namespace detail
 
@@ -83,10 +81,10 @@ namespace detail {
  */
 template <class T, class Item, class KeyExtractor, class Key>
 struct HashTableLayout : public ArrayLayout<T, Item> {
-  typedef ArrayLayout<T, Item> Base;
+  using Base = ArrayLayout<T, Item>;
   Field<std::vector<Block>> sparseTableField;
-  typedef Layout<Key> KeyLayout;
-  typedef HashTableLayout LayoutSelf;
+  using KeyLayout = Layout<Key>;
+  using LayoutSelf = HashTableLayout;
 
   HashTableLayout()
       : sparseTableField(
@@ -151,10 +149,9 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
           }
           ensureDistinctKeys(*itemKey, KeyExtractor::getKey(**slot));
           continue;
-        } else {
-          *slot = KeyExtractor::getPointer(item);
-          break;
         }
+        *slot = KeyExtractor::getPointer(item);
+        break;
       }
     }
     size_t count = 0;
@@ -251,22 +248,22 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(sparseTable, 4))
 
   class View : public Base::View {
-    typedef typename Layout<Key>::View KeyView;
-    typedef typename Layout<Item>::View ItemView;
-    typedef typename Layout<std::vector<Block>>::View TableView;
+    using KeyView = typename Layout<Key>::View;
+    using ItemView = typename Layout<Item>::View;
+    using TableView = typename Layout<std::vector<Block>>::View;
 
     TableView table_;
     Fast64BitRemainderCalculator remainderCalculator_;
 
    public:
-    View() {}
+    View() = default;
     View(const LayoutSelf* layout, ViewPosition self)
         : Base::View(layout, self),
           table_(layout->sparseTableField.layout.view(
               self(layout->sparseTableField.pos))),
           remainderCalculator_(table_.size() * Block::bits) {}
 
-    typedef typename Base::View::iterator iterator;
+    using iterator = typename Base::View::iterator;
 
     void operator[](size_t) = delete;
 
@@ -275,9 +272,19 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       if (found != this->end()) {
         auto next = found;
         return std::make_pair(found, ++next);
-      } else {
-        return std::make_pair(found, found);
       }
+      return std::make_pair(found, found);
+    }
+
+    /// Finds an element with key that compares equivalent to the value `key`.
+    /// This allows finding a frozen element in the hash table without freezing
+    /// the key. Similar to heterogenous lookups in C++20.
+    template <typename K>
+    iterator find(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      size_t hash = Layout<K>::hash(key);
+      return findImpl(key, hash);
     }
 
     iterator find(const KeyView& key) const {
@@ -285,28 +292,17 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       return findImpl(key, hash);
     }
 
-    /// Finds an element with key that compares equivalent to the value `key`.
-    /// This allows finding a frozen element in the hash table without freezing
-    /// the key. Similar to heterogenous lookups in C++20.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    iterator find(const K& key) const {
-      size_t hash = Layout<K>::hash(key);
-      return findImpl(key, hash);
-    }
-
-    size_t count(const KeyView& key) const { return count<KeyView, void>(key); }
-
     /// Finds the number of elements with key that compares equivalent to the
     /// value `key`. This allows finding a frozen element in the hash table
     /// without freezing the key. Similar to heterogenous lookups in C++20.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    size_t count(const K& key) const {
-      return find(key) == this->end() ? 0 : 1;
+    template <typename K>
+    size_t count(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return countImpl(key);
     }
+
+    size_t count(const KeyView& key) const { return countImpl(key); }
 
     T thaw() const {
       T ret;
@@ -346,11 +342,14 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       }
       return this->end();
     }
+
+    template <typename K>
+    size_t countImpl(const K& key) const {
+      return find(key) == this->end() ? 0 : 1;
+    }
   };
 
   View view(ViewPosition self) const { return View(this, self); }
 };
 } // namespace detail
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

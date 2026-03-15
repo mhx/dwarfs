@@ -10,6 +10,8 @@
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
+#include <utility>
+
 namespace apache::thrift::frozen {
 
 std::ostream& operator<<(std::ostream& os, DebugLine dl) {
@@ -29,12 +31,12 @@ bool LayoutBase::resize(FieldPosition after, bool _inlined) {
   bool resized = false;
   inlined = (this->size == 0 && _inlined);
   if (!inlined) {
-    if (static_cast<size_t>(after.offset) > this->size) {
+    if (std::cmp_greater(after.offset, this->size)) {
       this->size = after.offset;
       resized = true;
     }
   }
-  if (static_cast<size_t>(after.bitOffset) > this->bits) {
+  if (std::cmp_greater(after.bitOffset, this->bits)) {
     this->bits = after.bitOffset;
     resized = true;
   }

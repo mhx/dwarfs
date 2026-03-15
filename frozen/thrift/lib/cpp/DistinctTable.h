@@ -54,10 +54,9 @@ class DistinctTable {
     auto insertion = indexes_.insert(index);
     if (insertion.second) {
       return index;
-    } else {
-      store_->pop_back();
-      return *insertion.first;
     }
+    store_->pop_back();
+    return *insertion.first;
   }
 
  private:

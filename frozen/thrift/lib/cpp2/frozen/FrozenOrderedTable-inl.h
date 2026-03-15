@@ -12,10 +12,7 @@
 
 #include <dwarfs/thrift_lite/container.h>
 
-namespace apache {
-namespace thrift {
-namespace frozen {
-namespace detail {
+namespace apache::thrift::frozen::detail {
 
 template <typename Container>
 concept OrderedAssocContainer = requires { typename Container::key_compare; } &&
@@ -45,8 +42,8 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   }
 
  public:
-  typedef ArrayLayout<T, Item> Base;
-  typedef SortedTableLayout LayoutSelf;
+  using Base = ArrayLayout<T, Item>;
+  using LayoutSelf = SortedTableLayout;
 
   void thaw(ViewPosition self, T& out) const {
     auto v = view(self);
@@ -159,99 +156,83 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   }
 
   class View : public Base::View {
-    typedef typename Layout<Key>::View KeyView;
-    typedef typename Layout<Item>::View ItemView;
+    using KeyView = typename Layout<Key>::View;
+    using ItemView = typename Layout<Item>::View;
 
    public:
-    View() {}
+    View() = default;
     View(const LayoutSelf* layout, ViewPosition position)
         : Base::View(layout, position) {}
 
-    typedef typename Base::View::iterator iterator;
+    using iterator = typename Base::View::iterator;
 
     void operator[](size_t) = delete;
 
     /// Returns an iterator pointing to the first element that compares not less
     /// to the value `key`. This allows finding a frozen element in the ordered
     /// table without freezing the key.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    iterator lower_bound(const K& key) const {
-      return std::lower_bound(
-          this->begin(), this->end(), key, [](ItemView a, const K& b) {
-            return KeyExtractor::getViewKey(a) < b;
-          });
+    template <typename K>
+    iterator lower_bound(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return lower_bound_impl(key);
     }
 
     iterator lower_bound(const KeyView& key) const {
-      return lower_bound<KeyView, void>(key);
+      return lower_bound_impl(key);
     }
 
     /// Returns an iterator pointing to the first element that compares greater
     /// to the value `key`. This allows finding a frozen element in the ordered
     /// table without freezing the key.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    iterator upper_bound(const K& key) const {
-      return std::upper_bound(
-          this->begin(), this->end(), key, [](const K& a, ItemView b) {
-            return a < KeyExtractor::getViewKey(b);
-          });
+    template <typename K>
+    iterator upper_bound(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return upper_bound_impl(key);
     }
 
     iterator upper_bound(const KeyView& key) const {
-      return upper_bound<KeyView, void>(key);
+      return upper_bound_impl(key);
     }
 
     /// Returns a range containing all elements that compares equal to the value
     /// `key`. This allows finding a frozen element in the ordered table without
     /// freezing the key.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    std::pair<iterator, iterator> equal_range(const K& key) const {
-      auto found = lower_bound(key);
-      if (found != this->end() && KeyExtractor::getViewKey(*found) == key) {
-        auto next = found;
-        return std::make_pair(found, ++next);
-      } else {
-        return std::make_pair(found, found);
-      }
+    template <typename K>
+    std::pair<iterator, iterator> equal_range(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return equal_range_impl(key);
     }
 
     std::pair<iterator, iterator> equal_range(const KeyView& key) const {
-      return equal_range<KeyView, void>(key);
+      return equal_range_impl(key);
     }
 
     /// Finds an element with key that compares equivalent to the value `key`.
     /// This allows finding a frozen element in the ordered table without
     /// freezing the key.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    iterator find(const K& key) const {
-      auto found = lower_bound(key);
-      if (found != this->end() && KeyExtractor::getViewKey(*found) != key) {
-        found = this->end();
-      }
-      return found;
+    template <typename K>
+    iterator find(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return find_impl(key);
     }
 
-    iterator find(const KeyView& key) const { return find<KeyView, void>(key); }
+    iterator find(const KeyView& key) const { return find_impl(key); }
 
     /// Returns the number of elements with key that compares equivalent to the
     /// value `key`. This allows finding a frozen element in the ordered table
     /// without freezing the key.
-    template <
-        typename K,
-        class = std::enable_if_t<!std::is_convertible_v<K, KeyView>, void>>
-    size_t count(const K& key) const {
-      return find(key) == this->end() ? 0 : 1;
+    template <typename K>
+    size_t count(const K& key) const
+      requires(!std::is_convertible_v<K, KeyView>)
+    {
+      return count_impl(key);
     }
 
-    size_t count(const KeyView& key) const { return count<KeyView, void>(key); }
+    size_t count(const KeyView& key) const { return count_impl(key); }
 
     T thaw() const {
       T ret;
@@ -259,12 +240,50 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
           ->thaw(this->position_, ret);
       return ret;
     }
+
+   private:
+    template <typename K>
+    iterator lower_bound_impl(const K& key) const {
+      return std::lower_bound(
+          this->begin(), this->end(), key, [](ItemView a, const K& b) {
+            return KeyExtractor::getViewKey(a) < b;
+          });
+    }
+
+    template <typename K>
+    iterator upper_bound_impl(const K& key) const {
+      return std::upper_bound(
+          this->begin(), this->end(), key, [](const K& a, ItemView b) {
+            return a < KeyExtractor::getViewKey(b);
+          });
+    }
+
+    template <typename K>
+    std::pair<iterator, iterator> equal_range_impl(const K& key) const {
+      auto found = lower_bound(key);
+      if (found != this->end() && KeyExtractor::getViewKey(*found) == key) {
+        auto next = found;
+        return std::make_pair(found, ++next);
+      }
+      return std::make_pair(found, found);
+    }
+
+    template <typename K>
+    iterator find_impl(const K& key) const {
+      auto found = lower_bound(key);
+      if (found != this->end() && KeyExtractor::getViewKey(*found) != key) {
+        found = this->end();
+      }
+      return found;
+    }
+
+    template <typename K>
+    size_t count_impl(const K& key) const {
+      return find(key) == this->end() ? 0 : 1;
+    }
   };
 
   View view(ViewPosition self) const { return View(this, self); }
 };
 
-} // namespace detail
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen::detail

@@ -10,9 +10,7 @@
 
 #include <type_traits>
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
@@ -37,17 +35,17 @@ struct KeyExtractor {
   // const_reference type. template shenanigans used to avoid duplicating the
   // previous two overloads in the cases where they're redundant.
   template <typename K2 = K, typename V2 = V>
-  static std::enable_if_t<
-      !std::is_same_v<rvalue_reference, const std::pair<K2, V2>&&> &&
-          !std::is_same_v<rvalue_reference, const std::pair<const K2, V2>&&>,
-      const K&>
-      getKey(rvalue_reference) = delete;
+  static const K& getKey(rvalue_reference)
+    requires(!std::is_same_v<rvalue_reference, const std::pair<K2, V2> &&> &&
+             !std::
+                 is_same_v<rvalue_reference, const std::pair<const K2, V2> &&>)
+  = delete;
   template <typename K2 = K, typename V2 = V>
-  static std::enable_if_t<
-      !std::is_same_v<const_reference, const std::pair<K2, V2>&> &&
-          !std::is_same_v<const_reference, const std::pair<const K2, V2>&>,
-      const K&>
-  getKey(const_reference pair) {
+  static const K& getKey(const_reference pair)
+    requires(
+        !std::is_same_v<const_reference, const std::pair<K2, V2>&> &&
+        !std::is_same_v<const_reference, const std::pair<const K2, V2>&>)
+  {
     return pair.first;
   }
 
@@ -83,15 +81,15 @@ template <
     template <class, class, class, class> class Table>
 struct MapTableLayout
     : public Table<T, std::pair<const K, V>, KeyExtractor<T, K, V>, K> {
-  typedef Table<T, std::pair<const K, V>, KeyExtractor<T, K, V>, K> Base;
-  typedef MapTableLayout LayoutSelf;
+  using Base = Table<T, std::pair<const K, V>, KeyExtractor<T, K, V>, K>;
+  using LayoutSelf = MapTableLayout;
 
   class View : public Base::View {
    public:
-    typedef typename Layout<K>::View key_type;
-    typedef typename Layout<V>::View mapped_type;
+    using key_type = typename Layout<K>::View;
+    using mapped_type = typename Layout<V>::View;
 
-    View() {}
+    View() = default;
     View(const LayoutSelf* layout, ViewPosition position)
         : Base::View(layout, position) {}
 
@@ -132,7 +130,7 @@ struct MapTableLayout
 
 template <class T, class V, template <class, class, class, class> class Table>
 struct SetTableLayout : public Table<T, V, SelfKey<V>, V> {
-  typedef Table<T, V, SelfKey<V>, V> Base;
+  using Base = Table<T, V, SelfKey<V>, V>;
 
   void print(std::ostream& os, int level) const override {
     Base::print(os, level);
@@ -142,7 +140,7 @@ struct SetTableLayout : public Table<T, V, SelfKey<V>, V> {
 } // namespace detail
 
 template <class T>
-struct Layout<T, typename std::enable_if<IsOrderedMap<T>::value>::type>
+struct Layout<T, std::enable_if_t<IsOrderedMap<T>::value>>
     : public apache::thrift::frozen::detail::MapTableLayout<
           T,
           typename T::key_type,
@@ -150,13 +148,13 @@ struct Layout<T, typename std::enable_if<IsOrderedMap<T>::value>::type>
           apache::thrift::frozen::detail::SortedTableLayout> {};
 
 template <class T>
-struct Layout<T, typename std::enable_if<IsOrderedSet<T>::value>::type>
+struct Layout<T, std::enable_if_t<IsOrderedSet<T>::value>>
     : public apache::thrift::frozen::detail::SetTableLayout<
           T,
           typename T::value_type,
           apache::thrift::frozen::detail::SortedTableLayout> {};
 template <class T>
-struct Layout<T, typename std::enable_if<IsHashMap<T>::value>::type>
+struct Layout<T, std::enable_if_t<IsHashMap<T>::value>>
     : public apache::thrift::frozen::detail::MapTableLayout<
           T,
           typename T::key_type,
@@ -164,14 +162,12 @@ struct Layout<T, typename std::enable_if<IsHashMap<T>::value>::type>
           apache::thrift::frozen::detail::HashTableLayout> {};
 
 template <class T>
-struct Layout<T, typename std::enable_if<IsHashSet<T>::value>::type>
+struct Layout<T, std::enable_if_t<IsHashSet<T>::value>>
     : public apache::thrift::frozen::detail::SetTableLayout<
           T,
           typename T::value_type,
           apache::thrift::frozen::detail::HashTableLayout> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, std::unordered_map)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, phmap::flat_hash_map)

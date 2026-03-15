@@ -8,9 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 namespace detail {
 
 /**
@@ -18,11 +16,10 @@ namespace detail {
  */
 template <
     class T,
-    class Underlying = typename std::enable_if<
-        std::is_enum<T>::value,
-        typename std::underlying_type<T>::type>::type>
+    class Underlying =
+        std::enable_if_t<std::is_enum_v<T>, std::underlying_type_t<T>>>
 struct EnumLayout : public PackedIntegerLayout<Underlying> {
-  typedef PackedIntegerLayout<Underlying> Base;
+  using Base = PackedIntegerLayout<Underlying>;
   EnumLayout() : Base(typeid(T)) {}
 
   FieldPosition maximize() { return Base::maximize(); }
@@ -46,7 +43,7 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
     os << " as enum " << dwarfs::thrift_lite::demangle(this->type.name());
   }
 
-  typedef T View;
+  using View = T;
 
   View view(ViewPosition self) const {
     View v;
@@ -59,8 +56,6 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
 } // namespace detail
 
 template <class T>
-struct Layout<T, typename std::enable_if<std::is_enum<T>::value>::type>
+struct Layout<T, std::enable_if_t<std::is_enum_v<T>>>
     : public apache::thrift::frozen::detail::EnumLayout<T> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen
