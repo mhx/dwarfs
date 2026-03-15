@@ -150,7 +150,7 @@ class MemoryLayout : public MemoryLayoutBase {
     return MemoryLayoutBase::operator==(other) && fields == other.fields;
   }
 
-  void addField(MemoryField&& field) { fields.push_back(std::move(field)); }
+  void addField(MemoryField const& field) { fields.push_back(field); }
 
   void setFields(std::vector<MemoryField>&& fs) { fields = std::move(fs); }
 

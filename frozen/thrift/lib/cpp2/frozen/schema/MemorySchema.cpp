@@ -32,15 +32,15 @@ int16_t MemorySchema::Helper::add(MemoryLayout&& layout) {
 }
 
 void MemorySchema::initFromSchema(Schema&& schema) {
-  if (!schema.layouts()->empty()) {
-    layouts.resize(schema.layouts()->size());
+  auto tmp = std::move(schema);
+  if (!tmp.layouts()->empty()) {
+    layouts.resize(tmp.layouts()->size());
 
-    for (const auto& layoutKvp : *schema.layouts()) {
+    for (const auto& layoutKvp : *tmp.layouts()) {
       const auto id = layoutKvp.first;
       const auto& layout = layoutKvp.second;
 
-      // Note: This will throw if there are any id >=
-      // schema.layouts.size().
+      // Note: This will throw if there are any id >= tmp.layouts.size().
       auto& memLayout = layouts.at(id);
 
       memLayout.setSize(*layout.size());
@@ -60,7 +60,7 @@ void MemorySchema::initFromSchema(Schema&& schema) {
       memLayout.setFields(std::move(fields));
     }
   }
-  setRootLayoutId(*schema.rootLayout());
+  setRootLayoutId(*tmp.rootLayout());
 }
 
 void convert(Schema&& schema, MemorySchema& memSchema) {
