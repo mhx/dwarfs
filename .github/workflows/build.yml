@@ -91,22 +91,24 @@ jobs:
       #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
 
       # - name: Upload Binary Tarball
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@v7
       #   with:
       #     name: ${{ env.binary_tarball }}
       #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
       #     if-no-files-found: error
       #     compression-level: 0
+      #     archive: false
       #   env:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
 
       # - name: Upload Universal Binary
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@v7
       #   with:
       #     name: ${{ env.universal_binary }}
       #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
       #     if-no-files-found: error
       #     compression-level: 0
+      #     archive: false
       #   env:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
 
@@ -789,7 +791,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: 'false'
           fetch-depth: '0'
