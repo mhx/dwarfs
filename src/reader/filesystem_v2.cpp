@@ -395,6 +395,7 @@ class filesystem_ final {
       num_blocks = max_blocks;
     }
     std::vector<size_t> block_numbers(num_blocks);
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::iota(block_numbers.begin(), block_numbers.end(), 0);
     ir_.cache_blocks(block_numbers);
   }

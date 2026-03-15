@@ -999,6 +999,7 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       // check later if the indices in `entries` are sorted.
       if (!std::ranges::is_sorted(names)) {
         std::vector<uint32_t> entries(range.size());
+        // NOLINTNEXTLINE(modernize-use-ranges)
         std::iota(entries.begin(), entries.end(), 0);
         std::ranges::stable_sort(
             entries, [&](auto a, auto b) { return names[a] < names[b]; });

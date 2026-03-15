@@ -189,6 +189,8 @@ std::string read_file(std::filesystem::path const& path, std::error_code& ec) {
   std::string result;
   std::array<char, kBufferSize> buffer;
 
+  // NOLINTBEGIN(cppcoreguidelines-avoid-goto)
+
 #ifdef _WIN32
   file_handle file(::CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
                                  nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
@@ -213,6 +215,7 @@ std::string read_file(std::filesystem::path const& path, std::error_code& ec) {
     result.append(buffer.data(), read);
   }
 #else
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
   file_descriptor file(::open(path.c_str(), O_RDONLY));
 
   if (!file.valid()) {
@@ -238,6 +241,8 @@ std::string read_file(std::filesystem::path const& path, std::error_code& ec) {
 #endif
 
   goto success;
+
+  // NOLINTEND(cppcoreguidelines-avoid-goto)
 
 error:
   result.clear();
@@ -294,8 +299,10 @@ void write_file(std::filesystem::path const& path, std::string_view content,
   }
 
 #else
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
   file_descriptor file(
       ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666));
+  // NOLINTEND(cppcoreguidelines-pro-type-vararg)
 
   if (!file.valid()) {
     ec = get_last_error();
