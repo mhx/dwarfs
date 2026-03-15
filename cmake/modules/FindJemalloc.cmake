@@ -1,8 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) Facebook, Inc.
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#
+# This file is likely derived from RocksDB's cmake/modules/FindJeMalloc.cmake,
+# with local modifications.
+#
 # * Find Jemalloc library Find the native Jemalloc includes and library
 #
-# Jemalloc_INCLUDE_DIRS - where to find jemalloc.h, etc. Jemalloc_LIBRARIES -
-# List of libraries when using jemalloc. Jemalloc_FOUND - True if jemalloc
-# found.
+# Jemalloc_INCLUDE_DIRS - where to find jemalloc.h, etc.
+# Jemalloc_LIBRARIES - List of libraries when using jemalloc.
+# Jemalloc_FOUND - True if jemalloc found.
 
 find_path(Jemalloc_INCLUDE_DIRS NAMES jemalloc/jemalloc.h)
 
