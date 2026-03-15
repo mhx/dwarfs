@@ -306,8 +306,8 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
 
     T thaw() const {
       T ret;
-      static_cast<const HashTableLayout*>(this->layout_)
-          ->thaw(this->position_, ret);
+      static_cast<const HashTableLayout*>(this->getLayout())
+          ->thaw(this->getPosition(), ret);
       return ret;
     }
 
