@@ -8,9 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
@@ -22,7 +20,7 @@ namespace detail {
  */
 template <class T>
 struct TrivialLayout : public LayoutBase {
-  typedef LayoutBase Base;
+  using Base = LayoutBase;
   TrivialLayout() : LayoutBase(typeid(T)) {}
 
   FieldPosition maximize() { return FieldPosition(sizeof(T), 0); }
@@ -53,7 +51,7 @@ struct TrivialLayout : public LayoutBase {
     os << "blitted " << dwarfs::thrift_lite::demangle(type.name());
   }
 
-  typedef T View;
+  using View = T;
   View view(ViewPosition self) const {
     View v;
     thaw(self, v);
@@ -84,8 +82,8 @@ template <class T>
 struct IsBlitType
     : std::integral_constant<
           bool,
-          (std::is_trivially_copyable<T>::value && !std::is_pointer<T>::value &&
-           !std::is_enum<T>::value && !std::is_integral<T>::value)> {};
+          (std::is_trivially_copyable_v<T> && !std::is_pointer_v<T> &&
+           !std::is_enum_v<T> && !std::is_integral_v<T>)> {};
 
 // std::pair<trivially copyable T1, trivially copyable T2> became
 // trivially copyable too (first fixed in GCC 6.3) and conflicts with
@@ -107,13 +105,11 @@ struct IsStdOptional<std::optional<T>> : public std::true_type {};
 template <class T>
 struct Layout<
     T,
-    typename std::enable_if<
+    std::enable_if_t<
         apache::thrift::frozen::detail::IsBlitType<T>::value &&
         !apache::thrift::frozen::IsExcluded<T>::value &&
         !apache::thrift::frozen::detail::IsStdPair<T>::value &&
         !apache::thrift::frozen::detail::IsStdOptional<T>::value &&
-        !std::is_pointer<T>::value>::type>
+        !std::is_pointer_v<T>>>
     : apache::thrift::frozen::detail::TrivialLayout<T> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

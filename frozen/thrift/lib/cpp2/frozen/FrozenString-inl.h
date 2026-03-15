@@ -8,17 +8,15 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
 template <class T>
 struct BufferHelpers {
-  typedef typename T::value_type Item;
+  using Item = typename T::value_type;
   static_assert(
-      std::is_arithmetic<Item>::value || std::is_enum<Item>::value,
+      std::is_arithmetic_v<Item> || std::is_enum_v<Item>,
       "String storage requires simple item types");
   static size_t size(const T& src) { return src.size(); }
   static void copyTo(const T& src, std::span<Item> dst) {
@@ -34,9 +32,9 @@ struct BufferHelpers {
  */
 template <class T>
 struct StringLayout : public LayoutBase {
-  typedef LayoutBase Base;
-  typedef BufferHelpers<T> Helper;
-  typedef typename Helper::Item Item;
+  using Base = LayoutBase;
+  using Helper = BufferHelpers<T>;
+  using Item = typename Helper::Item;
   Field<size_t> distanceField;
   Field<size_t> countField;
 
@@ -122,12 +120,9 @@ struct StringLayout : public LayoutBase {
 } // namespace detail
 
 template <class T>
-struct Layout<T, typename std::enable_if<IsString<T>::value>::type>
-    : apache::thrift::frozen::detail::StringLayout<
-          typename std::decay<T>::type> {};
+struct Layout<T, std::enable_if_t<IsString<T>::value>>
+    : apache::thrift::frozen::detail::StringLayout<std::decay_t<T>> {};
 
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen
 
 THRIFT_DECLARE_TRAIT(IsString, std::string)

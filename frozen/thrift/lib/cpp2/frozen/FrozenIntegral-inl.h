@@ -8,9 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
@@ -30,7 +28,7 @@ template <std::integral T>
  */
 template <class T>
 struct PackedIntegerLayout : public LayoutBase {
-  typedef LayoutBase Base;
+  using Base = LayoutBase;
   PackedIntegerLayout() : LayoutBase(typeid(T)) {}
   explicit PackedIntegerLayout(const std::type_info& _type)
       : LayoutBase(_type) {}
@@ -69,11 +67,11 @@ struct PackedIntegerLayout : public LayoutBase {
 
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
-    os << "packed " << (std::is_signed<T>::value ? "signed" : "unsigned") << " "
+    os << "packed " << (std::is_signed_v<T> ? "signed" : "unsigned") << " "
        << dwarfs::thrift_lite::demangle(type.name());
   }
 
-  typedef T View;
+  using View = T;
 
   View view(ViewPosition self) const {
     View v;
@@ -87,8 +85,6 @@ struct PackedIntegerLayout : public LayoutBase {
 } // namespace detail
 
 template <class T>
-struct Layout<T, typename std::enable_if<std::is_integral<T>::value>::type>
+struct Layout<T, std::enable_if_t<std::is_integral_v<T>>>
     : apache::thrift::frozen::detail::PackedIntegerLayout<T> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

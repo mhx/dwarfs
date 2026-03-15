@@ -10,9 +10,7 @@
 
 // IWYU pragma: private, include "thrift/lib/cpp2/frozen/Frozen.h"
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 namespace detail {
 
 /**
@@ -20,8 +18,8 @@ namespace detail {
  * bits may only be used if the value is always false.
  */
 struct BoolLayout : public LayoutBase {
-  typedef LayoutBase Base;
-  typedef bool T;
+  using Base = LayoutBase;
+  using T = bool;
 
   BoolLayout() : LayoutBase(typeid(T)) {}
 
@@ -62,7 +60,7 @@ struct BoolLayout : public LayoutBase {
     os << "packed bool";
   }
 
-  typedef T View;
+  using View = T;
 
   View view(ViewPosition self) const {
     View v;
@@ -76,6 +74,4 @@ template <>
 struct Layout<bool, void> : public apache::thrift::frozen::detail::BoolLayout {
 };
 
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

@@ -8,9 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 /**
  * A view of an optional Frozen field. It provides a std::optional-like API
@@ -91,7 +89,7 @@ namespace detail {
  */
 template <class T>
 struct OptionalLayout : public LayoutBase {
-  typedef LayoutBase Base;
+  using Base = LayoutBase;
   Field<bool> issetField;
   Field<T> valueField;
 
@@ -179,6 +177,4 @@ template <class T>
 struct Layout<std::optional<T>>
     : public apache::thrift::frozen::detail::OptionalLayout<T> {};
 
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen

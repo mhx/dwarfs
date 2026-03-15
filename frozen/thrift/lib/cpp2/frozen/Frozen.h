@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <bit>
 #include <cassert>
 #include <concepts>
@@ -162,11 +163,11 @@ struct ViewPosition {
     return reinterpret_cast<int64_t>(start) * 8 + bitOffset;
   }
 
-  inline bool operator==(const ViewPosition& that) const noexcept {
+  bool operator==(const ViewPosition& that) const noexcept {
     return toBits() == that.toBits();
   }
 
-  inline bool operator!=(const ViewPosition& that) const noexcept {
+  bool operator!=(const ViewPosition& that) const noexcept {
     return toBits() != that.toBits();
   }
 };
@@ -203,7 +204,7 @@ struct LayoutBase {
    * needed for representing fields which were not present in a serialized
    * structure.
    */
-  explicit LayoutBase(std::type_index _type) : type(std::move(_type)) {}
+  explicit LayoutBase(std::type_index _type) : type(_type) {}
 
   /**
    * Internal: Updates the size of this structure according the the result of a
@@ -226,7 +227,7 @@ struct LayoutBase {
    */
   bool empty() const { return !size && !bits; }
 
-  virtual ~LayoutBase() {}
+  virtual ~LayoutBase() = default;
 
   /**
    * Clears the layout back to a zero-byte layout, recursively.
@@ -320,7 +321,7 @@ struct FieldBase {
 
   explicit FieldBase(int16_t _key, const char* _name)
       : key(_key), name(_name) {}
-  virtual ~FieldBase() {}
+  virtual ~FieldBase() = default;
 
   virtual void clear() = 0;
 };
@@ -450,12 +451,13 @@ class ViewBase {
     return &layout;
   }
 
- public:
+ private:
   ViewBase() : layout_(defaultLayout()), position_({nullptr, 0}) {}
 
   ViewBase(const Layout* layout, ViewPosition position)
       : layout_(layout), position_(position) {}
 
+ public:
   explicit operator bool() const {
     return position_.start && !layout_->empty();
   }
@@ -470,6 +472,8 @@ class ViewBase {
     layout_->thaw(position_, ret);
     return ret;
   }
+
+  friend Self;
 };
 
 /*
@@ -615,7 +619,7 @@ class FieldCycleHolder {
  * recursively. The logic of layout should closely match that of freezing.
  */
 class LayoutRoot : public FieldCycleHolder {
-  LayoutRoot() {}
+  LayoutRoot() = default;
   /**
    * Lays out a given object from the root, repeatedly running layout until a
    * fixed point is reached.
@@ -735,9 +739,7 @@ class LayoutRoot : public FieldCycleHolder {
     if (count == 0) {
       return 0;
     }
-    if (cursor_ < origin) {
-      cursor_ = origin;
-    }
+    cursor_ = std::max(cursor_, origin);
     // assume worst case alignment is hit when we're actually freezing
     cursor_ += align - 1;
     auto worstCaseDistance = cursor_ - origin;
@@ -826,7 +828,7 @@ class FreezeRoot {
   }
 
  public:
-  virtual ~FreezeRoot() {}
+  virtual ~FreezeRoot() = default;
 
   /**
    * Internal utility for recursing into child fields.
@@ -923,7 +925,7 @@ class ByteRangeFreezer final : public FreezeRoot {
  */
 class LoadRoot : public FieldCycleHolder {
  public:
-  LoadRoot() {}
+  LoadRoot() = default;
 };
 
 template <typename T, typename SchemaInfo = schema::SchemaInfo>
@@ -941,7 +943,7 @@ void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
 }
 
 struct Holder {
-  virtual ~Holder() {}
+  virtual ~Holder() = default;
 };
 
 template <class T>
@@ -958,7 +960,7 @@ struct HolderImpl : public Holder {
 template <class Base>
 class Bundled : public Base {
  public:
-  Bundled() {}
+  Bundled() = default;
   Bundled(Bundled&&) = default;
   explicit Bundled(Base&& base) : Base(std::move(base)) {}
   explicit Bundled(const Base& base) : Base(base) {}

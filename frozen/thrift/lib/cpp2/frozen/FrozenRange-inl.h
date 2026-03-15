@@ -10,9 +10,7 @@
 
 #include <deque>
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
@@ -22,8 +20,8 @@ namespace detail {
  */
 template <class T, class Item>
 struct ArrayLayout : public LayoutBase {
-  typedef LayoutBase Base;
-  typedef ArrayLayout LayoutSelf;
+  using Base = LayoutBase;
+  using LayoutSelf = ArrayLayout;
 
   Field<size_t> distanceField;
   Field<size_t> countField;
@@ -153,16 +151,15 @@ struct ArrayLayout : public LayoutBase {
    * dereference
    */
   class View : public ViewBase<View, ArrayLayout, T> {
-    typedef typename Layout<Item>::View ItemView;
+    using ItemView = typename Layout<Item>::View;
     class Iterator;
 
     static ViewPosition indexPosition(
         const byte* start, size_t i, const LayoutBase& itemLayout) {
       if (itemLayout.size) {
         return ViewPosition{start + itemLayout.size * i, 0};
-      } else {
-        return ViewPosition{start, itemLayout.bits * i};
       }
+      return ViewPosition{start, itemLayout.bits * i};
     }
 
     const Layout<Item>& itemLayout() const {
@@ -170,12 +167,12 @@ struct ArrayLayout : public LayoutBase {
     }
 
    public:
-    typedef ItemView value_type;
-    typedef ItemView reference_type;
-    typedef Iterator iterator;
-    typedef Iterator const_iterator;
+    using value_type = ItemView;
+    using reference_type = ItemView;
+    using iterator = Iterator;
+    using const_iterator = Iterator;
 
-    View() {}
+    View() = default;
     View(const LayoutSelf* layout, ViewPosition self)
         : ViewBase<View, ArrayLayout, T>(layout, self) {
       thawField(self, layout->countField, count_);
@@ -231,7 +228,7 @@ struct ArrayLayout : public LayoutBase {
       using reference = value_type;
       using iterator_category = std::random_access_iterator_tag;
 
-      Iterator() {}
+      Iterator() = default;
 
       Iterator(const View& outer, size_t index)
           : outer_(outer), index_(index) {}
@@ -341,12 +338,10 @@ struct ArrayLayout : public LayoutBase {
 } // namespace detail
 
 template <class T>
-struct Layout<T, typename std::enable_if<IsList<T>::value>::type>
+struct Layout<T, std::enable_if_t<IsList<T>::value>>
     : public apache::thrift::frozen::detail::
           ArrayLayout<T, typename T::value_type> {};
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::vector)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::deque)

@@ -21,7 +21,7 @@ namespace apache::thrift::frozen {
 
 namespace schema::frozen_constants {
 
-constexpr inline std::int32_t kCurrentFrozenFileVersion() {
+constexpr std::int32_t kCurrentFrozenFileVersion() {
   return 1;
 }
 
@@ -45,7 +45,7 @@ class FrozenFileForwardIncompatible : public std::runtime_error {
  */
 class MallocFreezer final : public FreezeRoot {
  public:
-  explicit MallocFreezer() {}
+  explicit MallocFreezer() = default;
 
   template <class T>
   void freeze(const Layout<T>& layout, const T& root) {
@@ -60,7 +60,7 @@ class MallocFreezer final : public FreezeRoot {
   }
 
  private:
-  size_t distanceToEnd(const byte* origin) const;
+  size_t distanceToEnd(const byte* ptr) const;
 
   std::span<uint8_t> appendBuffer(size_t size);
 
@@ -73,7 +73,7 @@ class MallocFreezer final : public FreezeRoot {
 
   struct Segment {
     explicit Segment(size_t size);
-    Segment(Segment&& other) : size(other.size), buffer(other.buffer) {
+    Segment(Segment&& other) noexcept : size(other.size), buffer(other.buffer) {
       other.buffer = nullptr;
     }
 

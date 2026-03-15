@@ -8,9 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
-namespace apache {
-namespace thrift {
-namespace frozen {
+namespace apache::thrift::frozen {
 
 namespace detail {
 
@@ -19,11 +17,11 @@ namespace detail {
  */
 template <class First, class Second>
 struct PairLayout : public LayoutBase {
-  typedef LayoutBase Base;
-  typedef std::pair<First, Second> T;
-  typedef PairLayout LayoutSelf;
-  typedef typename std::decay<First>::type FirstDecayed;
-  typedef typename std::decay<Second>::type SecondDecayed;
+  using Base = LayoutBase;
+  using T = std::pair<First, Second>;
+  using LayoutSelf = PairLayout;
+  using FirstDecayed = std::decay_t<First>;
+  using SecondDecayed = std::decay_t<Second>;
   Field<FirstDecayed> firstField;
   Field<SecondDecayed> secondField;
 
@@ -89,6 +87,4 @@ template <class First, class Second>
 struct Layout<std::pair<First, Second>>
     : public apache::thrift::frozen::detail::PairLayout<First, Second> {};
 
-} // namespace frozen
-} // namespace thrift
-} // namespace apache
+} // namespace apache::thrift::frozen
