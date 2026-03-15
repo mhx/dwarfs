@@ -972,8 +972,7 @@ class Bundled : public Base {
 
   template <class T, class Decayed = std::decay_t<T>>
   Decayed* hold(T&& t) {
-    std::unique_ptr<HolderImpl<Decayed>> holder(
-        new HolderImpl<Decayed>(std::forward<T>(t)));
+    auto holder = std::make_unique<HolderImpl<Decayed>>(std::forward<T>(t));
     Decayed* ptr = &holder->t_;
     holdImpl(std::move(holder));
     return ptr;
@@ -1009,7 +1008,8 @@ template <class T, class Return = Bundled<typename Layout<T>::View>>
 Return freeze(const T& x, Frozen2 = Frozen2::Marker) {
   auto layout = std::make_unique<Layout<T>>();
   size_t size = LayoutRoot::layout(x, *layout);
-  std::unique_ptr<byte[]> storage(new byte[size]);
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+  auto storage = std::make_unique_for_overwrite<byte[]>(size);
   std::span<uint8_t> write(storage.get(), size);
   Return ret(ByteRangeFreezer::freeze(*layout, x, write));
   ret.hold(std::move(layout));
