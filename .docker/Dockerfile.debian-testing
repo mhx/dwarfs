@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1
+ARG ARCH=amd64
+FROM $ARCH/debian:testing-slim
+RUN apt update && apt upgrade -y
+RUN apt install -y \
+        bash-completion \
+        wget \
+        curl \
+        vim \
+        less \
+        gcc \
+        g++ \
+        g++-16 \
+        clang \
+        clang-21 \
+        git \
+        zstd \
+        ccache \
+        ninja-build \
+        cmake \
+        make \
+        bubblewrap \
+        ronn \
+        fuse3 \
+        pkg-config \
+        binutils-dev \
+        libacl1-dev \
+        libarchive-dev \
+        libbenchmark-dev \
+        libboost-chrono-dev \
+        libboost-context-dev \
+        libboost-filesystem-dev \
+        libboost-program-options-dev \
+        libboost-regex-dev \
+        libboost-thread-dev \
+        libbrotli-dev \
+        libjemalloc-dev \
+        libiberty-dev \
+        liblz4-dev \
+        liblzma-dev \
+        libzstd-dev \
+        libxxhash-dev \
+        libmagic-dev \
+        libparallel-hashmap-dev \
+        librange-v3-dev \
+        libssl-dev \
+        libunwind-dev \
+        libdwarf-dev \
+        libelf-dev \
+        libfmt-dev \
+        libfuse3-dev \
+        libutfcpp-dev \
+        libflac++-dev \
+        nlohmann-json3-dev \
+        xz-utils \
+        python3-mistletoe
+RUN useradd -g users -u 1000 -m mhx
+USER mhx
+ENTRYPOINT /workspace/.docker/build-linux.sh

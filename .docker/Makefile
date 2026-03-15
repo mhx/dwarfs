@@ -1,5 +1,6 @@
 IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
+IMAGE_DEBIAN_TESTING="dwarfs-buildenv-debian-testing"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
 IMAGE_ALPINE_NEWARCH="dwarfs-buildenv-alpine-newarch"
 IMAGE_ALPINE_APK="dwarfs-alpine-apk"
@@ -37,6 +38,12 @@ build_debian:
 
 run_debian:
 	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN)
+
+build_debian_testing:
+	docker build -f Dockerfile.debian-testing -t $(IMAGE_DEBIAN_TESTING) .
+
+run_debian_testing:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_DEBIAN_TESTING)
 
 Dockerfile.alpine_x86_64: Makefile build_dockerfile.pl
 	perl build_dockerfile.pl --targets=x86_64,aarch64,loongarch64,riscv64,ppc64,ppc64le,s390x,arm,i386 --upx=amd64 --with-bloaty > $@
