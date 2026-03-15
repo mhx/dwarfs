@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 [![Latest Release](https://img.shields.io/github/release/mhx/dwarfs?label=Latest%20Release)](https://github.com/mhx/dwarfs/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/mhx/dwarfs/total.svg?&color=E95420&label=Total%20Downloads)](https://github.com/mhx/dwarfs/releases)
 [![Homebrew Downloads](https://img.shields.io/homebrew/installs/dm/dwarfs?label=Homebrew)](https://formulae.brew.sh/formula/dwarfs)

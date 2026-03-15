@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+// SPDX-License-Identifier: MIT
+
 #include <iostream>
 #include <parallel_hashmap/phmap_config.h>
 

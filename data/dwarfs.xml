@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+SPDX-FileCopyrightText: Ahmad Khalifa
+SPDX-License-Identifier: MIT
+-->
+
 <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
   <mime-type type="application/x-dwarfs-image">
     <comment>DwarFS Image</comment>

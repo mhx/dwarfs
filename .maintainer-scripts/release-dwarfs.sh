@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 if [ "$#" -gt 1 ]; then
   echo "usage: $0 [<directory>]"
   exit 1

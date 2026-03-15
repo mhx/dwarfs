@@ -1,5 +1,8 @@
 #!/bin/env python3
 
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 """
 A very rudimentary DwarFS image parser
 

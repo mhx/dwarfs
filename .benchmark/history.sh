@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 set -e
 
 RELEASESDIR="/mnt/opensource/artifacts/dwarfs/releases"

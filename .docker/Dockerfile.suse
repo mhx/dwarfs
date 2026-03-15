@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 FROM opensuse/tumbleweed
 
 # Refresh & update the base. For Tumbleweed, a normal update is fine in a fresh image.

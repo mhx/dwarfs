@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 # dwarfsck(1) -- check DwarFS image
 
 ## SYNOPSIS

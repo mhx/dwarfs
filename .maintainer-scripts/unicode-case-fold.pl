@@ -1,4 +1,8 @@
 #!/usr/bin/perl -w
+
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 use strict;
 use warnings;
 

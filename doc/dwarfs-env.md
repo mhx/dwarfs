@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 # dwarfs-env(7) -- DwarFS Environment Variables
 
 ## DESCRIPTION

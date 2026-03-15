@@ -1,6 +1,9 @@
 #!/bin/env python3
 # -*- coding: utf-8 -*-
 
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 import random
 import sys
 

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 # dwarfs(1) -- mount highly compressed read-only file system
 
 ## SYNOPSIS

@@ -1,3 +1,6 @@
+' SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+' SPDX-License-Identifier: MIT
+
 @startuml
 
 activate mkdwarfs #lightgreen

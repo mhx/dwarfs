@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 ARG ARCH=amd64
 FROM $ARCH/alpine:3.14
 RUN apk update

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+// SPDX-License-Identifier: MIT
+
 #ifndef ZSTD_STATIC_LINKING_ONLY
 #define ZSTD_STATIC_LINKING_ONLY
 #endif

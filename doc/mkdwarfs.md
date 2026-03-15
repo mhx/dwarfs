@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 # mkdwarfs(1) -- create highly compressed read-only file systems
 
 ## SYNOPSIS

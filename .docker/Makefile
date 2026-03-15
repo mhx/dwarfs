@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
 IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_DEBIAN_TESTING="dwarfs-buildenv-debian-testing"

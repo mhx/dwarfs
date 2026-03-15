@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+SPDX-License-Identifier: MIT
+-->
+
 # dwarfs-format(5) -- DwarFS File System Format v2.5
 
 ## DESCRIPTION
