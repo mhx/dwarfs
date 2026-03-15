@@ -436,11 +436,12 @@ class FieldView {
  */
 template <class Self, class Layout, class T>
 class ViewBase {
- protected:
+ private:
   /**
    * Unowned pointer to the layout of this object.
    */
   const Layout* layout_;
+
   /**
    * Position in memory to view.
    */
@@ -451,11 +452,13 @@ class ViewBase {
     return &layout;
   }
 
- private:
   ViewBase() : layout_(defaultLayout()), position_({nullptr, 0}) {}
 
   ViewBase(const Layout* layout, ViewPosition position)
       : layout_(layout), position_(position) {}
+
+ protected:
+  const Layout* getLayout() const { return layout_; }
 
  public:
   explicit operator bool() const {

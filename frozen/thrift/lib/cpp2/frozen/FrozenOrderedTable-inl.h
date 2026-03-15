@@ -236,8 +236,8 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
 
     T thaw() const {
       T ret;
-      static_cast<const SortedTableLayout*>(this->layout_)
-          ->thaw(this->position_, ret);
+      static_cast<const SortedTableLayout*>(this->getLayout())
+          ->thaw(this->getPosition(), ret);
       return ret;
     }
 
