@@ -23,6 +23,8 @@ FrozenFileForwardIncompatible::FrozenFileForwardIncompatible(int fileVersion)
           " are supported."),
       fileVersion_(fileVersion) {}
 
+// NOLINTBEGIN(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+// TODO: revisit the use of malloc/free here
 MallocFreezer::Segment::Segment(size_t _size)
     : size(_size),
       // NB: All allocations rounded up to next multiple of 8 due to packed
@@ -38,6 +40,7 @@ MallocFreezer::Segment::~Segment() {
     free(buffer);
   }
 }
+// NOLINTEND(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
 
 size_t MallocFreezer::distanceToEnd(const byte* ptr) const {
   if (offsets_.empty()) {

@@ -64,6 +64,7 @@ struct KeyExtractor {
 template <class K>
 struct SelfKey {
   using KeyType = K;
+  // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
   static const K& getKey(const K& item) { return item; }
 
   static const K* getPointer(const K& item) { return &item; }
