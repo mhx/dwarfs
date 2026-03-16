@@ -1079,3 +1079,12 @@ TEST(mkdwarfs_test, unknown_compression) {
 
   EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown compression: WeIrDcOmP"));
 }
+
+TEST(mkdwarfs_test, cannot_use_hollow_with_no_sparse_files) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--hollow", "--no-sparse-files"}));
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "cannot use --hollow with --no-sparse-files"));
+}
