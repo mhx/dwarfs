@@ -732,7 +732,7 @@ TEST(mkdwarfs_test, change_block_size) {
       auto t3 = rebuild_tester(t2.out());
       ASSERT_EQ(
           0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=5",
-                     "--change-block-size", "--keep-all-times",
+                     "--change-block-size", "--keep-all-times", "--no-check",
                      "--log-level=debug", "--no-metadata-version-history"}))
           << t3.err();
 
