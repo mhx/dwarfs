@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.25.0)
-
 function(add_manpage_source markdown)
   set(_options)
   set(_oneValueArgs NAME OUTPUT)

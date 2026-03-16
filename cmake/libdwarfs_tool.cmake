@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 add_library(
   dwarfs_tool OBJECT
 

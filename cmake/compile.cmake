@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 if(BUILD_SHARED_LIBS AND STATIC_BUILD_DO_NOT_USE)

@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 function(add_manpage MANPAGE)
   if(DWARFS_GIT_BUILD)
     find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)

@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 if(PREFER_SYSTEM_GTEST)
   find_package(GTest ${GOOGLETEST_REQUIRED_VERSION} CONFIG)
   add_library(gtest ALIAS GTest::gtest)

@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 if(WIN32)
   if(NOT WINFSP_PATH)
     set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")

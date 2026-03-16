@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 try_run(
   PHMAP_RUN_RESULT
   PHMAP_COMPILE_RESULT

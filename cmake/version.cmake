@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 set(VERSION_SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/version.cpp)
 set(VERSION_HDR_FILE ${CMAKE_CURRENT_SOURCE_DIR}/include/dwarfs/version.h)
 set(PKG_VERSION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/package_version.cmake)

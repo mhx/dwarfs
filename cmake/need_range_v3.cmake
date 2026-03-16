@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
 
 if(NOT range-v3_FOUND)

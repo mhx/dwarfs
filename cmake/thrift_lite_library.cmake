@@ -24,8 +24,6 @@
 # SPDX-License-Identifier: MIT
 #
 
-cmake_minimum_required(VERSION 3.28.0)
-
 function(add_thrift_lite_library idlfile)
   set(_options FROZEN NO_LIBRARY)
   set(_oneValueArgs OUTPUT_PATH TARGET)
