@@ -708,8 +708,8 @@ then simply be mapped into memory.
 
 ### Metadata Packing
 
-The filesystem metadata is stored in [Frozen](https://github.com/facebook/fbthrift/blob/master/thrift/lib/cpp2/frozen/Frozen.h),
-a library that allows serialization of structures defined in
+The filesystem metadata is stored in Frozen, a library that provides
+serialization of data structures defined in
 [Thrift IDL](https://github.com/facebook/fbthrift/) into an extremely
 compact representation that can be used in-place without the need for
 deserialization. It is very well suited for persistent, memory-mappable

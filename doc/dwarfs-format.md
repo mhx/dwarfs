@@ -187,7 +187,7 @@ Currently, the following different section types are defined:
   the data in a single `BLOCK`.
 
 - `METADATA_V2_SCHEMA` (7):
-  The [schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
+  The [schema](../frozen/thrift/lib/thrift/frozen.thrift)
   used to layout the `METADATA_V2` section contents. This is stored in
   "compact" thrift encoding. The metadata cannot be read without the
   schema, as it defines the exact bit widths used to store each metadata
@@ -200,7 +200,7 @@ Currently, the following different section types are defined:
   separately in `METADATA_V2_SCHEMA`. The metadata format is defined in
   [metadata.thrift](../thrift/metadata.thrift) and the binary format that
   derives from that definition uses
-  [Frozen2](https://github.com/facebook/fbthrift/blob/main/thrift/lib/cpp2/frozen/Frozen.h).
+  [Frozen2](../frozen/thrift/lib/cpp2/frozen/Frozen.h).
   Frozen2 is not only extremely space efficient, it also allows accessing
   huge data structures directly through memory-mapping.
 
@@ -629,13 +629,13 @@ to be decremented by 1.
 ### Binary Metadata Format Details
 
 The binary metadata is stored using
-[Frozen2](https://github.com/facebook/fbthrift/blob/main/thrift/lib/cpp2/frozen/Frozen.h).
+[Frozen2](../frozen/thrift/lib/cpp2/frozen/Frozen.h).
 This format is, unfortunately, not really documented. Also, as of now,
 there is only a C++ implementation to read or write this format.
 
 To interpret the binary data in the `METADATA_V2` section, both the thrift
 definitions in [`metadata.thrift`](../thrift/metadata.thrift) and the
-[schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
+[schema](../frozen/thrift/lib/thrift/frozen.thrift)
 from the `METADATA_V2_SCHEMA` section are needed.
 
 You can inspect the schema using `dwarfsck` in two different ways.
