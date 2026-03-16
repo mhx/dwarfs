@@ -237,7 +237,7 @@ struct ArrayLayout : public LayoutBase {
           : outer_(outer), index_(outer.count_) {}
 
       ItemView operator*() const {
-        TL_CHECK(index_ < outer_.count_, "interal error");
+        TL_CHECK(index_ < outer_.count_, "internal error");
         return outer_.itemLayout().view(position());
       }
 

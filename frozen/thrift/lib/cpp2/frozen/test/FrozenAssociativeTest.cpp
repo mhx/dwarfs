@@ -208,7 +208,7 @@ TEST(Frozen, Empty) {
   // views of a zero-length fields evaluate to false due to terse layouts
   EXPECT_FALSE(bool(frozenPairs[0]));
 
-  // default-constructed views refer to nothing, evaluate to fales
+  // default-constructed views refer to nothing, evaluate to false
   decltype(frozenPairs[0]) nothing;
   EXPECT_FALSE(bool(nothing));
 }
