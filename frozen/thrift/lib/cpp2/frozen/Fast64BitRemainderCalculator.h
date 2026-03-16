@@ -21,10 +21,12 @@ class Fast64BitRemainderCalculator {
  public:
   Fast64BitRemainderCalculator() = default;
   explicit Fast64BitRemainderCalculator(uint64_t divisor)
-      : fastRemainderConstant_(divisor ? (~uint128_t(0) / divisor + 1) : 0) {
+      : fastRemainderConstant_(divisor ? (~uint128_t(0) / divisor + 1) : 0)
 #ifndef NDEBUG
-    divisor_ = divisor;
+        ,
+        divisor_{divisor}
 #endif
+  {
   }
 
   size_t remainder(size_t lhs, size_t rhs) const {
@@ -43,7 +45,7 @@ class Fast64BitRemainderCalculator {
   }
   uint128_t fastRemainderConstant_ = 0;
 #ifndef NDEBUG
-  size_t divisor_ = 0;
+  size_t divisor_{0};
 #endif
 #else
  public:
