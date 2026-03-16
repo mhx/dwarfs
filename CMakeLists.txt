@@ -218,7 +218,7 @@ if(WITH_LIBDWARFS)
 
   if(APPLE)
     if(USE_HOMEBREW_LIBARCHIVE)
-      find_program(HOMEBREW_EXE brew)
+      find_program(HOMEBREW_EXE NAMES brew)
       execute_process(
         COMMAND ${HOMEBREW_EXE} --prefix libarchive
         OUTPUT_VARIABLE LIBARCHIVE_PREFIX
@@ -748,9 +748,9 @@ if(WITH_TESTS)
 
   if(WITH_TOOLS OR WITH_FUSE_DRIVER)
     if(NOT WITH_TOOLS)
-      find_program(MKDWARFS_EXE mkdwarfs mkdwarfs.exe)
-      find_program(DWARFSCK_EXE dwarfsck dwarfsck.exe)
-      find_program(DWARFSEXTRACT_EXE dwarfsextract dwarfsextract.exe)
+      find_program(MKDWARFS_EXE NAMES mkdwarfs mkdwarfs.exe)
+      find_program(DWARFSCK_EXE NAMES dwarfsck dwarfsck.exe)
+      find_program(DWARFSEXTRACT_EXE NAMES dwarfsextract dwarfsextract.exe)
     endif()
     if(WITH_TOOLS OR (MKDWARFS_EXE AND DWARFSCK_EXE AND DWARFSEXTRACT_EXE))
       list(APPEND DWARFS_TESTS
@@ -1353,7 +1353,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   #### we can always prepare a upx-compressed version for release
   # if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(i386|x86_64|AMD64|aarch64|arm)$")
   if(WIN32)
-    find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
+    find_program(UPX_EXE NAMES upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables")
   endif()
 
   foreach(tgt ${UNIVERSAL_TARGETS})

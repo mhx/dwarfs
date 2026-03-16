@@ -58,7 +58,7 @@ function(add_thrift_lite_library idlfile)
   message(STATUS "Adding thrift lite library [${_THRIFTNAME}] from ${idlfile}")
 
   if(DWARFS_GIT_BUILD)
-    find_program(_PYTHON_EXE python3 python)
+    find_program(_PYTHON_EXE NAMES python3 python)
     if(NOT _PYTHON_EXE)
       find_package(Python3 REQUIRED)
       set(_PYTHON_EXE "${Python3_EXECUTABLE}")

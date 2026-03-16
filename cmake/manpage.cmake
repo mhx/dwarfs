@@ -26,7 +26,7 @@
 
 function(add_manpage MANPAGE)
   if(DWARFS_GIT_BUILD)
-    find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+    find_program(RONN_EXE NAMES ronn DOC "ronn man page generator" REQUIRED)
   endif()
 
   if(NOT TARGET manpages)

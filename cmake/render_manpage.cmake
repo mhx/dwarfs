@@ -30,7 +30,7 @@ function(add_manpage_source markdown)
   set(_multiValueArgs)
   cmake_parse_arguments(_MANPAGE "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
 
-  find_program(_PYTHON_EXE python3 python)
+  find_program(_PYTHON_EXE NAMES python3 python)
   if(NOT _PYTHON_EXE)
     find_package(Python3 REQUIRED)
     set(_PYTHON_EXE "${Python3_EXECUTABLE}")
