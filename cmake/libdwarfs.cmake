@@ -251,7 +251,7 @@ target_include_directories(dwarfs_frozen PUBLIC
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 
-add_thrift_lite_library(thrift/metadata_lite.thrift FROZEN
+add_thrift_lite_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_thrift_lite_library(thrift/compression.thrift
                         TARGET dwarfs_compression_thrift OUTPUT_PATH dwarfs)

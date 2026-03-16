@@ -32,7 +32,7 @@
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/time_resolution_converter.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
 

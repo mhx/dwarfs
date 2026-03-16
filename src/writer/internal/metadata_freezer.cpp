@@ -28,8 +28,8 @@
 
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
-#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 

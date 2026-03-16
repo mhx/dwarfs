@@ -35,7 +35,7 @@
 #include <string_view>
 #include <vector>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_layouts.h>
 
 namespace dwarfs {
 

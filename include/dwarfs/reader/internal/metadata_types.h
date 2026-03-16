@@ -47,7 +47,7 @@
 #include <dwarfs/internal/packed_ptr.h>
 #include <dwarfs/internal/string_table.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_layouts.h>
 
 namespace dwarfs {
 

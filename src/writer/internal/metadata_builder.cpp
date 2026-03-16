@@ -46,7 +46,7 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/time_resolution_converter.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 

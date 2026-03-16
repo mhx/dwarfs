@@ -53,7 +53,7 @@
 
 #include <dwarfs/internal/string_table.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_layouts.h>
 
 #include "mmap_mock.h"
 #include "test_helpers.h"

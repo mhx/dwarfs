@@ -32,8 +32,8 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_layouts.h>
-#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_layouts.h>
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::internal {
 

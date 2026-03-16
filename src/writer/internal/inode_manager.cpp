@@ -65,7 +65,7 @@
 #include <dwarfs/writer/internal/similarity.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_lite_types.h>
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
 
