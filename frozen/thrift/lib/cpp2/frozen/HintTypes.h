@@ -79,6 +79,7 @@ THRIFT_DECLARE_TRAIT_TEMPLATE(IsString, apache::thrift::frozen::VectorUnpacked)
 
 namespace std {
 template <size_t kSize>
+// NOLINTNEXTLINE(cert-dcl58-cpp)
 struct hash<apache::thrift::frozen::FixedSizeString<kSize>> {
   size_t operator()(
       const apache::thrift::frozen::FixedSizeString<kSize>& value) const {
