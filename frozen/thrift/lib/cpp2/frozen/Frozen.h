@@ -769,7 +769,7 @@ class LayoutRoot : public FieldCycleHolder {
   template <typename T>
   void registerLayoutPosition(const T* ptr, LayoutPosition pos) {
     auto key = reinterpret_cast<uintptr_t>(ptr);
-    assert(positions_.count(key) == 0);
+    assert(!positions_.contains(key));
     positions_[key] = pos;
   }
 
@@ -866,7 +866,7 @@ class FreezeRoot {
   template <typename T>
   void registerFreezePosition(const T* ptr, FreezePosition pos) {
     auto key = reinterpret_cast<uintptr_t>(ptr);
-    assert(positions_.count(key) == 0);
+    assert(!positions_.contains(key));
     positions_[key] = pos;
   }
 
