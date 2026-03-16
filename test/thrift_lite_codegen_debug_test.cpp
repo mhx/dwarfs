@@ -64,7 +64,7 @@ TEST(thrift_lite, debug_output_snapshot_for_small_object) {
   s.write(w);
 
   auto const got = oss.str();
-  static constexpr auto expected = R"dbg(SmallStrings{
+  static constexpr auto expected = R"dbg(SmallStrings {
   1: name (string) = "alice",
   2: comment (string) = "hi",
   3: tag (string) = "t"
@@ -80,7 +80,7 @@ TEST(thrift_lite, debug_output_everything_empty_terse) {
   auto w = tl::debug_writer{oss};
   msg.write(w);
 
-  EXPECT_EQ("Everything{}"sv, oss.str());
+  EXPECT_EQ("Everything {}"sv, oss.str());
 }
 
 TEST(thrift_lite, debug_output_everything_empty_verbose) {
@@ -90,7 +90,7 @@ TEST(thrift_lite, debug_output_everything_empty_verbose) {
   auto w = tl::debug_writer{oss, {.terse = false}};
   msg.write(w);
 
-  static constexpr auto expected = R"dbg(Everything{
+  static constexpr auto expected = R"dbg(Everything {
   1: a_bool (bool) = false,
   2: a_byte (byte) = 0,
   3: a_int8 (byte) = 0,
@@ -108,45 +108,45 @@ TEST(thrift_lite, debug_output_everything_empty_verbose) {
   15: a_blob (binary) = binary(len=0, hex=0x),
   16: a_kind (i32) = 0,
   17: a_string (string) = "",
-  18: a_list (list) = [],
-  19: a_set (set) = set{},
-  20: a_map (map) = map{},
-  21: a_struct (struct) = TestMessage{
-    1: header (struct) = Header{
+  18: a_list (list) = list<i32>[0] {},
+  19: a_set (set) = set<binary>[0] {},
+  20: a_map (map) = map<binary,i32>[0] {},
+  21: a_struct (struct) = TestMessage {
+    1: header (struct) = Header {
       1: version (i32) = 0,
       4: flags (i16) = 0
     },
-    3: records (list) = [],
-    4: containers (struct) = Containers{
-      1: small_ints (list) = [],
-      2: small_tags (set) = set{},
-      3: id_to_name (map) = map{},
-      4: name_to_value (map) = map{},
-      5: nested_int_lists (list) = [],
-      6: id_to_extents (map) = map{}
+    3: records (list) = list<struct>[0] {},
+    4: containers (struct) = Containers {
+      1: small_ints (list) = list<i32>[0] {},
+      2: small_tags (set) = set<binary>[0] {},
+      3: id_to_name (map) = map<i32,binary>[0] {},
+      4: name_to_value (map) = map<binary,i64>[0] {},
+      5: nested_int_lists (list) = list<list>[0] {},
+      6: id_to_extents (map) = map<i32,list>[0] {}
     },
-    5: v1 (struct) = CompatV1{
+    5: v1 (struct) = CompatV1 {
       1: a (i32) = 0,
       3: c (i64) = 0,
-      5: containers (struct) = Containers{
-        1: small_ints (list) = [],
-        2: small_tags (set) = set{},
-        3: id_to_name (map) = map{},
-        4: name_to_value (map) = map{},
-        5: nested_int_lists (list) = [],
-        6: id_to_extents (map) = map{}
+      5: containers (struct) = Containers {
+        1: small_ints (list) = list<i32>[0] {},
+        2: small_tags (set) = set<binary>[0] {},
+        3: id_to_name (map) = map<i32,binary>[0] {},
+        4: name_to_value (map) = map<binary,i64>[0] {},
+        5: nested_int_lists (list) = list<list>[0] {},
+        6: id_to_extents (map) = map<i32,list>[0] {}
       }
     },
-    6: v2 (struct) = CompatV2{
+    6: v2 (struct) = CompatV2 {
       1: a (i32) = 0,
       3: c (i64) = 0,
-      5: containers (struct) = Containers{
-        1: small_ints (list) = [],
-        2: small_tags (set) = set{},
-        3: id_to_name (map) = map{},
-        4: name_to_value (map) = map{},
-        5: nested_int_lists (list) = [],
-        6: id_to_extents (map) = map{}
+      5: containers (struct) = Containers {
+        1: small_ints (list) = list<i32>[0] {},
+        2: small_tags (set) = set<binary>[0] {},
+        3: id_to_name (map) = map<i32,binary>[0] {},
+        4: name_to_value (map) = map<binary,i64>[0] {},
+        5: nested_int_lists (list) = list<list>[0] {},
+        6: id_to_extents (map) = map<i32,list>[0] {}
       }
     },
     7: float_value (double) = 0,
@@ -199,7 +199,7 @@ TEST(thrift_lite, debug_output_everything_full) {
   auto w = tl::debug_writer{oss};
   msg.write(w);
 
-  static constexpr auto expected = R"dbg(Everything{
+  static constexpr auto expected = R"dbg(Everything {
   1: a_bool (bool) = true,
   2: a_byte (byte) = -128,
   3: a_int8 (byte) = 127,
@@ -217,55 +217,55 @@ TEST(thrift_lite, debug_output_everything_full) {
   15: a_blob (binary) = binary(len=4, hex=0x00010203),
   16: a_kind (i32) = 2,
   17: a_string (string) = "hello",
-  18: a_list (list) = [
+  18: a_list (list) = list<i32>[3] {
     1,
     2,
     3
-  ],
-  19: a_set (set) = set{
+  },
+  19: a_set (set) = set<binary>[3] {
     "a",
     "b",
     "c"
   },
-  20: a_map (map) = map{
-    "x": 1,
-    "y": 2
+  20: a_map (map) = map<binary,i32>[2] {
+    "x" -> 1,
+    "y" -> 2
   },
-  21: a_struct (struct) = TestMessage{
-    6: v2 (struct) = CompatV2{
+  21: a_struct (struct) = TestMessage {
+    6: v2 (struct) = CompatV2 {
       1: a (i32) = 1915067939,
       3: c (i64) = 4405683035076197862,
-      7: f (struct) = SmallStrings{},
-      50: future_field (map) = map{
-        276867117: [
-          SmallStrings{
+      7: f (struct) = SmallStrings {},
+      50: future_field (map) = map<i32,list>[2] {
+        276867117 -> list<struct>[4] {
+          SmallStrings {
             1: name (string) = "alqzyc",
             2: comment (string) = "ezqpgk",
             3: tag (string) = "qe",
             4: payload (binary) = binary(len=7, hex=0xa85123c732f35e)
           },
-          SmallStrings{
+          SmallStrings {
             1: name (string) = "vrczzw",
             3: tag (string) = "ltablh",
             4: payload (binary) = binary(len=3, hex=0x4b7b1e)
           },
-          SmallStrings{},
-          SmallStrings{}
-        ],
-        1788037497: [
-          SmallStrings{},
-          SmallStrings{
+          SmallStrings {},
+          SmallStrings {}
+        },
+        1788037497 -> list<struct>[5] {
+          SmallStrings {},
+          SmallStrings {
             1: name (string) = "ulnurdsq",
             2: comment (string) = "ytnck",
             3: tag (string) = "ut",
             4: payload (binary) = binary(len=6, hex=0x2204529e269c)
           },
-          SmallStrings{
+          SmallStrings {
             3: tag (string) = "lxscbz"
           },
-          SmallStrings{},
-          SmallStrings{}
-        ]
+          SmallStrings {},
+          SmallStrings {}
+        }
       }
     },
     7: float_value (double) = 1.5
@@ -274,22 +274,22 @@ TEST(thrift_lite, debug_output_everything_full) {
   23: opt_kind (i32) = 1,
   24: opt_string (string) = "",
   25: opt_blob (binary) = binary(len=0, hex=0x),
-  26: opt_list (list) = [],
-  27: opt_set (set) = set{
+  26: opt_list (list) = list<i64>[0] {},
+  27: opt_set (set) = set<i32>[3] {
     4,
     5,
     6
   },
-  28: opt_map (map) = map{
-    3: "z"
+  28: opt_map (map) = map<i32,binary>[1] {
+    3 -> "z"
   },
-  29: opt_nested_map (map) = map{
-    "k1": [
+  29: opt_nested_map (map) = map<binary,list>[1] {
+    "k1" -> list<binary>[2] {
       "v1",
       "v2"
-    ]
+    }
   },
-  30: opt_struct (struct) = TestMessage{}
+  30: opt_struct (struct) = TestMessage {}
 })dbg"sv;
 
   EXPECT_EQ(expected, oss.str());

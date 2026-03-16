@@ -161,7 +161,7 @@ void debug_writer::begin_value(ttype const type) {
       return;
     }
 
-    (*os_) << ": ";
+    (*os_) << " -> ";
     ctx.expecting_key = true;
     --ctx.remaining;
     return;
@@ -174,7 +174,7 @@ void debug_writer::end_value() {
 
 void debug_writer::write_struct_begin(std::string_view const name) {
   begin_value(ttype::struct_t);
-  (*os_) << name << '{';
+  (*os_) << name << " {";
   stack_.push_back(container_ctx{.kind = container_kind::struct_k});
   ++indent_;
 }
@@ -331,14 +331,15 @@ void debug_writer::write_binary(std::span<std::byte const> const bytes) {
   end_value();
 }
 
-void debug_writer::write_list_begin(ttype, std::int32_t const size) {
+void debug_writer::write_list_begin(ttype const elem_type,
+                                    std::int32_t const size) {
   begin_value(ttype::list_t);
 
   if (size < 0) {
     throw protocol_error("debug_writer: negative list size");
   }
 
-  (*os_) << '[';
+  (*os_) << "list<" << type_label(elem_type) << ">[" << size << "] {";
   stack_.push_back(
       container_ctx{.kind = container_kind::list_k, .remaining = size});
   ++indent_;
@@ -363,18 +364,19 @@ void debug_writer::write_list_end() {
     write_indent();
   }
 
-  (*os_) << ']';
+  (*os_) << '}';
   end_value();
 }
 
-void debug_writer::write_set_begin(ttype, std::int32_t const size) {
+void debug_writer::write_set_begin(ttype const elem_type,
+                                   std::int32_t const size) {
   begin_value(ttype::set_t);
 
   if (size < 0) {
     throw protocol_error("debug_writer: negative set size");
   }
 
-  (*os_) << "set{";
+  (*os_) << "set<" << type_label(elem_type) << ">[" << size << "] {";
   stack_.push_back(
       container_ctx{.kind = container_kind::set_k, .remaining = size});
   ++indent_;
@@ -403,14 +405,16 @@ void debug_writer::write_set_end() {
   end_value();
 }
 
-void debug_writer::write_map_begin(ttype, ttype, std::int32_t const size) {
+void debug_writer::write_map_begin(ttype const key_type, ttype const val_type,
+                                   std::int32_t const size) {
   begin_value(ttype::map_t);
 
   if (size < 0) {
     throw protocol_error("debug_writer: negative map size");
   }
 
-  (*os_) << "map{";
+  (*os_) << "map<" << type_label(key_type) << ',' << type_label(val_type)
+         << ">[" << size << "] {";
   stack_.push_back(container_ctx{.kind = container_kind::map_k,
                                  .remaining = size,
                                  .first = true,

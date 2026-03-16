@@ -75,7 +75,7 @@ TEST(debug_writer, writes_named_struct_and_fields) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  auto const expected = R"dbg(Root{
+  auto const expected = R"dbg(Root {
   1: a (i32) = 42,
   2: b (bool) = true
 })dbg";
@@ -95,7 +95,7 @@ TEST(debug_writer, escapes_strings) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  auto const expected = R"dbg(S{
+  auto const expected = R"dbg(S {
   1: s (string) = "a\"b\\c\n\r\t\x01"
 })dbg";
 
@@ -116,7 +116,7 @@ TEST(debug_writer, writes_binary_with_hex_and_truncation) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  auto const expected = R"dbg(B{
+  auto const expected = R"dbg(B {
   1: bin (binary) = binary(len=40, hex=0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f...)
 })dbg";
 
@@ -164,20 +164,20 @@ TEST(debug_writer, writes_containers_and_nested_structs) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  auto const expected = R"dbg(Outer{
-  1: xs (list) = [
+  auto const expected = R"dbg(Outer {
+  1: xs (list) = list<i16>[3] {
     1,
     2,
     300
-  ],
-  2: ys (set) = set{
+  },
+  2: ys (set) = set<i32>[2] {
     7,
     8
   },
-  3: m (map) = map{
-    1: "hi"
+  3: m (map) = map<i32,string>[1] {
+    1 -> "hi"
   },
-  4: inner (struct) = Inner{
+  4: inner (struct) = Inner {
     1: z (byte) = 7
   }
 })dbg";
@@ -347,7 +347,7 @@ TEST(debug_writer, write_double_with_finite_values) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  static constexpr auto expected = R"dbg(S{
+  static constexpr auto expected = R"dbg(S {
   1: d (double) = 3.14,
   2: e (double) = -2.71828e-100
 })dbg"sv;
@@ -373,7 +373,7 @@ TEST(debug_writer, write_double_with_special_values) {
   w.write_struct_end();
 
   auto const got = oss.str();
-  static constexpr auto expected = R"dbg(S{
+  static constexpr auto expected = R"dbg(S {
   1: a (double) = nan,
   2: b (double) = inf,
   3: c (double) = -inf
