@@ -334,8 +334,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
           LOG_ERROR << "failed to open metadata output file: " << ec.message();
           return 1;
         }
-        auto json = fs.serialize_metadata_as_json(false);
-        of->os().write(json.data(), json.size());
+        fs.serialize_metadata_as_json(of->os(), false);
         of->close(ec);
         if (ec) {
           LOG_ERROR << "failed to close metadata output file: " << ec.message();

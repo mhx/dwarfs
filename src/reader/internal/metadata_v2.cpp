@@ -490,7 +490,7 @@ class metadata_v2_data {
 
   nlohmann::json get_inode_info(inode_view const& iv, size_t max_chunks) const;
 
-  std::string serialize_as_json(bool terse) const;
+  void serialize_as_json(std::ostream& os, bool terse) const;
 
   void dump(std::ostream& os, fsinfo_options const& opts,
             filesystem_info const* fsinfo,
@@ -1397,13 +1397,11 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
   return result;
 }
 
-std::string metadata_v2_data::serialize_as_json(bool terse) const {
-  std::ostringstream oss;
+void metadata_v2_data::serialize_as_json(std::ostream& os, bool terse) const {
   thrift_lite::json_writer_options opts;
   opts.terse = terse;
-  thrift_lite::json_writer writer(oss, opts);
+  thrift_lite::json_writer writer(os, opts);
   unpack_metadata().write(writer);
-  return oss.str();
 }
 
 nlohmann::json metadata_v2_data::as_json(directory_view dir,
@@ -1636,7 +1634,9 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
   }
 
   if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
-    info["full_metadata"] = nlohmann::json::parse(serialize_as_json(true));
+    std::ostringstream oss;
+    serialize_as_json(oss, true);
+    info["full_metadata"] = nlohmann::json::parse(oss.str());
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {
@@ -2562,8 +2562,8 @@ metadata_v2_utils::info_as_json(fsinfo_options const& opts,
 
 nlohmann::json metadata_v2_utils::as_json() const { return data_.as_json(); }
 
-std::string metadata_v2_utils::serialize_as_json(bool terse) const {
-  return data_.serialize_as_json(terse);
+void metadata_v2_utils::serialize_as_json(std::ostream& os, bool terse) const {
+  data_.serialize_as_json(os, terse);
 }
 
 std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::thaw() const {

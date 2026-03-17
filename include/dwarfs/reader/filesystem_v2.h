@@ -517,7 +517,7 @@ class filesystem_v2 final : public filesystem_v2_lite {
 
   nlohmann::json info_as_json(fsinfo_options const& opts) const;
   nlohmann::json metadata_as_json() const;
-  std::string serialize_metadata_as_json(bool terse) const;
+  void serialize_metadata_as_json(std::ostream& os, bool terse) const;
 
   std::optional<file_extents_iterable> header() const;
 
@@ -539,7 +539,8 @@ class filesystem_v2 final : public filesystem_v2_lite {
     virtual std::string dump(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json metadata_as_json() const = 0;
-    virtual std::string serialize_metadata_as_json(bool terse) const = 0;
+    virtual void
+    serialize_metadata_as_json(std::ostream& os, bool terse) const = 0;
     virtual std::optional<file_extents_iterable> header() const = 0;
     virtual history const& get_history() const = 0;
     virtual std::unique_ptr<thrift::metadata::metadata>

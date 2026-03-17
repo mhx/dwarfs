@@ -966,8 +966,9 @@ void check_compat(test::test_logger& lgr [[maybe_unused]],
   EXPECT_TRUE(vfsbuf.readonly);
   EXPECT_GT(vfsbuf.namemax, 0);
 
-  auto json = fs.serialize_metadata_as_json(true);
-  EXPECT_GT(json.size(), 1000) << json;
+  std::ostringstream jsonss;
+  fs.serialize_metadata_as_json(jsonss, true);
+  EXPECT_GT(jsonss.str().size(), 1000) << jsonss.str();
 
   std::ostringstream dumpss;
   fs.dump(dumpss, {.features = reader::fsinfo_features::all()});

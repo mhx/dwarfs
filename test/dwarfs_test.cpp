@@ -514,13 +514,17 @@ void basic_end_to_end_test(
 
   EXPECT_TRUE(dyn.is_object());
 
-  auto json = fs.serialize_metadata_as_json(true);
+  {
+    std::ostringstream oss;
+    fs.serialize_metadata_as_json(oss, true);
+    EXPECT_GT(oss.str().size(), 1000) << oss.str();
+  }
 
-  EXPECT_GT(json.size(), 1000) << json;
-
-  json = fs.serialize_metadata_as_json(false);
-
-  EXPECT_GT(json.size(), 1000) << json;
+  {
+    std::ostringstream oss;
+    fs.serialize_metadata_as_json(oss, false);
+    EXPECT_GT(oss.str().size(), 1000) << oss.str();
+  }
 
   for (int detail = 0; detail <= 5; ++detail) {
     auto info = fs.info_as_json(
