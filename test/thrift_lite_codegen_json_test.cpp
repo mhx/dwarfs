@@ -28,6 +28,8 @@
 
 #include <gtest/gtest.h>
 
+#include <nlohmann/json.hpp>
+
 #include <dwarfs/thrift_lite/compact_reader.h>
 #include <dwarfs/thrift_lite/json_writer.h>
 
@@ -72,6 +74,7 @@ TEST(thrift_lite, json_output_snapshot_for_small_object) {
     "tag": "t"
 })dbg"sv;
 
+  EXPECT_TRUE(nlohmann::json::accept(got));
   EXPECT_EQ(expected, got);
 }
 
@@ -92,10 +95,11 @@ TEST(thrift_lite, json_output_no_indent) {
   static constexpr auto expected =
       R"dbg({"name":"alice","comment":"hi","tag":"t"})dbg"sv;
 
+  EXPECT_TRUE(nlohmann::json::accept(got));
   EXPECT_EQ(expected, got);
 }
 
-TEST(thrift_lite, json_output_everything_empty) {
+TEST(thrift_lite, json_output_everything_empty_terse) {
   auto msg = gen::Everything{};
 
   auto oss = std::ostringstream{};
@@ -103,6 +107,85 @@ TEST(thrift_lite, json_output_everything_empty) {
   msg.write(w);
 
   EXPECT_EQ("{}", oss.str());
+}
+
+TEST(thrift_lite, json_output_everything_empty_verbose) {
+  auto msg = gen::Everything{};
+
+  auto oss = std::ostringstream{};
+  tl::json_writer_options opts;
+  opts.terse = false;
+  auto w = tl::json_writer{oss, opts};
+  msg.write(w);
+
+  static constexpr auto expected = R"dbg({
+  "a_bool": false,
+  "a_byte": 0,
+  "a_int8": 0,
+  "a_uint8": 0,
+  "a_i16": 0,
+  "a_int16": 0,
+  "a_uint16": 0,
+  "a_i32": 0,
+  "a_int32": 0,
+  "a_uint32": 0,
+  "a_i64": 0,
+  "a_int64": 0,
+  "a_uint64": 0,
+  "a_binary": "",
+  "a_blob": "",
+  "a_kind": 0,
+  "a_string": "",
+  "a_list": [],
+  "a_set": [],
+  "a_map": [],
+  "a_struct": {
+    "header": {
+      "version": 0,
+      "flags": 0
+    },
+    "records": [],
+    "containers": {
+      "small_ints": [],
+      "small_tags": [],
+      "id_to_name": [],
+      "name_to_value": [],
+      "nested_int_lists": [],
+      "id_to_extents": []
+    },
+    "v1": {
+      "a": 0,
+      "c": 0,
+      "containers": {
+        "small_ints": [],
+        "small_tags": [],
+        "id_to_name": [],
+        "name_to_value": [],
+        "nested_int_lists": [],
+        "id_to_extents": []
+      }
+    },
+    "v2": {
+      "a": 0,
+      "c": 0,
+      "containers": {
+        "small_ints": [],
+        "small_tags": [],
+        "id_to_name": [],
+        "name_to_value": [],
+        "nested_int_lists": [],
+        "id_to_extents": []
+      }
+    },
+    "float_value": 0,
+    "far_regular": 0
+  }
+})dbg"sv;
+
+  auto const got = oss.str();
+
+  EXPECT_TRUE(nlohmann::json::accept(got));
+  EXPECT_EQ(expected, got);
 }
 
 TEST(thrift_lite, json_output_everything_full) {
@@ -240,5 +323,8 @@ TEST(thrift_lite, json_output_everything_full) {
   "opt_struct": {}
 })dbg"sv;
 
-  EXPECT_EQ(expected, oss.str());
+  auto const got = oss.str();
+
+  EXPECT_TRUE(nlohmann::json::accept(got));
+  EXPECT_EQ(expected, got);
 }
