@@ -46,8 +46,7 @@ struct ArrayLayout : public LayoutBase {
     size_t n = coll.size();
     pos = root.layoutField(self, pos, countField, n);
     if (!n) {
-      pos = root.layoutField(self, pos, distanceField, 0);
-      return pos;
+      return root.layoutField(self, pos, distanceField, 0);
     }
     size_t itemBytes = itemField.layout.size;
     size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
