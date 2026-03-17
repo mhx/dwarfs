@@ -276,7 +276,7 @@ class sparse_file_builder::impl {
 
   void truncate(file_size_t size, std::error_code& ec) noexcept {
     assert(fd_ >= 0);
-    if (::ftruncate(fd_, static_cast<off_t>(size)) != 0) {
+    if (::ftruncate(fd_, size) != 0) {
       ec = std::error_code(errno, std::generic_category());
     }
   }
@@ -286,7 +286,7 @@ class sparse_file_builder::impl {
     assert(fd_ >= 0);
     auto p = data.data();
     auto remaining = data.size();
-    auto off = static_cast<off_t>(offset);
+    off_t off = offset;
     while (remaining > 0) {
       auto n = ::pwrite(fd_, p, remaining, off);
       if (n < 0) {
@@ -296,7 +296,7 @@ class sparse_file_builder::impl {
         ec = std::error_code(errno, std::generic_category());
         return;
       }
-      off += static_cast<off_t>(n);
+      off += n;
       p += static_cast<size_t>(n);
       remaining -= static_cast<size_t>(n);
     }
