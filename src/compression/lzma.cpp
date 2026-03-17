@@ -28,6 +28,7 @@
 
 #include <array>
 #include <cassert>
+#include <cstring>
 #include <optional>
 
 #include <lzma.h>
@@ -344,24 +345,30 @@ class lzma_block_decompressor final : public block_decompressor_base {
   std::string error_;
 };
 
-size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* data,
-                                                      size_t size) {
+size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* const data,
+                                                      size_t const size) {
   if (size < 2 * LZMA_STREAM_HEADER_SIZE) {
     DWARFS_THROW(runtime_error, "lzma compressed block is too small");
   }
 
-  lzma_stream s = LZMA_STREAM_INIT;
-  file_off_t pos = size - LZMA_STREAM_HEADER_SIZE;
-  uint32_t const* ptr = reinterpret_cast<uint32_t const*>(data + size) - 1;
+  // move to end of data
+  file_off_t pos = size;
 
-  while (*ptr == 0) {
-    pos -= 4;
-    --ptr;
+  // skip padding (not strictly required, as we don't pad during compression)
+  static constexpr std::size_t kLzmaPaddingGranularity{4};
+  static constexpr std::array<uint8_t, kLzmaPaddingGranularity> kPadding{};
+
+  while (std::memcmp(data + pos - kPadding.size(), kPadding.data(),
+                     kPadding.size()) == 0) [[unlikely]] {
+    pos -= kPadding.size();
 
     if (pos < 2 * LZMA_STREAM_HEADER_SIZE) {
       DWARFS_THROW(runtime_error, "data error (stream padding)");
     }
   }
+
+  // move position to start of footer
+  pos -= LZMA_STREAM_HEADER_SIZE;
 
   lzma_stream_flags footer_flags;
 
@@ -378,6 +385,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* data,
 
   pos -= index_size;
   lzma_index* index = nullptr;
+
+  lzma_stream s = LZMA_STREAM_INIT;
 
   if (auto ret = lzma_index_decoder(&s, &index, UINT64_MAX); ret != LZMA_OK) {
     DWARFS_THROW(runtime_error,
