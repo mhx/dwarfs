@@ -272,7 +272,7 @@ class filesystem_ final {
   nlohmann::json
   info_as_json(fsinfo_options const& opts, history const& hist) const;
   nlohmann::json metadata_as_json() const;
-  std::string serialize_metadata_as_json(bool simple) const;
+  std::string serialize_metadata_as_json(bool terse) const;
   filesystem_version version() const;
   bool has_valid_section_index() const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
@@ -894,8 +894,8 @@ nlohmann::json filesystem_<LoggerPolicy>::metadata_as_json() const {
 
 template <typename LoggerPolicy>
 std::string
-filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
-  return metadata_v2_utils(meta_).serialize_as_json(simple);
+filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool terse) const {
+  return metadata_v2_utils(meta_).serialize_as_json(terse);
 }
 
 template <typename LoggerPolicy>
@@ -1528,8 +1528,8 @@ class filesystem_full_
   nlohmann::json metadata_as_json() const override {
     return fs().metadata_as_json();
   }
-  std::string serialize_metadata_as_json(bool simple) const override {
-    return fs().serialize_metadata_as_json(simple);
+  std::string serialize_metadata_as_json(bool terse) const override {
+    return fs().serialize_metadata_as_json(terse);
   }
   std::optional<file_extents_iterable> header() const override {
     return fs().header();
@@ -1655,8 +1655,8 @@ nlohmann::json filesystem_v2::metadata_as_json() const {
   return full_().metadata_as_json();
 }
 
-std::string filesystem_v2::serialize_metadata_as_json(bool simple) const {
-  return full_().serialize_metadata_as_json(simple);
+std::string filesystem_v2::serialize_metadata_as_json(bool terse) const {
+  return full_().serialize_metadata_as_json(terse);
 }
 
 std::optional<file_extents_iterable> filesystem_v2::header() const {

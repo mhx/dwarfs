@@ -490,7 +490,7 @@ class metadata_v2_data {
 
   nlohmann::json get_inode_info(inode_view const& iv, size_t max_chunks) const;
 
-  std::string serialize_as_json(bool simple) const;
+  std::string serialize_as_json(bool terse) const;
 
   void dump(std::ostream& os, fsinfo_options const& opts,
             filesystem_info const* fsinfo,
@@ -1397,9 +1397,11 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
   return result;
 }
 
-std::string metadata_v2_data::serialize_as_json(bool /*simple*/) const {
+std::string metadata_v2_data::serialize_as_json(bool terse) const {
   std::ostringstream oss;
-  thrift_lite::json_writer writer(oss);
+  thrift_lite::json_writer_options opts;
+  opts.terse = terse;
+  thrift_lite::json_writer writer(oss, opts);
   unpack_metadata().write(writer);
   return oss.str();
 }
@@ -2560,8 +2562,8 @@ metadata_v2_utils::info_as_json(fsinfo_options const& opts,
 
 nlohmann::json metadata_v2_utils::as_json() const { return data_.as_json(); }
 
-std::string metadata_v2_utils::serialize_as_json(bool simple) const {
-  return data_.serialize_as_json(simple);
+std::string metadata_v2_utils::serialize_as_json(bool terse) const {
+  return data_.serialize_as_json(terse);
 }
 
 std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::thaw() const {

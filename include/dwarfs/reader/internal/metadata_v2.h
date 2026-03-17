@@ -285,7 +285,7 @@ class metadata_v2_utils {
 
   nlohmann::json as_json() const;
 
-  std::string serialize_as_json(bool simple) const;
+  std::string serialize_as_json(bool terse) const;
 
   std::unique_ptr<thrift::metadata::metadata> thaw() const;
 
