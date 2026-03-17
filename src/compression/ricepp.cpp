@@ -42,6 +42,8 @@
 #include <dwarfs/thrift_lite/compact_writer.h>
 #include <dwarfs/varint.h>
 
+#include <dwarfs/internal/memory.h>
+
 #include <dwarfs/gen-cpp-lite/compression_types.h>
 
 #include "base.h"
@@ -125,7 +127,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
     }
 
     std::span<pixel_type const> input{
-        reinterpret_cast<pixel_type const*>(data.data()),
+        internal::as_aligned_ptr<pixel_type const>(data.data()),
         data.size() / bytes_per_sample};
 
     size_t header_size = compressed.size();
@@ -219,7 +221,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
 
     decompressed_.resize(uncompressed_size_);
     std::span<uint16_t> output{
-        reinterpret_cast<uint16_t*>(decompressed_.data()),
+        internal::as_aligned_ptr<uint16_t>(decompressed_.data()),
         decompressed_.size() / 2};
 
     decoder_->decode(output, data_);

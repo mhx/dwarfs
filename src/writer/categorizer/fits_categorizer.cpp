@@ -28,6 +28,7 @@
 #include <cstring>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -45,6 +46,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
+#include <dwarfs/internal/memory.h>
 #include <dwarfs/internal/synchronized.h>
 
 #include "endian_formatter.h"
@@ -105,8 +107,9 @@ unsigned get_unused_lsb_count(file_extents_iterable const& extents);
 template <typename T>
 T fold_left_bit_or(std::span<uint8_t const> data) {
   assert(data.size_bytes() % sizeof(T) == 0);
-  std::span<T const> span{reinterpret_cast<T const*>(data.data()),
-                          data.size_bytes() / sizeof(T)};
+  std::span<T const> span{
+      dwarfs::internal::as_aligned_ptr<T const>(data.data()),
+      data.size_bytes() / sizeof(T)};
   return ranges::fold_left(span, T{}, std::bit_or{});
 }
 
@@ -133,8 +136,8 @@ uint16_t merge_sample_bits<uint16_t>(std::span<uint8_t const> imagedata) {
     imagedata = imagedata.subspan(preamble_size);
   }
 
-  auto p = reinterpret_cast<uint64_t const*>(
-      __builtin_assume_aligned(imagedata.data(), kAlignment));
+  auto p = std::assume_aligned<kAlignment>(
+      reinterpret_cast<uint64_t const*>(imagedata.data()));
   size_t size = imagedata.size_bytes() / kAlignment;
 
   alignas(kAlignment) std::array<uint64_t, kAlignment / sizeof(uint64_t)> b512;
