@@ -181,7 +181,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     for (auto const& w : workers_) {
       t += os_.thread_get_cpu_time(w.get_id(), ec);
       if (ec) {
-        return {};
+        t = std::chrono::nanoseconds{};
+        break;
       }
     }
 
