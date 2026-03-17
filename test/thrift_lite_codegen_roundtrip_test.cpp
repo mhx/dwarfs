@@ -50,9 +50,12 @@ using testing::Not;
 namespace gen = dwarfs::thrift_lite::test;
 namespace tl = dwarfs::thrift_lite;
 
-auto serialize_compact(auto const& obj) -> std::vector<std::byte> {
+auto serialize_compact(auto const& obj, bool const terse = true)
+    -> std::vector<std::byte> {
   auto out = std::vector<std::byte>{};
-  auto w = tl::compact_writer{out};
+  tl::writer_options opts;
+  opts.terse = terse;
+  auto w = tl::compact_writer{out, opts};
   obj.write(w);
   return out;
 }
@@ -109,7 +112,77 @@ static_assert(
         phmap::btree_set<std::int32_t>>,
     "unexpected type for Containers::opt_set");
 
-TEST(generated, compact_roundtrip_smoke_test_message) {
+TEST(thrift_lite_compact_roundtrip, terse_mode_everything_empty) {
+  // Build a message where all fields are default / empty.
+  auto msg = gen::TestMessage{};
+  msg.header().value().version() = 0;
+  msg.header().value().flags() = 0;
+
+  auto const bytes = serialize_compact(msg);
+
+  // expect only a ct_stop byte
+  EXPECT_THAT(bytes, ElementsAre(std::byte{0}));
+
+  auto const bytes_verbose = serialize_compact(msg, false);
+
+  EXPECT_GT(bytes_verbose.size(), 50) << "verbose output unexpectedly small";
+
+  auto msg_terse = deserialize_compact<gen::TestMessage>(bytes);
+  auto msg_verbose = deserialize_compact<gen::TestMessage>(bytes_verbose);
+
+  EXPECT_EQ(msg_terse, msg);
+  EXPECT_EQ(msg_verbose, msg);
+}
+
+TEST(thrift_lite_compact_roundtrip, obj_msg_obj) {
+  static constexpr unsigned num_msgs = 100;
+
+  for (unsigned i = 0; i < num_msgs; ++i) {
+    auto msg = dwarfs::test::make_random_thrift_lite_test_message(i);
+    auto bytes = serialize_compact(msg);
+    auto msg2 = deserialize_compact<gen::TestMessage>(bytes);
+    EXPECT_EQ(msg, msg2) << "Roundtrip failed for message " << i;
+    EXPECT_EQ(debug(msg), debug(msg2))
+        << "Debug output differs for message " << i << ":\n---\n"
+        << debug(msg) << "\n---\n"
+        << debug(msg2) << "\n---";
+  }
+}
+
+TEST(thrift_lite_compact_roundtrip, msg_obj_msg) {
+  auto const messages = dwarfs::test::get_thrift_lite_test_messages();
+  size_t i = 0;
+
+  for (auto const& msg : messages) {
+    auto const in = std::as_bytes(msg);
+
+    auto r = tl::compact_reader{in};
+    auto meta = gen::TestMessage{};
+    meta.read(r);
+
+    auto out = std::vector<std::byte>{};
+    auto w = tl::compact_writer{out};
+    meta.write(w);
+
+    EXPECT_THAT(out, ElementsAreArray(in))
+        << "Roundtrip failed for message " << i << " (byte output differs)";
+
+    ++i;
+  }
+}
+
+TEST(thrift_lite_compact_roundtrip, generate_test_data) {
+  std::ostringstream oss;
+  dwarfs::test::generate_thrift_lite_test_message_data(oss, 100);
+  EXPECT_GT(oss.str().size(), 10'000)
+      << "Test data generation failed" << oss.str();
+}
+
+class compact_roundtrip : public testing::TestWithParam<bool> {};
+
+TEST_P(compact_roundtrip, compact_roundtrip_smoke_test_message) {
+  auto const terse = GetParam();
+
   auto msg = gen::TestMessage{};
 
   // header (regular)
@@ -136,7 +209,7 @@ TEST(generated, compact_roundtrip_smoke_test_message) {
   msg.far_optional().emplace(99);
   msg.far_regular() = 5;
 
-  auto const bytes = serialize_compact(msg);
+  auto const bytes = serialize_compact(msg, terse);
   auto const msg2 = deserialize_compact<gen::TestMessage>(bytes);
 
   // Verify a handful of fields survived.
@@ -162,20 +235,9 @@ TEST(generated, compact_roundtrip_smoke_test_message) {
                        << debug(msg2) << "\n---";
 }
 
-TEST(generated,
-     compact_write_policy_skips_regular_zero_and_empty_and_unset_optionals) {
-  // Build a message where all fields are default / empty.
-  auto msg = gen::TestMessage{};
-  msg.header().value().version() = 0;
-  msg.header().value().flags() = 0;
+TEST_P(compact_roundtrip, unknown_enum_values_are_accepted) {
+  auto const terse = GetParam();
 
-  auto const bytes = serialize_compact(msg);
-
-  // expect only a ct_stop byte
-  EXPECT_THAT(bytes, ElementsAre(std::byte{0}));
-}
-
-TEST(generated, unknown_enum_values_are_accepted) {
   // Serialize a BigRecord with kind set to an unknown numeric enum value by
   // mutating after parse.
   auto rec = gen::BigRecord{};
@@ -184,7 +246,9 @@ TEST(generated, unknown_enum_values_are_accepted) {
   rec.id() = 1;
 
   auto out = std::vector<std::byte>{};
-  auto w = tl::compact_writer{out};
+  tl::writer_options opts;
+  opts.terse = terse;
+  auto w = tl::compact_writer{out, opts};
   rec.write(w);
 
   auto r = tl::compact_reader{out};
@@ -194,14 +258,18 @@ TEST(generated, unknown_enum_values_are_accepted) {
   EXPECT_EQ(static_cast<int>(rec2.kind().value()), 123456);
 }
 
-TEST(generated, empty_optional_list_map_set) {
+TEST_P(compact_roundtrip, empty_optional_list_map_set) {
+  auto const terse = GetParam();
+
   auto c = gen::Containers{};
   c.opt_list().emplace();
   c.opt_map().emplace();
   c.opt_set().emplace();
 
   auto out = std::vector<std::byte>{};
-  auto w = tl::compact_writer{out};
+  tl::writer_options opts;
+  opts.terse = terse;
+  auto w = tl::compact_writer{out, opts};
   c.write(w);
 
   auto r = tl::compact_reader{out};
@@ -211,46 +279,4 @@ TEST(generated, empty_optional_list_map_set) {
   EXPECT_EQ(c2, c);
 }
 
-TEST(generated, generate_test_data) {
-  std::ostringstream oss;
-  dwarfs::test::generate_thrift_lite_test_message_data(oss, 100);
-  EXPECT_GT(oss.str().size(), 10'000)
-      << "Test data generation failed" << oss.str();
-}
-
-TEST(generated, roundtrip_compact_obj_msg_obj) {
-  static constexpr unsigned num_msgs = 100;
-
-  for (unsigned i = 0; i < num_msgs; ++i) {
-    auto msg = dwarfs::test::make_random_thrift_lite_test_message(i);
-    auto bytes = serialize_compact(msg);
-    auto msg2 = deserialize_compact<gen::TestMessage>(bytes);
-    EXPECT_EQ(msg, msg2) << "Roundtrip failed for message " << i;
-    EXPECT_EQ(debug(msg), debug(msg2))
-        << "Debug output differs for message " << i << ":\n---\n"
-        << debug(msg) << "\n---\n"
-        << debug(msg2) << "\n---";
-  }
-}
-
-TEST(generated, roundtrip_compact_msg_obj_msg) {
-  auto const messages = dwarfs::test::get_thrift_lite_test_messages();
-  size_t i = 0;
-
-  for (auto const& msg : messages) {
-    auto const in = std::as_bytes(msg);
-
-    auto r = tl::compact_reader{in};
-    auto meta = gen::TestMessage{};
-    meta.read(r);
-
-    auto out = std::vector<std::byte>{};
-    auto w = tl::compact_writer{out};
-    meta.write(w);
-
-    EXPECT_THAT(out, ElementsAreArray(in))
-        << "Roundtrip failed for message " << i << " (byte output differs)";
-
-    ++i;
-  }
-}
+INSTANTIATE_TEST_SUITE_P(thrift_lite, compact_roundtrip, testing::Bool());
