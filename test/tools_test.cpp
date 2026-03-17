@@ -3009,7 +3009,7 @@ struct file_times {
         std::chrono::time_point_cast<std::chrono::system_clock::duration>(tp));
   }
 
-  uint32_t truncate_to_res(std::chrono::nanoseconds ns) {
+  uint32_t truncate_to_res(std::chrono::nanoseconds ns [[maybe_unused]]) {
 #if defined(__s390x__) && defined(DWARFS_CROSSCOMPILING_EMULATOR)
     // S390x qemu user emulation does not support nanosecond timestamps.
     // See https://github.com/bytecodealliance/rustix/pull/282/files

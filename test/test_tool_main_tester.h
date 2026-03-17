@@ -72,7 +72,7 @@ enum class input_mode {
   from_stdin,
 };
 
-constexpr std::array input_modes{
+[[maybe_unused]] constexpr std::array input_modes{
     input_mode::from_file,
     input_mode::from_stdin,
 };
@@ -85,8 +85,8 @@ enum class path_type {
   mixed,
 };
 
-constexpr std::array path_types{path_type::relative, path_type::absolute,
-                                path_type::mixed};
+[[maybe_unused]] constexpr std::array path_types{
+    path_type::relative, path_type::absolute, path_type::mixed};
 
 std::ostream& operator<<(std::ostream& os, path_type m);
 
