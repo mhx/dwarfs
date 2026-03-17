@@ -1,5 +1,153 @@
 # Change Log
 
+## Version 0.15.0 - 2026-xx-xx
+
+- (feature) New `--hollow` option for `mkdwarfs` that creates a "hollow"
+  filesystem image. Instead of storing actual file data, each file is
+  represented as an empty sparse file with the same size and metadata as
+  the original. When accessing a hollow filesystem, file reads return all
+  zeros. This is useful when a realistic filesystem structure is needed
+  for testing or analysis but the actual file contents don't matter. Note
+  that `--hollow` is incompatible with `--no-sparse-files`. Fixes github
+  #131.
+
+- (feature) `mkdwarfs` now supports Zstd long-distance matching (LDM) via
+  a new `long` sub-option for `--compress-options`. Enabling LDM can
+  noticeably improve compression ratios for data with long-range repetitions.
+  In addition, with a patched `libzstd` (as used in the static release
+  binaries), virtually all Zstd compression parameters can now be
+  individually tuned via `--compress-options`, giving much finer control
+  over the compression-speed trade-off. Addresses github #322.
+
+- (feature) New binary file categorizer (`--categorize=binary`) that
+  identifies ELF (Linux/FreeBSD), PE (Windows), and Mach-O (macOS) executables
+  and shared libraries. Detected binaries are individually segmented during
+  `mkdwarfs` filesystem creation to improve deduplication across toolchain
+  versions and reduce the compression penalty when only a small subset of
+  binaries changes.
+
+- (feature) `dwarfsextract` has a new `--num-disk-writers` option to run
+  multiple writer threads in parallel when extracting files to disk. This
+  can significantly improve throughput, especially when extracting large
+  numbers of small files.
+
+- (feature) `dwarfsextract` now supports `--skip-devices` and
+  `--skip-specials` options to omit device nodes and special files (sockets,
+  FIFOs) during extraction. It also now warns and exits with a non-zero
+  status when a pattern is provided but no matching files are found.
+
+- (feature) In `--input-list` mode, specifying `--order=none` now preserves
+  the exact order of entries as given in the input file. Previously `none`
+  was not treated as a meaningful ordering guarantee in this mode.
+
+- (feature) New `--no-check` option for `mkdwarfs` that skips the filesystem
+  integrity check before recompression. This can speed up recompression
+  workflows when the source image is known to be valid. Addresses github
+  #322.
+
+- (feature) When rewriting a filesystem image, blocks that are already
+  uncompressed are no longer unnecessarily decompressed and reloaded into
+  memory; instead they are passed through directly. This can substantially
+  reduce peak memory usage during rewrite operations.
+
+- (feature) `mkdwarfs` now automatically selects the progress display mode
+  based on whether the output is connected to a terminal and whether the
+  current locale uses UTF-8. Previously the default was always `unicode`,
+  which could produce garbled output in non-UTF-8 environments. Fixes
+  github #326.
+
+- (feature) Added support for reading memory usage from `/proc/self/status`
+  as a fallback when `/proc/self/smaps` is inaccessible (e.g., due to
+  system policies). FreeBSD support for `get_self_memory_usage` was also
+  added.
+
+- (feature) Memory usage during `mkdwarfs` rewrite operations is now
+  reported with lower overhead by default. Accurate per-block tracking
+  is still available via the `DWARFS_LOG_MEMORY_USAGE` environment variable.
+
+- (feature) `mkdwarfs` now logs compression time per block at
+  `--log-level=debug`, making it easier to profile compression performance.
+
+- (fix) Commas in the filesystem image path were not escaped when passed to
+  the FUSE driver as the `fsname` option. Because commas are FUSE argument
+  separators, this caused the mount to fail or the `fsname` to be truncated
+  for paths containing commas. Fixes github #323.
+
+- (fix) Progress reporting in `dwarfsextract` did not advance when file
+  patterns were provided, making it look like the tool had stalled. Fixes
+  github #316.
+
+- (fix) Fixed a potential SIGBUS crash on ARM systems in the frozen
+  serialization library's `TrivialLayout<double>::freeze` function. The
+  crash could occur when freezing double values to memory that was not
+  8-byte aligned.
+
+- (fix) Fixed a potential dangling reference in `metadata_builder` that
+  could lead to undefined behavior in certain scenarios.
+
+- (fix) Fixed FUSE argument vector initialization in `dwarfs_main` that
+  could trigger an assertion inside libfuse when extra arguments were
+  added after an uninitialized vector was passed to `FUSE_ARGS_INIT`.
+
+- (fix) The Windows build of `mkdwarfs` no longer aborts with a fatal
+  error when it encounters an empty file during scanning.
+
+- (fix) Fixed a metadata lookup bug for `parent_dir_entry` in filesystems
+  with format version 2.2, where the lookup required an additional level
+  of indirection that was previously missing.
+
+- (fix) Fixed a bug where an empty string table could cause an incorrect
+  size to be returned by `frozen_string_table_size`.
+
+- (fix) `mmap_file_view::copy_bytes` now correctly clears the error code
+  on success, preventing stale error values from propagating to callers.
+
+- (fix) Rewriting a non-sparse filesystem image no longer incorrectly
+  triggers a sparse-file validation error.
+
+- (fix) Fixed an incorrect simultaneous increment of the `bytes_in` and
+  `bytes_out` counters in `filesystem_writer`, which could cause misleading
+  progress output.
+
+- (build) **Major dependency reduction.** The `fbthrift` and `folly`
+  libraries are no longer dependencies of DwarFS. `fbthrift` has been
+  replaced by a new in-house `thrift_lite` library that implements exactly
+  the subset of the Thrift protocol needed by DwarFS (Compact protocol,
+  JSON serialization, and frozen-layout support). The `folly` library has
+  been replaced by a combination of standard C++23 facilities and small
+  targeted replacements for specific utilities (synchronized wrapper,
+  bit-manipulation helpers, small `map`/`set` types for few elements, etc.).
+  As a result, `gflags`, `glog`, `double-conversion`, and `libevent` are
+  also no longer required.
+
+- (build) The `frozen` serialization library, which was previously embedded
+  inside the `fbthrift` submodule, has been forked and is now maintained as
+  an independent internal component of DwarFS. Its dependencies on
+  folly-specific containers, hash functions, and utilities have been replaced
+  with standard library, Boost, or XXH3-based equivalents.
+
+- (build) The project now requires C++23 (previously C++20). The C++
+  standard version is now set once globally in the CMake build system rather
+  than being repeated per-target.
+
+- (build) The project is now compliant with the
+  [REUSE specification](https://reuse.software/). All source files have been
+  annotated with SPDX license identifiers, a `REUSE.toml` configuration file
+  has been added, and full license texts are provided in the `LICENSES`
+  directory.
+
+- (build) Ubuntu 26.04 (noble) and Debian testing have been added to the
+  continuous integration matrix.
+
+- (test) Added test coverage for the new `--hollow` option, including a
+  check that `--hollow` cannot be combined with `--no-sparse-files`.
+
+- (test) Added tests for the Zstd compressor and for the new binary
+  categorizer.
+
+- (test) Added new unit tests for `thread_pool`, `value_stream_quantile_estimator`,
+  `file_extents_iterable`, string-like hashing, and various utility functions.
+
 ## Version 0.14.1 - 2025-10-25
 
 - (fix) The new Windows code from the v0.14.0 release that implemented
