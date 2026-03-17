@@ -34,6 +34,7 @@ RUN apt install -y \
         libboost-chrono-dev \
         libboost-context-dev \
         libboost-filesystem-dev \
+        libboost-process-dev \
         libboost-program-options-dev \
         libboost-regex-dev \
         libboost-thread-dev \
