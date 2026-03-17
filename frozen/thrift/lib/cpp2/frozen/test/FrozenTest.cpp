@@ -77,7 +77,7 @@ template <class T>
 Layout<T> layout(const T& x, size_t& size) {
   Layout<T> layout;
   size = LayoutRoot::layout(x, layout);
-  return std::move(layout);
+  return layout;
 }
 
 auto tom1 = [] {
