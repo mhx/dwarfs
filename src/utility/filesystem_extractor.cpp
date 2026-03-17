@@ -554,7 +554,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                       fmt::format("short write: {} != {}", rv, r.size()));
                 }
 
-                assert(rv <= static_cast<la_ssize_t>(ext.range.size()));
+                assert(std::cmp_less_equal(rv, ext.range.size()));
 
                 ext.range.advance(rv);
 
