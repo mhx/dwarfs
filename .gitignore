@@ -10,6 +10,7 @@
 /.benchmark/data/
 /.benchmark/*.db
 
+*.token
 *~
 .*.swp
 
