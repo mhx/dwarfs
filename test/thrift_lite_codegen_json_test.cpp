@@ -103,7 +103,9 @@ TEST(thrift_lite, json_output_everything_empty_terse) {
   auto msg = gen::Everything{};
 
   auto oss = std::ostringstream{};
-  auto w = tl::json_writer{oss};
+  tl::json_writer_options opts;
+  opts.terse = true;
+  auto w = tl::json_writer{oss, opts};
   msg.write(w);
 
   EXPECT_EQ("{}", oss.str());
@@ -227,7 +229,9 @@ TEST(thrift_lite, json_output_everything_full) {
   msg.opt_struct().emplace();
 
   auto oss = std::ostringstream{};
-  auto w = tl::json_writer{oss};
+  tl::json_writer_options opts;
+  opts.terse = true;
+  auto w = tl::json_writer{oss, opts};
   msg.write(w);
 
   static constexpr auto expected = R"dbg({

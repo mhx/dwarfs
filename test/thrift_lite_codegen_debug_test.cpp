@@ -77,7 +77,7 @@ TEST(thrift_lite, debug_output_everything_empty_terse) {
   auto msg = gen::Everything{};
 
   auto oss = std::ostringstream{};
-  auto w = tl::debug_writer{oss};
+  auto w = tl::debug_writer{oss, {.terse = true}};
   msg.write(w);
 
   EXPECT_EQ("Everything {}"sv, oss.str());
@@ -196,7 +196,7 @@ TEST(thrift_lite, debug_output_everything_full) {
   msg.opt_struct().emplace();
 
   auto oss = std::ostringstream{};
-  auto w = tl::debug_writer{oss};
+  auto w = tl::debug_writer{oss, {.terse = true}};
   msg.write(w);
 
   static constexpr auto expected = R"dbg(Everything {

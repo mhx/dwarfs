@@ -31,7 +31,7 @@
 namespace dwarfs::thrift_lite {
 
 struct writer_options {
-  bool terse = true;
+  bool terse = false;
 };
 
 } // namespace dwarfs::thrift_lite

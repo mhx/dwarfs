@@ -161,7 +161,7 @@ TEST(thrift_lite_compact_roundtrip, msg_obj_msg) {
     meta.read(r);
 
     auto out = std::vector<std::byte>{};
-    auto w = tl::compact_writer{out};
+    auto w = tl::compact_writer{out, {.terse = true}};
     meta.write(w);
 
     EXPECT_THAT(out, ElementsAreArray(in))
