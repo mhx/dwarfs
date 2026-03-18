@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <string_view>
@@ -328,14 +329,22 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       reader::filesystem_v2 fs(lgr, *iol.os, mm, fsopts);
 
       if (!export_metadata.empty()) {
+        auto const export_path = std::filesystem::path(export_metadata);
         std::error_code ec;
-        auto of = iol.file->open_output(iol.os->canonical(export_metadata), ec);
-        if (ec) {
-          LOG_ERROR << "failed to open metadata output file: " << ec.message();
-          return 1;
+        std::unique_ptr<output_stream> of;
+        if (export_path != "-") {
+          of = iol.file->open_output(iol.os->canonical(export_path), ec);
+          if (ec) {
+            LOG_ERROR << "failed to open metadata output file: "
+                      << ec.message();
+            return 1;
+          }
         }
-        fs.serialize_metadata_as_json(of->os(), false);
-        of->close(ec);
+        fs.serialize_metadata_as_json(of ? of->os() : iol.out, false);
+        if (of) {
+          of->close(ec);
+          of.reset();
+        }
         if (ec) {
           LOG_ERROR << "failed to close metadata output file: " << ec.message();
           return 1;

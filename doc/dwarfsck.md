@@ -95,7 +95,8 @@ pcmaudio/waveform
 ```
 
 - `--export-metadata=`*file*:
-  Export all filesystem metadata in JSON format.
+  Export all filesystem metadata to *file* in JSON format. Write to stdout
+  if *file* is `-`.
 
 - `--log-level=`*name*:
   Specify a logging level.

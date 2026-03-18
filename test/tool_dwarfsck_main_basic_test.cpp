@@ -290,6 +290,10 @@ TEST(dwarfsck_test, export_metadata) {
   ASSERT_TRUE(meta);
   EXPECT_GT(meta->size(), 1000);
   EXPECT_TRUE(nlohmann::json::accept(meta.value())) << meta.value();
+
+  ASSERT_EQ(0, t.run({"image.dwarfs", "--export-metadata=-"})) << t.err();
+  auto meta2 = t.out();
+  EXPECT_EQ(meta.value(), meta2);
 }
 
 TEST(dwarfsck_test, export_metadata_open_error) {
