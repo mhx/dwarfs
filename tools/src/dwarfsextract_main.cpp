@@ -274,7 +274,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     } else {
       LOG_PROXY(debug_logger_policy, lgr);
 
-      if (vm.contains("num-disk-writers")) {
+      if (num_disk_writers > 0) {
         LOG_INFO
             << "--num-disk-writers option is only used when extracting to disk";
       }
