@@ -4,17 +4,17 @@
 
 - (fix) Commas in the filesystem image path were not escaped when passed to
   the FUSE driver as the `fsname` option. Because commas are FUSE argument
-  separators, this caused the mount to fail with an irritating error message
-  for paths containing commas. Fixes github #323.
+  separators, this caused mounting to fail with an irritating error message
+  for paths containing commas. Fixes GitHub issue #323.
 
 - (fix) Progress reporting in `dwarfsextract` was broken when extracting
   a subset of files using patterns, as it was computed relative to the
-  total file system size rather than the total size of the files being
-  extracted. There were a whole bunch of subtle issues that could lead
-  to progress percentages either not reaching 100% or even exceeding it,
-  all of which are now hopefully fixed. Fixes github #316.
+  total filesystem size rather than the total size of the files being
+  extracted. There were several subtle issues that could lead to progress
+  percentages either not reaching 100% or even exceeding it, all of which
+  should now be fixed. Fixes GitHub issue #316.
 
-- (fix) Fixed FUSE argument vector initialization in `dwarfs_main` that
+- (fix) Fixed FUSE argument vector initialization in `dwarfs_main`, which
   could trigger an assertion inside libfuse when extra arguments were
   added after an uninitialized vector was passed to `FUSE_ARGS_INIT`.
 
@@ -22,66 +22,68 @@
   error when it encounters an empty file during scanning.
 
 - (fix) Fixed a metadata lookup bug for `parent_dir_entry` in filesystems
-  with format version 2.2 and earlier (dwarfs releases before v0.5.0),
+  with format version 2.2 and earlier (DwarFS releases before v0.5.0),
   where the lookup required an additional level of indirection that was
-  previously missing. This bug fortunately only affected the debug output
+  previously missing. Fortunately, this bug only affected the debug output
   of `dwarfsck`: the `parent=` field shown with `-d directory_tree` would
   show the inode number of the parent directory instead of the entry number.
-  The only other code path that used `parent_dir_entry` actually "fixed"
+  The only other code path that used `parent_dir_entry` effectively "fixed"
   the bug by applying the missing indirection.
 
 - (fix) Recompressing a filesystem image with sparse files without also
-  rebuilding the metadata would erroneously trigger an error that sparse
-  file support cannot be disabled, even without `--no-sparse-files`. The
-  root cause was an unchecked `std::optional` access, which has been fixed.
+  rebuilding the metadata would erroneously trigger an error stating that
+  sparse file support cannot be disabled, even without `--no-sparse-files`.
+  The root cause was an unchecked `std::optional` access, which has been fixed.
 
 - (fix) When rewriting a filesystem image, the `bytes_in` and `bytes_out`
   progress counters were not updated simultaneously. `bytes_in` was updated
   before compression, while `bytes_out` was updated after compression. This
-  would lead to mostly incorrect compression ratios being reported in the
-  progress display. This has been fixed by updating both counters
-  simultaneously after compression.
+  could lead to incorrect compression ratios being reported in the progress
+  display. This has been fixed by updating both counters simultaneously
+  after compression.
 
 - (fix) When using `--format=newc` and extracting *a subset* of hardlinked
   files, `dwarfsextract` would crash with an "unexpected deferred entry"
-  error. This is a particularity of the `newc` format implementation in
-  libarchive that wasn't handled properly in the code before. This has been
-  fixed and a test has been added to cover this case.
+  error. This is due to a peculiarity of libarchive's `newc` implementation
+  that was not handled properly before. This has been fixed, and a test has
+  been added to cover this case.
 
-- (fix) Corrected the license information in a few headers to move them
+- (fix) Corrected the license information in a few headers, changing them
   from GPL-3.0-or-later to MIT.
 
-- (feat/build) Major dependency reduction by mostly "de-meta-ing" the project.
-  The `fbthrift` and `folly` libraries are no longer dependencies of DwarFS and
-  the submodules have been removed from the repository. `fbthrift` has been
-  replaced by a new `thrift_lite` library that implements only the subset
-  needed by DwarFS (thrift compiler, compact protocol, JSON serialization,
-  debug output, and frozen-layout support). The `frozen` library that is part
-  of `fbthrift` has been forked and is now maintained as an internal component
-  of DwarFS. The fork has been cleaned up and refactored to remove all `folly`
-  dependencies. By using a new abstraction for accessing the bit-packed data,
-  the frozen code is now measurably faster than the original. The `folly`
-  library has been replaced by a combination of standard C++23 facilities,
-  Boost facilities, and a few new in-repo components. As a result, `gflags`,
-  `glog`, `double-conversion`, and `libevent` are also no longer dependencies.
-  On macOS, this also removes the `libsodium` dependency. Since this change
-  uses much simpler abstractions in cases where the complexity of the original
-  libraries was not needed, there was also a significant reduction in binary
-  size, though that was compensated by the addition of new features. Note that
-  the `thrift_lite` library is only just "compatible enough" with the original
-  `fbthrift` to ensure forwards- and backwards-compatibility. The compact
-  protocol is fully compatible, but both the debug and JSON output formats
-  are not equivalent. The debug output will look *very* familiar, but not
-  identical. The JSON output leans towards the "simple" JSON serialization
-  style, but uses lists of pairs instead of objects for maps. The latter
-  difference also affects the `--export-metadata` option of `dwarfsck`, which
-  will produce *very* different, but much more easily digestible, JSON output.
+- (feat/build) Major dependency reduction by mostly "de-Meta-ing" the project.
+  The `fbthrift` and `folly` libraries are no longer dependencies of DwarFS,
+  and the submodules have been removed from the repository. `fbthrift` has
+  been replaced by a new `thrift_lite` library that implements only the
+  subset needed by DwarFS (the thrift compiler, compact protocol, JSON
+  serialization, debug output, and frozen-layout support). The `frozen`
+  library that is part of `fbthrift` has been forked and is now maintained
+  as an internal component of DwarFS. The fork has been cleaned up and
+  refactored to remove all `folly` dependencies. By using a new abstraction
+  for accessing bit-packed data, the frozen code is now measurably faster
+  than the original. The `folly` library has been replaced by a combination
+  of standard C++23 facilities, Boost facilities, and a few new in-repo
+  components. As a result, `gflags`, `glog`, `double-conversion`, and
+  `libevent` are also no longer dependencies. On macOS, this also removes
+  the `libsodium` dependency. Because this change uses much simpler
+  abstractions where the complexity of the original libraries was
+  unnecessary, there has also been a significant reduction in binary size,
+  although some of that reduction is offset by the addition of new features.
+  Note that the `thrift_lite` library is only just "compatible enough" with
+  the original `fbthrift` to ensure forward and backward compatibility. The
+  compact protocol is fully compatible, but the debug and JSON output
+  formats are not identical. The debug output will look *very* familiar,
+  but not identical. The JSON output leans toward the "simple" JSON
+  serialization style, but uses lists of pairs instead of objects for maps.
+  The latter difference also affects the `--export-metadata` option of
+  `dwarfsck`, which will produce *very* different but much more easily
+  digestible JSON output.
 
 - (feat) `mkdwarfs` now automatically selects the progress display mode
   based on whether the output is connected to a terminal and whether the
-  current locale uses UTF-8. Previously the default was always `unicode`,
+  current locale uses UTF-8. Previously, the default was always `unicode`,
   which could produce garbled output in non-UTF-8 environments. Addresses
-  github #326.
+  GitHub issue #326.
 
 - (feat) The project is now compliant with the
   [REUSE specification](https://reuse.software/). All source files have been
@@ -94,18 +96,19 @@
   represented as an empty sparse file with the same size and metadata as
   the original. When accessing a hollow filesystem, file reads return all
   zeros. This can be useful when a realistic filesystem structure is needed
-  for testing, but the actual file contents don't matter. Fixes github #131.
+  for testing, but the actual file contents do not matter. Fixes GitHub
+  issue #131.
 
 - (feat) `mkdwarfs` now supports ZSTD long-distance matching (LDM) via a new
   `long` algorithm option for `--compression`. Enabling LDM can improve
-  compression ratios when used with extremly large block sizes (typically
+  compression ratios when used with extremely large block sizes (typically
   blocks larger than 128 MiB), or when using smaller block sizes at lower
   compression levels. Additionally, *all* ZSTD compression parameters can
   be tuned if the ZSTD library is linked statically *and* does not expose
   a bug that leads to a division-by-zero error when setting the parameters
   manually (see https://github.com/facebook/zstd/issues/4590). The statically
   linked release binaries contain a patched version of `libzstd` and support
-  tuning all parameters. Fixes github #322.
+  tuning all parameters. Fixes GitHub issue #322.
 
 - (feat) New binary file categorizer (`--categorize=binary`) that can identify
   ELF (Linux/FreeBSD), PE (Windows), and Mach-O (macOS) executables and shared
@@ -126,8 +129,8 @@
 - (feat) `dwarfsextract` now emits a warning when a pattern is provided but no
   matching files are found.
 
-- (feat) `dwarfsck` can now export metadata to stdout instead of a file by
-  using `--export-metadata=-`.
+- (feat) `dwarfsck` can now export metadata to stdout instead of a file using
+  `--export-metadata=-`.
 
 - (feat) With `mkdwarfs` in `--input-list` mode, specifying `--order=none` now
   preserves the exact order of entries as given in the input file. Previously,
@@ -136,7 +139,8 @@
 - (feat) New `--no-check` option for `mkdwarfs` that skips the filesystem
   integrity check before recompression. This can speed up recompression
   workflows when the source image is assumed to be valid. The individual
-  checks will *still* be performed during the rewrite. Addresses github #322.
+  checks will *still* be performed during the rewrite. Addresses GitHub
+  issue #322.
 
 - (feat) When recompressing a filesystem image, blocks that are uncompressed
   in the source filesystem are no longer unnecessarily copied into memory.
@@ -146,27 +150,27 @@
 - (feat) While profiling `mkdwarfs`, the memory usage code turned out to
   be a significant hotspot, as reading from `/proc/self/smaps_rollup` is
   surprisingly expensive. To mitigate this, the code now reads from
-  `/proc/self/status` by default, accepting the potentially less accurate
-  memory usage data in exchange for much lower overhead. It is still possible
-  to use `/proc/self/smaps_rollup` by setting `DWARFS_ACCURATE_MEMORY_USAGE=1`
-  in the environment. This can be useful alongside `DWARFS_LOG_MEMORY_USAGE`,
-  which can be set to the name of a log file where memory usage is logged
-  periodically during the `mkdwarfs` run. When `/proc/self/smaps_rollup` is
-  inaccessible, the code will automatically fall back to `/proc/self/status`.
+  `/proc/self/status` by default, accepting potentially less accurate
+  memory usage data in exchange for much lower overhead. It is still
+  possible to use `/proc/self/smaps_rollup` by setting
+  `DWARFS_ACCURATE_MEMORY_USAGE=1` in the environment. This can be useful
+  alongside `DWARFS_LOG_MEMORY_USAGE`, which can be set to the name of a
+  log file where memory usage is logged periodically during the `mkdwarfs`
+  run. When `/proc/self/smaps_rollup` is inaccessible, the code will
+  automatically fall back to `/proc/self/status`.
 
 - (feat) Added FreeBSD support for memory usage tracking in `mkdwarfs` using
   the `kinfo_proc` interface.
 
 - (feat) Memory usage during `mkdwarfs` rewrite operations is now properly
   limited by the `-L`/`--memory-limit` option, taking into account the memory
-  used by both the queued blocks as well as the compression algorithm itself.
-  Addresses github #322.
+  used by both the queued blocks and the compression algorithm itself.
+  Addresses GitHub issue #322.
 
 - (feat) The `similarity` ordering option now uses a different hash mixing
-  function. The main motivation was to ensure a better distribution, since
-  only a small number of hash bits are actually used. This may, or may not,
-  improve compression ratios, but it's definitely a change that will have
-  an effect on the resulting image size.
+  function. The main motivation was to ensure better distribution, since
+  only a small number of hash bits are actually used. This may or may not
+  improve compression ratios, but it will affect the resulting image size.
 
 - (build) The project now requires C++23 compiler support (previously C++20).
   Care has been taken to ensure only widely available and long-supported C++23
@@ -180,8 +184,8 @@
 - (docs) Documentation for the `fits`, `hotness`, and `binary` categorizers
   was added to the `mkdwarfs` manual page.
 
-- (test) Test coverage has been significantly improved from 96.4% to 97.1%
-  with more than 10k lines of new test code.
+- (test) Test coverage has been significantly improved from 96.4% to 97.1%,
+  with more than 10,000 lines of new test code.
 
 ## Version 0.14.1 - 2025-10-25
 
