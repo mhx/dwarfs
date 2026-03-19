@@ -335,6 +335,12 @@ target_link_libraries(
   dwarfs_fsst
 )
 
+target_link_libraries(
+  dwarfs_writer
+  PRIVATE
+  Boost::program_options
+)
+
 if(TARGET Boost::process)
   target_link_libraries(dwarfs_common PUBLIC Boost::process)
 endif()
