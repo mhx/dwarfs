@@ -6,7 +6,7 @@ FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d
 
 LIBARCHIVE_VERSION=3.8.6                 # 2026-03-10
 FLAC_VERSION=1.5.0                       # 2025-02-11
-LIBUCONTEXT_VERSION=1.3.2                # 2024-10-07
+LIBUCONTEXT_VERSION=1.5                  # 2025-12-12
 LIBUNWIND_VERSION=1.8.3                  # 2026-01-21
 BENCHMARK_VERSION=1.9.5                  # 2025-05-19
 BOOST_VERSION=1.90.0                     # 2025-12-10
@@ -19,7 +19,7 @@ LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.2.0                     # 2025-10-27
 ZSTD_VERSION=1.5.7                       # 2025-02-19
 LIBFUSE_VERSION=2.9.9                    # 2019-01-04
-LIBFUSE3_VERSION=3.18.1                  # 2025-12-20
+LIBFUSE3_VERSION=3.18.2                  # 2026-03-18
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 JEMALLOC_VERSION=5.3.0                   # 2022-05-02
 XZ_VERSION=5.8.2                         # 2025-12-17
