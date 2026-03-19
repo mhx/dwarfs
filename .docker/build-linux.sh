@@ -379,7 +379,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
 
   if [[ -n "$CROSS_ARCH" ]]; then
-    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH -DFOLLY_HAVE_UNALIGNED_ACCESS=OFF -DFOLLY_HAVE_WEAK_SYMBOLS=ON -DFOLLY_HAVE_LINUX_VDSO=OFF -DFOLLY_HAVE_WCHAR_SUPPORT=OFF -DHAVE_VSNPRINTF_ERRORS=OFF"
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH"
     # Limit emulated parallelism to 4 threads, otherwise the slowdown is substantial
     export DWARFS_OVERRIDE_HARDWARE_CONCURRENCY=4
   fi
@@ -491,7 +491,7 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   _objects="$(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test *_tests ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/')"
   llvm-profdata$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
   llvm-cov$CLANG_VERSION export -format=lcov -compilation-dir="${GITHUB_WORKSPACE}" -instr-profile=dwarfs.profdata \
-      -skip-branches -ignore-filename-regex='(^|/)(fsst|folly|fbthrift)/' $_objects >/tmp-runner/dwarfs-coverage.lcov
+      -skip-branches -ignore-filename-regex='(^|/)(fsst)/' $_objects >/tmp-runner/dwarfs-coverage.lcov
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
