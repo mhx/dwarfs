@@ -255,6 +255,9 @@ case "-$BUILD_TYPE-" in
 esac
 
 case "-$BUILD_TYPE-" in
+  *-small-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DTRY_ENABLE_BROTLI=0"
+    ;;
   *-minimal-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0 -DENABLE_RICEPP=0"
     CMAKE_ARGS="${CMAKE_ARGS} -DTRY_ENABLE_BROTLI=0 -DTRY_ENABLE_LZ4=0 -DTRY_ENABLE_FLAC=0"
@@ -327,6 +330,10 @@ if [[ "$BUILD_DIST" == "alpine" ]]; then
 
   if [[ "-$BUILD_TYPE-" == *-minimal-* ]]; then
     SUFFIX="${SUFFIX}-minimal"
+  fi
+
+  if [[ "-$BUILD_TYPE-" == *-small-* ]]; then
+    SUFFIX="${SUFFIX}-small"
   fi
 
   if [[ "-$BUILD_TYPE-" == *-mimalloc-* ]]; then
