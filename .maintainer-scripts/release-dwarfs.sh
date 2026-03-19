@@ -162,39 +162,24 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
   # The fuse-extract binary is chosen for smallest size
 
   case "$ARCH" in
-    loongarch64)
-      _tarball_config="clang-minsize-musl-lto"
-      _universal_config="clang-minsize-musl-lto"
-      _fuse_extract_config="clang-minsize-musl-minimal-lto"
-      ;;
-
     riscv64)
       _tarball_config="clang-minsize-musl-libressl-lto"
       _universal_config="clang-minsize-musl-libressl-lto"
+      _universal_small_config="clang-minsize-musl-small-libressl-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
       ;;
 
-    ppc64)
-      _tarball_config="gcc-musl-libressl"
-      _universal_config="gcc-musl-libressl"
-      _fuse_extract_config="gcc-musl-minimal-libressl"
-      ;;
-
-    ppc64le)
-      _tarball_config="gcc-musl-lto"
-      _universal_config="gcc-musl-libressl-lto"
-      _fuse_extract_config="gcc-musl-minimal-libressl-lto"
-      ;;
-
     s390x)
-      _tarball_config="gcc-musl-lto"
-      _universal_config="gcc-musl-lto"
-      _fuse_extract_config="gcc-musl-minimal-lto"
+      _tarball_config="clang-minsize-musl-lto"
+      _universal_config="clang-minsize-musl-lto"
+      _universal_small_config="clang-minsize-musl-small-lto"
+      _fuse_extract_config="clang-minsize-musl-minimal-lto"
       ;;
 
     *)
       _tarball_config="clang-minsize-musl-lto"
       _universal_config="clang-minsize-musl-libressl-lto"
+      _universal_small_config="clang-minsize-musl-small-libressl-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
       ;;
   esac
@@ -207,6 +192,7 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
     *)
       _tarball_config="${_tarball_config}-cross-x86_64"
       _universal_config="${_universal_config}-cross-x86_64"
+      _universal_small_config="${_universal_small_config}-cross-x86_64"
       _fuse_extract_config="${_fuse_extract_config}-cross-x86_64"
       ;;
   esac
@@ -217,12 +203,14 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
   # provide SFX versions for all architectures
   # while larger and (sometimes) slower to extract, these are more portable
   release_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA"
+  release_binary "dwarfs-universal-$VA-${_universal_small_config}" "dwarfs-universal-small-$VA"
   release_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA"
 
   case "$ARCH" in
-    i386|arm|x86_64|aarch64)
+    i386|arm|x86_64|aarch64|riscv64)
       # also provide upx versions
       release_upx_binary "dwarfs-universal-$VA-${_universal_config}" "dwarfs-universal-$VA.upx"
+      release_upx_binary "dwarfs-universal-$VA-${_universal_small_config}" "dwarfs-universal-small-$VA.upx"
       release_upx_binary "dwarfs-fuse-extract-$VA-${_fuse_extract_config}" "dwarfs-fuse-extract-$VA.upx"
       ;;
 
