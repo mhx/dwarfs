@@ -47,7 +47,7 @@ use_lib() {
             ;;
         loongarch64)
             case "$lib" in
-                fuse|libunwind|libdwarf|cpptrace|libressl)
+                fuse|libunwind|libdwarf|cpptrace)
                     return 1
                     ;;
             esac
