@@ -27,8 +27,8 @@ my @compilers = qw(
 
 my %target_compilers = (
     # https://github.com/llvm/llvm-project/issues/150913
-    ppc64   => [qw(gcc)],
-    ppc64le => [qw(gcc)],
+    # ppc64   => [qw(gcc)],
+    # ppc64le => [qw(gcc)],
 );
 
 my $WITH_CACHES = "--mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache";
