@@ -757,7 +757,7 @@ jobs:
       - name: Configure Full Build
         run: |
           rm -rf ${{ runner.temp }}/build
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
+          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DBUILD_SHARED_LIBS=ON -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
 
       - name: Run Full Build
         run: |
