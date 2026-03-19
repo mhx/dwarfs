@@ -7,75 +7,94 @@ set -ex
 
 export CCACHE_CONFIGPATH=/workspace/.docker/ccache.conf
 
-LOCAL_REPO_PATH=/local/repos
-mkdir -p "$LOCAL_REPO_PATH"
-LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
+if [[ -n "$GITHUB_RUN_ID" ]]; then
+    LOCAL_REPO_PATH=/local/repos
+    mkdir -p "$LOCAL_REPO_PATH"
+    LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
 
-WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
-NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
-BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
-mkdir -p "$WORKFLOW_LOG_DIR"
+    WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
+    NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+    BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+    mkdir -p "$WORKFLOW_LOG_DIR"
 
-log() {
-    local event="$1"
-    # log timestamp (with microsecond resolution) + tab + event
-    echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
-}
+    log() {
+        local event="$1"
+        # log timestamp (with microsecond resolution) + tab + event
+        echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
+    }
 
-if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
-    echo "Skipping git repo update because it already ran in the last three hours."
+    if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
+        echo "Skipping git repo update because it already ran in the last three hours."
+    else
+        echo "Running git repo update."
+
+        log "begin:repo-update"
+
+        for repo in "fmtlib/fmt" \
+                    "google/googletest" \
+                    "ericniebler/range-v3" \
+                    "greg7mdp/parallel-hashmap"; do
+          reponame=$(basename "$repo")
+          cd "$LOCAL_REPO_PATH"
+          if [ -d "$reponame" ]; then
+            cd "$reponame"
+            time git fetch
+          else
+            time git clone "https://github.com/$repo.git"
+          fi
+        done
+
+        log "end:repo-update"
+
+        touch "$LAST_UPDATE_FILE"
+    fi
+
+    if [[ "$BUILD_TYPE" != "clang-release-ninja-static" ]]; then
+      export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
+    fi
+
+    if [[ "-$BUILD_TYPE-" == *-debug-* ]] && [[ "-$BUILD_TYPE-" != *-coverage-* ]] &&
+       [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]]; then
+      export DWARFS_SKIP_SLOW_TESTS=1
+    fi
+
+    cd "$HOME"
+
+    rm -rf dwarfs dwarfs-*
+
+    if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
+      log "begin:tarball-extract"
+      tar xf "/artifacts/cache/dwarfs-source-${GITHUB_RUN_NUMBER}.tar.zst"
+      ln -s dwarfs-* dwarfs
+      log "end:tarball-extract"
+    else
+      git config --global --add safe.directory /workspace
+      ln -s /workspace dwarfs
+    fi
+
+    rm -rf build
+    mkdir build
+    cd build
 else
-    echo "Running git repo update."
+    BUILD_SPEC="$1"
+    BUILD_TYPE="$2"
 
-    log "begin:repo-update"
+    if [[ -z "$BUILD_SPEC" ]] || [[ -z "$BUILD_TYPE" ]]; then
+        echo "Usage: $0 <build-spec> <build-type>"
+        exit 1
+    fi
 
-    for repo in "fmtlib/fmt" \
-                "google/googletest" \
-                "ericniebler/range-v3" \
-                "greg7mdp/parallel-hashmap"; do
-      reponame=$(basename "$repo")
-      cd "$LOCAL_REPO_PATH"
-      if [ -d "$reponame" ]; then
-        cd "$reponame"
-        time git fetch
-      else
-        time git clone "https://github.com/$repo.git"
-      fi
-    done
+    # decompose BUILD_SPEC ("BUILD_ARCH-BUILD_DIST[-CROSS_ARCH]")
+    BUILD_ARCH="$(echo "$BUILD_SPEC" | cut -d- -f1)"
+    BUILD_DIST="$(echo "$BUILD_SPEC" | cut -d- -f2)"
+    CROSS_ARCH="$(echo "$BUILD_SPEC" | cut -d- -f3)"
 
-    log "end:repo-update"
-
-    touch "$LAST_UPDATE_FILE"
-fi
-
-if [[ "$BUILD_TYPE" != "clang-release-ninja-static" ]]; then
-  export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
-fi
-
-if [[ "-$BUILD_TYPE-" == *-debug-* ]] && [[ "-$BUILD_TYPE-" != *-coverage-* ]] &&
-   [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]]; then
-  export DWARFS_SKIP_SLOW_TESTS=1
+    log() {
+        return
+    }
 fi
 
 ARCH="$(uname -m)"
-
-cd "$HOME"
-
-rm -rf dwarfs dwarfs-*
-
-if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
-  log "begin:tarball-extract"
-  tar xf "/artifacts/cache/dwarfs-source-${GITHUB_RUN_NUMBER}.tar.zst"
-  ln -s dwarfs-* dwarfs
-  log "end:tarball-extract"
-else
-  git config --global --add safe.directory /workspace
-  ln -s /workspace dwarfs
-fi
-
-rm -rf build
-mkdir build
-cd build
 
 if [[ "$BUILD_DIST" == "alpine" ]]; then
   GCC_VERSION=
@@ -407,36 +426,56 @@ cmake /workspace $_cmake_args_quoted
 #################################################################################
 #################################################################################
 EOF
+
+  if [[ -z "$GITHUB_RUN_ID" ]]; then
+    # If we're running in a local container, we'll stop after printing the environment and CMake command
+    exit 0
+  fi
 fi
 
-INSTALLDIR="$HOME/install"
-PREFIXPATH="$INSTALLDIR/usr/local"
-rm -rf "$INSTALLDIR"
+if [[ -n "$GITHUB_RUN_ID" ]]; then
+  SOURCE_DIR="../dwarfs"
+else
+  SOURCE_DIR="/workspace"
+fi
 
-if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
-  LDLIBPATH="$(readlink -m "$PREFIXPATH/lib/$(gcc -print-multi-os-directory)")"
-  if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
-    export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
+if [[ -n "$GITHUB_RUN_ID" ]]; then
+  INSTALLDIR="$HOME/install"
+  PREFIXPATH="$INSTALLDIR/usr/local"
+  rm -rf "$INSTALLDIR"
+
+  if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
+    LDLIBPATH="$(readlink -m "$PREFIXPATH/lib/$(gcc -print-multi-os-directory)")"
+    if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
+      export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
+    fi
   fi
 fi
 
 case "-$BUILD_TYPE-" in
   *-full-*)
     log "begin:cmake"
-    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
+    cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_EXAMPLE=1
     log "end:cmake"
-    log "begin:build"
-    time $BUILD_TOOL
-    log "end:build"
-    $SAVE_BUILD_LOG
-    log "begin:test"
-    $RUN_TESTS
-    log "end:test"
+    if [[ -n "$GITHUB_RUN_ID" ]]; then
+      log "begin:build"
+      time $BUILD_TOOL
+      log "end:build"
+      $SAVE_BUILD_LOG
+      log "begin:test"
+      $RUN_TESTS
+      log "end:test"
+    fi
     ;;
 
   *-split-*)
+    if [[ -z "$GITHUB_RUN_ID" ]]; then
+      echo "split builds are currently only supported in the GitHub Actions workflow"
+      exit 1
+    fi
+
     # ==== libdwarfs ====
-    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+    cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TOOL install
@@ -444,12 +483,12 @@ case "-$BUILD_TYPE-" in
     rm -rf *
 
     # ==== example binary ====
-    cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    cmake "$SOURCE_DIR/example" $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$PREFIXPATH"
     time $BUILD_TOOL
     rm -rf *
 
     # ==== dwarfs tools ====
-    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TOOL install
@@ -457,7 +496,7 @@ case "-$BUILD_TYPE-" in
     rm -rf *
 
     # ==== dwarfs fuse driver ====
-    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TOOL install
@@ -470,20 +509,27 @@ case "-$BUILD_TYPE-" in
   *)
     log "begin:cmake"
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-      cmake ../dwarfs/ $CMAKE_ARGS
+      cmake "$SOURCE_DIR" $CMAKE_ARGS
     else
-      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
+      cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_EXAMPLE=1
     fi
     log "end:cmake"
-    log "begin:build"
-    time $BUILD_TOOL
-    log "end:build"
-    $SAVE_BUILD_LOG
-    log "begin:test"
-    $RUN_TESTS
-    log "end:test"
+    if [[ -n "$GITHUB_RUN_ID" ]]; then
+      log "begin:build"
+      time $BUILD_TOOL
+      log "end:build"
+      $SAVE_BUILD_LOG
+      log "begin:test"
+      $RUN_TESTS
+      log "end:test"
+    fi
     ;;
 esac
+
+if [[ -z "$GITHUB_RUN_ID" ]]; then
+  # If we're running in a local container, we'll stop after configuring the build
+  exit 0
+fi
 
 if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   rm -f /tmp-runner/dwarfs-coverage.txt
