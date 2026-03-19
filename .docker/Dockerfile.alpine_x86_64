@@ -371,6 +371,42 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
+FROM toolchain_ppc64 AS staticlibs_ppc64_clang
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64 clang
+
+###############################################################################
+
+FROM toolchain_ppc64 AS staticlibs_ppc64_clang-lto
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64 clang-lto
+
+###############################################################################
+
+FROM toolchain_ppc64 AS staticlibs_ppc64_clang-minsize-lto
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64 clang-minsize-lto
+
+###############################################################################
+
 FROM build_base AS toolchain_ppc64le
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -389,6 +425,42 @@ COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
     bash /usr/local/bin/static-libs-install.sh :all ppc64le gcc
+
+###############################################################################
+
+FROM toolchain_ppc64le AS staticlibs_ppc64le_clang
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64le clang
+
+###############################################################################
+
+FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-lto
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64le clang-lto
+
+###############################################################################
+
+FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-minsize-lto
+
+COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
+
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+
+RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
+    bash /usr/local/bin/static-libs-install.sh :all ppc64le clang-minsize-lto
 
 ###############################################################################
 
@@ -591,7 +663,13 @@ COPY --link --from=staticlibs_riscv64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_riscv64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_riscv64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64_gcc /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64_clang /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64_clang-lto /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64le_gcc /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64le_clang /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64le_clang-lto /opt/static-libs/ /opt/static-libs/
+COPY --link --from=staticlibs_ppc64le_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_clang-lto /opt/static-libs/ /opt/static-libs/
