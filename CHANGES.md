@@ -1,5 +1,33 @@
 # Change Log
 
+## Version 0.15.1 - 2026-03-21
+
+- (fix) `mkdwarfs` did not correctly handle inputs where hardlinks had the
+  same inode number on different devices. To run into this issue, you would
+  have to make `mkdwarfs` scan files from multiple devices (e.g. the root
+  of a directory tree with multiple mounted filesystems) *and* have files
+  with the same inode number on different devices *and* have at least two
+  of those files also have a link count greater than 1. While this is
+  hopefully rare in practice, it is a serious bug that can lead to crashes
+  (in the best case) or even data loss (in the worst case), as only the
+  data of one of these files would be stored in the image. This has been
+  fixed and a test has been added to cover this case.
+
+- (fix) A missing dependency was causing linker errors with shared library
+  builds on macOS. This has been fixed.
+
+- (build) The static release binaries are now all built using Clang and
+  link-time optimization. This was previously not the case for some
+  architectures due to bugs in the toolchain. As a result, the binaries
+  are now significantly smaller.
+
+- (build) There is now a new set of binaries (`dwarfs-universal-small`)
+  that are built without brotli support and without support for the
+  performance monitor. The performance monitor is rarely used and brotli
+  compression comes with a huge dictionary that bloats the binary size
+  without offering much benefit over lzma or zstd in most cases. If you
+  care about binary size, these new binaries are a good default choice.
+
 ## Version 0.15.0 - 2026-03-18
 
 - (fix) Commas in the filesystem image path were not escaped when passed to
