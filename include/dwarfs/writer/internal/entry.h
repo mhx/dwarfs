@@ -28,12 +28,17 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <iosfwd>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+
+#include <boost/container_hash/hash.hpp>
+
+#include <fmt/ostream.h>
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
@@ -61,6 +66,20 @@ class global_entry_data;
 class inode;
 class progress;
 class time_resolution_converter;
+
+struct unique_inode_id {
+  unique_inode_id() = default;
+  unique_inode_id(uint64_t dev_id, uint64_t ino)
+      : device_id{dev_id}
+      , inode_num{ino} {}
+
+  uint64_t device_id{0};
+  uint64_t inode_num{0};
+
+  auto operator<=>(unique_inode_id const&) const = default;
+
+  friend std::ostream& operator<<(std::ostream& os, unique_inode_id const& id);
+};
 
 class entry_visitor {
  public:
@@ -99,7 +118,7 @@ class entry : public entry_interface {
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  uint64_t raw_inode_num() const;
+  unique_inode_id inode_id() const;
   uint64_t num_hard_links() const;
   virtual void set_inode_num(uint32_t ino) = 0;
   virtual std::optional<uint32_t> const& inode_num() const = 0;
@@ -245,3 +264,26 @@ class device : public entry {
 } // namespace writer::internal
 
 } // namespace dwarfs
+
+namespace std {
+
+template <>
+struct hash<dwarfs::writer::internal::unique_inode_id> {
+  std::size_t
+  operator()(dwarfs::writer::internal::unique_inode_id const& id) const {
+    std::size_t seed = 0;
+    boost::hash_combine(seed, id.device_id);
+    boost::hash_combine(seed, id.inode_num);
+    return seed;
+  }
+};
+
+} // namespace std
+
+namespace fmt {
+
+template <>
+struct formatter<dwarfs::writer::internal::unique_inode_id>
+    : ostream_formatter {};
+
+} // namespace fmt

@@ -27,6 +27,8 @@
 #include <string_view>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include <nlohmann/json.hpp>
 
 #include <parallel_hashmap/phmap.h>
@@ -131,7 +133,7 @@ class file_scanner_ final : public file_scanner::impl {
   progress& prog_;
   file_scanner::options const opts_;
   uint32_t num_unique_{0};
-  fast_map_type<uint64_t, inode::files_vector> hardlinks_;
+  fast_map_type<unique_inode_id, inode::files_vector> hardlinks_;
   std::mutex mutable mx_;
   // The pair stores the file size and optionally a hash of the first
   // 4 KiB of the file. If there's a collision, the worst that can
@@ -143,7 +145,7 @@ class file_scanner_ final : public file_scanner::impl {
   fast_map_type<file const*, uint64_t> file_start_hash_;
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
-  fast_map_type<uint64_t, inode::files_vector> by_raw_inode_;
+  fast_map_type<unique_inode_id, inode::files_vector> by_inode_id_;
   fast_map_type<std::string_view, inode::files_vector> by_hash_;
 
   struct inode_create_info {
@@ -210,7 +212,7 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
   // This method is supposed to be called from a single thread only.
 
   if (p->num_hard_links() > 1) {
-    auto& vec = hardlinks_[p->raw_inode_num()];
+    auto& vec = hardlinks_[p->inode_id()];
     vec.push_back(p);
 
     if (vec.size() > 1) {
@@ -231,7 +233,7 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
     prog_.current.store(p);
     p->scan({}, prog_, opts_.hash_algo); // TODO
 
-    by_raw_inode_[p->raw_inode_num()].push_back(p);
+    by_inode_id_[p->inode_id()].push_back(p);
 
     add_inode(p, __LINE__);
   }
@@ -259,13 +261,13 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
       return unique_size_.at({size, hash});
     });
     finalize_files<true>(unique_size_, inode_num, obj_num);
-    finalize_files(by_raw_inode_, inode_num, obj_num);
+    finalize_files(by_inode_id_, inode_num, obj_num);
     finalize_files(by_hash_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](file const* p) -> inode::files_vector& {
-      return by_raw_inode_.at(p->raw_inode_num());
+      return by_inode_id_.at(p->inode_id());
     });
-    finalize_files(by_raw_inode_, inode_num, obj_num);
+    finalize_files(by_inode_id_, inode_num, obj_num);
   }
 }
 
@@ -350,7 +352,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
           assert(p->get_inode());
 
           if (p->is_invalid()) [[unlikely]] {
-            by_raw_inode_[p->raw_inode_num()].push_back(p);
+            by_inode_id_[p->inode_id()].push_back(p);
           } else {
             auto& ref = by_hash_[p->hash()];
             DWARFS_CHECK(ref.empty(),
@@ -385,7 +387,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
         if (p->is_invalid()) [[unlikely]] {
           add_inode(p, __LINE__);
-          by_raw_inode_[p->raw_inode_num()].push_back(p);
+          by_inode_id_[p->inode_id()].push_back(p);
         } else {
           auto& ref = by_hash_[p->hash()];
 
@@ -691,7 +693,7 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << ",\n";
   dump_map(os, "first_file_hashed", first_file_hashed_);
   os << ",\n";
-  dump_map(os, "by_raw_inode", by_raw_inode_);
+  dump_map(os, "by_inode_id", by_inode_id_);
   os << ",\n";
   dump_map(os, "by_hash", by_hash_);
   os << ",\n";
