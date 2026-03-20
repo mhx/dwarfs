@@ -88,6 +88,7 @@ struct simplestat {
   timespec_wrapper mtim{};
   timespec_wrapper ctim{};
   std::optional<file_stat::off_type> allocated_size{};
+  file_stat::dev_type dev{0};
 
   posix_file_type::value type() const {
     return static_cast<posix_file_type::value>(mode & posix_file_type::mask);
@@ -100,6 +101,7 @@ struct add_file_options {
   std::optional<file_stat::timespec_type> atim{};
   std::optional<file_stat::timespec_type> mtim{};
   std::optional<file_stat::timespec_type> ctim{};
+  std::optional<file_stat::dev_type> dev{};
 };
 
 class os_access_mock : public os_access {

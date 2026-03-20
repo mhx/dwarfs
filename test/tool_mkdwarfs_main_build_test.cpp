@@ -1088,3 +1088,111 @@ TEST(mkdwarfs_test, cannot_use_hollow_with_no_sparse_files) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr(
                            "cannot use --hollow with --no-sparse-files"));
 }
+
+class mkdwarfs_multi_device_test
+    : public testing::TestWithParam<std::string_view> {};
+
+TEST_P(mkdwarfs_multi_device_test, inodes_from_different_devices_are_distinct) {
+  auto const file_hash = GetParam();
+
+  auto const data1 = test::create_random_string(1024);
+  auto const data2 = test::create_random_string(1024);
+  auto const data3 = test::create_random_string(512);
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+
+  t.os->add_dir("dev1", {.ino = 1, .dev = 0});
+  t.os->add_dir("dev2", {.ino = 2, .dev = 0});
+  t.os->add_dir("dev3", {.ino = 3, .dev = 0});
+
+  t.os->add_file("a", data1, {.ino = 42, .nlink = 3, .dev = 0});
+  t.os->add_file("b", data1, {.ino = 42, .nlink = 3, .dev = 0});
+  t.os->add_file("c", data1, {.ino = 43, .nlink = 2, .dev = 0});
+  t.os->add_file("d", data2, {.ino = 44, .nlink = 2, .dev = 0});
+  t.os->add_file("e", data3, {.ino = 45, .nlink = 2, .dev = 0});
+
+  t.os->add_file("dev1/a", data1, {.ino = 42, .nlink = 3, .dev = 1});
+  t.os->add_file("dev1/b", data1, {.ino = 46, .nlink = 2, .dev = 1});
+  t.os->add_file("dev1/c", data1, {.ino = 43, .nlink = 2, .dev = 1});
+  t.os->add_file("dev1/d", data2, {.ino = 44, .nlink = 2, .dev = 1});
+  t.os->add_file("dev1/e", data3, {.ino = 45, .nlink = 2, .dev = 1});
+
+  t.os->add_file("dev2/a", data2, {.ino = 42, .nlink = 2, .dev = 2});
+  t.os->add_file("dev2/b", data1, {.ino = 43, .nlink = 2, .dev = 2});
+  t.os->add_file("dev2/c", data3, {.ino = 44, .nlink = 2, .dev = 2});
+  t.os->add_file("dev2/d", data1, {.ino = 43, .nlink = 2, .dev = 2});
+  t.os->add_file("dev2/e", data2, {.ino = 42, .nlink = 2, .dev = 2});
+
+  t.os->add_file("dev3/a", data3, {.ino = 41, .dev = 3});
+  t.os->add_file("dev3/b", data2, {.ino = 42, .dev = 3});
+  t.os->add_file("dev3/c", data1, {.ino = 43, .dev = 3});
+  t.os->add_file("dev3/d", data2, {.ino = 44, .nlink = 2, .dev = 3});
+  t.os->add_file("dev3/e", data3, {.ino = 45, .nlink = 2, .dev = 3});
+
+  ASSERT_EQ(0, t.run("-i / -o - --file-hash=" + std::string(file_hash)))
+      << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  auto inode_of = [&](std::string_view path) {
+    return fs.find(path).value().inode().inode_num();
+  };
+
+  auto contents_of = [&](std::string_view path) {
+    return fs.read_string(inode_of(path));
+  };
+
+  EXPECT_EQ(data1, contents_of("a"));
+  EXPECT_EQ(data1, contents_of("b"));
+  EXPECT_EQ(data1, contents_of("c"));
+  EXPECT_EQ(data2, contents_of("d"));
+  EXPECT_EQ(data3, contents_of("e"));
+
+  EXPECT_EQ(data1, contents_of("dev1/a"));
+  EXPECT_EQ(data1, contents_of("dev1/b"));
+  EXPECT_EQ(data1, contents_of("dev1/c"));
+  EXPECT_EQ(data2, contents_of("dev1/d"));
+  EXPECT_EQ(data3, contents_of("dev1/e"));
+
+  EXPECT_EQ(data2, contents_of("dev2/a"));
+  EXPECT_EQ(data1, contents_of("dev2/b"));
+  EXPECT_EQ(data3, contents_of("dev2/c"));
+  EXPECT_EQ(data1, contents_of("dev2/d"));
+  EXPECT_EQ(data2, contents_of("dev2/e"));
+
+  EXPECT_EQ(data3, contents_of("dev3/a"));
+  EXPECT_EQ(data2, contents_of("dev3/b"));
+  EXPECT_EQ(data1, contents_of("dev3/c"));
+  EXPECT_EQ(data2, contents_of("dev3/d"));
+  EXPECT_EQ(data3, contents_of("dev3/e"));
+
+  std::map<uint64_t, std::set<std::string>> inodes;
+  fs.walk([&](auto const& dev) {
+    auto iv = dev.inode();
+    if (iv.is_regular_file()) {
+      inodes[iv.inode_num()].insert(dev.unix_path());
+    }
+  });
+
+  EXPECT_EQ(17, inodes.size());
+
+  std::set<std::set<std::string>> hardlink_groups;
+
+  for (auto const& [inode_num, paths] : inodes) {
+    if (paths.size() > 1) {
+      hardlink_groups.insert(paths);
+    }
+  }
+
+  std::set<std::set<std::string>> const expected_hardlink_groups{
+      {"a", "b"},
+      {"dev2/a", "dev2/e"},
+      {"dev2/b", "dev2/d"},
+  };
+
+  EXPECT_EQ(expected_hardlink_groups, hardlink_groups);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_multi_device_test,
+                         ::testing::Values("none"sv, "xxh3-128"sv));

@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ostream>
 #include <utility>
 
 #include <fmt/format.h>
@@ -61,6 +62,10 @@ bool is_root_path(std::string_view path) {
 }
 
 } // namespace
+
+std::ostream& operator<<(std::ostream& os, unique_inode_id const& id) {
+  return os << fmt::format("{{dev={}, ino={}}}", id.device_id, id.inode_num);
+}
 
 // NOLINTBEGIN(performance-unnecessary-value-param,performance-move-const-arg)
 entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
@@ -165,7 +170,9 @@ file_size_t entry::size() const { return stat_.size(); }
 
 file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
 
-uint64_t entry::raw_inode_num() const { return stat_.ino(); }
+unique_inode_id entry::inode_id() const {
+  return unique_inode_id{stat_.dev(), stat_.ino()};
+}
 
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 

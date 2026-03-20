@@ -62,7 +62,7 @@ namespace {
 
 file_stat make_file_stat(simplestat const& ss) {
   file_stat rv;
-  rv.set_dev(0);
+  rv.set_dev(ss.dev);
   rv.set_ino(ss.ino);
   rv.set_nlink(ss.nlink);
   rv.set_mode(ss.mode);
@@ -280,6 +280,7 @@ void os_access_mock::add_dir(fs::path const& path,
 
 simplestat os_access_mock::make_simplestat(add_file_options const& opts) {
   simplestat st;
+  st.dev = opts.dev.value_or(0);
   if (auto const ino = opts.ino) {
     st.ino = *ino;
   } else {
