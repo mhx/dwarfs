@@ -340,21 +340,27 @@ include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs_tool.cmake)
 if(WITH_TOOLS)
   foreach(tgt mkdwarfs dwarfsck dwarfsextract)
     add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)
-    add_executable(${tgt} tools/src/${tgt}.cpp)
-
-    target_link_libraries(${tgt} PRIVATE ${tgt}_main)
-
     list(APPEND MAIN_TARGETS ${tgt}_main)
-    list(APPEND BINARY_TARGETS ${tgt})
 
-    install(TARGETS ${tgt} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    if(WIN32)
-      install(FILES $<TARGET_PDB_FILE:${tgt}> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+    if(ONLY_UNIVERSAL_BINARIES)
+      if(NOT (WITH_UNIVERSAL_BINARY OR WITH_FUSE_EXTRACT_BINARY))
+        message(FATAL_ERROR "ONLY_UNIVERSAL_BINARIES is set but no universal binary is enabled")
+      endif()
     else()
-      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/${tgt}
-              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
-      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_${tgt}
-              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
+      add_executable(${tgt} tools/src/${tgt}.cpp)
+      target_link_libraries(${tgt} PRIVATE ${tgt}_main)
+      list(APPEND BINARY_TARGETS ${tgt})
+
+      install(TARGETS ${tgt} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+      if(WIN32)
+        install(FILES $<TARGET_PDB_FILE:${tgt}> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+      else()
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/${tgt}
+                DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_${tgt}
+                DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
+      endif()
     endif()
   endforeach()
 
@@ -422,16 +428,22 @@ if(WITH_FUSE_DRIVER)
   if(FUSE3_FOUND OR WINFSP OR APPLE)
     add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
     target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
-    add_executable(dwarfs-bin tools/src/dwarfs.cpp)
-    target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
-    set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+    target_link_libraries(dwarfs_main PRIVATE dwarfs_reader)
+    list(APPEND MAIN_TARGETS dwarfs_main)
+    if(NOT ONLY_UNIVERSAL_BINARIES)
+      add_executable(dwarfs-bin tools/src/dwarfs.cpp)
+      target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
+      set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+    endif()
     if(WINFSP)
       target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
                                                      DWARFS_FUSE_LOWLEVEL=0)
       target_include_directories(dwarfs_main SYSTEM PRIVATE "${WINFSP_PATH}/inc")
       target_link_libraries(dwarfs_main PRIVATE ${WINFSP})
-      target_link_libraries(dwarfs-bin PRIVATE delayimp.lib)
-      target_link_options(dwarfs-bin PRIVATE /DELAYLOAD:winfsp-x64.dll)
+      if(NOT ONLY_UNIVERSAL_BINARIES)
+        target_link_libraries(dwarfs-bin PRIVATE delayimp.lib)
+        target_link_options(dwarfs-bin PRIVATE /DELAYLOAD:winfsp-x64.dll)
+      endif()
       if(TARGET dwarfsuniversal)
         target_link_libraries(dwarfsuniversal PRIVATE delayimp.lib)
         target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
@@ -457,27 +469,27 @@ if(WITH_FUSE_DRIVER)
       target_link_libraries(dwarfsfuseextract PRIVATE dwarfs_main)
       target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
     endif()
-    if(WINFSP)
-      install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-      install(FILES $<TARGET_PDB_FILE:dwarfs-bin> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
-    else()
-      install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-      install(CODE "\
-        file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
-        file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs\"
-                         \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs\"
-                         SYMBOLIC)")
-      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/dwarfs
-              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
-      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_dwarfs
-              DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
+    if(NOT ONLY_UNIVERSAL_BINARIES)
+      if(WINFSP)
+        install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES $<TARGET_PDB_FILE:dwarfs-bin> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+      else()
+        install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(CODE "\
+          file(MAKE_DIRECTORY \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}\")
+          file(CREATE_LINK \"${relative_sbindir_to_bindir}/dwarfs\"
+                           \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SBINDIR}/mount.dwarfs\"
+                           SYMBOLIC)")
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/bash/dwarfs
+                DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${BASH_INSTALL_PATH})
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/completions/zsh/_dwarfs
+                DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${ZSH_INSTALL_PATH})
+      endif()
+      list(APPEND BINARY_TARGETS dwarfs-bin)
     endif()
-    list(APPEND BINARY_TARGETS dwarfs-bin)
-    list(APPEND MAIN_TARGETS dwarfs_main)
-    target_link_libraries(dwarfs_main PRIVATE dwarfs_reader)
   endif()
 
-  if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+  if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND) AND (NOT ONLY_UNIVERSAL_BINARIES))
     add_library(dwarfs2_main OBJECT tools/src/dwarfs_main.cpp)
     target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                     FUSE_USE_VERSION=29)
@@ -600,7 +612,7 @@ if(WITH_LIBDWARFS)
 endif()
 
 if(WITH_TESTS)
-  if(WITH_LIBDWARFS)
+  if(WITH_LIBDWARFS AND NOT ONLY_TOOLS_TEST)
     add_executable(dwarfs_unit_tests
       test/align_advise_range_test.cpp
       test/associative_vector_types_test.cpp
@@ -724,7 +736,7 @@ if(WITH_TESTS)
     endif()
   endif()
 
-  if(WITH_TOOLS)
+  if(WITH_TOOLS AND NOT ONLY_TOOLS_TEST)
     add_executable(tool_main_test
       test/tool_main_cmdline_test.cpp
       test/tool_main_logging_test.cpp
@@ -759,7 +771,7 @@ if(WITH_TESTS)
     endif()
   endif()
 
-  if((WITH_TOOLS OR WITH_FUSE_DRIVER) AND WITH_MAN_OPTION)
+  if((WITH_TOOLS OR WITH_FUSE_DRIVER) AND WITH_MAN_OPTION AND NOT ONLY_TOOLS_TEST)
     list(APPEND DWARFS_TESTS manpage_test)
   endif()
 
@@ -822,8 +834,9 @@ if(WITH_TESTS)
   if(TARGET tools_test)
     target_compile_definitions(tools_test PRIVATE
       $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
-      $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>
-      $<$<BOOL:${WITH_FUSE_DRIVER}>:DWARFS_WITH_FUSE_DRIVER>
+      $<$<AND:$<BOOL:${WITH_FUSE_EXTRACT_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_FUSE_EXTRACT_BINARY>
+      $<$<AND:$<BOOL:${WITH_TOOLS}>,$<NOT:$<BOOL:${ONLY_UNIVERSAL_BINARIES}>>>:DWARFS_WITH_TOOLS>
+      $<$<AND:$<BOOL:${WITH_FUSE_DRIVER}>,$<NOT:$<BOOL:${ONLY_UNIVERSAL_BINARIES}>>>:DWARFS_WITH_FUSE_DRIVER>
       $<$<BOOL:${MKDWARFS_EXE}>:MKDWARFS_BINARY=\"${MKDWARFS_EXE}\">
       $<$<BOOL:${DWARFSCK_EXE}>:DWARFSCK_BINARY=\"${DWARFSCK_EXE}\">
       $<$<BOOL:${DWARFSEXTRACT_EXE}>:DWARFSEXTRACT_BINARY=\"${DWARFSEXTRACT_EXE}\">

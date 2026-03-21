@@ -39,6 +39,7 @@
 #include <string_view>
 #include <thread>
 #include <tuple>
+#include <unordered_set>
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -141,6 +142,268 @@ auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
 auto dwarfsextract_bin = fs::path{DWARFSEXTRACT_BINARY};
 auto dwarfsck_bin = fs::path{DWARFSCK_BINARY};
 auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
+auto fuse_extract_bin = tools_dir / "universal" / "dwarfs-fuse-extract" EXE_EXT;
+
+enum class tool_type {
+  mkdwarfs,
+  dwarfsck,
+  dwarfsextract,
+  fuse3,
+  fuse2,
+};
+
+constexpr std::array tool_types{
+    tool_type::mkdwarfs, tool_type::dwarfsck, tool_type::dwarfsextract,
+    tool_type::fuse3,    tool_type::fuse2,
+};
+
+constexpr std::array fuse_driver_types{
+    tool_type::fuse3,
+    tool_type::fuse2,
+};
+
+enum class binary_type {
+  standalone,
+  universal,
+  fuse_extract,
+  universal_symlink,
+  fuse_extract_symlink,
+  any,
+};
+
+constexpr std::array binary_types{
+    binary_type::standalone,
+#ifdef DWARFS_HAVE_UNIVERSAL_BINARY
+    binary_type::universal,    binary_type::universal_symlink,
+#endif
+#ifdef DWARFS_HAVE_FUSE_EXTRACT_BINARY
+    binary_type::fuse_extract, binary_type::fuse_extract_symlink,
+#endif
+};
+
+bool skip_fuse_tests() {
+  return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
+}
+
+class tool_helper {
+ public:
+  explicit tool_helper(tool_type tool, binary_type binary = binary_type::any)
+      : is_fuse_driver_{tool == tool_type::fuse3 || tool == tool_type::fuse2}
+      , is_fuse2_{tool == tool_type::fuse2}
+      , is_universal_{binary == binary_type::universal ||
+                      binary == binary_type::fuse_extract}
+      , use_symlink_{binary == binary_type::universal_symlink ||
+                     binary == binary_type::fuse_extract_symlink} {
+    if (is_fuse_driver_ && skip_fuse_tests()) {
+      skip_reason_ = "skipping FUSE tests";
+      return;
+    }
+
+    auto check_universal = [&](binary_type btype, binary_type symlink_btype,
+                               auto const& supported, auto const& path) {
+      if (!path_ && (binary == binary_type::any || binary == btype ||
+                     binary == symlink_btype)) {
+        if (supported.contains(tool)) {
+          if (fs::exists(path)) {
+            path_ = path;
+            if (binary != symlink_btype) {
+              args_.push_back("--tool=" + tool_name(tool));
+            }
+          }
+        } else {
+          skip_reason_ = tool_name(tool) + " is not supported by the " +
+                         binary_type_name(binary) + " binary";
+        }
+      }
+    };
+
+    if (binary == binary_type::any || binary == binary_type::standalone) {
+      switch (tool) {
+      case tool_type::mkdwarfs:
+        if (fs::exists(mkdwarfs_bin)) {
+          path_ = mkdwarfs_bin;
+        }
+        break;
+      case tool_type::dwarfsck:
+        if (fs::exists(dwarfsck_bin)) {
+          path_ = dwarfsck_bin;
+        }
+        break;
+      case tool_type::dwarfsextract:
+        if (fs::exists(dwarfsextract_bin)) {
+          path_ = dwarfsextract_bin;
+        }
+        break;
+      case tool_type::fuse3:
+        if (fs::exists(fuse3_bin)) {
+          path_ = fuse3_bin;
+        }
+        break;
+      case tool_type::fuse2:
+        if (fs::exists(fuse2_bin)) {
+          path_ = fuse2_bin;
+        }
+        break;
+      default:
+        break;
+      }
+    }
+
+    check_universal(binary_type::universal, binary_type::universal_symlink,
+                    universal_tools, universal_bin);
+
+    check_universal(binary_type::fuse_extract,
+                    binary_type::fuse_extract_symlink, fuse_extract_tools,
+                    fuse_extract_bin);
+
+    if (path_) {
+      if (use_symlink_) {
+        tempdir_.emplace("dwarfs-symlink");
+        auto symlink_path = tempdir_->path() / (tool_name(tool) + EXE_EXT);
+        fs::create_symlink(*path_, symlink_path);
+        path_ = symlink_path;
+      }
+    } else {
+      skip_reason_ =
+          "no " + binary_type_name(binary) + " binary for " + tool_name(tool);
+    }
+  }
+
+  explicit operator bool() const { return path_.has_value(); }
+
+  std::string_view skip_reason() const { return skip_reason_; }
+
+  bool is_fuse_driver() const { return is_fuse_driver_; }
+  bool is_fuse2() const { return is_fuse2_; }
+  bool is_universal() const { return is_universal_; }
+
+  fs::path const& path() const { return path_.value(); }
+
+  std::optional<fs::path> tempdir() const {
+    std::optional<fs::path> rv;
+    if (tempdir_) {
+      rv = tempdir_->path();
+    }
+    return rv;
+  }
+
+  std::vector<std::string> const& args() const { return args_; }
+
+  bool tool_arg() const {
+    assert(is_fuse_driver_);
+    return !args_.empty();
+  }
+
+  static std::string tool_name(tool_type tool) {
+    switch (tool) {
+    case tool_type::mkdwarfs:
+      return "mkdwarfs";
+    case tool_type::dwarfsck:
+      return "dwarfsck";
+    case tool_type::dwarfsextract:
+      return "dwarfsextract";
+    case tool_type::fuse3:
+      return "dwarfs";
+    case tool_type::fuse2:
+      return "dwarfs2";
+    default:
+      break;
+    }
+    return {};
+  }
+
+  static std::string binary_type_name(binary_type type) {
+    switch (type) {
+    case binary_type::standalone:
+      return "standalone";
+    case binary_type::universal:
+      return "universal";
+    case binary_type::universal_symlink:
+      return "universal+symlink";
+    case binary_type::fuse_extract:
+      return "fuse_extract";
+    case binary_type::fuse_extract_symlink:
+      return "fuse_extract+symlink";
+    default:
+      break;
+    }
+    return {};
+  }
+
+ private:
+  static inline std::unordered_set<tool_type> const universal_tools{
+      tool_type::mkdwarfs,
+      tool_type::dwarfsck,
+      tool_type::dwarfsextract,
+      tool_type::fuse3,
+  };
+  static inline std::unordered_set<tool_type> const fuse_extract_tools{
+      tool_type::dwarfsextract,
+      tool_type::fuse3,
+  };
+
+  std::optional<fs::path> path_;
+  std::vector<std::string> args_;
+  std::string skip_reason_;
+  bool is_fuse_driver_{false};
+  bool is_fuse2_{false};
+  bool is_universal_{false};
+  bool use_symlink_{false};
+  std::optional<dwarfs::temporary_directory> tempdir_;
+};
+
+std::ostream& operator<<(std::ostream& os, binary_type t) {
+  return os << tool_helper::binary_type_name(t);
+}
+
+std::ostream& operator<<(std::ostream& os, tool_type t) {
+  return os << tool_helper::tool_name(t);
+}
+
+template <tool_type Tool>
+class basic_tool_test : public ::testing::TestWithParam<binary_type> {
+ protected:
+  void SetUp() override {
+    auto const binary = GetParam();
+    helper_.emplace(Tool, binary);
+
+    if (!*helper_) {
+      GTEST_SKIP() << helper_->skip_reason();
+    }
+
+    bin_ = helper_->path();
+    args_ = helper_->args();
+  }
+
+  std::optional<tool_helper> helper_;
+  fs::path bin_;
+  std::vector<std::string> args_;
+};
+
+using dwarfsextract_test = basic_tool_test<tool_type::dwarfsextract>;
+
+class fuse_driver_test
+    : public ::testing::TestWithParam<std::tuple<tool_type, binary_type>> {
+ protected:
+  void SetUp() override {
+    auto const [tool, binary] = GetParam();
+    helper_.emplace(tool, binary);
+    assert(helper_->is_fuse_driver());
+
+    if (!*helper_) {
+      GTEST_SKIP() << helper_->skip_reason();
+    }
+
+    bin_ = helper_->path();
+    args_ = helper_->args();
+    tool_arg_ = helper_->tool_arg();
+  }
+
+  std::optional<tool_helper> helper_;
+  fs::path bin_;
+  std::vector<std::string> args_;
+  bool tool_arg_{false};
+};
 
 class scoped_no_leak_check {
  public:
@@ -218,12 +481,6 @@ bool wait_until(std::string_view desc, Fn const& fn) {
   return true;
 }
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-
-bool skip_fuse_tests() {
-  return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
-}
-
 #ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
   return dwarfs::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
@@ -247,8 +504,6 @@ bool wait_until_file_ready(fs::path const& path) {
   });
 }
 
-#endif
-
 bool read_file(fs::path const& path, std::string& out) {
   std::ifstream ifs(path, std::ios::binary);
   if (!ifs.is_open()) {
@@ -260,7 +515,6 @@ bool read_file(fs::path const& path, std::string& out) {
   return true;
 }
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
 bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   std::ifstream ifs(path);
   if (!ifs.is_open()) {
@@ -272,7 +526,6 @@ bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   }
   return true;
 }
-#endif
 
 #ifdef _WIN32
 struct new_process_group : public ::boost::process::detail::handler_base {
@@ -609,8 +862,6 @@ class process_guard {
 };
 #endif
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-
 class driver_runner {
  public:
   struct foreground_t {};
@@ -884,8 +1135,6 @@ bool check_readonly(fs::path const& p, bool readonly) {
   return true;
 }
 
-#endif
-
 size_t num_hardlinks(fs::path const& p) {
 #ifdef _WIN32
   dwarfs::file_stat stat(p);
@@ -895,95 +1144,65 @@ size_t num_hardlinks(fs::path const& p) {
 #endif
 }
 
-enum class binary_mode {
-  standalone,
-  universal_tool,
-  universal_symlink,
-};
+class tools_test : public ::testing::TestWithParam<binary_type> {
+ protected:
+  void SetUp() override {
+    auto const btype = GetParam();
 
-std::ostream& operator<<(std::ostream& os, binary_mode m) {
-  switch (m) {
-  case binary_mode::standalone:
-    os << "standalone";
-    break;
-  case binary_mode::universal_tool:
-    os << "universal-tool";
-    break;
-  case binary_mode::universal_symlink:
-    os << "universal-symlink";
-    break;
+    mkdwarfs_.emplace(tool_type::mkdwarfs, btype);
+    dwarfsck_.emplace(tool_type::dwarfsck, btype);
+    dwarfsextract_.emplace(tool_type::dwarfsextract, btype);
+    if (!*dwarfsextract_) {
+      dwarfsextract_.reset();
+      dwarfsextract_.emplace(tool_type::dwarfsextract);
+    }
+    fuse_drivers_.emplace_back(tool_type::fuse3, btype);
+    if (!fuse_drivers_.back()) {
+      fuse_drivers_.pop_back();
+    }
+    fuse_drivers_.emplace_back(tool_type::fuse2, btype);
+    if (!fuse_drivers_.back()) {
+      fuse_drivers_.pop_back();
+    }
   }
-  return os;
-}
 
-std::vector<binary_mode> tools_test_modes{
-    binary_mode::standalone,
-#ifdef DWARFS_HAVE_UNIVERSAL_BINARY
-    binary_mode::universal_tool,
-    binary_mode::universal_symlink,
-#endif
+  std::optional<tool_helper> mkdwarfs_;
+  std::optional<tool_helper> dwarfsck_;
+  std::optional<tool_helper> dwarfsextract_;
+  std::vector<tool_helper> fuse_drivers_;
 };
-
-class tools_test : public ::testing::TestWithParam<binary_mode> {};
 
 } // namespace
 
 TEST_P(tools_test, end_to_end) {
-  auto mode = GetParam();
-
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
   auto fsdata_dir = td / "fsdata";
   auto header_data = fsdata_dir / "format.sh";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
-  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs" EXE_EXT;
-  auto universal_symlink_dwarfsck_bin = td / "dwarfsck" EXE_EXT;
-  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract" EXE_EXT;
-  std::vector<std::string> dwarfs_tool_arg;
-  std::vector<std::string> mkdwarfs_tool_arg;
-  std::vector<std::string> dwarfsck_tool_arg;
-  std::vector<std::string> dwarfsextract_tool_arg;
-  fs::path const* mkdwarfs_test_bin = &mkdwarfs_bin;
-  fs::path const* dwarfsck_test_bin = &dwarfsck_bin;
-  fs::path const* dwarfsextract_test_bin = &dwarfsextract_bin;
 
-  if (mode == binary_mode::universal_symlink) {
-    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
-    fs::create_symlink(universal_bin, universal_symlink_mkdwarfs_bin);
-    fs::create_symlink(universal_bin, universal_symlink_dwarfsck_bin);
-    fs::create_symlink(universal_bin, universal_symlink_dwarfsextract_bin);
-  }
-
-  if (mode == binary_mode::universal_tool) {
-    mkdwarfs_test_bin = &universal_bin;
-    dwarfsck_test_bin = &universal_bin;
-    dwarfsextract_test_bin = &universal_bin;
-    dwarfs_tool_arg.push_back("--tool=dwarfs");
-    mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
-    dwarfsck_tool_arg.push_back("--tool=dwarfsck");
-    dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
-  }
-
-  {
-    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
-                                     mkdwarfs_tool_arg);
+  if (*mkdwarfs_) {
+    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                     mkdwarfs_->args());
     ASSERT_TRUE(out);
     EXPECT_THAT(*out, ::testing::HasSubstr("Usage:"));
     EXPECT_THAT(*out, ::testing::HasSubstr("--long-help"));
   }
 
-  if (mode == binary_mode::universal_tool) {
-    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ universal_bin);
+  ASSERT_TRUE(*dwarfsextract_);
+
+  if (dwarfsextract_->is_universal()) {
+    auto out =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path());
     ASSERT_TRUE(out);
     EXPECT_THAT(*out, ::testing::HasSubstr("--tool="));
   }
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
-  ASSERT_TRUE(subprocess::check_run(
-      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
-      "-i", test_data_dwarfs, "-o", fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path(),
+                                    dwarfsextract_->args(), "-i",
+                                    test_data_dwarfs, "-o", fsdata_dir));
 
   EXPECT_EQ(num_hardlinks(fsdata_dir / "format.sh"), 3);
   EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
@@ -1004,17 +1223,17 @@ TEST_P(tools_test, end_to_end) {
       read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
 
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
-                                    mkdwarfs_tool_arg, "-i", fsdata_dir, "-o",
-                                    image, "--no-progress", "--no-history",
-                                    "--no-create-timestamp"));
+  if (*mkdwarfs_) {
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                      mkdwarfs_->args(), "-i", fsdata_dir, "-o",
+                                      image, "--no-progress", "--no-history",
+                                      "--no-create-timestamp"));
 
-  ASSERT_TRUE(fs::exists(image));
-  ASSERT_GT(fs::file_size(image), 1000);
+    ASSERT_TRUE(fs::exists(image));
+    ASSERT_GT(fs::file_size(image), 1000);
 
-  {
-    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
-                                     mkdwarfs_tool_arg, "-i", fsdata_dir, "-o",
+    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                     mkdwarfs_->args(), "-i", fsdata_dir, "-o",
                                      "-", "--no-progress", "--no-history",
                                      "--no-create-timestamp");
     ASSERT_TRUE(out);
@@ -1022,52 +1241,29 @@ TEST_P(tools_test, end_to_end) {
     ASSERT_TRUE(read_file(image, ref));
     EXPECT_EQ(ref.size(), out->size());
     EXPECT_EQ(ref, *out);
+
+    ASSERT_TRUE(subprocess::check_run(
+        DWARFS_ARG_EMULATOR_ mkdwarfs_->path(), mkdwarfs_->args(), "-i", image,
+        "-o", image_hdr, "--no-progress", "--recompress=none", "--header",
+        header_data));
+
+    ASSERT_TRUE(fs::exists(image_hdr));
+    ASSERT_GT(fs::file_size(image_hdr), 1000);
+  } else {
+    image = test_data_dwarfs;
   }
-
-  ASSERT_TRUE(subprocess::check_run(
-      DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", image,
-      "-o", image_hdr, "--no-progress", "--recompress=none", "--header",
-      header_data));
-
-  ASSERT_TRUE(fs::exists(image_hdr));
-  ASSERT_GT(fs::file_size(image_hdr), 1000);
 
   auto mountpoint = td / "mnt";
   auto extracted = td / "extracted";
   auto untared = td / "untared";
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  std::vector<fs::path> drivers;
-
-  switch (mode) {
-  case binary_mode::standalone:
-    drivers.push_back(fuse3_bin);
-
-    if (fs::exists(fuse2_bin)) {
-      drivers.push_back(fuse2_bin);
-    }
-    break;
-
-  case binary_mode::universal_tool:
-    drivers.push_back(universal_bin);
-    break;
-
-  case binary_mode::universal_symlink:
-    drivers.push_back(universal_symlink_dwarfs_bin);
-    break;
-  }
-
   unicode_symlink = mountpoint / unicode_symlink_name;
 
-  if (skip_fuse_tests()) {
-    drivers.clear();
-  }
-
-  for (auto const& driver : drivers) {
+  for (auto const& driver : fuse_drivers_) {
     {
       scoped_no_leak_check no_leak_check;
-      auto const [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ driver,
-                                                  dwarfs_tool_arg, "--help");
+      auto const [out, err, ec] = subprocess::run(
+          DWARFS_ARG_EMULATOR_ driver.path(), driver.args(), "--help");
       EXPECT_THAT(out, ::testing::HasSubstr("Usage:"));
     }
 
@@ -1079,9 +1275,8 @@ TEST_P(tools_test, end_to_end) {
       args.push_back("-operfmon=fuse+inode_reader_v2+block_cache");
 #endif
 
-      driver_runner runner(driver_runner::foreground, driver,
-                           mode == binary_mode::universal_tool, image,
-                           mountpoint, args);
+      driver_runner runner(driver_runner::foreground, driver.path(),
+                           driver.tool_arg(), image, mountpoint, args);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
           << runner.cmdline();
@@ -1168,13 +1363,12 @@ TEST_P(tools_test, end_to_end) {
       EXPECT_TRUE(runner.unmount()) << runner.cmdline();
     }
 
-    {
-      auto const [out, err, ec] = subprocess::run(
-          DWARFS_ARG_EMULATOR_ driver,
-          driver_runner::make_tool_arg(mode == binary_mode::universal_tool),
-          image_hdr, mountpoint);
+    if (*mkdwarfs_) {
+      auto const [out, err, ec] =
+          subprocess::run(DWARFS_ARG_EMULATOR_ driver.path(), driver.args(),
+                          image_hdr, mountpoint);
 
-      EXPECT_NE(0, ec) << driver << "\n"
+      EXPECT_NE(0, ec) << driver.path() << "\n"
                        << "stdout:\n"
                        << out << "\nstderr:\n"
                        << err;
@@ -1231,7 +1425,7 @@ TEST_P(tools_test, end_to_end) {
       args.push_back("-odebuglevel=debug");
 
       {
-        driver_runner runner(driver, mode == binary_mode::universal_tool, image,
+        driver_runner runner(driver.path(), driver.tool_arg(), image,
                              mountpoint, args);
 
         ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
@@ -1287,9 +1481,9 @@ TEST_P(tools_test, end_to_end) {
 
       args.push_back("-ooffset=auto");
 
-      {
-        driver_runner runner(driver, mode == binary_mode::universal_tool,
-                             image_hdr, mountpoint, args);
+      if (*mkdwarfs_) {
+        driver_runner runner(driver.path(), driver.tool_arg(), image_hdr,
+                             mountpoint, args);
 
         ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
             << runner.cmdline();
@@ -1316,40 +1510,41 @@ TEST_P(tools_test, end_to_end) {
       }
     }
   }
-#endif
 
   auto meta_export = td / "test.meta";
 
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
-                                    dwarfsck_tool_arg, image));
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
-                                    dwarfsck_tool_arg, image,
-                                    "--check-integrity"));
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
-                                    dwarfsck_tool_arg, image,
-                                    "--export-metadata", meta_export));
+  if (*dwarfsck_) {
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_->path(),
+                                      dwarfsck_->args(), image));
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_->path(),
+                                      dwarfsck_->args(), image,
+                                      "--check-integrity"));
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_->path(),
+                                      dwarfsck_->args(), image,
+                                      "--export-metadata", meta_export));
 
-  {
-    std::string header;
+    if (*mkdwarfs_) {
+      std::string header;
 
-    EXPECT_TRUE(read_file(header_data, header));
+      EXPECT_TRUE(read_file(header_data, header));
 
-    auto output =
-        subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
-                              dwarfsck_tool_arg, image_hdr, "-H");
+      auto output =
+          subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_->path(),
+                                dwarfsck_->args(), image_hdr, "-H");
 
-    ASSERT_TRUE(output);
+      ASSERT_TRUE(output);
 
-    EXPECT_EQ(header, *output);
+      EXPECT_EQ(header, *output);
+    }
+
+    EXPECT_GT(fs::file_size(meta_export), 1000);
   }
-
-  EXPECT_GT(fs::file_size(meta_export), 1000);
 
   ASSERT_TRUE(fs::create_directory(extracted));
 
-  ASSERT_TRUE(subprocess::check_run(
-      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
-      "-i", image, "-o", extracted));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path(),
+                                    dwarfsextract_->args(), "-i", image, "-o",
+                                    extracted));
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
@@ -1359,8 +1554,6 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(cdr.matching_directories.size(), 19) << cdr;
   EXPECT_EQ(cdr.matching_symlinks.size(), 2) << cdr;
 }
-
-#ifdef DWARFS_WITH_FUSE_DRIVER
 
 #define EXPECT_EC_IMPL(ec, cat, val)                                           \
   EXPECT_TRUE(ec) << runner.cmdline();                                         \
@@ -1382,13 +1575,7 @@ TEST_P(tools_test, end_to_end) {
 #define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
   EXPECT_EC_UNIX_MAC_WIN(ec, unix, unix, windows)
 
-TEST_P(tools_test, mutating_and_error_ops) {
-  auto mode = GetParam();
-
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
-
+TEST_P(fuse_driver_test, mutating_and_error_ops) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto mountpoint = td / "mnt";
@@ -1397,267 +1584,205 @@ TEST_P(tools_test, mutating_and_error_ops) {
   auto non_empty_dir = mountpoint / "foo";
   auto name_inside_fs = mountpoint / "some_random_name";
   auto name_outside_fs = td / "some_random_name";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
 
-  if (mode == binary_mode::universal_symlink) {
-    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+  driver_runner runner(driver_runner::foreground, bin_, tool_arg_,
+                       test_data_dwarfs, mountpoint);
+
+  ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+      << runner.cmdline();
+
+  // remove (unlink)
+
+  {
+    std::error_code ec;
+    EXPECT_FALSE(fs::remove(file, ec)) << runner.cmdline();
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
   }
 
-  std::vector<fs::path> drivers;
-
-  switch (mode) {
-  case binary_mode::standalone:
-    drivers.push_back(fuse3_bin);
-
-    if (fs::exists(fuse2_bin)) {
-      drivers.push_back(fuse2_bin);
-    }
-    break;
-
-  case binary_mode::universal_tool:
-    drivers.push_back(universal_bin);
-    break;
-
-  case binary_mode::universal_symlink:
-    drivers.push_back(universal_symlink_dwarfs_bin);
-    break;
+  {
+    std::error_code ec;
+    EXPECT_FALSE(fs::remove(empty_dir, ec)) << runner.cmdline();
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
   }
 
-  for (auto const& driver : drivers) {
-    driver_runner runner(driver_runner::foreground, driver,
-                         mode == binary_mode::universal_tool, test_data_dwarfs,
-                         mountpoint);
+  {
+    std::error_code ec;
+    EXPECT_FALSE(fs::remove(non_empty_dir, ec)) << runner.cmdline();
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+  {
+    std::error_code ec;
+    EXPECT_EQ(static_cast<std::uintmax_t>(-1),
+              fs::remove_all(non_empty_dir, ec))
         << runner.cmdline();
-
-    // remove (unlink)
-
-    {
-      std::error_code ec;
-      EXPECT_FALSE(fs::remove(file, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      EXPECT_FALSE(fs::remove(empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      EXPECT_FALSE(fs::remove(non_empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      EXPECT_EQ(static_cast<std::uintmax_t>(-1),
-                fs::remove_all(non_empty_dir, ec))
-          << runner.cmdline();
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    // rename
-
-    {
-      std::error_code ec;
-      fs::rename(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::rename(file, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::rename(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::rename(empty_dir, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
-    }
-
-    // hard link
-
-    {
-      std::error_code ec;
-      fs::create_hard_link(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS, EPERM), (EACCES),
-                             (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::create_hard_link(file, name_outside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
-    }
-
-    // symbolic link
-
-    {
-      std::error_code ec;
-      fs::create_symlink(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::create_symlink(file, name_outside_fs, ec);
-      EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
-      EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
-    }
-
-    {
-      std::error_code ec;
-      fs::create_directory_symlink(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    {
-      std::error_code ec;
-      fs::create_directory_symlink(empty_dir, name_outside_fs, ec);
-      EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
-      EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
-    }
-
-    // truncate
-
-    {
-      std::error_code ec;
-      fs::resize_file(file, 1, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    // create directory
-
-    {
-      std::error_code ec;
-      fs::create_directory(name_inside_fs, ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    // read directory as file (non-mutating)
-
-    {
-      std::error_code ec;
-      auto tmp = dwarfs::read_file(mountpoint / "empty", ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_WIN(ec, (EISDIR), (ERROR_ACCESS_DENIED));
-    }
-
-    // open file as directory (non-mutating)
-
-    {
-      std::error_code ec;
-      fs::directory_iterator it{mountpoint / "format.sh", ec};
-      EXPECT_EC_UNIX_WIN(ec, (ENOTDIR), (ERROR_DIRECTORY));
-    }
-
-    // try open non-existing symlink
-
-    {
-      std::error_code ec;
-      auto tmp = fs::read_symlink(mountpoint / "doesnotexist", ec);
-      EXPECT_EC_UNIX_WIN(ec, (ENOENT), (ERROR_FILE_NOT_FOUND));
-    }
-
-    // Open non-existent file for writing
-    {
-      auto p = mountpoint / "nonexistent";
-      EXPECT_FALSE(fs::exists(p));
-      std::error_code ec;
-      dwarfs::write_file(p, "hello", ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    // Open existing file for writing
-    {
-      auto p = mountpoint / "format.sh";
-      EXPECT_TRUE(fs::exists(p));
-      std::error_code ec;
-      dwarfs::write_file(p, "hello", ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EC_UNIX_WIN(ec, (EACCES), (ERROR_ACCESS_DENIED));
-    }
-
-    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
   }
+
+  // rename
+
+  {
+    std::error_code ec;
+    fs::rename(file, name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::rename(file, name_outside_fs, ec);
+    EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::rename(empty_dir, name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::rename(empty_dir, name_outside_fs, ec);
+    EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
+  }
+
+  // hard link
+
+  {
+    std::error_code ec;
+    fs::create_hard_link(file, name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS, EPERM), (EACCES),
+                           (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::create_hard_link(file, name_outside_fs, ec);
+    EXPECT_EC_UNIX_WIN(ec, (EXDEV), (ERROR_ACCESS_DENIED));
+  }
+
+  // symbolic link
+
+  {
+    std::error_code ec;
+    fs::create_symlink(file, name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::create_symlink(file, name_outside_fs, ec);
+    EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
+    EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
+  }
+
+  {
+    std::error_code ec;
+    fs::create_directory_symlink(empty_dir, name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  {
+    std::error_code ec;
+    fs::create_directory_symlink(empty_dir, name_outside_fs, ec);
+    EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
+    EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
+  }
+
+  // truncate
+
+  {
+    std::error_code ec;
+    fs::resize_file(file, 1, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  // create directory
+
+  {
+    std::error_code ec;
+    fs::create_directory(name_inside_fs, ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  // read directory as file (non-mutating)
+
+  {
+    std::error_code ec;
+    auto tmp = dwarfs::read_file(mountpoint / "empty", ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EC_UNIX_WIN(ec, (EISDIR), (ERROR_ACCESS_DENIED));
+  }
+
+  // open file as directory (non-mutating)
+
+  {
+    std::error_code ec;
+    fs::directory_iterator it{mountpoint / "format.sh", ec};
+    EXPECT_EC_UNIX_WIN(ec, (ENOTDIR), (ERROR_DIRECTORY));
+  }
+
+  // try open non-existing symlink
+
+  {
+    std::error_code ec;
+    auto tmp = fs::read_symlink(mountpoint / "doesnotexist", ec);
+    EXPECT_EC_UNIX_WIN(ec, (ENOENT), (ERROR_FILE_NOT_FOUND));
+  }
+
+  // Open non-existent file for writing
+  {
+    auto p = mountpoint / "nonexistent";
+    EXPECT_FALSE(fs::exists(p));
+    std::error_code ec;
+    dwarfs::write_file(p, "hello", ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EC_UNIX_MAC_WIN(ec, (ENOSYS), (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  // Open existing file for writing
+  {
+    auto p = mountpoint / "format.sh";
+    EXPECT_TRUE(fs::exists(p));
+    std::error_code ec;
+    dwarfs::write_file(p, "hello", ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EC_UNIX_WIN(ec, (EACCES), (ERROR_ACCESS_DENIED));
+  }
+
+  EXPECT_TRUE(runner.unmount()) << runner.cmdline();
 }
 
-#endif
-
 TEST_P(tools_test, categorize) {
-  auto mode = GetParam();
-
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto image = td / "test.dwarfs";
   auto image_recompressed = td / "test2.dwarfs";
   auto fsdata_dir = td / "fsdata";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
-  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs" EXE_EXT;
-  auto universal_symlink_dwarfsck_bin = td / "dwarfsck" EXE_EXT;
-  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract" EXE_EXT;
-  std::vector<std::string> mkdwarfs_tool_arg;
-  std::vector<std::string> dwarfsck_tool_arg;
-  std::vector<std::string> dwarfsextract_tool_arg;
-  fs::path const* mkdwarfs_test_bin = &mkdwarfs_bin;
-  fs::path const* dwarfsck_test_bin = &dwarfsck_bin;
-  fs::path const* dwarfsextract_test_bin = &dwarfsextract_bin;
 
-  if (mode == binary_mode::universal_symlink) {
-    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
-    fs::create_symlink(universal_bin, universal_symlink_mkdwarfs_bin);
-    fs::create_symlink(universal_bin, universal_symlink_dwarfsck_bin);
-    fs::create_symlink(universal_bin, universal_symlink_dwarfsextract_bin);
-  }
-
-  if (mode == binary_mode::universal_tool) {
-    mkdwarfs_test_bin = &universal_bin;
-    dwarfsck_test_bin = &universal_bin;
-    dwarfsextract_test_bin = &universal_bin;
-    mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
-    dwarfsck_tool_arg.push_back("--tool=dwarfsck");
-    dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
-  }
+  ASSERT_TRUE(*dwarfsextract_);
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
-  ASSERT_TRUE(subprocess::check_run(
-      DWARFS_ARG_EMULATOR_ * dwarfsextract_test_bin, dwarfsextract_tool_arg,
-      "-i", test_catdata_dwarfs, "-o", fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path(),
+                                    dwarfsextract_->args(), "-i",
+                                    test_catdata_dwarfs, "-o", fsdata_dir));
 
   ASSERT_TRUE(fs::exists(fsdata_dir / "random"));
   EXPECT_EQ(4096, fs::file_size(fsdata_dir / "random"));
 
-  std::vector<std::string> mkdwarfs_args{"-i",
-                                         fsdata_dir.string(),
-                                         "-o",
-                                         image.string(),
-                                         "--no-progress",
-                                         "--categorize",
-                                         "-S",
-                                         "16",
-                                         "-W",
-                                         "pcmaudio/waveform::8"};
+  std::vector<std::string> const mkdwarfs_args{
+      "-i",
+      fsdata_dir.string(),
+      "-o",
+      image.string(),
+      "--no-progress",
+      "--categorize",
+      "-S",
+      "16",
+      "-W",
+      "pcmaudio/waveform::8",
+  };
 
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
-                                    mkdwarfs_tool_arg, mkdwarfs_args));
-
-  ASSERT_TRUE(fs::exists(image));
-  auto const image_size = fs::file_size(image);
-  EXPECT_GT(image_size, 150000);
-  EXPECT_LT(image_size, 300000);
-
-  std::vector<std::string> mkdwarfs_args_recompress{
+  std::vector<std::string> const mkdwarfs_args_recompress{
       "-i",
       image.string(),
       "-o",
@@ -1673,40 +1798,32 @@ TEST_P(tools_test, categorize) {
 #endif
   };
 
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ * mkdwarfs_test_bin,
-                                    mkdwarfs_tool_arg,
-                                    mkdwarfs_args_recompress));
+  if (*mkdwarfs_) {
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                      mkdwarfs_->args(), mkdwarfs_args));
 
-  ASSERT_TRUE(fs::exists(image_recompressed));
-  {
+    ASSERT_TRUE(fs::exists(image));
+    auto const image_size = fs::file_size(image);
+    EXPECT_GT(image_size, 150000);
+    EXPECT_LT(image_size, 300000);
+
+    ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                      mkdwarfs_->args(),
+                                      mkdwarfs_args_recompress));
+
+    ASSERT_TRUE(fs::exists(image_recompressed));
     auto const image_size_recompressed = fs::file_size(image_recompressed);
     EXPECT_GT(image_size_recompressed, 100000);
     EXPECT_LT(image_size_recompressed, image_size);
+  } else {
+    image = test_catdata_dwarfs;
   }
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-
-  if (!skip_fuse_tests()) {
+  for (auto const& driver : fuse_drivers_) {
     auto mountpoint = td / "mnt";
-    fs::path driver;
 
-    switch (mode) {
-    case binary_mode::standalone:
-      driver = fuse3_bin;
-      break;
-
-    case binary_mode::universal_tool:
-      driver = universal_bin;
-      break;
-
-    case binary_mode::universal_symlink:
-      driver = universal_symlink_dwarfs_bin;
-      break;
-    }
-
-    driver_runner runner(driver_runner::foreground, driver,
-                         mode == binary_mode::universal_tool, image,
-                         mountpoint);
+    driver_runner runner(driver_runner::foreground, driver.path(),
+                         driver.tool_arg(), image, mountpoint);
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
         << runner.cmdline();
@@ -1720,24 +1837,8 @@ TEST_P(tools_test, categorize) {
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 
-  if (!skip_fuse_tests()) {
+  for (auto const& driver : fuse_drivers_) {
     auto mountpoint = td / "mnt";
-    fs::path driver;
-
-    switch (mode) {
-    case binary_mode::standalone:
-      driver = fuse3_bin;
-      break;
-
-    case binary_mode::universal_tool:
-      driver = universal_bin;
-      break;
-
-    case binary_mode::universal_symlink:
-      driver = universal_symlink_dwarfs_bin;
-      break;
-    }
-
     auto analysis_file = td / "analysis.dat";
 
     {
@@ -1747,9 +1848,9 @@ TEST_P(tools_test, categorize) {
       auto analysis_file_str = std::regex_replace(analysis_file.string(),
                                                   std::regex(R"(\\)"), R"(\\)");
 
-      driver_runner runner(driver_runner::foreground, driver,
-                           mode == binary_mode::universal_tool, image,
-                           mountpoint, "-opreload_category=pcmaudio/waveform",
+      driver_runner runner(driver_runner::foreground, driver.path(),
+                           driver.tool_arg(), image, mountpoint,
+                           "-opreload_category=pcmaudio/waveform",
                            "-oanalysis_file=" + analysis_file_str);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
@@ -1796,156 +1897,129 @@ TEST_P(tools_test, categorize) {
                 ::testing::ElementsAreArray(expected_files_accessed));
   }
 
-#endif
+  if (*mkdwarfs_ && *dwarfsck_) {
+    auto json_info =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_->path(),
+                              dwarfsck_->args(), image_recompressed, "--json");
+    ASSERT_TRUE(json_info);
 
-  auto json_info =
-      subprocess::check_run(DWARFS_ARG_EMULATOR_ * dwarfsck_test_bin,
-                            dwarfsck_tool_arg, image_recompressed, "--json");
-  ASSERT_TRUE(json_info);
+    nlohmann::json info;
+    EXPECT_NO_THROW(info = nlohmann::json::parse(*json_info)) << *json_info;
 
-  nlohmann::json info;
-  EXPECT_NO_THROW(info = nlohmann::json::parse(*json_info)) << *json_info;
+    EXPECT_EQ(info["block_size"], 65'536);
+    EXPECT_EQ(info["image_offset"], 0);
+    EXPECT_EQ(info["inode_count"], 154);
+    EXPECT_EQ(info["original_filesystem_size"], 56'741'701);
+    EXPECT_EQ(info["categories"].size(), 4);
 
-  EXPECT_EQ(info["block_size"], 65'536);
-  EXPECT_EQ(info["image_offset"], 0);
-  EXPECT_EQ(info["inode_count"], 154);
-  EXPECT_EQ(info["original_filesystem_size"], 56'741'701);
-  EXPECT_EQ(info["categories"].size(), 4);
+    EXPECT_TRUE(info.count("created_by"));
+    EXPECT_TRUE(info.count("created_on"));
 
-  EXPECT_TRUE(info.count("created_by"));
-  EXPECT_TRUE(info.count("created_on"));
+    {
+      auto it = info["categories"].find("<default>");
+      ASSERT_NE(it, info["categories"].end());
+      EXPECT_EQ((*it)["block_count"].get<int>(), 1);
+    }
 
-  {
-    auto it = info["categories"].find("<default>");
-    ASSERT_NE(it, info["categories"].end());
-    EXPECT_EQ((*it)["block_count"].get<int>(), 1);
-  }
+    {
+      auto it = info["categories"].find("incompressible");
+      ASSERT_NE(it, info["categories"].end());
+      EXPECT_EQ((*it)["block_count"].get<int>(), 1);
+      EXPECT_EQ((*it)["compressed_size"].get<int>(), 4'096);
+      EXPECT_EQ((*it)["uncompressed_size"].get<int>(), 4'096);
+    }
 
-  {
-    auto it = info["categories"].find("incompressible");
-    ASSERT_NE(it, info["categories"].end());
-    EXPECT_EQ((*it)["block_count"].get<int>(), 1);
-    EXPECT_EQ((*it)["compressed_size"].get<int>(), 4'096);
-    EXPECT_EQ((*it)["uncompressed_size"].get<int>(), 4'096);
-  }
+    {
+      auto it = info["categories"].find("pcmaudio/metadata");
+      ASSERT_NE(it, info["categories"].end());
+      EXPECT_EQ((*it)["block_count"].get<int>(), 3);
+    }
 
-  {
-    auto it = info["categories"].find("pcmaudio/metadata");
-    ASSERT_NE(it, info["categories"].end());
-    EXPECT_EQ((*it)["block_count"].get<int>(), 3);
-  }
+    {
+      auto it = info["categories"].find("pcmaudio/waveform");
+      ASSERT_NE(it, info["categories"].end());
+      EXPECT_EQ((*it)["block_count"].get<int>(), 48);
+    }
 
-  {
-    auto it = info["categories"].find("pcmaudio/waveform");
-    ASSERT_NE(it, info["categories"].end());
-    EXPECT_EQ((*it)["block_count"].get<int>(), 48);
-  }
+    ASSERT_EQ(info["history"].size(), 2);
+    for (auto const& entry : info["history"]) {
+      ASSERT_TRUE(entry.count("arguments"));
+      EXPECT_TRUE(entry.count("compiler_id"));
+      EXPECT_TRUE(entry.count("libdwarfs_version"));
+      EXPECT_TRUE(entry.count("system_id"));
+      EXPECT_TRUE(entry.count("timestamp"));
+    }
 
-  ASSERT_EQ(info["history"].size(), 2);
-  for (auto const& entry : info["history"]) {
-    ASSERT_TRUE(entry.count("arguments"));
-    EXPECT_TRUE(entry.count("compiler_id"));
-    EXPECT_TRUE(entry.count("libdwarfs_version"));
-    EXPECT_TRUE(entry.count("system_id"));
-    EXPECT_TRUE(entry.count("timestamp"));
-  }
+    {
+      nlohmann::json ref_args;
+      ref_args.push_back(mkdwarfs_->path());
+      std::copy(mkdwarfs_args.begin(), mkdwarfs_args.end(),
+                std::back_inserter(ref_args));
+      EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
+    }
 
-  {
-    nlohmann::json ref_args;
-    ref_args.push_back(mkdwarfs_test_bin->string());
-    std::copy(mkdwarfs_args.begin(), mkdwarfs_args.end(),
-              std::back_inserter(ref_args));
-    EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
-  }
-
-  {
-    nlohmann::json ref_args;
-    ref_args.push_back(mkdwarfs_test_bin->string());
-    std::copy(mkdwarfs_args_recompress.begin(), mkdwarfs_args_recompress.end(),
-              std::back_inserter(ref_args));
-    EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
+    {
+      nlohmann::json ref_args;
+      ref_args.push_back(mkdwarfs_->path());
+      std::copy(mkdwarfs_args_recompress.begin(),
+                mkdwarfs_args_recompress.end(), std::back_inserter(ref_args));
+      EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
+    }
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
-                         ::testing::ValuesIn(tools_test_modes));
-
-#ifdef DWARFS_BUILTIN_MANPAGE
 class manpage_test
-    : public ::testing::TestWithParam<std::tuple<binary_mode, std::string>> {};
-
-std::vector<std::string> const manpage_test_tools{
-    "mkdwarfs",
-    "dwarfsck",
-    "dwarfsextract",
-#ifdef DWARFS_WITH_FUSE_DRIVER
-    "dwarfs",
-#endif
-};
+    : public ::testing::TestWithParam<std::tuple<tool_type, binary_type>> {};
 
 TEST_P(manpage_test, manpage) {
-  auto [mode, tool] = GetParam();
+  auto [tool, binary] = GetParam();
 
-  std::map<std::string, fs::path> tools{
-      {"dwarfs", fuse3_bin},
-      {"mkdwarfs", mkdwarfs_bin},
-      {"dwarfsck", dwarfsck_bin},
-      {"dwarfsextract", dwarfsextract_bin},
-  };
+  tool_helper helper{tool, binary};
 
-  std::vector<std::string> args;
-  fs::path const* test_bin{nullptr};
-
-  if (mode == binary_mode::universal_tool) {
-    test_bin = &universal_bin;
-    args.push_back("--tool=" + tool);
-  } else {
-    test_bin = &tools.at(tool);
+  if (!helper) {
+    GTEST_SKIP() << helper.skip_reason();
   }
+
+#ifndef DWARFS_BUILTIN_MANPAGE
+  GTEST_SKIP() << "no built-in man pages";
+#endif
+
+  fs::path tool_path = helper.path();
+  std::optional<dwarfs::temporary_directory> tempdir;
 
   scoped_no_leak_check no_leak_check;
 
-  auto out =
-      subprocess::check_run(DWARFS_ARG_EMULATOR_ * test_bin, args, "--man");
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ tool_path,
+                                   helper.args(), "--man");
+
+  auto const tool_name = tool_helper::tool_name(
+      tool == tool_type::fuse2 ? tool_type::fuse3 : tool);
 
   ASSERT_TRUE(out);
   EXPECT_GT(out->size(), 1000) << *out;
-  EXPECT_THAT(*out, ::testing::HasSubstr(tool));
+  EXPECT_THAT(*out, ::testing::HasSubstr(tool_name));
   EXPECT_THAT(*out, ::testing::HasSubstr("SYNOPSIS"));
   EXPECT_THAT(*out, ::testing::HasSubstr("DESCRIPTION"));
   EXPECT_THAT(*out, ::testing::HasSubstr("AUTHOR"));
   EXPECT_THAT(*out, ::testing::HasSubstr("COPYRIGHT"));
 }
 
-namespace {
+INSTANTIATE_TEST_SUITE_P(dwarfs, manpage_test,
+                         ::testing::Combine(::testing::ValuesIn(tool_types),
+                                            ::testing::ValuesIn(binary_types)));
 
-std::vector<binary_mode> manpage_test_modes{
-    binary_mode::standalone,
-#ifdef DWARFS_HAVE_UNIVERSAL_BINARY
-    binary_mode::universal_tool,
-#endif
-};
-
-} // namespace
-
-INSTANTIATE_TEST_SUITE_P(
-    dwarfs, manpage_test,
-    ::testing::Combine(::testing::ValuesIn(manpage_test_modes),
-                       ::testing::ValuesIn(manpage_test_tools)));
-#endif
-
-TEST(tools_test, dwarfsextract_progress) {
+TEST_P(dwarfsextract_test, dwarfsextract_progress) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ bin_, args_, "-i",
                                    test_catdata_dwarfs, "-o", td.string(),
                                    "--stdout-progress");
   EXPECT_TRUE(fs::exists(td / "pcmaudio" / "test12.aiff"));
 #else
   auto tarfile = td / "output.tar";
 
-  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ bin_, args_, "-i",
                                    test_catdata_dwarfs, "-o", tarfile, "-f",
                                    "gnutar", "--stdout-progress");
   EXPECT_TRUE(fs::exists(tarfile));
@@ -1962,11 +2036,11 @@ TEST(tools_test, dwarfsextract_progress) {
 }
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-TEST(tools_test, dwarfsextract_stdout) {
+TEST_P(dwarfsextract_test, dwarfsextract_stdout) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
 
-  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+  auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ bin_, args_, "-i",
                                    test_catdata_dwarfs, "-f", "mtree");
   ASSERT_TRUE(out);
 
@@ -1975,13 +2049,13 @@ TEST(tools_test, dwarfsextract_stdout) {
   EXPECT_THAT(*out, ::testing::HasSubstr("type=file"));
 }
 
-TEST(tools_test, dwarfsextract_file_out) {
+TEST_P(dwarfsextract_test, dwarfsextract_file_out) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto outfile = td / "output.mtree";
 
   auto out =
-      subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
+      subprocess::check_run(DWARFS_ARG_EMULATOR_ bin_, args_, "-i",
                             test_catdata_dwarfs, "-f", "mtree", "-o", outfile);
   ASSERT_TRUE(out);
   EXPECT_TRUE(out->empty()) << *out;
@@ -2078,7 +2152,8 @@ std::ostream& operator<<(std::ostream& os, path_type m) {
 } // namespace
 
 class mkdwarfs_tool_input_list
-    : public testing::TestWithParam<std::tuple<path_type, bool>> {};
+    : public testing::TestWithParam<std::tuple<binary_type, path_type, bool>> {
+};
 
 TEST_P(mkdwarfs_tool_input_list, basic) {
   static constexpr std::string_view newline{
@@ -2089,7 +2164,18 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 #endif
   };
 
-  auto [type, explicit_input] = GetParam();
+  auto [binary_type, type, explicit_input] = GetParam();
+
+  tool_helper mkdwarfs{tool_type::mkdwarfs, binary_type};
+  tool_helper dwarfsextract{tool_type::dwarfsextract, binary_type};
+
+  if (!mkdwarfs) {
+    GTEST_SKIP() << mkdwarfs.skip_reason();
+  }
+
+  if (!dwarfsextract) {
+    GTEST_SKIP() << dwarfsextract.skip_reason();
+  }
 
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
@@ -2102,8 +2188,9 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 
   ASSERT_TRUE(fs::create_directory(input));
 
-  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
-                                    "-i", test_data_dwarfs, "-o", input));
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract.path(),
+                                    dwarfsextract.args(), "-i",
+                                    test_data_dwarfs, "-o", input));
 
   std::ostringstream files;
 
@@ -2135,16 +2222,16 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
       args.push_back(input.lexically_relative(td).string());
     }
 
-    auto [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs_bin, args);
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ mkdwarfs.path(),
+                                          mkdwarfs.args(), args);
     ASSERT_EQ(0, ec) << out << err;
   }
 
   auto extracted = td / "extracted";
   ASSERT_TRUE(fs::create_directory(extracted));
-  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
-                                    "-i", output.string(), "-o",
-                                    extracted.string()));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract.path(),
+                                    dwarfsextract.args(), "-i", output.string(),
+                                    "-o", extracted.string()));
 
   std::set<fs::path> extracted_files;
   for (auto const& entry : fs::recursive_directory_iterator(extracted)) {
@@ -2166,26 +2253,17 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
-                         ::testing::Combine(::testing::ValuesIn(path_types),
+                         ::testing::Combine(::testing::ValuesIn(binary_types),
+                                            ::testing::ValuesIn(path_types),
                                             ::testing::Bool()));
 
 #ifdef __linux__
-TEST_P(tools_test, fusermount_check) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-
-  GTEST_SKIP() << "FUSE driver not built";
-
-#elif defined(DWARFS_CROSSCOMPILING_EMULATOR)
+TEST_P(fuse_driver_test, fusermount_check) {
+#ifdef DWARFS_CROSSCOMPILING_EMULATOR
 
   GTEST_SKIP() << "skipping bubblewrap tests when cross-compiling";
 
 #else
-
-  auto const mode = GetParam();
-
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
 
   auto bwrap = dwarfs::test::find_binary("bwrap");
 
@@ -2196,35 +2274,8 @@ TEST_P(tools_test, fusermount_check) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
   auto mountpoint = td / "mnt";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
 
   fs::create_directory(mountpoint);
-
-  if (mode == binary_mode::universal_symlink) {
-    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
-  }
-
-  std::vector<fs::path> drivers;
-  std::vector<std::string> dwarfs_tool_arg;
-
-  switch (mode) {
-  case binary_mode::standalone:
-    drivers.push_back(fuse3_bin);
-
-    if (fs::exists(fuse2_bin)) {
-      drivers.push_back(fuse2_bin);
-    }
-    break;
-
-  case binary_mode::universal_tool:
-    drivers.push_back(universal_bin);
-    dwarfs_tool_arg.push_back("--tool=dwarfs");
-    break;
-
-  case binary_mode::universal_symlink:
-    drivers.push_back(universal_symlink_dwarfs_bin);
-    break;
-  }
 
   std::vector<std::string> bwrap_args{
       "--unshare-user",
@@ -2245,6 +2296,10 @@ TEST_P(tools_test, fusermount_check) {
       tools_dir,
       td,
   };
+
+  if (auto const td = helper_->tempdir()) {
+    ro_bind_paths.push_back(*td);
+  }
 
 #ifdef DWARFS_CMAKE_PREFIX_PATH
   for (auto const& p : dwarfs::split_to<std::vector<std::string>>(
@@ -2267,19 +2322,17 @@ TEST_P(tools_test, fusermount_check) {
     bwrap_args.push_back(p.string());
   }
 
-  for (auto const& driver : drivers) {
-    scoped_no_leak_check no_leak_check;
-    auto const [out, err, ec] =
-        subprocess::run(bwrap.value(), bwrap_args, driver, dwarfs_tool_arg,
-                        test_data_dwarfs, mountpoint, "-f");
+  scoped_no_leak_check no_leak_check;
+  auto const [out, err, ec] =
+      subprocess::run(bwrap.value(), bwrap_args, bin_, args_, test_data_dwarfs,
+                      mountpoint, "-f");
 
-    EXPECT_NE(0, ec) << out << err;
+  EXPECT_NE(0, ec) << out << err;
 
-    std::string const package = driver == fuse2_bin ? "fuse/fuse2" : "fuse3";
+  std::string const package = helper_->is_fuse2() ? "fuse/fuse2" : "fuse3";
 
-    EXPECT_THAT(err, ::testing::HasSubstr("Do you need to install the `" +
-                                          package + "' package?"));
-  }
+  EXPECT_THAT(err, ::testing::HasSubstr("Do you need to install the `" +
+                                        package + "' package?"));
 #endif
 }
 #endif
@@ -2309,6 +2362,18 @@ class sparse_files_test : public ::testing::Test {
   };
 
   void SetUp() override {
+    if (!mkdwarfs) {
+      GTEST_SKIP() << "mkdwarfs not available";
+    }
+
+    if (!dwarfsck) {
+      GTEST_SKIP() << "dwarfsck not available";
+    }
+
+    if (!dwarfsextract) {
+      GTEST_SKIP() << "dwarfsextract not available";
+    }
+
     td.emplace();
 
     input = td->path() / "input";
@@ -2433,10 +2498,11 @@ class sparse_files_test : public ::testing::Test {
   bool build_image(fs::path const& image) const {
     // Use *really* small blocks, so we can be sure to trigger the
     // `large_hole_size` code paths.
-    bool const rv = subprocess::check_run(
-                        DWARFS_ARG_EMULATOR_ mkdwarfs_bin, "-i", input.string(),
-                        "-o", image.string(), "--categorize", "-l4", "-S14")
-                        .has_value();
+    bool const rv =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs.path(),
+                              mkdwarfs.args(), "-i", input.string(), "-o",
+                              image.string(), "--categorize", "-l4", "-S14")
+            .has_value();
     if (rv) {
       std::cerr << "Created image: " << image << " ("
                 << dwarfs::size_with_unit(fs::file_size(image)) << ")\n";
@@ -2445,8 +2511,9 @@ class sparse_files_test : public ::testing::Test {
   }
 
   std::optional<nlohmann::json> get_fsinfo(fs::path const& image) const {
-    auto const out = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
-                                           image.string(), "-j", "-d3");
+    auto const out =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck.path(),
+                              dwarfsck.args(), image.string(), "-j", "-d3");
 
     if (out) {
       auto fsinfo = nlohmann::json::parse(*out);
@@ -2473,17 +2540,19 @@ class sparse_files_test : public ::testing::Test {
                 << "\n";
       return false;
     }
-    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
-                                 image.string(), "-o", dir.string())
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract.path(),
+                                 dwarfsextract.args(), "-i", image.string(),
+                                 "-o", dir.string())
         .has_value();
   }
 
   bool extract_to_format(fs::path const& image, std::string_view format,
                          fs::path const& output) const {
-    bool const rv = subprocess::check_run(
-                        DWARFS_ARG_EMULATOR_ dwarfsextract_bin, "-i",
-                        image.string(), "-o", output.string(), "-f", format)
-                        .has_value();
+    bool const rv =
+        subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract.path(),
+                              dwarfsextract.args(), "-i", image.string(), "-o",
+                              output.string(), "-f", format)
+            .has_value();
     if (rv) {
       std::cerr << "Created " << format << " tarball: " << output << " ("
                 << dwarfs::size_with_unit(fs::file_size(output)) << ")\n";
@@ -2571,6 +2640,9 @@ class sparse_files_test : public ::testing::Test {
     return false;
   }
 
+  tool_helper mkdwarfs{tool_type::mkdwarfs};
+  tool_helper dwarfsck{tool_type::dwarfsck};
+  tool_helper dwarfsextract{tool_type::dwarfsextract};
   std::mt19937_64 rng;
   std::optional<dwarfs::temporary_directory> td;
   fs::path input;
@@ -2597,8 +2669,9 @@ TEST_F(sparse_files_test, random_large_files) {
   EXPECT_EQ(info.total.total_size,
             (*fsinfo)["original_filesystem_size"].get<dwarfs::file_size_t>());
 
-  auto const dump = subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck_bin,
-                                          image.string(), "-d9");
+  auto const dump =
+      subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck.path(),
+                            dwarfsck.args(), image.string(), "-d9");
   ASSERT_TRUE(dump.has_value());
   EXPECT_THAT(*dump, ::testing::HasSubstr("] -> HOLE (size="));
   EXPECT_THAT(*dump, ::testing::HasSubstr("] -> DATA (block="));
@@ -2641,60 +2714,64 @@ TEST_F(sparse_files_test, random_large_files) {
 #endif
 #endif
 
-#ifdef DWARFS_WITH_FUSE_DRIVER
-  if (!skip_fuse_tests()) {
+  tool_helper fuse3{tool_type::fuse3};
+
+  if (fuse3) {
     auto const mountpoint = td->path() / "mnt";
 
     fs::create_directory(mountpoint);
 
-    {
-      driver_runner runner(driver_runner::foreground, fuse3_bin, false, image,
-                           mountpoint);
+    driver_runner runner(driver_runner::foreground, fuse3.path(),
+                         fuse3.tool_arg(), image, mountpoint);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
-          << runner.cmdline();
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
+        << runner.cmdline();
 
-      // Only compare if we know the FUSE driver supports sparse files.
-      // Otherwise this will try to actually read hundreds of gigabytes
-      // of data.
-      if (fuse_supports_sparse(mountpoint, info)) {
-        auto const cdr = compare_directories(input, mountpoint);
+    // Only compare if we know the FUSE driver supports sparse files.
+    // Otherwise this will try to actually read hundreds of gigabytes
+    // of data.
+    if (fuse_supports_sparse(mountpoint, info)) {
+      auto const cdr = compare_directories(input, mountpoint);
 
-        std::cerr << "Compare FUSE mounted files:\n" << cdr;
+      std::cerr << "Compare FUSE mounted files:\n" << cdr;
 
-        EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
-            << runner.cmdline() << ": " << cdr;
-      }
-
-      for (auto const& file : info.files) {
-        auto const p = mountpoint / file.path.filename();
-        dwarfs::file_stat stat(p);
-
-        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
-      }
-
-      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+      EXPECT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), kNumFiles)
+          << runner.cmdline() << ": " << cdr;
     }
 
-    if (fs::exists(fuse2_bin)) {
-      driver_runner runner(driver_runner::foreground, fuse2_bin, false, image,
-                           mountpoint);
+    for (auto const& file : info.files) {
+      auto const p = mountpoint / file.path.filename();
+      dwarfs::file_stat stat(p);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
-          << runner.cmdline();
-
-      for (auto const& file : info.files) {
-        auto const p = mountpoint / file.path.filename();
-        dwarfs::file_stat stat(p);
-
-        EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
-      }
-
-      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+      EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
     }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
-#endif
+
+  tool_helper fuse2{tool_type::fuse2};
+
+  if (fuse2) {
+    auto const mountpoint = td->path() / "mnt";
+
+    fs::create_directory(mountpoint);
+
+    driver_runner runner(driver_runner::foreground, fuse2.path(),
+                         fuse2.tool_arg(), image, mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
+        << runner.cmdline();
+
+    for (auto const& file : info.files) {
+      auto const p = mountpoint / file.path.filename();
+      dwarfs::file_stat stat(p);
+
+      EXPECT_EQ(stat.size(), file.size.total_size) << file.path.filename();
+    }
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
 }
 
 TEST_F(sparse_files_test, random_small_files_tarball) {
@@ -3114,56 +3191,38 @@ std::array kFileTimes{
 
 } // namespace
 
-TEST(tools_test, timestamps_fuse) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
+TEST_P(fuse_driver_test, timestamps_fuse) {
   dwarfs::temporary_directory td("dwarfs");
   auto const mountpoint = td.path() / "mnt";
   auto const image = test_dir / "timestamps.dwarfs";
 
-  std::vector<fs::path> drivers;
+  driver_runner runner(driver_runner::foreground, bin_, tool_arg_, image,
+                       mountpoint);
 
-  drivers.push_back(fuse3_bin);
+  ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+      << runner.cmdline();
 
-  if (fs::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
+  for (auto const& [path, ft] : kFileTimes) {
+    auto const full_path = mountpoint / path;
+
+    dwarfs::file_stat stat(full_path);
+
+    EXPECT_EQ(ft.mtime, stat.mtimespec()) << path << " " << runner.cmdline();
+    EXPECT_EQ(ft.atime, stat.atimespec()) << path << " " << runner.cmdline();
+    EXPECT_EQ(ft.ctime, stat.ctimespec()) << path << " " << runner.cmdline();
   }
 
-  for (auto const& driver_bin : drivers) {
-    driver_runner runner(driver_runner::foreground, driver_bin, false, image,
-                         mountpoint);
-
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
-        << runner.cmdline();
-
-    for (auto const& [path, ft] : kFileTimes) {
-      auto const full_path = mountpoint / path;
-
-      dwarfs::file_stat stat(full_path);
-
-      EXPECT_EQ(ft.mtime, stat.mtimespec()) << path << " " << runner.cmdline();
-      EXPECT_EQ(ft.atime, stat.atimespec()) << path << " " << runner.cmdline();
-      EXPECT_EQ(ft.ctime, stat.ctimespec()) << path << " " << runner.cmdline();
-    }
-
-    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
-  }
-#endif
+  EXPECT_TRUE(runner.unmount()) << runner.cmdline();
 }
 
-TEST(tools_test, timestamps_extract) {
+TEST_P(dwarfsextract_test, timestamps_extract) {
   dwarfs::temporary_directory td("dwarfs");
   auto const extracted = td.path() / "extracted";
   auto const image = test_dir / "timestamps.dwarfs";
 
   ASSERT_TRUE(fs::create_directory(extracted));
-  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_bin,
-                                    "-i", image.string(), "-o",
-                                    extracted.string()));
+  EXPECT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ bin_, args_, "-i",
+                                    image.string(), "-o", extracted.string()));
 
   for (auto const& [path, ft] : kFileTimes) {
     auto const full_path = extracted / path;
@@ -3182,14 +3241,7 @@ TEST(tools_test, timestamps_extract) {
   }
 }
 
-TEST(tools_test, dwarfs_automount) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
-
+TEST_P(fuse_driver_test, dwarfs_automount) {
   dwarfs::temporary_directory td("dwarfs");
 
   auto const image = td.path() / "timestamps.dwarfs";
@@ -3197,36 +3249,18 @@ TEST(tools_test, dwarfs_automount) {
 
   auto const mountpoint = td.path() / "timestamps";
 
-  std::vector<fs::path> drivers;
+  driver_runner runner(driver_runner::automount, bin_, tool_arg_, image,
+                       mountpoint);
 
-  drivers.push_back(fuse3_bin);
+  EXPECT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+      << runner.cmdline();
 
-  if (fs::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
-  }
+  EXPECT_TRUE(runner.unmount()) << runner.cmdline();
 
-  for (auto const& driver_bin : drivers) {
-    driver_runner runner(driver_runner::automount, driver_bin, false, image,
-                         mountpoint);
-
-    EXPECT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
-        << runner.cmdline();
-
-    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
-
-    EXPECT_FALSE(fs::exists(mountpoint));
-  }
-#endif
+  EXPECT_FALSE(fs::exists(mountpoint));
 }
 
-TEST(tools_test, dwarfs_automount_error) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
-
+TEST_P(fuse_driver_test, dwarfs_automount_error) {
   dwarfs::temporary_directory td("dwarfs");
   scoped_no_leak_check no_leak_check;
 
@@ -3237,7 +3271,7 @@ TEST(tools_test, dwarfs_automount_error) {
 
   {
     auto const [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint",
                         image_noext.string(), mountpoint.string());
     EXPECT_NE(ec, 0);
     EXPECT_THAT(
@@ -3247,7 +3281,7 @@ TEST(tools_test, dwarfs_automount_error) {
 
   {
     auto const [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint",
                         image_noext.string());
     EXPECT_NE(ec, 0);
     EXPECT_THAT(err,
@@ -3257,7 +3291,7 @@ TEST(tools_test, dwarfs_automount_error) {
 
   {
     auto const [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint");
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint");
     EXPECT_NE(ec, 0);
     EXPECT_THAT(out, ::testing::HasSubstr("Usage: dwarfs"));
   }
@@ -3270,7 +3304,7 @@ TEST(tools_test, dwarfs_automount_error) {
 
   {
     auto const [out, err, ec] = subprocess::run(
-        DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint", image.string());
+        DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint", image.string());
     EXPECT_NE(ec, 0);
     EXPECT_THAT(
         err, ::testing::HasSubstr(
@@ -3282,7 +3316,7 @@ TEST(tools_test, dwarfs_automount_error) {
 
   {
     auto const [out, err, ec] = subprocess::run(
-        DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint", image.string());
+        DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint", image.string());
     EXPECT_NE(ec, 0);
     EXPECT_THAT(
         err, ::testing::HasSubstr(
@@ -3293,14 +3327,14 @@ TEST(tools_test, dwarfs_automount_error) {
   fs::remove(image);
 
   {
-    driver_runner runner(fuse3_bin, false, test_dir / "datadata.dwarfs",
+    driver_runner runner(bin_, tool_arg_, test_dir / "datadata.dwarfs",
                          mountpoint);
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "data.dwarfs"))
         << runner.cmdline();
 
     auto const [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin, "--auto-mountpoint",
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint",
                         mountpoint / "data.dwarfs");
     EXPECT_NE(ec, 0);
     EXPECT_THAT(err, ::testing::HasSubstr(
@@ -3309,18 +3343,10 @@ TEST(tools_test, dwarfs_automount_error) {
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 #endif
-#endif
 }
 
 #ifndef _WIN32
-TEST(tools_test, dwarfs_fsname_and_subtype) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
-
+TEST_P(fuse_driver_test, dwarfs_fsname_and_subtype) {
 #ifdef __linux__
   fs::path proc_mounts{"/proc/self/mounts"};
 
@@ -3341,77 +3367,59 @@ TEST(tools_test, dwarfs_fsname_and_subtype) {
   auto const mountpoint = fs::canonical(td.path()) / "mnt";
   ASSERT_NO_THROW(fs::create_directory(mountpoint));
 
-  std::vector<fs::path> drivers;
+  driver_runner runner(bin_, tool_arg_, image, mountpoint);
 
-  drivers.push_back(fuse3_bin);
+  ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+      << runner.cmdline();
 
-  if (fs::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
-  }
-
-  for (auto const& driver_bin : drivers) {
-    driver_runner runner(driver_bin, false, image, mountpoint);
-
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
-        << runner.cmdline();
-
-    std::optional<std::string> out;
+  std::optional<std::string> out;
 
 #ifdef __linux__
-    out.emplace(dwarfs::read_file(proc_mounts));
+  out.emplace(dwarfs::read_file(proc_mounts));
 #else
-    out = subprocess::check_run(*mountbin);
+  out = subprocess::check_run(*mountbin);
 #endif
 
-    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  EXPECT_TRUE(runner.unmount()) << runner.cmdline();
 
-    ASSERT_TRUE(out.has_value()) << runner.cmdline();
-    std::optional<std::string> mpline;
+  ASSERT_TRUE(out.has_value()) << runner.cmdline();
+  std::optional<std::string> mpline;
 
-    {
-      std::istringstream iss(*out);
-      std::string line;
+  {
+    std::istringstream iss(*out);
+    std::string line;
 
-      while (std::getline(iss, line)) {
-        if (line.find(mountpoint.string()) != std::string::npos) {
-          mpline.emplace(line);
-          break;
-        }
+    while (std::getline(iss, line)) {
+      if (line.find(mountpoint.string()) != std::string::npos) {
+        mpline.emplace(line);
+        break;
       }
     }
+  }
 
-    // Linux: <image> <mountpoint> fuse.dwarfs ...
-    // macOS: <image> on <mountpoint> (macfuse_dwarfs, ...)
-    // FreeBSD: <image> on <mountpoint> (fusefs.dwarfs, ...)
+  // Linux: <image> <mountpoint> fuse.dwarfs ...
+  // macOS: <image> on <mountpoint> (macfuse_dwarfs, ...)
+  // FreeBSD: <image> on <mountpoint> (fusefs.dwarfs, ...)
 
-    ASSERT_TRUE(mpline.has_value()) << runner.cmdline() << "\n" << *out;
+  ASSERT_TRUE(mpline.has_value()) << runner.cmdline() << "\n" << *out;
 
 #if defined(__linux__)
-    EXPECT_THAT(*mpline,
-                ::testing::HasSubstr(image.string() + " " +
-                                     mountpoint.string() + " fuse.dwarfs "));
+  EXPECT_THAT(*mpline,
+              ::testing::HasSubstr(image.string() + " " + mountpoint.string() +
+                                   " fuse.dwarfs "));
 #elif defined(__APPLE__)
-    // It seems that macFUSE currently truncates the `fsname` string, so
-    // we don't check for the full image path here (yet).
-    EXPECT_THAT(*mpline, ::testing::HasSubstr("(macfuse_dwarfs"));
+  // It seems that macFUSE currently truncates the `fsname` string, so
+  // we don't check for the full image path here (yet).
+  EXPECT_THAT(*mpline, ::testing::HasSubstr("(macfuse_dwarfs"));
 #else // FreeBSD
-    EXPECT_THAT(*mpline, ::testing::HasSubstr(image.string() + " on " +
-                                              mountpoint.string() + " "));
-    EXPECT_THAT(*mpline, ::testing::HasSubstr("(fusefs.dwarfs"));
-#endif
-  }
+  EXPECT_THAT(*mpline, ::testing::HasSubstr(image.string() + " on " +
+                                            mountpoint.string() + " "));
+  EXPECT_THAT(*mpline, ::testing::HasSubstr("(fusefs.dwarfs"));
 #endif
 }
 #endif
 
-TEST(tools_test, dwarfs_image_size) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
-
+TEST_P(fuse_driver_test, dwarfs_image_size) {
   dwarfs::temporary_directory td("dwarfs");
   scoped_no_leak_check no_leak_check;
 
@@ -3423,7 +3431,7 @@ TEST(tools_test, dwarfs_image_size) {
   fs::create_directory(td.path() / "mnt");
 
   {
-    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ fuse3_bin,
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_,
                                           td.path() / "test.dwarfs",
                                           td.path() / "mnt", "-ooffset=auto");
 
@@ -3432,7 +3440,7 @@ TEST(tools_test, dwarfs_image_size) {
   }
 
   {
-    driver_runner runner(driver_runner::foreground, fuse3_bin, false,
+    driver_runner runner(driver_runner::foreground, bin_, tool_arg_,
                          td.path() / "test.dwarfs", td.path() / "mnt",
                          "-ooffset=auto",
                          "-oimagesize=" + std::to_string(image_size));
@@ -3442,15 +3450,13 @@ TEST(tools_test, dwarfs_image_size) {
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
-#endif
 }
 
 TEST(tools_test, dwarfs_obsolete_options) {
-#ifndef DWARFS_WITH_FUSE_DRIVER
-  GTEST_SKIP() << "FUSE driver not built";
-#else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
+  tool_helper fuse3{tool_type::fuse3};
+
+  if (!fuse3) {
+    GTEST_SKIP() << fuse3.skip_reason();
   }
 
   dwarfs::temporary_directory td("dwarfs");
@@ -3462,7 +3468,8 @@ TEST(tools_test, dwarfs_obsolete_options) {
   };
 
   for (auto const& opt : obsolete_opts) {
-    driver_runner runner(fuse3_bin, false, test_dir / "data.dwarfs", td.path(),
+    driver_runner runner(fuse3.path(), fuse3.tool_arg(),
+                         test_dir / "data.dwarfs", td.path(),
                          std::string{"-o"} + opt);
 
     EXPECT_TRUE(wait_until_file_ready(td.path() / "format.sh"))
@@ -3474,5 +3481,14 @@ TEST(tools_test, dwarfs_obsolete_options) {
                 ::testing::HasSubstr("`" + std::string{opt} +
                                      "` is obsolete and has no effect"));
   }
-#endif
 }
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_test,
+                         ::testing::ValuesIn(binary_types));
+
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, fuse_driver_test,
+    ::testing::Combine(::testing::ValuesIn(fuse_driver_types),
+                       ::testing::ValuesIn(binary_types)));
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test, ::testing::ValuesIn(binary_types));
