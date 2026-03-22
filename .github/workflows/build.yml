@@ -72,7 +72,8 @@ jobs:
         shell: cmd
         run: |
           copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
-          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
+          cmake --build ${{ runner.temp }}\build --target test
+          cmake --build ${{ runner.temp }}\build --target copy_test_logs
 
       - name: Build Package
         shell: cmd
@@ -757,7 +758,7 @@ jobs:
       - name: Configure Full Build
         run: |
           rm -rf ${{ runner.temp }}/build
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DBUILD_SHARED_LIBS=ON -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
+          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DBUILD_SHARED_LIBS=ON -DWITH_TESTS=ON -DWITH_PXATTR=ON -DDWARFS_ARTIFACTS_DIR=/Volumes/opensource/artifacts/dwarfs ${{ matrix.config.cmake_args }}
 
       - name: Run Full Build
         run: |
@@ -765,7 +766,8 @@ jobs:
 
       - name: Run Full Test
         run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+          cmake --build ${{ runner.temp }}/build --target test
+          cmake --build ${{ runner.temp }}/build --target copy_test_logs
 
       - name: Cleanup
         run: |
@@ -781,7 +783,7 @@ jobs:
 
       - name: Run Library Test
         run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+          cmake --build ${{ runner.temp }}/build --target test
 
       - name: Install Library
         run: |
@@ -801,7 +803,7 @@ jobs:
 
       - name: Run Tools Test
         run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+          cmake --build ${{ runner.temp }}/build --target test
 
       - name: Install Tools
         run: |
@@ -821,7 +823,7 @@ jobs:
 
       - name: Run FUSE Driver Test
         run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+          cmake --build ${{ runner.temp }}/build --target test
 
       - name: Install FUSE Driver
         run: |
