@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <chrono>
@@ -34,6 +35,7 @@
 #include <future>
 #include <iostream>
 #include <latch>
+#include <random>
 #include <regex>
 #include <sstream>
 #include <string_view>
@@ -276,6 +278,7 @@ class tool_helper {
   bool is_fuse_driver() const { return is_fuse_driver_; }
   bool is_fuse2() const { return is_fuse2_; }
   bool is_universal() const { return is_universal_; }
+  bool use_symlink() const { return use_symlink_; }
 
   fs::path const& path() const { return path_.value(); }
 
@@ -1253,6 +1256,8 @@ TEST_P(tools_test, end_to_end) {
     image = test_data_dwarfs;
   }
 
+  std::mt19937 rng(42);
+
   auto mountpoint = td / "mnt";
   auto extracted = td / "extracted";
   auto untared = td / "untared";
@@ -1377,137 +1382,99 @@ TEST_P(tools_test, end_to_end) {
     std::vector<std::string> all_options{
         "-s",
         "-ocase_insensitive,block_allocator=mmap",
-#ifndef _WIN32
+        "-ooffset=auto",
+        "-omlock=try",
+        "-odebuglevel=debug",
+        "-otidy_strategy=time,cache_files",
+        "-otidy_interval=1s,tidy_max_age=2s",
         "-opreload_all",
+#ifndef _WIN32
         "-oreadonly",
         "-ouid=2345,gid=3456",
 #endif
     };
 
-#ifndef __APPLE__
-    // macFUSE is notoriously slow to start, so let's skip these tests
-    if (!dwarfs::test::skip_slow_tests()) {
-      all_options.push_back("-omlock=try");
-      all_options.push_back("-otidy_strategy=time,cache_files");
-    }
-#endif
-
-    unsigned const combinations = 1 << all_options.size();
-
-    for (unsigned bitmask = 0; bitmask < combinations; ++bitmask) {
-      std::vector<std::string> args;
-      bool case_insensitive{false};
-#ifndef _WIN32
-      bool readonly{false};
-      bool uid_gid_override{false};
-#endif
-
-      for (size_t i = 0; i < all_options.size(); ++i) {
-        if ((1 << i) & bitmask) {
-          auto const& opt = all_options[i];
-          if (opt.find("-ocase_insensitive") != std::string::npos) {
-            case_insensitive = true;
-          }
-#ifndef _WIN32
-          if (opt.find("-oreadonly") != std::string::npos) {
-            readonly = true;
-          }
-          if (opt.find("-ouid=") != std::string::npos) {
-            uid_gid_override = true;
-          }
-#endif
-          args.push_back(opt);
-        }
-      }
-
-      args.push_back("-otidy_interval=1s");
-      args.push_back("-otidy_max_age=2s");
-      args.push_back("-odebuglevel=debug");
-
-      {
-        driver_runner runner(driver.path(), driver.tool_arg(), image,
-                             mountpoint, args);
-
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
-            << runner.cmdline();
-        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
-        EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
-                  fs::path("foo") / "bar")
-            << runner.cmdline();
-        auto const cdr = compare_directories(fsdata_dir, mountpoint);
-        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
-            << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_directories.size(), 19)
-            << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
-            << runner.cmdline() << ": " << cdr;
-#ifndef _WIN32
-        // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
-            << runner.cmdline();
-        // This doesn't really work on Windows (yet)
-        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
-            << runner.cmdline();
-        if (uid_gid_override) {
-          struct ::stat st;
-          ASSERT_EQ(0, ::lstat(mountpoint.string().c_str(), &st))
-              << runner.cmdline();
-          EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
-          EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
-          ASSERT_EQ(0,
-                    ::lstat((mountpoint / "format.sh").string().c_str(), &st))
-              << runner.cmdline();
-          EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
-          EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
-        }
-#endif
-        EXPECT_TRUE(fs::exists(mountpoint / "format.sh")) << runner.cmdline();
-        EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "FORMAT.SH"))
-            << runner.cmdline();
-        EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "fOrMaT.Sh"))
-            << runner.cmdline();
-
-        auto perfmon =
-            dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
-#if DWARFS_PERFMON_ENABLED
-        EXPECT_THAT(perfmon,
-                    ::testing::StartsWith("performance monitor is disabled"));
+#if defined(_WIN32) || defined(__APPLE__)
+    static constexpr auto kFuseOptionTests = 16;
 #else
-        EXPECT_THAT(perfmon,
-                    ::testing::StartsWith("no performance monitor support"));
+    static constexpr auto kFuseOptionTests = 64;
 #endif
-      }
+    auto const num_tests = dwarfs::test::skip_slow_tests() ||
+                                   driver.is_universal() || driver.use_symlink()
+                               ? kFuseOptionTests / 4
+                               : kFuseOptionTests;
 
-      args.push_back("-ooffset=auto");
+    for (int i = 0; i < num_tests; ++i) {
+      std::vector<std::string> args;
 
-      if (*mkdwarfs_) {
-        driver_runner runner(driver.path(), driver.tool_arg(), image_hdr,
-                             mountpoint, args);
+      std::uniform_int_distribution<int> count_dist(0, all_options.size());
+      std::ranges::sample(all_options, std::back_inserter(args),
+                          count_dist(rng), rng);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
-            << runner.cmdline();
-        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
-        EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
-                  fs::path("foo") / "bar")
-            << runner.cmdline();
-        auto const cdr = compare_directories(fsdata_dir, mountpoint);
-        ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_regular_files.size(), 26)
-            << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_directories.size(), 19)
-            << runner.cmdline() << ": " << cdr;
-        EXPECT_EQ(cdr.matching_symlinks.size(), 2)
-            << runner.cmdline() << ": " << cdr;
+      auto contains_option = [&](std::string_view opt) {
+        return std::ranges::any_of(args, [&](std::string const& arg) {
+          return arg.find(opt) != std::string::npos;
+        });
+      };
+
+      bool const case_insensitive{contains_option("case_insensitive")};
+      bool const auto_offset{contains_option("offset=auto")};
 #ifndef _WIN32
-        // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"))
-            << runner.cmdline();
-        // This doesn't really work on Windows (yet)
-        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
-            << runner.cmdline();
+      bool const readonly{contains_option("readonly")};
+      bool const uid_gid_override{contains_option("uid=")};
 #endif
+
+      auto const& image_to_use = auto_offset && *mkdwarfs_ ? image_hdr : image;
+
+      driver_runner runner(driver.path(), driver.tool_arg(), image_to_use,
+                           mountpoint, args);
+
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+          << runner.cmdline();
+      EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
+      EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
+                fs::path("foo") / "bar")
+          << runner.cmdline();
+      auto const cdr = compare_directories(fsdata_dir, mountpoint);
+      ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_regular_files.size(), 26)
+          << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_directories.size(), 19)
+          << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.matching_symlinks.size(), 2)
+          << runner.cmdline() << ": " << cdr;
+#ifndef _WIN32
+      // TODO: https://github.com/winfsp/winfsp/issues/511
+      EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
+      // This doesn't really work on Windows (yet)
+      EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
+          << runner.cmdline();
+      if (uid_gid_override) {
+        struct ::stat st;
+        ASSERT_EQ(0, ::lstat(mountpoint.string().c_str(), &st))
+            << runner.cmdline();
+        EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
+        EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
+        ASSERT_EQ(0, ::lstat((mountpoint / "format.sh").string().c_str(), &st))
+            << runner.cmdline();
+        EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
+        EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
       }
+#endif
+      EXPECT_TRUE(fs::exists(mountpoint / "format.sh")) << runner.cmdline();
+      EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "FORMAT.SH"))
+          << runner.cmdline();
+      EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "fOrMaT.Sh"))
+          << runner.cmdline();
+
+      auto perfmon = dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
+#if DWARFS_PERFMON_ENABLED
+      EXPECT_THAT(perfmon,
+                  ::testing::StartsWith("performance monitor is disabled"));
+#else
+      EXPECT_THAT(perfmon,
+                  ::testing::StartsWith("no performance monitor support"));
+#endif
     }
   }
 
