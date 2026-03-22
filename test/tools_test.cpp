@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <concepts>
@@ -137,6 +138,17 @@ auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
 #define DWARFS_ARG_EMULATOR_
 #endif
 
+#define GTEST_REQUIRES(cond)                                                   \
+  if (!(cond))                                                                 \
+  GTEST_SKIP()
+
+#define GTEST_REQUIRES_HELPER(helper)                                          \
+  GTEST_REQUIRES((helper)) << (helper).skip_reason()
+
+#define GTEST_SKIP_FUSE_TESTS()                                                \
+  if (skip_fuse_tests())                                                       \
+  GTEST_SKIP() << "skipping FUSE tests due to DWARFS_SKIP_FUSE_TESTS"
+
 auto tools_dir = fs::path(TOOLS_BIN_DIR).make_preferred();
 auto mkdwarfs_bin = fs::path{MKDWARFS_BINARY};
 auto fuse3_bin = tools_dir / "dwarfs" EXE_EXT;
@@ -212,9 +224,11 @@ class tool_helper {
               args_.push_back("--tool=" + tool_name(tool));
             }
           }
-        } else {
-          skip_reason_ = tool_name(tool) + " is not supported by the " +
-                         binary_type_name(binary) + " binary";
+        } else if (skip_reason_.empty()) {
+          skip_reason_ = tool_name(tool) + " is not supported";
+          if (binary != binary_type::any) {
+            skip_reason_ += " by the " + binary_type_name(binary) + " binary";
+          }
         }
       }
     };
@@ -265,7 +279,7 @@ class tool_helper {
         fs::create_symlink(*path_, symlink_path);
         path_ = symlink_path;
       }
-    } else {
+    } else if (skip_reason_.empty()) {
       skip_reason_ =
           "no " + binary_type_name(binary) + " binary for " + tool_name(tool);
     }
@@ -309,10 +323,7 @@ class tool_helper {
       return "dwarfs";
     case tool_type::fuse2:
       return "dwarfs2";
-    default:
-      break;
     }
-    return {};
   }
 
   static std::string binary_type_name(binary_type type) {
@@ -327,10 +338,9 @@ class tool_helper {
       return "fuse_extract";
     case binary_type::fuse_extract_symlink:
       return "fuse_extract+symlink";
-    default:
-      break;
+    case binary_type::any:
+      return "<any>";
     }
-    return {};
   }
 
  private:
@@ -370,9 +380,7 @@ class basic_tool_test : public ::testing::TestWithParam<binary_type> {
     auto const binary = GetParam();
     helper_.emplace(Tool, binary);
 
-    if (!*helper_) {
-      GTEST_SKIP() << helper_->skip_reason();
-    }
+    GTEST_REQUIRES_HELPER(*helper_);
 
     bin_ = helper_->path();
     args_ = helper_->args();
@@ -393,9 +401,7 @@ class fuse_driver_test
     helper_.emplace(tool, binary);
     assert(helper_->is_fuse_driver());
 
-    if (!*helper_) {
-      GTEST_SKIP() << helper_->skip_reason();
-    }
+    GTEST_REQUIRES_HELPER(*helper_);
 
     bin_ = helper_->path();
     args_ = helper_->args();
@@ -1943,16 +1949,13 @@ TEST_P(manpage_test, manpage) {
 
   tool_helper helper{tool, binary};
 
-  if (!helper) {
-    GTEST_SKIP() << helper.skip_reason();
-  }
+  GTEST_REQUIRES_HELPER(helper);
 
 #ifndef DWARFS_BUILTIN_MANPAGE
   GTEST_SKIP() << "no built-in man pages";
 #endif
 
   fs::path tool_path = helper.path();
-  std::optional<dwarfs::temporary_directory> tempdir;
 
   scoped_no_leak_check no_leak_check;
 
@@ -2136,13 +2139,8 @@ TEST_P(mkdwarfs_tool_input_list, basic) {
   tool_helper mkdwarfs{tool_type::mkdwarfs, binary_type};
   tool_helper dwarfsextract{tool_type::dwarfsextract, binary_type};
 
-  if (!mkdwarfs) {
-    GTEST_SKIP() << mkdwarfs.skip_reason();
-  }
-
-  if (!dwarfsextract) {
-    GTEST_SKIP() << dwarfsextract.skip_reason();
-  }
+  GTEST_REQUIRES_HELPER(mkdwarfs);
+  GTEST_REQUIRES_HELPER(dwarfsextract);
 
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
@@ -2234,9 +2232,7 @@ TEST_P(fuse_driver_test, fusermount_check) {
 
   auto bwrap = dwarfs::test::find_binary("bwrap");
 
-  if (!bwrap) {
-    GTEST_SKIP() << "bubblewrap not found";
-  }
+  GTEST_REQUIRES(bwrap) << "bubblewrap not found";
 
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
@@ -2329,17 +2325,9 @@ class sparse_files_test : public ::testing::Test {
   };
 
   void SetUp() override {
-    if (!mkdwarfs) {
-      GTEST_SKIP() << "mkdwarfs not available";
-    }
-
-    if (!dwarfsck) {
-      GTEST_SKIP() << "dwarfsck not available";
-    }
-
-    if (!dwarfsextract) {
-      GTEST_SKIP() << "dwarfsextract not available";
-    }
+    GTEST_REQUIRES_HELPER(mkdwarfs);
+    GTEST_REQUIRES_HELPER(dwarfsck);
+    GTEST_REQUIRES_HELPER(dwarfsextract);
 
     td.emplace();
 
@@ -2348,9 +2336,7 @@ class sparse_files_test : public ::testing::Test {
     granularity =
         dwarfs::test::sparse_file_builder::hole_granularity(td->path());
 
-    if (!granularity) {
-      GTEST_SKIP() << "filesystem does not support sparse files";
-    }
+    GTEST_REQUIRES(granularity) << "filesystem does not support sparse files";
 
     std::cerr << "granularity: " << dwarfs::size_with_unit(granularity.value())
               << "\n";
@@ -2749,13 +2735,9 @@ TEST_F(sparse_files_test, random_small_files_tarball) {
 #else
   auto const tarbin = dwarfs::test::find_binary("tar");
 
-  if (!tarbin) {
-    GTEST_SKIP() << "tar binary not found";
-  }
-
-  if (!tar_supports_sparse(*tarbin)) {
-    GTEST_SKIP() << "tar does not support sparse files";
-  }
+  GTEST_REQUIRES(tarbin) << "tar binary not found";
+  GTEST_REQUIRES(tar_supports_sparse(*tarbin))
+      << "tar does not support sparse files";
 
   static constexpr size_t kNumFiles{20};
   rng.seed(42);
@@ -2827,9 +2809,7 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
 #ifndef DWARFS_WITH_FUSE_DRIVER
   GTEST_SKIP() << "FUSE driver not built";
 #else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
+  GTEST_SKIP_FUSE_TESTS();
 
   static constexpr size_t kNumFiles{30};
   rng.seed(43);
@@ -2893,13 +2873,9 @@ TEST_F(sparse_files_test, huge_holes_tar) {
 #else
   auto const tarbin = dwarfs::test::find_binary("tar");
 
-  if (!tarbin) {
-    GTEST_SKIP() << "tar binary not found";
-  }
-
-  if (!tar_supports_sparse(*tarbin)) {
-    GTEST_SKIP() << "tar does not support sparse files";
-  }
+  GTEST_REQUIRES(tarbin) << "tar binary not found";
+  GTEST_REQUIRES(tar_supports_sparse(*tarbin))
+      << "tar does not support sparse files";
 
   ASSERT_NO_THROW(fs::create_directory(input));
 
@@ -2968,9 +2944,7 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
 #ifndef DWARFS_WITH_FUSE_DRIVER
   GTEST_SKIP() << "FUSE driver not built";
 #else
-  if (skip_fuse_tests()) {
-    GTEST_SKIP() << "skipping FUSE tests";
-  }
+  GTEST_SKIP_FUSE_TESTS();
 
   ASSERT_NO_THROW(fs::create_directory(input));
 
@@ -3315,17 +3289,13 @@ TEST_P(fuse_driver_test, dwarfs_automount_error) {
 #ifndef _WIN32
 TEST_P(fuse_driver_test, dwarfs_fsname_and_subtype) {
 #ifdef __linux__
-  fs::path proc_mounts{"/proc/self/mounts"};
+  fs::path const proc_mounts{"/proc/self/mounts"};
 
-  if (!fs::exists(proc_mounts)) {
-    GTEST_SKIP() << proc_mounts << " not found";
-  }
+  GTEST_REQUIRES(fs::exists(proc_mounts)) << proc_mounts << " not found";
 #else
-  auto mountbin = dwarfs::test::find_binary("mount");
+  auto const mountbin = dwarfs::test::find_binary("mount");
 
-  if (!mountbin) {
-    GTEST_SKIP() << "`mount` binary not found";
-  }
+  GTEST_REQUIRES(mountbin) << "`mount` binary not found";
 #endif
 
   dwarfs::temporary_directory td("dwarfs");
@@ -3422,9 +3392,7 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
 TEST(tools_test, dwarfs_obsolete_options) {
   tool_helper fuse3{tool_type::fuse3};
 
-  if (!fuse3) {
-    GTEST_SKIP() << fuse3.skip_reason();
-  }
+  GTEST_REQUIRES_HELPER(fuse3);
 
   dwarfs::temporary_directory td("dwarfs");
 
