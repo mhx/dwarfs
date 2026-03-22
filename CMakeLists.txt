@@ -201,7 +201,7 @@ include(FetchContent)
 include(GNUInstallDirs)
 
 if(WITH_TESTS)
-  set(CMAKE_CTEST_ARGUMENTS "-j" "--progress" "--output-on-failure")
+  set(CMAKE_CTEST_ARGUMENTS "-j" "--progress" "--output-on-failure" "--output-junit" "ctest.xml")
   include(${CMAKE_SOURCE_DIR}/cmake/need_gtest.cmake)
 endif()
 
