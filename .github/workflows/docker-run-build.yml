@@ -106,7 +106,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ runner.temp }}/dwarfs-coverage.lcov
           fail_ci_if_error: false
-        if: ${{ inputs.upload_coverage }}
+        if: inputs.upload_coverage
 
       - name: Upload Coverage Data (Coveralls)
         uses: coverallsapp/github-action@v2
@@ -116,11 +116,11 @@ jobs:
           fail-on-error: false
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        if: ${{ inputs.upload_coverage }}
+        if: inputs.upload_coverage
 
       - name: Prepare Artifact Upload
         run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
-        if: ${{ inputs.upload_artifacts }}
+        if: inputs.upload_artifacts
 
       - name: Upload Binary Tarball
         uses: actions/upload-artifact@v7
@@ -132,7 +132,7 @@ jobs:
           archive: false
         env:
           ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ inputs.upload_artifacts }}
+        if: inputs.upload_artifacts && env.binary_tarball
 
       - name: Upload Universal Binary
         uses: actions/upload-artifact@v7
@@ -144,7 +144,7 @@ jobs:
           archive: false
         env:
           ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ inputs.upload_artifacts }}
+        if: inputs.upload_artifacts && env.dwarfsuniversal_binary
 
       - name: Upload Fuse-Extract Binary
         uses: actions/upload-artifact@v7
@@ -156,7 +156,7 @@ jobs:
           archive: false
         env:
           ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ inputs.upload_artifacts }}
+        if: inputs.upload_artifacts && env.dwarfsfuseextract_binary
 
       - name: Upload Coverage Data Artifact
         uses: actions/upload-artifact@v7
@@ -166,4 +166,4 @@ jobs:
           if-no-files-found: error
         env:
           ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ inputs.upload_coverage }}
+        if: inputs.upload_coverage

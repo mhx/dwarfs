@@ -309,7 +309,9 @@ fi
 
 if [[ "-$BUILD_TYPE-" == *-source-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_OPTIMIZE=0"
-else
+fi
+
+if [[ "-$BUILD_TYPE-" != *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_LEGACY_FUSE=1"
 fi
 
@@ -376,7 +378,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal/$_TARGET"
   else
-    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full/$_TARGET"
   fi
   if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
@@ -402,7 +403,27 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       ;;
   esac
 
-  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+  _have_universal_binary=false
+  _have_fuse_extract_binary=false
+  _have_binary_tarball=false
+
+  if [[ "$BUILD_TYPE" == *-ubonly-* ]] || [[ "$BUILD_TYPE" == *-small-* ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DONLY_UNIVERSAL_BINARIES=1 -DONLY_TOOLS_TEST=1 -DWITH_UNIVERSAL_BINARY=1"
+    _have_universal_binary=true
+  elif [[ "$BUILD_TYPE" == *-feonly-* ]] || [[ "$BUILD_TYPE" == *-minimal-* ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DONLY_UNIVERSAL_BINARIES=1 -DONLY_TOOLS_TEST=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+    _have_fuse_extract_binary=true
+  elif [[ "$BUILD_TYPE" == *-noub-* ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
+    _have_binary_tarball=true
+  else
+    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DWITH_PXATTR=1"
+    _have_universal_binary=true
+    _have_fuse_extract_binary=true
+    _have_binary_tarball=true
+  fi
+
+  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSROOT=$_SYSROOT -DCMAKE_FIND_ROOT_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_PREFIX_PATH=$_staticprefix;$_sslprefix;$_jemallocprefix -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DSTATIC_BUILD_DO_NOT_USE=1"
 
   if [[ -n "$CROSS_ARCH" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$_MARCH -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-$_MARCH"
@@ -553,9 +574,11 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     $BUILD_TOOL strip
   fi
 
-  log "begin:package"
-  $BUILD_TOOL package
-  log "end:package"
+  if [[ "$_have_binary_tarball" == "true" ]]; then
+    log "begin:package"
+    $BUILD_TOOL package
+    log "end:package"
+  fi
   log "begin:upx"
   $BUILD_TOOL universal_upx
   log "end:upx"
@@ -567,9 +590,9 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   rm -rf /tmp-runner/artifacts
   mkdir -p /tmp-runner/artifacts
   cp artifacts.env /tmp-runner
-  cp dwarfs-universal-* /tmp-runner/artifacts
-  cp dwarfs-fuse-extract-* /tmp-runner/artifacts
-  cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
+  [[ "$_have_universal_binary" == "true" ]] && cp dwarfs-universal-* /tmp-runner/artifacts
+  [[ "$_have_fuse_extract_binary" == "true" ]] && cp dwarfs-fuse-extract-* /tmp-runner/artifacts
+  [[ "$_have_binary_tarball" == "true" ]] && cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
 elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
   log "begin:package-source"
   $BUILD_TOOL package_source
