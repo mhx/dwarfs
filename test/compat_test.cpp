@@ -30,6 +30,7 @@
 #include <cstring>
 #include <filesystem>
 #include <map>
+#include <random>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -1308,8 +1309,15 @@ void check_extract_format(test::test_logger& lgr, test::os_access_mock& os,
   if (format.has_value()) {
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     std::ostringstream oss;
-    EXPECT_NO_THROW(fsx.open_stream(oss, {.name = std::string{*format}}))
-        << lgr;
+    dwarfs::utility::filesystem_extractor_archive_format fsx_format{
+        .name = std::string{*format},
+    };
+    if (format == "7zip" || format == "zip") {
+      fsx_format.options = "compression=store";
+    } else if (format == "xar") {
+      fsx_format.options = "compression=none";
+    }
+    EXPECT_NO_THROW(fsx.open_stream(oss, fsx_format)) << lgr;
     do_extract();
 #endif
   } else {
@@ -1320,31 +1328,42 @@ void check_extract_format(test::test_logger& lgr, test::os_access_mock& os,
   }
 }
 
-void check_extract_matcher(test::test_logger& lgr, test::os_access_mock& os,
+void check_extract_matcher(std::mt19937_64& rng [[maybe_unused]],
+                           test::test_logger& lgr, test::os_access_mock& os,
                            reader::filesystem_v2 const& fs,
                            glob_matcher const* matcher = nullptr) {
   // check extract-to-disk
   check_extract_format(lgr, os, fs, std::nullopt, matcher);
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-  // check extract to various formats
+  static constexpr size_t kNumFormats = 4;
+  // Would be much nicer with ranges, but Ubuntu 22.04 breaks with clang...
+  std::vector<std::string_view> all;
   for (auto const& fmt : test::supported_libarchive_formats()) {
+    all.push_back(fmt.name);
+  }
+  std::vector<std::string_view> formats;
+  formats.reserve(kNumFormats);
+  std::ranges::sample(all, std::back_inserter(formats), kNumFormats, rng);
+
+  // check extract to various formats
+  for (auto const& fmt : formats) {
     if (utility::filesystem_extractor::supports_format(
-            {.name = std::string{fmt.name}})) {
-      check_extract_format(lgr, os, fs, fmt.name, matcher);
+            {.name = std::string{fmt}})) {
+      check_extract_format(lgr, os, fs, fmt, matcher);
     }
   }
 #endif
 }
 
-void check_extract(test::test_logger& lgr, test::os_access_mock& os,
-                   reader::filesystem_v2 const& fs) {
+void check_extract(std::mt19937_64& rng, test::test_logger& lgr,
+                   test::os_access_mock& os, reader::filesystem_v2 const& fs) {
   // no matcher - extract all
-  check_extract_matcher(lgr, os, fs);
+  check_extract_matcher(rng, lgr, os, fs);
 
   // extract only .sh files
   glob_matcher matcher{"**/*.sh"};
-  check_extract_matcher(lgr, os, fs, &matcher);
+  check_extract_matcher(rng, lgr, os, fs, &matcher);
 }
 
 auto get_image_path(std::string const& version) {
@@ -1474,6 +1493,7 @@ class compat_filesystem : public testing::TestWithParam<std::string> {};
 
 TEST_P(compat_filesystem, backwards_compat) {
   auto version = GetParam();
+  std::mt19937_64 rng(std::hash<std::string>{}(version));
 
   test::test_logger lgr;
   test::os_access_mock os;
@@ -1486,7 +1506,7 @@ TEST_P(compat_filesystem, backwards_compat) {
     reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename),
                              opts);
     check_compat(lgr, fs, version);
-    check_extract(lgr, os, fs);
+    check_extract(rng, lgr, os, fs);
   }
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1517,6 +1537,9 @@ class rewrite : public testing::TestWithParam<
 TEST_P(rewrite, filesystem_rewrite) {
   auto [version, recompress_block, metadata_cfg] = GetParam();
   auto [recompress_metadata, rebuild_metadata] = metadata_cfg;
+  std::mt19937_64 rng(
+      std::hash<std::string>{}(version) + (recompress_block ? 1 : 0) +
+      (recompress_metadata ? 2 : 0) + (rebuild_metadata.has_value() ? 4 : 0));
 
   test::test_logger lgr;
   test::os_access_mock os;
@@ -1558,7 +1581,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
-    check_extract(lgr, os, fs);
+    check_extract(rng, lgr, os, fs);
     EXPECT_TRUE(fs.has_valid_section_index());
   }
 
@@ -1641,7 +1664,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
-    check_extract(lgr, os, fs);
+    check_extract(rng, lgr, os, fs);
   }
 
   std::ostringstream rewritten5;
@@ -1663,7 +1686,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
-    check_extract(lgr, os, fs);
+    check_extract(rng, lgr, os, fs);
   }
 }
 
