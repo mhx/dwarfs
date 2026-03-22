@@ -21,8 +21,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
+#include <random>
 #include <sstream>
 
 #include <gtest/gtest.h>
@@ -84,6 +86,13 @@ std::vector<std::string> find_all_filesystems() {
       files.push_back(e.path().filename().string());
     }
   }
+#ifdef DWARFS_TEST_CROSS_COMPILE
+  static constexpr size_t kMaxFiles = 100;
+  std::mt19937 rng(std::hash<std::string>{}(__TIME__));
+  std::vector<std::string> sampled_files;
+  std::ranges::sample(files, std::back_inserter(sampled_files), kMaxFiles, rng);
+  std::swap(files, sampled_files);
+#endif
   return files;
 }
 
