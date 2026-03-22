@@ -324,9 +324,11 @@ fi
 if [[ "-$BUILD_TYPE-" == *-notest-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=0"
   RUN_TESTS="echo 'skipping tests'"
+  COPY_TEST_LOGS="echo 'no test logs to copy'"
 else
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1"
-  RUN_TESTS="ctest --output-on-failure -j$(nproc)"
+  RUN_TESTS="ctest --output-on-failure -j$(nproc) --output-junit ctest.xml"
+  COPY_TEST_LOGS="${BUILD_TOOL} copy_test_logs"
 fi
 
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
@@ -499,6 +501,7 @@ case "-$BUILD_TYPE-" in
       log "begin:test"
       $RUN_TESTS
       log "end:test"
+      $COPY_TEST_LOGS
     fi
     ;;
 
@@ -556,6 +559,7 @@ case "-$BUILD_TYPE-" in
       log "begin:test"
       $RUN_TESTS
       log "end:test"
+      $COPY_TEST_LOGS
     fi
     ;;
 esac
