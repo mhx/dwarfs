@@ -115,16 +115,10 @@ fi
 
 case "-$BUILD_TYPE-" in
   *-ninja-*)
-    if [[ "$BUILD_DIST" == "alpine" ]]; then
-      BUILD_TOOL=/usr/lib/ninja-build/bin/ninja
-    else
-      BUILD_TOOL=ninja
-    fi
     CMAKE_TOOL_ARGS="-GNinja"
     SAVE_BUILD_LOG="cp -a .ninja_log $NINJA_LOG_FILE"
     ;;
   *-make-*)
-    BUILD_TOOL="make -j$(nproc)"
     CMAKE_TOOL_ARGS=
     SAVE_BUILD_LOG=
     ;;
@@ -132,6 +126,20 @@ case "-$BUILD_TYPE-" in
     echo "missing build tool in: $BUILD_TYPE"
     exit 1
 esac
+
+case "$RUNNER_NAME" in
+  *-gandalf*|*-sauron*)
+    PARALLEL_JOBS=$(( 3 * $(nproc) / 4 ))
+    ;;
+  *)
+    PARALLEL_JOBS=$(( $(nproc) + 2 ))
+    ;;
+esac
+
+echo "Using $PARALLEL_JOBS parallel jobs for building on ${RUNNER_NAME:-local machine}"
+
+BUILD_TOOL="cmake --build . -j$PARALLEL_JOBS"
+BUILD_TARGET="$BUILD_TOOL --target"
 
 CMAKE_ARGS="${CMAKE_TOOL_ARGS}"
 
@@ -219,7 +227,7 @@ case "-$BUILD_TYPE-" in
          export LDFLAGS="${LDFLAGS} -fuse-ld=lld"
          ;;
       *)
-         export LDFLAGS="${LDFLAGS} -fuse-ld=mold"
+         export LDFLAGS="${LDFLAGS} -fuse-ld=mold -Wl,--thread-count=$PARALLEL_JOBS"
          ;;
     esac
     ;;
@@ -328,7 +336,7 @@ if [[ "-$BUILD_TYPE-" == *-notest-* ]]; then
 else
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1"
   RUN_TESTS="ctest --output-on-failure -j$(nproc) --output-junit ctest.xml"
-  COPY_TEST_LOGS="${BUILD_TOOL} copy_test_logs"
+  COPY_TEST_LOGS="${BUILD_TARGET} copy_test_logs"
 fi
 
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
@@ -381,6 +389,10 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export STRIP_TOOL="${_TARGET}-strip"
   export ELFEDIT_TOOL="${_TARGET}-elfedit"
   export PATH="$_SYSROOT/usr/bin:$PATH"
+
+  if [[ "$BUILD_DIST" == "alpine" ]]; then
+    export PATH="/usr/lib/ninja-build/bin:$PATH"
+  fi
 
   _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
   if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
@@ -515,8 +527,8 @@ case "-$BUILD_TYPE-" in
     cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
     time $BUILD_TOOL
     $RUN_TESTS
-    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-    $BUILD_TOOL distclean
+    DESTDIR="$INSTALLDIR" $BUILD_TARGET install
+    $BUILD_TARGET distclean
     rm -rf *
 
     # ==== example binary ====
@@ -528,16 +540,16 @@ case "-$BUILD_TYPE-" in
     cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
     time $BUILD_TOOL
     $RUN_TESTS
-    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-    $BUILD_TOOL distclean
+    DESTDIR="$INSTALLDIR" $BUILD_TARGET install
+    $BUILD_TARGET distclean
     rm -rf *
 
     # ==== dwarfs fuse driver ====
     cmake "$SOURCE_DIR" $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
     time $BUILD_TOOL
     $RUN_TESTS
-    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-    $BUILD_TOOL distclean
+    DESTDIR="$INSTALLDIR" $BUILD_TARGET install
+    $BUILD_TARGET distclean
 
     # That's it for split builds, we are done
     exit 0
@@ -581,20 +593,20 @@ fi
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   # for release and relsize builds, strip the binaries
   if [[ "-$BUILD_TYPE-" =~ -(release|relsize)- ]]; then
-    $BUILD_TOOL strip
+    $BUILD_TARGET strip
   fi
 
   if [[ "$_have_binary_tarball" == "true" ]]; then
     log "begin:package"
-    $BUILD_TOOL package
+    $BUILD_TARGET package
     log "end:package"
   fi
   log "begin:upx"
-  $BUILD_TOOL universal_upx
+  $BUILD_TARGET universal_upx
   log "end:upx"
 
   log "begin:copy-artifacts"
-  $BUILD_TOOL copy_artifacts
+  $BUILD_TARGET copy_artifacts
   log "end:copy-artifacts"
 
   rm -rf /tmp-runner/artifacts
@@ -605,10 +617,10 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   [[ "$_have_binary_tarball" == "true" ]] && cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
 elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
   log "begin:package-source"
-  $BUILD_TOOL package_source
+  $BUILD_TARGET package_source
   log "end:package-source"
   log "begin:copy-artifacts"
-  $BUILD_TOOL copy_source_artifacts
+  $BUILD_TARGET copy_source_artifacts
   log "end:copy-artifacts"
 fi
 
@@ -616,10 +628,10 @@ if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
    [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
    [[ "-$BUILD_TYPE-" != *-source-* ]] && \
    [[ "-$BUILD_TYPE-" != *-static-* ]]; then
-  DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-  $BUILD_TOOL distclean
+  DESTDIR="$INSTALLDIR" $BUILD_TARGET install
+  $BUILD_TARGET distclean
 
   cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
   $BUILD_TOOL
-  $BUILD_TOOL clean
+  $BUILD_TARGET clean
 fi
