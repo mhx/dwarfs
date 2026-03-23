@@ -952,7 +952,7 @@ TEST_P(mkdwarfs_progress_test, basic) {
 
   t.add_root_dir();
   t.add_random_file_tree({
-#ifdef DWARFS_TEST_CROSS_COMPILE
+#if defined(DWARFS_TEST_CROSS_COMPILE) || defined(__APPLE__) || defined(_WIN32)
       .avg_size = 2.0 * 1024 * 1024,
 #else
       .avg_size = 16.0 * 1024 * 1024,

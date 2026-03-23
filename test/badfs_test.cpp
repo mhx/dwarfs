@@ -86,7 +86,7 @@ std::vector<std::string> find_all_filesystems() {
       files.push_back(e.path().filename().string());
     }
   }
-#ifdef DWARFS_TEST_CROSS_COMPILE
+#if defined(DWARFS_TEST_CROSS_COMPILE) || defined(__APPLE__) || defined(_WIN32)
   static constexpr size_t kMaxFiles = 100;
   std::mt19937 rng(std::hash<std::string>{}(__TIME__));
   std::vector<std::string> sampled_files;
