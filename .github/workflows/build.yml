@@ -232,6 +232,10 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-small-libressl-lto-ninja-static
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-minimal-libressl-mimalloc-lto-ninja-static
@@ -336,6 +340,10 @@ jobs:
             build_dist: alpine
             build_type: clang-relsize-small-libressl-lto-ninja-static
 
+          - build_arch: arm64v8
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
+
           #skip# - build_arch: arm64v8
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-minimal-libressl-mimalloc-lto-ninja-static
@@ -394,6 +402,11 @@ jobs:
             build_type: clang-relsize-small-libressl-lto-ninja-static
             cross_arch: riscv64
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
+            cross_arch: riscv64
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-lto-ninja-static
@@ -444,6 +457,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-small-libressl-lto-ninja-static
+            cross_arch: i386
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
             cross_arch: i386
 
           #skip# - build_arch: amd64
@@ -498,6 +516,11 @@ jobs:
             build_type: clang-relsize-small-libressl-lto-ninja-static
             cross_arch: arm
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
+            cross_arch: arm
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: clang-relsize-lto-ninja-static
@@ -542,6 +565,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-small-libressl-lto-ninja-static
+            cross_arch: ppc64le
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
             cross_arch: ppc64le
 
           #skip# - build_arch: amd64
@@ -593,6 +621,12 @@ jobs:
             cross_arch: ppc64
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
+            cross_arch: ppc64
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
           #skip# - build_arch: amd64
           #skip#   build_dist: alpine
           #skip#   build_type: gcc-release-ninja-static
@@ -633,6 +667,11 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-small-libressl-lto-ninja-static
+            cross_arch: loongarch64
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-libressl-lto-ninja-static
             cross_arch: loongarch64
 
           #skip# - build_arch: amd64
@@ -678,6 +717,12 @@ jobs:
           - build_arch: amd64
             build_dist: alpine
             build_type: clang-relsize-small-lto-ninja-static
+            cross_arch: s390x
+            skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
+
+          - build_arch: amd64
+            build_dist: alpine
+            build_type: clang-relsize-small-mimalloc-lto-ninja-static
             cross_arch: s390x
             skip_fuse_tests: true  # big-endian FUSE driver won't work on little-endian
 
