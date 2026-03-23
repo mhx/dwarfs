@@ -59,8 +59,8 @@ if(USE_JEMALLOC AND JEMALLOC_FOUND)
   target_compile_definitions(dwarfs_tool PRIVATE DWARFS_USE_JEMALLOC)
 endif()
 
-if(USE_MIMALLOC AND mimalloc_FOUND)
-  target_link_libraries(dwarfs_tool PRIVATE mimalloc-static)
+if(USE_MIMALLOC AND MIMALLOC_FOUND)
+  target_link_libraries(dwarfs_tool PRIVATE PkgConfig::MIMALLOC)
   target_compile_definitions(dwarfs_tool PRIVATE DWARFS_USE_MIMALLOC)
 endif()
 

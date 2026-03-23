@@ -89,9 +89,9 @@ std::string get_jemalloc_version() {
 #ifdef DWARFS_USE_MIMALLOC
 std::string get_mimalloc_version() {
   auto v = mi_version();
-  auto major = v / 100;
-  auto minor = (v % 100) / 10;
-  auto patch = v % 10;
+  auto major = v / 1000;
+  auto minor = (v / 100) % 10;
+  auto patch = v % 100;
   return fmt::format("{}.{}.{}", major, minor, patch);
 }
 #endif
