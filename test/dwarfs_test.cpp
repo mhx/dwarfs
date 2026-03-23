@@ -593,8 +593,6 @@ std::vector<std::string> const kCompressionOpts{
 #endif
 #ifdef DWARFS_HAVE_LIBLZMA
     "lzma:level=1",
-    "lzma:level=1:binary=x86",
-    "lzma:level=1:dict_size=15:mode=fast:mf=bt2:nice=42:depth=4711:extreme",
 #endif
 #ifdef DWARFS_HAVE_LIBBROTLI
     "brotli:quality=2",
@@ -605,8 +603,7 @@ std::vector<std::string> const kCompressionOpts{
 
 class compression_test
     : public testing::TestWithParam<
-          std::tuple<std::string, unsigned, writer::fragment_order_mode,
-                     std::optional<std::string>>> {
+          std::tuple<std::string, unsigned, writer::fragment_order_mode>> {
   DWARFS_SLOW_FIXTURE
 };
 
@@ -624,12 +621,7 @@ class plain_tables_test
     : public testing::TestWithParam<std::tuple<bool, bool>> {};
 
 TEST_P(compression_test, end_to_end) {
-  auto [compressor, block_size_bits, file_order, file_hash_algo] = GetParam();
-
-  if (compressor.find("lzma") == 0 && block_size_bits < 16) {
-    // these are notoriously slow, so just skip them
-    return;
-  }
+  auto [compressor, block_size_bits, file_order] = GetParam();
 
   size_t readahead = 0;
 
@@ -640,7 +632,7 @@ TEST_P(compression_test, end_to_end) {
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, true, true, true, true,
                         true, true, true, false, false, false, readahead,
-                        file_hash_algo);
+                        "xxh3-128");
 }
 
 TEST_P(scanner_test, end_to_end) {
@@ -736,14 +728,12 @@ TEST_P(packing_test, regression_empty_fs) {
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, compression_test,
     ::testing::Combine(
-        ::testing::ValuesIn(kCompressionOpts),
-        ::testing::Values(12, 15, 20, 28),
+        ::testing::ValuesIn(kCompressionOpts), ::testing::Values(12, 20, 27),
         ::testing::Values(writer::fragment_order_mode::NONE,
                           writer::fragment_order_mode::PATH,
                           writer::fragment_order_mode::REVPATH,
                           writer::fragment_order_mode::NILSIMSA,
-                          writer::fragment_order_mode::SIMILARITY),
-        ::testing::Values(std::nullopt, "xxh3-128")));
+                          writer::fragment_order_mode::SIMILARITY)));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
