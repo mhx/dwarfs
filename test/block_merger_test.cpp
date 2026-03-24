@@ -37,6 +37,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/platform.h>
+
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>
 
@@ -56,7 +58,7 @@ constexpr size_t const num_runner_threads{4};
 #else
 constexpr size_t const max_runs_regular{250};
 constexpr size_t const max_runs_partial{50};
-constexpr size_t const num_runner_threads{16};
+constexpr size_t const num_runner_threads{dwarfs::kIs32BitArch ? 4 : 16};
 #endif
 constexpr size_t const num_repetitions{4};
 
