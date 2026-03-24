@@ -29,9 +29,11 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <charconv>
 #include <clocale>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -224,49 +226,21 @@ std::string size_with_unit(file_size_t const size) {
 }
 
 std::string time_with_unit(double const sec) {
+  return time_with_unit(
+      std::chrono::nanoseconds(static_cast<int64_t>(sec * 1e9)));
+}
+
+std::string time_with_unit(std::chrono::nanoseconds const ns) {
+  using namespace std::string_view_literals;
+  using namespace std::chrono_literals;
+
   static constexpr int kPrecision = 4;
 
-  assert(sec >= 0.0);
+  auto const total_ns = ns.count();
 
-  auto truncate_to_decimals = [](double value, int decimals) {
-    auto const factor = std::pow(10.0, decimals);
-    return std::trunc(value * factor) / factor;
-  };
+  assert(total_ns >= 0);
 
-  std::string result;
-
-  if (sec < 60.0) {
-    static constexpr std::array units{"s", "ms", "us", "ns"};
-    auto val = sec;
-    int mag = 0;
-
-    while (val < 1.0 && std::cmp_less(mag, units.size())) {
-      val *= 1000.0;
-      ++mag;
-    }
-
-    if (std::cmp_less(mag, units.size())) {
-      val = truncate_to_decimals(val, kPrecision - std::ceil(std::log10(val)));
-      result = fmt::format("{:.{}g}{}", val, kPrecision, units[mag]);
-    } else {
-      result = "0s";
-    }
-
-    return result;
-  }
-
-  struct unit_spec {
-    int scale;
-    std::string_view suffix;
-  };
-
-  static constexpr std::array units{
-      unit_spec{86400, "d"},
-      unit_spec{3600, "h"},
-      unit_spec{60, "m"},
-  };
-
-  auto num_digits = [](int n) {
+  auto num_digits = [](int64_t n) {
     int digits = 0;
     while (n > 0) {
       n /= 10;
@@ -275,11 +249,115 @@ std::string time_with_unit(double const sec) {
     return digits;
   };
 
-  double remainder = sec;
+  auto pow10 = [](int n) -> uint64_t {
+    uint64_t v = 1;
+    while (n-- > 0) {
+      v *= 10;
+    }
+    return v;
+  };
+
+  auto format_decimal = [&](uint64_t whole, uint64_t frac, int frac_digits,
+                            std::string_view suffix) {
+    std::string out = fmt::format("{}", whole);
+
+    if (frac_digits > 0 && frac > 0) {
+      std::string frac_str(frac_digits, '0');
+      for (int i = 0; i < frac_digits; ++i) {
+        frac_str[frac_digits - 1 - i] = '0' + (frac % 10);
+        frac /= 10;
+      }
+
+      while (!frac_str.empty() && frac_str.back() == '0') {
+        frac_str.pop_back();
+      }
+
+      if (!frac_str.empty()) {
+        out += '.';
+        out += frac_str;
+      }
+    }
+
+    out += suffix;
+    return out;
+  };
+
+  auto format_truncated = [&](uint64_t value, uint64_t scale, int frac_digits,
+                              std::string_view suffix) {
+    auto const whole = value / scale;
+    if (frac_digits == 0) {
+      return fmt::format("{}{}", whole, suffix);
+    }
+
+    auto const factor = pow10(frac_digits);
+    auto const frac = (value % scale) * factor / scale; // truncation
+    return format_decimal(whole, frac, frac_digits, suffix);
+  };
+
+  std::string result = "0s";
+
+  if (total_ns == 0) {
+    return result;
+  }
+
+  // Sub-minute formatting: choose one unit and show up to 4 significant digits,
+  // truncating rather than rounding.
+  if (ns < std::chrono::minutes(1)) {
+    struct short_unit_spec {
+      constexpr short_unit_spec(std::chrono::nanoseconds scale,
+                                std::string_view suffix)
+          : scale_ns{scale.count()}
+          , suffix{suffix} {}
+
+      int64_t scale_ns;
+      std::string_view suffix;
+    };
+
+    static constexpr std::array short_units{
+        short_unit_spec{1s, "s"sv},
+        short_unit_spec{1ms, "ms"sv},
+        short_unit_spec{1us, "us"sv},
+        short_unit_spec{1ns, "ns"sv},
+    };
+
+    for (auto const& [scale_ns, suffix] : short_units) {
+      if (total_ns >= scale_ns) {
+        auto const whole = total_ns / scale_ns;
+        auto const digits = num_digits(whole);
+        auto const frac_digits = std::max(0, kPrecision - digits);
+        result = format_truncated(total_ns, scale_ns, frac_digits, suffix);
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  // Minute-and-up formatting: spend a 4-digit budget across d/h/m, then show
+  // seconds with truncated decimals if there is budget left.
+  struct long_unit_spec {
+    constexpr long_unit_spec(std::chrono::nanoseconds scale,
+                             std::string_view suffix)
+        : scale_ns{scale.count()}
+        , suffix{suffix} {}
+
+    int64_t scale_ns;
+    std::string_view suffix;
+  };
+
+  static constexpr std::array long_units{
+      long_unit_spec{24h, "d"sv},
+      long_unit_spec{1h, "h"sv},
+      long_unit_spec{1min, "m"sv},
+  };
+
+  int64_t remainder = total_ns;
   int rem_digits = kPrecision;
 
-  for (auto const& [scale, suffix] : units) {
-    auto const value = static_cast<int>(remainder / scale);
+  result.clear();
+
+  for (auto const& [scale_ns, suffix] : long_units) {
+    auto const value = remainder / scale_ns;
     auto const digits = result.empty() ? num_digits(value) : 2;
 
     if (value > 0) {
@@ -290,7 +368,7 @@ std::string time_with_unit(double const sec) {
     }
 
     rem_digits -= digits;
-    remainder -= value * scale;
+    remainder -= value * scale_ns;
 
     if (rem_digits <= 0) {
       break;
@@ -298,21 +376,21 @@ std::string time_with_unit(double const sec) {
   }
 
   if (rem_digits > 0) {
+    auto const frac_digits = std::max(0, rem_digits - 2);
     auto const seconds =
-        truncate_to_decimals(remainder, std::max(0, rem_digits - 2));
-    if (seconds > 0.0) {
-      fmt::format_to(std::back_inserter(result), " {:.{}g}s", seconds,
-                     kPrecision);
+        format_truncated(remainder, 1'000'000'000ULL, frac_digits, "s");
+
+    if (seconds != "0s") {
+      if (!result.empty()) {
+        result += ' ';
+      }
+      result += seconds;
     }
   }
 
   assert(!result.empty());
 
   return result;
-}
-
-std::string time_with_unit(std::chrono::nanoseconds ns) {
-  return time_with_unit(1e-9 * ns.count());
 }
 
 file_size_t parse_size_with_unit(std::string const& str) {

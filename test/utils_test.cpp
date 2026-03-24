@@ -500,16 +500,24 @@ TEST(utils, size_with_unit) {
 
 TEST(utils, time_with_unit) {
   using namespace std::chrono_literals;
+
   EXPECT_EQ("0s", time_with_unit(0ms));
+  EXPECT_EQ("25ns", time_with_unit(25ns));
+  EXPECT_EQ("40ns", time_with_unit(40ns));
+  EXPECT_EQ("999.9us", time_with_unit(999999ns));
   EXPECT_EQ("999ms", time_with_unit(999ms));
+  EXPECT_EQ("999.9ms", time_with_unit(999999us));
+  EXPECT_EQ("999.9ms", time_with_unit(999900us));
   EXPECT_EQ("1s", time_with_unit(1000ms));
   EXPECT_EQ("1.5s", time_with_unit(1500ms));
+  EXPECT_EQ("1.001s", time_with_unit(1001ms));
   EXPECT_EQ("59s", time_with_unit(59s));
   EXPECT_EQ("1m", time_with_unit(60s));
   EXPECT_EQ("1m 1s", time_with_unit(61s));
   EXPECT_EQ("1m 45s", time_with_unit(105s));
   EXPECT_EQ("12.5us", time_with_unit(12500ns));
   EXPECT_EQ("1h 2m 3s", time_with_unit(1h + 2min + 3s));
+  EXPECT_EQ("1m 0.5s", time_with_unit(1min + 500ms));
   EXPECT_EQ("1m 1s", time_with_unit(1min + 1000ms));
   EXPECT_EQ("1m 1.5s", time_with_unit(1min + 1530ms));
   EXPECT_EQ("1m 1.5s", time_with_unit(1min + 1578ms));
