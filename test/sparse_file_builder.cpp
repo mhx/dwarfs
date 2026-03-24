@@ -34,6 +34,8 @@
 #include <unistd.h>
 #endif
 
+#include <fmt/format.h>
+
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/detail/file_extent_info.h>
 
@@ -46,9 +48,10 @@ using namespace dwarfs::binary_literals;
 
 namespace {
 
-void throw_if_error(std::error_code const& ec, char const* what) {
+template <typename T>
+void throw_if_error(std::error_code const& ec, T&& what) {
   if (ec) {
-    throw std::system_error(ec, what);
+    throw std::system_error(ec, std::forward<T>(what));
   }
 }
 
@@ -431,7 +434,7 @@ void sparse_file_builder::truncate(file_size_t size,
 void sparse_file_builder::truncate(file_size_t size) {
   std::error_code ec;
   truncate(size, ec);
-  throw_if_error(ec, "sparse_file_builder::truncate");
+  throw_if_error(ec, fmt::format("sparse_file_builder::truncate({})", size));
 }
 
 void sparse_file_builder::write_data(file_off_t offset, std::string_view data,
