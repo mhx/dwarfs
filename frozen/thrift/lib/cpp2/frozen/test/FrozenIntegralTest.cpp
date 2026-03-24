@@ -69,20 +69,20 @@ TEST(FrozenIntegral, UIntPacking) {
         byte*, size_t, std::span<uint8_t>&, size_t&, size_t) override {}
   };
   DummyFreezer fr;
-  size_t value = 5;
+  uint64_t value = 5;
   size_t width = 3;
   for (size_t start = 0; start <= 64 - width; start += 7) {
     for (size_t bits = width; bits <= 64 - start; bits += 5) {
       DWARFS_PUSH_WARNING
       DWARFS_GCC_DISABLE_WARNING("-Warray-bounds")
-      apache::thrift::frozen::Layout<size_t> l;
+      apache::thrift::frozen::Layout<uint64_t> l;
       l.bits = bits;
       // allocate on the heap so ASAN will catch out of bounds accesses
       auto container = std::make_unique<uint64_t>(0xDEADBEEFDEADBEEF);
       FreezePosition fpos{reinterpret_cast<byte*>(container.get()), start};
       l.freeze(fr, value, fpos);
       ViewPosition vpos{reinterpret_cast<byte*>(container.get()), start};
-      size_t confirm;
+      uint64_t confirm;
       l.thaw(vpos, confirm);
       EXPECT_EQ(value, confirm) << bits << "@" << start;
       DWARFS_POP_WARNING
