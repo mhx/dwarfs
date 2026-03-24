@@ -220,7 +220,7 @@ class bit_view {
                     "== sizeof(Storage)");
     }
 
-    constexpr std::size_t chunk_bits = std::numeric_limits<U>::digits;
+    constexpr unsigned chunk_bits = std::numeric_limits<U>::digits;
 
     if (r.bit_width == 0) {
       return 0;
@@ -236,7 +236,7 @@ class bit_view {
       value = a >> shift;
     } else {
       auto const b = access_.template load<U>(loc.chunk0_byte + sizeof(U));
-      auto const shift_b = static_cast<unsigned>(chunk_bits - shift);
+      auto const shift_b = chunk_bits - shift;
       // NOLINTNEXTLINE(clang-analyzer-core.BitwiseShift)
       value = (a >> shift) | (b << shift_b);
     }
@@ -262,7 +262,7 @@ class bit_view {
                     "sizeof(T) == sizeof(Storage)");
     }
 
-    constexpr std::size_t chunk_bits = std::numeric_limits<U>::digits;
+    constexpr unsigned chunk_bits = std::numeric_limits<U>::digits;
 
     if (r.bit_width == 0) {
       return;
@@ -282,8 +282,8 @@ class bit_view {
       return;
     }
 
-    auto const lo_bits = static_cast<unsigned>(chunk_bits - shift);
-    auto const hi_bits = static_cast<unsigned>(r.bit_width - lo_bits);
+    auto const lo_bits = chunk_bits - shift;
+    auto const hi_bits = r.bit_width - lo_bits;
 
     U a = access_.template load<U>(loc.chunk0_byte);
     U b = access_.template load<U>(loc.chunk0_byte + sizeof(U));

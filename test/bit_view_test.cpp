@@ -57,8 +57,8 @@ constexpr std::array<std::uint8_t, 64> kReferenceBytes = {
 
 constexpr auto
 bitpos(std::size_t bit_index) -> std::pair<std::size_t, unsigned> {
-  auto const byte_index = bit_index / 8;
-  auto const bit_in_byte = static_cast<unsigned>(bit_index % 8);
+  std::size_t const byte_index = bit_index / 8;
+  unsigned const bit_in_byte = bit_index % 8;
   return {byte_index, bit_in_byte};
 }
 
@@ -181,8 +181,7 @@ auto required_bytes_for_access(std::size_t bit_offset, std::size_t bit_width)
   auto const [byte0, bit_in_byte] = bitpos(bit_offset);
   std::size_t const chunk0_byte = byte0 & ~(chunk - 1);
 
-  unsigned const shift =
-      static_cast<unsigned>((byte0 - chunk0_byte) * 8 + bit_in_byte);
+  unsigned const shift = (byte0 - chunk0_byte) * 8 + bit_in_byte;
 
   std::size_t const chunk_bits = chunk * 8;
   bool const need_two =
