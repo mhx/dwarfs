@@ -62,3 +62,5 @@ ExtraArgsBefore: ['-Wno-unknown-warning-option']
 CheckOptions:
   - key: cppcoreguidelines-avoid-do-while.IgnoreMacros
     value: true
+HeaderFilterRegex: '.*/(include/dwarfs/.*|ricepp/[^/]*\.h|ricepp/include/ricepp/.*|frozen/thrift/lib/cpp/.*|frozen/thrift/lib/cpp2/frozen/[^/]*\.h|frozen/thrift/lib/cpp2/frozen/schema/[^/]*\.h)'
+SystemHeaders: false

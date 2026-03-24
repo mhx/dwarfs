@@ -1296,17 +1296,16 @@ add_custom_target(
   COMMAND clang-format --dry-run --Werror ${ALL_SOURCES})
 
 set(_TIDY_SOURCES "-source-filter='.*/(src/.*|ricepp/[^/]*\.cpp|frozen/thrift/lib/cpp2/frozen/[^/]*\.cpp|frozen/thrift/lib/cpp2/frozen/schema/[^/]*\.cpp)'")
-set(_TIDY_HEADERS "-header-filter='.*/(include/dwarfs/.*|ricepp/[^/]*\.h|ricepp/include/ricepp/.*|frozen/thrift/lib/cpp/.*|frozen/thrift/lib/cpp2/frozen/[^/]*\.h|frozen/thrift/lib/cpp2/frozen/schema/[^/]*\.h)'")
 
 add_custom_target(
   tidy
-  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color
-              ${_TIDY_SOURCES} ${_TIDY_HEADERS} USES_TERMINAL)
+  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color ${_TIDY_SOURCES}
+  USES_TERMINAL)
 
 add_custom_target(
   tidy-fix
-  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color -fix
-              ${_TIDY_SOURCES} ${_TIDY_HEADERS} USES_TERMINAL)
+  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color -fix ${_TIDY_SOURCES}
+  USES_TERMINAL)
 
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
