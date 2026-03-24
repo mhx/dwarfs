@@ -31,6 +31,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/compiler.h>
+
 namespace dwarfs::writer {
 
 class fragment_category {
@@ -95,7 +97,10 @@ class fragment_category {
     return subcategory_;
   }
 
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(fragment_category const&) const = default;
+  DWARFS_POP_WARNING
 
   size_t hash() const;
 

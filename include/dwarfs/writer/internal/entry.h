@@ -41,6 +41,7 @@
 
 #include <fmt/ostream.h>
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
@@ -77,7 +78,10 @@ struct unique_inode_id {
   uint64_t device_id{0};
   uint64_t inode_num{0};
 
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(unique_inode_id const&) const = default;
+  DWARFS_POP_WARNING
 
   friend std::ostream& operator<<(std::ostream& os, unique_inode_id const& id);
 };

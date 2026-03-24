@@ -37,6 +37,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/platform.h>
 
 #include <dwarfs/internal/synchronized.h>
@@ -71,7 +72,10 @@ struct block {
       , index{idx} {}
 
   bool operator==(block const&) const = default;
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(block const&) const = default;
+  DWARFS_POP_WARNING
 
   std::ostream& operator<<(std::ostream& os) const {
     return os << source_id << "." << index;
@@ -91,7 +95,10 @@ struct sized_block {
       , size{sz} {}
 
   bool operator==(sized_block const&) const = default;
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(sized_block const&) const = default;
+  DWARFS_POP_WARNING
 
   std::ostream& operator<<(std::ostream& os) const {
     return os << source_id << "." << index << " (" << size << ")";

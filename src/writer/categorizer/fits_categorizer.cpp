@@ -39,6 +39,7 @@
 #include <range/v3/algorithm/fold_left.hpp>
 #include <range/v3/view/chunk.hpp>
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
@@ -296,7 +297,10 @@ struct fits_metadata {
   uint8_t unused_lsb_count;
   uint16_t component_count;
 
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(fits_metadata const&) const = default;
+  DWARFS_POP_WARNING
 
   bool check() const {
     // make sure we're supporting a reasonable subset
