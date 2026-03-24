@@ -77,6 +77,8 @@ if(NOT WIN32)
   if (HAVE_CLOSE_RANGE)
     add_compile_definitions(DWARFS_HAVE_CLOSE_RANGE=1)
   endif()
+
+  add_compile_definitions(_FILE_OFFSET_BITS=64)
 endif()
 
 set(default_build_type "Release")
