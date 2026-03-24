@@ -51,6 +51,11 @@ else()
   # For Windows: Prevent overriding the parent project's compiler/linker settings
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
+
+  # For Clang, disable -Wcharacter-conversion in gtest
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(gtest PRIVATE -Wno-character-conversion)
+  endif()
 endif()
 
 enable_testing()
