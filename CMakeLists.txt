@@ -179,6 +179,8 @@ if(STATIC_BUILD_DO_NOT_USE)
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
   list(APPEND PKG_CONFIG_EXECUTABLE "--static")
+
+  add_link_options(-Wl,--start-group -lstdc++ -lgcc_eh -lgcc -lm -lpthread -Wl,--end-group)
 endif()
 
 if(WITH_MAN_PAGES)
@@ -1187,6 +1189,9 @@ endforeach()
 
 foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
+  if(STATIC_BUILD_DO_NOT_USE AND USE_MIMALLOC)
+    target_link_options(${tgt} BEFORE PRIVATE -lmimalloc)
+  endif()
 endforeach()
 
 foreach(tgt ${TEST_TARGETS})

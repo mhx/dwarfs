@@ -410,20 +410,13 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc"
   fi
 
-
-  if [[ "$BUILD_TYPE" == *-mimalloc-* ]]; then
-    _allocator_lib="-lmimalloc"
-  else
-    _allocator_lib=""
-  fi
-
-  export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -L$_sslprefix/lib -Wl,--start-group $_allocator_lib -lstdc++ -lgcc_eh -lgcc -lm -lpthread -Wl,--end-group -static -static-libgcc"
+  export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -L$_sslprefix/lib -static -static-libgcc"
   export CFLAGS="${CFLAGS} -g -isystem $_staticprefix/include"
   export CXXFLAGS="${CXXFLAGS} -g -isystem $_staticprefix/include"
 
   case "$_MARCH" in
     i386)
-      export LDFLAGS="${LDFLAGS} -no-pie -lucontext -latomic"
+      export LDFLAGS="${LDFLAGS} -lucontext -latomic"
       ;;
     s390x)
       export LDFLAGS="${LDFLAGS} -lucontext"
