@@ -55,7 +55,7 @@ class subcategory_map {
  public:
   subcategory_map() = default;
 
-  size_t add(uint64_t const key) {
+  fragment_category::value_type add(uint64_t const key) {
     auto const [it, inserted] =
         reverse_index_.emplace(key, forward_index_.size());
     if (inserted) {
@@ -79,8 +79,7 @@ class category_subcategory_map {
  public:
   fragment_category
   add(fragment_category::value_type category, uint64_t const subcat_key) {
-    return {category, static_cast<fragment_category::value_type>(
-                          maps_[category].add(subcat_key))};
+    return {category, maps_[category].add(subcat_key)};
   }
 
   bool less(fragment_category::value_type category, size_t a, size_t b) const {
