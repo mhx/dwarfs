@@ -42,6 +42,7 @@
 #include <optional>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
@@ -209,6 +210,180 @@ void get_self_memory_usage_linux(memory_usage_mode const mode,
   }
 }
 #endif
+
+struct rounded_decimal {
+  // value = digits * 10^exp10
+  // digits has no leading zeros and no trailing zeros, except "0"
+  std::string digits;
+  int exp10{0};
+};
+
+struct exact_digits {
+  // First N significant decimal digits of the exact value, without decimal
+  // point. scientific exponent of the first digit:
+  //   value = 0.digits... * 10^(sci_exp + 1)
+  //         = digits[0].digits[1]... * 10^sci_exp
+  std::string digits;
+  int sci_exp{0};
+};
+
+void increment_decimal_string(std::string& s) {
+  for (std::size_t i = s.size(); i-- > 0;) {
+    if (s[i] != '9') {
+      ++s[i];
+      return;
+    }
+    s[i] = '0';
+  }
+  s.insert(s.begin(), '1');
+}
+
+// Computes:
+//   q = floor(rem * 10 / den)
+//   r = (rem * 10) % den
+std::pair<unsigned, std::uint64_t>
+mul10_div(std::uint64_t rem, std::uint64_t den) {
+  unsigned q = 0;
+  std::uint64_t acc = 0;
+
+  assert(den != 0);
+  assert(rem < den);
+
+  for (int i = 0; i < 10; ++i) {
+    // Since acc < den and rem < den, this computes:
+    if (acc >= den - rem) {
+      acc = acc - (den - rem);
+      ++q;
+    } else {
+      acc += rem;
+    }
+  }
+
+  return {q, acc};
+}
+
+exact_digits
+extract_significant_digits(std::uint64_t num, std::uint64_t den, int count) {
+  assert(num > 0);
+  assert(den > 0);
+  assert(count > 0);
+
+  std::string digits;
+  digits.reserve(static_cast<std::size_t>(count));
+
+  int sci_exp;
+  std::uint64_t rem;
+
+  auto append_next_digit = [&] {
+    auto const [d, next_rem] = mul10_div(rem, den);
+    rem = next_rem;
+    digits.push_back(static_cast<char>('0' + d));
+    return d;
+  };
+
+  if (num >= den) {
+    auto const integer_part = num / den;
+    rem = num % den;
+
+    digits = std::to_string(integer_part);
+    sci_exp = static_cast<int>(digits.size()) - 1;
+
+    if (std::cmp_greater(digits.size(), count)) {
+      digits.resize(static_cast<std::size_t>(count));
+    }
+  } else {
+    rem = num;
+    sci_exp = -1;
+
+    while (append_next_digit() == 0) {
+      digits.pop_back();
+      --sci_exp;
+    }
+  }
+
+  while (std::cmp_less(digits.size(), count)) {
+    append_next_digit();
+  }
+
+  return {std::move(digits), sci_exp};
+}
+
+rounded_decimal
+round_to_significant(exact_digits const& x, int precision, int shift10) {
+  assert(precision > 0);
+  assert(x.digits != "0");
+  assert(std::cmp_greater(x.digits.size(), precision));
+
+  auto sig = x.digits.substr(0, precision);
+  int const guard = x.digits[static_cast<std::size_t>(precision)] - '0';
+
+  if (guard >= 5) {
+    increment_decimal_string(sig);
+  }
+
+  // keep the scale corresponding to exactly `precision` significant digits
+  int exp10 = x.sci_exp + shift10 - (precision - 1);
+
+  while (sig.size() > 1 && sig.back() == '0') {
+    sig.pop_back();
+    ++exp10;
+  }
+
+  return {std::move(sig), exp10};
+}
+
+int scientific_exponent(rounded_decimal const& x) {
+  assert(x.digits != "0");
+  return x.exp10 + static_cast<int>(x.digits.size()) - 1;
+}
+
+bool in_range_for_percent(rounded_decimal const& x) {
+  int const e = scientific_exponent(x);
+  return e >= -1 && e < 2; // [1e-1, 1e2)
+}
+
+bool in_range_for_ppm_or_ppb(rounded_decimal const& x) {
+  int const e = scientific_exponent(x);
+  return e >= 0 && e < 3; // [1, 1000)
+}
+
+std::string to_fixed_string(rounded_decimal const& x) {
+  assert(x.digits != "0");
+
+  std::string s = x.digits;
+
+  if (x.exp10 >= 0) {
+    s.append(x.exp10, '0');
+  } else {
+    auto const point = std::ssize(s) + x.exp10;
+
+    if (point > 0) {
+      s.insert(point, 1, '.');
+    } else {
+      s.insert(0, "0.");
+      s.insert(2, -point, '0');
+    }
+  }
+
+  return s;
+}
+
+std::string to_scientific_string(rounded_decimal const& x) {
+  assert(x.digits != "0");
+
+  auto const e = scientific_exponent(x);
+
+  if (x.digits.size() == 1) {
+    return x.digits + "e" + std::to_string(e);
+  }
+
+  return x.digits.substr(0, 1) + "." + x.digits.substr(1) + "e" +
+         std::to_string(e);
+}
+
+bool less_than_one_thousandth(rounded_decimal const& x) {
+  return scientific_exponent(x) < -3;
+}
 
 } // namespace
 
@@ -433,35 +608,44 @@ file_size_t parse_size_with_unit(std::string const& str) {
   DWARFS_THROW(runtime_error, fmt::format("unsupported size suffix: {}", ptr));
 }
 
-std::string ratio_to_string(double num, double den, int precision) {
-  DWARFS_PUSH_WARNING
-  DWARFS_GNU_DISABLE_WARNING("-Wfloat-equal")
+std::string ratio_to_string(std::uint64_t const num, std::uint64_t const den,
+                            int const precision) {
+  assert(precision > 0);
 
-  if (den == 0.0) {
+  if (den == 0) {
     return "N/A";
   }
 
-  if (num == 0.0) {
+  if (num == 0) {
     return "0x";
   }
 
-  DWARFS_POP_WARNING
+  // We only ever need the first `precision + 1` significant digits of the
+  // exact value. Multiplying by %, ppm, or ppb just shifts the decimal point.
+  exact_digits const base = extract_significant_digits(num, den, precision + 1);
 
-  double const ratio = num / den;
-
-  if (ratio < 1.0) {
-    if (ratio >= 1e-3) {
-      return fmt::format("{:.{}g}%", ratio * 100.0, precision);
-    }
-    if (ratio >= 1e-6) {
-      return fmt::format("{:.{}g}ppm", ratio * 1e6, precision);
-    }
-    if (ratio >= 1e-9) {
-      return fmt::format("{:.{}g}ppb", ratio * 1e9, precision);
-    }
+  if (auto const percent = round_to_significant(base, precision, 2);
+      in_range_for_percent(percent)) {
+    return to_fixed_string(percent) + "%";
   }
 
-  return fmt::format("{:.{}g}x", ratio, precision);
+  if (auto const ppm = round_to_significant(base, precision, 6);
+      in_range_for_ppm_or_ppb(ppm)) {
+    return to_fixed_string(ppm) + "ppm";
+  }
+
+  if (auto const ppb = round_to_significant(base, precision, 9);
+      in_range_for_ppm_or_ppb(ppb)) {
+    return to_fixed_string(ppb) + "ppb";
+  }
+
+  auto const plain = round_to_significant(base, precision, 0);
+
+  if (less_than_one_thousandth(plain)) {
+    return to_scientific_string(plain) + "x";
+  }
+
+  return to_fixed_string(plain) + "x";
 }
 
 std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {

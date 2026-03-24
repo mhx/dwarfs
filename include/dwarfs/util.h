@@ -30,6 +30,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <iosfwd>
@@ -49,7 +50,8 @@ class os_access;
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
 std::string size_with_unit(file_size_t size);
-std::string ratio_to_string(double num, double den, int precision = 3);
+std::string
+ratio_to_string(std::uint64_t num, std::uint64_t den, int precision = 3);
 file_size_t parse_size_with_unit(std::string const& str);
 std::chrono::nanoseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);

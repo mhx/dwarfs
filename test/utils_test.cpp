@@ -598,12 +598,13 @@ TEST(utils, time_with_unit) {
 }
 
 TEST(utils, ratio_to_string) {
+  EXPECT_EQ("N/A", ratio_to_string(1, 0));
   EXPECT_EQ("0x", ratio_to_string(0, 1));
   EXPECT_EQ("1x", ratio_to_string(1, 1));
   EXPECT_EQ("1.5x", ratio_to_string(3, 2));
-  EXPECT_EQ("10.7x", ratio_to_string(10.744, 1));
-  EXPECT_EQ("11x", ratio_to_string(10.744, 1, 2));
-  EXPECT_EQ("10.74x", ratio_to_string(10.744, 1, 4));
+  EXPECT_EQ("10.7x", ratio_to_string(10744, 1000));
+  EXPECT_EQ("11x", ratio_to_string(10744, 1000, 2));
+  EXPECT_EQ("10.74x", ratio_to_string(10744, 1000, 4));
   EXPECT_EQ("99.9%", ratio_to_string(999, 1000));
   EXPECT_EQ("0.1%", ratio_to_string(1, 1000));
   EXPECT_EQ("999ppm", ratio_to_string(999, 1'000'000));
@@ -612,7 +613,35 @@ TEST(utils, ratio_to_string) {
   EXPECT_EQ("10.7ppm", ratio_to_string(10'744, 1'000'000'000));
   EXPECT_EQ("999ppb", ratio_to_string(999, 1'000'000'000));
   EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000));
-  EXPECT_EQ("1.78e-12x", ratio_to_string(1.7777, 1'000'000'000'000));
+  EXPECT_EQ("1.78e-12x", ratio_to_string(17777, 10'000'000'000'000'000));
+  EXPECT_EQ("1ppm", ratio_to_string(9996, 10'000'000'000));
+  EXPECT_EQ("999.6ppb", ratio_to_string(9996, 10'000'000'000, 4));
+  EXPECT_EQ("999ppm", ratio_to_string(9994, 10'000'000, 3));
+  EXPECT_EQ("0.1%", ratio_to_string(9996, 10'000'000, 3));
+  EXPECT_EQ("999.6ppm", ratio_to_string(9996, 10'000'000, 4));
+  EXPECT_EQ("999ppb", ratio_to_string(9994, 10'000'000'000, 3));
+  EXPECT_EQ("1ppm", ratio_to_string(9996, 10'000'000'000, 3));
+  EXPECT_EQ("999.6ppb", ratio_to_string(9996, 10'000'000'000, 4));
+  EXPECT_EQ("99.9%", ratio_to_string(9994, 10'000, 3));
+  EXPECT_EQ("1x", ratio_to_string(9996, 10'000, 3));
+  EXPECT_EQ("99.96%", ratio_to_string(9996, 10'000, 4));
+  EXPECT_EQ("0.1%", ratio_to_string(9995, 10'000'000, 3));
+  EXPECT_EQ("1ppm", ratio_to_string(9995, 10'000'000'000, 3));
+  EXPECT_EQ("1x", ratio_to_string(9995, 10'000, 3));
+  EXPECT_EQ("0.1%", ratio_to_string(1, 1'000, 3));
+  EXPECT_EQ("1ppm", ratio_to_string(1, 1'000'000, 3));
+  EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000, 3));
+  EXPECT_EQ("999.5ppm", ratio_to_string(9'995, 10'000'000, 4));
+  EXPECT_EQ("99.95%", ratio_to_string(9'995, 10'000, 4));
+  EXPECT_EQ("5e-10x", ratio_to_string(5, 10'000'000'000, 1));
+  EXPECT_EQ("2x", ratio_to_string(15, 10, 1));
+  EXPECT_EQ("0.1%", ratio_to_string(1, 1'000));
+  EXPECT_EQ("1ppm", ratio_to_string(1, 1'000'000));
+  EXPECT_EQ("1ppb", ratio_to_string(1, 1'000'000'000));
+  EXPECT_EQ("12300x", ratio_to_string(12345, 1));
+  EXPECT_EQ("12000x", ratio_to_string(12345, 1, 2));
+  EXPECT_EQ("100000x", ratio_to_string(99950, 1));
+  EXPECT_EQ("10000x", ratio_to_string(10000, 1));
 }
 
 TEST(utils, basename) {
