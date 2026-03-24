@@ -395,7 +395,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   fi
 
   _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
-  if [[ "$BUILD_TYPE" == *-minimal-* ]]; then
+  if [[ "$BUILD_TYPE" == *-minimal-* ]] || [[ "$BUILD_TYPE" == *-small-* ]]; then
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal/$_TARGET"
   else
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full/$_TARGET"
