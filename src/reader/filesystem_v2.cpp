@@ -553,7 +553,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{mm}
-    , image_offset_{filesystem_parser(lgr, mm_, options.image_offset)
+    , image_offset_{filesystem_parser(lgr, mm_, options.image_offset,
+                                      options.image_size)
                         .image_offset()}
     , options_{options} // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
