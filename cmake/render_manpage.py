@@ -25,6 +25,7 @@
 #
 
 import mistletoe
+import re
 import sys
 
 
@@ -199,7 +200,9 @@ class ListItem:
                             )
                         else:
                             rv += Line(
-                                p.elements[:i + 1], context.get_indent(), comment=p.comment
+                                p.elements[: i + 1],
+                                context.get_indent(),
+                                comment=p.comment,
                             ).render(context)
                             p.elements = p.elements[i + 2 :]
                             rv += p.render(context, indent_first=context.get_indent(2))
@@ -353,6 +356,7 @@ output_file = sys.argv[3]
 
 with open(input_file, "r") as fin:
     with ManpageRenderer(doc_name) as renderer:
-        doc = renderer.render(mistletoe.Document(fin))
+        raw = re.sub(r"<!--.*?-->", "", fin.read(), flags=re.DOTALL)
+        doc = renderer.render(mistletoe.Document(raw))
         with open(output_file, "w") as fout:
             fout.write(doc)
