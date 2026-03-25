@@ -1458,7 +1458,7 @@ int option_hdl(void* data, char const* arg, int key,
   case FUSE_OPT_KEY_OPT:
     if (argsv == "-h" || argsv == "--help") {
       opts.is_help = true;
-      return -1;
+      break;
     }
 
     if (argsv == "--auto-mountpoint") {
@@ -1469,7 +1469,7 @@ int option_hdl(void* data, char const* arg, int key,
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (argsv == "--man") {
       opts.is_man = true;
-      return -1;
+      return 0;
     }
 #endif
     break;
@@ -1480,6 +1480,19 @@ int option_hdl(void* data, char const* arg, int key,
 
   return 1;
 }
+
+#if DWARFS_FUSE_LOWLEVEL
+int handle_cmdline_error(dwarfs_userdata const& userdata, iolayer const& iol) {
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (userdata.opts.is_man) {
+    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
+    return 0;
+  }
+#endif
+  usage(iol.out, userdata.progname);
+  return userdata.opts.is_help ? 0 : 1;
+}
+#endif
 
 int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
                                struct fuse_args& args, iolayer const& iol) {
@@ -1820,14 +1833,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
-#ifdef DWARFS_BUILTIN_MANPAGE
-    if (userdata.opts.is_man) {
-      tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
-      return 0;
-    }
-#endif
-    usage(iol.out, userdata.progname);
-    return userdata.opts.is_help ? 0 : 1;
+    return handle_cmdline_error(userdata, iol);
   }
 
 #ifdef DWARFS_STACKTRACE_ENABLED
@@ -1842,14 +1848,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   int mt, fg;
 
   if (fuse_parse_cmdline(&args, &mp_unsafe, &mt, &fg) == -1 || !mp_unsafe) {
-#ifdef DWARFS_BUILTIN_MANPAGE
-    if (userdata.opts.is_man) {
-      tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
-      return 0;
-    }
-#endif
-    usage(iol.out, userdata.progname);
-    return userdata.opts.is_help ? 0 : 1;
+    return handle_cmdline_error(userdata, iol);
   }
 
   std::string mountpoint{mp_unsafe};
@@ -1868,6 +1867,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     // TODO: foreground mode, stderr vs. syslog?
+
+    if (userdata.opts.is_help) {
+      usage(iol.out, userdata.progname);
+      return 0;
+    }
 
     if (opts.debuglevel_str) {
       opts.logopts.threshold = logger::parse_level(opts.debuglevel_str);
