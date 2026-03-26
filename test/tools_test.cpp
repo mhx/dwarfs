@@ -1278,6 +1278,15 @@ TEST_P(tools_test, end_to_end) {
       auto const [out, err, ec] = subprocess::run(
           DWARFS_ARG_EMULATOR_ driver.path(), driver.args(), "--help");
       EXPECT_THAT(out, ::testing::HasSubstr("Usage:"));
+      // Also make sure our banner comes first
+      // find position of first non-whitespace character in output
+      std::string_view out_view{out};
+      out_view.remove_prefix(out_view.find_first_not_of(" \t\r\n"));
+      EXPECT_THAT(out_view, ::testing::StartsWith("___"sv)) << out;
+#ifndef _WIN32
+      // WinFsp writes its help to stderr :/
+      EXPECT_THAT(err, ::testing::IsEmpty());
+#endif
     }
 
     {

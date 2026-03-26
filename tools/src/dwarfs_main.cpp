@@ -54,19 +54,23 @@
 #endif
 
 #if FUSE_USE_VERSION >= 30
-#if DWARFS_FUSE_LOWLEVEL
-#include <fuse3/fuse_lowlevel.h>
-#else
+#if !DWARFS_FUSE_LOWLEVEL
 #include <fuse3/fuse.h>
 #endif
+#ifndef _WIN32
+// We need to include this even if we're not using the low-level API,
+// since we call `fuse_cmdline_help`.
+#include <fuse3/fuse_lowlevel.h>
+#endif
 #else
+#if !DWARFS_FUSE_LOWLEVEL
+#error "high-level API is not supported for FUSE < 3.0"
+#endif
 #include <fuse.h>
-#if DWARFS_FUSE_LOWLEVEL
 #if __has_include(<fuse/fuse_lowlevel.h>)
 #include <fuse/fuse_lowlevel.h>
 #else
 #include <fuse_lowlevel.h>
-#endif
 #endif
 #endif
 
@@ -221,6 +225,7 @@ struct options {
   bool is_man{false};
 #endif
   bool is_auto_mountpoint{false};
+  bool is_foreground{false};
 };
 
 static_assert(std::is_standard_layout_v<options>);
@@ -1377,6 +1382,93 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 }
 #endif
 
+void log_startup_banner_and_warnings(dwarfs_userdata& userdata) {
+  LOG_PROXY(debug_logger_policy, userdata.lgr);
+  auto& opts = userdata.opts;
+
+  LOG_INFO << "dwarfs (" << DWARFS_GIT_ID << ", fuse version "
+           << FUSE_USE_VERSION << ")";
+
+  if (opts.enable_nlink) {
+    LOG_WARN << "`enable_nlink` is obsolete and has no effect";
+  }
+
+  if (opts.cache_image == 1) {
+    LOG_WARN << "`cache_image` is obsolete and has no effect";
+  }
+
+  if (opts.cache_image == 2) {
+    LOG_WARN << "`no_cache_image` is obsolete and has no effect";
+  }
+}
+
+class scoped_stderr_to_stdout {
+#ifndef _WIN32
+ public:
+  scoped_stderr_to_stdout() {
+    std::fflush(stdout);
+    std::fflush(stderr);
+    saved_stderr_ = ::dup(STDERR_FILENO);
+    if (saved_stderr_ != -1) {
+      ::dup2(STDOUT_FILENO, STDERR_FILENO);
+    }
+  }
+
+  ~scoped_stderr_to_stdout() {
+    std::fflush(stdout);
+    std::fflush(stderr);
+    if (saved_stderr_ != -1) {
+      ::dup2(saved_stderr_, STDERR_FILENO);
+      ::close(saved_stderr_);
+    }
+  }
+
+  scoped_stderr_to_stdout(scoped_stderr_to_stdout const&) = delete;
+  scoped_stderr_to_stdout& operator=(scoped_stderr_to_stdout const&) = delete;
+
+ private:
+  int saved_stderr_{-1};
+#endif
+};
+
+#if FUSE_USE_VERSION < 30
+void print_fuse2_help_to_stdout() {
+  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
+  fuse_opt_add_arg(&args, "");
+  fuse_opt_add_arg(&args, "-ho");
+
+  struct fuse_operations fsops{};
+
+  {
+    scoped_stderr_to_stdout redirect;
+    fuse_main(args.argc, args.argv, &fsops, nullptr);
+  }
+
+  fuse_opt_free_args(&args);
+}
+#endif
+
+void print_fuse_help(std::ostream& os) {
+  // TODO: find a way to actually stream everything to `os`...
+#if FUSE_USE_VERSION >= 30
+#ifndef _WIN32
+  os << "FUSE options:\n";
+  fuse_cmdline_help();
+#endif
+#if DWARFS_FUSE_LOWLEVEL
+  fuse_lowlevel_help();
+#else
+  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
+  fuse_lib_help(&args);
+#endif
+#else
+  print_fuse2_help_to_stdout();
+#endif
+#ifndef _WIN32
+  os << "\n";
+#endif
+}
+
 void usage(std::ostream& os, std::filesystem::path const& progname) {
   auto extra_deps = [](library_dependencies& deps) {
     decompressor_registry::instance().add_library_dependencies(deps);
@@ -1432,22 +1524,12 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 #endif
      << "\n";
 
-#if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
-  os << "FUSE options:\n";
-  fuse_cmdline_help();
-#else
-  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_opt_add_arg(&args, "");
-  fuse_opt_add_arg(&args, "-ho");
-  struct fuse_operations fsops{};
-  fuse_main(args.argc, args.argv, &fsops, nullptr);
-  fuse_opt_free_args(&args);
-#endif
+  print_fuse_help(os);
 }
 
 int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
   static constexpr int kError = -1;
-  static constexpr int kArgConsumed = 0;
+  static constexpr int kDiscardArg = 0;
   static constexpr int kKeepArg = 1;
 
   auto& opts = *static_cast<options*>(data);
@@ -1457,7 +1539,7 @@ int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
   case FUSE_OPT_KEY_NONOPT:
     if (!opts.fsimage) {
       opts.fsimage = std::make_shared<std::string>(argsv);
-      return kArgConsumed;
+      return kDiscardArg;
     }
 
     if (!opts.seen_mountpoint) {
@@ -1473,15 +1555,20 @@ int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
       return kKeepArg; // keep for FUSE to show its own help message
     }
 
+    if (argsv == "-f" || argsv == "-d" || argsv == "debug") {
+      opts.is_foreground = true;
+      return kKeepArg;
+    }
+
     if (argsv == "--auto-mountpoint") {
       opts.is_auto_mountpoint = true;
-      return kArgConsumed;
+      return kDiscardArg;
     }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (argsv == "--man") {
       opts.is_man = true;
-      return kArgConsumed;
+      return kDiscardArg;
     }
 #endif
 
@@ -1561,6 +1648,169 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
   userdata->opts.seen_mountpoint = 1;
 
   return 0;
+}
+
+bool build_initial_fuse_args(struct fuse_args& args, int argc,
+                             sys_char** argv) {
+  for (int i = 0; i < argc; ++i) {
+    auto const argstr = sys_string_to_string(argv[i]);
+    fuse_opt_add_arg(&args, argstr.c_str());
+  }
+
+  return true;
+}
+
+bool parse_dwarfs_options_from_args(struct fuse_args& args,
+                                    dwarfs_userdata& userdata,
+                                    iolayer const& iol) {
+  if (fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl) ==
+      -1) {
+    return false;
+  }
+
+  if (userdata.opts.is_auto_mountpoint) {
+    if (option_hdl_auto_mountpoint(&userdata, args, iol) != 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void add_derived_mount_options(struct fuse_args& args,
+                               dwarfs_userdata& userdata) {
+#ifndef _WIN32
+  auto& opts = userdata.opts;
+
+  if (!opts.fsimage) {
+    return;
+  }
+
+  auto const fsname_opt =
+      "-ofsname=" +
+      std::regex_replace(userdata.iol.os->canonical(*opts.fsimage).string(),
+                         std::regex(","), "\\,");
+  fuse_opt_add_arg(&args, fsname_opt.c_str());
+
+#if defined(__linux__) || defined(__FreeBSD__)
+  fuse_opt_add_arg(&args, "-osubtype=dwarfs");
+#elif defined(__APPLE__)
+  fuse_opt_add_arg(&args, "-ofstypename=dwarfs");
+#endif
+#endif
+}
+
+std::optional<int>
+handle_early_exit_modes(dwarfs_userdata& userdata, iolayer const& iol) {
+  if (userdata.opts.is_help) {
+    usage(iol.out, userdata.progname);
+    return 0;
+  }
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (userdata.opts.is_man) {
+    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
+    return 0;
+  }
+#endif
+
+  return std::nullopt;
+}
+
+bool materialize_and_validate_dwarfs_options(dwarfs_userdata& userdata,
+                                             iolayer const& iol,
+                                             bool foreground) {
+  auto& opts = userdata.opts;
+
+  try {
+    if (opts.debuglevel_str) {
+      opts.logopts.threshold = logger::parse_level(opts.debuglevel_str);
+    } else {
+      opts.logopts.threshold = foreground ? logger::INFO : logger::WARN;
+    }
+
+    userdata.lgr.set_threshold(opts.logopts.threshold);
+    userdata.lgr.set_with_context(opts.logopts.threshold >= logger::DEBUG);
+
+    opts.cachesize =
+        opts.cachesize_str ? parse_size_with_unit(opts.cachesize_str) : 512_MiB;
+    opts.blocksize = opts.blocksize_str
+                         ? parse_size_with_unit(opts.blocksize_str)
+                         : kDefaultBlockSize;
+    opts.readahead =
+        opts.readahead_str ? parse_size_with_unit(opts.readahead_str) : 0;
+    opts.workers = opts.workers_str ? to<size_t>(opts.workers_str) : 2;
+    opts.lock_mode = opts.mlock_str ? reader::parse_mlock_mode(opts.mlock_str)
+                                    : reader::mlock_mode::NONE;
+    opts.decompress_ratio =
+        opts.decompress_ratio_str ? to<double>(opts.decompress_ratio_str) : 0.8;
+
+#ifndef _WIN32
+    if (opts.uid_str) {
+      opts.fs_uid = to<file_stat::uid_type>(opts.uid_str);
+    }
+
+    if (opts.gid_str) {
+      opts.fs_gid = to<file_stat::gid_type>(opts.gid_str);
+    }
+#endif
+
+    if (opts.cache_tidy_strategy_str) {
+      if (auto it = cache_tidy_strategy_map.find(opts.cache_tidy_strategy_str);
+          it != cache_tidy_strategy_map.end()) {
+        opts.block_cache_tidy_strategy = it->second;
+      } else {
+        iol.err << "error: no such cache tidy strategy: "
+                << opts.cache_tidy_strategy_str << "\n";
+        return false;
+      }
+
+      if (opts.cache_tidy_interval_str) {
+        opts.block_cache_tidy_interval =
+            parse_time_with_unit(opts.cache_tidy_interval_str);
+      }
+
+      if (opts.cache_tidy_max_age_str) {
+        opts.block_cache_tidy_max_age =
+            parse_time_with_unit(opts.cache_tidy_max_age_str);
+      }
+    }
+  } catch (std::filesystem::filesystem_error const& e) {
+    iol.err << exception_str(e) << "\n";
+    return false;
+  } catch (std::exception const& e) {
+    iol.err << "error: " << exception_str(e) << "\n";
+    return false;
+  }
+
+  if (opts.decompress_ratio < 0.0 || opts.decompress_ratio > 1.0) {
+    iol.err << "error: decratio must be between 0.0 and 1.0\n";
+    return false;
+  }
+
+  if (opts.block_alloc_mode_str) {
+    if (auto it = block_allocator_map.find(opts.block_alloc_mode_str);
+        it != block_allocator_map.end()) {
+      opts.block_allocator = it->second;
+    } else {
+      iol.err << "error: no such block allocator: " << opts.block_alloc_mode_str
+              << "\n";
+      return false;
+    }
+  } else {
+    opts.block_allocator = reader::block_cache_allocation_mode::MALLOC;
+  }
+
+  opts.seq_detector_threshold = opts.seq_detector_thresh_str
+                                    ? to<size_t>(opts.seq_detector_thresh_str)
+                                    : kDefaultSeqDetectorThreshold;
+
+  if (!opts.seen_mountpoint) {
+    usage(iol.out, userdata.progname);
+    return false;
+  }
+
+  return true;
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1794,43 +2044,44 @@ void load_filesystem(dwarfs_userdata& userdata) {
   ti << "file system initialized";
 }
 
+bool load_filesystem_checked(dwarfs_userdata& userdata) {
+  try {
+    if (userdata.opts.logopts.threshold >= logger::DEBUG) {
+      load_filesystem<debug_logger_policy>(userdata);
+    } else {
+      load_filesystem<prod_logger_policy>(userdata);
+    }
+    return true;
+  } catch (std::exception const& e) {
+    LOG_PROXY(debug_logger_policy, userdata.lgr);
+    LOG_ERROR << "error initializing file system: " << exception_str(e);
+    return false;
+  }
+}
+
 } // namespace
 
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
 
-  for (int i = 0; i < argc; ++i) {
-    auto const argstr = sys_string_to_string(argv[i]);
-    fuse_opt_add_arg(&args, argstr.c_str());
+  if (!build_initial_fuse_args(args, argc, argv)) {
+    return 1;
   }
 
   dwarfs_userdata userdata(iol);
-  auto& opts = userdata.opts;
-
   userdata.progname = std::filesystem::path(argv[0]);
 
-  fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
-
-  if (userdata.opts.is_auto_mountpoint) {
-    if (option_hdl_auto_mountpoint(&userdata, args, iol)) {
-      return 1;
-    }
+  if (!parse_dwarfs_options_from_args(args, userdata, iol)) {
+    return 1;
   }
 
-#ifndef _WIN32
-  if (opts.fsimage) {
-    auto const fsname_opt =
-        "-ofsname=" +
-        std::regex_replace(userdata.iol.os->canonical(*opts.fsimage).string(),
-                           std::regex(","), "\\,");
-    fuse_opt_add_arg(&args, fsname_opt.c_str());
-#if defined(__linux__) || defined(__FreeBSD__)
-    fuse_opt_add_arg(&args, "-osubtype=dwarfs");
-#elif defined(__APPLE__)
-    fuse_opt_add_arg(&args, "-ofstypename=dwarfs");
-#endif
+  if (auto rc = handle_early_exit_modes(userdata, iol); rc) {
+    return *rc;
   }
-#endif
+
+  add_derived_mount_options(args, userdata);
+
+  bool const foreground = userdata.opts.is_foreground;
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
@@ -1840,166 +2091,36 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return handle_cmdline_error(userdata, iol);
   }
 
-#ifdef DWARFS_STACKTRACE_ENABLED
-  if (fuse_opts.foreground) {
-    install_signal_handlers();
-  }
-#endif
-
-  bool foreground = fuse_opts.foreground;
+  assert(foreground == static_cast<bool>(fuse_opts.foreground));
 #else
   char* mp_unsafe = nullptr;
-  int mt, fg;
+  int mt = 0;
+  int fg = 0;
 
   if (fuse_parse_cmdline(&args, &mp_unsafe, &mt, &fg) == -1 || !mp_unsafe) {
     return handle_cmdline_error(userdata, iol);
   }
 
   std::string mountpoint{mp_unsafe};
-  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   ::free(mp_unsafe);
 
+  assert(foreground == static_cast<bool>(fg));
+#endif
+#endif
+
 #ifdef DWARFS_STACKTRACE_ENABLED
-  if (fg) {
+  if (foreground) {
     install_signal_handlers();
   }
 #endif
 
-  bool foreground = fg;
-#endif
-#endif
-
-  try {
-    // TODO: foreground mode, stderr vs. syslog?
-
-    if (userdata.opts.is_help) {
-      usage(iol.out, userdata.progname);
-      return 0;
-    }
-
-    if (opts.debuglevel_str) {
-      opts.logopts.threshold = logger::parse_level(opts.debuglevel_str);
-    } else {
-#if DWARFS_FUSE_LOWLEVEL
-      opts.logopts.threshold = foreground ? logger::INFO : logger::WARN;
-#else
-      opts.logopts.threshold = logger::WARN;
-#endif
-    }
-
-    userdata.lgr.set_threshold(opts.logopts.threshold);
-    userdata.lgr.set_with_context(opts.logopts.threshold >= logger::DEBUG);
-
-    opts.cachesize =
-        opts.cachesize_str ? parse_size_with_unit(opts.cachesize_str) : 512_MiB;
-    opts.blocksize = opts.blocksize_str
-                         ? parse_size_with_unit(opts.blocksize_str)
-                         : kDefaultBlockSize;
-    opts.readahead =
-        opts.readahead_str ? parse_size_with_unit(opts.readahead_str) : 0;
-    opts.workers = opts.workers_str ? to<size_t>(opts.workers_str) : 2;
-    opts.lock_mode = opts.mlock_str ? reader::parse_mlock_mode(opts.mlock_str)
-                                    : reader::mlock_mode::NONE;
-    opts.decompress_ratio =
-        opts.decompress_ratio_str ? to<double>(opts.decompress_ratio_str) : 0.8;
-
-#ifndef _WIN32
-    if (opts.uid_str) {
-      opts.fs_uid = to<file_stat::uid_type>(opts.uid_str);
-    }
-
-    if (opts.gid_str) {
-      opts.fs_gid = to<file_stat::gid_type>(opts.gid_str);
-    }
-#endif
-
-    if (opts.cache_tidy_strategy_str) {
-      if (auto it = cache_tidy_strategy_map.find(opts.cache_tidy_strategy_str);
-          it != cache_tidy_strategy_map.end()) {
-        opts.block_cache_tidy_strategy = it->second;
-      } else {
-        iol.err << "error: no such cache tidy strategy: "
-                << opts.cache_tidy_strategy_str << "\n";
-        return 1;
-      }
-
-      if (opts.cache_tidy_interval_str) {
-        opts.block_cache_tidy_interval =
-            parse_time_with_unit(opts.cache_tidy_interval_str);
-      }
-
-      if (opts.cache_tidy_max_age_str) {
-        opts.block_cache_tidy_max_age =
-            parse_time_with_unit(opts.cache_tidy_max_age_str);
-      }
-    }
-  } catch (std::filesystem::filesystem_error const& e) {
-    iol.err << exception_str(e) << "\n";
-    return 1;
-  } catch (std::exception const& e) {
-    iol.err << "error: " << exception_str(e) << "\n";
+  if (!materialize_and_validate_dwarfs_options(userdata, iol, foreground)) {
     return 1;
   }
 
-  if (opts.decompress_ratio < 0.0 || opts.decompress_ratio > 1.0) {
-    iol.err << "error: decratio must be between 0.0 and 1.0\n";
-    return 1;
-  }
+  log_startup_banner_and_warnings(userdata);
 
-  if (opts.block_alloc_mode_str) {
-    if (auto it = block_allocator_map.find(opts.block_alloc_mode_str);
-        it != block_allocator_map.end()) {
-      opts.block_allocator = it->second;
-    } else {
-      iol.err << "error: no such block allocator: " << opts.block_alloc_mode_str
-              << "\n";
-      return 1;
-    }
-  } else {
-    opts.block_allocator = reader::block_cache_allocation_mode::MALLOC;
-  }
-
-  opts.seq_detector_threshold = opts.seq_detector_thresh_str
-                                    ? to<size_t>(opts.seq_detector_thresh_str)
-                                    : kDefaultSeqDetectorThreshold;
-
-#ifdef DWARFS_BUILTIN_MANPAGE
-  if (userdata.opts.is_man) {
-    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
-    return 0;
-  }
-#endif
-
-  if (!opts.seen_mountpoint) {
-    usage(iol.out, userdata.progname);
-    return 1;
-  }
-
-  LOG_PROXY(debug_logger_policy, userdata.lgr);
-
-  LOG_INFO << "dwarfs (" << DWARFS_GIT_ID << ", fuse version "
-           << FUSE_USE_VERSION << ")";
-
-  if (opts.enable_nlink) {
-    LOG_WARN << "`enable_nlink` is obsolete and has no effect";
-  }
-
-  if (opts.cache_image == 1) {
-    LOG_WARN << "`cache_image` is obsolete and has no effect";
-  }
-
-  if (opts.cache_image == 2) {
-    LOG_WARN << "`no_cache_image` is obsolete and has no effect";
-  }
-
-  try {
-    if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-      load_filesystem<debug_logger_policy>(userdata);
-    } else {
-      load_filesystem<prod_logger_policy>(userdata);
-    }
-  } catch (std::exception const& e) {
-    LOG_ERROR << "error initializing file system: " << exception_str(e);
+  if (!load_filesystem_checked(userdata)) {
     return 1;
   }
 
