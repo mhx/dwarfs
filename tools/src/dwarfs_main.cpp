@@ -1445,50 +1445,51 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 #endif
 }
 
-int option_hdl(void* data, char const* arg, int key,
-               struct fuse_args* /*outargs*/) {
-  auto& opts = *reinterpret_cast<options*>(data);
+int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
+  static constexpr int kError = -1;
+  static constexpr int kArgConsumed = 0;
+  static constexpr int kKeepArg = 1;
+
+  auto& opts = *static_cast<options*>(data);
   std::string_view argsv{arg};
 
   switch (key) {
   case FUSE_OPT_KEY_NONOPT:
-    if (opts.seen_mountpoint) {
-      return -1;
+    if (!opts.fsimage) {
+      opts.fsimage = std::make_shared<std::string>(argsv);
+      return kArgConsumed;
     }
 
-    if (opts.fsimage) {
+    if (!opts.seen_mountpoint) {
       opts.seen_mountpoint = 1;
-      return 1;
+      return kKeepArg;
     }
 
-    opts.fsimage = std::make_shared<std::string>(argsv);
-
-    return 0;
+    return kError; // error: too many non-option arguments
 
   case FUSE_OPT_KEY_OPT:
     if (argsv == "-h" || argsv == "--help") {
       opts.is_help = true;
-      break;
+      return kKeepArg; // keep for FUSE to show its own help message
     }
 
     if (argsv == "--auto-mountpoint") {
       opts.is_auto_mountpoint = true;
-      return 0;
+      return kArgConsumed;
     }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (argsv == "--man") {
       opts.is_man = true;
-      return 0;
+      return kArgConsumed;
     }
 #endif
-    break;
+
+    return kKeepArg;
 
   default:
-    break;
+    return kKeepArg;
   }
-
-  return 1;
 }
 
 #if DWARFS_FUSE_LOWLEVEL
