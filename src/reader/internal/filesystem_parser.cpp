@@ -96,11 +96,12 @@ class filesystem_parser_ final : public filesystem_parser::impl {
   void find_index();
   size_t search_dwarfs_header(std::span<std::byte const> haystack);
   file_off_t search_image_in_segment(file_segment const& seg);
+  file_off_t image_end() const { return image_offset_ + image_size_; }
 
   LOG_PROXY_DECL(LoggerPolicy);
   file_view mm_;
   file_off_t const image_offset_{0};
-  file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
+  file_off_t const image_size_{0};
   file_off_t offset_{0};
   int header_version_{0};
   filesystem_version fs_version_{};
@@ -340,7 +341,7 @@ template <typename LoggerPolicy>
 std::optional<fs_section> filesystem_parser_<LoggerPolicy>::next_section() {
   if (index_.empty()) {
     if (std::cmp_less(offset_, image_offset_ + image_size_)) {
-      auto section = fs_section(mm_, offset_, header_version_);
+      auto section = fs_section(mm_, offset_, image_end(), header_version_);
       offset_ = section.end();
       return section;
     }
@@ -353,7 +354,7 @@ std::optional<fs_section> filesystem_parser_<LoggerPolicy>::next_section() {
                                  : image_size_;
       return fs_section(mm_, static_cast<section_type>(id >> 48),
                         image_offset_ + offset, next_offset - offset,
-                        header_version_);
+                        image_end(), header_version_);
     }
   }
 
@@ -389,7 +390,7 @@ void filesystem_parser_<LoggerPolicy>::find_index() {
     return;
   }
 
-  auto section = fs_section(mm_, index_pos, header_version_);
+  auto section = fs_section(mm_, index_pos, image_end(), header_version_);
 
   if (section.type() != section_type::SECTION_INDEX) {
     return;

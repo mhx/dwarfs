@@ -1305,7 +1305,7 @@ TEST(section_index_regression, github183) {
     ASSERT_LT(index_pos, fsimage.size());
 
     auto mm = test::make_mock_file_view(fsimage);
-    auto section = internal::fs_section(mm, index_pos, 2);
+    auto section = internal::fs_section(mm, index_pos, mm.size(), 2);
 
     EXPECT_TRUE(section.check_fast_mm(mm));
 

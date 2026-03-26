@@ -45,27 +45,33 @@ namespace {
 
 template <typename T>
 void read_section_header_common(T& header, file_off_t& start,
-                                file_view const& mm, file_off_t offset) {
-  if (std::cmp_greater(offset + sizeof(T), mm.size())) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("truncated section header: {} + {} > {}", offset,
-                             sizeof(T), mm.size()));
+                                file_view const& mm, file_off_t offset,
+                                file_off_t const image_end) {
+  DWARFS_CHECK(image_end <= mm.size(),
+               fmt::format("invalid image end: {} > {}", image_end, mm.size()));
+
+  if (std::cmp_greater(offset + sizeof(T), image_end)) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("truncated section header: {} + {} > {} [mm.size() = {}]",
+                    offset, sizeof(T), image_end, mm.size()));
   }
 
   mm.copy_to(header, offset);
 
   offset += sizeof(T);
 
-  file_off_t end = offset + header.length;
+  file_off_t section_end = offset + header.length;
 
-  if (end < offset) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("offset/length overflow: {} < {}", end, offset));
+  if (section_end < offset) {
+    DWARFS_THROW(runtime_error, fmt::format("offset/length overflow: {} < {}",
+                                            section_end, offset));
   }
 
-  if (std::cmp_greater(end, mm.size())) {
-    DWARFS_THROW(runtime_error, fmt::format("truncated section data: {} > {}",
-                                            end, mm.size()));
+  if (section_end > image_end) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("truncated section data: {} > {} [mm.size() = {}]",
+                             section_end, image_end, mm.size()));
   }
 
   start = offset;
@@ -89,7 +95,7 @@ void check_section(T const& sec) {
 
 class fs_section_v1 final : public fs_section::impl {
  public:
-  fs_section_v1(file_view const& mm, file_off_t offset);
+  fs_section_v1(file_view const& mm, file_off_t offset, file_off_t image_end);
 
   file_off_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
@@ -159,7 +165,7 @@ class fs_section_v1 final : public fs_section::impl {
 
 class fs_section_v2 final : public fs_section::impl {
  public:
-  fs_section_v2(file_view const& mm, file_off_t offset);
+  fs_section_v2(file_view const& mm, file_off_t offset, file_off_t image_end);
 
   file_off_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
@@ -274,7 +280,7 @@ class fs_section_v2 final : public fs_section::impl {
 class fs_section_v2_lazy final : public fs_section::impl {
  public:
   fs_section_v2_lazy(file_view const& mm, section_type type, file_off_t offset,
-                     size_t size);
+                     size_t size, file_off_t image_end);
 
   file_off_t start() const override {
     return offset_ + sizeof(section_header_v2);
@@ -350,16 +356,18 @@ class fs_section_v2_lazy final : public fs_section::impl {
   section_type const type_;
   file_off_t const offset_;
   size_t const size_;
+  file_off_t const image_end_;
 };
 
-fs_section::fs_section(file_view const& mm, file_off_t offset, int version) {
+fs_section::fs_section(file_view const& mm, file_off_t const offset,
+                       file_off_t const image_end, int const version) {
   switch (version) {
   case 1:
-    impl_ = std::make_shared<fs_section_v1>(mm, offset);
+    impl_ = std::make_shared<fs_section_v1>(mm, offset, image_end);
     break;
 
   case 2:
-    impl_ = std::make_shared<fs_section_v2>(mm, offset);
+    impl_ = std::make_shared<fs_section_v2>(mm, offset, image_end);
     break;
 
   default:
@@ -369,11 +377,13 @@ fs_section::fs_section(file_view const& mm, file_off_t offset, int version) {
   }
 }
 
-fs_section::fs_section(file_view const& mm, section_type type,
-                       file_off_t offset, size_t size, int version) {
+fs_section::fs_section(file_view const& mm, section_type const type,
+                       file_off_t const offset, size_t const size,
+                       file_off_t const image_end, int const version) {
   switch (version) {
   case 2:
-    impl_ = std::make_shared<fs_section_v2_lazy>(mm, type, offset, size);
+    impl_ =
+        std::make_shared<fs_section_v2_lazy>(mm, type, offset, size, image_end);
     break;
 
   default:
@@ -383,13 +393,15 @@ fs_section::fs_section(file_view const& mm, section_type type,
   }
 }
 
-fs_section_v1::fs_section_v1(file_view const& mm, file_off_t offset) {
-  read_section_header_common(hdr_, start_, mm, offset);
+fs_section_v1::fs_section_v1(file_view const& mm, file_off_t const offset,
+                             file_off_t const image_end) {
+  read_section_header_common(hdr_, start_, mm, offset, image_end);
   check_section(*this);
 }
 
-fs_section_v2::fs_section_v2(file_view const& mm, file_off_t offset) {
-  read_section_header_common(hdr_, start_, mm, offset);
+fs_section_v2::fs_section_v2(file_view const& mm, file_off_t const offset,
+                             file_off_t const image_end) {
+  read_section_header_common(hdr_, start_, mm, offset, image_end);
   // TODO: Don't enforce these checks as we might want to add section types
   //       and compression types in the future without necessarily incrementing
   //       the file system version.
@@ -398,18 +410,22 @@ fs_section_v2::fs_section_v2(file_view const& mm, file_off_t offset) {
   // check_section(*this);
 }
 
-fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm, section_type type,
-                                       file_off_t offset, size_t size)
+fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm,
+                                       section_type const type,
+                                       file_off_t const offset,
+                                       size_t const size,
+                                       file_off_t const image_end)
     : mm_{mm}
     , type_{type}
     , offset_{offset}
-    , size_{size} {}
+    , size_{size}
+    , image_end_{image_end} {}
 
 fs_section::impl const& fs_section_v2_lazy::section() const {
   std::lock_guard lock(mx_);
 
   if (!sec_) {
-    sec_ = std::make_unique<fs_section_v2>(*mm_, offset_);
+    sec_ = std::make_unique<fs_section_v2>(*mm_, offset_, image_end_);
     mm_.reset();
   }
 

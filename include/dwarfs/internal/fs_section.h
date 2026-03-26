@@ -41,9 +41,10 @@ namespace dwarfs::internal {
 
 class fs_section {
  public:
-  fs_section(file_view const& mm, file_off_t offset, int version);
+  fs_section(file_view const& mm, file_off_t offset, file_off_t image_end,
+             int version);
   fs_section(file_view const& mm, section_type type, file_off_t offset,
-             size_t size, int version);
+             size_t size, file_off_t image_end, int version);
 
   file_off_t start() const { return impl_->start(); }
   size_t length() const { return impl_->length(); }
