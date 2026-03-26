@@ -811,6 +811,11 @@ void op_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
             << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
+  if (!userdata.fs.has_sparse_files()) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
   if (FUSE_ROOT_ID + fi->fh != ino) {
     fuse_reply_err(req, EIO);
     return;
@@ -835,6 +840,10 @@ off_t op_lseek(char const* path, off_t off, int whence,
 
   LOG_DEBUG << __func__ << "(" << path << ", " << off << ", " << whence << ")"
             << get_caller_context();
+
+  if (!userdata.fs.has_sparse_files()) {
+    return -ENOSYS;
+  }
 
   return op_lseek_common(log_, userdata, fi->fh, off, whence);
 }
@@ -1555,19 +1564,14 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
 
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void init_fuse_ops(struct fuse_lowlevel_ops& ops,
-                   dwarfs_userdata const& userdata) {
+void init_fuse_ops(struct fuse_lowlevel_ops& ops) {
   ops.init = &op_init<LoggerPolicy>;
   ops.lookup = &op_lookup<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
-  if (userdata.fs.has_symlinks()) {
-    ops.readlink = &op_readlink<LoggerPolicy>;
-  }
+  ops.readlink = &op_readlink<LoggerPolicy>;
   ops.open = &op_open<LoggerPolicy>;
 #ifdef DWARFS_FUSE_HAS_LSEEK
-  if (userdata.fs.has_sparse_files()) {
-    ops.lseek = &op_lseek<LoggerPolicy>;
-  }
+  ops.lseek = &op_lseek<LoggerPolicy>;
 #endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
@@ -1577,18 +1581,13 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops,
 }
 #else
 template <typename LoggerPolicy>
-void init_fuse_ops(struct fuse_operations& ops,
-                   dwarfs_userdata const& userdata) {
+void init_fuse_ops(struct fuse_operations& ops) {
   ops.init = &op_init<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
-  if (userdata.fs.has_symlinks()) {
-    ops.readlink = &op_readlink<LoggerPolicy>;
-  }
+  ops.readlink = &op_readlink<LoggerPolicy>;
   ops.open = &op_open<LoggerPolicy>;
 #ifdef DWARFS_FUSE_HAS_LSEEK
-  if (userdata.fs.has_sparse_files()) {
-    ops.lseek = &op_lseek<LoggerPolicy>;
-  }
+  ops.lseek = &op_lseek<LoggerPolicy>;
 #endif
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
@@ -1615,9 +1614,9 @@ int run_fuse(struct fuse_args& args,
 #endif
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops, userdata);
+    init_fuse_ops<debug_logger_policy>(fsops);
   } else {
-    init_fuse_ops<prod_logger_policy>(fsops, userdata);
+    init_fuse_ops<prod_logger_policy>(fsops);
   }
 
   int err = 1;
@@ -1668,9 +1667,9 @@ int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
   struct fuse_lowlevel_ops fsops{};
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops, userdata);
+    init_fuse_ops<debug_logger_policy>(fsops);
   } else {
-    init_fuse_ops<prod_logger_policy>(fsops, userdata);
+    init_fuse_ops<prod_logger_policy>(fsops);
   }
 
   int err = 1;
