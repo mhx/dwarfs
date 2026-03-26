@@ -777,8 +777,8 @@ int op_open(char const* path, struct fuse_file_info* fi) {
 
 #ifdef DWARFS_FUSE_HAS_LSEEK
 template <typename LogProxy>
-off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata, uint32_t inode,
-                      off_t off, int whence) {
+off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata,
+                      uint32_t const inode, off_t const off, int const whence) {
   return checked_call(log_, [&]() -> off_t {
     reader::seek_whence rwhence;
 
@@ -843,8 +843,8 @@ off_t op_lseek(char const* path, off_t off, int whence,
   LOG_PROXY(LoggerPolicy, userdata.lgr);
   PERFMON_SET_CONTEXT(fi->fh)
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << off << ", " << whence << ")"
-            << get_caller_context();
+  LOG_DEBUG << __func__ << "(" << path << " [" << fi->fh << "], " << off << ", "
+            << whence << ")" << get_caller_context();
 
   if (!userdata.fs.has_sparse_files()) {
     return -ENOSYS;
@@ -895,8 +895,8 @@ int op_read(char const* path, char* buf, size_t size, native_off_t off,
   PERFMON_EXT_SCOPED_SECTION(userdata, op_read)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << size << ", " << off << ")"
-            << get_caller_context();
+  LOG_DEBUG << __func__ << "(" << path << " [" << fi->fh << "], " << size
+            << ", " << off << ")" << get_caller_context();
   PERFMON_SET_CONTEXT(fi->fh, size)
 
   return -checked_call(log_, [&] {
