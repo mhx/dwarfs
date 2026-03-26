@@ -3362,11 +3362,15 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
   dwarfs::temporary_directory td("dwarfs");
   scoped_no_leak_check no_leak_check;
 
-  auto const header = dwarfs::read_file(test_dir / "tools_test.cpp");
+  auto const header = dwarfs::test::loremipsum(4711);
   auto const image = dwarfs::read_file(test_dir / "data.dwarfs");
+  auto const image2 = dwarfs::read_file(test_dir / "datadata.dwarfs");
   auto const image_size = image.size();
+  auto const image2_offset = header.size() + image.size() + header.size();
+  auto const image2_size = image2.size();
 
-  dwarfs::write_file(td.path() / "test.dwarfs", header + image + header);
+  dwarfs::write_file(td.path() / "test.dwarfs",
+                     header + image + header + image2);
   fs::create_directory(td.path() / "mnt");
 
   {
@@ -3385,6 +3389,18 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
                          "-oimagesize=" + std::to_string(image_size));
 
     EXPECT_TRUE(wait_until_file_ready(td.path() / "mnt" / "format.sh"))
+        << runner.cmdline();
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+
+  {
+    driver_runner runner(driver_runner::foreground, bin_, tool_arg_,
+                         td.path() / "test.dwarfs", td.path() / "mnt",
+                         "-ooffset=" + std::to_string(image2_offset),
+                         "-oimagesize=" + std::to_string(image2_size));
+
+    EXPECT_TRUE(wait_until_file_ready(td.path() / "mnt" / "data.dwarfs"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
