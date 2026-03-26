@@ -1766,6 +1766,9 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_getattr, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_readlink, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_open, "inode")
+#ifdef DWARFS_FUSE_HAS_LSEEK
+  PERFMON_EXT_TIMER_SETUP(userdata, op_lseek, "inode")
+#endif
   PERFMON_EXT_TIMER_SETUP(userdata, op_read, "inode", "size")
   PERFMON_EXT_TIMER_SETUP(userdata, op_readdir, "inode", "size")
   PERFMON_EXT_TIMER_SETUP(userdata, op_statfs)
