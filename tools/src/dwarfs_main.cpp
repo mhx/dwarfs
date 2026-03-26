@@ -1886,6 +1886,7 @@ void init_fuse_ops(struct fuse_operations& ops) {
 #if FUSE_USE_VERSION > 30
 
 int run_fuse(safe_fuse_args& args,
+             std::string const& mountpoint [[maybe_unused]],
 #if DWARFS_FUSE_LOWLEVEL
              struct fuse_cmdline_opts const& fuse_opts,
 #endif
@@ -1908,7 +1909,7 @@ int run_fuse(safe_fuse_args& args,
   if (auto session =
           fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata)) {
     if (fuse_set_signal_handlers(session) == 0) {
-      if (fuse_session_mount(session, fuse_opts.mountpoint) == 0) {
+      if (fuse_session_mount(session, mountpoint.c_str()) == 0) {
         if (fuse_daemonize(fuse_opts.foreground) == 0) {
           if (fuse_opts.singlethread) {
             err = fuse_session_loop(session);
@@ -1927,9 +1928,6 @@ int run_fuse(safe_fuse_args& args,
     }
     fuse_session_destroy(session);
   }
-
-  // NOLINTNEXTLINE
-  ::free(fuse_opts.mountpoint);
 #else
   err = fuse_main(args.argc(), args.argv(), &fsops, &userdata);
 
@@ -2106,15 +2104,19 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   add_derived_mount_options(args, userdata);
 
   bool const foreground = userdata.opts.is_foreground;
+  std::string mountpoint;
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
-  struct fuse_cmdline_opts fuse_opts;
+  struct fuse_cmdline_opts fuse_opts{};
 
   if (fuse_parse_cmdline(args.get(), &fuse_opts) == -1 ||
       !fuse_opts.mountpoint) {
     return handle_cmdline_error(userdata, iol);
   }
+
+  mountpoint.assign(fuse_opts.mountpoint);
+  ::free(fuse_opts.mountpoint);
 
   assert(foreground == static_cast<bool>(fuse_opts.foreground));
 #else
@@ -2127,7 +2129,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return handle_cmdline_error(userdata, iol);
   }
 
-  std::string mountpoint{mp_unsafe};
+  mountpoint.assign(mp_unsafe);
   ::free(mp_unsafe);
 
   assert(foreground == static_cast<bool>(fg));
@@ -2158,9 +2160,9 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #if FUSE_USE_VERSION >= 30
 #if DWARFS_FUSE_LOWLEVEL
-  return run_fuse(args, fuse_opts, userdata);
+  return run_fuse(args, mountpoint, fuse_opts, userdata);
 #else
-  return run_fuse(args, userdata);
+  return run_fuse(args, mountpoint, userdata);
 #endif
 #else
   return run_fuse(args, mountpoint, mt, fg, userdata);
