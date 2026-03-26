@@ -1431,20 +1431,63 @@ class scoped_stderr_to_stdout {
 #endif
 };
 
-#if FUSE_USE_VERSION < 30
-void print_fuse2_help_to_stdout() {
-  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_opt_add_arg(&args, "");
-  fuse_opt_add_arg(&args, "-ho");
+class safe_fuse_args {
+ public:
+  safe_fuse_args() = default;
 
-  struct fuse_operations fsops{};
-
-  {
-    scoped_stderr_to_stdout redirect;
-    fuse_main(args.argc, args.argv, &fsops, nullptr);
+  safe_fuse_args(int argc, sys_char** argv) {
+    try {
+      for (int i = 0; i < argc; ++i) {
+        add(sys_string_to_string(argv[i]));
+      }
+    } catch (...) {
+      fuse_opt_free_args(&args_);
+      throw;
+    }
   }
 
-  fuse_opt_free_args(&args);
+  safe_fuse_args(std::initializer_list<char const*> args) {
+    try {
+      for (auto arg : args) {
+        add(arg);
+      }
+    } catch (...) {
+      fuse_opt_free_args(&args_);
+      throw;
+    }
+  }
+
+  ~safe_fuse_args() { fuse_opt_free_args(&args_); }
+
+  safe_fuse_args(safe_fuse_args const&) = delete;
+  safe_fuse_args& operator=(safe_fuse_args const&) = delete;
+  safe_fuse_args(safe_fuse_args&&) = delete;
+  safe_fuse_args& operator=(safe_fuse_args&&) = delete;
+
+  void add(char const* arg) {
+    if (fuse_opt_add_arg(&args_, arg) != 0) {
+      throw std::runtime_error("failed to add FUSE argument");
+    }
+  }
+
+  void add(std::string const& arg) { add(arg.c_str()); }
+
+  struct fuse_args* get() { return &args_; }
+
+  int argc() const { return args_.argc; }
+  char** argv() const { return args_.argv; }
+
+ private:
+  struct fuse_args args_ = FUSE_ARGS_INIT(0, nullptr);
+};
+
+#if FUSE_USE_VERSION < 30
+void print_fuse2_help_to_stdout() {
+  safe_fuse_args args{"", "-ho"};
+  struct fuse_operations fsops{};
+
+  scoped_stderr_to_stdout redirect;
+  fuse_main(args.argc(), args.argv(), &fsops, nullptr);
 }
 #endif
 
@@ -1458,8 +1501,8 @@ void print_fuse_help(std::ostream& os) {
 #if DWARFS_FUSE_LOWLEVEL
   fuse_lowlevel_help();
 #else
-  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_lib_help(&args);
+  safe_fuse_args args;
+  fuse_lib_help(args.get());
 #endif
 #else
   print_fuse2_help_to_stdout();
@@ -1592,8 +1635,8 @@ int handle_cmdline_error(dwarfs_userdata const& userdata, iolayer const& iol) {
 }
 #endif
 
-int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
-                               struct fuse_args& args, iolayer const& iol) {
+int option_hdl_auto_mountpoint(dwarfs_userdata* userdata, safe_fuse_args& args,
+                               iolayer const& iol) {
   if (userdata->opts.seen_mountpoint) {
     iol.err << "error: cannot combine <mountpoint> with --auto-mountpoint"
             << "\n";
@@ -1643,28 +1686,17 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata,
   }
 #endif
 
-  auto const mp_arg = path_to_utf8_string_sanitized(mountpath);
-  fuse_opt_add_arg(&args, mp_arg.c_str());
+  args.add(path_to_utf8_string_sanitized(mountpath));
   userdata->opts.seen_mountpoint = 1;
 
   return 0;
 }
 
-bool build_initial_fuse_args(struct fuse_args& args, int argc,
-                             sys_char** argv) {
-  for (int i = 0; i < argc; ++i) {
-    auto const argstr = sys_string_to_string(argv[i]);
-    fuse_opt_add_arg(&args, argstr.c_str());
-  }
-
-  return true;
-}
-
-bool parse_dwarfs_options_from_args(struct fuse_args& args,
+bool parse_dwarfs_options_from_args(safe_fuse_args& args,
                                     dwarfs_userdata& userdata,
                                     iolayer const& iol) {
-  if (fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl) ==
-      -1) {
+  if (fuse_opt_parse(args.get(), &userdata.opts, dwarfs_opts.data(),
+                     option_hdl) == -1) {
     return false;
   }
 
@@ -1677,7 +1709,7 @@ bool parse_dwarfs_options_from_args(struct fuse_args& args,
   return true;
 }
 
-void add_derived_mount_options(struct fuse_args& args,
+void add_derived_mount_options(safe_fuse_args& args,
                                dwarfs_userdata& userdata) {
 #ifndef _WIN32
   auto& opts = userdata.opts;
@@ -1690,12 +1722,12 @@ void add_derived_mount_options(struct fuse_args& args,
       "-ofsname=" +
       std::regex_replace(userdata.iol.os->canonical(*opts.fsimage).string(),
                          std::regex(","), "\\,");
-  fuse_opt_add_arg(&args, fsname_opt.c_str());
+  args.add(fsname_opt);
 
 #if defined(__linux__) || defined(__FreeBSD__)
-  fuse_opt_add_arg(&args, "-osubtype=dwarfs");
+  args.add("-osubtype=dwarfs");
 #elif defined(__APPLE__)
-  fuse_opt_add_arg(&args, "-ofstypename=dwarfs");
+  args.add("-ofstypename=dwarfs");
 #endif
 #endif
 }
@@ -1853,7 +1885,7 @@ void init_fuse_ops(struct fuse_operations& ops) {
 
 #if FUSE_USE_VERSION > 30
 
-int run_fuse(struct fuse_args& args,
+int run_fuse(safe_fuse_args& args,
 #if DWARFS_FUSE_LOWLEVEL
              struct fuse_cmdline_opts const& fuse_opts,
 #endif
@@ -1874,7 +1906,7 @@ int run_fuse(struct fuse_args& args,
 
 #if DWARFS_FUSE_LOWLEVEL
   if (auto session =
-          fuse_session_new(&args, &fsops, sizeof(fsops), &userdata)) {
+          fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata)) {
     if (fuse_set_signal_handlers(session) == 0) {
       if (fuse_session_mount(session, fuse_opts.mountpoint) == 0) {
         if (fuse_daemonize(fuse_opts.foreground) == 0) {
@@ -1899,21 +1931,19 @@ int run_fuse(struct fuse_args& args,
   // NOLINTNEXTLINE
   ::free(fuse_opts.mountpoint);
 #else
-  err = fuse_main(args.argc, args.argv, &fsops, &userdata);
+  err = fuse_main(args.argc(), args.argv(), &fsops, &userdata);
 
   if (err != 0) {
     check_fusermount(userdata);
   }
 #endif
 
-  fuse_opt_free_args(&args);
-
   return err;
 }
 
 #else
 
-int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
+int run_fuse(safe_fuse_args& args, std::string const& mountpoint, int mt,
              int fg, dwarfs_userdata& userdata) {
   struct fuse_lowlevel_ops fsops{};
 
@@ -1925,8 +1955,9 @@ int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
 
   int err = 1;
 
-  if (auto ch = fuse_mount(mountpoint.c_str(), &args)) {
-    if (auto se = fuse_lowlevel_new(&args, &fsops, sizeof(fsops), &userdata)) {
+  if (auto ch = fuse_mount(mountpoint.c_str(), args.get())) {
+    if (auto se =
+            fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), &userdata)) {
       if (fuse_daemonize(fg) != -1) {
         if (fuse_set_signal_handlers(se) != -1) {
           fuse_session_add_chan(se, ch);
@@ -1941,8 +1972,6 @@ int run_fuse(struct fuse_args& args, std::string const& mountpoint, int mt,
   } else {
     check_fusermount(userdata);
   }
-
-  fuse_opt_free_args(&args);
 
   return err;
 }
@@ -2062,12 +2091,7 @@ bool load_filesystem_checked(dwarfs_userdata& userdata) {
 } // namespace
 
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
-  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-
-  if (!build_initial_fuse_args(args, argc, argv)) {
-    return 1;
-  }
-
+  safe_fuse_args args(argc, argv);
   dwarfs_userdata userdata(iol);
   userdata.progname = std::filesystem::path(argv[0]);
 
@@ -2087,7 +2111,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #if FUSE_USE_VERSION >= 30
   struct fuse_cmdline_opts fuse_opts;
 
-  if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
+  if (fuse_parse_cmdline(args.get(), &fuse_opts) == -1 ||
+      !fuse_opts.mountpoint) {
     return handle_cmdline_error(userdata, iol);
   }
 
@@ -2097,7 +2122,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   int mt = 0;
   int fg = 0;
 
-  if (fuse_parse_cmdline(&args, &mp_unsafe, &mt, &fg) == -1 || !mp_unsafe) {
+  if (fuse_parse_cmdline(args.get(), &mp_unsafe, &mt, &fg) == -1 ||
+      !mp_unsafe) {
     return handle_cmdline_error(userdata, iol);
   }
 
