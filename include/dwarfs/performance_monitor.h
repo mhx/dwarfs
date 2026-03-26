@@ -28,10 +28,12 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>
 #include <iosfwd>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -50,6 +52,8 @@ class performance_monitor {
   using timer_id = size_t;
   using time_type = uint64_t;
   static constexpr size_t kNumInlineContext{3};
+  static constexpr timer_id kInvalidTimerId{
+      std::numeric_limits<timer_id>::max()};
 
   static std::unique_ptr<performance_monitor>
   create(std::unordered_set<std::string> enabled_namespaces,
@@ -80,6 +84,8 @@ class performance_monitor_proxy {
         : mon_{mon}
         , id_{id}
         , start_{mon_->now()} {
+      assert(mon_);
+      assert(id_ != performance_monitor::kInvalidTimerId);
       if (mon_->wants_context()) {
         context_.emplace();
       }
@@ -103,7 +109,7 @@ class performance_monitor_proxy {
 
    private:
     performance_monitor const* mon_{nullptr};
-    performance_monitor::timer_id id_;
+    performance_monitor::timer_id id_{performance_monitor::kInvalidTimerId};
     performance_monitor::time_type start_;
     std::optional<
         small_vector<uint64_t, performance_monitor::kNumInlineContext>>
@@ -146,7 +152,8 @@ class performance_monitor_proxy {
 #define PERFMON_PROXY_INIT(instname, monitor, name_space)                      \
   , instname { monitor, name_space }
 #define PERFMON_TIMER_DECL(id)                                                 \
-  performance_monitor::timer_id const perfmon_##id##_id_;
+  performance_monitor::timer_id const perfmon_##id##_id_{                      \
+      performance_monitor::kInvalidTimerId};
 #define PERFMON_TIMER_INIT(instname, id, ...)                                  \
   , perfmon_##id##_id_ { instname.setup_timer(#id, {__VA_ARGS__}) }
 #define PERFMON_SCOPED_SECTION(instname, id)                                   \
@@ -165,7 +172,8 @@ class performance_monitor_proxy {
 
 #define PERFMON_EXT_PROXY_DECL PERFMON_PROXY_DECL(PERFMON_PROXY_INSTNAME)
 #define PERFMON_EXT_TIMER_DECL(id)                                             \
-  performance_monitor::timer_id perfmon_##id##_id_;
+  performance_monitor::timer_id perfmon_##id##_id_{                            \
+      performance_monitor::kInvalidTimerId};
 #define PERFMON_EXT_TIMER_SETUP(scope, id, ...)                                \
   (scope).perfmon_##id##_id_ =                                                 \
       (scope).PERFMON_PROXY_INSTNAME.setup_timer(#id, {__VA_ARGS__});

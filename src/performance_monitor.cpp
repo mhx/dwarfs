@@ -205,6 +205,8 @@ class performance_monitor_impl final : public performance_monitor {
     auto end = now();
     // No need to acquire the mutex here as existing timers
     // never move in the deque.
+    assert(id != kInvalidTimerId);
+    assert(id < timers_.size());
     auto& t = timers_[id];
     t.add_sample(end - start);
 
