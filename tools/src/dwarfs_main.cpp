@@ -813,6 +813,7 @@ void op_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
 
   if (FUSE_ROOT_ID + fi->fh != ino) {
     fuse_reply_err(req, EIO);
+    return;
   }
 
   auto result = op_lseek_common(log_, userdata, ino, off, whence);
