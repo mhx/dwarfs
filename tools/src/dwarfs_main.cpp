@@ -27,6 +27,7 @@
  */
 
 #include <csignal>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -2062,9 +2063,10 @@ class safe_fuse_loop_config {
 #endif
 
   safe_fuse_loop_config(safe_fuse_loop_config const&) = delete;
-  safe_fuse_loop_config(safe_fuse_loop_config&&) = delete;
   safe_fuse_loop_config& operator=(safe_fuse_loop_config const&) = delete;
-  safe_fuse_loop_config& operator=(safe_fuse_loop_config&&) = delete;
+
+  safe_fuse_loop_config(safe_fuse_loop_config&&) = default;
+  safe_fuse_loop_config& operator=(safe_fuse_loop_config&&) = default;
 
   explicit operator bool() const { return static_cast<bool>(config_); }
 
@@ -2081,7 +2083,7 @@ class safe_fuse_loop_config {
 };
 #endif
 
-enum class fuse_run_result {
+enum class driver_result {
   success = 0,
   invalid_option_arguments = 1,
   no_mountpoint_specified = 2,
@@ -2093,208 +2095,301 @@ enum class fuse_run_result {
   interrupted_by_signal = 8,
 };
 
-fuse_run_result handle_loop_result(logger& lgr, bool foreground, int err) {
+driver_result handle_loop_result(logger& lgr, bool foreground, int err) {
   LOG_PROXY(debug_logger_policy, lgr);
 
   if (foreground && (err == 0 || err == SIGINT)) {
     LOG_VERBOSE << "FUSE loop exited with status: " << err;
-    return fuse_run_result::success;
+    return driver_result::success;
   }
 
   if (err != 0) {
     if (foreground) {
       LOG_ERROR << "FUSE loop exited with error: " << err;
     }
-    return fuse_run_result::runtime_error;
+    return driver_result::runtime_error;
   }
 
-  return fuse_run_result::success;
+  return driver_result::success;
 }
 
-#if !DWARFS_FUSE_LOWLEVEL
-using fuse_handle = std::unique_ptr<fuse, void (*)(fuse*)>;
+template <typename FusePolicy>
+class basic_dwarfs_fuse_driver {
+ public:
+  basic_dwarfs_fuse_driver() = default;
 
-struct prepared_highlevel_fuse {
-  fuse_handle handle{nullptr, fuse_destroy};
-};
-
-std::optional<prepared_highlevel_fuse>
-prepare_highlevel_fuse(safe_fuse_args& args, dwarfs_userdata& userdata) {
-  prepared_highlevel_fuse prepared;
-
-  struct fuse_operations fsops{};
-  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
-  } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
+  ~basic_dwarfs_fuse_driver() {
+    if (data_) {
+      if (signal_handlers_installed_) {
+        fuse_remove_signal_handlers(data_->session());
+      }
+      if (is_mounted_) {
+        FusePolicy::unmount(*data_);
+      }
+    }
   }
 
-  prepared.handle.reset(fuse_new(args.get(), &fsops, sizeof(fsops), &userdata));
+  basic_dwarfs_fuse_driver(basic_dwarfs_fuse_driver&&) = default;
 
-  if (!prepared.handle) {
-    return std::nullopt;
-  }
+  static std::expected<basic_dwarfs_fuse_driver, driver_result>
+  setup(safe_fuse_args& args, safe_fuse_cmdline_opts const& fuse_opts,
+        dwarfs_userdata& userdata) {
+    typename FusePolicy::fuse_ops_type fsops{};
 
-  return prepared;
-}
-
-fuse_run_result run_highlevel_fuse(prepared_highlevel_fuse& prepared,
-                                   safe_fuse_cmdline_opts const& fuse_opts,
-                                   dwarfs_userdata& userdata) {
-  if (fuse_mount(prepared.handle.get(), fuse_opts.mountpoint()) != 0) {
-    check_fusermount(userdata);
-    return fuse_run_result::mounting_failed;
-  }
-
-  auto unmount = scope_exit([&] { fuse_unmount(prepared.handle.get()); });
-
-  if (fuse_daemonize(fuse_opts.foreground()) != 0) {
-    return fuse_run_result::daemonize_failed;
-  }
-
-  auto* session = fuse_get_session(prepared.handle.get());
-  if (fuse_set_signal_handlers(session) != 0) {
-    return fuse_run_result::signal_handler_setup_failed;
-  }
-
-  auto remove_handlers =
-      scope_exit([&] { fuse_remove_signal_handlers(session); });
-
-  int err = 0;
-
-  if (fuse_opts.multithread()) {
-    safe_fuse_loop_config config(fuse_opts);
-
-    if (!config) {
-      return fuse_run_result::fuse_setup_failed;
+    if (userdata.opts.logopts.threshold >= logger::DEBUG) {
+      init_fuse_ops<debug_logger_policy>(fsops);
+    } else {
+      init_fuse_ops<prod_logger_policy>(fsops);
     }
 
-    err = fuse_loop_mt(prepared.handle.get(), config.get());
-  } else {
-    err = fuse_loop(prepared.handle.get());
+    basic_dwarfs_fuse_driver driver;
+
+    auto result = driver.setup(args, fuse_opts, fsops, userdata);
+
+    if (result != driver_result::success) {
+      return std::unexpected(result);
+    }
+
+    return driver;
   }
 
-  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
-}
-#endif
+  driver_result daemonize_and_run(safe_fuse_cmdline_opts const& fuse_opts,
+                                  dwarfs_userdata& userdata) {
+    assert(data_);
+    assert(is_mounted_);
+
+    if (fuse_daemonize(fuse_opts.foreground()) == -1) {
+      return driver_result::daemonize_failed;
+    }
+
+    if (fuse_set_signal_handlers(data_->session()) == -1) {
+      return driver_result::signal_handler_setup_failed;
+    }
+
+    signal_handlers_installed_ = true;
+
+    int err = FusePolicy::run_loop(*data_, fuse_opts);
+
+    return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
+  }
+
+ private:
+  driver_result
+  setup(safe_fuse_args& args, safe_fuse_cmdline_opts const& fuse_opts,
+        typename FusePolicy::fuse_ops_type& fsops, dwarfs_userdata& userdata) {
+    data_ = std::make_unique<typename FusePolicy::data>();
+
+    auto const result =
+        FusePolicy::setup(*data_, args, fuse_opts, fsops, userdata);
+
+    if (result == driver_result::success) {
+      is_mounted_ = true;
+    } else if (result == driver_result::mounting_failed) {
+      check_fusermount(userdata);
+    }
+
+    return result;
+  }
+
+  std::unique_ptr<typename FusePolicy::data> data_;
+  bool is_mounted_{false};
+  bool signal_handlers_installed_{false};
+};
 
 #if DWARFS_FUSE_LOWLEVEL
 
+using fuse_session_handle =
+    std::unique_ptr<struct fuse_session, decltype(&fuse_session_destroy)>;
+
 #if FUSE_USE_VERSION >= 30
 
-fuse_run_result
-run_fuse_lowlevel_v3(safe_fuse_args& args,
-                     safe_fuse_cmdline_opts const& fuse_opts [[maybe_unused]],
-                     dwarfs_userdata& userdata) {
-  struct fuse_lowlevel_ops fsops{};
+struct lowlevel_v3_policy {
+ public:
+  using fuse_ops_type = struct fuse_lowlevel_ops;
 
-  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
-  } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
-  }
+  struct data {
+    fuse_session_handle handle{nullptr, fuse_session_destroy};
+    std::optional<safe_fuse_loop_config> loop_config;
 
-  using session_ptr =
-      std::unique_ptr<fuse_session, decltype(&fuse_session_destroy)>;
+    struct fuse_session* session() const { return handle.get(); }
+  };
 
-  auto session = session_ptr{
-      fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata),
-      fuse_session_destroy};
+  static driver_result
+  setup(data& self, safe_fuse_args& args,
+        safe_fuse_cmdline_opts const& fuse_opts,
+        struct fuse_lowlevel_ops& fsops, dwarfs_userdata& userdata) {
+    self.handle.reset(
+        fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata));
 
-  if (!session) {
-    return fuse_run_result::fuse_setup_failed;
-  }
-
-  if (fuse_set_signal_handlers(session.get()) != 0) {
-    return fuse_run_result::signal_handler_setup_failed;
-  }
-
-  auto remove_handlers =
-      scope_exit([&] { fuse_remove_signal_handlers(session.get()); });
-
-  if (fuse_session_mount(session.get(), fuse_opts.mountpoint()) != 0) {
-    check_fusermount(userdata);
-    return fuse_run_result::mounting_failed;
-  }
-
-  auto unmount = scope_exit([&] { fuse_session_unmount(session.get()); });
-
-  if (fuse_daemonize(fuse_opts.foreground()) != 0) {
-    return fuse_run_result::daemonize_failed;
-  }
-
-  int err = 0;
-
-  if (fuse_opts.multithread()) {
-    safe_fuse_loop_config config(fuse_opts);
-    if (!config) {
-      return fuse_run_result::fuse_setup_failed;
+    if (!self.handle) {
+      return driver_result::fuse_setup_failed;
     }
-    err = fuse_session_loop_mt(session.get(), config.get());
-  } else {
-    err = fuse_session_loop(session.get());
+
+    if (fuse_opts.multithread()) {
+      self.loop_config.emplace(fuse_opts);
+
+      if (!*self.loop_config) {
+        return driver_result::fuse_setup_failed;
+      }
+    }
+
+    if (fuse_session_mount(self.session(), fuse_opts.mountpoint()) != 0) {
+      return driver_result::mounting_failed;
+    }
+
+    return driver_result::success;
   }
 
-  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
-}
+  static void unmount(data& self) {
+    fuse_session_unmount(self.session());
+    self.handle.reset();
+  }
+
+  static int run_loop(data& self, safe_fuse_cmdline_opts const& fuse_opts) {
+    auto const session = self.session();
+
+    if (fuse_opts.multithread()) {
+      return fuse_session_loop_mt(session, self.loop_config.value().get());
+    }
+
+    return fuse_session_loop(session);
+  }
+};
+
+using dwarfs_fuse_driver = basic_dwarfs_fuse_driver<lowlevel_v3_policy>;
 
 #else // FUSE_USE_VERSION < 30
 
-fuse_run_result run_fuse_lowlevel_v2(safe_fuse_args& args,
-                                     safe_fuse_cmdline_opts const& fuse_opts,
-                                     dwarfs_userdata& userdata) {
-  struct fuse_lowlevel_ops fsops{};
+struct lowlevel_v2_policy {
+ public:
+  class fuse_chan_deleter {
+   public:
+    fuse_chan_deleter() = default;
+    explicit fuse_chan_deleter(std::string_view mountpoint)
+        : mountpoint_{mountpoint} {}
 
-  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
-  } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
+    void operator()(struct fuse_chan* ch) const noexcept {
+      if (ch) {
+        fuse_unmount(mountpoint_.c_str(), ch);
+      }
+    }
+
+   private:
+    std::string mountpoint_;
+  };
+
+  using channel_handle = std::unique_ptr<struct fuse_chan, fuse_chan_deleter>;
+
+  using fuse_ops_type = struct fuse_lowlevel_ops;
+
+  struct data {
+    channel_handle channel;
+    fuse_session_handle handle{nullptr, fuse_session_destroy};
+
+    struct fuse_session* session() const { return handle.get(); }
+  };
+
+  static driver_result
+  setup(data& self, safe_fuse_args& args,
+        safe_fuse_cmdline_opts const& fuse_opts,
+        struct fuse_lowlevel_ops& fsops, dwarfs_userdata& userdata) {
+    self.channel =
+        channel_handle(fuse_mount(fuse_opts.mountpoint(), args.get()),
+                       fuse_chan_deleter(fuse_opts.mountpoint()));
+
+    if (!self.channel) {
+      return driver_result::mounting_failed;
+    }
+
+    self.handle.reset(
+        fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), &userdata));
+
+    if (!self.handle) {
+      return driver_result::fuse_setup_failed;
+    }
+
+    fuse_session_add_chan(self.session(), self.channel.get());
+
+    return driver_result::success;
   }
 
-  using session_ptr =
-      std::unique_ptr<fuse_session, decltype(&fuse_session_destroy)>;
-
-  auto ch = fuse_mount(fuse_opts.mountpoint(), args.get());
-
-  if (!ch) {
-    check_fusermount(userdata);
-    return fuse_run_result::mounting_failed;
+  static void unmount(data& self) {
+    fuse_session_remove_chan(self.channel.get());
+    self.channel.reset();
   }
 
-  auto unmount = scope_exit([&] { fuse_unmount(fuse_opts.mountpoint(), ch); });
-
-  auto se = session_ptr{
-      fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), &userdata),
-      fuse_session_destroy};
-
-  if (!se) {
-    return fuse_run_result::fuse_setup_failed;
+  static int run_loop(data& self, safe_fuse_cmdline_opts const& fuse_opts) {
+    auto const session = self.session();
+    return fuse_opts.multithread() ? fuse_session_loop_mt(session)
+                                   : fuse_session_loop(session);
   }
+};
 
-  if (fuse_daemonize(fuse_opts.foreground()) == -1) {
-    return fuse_run_result::daemonize_failed;
-  }
-
-  if (fuse_set_signal_handlers(se.get()) == -1) {
-    return fuse_run_result::signal_handler_setup_failed;
-  }
-
-  auto remove_handlers =
-      scope_exit([&] { fuse_remove_signal_handlers(se.get()); });
-
-  fuse_session_add_chan(se.get(), ch);
-
-  auto remove_chan = scope_exit([&] { fuse_session_remove_chan(ch); });
-
-  auto err = fuse_opts.multithread() ? fuse_session_loop_mt(se.get())
-                                     : fuse_session_loop(se.get());
-
-  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
-}
+using dwarfs_fuse_driver = basic_dwarfs_fuse_driver<lowlevel_v2_policy>;
 
 #endif // FUSE_USE_VERSION >= 30
 
-#endif // DWARFS_FUSE_LOWLEVEL
+#else // !DWARFS_FUSE_LOWLEVEL
+
+struct highlevel_v3_policy {
+ public:
+  using fuse_ops_type = struct fuse_operations;
+
+  using fuse_handle = std::unique_ptr<fuse, decltype(&fuse_destroy)>;
+
+  struct data {
+    fuse_handle handle{nullptr, fuse_destroy};
+    std::optional<safe_fuse_loop_config> loop_config;
+
+    struct fuse_session* session() const {
+      return fuse_get_session(handle.get());
+    }
+  };
+
+  static driver_result
+  setup(data& self, safe_fuse_args& args,
+        safe_fuse_cmdline_opts const& fuse_opts, struct fuse_operations& fsops,
+        dwarfs_userdata& userdata) {
+    self.handle.reset(fuse_new(args.get(), &fsops, sizeof(fsops), &userdata));
+
+    if (!self.handle) {
+      return driver_result::fuse_setup_failed;
+    }
+
+    if (fuse_opts.multithread()) {
+      self.loop_config.emplace(fuse_opts);
+
+      if (!*self.loop_config) {
+        return driver_result::fuse_setup_failed;
+      }
+    }
+
+    if (fuse_mount(self.handle.get(), fuse_opts.mountpoint()) != 0) {
+      return driver_result::mounting_failed;
+    }
+
+    return driver_result::success;
+  }
+
+  static void unmount(data& self) {
+    fuse_unmount(self.handle.get());
+    self.handle.reset();
+  }
+
+  static int run_loop(data& self, safe_fuse_cmdline_opts const& fuse_opts) {
+    auto const handle = self.handle.get();
+
+    if (fuse_opts.multithread()) {
+      return fuse_loop_mt(handle, self.loop_config.value().get());
+    }
+
+    return fuse_loop(handle);
+  }
+};
+
+using dwarfs_fuse_driver = basic_dwarfs_fuse_driver<highlevel_v3_policy>;
+
+#endif
 
 template <typename LoggerPolicy>
 void load_filesystem(dwarfs_userdata& userdata) {
@@ -2443,37 +2538,17 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   log_startup_banner_and_warnings(userdata);
 
-#if DWARFS_FUSE_LOWLEVEL
-  if (!load_filesystem_checked(userdata)) {
-    return 1;
-  }
+  auto driver = dwarfs_fuse_driver::setup(args, fuse_opts, userdata);
 
-  scope_exit perfmon_summary{[&] {
-    if (userdata.perfmon) {
-      userdata.perfmon->summarize(iol.err);
-    }
-  }};
-
-#if FUSE_USE_VERSION >= 30
-  auto const res = run_fuse_lowlevel_v3(args, fuse_opts, userdata);
-#else
-  auto const res = run_fuse_lowlevel_v2(args, fuse_opts, userdata);
-#endif
-#else
-  auto prepared = prepare_highlevel_fuse(args, userdata);
-
-  if (!prepared) {
-    return 3;
+  if (!driver) {
+    return std::to_underlying(driver.error());
   }
 
   if (!load_filesystem_checked(userdata)) {
     return 1;
   }
 
-  auto const res = run_highlevel_fuse(*prepared, fuse_opts, userdata);
-#endif
-
-  return std::to_underlying(res);
+  return std::to_underlying(driver->daemonize_and_run(fuse_opts, userdata));
 }
 
 } // namespace dwarfs::tool
