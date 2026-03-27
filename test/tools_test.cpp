@@ -3449,6 +3449,64 @@ TEST(tools_test, dwarfs_obsolete_options) {
   }
 }
 
+TEST_P(fuse_driver_test, dwarfs_command_line_errors) {
+#ifdef _WIN32
+  GTEST_SKIP() << "https://github.com/winfsp/winfsp/issues/516";
+#endif
+
+  dwarfs::temporary_directory td("dwarfs");
+  scoped_no_leak_check no_leak_check;
+
+  {
+    auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_,
+                                          test_data_dwarfs, td.path(), "auto");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err,
+                ::testing::HasSubstr("error: too many non-option arguments"));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-onon_existing_option");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err, ::testing::AnyOf(
+                 ::testing::HasSubstr("unknown option `non_existing_option'"),
+                 ::testing::HasSubstr(
+                     "unknown option(s): `-o non_existing_option'")));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-onon_existing_option=42");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err,
+        ::testing::AnyOf(
+            ::testing::HasSubstr("unknown option `non_existing_option=42'"),
+            ::testing::HasSubstr(
+                "unknown option(s): `-o non_existing_option=42'")));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "--non-existing-option");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(
+        err, ::testing::AnyOf(
+                 ::testing::HasSubstr("unknown option `--non-existing-option'"),
+                 ::testing::HasSubstr(
+                     "unknown option(s): `--non-existing-option'")));
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_test,
                          ::testing::ValuesIn(binary_types));
 
