@@ -228,6 +228,7 @@ struct options {
   bool is_man{false};
 #endif
   bool is_auto_mountpoint{false};
+  std::shared_ptr<std::string> parse_error;
 };
 
 static_assert(std::is_standard_layout_v<options>);
@@ -1503,7 +1504,8 @@ class safe_fuse_args {
   int argc() const { return args_.argc; }
   char** argv() const { return args_.argv; }
 
-  friend std::ostream& operator<<(std::ostream& os, safe_fuse_args const& args) {
+  friend std::ostream&
+  operator<<(std::ostream& os, safe_fuse_args const& args) {
     os << "safe_fuse_args{";
     for (int i = 0; i < args.args_.argc; ++i) {
       if (i > 0) {
@@ -1634,6 +1636,9 @@ int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
       return kKeepArg;
     }
 
+    opts.parse_error =
+        std::make_shared<std::string>("too many non-option arguments");
+
     return kError; // error: too many non-option arguments
 
   case FUSE_OPT_KEY_OPT:
@@ -1677,7 +1682,6 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata, safe_fuse_args& args,
   if (userdata->opts.seen_mountpoint) {
     iol.err << "error: cannot combine <mountpoint> with --auto-mountpoint"
             << "\n";
-    usage(iol.out, userdata->progname);
     return 1;
   }
   if (!userdata->opts.fsimage) {
@@ -1734,6 +1738,11 @@ bool parse_dwarfs_options_from_args(safe_fuse_args& args,
                                     iolayer const& iol) {
   if (fuse_opt_parse(args.get(), &userdata.opts, dwarfs_opts.data(),
                      option_hdl) == -1) {
+    if (auto const& err = userdata.opts.parse_error) {
+      iol.err << "error: " << *err << "\n";
+    } else {
+      iol.err << "error: failed to parse command-line arguments\n";
+    }
     return false;
   }
 
