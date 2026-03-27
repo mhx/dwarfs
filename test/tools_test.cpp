@@ -3371,15 +3371,19 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
 
   dwarfs::write_file(td.path() / "test.dwarfs",
                      header + image + header + image2);
-  fs::create_directory(td.path() / "mnt");
-
   {
+#ifndef _WIN32
+    fs::create_directory(td.path() / "mnt");
+#endif
     auto [out, err, ec] = subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_,
                                           td.path() / "test.dwarfs",
                                           td.path() / "mnt", "-ooffset=auto");
 
     EXPECT_NE(ec, 0);
     EXPECT_THAT(err, ::testing::HasSubstr("error initializing file system"));
+#ifndef _WIN32
+    fs::remove(td.path() / "mnt");
+#endif
   }
 
   {
