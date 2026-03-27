@@ -2331,7 +2331,7 @@ class sparse_files_test : public ::testing::Test {
     GTEST_REQUIRES_HELPER(dwarfsck);
     GTEST_REQUIRES_HELPER(dwarfsextract);
 
-    td.emplace();
+    td.emplace("dwarfs");
 
     input = td->path() / "input";
 
