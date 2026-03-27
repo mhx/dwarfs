@@ -272,9 +272,10 @@ jobs:
             build_dist: ubuntu-2204
             build_type: gcc-debug-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: ubuntu-2204
-            build_type: clang-release-ninja-split
+          ###### no longer supported since Clang cannot use std::expected
+          ### - build_arch: arm64v8
+          ###   build_dist: ubuntu-2204
+          ###   build_type: clang-release-ninja-split
 
           - build_arch: arm64v8
             build_dist: ubuntu-2404
@@ -288,9 +289,10 @@ jobs:
             build_dist: ubuntu-2404
             build_type: oldgcc-debug-shared-make-split
 
-          - build_arch: arm64v8
-            build_dist: ubuntu-2404
-            build_type: oldclang-debug-shared-make-split
+          ###### no longer supported since Clang cannot use std::expected
+          ### - build_arch: arm64v8
+          ###   build_dist: ubuntu-2404
+          ###   build_type: oldclang-debug-shared-make-split
 
           - build_arch: arm64v8
             build_dist: fedora
