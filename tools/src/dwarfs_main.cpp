@@ -1503,6 +1503,24 @@ class safe_fuse_args {
   int argc() const { return args_.argc; }
   char** argv() const { return args_.argv; }
 
+  friend std::ostream& operator<<(std::ostream& os, safe_fuse_args const& args) {
+    os << "safe_fuse_args{";
+    for (int i = 0; i < args.args_.argc; ++i) {
+      if (i > 0) {
+        os << ", ";
+      }
+      os << "\"" << args.args_.argv[i] << "\"";
+    }
+    os << "}";
+    return os;
+  }
+
+  std::string to_string() const {
+    std::ostringstream oss;
+    oss << *this;
+    return oss.str();
+  }
+
  private:
   struct fuse_args args_ = FUSE_ARGS_INIT(0, nullptr);
 };
@@ -2142,6 +2160,10 @@ class basic_dwarfs_fuse_driver {
       init_fuse_ops<prod_logger_policy>(fsops);
     }
 
+    LOG_PROXY(debug_logger_policy, userdata.lgr);
+
+    LOG_DEBUG << "FUSE args before setup: " << args.to_string();
+
     basic_dwarfs_fuse_driver driver;
 
     auto result = driver.setup(args, fuse_opts, fsops, userdata);
@@ -2149,6 +2171,8 @@ class basic_dwarfs_fuse_driver {
     if (result != driver_result::success) {
       return std::unexpected(result);
     }
+
+    LOG_DEBUG << "FUSE args after setup: " << args.to_string();
 
     return driver;
   }
