@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -226,7 +227,6 @@ struct options {
   bool is_man{false};
 #endif
   bool is_auto_mountpoint{false};
-  bool is_foreground{false};
 };
 
 static_assert(std::is_standard_layout_v<options>);
@@ -1383,6 +1383,30 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 }
 #endif
 
+#ifdef _WIN32
+
+#if FUSE_USE_VERSION < 30
+#error "dwarfs requires FUSE 3.0 or later on Windows"
+#endif
+
+#define DWARFS_HAS_FUSE3_LOOP_CONFIG
+
+#else // !_WIN32
+
+#if FUSE_USE_VERSION >= 30
+#define DWARFS_HAS_FUSE3_PARSE_CMDLINE
+#else
+#define DWARFS_HAS_FUSE2_PARSE_CMDLINE
+#endif
+
+#if FUSE_USE_VERSION >= FUSE_MAKE_VERSION(3, 12)
+#define DWARFS_HAS_FUSE312_LOOP_CONFIG
+#else
+#define DWARFS_HAS_FUSE3_LOOP_CONFIG
+#endif
+
+#endif // _WIN32
+
 void log_startup_banner_and_warnings(dwarfs_userdata& userdata) {
   LOG_PROXY(debug_logger_policy, userdata.lgr);
   auto& opts = userdata.opts;
@@ -1571,11 +1595,11 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
   print_fuse_help(os);
 }
 
-int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
-  static constexpr int kError = -1;
-  static constexpr int kDiscardArg = 0;
-  static constexpr int kKeepArg = 1;
+constexpr int kError = -1;
+constexpr int kDiscardArg = 0;
+constexpr int kKeepArg = 1;
 
+int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
   auto& opts = *static_cast<options*>(data);
   std::string_view argsv{arg};
 
@@ -1597,11 +1621,6 @@ int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
     if (argsv == "-h" || argsv == "--help") {
       opts.is_help = true;
       return kKeepArg; // keep for FUSE to show its own help message
-    }
-
-    if (argsv == "-f" || argsv == "-d" || argsv == "debug") {
-      opts.is_foreground = true;
-      return kKeepArg;
     }
 
     if (argsv == "--auto-mountpoint") {
@@ -1884,19 +1903,18 @@ void init_fuse_ops(struct fuse_operations& ops) {
 
 class safe_fuse_cmdline_opts {
  public:
-  safe_fuse_cmdline_opts() = default;
-
-  ~safe_fuse_cmdline_opts() {
-#if FUSE_USE_VERSION >= 30
-    if (opts_.mountpoint) {
-      free(opts_.mountpoint);
-    }
-#else
-    if (mountpoint_) {
-      free(mountpoint_);
-    }
+  struct cmdline_opts_data {
+    std::shared_ptr<std::string> mountpoint;
+    int multithread{1};
+    int foreground{0};
+    int clone_fd{0};
+    unsigned int max_idle_threads{0};
+#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
+    unsigned int max_threads{10};
 #endif
-  }
+  };
+
+  safe_fuse_cmdline_opts() = default;
 
   safe_fuse_cmdline_opts(safe_fuse_cmdline_opts const&) = delete;
   safe_fuse_cmdline_opts(safe_fuse_cmdline_opts&&) = delete;
@@ -1904,70 +1922,143 @@ class safe_fuse_cmdline_opts {
   safe_fuse_cmdline_opts& operator=(safe_fuse_cmdline_opts&&) = delete;
 
   int parse(safe_fuse_args& args) {
-#if FUSE_USE_VERSION >= 30
-    return fuse_parse_cmdline(args.get(), &opts_);
+    reset();
+
+#if defined(DWARFS_HAS_FUSE3_PARSE_CMDLINE)
+
+    struct fuse_cmdline_opts opts{};
+    int const rv = fuse_parse_cmdline(args.get(), &opts);
+
+    if (update_mountpoint(rv, opts.mountpoint) == -1) {
+      return -1;
+    }
+
+    raw_.foreground = opts.foreground;
+    raw_.multithread = opts.singlethread ? 0 : 1;
+    raw_.clone_fd = opts.clone_fd;
+    raw_.max_idle_threads = opts.max_idle_threads;
+#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
+    raw_.max_threads = opts.max_threads;
+#endif
+
+    return 0;
+
+#elif defined(DWARFS_HAS_FUSE2_PARSE_CMDLINE)
+
+    char* mountpoint = nullptr;
+
+    int const rv = fuse_parse_cmdline(args.get(), &mountpoint,
+                                      &raw_.multithread, &raw_.foreground);
+
+    return update_mountpoint(rv, mountpoint);
+
 #else
-    return fuse_parse_cmdline(args.get(), &mountpoint_, &multithread_,
-                              &foreground_);
+#define DWARFS_FUSE_CMDLINE_OPT_(t, p, v)                                      \
+  ::fuse_opt { t, offsetof(struct cmdline_opts_data, p), v }
+    static constexpr std::array fallback_opts{
+#ifdef DWARFS_HAS_FUSE3_LOOP_CONFIG
+        DWARFS_FUSE_CMDLINE_OPT_("clone_fd", clone_fd, 1),
+        DWARFS_FUSE_CMDLINE_OPT_("max_idle_threads=%u", max_idle_threads, 0),
+#ifdef DWARFS_HAS_FUSE312_LOOP_CONFIG
+        DWARFS_FUSE_CMDLINE_OPT_("max_threads=%u", max_threads, 10),
+#endif
+#endif
+#undef DWARFS_FUSE_CMDLINE_OPT_
+        ::fuse_opt(FUSE_OPT_END),
+    };
+
+    return fuse_opt_parse(args.get(), &raw_, fallback_opts.data(),
+                          fallback_option_hdl);
 #endif
   }
-
-#if FUSE_USE_VERSION >= 30
-  struct fuse_cmdline_opts const& raw() const { return opts_; }
-#endif
 
   char const* mountpoint() const {
-#if FUSE_USE_VERSION >= 30
-    return opts_.mountpoint;
-#else
-    return mountpoint_;
-#endif
+    return raw_.mountpoint ? raw_.mountpoint->c_str() : nullptr;
   }
-
-  int multithread() const {
-#if FUSE_USE_VERSION >= 30
-    return opts_.singlethread ? 0 : 1;
-#else
-    return multithread_;
+  int multithread() const { return raw_.multithread; }
+  int foreground() const { return raw_.foreground; }
+  int clone_fd() const { return raw_.clone_fd; }
+  unsigned int max_idle_threads() const { return raw_.max_idle_threads; }
+#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
+  unsigned int max_threads() const { return raw_.max_threads; }
 #endif
-  }
-
-  int foreground() const {
-#if FUSE_USE_VERSION >= 30
-    return opts_.foreground;
-#else
-    return foreground_;
-#endif
-  }
 
  private:
-#if FUSE_USE_VERSION >= 30
-  struct fuse_cmdline_opts opts_{};
+  void reset() { raw_ = cmdline_opts_data{}; }
+
+#if defined(DWARFS_HAS_FUSE3_PARSE_CMDLINE) ||                                 \
+    defined(DWARFS_HAS_FUSE2_PARSE_CMDLINE)
+  int update_mountpoint(int parse_result, char* mountpoint) {
+    if (parse_result == -1) {
+      if (mountpoint) {
+        std::free(mountpoint);
+      }
+      return -1;
+    }
+    if (mountpoint) {
+      raw_.mountpoint = std::make_shared<std::string>(mountpoint);
+      std::free(mountpoint);
+    }
+    return 0;
+  }
 #else
-  char* mountpoint_{nullptr};
-  int multithread_{0};
-  int foreground_{0};
+  static int
+  fallback_option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
+    auto& raw = *static_cast<cmdline_opts_data*>(data);
+    std::string_view argsv{arg};
+
+    switch (key) {
+    case FUSE_OPT_KEY_NONOPT:
+      if (!raw.mountpoint) {
+        raw.mountpoint = std::make_shared<std::string>(argsv);
+        return kDiscardArg;
+      }
+      return kError; // too many non-option args
+
+    case FUSE_OPT_KEY_OPT:
+      if (argsv == "-f") {
+        raw.foreground = 1;
+        return kDiscardArg;
+      }
+
+      if (argsv == "-d" || argsv == "debug") {
+        raw.foreground = 1;
+        return kKeepArg; // keep for later FUSE/library parsing
+      }
+
+      if (argsv == "-s") {
+        raw.multithread = 0;
+        return kDiscardArg;
+      }
+
+      break;
+    }
+
+    return kKeepArg;
+  }
 #endif
+
+  cmdline_opts_data raw_{};
 };
 
 #if FUSE_USE_VERSION >= 30
 class safe_fuse_loop_config {
  public:
   safe_fuse_loop_config(safe_fuse_cmdline_opts const& opts)
-#if FUSE_USE_VERSION >= FUSE_MAKE_VERSION(3, 12)
+#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
       : config_{fuse_loop_cfg_create(), fuse_loop_cfg_destroy} {
-    auto const& raw = opts.raw();
-    fuse_loop_cfg_set_clone_fd(config_.get(), raw.clone_fd);
-    fuse_loop_cfg_set_idle_threads(config_.get(), raw.max_idle_threads);
-    fuse_loop_cfg_set_max_threads(config_.get(), raw.max_threads);
+    fuse_loop_cfg_set_clone_fd(config_.get(), opts.clone_fd());
+    fuse_loop_cfg_set_idle_threads(config_.get(), opts.max_idle_threads());
+    fuse_loop_cfg_set_max_threads(config_.get(), opts.max_threads());
+  }
+#elif defined(DWARFS_HAS_FUSE3_LOOP_CONFIG)
+      : config_{std::make_unique<struct fuse_loop_config>()} {
+    std::memset(config_.get(), 0, sizeof(struct fuse_loop_config));
+    config_->clone_fd = opts.clone_fd();
+    config_->max_idle_threads = opts.max_idle_threads();
   }
 #else
-      : config_{std::make_unique<struct fuse_loop_config>()} {
-    auto const& raw = opts.raw();
-    std::memset(config_.get(), 0, sizeof(struct fuse_loop_config));
-    config_->clone_fd = raw.clone_fd;
-    config_->max_idle_threads = raw.max_idle_threads;
-  }
+#error "unsupported FUSE version"
 #endif
 
   safe_fuse_loop_config(safe_fuse_loop_config const&) = delete;
@@ -1981,7 +2072,7 @@ class safe_fuse_loop_config {
 
  private:
   std::unique_ptr<struct fuse_loop_config
-#if FUSE_USE_VERSION >= FUSE_MAKE_VERSION(3, 12)
+#if DWARFS_HAS_FUSE312_LOOP_CONFIG
                   ,
                   void (*)(fuse_loop_config*)
 #endif
@@ -1989,6 +2080,36 @@ class safe_fuse_loop_config {
       config_;
 };
 #endif
+
+enum class fuse_run_result {
+  success = 0,
+  invalid_option_arguments = 1,
+  no_mountpoint_specified = 2,
+  fuse_setup_failed = 3,
+  mounting_failed = 4,
+  daemonize_failed = 5,
+  signal_handler_setup_failed = 6,
+  runtime_error = 7,
+  interrupted_by_signal = 8,
+};
+
+fuse_run_result handle_loop_result(logger& lgr, bool foreground, int err) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
+  if (foreground && (err == 0 || err == SIGINT)) {
+    LOG_VERBOSE << "FUSE loop exited with status: " << err;
+    return fuse_run_result::success;
+  }
+
+  if (err != 0) {
+    if (foreground) {
+      LOG_ERROR << "FUSE loop exited with error: " << err;
+    }
+    return fuse_run_result::runtime_error;
+  }
+
+  return fuse_run_result::success;
+}
 
 #if !DWARFS_FUSE_LOWLEVEL
 using fuse_handle = std::unique_ptr<fuse, void (*)(fuse*)>;
@@ -2017,23 +2138,23 @@ prepare_highlevel_fuse(safe_fuse_args& args, dwarfs_userdata& userdata) {
   return prepared;
 }
 
-int run_highlevel_fuse(prepared_highlevel_fuse& prepared,
-                       safe_fuse_cmdline_opts const& fuse_opts,
-                       dwarfs_userdata& userdata) {
+fuse_run_result run_highlevel_fuse(prepared_highlevel_fuse& prepared,
+                                   safe_fuse_cmdline_opts const& fuse_opts,
+                                   dwarfs_userdata& userdata) {
   if (fuse_mount(prepared.handle.get(), fuse_opts.mountpoint()) != 0) {
     check_fusermount(userdata);
-    return 4; // same category as libfuse helper's mount failure
+    return fuse_run_result::mounting_failed;
   }
 
   auto unmount = scope_exit([&] { fuse_unmount(prepared.handle.get()); });
 
   if (fuse_daemonize(fuse_opts.foreground()) != 0) {
-    return 5;
+    return fuse_run_result::daemonize_failed;
   }
 
   auto* session = fuse_get_session(prepared.handle.get());
   if (fuse_set_signal_handlers(session) != 0) {
-    return 6;
+    return fuse_run_result::signal_handler_setup_failed;
   }
 
   auto remove_handlers =
@@ -2045,7 +2166,7 @@ int run_highlevel_fuse(prepared_highlevel_fuse& prepared,
     safe_fuse_loop_config config(fuse_opts);
 
     if (!config) {
-      return 7;
+      return fuse_run_result::fuse_setup_failed;
     }
 
     err = fuse_loop_mt(prepared.handle.get(), config.get());
@@ -2053,72 +2174,18 @@ int run_highlevel_fuse(prepared_highlevel_fuse& prepared,
     err = fuse_loop(prepared.handle.get());
   }
 
-  if (fuse_opts.foreground()) {
-    LOG_PROXY(debug_logger_policy, userdata.lgr);
-    LOG_VERBOSE << "FUSE loop exited with status: " << err;
-
-    if (err == 2) {
-      return 0; // "normal" exit via signal handler (e.g. Ctrl+C)
-    }
-  }
-
-  if (err != 0) {
-    return 8; // same category as libfuse helper's runtime failure
-  }
-
-  return 0;
+  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
 }
 #endif
+
+#if DWARFS_FUSE_LOWLEVEL
 
 #if FUSE_USE_VERSION >= 30
-#if DWARFS_FUSE_LOWLEVEL
 
-int run_fuse_v3(safe_fuse_args& args,
-                safe_fuse_cmdline_opts const& fuse_opts [[maybe_unused]],
-                dwarfs_userdata& userdata) {
-#if DWARFS_FUSE_LOWLEVEL
-  struct fuse_lowlevel_ops fsops{};
-#else
-  struct fuse_operations fsops{};
-#endif
-
-  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
-  } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
-  }
-
-  int err = 1;
-
-  if (auto session =
-          fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata)) {
-    if (fuse_set_signal_handlers(session) == 0) {
-      if (fuse_session_mount(session, fuse_opts.mountpoint()) == 0) {
-        if (fuse_daemonize(fuse_opts.foreground()) == 0) {
-          if (fuse_opts.multithread()) {
-            safe_fuse_loop_config config(fuse_opts);
-            err = fuse_session_loop_mt(session, config.get());
-          } else {
-            err = fuse_session_loop(session);
-          }
-        }
-        fuse_session_unmount(session);
-      } else {
-        check_fusermount(userdata);
-      }
-      fuse_remove_signal_handlers(session);
-    }
-    fuse_session_destroy(session);
-  }
-
-  return err;
-}
-#endif
-
-#else
-
-int run_fuse_v2(safe_fuse_args& args, safe_fuse_cmdline_opts const& opts,
-                dwarfs_userdata& userdata) {
+fuse_run_result
+run_fuse_lowlevel_v3(safe_fuse_args& args,
+                     safe_fuse_cmdline_opts const& fuse_opts [[maybe_unused]],
+                     dwarfs_userdata& userdata) {
   struct fuse_lowlevel_ops fsops{};
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
@@ -2127,31 +2194,107 @@ int run_fuse_v2(safe_fuse_args& args, safe_fuse_cmdline_opts const& opts,
     init_fuse_ops<prod_logger_policy>(fsops);
   }
 
-  int err = 1;
+  using session_ptr =
+      std::unique_ptr<fuse_session, decltype(&fuse_session_destroy)>;
 
-  if (auto ch = fuse_mount(opts.mountpoint(), args.get())) {
-    if (auto se =
-            fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), &userdata)) {
-      if (fuse_daemonize(opts.foreground()) != -1) {
-        if (fuse_set_signal_handlers(se) != -1) {
-          fuse_session_add_chan(se, ch);
-          err = opts.multithread() ? fuse_session_loop_mt(se)
-                                   : fuse_session_loop(se);
-          fuse_remove_signal_handlers(se);
-          fuse_session_remove_chan(ch);
-        }
-      }
-      fuse_session_destroy(se);
-    }
-    fuse_unmount(opts.mountpoint(), ch);
-  } else {
+  auto session = session_ptr{
+      fuse_session_new(args.get(), &fsops, sizeof(fsops), &userdata),
+      fuse_session_destroy};
+
+  if (!session) {
+    return fuse_run_result::fuse_setup_failed;
+  }
+
+  if (fuse_set_signal_handlers(session.get()) != 0) {
+    return fuse_run_result::signal_handler_setup_failed;
+  }
+
+  auto remove_handlers =
+      scope_exit([&] { fuse_remove_signal_handlers(session.get()); });
+
+  if (fuse_session_mount(session.get(), fuse_opts.mountpoint()) != 0) {
     check_fusermount(userdata);
+    return fuse_run_result::mounting_failed;
   }
 
-  return err;
+  auto unmount = scope_exit([&] { fuse_session_unmount(session.get()); });
+
+  if (fuse_daemonize(fuse_opts.foreground()) != 0) {
+    return fuse_run_result::daemonize_failed;
+  }
+
+  int err = 0;
+
+  if (fuse_opts.multithread()) {
+    safe_fuse_loop_config config(fuse_opts);
+    if (!config) {
+      return fuse_run_result::fuse_setup_failed;
+    }
+    err = fuse_session_loop_mt(session.get(), config.get());
+  } else {
+    err = fuse_session_loop(session.get());
+  }
+
+  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
 }
 
-#endif
+#else // FUSE_USE_VERSION < 30
+
+fuse_run_result run_fuse_lowlevel_v2(safe_fuse_args& args,
+                                     safe_fuse_cmdline_opts const& fuse_opts,
+                                     dwarfs_userdata& userdata) {
+  struct fuse_lowlevel_ops fsops{};
+
+  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
+    init_fuse_ops<debug_logger_policy>(fsops);
+  } else {
+    init_fuse_ops<prod_logger_policy>(fsops);
+  }
+
+  using session_ptr =
+      std::unique_ptr<fuse_session, decltype(&fuse_session_destroy)>;
+
+  auto ch = fuse_mount(fuse_opts.mountpoint(), args.get());
+
+  if (!ch) {
+    check_fusermount(userdata);
+    return fuse_run_result::mounting_failed;
+  }
+
+  auto unmount = scope_exit([&] { fuse_unmount(fuse_opts.mountpoint(), ch); });
+
+  auto se = session_ptr{
+      fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), &userdata),
+      fuse_session_destroy};
+
+  if (!se) {
+    return fuse_run_result::fuse_setup_failed;
+  }
+
+  if (fuse_daemonize(fuse_opts.foreground()) == -1) {
+    return fuse_run_result::daemonize_failed;
+  }
+
+  if (fuse_set_signal_handlers(se.get()) == -1) {
+    return fuse_run_result::signal_handler_setup_failed;
+  }
+
+  auto remove_handlers =
+      scope_exit([&] { fuse_remove_signal_handlers(se.get()); });
+
+  fuse_session_add_chan(se.get(), ch);
+
+  auto remove_chan = scope_exit([&] { fuse_session_remove_chan(ch); });
+
+  auto err = fuse_opts.multithread() ? fuse_session_loop_mt(se.get())
+                                     : fuse_session_loop(se.get());
+
+  return handle_loop_result(userdata.lgr, fuse_opts.foreground(), err);
+}
+
+#endif // FUSE_USE_VERSION >= 30
+
+#endif // DWARFS_FUSE_LOWLEVEL
 
 template <typename LoggerPolicy>
 void load_filesystem(dwarfs_userdata& userdata) {
@@ -2280,13 +2423,13 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   add_derived_mount_options(args, userdata);
 
-  bool const foreground = userdata.opts.is_foreground;
-
   safe_fuse_cmdline_opts fuse_opts;
 
   if (fuse_opts.parse(args) == -1 || !fuse_opts.mountpoint()) {
     return handle_cmdline_error(userdata, iol);
   }
+
+  bool const foreground = fuse_opts.foreground();
 
 #ifdef DWARFS_STACKTRACE_ENABLED
   if (foreground) {
@@ -2312,9 +2455,9 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }};
 
 #if FUSE_USE_VERSION >= 30
-  return run_fuse_v3(args, fuse_opts, userdata);
+  auto const res = run_fuse_lowlevel_v3(args, fuse_opts, userdata);
 #else
-  return run_fuse_v2(args, fuse_opts, userdata);
+  auto const res = run_fuse_lowlevel_v2(args, fuse_opts, userdata);
 #endif
 #else
   auto prepared = prepare_highlevel_fuse(args, userdata);
@@ -2327,8 +2470,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  return run_highlevel_fuse(*prepared, fuse_opts, userdata);
+  auto const res = run_highlevel_fuse(*prepared, fuse_opts, userdata);
 #endif
+
+  return std::to_underlying(res);
 }
 
 } // namespace dwarfs::tool
