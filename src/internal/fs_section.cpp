@@ -50,11 +50,17 @@ void read_section_header_common(T& header, file_off_t& start,
   DWARFS_CHECK(image_end <= mm.size(),
                fmt::format("invalid image end: {} > {}", image_end, mm.size()));
 
-  if (std::cmp_greater(offset + sizeof(T), image_end)) {
+  if (std::cmp_less(image_end, sizeof(T))) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid image end: {} < {} [mm.size() = {}]",
+                             image_end, sizeof(T), mm.size()));
+  }
+
+  if (std::cmp_greater(offset, image_end - sizeof(T))) {
     DWARFS_THROW(
         runtime_error,
-        fmt::format("truncated section header: {} + {} > {} [mm.size() = {}]",
-                    offset, sizeof(T), image_end, mm.size()));
+        fmt::format("truncated section header: {} > {} - {} [mm.size() = {}]",
+                    offset, image_end, sizeof(T), mm.size()));
   }
 
   mm.copy_to(header, offset);
