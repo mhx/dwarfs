@@ -660,6 +660,7 @@ if(WITH_TESTS)
       test/packed_int_vector_test.cpp
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp
+      test/scoped_output_capture_test.cpp
       test/sorted_array_map_test.cpp
       test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
