@@ -3245,7 +3245,8 @@ TEST_P(fuse_driver_test, dwarfs_automount_error) {
     auto const [out, err, ec] =
         subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, "--auto-mountpoint");
     EXPECT_NE(ec, 0);
-    EXPECT_THAT(out, ::testing::HasSubstr("Usage: dwarfs"));
+    EXPECT_THAT(err,
+                ::testing::HasSubstr("error: no filesystem image specified"));
   }
 
 #ifndef _WIN32
@@ -3454,6 +3455,7 @@ TEST_P(fuse_driver_test, dwarfs_command_line_errors) {
   GTEST_SKIP() << "https://github.com/winfsp/winfsp/issues/516";
 #endif
 
+  // TODO: once we do support Windows, we do *not* require a mountpoint dir
   dwarfs::temporary_directory td("dwarfs");
   scoped_no_leak_check no_leak_check;
 

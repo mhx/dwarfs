@@ -272,7 +272,6 @@ struct dwarfs_userdata {
   dwarfs_userdata(dwarfs_userdata const&) = delete;
   dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
 
-  std::filesystem::path progname;
   options opts;
   stream_logger lgr;
   reader::filesystem_v2_lite fs;
@@ -1396,15 +1395,10 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 #else // !_WIN32
 
 #if FUSE_USE_VERSION >= 30
-#define DWARFS_HAS_FUSE3_PARSE_CMDLINE
-#else
-#define DWARFS_HAS_FUSE2_PARSE_CMDLINE
+#define DWARFS_HAS_FUSE3_LOOP_CONFIG
 #endif
-
 #if FUSE_USE_VERSION >= FUSE_MAKE_VERSION(3, 12)
 #define DWARFS_HAS_FUSE312_LOOP_CONFIG
-#else
-#define DWARFS_HAS_FUSE3_LOOP_CONFIG
 #endif
 
 #endif // _WIN32
@@ -1486,7 +1480,12 @@ class safe_fuse_args {
 
   ~safe_fuse_args() { fuse_opt_free_args(&args_); }
 
-  safe_fuse_args(safe_fuse_args const&) = delete;
+  safe_fuse_args(safe_fuse_args const& other) {
+    for (int i = 0; i < other.args_.argc; ++i) {
+      add(other.args_.argv[i]);
+    }
+  }
+
   safe_fuse_args& operator=(safe_fuse_args const&) = delete;
   safe_fuse_args(safe_fuse_args&&) = delete;
   safe_fuse_args& operator=(safe_fuse_args&&) = delete;
@@ -1503,6 +1502,11 @@ class safe_fuse_args {
 
   int argc() const { return args_.argc; }
   char** argv() const { return args_.argv; }
+
+  std::string progname() const {
+    assert(argc() > 0);
+    return std::filesystem::path(args_.argv[0]).filename().string();
+  }
 
   friend std::ostream&
   operator<<(std::ostream& os, safe_fuse_args const& args) {
@@ -1535,20 +1539,41 @@ void print_fuse2_help_to_stdout() {
   scoped_stderr_to_stdout redirect;
   fuse_main(args.argc(), args.argv(), &fsops, nullptr);
 }
+#else
+void print_fuse_cmdline_help(std::ostream& os) {
+  // clang-format off
+  os << "FUSE options:\n"
+     << "    -d   -o debug          enable debug output (implies -f)\n"
+     << "    -f                     foreground operation\n"
+     << "    -s                     disable multi-threaded operation\n"
+#ifdef DWARFS_HAS_FUSE3_LOOP_CONFIG
+     << "\n"
+     << "    -o clone_fd            use separate fuse device fd for each thread\n"
+     << "                           (may improve performance)\n"
+     << "    -o max_idle_threads    the maximum number of idle worker threads\n"
+     << "                           allowed (default: -1) [deprecated]\n"
+#ifdef DWARFS_HAS_FUSE312_LOOP_CONFIG
+     << "    -o max_threads         the maximum number of worker threads\n"
+     << "                           allowed (default: 10)\n"
+#endif
+#endif
+     << "\n";
+  // clang-format on
+}
 #endif
 
-void print_fuse_help(std::ostream& os) {
+void print_fuse_help(std::ostream& os,
+                     safe_fuse_args const& args [[maybe_unused]]) {
   // TODO: find a way to actually stream everything to `os`...
 #if FUSE_USE_VERSION >= 30
 #ifndef _WIN32
-  os << "FUSE options:\n";
-  fuse_cmdline_help();
+  print_fuse_cmdline_help(os);
 #endif
 #if DWARFS_FUSE_LOWLEVEL
   fuse_lowlevel_help();
 #else
-  safe_fuse_args args;
-  fuse_lib_help(args.get());
+  safe_fuse_args clone{args};
+  fuse_lib_help(clone.get());
 #endif
 #else
   print_fuse2_help_to_stdout();
@@ -1558,7 +1583,7 @@ void print_fuse_help(std::ostream& os) {
 #endif
 }
 
-void usage(std::ostream& os, std::filesystem::path const& progname) {
+void usage(std::ostream& os, safe_fuse_args const& args) {
   auto extra_deps = [](library_dependencies& deps) {
     decompressor_registry::instance().add_library_dependencies(deps);
 #if FUSE_USE_VERSION >= 30
@@ -1572,9 +1597,8 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
-     << "Usage: " << progname.filename().string()
-     << " <image> <mountpoint> [options]\n"
-     << "       " << progname.filename().string()
+     << "Usage: " << args.progname() << " <image> <mountpoint> [options]\n"
+     << "       " << args.progname()
      << " <image> --auto-mountpoint [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
@@ -1608,12 +1632,13 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o perfmon=name[+...]  enable performance monitor\n"
      << "    -o perfmon_trace=FILE  write performance monitor trace file\n"
 #endif
+     << "    -h   --help            print help\n"
 #ifdef DWARFS_BUILTIN_MANPAGE
      << "    --man                  show manual page and exit\n"
 #endif
      << "\n";
 
-  print_fuse_help(os);
+  print_fuse_help(os, args);
 }
 
 constexpr int kError = -1;
@@ -1666,26 +1691,11 @@ int option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
   }
 }
 
-int handle_cmdline_error(dwarfs_userdata const& userdata, iolayer const& iol) {
-#ifdef DWARFS_BUILTIN_MANPAGE
-  if (userdata.opts.is_man) {
-    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
-    return 0;
-  }
-#endif
-  usage(iol.out, userdata.progname);
-  return userdata.opts.is_help ? 0 : 1;
-}
-
 int option_hdl_auto_mountpoint(dwarfs_userdata* userdata, safe_fuse_args& args,
                                iolayer const& iol) {
   if (userdata->opts.seen_mountpoint) {
     iol.err << "error: cannot combine <mountpoint> with --auto-mountpoint"
             << "\n";
-    return 1;
-  }
-  if (!userdata->opts.fsimage) {
-    usage(iol.out, userdata->progname);
     return 1;
   }
   auto fspath = std::filesystem::path(userdata->opts.fsimage->data());
@@ -1733,9 +1743,32 @@ int option_hdl_auto_mountpoint(dwarfs_userdata* userdata, safe_fuse_args& args,
   return 0;
 }
 
-bool parse_dwarfs_options_from_args(safe_fuse_args& args,
-                                    dwarfs_userdata& userdata,
-                                    iolayer const& iol) {
+std::optional<int>
+handle_early_exit_modes(safe_fuse_args const& args, dwarfs_userdata& userdata,
+                        iolayer const& iol) {
+  if (userdata.opts.is_help) {
+    usage(iol.out, args);
+    return 0;
+  }
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (userdata.opts.is_man) {
+    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
+    return 0;
+  }
+#endif
+
+  return std::nullopt;
+}
+
+std::optional<int>
+parse_dwarfs_options_from_args(safe_fuse_args& args, dwarfs_userdata& userdata,
+                               iolayer const& iol) {
+  if (args.argc() <= 1) {
+    usage(iol.out, args);
+    return 1;
+  }
+
   if (fuse_opt_parse(args.get(), &userdata.opts, dwarfs_opts.data(),
                      option_hdl) == -1) {
     if (auto const& err = userdata.opts.parse_error) {
@@ -1743,16 +1776,29 @@ bool parse_dwarfs_options_from_args(safe_fuse_args& args,
     } else {
       iol.err << "error: failed to parse command-line arguments\n";
     }
-    return false;
+    return 1;
   }
 
-  if (userdata.opts.is_auto_mountpoint) {
-    if (option_hdl_auto_mountpoint(&userdata, args, iol) != 0) {
-      return false;
-    }
+  if (auto const rc = handle_early_exit_modes(args, userdata, iol); rc) {
+    return *rc;
   }
 
-  return true;
+  if (!userdata.opts.fsimage) {
+    iol.err << "error: no filesystem image specified\n";
+    return 1;
+  }
+
+  if (userdata.opts.is_auto_mountpoint &&
+      option_hdl_auto_mountpoint(&userdata, args, iol) != 0) {
+    return 1;
+  }
+
+  if (!userdata.opts.seen_mountpoint) {
+    iol.err << "error: no mountpoint specified\n";
+    return 1;
+  }
+
+  return std::nullopt;
 }
 
 void add_derived_mount_options(safe_fuse_args& args,
@@ -1776,23 +1822,6 @@ void add_derived_mount_options(safe_fuse_args& args,
   args.add("-ofstypename=dwarfs");
 #endif
 #endif
-}
-
-std::optional<int>
-handle_early_exit_modes(dwarfs_userdata& userdata, iolayer const& iol) {
-  if (userdata.opts.is_help) {
-    usage(iol.out, userdata.progname);
-    return 0;
-  }
-
-#ifdef DWARFS_BUILTIN_MANPAGE
-  if (userdata.opts.is_man) {
-    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
-    return 0;
-  }
-#endif
-
-  return std::nullopt;
 }
 
 bool materialize_and_validate_dwarfs_options(dwarfs_userdata& userdata,
@@ -1883,11 +1912,6 @@ bool materialize_and_validate_dwarfs_options(dwarfs_userdata& userdata,
                                     ? to<size_t>(opts.seq_detector_thresh_str)
                                     : kDefaultSeqDetectorThreshold;
 
-  if (!opts.seen_mountpoint) {
-    usage(iol.out, userdata.progname);
-    return false;
-  }
-
   return true;
 }
 
@@ -1935,10 +1959,12 @@ class safe_fuse_cmdline_opts {
     std::shared_ptr<std::string> mountpoint;
     int multithread{1};
     int foreground{0};
+#ifdef DWARFS_HAS_FUSE3_LOOP_CONFIG
     int clone_fd{0};
-    unsigned int max_idle_threads{0};
+    unsigned int max_idle_threads{std::numeric_limits<unsigned int>::max()};
 #if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
     unsigned int max_threads{10};
+#endif
 #endif
   };
 
@@ -1952,35 +1978,6 @@ class safe_fuse_cmdline_opts {
   int parse(safe_fuse_args& args) {
     reset();
 
-#if defined(DWARFS_HAS_FUSE3_PARSE_CMDLINE)
-
-    struct fuse_cmdline_opts opts{};
-    int const rv = fuse_parse_cmdline(args.get(), &opts);
-
-    if (update_mountpoint(rv, opts.mountpoint) == -1) {
-      return -1;
-    }
-
-    raw_.foreground = opts.foreground;
-    raw_.multithread = opts.singlethread ? 0 : 1;
-    raw_.clone_fd = opts.clone_fd;
-    raw_.max_idle_threads = opts.max_idle_threads;
-#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
-    raw_.max_threads = opts.max_threads;
-#endif
-
-    return 0;
-
-#elif defined(DWARFS_HAS_FUSE2_PARSE_CMDLINE)
-
-    char* mountpoint = nullptr;
-
-    int const rv = fuse_parse_cmdline(args.get(), &mountpoint,
-                                      &raw_.multithread, &raw_.foreground);
-
-    return update_mountpoint(rv, mountpoint);
-
-#else
 #define DWARFS_FUSE_CMDLINE_OPT_(t, p, v)                                      \
   ::fuse_opt { t, offsetof(struct cmdline_opts_data, p), v }
     static constexpr std::array fallback_opts{
@@ -1996,8 +1993,7 @@ class safe_fuse_cmdline_opts {
     };
 
     return fuse_opt_parse(args.get(), &raw_, fallback_opts.data(),
-                          fallback_option_hdl);
-#endif
+                          cmdline_option_hdl);
   }
 
   char const* mountpoint() const {
@@ -2005,33 +2001,19 @@ class safe_fuse_cmdline_opts {
   }
   int multithread() const { return raw_.multithread; }
   int foreground() const { return raw_.foreground; }
+#ifdef DWARFS_HAS_FUSE3_LOOP_CONFIG
   int clone_fd() const { return raw_.clone_fd; }
   unsigned int max_idle_threads() const { return raw_.max_idle_threads; }
 #if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
   unsigned int max_threads() const { return raw_.max_threads; }
 #endif
+#endif
 
  private:
   void reset() { raw_ = cmdline_opts_data{}; }
 
-#if defined(DWARFS_HAS_FUSE3_PARSE_CMDLINE) ||                                 \
-    defined(DWARFS_HAS_FUSE2_PARSE_CMDLINE)
-  int update_mountpoint(int parse_result, char* mountpoint) {
-    if (parse_result == -1) {
-      if (mountpoint) {
-        std::free(mountpoint);
-      }
-      return -1;
-    }
-    if (mountpoint) {
-      raw_.mountpoint = std::make_shared<std::string>(mountpoint);
-      std::free(mountpoint);
-    }
-    return 0;
-  }
-#else
   static int
-  fallback_option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
+  cmdline_option_hdl(void* data, char const* arg, int key, struct fuse_args*) {
     auto& raw = *static_cast<cmdline_opts_data*>(data);
     std::string_view argsv{arg};
 
@@ -2064,7 +2046,6 @@ class safe_fuse_cmdline_opts {
 
     return kKeepArg;
   }
-#endif
 
   cmdline_opts_data raw_{};
 };
@@ -2101,7 +2082,7 @@ class safe_fuse_loop_config {
 
  private:
   std::unique_ptr<struct fuse_loop_config
-#if DWARFS_HAS_FUSE312_LOOP_CONFIG
+#ifdef DWARFS_HAS_FUSE312_LOOP_CONFIG
                   ,
                   void (*)(fuse_loop_config*)
 #endif
@@ -2539,13 +2520,8 @@ bool load_filesystem_checked(dwarfs_userdata& userdata) {
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   safe_fuse_args args(argc, argv);
   dwarfs_userdata userdata(iol);
-  userdata.progname = std::filesystem::path(argv[0]);
 
-  if (!parse_dwarfs_options_from_args(args, userdata, iol)) {
-    return 1;
-  }
-
-  if (auto rc = handle_early_exit_modes(userdata, iol); rc) {
+  if (auto const rc = parse_dwarfs_options_from_args(args, userdata, iol); rc) {
     return *rc;
   }
 
@@ -2553,8 +2529,13 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   safe_fuse_cmdline_opts fuse_opts;
 
-  if (fuse_opts.parse(args) == -1 || !fuse_opts.mountpoint()) {
-    return handle_cmdline_error(userdata, iol);
+  if (fuse_opts.parse(args) == -1) {
+    return 1;
+  }
+
+  if (!fuse_opts.mountpoint()) {
+    iol.err << "error: no mountpoint specified\n";
+    return 1;
   }
 
   bool const foreground = fuse_opts.foreground();
