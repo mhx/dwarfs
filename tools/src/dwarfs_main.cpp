@@ -109,6 +109,7 @@
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/reader/mlock_mode.h>
 #include <dwarfs/scope_exit.h>
+#include <dwarfs/scoped_output_capture.h>
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
@@ -1423,35 +1424,6 @@ void log_startup_banner_and_warnings(dwarfs_userdata& userdata) {
   }
 }
 
-class scoped_stderr_to_stdout {
-#ifndef _WIN32
- public:
-  scoped_stderr_to_stdout() {
-    std::fflush(stdout);
-    std::fflush(stderr);
-    saved_stderr_ = ::dup(STDERR_FILENO);
-    if (saved_stderr_ != -1) {
-      ::dup2(STDOUT_FILENO, STDERR_FILENO);
-    }
-  }
-
-  ~scoped_stderr_to_stdout() {
-    std::fflush(stdout);
-    std::fflush(stderr);
-    if (saved_stderr_ != -1) {
-      ::dup2(saved_stderr_, STDERR_FILENO);
-      ::close(saved_stderr_);
-    }
-  }
-
-  scoped_stderr_to_stdout(scoped_stderr_to_stdout const&) = delete;
-  scoped_stderr_to_stdout& operator=(scoped_stderr_to_stdout const&) = delete;
-
- private:
-  int saved_stderr_{-1};
-#endif
-};
-
 class safe_fuse_args {
  public:
   safe_fuse_args() = default;
@@ -1531,15 +1503,7 @@ class safe_fuse_args {
   struct fuse_args args_ = FUSE_ARGS_INIT(0, nullptr);
 };
 
-#if FUSE_USE_VERSION < 30
-void print_fuse2_help_to_stdout() {
-  safe_fuse_args args{"", "-ho"};
-  struct fuse_operations fsops{};
-
-  scoped_stderr_to_stdout redirect;
-  fuse_main(args.argc(), args.argv(), &fsops, nullptr);
-}
-#else
+#if FUSE_USE_VERSION >= 30
 void print_fuse_cmdline_help(std::ostream& os) {
   // clang-format off
   os << "FUSE options:\n"
@@ -1564,20 +1528,41 @@ void print_fuse_cmdline_help(std::ostream& os) {
 
 void print_fuse_help(std::ostream& os,
                      safe_fuse_args const& args [[maybe_unused]]) {
-  // TODO: find a way to actually stream everything to `os`...
+  using dwarfs::scoped_output_capture;
+
+  std::string lib_help;
+
+  {
+#if defined(_WIN32) || FUSE_USE_VERSION < 30
+    auto const cap_where = scoped_output_capture::capture::stderr_only;
+#else
+    auto const cap_where = scoped_output_capture::capture::stdout_only;
+#endif
+
+    auto sc = scoped_output_capture(cap_where);
+
 #if FUSE_USE_VERSION >= 30
-#ifndef _WIN32
+#if DWARFS_FUSE_LOWLEVEL
+    fuse_lowlevel_help();
+#else
+    safe_fuse_args clone{args};
+    fuse_lib_help(clone.get());
+#endif
+#else
+    safe_fuse_args args{"", "-ho"};
+    struct fuse_operations fsops{};
+    fuse_main(args.argc(), args.argv(), &fsops, nullptr);
+#endif
+
+    lib_help = sc.captured();
+  }
+
+#if FUSE_USE_VERSION >= 30
   print_fuse_cmdline_help(os);
 #endif
-#if DWARFS_FUSE_LOWLEVEL
-  fuse_lowlevel_help();
-#else
-  safe_fuse_args clone{args};
-  fuse_lib_help(clone.get());
-#endif
-#else
-  print_fuse2_help_to_stdout();
-#endif
+
+  os << lib_help;
+
 #ifndef _WIN32
   os << "\n";
 #endif
