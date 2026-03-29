@@ -167,8 +167,19 @@ TEST_P(manpage_coverage_test, options) {
   ASSERT_EQ(0, rv) << tool_name << " " << tool.help_option << " failed";
 #endif
 
+  auto help = iol.out();
+
+  if (tool.is_fuse) {
+    auto const fuse_start = help.find("FUSE options:");
+    ASSERT_NE(fuse_start, std::string::npos)
+        << "missing FUSE options section in help output for " << tool_name;
+    help.erase(fuse_start);
+    EXPECT_THAT(help, ::testing::HasSubstr("DWARFS options:"))
+        << "missing DWARFS options section in help output for " << tool_name;
+  }
+
   auto help_opts = parse_options(
-      iol.out(), tool.is_fuse ? fuse_option : boost_po_option, tool.is_fuse);
+      help, tool.is_fuse ? fuse_option : boost_po_option, tool.is_fuse);
   auto man_opts = parse_options(
       man, tool.is_fuse ? fuse_option : manpage_option, tool.is_fuse);
 
