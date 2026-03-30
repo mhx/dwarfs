@@ -40,6 +40,7 @@ struct scoped_output_capture_posix_ops {
   std::function<int(int)> close_fn;
   std::function<int(int)> dup_fn;
   std::function<int(int, int)> dup2_fn;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   std::function<int(int[2])> pipe_fn;
   std::function<ssize_t(int, void*, std::size_t)> read_fn;
 };

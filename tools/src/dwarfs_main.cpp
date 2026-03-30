@@ -1779,7 +1779,7 @@ parse_dwarfs_options_from_args(safe_fuse_args& args, dwarfs_userdata& userdata,
   }
 
   if (auto const rc = handle_early_exit_modes(args, userdata, iol); rc) {
-    return *rc;
+    return rc;
   }
 
   if (!userdata.opts.fsimage) {
@@ -2036,7 +2036,9 @@ class safe_fuse_cmdline_opts {
         raw.multithread = 0;
         return kDiscardArg;
       }
+      break;
 
+    default:
       break;
     }
 

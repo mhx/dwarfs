@@ -58,6 +58,8 @@ using posix_ops = dwarfs::internal::test::scoped_output_capture_posix_ops;
 int real_close(int fd) { return ::close(fd); }
 int real_dup(int fd) { return ::dup(fd); }
 int real_dup2(int from, int to) { return ::dup2(from, to); }
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
 int real_pipe(int fds[2]) { return ::pipe(fds); }
 ssize_t real_read(int fd, void* buf, std::size_t count) {
   return ::read(fd, buf, count);
@@ -67,6 +69,7 @@ posix_ops const real_ops{
     real_close, real_dup, real_dup2, real_pipe, real_read,
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 posix_ops const* g_ops = &real_ops;
 
 } // namespace
@@ -80,7 +83,7 @@ scoped_output_capture_posix_ops real_scoped_output_capture_posix_ops() {
 scoped_output_capture_posix_ops_override::
     scoped_output_capture_posix_ops_override(
         scoped_output_capture_posix_ops ops)
-    : ops_{ops}
+    : ops_{std::move(ops)}
     , previous_{g_ops} {
   g_ops = &ops_;
 }
@@ -104,6 +107,7 @@ using stream = scoped_output_capture::stream;
 int os_close(int fd) { return ::_close(fd); }
 int os_dup(int fd) { return ::_dup(fd); }
 int os_dup2(int from, int to) { return ::_dup2(from, to); }
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
 int os_pipe(int fds[2]) { return ::_pipe(fds, 4096, _O_BINARY); }
 int os_read(int fd, void* buf, std::size_t count) {
   return ::_read(fd, buf, static_cast<unsigned>(count));
@@ -112,6 +116,7 @@ int os_read(int fd, void* buf, std::size_t count) {
 int os_close(int fd) { return g_ops->close_fn(fd); }
 int os_dup(int fd) { return g_ops->dup_fn(fd); }
 int os_dup2(int from, int to) { return g_ops->dup2_fn(from, to); }
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
 int os_pipe(int fds[2]) { return g_ops->pipe_fn(fds); }
 ssize_t os_read(int fd, void* buf, std::size_t count) {
   return g_ops->read_fn(fd, buf, count);
@@ -121,12 +126,14 @@ ssize_t os_read(int fd, void* buf, std::size_t count) {
 void flush_stream(stream which) {
   switch (which) {
   case stream::std_out:
+    // NOLINTNEXTLINE(cert-err33-c)
     std::fflush(stdout);
     std::cout.flush();
     std::wcout.flush();
     break;
 
   case stream::std_err:
+    // NOLINTNEXTLINE(cert-err33-c)
     std::fflush(stderr);
     std::cerr.flush();
     std::clog.flush();
@@ -242,7 +249,9 @@ class capture_channel {
     }
 #endif
 
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
     int pipe_fds[2] = {-1, -1};
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     if (os_pipe(pipe_fds) != 0) {
       close_fd_noexcept(saved_fd_);
       throw_errno("pipe failed");
@@ -301,7 +310,7 @@ class capture_channel {
   ~capture_channel() noexcept {
     try {
       stop();
-    } catch (...) {
+    } catch (...) { // NOLINT(bugprone-empty-catch)
     }
   }
 
