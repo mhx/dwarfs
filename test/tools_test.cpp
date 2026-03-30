@@ -3507,6 +3507,64 @@ TEST_P(fuse_driver_test, dwarfs_command_line_errors) {
                  ::testing::HasSubstr(
                      "unknown option(s): `--non-existing-option'")));
   }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs);
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr("error: no mountpoint specified"));
+  }
+
+  if (!helper_->is_fuse2()) {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-omax_idle_threads=abc");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr(
+                         "invalid parameter in option `max_idle_threads=abc'"));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-otidy_strategy=no_such_strategy");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err,
+                ::testing::HasSubstr(
+                    "error: no such cache tidy strategy: no_such_strategy"));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-oblock_allocator=no_such_allocator");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr(
+                         "error: no such block allocator: no_such_allocator"));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-odecratio=3.14159");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr(
+                         "error: decratio must be between 0.0 and 1.0"));
+  }
+
+  {
+    auto [out, err, ec] =
+        subprocess::run(DWARFS_ARG_EMULATOR_ bin_, args_, test_data_dwarfs,
+                        td.path(), "-oworkers=yes");
+
+    EXPECT_NE(ec, 0);
+    EXPECT_THAT(err, ::testing::HasSubstr("could not convert `yes'"));
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_test,
