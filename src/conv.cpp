@@ -30,8 +30,18 @@
 #include <cctype>
 
 #include <dwarfs/conv.h>
+#include <dwarfs/thrift_lite/demangle.h>
 
-namespace dwarfs::detail {
+namespace dwarfs {
+
+conversion_error::conversion_error(std::string const& value,
+                                   std::type_info const& from,
+                                   std::type_info const& to)
+    : std::runtime_error("could not convert `" + value + "' [" +
+                         thrift_lite::demangle(from) + "] to " +
+                         thrift_lite::demangle(to)) {}
+
+namespace detail {
 
 namespace {
 
@@ -91,4 +101,5 @@ std::optional<bool> str_to_bool(std::string_view s) {
   return std::nullopt;
 }
 
-} // namespace dwarfs::detail
+} // namespace detail
+} // namespace dwarfs

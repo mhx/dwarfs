@@ -30,6 +30,7 @@
 
 #include <concepts>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -45,6 +46,25 @@ namespace detail {
 std::optional<bool> str_to_bool(std::string_view s);
 
 } // namespace detail
+
+class conversion_error : public std::runtime_error {
+ public:
+  conversion_error(std::string const& value, std::type_info const& from,
+                   std::type_info const& to);
+
+  template <typename U>
+  conversion_error(U&& value, std::type_info const& to)
+      : conversion_error(stringify(std::forward<U>(value)), typeid(U), to) {}
+
+ private:
+  static std::string stringify(std::string_view s) { return std::string(s); }
+
+  template <typename U>
+    requires(std::is_arithmetic_v<std::decay_t<U>>)
+  static std::string stringify(U&& value) {
+    return std::to_string(value);
+  }
+};
 
 template <typename T, typename U>
 std::optional<T> try_to(U&& s)
@@ -85,8 +105,11 @@ T to(U&& s) {
   if constexpr (std::same_as<T, std::decay_t<U>>) {
     return std::forward<U>(s);
   } else {
-    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-    return try_to<T>(std::forward<U>(s)).value(); // throw if conversion fails
+    auto const r = try_to<T>(std::forward<U>(s));
+    if (r) {
+      return *r;
+    }
+    throw conversion_error(std::forward<U>(s), typeid(T));
   }
 }
 

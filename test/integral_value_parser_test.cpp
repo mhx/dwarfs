@@ -33,8 +33,7 @@ using namespace dwarfs;
 namespace {
 
 auto throws_conversion_error() {
-  return testing::AnyOf(testing::Throws<boost::bad_lexical_cast>(),
-                        testing::Throws<std::bad_optional_access>());
+  return testing::Throws<dwarfs::conversion_error>();
 }
 
 } // namespace

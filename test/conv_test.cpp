@@ -44,19 +44,19 @@ TEST(conversion, to_bool) {
   EXPECT_FALSE(to<bool>("F"sv));
   EXPECT_FALSE(to<bool>("N"sv));
   EXPECT_FALSE(to<bool>("No"sv));
-  EXPECT_THROW(to<bool>("foo"sv), std::bad_optional_access);
-  EXPECT_THROW(to<bool>(""sv), std::bad_optional_access);
-  EXPECT_THROW(to<bool>("2"sv), std::bad_optional_access);
-  EXPECT_THROW(to<bool>("truee"sv), std::bad_optional_access);
-  EXPECT_THROW(to<bool>("fals"sv), std::bad_optional_access);
+  EXPECT_THROW(to<bool>("foo"sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<bool>(""sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<bool>("2"sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<bool>("truee"sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<bool>("fals"sv), dwarfs::conversion_error);
 }
 
 TEST(conversion, to_integral) {
   EXPECT_EQ(to<int>("42"sv), 42);
   EXPECT_EQ(to<int>("-42"sv), -42);
   EXPECT_EQ(to<unsigned>("42"sv), 42U);
-  EXPECT_THROW(to<unsigned>("-1"sv), std::bad_optional_access);
-  EXPECT_THROW(to<int>("foo"sv), std::bad_optional_access);
-  EXPECT_THROW(to<int>(""sv), std::bad_optional_access);
-  EXPECT_THROW(to<int>("42.0"sv), std::bad_optional_access);
+  EXPECT_THROW(to<unsigned>("-1"sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<int>("foo"sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<int>(""sv), dwarfs::conversion_error);
+  EXPECT_THROW(to<int>("42.0"sv), dwarfs::conversion_error);
 }
