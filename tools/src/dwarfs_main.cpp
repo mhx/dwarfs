@@ -1867,9 +1867,6 @@ bool materialize_and_validate_dwarfs_options(dwarfs_userdata& userdata,
             parse_time_with_unit(opts.cache_tidy_max_age_str);
       }
     }
-  } catch (std::filesystem::filesystem_error const& e) {
-    iol.err << exception_str(e) << "\n";
-    return false;
   } catch (std::exception const& e) {
     iol.err << "error: " << exception_str(e) << "\n";
     return false;
