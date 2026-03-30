@@ -53,26 +53,26 @@ class conversion_error : public std::runtime_error {
                    std::type_info const& to);
 
   template <typename U>
-  conversion_error(U&& value, std::type_info const& to)
-      : conversion_error(stringify(std::forward<U>(value)), typeid(U), to) {}
+  conversion_error(U const& value, std::type_info const& to)
+      : conversion_error(stringify(value), typeid(U), to) {}
 
  private:
   static std::string stringify(std::string_view s) { return std::string(s); }
 
   template <typename U>
     requires(std::is_arithmetic_v<std::decay_t<U>>)
-  static std::string stringify(U&& value) {
+  static std::string stringify(U const& value) {
     return std::to_string(value);
   }
 };
 
 template <typename T, typename U>
-std::optional<T> try_to(U&& s)
+std::optional<T> try_to(U const& s)
   requires(!std::same_as<T, bool> && !std::convertible_to<U, T>)
 {
   DWARFS_PUSH_WARNING
   DWARFS_GCC_DISABLE_WARNING("-Wmaybe-uninitialized")
-  if (auto r = boost::convert<T>(std::forward<U>(s), boost::cnv::spirit())) {
+  if (auto r = boost::convert<T>(s, boost::cnv::spirit())) {
     return r.value();
   }
   DWARFS_POP_WARNING
@@ -80,10 +80,10 @@ std::optional<T> try_to(U&& s)
 }
 
 template <typename T, typename U>
-std::optional<bool> try_to(U&& s)
+std::optional<bool> try_to(U const& s)
   requires(std::same_as<T, bool> && std::is_arithmetic_v<U>)
 {
-  return std::forward<U>(s) != U{};
+  return s != U{};
 }
 
 template <typename T>
@@ -94,22 +94,22 @@ std::optional<bool> try_to(std::string_view s)
 }
 
 template <typename T, typename U>
-std::optional<T> try_to(U&& s)
+std::optional<T> try_to(U const& s)
   requires(!std::same_as<T, bool> && std::convertible_to<U, T>)
 {
-  return std::forward<U>(s);
+  return s;
 }
 
 template <typename T, typename U>
-T to(U&& s) {
+T to(U const& s) {
   if constexpr (std::same_as<T, std::decay_t<U>>) {
-    return std::forward<U>(s);
+    return s;
   } else {
-    auto const r = try_to<T>(std::forward<U>(s));
+    auto const r = try_to<T>(s);
     if (r) {
       return *r;
     }
-    throw conversion_error(std::forward<U>(s), typeid(T));
+    throw conversion_error(s, typeid(T));
   }
 }
 
