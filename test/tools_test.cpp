@@ -3454,6 +3454,10 @@ TEST_P(fuse_driver_test, dwarfs_command_line_errors) {
 #ifdef _WIN32
   GTEST_SKIP() << "https://github.com/winfsp/winfsp/issues/516";
 #endif
+#ifdef __APPLE__
+  // TODO: enable once we switch to FUSE3 on macOS
+  GTEST_SKIP() << "too slow with FUSE2";
+#endif
 
   // TODO: once we do support Windows, we do *not* require a mountpoint dir
   dwarfs::temporary_directory td("dwarfs");
