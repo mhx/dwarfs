@@ -1,5 +1,65 @@
 # Change Log
 
+## Version 0.15.2 - 2026-03-31
+
+- (fix) The image size was not correctly passed to an instance of the
+  file system parser, which resulted in errors when trying to load an image
+  embedded in a larger (e.g., multi-layer) file. Thanks to Ruan Formigoni
+  for the pull request that fixed this issue.
+
+- (fix) The performance monitor timer for `op_lseek` in the FUSE driver was
+  not set up correctly, which could lead to segmentation faults or bus errors
+  due to an uninitialized index into a `std::deque`. This has been fixed, and
+  an additional check has been added to make sure these kinds of errors are
+  caught in the future.
+
+- (fix) A few test failures have popped up in openSUSE Tumbleweed native
+  32-bit builds. One was caused by glibc requiring `_FILE_OFFSET_BITS=64` for
+  64-bit file operations. This caused some sparse file tests that created
+  files larger than 4 GiB to fail. This was never needed in musl-libc builds,
+  so the problem was not caught before. The other failures were mostly
+  cosmetic and only showed up in GCC builds. The affected tests were checking
+  the formatting code for times and ratios, which relied heavily on
+  floating-point arithmetic and was not deterministic across platforms and
+  compilers. The code has been completely rewritten to use integer arithmetic
+  and avoid any platform-specific behavior. The final issue was a bug in the
+  test code that, interestingly, also surfaced only with GCC. Addresses
+  GitHub issue #354.
+
+- (fix) The FUSE drivers (`dwarfs`, `dwarfs2`) have gone through several
+  stages of refactoring to fix a large number of very subtle issues. For
+  example, it is now guaranteed that you will see an error for a misspelled
+  option rather than an error caused by the absence of the option you were
+  trying to use. For example, if you used `-o image_size=1234` instead of
+  the correct `-o imagesize=1234`, you would likely get an error saying that
+  the file system could not be loaded rather than an error about the unknown
+  option. Before the refactoring, the code was a horrible mess of
+  preprocessor conditionals, and basically every flavor of the FUSE driver
+  (high-level, low-level, Windows, FUSE v2, or FUSE v3) had a different code
+  path during startup, exposing a different set of quirks. The code is now
+  *much* more readable, a lot more consistent, and even better tested than
+  before.
+
+- (fix) The manual pages shown with `--man` for all tools unintentionally
+  contained the license header that had been added in XML comments at the top
+  of the source files. The renderer has been fixed to ignore those comments.
+
+- (build) After benchmarking the latest `mimalloc` memory allocator, it turns
+  out that performance is mostly on par with `jemalloc`. It is still much
+  less configurable than `jemalloc`, but it is definitely usable if you do
+  not need that configurability.
+
+- (build) The `small` universal release binaries are now built with
+  `mimalloc` instead of `jemalloc`, reducing their size by about 10%.
+
+- (build) Old Clang compiler versions, such as those on Ubuntu 22.04, are
+  no longer supported because they cannot use libstdc++'s `std::expected`
+  implementation. DwarFS can still be built on Ubuntu 22.04 with GCC.
+
+- (test) After profiling test execution, a few tests stood out as being
+  particularly slow. These have been modified to run faster while still
+  covering most of the same code paths.
+
 ## Version 0.15.1 - 2026-03-21
 
 - (fix) `mkdwarfs` did not correctly handle inputs where hardlinks had the
