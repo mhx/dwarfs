@@ -32,6 +32,7 @@ RUN pacman -S --noconfirm --needed \
         libarchive \
         benchmark \
         boost \
+        boost-libs \
         brotli \
         openssl \
         fmt \
