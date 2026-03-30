@@ -2515,11 +2515,6 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  if (!fuse_opts.mountpoint()) {
-    iol.err << "error: no mountpoint specified\n";
-    return 1;
-  }
-
   bool const foreground = fuse_opts.foreground();
 
 #ifdef DWARFS_STACKTRACE_ENABLED
