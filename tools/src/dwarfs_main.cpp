@@ -55,27 +55,31 @@
 #define DWARFS_FUSE_LOWLEVEL 1
 #endif
 
-#if FUSE_USE_VERSION >= 30
-#if !DWARFS_FUSE_LOWLEVEL
-#include <fuse3/fuse.h>
-#include <fuse3/fuse_common.h>
-#endif
-#ifndef _WIN32
-// We need to include this even if we're not using the low-level API,
-// since we call `fuse_cmdline_help`.
+#if DWARFS_FUSE_LOWLEVEL
+
+#if FUSE_USE_VERSION >= 30 && __has_include(<fuse3/fuse_lowlevel.h>)
 #include <fuse3/fuse_lowlevel.h>
-#endif
-#else
-#if !DWARFS_FUSE_LOWLEVEL
-#error "high-level API is not supported for FUSE < 3.0"
-#endif
-#include <fuse.h>
-#if __has_include(<fuse/fuse_lowlevel.h>)
+#elif __has_include(<fuse/fuse_lowlevel.h>)
 #include <fuse/fuse_lowlevel.h>
 #else
 #include <fuse_lowlevel.h>
 #endif
+
+#else // !DWARFS_FUSE_LOWLEVEL
+
+#if FUSE_USE_VERSION < 30
+#error "high-level API is not supported for FUSE < 3.0"
 #endif
+
+#if __has_include(<fuse3/fuse.h>)
+#include <fuse3/fuse.h>
+#elif __has_include(<fuse/fuse.h>)
+#include <fuse/fuse.h>
+#else
+#include <fuse.h>
+#endif
+
+#endif // DWARFS_FUSE_LOWLEVEL
 
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
@@ -1503,7 +1507,6 @@ class safe_fuse_args {
   struct fuse_args args_ = FUSE_ARGS_INIT(0, nullptr);
 };
 
-#if FUSE_USE_VERSION >= 30
 void print_fuse_cmdline_help(std::ostream& os) {
   // clang-format off
   os << "FUSE options:\n"
@@ -1524,7 +1527,6 @@ void print_fuse_cmdline_help(std::ostream& os) {
      << "\n";
   // clang-format on
 }
-#endif
 
 void print_fuse_help(std::ostream& os,
                      safe_fuse_args const& args [[maybe_unused]]) {
@@ -1549,17 +1551,29 @@ void print_fuse_help(std::ostream& os,
     fuse_lib_help(clone.get());
 #endif
 #else
+#if DWARFS_FUSE_LOWLEVEL
+    // These seem to be standard, but v2 lowlevel help doesn't print them
+    lib_help.append(
+        "    -o allow_other         allow access by all users\n"
+        "    -o allow_root          allow access by root\n"
+        "    -o auto_unmount        auto unmount on process termination\n");
+
+    safe_fuse_args args{"", "-h"};
+    struct fuse_lowlevel_ops fsops{};
+    auto const se [[maybe_unused]] =
+        fuse_lowlevel_new(args.get(), &fsops, sizeof(fsops), nullptr);
+    assert(se == nullptr);
+#else
     safe_fuse_args args{"", "-ho"};
     struct fuse_operations fsops{};
-    fuse_main(args.argc(), args.argv(), &fsops, nullptr);
+    fuse_main(args.argc(), args.argv(), nullptr, nullptr);
+#endif
 #endif
 
-    lib_help = sc.captured();
+    lib_help.append(sc.captured());
   }
 
-#if FUSE_USE_VERSION >= 30
   print_fuse_cmdline_help(os);
-#endif
 
   os << lib_help;
 
