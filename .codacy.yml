@@ -1,0 +1,6 @@
+---
+engines:
+  duplication:
+    exclude_paths:
+      - "**/test/**"
+      - "src/compression/brotli.cpp"
