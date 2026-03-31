@@ -136,7 +136,7 @@ class os_access_mock : public os_access {
   void add(std::filesystem::path const& path, simplestat const& st,
            std::string const& contents);
   void add(std::filesystem::path const& path, simplestat const& st,
-           test_file_data data);
+           test_file_data const& data);
   void add(std::filesystem::path const& path, simplestat const& st,
            std::function<std::string()> generator);
 
@@ -147,8 +147,9 @@ class os_access_mock : public os_access {
   simplestat
   add_file(std::filesystem::path const& path, std::string const& contents,
            add_file_options const& opts = {});
-  simplestat add_file(std::filesystem::path const& path, test_file_data data,
-                      add_file_options const& opts = {});
+  simplestat
+  add_file(std::filesystem::path const& path, test_file_data const& data,
+           add_file_options const& opts = {});
 
   void add_local_files(std::filesystem::path const& path);
 
