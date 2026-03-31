@@ -1,5 +1,19 @@
 # Change Log
 
+## Version 0.15.3 - 2026-04-01
+
+- (fix) The 0.15.2 release did not include the legacy FUSE v2 driver binaries
+  (`dwarfs2`) in the static release tarballs.
+
+- (fix) The `op_readlink` implementation is now guaranteed to terminate the
+  returned string, as required by the FUSE specification.
+
+- (build) Warning suppressions for (newer) GCC warnings triggered warnings
+  on older GCC versions. These have been fixed.
+
+- (other) Some automatic code refactoring from `clang-tidy` was applied and
+  some minor issues were fixed in the process.
+
 ## Version 0.15.2 - 2026-03-31
 
 - (fix) The image size was not correctly passed to an instance of the
