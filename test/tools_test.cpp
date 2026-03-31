@@ -1062,10 +1062,16 @@ class driver_runner {
   std::string const& err() const { return errs_; }
 
   ~driver_runner() {
-    if (!mountpoint_.empty()) {
-      if (!unmount()) {
-        std::abort();
+    try {
+      if (!mountpoint_.empty()) {
+        if (!unmount()) {
+          std::abort();
+        }
       }
+    } catch (...) {
+      std::cerr << "Exception in ~driver_runner: "
+                << dwarfs::exception_str(std::current_exception()) << "\n";
+      std::abort();
     }
   }
 
