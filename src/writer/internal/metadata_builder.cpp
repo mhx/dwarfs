@@ -80,7 +80,7 @@ class inode_size_provider {
     uint64_t allocated_size;
   };
 
-  inode_size_provider(thrift::metadata::metadata const& md)
+  explicit inode_size_provider(thrift::metadata::metadata const& md)
       : chunk_table_{md.chunk_table().value()}
       , chunks_{md.chunks().value()}
       , block_size_{md.block_size().value()}
