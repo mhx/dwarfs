@@ -414,8 +414,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       break;
 
     default:
-      LOG_ERROR << "unsupported entry type: " << int(pe->type()) << " ("
-                << pe->path_as_string() << ")";
+      LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe->type())
+                << " (" << pe->path_as_string() << ")";
       prog.errors++;
       break;
     }

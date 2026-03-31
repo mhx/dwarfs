@@ -255,7 +255,7 @@ void stream_logger::write(level_type level, std::string_view output,
     std::string tmp;
     small_vector<std::string_view, 2> lines;
 
-    if (output.find('\r') != std::string::npos) {
+    if (output.contains('\r')) {
       tmp.reserve(output.size());
       std::ranges::copy_if(output, std::back_inserter(tmp),
                            [](char c) { return c != '\r'; });

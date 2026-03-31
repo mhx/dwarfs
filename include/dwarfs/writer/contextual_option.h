@@ -48,9 +48,9 @@ template <typename Policy>
 class contextual_option {
  public:
   using policy_type = Policy;
-  using context_argument_type = typename policy_type::ContextArgumentType;
-  using context_type = typename policy_type::ContextType;
-  using value_type = typename policy_type::ValueType;
+  using context_argument_type = policy_type::ContextArgumentType;
+  using context_type = policy_type::ContextType;
+  using value_type = policy_type::ValueType;
 
   template <typename OptionType, typename ContextParser, typename OptionParser>
   friend class contextual_option_parser;
@@ -132,7 +132,7 @@ template <typename OptionType, typename ContextParser, typename OptionParser>
 class contextual_option_parser {
  public:
   using option_type = OptionType;
-  using policy_type = typename option_type::policy_type;
+  using policy_type = option_type::policy_type;
 
   contextual_option_parser(std::string_view name, OptionType& opt,
                            ContextParser const& cp, OptionParser const& op)
@@ -202,8 +202,8 @@ class contextual_option_parser {
   bool has_category_resolver() const { return cp_.has_resolver(); }
 
  private:
-  void add_contextual(typename option_type::context_type const& ctx,
-                      typename option_type::value_type const& val,
+  void add_contextual(option_type::context_type const& ctx,
+                      option_type::value_type const& val,
                       contextual_option_policy policy) const {
     if (!opt_.add_contextual(ctx, val, policy)) {
       throw std::runtime_error(fmt::format(

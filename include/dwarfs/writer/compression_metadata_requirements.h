@@ -303,9 +303,8 @@ class compression_metadata_requirements {
  public:
   compression_metadata_requirements() = default;
 
-  template <
-      typename F, typename U,
-      typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
+  template <typename F, typename U,
+            typename T = std::invoke_result_t<F, nlohmann::json>::value_type>
   void add_set(std::string const& name, U(Meta::* mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_set<Meta, T, U>>(
@@ -317,9 +316,8 @@ class compression_metadata_requirements {
     add_set(name, mp, detail::value_parser<T>);
   }
 
-  template <
-      typename F, typename U,
-      typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
+  template <typename F, typename U,
+            typename T = std::invoke_result_t<F, nlohmann::json>::value_type>
   void add_range(std::string const& name, U(Meta::* mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_range<Meta, T, U>>(

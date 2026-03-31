@@ -73,7 +73,7 @@ class field_ref {
 
   field_ref& operator=(value_type const& v) noexcept(
       std::is_nothrow_copy_assignable_v<value_type>)
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = v;
     return *this;
@@ -81,7 +81,7 @@ class field_ref {
 
   field_ref& operator=(value_type&& v) noexcept(
       std::is_nothrow_move_assignable_v<value_type>)
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = std::move(v);
     return *this;
@@ -154,13 +154,13 @@ class field_ref {
   }
 
   void reset() noexcept
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = value_type{};
   }
 
   auto ensure() noexcept -> Ref
-    requires(is_mutable)
+    requires is_mutable
   {
     return value();
   }
@@ -194,7 +194,7 @@ class optional_field_ref {
 
   optional_field_ref& operator=(value_type const& v) noexcept(
       std::is_nothrow_copy_assignable_v<value_type>)
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = v;
     is_set_ = true;
@@ -203,7 +203,7 @@ class optional_field_ref {
 
   optional_field_ref& operator=(value_type&& v) noexcept(
       std::is_nothrow_move_assignable_v<value_type>)
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = std::move(v);
     is_set_ = true;
@@ -213,7 +213,7 @@ class optional_field_ref {
   template <typename U, typename V>
   void copy_from(optional_field_ref<U, V> const& other) noexcept(
       std::is_nothrow_assignable_v<Ref, U>)
-    requires(is_mutable)
+    requires is_mutable
   {
     bool const other_has_value = other.has_value();
     if (other_has_value) {
@@ -355,14 +355,14 @@ class optional_field_ref {
   }
 
   void reset() noexcept
-    requires(is_mutable)
+    requires is_mutable
   {
     *ptr_ = value_type{};
     is_set_ = false;
   }
 
   auto ensure() -> Ref
-    requires(is_mutable)
+    requires is_mutable
   {
     if (!has_value()) {
       emplace();

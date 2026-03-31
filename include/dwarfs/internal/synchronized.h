@@ -62,8 +62,8 @@ class synchronized final {
   using value_type = T;
   using mutex_type = Mutex;
   using lock_policy = detail::lock_policy<mutex_type>;
-  using read_lock_type = typename lock_policy::read_lock_type;
-  using write_lock_type = typename lock_policy::write_lock_type;
+  using read_lock_type = lock_policy::read_lock_type;
+  using write_lock_type = lock_policy::write_lock_type;
   static constexpr bool is_shared = lock_policy::is_shared;
 
   synchronized()
@@ -141,20 +141,20 @@ class synchronized final {
   }
 
   [[nodiscard]] write_locked_ptr wlock()
-    requires(is_shared)
+    requires is_shared
   {
     return write_locked_ptr(write_lock_type(mx_), &value_);
   }
 
   [[nodiscard]] read_locked_ptr rlock() const
-    requires(is_shared)
+    requires is_shared
   {
     return read_locked_ptr(read_lock_type(mx_), &value_);
   }
 
   template <typename F>
   auto with_wlock(F&& f)
-    requires(is_shared)
+    requires is_shared
   {
     write_lock_type lock(mx_);
     return std::forward<F>(f)(value_);
@@ -162,7 +162,7 @@ class synchronized final {
 
   template <typename F>
   auto with_rlock(F&& f) const
-    requires(is_shared)
+    requires is_shared
   {
     read_lock_type lock(mx_);
     return std::forward<F>(f)(value_);

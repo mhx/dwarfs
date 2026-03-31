@@ -40,7 +40,7 @@ namespace {
 
 template <typename MapT>
 void index_map(MapT& map) {
-  using mapped_type = typename MapT::mapped_type;
+  using mapped_type = MapT::mapped_type;
   static_assert(std::is_integral_v<mapped_type>);
   auto keys = map | ranges::views::keys | ranges::to<std::vector>;
   ranges::sort(keys);

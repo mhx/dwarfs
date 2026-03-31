@@ -42,7 +42,7 @@ constexpr std::string_view special_chars = R"(.^$|()[]{}+?*\)";
 
 std::string escape_special(char c) {
   std::string esc;
-  if (special_chars.find(c) != std::string_view::npos) {
+  if (special_chars.contains(c)) {
     esc = '\\';
   }
   return esc + c;

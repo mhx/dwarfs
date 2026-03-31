@@ -125,14 +125,12 @@ class inode_size_provider {
   }
 
  private:
-  using chunks_t = typename decltype(std::declval<thrift::metadata::metadata>()
-                                         .chunks())::value_type;
-  using chunk_table_t =
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .chunk_table())::value_type;
-  using large_hole_size_t =
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .large_hole_size())::value_type;
+  using chunks_t =
+      decltype(std::declval<thrift::metadata::metadata>().chunks())::value_type;
+  using chunk_table_t = decltype(std::declval<thrift::metadata::metadata>()
+                                     .chunk_table())::value_type;
+  using large_hole_size_t = decltype(std::declval<thrift::metadata::metadata>()
+                                         .large_hole_size())::value_type;
 
   chunk_table_t const& chunk_table_;
   chunks_t const& chunks_;
@@ -227,22 +225,20 @@ class metadata_builder_ final : public metadata_builder::impl {
   thrift::metadata::metadata const& build() override;
 
  private:
-  using chunks_t = typename decltype(std::declval<thrift::metadata::metadata>()
-                                         .chunks())::value_type;
-  using chunk_table_t =
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .chunk_table())::value_type;
-  using categories_t =
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .block_categories())::value_type;
+  using chunks_t =
+      decltype(std::declval<thrift::metadata::metadata>().chunks())::value_type;
+  using chunk_table_t = decltype(std::declval<thrift::metadata::metadata>()
+                                     .chunk_table())::value_type;
+  using categories_t = decltype(std::declval<thrift::metadata::metadata>()
+                                    .block_categories())::value_type;
   using category_metadata_t =
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .block_category_metadata())::value_type;
+      decltype(std::declval<thrift::metadata::metadata>()
+                   .block_category_metadata())::value_type;
 
-  static constexpr auto kTmpHoleIx = std::numeric_limits<
-      typename decltype(std::declval<thrift::metadata::metadata>()
-                            .chunks()[0]
-                            .block())::value_type>::max();
+  static constexpr auto kTmpHoleIx =
+      std::numeric_limits<decltype(std::declval<thrift::metadata::metadata>()
+                                       .chunks()[0]
+                                       .block())::value_type>::max();
 
   void remap_holes(chunks_t& new_chunks, size_t new_hole_index,
                    size_t max_data_chunk_size);
@@ -419,8 +415,8 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
     std::span<block_mapping const> mapping, size_t new_block_count) {
   auto tv = LOG_TIMED_VERBOSE;
 
-  std::span<typename chunks_t::value_type> old_chunks = md_.chunks().value();
-  std::span<typename chunk_table_t::value_type> old_chunk_table =
+  std::span<chunks_t::value_type> old_chunks = md_.chunks().value();
+  std::span<chunk_table_t::value_type> old_chunk_table =
       md_.chunk_table().value();
 
   DWARFS_CHECK(!old_chunk_table.empty(), "chunk table must not be empty");

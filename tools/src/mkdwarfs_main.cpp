@@ -784,7 +784,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 #endif
 
-  auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
+  constexpr auto usage = "Usage: mkdwarfs [OPTIONS...]\n";
   auto extra_deps = [](library_dependencies& deps) {
     compressor_registry::instance().add_library_dependencies(deps);
     decompressor_registry::instance().add_library_dependencies(deps);

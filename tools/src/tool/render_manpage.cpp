@@ -86,8 +86,7 @@ std::string render_manpage(manpage::document const doc, size_t const width,
       }
 
       if (column + t.size() == effective_width && next &&
-          next->text.size() == 1 &&
-          punct.find(next->text[0]) != std::string_view::npos) {
+          next->text.size() == 1 && punct.contains(next->text[0])) {
         indent = l.indent_next;
         fmt::format_to(out_it, "\n{}", std::string(indent, ' '));
         column = indent;

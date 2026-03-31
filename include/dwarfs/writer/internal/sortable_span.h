@@ -42,7 +42,7 @@ class sortable_span {
       : public boost::iterator_facade<iterator, value_type,
                                       boost::random_access_traversal_tag> {
    public:
-    using difference_type = typename boost::iterator_facade<
+    using difference_type = boost::iterator_facade<
         iterator, value_type,
         boost::random_access_traversal_tag>::difference_type;
 
@@ -54,7 +54,7 @@ class sortable_span {
     friend class sortable_span;
 
     iterator(sortable_span const* vv,
-             typename std::vector<index_value_type>::iterator it)
+             std::vector<index_value_type>::iterator it)
         : vv_(vv)
         , it_(it) {}
 
@@ -75,7 +75,7 @@ class sortable_span {
     value_type& dereference() const { return vv_->values_[*it_]; }
 
     sortable_span const* vv_{nullptr};
-    typename std::vector<index_value_type>::iterator it_;
+    std::vector<index_value_type>::iterator it_;
   };
 
   explicit sortable_span(std::span<value_type> values)

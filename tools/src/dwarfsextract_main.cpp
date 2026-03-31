@@ -214,7 +214,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 #endif
 
-  auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
+  constexpr auto usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
   if (vm.contains("help") or !vm.contains("input")) {
     auto extra_deps = [](library_dependencies& deps) {

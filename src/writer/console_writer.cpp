@@ -346,10 +346,13 @@ void console_writer::update(writer_progress& prog, bool last) {
   size_t const orig =
       original_size() - (saved_by_deduplication() + p.symlink_size);
   double const frac_fs =
-      orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
-               : 0.0;
+      orig > 0
+          ? static_cast<double>(p.filesystem_size + p.saved_by_segmentation) /
+                orig
+          : 0.0;
   double const frac_comp =
-      p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
+      p.block_count > 0 ? static_cast<double>(p.blocks_written) / p.block_count
+                        : 0.0;
   double const frac = last                      ? 1.0
                       : opts_.display == NORMAL ? (frac_fs + frac_comp) / 2.0
                                                 : frac_comp;

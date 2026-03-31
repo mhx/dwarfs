@@ -35,7 +35,7 @@ class rsync_hash {
   rsync_hash() = default;
 
   DWARFS_FORCE_INLINE uint32_t operator()() const {
-    return a_ | (uint32_t(b_) << 16);
+    return a_ | (static_cast<uint32_t>(b_) << 16);
   }
 
   DWARFS_FORCE_INLINE void update(uint8_t inbyte) {

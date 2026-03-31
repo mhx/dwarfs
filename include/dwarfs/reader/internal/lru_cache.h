@@ -43,8 +43,8 @@ class lru_cache {
   using mapped_type = T;
   using value_type = std::pair<key_type const, mapped_type>;
 
-  using iterator = typename std::list<value_type>::iterator;
-  using const_iterator = typename std::list<value_type>::const_iterator;
+  using iterator = std::list<value_type>::iterator;
+  using const_iterator = std::list<value_type>::const_iterator;
 
   using prune_hook_type = std::function<void(key_type, mapped_type&&)>;
 

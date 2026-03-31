@@ -56,8 +56,8 @@ class cached_block_ final : public cached_block {
   cached_block_(logger& lgr, fs_section const& b, file_segment const& seg,
                 byte_buffer_factory const& buffer_factory,
                 bool disable_integrity_check)
-      : decompressor_{std::make_unique<block_decompressor>(b.compression(),
-                                                           b.data(seg))}
+      : decompressor_{
+            std::make_unique<block_decompressor>(b.compression(), b.data(seg))}
       , data_{decompressor_->start_decompression(buffer_factory)}
       , seg_{seg}
       , section_(b)

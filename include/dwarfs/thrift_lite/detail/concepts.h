@@ -57,17 +57,14 @@ template <typename T>
 concept enumeration_type = std::is_enum_v<T>;
 
 template <typename T>
-concept reservable_container_type = requires(T& v, typename T::size_type n) {
+concept reservable_container_type = requires(T& v, T::size_type n) {
   { v.reserve(n) } -> std::same_as<void>;
 };
 
 template <typename T>
-concept emplaceable_map_type =
-    requires(T& v, typename T::key_type k, typename T::mapped_type m) {
-      {
-        v.emplace(k, m)
-      } -> std::same_as<std::pair<typename T::iterator, bool>>;
-    };
+concept emplaceable_map_type = requires(T& v, T::key_type k, T::mapped_type m) {
+  { v.emplace(k, m) } -> std::same_as<std::pair<typename T::iterator, bool>>;
+};
 
 template <typename T>
 concept byte_like_type =

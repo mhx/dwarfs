@@ -161,7 +161,7 @@ FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
 } // namespace
 
 #ifdef _WIN32
-extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
+extern "C" PfnDliHook const __pfnDliFailureHook2 = delay_hook;
 #endif
 
 namespace dwarfs::tool {
@@ -2190,7 +2190,7 @@ class basic_dwarfs_fuse_driver {
  private:
   driver_result
   setup(safe_fuse_args& args, safe_fuse_cmdline_opts const& fuse_opts,
-        typename FusePolicy::fuse_ops_type& fsops, dwarfs_userdata& userdata) {
+        FusePolicy::fuse_ops_type& fsops, dwarfs_userdata& userdata) {
     data_ = std::make_unique<typename FusePolicy::data>();
 
     auto const result =
@@ -2436,8 +2436,9 @@ void load_filesystem(dwarfs_userdata& userdata) {
       false
 #endif
       ;
-  fsopts.metadata.readonly = bool(opts.readonly);
-  fsopts.metadata.case_insensitive_lookup = bool(opts.case_insensitive);
+  fsopts.metadata.readonly = static_cast<bool>(opts.readonly);
+  fsopts.metadata.case_insensitive_lookup =
+      static_cast<bool>(opts.case_insensitive);
   fsopts.metadata.block_size = opts.blocksize;
 #ifndef _WIN32
   fsopts.metadata.fs_uid = opts.fs_uid;

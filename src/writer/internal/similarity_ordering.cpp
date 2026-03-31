@@ -244,8 +244,8 @@ struct basic_cluster {
 template <typename ClusterType>
 struct basic_cluster_tree_node {
   using cluster_type = ClusterType;
-  using index_type = typename cluster_type::index_type;
-  using index_value_type = typename cluster_type::index_value_type;
+  using index_type = cluster_type::index_type;
+  using index_value_type = cluster_type::index_value_type;
   using cluster_pointer = std::unique_ptr<cluster_type>;
   using children_vector = std::vector<basic_cluster_tree_node<cluster_type>>;
 
@@ -437,7 +437,7 @@ void similarity_ordering_<LoggerPolicy>::order_cluster(
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     index_type& index) const {
   using bitvec_type =
-      typename basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
+      basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
 
   if (!index.empty()) {
     // TODO: try simulated annealing again? reproducibly?
@@ -469,12 +469,12 @@ size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
     basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
   using node_type = std::decay_t<decltype(node)>;
   using bitvec_type =
-      typename basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
+      basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
 
   if (node.is_leaf()) {
     auto& cluster = node.cluster();
     return std::accumulate(
-        cluster.index.begin(), cluster.index.end(), size_t(0),
+        cluster.index.begin(), cluster.index.end(), static_cast<size_t>(0),
         [&ev](size_t acc, size_t i) { return acc + ev.weight(i); });
   }
 
@@ -523,7 +523,7 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     int max_distance) const {
   using node_type = std::decay_t<decltype(node)>;
-  using cluster_type = typename node_type::cluster_type;
+  using cluster_type = node_type::cluster_type;
   typename node_type::children_vector children;
 
   auto td = LOG_TIMED_DEBUG;

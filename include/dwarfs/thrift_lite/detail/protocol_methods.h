@@ -198,7 +198,7 @@ struct protocol_methods<type_class::structure, T> {
 template <typename ValueTypeClass, typename T>
 struct protocol_methods<type_class::list<ValueTypeClass>, T> {
   using type = T;
-  using value_type = typename type::value_type;
+  using value_type = type::value_type;
   using value_protocol_methods = protocol_methods<ValueTypeClass, value_type>;
 
   static void read(protocol_reader_type auto& r, type& out) {
@@ -234,7 +234,7 @@ struct protocol_methods<type_class::list<ValueTypeClass>, T> {
 template <typename ValueTypeClass, typename T>
 struct protocol_methods<type_class::set<ValueTypeClass>, T> {
   using type = T;
-  using value_type = typename type::value_type;
+  using value_type = type::value_type;
   using value_protocol_methods = protocol_methods<ValueTypeClass, value_type>;
 
   static void read(protocol_reader_type auto& r, type& out) {
@@ -272,9 +272,9 @@ struct protocol_methods<type_class::set<ValueTypeClass>, T> {
 template <typename KeyTypeClass, typename MappedTypeClass, typename T>
 struct protocol_methods<type_class::map<KeyTypeClass, MappedTypeClass>, T> {
   using type = T;
-  using key_type = typename type::key_type;
+  using key_type = type::key_type;
   using key_protocol_methods = protocol_methods<KeyTypeClass, key_type>;
-  using mapped_type = typename type::mapped_type;
+  using mapped_type = type::mapped_type;
   using mapped_protocol_methods =
       protocol_methods<MappedTypeClass, mapped_type>;
 

@@ -1044,7 +1044,7 @@ using MultiBlockSegmentationPolicy =
 template <typename T, typename GranularityPolicy>
 class basic_granular_container_adapter : private GranularityPolicy {
  public:
-  using value_type = typename T::value_type;
+  using value_type = T::value_type;
   static_assert(sizeof(value_type) == 1,
                 "value_type must be a byte type (for now)");
 
@@ -1244,7 +1244,7 @@ DWARFS_FORCE_INLINE size_t window_step(segmenter::config const& cfg) {
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
-  using GranularityPolicyT = typename SegmentingPolicy::GranularityPolicyT;
+  using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
   using GranularityPolicyT::add_match;
   using GranularityPolicyT::add_new_block;
   using GranularityPolicyT::bytes_to_frames;

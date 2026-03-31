@@ -62,8 +62,7 @@ class logging_class_factory {
  public:
   template <template <class> class T, class CreatePolicy,
             class LoggerPolicyList, class... Args>
-  static typename CreatePolicy::return_type
-  create(logger& lgr, Args&&... args) {
+  static CreatePolicy::return_type create(logger& lgr, Args&&... args) {
     return create_unwrap<T, CreatePolicy>(
         lgr, std::type_identity<LoggerPolicyList>{},
         std::forward<Args>(args)...);
@@ -72,7 +71,7 @@ class logging_class_factory {
  private:
   template <template <class> class T, class CreatePolicy,
             class... LoggerPolicies, class... Args>
-  static typename CreatePolicy::return_type
+  static CreatePolicy::return_type
   create_unwrap(logger& lgr, std::type_identity<std::tuple<LoggerPolicies...>>,
                 Args&&... args) {
     return create_impl<T, CreatePolicy, LoggerPolicies...>(
@@ -81,8 +80,7 @@ class logging_class_factory {
 
   template <template <class> class T, class CreatePolicy, class LoggerPolicy,
             class... Rest, class... Args>
-  static typename CreatePolicy::return_type
-  create_impl(logger& lgr, Args&&... args) {
+  static CreatePolicy::return_type create_impl(logger& lgr, Args&&... args) {
     if (is_policy_name(lgr, LoggerPolicy::name())) {
       return CreatePolicy::template create<T<LoggerPolicy>>(
           lgr, std::forward<Args>(args)...);

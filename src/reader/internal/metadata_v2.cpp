@@ -257,7 +257,7 @@ get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
   return catinfo;
 }
 
-uint16_t const READ_ONLY_MASK = ~uint16_t(
+uint16_t const READ_ONLY_MASK = ~static_cast<uint16_t>(
     fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
 struct file_size_result {
@@ -1051,7 +1051,7 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
 
     if (auto de = meta_.dir_entries()) {
       for (auto e : *de) {
-        add_link(int(e.inode_num()) - file_inode_offset_);
+        add_link(static_cast<int>(e.inode_num()) - file_inode_offset_);
       }
     } else {
       // NOTE: Technically, this isn't correct. In the 2.2 format and earlier,
@@ -1061,7 +1061,7 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
       //       inodes to be reassigned. This can be done explicitly by
       //       rebuilding the metadata.
       for (auto e : meta_.inodes()) {
-        add_link(int(e.inode_v2_2()) - file_inode_offset_);
+        add_link(static_cast<int>(e.inode_v2_2()) - file_inode_offset_);
       }
     }
 
@@ -2250,23 +2250,24 @@ void metadata_v2_data::access(inode_view const& iv, int mode,
   if (uid == 0) {
     access_mode = R_OK | W_OK;
 
-    if (iv.mode() & uint16_t(fs::perms::owner_exec | fs::perms::group_exec |
-                             fs::perms::others_exec)) {
+    if (iv.mode() &
+        static_cast<uint16_t>(fs::perms::owner_exec | fs::perms::group_exec |
+                              fs::perms::others_exec)) {
       set_xok();
     }
   } else {
     auto test = [e_mode = iv.mode(), &access_mode, &set_xok,
                  readonly = options_.readonly](fs::perms r_bit, fs::perms w_bit,
                                                fs::perms x_bit) {
-      if (e_mode & uint16_t(r_bit)) {
+      if (e_mode & static_cast<uint16_t>(r_bit)) {
         access_mode |= R_OK;
       }
-      if (e_mode & uint16_t(w_bit)) {
+      if (e_mode & static_cast<uint16_t>(w_bit)) {
         if (!readonly) {
           access_mode |= W_OK;
         }
       }
-      if (e_mode & uint16_t(x_bit)) {
+      if (e_mode & static_cast<uint16_t>(x_bit)) {
         set_xok();
       }
     };

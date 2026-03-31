@@ -43,9 +43,9 @@ class sorted_array_map {
   using key_type = Key;
   using mapped_type = Value;
   using value_type = std::pair<key_type, mapped_type>;
-  using const_iterator = typename std::array<value_type, N>::const_iterator;
+  using const_iterator = std::array<value_type, N>::const_iterator;
   using const_reverse_iterator =
-      typename std::array<value_type, N>::const_reverse_iterator;
+      std::array<value_type, N>::const_reverse_iterator;
 
   constexpr explicit sorted_array_map(std::array<value_type, N> data)
       : data_{sort(data)} {

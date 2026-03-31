@@ -40,8 +40,8 @@ class small_vector_set {
   using key_type = Key;
   using value_type = key_type;
   using size_type = std::size_t;
-  using iterator = typename std::vector<value_type>::iterator;
-  using const_iterator = typename std::vector<value_type>::const_iterator;
+  using iterator = std::vector<value_type>::iterator;
+  using const_iterator = std::vector<value_type>::const_iterator;
 
   auto begin() const -> const_iterator { return data_.begin(); }
   auto end() const -> const_iterator { return data_.end(); }
@@ -73,8 +73,8 @@ class small_vector_map {
   using mapped_type = T;
   using value_type = std::pair<key_type const, mapped_type>;
   using size_type = std::size_t;
-  using iterator = typename std::vector<value_type>::iterator;
-  using const_iterator = typename std::vector<value_type>::const_iterator;
+  using iterator = std::vector<value_type>::iterator;
+  using const_iterator = std::vector<value_type>::const_iterator;
 
   auto begin() -> iterator { return data_.begin(); }
   auto end() -> iterator { return data_.end(); }

@@ -270,8 +270,8 @@ class block_cache_ final : public block_cache::impl {
 
     for (auto const& cb : cache_) {
       LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
-                << double(cb.second->range_end()) /
-                       double(cb.second->uncompressed_size());
+                << static_cast<double>(cb.second->range_end()) /
+                       static_cast<double>(cb.second->uncompressed_size());
       update_block_stats(*cb.second);
     }
 
@@ -551,8 +551,8 @@ class block_cache_ final : public block_cache::impl {
     // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
     LOG_DEBUG << "block " << block_no << " " << action
               << " from cache, decompression ratio = "
-              << double(block->range_end()) /
-                     double(block->uncompressed_size());
+              << static_cast<double>(block->range_end()) /
+                     static_cast<double>(block->uncompressed_size());
     update_block_stats(*block);
   }
 
@@ -686,7 +686,8 @@ class block_cache_ final : public block_cache::impl {
       }
 
       if (is_last_req) {
-        double ratio = double(range_end) / double(max_end);
+        double ratio =
+            static_cast<double>(range_end) / static_cast<double>(max_end);
         if (ratio > options_.decompress_ratio) {
           LOG_TRACE << "block " << block_no << " over ratio: " << ratio << " > "
                     << options_.decompress_ratio;

@@ -105,9 +105,9 @@ using namespace dwarfs::binary_literals;
 using dwarfs::test::compare_directories;
 
 #ifdef __linux__
-auto constexpr kDefaultTimeout{10s};
+constexpr auto kDefaultTimeout{10s};
 #else
-auto constexpr kDefaultTimeout{30s};
+constexpr auto kDefaultTimeout{30s};
 #endif
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
