@@ -298,7 +298,7 @@ struct fits_metadata {
   uint16_t component_count;
 
   DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(fits_metadata const&) const = default;
   DWARFS_POP_WARNING
 

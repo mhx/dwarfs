@@ -163,7 +163,7 @@ struct pcmaudio_metadata {
   // uint32_t samples_per_second;
 
   DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(pcmaudio_metadata const&) const = default;
   DWARFS_POP_WARNING
 

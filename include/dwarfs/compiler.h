@@ -70,9 +70,15 @@
 #ifdef __clang__
 #define DWARFS_CLANG_DISABLE_WARNING(wname) DWARFS_GNU_DISABLE_WARNING(wname)
 #define DWARFS_GCC_DISABLE_WARNING(wname)
+#define DWARFS_GCC14_DISABLE_WARNING(wname)
 #else
 #define DWARFS_CLANG_DISABLE_WARNING(wname)
 #define DWARFS_GCC_DISABLE_WARNING(wname) DWARFS_GNU_DISABLE_WARNING(wname)
+#if __GNUC__ >= 14
+#define DWARFS_GCC14_DISABLE_WARNING(wname) DWARFS_GNU_DISABLE_WARNING(wname)
+#else
+#define DWARFS_GCC14_DISABLE_WARNING(wname)
+#endif
 #endif
 #define DWARFS_MSVC_DISABLE_WARNING(wnum)
 
@@ -86,6 +92,7 @@
 #define DWARFS_POP_WARNING __pragma(warning(pop))
 #define DWARFS_GNU_DISABLE_WARNING(wname)
 #define DWARFS_GCC_DISABLE_WARNING(wname)
+#define DWARFS_GCC14_DISABLE_WARNING(wname)
 #define DWARFS_CLANG_DISABLE_WARNING(wname)
 #define DWARFS_MSVC_DISABLE_WARNING(wnum) __pragma(warning(disable : wnum))
 
@@ -99,6 +106,7 @@
 #define DWARFS_POP_WARNING
 #define DWARFS_GNU_DISABLE_WARNING(wname)
 #define DWARFS_GCC_DISABLE_WARNING(wname)
+#define DWARFS_GCC14_DISABLE_WARNING(wname)
 #define DWARFS_CLANG_DISABLE_WARNING(wname)
 #define DWARFS_MSVC_DISABLE_WARNING(wnum)
 

@@ -98,7 +98,7 @@ class fragment_category {
   }
 
   DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(fragment_category const&) const = default;
   DWARFS_POP_WARNING
 

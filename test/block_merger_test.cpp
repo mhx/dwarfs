@@ -73,7 +73,7 @@ struct block {
 
   bool operator==(block const&) const = default;
   DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(block const&) const = default;
   DWARFS_POP_WARNING
 
@@ -96,7 +96,7 @@ struct sized_block {
 
   bool operator==(sized_block const&) const = default;
   DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
   auto operator<=>(sized_block const&) const = default;
   DWARFS_POP_WARNING
 

@@ -305,7 +305,7 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , os_{os} {}
 
 DWARFS_PUSH_WARNING
-DWARFS_GCC_DISABLE_WARNING("-Wnrvo")
+DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 entry_factory::node
