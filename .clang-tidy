@@ -4,6 +4,10 @@ Checks:
   - -bugprone-narrowing-conversions
   - -bugprone-implicit-widening-of-multiplication-result
   - -bugprone-unchecked-optional-access
+  # TODO: definitely revisit this one
+  - -bugprone-exception-escape
+  # TODO: good idea, but needed for things like std::hash
+  - -bugprone-std-namespace-modification
   - cert-*
   - clang-diagnostic-*
   - clang-analyzer-*
@@ -22,6 +26,8 @@ Checks:
   # fully agree, but there are some cases where it's currently not
   # done on purpose; TODO: revisit
   - -cppcoreguidelines-use-enum-class
+  # TODO: good idea, but too many places that would need touching
+  - -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
   - modernize-*
   # a good idea, but only for more than one mutex
   - -modernize-use-scoped-lock
@@ -44,6 +50,8 @@ Checks:
   - -readability-isolate-declaration
   - -readability-qualified-auto
   - -readability-use-concise-preprocessor-directives
+  # TODO: revisit once we drop support for gcc-12, which still chokes on some cases of this
+  - -readability-redundant-typename
 # TODO
   - -cppcoreguidelines-init-variables
   - -cppcoreguidelines-pro-bounds-pointer-arithmetic
