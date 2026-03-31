@@ -325,7 +325,7 @@ if [[ "-$BUILD_TYPE-" == *-source-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_OPTIMIZE=0"
 fi
 
-if [[ "-$BUILD_TYPE-" != *-static-* ]]; then
+if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_LEGACY_FUSE=1"
 fi
 
