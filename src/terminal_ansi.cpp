@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 
 #ifndef _WIN32
 #include <sys/ioctl.h>
@@ -285,7 +286,8 @@ terminal_ansi::terminal_ansi()
 
 terminal_ansi::terminal_ansi(init_mode mode) {
   if (mode == init_mode::AUTO) {
-    static bool initialized [[maybe_unused]] = setup_impl();
+    static std::once_flag setup_flag;
+    std::call_once(setup_flag, setup_impl);
   } else if (mode == init_mode::FORCE) {
     setup_impl();
   }
