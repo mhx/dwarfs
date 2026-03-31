@@ -262,8 +262,8 @@ void os_access_mock::add(fs::path const& path, simplestat const& st,
 }
 
 void os_access_mock::add(fs::path const& path, simplestat const& st,
-                         test_file_data data) {
-  add_internal(path, st, std::move(data));
+                         test_file_data const& data) {
+  add_internal(path, st, data);
 }
 
 void os_access_mock::add(fs::path const& path, simplestat const& st,
@@ -350,8 +350,9 @@ os_access_mock::add_file(fs::path const& path, std::string const& contents,
   return st;
 }
 
-simplestat os_access_mock::add_file(fs::path const& path, test_file_data data,
-                                    add_file_options const& opts) {
+simplestat
+os_access_mock::add_file(fs::path const& path, test_file_data const& data,
+                         add_file_options const& opts) {
   auto st = make_reg_simplestat(opts);
   st.size = data.size();
   st.allocated_size = data.allocated_size();

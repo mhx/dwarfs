@@ -779,9 +779,12 @@ class process_guard {
   process_guard() = default;
 
   explicit process_guard(pid_t pid)
-      : pid_{pid} {
+      : pid_{pid}
 #if defined(__FreeBSD__) || defined(__APPLE__)
-    kq_ = fs_guard_detail::unique_fd(::kqueue());
+      , kq_{fs_guard_detail::unique_fd(::kqueue())}
+#endif
+  {
+#if defined(__FreeBSD__) || defined(__APPLE__)
     if (!kq_) {
       throw std::system_error(errno, std::generic_category(), "kqueue");
     }
@@ -932,14 +935,14 @@ class driver_runner {
   driver_runner(automount_t, fs::path const& driver, bool tool_arg,
                 fs::path const& image, fs::path const& mountpoint,
                 Args&&... args)
-      : mountpoint_{mountpoint} {
-    process_ = std::make_unique<subprocess>(DWARFS_ARG_EMULATOR_ driver,
-                                            make_tool_arg(tool_arg),
-                                            "--auto-mountpoint", image,
+      : mountpoint_{mountpoint}
+      , process_{std::make_unique<subprocess>(DWARFS_ARG_EMULATOR_ driver,
+                                              make_tool_arg(tool_arg),
+                                              "--auto-mountpoint", image,
 #ifndef _WIN32
-                                            "-f",
+                                              "-f",
 #endif
-                                            std::forward<Args>(args)...);
+                                              std::forward<Args>(args)...)} {
     process_->run_background();
 #ifndef _WIN32
     dwarfs_guard_ = process_guard(process_->pid());
