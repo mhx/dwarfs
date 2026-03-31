@@ -49,6 +49,9 @@
 
 #include "endian_formatter.h"
 
+// cppcheck produces too many false positives for the policy structs
+// cppcheck-suppress-file unusedStructMember
+
 namespace dwarfs::writer {
 
 using namespace std::string_view_literals;
