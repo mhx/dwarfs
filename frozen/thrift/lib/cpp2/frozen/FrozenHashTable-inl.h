@@ -103,7 +103,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
     // 1.5 => 66% LF => 3 bpe, 3 probes expected
     // 2.0 => 50% LF => 4 bpe, 2 probes expected
     // 2.5 => 40% LF => 5 bpe, 1.6 probes expected
-    auto rv = size_t(size * 2.5 + Block::bits - 1) / Block::bits;
+    auto rv = static_cast<size_t>(size * 2.5 + Block::bits - 1) / Block::bits;
 
     // For integer keys that don't have entropy in the bottom bits we
     // will be in trouble if blockCount is a power of 2. If we always use
@@ -120,8 +120,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
   }
 
   static void ensureDistinctKeys(
-      const typename KeyExtractor::KeyType& key1,
-      const typename KeyExtractor::KeyType& key2) {
+      const KeyExtractor::KeyType& key1, const KeyExtractor::KeyType& key2) {
     if (key1 == key2) {
       throw std::domain_error("Input collection is not distinct");
     }
@@ -160,7 +159,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       block.offset = count;
       for (size_t offset = 0; offset < Block::bits; ++offset) {
         if (index[blockIndex * Block::bits + offset]) {
-          block.mask |= uint64_t(1) << offset;
+          block.mask |= static_cast<uint64_t>(1) << offset;
           ++count;
         }
       }
@@ -248,9 +247,9 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(sparseTable, 4))
 
   class View : public Base::View {
-    using KeyView = typename Layout<Key>::View;
-    using ItemView = typename Layout<Item>::View;
-    using TableView = typename Layout<std::vector<Block>>::View;
+    using KeyView = Layout<Key>::View;
+    using ItemView = Layout<Item>::View;
+    using TableView = Layout<std::vector<Block>>::View;
 
     TableView table_;
     Fast64BitRemainderCalculator remainderCalculator_;
@@ -263,7 +262,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
               self(layout->sparseTableField.pos))),
           remainderCalculator_(table_.size() * Block::bits) {}
 
-    using iterator = typename Base::View::iterator;
+    using iterator = Base::View::iterator;
 
     void operator[](size_t) = delete;
 

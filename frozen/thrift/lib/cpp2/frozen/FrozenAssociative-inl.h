@@ -19,7 +19,7 @@ struct KeyExtractor {
   using KeyType = K;
   using rvalue_reference = std::add_rvalue_reference_t<
       std::remove_reference_t<typename Table::const_reference>>;
-  using const_reference = typename Table::const_reference;
+  using const_reference = Table::const_reference;
 
   // deleted functions used to avoid returning references to temporary values
   static const K& getKey(const std::pair<const K, V>&& pair) = delete;
@@ -55,8 +55,8 @@ struct KeyExtractor {
     return reinterpret_cast<const std::pair<const K, V>*>(&pair);
   }
 
-  static typename Layout<K>::View getViewKey(
-      const typename Layout<std::pair<const K, V>>::View& pair) {
+  static Layout<K>::View getViewKey(
+      const Layout<std::pair<const K, V>>::View& pair) {
     return pair.first();
   }
 };
@@ -69,8 +69,7 @@ struct SelfKey {
 
   static const K* getPointer(const K& item) { return &item; }
 
-  static typename Layout<K>::View getViewKey(
-      typename Layout<K>::View itemView) {
+  static Layout<K>::View getViewKey(Layout<K>::View itemView) {
     return itemView;
   }
 };
@@ -87,8 +86,8 @@ struct MapTableLayout
 
   class View : public Base::View {
    public:
-    using key_type = typename Layout<K>::View;
-    using mapped_type = typename Layout<V>::View;
+    using key_type = Layout<K>::View;
+    using mapped_type = Layout<V>::View;
 
     View() = default;
     View(const LayoutSelf* layout, ViewPosition position)

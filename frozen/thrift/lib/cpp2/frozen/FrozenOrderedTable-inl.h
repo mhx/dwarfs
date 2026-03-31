@@ -78,8 +78,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   }
 
   static void ensureDistinctKeys(
-      const typename KeyExtractor::KeyType& key1,
-      const typename KeyExtractor::KeyType& key2) {
+      const KeyExtractor::KeyType& key1, const KeyExtractor::KeyType& key2) {
     if (!(key1 < key2)) {
       throw std::domain_error("Input collection is not distinct");
     }
@@ -156,15 +155,15 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   }
 
   class View : public Base::View {
-    using KeyView = typename Layout<Key>::View;
-    using ItemView = typename Layout<Item>::View;
+    using KeyView = Layout<Key>::View;
+    using ItemView = Layout<Item>::View;
 
    public:
     View() = default;
     View(const LayoutSelf* layout, ViewPosition position)
         : Base::View(layout, position) {}
 
-    using iterator = typename Base::View::iterator;
+    using iterator = Base::View::iterator;
 
     void operator[](size_t) = delete;
 

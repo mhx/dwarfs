@@ -32,9 +32,9 @@ struct BaseDistinctTablePolicy {
 template <class T, template <class> class Policy = BaseDistinctTablePolicy>
 class DistinctTable {
  public:
-  using Store = typename Policy<T>::Store;
-  using Hash = typename Policy<T>::Hash;
-  using Equal = typename Policy<T>::Equal;
+  using Store = Policy<T>::Store;
+  using Hash = Policy<T>::Hash;
+  using Equal = Policy<T>::Equal;
 
   explicit DistinctTable(
       Store* store, Equal equal = Equal(), Hash hash = Hash())
@@ -84,7 +84,7 @@ class DistinctTable {
     Store* store_;
   };
 
-  using Index = typename Policy<T>::template Index<HashIndirect, EqualIndirect>;
+  using Index = Policy<T>::template Index<HashIndirect, EqualIndirect>;
 
   Store* store_;
   Index indexes_;

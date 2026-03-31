@@ -21,7 +21,8 @@ class Fast64BitRemainderCalculator {
  public:
   Fast64BitRemainderCalculator() = default;
   explicit Fast64BitRemainderCalculator(uint64_t divisor)
-      : fastRemainderConstant_(divisor ? (~uint128_t(0) / divisor + 1) : 0)
+      : fastRemainderConstant_(
+            divisor ? (~static_cast<uint128_t>(0) / divisor + 1) : 0)
 #ifndef NDEBUG
         ,
         divisor_{divisor}

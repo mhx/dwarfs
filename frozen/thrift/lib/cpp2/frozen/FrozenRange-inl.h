@@ -150,7 +150,7 @@ struct ArrayLayout : public LayoutBase {
    * dereference
    */
   class View : public ViewBase<View, ArrayLayout, T> {
-    using ItemView = typename Layout<Item>::View;
+    using ItemView = Layout<Item>::View;
     class Iterator;
 
     static ViewPosition indexPosition(

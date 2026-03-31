@@ -14,7 +14,7 @@ namespace detail {
 
 template <std::integral T>
 [[nodiscard]] constexpr size_t bitsNeeded(T const x) {
-  using UT = typename std::make_unsigned_t<T>;
+  using UT = std::make_unsigned_t<T>;
   if (x == 0) {
     return 0;
   }

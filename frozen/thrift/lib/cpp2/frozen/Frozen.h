@@ -245,9 +245,9 @@ struct LayoutBase {
    */
   template <typename SchemaInfo>
   void save(
-      typename SchemaInfo::Schema&,
-      typename SchemaInfo::Layout& layout,
-      typename SchemaInfo::Helper&) const {
+      SchemaInfo::Schema&,
+      SchemaInfo::Layout& layout,
+      SchemaInfo::Helper&) const {
     layout.setSize(size);
     // TODO: declare bits as int16_t instead of casting it
     layout.setBits(
@@ -260,9 +260,7 @@ struct LayoutBase {
    */
   template <typename SchemaInfo>
   void load(
-      const typename SchemaInfo::Schema&,
-      const typename SchemaInfo::Layout& layout,
-      LoadRoot&) {
+      const SchemaInfo::Schema&, const SchemaInfo::Layout& layout, LoadRoot&) {
     size = layout.getSize();
     bits = layout.getBits();
   }
@@ -361,8 +359,8 @@ struct Field final : public FieldBase {
    */
   template <typename SchemaInfo>
   void load(
-      const typename SchemaInfo::Schema& schema,
-      const typename SchemaInfo::Field& field,
+      const SchemaInfo::Schema& schema,
+      const SchemaInfo::Field& field,
       LoadRoot& root) {
     auto offset = field.getOffset();
     if (offset < 0) {
@@ -380,9 +378,9 @@ struct Field final : public FieldBase {
    */
   template <typename SchemaInfo>
   void save(
-      typename SchemaInfo::Schema& schema,
-      typename SchemaInfo::Layout& parent,
-      typename SchemaInfo::Helper& helper) const {
+      SchemaInfo::Schema& schema,
+      SchemaInfo::Layout& parent,
+      SchemaInfo::Helper& helper) const {
     if (this->layout.empty()) {
       return;
     }
@@ -820,7 +818,7 @@ class FreezeRoot {
 
  protected:
   template <class T>
-  typename Layout<T>::View doFreeze(const Layout<T>& layout, const T& root) {
+  Layout<T>::View doFreeze(const Layout<T>& layout, const T& root) {
     std::span<uint8_t> range, tail;
     size_t dist;
     appendBytes(nullptr, layout.size, range, dist, 1);
@@ -905,7 +903,7 @@ class ByteRangeFreezer final : public FreezeRoot {
 
  public:
   template <class T>
-  static typename Layout<T>::View freeze(
+  static Layout<T>::View freeze(
       const Layout<T>& layout, const T& root, std::span<uint8_t>& write) {
     ByteRangeFreezer freezer(write);
     auto view = freezer.doFreeze(layout, root);
@@ -1072,7 +1070,7 @@ void thawField(
  * memory, it only points to it.
  */
 template <class T>
-using View = typename Layout<T>::View;
+using View = Layout<T>::View;
 
 } // namespace apache::thrift::frozen
 

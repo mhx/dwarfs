@@ -14,7 +14,7 @@ namespace detail {
 
 template <class T>
 struct BufferHelpers {
-  using Item = typename T::value_type;
+  using Item = T::value_type;
   static_assert(
       std::is_arithmetic_v<Item> || std::is_enum_v<Item>,
       "String storage requires simple item types");
@@ -34,7 +34,7 @@ template <class T>
 struct StringLayout : public LayoutBase {
   using Base = LayoutBase;
   using Helper = BufferHelpers<T>;
-  using Item = typename Helper::Item;
+  using Item = Helper::Item;
   Field<size_t> distanceField;
   Field<size_t> countField;
 
