@@ -735,7 +735,6 @@ def cpp_type_for(
 
     if t.kind == "id":
         assert t.type_id is not None
-        k = classify_id(t.type_id, idl)
         # Preserve typedef/enums/struct names in the C++ API.
         fqcpp = (
             f"::{idl.cpp_namespace}::" if fully_qualified and idl.cpp_namespace else ""
@@ -934,7 +933,6 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         )
 
         # Field refs only
-        opt_index = {f.name: i for i, f in enumerate(optional_fields)}
         for f in s.fields:
             cpp_t = cpp_type_for(
                 f.type_ref,
@@ -1168,9 +1166,9 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                     hi.emit(f"isset_.set({f.name}_isset_index);\n", indent=10)
 
                 hi.emit(
-                    f"""
+                    """
                         skip = false;
-                      }}
+                      }
                       break;
 
                     """,
@@ -1329,7 +1327,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         c.emit(
             f"auto enum_traits<{fq}>::names() noexcept -> std::span<std::string_view const> {{\n"
         )
-        c.emit(f"static constexpr auto names = std::array{{\n", indent=2)
+        c.emit("static constexpr auto names = std::array{\n", indent=2)
         for m in e.members:
             c.emit(f'"{m.name}"sv,\n', indent=4)
         c.emit(
