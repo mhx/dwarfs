@@ -99,7 +99,7 @@ class tester_common {
 
   int run(std::vector<std::string> args);
   int run(std::initializer_list<std::string> args);
-  int run(std::string args);
+  int run(std::string const& args);
 
   std::string out() const { return iol->out(); }
   std::string err() const { return iol->err(); }
@@ -162,7 +162,7 @@ class mkdwarfs_tester : public tester_common {
 
 std::string
 build_test_image(std::vector<std::string> extra_args = {},
-                 std::map<std::string, std::string> extra_files = {});
+                 std::map<std::string, std::string> const& extra_files = {});
 
 class dwarfsck_tester : public tester_common {
  public:

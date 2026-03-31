@@ -100,7 +100,9 @@ int tester_common::run(std::initializer_list<std::string> args) {
   return run(std::vector<std::string>(args));
 }
 
-int tester_common::run(std::string args) { return run(test::parse_args(args)); }
+int tester_common::run(std::string const& args) {
+  return run(test::parse_args(args));
+}
 
 mkdwarfs_tester::mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
     : tester_common(tool::mkdwarfs_main, "mkdwarfs", std::move(pos)) {}
@@ -317,8 +319,9 @@ int dwarfsextract_main_test::run(std::vector<std::string> args) {
   return tool::main_adapter(tool::dwarfsextract_main)(args, iol->get());
 }
 
-std::string build_test_image(std::vector<std::string> extra_args,
-                             std::map<std::string, std::string> extra_files) {
+std::string
+build_test_image(std::vector<std::string> extra_args,
+                 std::map<std::string, std::string> const& extra_files) {
   mkdwarfs_tester t;
   for (auto const& [name, contents] : extra_files) {
     t.fa->set_file(name, contents);
