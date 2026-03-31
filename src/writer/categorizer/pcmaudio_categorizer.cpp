@@ -152,7 +152,7 @@ namespace dwarfs::writer {
 namespace {
 
 struct pcmaudio_metadata {
-  std::endian sample_endianness;
+  std::endian sample_endianness{std::endian::native};
   signedness sample_signedness;
   padding sample_padding;
   uint8_t bits_per_sample;
