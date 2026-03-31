@@ -988,6 +988,7 @@ std::string exception_str(std::exception_ptr const& e) {
   } catch (std::exception const& ex) {
     return exception_str(ex);
   } catch (...) {
+    // cppcheck-suppress knownConditionTrueFalse
     if (auto const ti = get_current_exception_type_info()) {
       return fmt::format("unknown exception of type {}",
                          thrift_lite::demangle(*ti));

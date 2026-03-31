@@ -439,6 +439,7 @@ void runner_thread(size_t tid, std::mutex& out_mx, std::atomic<size_t>& runs,
     if (run >= max_runs) {
       break;
     }
+    // cppcheck-suppress knownConditionTrueFalse
     if constexpr (debuglevel > 0) {
       std::lock_guard lock{out_mx};
       std::cout << "[" << run << "/" << tid << "] ref\n";
