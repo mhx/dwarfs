@@ -111,7 +111,7 @@ def decompress(payload, u_size, u_xxh64, debug=False, quiet=False):
             decompressed = None
 
     if decompressed is None:
-        raise RuntimeError(f"failed to decompress payload")
+        raise RuntimeError("failed to decompress payload")
 
     return decompressed
 

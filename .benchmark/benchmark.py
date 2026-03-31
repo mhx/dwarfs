@@ -390,7 +390,7 @@ def mount_and_cat_files(env):
 def mount_and_cat_files_mmap(env):
     mount_and_run_test(
         env,
-        env.data(f"perl-install-1M-zstd.dwarfs"),
+        env.data("perl-install-1M-zstd.dwarfs"),
         "find {mnt}/default/perl-5.2[0-9].* -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M",
         "-oblock_allocator=mmap",
         min_runs=5,
@@ -402,7 +402,7 @@ def mount_and_cat_files_mmap(env):
 def mount_and_cat_files_foreground(env):
     mount_and_run_test(
         env,
-        env.data(f"perl-install-1M-zstd.dwarfs"),
+        env.data("perl-install-1M-zstd.dwarfs"),
         "find {mnt}/default/perl-5.2[0-9].* -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M",
         foreground=True,
         min_runs=5,
