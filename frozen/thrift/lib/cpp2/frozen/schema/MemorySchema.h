@@ -136,6 +136,8 @@ class MemoryLayout : public MemoryLayoutBase {
  public:
   using MemoryLayoutBase::MemoryLayoutBase;
 
+  // TODO: check why these two classes are separate at all...
+  // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
   size_t hash() const noexcept {
     size_t seed = MemoryLayoutBase::hash();
     boost::hash_combine(seed, boost::hash_range(fields.begin(), fields.end()));
