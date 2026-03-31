@@ -1,4 +1,13 @@
 ---
+exclude_paths:
+  - ".benchmark/**"
+  - ".maintainer-scripts/**"
+  - ".docker/static-libs-versions.sh"
+  - ".docker/toolchain-versions.sh"
+  - "fsst/**"
+  - "include/dwarfs/internal/boost_move_only_function.hpp"
+  - "sfx/nanoprintf.h"
+  - "sfx/zstddeclib.c"
 engines:
   duplication:
     exclude_paths:
