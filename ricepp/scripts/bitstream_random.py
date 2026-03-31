@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: MIT
 
 import random
-import sys
 
 oper = ['single'] + ['sequence']*2 + ['multi']*5
 
