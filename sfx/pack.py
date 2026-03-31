@@ -10,11 +10,8 @@ Create a self-extracting, compressed binary
 import argparse
 import lz4.block
 import os
-import shutil
 import struct
-import subprocess
 import sys
-import tempfile
 import xxhash
 import zstd
 
