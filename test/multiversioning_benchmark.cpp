@@ -122,9 +122,9 @@ void nilsimsa_distance(::benchmark::State& state) {
     std::generate(begin(a), end(a), std::ref(rng));
   }
   unsigned i{0}, k{1};
-  int d;
 
   for (auto _ : state) {
+    int d;
     ::benchmark::DoNotOptimize(
         d = distance(data[i++ % kNumData], data[k++ % kNumData]));
   }

@@ -295,15 +295,6 @@ TEST_P(dwarfsextract_format_test, basic) {
     }
 
     std::set<std::string> paths;
-    std::set<std::string> expected_paths{
-        "bar.pl",           "baz.pl",   "empty",       "foo.pl",
-        "ipsum.txt",        "somedir",  "somedir/bad", "somedir/empty",
-        "somedir/ipsum.py", "somelink", "test.pl",
-    };
-    std::set<std::string> expected_paths_with_matcher{
-        "bar.pl",  "baz.pl",           "ipsum.txt",
-        "somedir", "somedir/ipsum.py", "somelink",
-    };
 
     auto ar = ::archive_read_new();
     ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
@@ -336,8 +327,17 @@ TEST_P(dwarfsextract_format_test, basic) {
         << ::archive_error_string(ar);
 
     if (use_matcher) {
+      std::set<std::string> expected_paths_with_matcher{
+          "bar.pl",  "baz.pl",           "ipsum.txt",
+          "somedir", "somedir/ipsum.py", "somelink",
+      };
       EXPECT_EQ(expected_paths_with_matcher, paths);
     } else {
+      std::set<std::string> expected_paths{
+          "bar.pl",           "baz.pl",   "empty",       "foo.pl",
+          "ipsum.txt",        "somedir",  "somedir/bad", "somedir/empty",
+          "somedir/ipsum.py", "somelink", "test.pl",
+      };
       EXPECT_EQ(expected_paths, paths);
     }
   }
