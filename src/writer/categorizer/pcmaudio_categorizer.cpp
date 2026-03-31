@@ -21,6 +21,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// cppcheck produces too many false positives for the policy structs
+// cppcheck-suppress-file unusedStructMember
+
 #include <array>
 #include <bit>
 #include <cassert>
