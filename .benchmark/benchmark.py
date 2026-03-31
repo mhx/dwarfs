@@ -12,7 +12,6 @@ import os
 import sys
 import platform
 import datetime
-import time
 import tempfile
 import shutil
 import glob
@@ -379,7 +378,7 @@ def mount_and_run_emacs_l9_foreground(env):
 def mount_and_cat_files(env):
     mount_and_run_test(
         env,
-        env.data(f"perl-install-1M-zstd.dwarfs"),
+        env.data("perl-install-1M-zstd.dwarfs"),
         "find {mnt}/default/perl-5.2[0-9].* -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M",
         min_runs=5,
     )
@@ -557,7 +556,7 @@ class Config(object):
         min_runs = kwargs.get("min_runs")
         if min_runs is not None:
             cmd.extend(["--min-runs", str(min_runs)])
-        output = os.path.join(self.tmpdir, f"__hyperfine.json")
+        output = os.path.join(self.tmpdir, "__hyperfine.json")
         cmd.extend(["--export-json", output])
         cmd.extend(["--command-name", benchmark_name])
         cmd.append(command)

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.container as mplc
 
 from packaging.version import Version
-from tinydb import TinyDB, Query
+from tinydb import TinyDB
 from tqdm import tqdm
 
 

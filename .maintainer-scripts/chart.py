@@ -3,8 +3,6 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-from math import ceil
-
 def _nice_max(vmax: float) -> float:
     if vmax <= 0:
         return 1.0
@@ -26,7 +24,6 @@ def _estimate_label_col_width(categories, font_px=12, char_px=7, line_gap_px=2, 
     for cat in categories:
         lines = str(cat).split("\n")
         widest = max(len(s) for s in lines) if lines else 0
-        block_height = len(lines) * (font_px + line_gap_px)
         # width based on widest line; height not needed for width calc
         max_px = max(max_px, widest * char_px)
     return max_px + padding_px  # padding between labels and axis
