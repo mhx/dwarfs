@@ -664,6 +664,10 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
 
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
+  if (buflen == 0) {
+    return -EINVAL;
+  }
+
   std::string symlink;
 
   auto err = op_readlink_common(log_, userdata, &symlink, [&] {
@@ -671,11 +675,9 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
   });
 
   if (err == 0) {
-#ifdef _WIN32
-    ::strncpy_s(buf, buflen, symlink.data(), symlink.size());
-#else
-    ::strncpy(buf, symlink.data(), buflen);
-#endif
+    auto const num = std::min(symlink.size(), buflen - 1);
+    std::memcpy(buf, symlink.data(), num);
+    buf[num] = '\0';
   }
 
   return -err;
