@@ -947,6 +947,13 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     endif()
 
     list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
+
+    foreach(tgt ${BENCHMARK_TARGETS})
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        # <benchmark.h> currently triggers this by using __COUNTER__
+        target_compile_options(${tgt} PRIVATE -Wno-c2y-extensions)
+      endif()
+    endforeach()
   endif()
 endif()
 
