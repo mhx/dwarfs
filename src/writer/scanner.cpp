@@ -128,7 +128,7 @@ class device_set_inode_visitor : public visitor_base {
       : inode_num_(inode_num) {}
 
   void visit(device* p) override {
-    if (p->type() == entry::E_DEVICE) {
+    if (p->is_device()) {
       p->set_inode_num(inode_num_++);
       dev_ids_.push_back(p->device_id());
     }
@@ -147,7 +147,7 @@ class pipe_set_inode_visitor : public visitor_base {
       : inode_num_(inode_num) {}
 
   void visit(device* p) override {
-    if (p->type() != entry::E_DEVICE) {
+    if (!p->is_device()) {
       p->set_inode_num(inode_num_++);
     }
   }
@@ -395,7 +395,7 @@ scanner_<LoggerPolicy>::add_entry(entry_tree& tree,
     case entry::E_FILE:
       prog.files_found++;
       if (!debug_filter) {
-        fs.scan(dynamic_cast<file*>(pe));
+        fs.scan(pe->as_file());
       }
       break;
 
@@ -472,7 +472,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_tree& tree,
   prog.dirs_found++;
 
   while (!queue.empty()) {
-    auto parent = dynamic_cast<dir*>(queue.front());
+    auto parent = queue.front()->as_dir();
 
     DWARFS_CHECK(parent, "expected directory");
 
@@ -486,7 +486,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_tree& tree,
 
       while (d->read(name)) {
         if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
-          if (pe->type() == entry::E_DIR) {
+          if (pe->is_dir()) {
             subdirs.push_back(pe);
           }
         }
@@ -532,14 +532,14 @@ scanner_<LoggerPolicy>::scan_list(entry_tree& tree,
     for (auto const& component : path) {
       LOG_TRACE << "checking '" << path_to_utf8_string_sanitized(component)
                 << "'";
-      if (auto d = dynamic_cast<dir*>(root)) {
+      if (auto d = root->as_dir()) {
         if (auto e = d->find(component.string())) {
           root = e;
         } else {
           LOG_DEBUG << "adding directory '"
                     << path_to_utf8_string_sanitized(component) << "'";
           root = add_entry(tree, d->fs_path() / component, d, prog, fs);
-          if (root && root->type() == entry::E_DIR) {
+          if (root && root->is_dir()) {
             prog.dirs_scanned++;
           } else {
             DWARFS_THROW(runtime_error,
@@ -603,7 +603,7 @@ scanner_<LoggerPolicy>::scan_list(entry_tree& tree,
     if (auto it = dir_cache.find(parent.string()); it != dir_cache.end()) {
       pd = it->second;
     } else {
-      pd = dynamic_cast<dir*>(ensure_path(parent, root));
+      pd = ensure_path(parent, root)->as_dir();
 
       if (pd) {
         dir_cache.emplace(parent.string(), pd);
@@ -624,10 +624,10 @@ scanner_<LoggerPolicy>::scan_list(entry_tree& tree,
               << path_to_utf8_string_sanitized(rootpath / relpath) << "'";
 
     if (auto pe = add_entry(tree, rootpath / relpath, pd, prog, fs)) {
-      if (pe->type() == entry::E_DIR) {
+      if (pe->is_dir()) {
         prog.dirs_scanned++;
-      } else if (pe->type() == entry::E_FILE) {
-        auto fp = dynamic_cast<file*>(pe);
+      } else if (pe->is_file()) {
+        auto fp = pe->as_file();
         fp->set_order_index(file_order_index++);
       }
     }
@@ -671,7 +671,7 @@ void scanner_<LoggerPolicy>::scan(
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
-    auto d = dynamic_cast<dir*>(root);
+    auto d = root->as_dir();
     d->remove_empty_dirs(prog);
   }
 
@@ -766,7 +766,7 @@ void scanner_<LoggerPolicy>::scan(
     LOG_INFO << "updating name and link indices...";
     root->walk([&](entry* ep) {
       ep->update(ge_data);
-      if (auto* lp = dynamic_cast<link*>(ep)) {
+      if (auto* lp = ep->as_link()) {
         mdb.add_symlink_table_entry(
             ep->inode_num().value() - first_link_inode,
             ge_data.get_symlink_table_entry(lp->linkname()));

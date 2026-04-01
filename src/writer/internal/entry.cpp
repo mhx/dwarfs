@@ -141,7 +141,7 @@ bool entry::less_revpath(entry const& rhs) const {
   return rhs_p != nullptr;
 }
 
-bool entry::is_directory() const { return stat_.is_directory(); }
+bool entry::is_directory() const { return is_dir(); }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
@@ -176,6 +176,25 @@ uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 void entry::set_empty() {
   stat_.set_size(0);
   stat_.set_allocated_size(0);
+}
+
+file* entry::as_file() noexcept {
+  return is_file() ? static_cast<file*>(this) : nullptr;
+}
+
+dir* entry::as_dir() noexcept {
+  return is_dir() ? static_cast<dir*>(this) : nullptr;
+}
+
+link* entry::as_link() noexcept {
+  return is_link() ? static_cast<link*>(this) : nullptr;
+}
+
+device* entry::as_device() noexcept {
+  auto const t = type();
+  return t == entry_type::E_DEVICE || t == entry_type::E_OTHER
+             ? static_cast<device*>(this)
+             : nullptr;
 }
 
 entry::type_t file::type() const { return E_FILE; }
@@ -319,7 +338,7 @@ void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
                time_resolution_converter const& timeres) const {
   thrift::metadata::directory d;
   if (has_parent()) {
-    auto* pd = dynamic_cast<dir*>(parent());
+    auto* pd = parent()->as_dir();
     DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
     auto pe = pd->entry_index();
     DWARFS_CHECK(pe, "parent entry index not set");
@@ -345,7 +364,7 @@ void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
 void dir::remove_empty_dirs(progress& prog) {
   // NOLINTNEXTLINE(modernize-use-ranges)
   auto last = std::remove_if(entries_.begin(), entries_.end(), [&](entry* e) {
-    if (auto* d = dynamic_cast<dir*>(e)) {
+    if (auto* d = e->as_dir()) {
       d->remove_empty_dirs(prog);
       return d->empty();
     }
