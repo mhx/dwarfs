@@ -230,10 +230,9 @@ class worker_group_ final : public worker_group::impl {
     }
   }
 
-  void do_work(thread_state& state, bool is_background [[maybe_unused]]) {
-#ifdef _WIN32
-    auto hthr = ::GetCurrentThread();
-#endif
+  void do_work(thread_state& state, bool is_background) {
+    auto th = thread_helper{};
+
     for (;;) {
       std::any job;
 
@@ -256,23 +255,12 @@ class worker_group_ final : public worker_group::impl {
         jobs_.pop();
       }
 
-      {
-#ifdef _WIN32
-        if (is_background) {
-          ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_BEGIN);
-        }
-#endif
-        try {
-          state.apply(std::move(job));
-        } catch (...) {
-          LOG_FATAL << "exception thrown in worker thread: "
-                    << exception_str(std::current_exception());
-        }
-#ifdef _WIN32
-        if (is_background) {
-          ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_END);
-        }
-#endif
+      try {
+        auto bg = th.background_scope(is_background);
+        state.apply(std::move(job));
+      } catch (...) {
+        LOG_FATAL << "exception thrown in worker thread: "
+                  << exception_str(std::current_exception());
       }
 
       {
