@@ -37,8 +37,6 @@
 
 namespace dwarfs::writer {
 
-class entry_interface;
-
 struct metadata_options {
   std::optional<file_stat::uid_type> uid{};
   std::optional<file_stat::gid_type> gid{};
