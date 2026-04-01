@@ -49,4 +49,55 @@ pthread_t std_to_pthread_id(std::thread::id tid);
 bool set_thread_name(std::string_view name);
 void set_thread_niceness(int niceness);
 
+class thread_helper {
+ public:
+  class impl;
+
+  class scoped_background_thread {
+   public:
+    explicit scoped_background_thread(thread_helper::impl const* helper)
+        : helper_{helper} {
+      if (helper_) {
+        helper_->enter_background();
+      }
+    }
+
+    ~scoped_background_thread() noexcept {
+      if (helper_) {
+        helper_->leave_background();
+      }
+    }
+
+    scoped_background_thread(scoped_background_thread const&) = delete;
+    scoped_background_thread&
+    operator=(scoped_background_thread const&) = delete;
+    scoped_background_thread(scoped_background_thread&&) = delete;
+    scoped_background_thread& operator=(scoped_background_thread&&) = delete;
+
+   private:
+    thread_helper::impl const* helper_{nullptr};
+  };
+
+  thread_helper();
+  ~thread_helper() noexcept;
+
+  thread_helper(thread_helper&&) = delete;
+  thread_helper& operator=(thread_helper&&) = delete;
+
+  scoped_background_thread background_scope(bool is_background) const {
+    return scoped_background_thread{is_background ? impl_.get() : nullptr};
+  }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual bool enter_background() const = 0;
+    virtual bool leave_background() const = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
+};
+
 } // namespace dwarfs::internal

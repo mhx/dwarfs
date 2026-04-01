@@ -113,4 +113,36 @@ void set_thread_niceness(int niceness) {
   }
 }
 
+namespace {
+
+#ifdef _WIN32
+class thread_helper_ final : public thread_helper::impl {
+ public:
+  thread_helper_()
+      : hthread_{::GetCurrentThread()} {}
+
+  bool enter_background() const override {
+    return ::SetThreadPriority(hthread_, THREAD_MODE_BACKGROUND_BEGIN) != 0;
+  }
+
+  bool leave_background() const override {
+    return ::SetThreadPriority(hthread_, THREAD_MODE_BACKGROUND_END) != 0;
+  }
+
+ private:
+  HANDLE hthread_{};
+};
+#endif
+
+} // namespace
+
+#ifdef _WIN32
+thread_helper::thread_helper()
+    : impl_{std::make_unique<thread_helper_>()} {}
+#else
+thread_helper::thread_helper() = default;
+#endif
+
+thread_helper::~thread_helper() noexcept = default;
+
 } // namespace dwarfs::internal
