@@ -56,6 +56,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_filter.h>
+#include <dwarfs/writer/entry_tree.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -260,17 +261,18 @@ class scanner_ final : public scanner::impl {
        std::function<void(library_dependencies&)> const& extra_deps) override;
 
  private:
-  entry_factory::node scan_tree(std::filesystem::path const& path,
-                                progress& prog, file_scanner& fs);
-
-  entry_factory::node scan_list(std::filesystem::path const& rootpath,
-                                std::span<std::filesystem::path const> list,
-                                progress& prog, file_scanner& fs);
+  entry_factory::node
+  scan_tree(entry_tree& tree, std::filesystem::path const& path, progress& prog,
+            file_scanner& fs);
 
   entry_factory::node
-  add_entry(std::filesystem::path const& name,
-            std::shared_ptr<dir> const& parent, progress& prog,
-            file_scanner& fs, bool debug_filter = false);
+  scan_list(entry_tree& tree, std::filesystem::path const& rootpath,
+            std::span<std::filesystem::path const> list, progress& prog,
+            file_scanner& fs);
+
+  entry_factory::node
+  add_entry(entry_tree& tree, std::filesystem::path const& name, dir* parent,
+            progress& prog, file_scanner& fs, bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
@@ -309,12 +311,12 @@ DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
-                                  std::shared_ptr<dir> const& parent,
-                                  progress& prog, file_scanner& fs,
+scanner_<LoggerPolicy>::add_entry(entry_tree& tree,
+                                  std::filesystem::path const& name,
+                                  dir* parent, progress& prog, file_scanner& fs,
                                   bool debug_filter) {
   try {
-    auto pe = entry_factory_.create(os_, name, parent);
+    auto pe = entry_factory_.create(tree, os_, name, parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       try {
@@ -393,7 +395,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     case entry::E_FILE:
       prog.files_found++;
       if (!debug_filter) {
-        fs.scan(dynamic_cast<file*>(pe.get()));
+        fs.scan(dynamic_cast<file*>(pe));
       }
       break;
 
@@ -460,21 +462,17 @@ void scanner_<LoggerPolicy>::dump_state(
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
+scanner_<LoggerPolicy>::scan_tree(entry_tree& tree,
+                                  std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
-  auto root = entry_factory_.create(os_, path);
+  auto root = entry_factory_.create(tree, os_, path);
   bool const debug_filter = options_.debug_filter_function.has_value();
-
-  if (root->type() != entry::E_DIR) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("'{}' must be a directory", path.string()));
-  }
 
   std::deque<entry_factory::node> queue({root});
   prog.dirs_found++;
 
   while (!queue.empty()) {
-    auto parent = std::dynamic_pointer_cast<dir>(queue.front());
+    auto parent = dynamic_cast<dir*>(queue.front());
 
     DWARFS_CHECK(parent, "expected directory");
 
@@ -487,7 +485,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
       std::vector<entry_factory::node> subdirs;
 
       while (d->read(name)) {
-        if (auto pe = add_entry(name, parent, prog, fs, debug_filter)) {
+        if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
           if (pe->type() == entry::E_DIR) {
             subdirs.push_back(pe);
           }
@@ -510,7 +508,8 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
+scanner_<LoggerPolicy>::scan_list(entry_tree& tree,
+                                  std::filesystem::path const& rootpath,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, file_scanner& fs) {
   if (!filters_.empty()) {
@@ -522,29 +521,24 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
   LOG_DEBUG << "creating root directory '"
             << path_to_utf8_string_sanitized(rootpath) << "'";
 
-  auto root = entry_factory_.create(os_, rootpath);
+  auto root = entry_factory_.create(tree, os_, rootpath);
 
-  if (root->type() != entry::E_DIR) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("'{}' must be a directory",
-                             path_to_utf8_string_sanitized(rootpath)));
-  }
-
-  auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
-                                        entry_factory::node root) {
+  auto ensure_path = [this, &tree, &prog,
+                      &fs](std::filesystem::path const& path,
+                           entry_factory::node root) {
     LOG_TRACE << "ensuring path '" << path_to_utf8_string_sanitized(path)
               << "'";
 
     for (auto const& component : path) {
       LOG_TRACE << "checking '" << path_to_utf8_string_sanitized(component)
                 << "'";
-      if (auto d = std::dynamic_pointer_cast<dir>(root)) {
+      if (auto d = dynamic_cast<dir*>(root)) {
         if (auto e = d->find(component.string())) {
           root = e;
         } else {
           LOG_DEBUG << "adding directory '"
                     << path_to_utf8_string_sanitized(component) << "'";
-          root = add_entry(d->fs_path() / component, d, prog, fs);
+          root = add_entry(tree, d->fs_path() / component, d, prog, fs);
           if (root && root->type() == entry::E_DIR) {
             prog.dirs_scanned++;
           } else {
@@ -563,7 +557,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     return root;
   };
 
-  std::unordered_map<std::string, std::shared_ptr<dir>> dir_cache;
+  std::unordered_map<std::string, dir*> dir_cache;
   uint32_t file_order_index{0};
 
   for (auto const& listpath : list) {
@@ -599,7 +593,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     }
 
     auto parent = relpath.parent_path();
-    std::shared_ptr<dir> pd;
+    dir* pd{nullptr};
 
     LOG_TRACE << "adding path '" << path_to_utf8_string_sanitized(relpath)
               << "' (parent: " << parent
@@ -609,7 +603,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     if (auto it = dir_cache.find(parent.string()); it != dir_cache.end()) {
       pd = it->second;
     } else {
-      pd = std::dynamic_pointer_cast<dir>(ensure_path(parent, root));
+      pd = dynamic_cast<dir*>(ensure_path(parent, root));
 
       if (pd) {
         dir_cache.emplace(parent.string(), pd);
@@ -620,7 +614,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
       }
     }
 
-    if (auto pe = pd->find(relpath)) {
+    if (pd->find(relpath)) {
       LOG_INFO << "skipping duplicate entry '"
                << path_to_utf8_string_sanitized(relpath) << "' in input list";
       continue;
@@ -629,11 +623,11 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
     LOG_TRACE << "adding entry '"
               << path_to_utf8_string_sanitized(rootpath / relpath) << "'";
 
-    if (auto pe = add_entry(rootpath / relpath, pd, prog, fs)) {
+    if (auto pe = add_entry(tree, rootpath / relpath, pd, prog, fs)) {
       if (pe->type() == entry::E_DIR) {
         prog.dirs_scanned++;
       } else if (pe->type() == entry::E_FILE) {
-        auto fp = dynamic_cast<file*>(pe.get());
+        auto fp = dynamic_cast<file*>(pe);
         fp->set_order_index(file_order_index++);
       }
     }
@@ -667,8 +661,9 @@ void scanner_<LoggerPolicy>::scan(
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                          os_.getenv(kEnvVarDumpFilesFinal)});
 
-  auto root =
-      list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
+  auto tree = entry_tree{};
+  auto root = list ? scan_list(tree, path, *list, prog, fs)
+                   : scan_tree(tree, path, prog, fs);
 
   if (options_.debug_filter_function) {
     return;
@@ -676,7 +671,7 @@ void scanner_<LoggerPolicy>::scan(
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
-    auto d = dynamic_cast<dir*>(root.get());
+    auto d = dynamic_cast<dir*>(root);
     d->remove_empty_dirs(prog);
   }
 

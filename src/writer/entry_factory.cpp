@@ -21,10 +21,15 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/util.h>
 #include <dwarfs/writer/entry_factory.h>
+#include <dwarfs/writer/entry_tree.h>
 
 #include <dwarfs/writer/internal/entry.h>
+
+#include <fmt/format.h>
 
 namespace dwarfs::writer {
 
@@ -32,29 +37,38 @@ namespace internal {
 
 class entry_factory_ : public entry_factory::impl {
  public:
-  entry_factory::node
-  create(os_access const& os, std::filesystem::path const& path,
-         entry_factory::node parent) override {
+  entry_factory::node create(entry_tree& tree, os_access const& os,
+                             std::filesystem::path const& path,
+                             entry_factory::node parent) override {
     auto st = os.symlink_info(path);
+
+    if (!parent) {
+      if (st.is_directory()) {
+        return tree.create_root_dir(path, st);
+      }
+
+      DWARFS_THROW(runtime_error,
+                   fmt::format("'{}' must be a directory",
+                               path_to_utf8_string_sanitized(path)));
+    }
 
     switch (st.type()) {
     case posix_file_type::regular:
-      return std::make_shared<file>(path, std::move(parent), st);
+      return tree.create_file(path, parent, st);
 
     case posix_file_type::directory:
-      return std::make_shared<dir>(path, std::move(parent), st);
+      return tree.create_dir(path, parent, st);
 
     case posix_file_type::symlink:
-      return std::make_shared<link>(path, std::move(parent), st);
+      return tree.create_link(path, parent, st);
 
     case posix_file_type::character:
     case posix_file_type::block:
     case posix_file_type::fifo:
     case posix_file_type::socket:
-      return std::make_shared<device>(path, std::move(parent), st);
+      return tree.create_device(path, parent, st);
 
     default:
-      // TODO: warn
       break;
     }
 

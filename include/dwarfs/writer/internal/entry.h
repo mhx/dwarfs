@@ -99,11 +99,10 @@ class entry : public entry_interface {
  public:
   enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
-  entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
-        file_stat const& st);
+  entry(std::filesystem::path const& path, entry* parent, file_stat const& st);
 
   bool has_parent() const;
-  std::shared_ptr<entry> parent() const;
+  entry* parent() const;
   std::filesystem::path fs_path() const;
   std::string path_as_string() const override;
   std::string unix_dpath() const override;
@@ -135,7 +134,7 @@ class entry : public entry_interface {
   std::filesystem::path path_;
 #endif
   std::string name_;
-  std::weak_ptr<entry> parent_;
+  entry* parent_{nullptr};
   file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
@@ -186,7 +185,7 @@ class dir : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void add(std::shared_ptr<entry> e);
+  void add(entry* e);
   void walk(std::function<void(entry*)> const& f) override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
@@ -204,15 +203,15 @@ class dir : public entry {
     return inode_num_;
   }
 
-  std::shared_ptr<entry> find(std::filesystem::path const& path);
+  entry* find(std::filesystem::path const& path);
 
  private:
-  using entry_ptr = std::shared_ptr<entry>;
+  using entry_ptr = entry*;
   using lookup_table = std::unordered_map<std::string_view, entry_ptr>;
 
   void populate_lookup_table();
 
-  std::vector<std::shared_ptr<entry>> entries_;
+  std::vector<entry_ptr> entries_;
   std::optional<uint32_t> inode_num_;
   std::unique_ptr<lookup_table> lookup_;
 };
