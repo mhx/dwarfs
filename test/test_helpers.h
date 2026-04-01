@@ -253,27 +253,9 @@ class os_access_mock : public os_access {
 struct filter_transformer_data {
   struct entry_data {
     entry_data(writer::entry_interface const& ei)
-        : path{ei.unix_dpath()}
-        , name{ei.name()}
-        , size{ei.size()}
-        , is_directory{ei.is_directory()}
-        , mode{ei.get_permissions()}
-        , uid{ei.get_uid()}
-        , gid{ei.get_gid()}
-        , atime{ei.get_atime()}
-        , mtime{ei.get_mtime()}
-        , ctime{ei.get_ctime()} {}
+        : path{ei.unix_dpath()} {}
 
     std::string path;
-    std::string name;
-    file_size_t size;
-    bool is_directory;
-    file_stat::mode_type mode;
-    file_stat::uid_type uid;
-    file_stat::gid_type gid;
-    uint64_t atime;
-    uint64_t mtime;
-    uint64_t ctime;
   };
 
   std::vector<entry_data> filter_calls;

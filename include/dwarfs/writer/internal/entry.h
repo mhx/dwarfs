@@ -128,14 +128,6 @@ class entry : public entry_interface {
   virtual void set_inode_num(uint32_t ino) = 0;
   virtual std::optional<uint32_t> const& inode_num() const = 0;
 
-  // more methods from entry_interface
-  mode_type get_permissions() const override;
-  uid_type get_uid() const override;
-  gid_type get_gid() const override;
-  uint64_t get_atime() const override;
-  uint64_t get_mtime() const override;
-  uint64_t get_ctime() const override;
-
   void set_empty();
 
  private:

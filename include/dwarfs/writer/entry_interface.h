@@ -25,7 +25,6 @@
 
 #include <string>
 
-#include <dwarfs/file_stat.h>
 #include <dwarfs/types.h>
 #include <dwarfs/writer/object.h>
 
@@ -33,22 +32,11 @@ namespace dwarfs::writer {
 
 class entry_interface : public object {
  public:
-  using uid_type = file_stat::uid_type;
-  using gid_type = file_stat::gid_type;
-  using mode_type = file_stat::mode_type;
-
   virtual std::string path_as_string() const = 0;
   virtual std::string unix_dpath() const = 0;
   virtual std::string const& name() const = 0;
   virtual file_size_t size() const = 0;
   virtual file_size_t allocated_size() const = 0;
   virtual bool is_directory() const = 0;
-
-  virtual mode_type get_permissions() const = 0;
-  virtual uid_type get_uid() const = 0;
-  virtual gid_type get_gid() const = 0;
-  virtual uint64_t get_atime() const = 0;
-  virtual uint64_t get_mtime() const = 0;
-  virtual uint64_t get_ctime() const = 0;
 };
 } // namespace dwarfs::writer

@@ -183,18 +183,6 @@ void entry::set_empty() {
 
 entry::type_t file::type() const { return E_FILE; }
 
-auto entry::get_permissions() const -> mode_type { return stat_.permissions(); }
-
-auto entry::get_uid() const -> uid_type { return stat_.uid(); }
-
-auto entry::get_gid() const -> gid_type { return stat_.gid(); }
-
-uint64_t entry::get_atime() const { return stat_.atime(); }
-
-uint64_t entry::get_mtime() const { return stat_.mtime(); }
-
-uint64_t entry::get_ctime() const { return stat_.ctime(); }
-
 std::string_view file::hash() const {
   auto& h = data_->hash;
   return {h.data(), h.size()};
