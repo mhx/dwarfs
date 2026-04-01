@@ -27,17 +27,12 @@
 #include <memory>
 #include <vector>
 
+#include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/receiver.h>
 
 namespace dwarfs {
 
 class logger;
-
-namespace internal {
-
-class worker_group;
-
-}
 
 namespace writer::internal {
 

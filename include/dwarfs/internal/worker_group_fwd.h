@@ -28,65 +28,11 @@
 
 #pragma once
 
-#include <chrono>
-#include <functional>
-#include <limits>
-#include <memory>
-#include <optional>
-#include <string_view>
-#include <system_error>
-
-namespace dwarfs {
-
-class logger;
-class os_access;
-
-namespace internal {
+namespace dwarfs::internal {
 
 template <typename...>
 class basic_worker_group;
 
 using worker_group = basic_worker_group<>;
 
-} // namespace internal
-
-/**
- * A thread pool
- *
- * This class is mostly a wrapper around internal::worker_group as we
- * currently don't want to expose that API directly.
- */
-class thread_pool {
- public:
-  using job_type = std::function<void()>;
-
-  thread_pool();
-  thread_pool(logger& lgr, os_access const& os, std::string_view group_name,
-              size_t num_workers = 1,
-              size_t max_queue_len = std::numeric_limits<size_t>::max(),
-              int niceness = 0);
-
-  ~thread_pool();
-
-  thread_pool(thread_pool&&) noexcept;
-  thread_pool& operator=(thread_pool&&) noexcept;
-
-  explicit operator bool() const { return static_cast<bool>(wg_); }
-
-  bool add_job(job_type job);
-
-  size_t num_workers() const;
-
-  void stop();
-  void wait();
-  bool running() const;
-  std::optional<std::chrono::nanoseconds> try_get_cpu_time() const;
-  std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const;
-
-  internal::worker_group& get_worker_group() { return *wg_; }
-
- private:
-  std::unique_ptr<internal::worker_group> wg_;
-};
-
-} // namespace dwarfs
+} // namespace dwarfs::internal

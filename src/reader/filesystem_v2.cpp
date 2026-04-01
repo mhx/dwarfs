@@ -665,7 +665,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
   auto parser = make_fs_parser();
 
-  worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
+  worker_group wg(LOG_GET_LOGGER, os_, "fscheck", {.num_workers = num_threads});
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {

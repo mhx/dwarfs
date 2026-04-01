@@ -28,16 +28,12 @@
 #include <optional>
 #include <string>
 
+#include <dwarfs/internal/worker_group_fwd.h>
+
 namespace dwarfs {
 
 class logger;
 class os_access;
-
-namespace internal {
-
-class worker_group;
-
-} // namespace internal
 
 namespace writer {
 

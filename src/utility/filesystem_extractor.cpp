@@ -450,22 +450,19 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
 
-  using worker_ptr = std::shared_ptr<worker_group>;
+  using worker_ptr = std::shared_ptr<basic_worker_group<archive*>>;
 
-  worker_ptr archiver = std::make_shared<worker_group>(
-      LOG_GET_LOGGER, os_, "archiver", 1, [this](size_t) {
-        return std::make_unique<basic_thread_state<struct archive*>>(a_.get());
-      });
+  worker_ptr archiver = std::make_shared<basic_worker_group<archive*>>(
+      LOG_GET_LOGGER, os_, "archiver", a_.get());
   worker_ptr reg_archiver;
 
   if (a_reg_.empty()) {
     reg_archiver = archiver;
   } else {
-    reg_archiver = std::make_shared<worker_group>(
-        LOG_GET_LOGGER, os_, "arch-reg", a_reg_.size(), [this](size_t idx) {
-          return std::make_unique<basic_thread_state<struct archive*>>(
-              a_reg_[idx].get());
-        });
+    reg_archiver = std::make_shared<basic_worker_group<archive*>>(
+        LOG_GET_LOGGER, os_, "arch-reg",
+        worker_group_options{.num_workers = a_reg_.size()},
+        [this](size_t idx) { return a_reg_[idx].get(); });
   }
 
   std::atomic<size_t> hard_error{0};
@@ -489,7 +486,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         }
       }
 
-      aptr->add_job<struct archive*>(
+      aptr->add_job(
           [this, &hard_error, &soft_error, &opts, extents = std::move(extents),
            ranges = fr.read_sequential(data_ranges, sem, opts.max_queued_bytes),
            ae = std::move(ae), size, &sparse_mode](struct archive* a) mutable {
@@ -585,15 +582,14 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
             }
           });
     } else {
-      aptr->add_job<struct archive*>(
-          [this, ae = std::move(ae), &hard_error](struct archive* a) {
-            try {
-              check_result(a, ::archive_write_header(a, ae.get()));
-            } catch (...) {
-              LOG_ERROR << exception_str(std::current_exception());
-              ++hard_error;
-            }
-          });
+      aptr->add_job([this, ae = std::move(ae), &hard_error](struct archive* a) {
+        try {
+          check_result(a, ::archive_write_header(a, ae.get()));
+        } catch (...) {
+          LOG_ERROR << exception_str(std::current_exception());
+          ++hard_error;
+        }
+      });
     }
   };
 

@@ -42,7 +42,10 @@ thread_pool::thread_pool(logger& lgr, os_access const& os,
                          std::string_view group_name, size_t num_workers,
                          size_t max_queue_len, int niceness)
     : wg_{std::make_unique<internal::worker_group>(
-          lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
+          lgr, os, group_name,
+          internal::worker_group_options{.num_workers = num_workers,
+                                         .max_queue_len = max_queue_len,
+                                         .niceness = niceness})} {}
 
 bool thread_pool::add_job(job_type job) { return wg_->add_job(std::move(job)); }
 

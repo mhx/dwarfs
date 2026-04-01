@@ -26,18 +26,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <atomic>
+#include <algorithm>
 #include <condition_variable>
 #include <cstdint>
-#include <cstring>
 #include <ctime>
 #include <exception>
-#include <iostream>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <vector>
 
 #include <fmt/format.h>
@@ -53,25 +51,21 @@
 #include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::internal::detail {
 
 namespace {
 
 template <typename LoggerPolicy>
-class worker_group_ final : public worker_group::impl {
+class worker_group_impl_ final : public worker_group_impl {
  public:
-  template <typename... Args>
-  worker_group_(logger& lgr, os_access const& os, std::string_view group_name,
-                size_t num_workers,
-                std::function<std::unique_ptr<thread_state>(size_t)> const&
-                    thread_state_factory,
-                size_t max_queue_len, int niceness [[maybe_unused]])
+  worker_group_impl_(logger& lgr, os_access const& os,
+                     std::string_view group_name,
+                     worker_group_options const& options, state_factory sf)
       : LOG_PROXY_INIT(lgr)
       , os_{os}
-      , running_(true)
-      , pending_(0)
-      , max_queue_len_(max_queue_len) {
-    if (num_workers < 1) {
+      , max_queue_len_{std::max<size_t>(options.max_queue_len, 1)} {
+    auto num_workers = options.num_workers;
+    if (num_workers == 0) {
       num_workers = std::max(hardware_concurrency(), 1U);
     }
 
@@ -79,25 +73,26 @@ class worker_group_ final : public worker_group::impl {
       group_name = "worker";
     }
 
+    auto thread_name_prefix = std::string(group_name);
+
+    workers_.reserve(num_workers);
+
     for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back(
-          [this, niceness, group_name, i, state = thread_state_factory(i)] {
-            set_thread_name(fmt::format("{}{}", group_name, i + 1));
-            set_thread_niceness(niceness);
-            do_work(*state, niceness > 10);
-          });
+      workers_.emplace_back([this, niceness = options.niceness,
+                             thread_name_prefix, i, state = sf(i)]() mutable {
+        set_thread_name(fmt::format("{}{}", thread_name_prefix, i + 1));
+        set_thread_niceness(niceness);
+        do_work(*state, niceness > 10);
+      });
     }
 
-    check_set_affinity_from_enviroment(group_name);
+    check_set_affinity_from_environment(group_name);
   }
 
-  worker_group_(worker_group_ const&) = delete;
-  worker_group_& operator=(worker_group_ const&) = delete;
+  worker_group_impl_(worker_group_impl_ const&) = delete;
+  worker_group_impl_& operator=(worker_group_impl_ const&) = delete;
 
-  /**
-   * Stop and destroy a worker group
-   */
-  ~worker_group_() noexcept override {
+  ~worker_group_impl_() noexcept override {
     try {
       stop();
     } catch (...) {
@@ -107,91 +102,76 @@ class worker_group_ final : public worker_group::impl {
     }
   }
 
-  /**
-   * Stop a worker group
-   */
   void stop() override {
-    if (running_) {
-      {
-        std::lock_guard lock(mx_);
-        running_ = false;
+    {
+      std::lock_guard lock(mx_);
+      if (!running_) {
+        return;
       }
+      running_ = false;
+    }
 
-      cond_.notify_all();
+    jobs_available_.notify_all();
+    queue_space_available_.notify_all();
 
-      for (auto& w : workers_) {
-        w.join();
+    for (auto& worker : workers_) {
+      if (worker.joinable()) {
+        worker.join();
       }
     }
   }
 
-  /**
-   * Wait until all work has been done
-   */
   void wait() override {
-    if (running_) {
-      std::unique_lock lock(mx_);
-      wait_.wait(lock, [&] { return pending_ == 0; });
-    }
+    std::unique_lock lock(mx_);
+    all_done_.wait(lock, [this] { return pending_ == 0; });
   }
 
-  /**
-   * Check whether the worker group is still running
-   */
-  bool running() const override { return running_; }
-
-  /**
-   * Add a new job to the worker group
-   *
-   * The new job will be dispatched to the first available worker thread.
-   *
-   * \param job             The job to add to the dispatcher.
-   */
-  bool add_job(std::any&& job) override {
-    if (running_) {
-      {
-        std::unique_lock lock(mx_);
-        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
-        jobs_.emplace(std::move(job));
-        ++pending_;
-      }
-
-      cond_.notify_one();
-
-      return true;
-    }
-
-    return false;
+  bool running() const override {
+    std::lock_guard lock(mx_);
+    return running_;
   }
 
-  /**
-   * Return the number of worker threads
-   *
-   * \returns The number of worker threads.
-   */
+  bool add_job(queued_job&& job) override {
+    std::unique_lock lock(mx_);
+
+    queue_space_available_.wait(
+        lock, [this] { return !running_ || jobs_.size() < max_queue_len_; });
+
+    if (!running_) {
+      return false;
+    }
+
+    jobs_.emplace(std::move(job));
+    ++pending_;
+
+    lock.unlock();
+    jobs_available_.notify_one();
+    return true;
+  }
+
   size_t size() const override { return workers_.size(); }
 
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const override {
     ec.clear();
 
     std::lock_guard lock(mx_);
-    std::chrono::nanoseconds t{};
+    std::chrono::nanoseconds total{};
 
-    for (auto const& w : workers_) {
-      t += os_.thread_get_cpu_time(w.get_id(), ec);
+    for (auto const& worker : workers_) {
+      total += os_.thread_get_cpu_time(worker.get_id(), ec);
       if (ec) {
-        t = std::chrono::nanoseconds{};
+        total = std::chrono::nanoseconds{};
         break;
       }
     }
 
-    return t;
+    return total;
   }
 
   std::optional<std::chrono::nanoseconds> try_get_cpu_time() const override {
     std::error_code ec;
-    auto t = get_cpu_time(ec);
-    return ec ? std::nullopt : std::make_optional(t);
+    auto total = get_cpu_time(ec);
+    return ec ? std::nullopt : std::make_optional(total);
   }
 
   bool set_affinity(std::vector<int> const& cpus) override {
@@ -213,13 +193,13 @@ class worker_group_ final : public worker_group::impl {
   }
 
  private:
-  using jobs_t = std::queue<std::any>;
+  using jobs_t = std::queue<queued_job>;
 
-  void check_set_affinity_from_enviroment(std::string_view group_name) {
+  void check_set_affinity_from_environment(std::string_view group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
       auto groups = split_to<std::vector<std::string_view>>(var.value(), ':');
 
-      for (auto& group : groups) {
+      for (auto const& group : groups) {
         auto parts = split_to<std::vector<std::string_view>>(group, '=');
 
         if (parts.size() == 2 && parts[0] == group_name) {
@@ -230,46 +210,46 @@ class worker_group_ final : public worker_group::impl {
     }
   }
 
-  void do_work(thread_state& state, bool is_background) {
+  void do_work(worker_context& state, bool is_background) {
     auto th = thread_helper{};
 
     for (;;) {
-      std::any job;
+      std::optional<queued_job> job;
 
       {
         std::unique_lock lock(mx_);
 
-        while (jobs_.empty() && running_) {
-          cond_.wait(lock);
-        }
+        jobs_available_.wait(lock,
+                             [this] { return !running_ || !jobs_.empty(); });
 
         if (jobs_.empty()) {
-          if (running_) {
-            continue;
-          }
           break;
         }
 
-        job = std::move(jobs_.front());
-
+        job.emplace(std::move(jobs_.front()));
         jobs_.pop();
       }
 
+      queue_space_available_.notify_one();
+
       try {
         auto bg = th.background_scope(is_background);
-        state.apply(std::move(job));
+        (*job)(state);
       } catch (...) {
         LOG_FATAL << "exception thrown in worker thread: "
                   << exception_str(std::current_exception());
       }
 
+      bool notify_done = false;
+
       {
         std::lock_guard lock(mx_);
-        pending_--;
+        notify_done = (--pending_ == 0);
       }
 
-      wait_.notify_one();
-      queue_.notify_one();
+      if (notify_done) {
+        all_done_.notify_all();
+      }
     }
   }
 
@@ -277,33 +257,25 @@ class worker_group_ final : public worker_group::impl {
   os_access const& os_;
   std::vector<std::thread> workers_;
   jobs_t jobs_;
-  std::condition_variable cond_;
-  std::condition_variable queue_;
-  std::condition_variable wait_;
   mutable std::mutex mx_;
-  std::atomic<bool> running_;
-  std::atomic<size_t> pending_;
+  std::condition_variable jobs_available_;
+  std::condition_variable queue_space_available_;
+  std::condition_variable all_done_;
+  bool running_{true};
+  size_t pending_{0};
   size_t const max_queue_len_;
 };
 
 } // namespace
 
-worker_group::worker_group(
-    logger& lgr, os_access const& os, std::string_view group_name,
-    size_t num_workers,
-    std::function<std::unique_ptr<thread_state>(size_t)> const&
-        thread_state_factory,
-    size_t max_queue_len, int niceness)
-    : impl_{make_unique_logging_object<impl, worker_group_, logger_policies>(
-          lgr, os, group_name, num_workers, thread_state_factory, max_queue_len,
-          niceness)} {}
+std::unique_ptr<worker_group_impl>
+make_worker_group_impl(logger& lgr, os_access const& os,
+                       std::string_view group_name,
+                       worker_group_options const& options,
+                       worker_group_impl::state_factory&& sf) {
+  return make_unique_logging_object<worker_group_impl, worker_group_impl_,
+                                    logger_policies>(lgr, os, group_name,
+                                                     options, std::move(sf));
+}
 
-worker_group::worker_group(logger& lgr, os_access const& os,
-                           std::string_view group_name, size_t num_workers,
-                           size_t max_queue_len, int niceness)
-    : worker_group(
-          lgr, os, group_name, num_workers,
-          [](size_t) { return std::make_unique<basic_thread_state<>>(); },
-          max_queue_len, niceness) {}
-
-} // namespace dwarfs::internal
+} // namespace dwarfs::internal::detail

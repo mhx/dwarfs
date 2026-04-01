@@ -38,16 +38,16 @@ TEST(worker_group_test, set_thread_affinity_env) {
   os.setenv("DWARFS_WORKER_GROUP_AFFINITY", "lemon=0,1:lime=2,3");
 
   os.set_affinity_calls.clear();
-  internal::worker_group wg_lemon(lgr, os, "lemon", 2);
+  internal::worker_group wg_lemon(lgr, os, "lemon", {.num_workers = 2});
   ASSERT_EQ(2, os.set_affinity_calls.size());
   EXPECT_EQ(std::vector<int>({0, 1}), std::get<1>(os.set_affinity_calls[0]));
 
   os.set_affinity_calls.clear();
-  internal::worker_group wg_lime(lgr, os, "lime", 3);
+  internal::worker_group wg_lime(lgr, os, "lime", {.num_workers = 3});
   ASSERT_EQ(3, os.set_affinity_calls.size());
   EXPECT_EQ(std::vector<int>({2, 3}), std::get<1>(os.set_affinity_calls[0]));
 
   os.set_affinity_calls.clear();
-  internal::worker_group wg_apple(lgr, os, "apple", 1);
+  internal::worker_group wg_apple(lgr, os, "apple", {.num_workers = 1});
   EXPECT_EQ(0, os.set_affinity_calls.size());
 }

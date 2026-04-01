@@ -27,17 +27,12 @@
 #include <memory>
 #include <unordered_map>
 
+#include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/inode.h>
 
 namespace dwarfs {
 
 class logger;
-
-namespace internal {
-
-class worker_group;
-
-}
 
 namespace writer {
 

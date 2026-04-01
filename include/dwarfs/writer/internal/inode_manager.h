@@ -34,18 +34,13 @@
 
 #include <dwarfs/writer/fragment_category.h>
 
+#include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/inode.h>
 
 namespace dwarfs {
 
 class logger;
 class os_access;
-
-namespace internal {
-
-class worker_group;
-
-}
 
 namespace writer {
 

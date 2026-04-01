@@ -793,8 +793,10 @@ void scanner_<LoggerPolicy>::scan(
 
   {
     size_t const num_threads = options_.num_segmenter_workers;
-    worker_group wg_ordering(LOG_GET_LOGGER, os_, "ordering", num_threads);
-    worker_group wg_blockify(LOG_GET_LOGGER, os_, "blockify", num_threads);
+    worker_group wg_ordering(LOG_GET_LOGGER, os_, "ordering",
+                             {.num_workers = num_threads});
+    worker_group wg_blockify(LOG_GET_LOGGER, os_, "blockify",
+                             {.num_workers = num_threads});
 
     fsw.configure(frag_info.categories, num_threads);
 
