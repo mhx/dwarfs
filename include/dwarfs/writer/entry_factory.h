@@ -32,6 +32,8 @@ class os_access;
 
 namespace writer {
 
+class entry_tree;
+
 namespace internal {
 
 class entry;
@@ -40,21 +42,21 @@ class entry;
 
 class entry_factory {
  public:
-  using node = std::shared_ptr<internal::entry>;
+  using node = internal::entry*;
 
   entry_factory();
 
-  node create(os_access const& os, std::filesystem::path const& path,
-              node parent = {}) {
-    return impl_->create(os, path, std::move(parent));
+  node create(entry_tree& tree, os_access const& os,
+              std::filesystem::path const& path, node parent = nullptr) {
+    return impl_->create(tree, os, path, parent);
   }
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual node create(os_access const& os, std::filesystem::path const& path,
-                        node parent) = 0;
+    virtual node create(entry_tree& tree, os_access const& os,
+                        std::filesystem::path const& path, node parent) = 0;
   };
 
  private:

@@ -67,23 +67,20 @@ std::ostream& operator<<(std::ostream& os, unique_inode_id const& id) {
   return os << fmt::format("{{dev={}, ino={}}}", id.device_id, id.inode_num);
 }
 
-// NOLINTBEGIN(performance-unnecessary-value-param,performance-move-const-arg)
-entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
-             file_stat const& st)
+entry::entry(fs::path const& path, entry* parent, file_stat const& st)
 #ifdef _WIN32
     : path_{parent ? path.filename() : path}
     , name_{path_to_utf8_string_sanitized(path_)}
 #else
     : name_{path_to_utf8_string_sanitized(parent ? path.filename() : path)}
 #endif
-    , parent_{std::move(parent)}
+    , parent_{parent}
     , stat_{st} {
 }
-// NOLINTEND(performance-unnecessary-value-param,performance-move-const-arg)
 
-bool entry::has_parent() const { return static_cast<bool>(parent_.lock()); }
+bool entry::has_parent() const { return parent_ != nullptr; }
 
-std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
+entry* entry::parent() const { return parent_; }
 
 fs::path entry::fs_path() const {
 #ifdef _WIN32
@@ -92,8 +89,8 @@ fs::path entry::fs_path() const {
   fs::path self = name_;
 #endif
 
-  if (auto parent = parent_.lock()) {
-    self = parent->fs_path() / self;
+  if (auto* p = parent_) {
+    self = p->fs_path() / self;
   }
 
   return self;
@@ -115,8 +112,8 @@ std::string entry::unix_dpath() const {
       p += '/';
     }
 
-    if (auto parent = parent_.lock()) {
-      p = parent->unix_dpath() + p;
+    if (auto* par = parent_) {
+      p = par->unix_dpath() + p;
     } else if constexpr (kLocalPathSeparator != '/') {
       std::ranges::replace(p, kLocalPathSeparator, '/');
     }
@@ -134,14 +131,14 @@ bool entry::less_revpath(entry const& rhs) const {
     return false;
   }
 
-  auto p = parent();
-  auto rhs_p = rhs.parent();
+  auto* p = parent();
+  auto* rhs_p = rhs.parent();
 
   if (p && rhs_p) {
     return p->less_revpath(*rhs_p);
   }
 
-  return static_cast<bool>(rhs_p);
+  return rhs_p != nullptr;
 }
 
 bool entry::is_directory() const { return stat_.is_directory(); }
@@ -271,18 +268,18 @@ void file::hardlink(file* other, progress& prog) {
 
 entry::type_t dir::type() const { return E_DIR; }
 
-void dir::add(std::shared_ptr<entry> e) {
+void dir::add(entry* e) {
   if (lookup_) {
     auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
     assert(r.second);
   }
-  entries_.emplace_back(std::move(e));
+  entries_.emplace_back(e);
 }
 
 void dir::walk(std::function<void(entry*)> const& f) {
   f(this);
 
-  for (entry_ptr const& e : entries_) {
+  for (entry* e : entries_) {
     e->walk(f);
   }
 }
@@ -292,7 +289,7 @@ void dir::accept(entry_visitor& v, bool preorder) {
     v.visit(this);
   }
 
-  for (entry_ptr const& e : entries_) {
+  for (entry* e : entries_) {
     e->accept(v, preorder);
   }
 
@@ -302,9 +299,8 @@ void dir::accept(entry_visitor& v, bool preorder) {
 }
 
 void dir::sort() {
-  std::ranges::sort(entries_, [](entry_ptr const& a, entry_ptr const& b) {
-    return a->name() < b->name();
-  });
+  std::ranges::sort(entries_,
+                    [](entry* a, entry* b) { return a->name() < b->name(); });
 }
 
 void dir::scan(os_access const&, progress&) {}
@@ -323,7 +319,7 @@ void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
                time_resolution_converter const& timeres) const {
   thrift::metadata::directory d;
   if (has_parent()) {
-    auto pd = std::dynamic_pointer_cast<dir>(parent());
+    auto* pd = dynamic_cast<dir*>(parent());
     DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
     auto pe = pd->entry_index();
     DWARFS_CHECK(pe, "parent entry index not set");
@@ -348,14 +344,13 @@ void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
 
 void dir::remove_empty_dirs(progress& prog) {
   // NOLINTNEXTLINE(modernize-use-ranges)
-  auto last = std::remove_if(entries_.begin(), entries_.end(),
-                             [&](std::shared_ptr<entry> const& e) {
-                               if (auto d = dynamic_cast<dir*>(e.get())) {
-                                 d->remove_empty_dirs(prog);
-                                 return d->empty();
-                               }
-                               return false;
-                             });
+  auto last = std::remove_if(entries_.begin(), entries_.end(), [&](entry* e) {
+    if (auto* d = dynamic_cast<dir*>(e)) {
+      d->remove_empty_dirs(prog);
+      return d->empty();
+    }
+    return false;
+  });
 
   if (last != entries_.end()) {
     auto num = std::distance(last, entries_.end());
@@ -367,7 +362,7 @@ void dir::remove_empty_dirs(progress& prog) {
   lookup_.reset();
 }
 
-std::shared_ptr<entry> dir::find(fs::path const& path) {
+entry* dir::find(fs::path const& path) {
   auto name = path_to_utf8_string_sanitized(path.filename());
 
   if (!lookup_ && entries_.size() >= 16) {
@@ -380,7 +375,7 @@ std::shared_ptr<entry> dir::find(fs::path const& path) {
     }
   } else {
     auto it = std::ranges::find_if(
-        entries_, [name](auto& e) { return e->name() == name; });
+        entries_, [name](auto* e) { return e->name() == name; });
     if (it != entries_.end()) {
       return *it;
     }
@@ -395,7 +390,7 @@ void dir::populate_lookup_table() {
   lookup_ = std::make_unique<lookup_table>();
   lookup_->reserve(entries_.size());
 
-  for (auto const& e : entries_) {
+  for (auto* e : entries_) {
     auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
     assert(r.second);
   }
