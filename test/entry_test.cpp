@@ -37,11 +37,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using wi_entry = writer::internal::entry;
-using wi_dir = writer::internal::dir;
-using wi_file = writer::internal::file;
-using wi_link = writer::internal::link;
-using wi_device = writer::internal::device;
+using entry = writer::internal::entry;
 using entry_visitor = writer::internal::entry_visitor;
 using progress = writer::internal::progress;
 
@@ -56,16 +52,18 @@ fs::path make_root_path() {
 struct recording_visitor final : entry_visitor {
   std::vector<std::string> events;
 
-  void visit(wi_file* p) override {
+  void visit(writer::internal::file* p) override {
     events.push_back("file:" + p->unix_dpath());
   }
-  void visit(wi_device* p) override {
+  void visit(writer::internal::device* p) override {
     events.push_back("device:" + p->unix_dpath());
   }
-  void visit(wi_link* p) override {
+  void visit(writer::internal::link* p) override {
     events.push_back("link:" + p->unix_dpath());
   }
-  void visit(wi_dir* p) override { events.push_back("dir:" + p->unix_dpath()); }
+  void visit(writer::internal::dir* p) override {
+    events.push_back("dir:" + p->unix_dpath());
+  }
 };
 
 } // namespace
@@ -101,7 +99,8 @@ TEST_F(entry_test, path) {
 
   EXPECT_FALSE(e1->has_parent());
   EXPECT_TRUE(e1->is_directory());
-  EXPECT_EQ(e1->type(), wi_entry::E_DIR);
+  EXPECT_EQ(e1->type(), entry::E_DIR);
+  EXPECT_TRUE(e1->is_dir());
 
   EXPECT_EQ(sep.string(), e1->name());
   EXPECT_EQ(sep, e1->fs_path());
@@ -110,7 +109,8 @@ TEST_F(entry_test, path) {
 
   EXPECT_TRUE(e2->has_parent());
   EXPECT_FALSE(e2->is_directory());
-  EXPECT_EQ(e2->type(), wi_entry::E_LINK);
+  EXPECT_EQ(e2->type(), entry::E_LINK);
+  EXPECT_TRUE(e2->is_link());
 
   EXPECT_EQ("somelink", e2->name());
   EXPECT_EQ(sep / "somelink", e2->fs_path());
@@ -119,7 +119,8 @@ TEST_F(entry_test, path) {
 
   EXPECT_TRUE(e3->has_parent());
   EXPECT_TRUE(e3->is_directory());
-  EXPECT_EQ(e3->type(), wi_entry::E_DIR);
+  EXPECT_EQ(e3->type(), entry::E_DIR);
+  EXPECT_TRUE(e3->is_dir());
 
   EXPECT_EQ("somedir", e3->name());
   EXPECT_EQ(sep / "somedir", e3->fs_path());
@@ -128,7 +129,8 @@ TEST_F(entry_test, path) {
 
   EXPECT_TRUE(e4->has_parent());
   EXPECT_FALSE(e4->is_directory());
-  EXPECT_EQ(e4->type(), wi_entry::E_FILE);
+  EXPECT_EQ(e4->type(), entry::E_FILE);
+  EXPECT_TRUE(e4->is_file());
 
   EXPECT_EQ("ipsum.py", e4->name());
   EXPECT_EQ(sep / "somedir" / "ipsum.py", e4->fs_path());
@@ -141,43 +143,51 @@ TEST_F(entry_test, factory_creates_expected_entry_kinds) {
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
-  EXPECT_EQ(wi_entry::E_DIR, root->type());
+  EXPECT_EQ(entry::E_DIR, root->type());
   EXPECT_TRUE(root->is_directory());
+  EXPECT_TRUE(root->is_dir());
 
   auto test_pl = ef->create(tree, *os, sep / "test.pl", root);
   ASSERT_TRUE(test_pl);
-  EXPECT_EQ(wi_entry::E_FILE, test_pl->type());
+  EXPECT_EQ(entry::E_FILE, test_pl->type());
   EXPECT_FALSE(test_pl->is_directory());
+  EXPECT_TRUE(test_pl->is_file());
 
   auto somelink = ef->create(tree, *os, sep / "somelink", root);
   ASSERT_TRUE(somelink);
-  EXPECT_EQ(wi_entry::E_LINK, somelink->type());
+  EXPECT_EQ(entry::E_LINK, somelink->type());
   EXPECT_FALSE(somelink->is_directory());
+  EXPECT_TRUE(somelink->is_link());
 
   auto somedir = ef->create(tree, *os, sep / "somedir", root);
   ASSERT_TRUE(somedir);
-  EXPECT_EQ(wi_entry::E_DIR, somedir->type());
+  EXPECT_EQ(entry::E_DIR, somedir->type());
   EXPECT_TRUE(somedir->is_directory());
+  EXPECT_TRUE(somedir->is_dir());
 
   auto ipsum_py = ef->create(tree, *os, sep / "somedir" / "ipsum.py", somedir);
   ASSERT_TRUE(ipsum_py);
-  EXPECT_EQ(wi_entry::E_FILE, ipsum_py->type());
+  EXPECT_EQ(entry::E_FILE, ipsum_py->type());
   EXPECT_FALSE(ipsum_py->is_directory());
+  EXPECT_TRUE(ipsum_py->is_file());
 
   auto null_dev = ef->create(tree, *os, sep / "somedir" / "null", somedir);
   ASSERT_TRUE(null_dev);
-  EXPECT_EQ(wi_entry::E_DEVICE, null_dev->type());
+  EXPECT_EQ(entry::E_DEVICE, null_dev->type());
   EXPECT_FALSE(null_dev->is_directory());
+  EXPECT_TRUE(null_dev->is_device());
 
   auto zero_dev = ef->create(tree, *os, sep / "somedir" / "zero", somedir);
   ASSERT_TRUE(zero_dev);
-  EXPECT_EQ(wi_entry::E_DEVICE, zero_dev->type());
+  EXPECT_EQ(entry::E_DEVICE, zero_dev->type());
   EXPECT_FALSE(zero_dev->is_directory());
+  EXPECT_TRUE(zero_dev->is_device());
 
   auto pipe = ef->create(tree, *os, sep / "somedir" / "pipe", somedir);
   ASSERT_TRUE(pipe);
-  EXPECT_EQ(wi_entry::E_OTHER, pipe->type());
+  EXPECT_EQ(entry::E_OTHER, pipe->type());
   EXPECT_FALSE(pipe->is_directory());
+  EXPECT_TRUE(pipe->is_other());
 }
 
 TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
@@ -232,10 +242,8 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   local_os->add_file(root_path / "a" / "c", "c");
 
   auto tree = writer::entry_tree{};
-  auto root =
-      dynamic_cast<wi_dir*>(local_ef.create(tree, *local_os, root_path));
-  auto a = dynamic_cast<wi_dir*>(
-      local_ef.create(tree, *local_os, root_path / "a", root));
+  auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
+  auto a = local_ef.create(tree, *local_os, root_path / "a", root)->as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
   auto c = local_ef.create(tree, *local_os, root_path / "a" / "c", a);
 
@@ -249,7 +257,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   a->add(c);
 
   std::vector<std::string> visited;
-  root->walk([&](wi_entry* e) { visited.push_back(e->unix_dpath()); });
+  root->walk([&](entry* e) { visited.push_back(e->unix_dpath()); });
 
   EXPECT_EQ((std::vector<std::string>{
                 "/",
@@ -271,10 +279,8 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   local_os->add_file(root_path / "a" / "c", "c");
 
   auto tree = writer::entry_tree{};
-  auto root =
-      dynamic_cast<wi_dir*>(local_ef.create(tree, *local_os, root_path));
-  auto a = dynamic_cast<wi_dir*>(
-      local_ef.create(tree, *local_os, root_path / "a", root));
+  auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
+  auto a = local_ef.create(tree, *local_os, root_path / "a", root)->as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
   auto c = local_ef.create(tree, *local_os, root_path / "a" / "c", a);
 
@@ -311,7 +317,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
 TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
   {
     auto tree = writer::entry_tree{};
-    auto root = dynamic_cast<wi_dir*>(ef->create(tree, *os, sep));
+    auto root = ef->create(tree, *os, sep)->as_dir();
     ASSERT_TRUE(root);
 
     auto somelink = ef->create(tree, *os, sep / "somelink", root);
@@ -325,7 +331,7 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     auto found_small = root->find("somelink");
     ASSERT_TRUE(found_small);
     EXPECT_EQ("somelink", found_small->name());
-    EXPECT_EQ(wi_entry::E_LINK, found_small->type());
+    EXPECT_EQ(entry::E_LINK, found_small->type());
     EXPECT_EQ(nullptr, root->find("does-not-exist"));
   }
 
@@ -341,8 +347,7 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     }
 
     auto tree = writer::entry_tree{};
-    auto big_root =
-        dynamic_cast<wi_dir*>(local_ef.create(tree, *local_os, root_path));
+    auto big_root = local_ef.create(tree, *local_os, root_path)->as_dir();
     ASSERT_TRUE(big_root);
 
     for (int i = 0; i < 20; ++i) {
@@ -385,18 +390,19 @@ TEST_F(entry_test,
   local_os->add_dir(root_path / "nested" / "empty_b");
 
   auto tree = writer::entry_tree{};
-  auto root =
-      dynamic_cast<wi_dir*>(local_ef.create(tree, *local_os, root_path));
-  auto keep = dynamic_cast<wi_dir*>(
-      local_ef.create(tree, *local_os, root_path / "keep", root));
+  auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
+  auto keep =
+      local_ef.create(tree, *local_os, root_path / "keep", root)->as_dir();
   auto keep_file =
       local_ef.create(tree, *local_os, root_path / "keep" / "file.txt", keep);
-  auto empty_a = dynamic_cast<wi_dir*>(
-      local_ef.create(tree, *local_os, root_path / "empty_a", root));
-  auto nested = dynamic_cast<wi_dir*>(
-      local_ef.create(tree, *local_os, root_path / "nested", root));
-  auto empty_b = dynamic_cast<wi_dir*>(local_ef.create(
-      tree, *local_os, root_path / "nested" / "empty_b", nested));
+  auto empty_a =
+      local_ef.create(tree, *local_os, root_path / "empty_a", root)->as_dir();
+  auto nested =
+      local_ef.create(tree, *local_os, root_path / "nested", root)->as_dir();
+  auto empty_b =
+      local_ef
+          .create(tree, *local_os, root_path / "nested" / "empty_b", nested)
+          ->as_dir();
 
   ASSERT_TRUE(root);
   ASSERT_TRUE(keep);
@@ -412,7 +418,7 @@ TEST_F(entry_test,
   nested->add(empty_b);
 
   std::vector<std::string> before;
-  root->walk([&](wi_entry* e) { before.push_back(e->unix_dpath()); });
+  root->walk([&](entry* e) { before.push_back(e->unix_dpath()); });
   EXPECT_EQ((std::vector<std::string>{
                 "/",
                 "/keep/",
@@ -430,7 +436,7 @@ TEST_F(entry_test,
   root->remove_empty_dirs(prog);
 
   std::vector<std::string> after;
-  root->walk([&](wi_entry* e) { after.push_back(e->unix_dpath()); });
+  root->walk([&](entry* e) { after.push_back(e->unix_dpath()); });
   EXPECT_EQ((std::vector<std::string>{
                 "/",
                 "/keep/",
@@ -453,12 +459,9 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
 
-  auto somelink =
-      dynamic_cast<wi_link*>(ef->create(tree, *os, sep / "somelink", root));
-  auto somedir =
-      dynamic_cast<wi_dir*>(ef->create(tree, *os, sep / "somedir", root));
-  auto bad = dynamic_cast<wi_link*>(
-      ef->create(tree, *os, sep / "somedir" / "bad", somedir));
+  auto somelink = ef->create(tree, *os, sep / "somelink", root)->as_link();
+  auto somedir = ef->create(tree, *os, sep / "somedir", root)->as_dir();
+  auto bad = ef->create(tree, *os, sep / "somedir" / "bad", somedir)->as_link();
 
   ASSERT_TRUE(somelink);
   ASSERT_TRUE(somedir);
