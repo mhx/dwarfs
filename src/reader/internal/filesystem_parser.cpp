@@ -257,8 +257,10 @@ file_off_t filesystem_parser_<LoggerPolicy>::search_image_in_segment(
         auto nsh = mm_.read<section_header_v2>(seg.offset() + pos + sh.length +
                                                sizeof(section_header_v2));
 
-        if (::memcmp(&nsh, kMagic.data(), kMagic.size()) == 0 and
-            nsh.number == 1) {
+        if (nsh.magic[0] == kMagic[0] && nsh.magic[1] == kMagic[1] &&
+            nsh.magic[2] == kMagic[2] && nsh.magic[3] == kMagic[3] &&
+            nsh.magic[4] == kMagic[4] && nsh.magic[5] == kMagic[5] &&
+            nsh.major == kMagic[6] && nsh.number == 1) {
           LOG_TRACE << "found valid v2 filesystem at offset " << pos;
           return pos;
         }
