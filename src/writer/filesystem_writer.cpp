@@ -49,6 +49,7 @@
 #include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>

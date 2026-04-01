@@ -63,6 +63,7 @@
 #include <dwarfs/utility/filesystem_extractor_archive_format.h>
 #include <dwarfs/vfs_stat.h>
 
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::utility {

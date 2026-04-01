@@ -31,11 +31,12 @@
 #include <optional>
 #include <thread>
 
-#include <dwarfs/util.h>
-
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/reader/internal/periodic_executor.h>
 
 namespace dwarfs::reader::internal {
+
+using namespace dwarfs::internal;
 
 namespace {
 

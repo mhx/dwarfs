@@ -50,6 +50,7 @@
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::internal {

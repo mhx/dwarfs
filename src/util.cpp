@@ -57,11 +57,6 @@
 #include <utf8.h>
 #endif
 
-#if __has_include(<pthread.h>)
-#include <pthread.h>
-#define DWARFS_UTIL_HAVE_PTHREAD_H 1
-#endif
-
 #if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
 #define DWARFS_UTIL_HAVE_CXXABI_H 1
@@ -1330,30 +1325,6 @@ memory_usage get_self_memory_usage(memory_usage_mode mode [[maybe_unused]]) {
 #endif
 
   return usage;
-}
-
-bool set_thread_name(std::string_view name [[maybe_unused]]) {
-  bool success = false;
-#ifdef _WIN32
-  std::wstring wname(name.begin(), name.end());
-  auto const result =
-      ::SetThreadDescription(::GetCurrentThread(), wname.c_str());
-  success = (result == S_OK);
-#elif defined(DWARFS_UTIL_HAVE_PTHREAD_H)
-  std::string name_str(name);
-  if (name_str.size() > 15) {
-    name_str.resize(15);
-  }
-  auto const result =
-#ifdef __APPLE__
-      pthread_setname_np(name_str.c_str())
-#else
-      pthread_setname_np(pthread_self(), name_str.c_str())
-#endif
-      ;
-  success = (result == 0);
-#endif
-  return success;
 }
 
 } // namespace dwarfs

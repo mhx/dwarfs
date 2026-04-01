@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <memory>
+#include <string_view>
 #include <thread>
 
 #ifdef _WIN32
@@ -43,5 +45,7 @@ DWORD std_to_win_thread_id(std::thread::id tid);
 #else
 pthread_t std_to_pthread_id(std::thread::id tid);
 #endif
+
+bool set_thread_name(std::string_view name);
 
 } // namespace dwarfs::internal

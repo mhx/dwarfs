@@ -29,9 +29,12 @@
 #include <dwarfs/util.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/writer/internal/progress.h>
 
 namespace dwarfs::writer {
+
+using namespace dwarfs::internal;
 
 writer_progress::writer_progress()
     : prog_{std::make_unique<internal::progress>()} {}
