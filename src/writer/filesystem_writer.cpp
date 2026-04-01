@@ -799,9 +799,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
     {
       std::unique_lock lock(mx_);
 
-      if (!flush_ and queue_.empty()) {
-        cond_.wait(lock);
-      }
+      cond_.wait(lock, [this] { return flush_ || !queue_.empty(); });
 
       if (queue_.empty()) {
         if (flush_) {
@@ -1040,14 +1038,17 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
     }
 
     auto& bc = get_compressor(type, cat);
-    auto const this_section_mem =
-        compressed_size + bc.estimate_memory_usage(uncompressed_size);
+    cond_.wait(lock, [this, this_section_mem =
+                                compressed_size +
+                                bc.estimate_memory_usage(uncompressed_size)] {
+      if (queue_.empty()) {
+        return true;
+      }
 
-    while (!queue_.empty()) {
-      auto const mem = mem_used();
+      auto mem = mem_used();
 
       if (mem + this_section_mem <= options_.max_queue_size) {
-        break;
+        return true;
       }
 
       LOG_VERBOSE << "waiting for queue to drain (" << queue_.size()
@@ -1055,8 +1056,8 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
                   << size_with_unit(this_section_mem) << " > "
                   << size_with_unit(options_.max_queue_size) << ")";
 
-      cond_.wait(lock);
-    }
+      return false;
+    });
 
     auto fsb =
         std::make_unique<fsblock>(type, bc, std::move(data), compressed_size,
