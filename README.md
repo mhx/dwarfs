@@ -10,6 +10,7 @@ SPDX-License-Identifier: MIT
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/53489f77755248c999e380500267e889)](https://app.codacy.com/gh/mhx/dwarfs/dashboard)
 [![codecov](https://codecov.io/github/mhx/dwarfs/graph/badge.svg?token=BKR4A3XKA9)](https://codecov.io/github/mhx/dwarfs)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8663/badge)](https://www.bestpractices.dev/projects/8663)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=mhx_dwarfs&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=mhx_dwarfs)
 
 # DwarFS
 
