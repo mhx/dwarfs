@@ -821,9 +821,9 @@ and yields a total output size of 2.2 GiB:
 ```
 $ time fpack */*.fit */*/*.fit
 
-user	14.992
-system	1.592
-total	16.616
+user    14.992
+system  1.592
+total   16.616
 
 $ find . -name '*.fz' -print0 | xargs -0 cat | wc -c
 2369943360
@@ -1730,9 +1730,9 @@ Adding 51161.953159 MB in 1927501 files -method 14 -threads 32 at 2025-10-25 07:
 0.000000 + (51161.953159 -> 8932.000297 -> 1143.401788) = 1143.401788 MB
 381.062 seconds (all OK)
 
-user	6:24.01
-system	42.189
-total	6:21.10
+user    6:24.01
+system  42.189
+total   6:21.10
 ```
 
 That is considerably faster, but the resulting archive is also considerably
@@ -2207,9 +2207,9 @@ Filesystem total inodes: 2255795
 Filesystem total metadata blocks: 74253
 Filesystem total deduplicated bytes (of source files): 29625028195
 
-user	2:35:08.03
-system	1:12.65
-total	2:39:25.35
+user    2:35:08.03
+system  1:12.65
+total   2:39:25.35
 
 $ ll -h perl-install-lzma9.erofs
 -rw-r--r-- 1 mhx mhx 2.3G Apr 15 16:23 perl-install-lzma9.erofs
@@ -2230,9 +2230,9 @@ saved by deduplication: 28.03 GiB (1780386 files), saved by segmenting: 15.4 GiB
 filesystem: 4.053 GiB in 4151 blocks (937069 chunks, 144674/144674 fragments, 144675 inodes)
 compressed filesystem: 4151 blocks/806.2 MiB written
 [...]
-user	24:27.47
-system	4:20.74
-total	3:26.79
+user    24:27.47
+system  4:20.74
+total   3:26.79
 ```
 
 That's significantly smaller and, almost more importantly, 46 times
@@ -2283,9 +2283,9 @@ Filesystem total inodes: 2255794
 Filesystem total metadata blocks: 419699
 Filesystem total deduplicated bytes (of source files): 0
 
-user	3:38:23.36
-system	1:10.84
-total	3:41:37.33
+user    3:38:23.36
+system  1:10.84
+total   3:41:37.33
 ```
 
 The second one additionally enables the `-Ededupe` option:
@@ -2301,9 +2301,9 @@ Filesystem total inodes: 2255794
 Filesystem total metadata blocks: 435599
 Filesystem total deduplicated bytes (of source files): 19220717568
 
-user	4:19:57.61
-system	1:21.62
-total	4:23:55.85
+user    4:19:57.61
+system  1:21.62
+total   4:23:55.85
 ```
 
 I don't know why these are even slower than the first, seemingly more
