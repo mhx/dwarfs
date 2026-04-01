@@ -699,7 +699,6 @@ TEST(utils, fatal_signal_handler) {
 TEST(utils, exception_string) {
   try {
     throw std::runtime_error("this is a test error");
-    FAIL() << "exception was not thrown";
   } catch (std::exception const& ex) {
     EXPECT_THAT(exception_str(ex),
                 HasSubstr("runtime_error: this is a test error"));

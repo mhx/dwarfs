@@ -460,15 +460,6 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
     auto out = t.out();
 
     std::set<std::string> paths;
-    std::set<std::string> expected_paths{
-        "sparse1",    "sparse2",    "sparse3",    "sparse4",
-        "hardlink1a", "hardlink1b", "hardlink2a", "hardlink2b",
-        "hardlink3a", "hardlink3b", "hardlink4a", "hardlink4b",
-    };
-    std::set<std::string> expected_paths_with_matcher{
-        "sparse1",    "sparse2",    "sparse3",    "sparse4",
-        "hardlink1b", "hardlink2b", "hardlink3b", "hardlink4b",
-    };
 
     if (fmt.is_disk) {
       for (auto const& entry :
@@ -511,8 +502,17 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
     }
 
     if (use_matcher) {
+      std::set<std::string> expected_paths_with_matcher{
+          "sparse1",    "sparse2",    "sparse3",    "sparse4",
+          "hardlink1b", "hardlink2b", "hardlink3b", "hardlink4b",
+      };
       EXPECT_EQ(expected_paths_with_matcher, paths);
     } else {
+      std::set<std::string> expected_paths{
+          "sparse1",    "sparse2",    "sparse3",    "sparse4",
+          "hardlink1a", "hardlink1b", "hardlink2a", "hardlink2b",
+          "hardlink3a", "hardlink3b", "hardlink4a", "hardlink4b",
+      };
       EXPECT_EQ(expected_paths, paths);
     }
   }
