@@ -57,18 +57,16 @@ namespace dwarfs::internal {
 
 namespace {
 
-template <typename LoggerPolicy, typename Policy>
-class basic_worker_group final : public worker_group::impl, private Policy {
+template <typename LoggerPolicy>
+class worker_group_ final : public worker_group::impl {
  public:
   template <typename... Args>
-  basic_worker_group(logger& lgr, os_access const& os,
-                     std::string_view group_name, size_t num_workers,
-                     std::function<std::unique_ptr<thread_state>(size_t)> const&
-                         thread_state_factory,
-                     size_t max_queue_len, int niceness [[maybe_unused]],
-                     Args&&... args)
-      : Policy(std::forward<Args>(args)...)
-      , LOG_PROXY_INIT(lgr)
+  worker_group_(logger& lgr, os_access const& os, std::string_view group_name,
+                size_t num_workers,
+                std::function<std::unique_ptr<thread_state>(size_t)> const&
+                    thread_state_factory,
+                size_t max_queue_len, int niceness [[maybe_unused]])
+      : LOG_PROXY_INIT(lgr)
       , os_{os}
       , running_(true)
       , pending_(0)
@@ -93,13 +91,13 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     check_set_affinity_from_enviroment(group_name);
   }
 
-  basic_worker_group(basic_worker_group const&) = delete;
-  basic_worker_group& operator=(basic_worker_group const&) = delete;
+  worker_group_(worker_group_ const&) = delete;
+  worker_group_& operator=(worker_group_ const&) = delete;
 
   /**
    * Stop and destroy a worker group
    */
-  ~basic_worker_group() noexcept override {
+  ~worker_group_() noexcept override {
     try {
       stop();
     } catch (...) {
@@ -280,7 +278,6 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       }
 
       {
-        typename Policy::task task(this);
 #ifdef _WIN32
         if (is_background) {
           ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_BEGIN);
@@ -322,17 +319,6 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   size_t const max_queue_len_;
 };
 
-class no_policy {
- public:
-  class task {
-   public:
-    explicit task(no_policy*) {}
-  };
-};
-
-template <typename LoggerPolicy>
-using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
-
 } // namespace
 
 worker_group::worker_group(
@@ -341,8 +327,7 @@ worker_group::worker_group(
     std::function<std::unique_ptr<thread_state>(size_t)> const&
         thread_state_factory,
     size_t max_queue_len, int niceness)
-    : impl_{make_unique_logging_object<impl, default_worker_group,
-                                       logger_policies>(
+    : impl_{make_unique_logging_object<impl, worker_group_, logger_policies>(
           lgr, os, group_name, num_workers, thread_state_factory, max_queue_len,
           niceness)} {}
 
