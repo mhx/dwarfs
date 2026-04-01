@@ -230,27 +230,6 @@ class worker_group_ final : public worker_group::impl {
     }
   }
 
-  // TODO: move out of this class
-  static void set_thread_niceness(int niceness) {
-    if (niceness > 0) {
-#ifdef _WIN32
-      auto hthr = ::GetCurrentThread();
-      int priority =
-          niceness > 5 ? THREAD_PRIORITY_LOWEST : THREAD_PRIORITY_BELOW_NORMAL;
-      ::SetThreadPriority(hthr, priority);
-#else
-      // XXX:
-      // According to POSIX, the nice value is a per-process setting. However,
-      // under the current Linux/NPTL implementation of POSIX threads, the nice
-      // value is a per-thread attribute: different threads in the same process
-      // can have different nice values. Portable applications should avoid
-      // relying on the Linux behavior, which may be made standards conformant
-      // in the future.
-      auto rv [[maybe_unused]] = ::nice(niceness);
-#endif
-    }
-  }
-
   void do_work(thread_state& state, bool is_background [[maybe_unused]]) {
 #ifdef _WIN32
     auto hthr = ::GetCurrentThread();

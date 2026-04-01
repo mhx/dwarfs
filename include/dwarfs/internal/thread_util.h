@@ -47,5 +47,6 @@ pthread_t std_to_pthread_id(std::thread::id tid);
 #endif
 
 bool set_thread_name(std::string_view name);
+void set_thread_niceness(int niceness);
 
 } // namespace dwarfs::internal
