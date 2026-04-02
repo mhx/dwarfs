@@ -69,7 +69,7 @@ class global_entry_data {
   void add_name(std::string_view name);
   void add_link(std::string_view link);
 
-  void index();
+  void update_index();
 
   uint32_t get_name_index(std::string_view name) const;
   uint32_t get_symlink_table_entry(std::string_view link) const;
