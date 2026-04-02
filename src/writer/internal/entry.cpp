@@ -63,10 +63,6 @@ bool is_root_path(std::string_view path) {
 
 } // namespace
 
-std::ostream& operator<<(std::ostream& os, unique_inode_id const& id) {
-  return os << fmt::format("{{dev={}, ino={}}}", id.device_id, id.inode_num);
-}
-
 entry::entry(fs::path const& path, entry* parent, file_stat const& st)
 #ifdef _WIN32
     : path_{parent ? path.filename() : path}
