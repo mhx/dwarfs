@@ -26,11 +26,14 @@
 
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_tree.h>
+#include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
 
 #include "test_helpers.h"
+#include "test_logger.h"
 
 using namespace dwarfs;
 namespace fs = std::filesystem;
@@ -488,4 +491,224 @@ TEST_F(entry_test, root_dir_must_be_a_directory) {
   EXPECT_THAT([&] { ef->create(tree, *os, sep / "somelink"); },
               testing::ThrowsMessage<dwarfs::runtime_error>(
                   testing::HasSubstr("must be a directory")));
+}
+
+TEST_F(entry_test, file_create_data_initializes_file_state) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* empty = ef->create(tree, *os, sep / "empty", root);
+  ASSERT_TRUE(empty);
+
+  auto* f = empty->as_file();
+  ASSERT_TRUE(f);
+
+  f->create_data();
+
+  EXPECT_FALSE(f->is_invalid());
+  EXPECT_EQ(1, f->hardlink_count());
+  EXPECT_FALSE(f->inode_num().has_value());
+  EXPECT_TRUE(f->hash().empty());
+}
+
+TEST_F(entry_test, file_hardlink_shares_invalid_state) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
+  auto* bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  ASSERT_TRUE(foo_entry);
+  ASSERT_TRUE(bar_entry);
+
+  auto* foo = foo_entry->as_file();
+  auto* bar = bar_entry->as_file();
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(bar);
+
+  foo->create_data();
+
+  writer::internal::progress prog{};
+  bar->hardlink(foo, prog);
+
+  EXPECT_FALSE(foo->is_invalid());
+  EXPECT_FALSE(bar->is_invalid());
+
+  foo->set_invalid();
+
+  EXPECT_TRUE(foo->is_invalid());
+  EXPECT_TRUE(bar->is_invalid());
+}
+
+TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
+  auto* bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  ASSERT_TRUE(foo_entry);
+  ASSERT_TRUE(bar_entry);
+
+  auto* foo = foo_entry->as_file();
+  auto* bar = bar_entry->as_file();
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(bar);
+
+  foo->create_data();
+
+  writer::internal::progress prog{};
+  bar->hardlink(foo, prog);
+
+  EXPECT_FALSE(foo->inode_num().has_value());
+  EXPECT_FALSE(bar->inode_num().has_value());
+
+  foo->set_inode_num(1234);
+
+  ASSERT_TRUE(foo->inode_num().has_value());
+  ASSERT_TRUE(bar->inode_num().has_value());
+  EXPECT_EQ(1234, *foo->inode_num());
+  EXPECT_EQ(1234, *bar->inode_num());
+}
+
+TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
+  auto* bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  ASSERT_TRUE(foo_entry);
+  ASSERT_TRUE(bar_entry);
+
+  auto* foo = foo_entry->as_file();
+  auto* bar = bar_entry->as_file();
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(bar);
+
+  foo->create_data();
+
+  EXPECT_EQ(1, foo->hardlink_count());
+
+  writer::internal::progress prog{};
+  auto const foo_size = foo->size();
+  auto const foo_allocated_size = foo->allocated_size();
+
+  bar->hardlink(foo, prog);
+
+  EXPECT_EQ(2, foo->hardlink_count());
+  EXPECT_EQ(2, bar->hardlink_count());
+
+  EXPECT_EQ(foo_size, prog.hardlink_size);
+  EXPECT_EQ(foo_allocated_size, prog.allocated_hardlink_size);
+  EXPECT_EQ(1, prog.hardlinks);
+}
+
+TEST_F(entry_test, file_hardlink_shares_hash_state) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
+  auto* bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  ASSERT_TRUE(foo_entry);
+  ASSERT_TRUE(bar_entry);
+
+  auto* foo = foo_entry->as_file();
+  auto* bar = bar_entry->as_file();
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(bar);
+
+  foo->create_data();
+
+  writer::internal::progress prog{};
+  bar->hardlink(foo, prog);
+
+  auto mm = os->open_file(sep / "foo.pl");
+  foo->scan(mm, prog, "sha512-256");
+
+  EXPECT_EQ(foo->hash(), bar->hash());
+  EXPECT_FALSE(foo->hash().empty());
+}
+
+TEST_F(entry_test, file_inode_num_requires_data) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* empty_entry = ef->create(tree, *os, sep / "empty", root);
+  ASSERT_TRUE(empty_entry);
+
+  auto* f = empty_entry->as_file();
+  ASSERT_TRUE(f);
+
+  ASSERT_DEATH(
+      { [[maybe_unused]] auto const& ino = f->inode_num(); },
+      "file data unset");
+}
+
+TEST_F(entry_test, file_set_inode_num_requires_data) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* empty_entry = ef->create(tree, *os, sep / "empty", root);
+  ASSERT_TRUE(empty_entry);
+
+  auto* f = empty_entry->as_file();
+  ASSERT_TRUE(f);
+
+  ASSERT_DEATH({ f->set_inode_num(1); }, "file data unset");
+}
+
+TEST_F(entry_test, file_set_inode_num_only_once) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* empty_entry = ef->create(tree, *os, sep / "empty", root);
+  ASSERT_TRUE(empty_entry);
+
+  auto* f = empty_entry->as_file();
+  ASSERT_TRUE(f);
+
+  f->create_data();
+  f->set_inode_num(1234);
+
+  ASSERT_DEATH(
+      { f->set_inode_num(5678); },
+      "attempt to set inode number more than once");
+}
+
+TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
+  auto tree = writer::entry_tree{};
+
+  auto* root = ef->create(tree, *os, sep);
+  ASSERT_TRUE(root);
+
+  auto* empty_entry = ef->create(tree, *os, sep / "empty", root);
+  ASSERT_TRUE(empty_entry);
+
+  auto* f = empty_entry->as_file();
+  ASSERT_TRUE(f);
+
+  test::test_logger lgr;
+  writer::internal::progress prog{};
+  writer::internal::inode_manager im{lgr, prog, sep, {}, false};
+
+  auto ino1 = im.create_inode();
+  auto ino2 = im.create_inode();
+
+  f->set_inode(ino1);
+
+  ASSERT_DEATH({ f->set_inode(ino2); }, "inode already set for file");
 }
