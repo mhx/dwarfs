@@ -23,9 +23,9 @@
 
 #pragma once
 
-namespace dwarfs::writer {
+#include <dwarfs/writer/entry_handle.h>
 
-class entry_interface;
+namespace dwarfs::writer {
 
 enum class filter_action {
   keep,
@@ -36,7 +36,7 @@ class entry_filter {
  public:
   virtual ~entry_filter() = default;
 
-  virtual filter_action filter(entry_interface const& ei) const = 0;
+  virtual filter_action filter(const_entry_handle ei) const = 0;
 };
 
 } // namespace dwarfs::writer

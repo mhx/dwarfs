@@ -29,6 +29,8 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/writer/entry_handle.h>
+
 namespace dwarfs {
 
 struct filesystem_version;
@@ -123,8 +125,8 @@ class metadata_builder {
     impl_->gather_chunks(im, bm, chunk_count);
   }
 
-  void gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
-                      uint32_t num_inodes) {
+  void gather_entries(std::span<dir_handle> dirs,
+                      global_entry_data const& ge_data, uint32_t num_inodes) {
     impl_->gather_entries(dirs, ge_data, num_inodes);
   }
 
@@ -159,7 +161,7 @@ class metadata_builder {
     virtual void gather_chunks(inode_manager const& im, block_manager const& bm,
                                size_t chunk_count) = 0;
     virtual void
-    gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
+    gather_entries(std::span<dir_handle> dirs, global_entry_data const& ge_data,
                    uint32_t num_inodes) = 0;
     virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
     virtual void remap_blocks(std::span<block_mapping const> mapping,
