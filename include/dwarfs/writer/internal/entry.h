@@ -121,6 +121,11 @@ class entry : public entry_interface {
   link* as_link() noexcept;
   device* as_device() noexcept;
 
+  file const* as_file() const noexcept;
+  dir const* as_dir() const noexcept;
+  link const* as_link() const noexcept;
+  device const* as_device() const noexcept;
+
  private:
 #ifdef _WIN32
   std::filesystem::path path_;
