@@ -104,7 +104,8 @@ std::string entry::unix_dpath() const {
   } else {
     p = name_;
 
-    if (type() == E_DIR && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
+    if (type() == entry_type::E_DIR && !p.empty() &&
+        !p.ends_with(kLocalPathSeparator)) {
       p += '/';
     }
 
@@ -195,7 +196,7 @@ device* entry::as_device() noexcept {
              : nullptr;
 }
 
-entry::type_t file::type() const { return E_FILE; }
+entry::type_t file::type() const { return entry_type::E_FILE; }
 
 std::string_view file::hash() const {
   auto& h = data_->hash;
@@ -283,7 +284,7 @@ void file::hardlink(file* other, progress& prog) {
   ++data_->hardlink_count;
 }
 
-entry::type_t dir::type() const { return E_DIR; }
+entry::type_t dir::type() const { return entry_type::E_DIR; }
 
 void dir::add(entry* e) {
   if (lookup_) {
@@ -413,7 +414,7 @@ void dir::populate_lookup_table() {
   }
 }
 
-entry::type_t link::type() const { return E_LINK; }
+entry::type_t link::type() const { return entry_type::E_LINK; }
 
 std::string const& link::linkname() const { return link_; }
 
@@ -430,9 +431,9 @@ entry::type_t device::type() const {
   switch (status().type()) {
   case posix_file_type::character:
   case posix_file_type::block:
-    return E_DEVICE;
+    return entry_type::E_DEVICE;
   default:
-    return E_OTHER;
+    return entry_type::E_OTHER;
   }
 }
 
