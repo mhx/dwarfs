@@ -761,7 +761,11 @@ void scanner_<LoggerPolicy>::scan(
     names_and_symlinks_visitor nlv(ge_data);
     root->accept(nlv);
 
-    ge_data.index();
+    {
+      auto tv = LOG_TIMED_VERBOSE;
+      ge_data.update_index();
+      tv << "global name and link indices updated";
+    }
 
     LOG_INFO << "updating name and link indices...";
     root->walk([&](entry* ep) {
