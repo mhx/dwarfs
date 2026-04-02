@@ -106,7 +106,7 @@ class entry : public entry_interface {
   std::filesystem::path fs_path() const;
   std::string path_as_string() const override;
   std::string unix_dpath() const override;
-  std::string const& name() const override { return name_; }
+  std::string_view name() const override;
   bool less_revpath(entry const& rhs) const;
   file_size_t size() const override;
   file_size_t allocated_size() const override;
