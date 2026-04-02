@@ -168,6 +168,21 @@ class synchronized final {
     return std::forward<F>(f)(value_);
   }
 
+  value_type load() const {
+    read_lock_type lock(mx_);
+    return value_;
+  }
+
+  void store(value_type&& value) {
+    write_lock_type lock(mx_);
+    value_ = std::move(value);
+  }
+
+  void store(value_type const& value) {
+    write_lock_type lock(mx_);
+    value_ = value;
+  }
+
  private:
   mutex_type mutable mx_;
   value_type value_;
