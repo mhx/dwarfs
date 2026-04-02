@@ -104,7 +104,7 @@ auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
   return get_vector(symlinks_);
 }
 
-void global_entry_data::index() {
+void global_entry_data::update_index() {
   sort_and_index_map(names_);
   sort_and_index_map(symlinks_);
 }
