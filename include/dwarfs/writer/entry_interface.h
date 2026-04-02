@@ -24,6 +24,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 #include <dwarfs/types.h>
 #include <dwarfs/writer/object.h>
@@ -34,7 +35,7 @@ class entry_interface : public object {
  public:
   virtual std::string path_as_string() const = 0;
   virtual std::string unix_dpath() const = 0;
-  virtual std::string const& name() const = 0;
+  virtual std::string_view name() const = 0;
   virtual file_size_t size() const = 0;
   virtual file_size_t allocated_size() const = 0;
   virtual bool is_directory() const = 0;

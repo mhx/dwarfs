@@ -122,6 +122,8 @@ std::string entry::unix_dpath() const {
   return p;
 }
 
+std::string_view entry::name() const { return name_; }
+
 bool entry::less_revpath(entry const& rhs) const {
   if (name() < rhs.name()) {
     return true;
