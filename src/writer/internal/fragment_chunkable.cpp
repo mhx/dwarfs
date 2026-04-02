@@ -26,7 +26,6 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/inode_fragments.h>
 
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/fragment_chunkable.h>
 #include <dwarfs/writer/internal/inode.h>
 
@@ -44,14 +43,14 @@ fragment_chunkable::fragment_chunkable(inode const& ino,
 
 fragment_chunkable::~fragment_chunkable() = default;
 
-file const* fragment_chunkable::get_file() const { return ino_.any(); }
+const_file_handle fragment_chunkable::get_file() const { return ino_.any(); }
 
 file_size_t fragment_chunkable::size() const { return frag_.size(); }
 
 std::string fragment_chunkable::description() const {
   return fmt::format("{}fragment at offset {} of inode {} [{}] - size: {}",
                      category_prefix(catmgr_, frag_.category()), offset_,
-                     ino_.num(), ino_.any()->name(), size());
+                     ino_.num(), ino_.any().name(), size());
 }
 
 file_extents_iterable fragment_chunkable::extents() const {

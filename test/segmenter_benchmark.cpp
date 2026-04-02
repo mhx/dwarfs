@@ -45,9 +45,7 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
       : mm_{dwarfs::test::make_mock_file_view(
             std::string{data.begin(), data.end()})} {}
 
-  dwarfs::writer::internal::file const* get_file() const override {
-    return nullptr;
-  }
+  dwarfs::writer::const_file_handle get_file() const override { return {}; }
 
   dwarfs::file_size_t size() const override { return mm_.size(); }
 

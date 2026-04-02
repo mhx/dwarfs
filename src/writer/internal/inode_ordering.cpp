@@ -27,7 +27,6 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/worker_group.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/inode_element_view.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
 #include <dwarfs/writer/internal/promise_receiver.h>
@@ -43,7 +42,7 @@ namespace {
 bool inode_less_by_size(inode const* a, inode const* b) {
   auto sa = a->size();
   auto sb = b->size();
-  return sa > sb || (sa == sb && a->any()->less_revpath(*b->any()));
+  return sa > sb || (sa == sb && a->any().less_revpath(b->any()));
 }
 
 } // namespace
@@ -92,7 +91,7 @@ void inode_ordering_<LoggerPolicy>::by_input_order(
     sortable_inode_span& sp) const {
   std::sort(sp.index().begin(), sp.index().end(),
             [r = sp.raw()](auto a, auto b) {
-              return r[a]->any()->order_index() < r[b]->any()->order_index();
+              return r[a]->any().order_index() < r[b]->any().order_index();
             });
 }
 
@@ -106,7 +105,7 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
   paths.resize(raw.size());
 
   for (auto i : index) {
-    paths[i] = raw[i]->any()->path_as_string();
+    paths[i] = raw[i]->any().path_as_string();
   }
 
   std::sort(index.begin(), index.end(),
@@ -120,7 +119,7 @@ void inode_ordering_<LoggerPolicy>::by_reverse_path(
   auto& index = sp.index();
 
   std::sort(index.begin(), index.end(), [&](auto a, auto b) {
-    return raw[a]->any()->less_revpath(*raw[b]->any());
+    return raw[a]->any().less_revpath(raw[b]->any());
   });
 }
 
@@ -238,7 +237,7 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   path_order.resize(raw.size());
 
   for (auto i : index) {
-    paths[i] = raw[i]->any()->fs_path().lexically_relative(root_path);
+    paths[i] = raw[i]->any().fs_path().lexically_relative(root_path);
 
     if (auto it = order.find(paths[i]); it != order.end()) {
       path_order[i] = it->second;

@@ -27,16 +27,11 @@
 #include <memory>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/writer/entry_handle.h>
 
 namespace dwarfs::writer {
 
 namespace internal {
-
-class entry;
-class file;
-class dir;
-class link;
-class device;
 
 class entry_factory_;
 
@@ -53,26 +48,26 @@ class entry_storage {
   entry_storage(entry_storage const&) = delete;
   entry_storage& operator=(entry_storage const&) = delete;
 
-  internal::entry* root() const noexcept;
+  entry_handle root() noexcept;
   bool empty() const noexcept;
 
  private:
   friend class internal::entry_factory_;
 
-  internal::dir*
+  dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
 
-  internal::file* create_file(std::filesystem::path const& path,
-                              internal::entry* parent, file_stat const& st);
+  file_handle create_file(std::filesystem::path const& path,
+                          entry_handle parent, file_stat const& st);
 
-  internal::dir* create_dir(std::filesystem::path const& path,
-                            internal::entry* parent, file_stat const& st);
+  dir_handle create_dir(std::filesystem::path const& path, entry_handle parent,
+                        file_stat const& st);
 
-  internal::link* create_link(std::filesystem::path const& path,
-                              internal::entry* parent, file_stat const& st);
+  link_handle create_link(std::filesystem::path const& path,
+                          entry_handle parent, file_stat const& st);
 
-  internal::device* create_device(std::filesystem::path const& path,
-                                  internal::entry* parent, file_stat const& st);
+  device_handle create_device(std::filesystem::path const& path,
+                              entry_handle parent, file_stat const& st);
 
   class impl;
   std::unique_ptr<impl> impl_;
