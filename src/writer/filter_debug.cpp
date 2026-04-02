@@ -23,13 +23,12 @@
 
 #include <ostream>
 
-#include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/filter_debug.h>
 
 namespace dwarfs::writer {
 
-void debug_filter_output(std::ostream& os, bool exclude,
-                         entry_interface const& ei, debug_filter_mode mode) {
+void debug_filter_output(std::ostream& os, bool exclude, const_entry_handle ei,
+                         debug_filter_mode mode) {
   if (exclude ? mode == debug_filter_mode::INCLUDED or
                     mode == debug_filter_mode::INCLUDED_FILES
               : mode == debug_filter_mode::EXCLUDED or

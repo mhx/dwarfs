@@ -39,7 +39,6 @@
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chmod_transformer.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/inode_manager.h>
@@ -215,8 +214,9 @@ class metadata_builder_ final : public metadata_builder::impl {
   void gather_chunks(inode_manager const& im, block_manager const& bm,
                      size_t chunk_count) override;
 
-  void gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
-                      uint32_t num_inodes) override;
+  void
+  gather_entries(std::span<dir_handle> dirs, global_entry_data const& ge_data,
+                 uint32_t num_inodes) override;
 
   void gather_global_entry_data(global_entry_data const& ge_data) override;
   void remap_blocks(std::span<block_mapping const> mapping,
@@ -309,7 +309,7 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
     if (!ino->append_chunks_to(md_.chunks().value(), hole_mapper)) {
       std::ostringstream oss;
       for (auto fp : ino->all()) {
-        oss << "\n  " << fp->path_as_string();
+        oss << "\n  " << fp.path_as_string();
       }
       LOG_ERROR << "inconsistent fragments in inode " << ino->num()
                 << ", the following files will be empty:" << oss.str();
@@ -333,19 +333,19 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
 
 template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::gather_entries(
-    std::span<dir*> dirs, global_entry_data const& ge_data,
+    std::span<dir_handle> dirs, global_entry_data const& ge_data,
     uint32_t num_inodes) {
   md_.dir_entries() = std::vector<thrift::metadata::dir_entry>();
   md_.inodes()->resize(num_inodes);
   md_.directories()->reserve(dirs.size() + 1);
 
   for (auto p : dirs) {
-    if (!p->has_parent()) {
-      p->set_entry_index(md_.dir_entries()->size());
-      p->pack_entry(md_, ge_data, timeres_);
+    if (!p.has_parent()) {
+      p.set_entry_index(md_.dir_entries()->size());
+      p.pack_entry(md_, ge_data, timeres_);
     }
 
-    p->pack(md_, ge_data, timeres_);
+    p.pack(md_, ge_data, timeres_);
   }
 
   thrift::metadata::directory sentinel;

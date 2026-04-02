@@ -48,6 +48,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/match.h>
 #include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/thread_pool.h>
@@ -65,7 +66,6 @@
 
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/block_manager.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/file_scanner.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 #include <dwarfs/writer/internal/fragment_chunkable.h>
@@ -89,12 +89,12 @@ constexpr std::string_view kEnvVarDumpFilesRaw{"DWARFS_DUMP_FILES_RAW"};
 constexpr std::string_view kEnvVarDumpFilesFinal{"DWARFS_DUMP_FILES_FINAL"};
 constexpr std::string_view kEnvVarDumpInodes{"DWARFS_DUMP_INODES"};
 
-class visitor_base : public entry_visitor {
+class visitor_base : public entry_handle_visitor {
  public:
-  void visit(file*) override {}
-  void visit(link*) override {}
-  void visit(dir*) override {}
-  void visit(device*) override {}
+  void visit(file_handle) override {}
+  void visit(link_handle) override {}
+  void visit(dir_handle) override {}
+  void visit(device_handle) override {}
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -102,9 +102,9 @@ class dir_set_inode_visitor : public visitor_base {
   explicit dir_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(dir* p) override {
-    p->sort();
-    p->set_inode_num(inode_num_++);
+  void visit(dir_handle p) override {
+    p.sort();
+    p.set_inode_num(inode_num_++);
   }
 
  private:
@@ -116,7 +116,7 @@ class link_set_inode_visitor : public visitor_base {
   explicit link_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(link* p) override { p->set_inode_num(inode_num_++); }
+  void visit(link_handle p) override { p.set_inode_num(inode_num_++); }
 
  private:
   uint32_t& inode_num_;
@@ -127,10 +127,10 @@ class device_set_inode_visitor : public visitor_base {
   explicit device_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(device* p) override {
-    if (p->is_device()) {
-      p->set_inode_num(inode_num_++);
-      dev_ids_.push_back(p->device_id());
+  void visit(device_handle p) override {
+    if (p.is_device()) {
+      p.set_inode_num(inode_num_++);
+      dev_ids_.push_back(p.device_id());
     }
   }
 
@@ -146,9 +146,9 @@ class pipe_set_inode_visitor : public visitor_base {
   explicit pipe_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(device* p) override {
-    if (!p->is_device()) {
-      p->set_inode_num(inode_num_++);
+  void visit(device_handle p) override {
+    if (!p.is_device()) {
+      p.set_inode_num(inode_num_++);
     }
   }
 
@@ -161,18 +161,18 @@ class names_and_symlinks_visitor : public visitor_base {
   explicit names_and_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
 
-  void visit(file* p) override { data_.add_name(p->name()); }
+  void visit(file_handle p) override { data_.add_name(p.name()); }
 
-  void visit(device* p) override { data_.add_name(p->name()); }
+  void visit(device_handle p) override { data_.add_name(p.name()); }
 
-  void visit(link* p) override {
-    data_.add_name(p->name());
-    data_.add_link(p->linkname());
+  void visit(link_handle p) override {
+    data_.add_name(p.name());
+    data_.add_link(p.linkname());
   }
 
-  void visit(dir* p) override {
-    if (p->has_parent()) {
-      data_.add_name(p->name());
+  void visit(dir_handle p) override {
+    if (p.has_parent()) {
+      data_.add_name(p.name());
     }
   }
 
@@ -186,12 +186,14 @@ class save_directories_visitor : public visitor_base {
     directories_.resize(num_directories);
   }
 
-  void visit(dir* p) override { directories_.at(p->inode_num().value()) = p; }
+  void visit(dir_handle p) override {
+    directories_.at(p.inode_num().value()) = p;
+  }
 
-  std::span<dir*> get_directories() { return directories_; }
+  std::span<dir_handle> get_directories() { return directories_; }
 
  private:
-  std::vector<dir*> directories_;
+  std::vector<dir_handle> directories_;
 };
 
 class save_shared_files_visitor : public visitor_base {
@@ -205,9 +207,9 @@ class save_shared_files_visitor : public visitor_base {
     shared_files_.resize(inode_end - begin_shared_);
   }
 
-  void visit(file* p) override {
-    if (auto ino = p->inode_num().value(); ino >= begin_shared_) {
-      auto ufi = p->unique_file_id();
+  void visit(file_handle p) override {
+    if (auto ino = p.inode_num().value(); ino >= begin_shared_) {
+      auto ufi = p.unique_file_id();
       DWARFS_CHECK(ufi >= num_unique_, "inconsistent file id");
       DWARFS_NOTHROW(shared_files_.at(ino - begin_shared_)) = ufi - num_unique_;
     }
@@ -225,14 +227,19 @@ std::string status_string(progress const& p, size_t width) {
   auto cp = p.current.load();
   std::string label, path;
 
-  if (cp) {
-    if (auto e = dynamic_cast<entry_interface const*>(cp)) {
-      label = "scanning: ";
-      path = e->path_as_string();
-    } else if (auto i = dynamic_cast<inode const*>(cp)) {
-      label = "writing: ";
-      path = i->any()->path_as_string();
-    }
+  cp | match{
+           [&label, &path](const_file_handle const& fh) {
+             label = "scanning: ";
+             path = fh.path_as_string();
+           },
+           [&label, &path](inode const* i) {
+             label = "writing: ";
+             path = i->any().path_as_string();
+           },
+           [](std::monostate) {},
+       };
+
+  if (!path.empty()) {
     utf8_sanitize(path);
     shorten_path_string(
         path, static_cast<char>(std::filesystem::path::preferred_separator),
@@ -271,8 +278,9 @@ class scanner_ final : public scanner::impl {
             file_scanner& fs);
 
   entry_factory::node
-  add_entry(entry_storage& tree, std::filesystem::path const& name, dir* parent,
-            progress& prog, file_scanner& fs, bool debug_filter = false);
+  add_entry(entry_storage& tree, std::filesystem::path const& name,
+            dir_handle parent, progress& prog, file_scanner& fs,
+            bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
@@ -313,8 +321,8 @@ template <typename LoggerPolicy>
 entry_factory::node
 scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   std::filesystem::path const& name,
-                                  dir* parent, progress& prog, file_scanner& fs,
-                                  bool debug_filter) {
+                                  dir_handle parent, progress& prog,
+                                  file_scanner& fs, bool debug_filter) {
   try {
     auto pe = entry_factory_.create(tree, os_, name, parent);
 
@@ -324,7 +332,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       } catch (std::system_error const& e) {
         LOG_ERROR << fmt::format(
             R"(invalid file name in "{}", storing as "{}": {})",
-            path_to_utf8_string_sanitized(name.parent_path()), pe->name(),
+            path_to_utf8_string_sanitized(name.parent_path()), pe.name(),
             error_cp_to_utf8(e.what()));
 
         prog.errors++;
@@ -332,48 +340,48 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
         if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
                  .second) {
           LOG_ERROR << fmt::format(
-              "cannot store \"{}\" as the name already exists", pe->name());
-          return nullptr;
+              "cannot store \"{}\" as the name already exists", pe.name());
+          return {};
         }
       }
     }
 
     bool const exclude =
         std::any_of(filters_.begin(), filters_.end(), [&pe](auto const& f) {
-          return f->filter(*pe) == filter_action::remove;
+          return f->filter(pe) == filter_action::remove;
         });
 
     if (debug_filter) {
-      (*options_.debug_filter_function)(exclude, *pe);
+      (*options_.debug_filter_function)(exclude, pe);
     }
 
     if (exclude) {
       if (!debug_filter) {
-        LOG_DEBUG << "excluding " << pe->unix_dpath();
+        LOG_DEBUG << "excluding " << pe.unix_dpath();
       }
 
-      return nullptr;
+      return {};
     }
 
-    switch (pe->type()) {
+    switch (pe.type()) {
     case entry_type::E_FILE:
-      if (!debug_filter && pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
-        LOG_ERROR << "cannot access " << pe->path_as_string()
+      if (!debug_filter && pe.size() > 0 && os_.access(pe.fs_path(), R_OK)) {
+        LOG_ERROR << "cannot access " << pe.path_as_string()
                   << ", creating empty file";
-        pe->set_empty();
+        pe.set_empty();
         prog.errors++;
       }
       break;
 
     case entry_type::E_DEVICE:
       if (!options_.with_devices) {
-        return nullptr;
+        return {};
       }
       break;
 
     case entry_type::E_OTHER:
       if (!options_.with_specials) {
-        return nullptr;
+        return {};
       }
       break;
 
@@ -381,28 +389,28 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
     }
 
-    parent->add(pe);
+    parent.add(pe);
 
-    switch (pe->type()) {
+    switch (pe.type()) {
     case entry_type::E_DIR:
       // prog.current.store(pe.get());
       prog.dirs_found++;
       if (!debug_filter) {
-        pe->scan(os_, prog);
+        pe.scan(os_, prog);
       }
       break;
 
     case entry_type::E_FILE:
       prog.files_found++;
       if (!debug_filter) {
-        fs.scan(pe->as_file());
+        fs.scan(pe.as_file());
       }
       break;
 
     case entry_type::E_LINK:
       prog.symlinks_found++;
       if (!debug_filter) {
-        pe->scan(os_, prog);
+        pe.scan(os_, prog);
       }
       prog.symlinks_scanned++;
       break;
@@ -411,13 +419,13 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     case entry_type::E_OTHER:
       prog.specials_found++;
       if (!debug_filter) {
-        pe->scan(os_, prog);
+        pe.scan(os_, prog);
       }
       break;
 
     default:
-      LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe->type())
-                << " (" << pe->path_as_string() << ")";
+      LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe.type())
+                << " (" << pe.path_as_string() << ")";
       prog.errors++;
       break;
     }
@@ -430,7 +438,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     prog.errors++;
   }
 
-  return nullptr;
+  return {};
 }
 
 DWARFS_POP_WARNING
@@ -472,12 +480,12 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   prog.dirs_found++;
 
   while (!queue.empty()) {
-    auto parent = queue.front()->as_dir();
+    auto parent = queue.front().as_dir();
 
     DWARFS_CHECK(parent, "expected directory");
 
     queue.pop_front();
-    auto ppath = parent->fs_path();
+    auto ppath = parent.fs_path();
 
     try {
       auto d = os_.opendir(ppath);
@@ -486,7 +494,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
 
       while (d->read(name)) {
         if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
-          if (pe->is_dir()) {
+          if (pe.is_dir()) {
             subdirs.push_back(pe);
           }
         }
@@ -532,14 +540,14 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     for (auto const& component : path) {
       LOG_TRACE << "checking '" << path_to_utf8_string_sanitized(component)
                 << "'";
-      if (auto d = root->as_dir()) {
-        if (auto e = d->find(component.string())) {
+      if (auto d = root.as_dir()) {
+        if (auto e = d.find(component.string())) {
           root = e;
         } else {
           LOG_DEBUG << "adding directory '"
                     << path_to_utf8_string_sanitized(component) << "'";
-          root = add_entry(tree, d->fs_path() / component, d, prog, fs);
-          if (root && root->is_dir()) {
+          root = add_entry(tree, d.fs_path() / component, d, prog, fs);
+          if (root && root.is_dir()) {
             prog.dirs_scanned++;
           } else {
             DWARFS_THROW(runtime_error,
@@ -557,7 +565,7 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     return root;
   };
 
-  std::unordered_map<std::string, dir*> dir_cache;
+  std::unordered_map<std::string, dir_handle> dir_cache;
   uint32_t file_order_index{0};
 
   for (auto const& listpath : list) {
@@ -593,7 +601,7 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     }
 
     auto parent = relpath.parent_path();
-    dir* pd{nullptr};
+    dir_handle pd{};
 
     LOG_TRACE << "adding path '" << path_to_utf8_string_sanitized(relpath)
               << "' (parent: " << parent
@@ -603,7 +611,7 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     if (auto it = dir_cache.find(parent.string()); it != dir_cache.end()) {
       pd = it->second;
     } else {
-      pd = ensure_path(parent, root)->as_dir();
+      pd = ensure_path(parent, root).as_dir();
 
       if (pd) {
         dir_cache.emplace(parent.string(), pd);
@@ -614,7 +622,7 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
       }
     }
 
-    if (pd->find(relpath)) {
+    if (pd.find(relpath)) {
       LOG_INFO << "skipping duplicate entry '"
                << path_to_utf8_string_sanitized(relpath) << "' in input list";
       continue;
@@ -624,11 +632,11 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
               << path_to_utf8_string_sanitized(rootpath / relpath) << "'";
 
     if (auto pe = add_entry(tree, rootpath / relpath, pd, prog, fs)) {
-      if (pe->is_dir()) {
+      if (pe.is_dir()) {
         prog.dirs_scanned++;
-      } else if (pe->is_file()) {
-        auto fp = pe->as_file();
-        fp->set_order_index(file_order_index++);
+      } else if (pe.is_file()) {
+        auto fp = pe.as_file();
+        fp.set_order_index(file_order_index++);
       }
     }
   }
@@ -671,19 +679,19 @@ void scanner_<LoggerPolicy>::scan(
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
-    auto d = root->as_dir();
-    d->remove_empty_dirs(prog);
+    auto d = root.as_dir();
+    d.remove_empty_dirs(prog);
   }
 
   LOG_INFO << "assigning directory and link inodes...";
 
   uint32_t first_link_inode = 0;
   dir_set_inode_visitor dsiv(first_link_inode);
-  root->accept(dsiv, true);
+  root.accept(dsiv, true);
 
   uint32_t first_file_inode = first_link_inode;
   link_set_inode_visitor lsiv(first_file_inode);
-  root->accept(lsiv, true);
+  root.accept(lsiv, true);
 
   LOG_INFO << "waiting for background scanners...";
 
@@ -744,13 +752,13 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "assigning device inodes...";
   uint32_t first_pipe_inode = first_device_inode;
   device_set_inode_visitor devsiv(first_pipe_inode);
-  root->accept(devsiv);
+  root.accept(devsiv);
   mdb.set_devices(std::move(devsiv.device_ids()));
 
   LOG_INFO << "assigning pipe/socket inodes...";
   uint32_t last_inode = first_pipe_inode;
   pipe_set_inode_visitor pipsiv(last_inode);
-  root->accept(pipsiv);
+  root.accept(pipsiv);
 
   LOG_INFO << "building metadata...";
 
@@ -759,7 +767,7 @@ void scanner_<LoggerPolicy>::scan(
   wg_.add_job([&] {
     LOG_INFO << "saving names and symlinks...";
     names_and_symlinks_visitor nlv(ge_data);
-    root->accept(nlv);
+    root.accept(nlv);
 
     {
       auto tv = LOG_TIMED_VERBOSE;
@@ -768,12 +776,12 @@ void scanner_<LoggerPolicy>::scan(
     }
 
     LOG_INFO << "updating name and link indices...";
-    root->walk([&](entry* ep) {
-      ep->update(ge_data);
-      if (auto* lp = ep->as_link()) {
+    root.walk([&](entry_handle ep) {
+      ep.update(ge_data);
+      if (auto lp = ep.as_link()) {
         mdb.add_symlink_table_entry(
-            ep->inode_num().value() - first_link_inode,
-            ge_data.get_symlink_table_entry(lp->linkname()));
+            ep.inode_num().value() - first_link_inode,
+            ge_data.get_symlink_table_entry(lp.linkname()));
       }
     });
   });
@@ -844,7 +852,7 @@ void scanner_<LoggerPolicy>::scan(
           // TODO: factor this code out
           auto f = ino->any();
 
-          if (auto size = f->size(); size > 0 && !f->is_invalid()) {
+          if (auto size = f.size(); size > 0 && !f.is_invalid()) {
             auto [mm, _, errors] =
                 ino->mmap_any(os_, {.hollow = options_.hollow_filesystem});
 
@@ -862,7 +870,7 @@ void scanner_<LoggerPolicy>::scan(
               }
             } else {
               for (auto& [fp, e] : errors) {
-                LOG_ERROR << "failed to map file " << fp->path_as_string()
+                LOG_ERROR << "failed to map file " << fp.path_as_string()
                           << ": " << exception_str(e)
                           << ", creating empty inode";
                 ++prog.errors;
@@ -905,7 +913,7 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function([](progress const&, size_t) {
     return "waiting for block compression to finish";
   });
-  prog.current.store(nullptr);
+  prog.current.store(std::monostate{});
 
   mdb.set_block_size(segmenter_factory_.get_block_size());
 
@@ -914,13 +922,13 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_INFO << "saving directories...";
   save_directories_visitor sdv(first_link_inode);
-  root->accept(sdv);
+  root.accept(sdv);
   mdb.gather_entries(sdv.get_directories(), ge_data, last_inode);
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                  fs.num_unique());
-  root->accept(ssfv);
+  root.accept(ssfv);
   mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
   if (auto catmgr = options_.inode.categorizer_mgr) {

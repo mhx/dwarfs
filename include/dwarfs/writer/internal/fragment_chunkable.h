@@ -45,7 +45,7 @@ class fragment_chunkable : public chunkable {
                      categorizer_manager const* catmgr);
   ~fragment_chunkable() override;
 
-  file const* get_file() const override;
+  const_file_handle get_file() const override;
   file_size_t size() const override;
   std::string description() const override;
   file_extents_iterable extents() const override;
