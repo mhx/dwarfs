@@ -971,7 +971,11 @@ void scanner_<LoggerPolicy>::scan(
     mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
-  mdb.gather_global_entry_data(ge_data);
+  {
+    auto tv = LOG_TIMED_VERBOSE;
+    mdb.gather_global_entry_data(ge_data);
+    tv << "global entry data gathered for metadata";
+  }
 
   auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
 
