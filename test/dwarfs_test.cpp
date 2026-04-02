@@ -1000,7 +1000,7 @@ class filter_test
     writer::scanner_options options;
     options.remove_empty_dirs = false;
     options.debug_filter_function = [&](bool exclude,
-                                        writer::entry_interface const& ei) {
+                                        writer::const_entry_handle ei) {
       debug_filter_output(oss, exclude, ei, mode);
     };
 

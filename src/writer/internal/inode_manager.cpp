@@ -55,7 +55,6 @@
 
 #include <dwarfs/internal/associative_vector_types.h>
 #include <dwarfs/internal/worker_group.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
 #include <dwarfs/writer/internal/nilsimsa.h>
@@ -206,12 +205,12 @@ class inode_ : public inode {
     }
   }
 
-  file_size_t size() const override { return any()->size(); }
+  file_size_t size() const override { return any().size(); }
 
-  file const* any() const override {
+  const_file_handle any() const override {
     DWARFS_CHECK(!files_.empty(), "inode has no file (any)");
     for (auto const& f : files_) {
-      if (!f->is_invalid()) {
+      if (!f.is_invalid()) {
         return f;
       }
     }
@@ -265,12 +264,12 @@ class inode_ : public inode {
       ino_num = std::to_string(num());
     }
 
-    os << "inode " << ino_num << " (" << any()->size() << " bytes):\n";
+    os << "inode " << ino_num << " (" << any().size() << " bytes):\n";
     os << "  files:\n";
 
     for (auto const& f : files_) {
-      os << "    " << f->path_as_string();
-      if (f->is_invalid()) {
+      os << "    " << f.path_as_string();
+      if (f.is_invalid()) {
         os << " (invalid)";
       }
       os << "\n";
@@ -319,13 +318,14 @@ class inode_ : public inode {
                   };
   }
 
-  void set_scan_error(file const* fp, std::exception_ptr ep) override {
+  void set_scan_error(const_file_handle fp, std::exception_ptr ep) override {
     assert(!scan_error_);
-    scan_error_ = std::make_unique<std::pair<file const*, std::exception_ptr>>(
-        fp, std::move(ep));
+    scan_error_ =
+        std::make_unique<std::pair<const_file_handle, std::exception_ptr>>(
+            fp, std::move(ep));
   }
 
-  std::optional<std::pair<file const*, std::exception_ptr>>
+  std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const override {
     if (scan_error_) {
       return *scan_error_;
@@ -333,28 +333,28 @@ class inode_ : public inode {
     return std::nullopt;
   }
 
-  std::tuple<file_view, file const*,
-             std::vector<std::pair<file const*, std::exception_ptr>>>
+  std::tuple<file_view, const_file_handle,
+             std::vector<std::pair<const_file_handle, std::exception_ptr>>>
   mmap_any(os_access const& os,
            open_file_options const& of_opts) const override {
     file_view mm;
-    std::vector<std::pair<file const*, std::exception_ptr>> errors;
-    file const* rfp{nullptr};
+    std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
+    const_file_handle rfp;
 
     for (auto fp : files_) {
-      if (!fp->is_invalid()) {
+      if (!fp.is_invalid()) {
         try {
-          mm = os.open_file_with_options(fp->fs_path(), of_opts);
-          if (mm.size() != fp->size()) {
+          mm = os.open_file_with_options(fp.fs_path(), of_opts);
+          if (mm.size() != fp.size()) {
             auto const now_size = mm.size();
             mm.reset();
             throw std::runtime_error(fmt::format(
-                "file size changed: was {}, now {}", fp->size(), now_size));
+                "file size changed: was {}, now {}", fp.size(), now_size));
           }
           rfp = fp;
           break;
         } catch (...) {
-          fp->set_invalid();
+          fp.set_invalid();
           errors.emplace_back(fp, std::current_exception());
         }
       }
@@ -545,7 +545,7 @@ class inode_ : public inode {
   uint32_t num_{0};
   inode_fragments fragments_;
   files_vector files_;
-  std::unique_ptr<std::pair<file const*, std::exception_ptr>> scan_error_;
+  std::unique_ptr<std::pair<const_file_handle, std::exception_ptr>> scan_error_;
 
   std::variant<
       // in case of no hashes at all
@@ -642,8 +642,9 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void scan_background(worker_group& wg, os_access const& os,
-                       std::shared_ptr<inode> ino, file* p) const override;
+  void
+  scan_background(worker_group& wg, os_access const& os,
+                  std::shared_ptr<inode> ino, file_handle p) const override;
 
   bool has_invalid_inodes() const override;
 
@@ -661,8 +662,9 @@ class inode_manager_ final : public inode_manager::impl {
   size_t get_max_data_chunk_size() const override;
 
  private:
-  void update_prog(std::shared_ptr<inode> const& ino, file const* p) const {
-    if (p->size() > 0 && !p->is_invalid()) {
+  void
+  update_prog(std::shared_ptr<inode> const& ino, const_file_handle p) const {
+    if (p.size() > 0 && !p.is_invalid()) {
       prog_.fragments_found += ino->fragments().size();
     }
     ++prog_.inodes_scanned;
@@ -694,22 +696,22 @@ template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
                                                    std::shared_ptr<inode> ino,
-                                                   file* p) const {
+                                                   file_handle p) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
   //       that ensures `fragments_` is updated. Also, there
   //       should only ever be one empty inode, so the check
   //       doesn't actually make much of a difference.
   if (inodes_need_scanning_ /* && p->size() > 0 */) {
-    wg.add_job([this, &os, p, ino = std::move(ino)] {
-      auto const size = p->size();
+    wg.add_job([this, &os, p, ino = std::move(ino)] mutable {
+      auto const size = p.size();
       file_view mm;
 
-      if (size > 0 && !p->is_invalid()) {
+      if (size > 0 && !p.is_invalid()) {
         try {
-          mm = os.open_file(p->fs_path());
+          mm = os.open_file(p.fs_path());
         } catch (...) {
-          p->set_invalid();
+          p.set_invalid();
           // If this file *was* successfully mapped before, there's a slight
           // chance that there's another file with the same hash. We can only
           // figure this out later when all files have been hashed, so we
@@ -723,7 +725,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
           ino->set_scan_error(
               p, std::make_exception_ptr(std::runtime_error(fmt::format(
                      "file size changed: was {}, now {}", size, mm.size()))));
-          p->set_invalid();
+          p.set_invalid();
           ++num_invalid_inodes_;
           return;
         }
@@ -733,7 +735,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
       update_prog(ino, p);
     });
   } else {
-    ino->populate(p->size());
+    ino->populate(p.size());
     update_prog(ino, p);
   }
 }
@@ -754,14 +756,14 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
     if (auto scan_err = ino->get_scan_error()) {
       assert(ino->fragments().empty());
 
-      std::vector<std::pair<file const*, std::exception_ptr>> errors;
+      std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
       auto const& fv = ino->all();
 
       if (fv.size() > 1) {
         auto [mm, p, err] = ino->mmap_any(os, {});
 
         if (mm) {
-          LOG_DEBUG << "successfully opened: " << p->path_as_string();
+          LOG_DEBUG << "successfully opened: " << p.path_as_string();
 
           // TODO: p = p is a workaround for older Clang versions
           wg.add_job([this, p = p, ino, mm = std::move(mm)] {
@@ -775,7 +777,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
         errors = std::move(err);
       }
 
-      assert(ino->any()->is_invalid());
+      assert(ino->any().is_invalid());
 
       ino->scan({}, opts_, prog_);
       update_prog(ino, ino->any());
@@ -783,7 +785,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
       errors.emplace_back(scan_err.value());
 
       for (auto const& [fp, ep] : errors) {
-        LOG_ERROR << "failed to map file \"" << fp->path_as_string()
+        LOG_ERROR << "failed to map file \"" << fp.path_as_string()
                   << "\": " << exception_str(ep) << ", creating empty inode";
         ++prog_.errors;
       }

@@ -32,10 +32,14 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include <dwarfs/terminal.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/entry_handle.h>
+
+#include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/speedometer.h>
 
 namespace dwarfs::writer {
@@ -84,8 +88,11 @@ class progress {
 
   std::vector<std::shared_ptr<context>> get_active_contexts() const;
 
+  using current_type =
+      std::variant<std::monostate, const_file_handle, inode const*>;
+
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
-  std::atomic<object const*> current{nullptr};
+  dwarfs::internal::synchronized<current_type> current{};
   std::atomic<uint64_t> total_bytes_read{0};
   std::atomic<file_size_t> current_size{0};
   std::atomic<file_off_t> current_offset{0};

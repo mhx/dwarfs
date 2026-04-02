@@ -1027,7 +1027,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         it != debug_filter_modes.end()) {
       options.debug_filter_function =
           [&iol, mode = it->second](bool exclude,
-                                    writer::entry_interface const& ei) {
+                                    writer::const_entry_handle ei) {
             debug_filter_output(iol.out, exclude, ei, mode);
           };
       no_progress = true;

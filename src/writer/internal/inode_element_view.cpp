@@ -25,7 +25,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_element_view.h>
 
@@ -49,7 +48,7 @@ bool inode_element_view::exists(size_t i) const {
 size_t inode_element_view::size() const { return inodes_.size(); }
 
 size_t inode_element_view::weight(size_t i) const {
-  return inodes_[i]->any()->size();
+  return inodes_[i]->any().size();
 }
 
 bool inode_element_view::bitvec_less(size_t a, size_t b) const {
@@ -63,12 +62,12 @@ bool inode_element_view::bitvec_less(size_t a, size_t b) const {
   if (ha > hb) {
     return false;
   }
-  return inodes_[a]->any()->less_revpath(*inodes_[b]->any());
+  return inodes_[a]->any().less_revpath(inodes_[b]->any());
 }
 
 bool inode_element_view::order_less(size_t a, size_t b) const {
-  auto const& fa = *inodes_[a]->any();
-  auto const& fb = *inodes_[b]->any();
+  auto const fa = inodes_[a]->any();
+  auto const fb = inodes_[b]->any();
   auto sa = fa.size();
   auto sb = fb.size();
   return sa > sb || (sa == sb && fa.less_revpath(fb));
@@ -82,7 +81,7 @@ bool inode_element_view::bits_equal(size_t a, size_t b) const {
 
 std::string inode_element_view::description(size_t i) const {
   auto f = inodes_[i]->any();
-  return fmt::format("{} [{}]", f->path_as_string(), f->size());
+  return fmt::format("{} [{}]", f.path_as_string(), f.size());
 }
 
 nilsimsa::hash_type const& inode_element_view::get_bits(size_t i) const {

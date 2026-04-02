@@ -27,8 +27,6 @@
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_storage.h>
 
-#include <dwarfs/writer/internal/entry.h>
-
 #include <fmt/format.h>
 
 namespace dwarfs::writer {
@@ -72,7 +70,7 @@ class entry_factory_ : public entry_factory::impl {
       break;
     }
 
-    return nullptr;
+    return {};
   }
 };
 

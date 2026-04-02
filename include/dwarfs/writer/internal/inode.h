@@ -33,6 +33,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/internal/sortable_span.h>
 #include <dwarfs/writer/object.h>
@@ -57,12 +58,11 @@ struct inode_options;
 
 namespace internal {
 
-class file;
 class progress;
 
 class inode : public object {
  public:
-  using files_vector = small_vector<file*, 1>;
+  using files_vector = small_vector<file_handle, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
   virtual void populate(file_size_t size) = 0;
@@ -76,19 +76,20 @@ class inode : public object {
   virtual nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
   virtual file_size_t size() const = 0;
-  virtual file const* any() const = 0;
+  virtual const_file_handle any() const = 0;
   virtual files_vector const& all() const = 0;
   virtual bool
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                    std::optional<inode_hole_mapper>& hole_mapper) const = 0;
   virtual inode_fragments& fragments() = 0;
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
-  virtual void set_scan_error(file const* fp, std::exception_ptr ep) = 0;
-  virtual std::optional<std::pair<file const*, std::exception_ptr>>
+  virtual void set_scan_error(const_file_handle fp, std::exception_ptr ep) = 0;
+  virtual std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const = 0;
   // TODO: WTH is this interface???
-  virtual std::tuple<file_view, file const*,
-                     std::vector<std::pair<file const*, std::exception_ptr>>>
+  virtual std::tuple<
+      file_view, const_file_handle,
+      std::vector<std::pair<const_file_handle, std::exception_ptr>>>
   mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
 };
 
