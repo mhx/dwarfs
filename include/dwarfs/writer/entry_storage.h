@@ -42,19 +42,19 @@ class entry_factory_;
 
 } // namespace internal
 
-class entry_tree {
+class entry_storage {
  public:
-  entry_tree();
-  ~entry_tree();
+  entry_storage();
+  ~entry_storage();
 
-  entry_tree(entry_tree&&) noexcept;
-  entry_tree& operator=(entry_tree&&) noexcept;
+  entry_storage(entry_storage&&) noexcept;
+  entry_storage& operator=(entry_storage&&) noexcept;
 
-  entry_tree(entry_tree const&) = delete;
-  entry_tree& operator=(entry_tree const&) = delete;
+  entry_storage(entry_storage const&) = delete;
+  entry_storage& operator=(entry_storage const&) = delete;
 
-  internal::entry* root() const noexcept { return root_; }
-  bool empty() const noexcept { return root_ == nullptr; }
+  internal::entry* root() const noexcept;
+  bool empty() const noexcept;
 
  private:
   friend class internal::entry_factory_;
@@ -76,7 +76,6 @@ class entry_tree {
 
   class impl;
   std::unique_ptr<impl> impl_;
-  internal::entry* root_{nullptr};
 };
 
 } // namespace dwarfs::writer
