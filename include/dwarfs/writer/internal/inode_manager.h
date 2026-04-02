@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/fragment_category.h>
 
 #include <dwarfs/internal/worker_group_fwd.h>
@@ -48,7 +49,6 @@ struct inode_options;
 
 namespace internal {
 
-class file;
 class progress;
 
 class inode_manager {
@@ -90,7 +90,7 @@ class inode_manager {
   }
 
   void scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                       std::shared_ptr<inode> ino, file* p) const {
+                       std::shared_ptr<inode> ino, file_handle p) const {
     impl_->scan_background(wg, os, std::move(ino), p);
   }
 
@@ -125,7 +125,7 @@ class inode_manager {
     virtual fragment_infos fragment_category_info() const = 0;
     virtual void
     scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                    std::shared_ptr<inode> ino, file* p) const = 0;
+                    std::shared_ptr<inode> ino, file_handle p) const = 0;
     virtual bool has_invalid_inodes() const = 0;
     virtual void try_scan_invalid(dwarfs::internal::worker_group& wg,
                                   os_access const& os) = 0;

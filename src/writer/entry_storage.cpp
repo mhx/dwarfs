@@ -27,6 +27,7 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/writer/entry_storage.h>
+
 #include <dwarfs/writer/internal/entry.h>
 
 namespace dwarfs::writer {
@@ -58,42 +59,41 @@ entry_storage::~entry_storage() = default;
 entry_storage::entry_storage(entry_storage&&) noexcept = default;
 entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 
-internal::entry* entry_storage::root() const noexcept { return impl_->root(); }
+entry_handle entry_storage::root() noexcept { return {*this, impl_->root()}; }
 
 bool entry_storage::empty() const noexcept { return impl_->empty(); }
 
-internal::dir* entry_storage::create_root_dir(std::filesystem::path const& path,
-                                              file_stat const& st) {
+dir_handle entry_storage::create_root_dir(std::filesystem::path const& path,
+                                          file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return impl_->make<internal::dir>(path, nullptr, st);
+  return {*this, impl_->make<internal::dir>(path, nullptr, st)};
 }
 
-internal::file*
+file_handle
 entry_storage::create_file(std::filesystem::path const& path,
-                           internal::entry* parent, file_stat const& st) {
+                           entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return impl_->make<internal::file>(path, parent, st);
+  return {*this, impl_->make<internal::file>(path, parent.self_, st)};
 }
 
-internal::dir*
-entry_storage::create_dir(std::filesystem::path const& path,
-                          internal::entry* parent, file_stat const& st) {
+dir_handle entry_storage::create_dir(std::filesystem::path const& path,
+                                     entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return impl_->make<internal::dir>(path, parent, st);
+  return {*this, impl_->make<internal::dir>(path, parent.self_, st)};
 }
 
-internal::link*
+link_handle
 entry_storage::create_link(std::filesystem::path const& path,
-                           internal::entry* parent, file_stat const& st) {
+                           entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return impl_->make<internal::link>(path, parent, st);
+  return {*this, impl_->make<internal::link>(path, parent.self_, st)};
 }
 
-internal::device*
+device_handle
 entry_storage::create_device(std::filesystem::path const& path,
-                             internal::entry* parent, file_stat const& st) {
+                             entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return impl_->make<internal::device>(path, parent, st);
+  return {*this, impl_->make<internal::device>(path, parent.self_, st)};
 }
 
 } // namespace dwarfs::writer

@@ -50,11 +50,11 @@
 
 #include <dwarfs/internal/associative_vector_types.h>
 #include <dwarfs/internal/malloc_buffer.h>
+#include <dwarfs/internal/synchronized.h>
 #include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 #include <dwarfs/writer/internal/cyclic_hash.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/progress.h>
 
 namespace dwarfs::writer {
@@ -1214,7 +1214,7 @@ class segmenter_progress : public progress::context {
     st.color = termcolor::GREEN;
     st.context = context_;
     if (f) {
-      st.path.emplace(f->path_as_string());
+      st.path.emplace(f.path_as_string());
     }
     st.bytes_processed.emplace(bytes_processed.load());
     st.bytes_total.emplace(bytes_total_);
@@ -1222,7 +1222,7 @@ class segmenter_progress : public progress::context {
   }
 
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
-  std::atomic<file const*> current_file{nullptr};
+  dwarfs::internal::synchronized<const_file_handle> current_file{};
   std::atomic<uint64_t> bytes_processed{0};
   // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
@@ -1528,7 +1528,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
   if (chkable.size() > 0) {
     LOG_TRACE << cfg_.context << "adding " << chkable.description();
 
-    pctx_->current_file = chkable.get_file();
+    pctx_->current_file.store(chkable.get_file());
 
     auto process_extent = [&](auto& data) {
       auto const size_in_frames = data.size();

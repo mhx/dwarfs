@@ -26,6 +26,8 @@
 #include <filesystem>
 #include <memory>
 
+#include <dwarfs/writer/entry_handle.h>
+
 namespace dwarfs {
 
 class os_access;
@@ -34,20 +36,14 @@ namespace writer {
 
 class entry_storage;
 
-namespace internal {
-
-class entry;
-
-} // namespace internal
-
 class entry_factory {
  public:
-  using node = internal::entry*;
+  using node = entry_handle;
 
   entry_factory();
 
   node create(entry_storage& tree, os_access const& os,
-              std::filesystem::path const& path, node parent = nullptr) {
+              std::filesystem::path const& path, node parent = {}) {
     return impl_->create(tree, os, path, parent);
   }
 

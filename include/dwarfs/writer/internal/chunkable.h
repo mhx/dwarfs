@@ -28,16 +28,15 @@
 
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/entry_handle.h>
 
 namespace dwarfs::writer::internal {
-
-class file;
 
 class chunkable {
  public:
   virtual ~chunkable() = default;
 
-  virtual file const* get_file() const = 0;
+  virtual const_file_handle get_file() const = 0;
   virtual file_size_t size() const = 0;
   virtual std::string description() const = 0;
   virtual file_extents_iterable extents() const = 0;

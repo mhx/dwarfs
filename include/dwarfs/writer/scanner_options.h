@@ -32,12 +32,11 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/history_config.h>
+#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/inode_options.h>
 #include <dwarfs/writer/metadata_options.h>
 
 namespace dwarfs::writer {
-
-class entry_interface;
 
 struct scanner_options {
   std::optional<std::string> file_hash_algorithm{"xxh3-128"};
@@ -45,7 +44,7 @@ struct scanner_options {
   bool with_devices{false};
   bool with_specials{false};
   inode_options inode;
-  std::optional<std::function<void(bool, writer::entry_interface const&)>>
+  std::optional<std::function<void(bool, writer::const_entry_handle)>>
       debug_filter_function;
   size_t num_segmenter_workers{1};
   bool enable_history{true};

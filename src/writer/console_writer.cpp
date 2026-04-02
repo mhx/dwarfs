@@ -34,10 +34,8 @@
 #include <dwarfs/terminal.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/console_writer.h>
-#include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/progress.h>
 
 namespace dwarfs::writer {
