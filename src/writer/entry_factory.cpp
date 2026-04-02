@@ -25,7 +25,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/entry_factory.h>
-#include <dwarfs/writer/entry_tree.h>
+#include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/writer/internal/entry.h>
 
@@ -37,7 +37,7 @@ namespace internal {
 
 class entry_factory_ : public entry_factory::impl {
  public:
-  entry_factory::node create(entry_tree& tree, os_access const& os,
+  entry_factory::node create(entry_storage& tree, os_access const& os,
                              std::filesystem::path const& path,
                              entry_factory::node parent) override {
     auto st = os.symlink_info(path);
