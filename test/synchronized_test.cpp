@@ -181,6 +181,13 @@ TEST(synchronized_test, concurrent_with_lock_increments_are_correct) {
   EXPECT_EQ(num_threads * iters, *s.lock());
 }
 
+TEST(synchronized_test, store_and_load) {
+  synchronized<int> s(0);
+
+  s.store(42);
+  EXPECT_EQ(s.load(), 42);
+}
+
 using shared_sync_t = synchronized<int, std::shared_mutex>;
 
 static_assert(shared_sync_t::is_shared);
@@ -300,4 +307,11 @@ TEST(synchronized_shared_test, writer_blocks_writer_until_released) {
   ASSERT_EQ(writer2_acquired.wait_for(2s), std::future_status::ready);
 
   writer2.join();
+}
+
+TEST(synchronized_shared_test, store_and_load) {
+  synchronized<int, std::shared_mutex> s(0);
+
+  s.store(42);
+  EXPECT_EQ(s.load(), 42);
 }
