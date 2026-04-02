@@ -50,17 +50,23 @@ void index_map(MapT& map) {
   }
 }
 
+template <typename T>
+  requires requires(T t) {
+    typename T::key_type;
+    typename T::mapped_type;
+  }
+std::vector<typename T::key_type> get_vector(T const& map) {
+  using K = typename T::key_type;
+  using V = typename T::mapped_type;
+  std::vector<std::pair<K, V>> pairs{map.begin(), map.end()};
+  ranges::sort(pairs, ranges::less{}, &std::pair<K, V>::second);
+  return pairs | ranges::views::keys | ranges::to<std::vector>;
+}
+
 } // namespace
 
 global_entry_data::global_entry_data(metadata_options const& options)
     : options_{options} {}
-
-template <typename T, typename U>
-std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
-  std::vector<std::pair<T, U>> pairs{map.begin(), map.end()};
-  ranges::sort(pairs, ranges::less{}, &std::pair<T, U>::second);
-  return pairs | ranges::views::keys | ranges::to<std::vector>;
-}
 
 auto global_entry_data::get_uids() const -> std::vector<uid_type> {
   return get_vector(uids_);
@@ -129,12 +135,12 @@ void global_entry_data::pack_inode_stat(
   }
 }
 
-uint32_t global_entry_data::get_name_index(std::string const& name) const {
+uint32_t global_entry_data::get_name_index(std::string_view name) const {
   return DWARFS_NOTHROW(names_.at(name));
 }
 
 uint32_t
-global_entry_data::get_symlink_table_entry(std::string const& link) const {
+global_entry_data::get_symlink_table_entry(std::string_view link) const {
   return DWARFS_NOTHROW(symlinks_.at(link));
 }
 
