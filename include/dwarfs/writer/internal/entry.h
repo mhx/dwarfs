@@ -42,6 +42,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/writer/entry_interface.h>
+#include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
 
 namespace dwarfs {
@@ -77,7 +78,7 @@ class entry_visitor {
 
 class entry : public entry_interface {
  public:
-  enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
+  using type_t = entry_type;
 
   entry(std::filesystem::path const& path, entry* parent, file_stat const& st);
 
@@ -109,11 +110,11 @@ class entry : public entry_interface {
 
   void set_empty();
 
-  bool is_file() const noexcept { return type() == E_FILE; }
-  bool is_dir() const noexcept { return type() == E_DIR; }
-  bool is_link() const noexcept { return type() == E_LINK; }
-  bool is_device() const noexcept { return type() == E_DEVICE; }
-  bool is_other() const noexcept { return type() == E_OTHER; }
+  bool is_file() const noexcept { return type() == entry_type::E_FILE; }
+  bool is_dir() const noexcept { return type() == entry_type::E_DIR; }
+  bool is_link() const noexcept { return type() == entry_type::E_LINK; }
+  bool is_device() const noexcept { return type() == entry_type::E_DEVICE; }
+  bool is_other() const noexcept { return type() == entry_type::E_OTHER; }
 
   file* as_file() noexcept;
   dir* as_dir() noexcept;
