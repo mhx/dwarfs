@@ -25,7 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/writer/entry_factory.h>
-#include <dwarfs/writer/entry_tree.h>
+#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/entry.h>
@@ -94,7 +94,7 @@ struct entry_test : public ::testing::Test {
 };
 
 TEST_F(entry_test, path) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto e1 = ef->create(tree, *os, sep);
   auto e2 = ef->create(tree, *os, sep / "somelink", e1);
   auto e3 = ef->create(tree, *os, sep / "somedir", e1);
@@ -142,7 +142,7 @@ TEST_F(entry_test, path) {
 }
 
 TEST_F(entry_test, factory_creates_expected_entry_kinds) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -204,7 +204,7 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
   local_os->add_file(root_path / "a" / "x", "ax");
   local_os->add_file(root_path / "b" / "x", "bx");
 
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path);
   auto a = local_ef.create(tree, *local_os, root_path / "a", root);
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -244,7 +244,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   local_os->add_file(root_path / "b", "b");
   local_os->add_file(root_path / "a" / "c", "c");
 
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
   auto a = local_ef.create(tree, *local_os, root_path / "a", root)->as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -281,7 +281,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   local_os->add_file(root_path / "b", "b");
   local_os->add_file(root_path / "a" / "c", "c");
 
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
   auto a = local_ef.create(tree, *local_os, root_path / "a", root)->as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -319,7 +319,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
 
 TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
   {
-    auto tree = writer::entry_tree{};
+    auto tree = writer::entry_storage{};
     auto root = ef->create(tree, *os, sep)->as_dir();
     ASSERT_TRUE(root);
 
@@ -349,7 +349,7 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
       local_os->add_file(root_path / ("f" + std::to_string(i)), "x");
     }
 
-    auto tree = writer::entry_tree{};
+    auto tree = writer::entry_storage{};
     auto big_root = local_ef.create(tree, *local_os, root_path)->as_dir();
     ASSERT_TRUE(big_root);
 
@@ -392,7 +392,7 @@ TEST_F(entry_test,
   local_os->add_dir(root_path / "nested");
   local_os->add_dir(root_path / "nested" / "empty_b");
 
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path)->as_dir();
   auto keep =
       local_ef.create(tree, *local_os, root_path / "keep", root)->as_dir();
@@ -458,7 +458,7 @@ TEST_F(entry_test,
 }
 
 TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
 
@@ -486,7 +486,7 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
 }
 
 TEST_F(entry_test, root_dir_must_be_a_directory) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   EXPECT_THAT([&] { ef->create(tree, *os, sep / "somelink"); },
               testing::ThrowsMessage<dwarfs::runtime_error>(
@@ -494,7 +494,7 @@ TEST_F(entry_test, root_dir_must_be_a_directory) {
 }
 
 TEST_F(entry_test, file_create_data_initializes_file_state) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -514,7 +514,7 @@ TEST_F(entry_test, file_create_data_initializes_file_state) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_invalid_state) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -544,7 +544,7 @@ TEST_F(entry_test, file_hardlink_shares_invalid_state) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -576,7 +576,7 @@ TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
 }
 
 TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -610,7 +610,7 @@ TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_hash_state) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -638,7 +638,7 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
 }
 
 TEST_F(entry_test, file_inode_num_requires_data) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -655,7 +655,7 @@ TEST_F(entry_test, file_inode_num_requires_data) {
 }
 
 TEST_F(entry_test, file_set_inode_num_requires_data) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -670,7 +670,7 @@ TEST_F(entry_test, file_set_inode_num_requires_data) {
 }
 
 TEST_F(entry_test, file_set_inode_num_only_once) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -690,7 +690,7 @@ TEST_F(entry_test, file_set_inode_num_only_once) {
 }
 
 TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
-  auto tree = writer::entry_tree{};
+  auto tree = writer::entry_storage{};
 
   auto* root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);

@@ -143,7 +143,7 @@ add_library(
   src/writer/compression_metadata_requirements.cpp
   src/writer/console_writer.cpp
   src/writer/entry_factory.cpp
-  src/writer/entry_tree.cpp
+  src/writer/entry_storage.cpp
   src/writer/fragment_order_options.cpp
   src/writer/filesystem_block_category_resolver.cpp
   src/writer/filesystem_writer.cpp
