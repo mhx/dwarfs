@@ -48,11 +48,21 @@ template <typename T>
            std::totally_ordered<typename T::key_type>
 void sort_and_index_map(T& map) {
   using index_type = T::mapped_type;
-  auto keys = map | ranges::views::keys | ranges::to<std::vector>;
-  ranges::sort(keys);
+  using iterator = T::iterator;
+
+  std::vector<iterator> order;
+  order.reserve(map.size());
+
+  for (auto it = map.begin(); it != map.end(); ++it) {
+    order.push_back(it);
+  }
+
+  std::ranges::sort(order, std::ranges::less{}, &T::value_type::first);
+
   index_type ix{0};
-  for (auto const& k : keys) {
-    map[k] = ix++;
+
+  for (iterator it : order) {
+    it->second = ix++;
   }
 }
 
