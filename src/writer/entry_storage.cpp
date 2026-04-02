@@ -21,16 +21,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <cassert>
 #include <utility>
 #include <vector>
 
 #include <dwarfs/error.h>
-#include <dwarfs/writer/entry_tree.h>
+#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/internal/entry.h>
 
 namespace dwarfs::writer {
 
-class entry_tree::impl {
+class entry_storage::impl {
  public:
   template <typename T, typename... Args>
   T* make(Args&&... args) {
@@ -40,46 +41,58 @@ class entry_tree::impl {
     return raw;
   }
 
+  bool empty() const noexcept { return entries_.empty(); }
+
+  internal::entry* root() const noexcept {
+    return empty() ? nullptr : entries_.front().get();
+  }
+
  private:
   std::vector<std::unique_ptr<internal::entry>> entries_;
 };
 
-entry_tree::entry_tree()
+entry_storage::entry_storage()
     : impl_(std::make_unique<impl>()) {}
 
-entry_tree::~entry_tree() = default;
-entry_tree::entry_tree(entry_tree&&) noexcept = default;
-entry_tree& entry_tree::operator=(entry_tree&&) noexcept = default;
+entry_storage::~entry_storage() = default;
+entry_storage::entry_storage(entry_storage&&) noexcept = default;
+entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 
-internal::dir* entry_tree::create_root_dir(std::filesystem::path const& path,
-                                           file_stat const& st) {
-  DWARFS_CHECK(!root_, "entry_tree root already set");
-  auto* d = impl_->make<internal::dir>(path, nullptr, st);
-  root_ = d;
-  return d;
+internal::entry* entry_storage::root() const noexcept { return impl_->root(); }
+
+bool entry_storage::empty() const noexcept { return impl_->empty(); }
+
+internal::dir* entry_storage::create_root_dir(std::filesystem::path const& path,
+                                              file_stat const& st) {
+  DWARFS_CHECK(empty(), "entry_storage root already set");
+  return impl_->make<internal::dir>(path, nullptr, st);
 }
 
 internal::file*
-entry_tree::create_file(std::filesystem::path const& path,
-                        internal::entry* parent, file_stat const& st) {
+entry_storage::create_file(std::filesystem::path const& path,
+                           internal::entry* parent, file_stat const& st) {
+  assert(!empty());
   return impl_->make<internal::file>(path, parent, st);
 }
 
 internal::dir*
-entry_tree::create_dir(std::filesystem::path const& path,
-                       internal::entry* parent, file_stat const& st) {
+entry_storage::create_dir(std::filesystem::path const& path,
+                          internal::entry* parent, file_stat const& st) {
+  assert(!empty());
   return impl_->make<internal::dir>(path, parent, st);
 }
 
 internal::link*
-entry_tree::create_link(std::filesystem::path const& path,
-                        internal::entry* parent, file_stat const& st) {
+entry_storage::create_link(std::filesystem::path const& path,
+                           internal::entry* parent, file_stat const& st) {
+  assert(!empty());
   return impl_->make<internal::link>(path, parent, st);
 }
 
 internal::device*
-entry_tree::create_device(std::filesystem::path const& path,
-                          internal::entry* parent, file_stat const& st) {
+entry_storage::create_device(std::filesystem::path const& path,
+                             internal::entry* parent, file_stat const& st) {
+  assert(!empty());
   return impl_->make<internal::device>(path, parent, st);
 }
 

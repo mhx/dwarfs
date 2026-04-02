@@ -56,7 +56,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_filter.h>
-#include <dwarfs/writer/entry_tree.h>
+#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -262,16 +262,16 @@ class scanner_ final : public scanner::impl {
 
  private:
   entry_factory::node
-  scan_tree(entry_tree& tree, std::filesystem::path const& path, progress& prog,
-            file_scanner& fs);
+  scan_tree(entry_storage& tree, std::filesystem::path const& path,
+            progress& prog, file_scanner& fs);
 
   entry_factory::node
-  scan_list(entry_tree& tree, std::filesystem::path const& rootpath,
+  scan_list(entry_storage& tree, std::filesystem::path const& rootpath,
             std::span<std::filesystem::path const> list, progress& prog,
             file_scanner& fs);
 
   entry_factory::node
-  add_entry(entry_tree& tree, std::filesystem::path const& name, dir* parent,
+  add_entry(entry_storage& tree, std::filesystem::path const& name, dir* parent,
             progress& prog, file_scanner& fs, bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
@@ -311,7 +311,7 @@ DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::add_entry(entry_tree& tree,
+scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   std::filesystem::path const& name,
                                   dir* parent, progress& prog, file_scanner& fs,
                                   bool debug_filter) {
@@ -462,7 +462,7 @@ void scanner_<LoggerPolicy>::dump_state(
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::scan_tree(entry_tree& tree,
+scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                   std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
   auto root = entry_factory_.create(tree, os_, path);
@@ -508,7 +508,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_tree& tree,
 
 template <typename LoggerPolicy>
 entry_factory::node
-scanner_<LoggerPolicy>::scan_list(entry_tree& tree,
+scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
                                   std::filesystem::path const& rootpath,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, file_scanner& fs) {
@@ -661,7 +661,7 @@ void scanner_<LoggerPolicy>::scan(
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                          os_.getenv(kEnvVarDumpFilesFinal)});
 
-  auto tree = entry_tree{};
+  auto tree = entry_storage{};
   auto root = list ? scan_list(tree, path, *list, prog, fs)
                    : scan_tree(tree, path, prog, fs);
 
