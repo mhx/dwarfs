@@ -22,11 +22,9 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>
-
-#include <range/v3/algorithm/sort.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/map.hpp>
+#include <functional>
 
 #include <dwarfs/error.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -70,13 +68,28 @@ template <typename T>
   requires requires(T t) {
     typename T::key_type;
     typename T::mapped_type;
+  } && std::unsigned_integral<typename T::mapped_type>
+std::vector<typename T::key_type> get_sorted_index_vector(T const& map) {
+  using K = T::key_type;
+
+  std::vector<K> result(map.size());
+#ifndef NDEBUG
+  std::vector<bool> seen(result.size(), false);
+#endif
+
+  for (auto const& [k, ix] : map) {
+    auto const i = static_cast<std::size_t>(ix);
+    assert(i < result.size());
+    result[i] = k;
+#ifndef NDEBUG
+    assert(!seen[i]);
+    seen[i] = true;
+#endif
   }
-std::vector<typename T::key_type> get_vector(T const& map) {
-  using K = typename T::key_type;
-  using V = typename T::mapped_type;
-  std::vector<std::pair<K, V>> pairs{map.begin(), map.end()};
-  ranges::sort(pairs, ranges::less{}, &std::pair<K, V>::second);
-  return pairs | ranges::views::keys | ranges::to<std::vector>;
+
+  assert(std::ranges::all_of(seen, std::identity{}));
+
+  return result;
 }
 
 template <typename T, typename V>
@@ -95,23 +108,23 @@ global_entry_data::global_entry_data(metadata_options const& options)
     : options_{options} {}
 
 auto global_entry_data::get_uids() const -> std::vector<uid_type> {
-  return get_vector(uids_);
+  return get_sorted_index_vector(uids_);
 }
 
 auto global_entry_data::get_gids() const -> std::vector<gid_type> {
-  return get_vector(gids_);
+  return get_sorted_index_vector(gids_);
 }
 
 auto global_entry_data::get_modes() const -> std::vector<mode_type> {
-  return get_vector(modes_);
+  return get_sorted_index_vector(modes_);
 }
 
 auto global_entry_data::get_names() const -> std::vector<std::string> {
-  return get_vector(names_);
+  return get_sorted_index_vector(names_);
 }
 
 auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
-  return get_vector(symlinks_);
+  return get_sorted_index_vector(symlinks_);
 }
 
 void global_entry_data::update_index() {
