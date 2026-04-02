@@ -37,15 +37,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/container_hash/hash.hpp>
-
-#include <fmt/ostream.h>
-
 #include <dwarfs/compiler.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/writer/entry_interface.h>
+#include <dwarfs/writer/unique_inode_id.h>
 
 namespace dwarfs {
 
@@ -68,23 +65,6 @@ class global_entry_data;
 class inode;
 class progress;
 class time_resolution_converter;
-
-struct unique_inode_id {
-  unique_inode_id() = default;
-  unique_inode_id(uint64_t dev_id, uint64_t ino)
-      : device_id{dev_id}
-      , inode_num{ino} {}
-
-  uint64_t device_id{0};
-  uint64_t inode_num{0};
-
-  DWARFS_PUSH_WARNING
-  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
-  auto operator<=>(unique_inode_id const&) const = default;
-  DWARFS_POP_WARNING
-
-  friend std::ostream& operator<<(std::ostream& os, unique_inode_id const& id);
-};
 
 class entry_visitor {
  public:
@@ -271,26 +251,3 @@ class device : public entry {
 } // namespace writer::internal
 
 } // namespace dwarfs
-
-namespace std {
-
-template <>
-struct hash<dwarfs::writer::internal::unique_inode_id> {
-  std::size_t
-  operator()(dwarfs::writer::internal::unique_inode_id const& id) const {
-    std::size_t seed = 0;
-    boost::hash_combine(seed, id.device_id);
-    boost::hash_combine(seed, id.inode_num);
-    return seed;
-  }
-};
-
-} // namespace std
-
-namespace fmt {
-
-template <>
-struct formatter<dwarfs::writer::internal::unique_inode_id>
-    : ostream_formatter {};
-
-} // namespace fmt
