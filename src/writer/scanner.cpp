@@ -356,7 +356,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     }
 
     switch (pe->type()) {
-    case entry::E_FILE:
+    case entry_type::E_FILE:
       if (!debug_filter && pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
         LOG_ERROR << "cannot access " << pe->path_as_string()
                   << ", creating empty file";
@@ -365,13 +365,13 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       }
       break;
 
-    case entry::E_DEVICE:
+    case entry_type::E_DEVICE:
       if (!options_.with_devices) {
         return nullptr;
       }
       break;
 
-    case entry::E_OTHER:
+    case entry_type::E_OTHER:
       if (!options_.with_specials) {
         return nullptr;
       }
@@ -384,7 +384,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     parent->add(pe);
 
     switch (pe->type()) {
-    case entry::E_DIR:
+    case entry_type::E_DIR:
       // prog.current.store(pe.get());
       prog.dirs_found++;
       if (!debug_filter) {
@@ -392,14 +392,14 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       }
       break;
 
-    case entry::E_FILE:
+    case entry_type::E_FILE:
       prog.files_found++;
       if (!debug_filter) {
         fs.scan(pe->as_file());
       }
       break;
 
-    case entry::E_LINK:
+    case entry_type::E_LINK:
       prog.symlinks_found++;
       if (!debug_filter) {
         pe->scan(os_, prog);
@@ -407,8 +407,8 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       prog.symlinks_scanned++;
       break;
 
-    case entry::E_DEVICE:
-    case entry::E_OTHER:
+    case entry_type::E_DEVICE:
+    case entry_type::E_OTHER:
       prog.specials_found++;
       if (!debug_filter) {
         pe->scan(os_, prog);
