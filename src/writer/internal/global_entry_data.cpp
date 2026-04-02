@@ -22,6 +22,8 @@
  */
 
 #include <algorithm>
+#include <concepts>
+
 #include <range/v3/algorithm/sort.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/map.hpp>
@@ -38,14 +40,18 @@ namespace dwarfs::writer::internal {
 
 namespace {
 
-template <typename MapT>
-void index_map(MapT& map) {
-  using mapped_type = MapT::mapped_type;
-  static_assert(std::is_integral_v<mapped_type>);
+template <typename T>
+  requires requires(T m) {
+    typename T::key_type;
+    typename T::mapped_type;
+  } && std::unsigned_integral<typename T::mapped_type> &&
+           std::totally_ordered<typename T::key_type>
+void sort_and_index_map(T& map) {
+  using index_type = T::mapped_type;
   auto keys = map | ranges::views::keys | ranges::to<std::vector>;
   ranges::sort(keys);
-  mapped_type ix{0};
-  for (auto& k : keys) {
+  index_type ix{0};
+  for (auto const& k : keys) {
     map[k] = ix++;
   }
 }
@@ -61,6 +67,16 @@ std::vector<typename T::key_type> get_vector(T const& map) {
   std::vector<std::pair<K, V>> pairs{map.begin(), map.end()};
   ranges::sort(pairs, ranges::less{}, &std::pair<K, V>::second);
   return pairs | ranges::views::keys | ranges::to<std::vector>;
+}
+
+template <typename T, typename V>
+  requires requires(T t) {
+    typename T::key_type;
+    typename T::mapped_type;
+  } && std::convertible_to<V, typename T::key_type>
+void add_to_index(T& map, V val) {
+  auto const next_index = static_cast<typename T::mapped_type>(map.size());
+  map.emplace(val, next_index);
 }
 
 } // namespace
@@ -89,8 +105,8 @@ auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
 }
 
 void global_entry_data::index() {
-  index_map(names_);
-  index_map(symlinks_);
+  sort_and_index_map(names_);
+  sort_and_index_map(symlinks_);
 }
 
 uint64_t global_entry_data::get_timestamp_base() const {
@@ -146,15 +162,17 @@ global_entry_data::get_symlink_table_entry(std::string_view link) const {
 
 void global_entry_data::add_uid(uid_type uid) {
   if (!options_.uid) {
-    add(uid, uids_, next_uid_index_);
+    add_to_index(uids_, uid);
   }
 }
 
 void global_entry_data::add_gid(gid_type gid) {
   if (!options_.gid) {
-    add(gid, gids_, next_gid_index_);
+    add_to_index(gids_, gid);
   }
 }
+
+void global_entry_data::add_mode(mode_type mode) { add_to_index(modes_, mode); }
 
 void global_entry_data::add_mtime(uint64_t time) {
   timestamp_base_ = std::min(time, timestamp_base_);
@@ -170,6 +188,14 @@ void global_entry_data::add_ctime(uint64_t time) {
   if (options_.keep_all_times) {
     add_mtime(time);
   }
+}
+
+void global_entry_data::add_name(std::string_view name) {
+  names_.emplace(name, 0);
+}
+
+void global_entry_data::add_link(std::string_view link) {
+  symlinks_.emplace(link, 0);
 }
 
 } // namespace dwarfs::writer::internal
