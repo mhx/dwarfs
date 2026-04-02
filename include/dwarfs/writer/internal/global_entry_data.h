@@ -26,10 +26,12 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <parallel_hashmap/phmap.h>
 
+#include <dwarfs/detail/string_like_hash.h>
 #include <dwarfs/file_stat.h>
 
 namespace dwarfs::thrift::metadata {
@@ -63,13 +65,13 @@ class global_entry_data {
   void add_atime(uint64_t time);
   void add_ctime(uint64_t time);
 
-  void add_name(std::string const& name) { names_.emplace(name, 0); }
-  void add_link(std::string const& link) { symlinks_.emplace(link, 0); }
+  void add_name(std::string_view name) { names_.emplace(name, 0); }
+  void add_link(std::string_view link) { symlinks_.emplace(link, 0); }
 
   void index();
 
-  uint32_t get_name_index(std::string const& name) const;
-  uint32_t get_symlink_table_entry(std::string const& link) const;
+  uint32_t get_name_index(std::string_view name) const;
+  uint32_t get_symlink_table_entry(std::string_view link) const;
 
   std::vector<uid_type> get_uids() const;
   std::vector<gid_type> get_gids() const;
@@ -85,11 +87,14 @@ class global_entry_data {
                   time_resolution_converter const& timeres) const;
 
  private:
-  template <typename K, typename V>
-  using map_type = phmap::flat_hash_map<K, V>;
+  using string_like_hash = dwarfs::detail::string_like_hash;
 
-  template <typename T, typename U>
-  std::vector<T> get_vector(map_type<T, U> const& map) const;
+  template <typename... Args>
+  using map_type = phmap::flat_hash_map<Args...>;
+
+  template <typename V>
+  using string_keyed_map_type =
+      map_type<std::string, V, string_like_hash, std::equal_to<>>;
 
   template <typename T>
   void add(T val, map_type<T, T>& map, T& next_index) {
@@ -101,8 +106,8 @@ class global_entry_data {
   map_type<uid_type, uid_type> uids_;
   map_type<gid_type, gid_type> gids_;
   map_type<mode_type, mode_type> modes_;
-  map_type<std::string, uint32_t> names_;
-  map_type<std::string, uint32_t> symlinks_;
+  string_keyed_map_type<uint32_t> names_;
+  string_keyed_map_type<uint32_t> symlinks_;
   uid_type next_uid_index_{0};
   gid_type next_gid_index_{0};
   mode_type next_mode_index_{0};
