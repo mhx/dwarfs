@@ -70,7 +70,7 @@ class inode_ordering_ final : public inode_ordering::impl {
  private:
   void
   by_nilsimsa_impl(worker_group& wg, similarity_ordering_options const& opts,
-                   std::span<std::shared_ptr<inode> const> inodes,
+                   std::span<inode_ptr const> inodes,
                    std::vector<uint32_t>& index, fragment_category cat) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -143,7 +143,7 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
   }
 
   auto size_pred = [&](auto a, auto b) {
-    return inode_less_by_size(raw[a].get(), raw[b].get());
+    return inode_less_by_size(raw[a], raw[b]);
   };
 
   auto start = index.begin();
@@ -189,7 +189,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
 
     if (mid != index.begin()) {
       std::sort(index.begin(), mid, [&](auto a, auto b) {
-        return inode_less_by_size(raw[a].get(), raw[b].get());
+        return inode_less_by_size(raw[a], raw[b]);
       });
 
       if (mid != index.end()) {
@@ -208,8 +208,8 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
     worker_group& wg, similarity_ordering_options const& opts,
-    std::span<std::shared_ptr<inode> const> inodes,
-    std::vector<uint32_t>& index, fragment_category cat) const {
+    std::span<inode_ptr const> inodes, std::vector<uint32_t>& index,
+    fragment_category cat) const {
   auto ev = inode_element_view(inodes, index, cat);
   std::promise<std::vector<uint32_t>> promise;
   auto future = promise.get_future();

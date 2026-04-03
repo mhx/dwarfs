@@ -40,7 +40,7 @@ class inode_element_view
  public:
   inode_element_view() = default;
 
-  inode_element_view(std::span<std::shared_ptr<inode> const> inodes,
+  inode_element_view(std::span<inode* const> inodes,
                      std::span<uint32_t const> index, fragment_category cat);
 
   bool exists(size_t i) const override;
@@ -54,7 +54,7 @@ class inode_element_view
   nilsimsa::hash_type const& get_bits(size_t i) const override;
 
  private:
-  std::span<std::shared_ptr<inode> const> inodes_;
+  std::span<inode* const> inodes_;
   std::vector<nilsimsa::hash_type const*> hash_cache_;
   std::optional<fragment_category> cat_;
 };
