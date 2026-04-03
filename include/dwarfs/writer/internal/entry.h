@@ -66,15 +66,6 @@ class inode;
 class progress;
 class time_resolution_converter;
 
-class entry_visitor {
- public:
-  virtual ~entry_visitor() = default;
-  virtual void visit(file* p) = 0;
-  virtual void visit(device* p) = 0;
-  virtual void visit(link* p) = 0;
-  virtual void visit(dir* p) = 0;
-};
-
 class entry {
  public:
   using type_t = entry_type;
@@ -99,7 +90,6 @@ class entry {
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
        time_resolution_converter const& timeres) const;
   void update(global_entry_data& data) const;
-  virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual void scan(os_access const& os, progress& prog) = 0;
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
@@ -145,7 +135,6 @@ class file : public entry {
   std::string_view hash() const;
   void set_inode(std::shared_ptr<inode> ino);
   std::shared_ptr<inode> get_inode() const;
-  void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
   void scan(file_view const& mm, progress& prog,
             std::optional<std::string> const& hash_alg);
@@ -185,7 +174,6 @@ class dir : public entry {
   type_t type() const override;
   void add(entry* e);
   void walk(std::function<void(entry*)> const& f) override;
-  void accept(entry_visitor& v, bool preorder) override;
   void sort();
   void pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
             time_resolution_converter const& timeres) const;
@@ -202,6 +190,8 @@ class dir : public entry {
   }
 
   entry* find(std::filesystem::path const& path);
+
+  void for_each_child(std::function<void(entry*)> const& f);
 
  private:
   using entry_ptr = entry*;
@@ -220,7 +210,6 @@ class link : public entry {
 
   type_t type() const override;
   std::string const& linkname() const;
-  void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
@@ -242,7 +231,6 @@ class device : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
   uint64_t device_id() const;
 
