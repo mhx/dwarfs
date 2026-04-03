@@ -37,18 +37,34 @@ namespace dwarfs::writer {
 
 class entry_storage::impl {
  public:
-  template <typename T, typename... Args>
-  T* make(Args&&... args) {
-    auto p = std::make_unique<T>(std::forward<Args>(args)...);
-    auto* raw = p.get();
-    entries_.emplace_back(std::move(p));
-    return raw;
+  internal::file* make_file(std::filesystem::path const& path,
+                            internal::entry* parent, file_stat const& st) {
+    auto& f = files_.emplace_back(path, parent, st);
+    return &f;
   }
 
-  bool empty() const noexcept { return entries_.empty(); }
+  internal::dir* make_dir(std::filesystem::path const& path,
+                          internal::entry* parent, file_stat const& st) {
+    auto& d = dirs_.emplace_back(path, parent, st);
+    return &d;
+  }
 
-  internal::entry* root() const noexcept {
-    return empty() ? nullptr : entries_.front().get();
+  internal::link* make_link(std::filesystem::path const& path,
+                            internal::entry* parent, file_stat const& st) {
+    auto& l = links_.emplace_back(path, parent, st);
+    return &l;
+  }
+
+  internal::device* make_device(std::filesystem::path const& path,
+                                internal::entry* parent, file_stat const& st) {
+    auto& d = devices_.emplace_back(path, parent, st);
+    return &d;
+  }
+
+  bool empty() const noexcept { return dirs_.empty(); }
+
+  internal::entry* root() noexcept {
+    return dirs_.empty() ? nullptr : &dirs_.front();
   }
 
   void dump(std::ostream& os) const;
@@ -66,15 +82,21 @@ class entry_storage::impl {
   }
 
  private:
-  chunked_append_only_vector<std::unique_ptr<internal::entry>> entries_;
+  chunked_append_only_vector<internal::file> files_;
+  chunked_append_only_vector<internal::dir> dirs_;
+  chunked_append_only_vector<internal::link> links_;
+  chunked_append_only_vector<internal::device> devices_;
   dwarfs::internal::synchronized<
       chunked_append_only_vector<internal::file_data>>
       file_data_;
 };
 
 void entry_storage::impl::dump(std::ostream& os) const {
-  os << "num entries: " << entries_.size() << "\n";
+  os << "num dirs: " << dirs_.size() << "\n";
+  os << "num files: " << files_.size() << "\n";
   os << "num file data: " << file_data_.lock()->size() << "\n";
+  os << "num links: " << links_.size() << "\n";
+  os << "num devices: " << devices_.size() << "\n";
 }
 
 entry_storage::entry_storage()
@@ -99,34 +121,34 @@ std::string entry_storage::dump() const {
 dir_handle entry_storage::create_root_dir(std::filesystem::path const& path,
                                           file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, impl_->make<internal::dir>(path, nullptr, st)};
+  return {*this, impl_->make_dir(path, nullptr, st)};
 }
 
 file_handle
 entry_storage::create_file(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make<internal::file>(path, parent.self_, st)};
+  return {*this, impl_->make_file(path, parent.self_, st)};
 }
 
 dir_handle entry_storage::create_dir(std::filesystem::path const& path,
                                      entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make<internal::dir>(path, parent.self_, st)};
+  return {*this, impl_->make_dir(path, parent.self_, st)};
 }
 
 link_handle
 entry_storage::create_link(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make<internal::link>(path, parent.self_, st)};
+  return {*this, impl_->make_link(path, parent.self_, st)};
 }
 
 device_handle
 entry_storage::create_device(std::filesystem::path const& path,
                              entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make<internal::device>(path, parent.self_, st)};
+  return {*this, impl_->make_device(path, parent.self_, st)};
 }
 
 size_t entry_storage::create_file_data() { return impl_->create_file_data(); }
