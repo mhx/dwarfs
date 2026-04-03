@@ -262,9 +262,9 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
     requires is_mutable;
   bool is_invalid() const;
 
-  void set_inode(std::shared_ptr<internal::inode> ino)
+  void set_inode(internal::inode* ino)
     requires is_mutable;
-  std::shared_ptr<internal::inode> get_inode() const;
+  internal::inode* get_inode() const;
 
   void hardlink(basic_file_handle<detail::mutability::mutable_> other,
                 internal::progress& prog)

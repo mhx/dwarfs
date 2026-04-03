@@ -303,7 +303,7 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
                         im.get_max_data_chunk_size());
   }
 
-  im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
+  im.for_each_inode_in_order([&](inode_ptr ino) {
     auto const total_chunks = md_.chunks()->size();
     DWARFS_NOTHROW(md_.chunk_table()->at(ino->num())) = total_chunks;
     if (!ino->append_chunks_to(md_.chunks().value(), hole_mapper)) {

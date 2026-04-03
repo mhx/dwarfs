@@ -30,9 +30,9 @@
 
 namespace dwarfs::writer::internal {
 
-inode_element_view::inode_element_view(
-    std::span<std::shared_ptr<inode> const> inodes,
-    std::span<uint32_t const> index, fragment_category cat)
+inode_element_view::inode_element_view(std::span<inode_ptr const> inodes,
+                                       std::span<uint32_t const> index,
+                                       fragment_category cat)
     : inodes_{inodes}
     , cat_{cat} {
   hash_cache_.resize(inodes_.size());
