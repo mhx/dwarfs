@@ -174,6 +174,7 @@ add_library(
   src/writer/internal/metadata_freezer.cpp
   src/writer/internal/nilsimsa.cpp
   src/writer/internal/progress.cpp
+  src/writer/internal/provisional_entry.cpp
   src/writer/internal/scanner_progress.cpp
   src/writer/internal/similarity.cpp
   src/writer/internal/similarity_ordering.cpp
