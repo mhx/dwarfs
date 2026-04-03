@@ -36,7 +36,6 @@
 #include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/internal/sortable_span.h>
-#include <dwarfs/writer/object.h>
 
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/nilsimsa.h>
@@ -60,9 +59,11 @@ namespace internal {
 
 class progress;
 
-class inode : public object {
+class inode {
  public:
   using files_vector = small_vector<file_handle, 1>;
+
+  virtual ~inode() = default;
 
   virtual void set_files(files_vector&& fv) = 0;
   virtual void populate(file_size_t size) = 0;
