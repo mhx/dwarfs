@@ -41,7 +41,6 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
-#include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
 
@@ -76,23 +75,25 @@ class entry_visitor {
   virtual void visit(dir* p) = 0;
 };
 
-class entry : public entry_interface {
+class entry {
  public:
   using type_t = entry_type;
+
+  virtual ~entry() = default;
 
   entry(std::filesystem::path const& path, entry* parent, file_stat const& st);
 
   bool has_parent() const;
   entry* parent() const;
   std::filesystem::path fs_path() const;
-  std::string path_as_string() const override;
-  std::string unix_dpath() const override;
-  std::string_view name() const override;
+  std::string path_as_string() const;
+  std::string unix_dpath() const;
+  std::string_view name() const;
   bool less_revpath(entry const& rhs) const;
-  file_size_t size() const override;
-  file_size_t allocated_size() const override;
+  file_size_t size() const;
+  file_size_t allocated_size() const;
   virtual type_t type() const = 0;
-  bool is_directory() const override;
+  bool is_directory() const;
   virtual void walk(std::function<void(entry*)> const& f);
   void
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
