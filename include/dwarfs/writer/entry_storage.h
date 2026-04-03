@@ -24,6 +24,7 @@
 #pragma once
 
 #include <filesystem>
+#include <iosfwd>
 #include <memory>
 
 #include <dwarfs/file_stat.h>
@@ -34,6 +35,7 @@ namespace dwarfs::writer {
 namespace internal {
 
 class entry_factory_;
+struct file_data;
 
 } // namespace internal
 
@@ -50,6 +52,12 @@ class entry_storage {
 
   entry_handle root() noexcept;
   bool empty() const noexcept;
+
+  size_t create_file_data();
+  [[nodiscard]] internal::file_data& get_file_data(size_t id);
+
+  void dump(std::ostream& os) const;
+  std::string dump() const;
 
  private:
   friend class internal::entry_factory_;

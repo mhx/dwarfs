@@ -674,6 +674,7 @@ void scanner_<LoggerPolicy>::scan(
                    : scan_tree(tree, path, prog, fs);
 
   if (options_.debug_filter_function) {
+    LOG_VERBOSE << "entry storage:\n" << tree.dump();
     return;
   }
 
@@ -1018,6 +1019,8 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_INFO << "compressed " << orig_size << " to "
            << size_with_unit(prog.compressed_size) << " (" << comp_pct << ")";
+
+  LOG_VERBOSE << "entry storage:\n" << tree.dump();
 }
 
 } // namespace internal

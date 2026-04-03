@@ -103,7 +103,7 @@ uint64_t entry_handle_base<Mut>::num_hard_links() const {
 
 template <mutability Mut>
 std::optional<uint32_t> const& entry_handle_base<Mut>::inode_num() const {
-  return self_->inode_num();
+  return self_->inode_num(*storage_);
 }
 
 template <mutability Mut>
@@ -165,7 +165,7 @@ template <mutability Mut>
 void entry_handle_base<Mut>::set_inode_num(uint32_t ino)
   requires is_mutable
 {
-  self_->set_inode_num(ino);
+  self_->set_inode_num(*storage_, ino);
 }
 
 template <mutability Mut>
@@ -194,14 +194,14 @@ auto basic_file_handle<Mut>::self() const -> self_t* {
 
 template <detail::mutability Mut>
 std::string_view basic_file_handle<Mut>::hash() const {
-  return self()->hash();
+  return self()->hash(*this->storage_);
 }
 
 template <detail::mutability Mut>
 void basic_file_handle<Mut>::create_data()
   requires is_mutable
 {
-  self()->create_data();
+  self()->create_data(*this->storage_);
 }
 
 template <detail::mutability Mut>
@@ -209,19 +209,19 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
                                   std::optional<std::string> const& hash_alg)
   requires is_mutable
 {
-  self()->scan(mm, prog, hash_alg);
+  self()->scan(*this->storage_, mm, prog, hash_alg);
 }
 
 template <detail::mutability Mut>
 void basic_file_handle<Mut>::set_invalid()
   requires is_mutable
 {
-  self()->set_invalid();
+  self()->set_invalid(*this->storage_);
 }
 
 template <detail::mutability Mut>
 bool basic_file_handle<Mut>::is_invalid() const {
-  return self()->is_invalid();
+  return self()->is_invalid(*this->storage_);
 }
 
 template <detail::mutability Mut>
@@ -241,12 +241,12 @@ void basic_file_handle<Mut>::hardlink(file_handle other,
                                       internal::progress& prog)
   requires is_mutable
 {
-  self()->hardlink(other.self(), prog);
+  self()->hardlink(*this->storage_, other.self(), prog);
 }
 
 template <detail::mutability Mut>
 uint32_t basic_file_handle<Mut>::hardlink_count() const {
-  return self()->hardlink_count();
+  return self()->hardlink_count(*this->storage_);
 }
 
 template <detail::mutability Mut>
@@ -310,14 +310,14 @@ template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  self()->pack(mv2, data, timeres);
+  self()->pack(*this->storage_, mv2, data, timeres);
 }
 
 template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack_entry(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  self()->pack_entry(mv2, data, timeres);
+  self()->pack_entry(*this->storage_, mv2, data, timeres);
 }
 
 template <detail::mutability Mut>
