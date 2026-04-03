@@ -398,7 +398,7 @@ void dir::remove_empty_dirs(progress& prog) {
 entry* dir::find(fs::path const& path) {
   auto name = path_to_utf8_string_sanitized(path.filename());
 
-  if (!lookup_ && entries_.size() >= 16) {
+  if (!lookup_ && entries_.size() >= kLookupTableSizeThreshold) {
     populate_lookup_table();
   }
 
