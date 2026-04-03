@@ -316,6 +316,10 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
                   internal::global_entry_data const& data,
                   internal::time_resolution_converter const& timeres) const;
 
+  // const version can be implemented if needed
+  void for_each_child(std::function<void(entry_handle)> const& f)
+    requires is_mutable;
+
  private:
   using self_t = detail::mutability_t<internal::dir, Mut>;
 

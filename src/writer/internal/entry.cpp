@@ -233,8 +233,6 @@ void file::set_inode(std::shared_ptr<inode> ino) {
 
 std::shared_ptr<inode> file::get_inode() const { return inode_; }
 
-void file::accept(entry_visitor& v, bool) { v.visit(this); }
-
 void file::scan(os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
@@ -325,17 +323,9 @@ void dir::walk(std::function<void(entry*)> const& f) {
   }
 }
 
-void dir::accept(entry_visitor& v, bool preorder) {
-  if (preorder) {
-    v.visit(this);
-  }
-
+void dir::for_each_child(std::function<void(entry*)> const& f) {
   for (entry* e : entries_) {
-    e->accept(v, preorder);
-  }
-
-  if (!preorder) {
-    v.visit(this);
+    f(e);
   }
 }
 
@@ -441,8 +431,6 @@ entry::type_t link::type() const { return entry_type::E_LINK; }
 
 std::string const& link::linkname() const { return link_; }
 
-void link::accept(entry_visitor& v, bool) { v.visit(this); }
-
 void link::scan(os_access const& os, progress& prog) {
   link_ = path_to_utf8_string_sanitized(os.read_symlink(fs_path()));
   prog.original_size += size();
@@ -459,8 +447,6 @@ entry::type_t device::type() const {
     return entry_type::E_OTHER;
   }
 }
-
-void device::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void device::scan(os_access const&, progress&) {}
 
