@@ -631,6 +631,7 @@ if(WITH_TESTS)
       test/byte_buffer_test.cpp
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
+      test/chunked_append_only_vector_test.cpp
       test/compare_directories_test.cpp
       test/conv_test.cpp
       test/endian_test.cpp
