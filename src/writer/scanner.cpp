@@ -75,6 +75,7 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
 #include <dwarfs/writer/internal/progress.h>
+#include <dwarfs/writer/internal/provisional_entry.h>
 
 namespace dwarfs::writer {
 
@@ -324,71 +325,67 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   dir_handle parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
   try {
-    auto pe = entry_factory_.create(tree, os_, name, parent);
+    auto ent = internal::provisional_entry(os_, name, parent);
 
-    if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
-      try {
-        auto tmp [[maybe_unused]] = name.filename().u8string();
-      } catch (std::system_error const& e) {
-        LOG_ERROR << fmt::format(
-            R"(invalid file name in "{}", storing as "{}": {})",
-            path_to_utf8_string_sanitized(name.parent_path()), pe.name(),
-            error_cp_to_utf8(e.what()));
+    {
+      auto const cpe = ent.handle();
 
-        prog.errors++;
-
-        if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
-                 .second) {
+      if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
+        try {
+          auto tmp [[maybe_unused]] = name.filename().u8string();
+        } catch (std::system_error const& e) {
           LOG_ERROR << fmt::format(
-              "cannot store \"{}\" as the name already exists", pe.name());
-          return {};
+              R"(invalid file name in "{}", storing as "{}": {})",
+              path_to_utf8_string_sanitized(name.parent_path()), cpe.name(),
+              error_cp_to_utf8(e.what()));
+
+          prog.errors++;
+
+          if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
+                   .second) {
+            LOG_ERROR << fmt::format(
+                "cannot store \"{}\" as the name already exists", cpe.name());
+            return {};
+          }
         }
       }
-    }
 
-    bool const exclude =
-        std::any_of(filters_.begin(), filters_.end(), [&pe](auto const& f) {
-          return f->filter(pe) == filter_action::remove;
-        });
+      bool const exclude =
+          std::any_of(filters_.begin(), filters_.end(), [&cpe](auto const& f) {
+            return f->filter(cpe) == filter_action::remove;
+          });
 
-    if (debug_filter) {
-      (*options_.debug_filter_function)(exclude, pe);
-    }
-
-    if (exclude) {
-      if (!debug_filter) {
-        LOG_DEBUG << "excluding " << pe.unix_dpath();
+      if (debug_filter) {
+        (*options_.debug_filter_function)(exclude, cpe);
       }
 
-      return {};
-    }
+      if (exclude) {
+        if (!debug_filter) {
+          LOG_DEBUG << "excluding " << cpe.unix_dpath();
+        }
 
-    switch (pe.type()) {
-    case entry_type::E_FILE:
-      if (!debug_filter && pe.size() > 0 && os_.access(pe.fs_path(), R_OK)) {
-        LOG_ERROR << "cannot access " << pe.path_as_string()
-                  << ", creating empty file";
-        pe.set_empty();
-        prog.errors++;
-      }
-      break;
-
-    case entry_type::E_DEVICE:
-      if (!options_.with_devices) {
         return {};
       }
-      break;
 
-    case entry_type::E_OTHER:
-      if (!options_.with_specials) {
-        return {};
+      switch (cpe.type()) {
+      case entry_type::E_DEVICE:
+        if (!options_.with_devices) {
+          return {};
+        }
+        break;
+
+      case entry_type::E_OTHER:
+        if (!options_.with_specials) {
+          return {};
+        }
+        break;
+
+      default:
+        break;
       }
-      break;
-
-    default:
-      break;
     }
 
+    auto pe = ent.commit(tree);
     parent.add(pe);
 
     switch (pe.type()) {
@@ -401,6 +398,12 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
 
     case entry_type::E_FILE:
+      if (!debug_filter && pe.size() > 0 && os_.access(pe.fs_path(), R_OK)) {
+        LOG_ERROR << "cannot access " << pe.path_as_string()
+                  << ", creating empty file";
+        pe.set_empty();
+        prog.errors++;
+      }
       prog.files_found++;
       if (!debug_filter) {
         fs.scan(pe.as_file());
@@ -473,7 +476,7 @@ entry_factory::node
 scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                   std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
-  auto root = entry_factory_.create(tree, os_, path);
+  auto root = internal::provisional_entry(os_, path).commit(tree);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   std::deque<entry_factory::node> queue({root});
@@ -529,7 +532,7 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
   LOG_DEBUG << "creating root directory '"
             << path_to_utf8_string_sanitized(rootpath) << "'";
 
-  auto root = entry_factory_.create(tree, os_, rootpath);
+  auto root = internal::provisional_entry(os_, rootpath).commit(tree);
 
   auto ensure_path = [this, &tree, &prog,
                       &fs](std::filesystem::path const& path,
