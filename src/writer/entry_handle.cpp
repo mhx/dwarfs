@@ -172,7 +172,12 @@ template <mutability Mut>
 void entry_handle_base<Mut>::walk(std::function<void(entry_handle)> const& f)
   requires is_mutable
 {
-  self_->walk([&](internal::entry* e) { f({*storage_, e}); });
+  f(entry_handle{*storage_, self_});
+
+  if (self_->is_dir()) {
+    dir_handle{*storage_, self_->as_dir()}.for_each_child(
+        [&](entry_handle child) { child.walk(f); });
+  }
 }
 
 template class entry_handle_base<mutability::const_>;
