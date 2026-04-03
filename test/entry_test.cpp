@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <unordered_set>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -39,11 +41,15 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using entry = writer::internal::entry;
-using entry_handle = writer::entry_handle;
-using entry_type = writer::entry_type;
-using entry_handle_visitor = writer::entry_handle_visitor;
-using progress = writer::internal::progress;
+using writer::entry_factory;
+using writer::entry_storage;
+using writer::entry_type;
+using writer::internal::entry;
+using writer::internal::inode_manager;
+using writer::internal::progress;
+
+using dwarfs::test::os_access_mock;
+using dwarfs::test::test_logger;
 
 fs::path make_root_path() {
 #ifdef _WIN32
@@ -80,11 +86,11 @@ struct entry_test : public ::testing::Test {
       std::string
 #endif
       (1, fs::path::preferred_separator)};
-  std::shared_ptr<test::os_access_mock> os;
-  std::optional<writer::entry_factory> ef;
+  std::shared_ptr<os_access_mock> os;
+  std::optional<entry_factory> ef;
 
   void SetUp() override {
-    os = test::os_access_mock::create_test_instance();
+    os = os_access_mock::create_test_instance();
     ef.emplace();
   }
 
@@ -95,7 +101,7 @@ struct entry_test : public ::testing::Test {
 };
 
 TEST_F(entry_test, path) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto e1 = ef->create(tree, *os, sep);
   auto e2 = ef->create(tree, *os, sep / "somelink", e1);
   auto e3 = ef->create(tree, *os, sep / "somedir", e1);
@@ -143,7 +149,7 @@ TEST_F(entry_test, path) {
 }
 
 TEST_F(entry_test, factory_creates_expected_entry_kinds) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -195,8 +201,8 @@ TEST_F(entry_test, factory_creates_expected_entry_kinds) {
 }
 
 TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
-  auto local_os = std::make_shared<test::os_access_mock>();
-  writer::entry_factory local_ef;
+  auto local_os = std::make_shared<os_access_mock>();
+  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -205,7 +211,7 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
   local_os->add_file(root_path / "a" / "x", "ax");
   local_os->add_file(root_path / "b" / "x", "bx");
 
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path);
   auto a = local_ef.create(tree, *local_os, root_path / "a", root);
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -236,8 +242,8 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
 }
 
 TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
-  auto local_os = std::make_shared<test::os_access_mock>();
-  writer::entry_factory local_ef;
+  auto local_os = std::make_shared<os_access_mock>();
+  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -245,7 +251,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   local_os->add_file(root_path / "b", "b");
   local_os->add_file(root_path / "a" / "c", "c");
 
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path).as_dir();
   auto a = local_ef.create(tree, *local_os, root_path / "a", root).as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -261,7 +267,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   a.add(c);
 
   std::vector<std::string> visited;
-  root.walk([&](entry_handle e) { visited.push_back(e.unix_dpath()); });
+  root.walk([&](writer::entry_handle e) { visited.push_back(e.unix_dpath()); });
 
   EXPECT_EQ((std::vector<std::string>{
                 "/",
@@ -273,8 +279,8 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
 }
 
 TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
-  auto local_os = std::make_shared<test::os_access_mock>();
-  writer::entry_factory local_ef;
+  auto local_os = std::make_shared<os_access_mock>();
+  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -282,7 +288,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   local_os->add_file(root_path / "b", "b");
   local_os->add_file(root_path / "a" / "c", "c");
 
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path).as_dir();
   auto a = local_ef.create(tree, *local_os, root_path / "a", root).as_dir();
   auto b = local_ef.create(tree, *local_os, root_path / "b", root);
@@ -320,7 +326,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
 
 TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
   {
-    auto tree = writer::entry_storage{};
+    auto tree = entry_storage{};
     auto root = ef->create(tree, *os, sep).as_dir();
     ASSERT_TRUE(root);
 
@@ -341,8 +347,8 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
 
   {
     // Synthetic large directory to force the lookup-table path.
-    auto local_os = std::make_shared<test::os_access_mock>();
-    writer::entry_factory local_ef;
+    auto local_os = std::make_shared<os_access_mock>();
+    entry_factory local_ef;
     auto root_path = make_root_path();
 
     local_os->add_dir(root_path);
@@ -350,7 +356,7 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
       local_os->add_file(root_path / ("f" + std::to_string(i)), "x");
     }
 
-    auto tree = writer::entry_storage{};
+    auto tree = entry_storage{};
     auto big_root = local_ef.create(tree, *local_os, root_path).as_dir();
     ASSERT_TRUE(big_root);
 
@@ -382,8 +388,8 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
 
 TEST_F(entry_test,
        remove_empty_dirs_removes_recursively_and_keeps_nonempty_subtrees) {
-  auto local_os = std::make_shared<test::os_access_mock>();
-  writer::entry_factory local_ef;
+  auto local_os = std::make_shared<os_access_mock>();
+  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -393,7 +399,7 @@ TEST_F(entry_test,
   local_os->add_dir(root_path / "nested");
   local_os->add_dir(root_path / "nested" / "empty_b");
 
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto root = local_ef.create(tree, *local_os, root_path).as_dir();
   auto keep =
       local_ef.create(tree, *local_os, root_path / "keep", root).as_dir();
@@ -421,7 +427,7 @@ TEST_F(entry_test,
   nested.add(empty_b);
 
   std::vector<std::string> before;
-  root.walk([&](entry_handle e) { before.push_back(e.unix_dpath()); });
+  root.walk([&](writer::entry_handle e) { before.push_back(e.unix_dpath()); });
   EXPECT_EQ((std::vector<std::string>{
                 "/",
                 "/keep/",
@@ -439,7 +445,7 @@ TEST_F(entry_test,
   root.remove_empty_dirs(prog);
 
   std::vector<std::string> after;
-  root.walk([&](entry_handle e) { after.push_back(e.unix_dpath()); });
+  root.walk([&](writer::entry_handle e) { after.push_back(e.unix_dpath()); });
   EXPECT_EQ((std::vector<std::string>{
                 "/",
                 "/keep/",
@@ -458,7 +464,7 @@ TEST_F(entry_test,
 }
 
 TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
 
@@ -486,7 +492,7 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
 }
 
 TEST_F(entry_test, root_dir_must_be_a_directory) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   EXPECT_THAT([&] { ef->create(tree, *os, sep / "somelink"); },
               testing::ThrowsMessage<dwarfs::runtime_error>(
@@ -494,7 +500,7 @@ TEST_F(entry_test, root_dir_must_be_a_directory) {
 }
 
 TEST_F(entry_test, file_create_data_initializes_file_state) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -514,7 +520,7 @@ TEST_F(entry_test, file_create_data_initializes_file_state) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_invalid_state) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -531,7 +537,7 @@ TEST_F(entry_test, file_hardlink_shares_invalid_state) {
 
   foo.create_data();
 
-  writer::internal::progress prog{};
+  progress prog{};
   bar.hardlink(foo, prog);
 
   EXPECT_FALSE(foo.is_invalid());
@@ -544,7 +550,7 @@ TEST_F(entry_test, file_hardlink_shares_invalid_state) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -561,7 +567,7 @@ TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
 
   foo.create_data();
 
-  writer::internal::progress prog{};
+  progress prog{};
   bar.hardlink(foo, prog);
 
   EXPECT_FALSE(foo.inode_num().has_value());
@@ -576,7 +582,7 @@ TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
 }
 
 TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -595,7 +601,7 @@ TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
 
   EXPECT_EQ(1, foo.hardlink_count());
 
-  writer::internal::progress prog{};
+  progress prog{};
   auto const foo_size = foo.size();
   auto const foo_allocated_size = foo.allocated_size();
 
@@ -610,7 +616,7 @@ TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
 }
 
 TEST_F(entry_test, file_hardlink_shares_hash_state) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -627,7 +633,7 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
 
   foo.create_data();
 
-  writer::internal::progress prog{};
+  progress prog{};
   bar.hardlink(foo, prog);
 
   auto mm = os->open_file(sep / "foo.pl");
@@ -638,7 +644,7 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
 }
 
 TEST_F(entry_test, file_inode_num_requires_data) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -654,7 +660,7 @@ TEST_F(entry_test, file_inode_num_requires_data) {
 }
 
 TEST_F(entry_test, file_set_inode_num_requires_data) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -665,11 +671,11 @@ TEST_F(entry_test, file_set_inode_num_requires_data) {
   auto f = empty_entry.as_file();
   ASSERT_TRUE(f);
 
-  ASSERT_DEATH({ f.set_inode_num(1); }, "file data unset");
+  ASSERT_DEATH(f.set_inode_num(1), "file data unset");
 }
 
 TEST_F(entry_test, file_set_inode_num_only_once) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -683,12 +689,12 @@ TEST_F(entry_test, file_set_inode_num_only_once) {
   f.create_data();
   f.set_inode_num(1234);
 
-  ASSERT_DEATH(
-      { f.set_inode_num(5678); }, "attempt to set inode number more than once");
+  ASSERT_DEATH(f.set_inode_num(5678),
+               "attempt to set inode number more than once");
 }
 
 TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
-  auto tree = writer::entry_storage{};
+  auto tree = entry_storage{};
 
   auto root = ef->create(tree, *os, sep);
   ASSERT_TRUE(root);
@@ -699,14 +705,14 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
   auto f = empty_entry.as_file();
   ASSERT_TRUE(f);
 
-  test::test_logger lgr;
-  writer::internal::progress prog{};
-  writer::internal::inode_manager im{lgr, prog, sep, {}, false};
+  test_logger lgr;
+  progress prog{};
+  inode_manager im{lgr, prog, sep, {}, false};
 
   auto ino1 = im.create_inode();
   auto ino2 = im.create_inode();
 
   f.set_inode(ino1);
 
-  ASSERT_DEATH({ f.set_inode(ino2); }, "inode already set for file");
+  ASSERT_DEATH(f.set_inode(ino2), "inode already set for file");
 }
