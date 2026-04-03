@@ -53,7 +53,7 @@ class progress;
 
 class inode_manager {
  public:
-  using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
+  using inode_cb = std::function<void(inode_ptr)>;
 
   struct fragment_info {
     fragment_info(fragment_category::value_type cat, size_t count, size_t size)
@@ -77,7 +77,7 @@ class inode_manager {
                 std::filesystem::path const& root_path,
                 inode_options const& opts, bool list_mode);
 
-  std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
+  inode_ptr create_inode() { return impl_->create_inode(); }
 
   size_t count() const { return impl_->count(); }
 
@@ -90,8 +90,8 @@ class inode_manager {
   }
 
   void scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                       std::shared_ptr<inode> ino, file_handle p) const {
-    impl_->scan_background(wg, os, std::move(ino), p);
+                       inode_ptr ino, file_handle p) const {
+    impl_->scan_background(wg, os, ino, p);
   }
 
   bool has_invalid_inodes() const { return impl_->has_invalid_inodes(); }
@@ -118,14 +118,13 @@ class inode_manager {
    public:
     virtual ~impl() = default;
 
-    virtual std::shared_ptr<inode> create_inode() = 0;
+    virtual inode_ptr create_inode() = 0;
     virtual size_t count() const = 0;
-    virtual void for_each_inode_in_order(
-        std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
+    virtual void for_each_inode_in_order(inode_cb const& fn) const = 0;
     virtual fragment_infos fragment_category_info() const = 0;
     virtual void
     scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                    std::shared_ptr<inode> ino, file_handle p) const = 0;
+                    inode_ptr ino, file_handle p) const = 0;
     virtual bool has_invalid_inodes() const = 0;
     virtual void try_scan_invalid(dwarfs::internal::worker_group& wg,
                                   os_access const& os) = 0;

@@ -225,12 +225,12 @@ std::string_view file::hash(entry_storage& storage) const {
   return {h.data(), h.size()};
 }
 
-void file::set_inode(std::shared_ptr<inode> ino) {
+void file::set_inode(inode_ptr ino) {
   DWARFS_CHECK(!inode_, "inode already set for file");
-  inode_ = std::move(ino);
+  inode_ = ino;
 }
 
-std::shared_ptr<inode> file::get_inode() const { return inode_; }
+inode_ptr file::get_inode() const { return inode_; }
 
 void file::scan(os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
