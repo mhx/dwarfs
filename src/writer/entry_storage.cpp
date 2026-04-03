@@ -61,6 +61,26 @@ class entry_storage::impl {
     return &d;
   }
 
+  internal::file* add_file(internal::file&& fi) {
+    auto& f = files_.emplace_back(std::move(fi));
+    return &f;
+  }
+
+  internal::dir* add_dir(internal::dir&& di) {
+    auto& d = dirs_.emplace_back(std::move(di));
+    return &d;
+  }
+
+  internal::link* add_link(internal::link&& li) {
+    auto& l = links_.emplace_back(std::move(li));
+    return &l;
+  }
+
+  internal::device* add_device(internal::device&& di) {
+    auto& d = devices_.emplace_back(std::move(di));
+    return &d;
+  }
+
   bool empty() const noexcept { return dirs_.empty(); }
 
   internal::entry* root() noexcept {
@@ -155,6 +175,31 @@ size_t entry_storage::create_file_data() { return impl_->create_file_data(); }
 
 [[nodiscard]] internal::file_data& entry_storage::get_file_data(size_t id) {
   return impl_->get_file_data(id);
+}
+
+dir_handle entry_storage::add_root_dir(internal::dir&& d) {
+  DWARFS_CHECK(empty(), "entry_storage root already set");
+  return {*this, impl_->add_dir(std::move(d))};
+}
+
+file_handle entry_storage::add_file(internal::file&& f) {
+  assert(!empty());
+  return {*this, impl_->add_file(std::move(f))};
+}
+
+dir_handle entry_storage::add_dir(internal::dir&& d) {
+  assert(!empty());
+  return {*this, impl_->add_dir(std::move(d))};
+}
+
+link_handle entry_storage::add_link(internal::link&& l) {
+  assert(!empty());
+  return {*this, impl_->add_link(std::move(l))};
+}
+
+device_handle entry_storage::add_device(internal::device&& d) {
+  assert(!empty());
+  return {*this, impl_->add_device(std::move(d))};
 }
 
 } // namespace dwarfs::writer

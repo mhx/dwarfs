@@ -36,6 +36,12 @@ namespace internal {
 
 class entry_factory_;
 struct file_data;
+class provisional_entry;
+
+class file;
+class dir;
+class link;
+class device;
 
 } // namespace internal
 
@@ -61,6 +67,7 @@ class entry_storage {
 
  private:
   friend class internal::entry_factory_;
+  friend class internal::provisional_entry;
 
   dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
@@ -76,6 +83,12 @@ class entry_storage {
 
   device_handle create_device(std::filesystem::path const& path,
                               entry_handle parent, file_stat const& st);
+
+  dir_handle add_root_dir(internal::dir&& d);
+  file_handle add_file(internal::file&& f);
+  dir_handle add_dir(internal::dir&& d);
+  link_handle add_link(internal::link&& l);
+  device_handle add_device(internal::device&& d);
 
   class impl;
   std::unique_ptr<impl> impl_;
