@@ -34,6 +34,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
@@ -219,8 +220,8 @@ device const* entry::as_device() const noexcept {
 
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
-std::string_view file::hash() const {
-  auto& h = data_->hash;
+std::string_view file::hash(entry_storage& storage) const {
+  auto& h = get_data(storage).hash;
   return {h.data(), h.size()};
 }
 
@@ -235,7 +236,7 @@ void file::scan(os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
 
-void file::scan(file_view const& mm, progress& prog,
+void file::scan(entry_storage& storage, file_view const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
   auto const s = size();
 
@@ -268,39 +269,49 @@ void file::scan(file_view const& mm, progress& prog,
       }
     }
 
-    data_->hash.resize(cs.digest_size());
+    auto& data = get_data(storage);
 
-    DWARFS_CHECK(cs.finalize(data_->hash.data()),
-                 "checksum computation failed");
+    data.hash.resize(cs.digest_size());
+
+    DWARFS_CHECK(cs.finalize(data.hash.data()), "checksum computation failed");
   }
 }
 
 uint32_t file::unique_file_id() const { return inode_->num(); }
 
-void file::set_inode_num(uint32_t inode_num) {
-  DWARFS_CHECK(data_, "file data unset");
-  DWARFS_CHECK(!data_->inode_num, "attempt to set inode number more than once");
-  data_->inode_num = inode_num;
+void file::set_inode_num(entry_storage& storage, uint32_t inode_num) {
+  auto& data = get_data(storage);
+  DWARFS_CHECK(!data.inode_num, "attempt to set inode number more than once");
+  data.inode_num = inode_num;
 }
 
-std::optional<uint32_t> const& file::inode_num() const {
-  DWARFS_CHECK(data_, "file data unset");
-  return data_->inode_num;
+std::optional<uint32_t> const& file::inode_num(entry_storage& storage) const {
+  auto const& data = get_data(storage);
+  return data.inode_num;
 }
 
-void file::create_data() {
-  assert(!data_);
-  data_ = std::make_shared<data>();
+void file::create_data(entry_storage& storage) {
+  assert(data_index_ == file::kInvalidDataIndex);
+  data_index_ = storage.create_file_data();
 }
 
-void file::hardlink(file* other, progress& prog) {
-  assert(!data_);
-  assert(other->data_);
+file_data& file::get_data(entry_storage& storage) const {
+  DWARFS_CHECK(data_index_ != file::kInvalidDataIndex, "file data unset");
+  return storage.get_file_data(data_index_);
+}
+
+void file::hardlink(entry_storage& storage, file* other, progress& prog) {
+  assert(data_index_ == kInvalidDataIndex);
+  assert(other->data_index_ != kInvalidDataIndex);
+
   prog.hardlink_size += size();
   prog.allocated_hardlink_size += allocated_size();
   ++prog.hardlinks;
-  data_ = other->data_;
-  ++data_->hardlink_count;
+
+  data_index_ = other->data_index_;
+
+  auto& data = get_data(storage);
+  ++data.hardlink_count;
 }
 
 entry::type_t dir::type() const { return entry_type::E_DIR; }
@@ -326,17 +337,18 @@ void dir::sort() {
 
 void dir::scan(os_access const&, progress&) {}
 
-void dir::pack_entry(thrift::metadata::metadata& mv2,
+void dir::pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
                      global_entry_data const& data,
                      time_resolution_converter const& timeres) const {
   auto& de = mv2.dir_entries()->emplace_back();
   de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
-  de.inode_num() = DWARFS_NOTHROW(inode_num().value());
+  de.inode_num() = DWARFS_NOTHROW(inode_num(storage).value());
   entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
               timeres);
 }
 
-void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
+void dir::pack(entry_storage& storage, thrift::metadata::metadata& mv2,
+               global_entry_data const& data,
                time_resolution_converter const& timeres) const {
   thrift::metadata::directory d;
   if (has_parent()) {
@@ -357,7 +369,7 @@ void dir::pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
     e->set_entry_index(mv2.dir_entries()->size());
     auto& de = mv2.dir_entries()->emplace_back();
     de.name_index() = data.get_name_index(e->name());
-    de.inode_num() = DWARFS_NOTHROW(e->inode_num().value());
+    de.inode_num() = DWARFS_NOTHROW(e->inode_num(storage).value());
     e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
             timeres);
   }
