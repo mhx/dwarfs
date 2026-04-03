@@ -55,6 +55,12 @@ class metadata;
 
 class os_access;
 
+namespace writer {
+
+class entry_storage;
+
+} // namespace writer
+
 namespace writer::internal {
 
 class file;
@@ -95,8 +101,9 @@ class entry {
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
   unique_inode_id inode_id() const;
   uint64_t num_hard_links() const;
-  virtual void set_inode_num(uint32_t ino) = 0;
-  virtual std::optional<uint32_t> const& inode_num() const = 0;
+  virtual void set_inode_num(entry_storage& storage, uint32_t ino) = 0;
+  virtual std::optional<uint32_t> const&
+  inode_num(entry_storage& storage) const = 0;
 
   void set_empty();
 
@@ -126,44 +133,56 @@ class entry {
   std::optional<uint32_t> entry_index_;
 };
 
+struct file_data {
+  using hash_type = small_vector<char, 16>;
+  hash_type hash;
+  uint32_t hardlink_count{1};
+  std::optional<uint32_t> inode_num;
+  std::atomic<bool> invalid{false};
+};
+
 class file : public entry {
  public:
   using entry::entry;
 
   type_t type() const override;
-  std::string_view hash() const;
+  std::string_view hash(entry_storage& storage) const;
   void set_inode(std::shared_ptr<inode> ino);
   std::shared_ptr<inode> get_inode() const;
   void scan(os_access const& os, progress& prog) override;
-  void scan(file_view const& mm, progress& prog,
+  void scan(entry_storage& storage, file_view const& mm, progress& prog,
             std::optional<std::string> const& hash_alg);
-  void create_data();
-  void hardlink(file* other, progress& prog);
+  void create_data(entry_storage& storage);
+  void hardlink(entry_storage& storage, file* other, progress& prog);
   uint32_t unique_file_id() const;
 
-  void set_inode_num(uint32_t ino) override;
-  std::optional<uint32_t> const& inode_num() const override;
+  void set_inode_num(entry_storage& storage, uint32_t ino) override;
+  std::optional<uint32_t> const&
+  inode_num(entry_storage& storage) const override;
 
-  void set_invalid() { data_->invalid.store(true); }
-  bool is_invalid() const { return data_->invalid.load(); }
+  void set_invalid(entry_storage& storage) {
+    get_data(storage).invalid.store(true);
+  }
+  bool is_invalid(entry_storage& storage) const {
+    return get_data(storage).invalid.load();
+  }
 
-  uint32_t hardlink_count() const { return data_->hardlink_count; }
+  uint32_t hardlink_count(entry_storage& storage) const {
+    return get_data(storage).hardlink_count;
+  }
 
   void set_order_index(uint32_t index) { order_index_ = index; }
   uint32_t order_index() const { return order_index_; }
 
  private:
-  struct data {
-    using hash_type = small_vector<char, 16>;
-    hash_type hash;
-    uint32_t hardlink_count{1};
-    std::optional<uint32_t> inode_num;
-    std::atomic<bool> invalid{false};
-  };
+  static constexpr auto kInvalidDataIndex =
+      std::numeric_limits<uint32_t>::max();
 
-  std::shared_ptr<data> data_;
+  file_data& get_data(entry_storage& storage) const;
+
   std::shared_ptr<inode> inode_;
   uint32_t order_index_{0};
+  uint32_t data_index_{kInvalidDataIndex};
 };
 
 class dir : public entry {
@@ -173,17 +192,20 @@ class dir : public entry {
   type_t type() const override;
   void add(entry* e);
   void sort();
-  void pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
+  void pack(entry_storage& storage, thrift::metadata::metadata& mv2,
+            global_entry_data const& data,
             time_resolution_converter const& timeres) const;
-  void
-  pack_entry(thrift::metadata::metadata& mv2, global_entry_data const& data,
-             time_resolution_converter const& timeres) const;
+  void pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const;
   void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);
 
-  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
-  std::optional<uint32_t> const& inode_num() const override {
+  void set_inode_num(entry_storage&, uint32_t ino) override {
+    inode_num_ = ino;
+  }
+  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
     return inode_num_;
   }
 
@@ -210,8 +232,10 @@ class link : public entry {
   std::string const& linkname() const;
   void scan(os_access const& os, progress& prog) override;
 
-  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
-  std::optional<uint32_t> const& inode_num() const override {
+  void set_inode_num(entry_storage&, uint32_t ino) override {
+    inode_num_ = ino;
+  }
+  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
     return inode_num_;
   }
 
@@ -232,8 +256,10 @@ class device : public entry {
   void scan(os_access const& os, progress& prog) override;
   uint64_t device_id() const;
 
-  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
-  std::optional<uint32_t> const& inode_num() const override {
+  void set_inode_num(entry_storage&, uint32_t ino) override {
+    inode_num_ = ino;
+  }
+  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
     return inode_num_;
   }
 

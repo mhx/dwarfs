@@ -22,12 +22,15 @@
  */
 
 #include <cassert>
+#include <ostream>
+#include <sstream>
 #include <utility>
 
 #include <dwarfs/chunked_append_only_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/writer/entry_storage.h>
 
+#include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
 
 namespace dwarfs::writer {
@@ -48,9 +51,31 @@ class entry_storage::impl {
     return empty() ? nullptr : entries_.front().get();
   }
 
+  void dump(std::ostream& os) const;
+
+  size_t create_file_data() {
+    return file_data_.with_lock([](auto& fd) {
+      auto id = fd.size();
+      fd.emplace_back();
+      return id;
+    });
+  }
+
+  [[nodiscard]] internal::file_data& get_file_data(size_t const id) {
+    return file_data_.lock()->at(id);
+  }
+
  private:
   chunked_append_only_vector<std::unique_ptr<internal::entry>> entries_;
+  dwarfs::internal::synchronized<
+      chunked_append_only_vector<internal::file_data>>
+      file_data_;
 };
+
+void entry_storage::impl::dump(std::ostream& os) const {
+  os << "num entries: " << entries_.size() << "\n";
+  os << "num file data: " << file_data_.lock()->size() << "\n";
+}
 
 entry_storage::entry_storage()
     : impl_(std::make_unique<impl>()) {}
@@ -62,6 +87,14 @@ entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 entry_handle entry_storage::root() noexcept { return {*this, impl_->root()}; }
 
 bool entry_storage::empty() const noexcept { return impl_->empty(); }
+
+void entry_storage::dump(std::ostream& os) const { impl_->dump(os); }
+
+std::string entry_storage::dump() const {
+  std::ostringstream oss;
+  dump(oss);
+  return oss.str();
+}
 
 dir_handle entry_storage::create_root_dir(std::filesystem::path const& path,
                                           file_stat const& st) {
@@ -94,6 +127,12 @@ entry_storage::create_device(std::filesystem::path const& path,
                              entry_handle parent, file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make<internal::device>(path, parent.self_, st)};
+}
+
+size_t entry_storage::create_file_data() { return impl_->create_file_data(); }
+
+[[nodiscard]] internal::file_data& entry_storage::get_file_data(size_t id) {
+  return impl_->get_file_data(id);
 }
 
 } // namespace dwarfs::writer
