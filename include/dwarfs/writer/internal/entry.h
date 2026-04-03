@@ -34,8 +34,9 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
+
+#include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/file_stat.h>
@@ -214,8 +215,10 @@ class dir : public entry {
   void for_each_child(std::function<void(entry*)> const& f);
 
  private:
+  static constexpr size_t kLookupTableSizeThreshold = 16;
+
   using entry_ptr = entry*;
-  using lookup_table = std::unordered_map<std::string_view, entry_ptr>;
+  using lookup_table = phmap::flat_hash_map<std::string_view, entry_ptr>;
 
   void populate_lookup_table();
 
