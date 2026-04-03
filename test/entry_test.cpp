@@ -716,3 +716,173 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
 
   ASSERT_DEATH(f.set_inode(ino2), "inode already set for file");
 }
+
+namespace {
+
+struct entry_handle_test : entry_test {
+  entry_storage storage;
+
+  writer::entry_handle root;
+  writer::file_handle file;
+  writer::dir_handle somedir;
+  writer::link_handle link;
+  writer::device_handle dev;
+  writer::device_handle other;
+  writer::entry_handle nested_file;
+  writer::entry_handle nested_dev;
+
+  void SetUp() override {
+    entry_test::SetUp();
+
+    root = ef->create(storage, *os, sep);
+    ASSERT_TRUE(root);
+
+    file = ef->create(storage, *os, sep / "test.pl", root).as_file();
+    somedir = ef->create(storage, *os, sep / "somedir", root).as_dir();
+    link = ef->create(storage, *os, sep / "somelink", root).as_link();
+    dev =
+        ef->create(storage, *os, sep / "somedir" / "null", somedir).as_device();
+    other =
+        ef->create(storage, *os, sep / "somedir" / "pipe", somedir).as_device();
+    nested_file =
+        ef->create(storage, *os, sep / "somedir" / "ipsum.py", somedir);
+    nested_dev = ef->create(storage, *os, sep / "somedir" / "null", somedir);
+
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(somedir);
+    ASSERT_TRUE(link);
+    ASSERT_TRUE(dev);
+    ASSERT_TRUE(other);
+    ASSERT_TRUE(nested_file);
+    ASSERT_TRUE(nested_dev);
+  }
+
+  void scan_link_target() {
+    progress prog{};
+    link.scan(*os, prog);
+  }
+};
+
+} // namespace
+
+TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
+  scan_link_target();
+
+  auto cfile = static_cast<writer::const_file_handle>(file);
+  auto cdir = static_cast<writer::const_dir_handle>(somedir);
+  auto clink = static_cast<writer::const_link_handle>(link);
+  auto cdev = static_cast<writer::const_device_handle>(dev);
+  auto cother = static_cast<writer::const_device_handle>(other);
+
+  ASSERT_TRUE(cfile);
+  ASSERT_TRUE(cdir);
+  ASSERT_TRUE(clink);
+  ASSERT_TRUE(cdev);
+  ASSERT_TRUE(cother);
+
+  EXPECT_EQ(file.name(), cfile.name());
+  EXPECT_EQ(file.path_as_string(), cfile.path_as_string());
+
+  EXPECT_EQ(somedir.name(), cdir.name());
+  EXPECT_EQ("/somedir/", cdir.unix_dpath());
+
+  EXPECT_EQ(link.name(), clink.name());
+  EXPECT_EQ("somedir/ipsum.py", clink.linkname());
+
+  EXPECT_TRUE(cdev.is_device());
+  EXPECT_EQ(dev.device_id(), cdev.device_id());
+
+  EXPECT_FALSE(cother.is_device());
+  EXPECT_EQ(other.device_id(), cother.device_id());
+}
+
+TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {
+  writer::const_entry_handle ce_file(file);
+  writer::const_entry_handle ce_dir(somedir);
+  writer::const_entry_handle ce_link(link);
+  writer::const_entry_handle ce_dev(dev);
+  writer::const_entry_handle ce_other(other);
+
+  ASSERT_TRUE(ce_file);
+  ASSERT_TRUE(ce_dir);
+  ASSERT_TRUE(ce_link);
+  ASSERT_TRUE(ce_dev);
+  ASSERT_TRUE(ce_other);
+
+  EXPECT_TRUE(ce_file.is_file());
+  EXPECT_TRUE(ce_dir.is_dir());
+  EXPECT_TRUE(ce_link.is_link());
+  EXPECT_TRUE(ce_dev.is_device());
+  EXPECT_TRUE(ce_other.is_other());
+
+  EXPECT_FALSE(ce_file.is_dir());
+  EXPECT_FALSE(ce_dir.is_file());
+  EXPECT_FALSE(ce_link.is_device());
+  EXPECT_FALSE(ce_dev.is_link());
+  EXPECT_FALSE(ce_other.is_file());
+
+  ASSERT_TRUE(ce_file.as_file());
+  ASSERT_TRUE(ce_dir.as_dir());
+  ASSERT_TRUE(ce_link.as_link());
+  ASSERT_TRUE(ce_dev.as_device());
+  ASSERT_TRUE(ce_other.as_device());
+
+  EXPECT_FALSE(ce_file.as_link());
+  EXPECT_FALSE(ce_link.as_file());
+  EXPECT_FALSE(ce_dir.as_device());
+
+  EXPECT_TRUE(ce_dev.as_device().is_device());
+  EXPECT_FALSE(ce_other.as_device().is_device());
+}
+
+TEST_F(entry_handle_test, const_handles_preserve_parent_information) {
+  writer::const_entry_handle cf(nested_file);
+  writer::const_entry_handle cd(nested_dev);
+
+  ASSERT_TRUE(cf.has_parent());
+  ASSERT_TRUE(cd.has_parent());
+
+  auto file_parent = cf.parent();
+  auto dev_parent = cd.parent();
+
+  ASSERT_TRUE(file_parent);
+  ASSERT_TRUE(dev_parent);
+
+  EXPECT_TRUE(file_parent.is_dir());
+  EXPECT_TRUE(dev_parent.is_dir());
+
+  EXPECT_EQ("/somedir/", file_parent.unix_dpath());
+  EXPECT_EQ("/somedir/", dev_parent.unix_dpath());
+
+  ASSERT_TRUE(file_parent.parent());
+  EXPECT_EQ("/", file_parent.parent().unix_dpath());
+}
+
+TEST_F(entry_handle_test, handle_hash_support_works_for_all_types) {
+  std::unordered_set<writer::entry_handle> entries;
+  entries.insert(root);
+  entries.insert(root);
+  EXPECT_EQ(1, entries.size());
+
+  std::unordered_set<writer::file_handle> files;
+  files.insert(file);
+  files.insert(file);
+  EXPECT_EQ(1, files.size());
+
+  std::unordered_set<writer::dir_handle> dirs;
+  dirs.insert(somedir);
+  dirs.insert(somedir);
+  EXPECT_EQ(1, dirs.size());
+
+  std::unordered_set<writer::link_handle> links;
+  links.insert(link);
+  links.insert(link);
+  EXPECT_EQ(1, links.size());
+
+  std::unordered_set<writer::device_handle> devices;
+  devices.insert(dev);
+  devices.insert(dev);
+  EXPECT_EQ(1, devices.size());
+  devices.insert(other);
+  EXPECT_EQ(2, devices.size());
+}
