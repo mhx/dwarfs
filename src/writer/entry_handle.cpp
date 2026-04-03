@@ -110,31 +110,34 @@ template <mutability Mut>
 void entry_handle_base<Mut>::accept(entry_handle_visitor& v, bool preorder)
   requires is_mutable
 {
-  class visitor_bridge : public internal::entry_visitor {
-   public:
-    visitor_bridge(entry_storage& storage, entry_handle_visitor& v)
-        : storage_{storage}
-        , v_{v} {}
+  switch (self_->type()) {
+  case entry_type::E_FILE:
+    v.visit(file_handle{*storage_, self_->as_file()});
+    break;
 
-   private:
-    void visit(internal::file* p) override {
-      v_.visit(file_handle{storage_, p});
+  case entry_type::E_DIR: {
+    auto dir = dir_handle{*storage_, self_->as_dir()};
+
+    if (preorder) {
+      v.visit(dir);
     }
-    void visit(internal::device* p) override {
-      v_.visit(device_handle{storage_, p});
+
+    dir.for_each_child([&](entry_handle child) { child.accept(v, preorder); });
+
+    if (!preorder) {
+      v.visit(dir);
     }
-    void visit(internal::link* p) override {
-      v_.visit(link_handle{storage_, p});
-    }
-    void visit(internal::dir* p) override { v_.visit(dir_handle{storage_, p}); }
+  } break;
 
-    entry_storage& storage_;
-    entry_handle_visitor& v_;
-  };
+  case entry_type::E_LINK:
+    v.visit(link_handle{*storage_, self_->as_link()});
+    break;
 
-  auto bridge = visitor_bridge(*storage_, v);
-
-  self_->accept(bridge, preorder);
+  case entry_type::E_DEVICE:
+  case entry_type::E_OTHER:
+    v.visit(device_handle{*storage_, self_->as_device()});
+    break;
+  }
 }
 
 template <mutability Mut>
@@ -310,6 +313,14 @@ void basic_dir_handle<Mut>::pack_entry(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
   self()->pack_entry(mv2, data, timeres);
+}
+
+template <detail::mutability Mut>
+void basic_dir_handle<Mut>::for_each_child(
+    std::function<void(entry_handle)> const& f)
+  requires is_mutable
+{
+  self()->for_each_child([&](internal::entry* e) { f({*this->storage_, e}); });
 }
 
 // ---------- link_handle ----------
