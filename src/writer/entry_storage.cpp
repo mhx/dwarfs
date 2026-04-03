@@ -23,8 +23,8 @@
 
 #include <cassert>
 #include <utility>
-#include <vector>
 
+#include <dwarfs/chunked_append_only_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/writer/entry_storage.h>
 
@@ -49,7 +49,7 @@ class entry_storage::impl {
   }
 
  private:
-  std::vector<std::unique_ptr<internal::entry>> entries_;
+  chunked_append_only_vector<std::unique_ptr<internal::entry>> entries_;
 };
 
 entry_storage::entry_storage()
