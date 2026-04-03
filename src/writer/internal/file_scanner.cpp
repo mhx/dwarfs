@@ -458,10 +458,10 @@ void file_scanner_<LoggerPolicy>::add_inode(file_handle p, int lineno) {
   p.set_inode(inode);
 
   if (opts_.debug_inode_create) {
-    debug_inode_create_.push_back({inode.get(), p, lineno});
+    debug_inode_create_.push_back({inode, p, lineno});
   }
 
-  im_.scan_background(wg_, os_, std::move(inode), p);
+  im_.scan_background(wg_, os_, inode, p);
 }
 
 template <typename LoggerPolicy>
@@ -583,7 +583,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
                                              const_file_handle p) const {
-  std::shared_ptr<inode const> ino = p.get_inode();
+  auto ino = p.get_inode();
   auto ino_num = p.inode_num();
 
   os << "{\n"
@@ -597,7 +597,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
      << R"(        "inode_num": )"
      << (ino_num ? fmt::format("{}", *ino_num) : "null") << ",\n"
      << R"(        "inode": ")"
-     << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\"\n"
+     << fmt::format("{}", reinterpret_cast<void const*>(ino)) << "\"\n"
      << "      }";
 }
 
@@ -630,7 +630,7 @@ void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
     first = false;
     os << "    {\n"
        << R"(      "ptr": ")"
-       << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\",\n"
+       << fmt::format("{}", reinterpret_cast<void const*>(ino)) << "\",\n"
        << R"(      "files": )";
     dump_value(os, ino->all());
     os << "\n    }";

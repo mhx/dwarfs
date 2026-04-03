@@ -41,6 +41,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/chunked_append_only_vector.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
@@ -575,17 +576,16 @@ class inode_manager_ final : public inode_manager::impl {
       , inodes_need_scanning_{inodes_need_scanning(opts_)}
       , list_mode_{list_mode} {}
 
-  std::shared_ptr<inode> create_inode() override {
-    auto ino = std::make_shared<inode_>();
-    inodes_.push_back(ino);
-    return ino;
+  inode_ptr create_inode() override {
+    auto& ino = inode_storage_.emplace_back();
+    inodes_.push_back(&ino);
+    return &ino;
   }
 
   size_t count() const override { return inodes_.size(); }
 
-  void for_each_inode_in_order(
-      std::function<void(std::shared_ptr<inode> const&)> const& fn)
-      const override {
+  void
+  for_each_inode_in_order(inode_manager::inode_cb const& fn) const override {
     auto span = sortable_span();
     span.all();
     inode_ordering(LOG_GET_LOGGER, prog_, opts_).by_inode_number(span);
@@ -642,9 +642,8 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void
-  scan_background(worker_group& wg, os_access const& os,
-                  std::shared_ptr<inode> ino, file_handle p) const override;
+  void scan_background(worker_group& wg, os_access const& os, inode_ptr ino,
+                       file_handle p) const override;
 
   bool has_invalid_inodes() const override;
 
@@ -662,8 +661,7 @@ class inode_manager_ final : public inode_manager::impl {
   size_t get_max_data_chunk_size() const override;
 
  private:
-  void
-  update_prog(std::shared_ptr<inode> const& ino, const_file_handle p) const {
+  void update_prog(inode_ptr ino, const_file_handle p) const {
     if (p.size() > 0 && !p.is_invalid()) {
       prog_.fragments_found += ino->fragments().size();
     }
@@ -683,7 +681,8 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::vector<std::shared_ptr<inode>> inodes_;
+  chunked_append_only_vector<inode_> inode_storage_;
+  std::vector<inode_ptr> inodes_;
   progress& prog_;
   fs::path const root_path_;
   inode_options opts_;
@@ -695,7 +694,7 @@ class inode_manager_ final : public inode_manager::impl {
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
-                                                   std::shared_ptr<inode> ino,
+                                                   inode_ptr ino,
                                                    file_handle p) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
@@ -703,7 +702,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
   //       should only ever be one empty inode, so the check
   //       doesn't actually make much of a difference.
   if (inodes_need_scanning_ /* && p->size() > 0 */) {
-    wg.add_job([this, &os, p, ino = std::move(ino)] mutable {
+    wg.add_job([this, &os, p, ino] mutable {
       auto const size = p.size();
       file_view mm;
 

@@ -148,8 +148,8 @@ class file : public entry {
 
   type_t type() const override;
   std::string_view hash(entry_storage& storage) const;
-  void set_inode(std::shared_ptr<inode> ino);
-  std::shared_ptr<inode> get_inode() const;
+  void set_inode(inode* ino);
+  inode* get_inode() const;
   void scan(os_access const& os, progress& prog) override;
   void scan(entry_storage& storage, file_view const& mm, progress& prog,
             std::optional<std::string> const& hash_alg);
@@ -181,7 +181,7 @@ class file : public entry {
 
   file_data& get_data(entry_storage& storage) const;
 
-  std::shared_ptr<inode> inode_;
+  inode* inode_{};
   uint32_t order_index_{0};
   uint32_t data_index_{kInvalidDataIndex};
 };

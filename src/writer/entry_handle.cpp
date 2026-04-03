@@ -225,14 +225,14 @@ bool basic_file_handle<Mut>::is_invalid() const {
 }
 
 template <detail::mutability Mut>
-void basic_file_handle<Mut>::set_inode(std::shared_ptr<internal::inode> ino)
+void basic_file_handle<Mut>::set_inode(internal::inode* ino)
   requires is_mutable
 {
   self()->set_inode(std::move(ino));
 }
 
 template <detail::mutability Mut>
-std::shared_ptr<internal::inode> basic_file_handle<Mut>::get_inode() const {
+internal::inode* basic_file_handle<Mut>::get_inode() const {
   return self()->get_inode();
 }
 

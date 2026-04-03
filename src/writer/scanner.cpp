@@ -848,7 +848,7 @@ void scanner_<LoggerPolicy>::scan(
             });
 
         for (auto const& ino : span) {
-          prog.current.store(ino.get());
+          prog.current.store(ino);
 
           // TODO: factor this code out
           auto f = ino->any();
