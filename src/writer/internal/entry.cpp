@@ -142,8 +142,6 @@ bool entry::less_revpath(entry const& rhs) const {
 
 bool entry::is_directory() const { return is_dir(); }
 
-void entry::walk(std::function<void(entry*)> const& f) { f(this); }
-
 void entry::update(global_entry_data& data) const {
   stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
                      file_stat::mode_valid | file_stat::atime_valid |
@@ -313,14 +311,6 @@ void dir::add(entry* e) {
     assert(r.second);
   }
   entries_.emplace_back(e);
-}
-
-void dir::walk(std::function<void(entry*)> const& f) {
-  f(this);
-
-  for (entry* e : entries_) {
-    e->walk(f);
-  }
 }
 
 void dir::for_each_child(std::function<void(entry*)> const& f) {

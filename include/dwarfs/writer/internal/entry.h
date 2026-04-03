@@ -85,7 +85,6 @@ class entry {
   file_size_t allocated_size() const;
   virtual type_t type() const = 0;
   bool is_directory() const;
-  virtual void walk(std::function<void(entry*)> const& f);
   void
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
        time_resolution_converter const& timeres) const;
@@ -173,7 +172,6 @@ class dir : public entry {
 
   type_t type() const override;
   void add(entry* e);
-  void walk(std::function<void(entry*)> const& f) override;
   void sort();
   void pack(thrift::metadata::metadata& mv2, global_entry_data const& data,
             time_resolution_converter const& timeres) const;
