@@ -35,10 +35,9 @@ template <class T, class Item, class KeyExtractor, class Key = T>
 struct SortedTableLayout : public ArrayLayout<T, Item> {
  private:
   static bool containerIsSorted(const T& cont) {
-    return std::is_sorted(
-        cont.begin(), cont.end(), [](const Item& a, const Item& b) {
-          return KeyExtractor::getKey(a) < KeyExtractor::getKey(b);
-        });
+    return std::ranges::is_sorted(cont, [](const Item& a, const Item& b) {
+      return KeyExtractor::getKey(a) < KeyExtractor::getKey(b);
+    });
   }
 
  public:
@@ -71,7 +70,7 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
       for (decltype(auto) item : coll) {
         index.push_back(KeyExtractor::getPointer(item));
       }
-      std::sort(index.begin(), index.end(), [](const Item* pa, const Item* pb) {
+      std::ranges::sort(index, [](const Item* pa, const Item* pb) {
         return KeyExtractor::getKey(*pa) < KeyExtractor::getKey(*pb);
       });
     }
