@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 template <typename T, std::size_t MaxChunkBytes,
           bool PowerOfTwoElementsPerChunk = false>
@@ -208,4 +208,4 @@ class basic_chunked_append_only_vector {
 template <typename T>
 using chunked_append_only_vector = basic_chunked_append_only_vector<T, 4096>;
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
