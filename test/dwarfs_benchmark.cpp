@@ -44,7 +44,6 @@
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -165,9 +164,8 @@ make_filesystem(::benchmark::State const* state,
   writer::writer_progress prog;
 
   writer::segmenter_factory sf(lgr, prog, segcfg ? *segcfg : cfg);
-  writer::entry_factory ef;
 
-  writer::scanner s(lgr, pool, sf, ef, *os, options);
+  writer::scanner s(lgr, pool, sf, *os, options);
 
   std::ostringstream oss;
 
