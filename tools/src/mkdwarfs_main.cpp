@@ -87,7 +87,6 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/console_writer.h>
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -1551,11 +1550,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     } else {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
                                    sf_config);
-      writer::entry_factory ef;
 
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      writer::scanner s(lgr, scanner_pool, sf, ef, *iol.os, options);
+      writer::scanner s(lgr, scanner_pool, sf, *iol.os, options);
 
       if (rule_filter) {
         s.add_filter(std::move(rule_filter));

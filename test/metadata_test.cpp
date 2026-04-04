@@ -38,7 +38,6 @@
 #include <dwarfs/reader/metadata_options.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/thrift_lite/debug_writer.h>
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -122,13 +121,11 @@ class metadata_test : public ::testing::Test {
     sf_cfg.block_size_bits = 12;
     writer::segmenter_factory sf(lgr, prog, sf_cfg);
 
-    writer::entry_factory ef;
-
     thread_pool pool(lgr, *os, "worker", 4);
 
     writer::scanner_options options;
     options.metadata.no_create_timestamp = true;
-    writer::scanner s(lgr, pool, sf, ef, *os, options);
+    writer::scanner s(lgr, pool, sf, *os, options);
 
     block_compressor bc("null");
     std::ostringstream oss;
