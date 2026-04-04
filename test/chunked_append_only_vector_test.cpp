@@ -32,9 +32,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/chunked_append_only_vector.h>
+#include <dwarfs/internal/chunked_append_only_vector.h>
 
-using namespace dwarfs;
+using namespace dwarfs::internal;
 using ::testing::ElementsAre;
 
 namespace {
