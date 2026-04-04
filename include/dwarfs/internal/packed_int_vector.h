@@ -87,9 +87,13 @@ class packed_int_vector {
     data_.resize(min_data_size(size, bits));
   }
 
-  void resize(size_type size) {
-    size_ = size;
-    data_.resize(min_data_size(size, bits_));
+  void resize(size_type new_size, T value = T{}) {
+    auto const old_size = size_;
+    size_ = new_size;
+    data_.resize(min_data_size(new_size, bits_));
+    for (size_type i = old_size; i < new_size; ++i) {
+      set(i, value);
+    }
   }
 
   void reserve(size_type size) { data_.reserve(min_data_size(size, bits_)); }
