@@ -1385,11 +1385,19 @@ class segment_match : private GranularityPolicy {
       granular_extent_adapter<GranularityPolicy, UseSegmentQueue> const& data,
       size_t pos, size_t len, size_t begin, size_t end);
 
-  DWARFS_FORCE_INLINE bool operator<(segment_match const& rhs) const {
-    return size_ < rhs.size_ ||
-           (size_ == rhs.size_ &&
-            (block_->num() < rhs.block_->num() ||
-             (block_->num() == rhs.block_->num() && offset_ < rhs.offset_)));
+  DWARFS_FORCE_INLINE friend bool
+  operator<(segment_match const& a, segment_match const& b) {
+    if (a.size_ != b.size_) {
+      return a.size_ < b.size_;
+    }
+
+    auto const a_num = a.block_->num();
+    auto const b_num = b.block_->num();
+    if (a_num != b_num) {
+      return a_num < b_num;
+    }
+
+    return a.offset_ < b.offset_;
   }
 
   DWARFS_FORCE_INLINE size_t pos() const { return pos_; }
