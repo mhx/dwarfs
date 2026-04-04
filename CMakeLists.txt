@@ -929,6 +929,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
       list(APPEND BENCHMARK_TARGETS converter_benchmark)
 
+      add_executable(packed_int_vector_benchmark test/packed_int_vector_benchmark.cpp)
+      target_link_libraries(packed_int_vector_benchmark PRIVATE dwarfs_common benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS packed_int_vector_benchmark)
+
       add_executable(sorted_array_map_benchmark test/sorted_array_map_benchmark.cpp)
       target_link_libraries(sorted_array_map_benchmark PRIVATE benchmark::benchmark)
       list(APPEND BENCHMARK_TARGETS sorted_array_map_benchmark)
