@@ -34,7 +34,6 @@ namespace dwarfs::writer {
 
 namespace internal {
 
-class entry_factory_;
 struct file_data;
 class provisional_entry;
 
@@ -66,7 +65,6 @@ class entry_storage {
   std::string dump() const;
 
  private:
-  friend class internal::entry_factory_;
   friend class internal::provisional_entry;
 
   dir_handle
