@@ -20,7 +20,7 @@ struct BufferHelpers {
       "String storage requires simple item types");
   static size_t size(const T& src) { return src.size(); }
   static void copyTo(const T& src, std::span<Item> dst) {
-    std::copy(src.begin(), src.end(), dst.begin());
+    std::ranges::copy(src, dst.begin());
   }
   static void thawTo(std::span<const Item> src, T& dst) {
     dst.assign(src.begin(), src.end());
