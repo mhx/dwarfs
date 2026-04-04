@@ -32,6 +32,7 @@
 #include <benchmark/benchmark.h>
 
 #include <dwarfs/internal/packed_int_vector.h>
+#include <dwarfs/internal/segmented_packed_int_vector.h>
 
 using namespace dwarfs::internal;
 
@@ -41,6 +42,7 @@ using value_type = uint32_t;
 using std_vec = std::vector<value_type>;
 using packed_vec = packed_int_vector<value_type>;
 using auto_packed_vec = auto_packed_int_vector<value_type>;
+using seg_packed_vec = segmented_packed_int_vector<value_type>;
 
 constexpr std::size_t value_bits = std::numeric_limits<value_type>::digits;
 
@@ -151,6 +153,15 @@ make_auto_packed_vec_growing(std::size_t /*bits*/,
   return vec;
 }
 
+seg_packed_vec make_seg_packed_vec(std::size_t /*bits*/,
+                                   std::vector<value_type> const& values) {
+  seg_packed_vec vec;
+  for (auto v : values) {
+    vec.push_back(v);
+  }
+  return vec;
+}
+
 template <typename Container>
 void set_common_counters(benchmark::State& state, std::size_t bits,
                          Container const& vec) {
@@ -254,6 +265,10 @@ static void bm_build_auto_packed_vec_growing(benchmark::State& state) {
   run_build_benchmark(state, make_auto_packed_vec_growing);
 }
 
+static void bm_build_seg_packed_vec_growing(benchmark::State& state) {
+  run_build_benchmark(state, make_seg_packed_vec);
+}
+
 // sequential read
 static void bm_sum_sequential_std_vec(benchmark::State& state) {
   run_sequential_read_benchmark(state, make_std_vec);
@@ -265,6 +280,10 @@ static void bm_sum_sequential_packed_vec(benchmark::State& state) {
 
 static void bm_sum_sequential_auto_packed_vec(benchmark::State& state) {
   run_sequential_read_benchmark(state, make_auto_packed_vec_exact);
+}
+
+static void bm_sum_sequential_seg_packed_vec(benchmark::State& state) {
+  run_sequential_read_benchmark(state, make_seg_packed_vec);
 }
 
 // random read
@@ -280,6 +299,10 @@ static void bm_sum_random_auto_packed_vec(benchmark::State& state) {
   run_random_read_benchmark(state, make_auto_packed_vec_exact);
 }
 
+static void bm_sum_random_seg_packed_vec(benchmark::State& state) {
+  run_random_read_benchmark(state, make_seg_packed_vec);
+}
+
 // overwrite existing elements
 static void bm_overwrite_std_vec(benchmark::State& state) {
   run_overwrite_benchmark(state, make_std_vec);
@@ -291,6 +314,10 @@ static void bm_overwrite_packed_vec(benchmark::State& state) {
 
 static void bm_overwrite_auto_packed_vec(benchmark::State& state) {
   run_overwrite_benchmark(state, make_auto_packed_vec_exact);
+}
+
+static void bm_overwrite_seg_packed_vec(benchmark::State& state) {
+  run_overwrite_benchmark(state, make_seg_packed_vec);
 }
 
 std::vector<value_type> make_worst_case_widening_values(std::size_t n) {
@@ -363,6 +390,8 @@ BENCHMARK(bm_build_auto_packed_vec_exact)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_build_auto_packed_vec_growing)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_build_seg_packed_vec_growing)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_sum_sequential_std_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
@@ -370,17 +399,23 @@ BENCHMARK(bm_sum_sequential_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_sequential_auto_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_sequential_seg_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_sum_random_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_random_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_random_auto_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_random_seg_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_overwrite_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_overwrite_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_overwrite_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_overwrite_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_build_std_vec_worst_case_reference)
