@@ -753,38 +753,12 @@ class granular_extent_adapter<GranularityPolicy, false>
 
   DWARFS_FORCE_INLINE size_t
   match_backward(file_off_t offset, std::span<value_type const> rhs) const {
-    auto const offset_in_bytes = this->frames_to_bytes(offset);
-    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
-
-    std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
-                                    rhs.size()};
-    // NOLINTBEGIN(modernize-use-ranges)
-    auto [lit, rit] =
-        std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
-    // NOLINTEND(modernize-use-ranges)
-
-    size_t match_length = std::distance(lhs.rbegin(), lit);
-    match_length -= match_length % this->granularity_bytes();
-
-    return this->bytes_to_frames(match_length);
+    return this->match_impl<false>(offset, rhs);
   }
 
   DWARFS_FORCE_INLINE size_t
   match_forward(file_off_t offset, std::span<value_type const> rhs) const {
-    auto const offset_in_bytes = this->frames_to_bytes(offset);
-    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
-
-    std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
-                                    rhs.size()};
-    // NOLINTBEGIN(modernize-use-ranges)
-    auto [lit, rit] =
-        std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-    // NOLINTEND(modernize-use-ranges)
-
-    size_t match_length = std::distance(lhs.begin(), lit);
-    match_length -= match_length % this->granularity_bytes();
-
-    return this->bytes_to_frames(match_length);
+    return this->match_impl<true>(offset, rhs);
   }
 
   void release_until(file_off_t offset_in_bytes) {
@@ -793,6 +767,35 @@ class granular_extent_adapter<GranularityPolicy, false>
   }
 
  private:
+  template <bool Forward>
+  DWARFS_FORCE_INLINE size_t match_impl(file_off_t offset,
+                                        std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
+
+    std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
+                                    rhs.size()};
+
+    size_t match_length;
+
+    // NOLINTBEGIN(modernize-use-ranges)
+    if constexpr (Forward) {
+      auto const it =
+          std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end()).first;
+      match_length = std::distance(lhs.begin(), it);
+    } else {
+      auto const it =
+          std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend())
+              .first;
+      match_length = std::distance(lhs.rbegin(), it);
+    }
+    // NOLINTEND(modernize-use-ranges)
+
+    match_length -= match_length % this->granularity_bytes();
+
+    return this->bytes_to_frames(match_length);
+  }
+
   static std::span<value_type const> get_raw_bytes(file_extent const& ext) {
     assert(ext.supports_raw_bytes());
     auto const span = ext.raw_bytes();
@@ -868,49 +871,15 @@ class granular_extent_adapter<GranularityPolicy, true>
     return 0;
   }
 
-  DWARFS_FORCE_INLINE size_t
+  DWARFS_FORCE_INLINE
+  size_t
   match_backward(file_off_t offset, std::span<value_type const> rhs) const {
-    auto const offset_in_bytes = this->frames_to_bytes(offset);
-    auto const spans = collect_spans(offset_in_bytes, rhs.size());
-    size_t match_length{0};
-
-    for (auto it = spans.rbegin(); it != spans.rend(); ++it) {
-      auto const& lhs = *it;
-      auto const [lit, rit] =
-          std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
-      auto const submatch_length = std::distance(lhs.rbegin(), lit);
-      match_length += submatch_length;
-      if (lit != lhs.rend() && rit != rhs.rend()) {
-        break;
-      }
-      rhs = rhs.subspan(0, rhs.size() - submatch_length);
-    }
-
-    match_length -= match_length % this->granularity_bytes();
-
-    return this->bytes_to_frames(match_length);
+    return this->match_impl<false>(offset, rhs);
   }
 
   DWARFS_FORCE_INLINE size_t
   match_forward(file_off_t offset, std::span<value_type const> rhs) const {
-    auto const offset_in_bytes = this->frames_to_bytes(offset);
-    auto const spans = collect_spans(offset_in_bytes, rhs.size());
-    size_t match_length{0};
-
-    for (auto const& lhs : spans) {
-      auto const [lit, rit] =
-          std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-      auto const submatch_length = std::distance(lhs.begin(), lit);
-      match_length += submatch_length;
-      if (lit != lhs.end() && rit != rhs.end()) {
-        break;
-      }
-      rhs = rhs.subspan(submatch_length);
-    }
-
-    match_length -= match_length % this->granularity_bytes();
-
-    return this->bytes_to_frames(match_length);
+    return this->match_impl<true>(offset, rhs);
   }
 
   void release_until(file_off_t offset_in_bytes) {
@@ -918,6 +887,43 @@ class granular_extent_adapter<GranularityPolicy, true>
   }
 
  private:
+  template <bool Forward>
+  DWARFS_FORCE_INLINE size_t match_impl(file_off_t offset,
+                                        std::span<value_type const> rhs) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const spans = collect_spans(offset_in_bytes, rhs.size());
+    size_t match_length{0};
+
+    // NOLINTBEGIN(modernize-use-ranges)
+    if constexpr (Forward) {
+      for (auto const& lhs : spans) {
+        auto const [lit, rit] =
+            std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+        auto const submatch_length = std::distance(lhs.begin(), lit);
+        match_length += submatch_length;
+        if (lit != lhs.end() && rit != rhs.end()) {
+          break;
+        }
+        rhs = rhs.subspan(submatch_length);
+      }
+    } else {
+      for (auto const& lhs : std::views::reverse(spans)) {
+        auto const [lit, rit] =
+            std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
+        auto const submatch_length = std::distance(lhs.rbegin(), lit);
+        match_length += submatch_length;
+        if (lit != lhs.rend() && rit != rhs.rend()) {
+          break;
+        }
+        rhs = rhs.subspan(0, rhs.size() - submatch_length);
+      }
+    }
+    // NOLINTEND(modernize-use-ranges)
+
+    match_length -= match_length % this->granularity_bytes();
+    return this->bytes_to_frames(match_length);
+  }
+
   DWARFS_FORCE_INLINE auto
   collect_spans(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
     small_vector<std::span<value_type const>, 8> spans;
