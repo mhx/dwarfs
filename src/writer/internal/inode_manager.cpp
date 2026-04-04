@@ -41,7 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/chunked_append_only_vector.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
@@ -55,6 +54,7 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/associative_vector_types.h>
+#include <dwarfs/internal/chunked_append_only_vector.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>

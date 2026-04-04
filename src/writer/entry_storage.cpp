@@ -26,10 +26,10 @@
 #include <sstream>
 #include <utility>
 
-#include <dwarfs/chunked_append_only_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/writer/entry_storage.h>
 
+#include <dwarfs/internal/chunked_append_only_vector.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
 
@@ -102,12 +102,12 @@ class entry_storage::impl {
   }
 
  private:
-  chunked_append_only_vector<internal::file> files_;
-  chunked_append_only_vector<internal::dir> dirs_;
-  chunked_append_only_vector<internal::link> links_;
-  chunked_append_only_vector<internal::device> devices_;
+  dwarfs::internal::chunked_append_only_vector<internal::file> files_;
+  dwarfs::internal::chunked_append_only_vector<internal::dir> dirs_;
+  dwarfs::internal::chunked_append_only_vector<internal::link> links_;
+  dwarfs::internal::chunked_append_only_vector<internal::device> devices_;
   dwarfs::internal::synchronized<
-      chunked_append_only_vector<internal::file_data>>
+      dwarfs::internal::chunked_append_only_vector<internal::file_data>>
       file_data_;
 };
 
