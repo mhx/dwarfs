@@ -81,18 +81,17 @@ class inode_ordering_ final : public inode_ordering::impl {
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_inode_number(
     sortable_inode_span& sp) const {
-  std::sort(
-      sp.index().begin(), sp.index().end(),
-      [r = sp.raw()](auto a, auto b) { return r[a]->num() < r[b]->num(); });
+  std::ranges::sort(sp.index(), [r = sp.raw()](auto a, auto b) {
+    return r[a]->num() < r[b]->num();
+  });
 }
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_input_order(
     sortable_inode_span& sp) const {
-  std::sort(sp.index().begin(), sp.index().end(),
-            [r = sp.raw()](auto a, auto b) {
-              return r[a]->any().order_index() < r[b]->any().order_index();
-            });
+  std::ranges::sort(sp.index(), [r = sp.raw()](auto a, auto b) {
+    return r[a]->any().order_index() < r[b]->any().order_index();
+  });
 }
 
 template <typename LoggerPolicy>
@@ -108,8 +107,7 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
     paths[i] = raw[i]->any().path_as_string();
   }
 
-  std::sort(index.begin(), index.end(),
-            [&](auto a, auto b) { return paths[a] < paths[b]; });
+  std::ranges::sort(index, [&](auto a, auto b) { return paths[a] < paths[b]; });
 }
 
 template <typename LoggerPolicy>
@@ -118,7 +116,7 @@ void inode_ordering_<LoggerPolicy>::by_reverse_path(
   auto raw = sp.raw();
   auto& index = sp.index();
 
-  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+  std::ranges::sort(index, [&](auto a, auto b) {
     return raw[a]->any().less_revpath(raw[b]->any());
   });
 }
@@ -195,7 +193,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
       if (mid != index.end()) {
         std::vector<uint32_t> small_index(mid, index.end());
         by_nilsimsa_impl(wg, opts, raw, small_index, cat);
-        std::copy(small_index.begin(), small_index.end(), mid);
+        std::ranges::copy(small_index, mid);
       }
 
       return;
@@ -247,7 +245,7 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
     }
   }
 
-  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+  std::ranges::sort(index, [&](auto a, auto b) {
     auto const& ai = path_order[a];
     auto const& bi = path_order[b];
     return ai.has_value() && bi.has_value() ? *ai < *bi

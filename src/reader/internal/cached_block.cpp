@@ -137,8 +137,7 @@ class cached_block_ final : public cached_block {
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
                   make_vec_arg(tmp.data())) == 0) {
       // i&1 == 1 means resident in memory
-      return std::any_of(tmp.begin(), tmp.end(),
-                         [](auto i) { return (i & 1) == 0; });
+      return std::ranges::any_of(tmp, [](auto i) { return (i & 1) == 0; });
     }
 #endif
     return false;

@@ -635,7 +635,7 @@ std::string create_random_string(size_t size, uint8_t min, uint8_t max,
   std::string rv;
   rv.resize(size);
   std::uniform_int_distribution<> byte_dist{min, max};
-  std::generate(rv.begin(), rv.end(), [&] { return byte_dist(gen); });
+  std::ranges::generate(rv, [&] { return byte_dist(gen); });
   return rv;
 }
 

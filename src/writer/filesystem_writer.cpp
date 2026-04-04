@@ -630,7 +630,7 @@ void fsblock::build_section_header(section_header_v2& sh,
 
       if (xxh && sha && sha->size() == sh.sha2_512_256.size()) {
         sh.xxh3_64 = xxh.value();
-        std::copy(sha->begin(), sha->end(), sh.sha2_512_256.data());
+        std::ranges::copy(*sha, sh.sha2_512_256.data());
         return;
       }
     }
