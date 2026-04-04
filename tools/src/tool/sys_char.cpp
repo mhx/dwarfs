@@ -41,8 +41,8 @@ namespace dwarfs::tool {
 std::string sys_string_to_string(sys_string const& in) {
 #ifdef _WIN32
   std::u16string tmp(in.size(), 0);
-  std::transform(in.begin(), in.end(), tmp.begin(),
-                 [](sys_char c) { return static_cast<char16_t>(c); });
+  std::ranges::transform(in, tmp.begin(),
+                         [](sys_char c) { return static_cast<char16_t>(c); });
   return utf8::utf16to8(tmp);
 #else
   return in;
@@ -53,8 +53,8 @@ sys_string string_to_sys_string(std::string const& in) {
 #ifdef _WIN32
   auto tmp = utf8::utf8to16(in);
   sys_string rv(tmp.size(), 0);
-  std::transform(tmp.begin(), tmp.end(), rv.begin(),
-                 [](char16_t c) { return static_cast<sys_char>(c); });
+  std::ranges::transform(tmp, rv.begin(),
+                         [](char16_t c) { return static_cast<sys_char>(c); });
   return rv;
 #else
   return in;

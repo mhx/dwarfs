@@ -52,7 +52,7 @@ std::vector<int> random_vector(int min, int max, size_t count) {
   static std::mt19937 gen{42};
   std::uniform_int_distribution<int> dist{min, max};
   std::vector<int> v(count);
-  std::generate(v.begin(), v.end(), [&] { return dist(gen); });
+  std::ranges::generate(v, [&] { return dist(gen); });
   return v;
 }
 

@@ -343,10 +343,9 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
         }
       }
 
-      bool const exclude =
-          std::any_of(filters_.begin(), filters_.end(), [&cpe](auto const& f) {
-            return f->filter(cpe) == filter_action::remove;
-          });
+      bool const exclude = std::ranges::any_of(filters_, [&cpe](auto const& f) {
+        return f->filter(cpe) == filter_action::remove;
+      });
 
       if (debug_filter) {
         (*options_.debug_filter_function)(exclude, cpe);
@@ -957,10 +956,9 @@ void scanner_<LoggerPolicy>::scan(
     std::vector<uint32_t> block_categories(written_categories.size());
     std::map<uint32_t, uint32_t> block_cat_metadata;
 
-    std::transform(written_categories.begin(), written_categories.end(),
-                   block_categories.begin(), [&](auto const& cat) {
-                     return category_indices.at(cat.value());
-                   });
+    std::ranges::transform(
+        written_categories, block_categories.begin(),
+        [&](auto const& cat) { return category_indices.at(cat.value()); });
 
     for (auto const& [i, cat] : ranges::views::enumerate(written_categories)) {
       if (auto it = category_metadata_indices.find(cat);

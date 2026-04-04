@@ -318,7 +318,7 @@ TEST_P(dwarfsextract_format_test, basic) {
         if (path.starts_with("./")) {
           path.erase(0, 2);
         }
-        std::replace(path.begin(), path.end(), '\\', '/');
+        std::ranges::replace(path, '\\', '/');
         EXPECT_TRUE(paths.insert(path).second) << path;
       }
     }
@@ -492,7 +492,7 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
           if (path.starts_with("./")) {
             path.erase(0, 2);
           }
-          std::replace(path.begin(), path.end(), '\\', '/');
+          std::ranges::replace(path, '\\', '/');
           EXPECT_TRUE(paths.insert(path).second) << path;
         }
       }

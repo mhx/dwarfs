@@ -1150,9 +1150,8 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
     ni.ctime_offset() = inode.ctime_offset().value();
   }
 
-  std::transform(shared_chunk_table.begin(), shared_chunk_table.end(),
-                 shared_chunk_table.begin(),
-                 [&](auto i) { return i + chunks.size(); });
+  std::ranges::transform(shared_chunk_table, shared_chunk_table.begin(),
+                         [&](auto i) { return i + chunks.size(); });
 
   DWARFS_CHECK(chunk_table.back() == shared_chunk_table.front(),
                "inconsistent chunk tables");

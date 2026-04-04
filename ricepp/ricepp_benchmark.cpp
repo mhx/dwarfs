@@ -62,7 +62,7 @@ std::vector<ValueType> generate_random_data(std::mt19937_64& rng, size_t count,
   std::vector<ValueType> data(count);
   ValueType mask = static_cast<ValueType>(std::numeric_limits<ValueType>::max()
                                           << cfg.unused_lsb);
-  std::generate(data.begin(), data.end(), [&]() {
+  std::ranges::generate(data, [&]() {
     return ricepp::byteswap<ValueType>(
         (full_freq_dist(rng) <= 1.0 ? full(rng) : noise(rng)) & mask,
         cfg.byteorder);

@@ -495,9 +495,8 @@ TEST_P(map_file_error_test, delayed) {
 
   std::set<fs::path> surprisingly_missing;
 
-  std::set_difference(
-      failed_actual.begin(), failed_actual.end(), failed_expected.begin(),
-      failed_expected.end(),
+  std::ranges::set_difference(
+      failed_actual, failed_expected,
       std::inserter(surprisingly_missing, surprisingly_missing.begin()));
 
   std::unordered_map<fs::path, std::string, fs_path_hash> original_files(
@@ -558,7 +557,7 @@ TEST(block_cache, sequential_access_detector) {
       << t.err();
   auto image = t.out();
 
-  std::sort(paths.begin(), paths.end(), [](auto const& a, auto const& b) {
+  std::ranges::sort(paths, [](auto const& a, auto const& b) {
     return a.first.string() < b.first.string();
   });
 
@@ -585,7 +584,7 @@ TEST(block_cache, sequential_access_detector) {
       for (auto const& [path, data] : paths) {
         auto pstr = path.string();
 #ifdef _WIN32
-        std::replace(pstr.begin(), pstr.end(), '\\', '/');
+        std::ranges::replace(pstr, '\\', '/');
 #endif
         auto dev = fs.find(pstr);
         ASSERT_TRUE(dev);
@@ -760,13 +759,13 @@ TEST(mkdwarfs_test, max_similarity_size) {
       tmp.emplace_back(chunk["offset"].get<int>(), chunk["size"].get<int>());
     }
 
-    std::sort(tmp.begin(), tmp.end(),
-              [](auto const& a, auto const& b) { return a.first < b.first; });
+    std::ranges::sort(
+        tmp, [](auto const& a, auto const& b) { return a.first < b.first; });
 
     std::vector<size_t> sizes;
 
-    std::transform(tmp.begin(), tmp.end(), std::back_inserter(sizes),
-                   [](auto const& p) { return p.second; });
+    std::ranges::transform(tmp, std::back_inserter(sizes),
+                           [](auto const& p) { return p.second; });
 
     return sizes;
   };
@@ -797,8 +796,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
     nilsimsa_ordered_sizes = get_sizes_in_offset_order(fs);
   }
 
-  EXPECT_FALSE(
-      std::is_sorted(sim_ordered_sizes.begin(), sim_ordered_sizes.end()));
+  EXPECT_FALSE(std::ranges::is_sorted(sim_ordered_sizes));
 
   static constexpr std::array max_sim_sizes{0,    1,    200,  999,
                                             1000, 1001, 5000, 10000};
@@ -844,9 +842,9 @@ TEST(mkdwarfs_test, max_similarity_size) {
         EXPECT_EQ(nilsimsa_ordered_sizes, ordered_sizes) << max_sim_size;
       } else {
         std::vector<size_t> expected;
-        std::copy_if(sizes.begin(), sizes.end(), std::back_inserter(expected),
-                     [=](auto size) { return size > max_sim_size; });
-        std::sort(expected.begin(), expected.end(), std::greater<size_t>());
+        std::ranges::copy_if(sizes, std::back_inserter(expected),
+                             [=](auto size) { return size > max_sim_size; });
+        std::ranges::sort(expected, std::greater<size_t>());
         ordered_sizes.resize(expected.size());
         EXPECT_EQ(expected, ordered_sizes) << max_sim_size;
       }
@@ -909,10 +907,10 @@ TEST_P(fragment_order_test, basic) {
 
   if (option == "none") {
     // just make sure everything is there, order doesn't matter
-    std::ranges::sort(file_offsets, std::less{},
+    std::ranges::sort(file_offsets, std::ranges::less{},
                       &std::pair<std::string, size_t>::first);
   } else {
-    std::ranges::sort(file_offsets, std::less{},
+    std::ranges::sort(file_offsets, std::ranges::less{},
                       &std::pair<std::string, size_t>::second);
   }
 

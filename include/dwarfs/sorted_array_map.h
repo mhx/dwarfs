@@ -93,9 +93,8 @@ class sorted_array_map {
 
   constexpr const_iterator find(key_type const& k) const {
     if constexpr (N <= 32) {
-      if (auto it =
-              std::find_if(data_.begin(), data_.end(),
-                           [&k](value_type const& v) { return v.first == k; });
+      if (auto it = std::ranges::find_if(
+              data_, [&k](value_type const& v) { return v.first == k; });
           it != data_.end()) {
         return it;
       }
@@ -131,8 +130,8 @@ class sorted_array_map {
  private:
   static constexpr std::array<value_type, N>
   sort(std::array<value_type, N> arr) {
-    if (!std::ranges::is_sorted(arr, std::less{}, &value_type::first)) {
-      std::ranges::sort(arr, std::less{}, &value_type::first);
+    if (!std::ranges::is_sorted(arr, std::ranges::less{}, &value_type::first)) {
+      std::ranges::sort(arr, std::ranges::less{}, &value_type::first);
     }
     return arr;
   }

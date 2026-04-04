@@ -47,8 +47,8 @@ template <typename T>
 std::vector<T> ordered_set(std::unordered_set<T> const& set) {
   std::vector<T> vec;
   vec.reserve(set.size());
-  std::copy(set.begin(), set.end(), std::back_inserter(vec));
-  std::sort(vec.begin(), vec.end());
+  std::ranges::copy(set, std::back_inserter(vec));
+  std::ranges::sort(vec);
   return vec;
 }
 

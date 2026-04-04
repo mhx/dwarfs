@@ -76,7 +76,7 @@ void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
       last = traits.read(block.back());
     }
   } else {
-    std::fill(block.begin(), block.end(), traits.write(last));
+    std::ranges::fill(block, traits.write(last));
   }
 
   last_value = last;

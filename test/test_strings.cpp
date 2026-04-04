@@ -16417,7 +16417,7 @@ std::array<std::string_view, NUM_STRINGS> test_strings{{
 std::vector<std::string> test_string_vector() {
   std::vector<std::string> rv;
   rv.resize(test_strings.size());
-  std::copy(test_strings.begin(), test_strings.end(), rv.begin());
+  std::ranges::copy(test_strings, rv.begin());
   return rv;
 }
 
