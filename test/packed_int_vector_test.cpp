@@ -21,11 +21,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <dwarfs/internal/packed_int_vector.h>
 
 using namespace dwarfs::internal;
+using ::testing::ElementsAre;
 
 TEST(packed_int_vector, basic) {
   packed_int_vector<uint32_t> vec(5);
@@ -122,4 +124,17 @@ TEST(packed_int_vector, zero_bits) {
   for (uint32_t i = 0; i < 100; ++i) {
     EXPECT_EQ(vec[i], 0);
   }
+}
+
+TEST(packed_int_vector, resize_grow_zero_initializes_new_elements) {
+  packed_int_vector<uint32_t> vec(5);
+
+  for (uint32_t v : {1, 31, 7, 9, 3, 25}) {
+    vec.push_back(v);
+  }
+
+  vec.resize(4);
+  vec.resize(6);
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 31, 7, 9, 0, 0));
 }
