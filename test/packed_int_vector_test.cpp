@@ -856,3 +856,15 @@ TEST(packed_int_vector, auto_copy_and_move_preserve_bit_width) {
   EXPECT_EQ(moved.bits(), 5);
   EXPECT_THAT(moved.unpack(), ElementsAre(1, 31, 7));
 }
+
+TEST(packed_int_vector, auto_repack_from_zero_bits_preserves_existing_zeros) {
+  auto_packed_int_vector<uint32_t> vec(0, 4);
+
+  EXPECT_EQ(vec.bits(), 0);
+  EXPECT_EQ(vec.size_in_bytes(), 0);
+
+  vec[2] = 7;
+
+  EXPECT_EQ(vec.bits(), 3);
+  EXPECT_THAT(vec.unpack(), ElementsAre(0, 0, 7, 0));
+}
