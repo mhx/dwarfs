@@ -25,6 +25,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 #include <vector>
@@ -33,6 +34,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/internal/packed_int_vector.h>
+#include <dwarfs/internal/segmented_packed_int_vector.h>
 
 using namespace dwarfs::internal;
 using ::testing::Each;
@@ -81,8 +83,14 @@ T random_signed_value_for_bits(std::mt19937_64& rng, size_t bits) {
 
 using stress_value_type = uint32_t;
 using stress_vec_type = auto_packed_int_vector<stress_value_type>;
+using segmented_vec = segmented_packed_int_vector<uint32_t, 4>;
 
 constexpr size_t stress_digits = std::numeric_limits<stress_value_type>::digits;
+
+constexpr std::array seeds{
+    0x123456789abcdef0ULL, 0xfedcba9876543210ULL, 0xdeadbeefdeadbeefULL,
+    0x0badc0de0badc0deULL, 0xabcdef0123456789ULL, 0x0123456789abcdefULL,
+};
 
 stress_value_type
 truncate_unsigned_to_bits(stress_value_type value, size_t bits) {
@@ -113,6 +121,23 @@ void expect_matches_model(stress_vec_type const& vec,
   ASSERT_THAT(vec.unpack(), ElementsAreArray(model));
 
   for (size_t i = 0; i < model.size(); ++i) {
+    ASSERT_EQ(vec[i], model[i]) << "index=" << i;
+  }
+
+  if (!model.empty()) {
+    ASSERT_EQ(vec.front(), model.front());
+    ASSERT_EQ(vec.back(), model.back());
+  }
+}
+
+template <typename Vec>
+void expect_matches_model(Vec const& vec,
+                          std::vector<stress_value_type> const& model) {
+  ASSERT_EQ(vec.size(), model.size());
+  ASSERT_EQ(vec.empty(), model.empty());
+  ASSERT_THAT(vec.unpack(), ElementsAreArray(model));
+
+  for (std::size_t i = 0; i < model.size(); ++i) {
     ASSERT_EQ(vec[i], model[i]) << "index=" << i;
   }
 
@@ -695,11 +720,6 @@ TEST(packed_int_vector, auto_clear_preserves_bit_width) {
 }
 
 TEST(packed_int_vector, auto_mixed_operations_stress) {
-  constexpr std::array seeds{
-      0x123456789abcdef0ULL, 0xfedcba9876543210ULL, 0xdeadbeefdeadbeefULL,
-      0x0badc0de0badc0deULL, 0xabcdef0123456789ULL, 0x0123456789abcdefULL,
-  };
-
   for (auto seed : seeds) {
     SCOPED_TRACE(::testing::Message() << "seed=" << seed);
 
@@ -867,4 +887,315 @@ TEST(packed_int_vector, auto_repack_from_zero_bits_preserves_existing_zeros) {
 
   EXPECT_EQ(vec.bits(), 3);
   EXPECT_THAT(vec.unpack(), ElementsAre(0, 0, 7, 0));
+}
+
+TEST(segmented_packed_int_vector, basic_push_back_and_indexing) {
+  segmented_vec vec;
+
+  vec.push_back(1);
+  vec.push_back(31);
+  vec.push_back(0);
+  vec.push_back(5);
+  vec.push_back(3);
+  vec.push_back(25);
+
+  EXPECT_EQ(vec.size(), 6);
+  EXPECT_EQ(vec.segment_count(), 2);
+  EXPECT_EQ(vec.size_in_bytes(), 8);
+
+  EXPECT_EQ(vec[0], 1);
+  EXPECT_EQ(vec[1], 31);
+  EXPECT_EQ(vec[2], 0);
+  EXPECT_EQ(vec[3], 5);
+  EXPECT_EQ(vec[4], 3);
+  EXPECT_EQ(vec[5], 25);
+
+  vec[0] = 11;
+  vec.at(5) = 7;
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(11, 31, 0, 5, 3, 7));
+
+  EXPECT_THROW(vec.at(6), std::out_of_range);
+  EXPECT_THROW(vec.at(6) = 1, std::out_of_range);
+
+  auto const& cvec = vec;
+  EXPECT_EQ(cvec.front(), 11);
+  EXPECT_EQ(cvec.back(), 7);
+  EXPECT_EQ(cvec.at(1), 31);
+  EXPECT_EQ(cvec.at(5), 7);
+  EXPECT_THROW(cvec.at(6), std::out_of_range);
+}
+
+TEST(segmented_packed_int_vector, resize_across_segment_boundaries) {
+  segmented_vec vec;
+
+  for (uint32_t v : {1, 2, 3, 4, 5, 6}) {
+    vec.push_back(v);
+  }
+
+  vec.resize(10, 17);
+
+  EXPECT_EQ(vec.size(), 10);
+  EXPECT_EQ(vec.segment_count(), 3);
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 3, 4, 5, 6, 17, 17, 17, 17));
+
+  vec.resize(5);
+
+  EXPECT_EQ(vec.size(), 5);
+  EXPECT_EQ(vec.segment_count(), 2);
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 3, 4, 5));
+
+  vec.resize(0);
+
+  EXPECT_EQ(vec.size(), 0);
+  EXPECT_EQ(vec.segment_count(), 0);
+  EXPECT_TRUE(vec.empty());
+}
+
+TEST(segmented_packed_int_vector, pop_back_removes_empty_last_segment) {
+  segmented_vec vec;
+
+  for (uint32_t v = 1; v <= 9; ++v) {
+    vec.push_back(v);
+  }
+
+  ASSERT_EQ(vec.size(), 9);
+  ASSERT_EQ(vec.segment_count(), 3);
+
+  vec.pop_back();
+
+  EXPECT_EQ(vec.size(), 8);
+  EXPECT_EQ(vec.segment_count(), 2);
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 3, 4, 5, 6, 7, 8));
+
+  vec.pop_back();
+  EXPECT_EQ(vec.size(), 7);
+  EXPECT_EQ(vec.segment_count(), 2);
+}
+
+TEST(segmented_packed_int_vector, segment_local_widening_updates_histogram) {
+  segmented_vec vec(8, 0);
+
+  ASSERT_EQ(vec.segment_count(), 2);
+
+  auto hist = vec.segment_bits_histogram();
+  EXPECT_EQ(hist[0], 2);
+  EXPECT_EQ(std::accumulate(hist.begin(), hist.end(), std::size_t{0}), 2);
+
+  vec[1] = 31;
+
+  hist = vec.segment_bits_histogram();
+  EXPECT_EQ(hist[0], 1);
+  EXPECT_EQ(hist[5], 1);
+  EXPECT_THAT(vec.unpack(), ElementsAre(0, 31, 0, 0, 0, 0, 0, 0));
+
+  vec[6] = 3;
+
+  hist = vec.segment_bits_histogram();
+  EXPECT_EQ(hist[0], 0);
+  EXPECT_EQ(hist[2], 1);
+  EXPECT_EQ(hist[5], 1);
+  EXPECT_THAT(vec.unpack(), ElementsAre(0, 31, 0, 0, 0, 0, 3, 0));
+}
+
+TEST(segmented_packed_int_vector,
+     optimize_storage_shrinks_segments_independently) {
+  segmented_vec vec(8, 0);
+
+  vec[1] = 31;
+  vec[6] = 3;
+
+  ASSERT_EQ(vec.size_in_bytes(), 8);
+
+  vec[1] = 0;
+
+  auto hist = vec.segment_bits_histogram();
+  EXPECT_EQ(hist[2], 1);
+  EXPECT_EQ(hist[5], 1);
+
+  vec.optimize_storage();
+
+  hist = vec.segment_bits_histogram();
+  EXPECT_EQ(hist[0], 1);
+  EXPECT_EQ(hist[2], 1);
+  EXPECT_EQ(hist[5], 0);
+  EXPECT_EQ(vec.size_in_bytes(), 4);
+  EXPECT_THAT(vec.unpack(), ElementsAre(0, 0, 0, 0, 0, 0, 3, 0));
+}
+
+TEST(segmented_packed_int_vector, size_in_bytes_is_sum_of_segment_storage) {
+  segmented_vec vec(8, 0);
+
+  EXPECT_EQ(vec.size_in_bytes(), 0);
+
+  vec[0] = 31;
+  EXPECT_EQ(vec.size_in_bytes(), 4);
+
+  vec[7] = 31;
+  EXPECT_EQ(vec.size_in_bytes(), 8);
+
+  vec[0] = 0;
+  vec[7] = 0;
+  vec.optimize_storage();
+
+  EXPECT_EQ(vec.size_in_bytes(), 0);
+}
+
+TEST(segmented_packed_int_vector, clear_resets_size_and_segments) {
+  segmented_vec vec;
+
+  for (uint32_t v = 0; v < 10; ++v) {
+    vec.push_back(v);
+  }
+
+  ASSERT_EQ(vec.segment_count(), 3);
+
+  vec.clear();
+
+  EXPECT_EQ(vec.size(), 0);
+  EXPECT_EQ(vec.segment_count(), 0);
+  EXPECT_EQ(vec.size_in_bytes(), 0);
+  EXPECT_TRUE(vec.empty());
+
+  vec.push_back(7);
+  EXPECT_EQ(vec.size(), 1);
+  EXPECT_EQ(vec.segment_count(), 1);
+  EXPECT_THAT(vec.unpack(), ElementsAre(7));
+}
+
+TEST(segmented_packed_int_vector, copy_constructor_and_assignment) {
+  segmented_vec vec;
+
+  for (uint32_t v : {1, 2, 3, 4, 31, 6}) {
+    vec.push_back(v);
+  }
+
+  segmented_vec copy{vec};
+
+  EXPECT_EQ(copy.segment_count(), vec.segment_count());
+  EXPECT_EQ(copy.size_in_bytes(), vec.size_in_bytes());
+  EXPECT_THAT(copy.unpack(), ElementsAreArray(vec.unpack()));
+
+  copy[4] = 7;
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 3, 4, 31, 6));
+  EXPECT_THAT(copy.unpack(), ElementsAre(1, 2, 3, 4, 7, 6));
+
+  segmented_vec assigned;
+  assigned = vec;
+
+  EXPECT_EQ(assigned.segment_count(), vec.segment_count());
+  EXPECT_EQ(assigned.size_in_bytes(), vec.size_in_bytes());
+  EXPECT_THAT(assigned.unpack(), ElementsAreArray(vec.unpack()));
+}
+
+TEST(segmented_packed_int_vector, move_constructor_and_assignment) {
+  segmented_vec vec;
+
+  for (uint32_t v : {1, 2, 3, 4, 31, 6}) {
+    vec.push_back(v);
+  }
+
+  auto const expected = vec.unpack();
+  auto const expected_segment_count = vec.segment_count();
+  auto const expected_size_in_bytes = vec.size_in_bytes();
+
+  segmented_vec moved{std::move(vec)};
+
+  EXPECT_EQ(moved.segment_count(), expected_segment_count);
+  EXPECT_EQ(moved.size_in_bytes(), expected_size_in_bytes);
+  EXPECT_THAT(moved.unpack(), ElementsAreArray(expected));
+
+  segmented_vec other;
+  other.push_back(99);
+  other = std::move(moved);
+
+  EXPECT_EQ(other.segment_count(), expected_segment_count);
+  EXPECT_EQ(other.size_in_bytes(), expected_size_in_bytes);
+  EXPECT_THAT(other.unpack(), ElementsAreArray(expected));
+}
+
+template <typename Vec>
+class auto_packed_int_vector_test : public ::testing::Test {};
+
+using exact_value_preserving_vector_types =
+    ::testing::Types<auto_packed_int_vector<stress_value_type>,
+                     segmented_packed_int_vector<stress_value_type, 8>>;
+
+TYPED_TEST_SUITE(auto_packed_int_vector_test,
+                 exact_value_preserving_vector_types);
+
+TYPED_TEST(auto_packed_int_vector_test, mixed_operations_stress) {
+  for (auto const seed : seeds) {
+    SCOPED_TRACE(::testing::Message() << "seed=" << seed);
+
+    std::mt19937_64 rng(seed);
+    std::uniform_int_distribution<int> op_dist(0, 99);
+    std::uniform_int_distribution<uint32_t> value_dist(
+        0, std::numeric_limits<uint32_t>::max());
+
+    TypeParam vec;
+    std::vector<stress_value_type> model;
+
+    for (std::size_t step = 0; step < 5000; ++step) {
+      int const op = op_dist(rng);
+
+      SCOPED_TRACE(::testing::Message() << "step=" << step << ", op=" << op
+                                        << ", size=" << model.size());
+
+      if (op < 30) {
+        auto const value = value_dist(rng);
+        vec.push_back(value);
+        model.push_back(value);
+
+      } else if (op < 45) {
+        if (!model.empty()) {
+          vec.pop_back();
+          model.pop_back();
+        }
+
+      } else if (op < 65) {
+        if (!model.empty()) {
+          std::size_t const i = rng() % model.size();
+          auto const value = value_dist(rng);
+          vec[i] = value;
+          model[i] = value;
+        }
+
+      } else if (op < 80) {
+        std::size_t const new_size = rng() % 128;
+        auto const fill_value = value_dist(rng);
+
+        vec.resize(new_size, fill_value);
+        model.resize(new_size, fill_value);
+
+      } else if (op < 90) {
+        vec.optimize_storage();
+
+      } else {
+        vec.clear();
+        model.clear();
+      }
+
+      expect_matches_model(vec, model);
+    }
+  }
+}
+
+TYPED_TEST(auto_packed_int_vector_test, copy_and_move_smoke) {
+  TypeParam vec;
+  for (uint32_t v : {1, 2, 3, 31, 5, 6, 7}) {
+    vec.push_back(v);
+  }
+
+  auto const expected = vec.unpack();
+
+  TypeParam copy{vec};
+  EXPECT_THAT(copy.unpack(), ElementsAreArray(expected));
+
+  copy[3] = 9;
+  EXPECT_THAT(vec.unpack(), ElementsAreArray(expected));
+
+  TypeParam moved{std::move(copy)};
+  EXPECT_EQ(moved.size(), expected.size());
 }
