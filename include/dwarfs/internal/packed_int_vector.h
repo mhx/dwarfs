@@ -40,6 +40,8 @@
 
 #include <dwarfs/bit_view.h>
 
+#include <dwarfs/internal/detail/block_storage.h>
+
 namespace dwarfs::internal {
 
 namespace detail {
@@ -83,12 +85,30 @@ class basic_packed_int_vector {
   basic_packed_int_vector(size_type bits, size_type size)
       : size_{size}
       , bits_{checked_bits(bits)}
-      , data_(min_data_size(size, bits_)) {}
+      , data_(storage_type::zeroed(used_blocks())) {}
 
-  basic_packed_int_vector(basic_packed_int_vector const&) = default;
+  basic_packed_int_vector(basic_packed_int_vector const& other)
+      : size_{other.size_}
+      , bits_{other.bits_}
+      , data_{other.data_.clone_prefix(other.used_blocks())} {}
+
+  basic_packed_int_vector& operator=(basic_packed_int_vector const& other) {
+    if (this != &other) {
+      basic_packed_int_vector tmp(other);
+      swap(tmp);
+    }
+    return *this;
+  }
+
   basic_packed_int_vector(basic_packed_int_vector&&) = default;
-  basic_packed_int_vector& operator=(basic_packed_int_vector const&) = default;
   basic_packed_int_vector& operator=(basic_packed_int_vector&&) = default;
+
+  void swap(basic_packed_int_vector& other) noexcept {
+    using std::swap;
+    swap(size_, other.size_);
+    swap(bits_, other.bits_);
+    data_.swap(other.data_);
+  }
 
   static constexpr size_type required_bits(T value) noexcept {
     if (value == 0) {
@@ -117,8 +137,8 @@ class basic_packed_int_vector {
 
   void reset(size_type bits = 0, size_type size = 0) {
     bits = checked_bits(bits);
-    std::vector<underlying_type> new_data(min_data_size(size, bits));
-    data_.swap(new_data);
+    data_.reset(min_data_size(size, bits),
+                storage_type::initialization::zero_init);
     size_ = size;
     bits_ = bits;
   }
@@ -126,27 +146,30 @@ class basic_packed_int_vector {
   void resize(size_type new_size, T value = T{}) {
     auto const old_size = size_;
 
-    if constexpr (AutoBitWidth) {
-      if (new_size > old_size) {
+    if (new_size > old_size) {
+      if constexpr (AutoBitWidth) {
         ensure_bits(required_bits(value), new_size);
       }
+
+      data_.reserve(used_blocks(), min_data_size(new_size, bits_));
+      fill_values(data_, bits_, old_size, new_size, value);
     }
 
-    data_.resize(min_data_size(new_size, bits_));
-    fill_values(data_, bits_, old_size, new_size, value);
     size_ = new_size;
   }
 
-  void reserve(size_type size) { data_.reserve(min_data_size(size, bits_)); }
+  void reserve(size_type size) {
+    data_.reserve(used_blocks(), min_data_size(size, bits_));
+  }
 
-  void shrink_to_fit() { data_.shrink_to_fit(); }
+  void shrink_to_fit() { data_.shrink_to_fit(used_blocks()); }
 
   void optimize_storage()
     requires AutoBitWidth
   {
     auto const new_bits = required_bits();
     if (new_bits == bits_) {
-      data_.shrink_to_fit();
+      shrink_to_fit();
     } else {
       repack_data(new_bits, size_);
     }
@@ -163,16 +186,13 @@ class basic_packed_int_vector {
     return bits_ > 0 ? (data_.capacity() * bits_per_block) / bits_ : 0;
   }
 
-  void clear() {
-    size_ = 0;
-    data_.clear();
-  }
+  void clear() { size_ = 0; }
 
   size_type size() const { return size_; }
   size_type bits() const { return bits_; }
 
   size_type size_in_bytes() const {
-    return data_.size() * sizeof(underlying_type);
+    return used_blocks() * sizeof(underlying_type);
   }
 
   bool empty() const { return size_ == 0; }
@@ -210,23 +230,21 @@ class basic_packed_int_vector {
   }
 
   void push_back(T value) {
+    auto const new_size = size_ + 1;
+
     if constexpr (AutoBitWidth) {
-      ensure_bits(required_bits(value), size_ + 1);
+      ensure_bits(required_bits(value), new_size);
     }
 
-    auto const new_size = size_ + 1;
-    data_.resize(min_data_size(new_size, bits_));
+    data_.reserve(used_blocks(), min_data_size(new_size, bits_));
     write_value(data_, bits_, size_, value);
     size_ = new_size;
   }
 
   void pop_back() {
-    if (size_ > 0) {
-      --size_;
-    }
-    if (min_data_size(size_, bits_) < data_.size()) {
-      data_.resize(data_.size() - 1);
-    }
+    assert(size_ > 0);
+
+    --size_;
   }
 
   T back() const { return get(size_ - 1); }
@@ -246,6 +264,8 @@ class basic_packed_int_vector {
   }
 
  private:
+  using storage_type = detail::block_storage<underlying_type>;
+
   static size_type checked_bits(size_type bits) {
     if (bits > bits_per_block) {
       throw std::invalid_argument("basic_packed_int_vector: invalid bit width");
@@ -257,15 +277,17 @@ class basic_packed_int_vector {
     return bits == 0 ? 0 : (size * bits + bits_per_block - 1) / bits_per_block;
   }
 
-  static void write_value(std::vector<underlying_type>& data, size_type bits,
-                          size_type i, T value) {
+  size_type used_blocks() const { return min_data_size(size_, bits_); }
+
+  static void
+  write_value(storage_type& data, size_type bits, size_type i, T value) {
     if (bits > 0) {
       bit_view(data.data()).write({i * bits, bits}, value);
     }
   }
 
-  static void fill_values(std::vector<underlying_type>& data, size_type bits,
-                          size_type first, size_type last, T value) {
+  static void fill_values(storage_type& data, size_type bits, size_type first,
+                          size_type last, T value) {
     for (size_type i = first; i < last; ++i) {
       write_value(data, bits, i, value);
     }
@@ -282,19 +304,23 @@ class basic_packed_int_vector {
   }
 
   void repack_data(size_type new_bits, size_type new_size) {
-    std::vector<underlying_type> new_data(min_data_size(new_size, new_bits));
+    auto const blocks_needed = min_data_size(new_size, new_bits);
+    auto const copy_size = std::min(size_, new_size);
 
-    if (new_bits != 0 && bits_ != 0) {
-      auto const copy_size = std::min(size_, new_size);
+    // If bits_ was 0, we skip copying the old data (since it is all zeroes),
+    // so we *must* zero-initialize the new storage here.
+    auto const init_mode = bits_ == 0 && copy_size > 0
+                               ? storage_type::initialization::zero_init
+                               : storage_type::initialization::no_init;
+    auto new_data = storage_type(blocks_needed, init_mode);
 
-      if (copy_size > 0) {
-        auto src = bit_view(data_.data());
-        auto dst = bit_view(new_data.data());
+    if (new_bits != 0 && bits_ != 0 && copy_size > 0) {
+      auto src = bit_view(data_.data());
+      auto dst = bit_view(new_data.data());
 
-        for (size_type i = 0; i < copy_size; ++i) {
-          dst.write({i * new_bits, new_bits},
-                    src.template read<T>({i * bits_, bits_}));
-        }
+      for (size_type i = 0; i < copy_size; ++i) {
+        dst.write({i * new_bits, new_bits},
+                  src.template read<T>({i * bits_, bits_}));
       }
     }
 
@@ -304,7 +330,7 @@ class basic_packed_int_vector {
 
   size_type size_{0};
   size_type bits_{0};
-  std::vector<underlying_type> data_;
+  storage_type data_;
 };
 
 } // namespace detail
