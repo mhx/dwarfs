@@ -43,7 +43,6 @@ namespace writer {
 struct scanner_options;
 
 class entry_filter;
-class entry_factory;
 class filesystem_writer;
 class writer_progress;
 class segmenter_factory;
@@ -51,8 +50,7 @@ class segmenter_factory;
 class scanner {
  public:
   scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
-          entry_factory& ef, os_access const& os,
-          scanner_options const& options);
+          os_access const& os, scanner_options const& options);
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) {
     impl_->add_filter(std::move(filter));

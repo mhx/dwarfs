@@ -55,7 +55,6 @@
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/categorizer.h>
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/filesystem_writer.h>
@@ -256,8 +255,7 @@ template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
   scanner_(logger& lgr, worker_group& wg, segmenter_factory& sf,
-           entry_factory& ef, os_access const& os,
-           scanner_options const& options);
+           os_access const& os, scanner_options const& options);
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
@@ -269,19 +267,17 @@ class scanner_ final : public scanner::impl {
        std::function<void(library_dependencies&)> const& extra_deps) override;
 
  private:
-  entry_factory::node
-  scan_tree(entry_storage& tree, std::filesystem::path const& path,
-            progress& prog, file_scanner& fs);
+  entry_handle scan_tree(entry_storage& tree, std::filesystem::path const& path,
+                         progress& prog, file_scanner& fs);
 
-  entry_factory::node
+  entry_handle
   scan_list(entry_storage& tree, std::filesystem::path const& rootpath,
             std::span<std::filesystem::path const> list, progress& prog,
             file_scanner& fs);
 
-  entry_factory::node
-  add_entry(entry_storage& tree, std::filesystem::path const& name,
-            dir_handle parent, progress& prog, file_scanner& fs,
-            bool debug_filter = false);
+  entry_handle add_entry(entry_storage& tree, std::filesystem::path const& name,
+                         dir_handle parent, progress& prog, file_scanner& fs,
+                         bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
@@ -291,7 +287,6 @@ class scanner_ final : public scanner::impl {
   worker_group& wg_;
   scanner_options const& options_;
   segmenter_factory& segmenter_factory_;
-  entry_factory& entry_factory_;
   os_access const& os_;
   std::vector<std::unique_ptr<entry_filter>> filters_;
   std::unordered_set<std::string> invalid_filenames_;
@@ -305,21 +300,19 @@ void scanner_<LoggerPolicy>::add_filter(
 
 template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
-                                 segmenter_factory& sf, entry_factory& ef,
-                                 os_access const& os,
+                                 segmenter_factory& sf, os_access const& os,
                                  scanner_options const& options)
     : LOG_PROXY_INIT(lgr)
     , wg_{wg}
     , options_{options}
     , segmenter_factory_{sf}
-    , entry_factory_{ef}
     , os_{os} {}
 
 DWARFS_PUSH_WARNING
 DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
-entry_factory::node
+entry_handle
 scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   std::filesystem::path const& name,
                                   dir_handle parent, progress& prog,
@@ -472,14 +465,14 @@ void scanner_<LoggerPolicy>::dump_state(
 }
 
 template <typename LoggerPolicy>
-entry_factory::node
+entry_handle
 scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                   std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
   auto root = internal::provisional_entry(os_, path).commit(tree);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
-  std::deque<entry_factory::node> queue({root});
+  std::deque<entry_handle> queue({root});
   prog.dirs_found++;
 
   while (!queue.empty()) {
@@ -493,7 +486,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
     try {
       auto d = os_.opendir(ppath);
       std::filesystem::path name;
-      std::vector<entry_factory::node> subdirs;
+      std::vector<entry_handle> subdirs;
 
       while (d->read(name)) {
         if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
@@ -518,7 +511,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
 }
 
 template <typename LoggerPolicy>
-entry_factory::node
+entry_handle
 scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
                                   std::filesystem::path const& rootpath,
                                   std::span<std::filesystem::path const> list,
@@ -534,9 +527,8 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
 
   auto root = internal::provisional_entry(os_, rootpath).commit(tree);
 
-  auto ensure_path = [this, &tree, &prog,
-                      &fs](std::filesystem::path const& path,
-                           entry_factory::node root) {
+  auto ensure_path = [this, &tree, &prog, &fs](
+                         std::filesystem::path const& path, entry_handle root) {
     LOG_TRACE << "ensuring path '" << path_to_utf8_string_sanitized(path)
               << "'";
 
@@ -1029,10 +1021,9 @@ void scanner_<LoggerPolicy>::scan(
 } // namespace internal
 
 scanner::scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
-                 entry_factory& ef, os_access const& os,
-                 scanner_options const& options)
+                 os_access const& os, scanner_options const& options)
     : impl_(
           make_unique_logging_object<impl, internal::scanner_, logger_policies>(
-              lgr, pool.get_worker_group(), sf, ef, os, options)) {}
+              lgr, pool.get_worker_group(), sf, os, options)) {}
 
 } // namespace dwarfs::writer

@@ -26,12 +26,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
+#include <dwarfs/writer/internal/provisional_entry.h>
 
 #include "test_helpers.h"
 #include "test_logger.h"
@@ -41,7 +41,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using writer::entry_factory;
 using writer::entry_storage;
 using writer::entry_type;
 using writer::internal::entry;
@@ -87,25 +86,38 @@ struct entry_test : public ::testing::Test {
 #endif
       (1, fs::path::preferred_separator)};
   std::shared_ptr<os_access_mock> os;
-  std::optional<entry_factory> ef;
 
-  void SetUp() override {
-    os = os_access_mock::create_test_instance();
-    ef.emplace();
+  void SetUp() override { os = os_access_mock::create_test_instance(); }
+
+  void TearDown() override { os.reset(); }
+
+  writer::entry_handle
+  create_entry(entry_storage& tree, os_access& osa, fs::path const& path) {
+    return writer::internal::provisional_entry(osa, path).commit(tree);
   }
 
-  void TearDown() override {
-    ef.reset();
-    os.reset();
+  writer::entry_handle
+  create_entry(entry_storage& tree, os_access& osa, fs::path const& path,
+               writer::entry_handle parent) {
+    return writer::internal::provisional_entry(osa, path, parent).commit(tree);
+  }
+
+  writer::entry_handle create_entry(entry_storage& tree, fs::path const& path) {
+    return create_entry(tree, *os, path);
+  }
+
+  writer::entry_handle create_entry(entry_storage& tree, fs::path const& path,
+                                    writer::entry_handle parent) {
+    return create_entry(tree, *os, path, parent);
   }
 };
 
 TEST_F(entry_test, path) {
   auto tree = entry_storage{};
-  auto e1 = ef->create(tree, *os, sep);
-  auto e2 = ef->create(tree, *os, sep / "somelink", e1);
-  auto e3 = ef->create(tree, *os, sep / "somedir", e1);
-  auto e4 = ef->create(tree, *os, sep / "somedir" / "ipsum.py", e3);
+  auto e1 = create_entry(tree, sep);
+  auto e2 = create_entry(tree, sep / "somelink", e1);
+  auto e3 = create_entry(tree, sep / "somedir", e1);
+  auto e4 = create_entry(tree, sep / "somedir" / "ipsum.py", e3);
 
   EXPECT_FALSE(e1.has_parent());
   EXPECT_TRUE(e1.is_directory());
@@ -151,49 +163,49 @@ TEST_F(entry_test, path) {
 TEST_F(entry_test, factory_creates_expected_entry_kinds) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
   EXPECT_EQ(entry_type::E_DIR, root.type());
   EXPECT_TRUE(root.is_directory());
   EXPECT_TRUE(root.is_dir());
 
-  auto test_pl = ef->create(tree, *os, sep / "test.pl", root);
+  auto test_pl = create_entry(tree, sep / "test.pl", root);
   ASSERT_TRUE(test_pl);
   EXPECT_EQ(entry_type::E_FILE, test_pl.type());
   EXPECT_FALSE(test_pl.is_directory());
   EXPECT_TRUE(test_pl.is_file());
 
-  auto somelink = ef->create(tree, *os, sep / "somelink", root);
+  auto somelink = create_entry(tree, sep / "somelink", root);
   ASSERT_TRUE(somelink);
   EXPECT_EQ(entry_type::E_LINK, somelink.type());
   EXPECT_FALSE(somelink.is_directory());
   EXPECT_TRUE(somelink.is_link());
 
-  auto somedir = ef->create(tree, *os, sep / "somedir", root);
+  auto somedir = create_entry(tree, sep / "somedir", root);
   ASSERT_TRUE(somedir);
   EXPECT_EQ(entry_type::E_DIR, somedir.type());
   EXPECT_TRUE(somedir.is_directory());
   EXPECT_TRUE(somedir.is_dir());
 
-  auto ipsum_py = ef->create(tree, *os, sep / "somedir" / "ipsum.py", somedir);
+  auto ipsum_py = create_entry(tree, sep / "somedir" / "ipsum.py", somedir);
   ASSERT_TRUE(ipsum_py);
   EXPECT_EQ(entry_type::E_FILE, ipsum_py.type());
   EXPECT_FALSE(ipsum_py.is_directory());
   EXPECT_TRUE(ipsum_py.is_file());
 
-  auto null_dev = ef->create(tree, *os, sep / "somedir" / "null", somedir);
+  auto null_dev = create_entry(tree, sep / "somedir" / "null", somedir);
   ASSERT_TRUE(null_dev);
   EXPECT_EQ(entry_type::E_DEVICE, null_dev.type());
   EXPECT_FALSE(null_dev.is_directory());
   EXPECT_TRUE(null_dev.is_device());
 
-  auto zero_dev = ef->create(tree, *os, sep / "somedir" / "zero", somedir);
+  auto zero_dev = create_entry(tree, sep / "somedir" / "zero", somedir);
   ASSERT_TRUE(zero_dev);
   EXPECT_EQ(entry_type::E_DEVICE, zero_dev.type());
   EXPECT_FALSE(zero_dev.is_directory());
   EXPECT_TRUE(zero_dev.is_device());
 
-  auto pipe = ef->create(tree, *os, sep / "somedir" / "pipe", somedir);
+  auto pipe = create_entry(tree, sep / "somedir" / "pipe", somedir);
   ASSERT_TRUE(pipe);
   EXPECT_EQ(entry_type::E_OTHER, pipe.type());
   EXPECT_FALSE(pipe.is_directory());
@@ -202,7 +214,6 @@ TEST_F(entry_test, factory_creates_expected_entry_kinds) {
 
 TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
   auto local_os = std::make_shared<os_access_mock>();
-  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -212,11 +223,11 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
   local_os->add_file(root_path / "b" / "x", "bx");
 
   auto tree = entry_storage{};
-  auto root = local_ef.create(tree, *local_os, root_path);
-  auto a = local_ef.create(tree, *local_os, root_path / "a", root);
-  auto b = local_ef.create(tree, *local_os, root_path / "b", root);
-  auto ax = local_ef.create(tree, *local_os, root_path / "a" / "x", a);
-  auto bx = local_ef.create(tree, *local_os, root_path / "b" / "x", b);
+  auto root = create_entry(tree, *local_os, root_path);
+  auto a = create_entry(tree, *local_os, root_path / "a", root);
+  auto b = create_entry(tree, *local_os, root_path / "b", root);
+  auto ax = create_entry(tree, *local_os, root_path / "a" / "x", a);
+  auto bx = create_entry(tree, *local_os, root_path / "b" / "x", b);
 
   ASSERT_TRUE(root);
   ASSERT_TRUE(a);
@@ -243,7 +254,6 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
 
 TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   auto local_os = std::make_shared<os_access_mock>();
-  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -252,10 +262,10 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   local_os->add_file(root_path / "a" / "c", "c");
 
   auto tree = entry_storage{};
-  auto root = local_ef.create(tree, *local_os, root_path).as_dir();
-  auto a = local_ef.create(tree, *local_os, root_path / "a", root).as_dir();
-  auto b = local_ef.create(tree, *local_os, root_path / "b", root);
-  auto c = local_ef.create(tree, *local_os, root_path / "a" / "c", a);
+  auto root = create_entry(tree, *local_os, root_path).as_dir();
+  auto a = create_entry(tree, *local_os, root_path / "a", root).as_dir();
+  auto b = create_entry(tree, *local_os, root_path / "b", root);
+  auto c = create_entry(tree, *local_os, root_path / "a" / "c", a);
 
   ASSERT_TRUE(root);
   ASSERT_TRUE(a);
@@ -280,7 +290,6 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
 
 TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   auto local_os = std::make_shared<os_access_mock>();
-  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -289,10 +298,10 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   local_os->add_file(root_path / "a" / "c", "c");
 
   auto tree = entry_storage{};
-  auto root = local_ef.create(tree, *local_os, root_path).as_dir();
-  auto a = local_ef.create(tree, *local_os, root_path / "a", root).as_dir();
-  auto b = local_ef.create(tree, *local_os, root_path / "b", root);
-  auto c = local_ef.create(tree, *local_os, root_path / "a" / "c", a);
+  auto root = create_entry(tree, *local_os, root_path).as_dir();
+  auto a = create_entry(tree, *local_os, root_path / "a", root).as_dir();
+  auto b = create_entry(tree, *local_os, root_path / "b", root);
+  auto c = create_entry(tree, *local_os, root_path / "a" / "c", a);
 
   ASSERT_TRUE(root);
   ASSERT_TRUE(a);
@@ -327,12 +336,12 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
 TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
   {
     auto tree = entry_storage{};
-    auto root = ef->create(tree, *os, sep).as_dir();
+    auto root = create_entry(tree, sep).as_dir();
     ASSERT_TRUE(root);
 
-    auto somelink = ef->create(tree, *os, sep / "somelink", root);
-    auto somedir = ef->create(tree, *os, sep / "somedir", root);
-    auto test_pl = ef->create(tree, *os, sep / "test.pl", root);
+    auto somelink = create_entry(tree, sep / "somelink", root);
+    auto somedir = create_entry(tree, sep / "somedir", root);
+    auto test_pl = create_entry(tree, sep / "test.pl", root);
 
     root.add(somelink);
     root.add(somedir);
@@ -348,7 +357,6 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
   {
     // Synthetic large directory to force the lookup-table path.
     auto local_os = std::make_shared<os_access_mock>();
-    entry_factory local_ef;
     auto root_path = make_root_path();
 
     local_os->add_dir(root_path);
@@ -357,11 +365,11 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     }
 
     auto tree = entry_storage{};
-    auto big_root = local_ef.create(tree, *local_os, root_path).as_dir();
+    auto big_root = create_entry(tree, *local_os, root_path).as_dir();
     ASSERT_TRUE(big_root);
 
     for (int i = 0; i < 20; ++i) {
-      big_root.add(local_ef.create(
+      big_root.add(create_entry(
           tree, *local_os, root_path / ("f" + std::to_string(i)), big_root));
     }
 
@@ -389,7 +397,6 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
 TEST_F(entry_test,
        remove_empty_dirs_removes_recursively_and_keeps_nonempty_subtrees) {
   auto local_os = std::make_shared<os_access_mock>();
-  entry_factory local_ef;
   auto root_path = make_root_path();
 
   local_os->add_dir(root_path);
@@ -400,17 +407,16 @@ TEST_F(entry_test,
   local_os->add_dir(root_path / "nested" / "empty_b");
 
   auto tree = entry_storage{};
-  auto root = local_ef.create(tree, *local_os, root_path).as_dir();
-  auto keep =
-      local_ef.create(tree, *local_os, root_path / "keep", root).as_dir();
+  auto root = create_entry(tree, *local_os, root_path).as_dir();
+  auto keep = create_entry(tree, *local_os, root_path / "keep", root).as_dir();
   auto keep_file =
-      local_ef.create(tree, *local_os, root_path / "keep" / "file.txt", keep);
+      create_entry(tree, *local_os, root_path / "keep" / "file.txt", keep);
   auto empty_a =
-      local_ef.create(tree, *local_os, root_path / "empty_a", root).as_dir();
+      create_entry(tree, *local_os, root_path / "empty_a", root).as_dir();
   auto nested =
-      local_ef.create(tree, *local_os, root_path / "nested", root).as_dir();
+      create_entry(tree, *local_os, root_path / "nested", root).as_dir();
   auto empty_b =
-      local_ef.create(tree, *local_os, root_path / "nested" / "empty_b", nested)
+      create_entry(tree, *local_os, root_path / "nested" / "empty_b", nested)
           .as_dir();
 
   ASSERT_TRUE(root);
@@ -465,12 +471,12 @@ TEST_F(entry_test,
 
 TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
   auto tree = entry_storage{};
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto somelink = ef->create(tree, *os, sep / "somelink", root).as_link();
-  auto somedir = ef->create(tree, *os, sep / "somedir", root).as_dir();
-  auto bad = ef->create(tree, *os, sep / "somedir" / "bad", somedir).as_link();
+  auto somelink = create_entry(tree, sep / "somelink", root).as_link();
+  auto somedir = create_entry(tree, sep / "somedir", root).as_dir();
+  auto bad = create_entry(tree, sep / "somedir" / "bad", somedir).as_link();
 
   ASSERT_TRUE(somelink);
   ASSERT_TRUE(somedir);
@@ -494,7 +500,7 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
 TEST_F(entry_test, root_dir_must_be_a_directory) {
   auto tree = entry_storage{};
 
-  EXPECT_THAT([&] { ef->create(tree, *os, sep / "somelink"); },
+  EXPECT_THAT([&] { create_entry(tree, sep / "somelink"); },
               testing::ThrowsMessage<dwarfs::runtime_error>(
                   testing::HasSubstr("must be a directory")));
 }
@@ -502,10 +508,10 @@ TEST_F(entry_test, root_dir_must_be_a_directory) {
 TEST_F(entry_test, file_create_data_initializes_file_state) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto empty = ef->create(tree, *os, sep / "empty", root);
+  auto empty = create_entry(tree, sep / "empty", root);
   ASSERT_TRUE(empty);
 
   auto f = empty.as_file();
@@ -522,11 +528,11 @@ TEST_F(entry_test, file_create_data_initializes_file_state) {
 TEST_F(entry_test, file_hardlink_shares_invalid_state) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
-  auto bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  auto foo_entry = create_entry(tree, sep / "foo.pl", root);
+  auto bar_entry = create_entry(tree, sep / "bar.pl", root);
   ASSERT_TRUE(foo_entry);
   ASSERT_TRUE(bar_entry);
 
@@ -552,11 +558,11 @@ TEST_F(entry_test, file_hardlink_shares_invalid_state) {
 TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
-  auto bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  auto foo_entry = create_entry(tree, sep / "foo.pl", root);
+  auto bar_entry = create_entry(tree, sep / "bar.pl", root);
   ASSERT_TRUE(foo_entry);
   ASSERT_TRUE(bar_entry);
 
@@ -584,11 +590,11 @@ TEST_F(entry_test, file_hardlink_shares_inode_num_state) {
 TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
-  auto bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  auto foo_entry = create_entry(tree, sep / "foo.pl", root);
+  auto bar_entry = create_entry(tree, sep / "bar.pl", root);
   ASSERT_TRUE(foo_entry);
   ASSERT_TRUE(bar_entry);
 
@@ -618,11 +624,11 @@ TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
 TEST_F(entry_test, file_hardlink_shares_hash_state) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto foo_entry = ef->create(tree, *os, sep / "foo.pl", root);
-  auto bar_entry = ef->create(tree, *os, sep / "bar.pl", root);
+  auto foo_entry = create_entry(tree, sep / "foo.pl", root);
+  auto bar_entry = create_entry(tree, sep / "bar.pl", root);
   ASSERT_TRUE(foo_entry);
   ASSERT_TRUE(bar_entry);
 
@@ -646,10 +652,10 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
 TEST_F(entry_test, file_inode_num_requires_data) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto empty_entry = ef->create(tree, *os, sep / "empty", root);
+  auto empty_entry = create_entry(tree, sep / "empty", root);
   ASSERT_TRUE(empty_entry);
 
   auto f = empty_entry.as_file();
@@ -662,10 +668,10 @@ TEST_F(entry_test, file_inode_num_requires_data) {
 TEST_F(entry_test, file_set_inode_num_requires_data) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto empty_entry = ef->create(tree, *os, sep / "empty", root);
+  auto empty_entry = create_entry(tree, sep / "empty", root);
   ASSERT_TRUE(empty_entry);
 
   auto f = empty_entry.as_file();
@@ -677,10 +683,10 @@ TEST_F(entry_test, file_set_inode_num_requires_data) {
 TEST_F(entry_test, file_set_inode_num_only_once) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto empty_entry = ef->create(tree, *os, sep / "empty", root);
+  auto empty_entry = create_entry(tree, sep / "empty", root);
   ASSERT_TRUE(empty_entry);
 
   auto f = empty_entry.as_file();
@@ -696,10 +702,10 @@ TEST_F(entry_test, file_set_inode_num_only_once) {
 TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
   auto tree = entry_storage{};
 
-  auto root = ef->create(tree, *os, sep);
+  auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
 
-  auto empty_entry = ef->create(tree, *os, sep / "empty", root);
+  auto empty_entry = create_entry(tree, sep / "empty", root);
   ASSERT_TRUE(empty_entry);
 
   auto f = empty_entry.as_file();
@@ -734,19 +740,17 @@ struct entry_handle_test : entry_test {
   void SetUp() override {
     entry_test::SetUp();
 
-    root = ef->create(storage, *os, sep);
+    root = create_entry(storage, sep);
     ASSERT_TRUE(root);
 
-    file = ef->create(storage, *os, sep / "test.pl", root).as_file();
-    somedir = ef->create(storage, *os, sep / "somedir", root).as_dir();
-    link = ef->create(storage, *os, sep / "somelink", root).as_link();
-    dev =
-        ef->create(storage, *os, sep / "somedir" / "null", somedir).as_device();
+    file = create_entry(storage, sep / "test.pl", root).as_file();
+    somedir = create_entry(storage, sep / "somedir", root).as_dir();
+    link = create_entry(storage, sep / "somelink", root).as_link();
+    dev = create_entry(storage, sep / "somedir" / "null", somedir).as_device();
     other =
-        ef->create(storage, *os, sep / "somedir" / "pipe", somedir).as_device();
-    nested_file =
-        ef->create(storage, *os, sep / "somedir" / "ipsum.py", somedir);
-    nested_dev = ef->create(storage, *os, sep / "somedir" / "null", somedir);
+        create_entry(storage, sep / "somedir" / "pipe", somedir).as_device();
+    nested_file = create_entry(storage, sep / "somedir" / "ipsum.py", somedir);
+    nested_dev = create_entry(storage, sep / "somedir" / "null", somedir);
 
     ASSERT_TRUE(file);
     ASSERT_TRUE(somedir);

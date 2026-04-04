@@ -50,7 +50,6 @@
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
-#include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
@@ -109,9 +108,8 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   sf_cfg.bloom_filter_size.set_default(cfg.bloom_filter_size);
 
   writer::segmenter_factory sf(lgr, *prog, sf_cfg);
-  writer::entry_factory ef;
 
-  writer::scanner s(lgr, pool, sf, ef, *input, options);
+  writer::scanner s(lgr, pool, sf, *input, options);
 
   if (ftd) {
     s.add_filter(std::make_unique<test::mock_filter>(ftd));
@@ -1007,8 +1005,7 @@ class filter_test
     writer::writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
     writer::segmenter_factory sf(lgr, prog);
-    writer::entry_factory ef;
-    writer::scanner s(lgr, pool, sf, ef, *input, options);
+    writer::scanner s(lgr, pool, sf, *input, options);
 
     s.add_filter(std::move(rbf));
 
