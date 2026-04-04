@@ -1946,16 +1946,14 @@ TEST_P(tools_test, categorize) {
     {
       nlohmann::json ref_args;
       ref_args.push_back(mkdwarfs_->path());
-      std::copy(mkdwarfs_args.begin(), mkdwarfs_args.end(),
-                std::back_inserter(ref_args));
+      std::ranges::copy(mkdwarfs_args, std::back_inserter(ref_args));
       EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
     }
 
     {
       nlohmann::json ref_args;
       ref_args.push_back(mkdwarfs_->path());
-      std::copy(mkdwarfs_args_recompress.begin(),
-                mkdwarfs_args_recompress.end(), std::back_inserter(ref_args));
+      std::ranges::copy(mkdwarfs_args_recompress, std::back_inserter(ref_args));
       EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
     }
   }

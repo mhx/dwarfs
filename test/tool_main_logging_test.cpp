@@ -107,8 +107,7 @@ TEST_P(term_logging_test, end_to_end) {
       {"debug", {"<dim-yellow>", 'D'}},
       {"trace", {"<gray>", 'T'}},
   };
-  auto const cutoff =
-      std::find(log_level_strings.begin(), log_level_strings.end(), level);
+  auto const cutoff = std::ranges::find(log_level_strings, level);
   ASSERT_FALSE(cutoff == log_level_strings.end());
 
   {

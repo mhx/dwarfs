@@ -120,7 +120,7 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
   create_catmgr();
 
   alignas(2) std::array<uint8_t, 2 * 2880 + 64> data;
-  std::fill(data.begin(), data.end(), 0);
+  std::ranges::fill(data, 0);
 
   auto metadata_category = catmgr->category_value("fits/metadata").value();
   auto image_category = catmgr->category_value("fits/image").value();

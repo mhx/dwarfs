@@ -72,7 +72,7 @@ namespace {
 void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
                    bool verbose) {
   auto max_width = [](auto const& vec) {
-    auto max = std::max_element(vec.begin(), vec.end());
+    auto max = std::ranges::max_element(vec);
     return std::to_string(*max).size();
   };
 

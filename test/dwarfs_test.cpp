@@ -819,7 +819,7 @@ TEST_P(compression_regression, github45) {
 
   std::string random;
   random.resize(file_size);
-  std::generate(begin(random), end(random), std::ref(rng));
+  std::ranges::generate(random, std::ref(rng));
 
   auto input = std::make_shared<test::os_access_mock>();
 
@@ -1312,8 +1312,8 @@ TEST(section_index_regression, github183) {
     auto const data = section.data(segment);
     ::memcpy(tmp.data(), data.data(), data.size());
     index.resize(num_entries);
-    std::transform(begin(tmp), end(tmp), begin(index),
-                   [](auto const& v) { return v.load(); });
+    std::ranges::transform(tmp, begin(index),
+                           [](auto const& v) { return v.load(); });
   }
 
   ASSERT_GT(index.size(), 10);
@@ -1596,7 +1596,7 @@ TEST(filesystem, read) {
 
   std::string contents;
   contents.resize(76543);
-  std::generate(begin(contents), end(contents), std::ref(rng));
+  std::ranges::generate(contents, std::ref(rng));
 
   auto input = std::make_shared<test::os_access_mock>();
 
@@ -1651,11 +1651,11 @@ TEST(filesystem, read) {
 
   // --- read ---
 
-  std::fill(begin(tmp), end(tmp), 0);
+  std::ranges::fill(tmp, 0);
   EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size()), cview.size());
   EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview);
 
-  std::fill(begin(tmp), end(tmp), 0);
+  std::ranges::fill(tmp, 0);
   EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), ec), cview.size());
   EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview);
   EXPECT_FALSE(ec);
@@ -1708,12 +1708,12 @@ TEST(filesystem, read) {
     // --- read ---
 
     tmp.resize(size);
-    std::fill(begin(tmp), end(tmp), 0);
+    std::ranges::fill(tmp, 0);
     EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size()), size) << size;
     EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview.substr(0, size))
         << size;
 
-    std::fill(begin(tmp), end(tmp), 0);
+    std::ranges::fill(tmp, 0);
     EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), ec), size) << size;
     EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview.substr(0, size))
         << size;
@@ -1771,14 +1771,14 @@ TEST(filesystem, read) {
 
       // --- read ---
 
-      std::fill(begin(tmp), end(tmp), 0);
+      std::ranges::fill(tmp, 0);
       EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), off), size)
           << size << ":" << off;
       EXPECT_EQ(std::string_view(tmp.data(), tmp.size()),
                 cview.substr(off, size))
           << size << ":" << off;
 
-      std::fill(begin(tmp), end(tmp), 0);
+      std::ranges::fill(tmp, 0);
       EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), off, ec), size)
           << size << ":" << off;
       EXPECT_EQ(std::string_view(tmp.data(), tmp.size()),

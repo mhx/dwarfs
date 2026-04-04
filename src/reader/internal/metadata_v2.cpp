@@ -972,7 +972,7 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       // Cache the folded names of the directory entries; this significantly
       // speeds up the sorting code.
       std::vector<std::string> names(range.size());
-      std::transform(range.begin(), range.end(), names.begin(), [&](auto ix) {
+      std::ranges::transform(range, names.begin(), [&](auto ix) {
         return utf8_case_fold_unchecked(dir_entry_view_impl::name(ix, global_));
       });
 
@@ -2042,11 +2042,10 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
         entries.emplace_back(self_index, parent_index);
       });
 
-      std::sort(entries.begin(), entries.end(),
-                [this](auto const& a, auto const& b) {
-                  return meta_.inodes()[a.first].inode_v2_2() <
-                         meta_.inodes()[b.first].inode_v2_2();
-                });
+      std::ranges::sort(entries, [this](auto const& a, auto const& b) {
+        return meta_.inodes()[a.first].inode_v2_2() <
+               meta_.inodes()[b.first].inode_v2_2();
+      });
     }
 
     tv << "ordered " << entries.size() << " entries by file data order";
@@ -2339,14 +2338,14 @@ nlohmann::json metadata_v2_data::get_inode_info(inode_view const& iv,
 std::vector<file_stat::uid_type> metadata_v2_data::get_all_uids() const {
   std::vector<file_stat::uid_type> rv;
   rv.resize(meta_.uids().size());
-  std::copy(meta_.uids().begin(), meta_.uids().end(), rv.begin());
+  std::ranges::copy(meta_.uids(), rv.begin());
   return rv;
 }
 
 std::vector<file_stat::gid_type> metadata_v2_data::get_all_gids() const {
   std::vector<file_stat::gid_type> rv;
   rv.resize(meta_.gids().size());
-  std::copy(meta_.gids().begin(), meta_.gids().end(), rv.begin());
+  std::ranges::copy(meta_.gids(), rv.begin());
   return rv;
 }
 

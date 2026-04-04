@@ -73,8 +73,7 @@ class basic_offset_cache {
       if (first_index + offsets.size() > offsets_.size()) {
         assert(first_index <= offsets_.size());
         auto new_offsets = offsets.subspan(offsets_.size() - first_index);
-        std::copy(new_offsets.begin(), new_offsets.end(),
-                  std::back_inserter(offsets_));
+        std::ranges::copy(new_offsets, std::back_inserter(offsets_));
       }
     }
 
@@ -195,7 +194,7 @@ class basic_offset_cache {
 
     {
       std::lock_guard lock(mx_);
-      std::copy(cache_.begin(), cache_.end(), std::back_inserter(contents));
+      std::ranges::copy(cache_, std::back_inserter(contents));
     }
 
     for (auto const& [inode, ent] : contents) {

@@ -506,8 +506,8 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   }
   fmap.clear();
 
-  std::sort(ent.begin(), ent.end(),
-            [](auto& left, auto& right) { return left.first < right.first; });
+  std::ranges::sort(
+      ent, [](auto& left, auto& right) { return left.first < right.first; });
 
   DWARFS_CHECK(fmap.empty(), "expected file map to be empty");
 
@@ -553,10 +553,9 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
 
       // needed for reproducibility
-      std::sort(files.begin(), files.end(),
-                [](const_file_handle a, const_file_handle b) {
-                  return a.less_revpath(b);
-                });
+      std::ranges::sort(files, [](const_file_handle a, const_file_handle b) {
+        return a.less_revpath(b);
+      });
     }
 
     for (auto fp : files) {
