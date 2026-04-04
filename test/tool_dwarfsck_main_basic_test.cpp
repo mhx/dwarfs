@@ -345,7 +345,7 @@ TEST(dwarfsck_test, list_files_verbose) {
   EXPECT_EQ(0, t.run({"image.dwarfs", "--list", "--verbose"})) << t.err();
   auto out = t.out();
 
-  auto num_lines = std::count(out.begin(), out.end(), '\n');
+  auto num_lines = std::ranges::count(out, '\n');
   EXPECT_EQ(12, num_lines);
   auto format_time = [](time_t t) {
     return fmt::format("{:%F %H:%M}", safe_localtime(t));
@@ -371,7 +371,7 @@ TEST(dwarfsck_test, checksum_files) {
   EXPECT_EQ(0, t.run({"image.dwarfs", "--checksum=md5"})) << t.err();
   auto out = t.out();
 
-  auto num_lines = std::count(out.begin(), out.end(), '\n');
+  auto num_lines = std::ranges::count(out, '\n');
   EXPECT_EQ(8, num_lines);
 
   std::map<std::string, std::string> actual;

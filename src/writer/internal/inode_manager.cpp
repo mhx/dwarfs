@@ -625,16 +625,16 @@ class inode_manager_ final : public inode_manager::impl {
       rv.categories.emplace_back(cs.first);
     }
 
-    std::sort(rv.info.begin(), rv.info.end(), [](auto const& a, auto const& b) {
+    std::ranges::sort(rv.info, [](auto const& a, auto const& b) {
       return a.total_size > b.total_size ||
              (a.total_size == b.total_size && a.category < b.category);
     });
 
     if (opts_.categorizer_mgr) {
-      std::sort(rv.categories.begin(), rv.categories.end(),
-                [&catmgr = *opts_.categorizer_mgr](auto a, auto b) {
-                  return catmgr.deterministic_less(a, b);
-                });
+      std::ranges::sort(rv.categories,
+                        [&catmgr = *opts_.categorizer_mgr](auto a, auto b) {
+                          return catmgr.deterministic_less(a, b);
+                        });
     } else {
       std::ranges::sort(rv.categories);
     }

@@ -657,9 +657,8 @@ TEST(mkdwarfs_test, change_block_size) {
 
     // All random files should be in the checksum set
     std::vector<fs::path> missing_files;
-    std::set_difference(random_files.begin(), random_files.end(),
-                        checksum_files.begin(), checksum_files.end(),
-                        std::back_inserter(missing_files));
+    std::ranges::set_difference(random_files, checksum_files,
+                                std::back_inserter(missing_files));
 
     EXPECT_EQ(0, missing_files.size());
   }

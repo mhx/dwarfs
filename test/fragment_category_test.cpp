@@ -112,7 +112,7 @@ TEST(fragment_category_test, sortable) {
   v.emplace_back(2, 3);
   v.emplace_back(2);
 
-  std::sort(v.begin(), v.end());
+  std::ranges::sort(v);
 
   EXPECT_EQ(fragment_category(1), v[0]);
   EXPECT_EQ(fragment_category(2, 3), v[1]);

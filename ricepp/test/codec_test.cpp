@@ -53,7 +53,7 @@ generate_random_data(size_t count, unsigned unused_lsb_count = 0,
   std::vector<ValueType> data(count);
   ValueType mask = static_cast<ValueType>(std::numeric_limits<ValueType>::max()
                                           << unused_lsb_count);
-  std::generate(data.begin(), data.end(), [&]() {
+  std::ranges::generate(data, [&]() {
     return ricepp::byteswap<ValueType>(
         (dist(rng) == 0 ? full(rng) : noise(rng)) & mask, byteorder);
   });

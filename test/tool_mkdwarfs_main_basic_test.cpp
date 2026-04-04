@@ -238,9 +238,8 @@ TEST(mkdwarfs_test, input_list_large) {
   auto fs = t.fs_from_stdout();
 
   std::set<fs::path> expected;
-  std::transform(paths.begin(), paths.end(),
-                 std::inserter(expected, expected.end()),
-                 [](auto const& p) { return p.first; });
+  std::ranges::transform(paths, std::inserter(expected, expected.end()),
+                         [](auto const& p) { return p.first; });
   std::set<fs::path> actual;
 
   fs.walk([&](auto const& e) {

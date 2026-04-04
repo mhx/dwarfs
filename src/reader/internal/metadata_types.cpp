@@ -382,12 +382,12 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
   }
 
   if (auto opt = meta.options(); opt and opt->packed_directories()) {
-    if (std::any_of(meta.directories().begin(), meta.directories().end(),
-                    [](auto i) { return i.parent_entry() != 0; })) {
+    if (std::ranges::any_of(meta.directories(),
+                            [](auto i) { return i.parent_entry() != 0; })) {
       DWARFS_THROW(runtime_error, "parent_entry set in packed directory");
     }
-    if (std::any_of(meta.directories().begin(), meta.directories().end(),
-                    [](auto i) { return i.self_entry() != 0; })) {
+    if (std::ranges::any_of(meta.directories(),
+                            [](auto i) { return i.self_entry() != 0; })) {
       DWARFS_THROW(runtime_error, "self_entry set in packed directory");
     }
     if (auto expected =
@@ -405,9 +405,9 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
     size_t num_entries =
         meta.dir_entries() ? meta.dir_entries()->size() : meta.inodes().size();
 
-    if (!std::is_sorted(
-            meta.directories().begin(), meta.directories().end(),
-            [](auto a, auto b) { return a.first_entry() < b.first_entry(); })) {
+    if (!std::ranges::is_sorted(meta.directories(), [](auto a, auto b) {
+          return a.first_entry() < b.first_entry();
+        })) {
       DWARFS_THROW(runtime_error, "first_entry values not sorted");
     }
 
@@ -488,7 +488,7 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                                expected, meta.chunks().size()));
     }
   } else {
-    if (!std::is_sorted(meta.chunk_table().begin(), meta.chunk_table().end())) {
+    if (!std::ranges::is_sorted(meta.chunk_table())) {
       DWARFS_THROW(runtime_error, "chunk_table values not sorted");
     }
     if (meta.chunk_table().back() != meta.chunks().size()) {
@@ -775,7 +775,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
         num_reg_unique -= sfp->size();
       } else {
-        if (!std::is_sorted(sfp->begin(), sfp->end())) {
+        if (!std::ranges::is_sorted(*sfp)) {
           DWARFS_THROW(runtime_error,
                        "unpacked shared_files_table is not sorted");
         }

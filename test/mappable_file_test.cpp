@@ -345,7 +345,7 @@ TEST(map_empty, read_write) {
   EXPECT_EQ(span.size(), 8_MiB);
   EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0; }));
 
-  std::fill(span.begin(), span.end(), 0xAB);
+  std::ranges::fill(span, 0xAB);
   EXPECT_TRUE(std::ranges::all_of(span, [](auto b) { return b == 0xAB; }));
 
   auto bytespan = mem.span();

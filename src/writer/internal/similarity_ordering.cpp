@@ -197,8 +197,8 @@ class basic_centroid {
   using value_type = std::array<BitsType, array_size>;
 
   basic_centroid() {
-    std::fill(centroid_.begin(), centroid_.end(), 0);
-    std::fill(bitcounts_.begin(), bitcounts_.end(), 0);
+    std::ranges::fill(centroid_, 0);
+    std::ranges::fill(bitcounts_, 0);
   }
 
   value_type const& value() const { return centroid_; };
@@ -380,8 +380,8 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
   {
     auto tt = LOG_TIMED_TRACE;
 
-    std::sort(index.begin(), index.end(),
-              [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
+    std::ranges::sort(index,
+                      [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
 
     tt << opts_.context << "sort index of " << index.size() << " elements";
   }
@@ -442,8 +442,8 @@ void similarity_ordering_<LoggerPolicy>::order_cluster(
   if (!index.empty()) {
     // TODO: try simulated annealing again? reproducibly?
 
-    std::sort(index.begin(), index.end(),
-              [&ev](auto a, auto b) { return ev.order_less(a, b); });
+    std::ranges::sort(index,
+                      [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
     std::vector<bitvec_type const*> bits;
     bits.reserve(index.size());
@@ -494,7 +494,7 @@ size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
 
   // all children of this node are ordered now
 
-  std::stable_sort(bits.begin(), bits.end(), [](auto const& a, auto const& b) {
+  std::ranges::stable_sort(bits, [](auto const& a, auto const& b) {
     return std::get<3>(a) > std::get<3>(b);
   });
 
@@ -626,8 +626,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
       if (auto it = dup.find(e); it != dup.end()) {
         auto& dupvec = it->second;
 
-        std::sort(dupvec.begin(), dupvec.end(),
-                  [&ev](auto a, auto b) { return ev.order_less(a, b); });
+        std::ranges::sort(
+            dupvec, [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
         for (auto i : dupvec) {
           LOG_TRACE << opts_.context << indent << "  + " << ev.description(i)

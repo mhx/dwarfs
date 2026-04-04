@@ -81,7 +81,7 @@ build_data(size_t total_size, size_t granularity, double dupe_fraction,
   auto make_random = [&rng](size_t size) {
     std::vector<uint8_t> v;
     v.resize(size);
-    std::generate(begin(v), end(v), std::ref(rng));
+    std::ranges::generate(v, std::ref(rng));
     return v;
   };
 
@@ -103,7 +103,7 @@ build_data(size_t total_size, size_t granularity, double dupe_fraction,
 
   auto append_data = [&data](std::vector<uint8_t> const& tmp) {
     data.resize(data.size() + tmp.size());
-    std::copy(begin(tmp), end(tmp), end(data) - tmp.size());
+    std::ranges::copy(tmp, end(data) - tmp.size());
   };
 
   for (size_t i = 0; i < num_dupes * dupe_sizes.size(); ++i) {

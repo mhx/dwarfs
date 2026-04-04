@@ -69,8 +69,7 @@ TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
 
   auto const info = fs.info_as_json({});
   auto const& features = info["features"];
-  EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") ==
-              features.end())
+  EXPECT_TRUE(std::ranges::find(features, "sparsefiles") == features.end())
       << info.dump(2);
 
   vfs_stat vfs;
@@ -111,8 +110,7 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
 
     auto const info = fs.info_as_json({});
     auto const& features = info["features"];
-    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
-                features.end())
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
 
     vfs_stat vfs;
@@ -146,8 +144,7 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
 
     auto const info = fs.info_as_json({});
     auto const& features = info["features"];
-    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
-                features.end())
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
 
     vfs_stat vfs;
@@ -210,8 +207,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     auto const info =
         fs.info_as_json({.features = reader::fsinfo_features::all()});
     auto const& features = info["features"];
-    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
-                features.end())
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
     auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
@@ -291,8 +287,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
         fs.info_as_json({.features = reader::fsinfo_features::all()});
 
     auto const& features = info["features"];
-    EXPECT_TRUE(std::find(features.begin(), features.end(), "sparsefiles") !=
-                features.end())
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
     auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);

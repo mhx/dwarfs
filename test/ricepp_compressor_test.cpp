@@ -56,7 +56,7 @@ generate_random_data(std::mt19937_64& rng, size_t count,
   std::vector<ValueType> data(count);
   ValueType mask = static_cast<ValueType>(std::numeric_limits<ValueType>::max()
                                           << unused_lsb_count);
-  std::generate(data.begin(), data.end(), [&]() {
+  std::ranges::generate(data, [&]() {
     auto v = dist(rng) == 0 ? full(rng) : noise(rng);
     return convert<std::endian::big, ValueType>(v & mask);
   });

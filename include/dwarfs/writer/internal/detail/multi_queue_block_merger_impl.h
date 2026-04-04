@@ -224,10 +224,8 @@ class multi_queue_block_merger_impl : public block_merger_base,
   }
 
   bool is_valid_source(source_type src) const {
-    return std::find(begin(active_slots_), end(active_slots_), src) !=
-               end(active_slots_) ||
-           std::find(begin(source_queue_), end(source_queue_), src) !=
-               end(source_queue_);
+    return std::ranges::find(active_slots_, src) != end(active_slots_) ||
+           std::ranges::find(source_queue_, src) != end(source_queue_);
   }
 
   size_t max_worst_case_source_block_size() const {
