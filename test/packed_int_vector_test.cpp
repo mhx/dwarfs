@@ -787,3 +787,72 @@ TEST(packed_int_vector, auto_mixed_operations_stress) {
     }
   }
 }
+
+TEST(packed_int_vector, copy_constructor_and_assignment) {
+  packed_int_vector<uint32_t> vec(5);
+
+  vec.push_back(1);
+  vec.push_back(31);
+  vec.push_back(7);
+
+  packed_int_vector<uint32_t> copy{vec};
+
+  EXPECT_EQ(copy.bits(), 5);
+  EXPECT_THAT(copy.unpack(), ElementsAre(1, 31, 7));
+
+  copy[1] = 3;
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 31, 7));
+  EXPECT_THAT(copy.unpack(), ElementsAre(1, 3, 7));
+
+  packed_int_vector<uint32_t> assigned(2);
+  assigned = vec;
+
+  EXPECT_EQ(assigned.bits(), 5);
+  EXPECT_THAT(assigned.unpack(), ElementsAre(1, 31, 7));
+
+  assigned[0] = 0;
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(1, 31, 7));
+  EXPECT_THAT(assigned.unpack(), ElementsAre(0, 31, 7));
+}
+
+TEST(packed_int_vector, move_constructor_and_assignment) {
+  packed_int_vector<uint32_t> vec(5);
+
+  vec.push_back(1);
+  vec.push_back(31);
+  vec.push_back(7);
+
+  packed_int_vector<uint32_t> moved{std::move(vec)};
+
+  EXPECT_EQ(moved.bits(), 5);
+  EXPECT_THAT(moved.unpack(), ElementsAre(1, 31, 7));
+
+  packed_int_vector<uint32_t> other(2);
+  other.push_back(1);
+  other.push_back(2);
+
+  other = std::move(moved);
+
+  EXPECT_EQ(other.bits(), 5);
+  EXPECT_THAT(other.unpack(), ElementsAre(1, 31, 7));
+}
+
+TEST(packed_int_vector, auto_copy_and_move_preserve_bit_width) {
+  auto_packed_int_vector<uint32_t> vec(0);
+
+  vec.push_back(1);
+  vec.push_back(31);
+  vec.push_back(7);
+
+  EXPECT_EQ(vec.bits(), 5);
+
+  auto_packed_int_vector<uint32_t> copy{vec};
+  EXPECT_EQ(copy.bits(), 5);
+  EXPECT_THAT(copy.unpack(), ElementsAre(1, 31, 7));
+
+  auto_packed_int_vector<uint32_t> moved{std::move(copy)};
+  EXPECT_EQ(moved.bits(), 5);
+  EXPECT_THAT(moved.unpack(), ElementsAre(1, 31, 7));
+}
