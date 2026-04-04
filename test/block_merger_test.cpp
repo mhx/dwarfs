@@ -181,8 +181,8 @@ class source {
     std::exponential_distribution<> edist(ips);
     std::vector<std::pair<size_t, double>> blocks;
     blocks.resize(bdist(rng));
-    std::generate(begin(blocks), end(blocks),
-                  [&] { return std::make_pair(sdist(rng), edist(delay_rng)); });
+    std::ranges::generate(
+        blocks, [&] { return std::make_pair(sdist(rng), edist(delay_rng)); });
     return blocks;
   }
 

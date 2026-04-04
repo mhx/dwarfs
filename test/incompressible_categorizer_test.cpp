@@ -59,7 +59,7 @@ std::string random_string(size_t size) {
 
   std::string data;
   data.resize(size);
-  std::generate(begin(data), end(data), std::ref(rbe));
+  std::ranges::generate(data, std::ref(rbe));
 
   return data;
 }

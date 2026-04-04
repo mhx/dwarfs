@@ -119,7 +119,7 @@ void nilsimsa_distance(::benchmark::State& state) {
   static constexpr unsigned const kNumData{1024};
   std::vector<std::array<uint64_t, 4>> data(kNumData);
   for (auto& a : data) {
-    std::generate(begin(a), end(a), std::ref(rng));
+    std::ranges::generate(a, std::ref(rng));
   }
   unsigned i{0}, k{1};
 
@@ -138,7 +138,7 @@ void nilsimsa_distance_cpu(::benchmark::State& state) {
   static constexpr unsigned const kNumData{1024};
   std::vector<std::array<uint64_t, 4>> data(kNumData);
   for (auto& a : data) {
-    std::generate(begin(a), end(a), std::ref(rng));
+    std::ranges::generate(a, std::ref(rng));
   }
   unsigned i{0}, k{1};
   int d;
@@ -168,7 +168,7 @@ void nilsimsa_update(::benchmark::State& state) {
       rng;
   static constexpr unsigned const kNumData{8 * 1024 * 1024};
   std::vector<uint8_t> data(kNumData);
-  std::generate(begin(data), end(data), std::ref(rng));
+  std::ranges::generate(data, std::ref(rng));
 
   dwarfs::writer::internal::nilsimsa s;
 

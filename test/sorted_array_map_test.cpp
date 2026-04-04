@@ -198,7 +198,7 @@ static_assert(empty_map.begin() == empty_map.end());
 static_assert(std::distance(empty_map.begin(), empty_map.end()) == 0);
 
 static_assert(sort_test.size() == 250);
-static_assert(std::is_sorted(sort_test.begin(), sort_test.end()));
+static_assert(std::ranges::is_sorted(sort_test));
 
 } // namespace
 

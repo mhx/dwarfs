@@ -1150,10 +1150,10 @@ void check_compat(test::test_logger& lgr [[maybe_unused]],
     switch (mode) {
     case walk_mode::normal:
     case walk_mode::custom:
-      EXPECT_FALSE(std::is_sorted(first_blocks.begin(), first_blocks.end()));
+      EXPECT_FALSE(std::ranges::is_sorted(first_blocks));
       break;
     case walk_mode::data_order:
-      EXPECT_TRUE(std::is_sorted(first_blocks.begin(), first_blocks.end()));
+      EXPECT_TRUE(std::ranges::is_sorted(first_blocks));
       break;
     }
   }

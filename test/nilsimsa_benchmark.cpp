@@ -38,7 +38,7 @@ std::vector<uint8_t> random_byte_vector(size_t len) {
   static std::mt19937 g{42};
   static std::uniform_int_distribution<uint16_t> d{0, 255};
   std::vector<uint8_t> v(len);
-  std::generate(v.begin(), v.end(), [&] { return d(g); });
+  std::ranges::generate(v, [&] { return d(g); });
   return v;
 }
 
