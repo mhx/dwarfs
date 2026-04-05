@@ -51,7 +51,9 @@ class rule_based_entry_filter : public entry_filter {
 
   void add_rules(std::istream& is) { impl_->add_rules(is); }
 
-  filter_action filter(const_entry_handle ei) const override;
+  filter_action filter(entry_interface const& ei) const override {
+    return impl_->filter(ei);
+  }
 
   class impl {
    public:
@@ -60,7 +62,7 @@ class rule_based_entry_filter : public entry_filter {
     virtual void set_root_path(std::filesystem::path const& path) = 0;
     virtual void add_rule(std::string_view rule) = 0;
     virtual void add_rules(std::istream& is) = 0;
-    virtual filter_action filter(const_entry_handle ei) const = 0;
+    virtual filter_action filter(entry_interface const& ei) const = 0;
   };
 
  private:

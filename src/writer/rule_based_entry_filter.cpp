@@ -85,7 +85,7 @@ class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
   void set_root_path(fs::path const& path) override;
   void add_rule(std::string_view rule) override;
   void add_rules(std::istream& is) override;
-  filter_action filter(const_entry_handle ei) const override;
+  filter_action filter(entry_interface const& ei) const override;
 
  private:
   void
@@ -251,8 +251,8 @@ void rule_based_entry_filter_<LoggerPolicy>::add_rules(
 }
 
 template <typename LoggerPolicy>
-filter_action
-rule_based_entry_filter_<LoggerPolicy>::filter(const_entry_handle ei) const {
+filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
+    entry_interface const& ei) const {
   std::string path = ei.unix_dpath();
   std::string relpath = path;
 
@@ -288,9 +288,5 @@ rule_based_entry_filter::rule_based_entry_filter(
                                        logger_policies>(lgr, std::move(fa))) {}
 
 rule_based_entry_filter::~rule_based_entry_filter() = default;
-
-filter_action rule_based_entry_filter::filter(const_entry_handle ei) const {
-  return impl_->filter(ei);
-}
 
 } // namespace dwarfs::writer
