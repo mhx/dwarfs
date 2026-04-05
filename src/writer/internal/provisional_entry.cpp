@@ -21,10 +21,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <cassert>
 
+#include <fmt/format.h>
+
 #include <dwarfs/error.h>
-#include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/entry_storage.h>
@@ -34,92 +36,90 @@
 namespace dwarfs::writer::internal {
 
 provisional_entry::provisional_entry(os_access const& os,
-                                     std::filesystem::path const& path)
-    : is_root_dir_{true} {
-  auto st = os.symlink_info(path);
-
-  if (!st.is_directory()) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("'{}' must be a directory",
-                             path_to_utf8_string_sanitized(path)));
+                                     std::filesystem::path const& path,
+                                     std::optional<entry_handle> parent)
+    : path_{path}
+    , stat_{os.symlink_info(path)}
+    , parent_{parent} {
+  if (!parent_ && stat_.type() != posix_file_type::directory) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("root entry '{}' must be a directory", path.string()));
   }
-
-  entry_.emplace<dir>(path, nullptr, st);
 }
 
-provisional_entry::provisional_entry(os_access const& os,
-                                     std::filesystem::path const& path,
-                                     entry_handle parent) {
-  auto st = os.symlink_info(path);
-
-  assert(parent);
-
-  switch (st.type()) {
+entry_type provisional_entry::type() const {
+  switch (stat_.type()) {
   case posix_file_type::regular:
-    entry_.emplace<file>(path, parent.self_, st);
-    break;
+    return entry_type::E_FILE;
 
   case posix_file_type::directory:
-    entry_.emplace<dir>(path, parent.self_, st);
-    break;
+    return entry_type::E_DIR;
 
   case posix_file_type::symlink:
-    entry_.emplace<link>(path, parent.self_, st);
-    break;
+    return entry_type::E_LINK;
+
+  case posix_file_type::character:
+  case posix_file_type::block:
+    return entry_type::E_DEVICE;
+
+  case posix_file_type::fifo:
+  case posix_file_type::socket:
+    return entry_type::E_OTHER;
+
+  default:
+    DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));
+  }
+}
+
+std::string provisional_entry::name() const {
+  return path_to_utf8_string_sanitized(parent_ ? path_.filename() : path_);
+}
+
+bool provisional_entry::is_directory() const {
+  return type() == entry_type::E_DIR;
+}
+
+std::string provisional_entry::unix_dpath() const {
+  static constexpr char kLocalPathSeparator{
+      static_cast<char>(std::filesystem::path::preferred_separator)};
+
+  auto path = path_to_utf8_string_sanitized(path_);
+
+  if (kLocalPathSeparator != '/') {
+    std::ranges::replace(path, kLocalPathSeparator, '/');
+  }
+
+  if (!path.empty() && is_directory() && path.back() != '/') {
+    path += '/';
+  }
+
+  return path;
+}
+
+entry_handle provisional_entry::commit(entry_storage& tree) {
+  switch (stat_.type()) {
+  case posix_file_type::regular:
+    return tree.create_file(path_, parent_.value(), stat_);
+
+  case posix_file_type::directory:
+    if (parent_) {
+      return tree.create_dir(path_, *parent_, stat_);
+    }
+    return tree.create_root_dir(path_, stat_);
+
+  case posix_file_type::symlink:
+    return tree.create_link(path_, parent_.value(), stat_);
 
   case posix_file_type::character:
   case posix_file_type::block:
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    entry_.emplace<device>(path, parent.self_, st);
-    break;
+    return tree.create_device(path_, parent_.value(), stat_);
 
   default:
-    break;
+    DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));
   }
-}
-
-const_entry_handle provisional_entry::handle() const {
-  return entry_ |
-         match{
-             [](std::monostate const&) -> const_entry_handle {
-               DWARFS_PANIC("cannot get handle of empty provisional_entry");
-             },
-             [](file const& f) -> const_entry_handle { return {&f}; },
-             [](dir const& d) -> const_entry_handle { return {&d}; },
-             [](link const& l) -> const_entry_handle { return {&l}; },
-             [](device const& d) -> const_entry_handle { return {&d}; },
-         };
-}
-
-entry_handle provisional_entry::commit(entry_storage& tree) {
-  auto r =
-      std::move(entry_) |
-      match{
-          // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
-          [](std::monostate&&) -> entry_handle {
-            DWARFS_PANIC("cannot commit empty provisional_entry");
-          },
-          [&tree](file&& f) -> entry_handle {
-            return tree.add_file(std::move(f));
-          },
-          [this, &tree](dir&& d) -> entry_handle {
-            if (is_root_dir_) {
-              return tree.add_root_dir(std::move(d));
-            }
-            return tree.add_dir(std::move(d));
-          },
-          [&tree](link&& l) -> entry_handle {
-            return tree.add_link(std::move(l));
-          },
-          [&tree](device&& d) -> entry_handle {
-            return tree.add_device(std::move(d));
-          },
-      };
-
-  entry_.emplace<std::monostate>();
-
-  return r;
 }
 
 } // namespace dwarfs::writer::internal

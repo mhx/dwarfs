@@ -180,9 +180,6 @@ class entry_handle_base {
   }
 
  protected:
-  explicit entry_handle_base(detail::mutability_t<internal::entry, Mut>* self)
-      : self_{self} {}
-
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   [[maybe_unused]] entry_storage* storage_{nullptr};
   detail::mutability_t<internal::entry, Mut>* self_{nullptr};
@@ -199,7 +196,6 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
 
   friend class basic_dir_handle<Mut>; // for dir.add(entry)
   friend class entry_storage;
-  friend class internal::provisional_entry;
 
   basic_entry_handle() = default;
   basic_entry_handle(entry_storage& storage,
@@ -239,10 +235,6 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   basic_dir_handle<Mut> as_dir() const noexcept;
   basic_link_handle<Mut> as_link() const noexcept;
   basic_device_handle<Mut> as_device() const noexcept;
-
- private:
-  basic_entry_handle(detail::mutability_t<internal::entry, Mut>* self)
-      : detail::entry_handle_base<Mut>{self} {}
 };
 
 template <detail::mutability Mut>
