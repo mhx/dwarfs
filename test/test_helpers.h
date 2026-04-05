@@ -251,7 +251,7 @@ class os_access_mock : public os_access {
 
 struct filter_transformer_data {
   struct entry_data {
-    entry_data(writer::const_entry_handle ei)
+    entry_data(writer::entry_interface const& ei)
         : path{ei.unix_dpath()} {}
 
     std::string path;
@@ -265,7 +265,8 @@ class mock_filter : public writer::entry_filter {
   mock_filter(std::shared_ptr<filter_transformer_data> data)
       : data_{std::move(data)} {}
 
-  writer::filter_action filter(writer::const_entry_handle ei) const override {
+  writer::filter_action
+  filter(writer::entry_interface const& ei) const override {
     data_->filter_calls.emplace_back(ei);
     return writer::filter_action::keep;
   }

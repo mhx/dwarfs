@@ -320,61 +320,57 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
   try {
     auto ent = internal::provisional_entry(os_, name, parent);
 
-    {
-      auto const cpe = ent.handle();
+    if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
+      try {
+        auto tmp [[maybe_unused]] = name.filename().u8string();
+      } catch (std::system_error const& e) {
+        LOG_ERROR << fmt::format(
+            R"(invalid file name in "{}", storing as "{}": {})",
+            path_to_utf8_string_sanitized(name.parent_path()), ent.name(),
+            error_cp_to_utf8(e.what()));
 
-      if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
-        try {
-          auto tmp [[maybe_unused]] = name.filename().u8string();
-        } catch (std::system_error const& e) {
+        prog.errors++;
+
+        if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
+                 .second) {
           LOG_ERROR << fmt::format(
-              R"(invalid file name in "{}", storing as "{}": {})",
-              path_to_utf8_string_sanitized(name.parent_path()), cpe.name(),
-              error_cp_to_utf8(e.what()));
-
-          prog.errors++;
-
-          if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
-                   .second) {
-            LOG_ERROR << fmt::format(
-                "cannot store \"{}\" as the name already exists", cpe.name());
-            return {};
-          }
+              "cannot store \"{}\" as the name already exists", ent.name());
+          return {};
         }
       }
+    }
 
-      bool const exclude = std::ranges::any_of(filters_, [&cpe](auto const& f) {
-        return f->filter(cpe) == filter_action::remove;
-      });
+    bool const exclude = std::ranges::any_of(filters_, [&ent](auto const& f) {
+      return f->filter(ent) == filter_action::remove;
+    });
 
-      if (debug_filter) {
-        (*options_.debug_filter_function)(exclude, cpe);
+    if (debug_filter) {
+      (*options_.debug_filter_function)(exclude, ent);
+    }
+
+    if (exclude) {
+      if (!debug_filter) {
+        LOG_DEBUG << "excluding " << ent.unix_dpath();
       }
 
-      if (exclude) {
-        if (!debug_filter) {
-          LOG_DEBUG << "excluding " << cpe.unix_dpath();
-        }
+      return {};
+    }
 
+    switch (ent.type()) {
+    case entry_type::E_DEVICE:
+      if (!options_.with_devices) {
         return {};
       }
+      break;
 
-      switch (cpe.type()) {
-      case entry_type::E_DEVICE:
-        if (!options_.with_devices) {
-          return {};
-        }
-        break;
-
-      case entry_type::E_OTHER:
-        if (!options_.with_specials) {
-          return {};
-        }
-        break;
-
-      default:
-        break;
+    case entry_type::E_OTHER:
+      if (!options_.with_specials) {
+        return {};
       }
+      break;
+
+    default:
+      break;
     }
 
     auto pe = ent.commit(tree);

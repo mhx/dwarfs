@@ -32,7 +32,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/history_config.h>
-#include <dwarfs/writer/entry_handle.h>
+#include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/inode_options.h>
 #include <dwarfs/writer/metadata_options.h>
 
@@ -44,7 +44,7 @@ struct scanner_options {
   bool with_devices{false};
   bool with_specials{false};
   inode_options inode;
-  std::optional<std::function<void(bool, writer::const_entry_handle)>>
+  std::optional<std::function<void(bool, entry_interface const&)>>
       debug_filter_function;
   size_t num_segmenter_workers{1};
   bool enable_history{true};
