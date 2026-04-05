@@ -82,11 +82,6 @@ entry_type entry_handle_base<Mut>::type() const {
 }
 
 template <mutability Mut>
-bool entry_handle_base<Mut>::is_directory() const {
-  return self_->is_directory();
-}
-
-template <mutability Mut>
 void entry_handle_base<Mut>::update(internal::global_entry_data& data) const {
   self_->update(data);
 }
