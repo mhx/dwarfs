@@ -169,6 +169,8 @@ class entry_handle_base {
   walk(std::function<void(basic_entry_handle<mutability::mutable_>)> const& f)
     requires is_mutable;
 
+  std::optional<uint32_t> const& entry_index() const;
+
   void pack(thrift::metadata::inode_data& entry_v2,
             internal::global_entry_data const& data,
             internal::time_resolution_converter const& timeres) const;

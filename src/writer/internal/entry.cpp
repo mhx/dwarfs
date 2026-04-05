@@ -307,7 +307,7 @@ void dir::add(entry_handle e) {
   entries_.emplace_back(e.id());
 }
 
-void dir::for_each_child(std::function<void(entry_id)> const& f) {
+void dir::for_each_child(std::function<void(entry_id)> const& f) const {
   for (auto const e : entries_) {
     f(e);
   }
@@ -329,35 +329,6 @@ void dir::pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
   de.inode_num() = DWARFS_NOTHROW(inode_num(storage).value());
   entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
               timeres);
-}
-
-void dir::pack(entry_storage& storage, thrift::metadata::metadata& mv2,
-               global_entry_data const& data,
-               time_resolution_converter const& timeres) const {
-  thrift::metadata::directory d;
-  if (has_parent()) {
-    auto* pd = parent()->as_dir();
-    DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
-    auto pe = pd->entry_index();
-    DWARFS_CHECK(pe, "parent entry index not set");
-    d.parent_entry() = *pe;
-  } else {
-    d.parent_entry() = 0;
-  }
-  d.first_entry() = mv2.dir_entries()->size();
-  auto se = entry_index();
-  DWARFS_CHECK(se, "self entry index not set");
-  d.self_entry() = *se;
-  mv2.directories()->push_back(d);
-  for (auto const& eid : entries_) {
-    auto e = entry_handle(storage, eid);
-    e.set_entry_index(mv2.dir_entries()->size());
-    auto& de = mv2.dir_entries()->emplace_back();
-    de.name_index() = data.get_name_index(e.name());
-    de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
-    e.pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
-           timeres);
-  }
 }
 
 void dir::remove_empty_dirs(entry_storage& storage, progress& prog) {
