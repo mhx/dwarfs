@@ -196,9 +196,6 @@ class dir : public entry {
   type_t type() const override;
   void add(entry_handle e);
   void sort(entry_storage& storage);
-  void pack(entry_storage& storage, thrift::metadata::metadata& mv2,
-            global_entry_data const& data,
-            time_resolution_converter const& timeres) const;
   void pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const;
@@ -215,7 +212,7 @@ class dir : public entry {
 
   entry_id find(entry_storage& storage, std::filesystem::path const& path);
 
-  void for_each_child(std::function<void(entry_id)> const& f);
+  void for_each_child(std::function<void(entry_id)> const& f) const;
 
  private:
   static constexpr size_t kLookupTableSizeThreshold = 16;
