@@ -107,22 +107,6 @@ class entry {
 
   void set_empty();
 
-  bool is_file() const noexcept { return type() == entry_type::E_FILE; }
-  bool is_dir() const noexcept { return type() == entry_type::E_DIR; }
-  bool is_link() const noexcept { return type() == entry_type::E_LINK; }
-  bool is_device() const noexcept { return type() == entry_type::E_DEVICE; }
-  bool is_other() const noexcept { return type() == entry_type::E_OTHER; }
-
-  file* as_file() noexcept;
-  dir* as_dir() noexcept;
-  link* as_link() noexcept;
-  device* as_device() noexcept;
-
-  file const* as_file() const noexcept;
-  dir const* as_dir() const noexcept;
-  link const* as_link() const noexcept;
-  device const* as_device() const noexcept;
-
  private:
 #ifdef _WIN32
   std::filesystem::path path_;

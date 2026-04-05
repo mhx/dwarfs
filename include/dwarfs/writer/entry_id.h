@@ -66,6 +66,14 @@ class entry_id {
     return id_ & kIndexMask;
   }
 
+  [[nodiscard]] bool is_file() const { return type() == entry_type::E_FILE; }
+  [[nodiscard]] bool is_dir() const { return type() == entry_type::E_DIR; }
+  [[nodiscard]] bool is_link() const { return type() == entry_type::E_LINK; }
+  [[nodiscard]] bool is_device() const {
+    return type() == entry_type::E_DEVICE;
+  }
+  [[nodiscard]] bool is_other() const { return type() == entry_type::E_OTHER; }
+
   friend bool
   operator==(entry_id const& lhs, entry_id const& rhs) noexcept = default;
   friend std::strong_ordering
