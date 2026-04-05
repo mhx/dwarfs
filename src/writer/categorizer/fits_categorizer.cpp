@@ -32,6 +32,7 @@
 #include <string_view>
 #include <vector>
 
+#include <boost/container_hash/hash.hpp>
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
@@ -47,6 +48,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
+#include <dwarfs/internal/flat_dense_value_index.h>
 #include <dwarfs/internal/memory.h>
 #include <dwarfs/internal/synchronized.h>
 
@@ -333,23 +335,32 @@ std::ostream& operator<<(std::ostream& os, fits_metadata const& m) {
   return os;
 }
 
+} // namespace
+} // namespace dwarfs::writer
+
+template <>
+struct std::hash<dwarfs::writer::fits_metadata> {
+  size_t operator()(dwarfs::writer::fits_metadata const& m) const noexcept {
+    size_t h = 0;
+    boost::hash_combine(h, m.endianness);
+    boost::hash_combine(h, m.bytes_per_sample);
+    boost::hash_combine(h, m.unused_lsb_count);
+    boost::hash_combine(h, m.component_count);
+    return h;
+  }
+};
+
+namespace dwarfs::writer {
+namespace {
+
 class fits_metadata_store {
  public:
   fits_metadata_store() = default;
 
-  size_t add(fits_metadata const& m) {
-    auto it = reverse_index_.find(m);
-    if (it == reverse_index_.end()) {
-      auto r = reverse_index_.emplace(m, forward_index_.size());
-      assert(r.second);
-      forward_index_.emplace_back(m);
-      it = r.first;
-    }
-    return it->second;
-  }
+  size_t add(fits_metadata const& m) { return index_.add(m); }
 
   std::string lookup(size_t ix) const {
-    auto const& m = DWARFS_NOTHROW(forward_index_.at(ix));
+    auto const& m = DWARFS_NOTHROW(index_.at(ix));
     nlohmann::json obj{
         {"endianness", fmt::format("{}", m.endianness)},
         {"bytes_per_sample", m.bytes_per_sample},
@@ -360,14 +371,14 @@ class fits_metadata_store {
   }
 
   bool less(size_t a, size_t b) const {
-    auto const& ma = DWARFS_NOTHROW(forward_index_.at(a));
-    auto const& mb = DWARFS_NOTHROW(forward_index_.at(b));
+    auto const& ma = DWARFS_NOTHROW(index_.at(a));
+    auto const& mb = DWARFS_NOTHROW(index_.at(b));
     return ma < mb;
   }
 
  private:
-  std::vector<fits_metadata> forward_index_;
-  std::map<fits_metadata, size_t> reverse_index_;
+  std::vector<fits_metadata> store_;
+  dwarfs::internal::flat_dense_value_index<fits_metadata> index_{store_};
 };
 
 class fits_categorizer_base : public random_access_categorizer {
