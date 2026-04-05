@@ -24,11 +24,11 @@
 #pragma once
 
 #include <filesystem>
-#include <variant>
+#include <optional>
 
+#include <dwarfs/file_stat.h>
 #include <dwarfs/writer/entry_handle.h>
-
-#include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/entry_interface.h>
 
 namespace dwarfs {
 
@@ -36,26 +36,28 @@ class os_access;
 
 namespace writer::internal {
 
-class provisional_entry {
+class provisional_entry : public entry_interface {
  public:
-  provisional_entry(os_access const& os, std::filesystem::path const& path);
   provisional_entry(os_access const& os, std::filesystem::path const& path,
-                    entry_handle parent);
-
-  bool valid() const { return !std::holds_alternative<std::monostate>(entry_); }
-  explicit operator bool() const { return valid(); }
+                    std::optional<entry_handle> parent = std::nullopt);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
   provisional_entry(provisional_entry&&) = delete;
   provisional_entry& operator=(provisional_entry&&) = delete;
 
-  const_entry_handle handle() const;
+  entry_type type() const;
+  std::string name() const;
+
+  bool is_directory() const override;
+  std::string unix_dpath() const override;
+
   entry_handle commit(entry_storage& tree);
 
  private:
-  std::variant<std::monostate, file, dir, link, device> entry_;
-  bool const is_root_dir_{false};
+  std::filesystem::path path_;
+  file_stat stat_;
+  std::optional<entry_handle> parent_;
 };
 
 } // namespace writer::internal

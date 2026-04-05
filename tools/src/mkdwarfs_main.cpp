@@ -87,6 +87,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/console_writer.h>
+#include <dwarfs/writer/entry_interface.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -1027,7 +1028,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         it != debug_filter_modes.end()) {
       options.debug_filter_function =
           [&iol, mode = it->second](bool exclude,
-                                    writer::const_entry_handle ei) {
+                                    writer::entry_interface const& ei) {
             debug_filter_output(iol.out, exclude, ei, mode);
           };
       no_progress = true;

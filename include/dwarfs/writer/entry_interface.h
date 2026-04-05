@@ -23,20 +23,16 @@
 
 #pragma once
 
-#include <dwarfs/writer/entry_interface.h>
+#include <string>
 
 namespace dwarfs::writer {
 
-enum class filter_action {
-  keep,
-  remove,
-};
-
-class entry_filter {
+class entry_interface {
  public:
-  virtual ~entry_filter() = default;
+  virtual ~entry_interface() = default;
 
-  virtual filter_action filter(entry_interface const& entry) const = 0;
+  virtual bool is_directory() const = 0;
+  virtual std::string unix_dpath() const = 0;
 };
 
 } // namespace dwarfs::writer
