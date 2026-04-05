@@ -120,7 +120,6 @@ TEST_F(entry_test, path) {
   auto e4 = create_entry(tree, sep / "somedir" / "ipsum.py", e3);
 
   EXPECT_FALSE(e1.has_parent());
-  EXPECT_TRUE(e1.is_directory());
   EXPECT_EQ(e1.type(), entry_type::E_DIR);
   EXPECT_TRUE(e1.is_dir());
 
@@ -130,7 +129,7 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("/", e1.unix_dpath());
 
   EXPECT_TRUE(e2.has_parent());
-  EXPECT_FALSE(e2.is_directory());
+  EXPECT_FALSE(e2.is_dir());
   EXPECT_EQ(e2.type(), entry_type::E_LINK);
   EXPECT_TRUE(e2.is_link());
 
@@ -140,7 +139,6 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("/somelink", e2.unix_dpath());
 
   EXPECT_TRUE(e3.has_parent());
-  EXPECT_TRUE(e3.is_directory());
   EXPECT_EQ(e3.type(), entry_type::E_DIR);
   EXPECT_TRUE(e3.is_dir());
 
@@ -150,7 +148,7 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("/somedir/", e3.unix_dpath());
 
   EXPECT_TRUE(e4.has_parent());
-  EXPECT_FALSE(e4.is_directory());
+  EXPECT_FALSE(e4.is_dir());
   EXPECT_EQ(e4.type(), entry_type::E_FILE);
   EXPECT_TRUE(e4.is_file());
 
@@ -166,49 +164,47 @@ TEST_F(entry_test, factory_creates_expected_entry_kinds) {
   auto root = create_entry(tree, sep);
   ASSERT_TRUE(root);
   EXPECT_EQ(entry_type::E_DIR, root.type());
-  EXPECT_TRUE(root.is_directory());
   EXPECT_TRUE(root.is_dir());
 
   auto test_pl = create_entry(tree, sep / "test.pl", root);
   ASSERT_TRUE(test_pl);
   EXPECT_EQ(entry_type::E_FILE, test_pl.type());
-  EXPECT_FALSE(test_pl.is_directory());
+  EXPECT_FALSE(test_pl.is_dir());
   EXPECT_TRUE(test_pl.is_file());
 
   auto somelink = create_entry(tree, sep / "somelink", root);
   ASSERT_TRUE(somelink);
   EXPECT_EQ(entry_type::E_LINK, somelink.type());
-  EXPECT_FALSE(somelink.is_directory());
+  EXPECT_FALSE(somelink.is_dir());
   EXPECT_TRUE(somelink.is_link());
 
   auto somedir = create_entry(tree, sep / "somedir", root);
   ASSERT_TRUE(somedir);
   EXPECT_EQ(entry_type::E_DIR, somedir.type());
-  EXPECT_TRUE(somedir.is_directory());
   EXPECT_TRUE(somedir.is_dir());
 
   auto ipsum_py = create_entry(tree, sep / "somedir" / "ipsum.py", somedir);
   ASSERT_TRUE(ipsum_py);
   EXPECT_EQ(entry_type::E_FILE, ipsum_py.type());
-  EXPECT_FALSE(ipsum_py.is_directory());
+  EXPECT_FALSE(ipsum_py.is_dir());
   EXPECT_TRUE(ipsum_py.is_file());
 
   auto null_dev = create_entry(tree, sep / "somedir" / "null", somedir);
   ASSERT_TRUE(null_dev);
   EXPECT_EQ(entry_type::E_DEVICE, null_dev.type());
-  EXPECT_FALSE(null_dev.is_directory());
+  EXPECT_FALSE(null_dev.is_dir());
   EXPECT_TRUE(null_dev.is_device());
 
   auto zero_dev = create_entry(tree, sep / "somedir" / "zero", somedir);
   ASSERT_TRUE(zero_dev);
   EXPECT_EQ(entry_type::E_DEVICE, zero_dev.type());
-  EXPECT_FALSE(zero_dev.is_directory());
+  EXPECT_FALSE(zero_dev.is_dir());
   EXPECT_TRUE(zero_dev.is_device());
 
   auto pipe = create_entry(tree, sep / "somedir" / "pipe", somedir);
   ASSERT_TRUE(pipe);
   EXPECT_EQ(entry_type::E_OTHER, pipe.type());
-  EXPECT_FALSE(pipe.is_directory());
+  EXPECT_FALSE(pipe.is_dir());
   EXPECT_TRUE(pipe.is_other());
 }
 
