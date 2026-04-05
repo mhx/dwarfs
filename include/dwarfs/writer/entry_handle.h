@@ -242,11 +242,11 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
     requires(is_const);
   // NOLINTEND(readability-redundant-parentheses)
 
-  bool is_file() const noexcept;
-  bool is_dir() const noexcept;
-  bool is_link() const noexcept;
-  bool is_device() const noexcept;
-  bool is_other() const noexcept;
+  bool is_file() const noexcept { return this->id().is_file(); }
+  bool is_dir() const noexcept { return this->id().is_dir(); }
+  bool is_link() const noexcept { return this->id().is_link(); }
+  bool is_device() const noexcept { return this->id().is_device(); }
+  bool is_other() const noexcept { return this->id().is_other(); }
 
   basic_file_handle<Mut> as_file() const noexcept;
   basic_dir_handle<Mut> as_dir() const noexcept;
