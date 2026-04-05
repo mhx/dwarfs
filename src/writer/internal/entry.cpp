@@ -51,75 +51,28 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr std::string_view const kHashContext{"[hashing] "};
-constexpr char const kLocalPathSeparator{
-    static_cast<char>(fs::path::preferred_separator)};
-
-bool is_root_path(std::string_view path) {
-#ifdef _WIN32
-  return path == "/" || path == "\\";
-#else
-  return path == "/";
-#endif
-}
 
 } // namespace
 
-entry::entry(fs::path const& path, entry* parent, file_stat const& st,
-             entry_id parent_id)
+entry::entry(fs::path const& path, file_stat const& st, entry_id parent_id)
 #ifdef _WIN32
-    : path_{parent ? path.filename() : path}
+    : path_{parent_id ? path.filename() : path}
     , name_{path_to_utf8_string_sanitized(path_)}
 #else
-    : name_{path_to_utf8_string_sanitized(parent ? path.filename() : path)}
+    : name_{path_to_utf8_string_sanitized(parent_id ? path.filename() : path)}
 #endif
-    , parent_{parent}
     , parent_id_{parent_id}
     , stat_{st} {
 }
 
-bool entry::has_parent() const { return parent_ != nullptr; }
+bool entry::has_parent() const { return parent_id_.valid(); }
 
-entry* entry::parent() const { return parent_; }
-
-fs::path entry::fs_path() const {
+fs::path entry::name_as_path() const {
 #ifdef _WIN32
-  fs::path self = path_;
+  return path_;
 #else
-  fs::path self = name_;
+  return name_;
 #endif
-
-  if (auto* p = parent_) {
-    self = p->fs_path() / self;
-  }
-
-  return self;
-}
-
-std::string entry::path_as_string() const {
-  return path_to_utf8_string_sanitized(fs_path());
-}
-
-std::string entry::unix_dpath() const {
-  std::string p;
-
-  if (is_root_path(name_)) {
-    p = "/";
-  } else {
-    p = name_;
-
-    if (type() == entry_type::E_DIR && !p.empty() &&
-        !p.ends_with(kLocalPathSeparator)) {
-      p += '/';
-    }
-
-    if (auto* par = parent_) {
-      p = par->unix_dpath() + p;
-    } else if constexpr (kLocalPathSeparator != '/') {
-      std::ranges::replace(p, kLocalPathSeparator, '/');
-    }
-  }
-
-  return p;
 }
 
 std::string_view entry::name() const { return name_; }
@@ -215,12 +168,13 @@ void file::set_inode(inode_ptr ino) {
 
 inode_ptr file::get_inode() const { return inode_; }
 
-void file::scan(os_access const& /*os*/, progress& /*prog*/) {
+void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
+                os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
 
-void file::scan(entry_storage& storage, file_view const& mm, progress& prog,
-                std::optional<std::string> const& hash_alg) {
+void file::scan(entry_storage& storage, entry_id self_id, file_view const& mm,
+                progress& prog, std::optional<std::string> const& hash_alg) {
   auto const s = size();
 
   if (hash_alg) {
@@ -233,7 +187,8 @@ void file::scan(entry_storage& storage, file_view const& mm, progress& prog,
 
       if (std::cmp_greater_equal(s, 4 * chunk_size)) {
         pctx = prog.create_context<scanner_progress>(
-            termcolor::MAGENTA, kHashContext, path_as_string(), s);
+            termcolor::MAGENTA, kHashContext,
+            const_file_handle{storage, self_id}.path_as_string(), s);
       }
 
       assert(mm);
@@ -319,7 +274,7 @@ void dir::sort(entry_storage& storage) {
   });
 }
 
-void dir::scan(os_access const&, progress&) {}
+void dir::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
 void dir::pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
                      global_entry_data const& data,
@@ -393,8 +348,10 @@ entry::type_t link::type() const { return entry_type::E_LINK; }
 
 std::string const& link::linkname() const { return link_; }
 
-void link::scan(os_access const& os, progress& prog) {
-  link_ = path_to_utf8_string_sanitized(os.read_symlink(fs_path()));
+void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
+                progress& prog) {
+  link_ = path_to_utf8_string_sanitized(
+      os.read_symlink(link_handle{storage, self_id}.fs_path()));
   prog.original_size += size();
   prog.allocated_original_size += allocated_size();
   prog.symlink_size += size();
@@ -410,7 +367,7 @@ entry::type_t device::type() const {
   }
 }
 
-void device::scan(os_access const&, progress&) {}
+void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
 uint64_t device::device_id() const { return status().rdev(); }
 
