@@ -23,6 +23,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/util.h>
 #include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/entry_storage.h>
 
@@ -32,6 +33,23 @@
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer {
+
+namespace {
+
+namespace fs = std::filesystem;
+
+constexpr char kLocalPathSeparator{
+    static_cast<char>(fs::path::preferred_separator)};
+
+bool is_root_path(std::string_view path) {
+#ifdef _WIN32
+  return path == "/" || path == "\\";
+#else
+  return path == "/";
+#endif
+}
+
+} // namespace
 
 namespace detail {
 
@@ -51,18 +69,41 @@ basic_entry_handle<Mut> entry_handle_base<Mut>::parent() const {
 }
 
 template <mutability Mut>
-std::filesystem::path entry_handle_base<Mut>::fs_path() const {
-  return base()->fs_path();
+fs::path entry_handle_base<Mut>::fs_path() const {
+  auto p = base()->name_as_path();
+
+  if (this->has_parent()) {
+    p = parent().fs_path() / p;
+  }
+
+  return p;
 }
 
 template <mutability Mut>
 std::string entry_handle_base<Mut>::path_as_string() const {
-  return base()->path_as_string();
+  return path_to_utf8_string_sanitized(fs_path());
 }
 
 template <mutability Mut>
 std::string entry_handle_base<Mut>::unix_dpath() const {
-  return base()->unix_dpath();
+  std::string p{base()->name()};
+
+  if (is_root_path(p)) {
+    p = "/";
+  } else {
+    if (this->type() == entry_type::E_DIR && !p.empty() &&
+        !p.ends_with(kLocalPathSeparator)) {
+      p += '/';
+    }
+
+    if (this->has_parent()) {
+      p = this->parent().unix_dpath() + p;
+    } else if constexpr (kLocalPathSeparator != '/') {
+      std::ranges::replace(p, kLocalPathSeparator, '/');
+    }
+  }
+
+  return p;
 }
 
 template <mutability Mut>
@@ -162,7 +203,7 @@ template <mutability Mut>
 void entry_handle_base<Mut>::scan(os_access const& os, internal::progress& prog)
   requires is_mutable
 {
-  base()->scan(os, prog);
+  base()->scan(*this->storage_, this->self_id_, os, prog);
 }
 
 template <mutability Mut>
@@ -240,7 +281,7 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
                                   std::optional<std::string> const& hash_alg)
   requires is_mutable
 {
-  self()->scan(this->storage(), mm, prog, hash_alg);
+  self()->scan(this->storage(), this->id(), mm, prog, hash_alg);
 }
 
 template <detail::mutability Mut>
@@ -331,7 +372,7 @@ void basic_dir_handle<Mut>::remove_empty_dirs(internal::progress& prog)
 }
 
 template <detail::mutability Mut>
-entry_handle basic_dir_handle<Mut>::find(std::filesystem::path const& path)
+entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
   requires is_mutable
 {
   return {this->storage(), self()->find(this->storage(), path)};
