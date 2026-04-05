@@ -29,6 +29,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/writer/entry_handle.h>
+#include <dwarfs/writer/entry_id.h>
 
 namespace dwarfs::writer {
 
@@ -37,6 +38,7 @@ namespace internal {
 struct file_data;
 class provisional_entry;
 
+class entry;
 class file;
 class dir;
 class link;
@@ -57,6 +59,8 @@ class entry_storage {
 
   entry_handle root() noexcept;
   bool empty() const noexcept;
+
+  [[nodiscard]] internal::entry* get_entry(entry_id id);
 
   size_t create_file_data();
   [[nodiscard]] internal::file_data& get_file_data(size_t id);
