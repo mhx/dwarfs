@@ -27,6 +27,9 @@
 #include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/global_entry_data.h>
+
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer {
 
@@ -174,6 +177,11 @@ void entry_handle_base<Mut>::set_entry_index(uint32_t index)
   requires is_mutable
 {
   base()->set_entry_index(index);
+}
+
+template <mutability Mut>
+std::optional<uint32_t> const& entry_handle_base<Mut>::entry_index() const {
+  return base()->entry_index();
 }
 
 template <mutability Mut>
@@ -338,7 +346,30 @@ template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  self()->pack(this->storage(), mv2, data, timeres);
+  thrift::metadata::directory d;
+  if (this->has_parent()) {
+    auto pd = this->parent().as_dir();
+    DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
+    auto pe = pd.entry_index();
+    DWARFS_CHECK(pe, "parent entry index not set");
+    d.parent_entry() = *pe;
+  } else {
+    d.parent_entry() = 0;
+  }
+  d.first_entry() = mv2.dir_entries()->size();
+  auto se = this->entry_index();
+  DWARFS_CHECK(se, "self entry index not set");
+  d.self_entry() = *se;
+  mv2.directories()->push_back(d);
+  self()->for_each_child([&](entry_id cid) {
+    auto e = entry_handle(this->storage(), cid);
+    e.set_entry_index(mv2.dir_entries()->size());
+    auto& de = mv2.dir_entries()->emplace_back();
+    de.name_index() = data.get_name_index(e.name());
+    de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
+    e.pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+           timeres);
+  });
 }
 
 template <detail::mutability Mut>
