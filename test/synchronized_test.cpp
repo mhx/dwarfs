@@ -188,6 +188,15 @@ TEST(synchronized_test, store_and_load) {
   EXPECT_EQ(s.load(), 42);
 }
 
+TEST(synchronized_test, release_moves_value_out) {
+  synchronized<std::unique_ptr<int>> s(std::make_unique<int>(42));
+
+  auto v = s.release();
+
+  EXPECT_EQ(*v, 42);
+  EXPECT_EQ(*s.lock(), nullptr);
+}
+
 using shared_sync_t = synchronized<int, std::shared_mutex>;
 
 static_assert(shared_sync_t::is_shared);
