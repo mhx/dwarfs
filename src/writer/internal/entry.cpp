@@ -124,25 +124,6 @@ std::string entry::unix_dpath() const {
 
 std::string_view entry::name() const { return name_; }
 
-bool entry::less_revpath(entry const& rhs) const {
-  if (name() < rhs.name()) {
-    return true;
-  }
-
-  if (name() > rhs.name()) {
-    return false;
-  }
-
-  auto* p = parent();
-  auto* rhs_p = rhs.parent();
-
-  if (p && rhs_p) {
-    return p->less_revpath(*rhs_p);
-  }
-
-  return rhs_p != nullptr;
-}
-
 bool entry::is_directory() const { return is_dir(); }
 
 void entry::update(global_entry_data& data) const {
