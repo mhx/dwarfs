@@ -90,7 +90,6 @@ class entry {
   file_size_t size() const;
   file_size_t allocated_size() const;
   virtual type_t type() const = 0;
-  bool is_directory() const;
   void
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
        time_resolution_converter const& timeres) const;

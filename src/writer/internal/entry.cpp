@@ -77,8 +77,6 @@ fs::path entry::name_as_path() const {
 
 std::string_view entry::name() const { return name_; }
 
-bool entry::is_directory() const { return is_dir(); }
-
 void entry::update(global_entry_data& data) const {
   stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
                      file_stat::mode_valid | file_stat::atime_valid |
