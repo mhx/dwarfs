@@ -83,19 +83,14 @@ class entry_storage {
    public:
     virtual ~impl() = default;
 
-    // TODO: clean up, we don't want to pass the parent pointer here any longer
-    virtual entry_id
-    make_file(std::filesystem::path const& path, internal::entry* parent,
-              file_stat const& st, entry_id id) = 0;
-    virtual entry_id
-    make_dir(std::filesystem::path const& path, internal::entry* parent,
-             file_stat const& st, entry_id id) = 0;
-    virtual entry_id
-    make_link(std::filesystem::path const& path, internal::entry* parent,
-              file_stat const& st, entry_id id) = 0;
-    virtual entry_id
-    make_device(std::filesystem::path const& path, internal::entry* parent,
-                file_stat const& st, entry_id id) = 0;
+    virtual entry_id make_file(std::filesystem::path const& path,
+                               file_stat const& st, entry_id id) = 0;
+    virtual entry_id make_dir(std::filesystem::path const& path,
+                              file_stat const& st, entry_id id) = 0;
+    virtual entry_id make_link(std::filesystem::path const& path,
+                               file_stat const& st, entry_id id) = 0;
+    virtual entry_id make_device(std::filesystem::path const& path,
+                                 file_stat const& st, entry_id id) = 0;
 
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
