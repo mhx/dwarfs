@@ -37,34 +37,52 @@ namespace dwarfs::writer {
 
 class entry_storage::impl {
  public:
-  internal::file* make_file(std::filesystem::path const& path,
-                            internal::entry* parent, file_stat const& st) {
-    auto& f = files_.emplace_back(path, parent, st);
-    return &f;
+  entry_id make_file(std::filesystem::path const& path, internal::entry* parent,
+                     file_stat const& st, entry_id const id) {
+    auto const ix = files_.with_lock([&](auto& files) {
+      auto ix = files.size();
+      files.emplace_back(path, parent, st, id);
+      return ix;
+    });
+    return {entry_type::E_FILE, ix};
   }
 
-  internal::dir* make_dir(std::filesystem::path const& path,
-                          internal::entry* parent, file_stat const& st) {
-    auto& d = dirs_.emplace_back(path, parent, st);
-    return &d;
+  entry_id make_dir(std::filesystem::path const& path, internal::entry* parent,
+                    file_stat const& st, entry_id const id) {
+    auto const ix = dirs_.with_lock([&](auto& dirs) {
+      auto ix = dirs.size();
+      dirs.emplace_back(path, parent, st, id);
+      return ix;
+    });
+    return {entry_type::E_DIR, ix};
   }
 
-  internal::link* make_link(std::filesystem::path const& path,
-                            internal::entry* parent, file_stat const& st) {
-    auto& l = links_.emplace_back(path, parent, st);
-    return &l;
+  entry_id make_link(std::filesystem::path const& path, internal::entry* parent,
+                     file_stat const& st, entry_id const id) {
+    auto const ix = links_.with_lock([&](auto& links) {
+      auto ix = links.size();
+      links.emplace_back(path, parent, st, id);
+      return ix;
+    });
+    return {entry_type::E_LINK, ix};
   }
 
-  internal::device* make_device(std::filesystem::path const& path,
-                                internal::entry* parent, file_stat const& st) {
-    auto& d = devices_.emplace_back(path, parent, st);
-    return &d;
+  entry_id
+  make_device(std::filesystem::path const& path, internal::entry* parent,
+              file_stat const& st, entry_id const id) {
+    return devices_.with_lock([&](auto& devices) -> entry_id {
+      auto ix = devices.size();
+      auto const& dev = devices.emplace_back(path, parent, st, id);
+      return {dev.is_device() ? entry_type::E_DEVICE : entry_type::E_OTHER, ix};
+    });
   }
 
-  bool empty() const noexcept { return dirs_.empty(); }
+  bool empty() const noexcept { return dirs_.lock()->empty(); }
 
   internal::entry* root() noexcept {
-    return dirs_.empty() ? nullptr : &dirs_.front();
+    return dirs_.with_lock([](auto& dirs) -> internal::entry* {
+      return dirs.empty() ? nullptr : &dirs.front();
+    });
   }
 
   void dump(std::ostream& os) const;
@@ -81,22 +99,47 @@ class entry_storage::impl {
     return file_data_.lock()->at(id);
   }
 
+  internal::entry* get_entry(entry_id const id) {
+    assert(id.valid());
+    switch (id.type()) {
+    case entry_type::E_FILE:
+      return &files_.lock()->at(id.index());
+    case entry_type::E_DIR:
+      return &dirs_.lock()->at(id.index());
+    case entry_type::E_LINK:
+      return &links_.lock()->at(id.index());
+    case entry_type::E_DEVICE:
+    case entry_type::E_OTHER:
+      return &devices_.lock()->at(id.index());
+    default:
+      throw std::runtime_error("invalid entry type");
+    }
+  }
+
  private:
-  dwarfs::internal::chunked_append_only_vector<internal::file> files_;
-  dwarfs::internal::chunked_append_only_vector<internal::dir> dirs_;
-  dwarfs::internal::chunked_append_only_vector<internal::link> links_;
-  dwarfs::internal::chunked_append_only_vector<internal::device> devices_;
+  dwarfs::internal::synchronized<
+      dwarfs::internal::chunked_append_only_vector<internal::file>>
+      files_;
+  dwarfs::internal::synchronized<
+      dwarfs::internal::chunked_append_only_vector<internal::dir>>
+      dirs_;
+  dwarfs::internal::synchronized<
+      dwarfs::internal::chunked_append_only_vector<internal::link>>
+      links_;
+  dwarfs::internal::synchronized<
+      dwarfs::internal::chunked_append_only_vector<internal::device>>
+      devices_;
   dwarfs::internal::synchronized<
       dwarfs::internal::chunked_append_only_vector<internal::file_data>>
       file_data_;
 };
 
 void entry_storage::impl::dump(std::ostream& os) const {
-  os << "num dirs: " << dirs_.size() << "\n";
-  os << "num files: " << files_.size() << "\n";
+  os << "num dirs: " << dirs_.lock()->size() << "\n";
+  os << "num files: " << files_.lock()->size() << "\n";
   os << "num file data: " << file_data_.lock()->size() << "\n";
-  os << "num links: " << links_.size() << "\n";
-  os << "num devices: " << devices_.size() << "\n";
+  os << "num links: " << links_.lock()->size() << "\n";
+  os << "num devices: " << devices_.lock()->size() << "\n";
 }
 
 entry_storage::entry_storage()
@@ -106,7 +149,9 @@ entry_storage::~entry_storage() = default;
 entry_storage::entry_storage(entry_storage&&) noexcept = default;
 entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 
-entry_handle entry_storage::root() noexcept { return {*this, impl_->root()}; }
+entry_handle entry_storage::root() noexcept {
+  return {*this, entry_id(entry_type::E_DIR, 0)};
+}
 
 bool entry_storage::empty() const noexcept { return impl_->empty(); }
 
@@ -121,40 +166,44 @@ std::string entry_storage::dump() const {
 dir_handle entry_storage::create_root_dir(std::filesystem::path const& path,
                                           file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, impl_->make_dir(path, nullptr, st)};
+  return {*this, impl_->make_dir(path, nullptr, st, entry_id())};
 }
 
 file_handle
 entry_storage::create_file(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_file(path, parent.self_, st)};
+  return {*this, impl_->make_file(path, parent.base(), st, parent.id())};
 }
 
 dir_handle entry_storage::create_dir(std::filesystem::path const& path,
                                      entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_dir(path, parent.self_, st)};
+  return {*this, impl_->make_dir(path, parent.base(), st, parent.id())};
 }
 
 link_handle
 entry_storage::create_link(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_link(path, parent.self_, st)};
+  return {*this, impl_->make_link(path, parent.base(), st, parent.id())};
 }
 
 device_handle
 entry_storage::create_device(std::filesystem::path const& path,
                              entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_device(path, parent.self_, st)};
+  return {*this, impl_->make_device(path, parent.base(), st, parent.id())};
 }
 
 size_t entry_storage::create_file_data() { return impl_->create_file_data(); }
 
-[[nodiscard]] internal::file_data& entry_storage::get_file_data(size_t id) {
+internal::file_data& entry_storage::get_file_data(size_t id) {
   return impl_->get_file_data(id);
+}
+
+internal::entry* entry_storage::get_entry(entry_id const id) {
+  return impl_->get_entry(id);
 }
 
 } // namespace dwarfs::writer

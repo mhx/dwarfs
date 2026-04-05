@@ -42,6 +42,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
+#include <dwarfs/writer/entry_id.h>
 #include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
 
@@ -79,10 +80,12 @@ class entry {
 
   virtual ~entry() = default;
 
-  entry(std::filesystem::path const& path, entry* parent, file_stat const& st);
+  entry(std::filesystem::path const& path, entry* parent, file_stat const& st,
+        entry_id parent_id);
 
   bool has_parent() const;
   entry* parent() const;
+  entry_id parent_id() const { return parent_id_; }
   std::filesystem::path fs_path() const;
   std::string path_as_string() const;
   std::string unix_dpath() const;
@@ -130,6 +133,7 @@ class entry {
 #endif
   std::string name_;
   entry* parent_{nullptr};
+  entry_id parent_id_;
   file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
@@ -191,8 +195,8 @@ class dir : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void add(entry* e);
-  void sort();
+  void add(entry_handle e);
+  void sort(entry_storage& storage);
   void pack(entry_storage& storage, thrift::metadata::metadata& mv2,
             global_entry_data const& data,
             time_resolution_converter const& timeres) const;
@@ -201,7 +205,7 @@ class dir : public entry {
                   time_resolution_converter const& timeres) const;
   void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
-  void remove_empty_dirs(progress& prog);
+  void remove_empty_dirs(entry_storage& storage, progress& prog);
 
   void set_inode_num(entry_storage&, uint32_t ino) override {
     inode_num_ = ino;
@@ -210,19 +214,18 @@ class dir : public entry {
     return inode_num_;
   }
 
-  entry* find(std::filesystem::path const& path);
+  entry_id find(entry_storage& storage, std::filesystem::path const& path);
 
-  void for_each_child(std::function<void(entry*)> const& f);
+  void for_each_child(std::function<void(entry_id)> const& f);
 
  private:
   static constexpr size_t kLookupTableSizeThreshold = 16;
 
-  using entry_ptr = entry*;
-  using lookup_table = phmap::flat_hash_map<std::string_view, entry_ptr>;
+  using lookup_table = phmap::flat_hash_map<std::string_view, entry_id>;
 
-  void populate_lookup_table();
+  void populate_lookup_table(entry_storage& storage);
 
-  std::vector<entry_ptr> entries_;
+  std::vector<entry_id> entries_;
   std::optional<uint32_t> inode_num_;
   std::unique_ptr<lookup_table> lookup_;
 };
