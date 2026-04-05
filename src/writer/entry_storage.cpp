@@ -73,12 +73,12 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  entry_id make_file(std::filesystem::path const& path, internal::entry* parent,
-                     file_stat const& st, entry_id const id) override {
+  entry_id make_file(std::filesystem::path const& path, file_stat const& st,
+                     entry_id const id) override {
     if constexpr (is_mutable) {
       auto const ix = files_.with_lock([&](auto& files) {
         auto ix = files.size();
-        files.emplace_back(path, parent, st, id);
+        files.emplace_back(path, st, id);
         return ix;
       });
       return {entry_type::E_FILE, ix};
@@ -87,12 +87,12 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  entry_id make_dir(std::filesystem::path const& path, internal::entry* parent,
-                    file_stat const& st, entry_id const id) override {
+  entry_id make_dir(std::filesystem::path const& path, file_stat const& st,
+                    entry_id const id) override {
     if constexpr (is_mutable) {
       auto const ix = dirs_.with_lock([&](auto& dirs) {
         auto ix = dirs.size();
-        dirs.emplace_back(path, parent, st, id);
+        dirs.emplace_back(path, st, id);
         return ix;
       });
       return {entry_type::E_DIR, ix};
@@ -101,12 +101,12 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  entry_id make_link(std::filesystem::path const& path, internal::entry* parent,
-                     file_stat const& st, entry_id const id) override {
+  entry_id make_link(std::filesystem::path const& path, file_stat const& st,
+                     entry_id const id) override {
     if constexpr (is_mutable) {
       auto const ix = links_.with_lock([&](auto& links) {
         auto ix = links.size();
-        links.emplace_back(path, parent, st, id);
+        links.emplace_back(path, st, id);
         return ix;
       });
       return {entry_type::E_LINK, ix};
@@ -115,13 +115,12 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  entry_id
-  make_device(std::filesystem::path const& path, internal::entry* parent,
-              file_stat const& st, entry_id const id) override {
+  entry_id make_device(std::filesystem::path const& path, file_stat const& st,
+                       entry_id const id) override {
     if constexpr (is_mutable) {
       return devices_.with_lock([&](auto& devices) -> entry_id {
         auto ix = devices.size();
-        auto const& dev = devices.emplace_back(path, parent, st, id);
+        auto const& dev = devices.emplace_back(path, st, id);
         return {dev.is_device() ? entry_type::E_DEVICE : entry_type::E_OTHER,
                 ix};
       });
@@ -202,34 +201,34 @@ void entry_storage::freeze() noexcept { impl_ = impl_->freeze(); }
 dir_handle entry_storage::create_root_dir(std::filesystem::path const& path,
                                           file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, impl_->make_dir(path, nullptr, st, entry_id())};
+  return {*this, impl_->make_dir(path, st, entry_id())};
 }
 
 file_handle
 entry_storage::create_file(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_file(path, parent.base(), st, parent.id())};
+  return {*this, impl_->make_file(path, st, parent.id())};
 }
 
 dir_handle entry_storage::create_dir(std::filesystem::path const& path,
                                      entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_dir(path, parent.base(), st, parent.id())};
+  return {*this, impl_->make_dir(path, st, parent.id())};
 }
 
 link_handle
 entry_storage::create_link(std::filesystem::path const& path,
                            entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_link(path, parent.base(), st, parent.id())};
+  return {*this, impl_->make_link(path, st, parent.id())};
 }
 
 device_handle
 entry_storage::create_device(std::filesystem::path const& path,
                              entry_handle parent, file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_device(path, parent.base(), st, parent.id())};
+  return {*this, impl_->make_device(path, st, parent.id())};
 }
 
 } // namespace dwarfs::writer
