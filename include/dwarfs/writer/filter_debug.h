@@ -25,9 +25,9 @@
 
 #include <iosfwd>
 
-#include <dwarfs/writer/entry_handle.h>
-
 namespace dwarfs::writer {
+
+class entry_interface;
 
 enum class debug_filter_mode {
   OFF,
@@ -39,7 +39,7 @@ enum class debug_filter_mode {
   ALL
 };
 
-void debug_filter_output(std::ostream& os, bool exclude, const_entry_handle ei,
-                         debug_filter_mode mode);
+void debug_filter_output(std::ostream& os, bool exclude,
+                         entry_interface const& ei, debug_filter_mode mode);
 
 } // namespace dwarfs::writer
