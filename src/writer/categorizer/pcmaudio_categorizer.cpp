@@ -29,12 +29,12 @@
 #include <cassert>
 #include <concepts>
 #include <cstring>
-#include <map>
 #include <stack>
 #include <string_view>
 #include <unordered_set>
 #include <vector>
 
+#include <boost/container_hash/hash.hpp>
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
@@ -48,6 +48,7 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
+#include <dwarfs/internal/flat_dense_value_index.h>
 #include <dwarfs/internal/synchronized.h>
 
 #include "endian_formatter.h"
@@ -140,17 +141,6 @@ std::optional<padding> parse_padding_dyn(nlohmann::json const& p) {
   return parse_padding(p.get<std::string>());
 }
 
-} // namespace
-} // namespace dwarfs::writer
-
-template <>
-struct fmt::formatter<dwarfs::writer::signedness> : ostream_formatter {};
-template <>
-struct fmt::formatter<dwarfs::writer::padding> : ostream_formatter {};
-
-namespace dwarfs::writer {
-namespace {
-
 struct pcmaudio_metadata {
   std::endian sample_endianness{std::endian::native};
   signedness sample_signedness;
@@ -200,6 +190,31 @@ struct pcmaudio_metadata {
     return true;
   }
 };
+
+} // namespace
+} // namespace dwarfs::writer
+
+template <>
+struct fmt::formatter<dwarfs::writer::signedness> : ostream_formatter {};
+template <>
+struct fmt::formatter<dwarfs::writer::padding> : ostream_formatter {};
+
+template <>
+struct std::hash<dwarfs::writer::pcmaudio_metadata> {
+  size_t operator()(dwarfs::writer::pcmaudio_metadata const& m) const {
+    size_t seed = 0;
+    boost::hash_combine(seed, m.sample_endianness);
+    boost::hash_combine(seed, m.sample_signedness);
+    boost::hash_combine(seed, m.sample_padding);
+    boost::hash_combine(seed, m.bits_per_sample);
+    boost::hash_combine(seed, m.bytes_per_sample);
+    boost::hash_combine(seed, m.number_of_channels);
+    return seed;
+  }
+};
+
+namespace dwarfs::writer {
+namespace {
 
 struct WavPolicy {
   using SizeType = uint32_t;
@@ -445,19 +460,10 @@ class pcmaudio_metadata_store {
  public:
   pcmaudio_metadata_store() = default;
 
-  size_t add(pcmaudio_metadata const& m) {
-    auto it = reverse_index_.find(m);
-    if (it == reverse_index_.end()) {
-      auto r = reverse_index_.emplace(m, forward_index_.size());
-      assert(r.second);
-      forward_index_.emplace_back(m);
-      it = r.first;
-    }
-    return it->second;
-  }
+  size_t add(pcmaudio_metadata const& m) { return index_.add(m); }
 
   std::string lookup(size_t ix) const {
-    auto const& m = DWARFS_NOTHROW(forward_index_.at(ix));
+    auto const& m = DWARFS_NOTHROW(index_.at(ix));
     nlohmann::json obj{
         {"endianness", fmt::format("{}", m.sample_endianness)},
         {"signedness", fmt::format("{}", m.sample_signedness)},
@@ -470,14 +476,14 @@ class pcmaudio_metadata_store {
   }
 
   bool less(size_t a, size_t b) const {
-    auto const& ma = DWARFS_NOTHROW(forward_index_.at(a));
-    auto const& mb = DWARFS_NOTHROW(forward_index_.at(b));
+    auto const& ma = DWARFS_NOTHROW(index_.at(a));
+    auto const& mb = DWARFS_NOTHROW(index_.at(b));
     return ma < mb;
   }
 
  private:
-  std::vector<pcmaudio_metadata> forward_index_;
-  std::map<pcmaudio_metadata, size_t> reverse_index_;
+  std::vector<pcmaudio_metadata> store_;
+  dwarfs::internal::flat_dense_value_index<pcmaudio_metadata> index_{store_};
 };
 
 class pcmaudio_categorizer_base : public random_access_categorizer {
