@@ -147,7 +147,6 @@ class entry_handle_base {
   file_size_t size() const;
   file_size_t allocated_size() const;
   entry_type type() const;
-  bool is_directory() const;
   void update(internal::global_entry_data& data) const;
   unique_inode_id inode_id() const;
   uint64_t num_hard_links() const;
