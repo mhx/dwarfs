@@ -687,6 +687,7 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "waiting for background scanners...";
 
   wg_.wait();
+  tree.freeze();
 
   LOG_INFO << "scanning CPU time: "
            << time_with_unit(wg_.try_get_cpu_time().value_or(0ns));
