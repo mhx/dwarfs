@@ -90,7 +90,6 @@ class entry {
   std::string path_as_string() const;
   std::string unix_dpath() const;
   std::string_view name() const;
-  bool less_revpath(entry const& rhs) const;
   file_size_t size() const;
   file_size_t allocated_size() const;
   virtual type_t type() const = 0;
