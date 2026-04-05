@@ -64,7 +64,8 @@ bool is_root_path(std::string_view path) {
 
 } // namespace
 
-entry::entry(fs::path const& path, entry* parent, file_stat const& st)
+entry::entry(fs::path const& path, entry* parent, file_stat const& st,
+             entry_id parent_id)
 #ifdef _WIN32
     : path_{parent ? path.filename() : path}
     , name_{path_to_utf8_string_sanitized(path_)}
@@ -72,6 +73,7 @@ entry::entry(fs::path const& path, entry* parent, file_stat const& st)
     : name_{path_to_utf8_string_sanitized(parent ? path.filename() : path)}
 #endif
     , parent_{parent}
+    , parent_id_{parent_id}
     , stat_{st} {
 }
 
@@ -316,23 +318,24 @@ void file::hardlink(entry_storage& storage, file* other, progress& prog) {
 
 entry::type_t dir::type() const { return entry_type::E_DIR; }
 
-void dir::add(entry* e) {
+void dir::add(entry_handle e) {
   if (lookup_) {
-    auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
+    auto r [[maybe_unused]] = lookup_->emplace(e.name(), e.id());
     assert(r.second);
   }
-  entries_.emplace_back(e);
+  entries_.emplace_back(e.id());
 }
 
-void dir::for_each_child(std::function<void(entry*)> const& f) {
-  for (entry* e : entries_) {
+void dir::for_each_child(std::function<void(entry_id)> const& f) {
+  for (auto const e : entries_) {
     f(e);
   }
 }
 
-void dir::sort() {
-  std::ranges::sort(entries_,
-                    [](entry* a, entry* b) { return a->name() < b->name(); });
+void dir::sort(entry_storage& storage) {
+  std::ranges::sort(entries_, [&](entry_id a, entry_id b) {
+    return entry_handle(storage, a).name() < entry_handle(storage, b).name();
+  });
 }
 
 void dir::scan(os_access const&, progress&) {}
@@ -365,25 +368,28 @@ void dir::pack(entry_storage& storage, thrift::metadata::metadata& mv2,
   DWARFS_CHECK(se, "self entry index not set");
   d.self_entry() = *se;
   mv2.directories()->push_back(d);
-  for (entry_ptr const& e : entries_) {
-    e->set_entry_index(mv2.dir_entries()->size());
+  for (auto const& eid : entries_) {
+    auto e = entry_handle(storage, eid);
+    e.set_entry_index(mv2.dir_entries()->size());
     auto& de = mv2.dir_entries()->emplace_back();
-    de.name_index() = data.get_name_index(e->name());
-    de.inode_num() = DWARFS_NOTHROW(e->inode_num(storage).value());
-    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
-            timeres);
+    de.name_index() = data.get_name_index(e.name());
+    de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
+    e.pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
+           timeres);
   }
 }
 
-void dir::remove_empty_dirs(progress& prog) {
-  // NOLINTNEXTLINE(modernize-use-ranges)
-  auto last = std::remove_if(entries_.begin(), entries_.end(), [&](entry* e) {
-    if (auto* d = e->as_dir()) {
-      d->remove_empty_dirs(prog);
-      return d->empty();
-    }
-    return false;
-  });
+void dir::remove_empty_dirs(entry_storage& storage, progress& prog) {
+  auto last =
+      // NOLINTNEXTLINE(modernize-use-ranges)
+      std::remove_if(entries_.begin(), entries_.end(), [&](entry_id eid) {
+        auto e = entry_handle(storage, eid);
+        if (auto d = e.as_dir()) {
+          d.remove_empty_dirs(prog);
+          return d.empty();
+        }
+        return false;
+      });
 
   if (last != entries_.end()) {
     auto num = std::distance(last, entries_.end());
@@ -395,11 +401,11 @@ void dir::remove_empty_dirs(progress& prog) {
   lookup_.reset();
 }
 
-entry* dir::find(fs::path const& path) {
+entry_id dir::find(entry_storage& storage, fs::path const& path) {
   auto name = path_to_utf8_string_sanitized(path.filename());
 
   if (!lookup_ && entries_.size() >= kLookupTableSizeThreshold) {
-    populate_lookup_table();
+    populate_lookup_table(storage);
   }
 
   if (lookup_) {
@@ -407,24 +413,26 @@ entry* dir::find(fs::path const& path) {
       return it->second;
     }
   } else {
-    auto it = std::ranges::find_if(
-        entries_, [name](auto* e) { return e->name() == name; });
+    auto it = std::ranges::find_if(entries_, [&](auto const eid) {
+      return entry_handle(storage, eid).name() == name;
+    });
     if (it != entries_.end()) {
       return *it;
     }
   }
 
-  return nullptr;
+  return {};
 }
 
-void dir::populate_lookup_table() {
+void dir::populate_lookup_table(entry_storage& storage) {
   assert(!lookup_);
 
   lookup_ = std::make_unique<lookup_table>();
   lookup_->reserve(entries_.size());
 
-  for (auto* e : entries_) {
-    auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
+  for (auto const eid : entries_) {
+    auto e = entry_handle(storage, eid);
+    auto r [[maybe_unused]] = lookup_->emplace(e.name(), eid);
     assert(r.second);
   }
 }

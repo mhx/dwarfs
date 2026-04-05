@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -34,6 +35,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/entry_id.h>
 #include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
 
@@ -129,13 +131,14 @@ class entry_handle_base {
       Mut == mutability::const_ ? mutability::mutable_ : mutability::const_>;
 
   entry_handle_base() = default;
-  entry_handle_base(entry_storage& storage,
-                    detail::mutability_t<internal::entry, Mut>* self)
+  entry_handle_base(entry_storage& storage, entry_id id)
       : storage_{&storage}
-      , self_{self} {}
+      , self_id_{id} {}
 
-  bool valid() const { return self_ != nullptr; }
+  bool valid() const { return self_id_.valid(); }
   explicit operator bool() const { return valid(); }
+
+  entry_id id() const { return self_id_; }
 
   bool has_parent() const;
   basic_entry_handle<Mut> parent() const;
@@ -166,6 +169,10 @@ class entry_handle_base {
   walk(std::function<void(basic_entry_handle<mutability::mutable_>)> const& f)
     requires is_mutable;
 
+  void pack(thrift::metadata::inode_data& entry_v2,
+            internal::global_entry_data const& data,
+            internal::time_resolution_converter const& timeres) const;
+
   friend bool
   operator==(entry_handle_base const&, entry_handle_base const&) = default;
   friend bool
@@ -174,15 +181,25 @@ class entry_handle_base {
   std::size_t object_hash() const {
     std::size_t seed = 0;
     boost::hash_combine(seed, storage_);
-    boost::hash_combine(seed, self_);
+    boost::hash_combine(seed, self_id_.hash());
     return seed;
   }
 
  protected:
-  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
-  [[maybe_unused]] entry_storage* storage_{nullptr};
-  detail::mutability_t<internal::entry, Mut>* self_{nullptr};
-  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
+  using base_t = detail::mutability_t<internal::entry, Mut>;
+
+  base_t* base() const;
+
+  template <typename DerivedHandle>
+  DerivedHandle base_as() const {
+    return DerivedHandle{*storage_, self_id_};
+  }
+
+  entry_storage& storage() const { return *storage_; }
+
+ private:
+  entry_storage* storage_{nullptr};
+  entry_id self_id_;
 };
 
 } // namespace detail
@@ -197,14 +214,13 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   friend class entry_storage;
 
   basic_entry_handle() = default;
-  basic_entry_handle(entry_storage& storage,
-                     detail::mutability_t<internal::entry, Mut>* self)
-      : detail::entry_handle_base<Mut>{storage, self} {}
+  basic_entry_handle(entry_storage& storage, entry_id id)
+      : detail::entry_handle_base<Mut>{storage, id} {}
 
   explicit(false) operator const_entry_handle() const
     requires is_mutable
   {
-    return {*this->storage_, this->self_};
+    return this->template base_as<const_entry_handle>();
   }
 
   explicit(false) basic_entry_handle(basic_file_handle<Mut> h);
@@ -234,6 +250,11 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   basic_dir_handle<Mut> as_dir() const noexcept;
   basic_link_handle<Mut> as_link() const noexcept;
   basic_device_handle<Mut> as_device() const noexcept;
+
+ private:
+  using self_t = detail::mutability_t<internal::entry, Mut>;
+
+  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -246,7 +267,7 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) operator const_file_handle() const
     requires is_mutable
   {
-    return {*this->storage_, this->self_};
+    return this->template base_as<const_file_handle>();
   }
 
   std::string_view hash() const;
@@ -295,7 +316,7 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) operator const_dir_handle() const
     requires is_mutable
   {
-    return {*this->storage_, this->self_};
+    return this->template base_as<const_dir_handle>();
   }
 
   void add(entry_handle h)
@@ -308,6 +329,8 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
 
   entry_handle find(std::filesystem::path const& path)
     requires is_mutable;
+
+  [[nodiscard]] bool empty() const;
 
   void
   pack(thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
@@ -336,7 +359,7 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) operator const_link_handle() const
     requires is_mutable
   {
-    return {*this->storage_, this->self_};
+    return this->template base_as<const_link_handle>();
   }
 
   // TODO: string_view
@@ -358,7 +381,7 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) operator const_device_handle() const
     requires is_mutable
   {
-    return {*this->storage_, this->self_};
+    return this->template base_as<const_device_handle>();
   }
 
   // TODO: remove after device / other split

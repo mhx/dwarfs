@@ -25,7 +25,7 @@
 
 namespace dwarfs::writer {
 
-enum class entry_type {
+enum class entry_type : unsigned {
   E_FILE,
   E_DIR,
   E_LINK,
