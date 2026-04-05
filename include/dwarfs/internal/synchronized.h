@@ -173,6 +173,15 @@ class synchronized final {
     return value_;
   }
 
+  value_type release() {
+    value_type value;
+    {
+      write_lock_type lock(mx_);
+      value.swap(value_);
+    }
+    return value;
+  }
+
   void store(value_type&& value) {
     write_lock_type lock(mx_);
     value_ = std::move(value);
