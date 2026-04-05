@@ -16,7 +16,8 @@
 
 #include <boost/container_hash/hash.hpp>
 
-#include <thrift/lib/cpp/DistinctTable.h>
+#include <dwarfs/internal/flat_dense_value_index.h>
+
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 #define THRIFT_DECLARE_HASH(T)           \
@@ -203,12 +204,12 @@ class MemorySchema {
     // Add helper structures here to help minimize size of schema during
     // save() operations.
    public:
-    explicit Helper(MemorySchema& schema) : layoutTable_(&schema.layouts) {}
+    explicit Helper(MemorySchema& schema) : layoutTable_{schema.layouts} {}
 
     int16_t add(MemoryLayout&& layout);
 
    private:
-    DistinctTable<MemoryLayout> layoutTable_;
+    dwarfs::internal::flat_dense_value_index<MemoryLayout> layoutTable_;
   };
 
   void initFromSchema(Schema&& schema);
