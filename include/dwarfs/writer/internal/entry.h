@@ -80,15 +80,12 @@ class entry {
 
   virtual ~entry() = default;
 
-  entry(std::filesystem::path const& path, entry* parent, file_stat const& st,
+  entry(std::filesystem::path const& path, file_stat const& st,
         entry_id parent_id);
 
   bool has_parent() const;
-  entry* parent() const;
   entry_id parent_id() const { return parent_id_; }
-  std::filesystem::path fs_path() const;
-  std::string path_as_string() const;
-  std::string unix_dpath() const;
+  std::filesystem::path name_as_path() const;
   std::string_view name() const;
   file_size_t size() const;
   file_size_t allocated_size() const;
@@ -98,7 +95,8 @@ class entry {
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
        time_resolution_converter const& timeres) const;
   void update(global_entry_data& data) const;
-  virtual void scan(os_access const& os, progress& prog) = 0;
+  virtual void scan(entry_storage& storage, entry_id self_id,
+                    os_access const& os, progress& prog) = 0;
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
@@ -131,7 +129,6 @@ class entry {
   std::filesystem::path path_;
 #endif
   std::string name_;
-  entry* parent_{nullptr};
   entry_id parent_id_;
   file_stat stat_;
   std::optional<uint32_t> entry_index_;
@@ -153,9 +150,10 @@ class file : public entry {
   std::string_view hash(entry_storage& storage) const;
   void set_inode(inode* ino);
   inode* get_inode() const;
-  void scan(os_access const& os, progress& prog) override;
-  void scan(entry_storage& storage, file_view const& mm, progress& prog,
-            std::optional<std::string> const& hash_alg);
+  void scan(entry_storage& storage, entry_id self_id, os_access const& os,
+            progress& prog) override;
+  void scan(entry_storage& storage, entry_id self_id, file_view const& mm,
+            progress& prog, std::optional<std::string> const& hash_alg);
   void create_data(entry_storage& storage);
   void hardlink(entry_storage& storage, file* other, progress& prog);
   uint32_t unique_file_id() const;
@@ -199,7 +197,8 @@ class dir : public entry {
   void pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const;
-  void scan(os_access const& os, progress& prog) override;
+  void scan(entry_storage& storage, entry_id self_id, os_access const& os,
+            progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(entry_storage& storage, progress& prog);
 
@@ -232,7 +231,8 @@ class link : public entry {
 
   type_t type() const override;
   std::string const& linkname() const;
-  void scan(os_access const& os, progress& prog) override;
+  void scan(entry_storage& storage, entry_id self_id, os_access const& os,
+            progress& prog) override;
 
   void set_inode_num(entry_storage&, uint32_t ino) override {
     inode_num_ = ino;
@@ -255,7 +255,8 @@ class device : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void scan(os_access const& os, progress& prog) override;
+  void scan(entry_storage& storage, entry_id self_id, os_access const& os,
+            progress& prog) override;
   uint64_t device_id() const;
 
   void set_inode_num(entry_storage&, uint32_t ino) override {
