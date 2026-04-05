@@ -35,20 +35,19 @@
 
 namespace dwarfs::detail {
 
-struct string_like_hash {
+template <typename T>
+struct basic_string_like_hash;
+
+template <typename Char, typename Traits, typename Alloc>
+struct basic_string_like_hash<std::basic_string<Char, Traits, Alloc>> {
+  using string_view_type = std::basic_string_view<Char, Traits>;
   using is_transparent = void;
 
-  [[nodiscard]] size_t operator()(char const* txt) const {
-    return std::hash<std::string_view>{}(txt);
-  }
-
-  [[nodiscard]] size_t operator()(std::string_view txt) const {
-    return std::hash<std::string_view>{}(txt);
-  }
-
-  [[nodiscard]] size_t operator()(std::string const& txt) const {
-    return std::hash<std::string_view>{}(txt);
+  [[nodiscard]] size_t operator()(string_view_type txt) const noexcept {
+    return std::hash<string_view_type>{}(txt);
   }
 };
+
+using string_like_hash = basic_string_like_hash<std::string>;
 
 } // namespace dwarfs::detail
