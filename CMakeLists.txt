@@ -634,6 +634,7 @@ if(WITH_TESTS)
       test/chunked_append_only_vector_test.cpp
       test/compare_directories_test.cpp
       test/conv_test.cpp
+      test/dense_value_index_test.cpp
       test/endian_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
