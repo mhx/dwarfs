@@ -110,48 +110,6 @@ void entry::set_empty() {
   stat_.set_allocated_size(0);
 }
 
-// NOLINTBEGIN(cppcoreguidelines-pro-type-static-cast-downcast)
-
-file* entry::as_file() noexcept {
-  return is_file() ? static_cast<file*>(this) : nullptr;
-}
-
-dir* entry::as_dir() noexcept {
-  return is_dir() ? static_cast<dir*>(this) : nullptr;
-}
-
-link* entry::as_link() noexcept {
-  return is_link() ? static_cast<link*>(this) : nullptr;
-}
-
-device* entry::as_device() noexcept {
-  auto const t = type();
-  return t == entry_type::E_DEVICE || t == entry_type::E_OTHER
-             ? static_cast<device*>(this)
-             : nullptr;
-}
-
-file const* entry::as_file() const noexcept {
-  return is_file() ? static_cast<file const*>(this) : nullptr;
-}
-
-dir const* entry::as_dir() const noexcept {
-  return is_dir() ? static_cast<dir const*>(this) : nullptr;
-}
-
-link const* entry::as_link() const noexcept {
-  return is_link() ? static_cast<link const*>(this) : nullptr;
-}
-
-device const* entry::as_device() const noexcept {
-  auto const t = type();
-  return t == entry_type::E_DEVICE || t == entry_type::E_OTHER
-             ? static_cast<device const*>(this)
-             : nullptr;
-}
-
-// NOLINTEND(cppcoreguidelines-pro-type-static-cast-downcast)
-
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
 std::string_view file::hash(entry_storage& storage) const {
