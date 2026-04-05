@@ -35,10 +35,23 @@
 
 namespace dwarfs::internal {
 
+struct no_mutex {};
+
 namespace detail {
 
 template <typename Mutex>
 struct lock_policy;
+
+template <>
+struct lock_policy<no_mutex> {
+  struct dummy_lock {
+    dummy_lock(no_mutex&) noexcept {}
+  };
+
+  using write_lock_type = dummy_lock;
+  using read_lock_type = dummy_lock;
+  static constexpr bool is_shared = false;
+};
 
 template <>
 struct lock_policy<std::mutex> {
