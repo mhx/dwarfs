@@ -121,8 +121,7 @@ class entry_storage_ final : public entry_storage::impl {
       return devices_.with_lock([&](auto& devices) -> entry_id {
         auto ix = devices.size();
         auto const& dev = devices.emplace_back(path, st, id);
-        return {dev.is_device() ? entry_type::E_DEVICE : entry_type::E_OTHER,
-                ix};
+        return {dev.type(), ix};
       });
     } else {
       frozen_panic();

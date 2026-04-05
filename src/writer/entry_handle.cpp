@@ -238,7 +238,7 @@ void entry_handle_base<Mut>::walk(std::function<void(entry_handle)> const& f)
 {
   f(entry_handle{*storage_, self_id_});
 
-  if (base()->is_dir()) {
+  if (this->self_id_.is_dir()) {
     dir_handle{*storage_, self_id_}.for_each_child(
         [&](entry_handle child) { child.walk(f); });
   }
@@ -449,7 +449,7 @@ auto basic_device_handle<Mut>::self() const -> self_t* {
 
 template <detail::mutability Mut>
 bool basic_device_handle<Mut>::is_device() const noexcept {
-  return self()->is_device();
+  return this->id().is_device();
 }
 
 template <detail::mutability Mut>
@@ -504,31 +504,6 @@ basic_entry_handle<Mut>::basic_entry_handle(device_handle h)
     : detail::entry_handle_base<Mut>{h} {}
 
 // NOLINTEND(readability-redundant-parentheses)
-
-template <detail::mutability Mut>
-bool basic_entry_handle<Mut>::is_file() const noexcept {
-  return this->self()->is_file();
-}
-
-template <detail::mutability Mut>
-bool basic_entry_handle<Mut>::is_dir() const noexcept {
-  return this->self()->is_dir();
-}
-
-template <detail::mutability Mut>
-bool basic_entry_handle<Mut>::is_link() const noexcept {
-  return this->self()->is_link();
-}
-
-template <detail::mutability Mut>
-bool basic_entry_handle<Mut>::is_device() const noexcept {
-  return this->self()->is_device();
-}
-
-template <detail::mutability Mut>
-bool basic_entry_handle<Mut>::is_other() const noexcept {
-  return this->self()->is_other();
-}
 
 template <detail::mutability Mut>
 basic_file_handle<Mut> basic_entry_handle<Mut>::as_file() const noexcept {
