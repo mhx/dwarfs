@@ -57,16 +57,55 @@ class entry_storage {
   entry_storage(entry_storage const&) = delete;
   entry_storage& operator=(entry_storage const&) = delete;
 
-  entry_handle root() noexcept;
-  bool empty() const noexcept;
+  [[nodiscard]] entry_handle root() noexcept {
+    return {*this, entry_id(entry_type::E_DIR, 0)};
+  }
 
-  [[nodiscard]] internal::entry* get_entry(entry_id id);
+  [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
 
-  size_t create_file_data();
-  [[nodiscard]] internal::file_data& get_file_data(size_t id);
+  [[nodiscard]] internal::entry* get_entry(entry_id id) {
+    return impl_->get_entry(id);
+  }
 
-  void dump(std::ostream& os) const;
+  size_t create_file_data() { return impl_->create_file_data(); }
+
+  [[nodiscard]] internal::file_data& get_file_data(size_t id) {
+    return impl_->get_file_data(id);
+  }
+
+  void dump(std::ostream& os) const { impl_->dump(os); }
+
   std::string dump() const;
+
+  void freeze() noexcept;
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    // TODO: clean up, we don't want to pass the parent pointer here any longer
+    virtual entry_id
+    make_file(std::filesystem::path const& path, internal::entry* parent,
+              file_stat const& st, entry_id id) = 0;
+    virtual entry_id
+    make_dir(std::filesystem::path const& path, internal::entry* parent,
+             file_stat const& st, entry_id id) = 0;
+    virtual entry_id
+    make_link(std::filesystem::path const& path, internal::entry* parent,
+              file_stat const& st, entry_id id) = 0;
+    virtual entry_id
+    make_device(std::filesystem::path const& path, internal::entry* parent,
+                file_stat const& st, entry_id id) = 0;
+
+    virtual size_t create_file_data() = 0;
+    virtual internal::file_data& get_file_data(size_t id) = 0;
+    virtual internal::entry* get_entry(entry_id id) = 0;
+
+    virtual bool empty() const = 0;
+    virtual void dump(std::ostream& os) const = 0;
+
+    virtual std::unique_ptr<impl> freeze() = 0;
+  };
 
  private:
   friend class internal::provisional_entry;
@@ -86,7 +125,6 @@ class entry_storage {
   device_handle create_device(std::filesystem::path const& path,
                               entry_handle parent, file_stat const& st);
 
-  class impl;
   std::unique_ptr<impl> impl_;
 };
 
