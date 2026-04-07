@@ -29,40 +29,26 @@
 #pragma once
 
 #include <cstddef>
-#include <type_traits>
+#include <limits>
 
 namespace dwarfs::internal::detail {
 
-template <typename T>
-struct raw_block_storage {
-  static_assert(std::is_trivially_copyable_v<T>);
-
-  enum class initialization {
-    no_init,
-    zero_init,
-  };
-
-  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-owning-memory)
-
-  [[nodiscard]] static auto
-  allocate(std::size_t blocks, initialization init) -> T* {
-    if (blocks == 0) {
-      return nullptr;
+struct default_block_growth_policy {
+  [[nodiscard]] constexpr auto
+  operator()(std::size_t current_capacity,
+             std::size_t min_capacity) const noexcept -> std::size_t {
+    if (current_capacity >= min_capacity) {
+      return current_capacity;
     }
 
-    if (init == initialization::zero_init) {
-      return new T[blocks]();
+    std::size_t new_capacity = current_capacity == 0 ? 1 : current_capacity;
+    while (new_capacity < min_capacity) {
+      if (new_capacity > std::numeric_limits<std::size_t>::max() / 2) {
+        return min_capacity;
+      }
+      new_capacity *= 2;
     }
-
-    return new T[blocks];
-  }
-
-  static void deallocate(T* p) noexcept { delete[] p; }
-
-  // NOLINTEND(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-owning-memory)
-
-  static void copy_n(T const* src, std::size_t n, T* dst) noexcept {
-    std::copy_n(src, n, dst);
+    return new_capacity;
   }
 };
 
