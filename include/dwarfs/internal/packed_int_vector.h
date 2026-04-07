@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -41,21 +42,26 @@
 #include <dwarfs/bit_view.h>
 
 #include <dwarfs/internal/detail/block_storage.h>
+#include <dwarfs/internal/detail/default_packed_vector_metadata.h>
+#include <dwarfs/internal/detail/vector_growth_policy.h>
 
 namespace dwarfs::internal {
 
-namespace detail {
+template <typename T>
+concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
 
-template <std::integral T, bool AutoBitWidth = false>
-  requires(!std::same_as<T, bool>)
+template <integral_but_not_bool T, bool AutoBitWidth = false,
+          typename Metadata = detail::default_packed_vector_metadata<>,
+          typename GrowthPolicy = detail::default_block_growth_policy>
 class basic_packed_int_vector {
  public:
   using value_type = T;
   using underlying_type = std::make_unsigned_t<T>;
   using size_type = std::size_t;
+  using metadata_type = Metadata;
+  using growth_policy_type = GrowthPolicy;
 
   static constexpr bool auto_bit_width = AutoBitWidth;
-
   static constexpr size_type bits_per_block{
       std::numeric_limits<underlying_type>::digits};
 
@@ -79,18 +85,40 @@ class basic_packed_int_vector {
 
   basic_packed_int_vector() = default;
 
-  explicit basic_packed_int_vector(size_type bits)
-      : bits_{checked_bits(bits)} {}
+  explicit basic_packed_int_vector(size_type bits) {
+    set_bits_value(checked_bits(bits));
+  }
 
-  basic_packed_int_vector(size_type bits, size_type size)
-      : size_{size}
-      , bits_{checked_bits(bits)}
-      , data_(storage_type::zeroed(used_blocks())) {}
+  basic_packed_int_vector(size_type bits, size_type size) {
+    bits = checked_bits(bits);
+    auto const blocks = min_data_size(size, bits);
 
-  basic_packed_int_vector(basic_packed_int_vector const& other)
-      : size_{other.size_}
-      , bits_{other.bits_}
-      , data_{other.data_.clone_prefix(other.used_blocks())} {}
+    data_ = storage_type::allocate(blocks, init_mode::zero_init);
+    set_size_value(size);
+    set_bits_value(bits);
+    set_capacity_blocks_value(blocks);
+  }
+
+  ~basic_packed_int_vector() { storage_type::deallocate(data_); }
+
+  basic_packed_int_vector(basic_packed_int_vector const& other) {
+    auto const blocks = other.used_blocks();
+
+    data_ = storage_type::allocate(blocks, init_mode::no_init);
+    if (blocks > 0) {
+      storage_type::copy_n(other.data_, blocks, data_);
+    }
+
+    set_size_value(other.size());
+    set_bits_value(other.bits());
+    set_capacity_blocks_value(blocks);
+  }
+
+  basic_packed_int_vector(basic_packed_int_vector&& other) noexcept
+      : meta_{other.meta_}
+      , data_{std::exchange(other.data_, nullptr)} {
+    other.meta_ = metadata_type{};
+  }
 
   basic_packed_int_vector& operator=(basic_packed_int_vector const& other) {
     if (this != &other) {
@@ -100,17 +128,23 @@ class basic_packed_int_vector {
     return *this;
   }
 
-  basic_packed_int_vector(basic_packed_int_vector&&) = default;
-  basic_packed_int_vector& operator=(basic_packed_int_vector&&) = default;
+  basic_packed_int_vector& operator=(basic_packed_int_vector&& other) noexcept {
+    if (this != &other) {
+      storage_type::deallocate(data_);
+      data_ = std::exchange(other.data_, nullptr);
+      meta_ = other.meta_;
+      other.meta_ = metadata_type{};
+    }
+    return *this;
+  }
 
   void swap(basic_packed_int_vector& other) noexcept {
     using std::swap;
-    swap(size_, other.size_);
-    swap(bits_, other.bits_);
-    data_.swap(other.data_);
+    swap(meta_, other.meta_);
+    swap(data_, other.data_);
   }
 
-  static constexpr size_type required_bits(T value) noexcept {
+  static constexpr auto required_bits(T value) noexcept -> size_type {
     if (value == 0) {
       return 0;
     }
@@ -127,9 +161,9 @@ class basic_packed_int_vector {
     }
   }
 
-  size_type required_bits() const {
+  [[nodiscard]] auto required_bits() const -> size_type {
     size_type result = 0;
-    for (size_type i = 0; i < size_ && result < bits_per_block; ++i) {
+    for (size_type i = 0; i < size() && result < bits_per_block; ++i) {
       result = std::max(result, required_bits(get(i)));
     }
     return result;
@@ -137,85 +171,88 @@ class basic_packed_int_vector {
 
   void reset(size_type bits = 0, size_type size = 0) {
     bits = checked_bits(bits);
-    data_.reset(min_data_size(size, bits),
-                storage_type::initialization::zero_init);
-    size_ = size;
-    bits_ = bits;
+    auto const blocks = min_data_size(size, bits);
+    auto* new_data = storage_type::allocate(blocks, init_mode::zero_init);
+
+    storage_type::deallocate(data_);
+    data_ = new_data;
+    set_size_value(size);
+    set_bits_value(bits);
+    set_capacity_blocks_value(blocks);
   }
 
   void resize(size_type new_size, T value = T{}) {
-    auto const old_size = size_;
+    auto const old_size = size();
 
     if (new_size > old_size) {
       if constexpr (AutoBitWidth) {
         ensure_bits(required_bits(value), new_size);
       }
 
-      data_.reserve(used_blocks(), min_data_size(new_size, bits_));
-      fill_values(data_, bits_, old_size, new_size, value);
+      reserve_blocks(min_data_size(new_size, bits()));
+      fill_values(data_, bits(), old_size, new_size, value);
     }
 
-    size_ = new_size;
+    set_size_value(new_size);
   }
 
-  void reserve(size_type size) {
-    data_.reserve(used_blocks(), min_data_size(size, bits_));
-  }
+  void reserve(size_type size) { reserve_blocks(min_data_size(size, bits())); }
 
-  void shrink_to_fit() { data_.shrink_to_fit(used_blocks()); }
+  void shrink_to_fit() { shrink_to_fit_blocks(); }
 
   void optimize_storage()
     requires AutoBitWidth
   {
     auto const new_bits = required_bits();
-    if (new_bits == bits_) {
-      shrink_to_fit();
+    if (new_bits == bits()) {
+      shrink_to_fit_blocks();
     } else {
-      repack_data(new_bits, size_);
+      repack_data(new_bits, size());
     }
   }
 
   void truncate_to_bits(size_type new_bits) {
     new_bits = checked_bits(new_bits);
-    if (new_bits != bits_) {
-      repack_data(new_bits, size_);
+    if (new_bits != bits()) {
+      repack_data(new_bits, size());
     }
   }
 
-  size_type capacity() const {
-    return bits_ > 0 ? (data_.capacity() * bits_per_block) / bits_ : 0;
+  [[nodiscard]] auto capacity() const noexcept -> size_type {
+    return bits() > 0 ? (capacity_blocks_value() * bits_per_block) / bits() : 0;
   }
 
-  void clear() { size_ = 0; }
+  void clear() noexcept { set_size_value(0); }
 
-  size_type size() const { return size_; }
-  size_type bits() const { return bits_; }
+  [[nodiscard]] auto size() const noexcept -> size_type { return size_value(); }
 
-  size_type size_in_bytes() const {
+  [[nodiscard]] auto bits() const noexcept -> size_type { return bits_value(); }
+
+  [[nodiscard]] auto size_in_bytes() const noexcept -> size_type {
     return used_blocks() * sizeof(underlying_type);
   }
 
-  bool empty() const { return size_ == 0; }
+  [[nodiscard]] auto empty() const noexcept -> bool { return size() == 0; }
 
-  T operator[](size_type i) const { return get(i); }
+  auto operator[](size_type i) const -> T { return get(i); }
 
-  T at(size_type i) const {
-    if (i >= size_) {
+  auto at(size_type i) const -> T {
+    if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
     return get(i);
   }
 
-  T get(size_type i) const {
-    return bits_ > 0
-               ? bit_view(data_.data()).template read<T>({i * bits_, bits_})
+  [[nodiscard]] auto get(size_type i) const -> T {
+    return bits() > 0
+               ? const_bit_view(data_).template read<T>({i * bits(), bits()})
                : T{};
   }
 
-  value_proxy operator[](size_type i) { return value_proxy{*this, i}; }
+  auto operator[](size_type i) -> value_proxy { return value_proxy{*this, i}; }
 
-  value_proxy at(size_type i) {
-    if (i >= size_) {
+  auto at(size_type i) -> value_proxy {
+    if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
     return (*this)[i];
@@ -223,124 +260,190 @@ class basic_packed_int_vector {
 
   void set(size_type i, T value) {
     if constexpr (AutoBitWidth) {
-      ensure_bits(required_bits(value), size_);
+      ensure_bits(required_bits(value), size());
     }
 
-    write_value(data_, bits_, i, value);
+    write_value(data_, bits(), i, value);
   }
 
   void push_back(T value) {
-    auto const new_size = size_ + 1;
+    auto const new_size = size() + 1;
 
     if constexpr (AutoBitWidth) {
       ensure_bits(required_bits(value), new_size);
     }
 
-    data_.reserve(used_blocks(), min_data_size(new_size, bits_));
-    write_value(data_, bits_, size_, value);
-    size_ = new_size;
+    reserve_blocks(min_data_size(new_size, bits()));
+    write_value(data_, bits(), size(), value);
+    set_size_value(new_size);
   }
 
-  void pop_back() {
-    assert(size_ > 0);
-
-    --size_;
+  void pop_back() noexcept {
+    assert(!empty());
+    set_size_value(size() - 1);
   }
 
-  T back() const { return get(size_ - 1); }
+  [[nodiscard]] auto back() const -> T { return get(size() - 1); }
 
-  value_proxy back() { return (*this)[size_ - 1]; }
+  [[nodiscard]] auto back() -> value_proxy { return (*this)[size() - 1]; }
 
-  T front() const { return get(0); }
+  [[nodiscard]] auto front() const -> T { return get(0); }
 
-  value_proxy front() { return (*this)[0]; }
+  [[nodiscard]] auto front() -> value_proxy { return (*this)[0]; }
 
-  std::vector<T> unpack() const {
-    std::vector<T> result(size_);
-    for (size_type i = 0; i < size_; ++i) {
+  [[nodiscard]] auto unpack() const -> std::vector<T> {
+    std::vector<T> result(size());
+    for (size_type i = 0; i < size(); ++i) {
       result[i] = get(i);
     }
     return result;
   }
 
  private:
-  using storage_type = detail::block_storage<underlying_type>;
+  using storage_type = detail::raw_block_storage<underlying_type>;
+  using init_mode = typename storage_type::initialization;
 
-  static size_type checked_bits(size_type bits) {
+  [[nodiscard]] static auto checked_bits(size_type bits) -> size_type {
     if (bits > bits_per_block) {
       throw std::invalid_argument("basic_packed_int_vector: invalid bit width");
     }
     return bits;
   }
 
-  static constexpr size_type min_data_size(size_type size, size_type bits) {
+  [[nodiscard]] static constexpr auto
+  min_data_size(size_type size, size_type bits) noexcept -> size_type {
     return bits == 0 ? 0 : (size * bits + bits_per_block - 1) / bits_per_block;
   }
 
-  size_type used_blocks() const { return min_data_size(size_, bits_); }
+  [[nodiscard]] auto size_value() const noexcept -> size_type {
+    return static_cast<size_type>(meta_.size());
+  }
+
+  [[nodiscard]] auto bits_value() const noexcept -> size_type {
+    return static_cast<size_type>(meta_.bits());
+  }
+
+  [[nodiscard]] auto capacity_blocks_value() const noexcept -> size_type {
+    return static_cast<size_type>(meta_.capacity_blocks());
+  }
+
+  void set_size_value(size_type v) noexcept { meta_.set_size(v); }
+
+  void set_bits_value(size_type v) noexcept { meta_.set_bits(v); }
+
+  void set_capacity_blocks_value(size_type v) noexcept {
+    meta_.set_capacity_blocks(v);
+  }
+
+  [[nodiscard]] auto used_blocks() const noexcept -> size_type {
+    return min_data_size(size(), bits());
+  }
+
+  [[nodiscard]] static auto
+  grown_capacity_blocks(size_type current, size_type minimum) noexcept
+      -> size_type {
+    return static_cast<size_type>(growth_policy_type{}(current, minimum));
+  }
 
   static void
-  write_value(storage_type& data, size_type bits, size_type i, T value) {
+  write_value(underlying_type* data, size_type bits, size_type i, T value) {
     if (bits > 0) {
-      bit_view(data.data()).write({i * bits, bits}, value);
+      bit_view(data).write({i * bits, bits}, value);
     }
   }
 
-  static void fill_values(storage_type& data, size_type bits, size_type first,
-                          size_type last, T value) {
-    for (size_type i = first; i < last; ++i) {
-      write_value(data, bits, i, value);
+  static void fill_values(underlying_type* data, size_type bits,
+                          size_type first, size_type last, T value) {
+    if (bits == 0) {
+      return;
     }
+
+    auto view = bit_view(data);
+    for (size_type i = first; i < last; ++i) {
+      view.write({i * bits, bits}, value);
+    }
+  }
+
+  void reserve_blocks(size_type min_capacity_blocks) {
+    if (min_capacity_blocks <= capacity_blocks_value()) {
+      return;
+    }
+
+    auto const new_capacity =
+        grown_capacity_blocks(capacity_blocks_value(), min_capacity_blocks);
+
+    auto* new_data = storage_type::allocate(new_capacity, init_mode::no_init);
+
+    auto const blocks_to_copy = used_blocks();
+    if (blocks_to_copy > 0) {
+      storage_type::copy_n(data_, blocks_to_copy, new_data);
+    }
+
+    storage_type::deallocate(data_);
+    data_ = new_data;
+    set_capacity_blocks_value(new_capacity);
+  }
+
+  void shrink_to_fit_blocks() {
+    auto const new_capacity = used_blocks();
+    if (new_capacity == capacity_blocks_value()) {
+      return;
+    }
+
+    underlying_type* new_data = nullptr;
+    if (new_capacity > 0) {
+      new_data = storage_type::allocate(new_capacity, init_mode::no_init);
+      storage_type::copy_n(data_, new_capacity, new_data);
+    }
+
+    storage_type::deallocate(data_);
+    data_ = new_data;
+    set_capacity_blocks_value(new_capacity);
   }
 
   void ensure_bits(size_type needed_bits, size_type new_size)
     requires AutoBitWidth
   {
-    auto const new_bits = std::max(bits_, needed_bits);
-
-    if (new_bits != bits_) {
+    auto const new_bits = std::max(bits(), needed_bits);
+    if (new_bits != bits()) {
       repack_data(new_bits, new_size);
     }
   }
 
   void repack_data(size_type new_bits, size_type new_size) {
-    auto const blocks_needed = min_data_size(new_size, new_bits);
-    auto const copy_size = std::min(size_, new_size);
+    auto const new_blocks = min_data_size(new_size, new_bits);
+    auto const copy_size = std::min(size(), new_size);
 
     // If bits_ was 0, we skip copying the old data (since it is all zeroes),
     // so we *must* zero-initialize the new storage here.
-    auto const init_mode = bits_ == 0 && copy_size > 0
-                               ? storage_type::initialization::zero_init
-                               : storage_type::initialization::no_init;
-    auto new_data = storage_type(blocks_needed, init_mode);
+    auto const init = bits() == 0 && copy_size > 0 ? init_mode::zero_init
+                                                   : init_mode::no_init;
+    auto* new_data = storage_type::allocate(new_blocks, init);
 
-    if (new_bits != 0 && bits_ != 0 && copy_size > 0) {
-      auto src = bit_view(data_.data());
-      auto dst = bit_view(new_data.data());
+    if (new_bits != 0 && bits() != 0 && copy_size > 0) {
+      auto src = const_bit_view(data_);
+      auto dst = bit_view(new_data);
 
       for (size_type i = 0; i < copy_size; ++i) {
         dst.write({i * new_bits, new_bits},
-                  src.template read<T>({i * bits_, bits_}));
+                  src.template read<T>({i * bits(), bits()}));
       }
     }
 
-    data_.swap(new_data);
-    bits_ = new_bits;
+    storage_type::deallocate(data_);
+    data_ = new_data;
+    set_bits_value(new_bits);
+    set_capacity_blocks_value(new_blocks);
   }
 
-  size_type size_{0};
-  size_type bits_{0};
-  storage_type data_;
+  metadata_type meta_{};
+  underlying_type* data_{nullptr};
 };
 
-} // namespace detail
+template <integral_but_not_bool T>
+using packed_int_vector = basic_packed_int_vector<T, false>;
 
-template <std::integral T>
-  requires(!std::same_as<T, bool>)
-using packed_int_vector = detail::basic_packed_int_vector<T, false>;
-
-template <std::integral T>
-  requires(!std::same_as<T, bool>)
-using auto_packed_int_vector = detail::basic_packed_int_vector<T, true>;
+template <integral_but_not_bool T>
+using auto_packed_int_vector = basic_packed_int_vector<T, true>;
 
 } // namespace dwarfs::internal

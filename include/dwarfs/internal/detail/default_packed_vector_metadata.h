@@ -29,41 +29,35 @@
 #pragma once
 
 #include <cstddef>
-#include <type_traits>
 
 namespace dwarfs::internal::detail {
 
-template <typename T>
-struct raw_block_storage {
-  static_assert(std::is_trivially_copyable_v<T>);
+template <typename SizeType = std::size_t>
+struct default_packed_vector_metadata {
+  using size_type = SizeType;
 
-  enum class initialization {
-    no_init,
-    zero_init,
-  };
-
-  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-owning-memory)
-
-  [[nodiscard]] static auto
-  allocate(std::size_t blocks, initialization init) -> T* {
-    if (blocks == 0) {
-      return nullptr;
-    }
-
-    if (init == initialization::zero_init) {
-      return new T[blocks]();
-    }
-
-    return new T[blocks];
+  [[nodiscard]] constexpr auto size() const noexcept -> size_type {
+    return size_;
   }
 
-  static void deallocate(T* p) noexcept { delete[] p; }
-
-  // NOLINTEND(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-owning-memory)
-
-  static void copy_n(T const* src, std::size_t n, T* dst) noexcept {
-    std::copy_n(src, n, dst);
+  [[nodiscard]] constexpr auto bits() const noexcept -> size_type {
+    return bits_;
   }
+
+  [[nodiscard]] constexpr auto capacity_blocks() const noexcept -> size_type {
+    return capacity_blocks_;
+  }
+
+  constexpr void set_size(size_type v) noexcept { size_ = v; }
+  constexpr void set_bits(size_type v) noexcept { bits_ = v; }
+  constexpr void set_capacity_blocks(size_type v) noexcept {
+    capacity_blocks_ = v;
+  }
+
+ private:
+  size_type size_{0};
+  size_type bits_{0};
+  size_type capacity_blocks_{0};
 };
 
 } // namespace dwarfs::internal::detail
