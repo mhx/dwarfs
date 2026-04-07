@@ -30,12 +30,63 @@
 #include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/internal/chunked_append_only_vector.h>
+#include <dwarfs/internal/segmented_packed_int_vector.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
 
 namespace dwarfs::writer {
 
 namespace {
+
+// TODO: consider using just a single mutex for *all* storage?
+//       then we could de-dupe things like names/paths across
+//       all different entry types
+//
+// It still makes sense to separate files/dirs/links/devices/other
+// since they will populate different slots of the data, and leave
+// others unpopulated. Not differentiating them would make storage
+// less efficient because e.g. *only* files and symlinks would
+// populate size; only files would populate allocated_size. Only
+// devices would populate device numbers, etc. If we use *one* data
+// structure to rule them all, but just keep some of the fields
+// unused for some entry types, this would make things *much*
+// simpler, since we never allocate memory for the unused fields.
+//
+// TODO: trace how often and where we're calling each accessor,
+//       and whether it's read or write. => build this as a compile
+//       time feature into entry_storage.
+
+template <std::integral T, std::size_t SegmentSize = 4096>
+using segtor = dwarfs::internal::segmented_packed_int_vector<T, SegmentSize>;
+
+struct packed_entry_data {
+  segtor<size_t> path_name_index;
+  segtor<uint64_t> parent_id; // TODO: we must convert this before storing
+                              // index * 5 + type, then we need to do
+                              // index = id / 5, type = id % 5 when retrieving
+  segtor<size_t> entry_index;
+  // TODO: stat
+
+  // file-specific
+  segtor<size_t> order_index;
+  segtor<size_t>
+      inode_index; // TODO change this in `entry` first to make sure it works
+  segtor<size_t> file_data_index; // indexes into `file_data`
+
+  // dir-specific
+  // TODO: these are more interesting, especially the lookup table, `optional`
+  // and the
+  //       `entries` vector
+
+  // link-specific
+  segtor<size_t> link_target_index; // indexes into de-duped link target vector
+  // TODO: optional inode again
+
+  // device-specific
+  // TODO: again, optional inode - this is required for *all* types, except for
+  // files
+  //       which have this info in `file_data` already.
+};
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
 

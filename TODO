@@ -1,3 +1,21 @@
+Should we force `nlink_` to 1 for dirs, links, devs, ...?
+Do we already do that? :-)
+
+  dev_type dev_{};                  F          \ needed for
+  ino_type ino_{};                  F          / dedupe
+  nlink_type nlink_{};              F D L E O  <---- really?
+  mode_type mode_{};                F D L E O
+  uid_type uid_{};                  F D L E O
+  gid_type gid_{};                  F D L E O
+  dev_type rdev_{};                       E
+  off_type size_{};                 F   L
+  blksize_type blksize_{};          ---------
+  blkcnt_type blocks_{};            ---------
+  timespec_type atimespec_{};       F D L E O
+  timespec_type mtimespec_{};       F D L E O
+  timespec_type ctimespec_{};       F D L E O
+  off_type allocated_size_{};       F
+
 ==================
 
 - test `file_stat` and its various methods
