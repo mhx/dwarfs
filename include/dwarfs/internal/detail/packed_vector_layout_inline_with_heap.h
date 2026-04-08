@@ -137,20 +137,8 @@ class packed_vector_layout_impl<Policy, Underlying,
   static_assert(capacity_granularity_blocks > 0);
   static_assert(heap_payload_field_bits > 0);
 
-  static consteval auto derive_heap_size_field_bits() noexcept -> size_type {
-    static constexpr auto R = heap_payload_field_bits;
-    static constexpr size_type S =
-        std::countr_zero(capacity_granularity_blocks);
-
-    if constexpr (S == 0) {
-      return R / 2;
-    } else {
-      return std::min<size_type>(R - 1, (R + S - 1) / 2);
-    }
-  }
-
-  static constexpr size_type heap_size_field_bits =
-      derive_heap_size_field_bits();
+  static constexpr size_type heap_size_field_bits = derive_heap_size_field_bits(
+      heap_payload_field_bits, std::countr_zero(capacity_granularity_blocks));
   static constexpr size_type heap_capacity_field_bits =
       heap_payload_field_bits - heap_size_field_bits;
   static constexpr size_type heap_capacity_bit =

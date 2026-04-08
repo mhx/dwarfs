@@ -71,4 +71,12 @@ saturating_mul(std::size_t a, std::size_t b) noexcept -> std::size_t {
   return a * b;
 }
 
+consteval auto
+derive_heap_size_field_bits(std::size_t remaining,
+                            std::size_t cap_shift) noexcept -> std::size_t {
+  return cap_shift == 0 ? remaining / 2
+                        : std::min<std::size_t>(
+                              remaining - 1, (remaining + cap_shift - 1) / 2);
+}
+
 } // namespace dwarfs::internal::detail
