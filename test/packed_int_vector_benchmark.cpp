@@ -31,6 +31,7 @@
 
 #include <benchmark/benchmark.h>
 
+#include <dwarfs/internal/compact_packed_int_vector.h>
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/segmented_packed_int_vector.h>
 
@@ -40,6 +41,8 @@ namespace {
 
 using value_type = uint32_t;
 using std_vec = std::vector<value_type>;
+using compact_packed_vec = compact_packed_int_vector<value_type>;
+using compact_auto_packed_vec = compact_auto_packed_int_vector<value_type>;
 using packed_vec = packed_int_vector<value_type>;
 using auto_packed_vec = auto_packed_int_vector<value_type>;
 using seg_packed_vec = segmented_packed_int_vector<value_type>;
@@ -120,6 +123,38 @@ sum_random(Container const& vec, std::vector<std::size_t> const& indices) {
 std_vec
 make_std_vec(std::size_t /*bits*/, std::vector<value_type> const& values) {
   return values;
+}
+
+compact_packed_vec
+make_compact_packed_vec(std::size_t bits,
+                        std::vector<value_type> const& values) {
+  compact_packed_vec vec(bits);
+  vec.reserve(values.size());
+  for (auto v : values) {
+    vec.push_back(v);
+  }
+  return vec;
+}
+
+compact_auto_packed_vec
+make_compact_auto_packed_vec_exact(std::size_t bits,
+                                   std::vector<value_type> const& values) {
+  compact_auto_packed_vec vec(bits);
+  vec.reserve(values.size());
+  for (auto v : values) {
+    vec.push_back(v);
+  }
+  return vec;
+}
+
+compact_auto_packed_vec
+make_compact_auto_packed_vec_growing(std::size_t /*bits*/,
+                                     std::vector<value_type> const& values) {
+  compact_auto_packed_vec vec(0);
+  for (auto v : values) {
+    vec.push_back(v);
+  }
+  return vec;
 }
 
 packed_vec
@@ -253,6 +288,18 @@ static void bm_build_std_vec(benchmark::State& state) {
   run_build_benchmark(state, make_std_vec);
 }
 
+static void bm_build_compact_packed_vec(benchmark::State& state) {
+  run_build_benchmark(state, make_compact_packed_vec);
+}
+
+static void bm_build_compact_auto_packed_vec_exact(benchmark::State& state) {
+  run_build_benchmark(state, make_compact_auto_packed_vec_exact);
+}
+
+static void bm_build_compact_auto_packed_vec_growing(benchmark::State& state) {
+  run_build_benchmark(state, make_compact_auto_packed_vec_growing);
+}
+
 static void bm_build_packed_vec(benchmark::State& state) {
   run_build_benchmark(state, make_packed_vec);
 }
@@ -274,6 +321,14 @@ static void bm_sum_sequential_std_vec(benchmark::State& state) {
   run_sequential_read_benchmark(state, make_std_vec);
 }
 
+static void bm_sum_sequential_compact_packed_vec(benchmark::State& state) {
+  run_sequential_read_benchmark(state, make_compact_packed_vec);
+}
+
+static void bm_sum_sequential_compact_auto_packed_vec(benchmark::State& state) {
+  run_sequential_read_benchmark(state, make_compact_auto_packed_vec_exact);
+}
+
 static void bm_sum_sequential_packed_vec(benchmark::State& state) {
   run_sequential_read_benchmark(state, make_packed_vec);
 }
@@ -291,6 +346,14 @@ static void bm_sum_random_std_vec(benchmark::State& state) {
   run_random_read_benchmark(state, make_std_vec);
 }
 
+static void bm_sum_random_compact_packed_vec(benchmark::State& state) {
+  run_random_read_benchmark(state, make_compact_packed_vec);
+}
+
+static void bm_sum_random_compact_auto_packed_vec(benchmark::State& state) {
+  run_random_read_benchmark(state, make_compact_auto_packed_vec_exact);
+}
+
 static void bm_sum_random_packed_vec(benchmark::State& state) {
   run_random_read_benchmark(state, make_packed_vec);
 }
@@ -306,6 +369,14 @@ static void bm_sum_random_seg_packed_vec(benchmark::State& state) {
 // overwrite existing elements
 static void bm_overwrite_std_vec(benchmark::State& state) {
   run_overwrite_benchmark(state, make_std_vec);
+}
+
+static void bm_overwrite_compact_packed_vec(benchmark::State& state) {
+  run_overwrite_benchmark(state, make_compact_packed_vec);
+}
+
+static void bm_overwrite_compact_auto_packed_vec(benchmark::State& state) {
+  run_overwrite_benchmark(state, make_compact_auto_packed_vec_exact);
 }
 
 static void bm_overwrite_packed_vec(benchmark::State& state) {
@@ -366,6 +437,21 @@ void run_worst_case_build_benchmark(benchmark::State& state, Maker&& make_vec) {
 }
 
 static void
+bm_build_compact_auto_packed_vec_worst_case_widening(benchmark::State& state) {
+  run_worst_case_build_benchmark(state, make_compact_auto_packed_vec_growing);
+}
+
+static void
+bm_build_compact_auto_packed_vec_worst_case_exact(benchmark::State& state) {
+  run_worst_case_build_benchmark(state, make_compact_auto_packed_vec_exact);
+}
+
+static void
+bm_build_compact_packed_vec_worst_case_reference(benchmark::State& state) {
+  run_worst_case_build_benchmark(state, make_compact_packed_vec);
+}
+
+static void
 bm_build_auto_packed_vec_worst_case_widening(benchmark::State& state) {
   run_worst_case_build_benchmark(state, make_auto_packed_vec_growing);
 }
@@ -385,6 +471,12 @@ static void bm_build_std_vec_worst_case_reference(benchmark::State& state) {
 } // namespace
 
 BENCHMARK(bm_build_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_build_compact_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_build_compact_auto_packed_vec_exact)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_build_compact_auto_packed_vec_growing)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_build_packed_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_build_auto_packed_vec_exact)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
@@ -395,6 +487,10 @@ BENCHMARK(bm_build_seg_packed_vec_growing)
 
 BENCHMARK(bm_sum_sequential_std_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_sequential_compact_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_sequential_compact_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_sequential_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_sequential_auto_packed_vec)
@@ -403,6 +499,10 @@ BENCHMARK(bm_sum_sequential_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_sum_random_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_random_compact_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sum_random_compact_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_random_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_sum_random_auto_packed_vec)
@@ -411,6 +511,10 @@ BENCHMARK(bm_sum_random_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_overwrite_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_overwrite_compact_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_overwrite_compact_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_overwrite_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_overwrite_auto_packed_vec)
@@ -419,6 +523,24 @@ BENCHMARK(bm_overwrite_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_build_std_vec_worst_case_reference)
+    ->Arg(32)
+    ->Arg(64)
+    ->Arg(128)
+    ->Arg(256);
+
+BENCHMARK(bm_build_compact_packed_vec_worst_case_reference)
+    ->Arg(32)
+    ->Arg(64)
+    ->Arg(128)
+    ->Arg(256);
+
+BENCHMARK(bm_build_compact_auto_packed_vec_worst_case_exact)
+    ->Arg(32)
+    ->Arg(64)
+    ->Arg(128)
+    ->Arg(256);
+
+BENCHMARK(bm_build_compact_auto_packed_vec_worst_case_widening)
     ->Arg(32)
     ->Arg(64)
     ->Arg(128)

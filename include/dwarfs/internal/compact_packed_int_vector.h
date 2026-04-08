@@ -29,19 +29,19 @@
 #pragma once
 
 #include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/heap_only_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_heap_only.h>
+#include <dwarfs/internal/detail/compact_packed_vector_policy.h>
+#include <dwarfs/internal/detail/packed_vector_layout_inline_with_heap.h>
 
 namespace dwarfs::internal {
 
 template <integral_but_not_bool T>
-using packed_int_vector =
+using compact_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
-                            detail::heap_only_packed_vector_policy>;
+                            detail::compact_packed_vector_policy>;
 
 template <integral_but_not_bool T>
-using auto_packed_int_vector =
+using compact_auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
-                            detail::heap_only_packed_vector_policy>;
+                            detail::compact_packed_vector_policy>;
 
 } // namespace dwarfs::internal
