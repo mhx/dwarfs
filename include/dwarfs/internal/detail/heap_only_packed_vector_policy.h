@@ -28,20 +28,13 @@
 
 #pragma once
 
-#include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/heap_only_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_heap_only.h>
+#include <cstddef>
 
-namespace dwarfs::internal {
+namespace dwarfs::internal::detail {
 
-template <integral_but_not_bool T>
-using packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
-                            detail::heap_only_packed_vector_policy>;
+struct heap_only_packed_vector_policy {
+  static constexpr bool supports_inline = false;
+  static constexpr std::size_t capacity_granularity_bytes = 1;
+};
 
-template <integral_but_not_bool T>
-using auto_packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
-                            detail::heap_only_packed_vector_policy>;
-
-} // namespace dwarfs::internal
+} // namespace dwarfs::internal::detail
