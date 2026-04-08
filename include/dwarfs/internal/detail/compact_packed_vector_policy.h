@@ -32,32 +32,11 @@
 
 namespace dwarfs::internal::detail {
 
-template <typename SizeType = std::size_t>
-struct default_packed_vector_metadata {
-  using size_type = SizeType;
-
-  [[nodiscard]] constexpr auto size() const noexcept -> size_type {
-    return size_;
-  }
-
-  [[nodiscard]] constexpr auto bits() const noexcept -> size_type {
-    return bits_;
-  }
-
-  [[nodiscard]] constexpr auto capacity_blocks() const noexcept -> size_type {
-    return capacity_blocks_;
-  }
-
-  constexpr void set_size(size_type v) noexcept { size_ = v; }
-  constexpr void set_bits(size_type v) noexcept { bits_ = v; }
-  constexpr void set_capacity_blocks(size_type v) noexcept {
-    capacity_blocks_ = v;
-  }
-
- private:
-  size_type size_{0};
-  size_type bits_{0};
-  size_type capacity_blocks_{0};
+struct compact_packed_vector_policy {
+  static constexpr bool supports_inline = true;
+  static constexpr std::size_t inline_size_field_bits =
+      sizeof(std::size_t) <= 4 ? 5 : 6;
+  static constexpr std::size_t capacity_granularity_bytes = 8;
 };
 
 } // namespace dwarfs::internal::detail
