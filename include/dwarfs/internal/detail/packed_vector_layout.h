@@ -28,20 +28,21 @@
 
 #pragma once
 
-#include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/heap_only_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_heap_only.h>
+namespace dwarfs::internal::detail {
 
-namespace dwarfs::internal {
+enum class packed_vector_policy_type {
+  inline_with_heap,
+  heap_only,
+};
 
-template <integral_but_not_bool T>
-using packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
-                            detail::heap_only_packed_vector_policy>;
+template <typename Policy, typename Underlying,
+          packed_vector_policy_type =
+              Policy::supports_inline
+                  ? packed_vector_policy_type::inline_with_heap
+                  : packed_vector_policy_type::heap_only>
+class packed_vector_layout_impl;
 
-template <integral_but_not_bool T>
-using auto_packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
-                            detail::heap_only_packed_vector_policy>;
+template <typename Policy, typename Underlying>
+using packed_vector_layout = packed_vector_layout_impl<Policy, Underlying>;
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::internal::detail
