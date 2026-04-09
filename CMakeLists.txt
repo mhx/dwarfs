@@ -659,7 +659,6 @@ if(WITH_TESTS)
       test/options_test.cpp
       test/option_map_test.cpp
       test/os_access_generic_test.cpp
-      test/packed_int_vector_test.cpp
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp
       test/scoped_output_capture_test.cpp
@@ -679,6 +678,10 @@ if(WITH_TESTS)
       test/worker_group_test.cpp
       test/xattr_test.cpp
       test/zstd_compressor_test.cpp
+    )
+
+    add_executable(dwarfs_packed_int_vector_tests
+      test/packed_int_vector_test.cpp
     )
 
     add_executable(dwarfs_categorizer_tests
@@ -729,6 +732,7 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS
       dwarfs_categorizer_tests
       dwarfs_expensive_tests
+      dwarfs_packed_int_vector_tests
       dwarfs_unit_tests
       dwarfs_thrift_lite_tests
       frozen_tests
