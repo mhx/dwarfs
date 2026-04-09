@@ -33,7 +33,6 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <iterator>
 #include <limits>
 #include <optional>
 #include <ostream>
@@ -44,6 +43,8 @@
 #include <dwarfs/bit_view.h>
 
 #include <dwarfs/internal/detail/block_storage.h>
+#include <dwarfs/internal/detail/index_based_iterator.h>
+#include <dwarfs/internal/detail/index_based_value_proxy.h>
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
 #include <dwarfs/internal/detail/vector_growth_policy.h>
@@ -78,226 +79,10 @@ class basic_packed_int_vector {
             typename>
   friend class basic_packed_int_vector;
 
-  class value_proxy {
-   public:
-    value_proxy(basic_packed_int_vector& vec, size_type i)
-        : vec_{vec}
-        , i_{i} {}
-
-    operator T() const { return vec_.get(i_); }
-
-    value_proxy const& operator=(T value) const {
-      vec_.set(i_, value);
-      return *this;
-    }
-
-    value_proxy const& operator=(value_proxy const& other) const {
-      return *this = static_cast<T>(other);
-    }
-
-    friend void swap(value_proxy a, value_proxy b) {
-      T tmp = a;
-      a = static_cast<T>(b);
-      b = tmp;
-    }
-
-   private:
-    basic_packed_int_vector& vec_;
-    size_type i_;
-  };
-
-  class iterator {
-   public:
-    using iterator_concept = std::random_access_iterator_tag;
-    using iterator_category = std::random_access_iterator_tag;
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using reference = value_proxy;
-
-    iterator() = default;
-
-    reference operator*() const { return (*vec_)[index_]; }
-
-    reference operator[](difference_type n) const {
-      return (*vec_)[index_ + n];
-    }
-
-    iterator& operator++() {
-      ++index_;
-      return *this;
-    }
-
-    iterator operator++(int) {
-      auto tmp = *this;
-      ++*this;
-      return tmp;
-    }
-
-    iterator& operator--() {
-      --index_;
-      return *this;
-    }
-
-    iterator operator--(int) {
-      auto tmp = *this;
-      --*this;
-      return tmp;
-    }
-
-    iterator& operator+=(difference_type n) {
-      index_ += n;
-      return *this;
-    }
-
-    iterator& operator-=(difference_type n) {
-      index_ -= n;
-      return *this;
-    }
-
-    friend iterator operator+(iterator it, difference_type n) {
-      it += n;
-      return it;
-    }
-
-    friend iterator operator+(difference_type n, iterator it) {
-      it += n;
-      return it;
-    }
-
-    friend iterator operator-(iterator it, difference_type n) {
-      it -= n;
-      return it;
-    }
-
-    friend difference_type operator-(iterator a, iterator b) {
-      return static_cast<difference_type>(a.index_) -
-             static_cast<difference_type>(b.index_);
-    }
-
-    friend bool operator==(iterator a, iterator b) {
-      return a.vec_ == b.vec_ && a.index_ == b.index_;
-    }
-
-    friend auto operator<=>(iterator a, iterator b) {
-      assert(a.vec_ == b.vec_);
-      return a.index_ <=> b.index_;
-    }
-
-    friend T iter_move(iterator const& it) noexcept {
-      return it.vec_->get(it.index_);
-    }
-
-    friend void iter_swap(iterator const& a, iterator const& b) {
-      using std::swap;
-      swap((*a.vec_)[a.index_], (*b.vec_)[b.index_]);
-    }
-
-   private:
-    friend class basic_packed_int_vector;
-
-    iterator(basic_packed_int_vector* vec, size_type index)
-        : vec_{vec}
-        , index_{index} {}
-
-    basic_packed_int_vector* vec_{nullptr};
-    size_type index_{0};
-  };
-
-  class const_iterator {
-   public:
-    using iterator_concept = std::random_access_iterator_tag;
-    using iterator_category = std::random_access_iterator_tag;
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using reference = T;
-
-    const_iterator() = default;
-
-    const_iterator(iterator it)
-        : vec_{it.vec_}
-        , index_{it.index_} {}
-
-    reference operator*() const { return (*vec_)[index_]; }
-
-    reference operator[](difference_type n) const {
-      return (*vec_)[index_ + n];
-    }
-
-    const_iterator& operator++() {
-      ++index_;
-      return *this;
-    }
-
-    const_iterator operator++(int) {
-      auto tmp = *this;
-      ++*this;
-      return tmp;
-    }
-
-    const_iterator& operator--() {
-      --index_;
-      return *this;
-    }
-
-    const_iterator operator--(int) {
-      auto tmp = *this;
-      --*this;
-      return tmp;
-    }
-
-    const_iterator& operator+=(difference_type n) {
-      index_ += n;
-      return *this;
-    }
-
-    const_iterator& operator-=(difference_type n) {
-      index_ -= n;
-      return *this;
-    }
-
-    friend const_iterator operator+(const_iterator it, difference_type n) {
-      it += n;
-      return it;
-    }
-
-    friend const_iterator operator+(difference_type n, const_iterator it) {
-      it += n;
-      return it;
-    }
-
-    friend const_iterator operator-(const_iterator it, difference_type n) {
-      it -= n;
-      return it;
-    }
-
-    friend difference_type operator-(const_iterator a, const_iterator b) {
-      return static_cast<difference_type>(a.index_) -
-             static_cast<difference_type>(b.index_);
-    }
-
-    friend bool operator==(const_iterator a, const_iterator b) {
-      return a.vec_ == b.vec_ && a.index_ == b.index_;
-    }
-
-    friend auto operator<=>(const_iterator a, const_iterator b) {
-      assert(a.vec_ == b.vec_);
-      return a.index_ <=> b.index_;
-    }
-
-    friend T iter_move(const_iterator const& it) noexcept {
-      return it.vec_->get(it.index_);
-    }
-
-   private:
-    friend class basic_packed_int_vector;
-
-    const_iterator(basic_packed_int_vector const* vec, size_type index)
-        : vec_{vec}
-        , index_{index} {}
-
-    basic_packed_int_vector const* vec_{nullptr};
-    size_type index_{0};
-  };
+  using value_proxy = detail::index_based_value_proxy<basic_packed_int_vector>;
+  using iterator = detail::index_based_iterator<basic_packed_int_vector>;
+  using const_iterator =
+      detail::index_based_const_iterator<basic_packed_int_vector>;
 
  private:
   using storage_type = detail::raw_block_storage<underlying_type>;
