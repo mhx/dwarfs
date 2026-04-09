@@ -389,6 +389,7 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] auto get(size_type i) const -> T {
+    assert(i < size());
     return layout_.template read<T>(i);
   }
 
@@ -402,6 +403,8 @@ class basic_packed_int_vector {
   }
 
   void set(size_type i, T value) {
+    assert(i < size());
+
     if constexpr (auto_bit_width) {
       auto const cur_size = size();
       ensure_bits(required_bits(value), cur_size, cur_size, bits());
@@ -435,11 +438,25 @@ class basic_packed_int_vector {
     layout_.set_size(size() - 1);
   }
 
-  [[nodiscard]] auto back() const -> T { return get(size() - 1); }
-  [[nodiscard]] auto back() -> value_proxy { return (*this)[size() - 1]; }
+  [[nodiscard]] auto back() const -> T {
+    assert(!empty());
+    return get(size() - 1);
+  }
 
-  [[nodiscard]] auto front() const -> T { return get(0); }
-  [[nodiscard]] auto front() -> value_proxy { return (*this)[0]; }
+  [[nodiscard]] auto back() -> value_proxy {
+    assert(!empty());
+    return (*this)[size() - 1];
+  }
+
+  [[nodiscard]] auto front() const -> T {
+    assert(!empty());
+    return get(0);
+  }
+
+  [[nodiscard]] auto front() -> value_proxy {
+    assert(!empty());
+    return (*this)[0];
+  }
 
   [[nodiscard]] auto unpack() const -> std::vector<T> {
     std::vector<T> result(size());
