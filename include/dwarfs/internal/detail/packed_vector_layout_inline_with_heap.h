@@ -39,6 +39,7 @@
 
 #include <dwarfs/bit_view.h>
 
+#include <dwarfs/internal/detail/packed_vector_heap_storage.h>
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
 
@@ -48,9 +49,10 @@ template <typename Policy, typename Underlying>
 class packed_vector_layout_impl<Policy, Underlying,
                                 packed_vector_policy_type::inline_with_heap> {
  public:
-  using policy_type = compact_packed_vector_policy;
+  using policy_type = Policy;
   using underlying_type = Underlying;
   using size_type = std::size_t;
+  using storage_type = packed_vector_heap_storage<underlying_type>;
 
   static constexpr bool supports_inline = policy_type::supports_inline;
   static constexpr size_type bits_per_block =
@@ -78,25 +80,34 @@ class packed_vector_layout_impl<Policy, Underlying,
   static constexpr size_type max_inline_size =
       max_for_bits<size_type>(inline_size_field_bits);
 
-  // We can encode zero bits through capacity == 0 in heap mode and thus shave
-  // one bit here since we only need to encode max_bit_width - 1.
-  static constexpr size_type heap_bits_field_bits = inline_bits_field_bits - 1;
-
+  static constexpr size_type heap_bits_field_bits = inline_bits_field_bits;
   static constexpr size_type heap_flag_bit = 0;
   static constexpr size_type heap_bits_bit = heap_flag_bit + 1;
-  static constexpr size_type heap_size_bit =
-      heap_bits_bit + heap_bits_field_bits;
-  static constexpr size_type heap_metadata_bits = metadata_bytes * 8;
-  static constexpr size_type heap_payload_field_bits =
-      heap_metadata_bits - heap_size_bit;
 
   static constexpr size_type capacity_granularity_bytes =
       policy_type::capacity_granularity_bytes;
   static constexpr size_type capacity_granularity_blocks = std::max<size_type>(
       capacity_granularity_bytes / sizeof(underlying_type), 1);
 
+  static constexpr size_type max_heap_size =
+      std::numeric_limits<size_type>::max();
+  static constexpr size_type max_capacity_blocks_value =
+      std::numeric_limits<size_type>::max();
+
+  struct heap_repr {
+    std::array<std::byte, metadata_bytes> meta{};
+    underlying_type* data{nullptr};
+  };
+
+  using state_type = std::array<std::byte, state_bytes>;
+
   static_assert(std::has_single_bit(capacity_granularity_bytes));
-  static_assert(std::has_single_bit(capacity_granularity_blocks));
+  static_assert(std::is_trivially_copyable_v<heap_repr>);
+  static_assert(std::is_trivially_copyable_v<state_type>);
+  static_assert(sizeof(heap_repr) == sizeof(state_type));
+  static_assert(sizeof(state_type) % sizeof(underlying_type) == 0);
+  static_assert(inline_payload_bits > 0);
+  static_assert(capacity_granularity_blocks > 0);
 
   static void dump(std::ostream& os) {
     os << "compact layout\n";
@@ -115,41 +126,12 @@ class packed_vector_layout_impl<Policy, Underlying,
     os << "  heap flag bit: " << heap_flag_bit << " (1 bit)\n";
     os << "  heap bits field: " << heap_bits_bit << " (" << heap_bits_field_bits
        << " bits)\n";
-    os << "  heap size field: " << heap_size_bit << " (" << heap_size_field_bits
-       << " bits)\n";
-    os << "  heap capacity field: " << heap_capacity_bit << " ("
-       << heap_capacity_field_bits << " bits)\n";
   }
 
-  struct heap_repr {
-    std::array<std::byte, metadata_bytes> meta{};
-    underlying_type* data{nullptr};
-  };
-
-  using state_type = std::array<std::byte, state_bytes>;
-
-  static_assert(std::has_single_bit(capacity_granularity_bytes));
-  static_assert(std::is_trivially_copyable_v<heap_repr>);
-  static_assert(std::is_trivially_copyable_v<state_type>);
-  static_assert(sizeof(heap_repr) == sizeof(state_type));
-  static_assert(sizeof(state_type) % sizeof(underlying_type) == 0);
-  static_assert(inline_payload_bits > 0);
-  static_assert(capacity_granularity_blocks > 0);
-  static_assert(heap_payload_field_bits > 0);
-
-  static constexpr size_type heap_size_field_bits = derive_heap_size_field_bits(
-      heap_payload_field_bits, std::countr_zero(capacity_granularity_blocks));
-  static constexpr size_type heap_capacity_field_bits =
-      heap_payload_field_bits - heap_size_field_bits;
-  static constexpr size_type heap_capacity_bit =
-      heap_size_bit + heap_size_field_bits;
-
-  static constexpr size_type max_heap_size =
-      max_for_bits<size_type>(heap_size_field_bits);
-  static constexpr size_type max_heap_capacity_quanta =
-      max_for_bits<size_type>(heap_capacity_field_bits);
-  static constexpr size_type max_capacity_blocks_value =
-      saturating_mul(max_heap_capacity_quanta, capacity_granularity_blocks);
+  [[nodiscard]] auto mutable_heap_data() const noexcept -> underlying_type* {
+    assert(!is_inline());
+    return const_cast<underlying_type*>(heap_data());
+  }
 
   [[nodiscard]] static constexpr auto
   can_store_inline(size_type bits, size_type size) noexcept -> bool {
@@ -160,12 +142,16 @@ class packed_vector_layout_impl<Policy, Underlying,
   }
 
   [[nodiscard]] static constexpr auto
-  can_store_heap(size_type bits, size_type size,
-                 size_type capacity_blocks) noexcept -> bool {
-    return bits <= bits_per_block && size <= max_heap_size &&
-           capacity_blocks <= max_capacity_blocks_value &&
-           (capacity_blocks == 0 ||
-            capacity_blocks % capacity_granularity_blocks == 0);
+  can_store_heap(size_type bits, size_type, size_type) noexcept -> bool {
+    return bits <= bits_per_block;
+  }
+
+  [[nodiscard]] static auto
+  inline_capacity_for_bits(size_type bits) noexcept -> size_type {
+    if (bits == 0) {
+      return max_inline_size;
+    }
+    return std::min(max_inline_size, inline_payload_bits / bits);
   }
 
   packed_vector_layout_impl() { reset_empty(); }
@@ -179,34 +165,24 @@ class packed_vector_layout_impl<Policy, Underlying,
   }
 
   [[nodiscard]] auto size() const noexcept -> size_type {
-    return is_inline() ? read_field(inline_size_bit, inline_size_field_bits)
-                       : read_field(heap_size_bit, heap_size_field_bits);
+    if (is_inline()) {
+      return read_field(inline_size_bit, inline_size_field_bits);
+    }
+    return storage_type::size(mutable_heap_data());
   }
 
   [[nodiscard]] auto bits() const noexcept -> size_type {
     if (is_inline()) {
       return read_field(inline_bits_bit, inline_bits_field_bits);
     }
-    if (capacity_blocks() == 0) {
-      return 0;
-    }
-    return read_heap_bits();
+    return read_field(heap_bits_bit, heap_bits_field_bits);
   }
 
   [[nodiscard]] auto capacity_blocks() const noexcept -> size_type {
     if (is_inline()) {
       return 0;
     }
-    return read_field(heap_capacity_bit, heap_capacity_field_bits) *
-           capacity_granularity_blocks;
-  }
-
-  [[nodiscard]] static auto
-  inline_capacity_for_bits(size_type bits) noexcept -> size_type {
-    if (bits == 0) {
-      return max_inline_size;
-    }
-    return std::min(max_inline_size, inline_payload_bits / bits);
+    return storage_type::capacity_blocks(mutable_heap_data());
   }
 
   [[nodiscard]] auto
@@ -214,36 +190,19 @@ class packed_vector_layout_impl<Policy, Underlying,
     if (is_inline()) {
       return inline_capacity_for_bits(bits);
     }
+    assert(heap_data() != nullptr);
     if (bits == 0) {
       return max_heap_size;
     }
-    return std::min(max_heap_size, (capacity_blocks() * bits_per_block) / bits);
+    return (capacity_blocks() * bits_per_block) / bits;
   }
 
   void set_size(size_type v) noexcept {
     if (is_inline()) {
       write_field(inline_size_bit, inline_size_field_bits, v);
     } else {
-      write_field(heap_size_bit, heap_size_field_bits, v);
+      storage_type::set_size(mutable_heap_data(), v);
     }
-  }
-
-  void set_bits(size_type v) noexcept {
-    if (is_inline()) {
-      write_field(inline_bits_bit, inline_bits_field_bits, v);
-    } else {
-      write_heap_bits(v);
-    }
-  }
-
-  void set_capacity_blocks(size_type v) noexcept {
-    if (is_inline()) {
-      return;
-    }
-
-    assert(v == 0 || v % capacity_granularity_blocks == 0);
-    write_field(heap_capacity_bit, heap_capacity_field_bits,
-                v / capacity_granularity_blocks);
   }
 
   void set_inline_state(size_type bits, size_type size) noexcept {
@@ -255,16 +214,12 @@ class packed_vector_layout_impl<Policy, Underlying,
     write_field(inline_size_bit, inline_size_field_bits, size);
   }
 
-  void set_heap_state(underlying_type* data, size_type bits, size_type size,
-                      size_type capacity_blocks) noexcept {
-    assert(can_store_heap(bits, size, capacity_blocks));
+  void set_heap_state(underlying_type* data, size_type bits) noexcept {
+    assert(bits <= bits_per_block);
 
     state_.fill(std::byte{0});
     write_field(heap_flag_bit, 1, 0);
-    write_heap_bits(bits);
-    write_field(heap_size_bit, heap_size_field_bits, size);
-    write_field(heap_capacity_bit, heap_capacity_field_bits,
-                capacity_blocks / capacity_granularity_blocks);
+    write_field(heap_bits_bit, heap_bits_field_bits, bits);
     set_heap_data(data);
   }
 
@@ -285,7 +240,7 @@ class packed_vector_layout_impl<Policy, Underlying,
       return nullptr;
     }
 
-    auto* p = const_cast<underlying_type*>(heap_data());
+    auto* p = mutable_heap_data();
     set_heap_data(nullptr);
     return p;
   }
@@ -319,8 +274,7 @@ class packed_vector_layout_impl<Policy, Underlying,
       return;
     }
 
-    bit_view(const_cast<underlying_type*>(heap_data()))
-        .write({i * value_bits, value_bits}, value);
+    bit_view(mutable_heap_data()).write({i * value_bits, value_bits}, value);
   }
 
   template <typename V>
@@ -338,23 +292,13 @@ class packed_vector_layout_impl<Policy, Underlying,
       return;
     }
 
-    auto view = bit_view(const_cast<underlying_type*>(heap_data()));
+    auto view = bit_view(mutable_heap_data());
     for (size_type i = first; i < last; ++i) {
       view.write({i * value_bits, value_bits}, value);
     }
   }
 
  private:
-  [[nodiscard]] auto read_heap_bits() const noexcept -> size_type {
-    return read_field(heap_bits_bit, heap_bits_field_bits) + 1;
-  }
-
-  void write_heap_bits(size_type v) noexcept {
-    assert(!is_inline());
-    write_field(heap_bits_bit, heap_bits_field_bits,
-                std::max<size_type>(v, 1) - 1);
-  }
-
   [[nodiscard]] auto
   read_field(size_type offset, size_type width) const noexcept -> size_type {
     assert(width > 0);
