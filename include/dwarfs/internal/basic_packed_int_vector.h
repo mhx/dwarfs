@@ -146,6 +146,14 @@ class basic_packed_int_vector {
     initialize(checked_bits(bits), size);
   }
 
+  basic_packed_int_vector(std::initializer_list<T> ilist)
+      : basic_packed_int_vector(required_bits_for(ilist), ilist.size()) {
+    std::size_t i = 0;
+    for (T value : ilist) {
+      layout_.write(i++, value);
+    }
+  }
+
   ~basic_packed_int_vector() { destroy_heap_storage(); }
 
   basic_packed_int_vector(basic_packed_int_vector const& other) {
@@ -428,7 +436,163 @@ class basic_packed_int_vector {
     return result;
   }
 
+  iterator erase(const_iterator pos) {
+    auto const index = pos.index_;
+    auto const sz = size();
+    assert(pos.vec_ == this);
+    assert(index < sz);
+    for (size_type i = index + 1; i < sz; ++i) {
+      layout_.write(i - 1, get(i));
+    }
+    layout_.set_size(sz - 1);
+    return iterator{this, index};
+  }
+
+  iterator erase(const_iterator first, const_iterator last) {
+    auto const first_index = first.index_;
+    auto const last_index = last.index_;
+    auto const sz = size();
+    assert(first.vec_ == this);
+    assert(last.vec_ == this);
+    assert(first_index <= last_index);
+    assert(last_index <= sz);
+    auto const num_to_erase = last_index - first_index;
+    for (size_type i = last_index; i < sz; ++i) {
+      layout_.write(i - num_to_erase, get(i));
+    }
+    layout_.set_size(sz - num_to_erase);
+    return iterator{this, first_index};
+  }
+
+  iterator erase(iterator pos) {
+    return erase(const_iterator{this, pos.index_});
+  }
+
+  iterator erase(iterator first, iterator last) {
+    return erase(const_iterator{this, first.index_},
+                 const_iterator{this, last.index_});
+  }
+
+  iterator insert(const_iterator pos, size_type count, T value) {
+    auto const index = pos.index_;
+    assert(pos.vec_ == this);
+    auto req_bits = bits();
+    if constexpr (auto_bit_width) {
+      req_bits = required_bits(value);
+    }
+    return insert_known_n(index, count, req_bits, [value]() { return value; });
+  }
+
+  iterator insert(const_iterator pos, T value) { return insert(pos, 1, value); }
+
+  template <std::input_iterator InputIt>
+  iterator insert(const_iterator pos, InputIt first, InputIt last) {
+    auto const index = pos.index_;
+    assert(pos.vec_ == this);
+
+    if constexpr (std::forward_iterator<InputIt>) {
+      auto req_bits = bits();
+      size_type count = 0;
+
+      if constexpr (auto_bit_width) {
+        for (auto it = first; it != last; ++it) {
+          req_bits = std::max(req_bits, required_bits(*it));
+          ++count;
+        }
+      } else {
+        count = std::distance(first, last);
+      }
+
+      return insert_known_n(index, count, req_bits,
+                            [first]() mutable { return *first++; });
+    } else {
+      return insert_single_pass(index, first, last);
+    }
+  }
+
+  iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+    return insert(pos, ilist.begin(), ilist.end());
+  }
+
+  void assign(size_type count, T value) {
+    clear();
+    insert(begin(), count, value);
+  }
+
+  template <std::input_iterator InputIt>
+  void assign(InputIt first, InputIt last) {
+    clear();
+    insert(begin(), first, last);
+  }
+
+  void assign(std::initializer_list<T> ilist) {
+    assign(ilist.begin(), ilist.end());
+  }
+
  private:
+  static auto required_bits_for(std::initializer_list<T> ilist) -> size_type {
+    size_type bits = 0;
+
+    for (T value : ilist) {
+      bits = std::max(bits, required_bits(value));
+
+      if (bits == bits_per_block) {
+        break;
+      }
+    }
+
+    return bits;
+  }
+
+  template <typename Producer>
+  iterator insert_known_n(size_type index, size_type count, size_type req_bits,
+                          Producer&& produce) {
+    auto const old_size = size();
+    assert(index <= old_size);
+
+    if (count == 0) {
+      return iterator{this, index};
+    }
+
+    if (count > max_size() || old_size > max_size() - count) {
+      throw_size_limit();
+    }
+
+    auto const new_size = old_size + count;
+    auto const old_bits = bits();
+
+    if constexpr (auto_bit_width) {
+      ensure_bits(req_bits, new_size, old_size, old_bits);
+    } else {
+      ensure_capacity_for(new_size, old_bits, old_size);
+    }
+
+    for (size_type i = old_size; i > index; --i) {
+      layout_.write(i + count - 1, get(i - 1));
+    }
+
+    auto&& gen = std::forward<Producer>(produce);
+    for (size_type i = 0; i < count; ++i) {
+      layout_.write(index + i, gen());
+    }
+
+    layout_.set_size(new_size);
+    return iterator{this, index};
+  }
+
+  template <std::input_iterator I>
+  iterator insert_single_pass(size_type idx, I first, I last) {
+    auto const old_size = size();
+
+    for (; first != last; ++first) {
+      push_back(*first);
+    }
+
+    std::rotate(iterator{this, idx}, iterator{this, old_size}, end());
+
+    return iterator{this, idx};
+  }
+
   [[nodiscard]] auto
   initialize_heap_layout(layout_type& layout, size_type bits,
                          size_type logical_size, size_type capacity_blocks,

@@ -253,6 +253,39 @@ std::size_t heap_source_size_for_bits(std::size_t bits) {
   }
 }
 
+template <typename T>
+class single_pass_input_iterator {
+ public:
+  using iterator_concept = std::input_iterator_tag;
+  using iterator_category = std::input_iterator_tag;
+  using value_type = T;
+  using difference_type = std::ptrdiff_t;
+  using reference = T;
+
+  single_pass_input_iterator() = default;
+  single_pass_input_iterator(std::vector<T> const* values, std::size_t index)
+      : values_{values}
+      , index_{index} {}
+
+  reference operator*() const { return (*values_)[index_]; }
+
+  single_pass_input_iterator& operator++() {
+    ++index_;
+    return *this;
+  }
+
+  void operator++(int) { ++index_; }
+
+  friend bool
+  operator==(single_pass_input_iterator a, single_pass_input_iterator b) {
+    return a.values_ == b.values_ && a.index_ == b.index_;
+  }
+
+ private:
+  std::vector<T> const* values_{nullptr};
+  std::size_t index_{0};
+};
+
 struct packed_int_vector_selector {
   template <std::integral T>
   using type = packed_int_vector<T>;
@@ -2527,6 +2560,92 @@ TYPED_TEST(packed_int_vec_test, ranges_sort_works) {
   EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 3, 4, 5));
 }
 
+TYPED_TEST(packed_int_vec_test, erase_remove_idiom) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec;
+
+  for (auto v : {8, 1, 2, 3, 4, 5, 6, 7, 8, 10, 8, 9, 6}) {
+    vec.push_back(v);
+  }
+
+  vec.erase(
+      std::remove_if(vec.begin(), vec.end(), [](auto v) { return v % 2 != 0; }),
+      vec.end());
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(8, 2, 4, 6, 8, 10, 8, 6));
+
+  vec.erase(std::remove(vec.begin(), vec.end(), 8), vec.end());
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(2, 4, 6, 10, 6));
+}
+
+TYPED_TEST(packed_int_vec_test, erase_single_iterator) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec;
+
+  for (int i = 0; i < 5; ++i) {
+    vec.push_back(i + 1);
+  }
+
+  {
+    auto it = vec.erase(vec.cbegin() + 2);
+    EXPECT_EQ(*it, 4);
+    EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 4, 5));
+    *it = 42; // we should have gotten a non-const iterator back
+    EXPECT_THAT(vec.unpack(), ElementsAre(1, 2, 42, 5));
+  }
+
+  {
+    auto it = vec.erase(vec.begin());
+    EXPECT_EQ(*it, 2);
+    EXPECT_THAT(vec.unpack(), ElementsAre(2, 42, 5));
+  }
+
+  {
+    auto it = vec.erase(vec.end() - 1);
+    EXPECT_EQ(it, vec.end());
+    EXPECT_THAT(vec.unpack(), ElementsAre(2, 42));
+  }
+
+  {
+    auto it = vec.erase(vec.begin() + 1);
+    EXPECT_EQ(it, vec.end());
+    EXPECT_THAT(vec.unpack(), ElementsAre(2));
+  }
+
+  {
+    auto it = vec.erase(vec.begin());
+    EXPECT_EQ(it, vec.end());
+    EXPECT_TRUE(vec.empty());
+  }
+}
+
+TYPED_TEST(packed_int_vec_test, erase_two_iterators) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec;
+
+  for (int i = 0; i < 5; ++i) {
+    vec.push_back(i + 1);
+  }
+
+  {
+    auto it = vec.erase(vec.cbegin() + 1, vec.cbegin() + 4);
+    EXPECT_EQ(*it, 5);
+    EXPECT_THAT(vec.unpack(), ElementsAre(1, 5));
+    *it = 42; // we should have gotten a non-const iterator back
+    EXPECT_THAT(vec.unpack(), ElementsAre(1, 42));
+  }
+
+  {
+    auto it = vec.erase(vec.begin(), vec.end());
+    EXPECT_EQ(it, vec.end());
+    EXPECT_TRUE(vec.empty());
+  }
+}
+
 TYPED_TEST(packed_int_vec_test, reverse_iterators_work) {
   using vec_type = typename TypeParam::auto_type;
   using value_type = typename vec_type::value_type;
@@ -2692,4 +2811,332 @@ TEST(compact_packed_int_vector, empty_heap_only_to_compact_copy_fallback) {
   EXPECT_FALSE(dst.uses_heap());
   EXPECT_EQ(dst.size(), 0);
   EXPECT_EQ(dst.bits(), 0);
+}
+
+TYPED_TEST(packed_int_vec_test, insert_count_value_into_empty_vector) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec(0);
+
+  auto it = vec.insert(vec.cbegin(), 3, 0);
+
+  EXPECT_EQ(it - vec.begin(), 0);
+  EXPECT_EQ(vec.size(), 3);
+  EXPECT_THAT(vec, ElementsAre(0, 0, 0));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_count_value_at_begin_shifts_elements) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec(std::min<std::size_t>(vec_type::bits_per_block, 5));
+  for (auto v : {1, 2, 3}) {
+    vec.push_back(v);
+  }
+
+  auto it = vec.insert(vec.cbegin(), 2, 7);
+
+  EXPECT_EQ(it - vec.begin(), 0);
+  EXPECT_THAT(vec, ElementsAre(7, 7, 1, 2, 3));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_single_value_in_middle) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec(std::min<std::size_t>(vec_type::bits_per_block, 5));
+  for (auto v : {1, 2, 3, 4}) {
+    vec.push_back(v);
+  }
+
+  auto it = vec.insert(vec.cbegin() + 2, 9);
+
+  EXPECT_EQ(it - vec.begin(), 2);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 9, 3, 4));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_forward_range_in_middle) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec(std::min<std::size_t>(vec_type::bits_per_block, 6));
+  for (auto v : {1, 2, 5, 6}) {
+    vec.push_back(v);
+  }
+
+  std::vector<value_type> src{
+      3,
+      4,
+  };
+
+  auto it = vec.insert(vec.cbegin() + 2, src.begin(), src.end());
+
+  EXPECT_EQ(it - vec.begin(), 2);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5, 6));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_empty_forward_range_is_noop) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec(std::min<std::size_t>(vec_type::bits_per_block, 5));
+  for (auto v : {1, 2, 3}) {
+    vec.push_back(v);
+  }
+
+  std::vector<value_type> empty;
+
+  auto it = vec.insert(vec.cbegin() + 1, empty.begin(), empty.end());
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_single_pass_range_in_middle) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec(std::min<std::size_t>(vec_type::bits_per_block, 6));
+  for (auto v : {1, 4, 5}) {
+    vec.push_back(v);
+  }
+
+  std::vector<value_type> src{
+      2,
+      3,
+  };
+
+  auto it = vec.insert(
+      vec.cbegin() + 1, single_pass_input_iterator<value_type>{&src, 0},
+      single_pass_input_iterator<value_type>{&src, src.size()});
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_insert_count_value_grows_bit_width) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec(0);
+  vec.push_back(1);
+  vec.push_back(2);
+
+  auto const big = 31;
+  auto const expected_bits = vec_type::required_bits(big);
+
+  auto it = vec.insert(vec.cbegin() + 1, 2, big);
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_EQ(vec.bits(), expected_bits);
+  EXPECT_THAT(vec, ElementsAre(1, big, big, 2));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_insert_forward_range_grows_bit_width) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec(0);
+  vec.push_back(1);
+  vec.push_back(2);
+
+  std::vector<value_type> src{
+      7,
+      31,
+  };
+
+  auto it = vec.insert(vec.cbegin() + 1, src.begin(), src.end());
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_EQ(vec.bits(),
+            std::max(vec_type::required_bits(2), vec_type::required_bits(31)));
+  EXPECT_THAT(vec, ElementsAre(1, 7, 31, 2));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_insert_single_pass_range_grows_bit_width) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec(0);
+  vec.push_back(1);
+  vec.push_back(2);
+
+  std::vector<value_type> src{
+      7,
+      31,
+  };
+
+  auto it = vec.insert(
+      vec.cbegin() + 1, single_pass_input_iterator<value_type>{&src, 0},
+      single_pass_input_iterator<value_type>{&src, src.size()});
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_EQ(vec.bits(),
+            std::max(vec_type::required_bits(2), vec_type::required_bits(31)));
+  EXPECT_THAT(vec, ElementsAre(1, 7, 31, 2));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_exceeding_max_size_throws) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec(0);
+  vec.resize(vec_type::max_size() - 1);
+
+  EXPECT_THROW(vec.insert(vec.cbegin(), 2, 0), std::length_error);
+}
+
+TYPED_TEST(packed_int_vec_test,
+           initializer_list_constructor_deduces_bits_and_values) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 3, 7};
+
+  EXPECT_EQ(vec.size(), 4);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(7));
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 7));
+}
+
+TYPED_TEST(packed_int_vec_test,
+           auto_initializer_list_constructor_deduces_bits_and_values) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+  static constexpr auto max = std::numeric_limits<value_type>::max();
+
+  vec_type vec{1, max, 3, 31};
+
+  EXPECT_EQ(vec.size(), 4);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(max));
+  EXPECT_THAT(vec, ElementsAre(1, max, 3, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_initializer_list_in_middle) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 5, 6};
+
+  auto it = vec.insert(vec.cbegin() + 2, {3, 4});
+
+  EXPECT_EQ(it - vec.begin(), 2);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5, 6));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_empty_initializer_list_is_noop) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 3};
+
+  auto it = vec.insert(vec.cbegin() + 1, {});
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_insert_initializer_list_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec{1, 2};
+
+  auto it = vec.insert(vec.cbegin() + 1, {7, 31});
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(1, 7, 31, 2));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_count_value_replaces_contents) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 3, 4};
+  vec.assign(3, 7);
+
+  EXPECT_EQ(vec.size(), 3);
+  EXPECT_THAT(vec, ElementsAre(7, 7, 7));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_forward_range_replaces_contents) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 3, 4};
+  std::vector<value_type> src{5, 6, 7};
+
+  vec.assign(src.begin(), src.end());
+
+  EXPECT_EQ(vec.size(), 3);
+  EXPECT_THAT(vec, ElementsAre(5, 6, 7));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_initializer_list_replaces_contents) {
+  using vec_type = typename TypeParam::auto_type;
+
+  vec_type vec{1, 2, 3, 4};
+  vec.assign({8, 9});
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAre(8, 9));
+}
+
+TYPED_TEST(packed_int_vec_test,
+           assign_initializer_list_replaces_and_truncates) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 3, 4};
+  vec.assign({8, 9});
+
+  vec_type expected(vec.bits());
+  expected.push_back(8);
+  expected.push_back(9);
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAreArray(expected));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_single_pass_range_replaces_contents) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 4, 5};
+
+  std::vector<value_type> src{2, 3};
+  vec.assign(single_pass_input_iterator<value_type>{&src, 0},
+             single_pass_input_iterator<value_type>{&src, src.size()});
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAre(2, 3));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_assign_forward_range_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  std::vector<value_type> src{7, 31};
+
+  vec.assign(src.begin(), src.end());
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(7, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_assign_single_pass_range_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+
+  std::vector<value_type> src{7, 31};
+  vec.assign(single_pass_input_iterator<value_type>{&src, 0},
+             single_pass_input_iterator<value_type>{&src, src.size()});
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(7, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_empty_initializer_list_clears_vector) {
+  using vec_type = typename TypeParam::type;
+
+  vec_type vec{1, 2, 3};
+  vec.assign({});
+
+  EXPECT_TRUE(vec.empty());
+  EXPECT_EQ(vec.size(), 0);
 }
