@@ -39,6 +39,7 @@
 #include <dwarfs/internal/segmented_packed_int_vector.h>
 
 using namespace dwarfs::internal;
+using dwarfs::from_range;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
@@ -284,6 +285,14 @@ class single_pass_input_iterator {
  private:
   std::vector<T> const* values_{nullptr};
   std::size_t index_{0};
+};
+
+template <typename T>
+struct single_pass_input_range {
+  std::vector<T> values;
+
+  auto begin() { return single_pass_input_iterator<T>{&values, 0}; }
+  auto end() { return single_pass_input_iterator<T>{&values, values.size()}; }
 };
 
 struct packed_int_vector_selector {
@@ -3139,4 +3148,184 @@ TYPED_TEST(packed_int_vec_test, assign_empty_initializer_list_clears_vector) {
 
   EXPECT_TRUE(vec.empty());
   EXPECT_EQ(vec.size(), 0);
+}
+
+TYPED_TEST(packed_int_vec_test, from_range_constructor_builds_vector) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  std::array<value_type, 4> src{1, 2, 3, 31};
+
+  vec_type vec(from_range, src);
+
+  EXPECT_EQ(vec.size(), src.size());
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_from_range_constructor_builds_vector) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  std::array<value_type, 4> src{1, 2, 3, 31};
+
+  vec_type vec(from_range, src);
+
+  EXPECT_EQ(vec.size(), src.size());
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_range_with_forward_range) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 5, 6};
+  std::array<value_type, 2> src{3, 4};
+
+  auto it = vec.insert_range(vec.cbegin() + 2, src);
+
+  EXPECT_EQ(it - vec.begin(), 2);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5, 6));
+}
+
+TYPED_TEST(packed_int_vec_test, append_range_with_forward_range) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  std::array<value_type, 3> src{3, 4, 5};
+
+  vec.append_range(src);
+
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_range_with_forward_range) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 3, 4};
+  std::array<value_type, 2> src{7, 8};
+
+  vec.assign_range(src);
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAre(7, 8));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_range_with_forward_range_truncates) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 3, 4};
+  std::array<value_type, 2> src{7, 8};
+
+  vec.assign_range(src);
+
+  vec_type expected(vec.bits());
+  expected.push_back(7);
+  expected.push_back(8);
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAreArray(expected));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_range_with_single_pass_input_range) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 4, 5};
+  single_pass_input_range<value_type> src{{2, 3}};
+
+  auto it = vec.insert_range(vec.cbegin() + 1, src);
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5));
+}
+
+TYPED_TEST(packed_int_vec_test, append_range_with_single_pass_input_range) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  single_pass_input_range<value_type> src{{3, 4, 5}};
+
+  vec.append_range(src);
+
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3, 4, 5));
+}
+
+TYPED_TEST(packed_int_vec_test, assign_range_with_single_pass_input_range) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 3};
+  single_pass_input_range<value_type> src{{7, 8}};
+
+  vec.assign_range(src);
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_THAT(vec, ElementsAre(7, 8));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_insert_range_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  std::array<value_type, 2> src{7, 31};
+
+  auto it = vec.insert_range(vec.cbegin() + 1, src);
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(1, 7, 31, 2));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_append_range_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  std::array<value_type, 2> src{7, 31};
+
+  vec.append_range(src);
+
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(1, 2, 7, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, auto_assign_range_grows_bits) {
+  using vec_type = typename TypeParam::auto_type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2};
+  std::array<value_type, 2> src{7, 31};
+
+  vec.assign_range(src);
+
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_EQ(vec.bits(), vec_type::required_bits(31));
+  EXPECT_THAT(vec, ElementsAre(7, 31));
+}
+
+TYPED_TEST(packed_int_vec_test, insert_range_empty_forward_range_is_noop) {
+  using vec_type = typename TypeParam::type;
+  using value_type = typename vec_type::value_type;
+
+  vec_type vec{1, 2, 3};
+  std::array<value_type, 0> src{};
+
+  auto it = vec.insert_range(vec.cbegin() + 1, src);
+
+  EXPECT_EQ(it - vec.begin(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2, 3));
+}
+
+TEST(compact_packed_int_vector, assign_from_different_type_as_range) {
+  compact_packed_int_vector<uint16_t> vec{1, 2, 3};
+  compact_packed_int_vector<int32_t> other{from_range, vec};
+
+  EXPECT_THAT(other, ElementsAre(1, 2, 3));
 }
