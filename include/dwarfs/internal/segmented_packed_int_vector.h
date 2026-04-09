@@ -53,8 +53,14 @@ class segmented_packed_int_vector {
 
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
-  static constexpr size_type max_size_value = detail::saturating_mul(
-      segment_elements, std::vector<segment_type>{}.max_size());
+  static constexpr size_type max_size_value =
+#if defined(__APPLE__) && defined(__clang__) && __clang_major__ < 16
+      segment_type::max_size()
+#else
+      detail::saturating_mul(segment_elements,
+                             std::vector<segment_type>{}.max_size())
+#endif
+      ;
 
   using value_proxy =
       detail::index_based_value_proxy<segmented_packed_int_vector>;
