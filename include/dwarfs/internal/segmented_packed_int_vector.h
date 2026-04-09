@@ -36,6 +36,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <dwarfs/internal/detail/index_based_iterator.h>
+#include <dwarfs/internal/detail/index_based_value_proxy.h>
 #include <dwarfs/internal/packed_int_vector.h>
 
 namespace dwarfs::internal {
@@ -51,23 +53,11 @@ class segmented_packed_int_vector {
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
 
-  class value_proxy {
-   public:
-    value_proxy(segmented_packed_int_vector& vec, size_type i)
-        : vec_{vec}
-        , i_{i} {}
-
-    operator T() const { return vec_.get(i_); }
-
-    value_proxy& operator=(T value) {
-      vec_.set(i_, value);
-      return *this;
-    }
-
-   private:
-    segmented_packed_int_vector& vec_;
-    size_type i_;
-  };
+  using value_proxy =
+      detail::index_based_value_proxy<segmented_packed_int_vector>;
+  using iterator = detail::index_based_iterator<segmented_packed_int_vector>;
+  using const_iterator =
+      detail::index_based_const_iterator<segmented_packed_int_vector>;
 
   segmented_packed_int_vector() = default;
 
@@ -81,6 +71,50 @@ class segmented_packed_int_vector {
   operator=(segmented_packed_int_vector const&) = default;
   segmented_packed_int_vector&
   operator=(segmented_packed_int_vector&&) = default;
+
+  [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
+
+  [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
+
+  [[nodiscard]] const_iterator begin() const noexcept {
+    return const_iterator{this, 0};
+  }
+
+  [[nodiscard]] const_iterator end() const noexcept {
+    return const_iterator{this, size()};
+  }
+
+  [[nodiscard]] const_iterator cbegin() const noexcept {
+    return const_iterator{this, 0};
+  }
+
+  [[nodiscard]] const_iterator cend() const noexcept {
+    return const_iterator{this, size()};
+  }
+
+  [[nodiscard]] auto rbegin() noexcept {
+    return std::reverse_iterator<iterator>{end()};
+  }
+
+  [[nodiscard]] auto rend() noexcept {
+    return std::reverse_iterator<iterator>{begin()};
+  }
+
+  [[nodiscard]] auto rbegin() const noexcept {
+    return std::reverse_iterator<const_iterator>{end()};
+  }
+
+  [[nodiscard]] auto rend() const noexcept {
+    return std::reverse_iterator<const_iterator>{begin()};
+  }
+
+  [[nodiscard]] auto crbegin() const noexcept {
+    return std::reverse_iterator<const_iterator>{cend()};
+  }
+
+  [[nodiscard]] auto crend() const noexcept {
+    return std::reverse_iterator<const_iterator>{cbegin()};
+  }
 
   [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
   [[nodiscard]] size_type size() const noexcept { return size_; }
