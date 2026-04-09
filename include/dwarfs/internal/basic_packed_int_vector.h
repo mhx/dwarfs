@@ -39,6 +39,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <dwarfs/ranges.h>
+
 #include <dwarfs/internal/detail/index_based_iterator.h>
 #include <dwarfs/internal/detail/index_based_value_proxy.h>
 #include <dwarfs/internal/detail/packed_vector_heap_storage.h>
@@ -151,6 +153,17 @@ class basic_packed_int_vector {
     std::size_t i = 0;
     for (T value : ilist) {
       layout_.write(i++, value);
+    }
+  }
+
+  template <std::ranges::forward_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, T> &&
+             std::ranges::sized_range<R>
+  basic_packed_int_vector(from_range_t, R&& r)
+      : basic_packed_int_vector(required_bits_for(r), std::ranges::size(r)) {
+    size_type i = 0;
+    for (auto&& v : std::forward<R>(r)) {
+      layout_.write(i++, static_cast<T>(v));
     }
   }
 
@@ -529,12 +542,34 @@ class basic_packed_int_vector {
     assign(ilist.begin(), ilist.end());
   }
 
+  template <std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+  iterator insert_range(const_iterator pos, R&& r) {
+    auto&& range = std::forward<R>(r);
+    return insert(pos, std::ranges::begin(range), std::ranges::end(range));
+  }
+
+  template <std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+  void assign_range(R&& r) {
+    auto&& range = std::forward<R>(r);
+    assign(std::ranges::begin(range), std::ranges::end(range));
+  }
+
+  template <std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+  void append_range(R&& r) {
+    insert_range(end(), std::forward<R>(r));
+  }
+
  private:
-  static auto required_bits_for(std::initializer_list<T> ilist) -> size_type {
+  template <std::ranges::forward_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+  static auto required_bits_for(R&& r) -> size_type {
     size_type bits = 0;
 
-    for (T value : ilist) {
-      bits = std::max(bits, required_bits(value));
+    for (auto&& v : std::forward<R>(r)) {
+      bits = std::max(bits, required_bits(static_cast<T>(v)));
 
       if (bits == bits_per_block) {
         break;
