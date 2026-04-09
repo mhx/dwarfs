@@ -46,6 +46,17 @@ using ::testing::Ge;
 
 namespace {
 
+static_assert(packed_int_vector<uint32_t>::max_size() ==
+              std::numeric_limits<std::size_t>::max());
+static_assert(compact_packed_int_vector<uint32_t>::max_size() ==
+              std::numeric_limits<std::size_t>::max());
+static_assert(segmented_packed_int_vector<uint32_t>::max_size() ==
+              std::numeric_limits<std::size_t>::max());
+
+static_assert(sizeof(packed_int_vector<uint32_t>) == 2 * sizeof(std::size_t));
+static_assert(sizeof(compact_packed_int_vector<uint32_t>) ==
+              2 * sizeof(std::size_t));
+
 template <typename T>
 T mask_for_bits(size_t bits) {
   using utype = std::make_unsigned_t<T>;
@@ -925,45 +936,6 @@ TYPED_TEST(packed_int_vec_tmpl_test, invalid_bit_width_throws) {
   EXPECT_THROW(vec.truncate_to_bits(33), std::invalid_argument);
 }
 
-TYPED_TEST(packed_int_vec_tmpl_test, policy_size_limit_throws_on_construction) {
-  using vec_type = typename TypeParam::template type<uint32_t>;
-  using size_type = typename vec_type::size_type;
-
-  if constexpr (vec_type::max_size() < std::numeric_limits<size_type>::max()) {
-    EXPECT_THROW((vec_type(0, vec_type::max_size() + 1)), std::length_error);
-  }
-}
-
-TYPED_TEST(packed_int_vec_tmpl_test, resize_throws_on_size_limit) {
-  using vec_type = typename TypeParam::template type<uint32_t>;
-  using size_type = typename vec_type::size_type;
-
-  if constexpr (vec_type::max_size() < std::numeric_limits<size_type>::max()) {
-    vec_type vec(0, vec_type::max_size());
-    EXPECT_THROW(vec.resize(vec_type::max_size() + 1), std::length_error);
-  }
-}
-
-TYPED_TEST(packed_int_vec_tmpl_test, push_back_throws_on_size_limit) {
-  using vec_type = typename TypeParam::template type<uint32_t>;
-  using size_type = typename vec_type::size_type;
-
-  if constexpr (vec_type::max_size() < std::numeric_limits<size_type>::max()) {
-    vec_type vec(0, vec_type::max_size());
-    EXPECT_THROW(vec.push_back(0), std::length_error);
-  }
-}
-
-TYPED_TEST(packed_int_vec_tmpl_test, reserve_throws_on_size_limit) {
-  using vec_type = typename TypeParam::template type<uint32_t>;
-  using size_type = typename vec_type::size_type;
-
-  if constexpr (vec_type::max_size() < std::numeric_limits<size_type>::max()) {
-    vec_type vec(0, vec_type::max_size());
-    EXPECT_THROW(vec.reserve(vec_type::max_size() + 1), std::length_error);
-  }
-}
-
 TYPED_TEST(packed_int_vec_tmpl_test,
            policy_capacity_limit_throws_on_full_width_reserve) {
   using vec_type = typename TypeParam::template type<uint32_t>;
@@ -1514,6 +1486,9 @@ TEST(compact_packed_int_vector, zero_bits_can_grow_inline_up_to_limit) {
 
   auto const n = vec_type::inline_capacity_for_bits(vec.bits());
 
+  EXPECT_TRUE(vec.is_inline());
+  EXPECT_FALSE(vec.uses_heap());
+
   vec.resize(n);
 
   EXPECT_EQ(vec.bits(), 0);
@@ -1527,8 +1502,16 @@ TEST(compact_packed_int_vector, zero_bits_can_grow_inline_up_to_limit) {
   EXPECT_EQ(vec.bits(), 0);
   EXPECT_EQ(vec.size(), n + 1);
   EXPECT_FALSE(vec.is_inline());
-  EXPECT_FALSE(vec.uses_heap());
+  EXPECT_TRUE(vec.uses_heap()); // now used to store size
   EXPECT_THAT(vec.unpack(), Each(0));
+
+  vec.resize(vec_type::max_size());
+
+  EXPECT_EQ(vec.bits(), 0);
+  EXPECT_EQ(vec.size(), vec_type::max_size());
+  EXPECT_FALSE(vec.is_inline());
+  EXPECT_TRUE(vec.uses_heap());
+  // don't unpack :-)
 }
 
 TEST(compact_packed_int_vector,
@@ -1639,12 +1622,11 @@ TYPED_TEST(packed_int_vec_test,
         EXPECT_FALSE(over_boundary.is_inline());
         EXPECT_EQ(over_boundary.bits(), bits);
         EXPECT_EQ(over_boundary.size(), inline_cap + 1);
+        EXPECT_TRUE(over_boundary.uses_heap()); // now used to store size
 
         if (bits == 0) {
-          EXPECT_FALSE(over_boundary.uses_heap());
           EXPECT_EQ(over_boundary.size_in_bytes(), 0);
         } else {
-          EXPECT_TRUE(over_boundary.uses_heap());
           EXPECT_GT(over_boundary.size_in_bytes(), 0);
         }
 
@@ -1685,7 +1667,7 @@ TYPED_TEST(packed_int_vec_test,
       vec.reserve(inline_cap + 1);
 
       EXPECT_FALSE(vec.is_inline());
-      EXPECT_FALSE(vec.uses_heap());
+      EXPECT_TRUE(vec.uses_heap()); // now used to store size
       EXPECT_EQ(vec.bits(), 0);
       EXPECT_EQ(vec.size(), 0);
       EXPECT_EQ(vec.size_in_bytes(), 0);
@@ -1705,17 +1687,17 @@ TYPED_TEST(packed_int_vec_test,
 
     vec_type vec(0, inline_cap + 1);
 
-    ASSERT_FALSE(vec.is_inline());
-    ASSERT_FALSE(vec.uses_heap());
-    ASSERT_EQ(vec.bits(), 0);
-    ASSERT_EQ(vec.size_in_bytes(), 0);
+    EXPECT_FALSE(vec.is_inline());
+    EXPECT_TRUE(vec.uses_heap()); // used to store size
+    EXPECT_EQ(vec.bits(), 0);
+    EXPECT_EQ(vec.size_in_bytes(), 0);
     expect_representation_invariants(vec);
 
     vec.resize(inline_cap);
 
     // resize alone should not necessarily change representation
     EXPECT_FALSE(vec.is_inline());
-    EXPECT_FALSE(vec.uses_heap());
+    EXPECT_TRUE(vec.uses_heap()); // still used to store size
     EXPECT_EQ(vec.bits(), 0);
     EXPECT_EQ(vec.size(), inline_cap);
     expect_representation_invariants(vec);
@@ -1728,47 +1710,6 @@ TYPED_TEST(packed_int_vec_test,
     EXPECT_EQ(vec.size(), inline_cap);
     EXPECT_EQ(vec.size_in_bytes(), 0);
     EXPECT_THAT(vec.unpack(), Each(typename vec_type::value_type{}));
-    expect_representation_invariants(vec);
-  }
-}
-
-TYPED_TEST(packed_int_vec_test, failing_limit_checks_leave_vector_unchanged) {
-  using vec_type = typename TypeParam::type;
-  using value_type = typename vec_type::value_type;
-  using size_type = typename vec_type::size_type;
-
-  if constexpr (vec_type::max_size() != std::numeric_limits<size_type>::max()) {
-    vec_type vec(2);
-    vec.push_back(static_cast<value_type>(1));
-    vec.push_back(static_cast<value_type>(1));
-    vec.push_back(static_cast<value_type>(0));
-
-    auto const expected = vec.unpack();
-    auto const old_bits = vec.bits();
-    auto const old_size = vec.size();
-    auto const old_size_in_bytes = vec.size_in_bytes();
-    auto const was_inline = vec.is_inline();
-    auto const used_heap = vec.uses_heap();
-
-    constexpr auto too_big = vec_type::max_size() + 1;
-
-    EXPECT_THROW(vec.reserve(too_big), std::length_error);
-    EXPECT_EQ(vec.bits(), old_bits);
-    EXPECT_EQ(vec.size(), old_size);
-    EXPECT_EQ(vec.size_in_bytes(), old_size_in_bytes);
-    EXPECT_EQ(vec.is_inline(), was_inline);
-    EXPECT_EQ(vec.uses_heap(), used_heap);
-    EXPECT_THAT(vec.unpack(), ElementsAreArray(expected));
-    expect_representation_invariants(vec);
-
-    EXPECT_THROW(vec.resize(too_big, static_cast<value_type>(1)),
-                 std::length_error);
-    EXPECT_EQ(vec.bits(), old_bits);
-    EXPECT_EQ(vec.size(), old_size);
-    EXPECT_EQ(vec.size_in_bytes(), old_size_in_bytes);
-    EXPECT_EQ(vec.is_inline(), was_inline);
-    EXPECT_EQ(vec.uses_heap(), used_heap);
-    EXPECT_THAT(vec.unpack(), ElementsAreArray(expected));
     expect_representation_invariants(vec);
   }
 }
@@ -1808,10 +1749,10 @@ TYPED_TEST(packed_int_vec_test,
       auto const a_expected = a.unpack();
       auto const b_expected = b.unpack();
 
-      ASSERT_TRUE(a.is_inline());
-      ASSERT_FALSE(a.uses_heap());
-      ASSERT_FALSE(b.is_inline());
-      ASSERT_TRUE(b.uses_heap());
+      EXPECT_TRUE(a.is_inline());
+      EXPECT_FALSE(a.uses_heap());
+      EXPECT_FALSE(b.is_inline());
+      EXPECT_TRUE(b.uses_heap());
 
       a.swap(b);
 
@@ -1834,10 +1775,10 @@ TYPED_TEST(packed_int_vec_test,
       auto const a_expected = a.unpack();
       auto const b_expected = b.unpack();
 
-      ASSERT_TRUE(a.is_inline());
-      ASSERT_FALSE(a.uses_heap());
-      ASSERT_FALSE(b.is_inline());
-      ASSERT_FALSE(b.uses_heap());
+      EXPECT_TRUE(a.is_inline());
+      EXPECT_FALSE(a.uses_heap());
+      EXPECT_FALSE(b.is_inline());
+      EXPECT_TRUE(b.uses_heap()); // used to store size
 
       a.swap(b);
 
@@ -1845,7 +1786,7 @@ TYPED_TEST(packed_int_vec_test,
       EXPECT_THAT(b.unpack(), ElementsAreArray(a_expected));
 
       EXPECT_FALSE(a.is_inline());
-      EXPECT_FALSE(a.uses_heap());
+      EXPECT_TRUE(a.uses_heap()); // used to store size
       EXPECT_TRUE(b.is_inline());
       EXPECT_FALSE(b.uses_heap());
 
@@ -1860,10 +1801,10 @@ TYPED_TEST(packed_int_vec_test,
       auto const a_expected = a.unpack();
       auto const b_expected = b.unpack();
 
-      ASSERT_FALSE(a.is_inline());
-      ASSERT_TRUE(a.uses_heap());
-      ASSERT_FALSE(b.is_inline());
-      ASSERT_FALSE(b.uses_heap());
+      EXPECT_FALSE(a.is_inline());
+      EXPECT_TRUE(a.uses_heap());
+      EXPECT_FALSE(b.is_inline());
+      EXPECT_TRUE(b.uses_heap()); // used to store size
 
       a.swap(b);
 
@@ -1871,7 +1812,7 @@ TYPED_TEST(packed_int_vec_test,
       EXPECT_THAT(b.unpack(), ElementsAreArray(a_expected));
 
       EXPECT_FALSE(a.is_inline());
-      EXPECT_FALSE(a.uses_heap());
+      EXPECT_TRUE(a.uses_heap()); // used to store size
       EXPECT_FALSE(b.is_inline());
       EXPECT_TRUE(b.uses_heap());
 
@@ -2143,94 +2084,6 @@ TYPED_TEST(
 
   expect_values_and_bits(dst, expected, bits);
   expect_moved_from_empty(src);
-}
-
-TYPED_TEST(
-    packed_int_vec_test,
-    compact_destination_copy_construction_throws_when_source_exceeds_max_size) {
-  using dst_vec = typename TypeParam::type;
-  using value_type = typename dst_vec::value_type;
-  using size_type = typename dst_vec::size_type;
-
-  if constexpr (dst_vec::has_inline_storage) {
-    using src_vec = packed_int_vector<value_type>;
-    static_assert(!src_vec::has_inline_storage);
-
-    static_assert(dst_vec::max_size() < std::numeric_limits<size_type>::max());
-
-    auto const too_large = dst_vec::max_size() + 1;
-    src_vec src(0, too_large);
-
-    ASSERT_EQ(src.size(), too_large);
-    ASSERT_EQ(src.bits(), 0);
-    ASSERT_FALSE(src.uses_heap());
-
-    EXPECT_THROW((dst_vec{src}), std::length_error);
-
-    EXPECT_EQ(src.size(), too_large);
-    EXPECT_EQ(src.bits(), 0);
-    EXPECT_FALSE(src.uses_heap());
-  }
-}
-
-TYPED_TEST(
-    packed_int_vec_test,
-    compact_destination_move_assignment_throws_and_preserves_source_and_destination) {
-  using dst_vec = typename TypeParam::auto_type;
-  using value_type = typename dst_vec::value_type;
-  using size_type = typename dst_vec::size_type;
-
-  if constexpr (dst_vec::has_inline_storage) {
-    using src_vec = auto_packed_int_vector<value_type>;
-    static_assert(!src_vec::has_inline_storage);
-
-    static_assert(dst_vec::max_size() < std::numeric_limits<size_type>::max());
-
-    auto const too_large = dst_vec::max_size() + 1;
-    src_vec src(0, too_large);
-
-    ASSERT_EQ(src.size(), too_large);
-    ASSERT_EQ(src.bits(), 0);
-    ASSERT_FALSE(src.uses_heap());
-
-    dst_vec dst(3);
-    auto const expected_dst = append_cross_type_test_values(dst, 4);
-    auto const old_dst_bits = dst.bits();
-    auto const old_dst_size = dst.size();
-    auto const old_dst_inline = dst.is_inline();
-    auto const old_dst_uses_heap = dst.uses_heap();
-
-    EXPECT_THROW(dst = std::move(src), std::length_error);
-
-    EXPECT_EQ(dst.size(), old_dst_size);
-    EXPECT_EQ(dst.bits(), old_dst_bits);
-    EXPECT_EQ(dst.is_inline(), old_dst_inline);
-    EXPECT_EQ(dst.uses_heap(), old_dst_uses_heap);
-    EXPECT_THAT(dst.unpack(), ElementsAreArray(expected_dst));
-
-    EXPECT_EQ(src.size(), too_large);
-    EXPECT_EQ(src.bits(), 0);
-    EXPECT_FALSE(src.uses_heap());
-  }
-}
-
-TYPED_TEST(
-    packed_int_vec_test,
-    compact_destination_move_construction_throws_when_source_exceeds_max_size) {
-  using dst_vec = typename TypeParam::type;
-  using value_type = typename dst_vec::value_type;
-
-  if constexpr (dst_vec::has_inline_storage) {
-    using src_vec = packed_int_vector<value_type>;
-    auto const too_large = dst_vec::max_size() + 1;
-    src_vec src(0, too_large);
-
-    EXPECT_THROW((dst_vec{std::move(src)}), std::length_error);
-
-    EXPECT_EQ(src.size(), too_large);
-    EXPECT_EQ(src.bits(), 0);
-    EXPECT_FALSE(src.uses_heap());
-  }
 }
 
 TYPED_TEST(
@@ -2829,4 +2682,14 @@ TYPED_TEST(packed_int_vec_test,
 
   EXPECT_EQ(it1, it2);
   EXPECT_EQ(cit1, cit2);
+}
+
+TEST(compact_packed_int_vector, empty_heap_only_to_compact_copy_fallback) {
+  packed_int_vector<uint32_t> src(0); // heap-only, empty, no heap
+  compact_packed_int_vector<uint32_t> dst(src);
+
+  EXPECT_TRUE(dst.is_inline());
+  EXPECT_FALSE(dst.uses_heap());
+  EXPECT_EQ(dst.size(), 0);
+  EXPECT_EQ(dst.bits(), 0);
 }

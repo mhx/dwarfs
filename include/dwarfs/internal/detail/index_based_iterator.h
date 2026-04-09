@@ -124,8 +124,8 @@ class index_based_iterator {
     return it.vec_->get(it.index_);
   }
 
-  friend void
-  iter_swap(index_based_iterator const& a, index_based_iterator const& b) {
+  friend void iter_swap(index_based_iterator const& a,
+                        index_based_iterator const& b) noexcept {
     using std::swap;
     swap((*a.vec_)[a.index_], (*b.vec_)[b.index_]);
   }
