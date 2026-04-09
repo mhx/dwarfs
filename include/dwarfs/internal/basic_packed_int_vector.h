@@ -155,14 +155,11 @@ class basic_packed_int_vector {
 
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
-  basic_packed_int_vector(
-      basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
-                              OtherGrowthPolicy>&&
-          other) noexcept(same_layout_v<typename basic_packed_int_vector<T,
-                                                                         OtherStrategy,
-                                                                         OtherPolicy,
-                                                                         OtherGrowthPolicy>::
-                                            layout_type>) {
+  basic_packed_int_vector(basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
+                                                  OtherGrowthPolicy>&& other)
+      noexcept(
+          same_layout_v<typename basic_packed_int_vector<
+              T, OtherStrategy, OtherPolicy, OtherGrowthPolicy>::layout_type>) {
     move_from_impl(std::move(other));
   }
 
@@ -485,11 +482,10 @@ class basic_packed_int_vector {
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
   void move_from_impl(
-      other_vector_type<OtherStrategy, OtherPolicy, OtherGrowthPolicy>&&
-          other) noexcept(same_layout_v<typename other_vector_type<OtherStrategy,
-                                                                   OtherPolicy,
-                                                                   OtherGrowthPolicy>::
-                                            layout_type>) {
+      other_vector_type<OtherStrategy, OtherPolicy, OtherGrowthPolicy>&& other)
+      noexcept(
+          same_layout_v<typename other_vector_type<
+              OtherStrategy, OtherPolicy, OtherGrowthPolicy>::layout_type>) {
     using other_type =
         other_vector_type<OtherStrategy, OtherPolicy, OtherGrowthPolicy>;
     using other_layout_type = typename other_type::layout_type;
