@@ -34,11 +34,45 @@
 
 namespace dwarfs::internal {
 
+/**
+ * Packed integer vector with inline storage for small vectors.
+ *
+ * This variant stores small vectors directly inside the object without heap
+ * allocation. Inline storage uses the same memory that would otherwise hold
+ * metadata and the heap pointer. Once the requested bit width and logical
+ * size no longer fit inline, storage transparently moves to the shared
+ * heap-backed representation.
+ *
+ * Inline storage capacity depends on:
+ * - the target architecture (size of `std::size_t` and heap pointer)
+ * - the current element bit width
+ *
+ * On 64-bit architectures, the size of the object itself is 16 bytes, on
+ * 32-bit architectures it is 8 bytes.
+ *
+ * The maximum number of elements that fit inline for a given bit width can be
+ * queried via `inline_capacity_for_bits(bits)`. For `bits == 0`, inline storage
+ * can hold up to `max_inline_size` logical zero elements without allocating.
+ *
+ * Once inline capacity is exceeded, this variant behaves like the regular
+ * heap-backed packed vector and supports the same maximum size as
+ * `packed_int_vector`.
+ *
+ * Due to the extra complexity of managing inline storage, this variant is
+ * potentially slower and will likely generate more code than the regular
+ * heap-backed variant.
+ */
 template <integral_but_not_bool T>
 using compact_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
                             detail::compact_packed_vector_policy>;
 
+/**
+ * Compact packed integer vector with inline storage and automatic bit-width.
+ *
+ * Like `compact_packed_int_vector`, but grows the element bit width
+ * automatically as needed to represent newly inserted or assigned values.
+ */
 template <integral_but_not_bool T>
 using compact_auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
