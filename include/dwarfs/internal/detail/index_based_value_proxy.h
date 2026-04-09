@@ -43,17 +43,27 @@ class index_based_value_proxy {
 
   operator value_type() const { return vec_.get(i_); }
 
+  index_based_value_proxy& operator=(value_type value) {
+    vec_.set(i_, value);
+    return *this;
+  }
+
+  // Required for proxy-reference iterators to satisfy indirectly_writable.
+  // NOLINTNEXTLINE(misc-unconventional-assign-operator,cppcoreguidelines-c-copy-assignment-signature)
   index_based_value_proxy const& operator=(value_type value) const {
     vec_.set(i_, value);
     return *this;
   }
 
-  index_based_value_proxy const&
-  operator=(index_based_value_proxy const& other) const {
-    return *this = static_cast<value_type>(other);
+  index_based_value_proxy& operator=(index_based_value_proxy const& other) {
+    if (this != &other) {
+      *this = static_cast<value_type>(other);
+    }
+    return *this;
   }
 
-  friend void swap(index_based_value_proxy a, index_based_value_proxy b) {
+  friend void
+  swap(index_based_value_proxy a, index_based_value_proxy b) noexcept {
     value_type tmp = a;
     a = static_cast<value_type>(b);
     b = tmp;
