@@ -1,4 +1,6 @@
 ﻿---
+AllowBreakBeforeNoexceptSpecifier: OnlyWithParen
+PenaltyExcessCharacter: 1000000
 AlwaysBreakTemplateDeclarations: 'true'
 AccessModifierOffset: -1
 BreakConstructorInitializersBeforeComma: 'true'
