@@ -71,16 +71,16 @@ class field_ref {
     requires(std::is_rvalue_reference_v<Ref>)
       : ptr_{&ref} {}
 
-  field_ref& operator=(value_type const& v) noexcept(
-      std::is_nothrow_copy_assignable_v<value_type>)
+  field_ref& operator=(value_type const& v)
+      noexcept(std::is_nothrow_copy_assignable_v<value_type>)
     requires is_mutable
   {
     *ptr_ = v;
     return *this;
   }
 
-  field_ref& operator=(value_type&& v) noexcept(
-      std::is_nothrow_move_assignable_v<value_type>)
+  field_ref& operator=(value_type&& v)
+      noexcept(std::is_nothrow_move_assignable_v<value_type>)
     requires is_mutable
   {
     *ptr_ = std::move(v);
@@ -88,8 +88,8 @@ class field_ref {
   }
 
   template <typename U>
-  void copy_from(field_ref<U> const& other) noexcept(
-      std::is_nothrow_assignable_v<Ref, U>)
+  void copy_from(field_ref<U> const& other)
+      noexcept(std::is_nothrow_assignable_v<Ref, U>)
     requires(is_mutable && std::assignable_from<Ref, U>)
   {
     *ptr_ = other.value();
@@ -192,8 +192,8 @@ class optional_field_ref {
       : ptr_{&ref}
       , is_set_{is_set} {}
 
-  optional_field_ref& operator=(value_type const& v) noexcept(
-      std::is_nothrow_copy_assignable_v<value_type>)
+  optional_field_ref& operator=(value_type const& v)
+      noexcept(std::is_nothrow_copy_assignable_v<value_type>)
     requires is_mutable
   {
     *ptr_ = v;
@@ -201,8 +201,8 @@ class optional_field_ref {
     return *this;
   }
 
-  optional_field_ref& operator=(value_type&& v) noexcept(
-      std::is_nothrow_move_assignable_v<value_type>)
+  optional_field_ref& operator=(value_type&& v)
+      noexcept(std::is_nothrow_move_assignable_v<value_type>)
     requires is_mutable
   {
     *ptr_ = std::move(v);
@@ -211,8 +211,8 @@ class optional_field_ref {
   }
 
   template <typename U, typename V>
-  void copy_from(optional_field_ref<U, V> const& other) noexcept(
-      std::is_nothrow_assignable_v<Ref, U>)
+  void copy_from(optional_field_ref<U, V> const& other)
+      noexcept(std::is_nothrow_assignable_v<Ref, U>)
     requires is_mutable
   {
     bool const other_has_value = other.has_value();
