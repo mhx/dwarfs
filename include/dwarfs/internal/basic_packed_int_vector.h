@@ -56,6 +56,33 @@ enum class packed_vector_bit_width_strategy {
 template <typename T>
 concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
 
+/**
+ * Packed integer vector with configurable bit-width strategy and layout.
+ *
+ * Stores integral values in a densely bit-packed representation using exactly
+ * `bits()` bits per element. Element access is random-access, but references
+ * are represented by proxy objects rather than native `T&`.
+ *
+ * The vector supports two bit-width strategies:
+ * - fixed: the bit width is chosen explicitly and remains unchanged unless
+ *   `truncate_to_bits()` is called
+ * - automatic: the bit width grows as needed to represent newly assigned values
+ *   and can be reduced explicitly via `optimize_storage()`
+ *
+ * Storage layout is controlled by the policy:
+ * - heap-only policies always use heap storage for non-empty vectors
+ * - compact policies may store small vectors inline and fall back to heap
+ *   storage as needed
+ *
+ * Heap storage is shared between policy variants and stores the logical size
+ * and reserved capacity together with the packed payload. Empty vectors require
+ * no heap allocation.
+ *
+ * Iterators are random-access iterators implemented as index-based iterators.
+ * They remain usable across storage relocation and repacking as long as the
+ * referenced index remains valid, but operations that replace the logical
+ * contents of the vector should be treated as invalidating all iterators.
+ */
 template <integral_but_not_bool T,
           packed_vector_bit_width_strategy BitWidthStrategy, typename Policy,
           typename GrowthPolicy = detail::default_block_growth_policy>
