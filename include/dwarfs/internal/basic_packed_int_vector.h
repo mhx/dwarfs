@@ -34,17 +34,14 @@
 #include <concepts>
 #include <cstddef>
 #include <limits>
-#include <optional>
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
 
-#include <dwarfs/bit_view.h>
-
-#include <dwarfs/internal/detail/block_storage.h>
 #include <dwarfs/internal/detail/index_based_iterator.h>
 #include <dwarfs/internal/detail/index_based_value_proxy.h>
+#include <dwarfs/internal/detail/packed_vector_heap_storage.h>
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
 #include <dwarfs/internal/detail/vector_growth_policy.h>
@@ -85,7 +82,7 @@ class basic_packed_int_vector {
       detail::index_based_const_iterator<basic_packed_int_vector>;
 
  private:
-  using storage_type = detail::raw_block_storage<underlying_type>;
+  using storage_type = detail::packed_vector_heap_storage<underlying_type>;
   using init_mode = typename storage_type::initialization;
   using layout_type =
       detail::packed_vector_layout<policy_type, underlying_type>;
@@ -194,7 +191,6 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
-
   [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
 
   [[nodiscard]] const_iterator begin() const noexcept {
@@ -290,7 +286,7 @@ class basic_packed_int_vector {
 
   void reserve(size_type sz) {
     check_size_limit(sz);
-    ensure_capacity_for(sz, bits());
+    ensure_capacity_for(sz, bits(), size());
   }
 
   void shrink_to_fit() { repack_exact(bits(), size()); }
@@ -395,11 +391,9 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] auto back() const -> T { return get(size() - 1); }
-
   [[nodiscard]] auto back() -> value_proxy { return (*this)[size() - 1]; }
 
   [[nodiscard]] auto front() const -> T { return get(0); }
-
   [[nodiscard]] auto front() -> value_proxy { return (*this)[0]; }
 
   [[nodiscard]] auto unpack() const -> std::vector<T> {
@@ -411,22 +405,17 @@ class basic_packed_int_vector {
   }
 
  private:
-  [[nodiscard]] static auto
-  representable_capacity_blocks(size_type source_capacity_blocks,
-                                size_type used_blocks) noexcept
-      -> std::optional<size_type> {
-    auto blocks = std::min(source_capacity_blocks,
-                           layout_type::max_capacity_blocks_value);
+  [[nodiscard]] auto
+  initialize_heap_layout(layout_type& layout, size_type bits,
+                         size_type logical_size, size_type capacity_blocks,
+                         init_mode init, bool force_allocation = false)
+      -> underlying_type* {
+    assert(layout_type::can_store_heap(bits, logical_size, capacity_blocks));
 
-    if constexpr (layout_type::capacity_granularity_blocks > 1) {
-      blocks -= blocks % layout_type::capacity_granularity_blocks;
-    }
-
-    if (blocks < used_blocks) {
-      return std::nullopt;
-    }
-
-    return blocks;
+    auto* data = storage_type::allocate(logical_size, capacity_blocks, init,
+                                        force_allocation);
+    layout.set_heap_state(data, bits);
+    return data;
   }
 
   template <packed_vector_bit_width_strategy OtherStrategy,
@@ -443,7 +432,7 @@ class basic_packed_int_vector {
     check_size_limit(src_size);
     assert(src_bits <= bits_per_block);
 
-    // Fast path: identical representation and no owned heap storage.
+    // Fast path: identical representation and no heap allocation.
     if constexpr (same_layout_v<other_layout_type>) {
       if (!other.layout_.owns_heap_storage()) {
         destroy_heap_storage();
@@ -452,48 +441,35 @@ class basic_packed_int_vector {
       }
     }
 
-    layout_type new_layout{};
-
+    auto const copy_heap_blocks = other.layout_.owns_heap_storage();
     bool use_heap = true;
-    bool copy_heap_blocks = false;
-    size_type capacity_blocks = 0;
-    size_type used_blocks = 0;
-
-    if (other.layout_.owns_heap_storage()) {
-      used_blocks = other.used_blocks();
-
-      if (auto tracked_capacity = representable_capacity_blocks(
-              other.layout_.capacity_blocks(), used_blocks)) {
-        capacity_blocks = *tracked_capacity;
-        copy_heap_blocks = true;
-      }
-    }
 
     if constexpr (layout_type::supports_inline) {
-      if (!copy_heap_blocks &&
-          layout_type::can_store_inline(src_bits, src_size)) {
-        new_layout.set_inline_state(src_bits, src_size);
-        use_heap = false;
-      }
+      use_heap = copy_heap_blocks ||
+                 !layout_type::can_store_inline(src_bits, src_size);
     }
 
+    layout_type new_layout{};
+
     if (use_heap) {
-      if (!copy_heap_blocks) {
-        capacity_blocks = exact_capacity_blocks(src_size, src_bits);
+      auto const capacity_blocks =
+          copy_heap_blocks ? other.layout_.capacity_blocks()
+                           : exact_capacity_blocks(src_size, src_bits);
+
+      auto* data = initialize_heap_layout(new_layout, src_bits, src_size,
+                                          capacity_blocks, init_mode::no_init,
+                                          copy_heap_blocks);
+
+      if (copy_heap_blocks) {
+        auto const used_blocks = other.used_blocks();
+        if (used_blocks > 0) {
+          storage_type::copy_n(other.layout_.heap_data(), used_blocks, data);
+        }
       }
-
-      assert(layout_type::can_store_heap(src_bits, src_size, capacity_blocks));
-
-      auto* data =
-          capacity_blocks > 0
-              ? storage_type::allocate(capacity_blocks, init_mode::no_init)
-              : nullptr;
-
-      if (copy_heap_blocks && used_blocks > 0) {
-        storage_type::copy_n(other.layout_.heap_data(), used_blocks, data);
+    } else {
+      if constexpr (layout_type::supports_inline) {
+        new_layout.set_inline_state(src_bits, src_size);
       }
-
-      new_layout.set_heap_state(data, src_bits, src_size, capacity_blocks);
     }
 
     if (!copy_heap_blocks && src_bits > 0) {
@@ -517,45 +493,29 @@ class basic_packed_int_vector {
     using other_type =
         other_vector_type<OtherStrategy, OtherPolicy, OtherGrowthPolicy>;
     using other_layout_type = typename other_type::layout_type;
+    auto&& src = std::move(other);
 
-    // Fast path: identical layout representation.
     if constexpr (same_layout_v<other_layout_type>) {
       destroy_heap_storage();
-      layout_ = other.layout_;
-      other.layout_.reset_empty();
+      layout_ = src.layout_;
+      src.layout_.reset_empty();
     } else {
-      auto const src_size = other.size();
-      auto const src_bits = other.bits();
+      auto const src_size = src.size();
+      auto const src_bits = src.bits();
 
       check_size_limit(src_size);
       assert(src_bits <= bits_per_block);
 
-      bool can_steal_heap = false;
-      size_type capacity_blocks = 0;
-
-      if (other.layout_.owns_heap_storage()) {
-        auto const used_blocks = other.used_blocks();
-
-        if (auto tracked_capacity = representable_capacity_blocks(
-                other.layout_.capacity_blocks(), used_blocks)) {
-          capacity_blocks = *tracked_capacity;
-          can_steal_heap = true;
-        }
-      }
-
-      if (can_steal_heap) {
-        auto* data = other.layout_.release_heap_data();
-
+      if (src.layout_.owns_heap_storage()) {
         layout_type new_layout{};
-        new_layout.set_heap_state(data, src_bits, src_size, capacity_blocks);
+        new_layout.set_heap_state(src.layout_.release_heap_data(), src_bits);
 
         destroy_heap_storage();
         layout_ = new_layout;
-        other.layout_.reset_empty();
+        src.layout_.reset_empty();
       } else {
-        // Fallback: copy logical contents, then clear source
-        copy_from_impl(other);
-        other.destroy_heap_storage();
+        copy_from_impl(src);
+        src.destroy_heap_storage();
       }
     }
   }
@@ -573,8 +533,6 @@ class basic_packed_int_vector {
       return 0;
     }
 
-    // avoid overflow in multiplication; bits_per_block is a power of two,
-    // so division is cheap
     auto const q = sz / bits_per_block;
     auto const r = sz % bits_per_block;
 
@@ -649,14 +607,12 @@ class basic_packed_int_vector {
     auto const blocks = exact_capacity_blocks(sz, bits);
     assert(layout_type::can_store_heap(bits, sz, blocks));
 
-    auto* data = blocks > 0
-                     ? storage_type::allocate(blocks, init_mode::zero_init)
-                     : nullptr;
-    layout_.set_heap_state(data, bits, sz, blocks);
+    auto* data = storage_type::allocate(sz, blocks, init_mode::zero_init);
+    layout_.set_heap_state(data, bits);
   }
 
   void ensure_capacity_for(size_type new_size, size_type new_bits,
-                           std::optional<size_type> old_size = std::nullopt) {
+                           size_type old_size) {
     if (new_size <= layout_.usable_capacity(new_bits)) {
       return;
     }
@@ -665,7 +621,7 @@ class basic_packed_int_vector {
     auto const new_blocks =
         select_heap_capacity_blocks(layout_.capacity_blocks(), min_blocks);
 
-    rebuild_storage(new_bits, old_size.value_or(size()), new_size, new_blocks);
+    rebuild_storage(new_bits, old_size, new_size, new_blocks);
   }
 
   void ensure_bits(size_type needed_bits, size_type reserve_size,
@@ -705,14 +661,12 @@ class basic_packed_int_vector {
         return false;
       }
 
-      // Non-inline exact representations:
-      // - real heap-backed storage with exact block count
-      // - compact zero-bit non-inline/non-heap state
-      return !layout_.owns_heap_storage() ||
-             layout_.capacity_blocks() == exact_blocks;
-    } else {
-      return layout_.capacity_blocks() == exact_blocks;
+      if (layout_.is_inline()) {
+        return true;
+      }
     }
+
+    return layout_.capacity_blocks() == exact_blocks;
   }
 
   void repack_exact(size_type new_bits, size_type new_size) {
@@ -724,9 +678,9 @@ class basic_packed_int_vector {
   }
 
   void
-  rebuild_storage(size_type new_bits, size_type new_size,
-                  size_type capacity_size, size_type target_capacity_blocks) {
-    auto const copy_size = std::min(size(), new_size);
+  rebuild_storage(size_type new_bits, size_type logical_size,
+                  size_type reserved_size, size_type target_capacity_blocks) {
+    auto const copy_size = std::min(size(), logical_size);
     auto const old_bits = bits();
     auto const must_materialize_zero_prefix =
         copy_size > 0 && old_bits == 0 && new_bits > 0;
@@ -735,29 +689,29 @@ class basic_packed_int_vector {
 
     layout_type new_layout;
 
-    bool layout_uses_heap{true};
+    bool layout_uses_heap = true;
 
     if constexpr (layout_type::supports_inline) {
-      if (layout_type::can_store_inline(new_bits, capacity_size)) {
-        new_layout.set_inline_state(new_bits, new_size);
+      if (layout_type::can_store_inline(new_bits, reserved_size)) {
+        new_layout.set_inline_state(new_bits, logical_size);
         layout_uses_heap = false;
       }
     }
 
     if (layout_uses_heap) {
-      auto const min_blocks = exact_capacity_blocks(capacity_size, new_bits);
+      auto const min_blocks = exact_capacity_blocks(reserved_size, new_bits);
       auto const capacity_blocks = std::max(
           normalize_capacity_blocks(target_capacity_blocks), min_blocks);
 
-      assert(layout_type::can_store_heap(new_bits, new_size, capacity_blocks));
+      assert(
+          layout_type::can_store_heap(new_bits, logical_size, capacity_blocks));
 
       auto const init = must_materialize_zero_prefix ? init_mode::zero_init
                                                      : init_mode::no_init;
-      auto* new_data = capacity_blocks > 0
-                           ? storage_type::allocate(capacity_blocks, init)
-                           : nullptr;
+      auto* new_data = storage_type::allocate(logical_size, capacity_blocks,
+                                              init, reserved_size > 0);
 
-      new_layout.set_heap_state(new_data, new_bits, new_size, capacity_blocks);
+      new_layout.set_heap_state(new_data, new_bits);
     }
 
     if (must_copy_elements) {
@@ -767,7 +721,6 @@ class basic_packed_int_vector {
     }
 
     destroy_heap_storage();
-
     layout_ = new_layout;
   }
 

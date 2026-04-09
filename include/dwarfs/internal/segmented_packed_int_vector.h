@@ -38,6 +38,7 @@
 
 #include <dwarfs/internal/detail/index_based_iterator.h>
 #include <dwarfs/internal/detail/index_based_value_proxy.h>
+#include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/packed_int_vector.h>
 
 namespace dwarfs::internal {
@@ -52,12 +53,16 @@ class segmented_packed_int_vector {
 
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
+  static constexpr size_type max_size_value = detail::saturating_mul(
+      segment_elements, std::vector<segment_type>{}.max_size());
 
   using value_proxy =
       detail::index_based_value_proxy<segmented_packed_int_vector>;
   using iterator = detail::index_based_iterator<segmented_packed_int_vector>;
   using const_iterator =
       detail::index_based_const_iterator<segmented_packed_int_vector>;
+
+  static constexpr size_type max_size() noexcept { return max_size_value; }
 
   segmented_packed_int_vector() = default;
 
