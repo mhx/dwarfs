@@ -28,13 +28,15 @@
 
 #pragma once
 
-#include <array>
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <limits>
 #include <ostream>
 #include <type_traits>
+#include <utility>
 
+#include <dwarfs/internal/detail/packed_vector_heap_storage.h>
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
 
@@ -44,9 +46,10 @@ template <typename Policy, typename Underlying>
 class packed_vector_layout_impl<Policy, Underlying,
                                 packed_vector_policy_type::heap_only> {
  public:
-  using policy_type = heap_only_packed_vector_policy;
+  using policy_type = Policy;
   using underlying_type = Underlying;
   using size_type = std::size_t;
+  using storage_type = packed_vector_heap_storage<underlying_type>;
 
   static constexpr bool supports_inline = policy_type::supports_inline;
   static constexpr size_type bits_per_block =
@@ -87,47 +90,45 @@ class packed_vector_layout_impl<Policy, Underlying,
     return data_ != nullptr;
   }
 
-  [[nodiscard]] auto size() const noexcept -> size_type { return size_; }
+  [[nodiscard]] auto size() const noexcept -> size_type {
+    return storage_type::size(data_);
+  }
 
   [[nodiscard]] auto bits() const noexcept -> size_type { return bits_; }
 
   [[nodiscard]] auto capacity_blocks() const noexcept -> size_type {
-    return capacity_blocks_;
+    return storage_type::capacity_blocks(data_);
   }
 
   [[nodiscard]] auto
   usable_capacity(size_type bits) const noexcept -> size_type {
-    if (bits == 0) {
-      return std::numeric_limits<size_type>::max();
+    if (data_ == nullptr) {
+      return 0;
     }
-    return (capacity_blocks_ * bits_per_block) / bits;
+    if (bits == 0) {
+      return max_heap_size;
+    }
+    return (capacity_blocks() * bits_per_block) / bits;
   }
 
-  void set_size(size_type v) noexcept { size_ = v; }
-
-  void set_bits(size_type v) noexcept { bits_ = v; }
-
-  void set_capacity_blocks(size_type v) noexcept { capacity_blocks_ = v; }
-
-  void set_inline_state(size_type bits, size_type size) noexcept {
-    set_heap_state(nullptr, bits, size, 0);
+  void set_size(size_type v) noexcept {
+    assert(data_ || v == 0);
+    storage_type::set_size(data_, v);
   }
 
-  void set_heap_state(underlying_type* data, size_type bits, size_type size,
-                      size_type capacity_blocks) noexcept {
+  void set_heap_state(underlying_type* data, size_type bits) noexcept {
     data_ = data;
     bits_ = bits;
-    size_ = size;
-    capacity_blocks_ = capacity_blocks;
   }
 
-  void reset_empty() noexcept { set_heap_state(nullptr, 0, 0, 0); }
+  void reset_empty() noexcept {
+    data_ = nullptr;
+    bits_ = 0;
+  }
 
   void swap(packed_vector_layout_impl& other) noexcept {
     using std::swap;
-    swap(size_, other.size_);
     swap(bits_, other.bits_);
-    swap(capacity_blocks_, other.capacity_blocks_);
     swap(data_, other.data_);
   }
 
@@ -168,9 +169,7 @@ class packed_vector_layout_impl<Policy, Underlying,
   }
 
  private:
-  size_type size_{0};
   size_type bits_{0};
-  size_type capacity_blocks_{0};
   underlying_type* data_{nullptr};
 };
 
