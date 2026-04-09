@@ -299,9 +299,10 @@ class basic_packed_int_vector {
 
       if constexpr (auto_bit_width) {
         ensure_bits(required_bits(value), new_size, old_size, old_bits);
+      } else {
+        ensure_capacity_for(new_size, old_bits, old_size);
       }
 
-      ensure_capacity_for(new_size, old_bits, old_size);
       layout_.fill(old_size, new_size, value);
     }
 
@@ -399,12 +400,11 @@ class basic_packed_int_vector {
     auto cur_bits = bits();
 
     if constexpr (auto_bit_width) {
-      auto const req_bits = required_bits(value);
-      ensure_bits(req_bits, new_size, old_size, cur_bits);
-      cur_bits = std::max(cur_bits, req_bits);
+      ensure_bits(required_bits(value), new_size, old_size, cur_bits);
+    } else {
+      ensure_capacity_for(new_size, cur_bits, old_size);
     }
 
-    ensure_capacity_for(new_size, cur_bits, old_size);
     layout_.write(old_size, value);
     layout_.set_size(new_size);
   }
