@@ -34,11 +34,28 @@
 
 namespace dwarfs::internal {
 
+/**
+ * Packed integer vector using heap storage only.
+ *
+ * This is the regular packed-vector variant. Non-empty vectors use heap
+ * storage, while empty vectors require no allocation. The object itself stores
+ * only the current bit width and a pointer to the heap block, making it compact
+ * when embedded in other containers.
+ *
+ * This variant has no policy-imposed size limit beyond `std::size_t` and is
+ * therefore suitable as the general-purpose packed integer vector.
+ */
 template <integral_but_not_bool T>
 using packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
                             detail::heap_only_packed_vector_policy>;
 
+/**
+ * Heap-backed packed integer vector with automatic bit-width.
+ *
+ * Like `packed_int_vector`, but grows the element bit width automatically as
+ * needed to represent newly inserted or assigned values.
+ */
 template <integral_but_not_bool T>
 using auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
