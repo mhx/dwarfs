@@ -283,6 +283,23 @@ void run_overwrite_benchmark(benchmark::State& state, Maker&& make_vec) {
   set_common_counters(state, bits, vec);
 }
 
+template <typename Maker>
+void run_sort_benchmark(benchmark::State& state, Maker&& make_vec) {
+  auto const bits = static_cast<std::size_t>(state.range(0));
+  auto const n = static_cast<std::size_t>(state.range(1));
+  auto const values = make_values(n, bits);
+  auto vec = make_vec(bits, values);
+
+  for (auto _ : state) {
+    std::ranges::sort(vec);
+    benchmark::ClobberMemory();
+  }
+
+  benchmark::DoNotOptimize(vec);
+
+  set_common_counters(state, bits, vec);
+}
+
 // build / push_back
 static void bm_build_std_vec(benchmark::State& state) {
   run_build_benchmark(state, make_std_vec);
@@ -389,6 +406,31 @@ static void bm_overwrite_auto_packed_vec(benchmark::State& state) {
 
 static void bm_overwrite_seg_packed_vec(benchmark::State& state) {
   run_overwrite_benchmark(state, make_seg_packed_vec);
+}
+
+// sort container elements
+static void bm_sort_std_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_std_vec);
+}
+
+static void bm_sort_compact_packed_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_compact_packed_vec);
+}
+
+static void bm_sort_compact_auto_packed_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_compact_auto_packed_vec_exact);
+}
+
+static void bm_sort_packed_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_packed_vec);
+}
+
+static void bm_sort_auto_packed_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_auto_packed_vec_exact);
+}
+
+static void bm_sort_seg_packed_vec(benchmark::State& state) {
+  run_sort_benchmark(state, make_seg_packed_vec);
 }
 
 std::vector<value_type> make_worst_case_widening_values(std::size_t n) {
@@ -520,6 +562,17 @@ BENCHMARK(bm_overwrite_packed_vec)
 BENCHMARK(bm_overwrite_auto_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 BENCHMARK(bm_overwrite_seg_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+
+BENCHMARK(bm_sort_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_compact_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_compact_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_packed_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_auto_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
 BENCHMARK(bm_build_std_vec_worst_case_reference)
