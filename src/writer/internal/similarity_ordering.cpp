@@ -562,7 +562,7 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
   }
 
   td << opts_.context << "cluster_by_distance: " << node.cluster().index.size()
-     << " -> " << children.size() << ")";
+     << " -> " << children.size();
 
   node.v = std::move(children);
 }
