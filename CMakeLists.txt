@@ -58,6 +58,7 @@ option(ENABLE_STACKTRACE "build with stack trace support" OFF)
 option(DISABLE_FILESYSTEM_EXTRACTOR_FORMAT "disable filesystem extractor format support" OFF)
 option(BUILD_FSST_MAIN "build fsst_main application (dev-only)" OFF)
 option(USE_SUBDIR_LIBARCHIVE "use local libarchive subdir (dev-only)" OFF)
+option(ENABLE_BUILD_TIME_TRACE "enable Clang -ftime-trace" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -160,6 +161,12 @@ if(NOT PRJ_VERSION_FULL)
 endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
+
+if(ENABLE_BUILD_TIME_TRACE)
+  add_compile_options(
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-ftime-trace>
+  )
+endif()
 
 find_package(PkgConfig)
 
