@@ -692,6 +692,10 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "waiting for background scanners...";
 
   wg_.wait();
+
+  // stop progress briefly to avoid race while freezing entry storage
+  prog.current.store(std::monostate{});
+
   tree.freeze();
 
   LOG_INFO << "scanning CPU time: "
