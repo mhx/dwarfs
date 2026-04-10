@@ -50,6 +50,10 @@ namespace dwarfs::internal {
  * On 64-bit architectures, the size of the object itself is 16 bytes, on
  * 32-bit architectures it is 8 bytes.
  *
+ * On 64-bit architectures, a packed vector can store up to 31 elements inline
+ * without allocating any memory, as long as these elements fit into 3 bits
+ * each. More realisticly, you could also store up to 14 8-bit elements inline.
+ *
  * The maximum number of elements that fit inline for a given bit width can be
  * queried via `inline_capacity_for_bits(bits)`. For `bits == 0`, inline storage
  * can hold up to `max_inline_size` logical zero elements without allocating.
