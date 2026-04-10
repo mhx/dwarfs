@@ -198,7 +198,7 @@ TYPED_TEST(packed_int_vec_tmpl_test, basic) {
   if constexpr (vec_type::has_inline_storage) {
     EXPECT_EQ(vec.capacity(), vec_type::inline_capacity_for_bits(5));
   } else {
-    EXPECT_EQ(vec.capacity(), 6);
+    EXPECT_EQ(vec.capacity(), 12);
   }
 
   EXPECT_EQ(vec[0], 11);
