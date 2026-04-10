@@ -61,6 +61,7 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
+#include <dwarfs/compiler.h>
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
@@ -1203,10 +1204,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
+#if DWARFS_SANITIZE_THREAD
+  static constexpr auto kProgressRefreshIntervalSimple = 1ms;
+  static constexpr auto kProgressRefreshInterval = 1ms;
+#else
+  static constexpr auto kProgressRefreshIntervalSimple = 2000ms;
+  static constexpr auto kProgressRefreshInterval = 200ms;
+#endif
+
   auto interval = cwopts.progress == writer::console_writer::NONE ||
                           cwopts.progress == writer::console_writer::SIMPLE
-                      ? 2000ms
-                      : 200ms;
+                      ? kProgressRefreshIntervalSimple
+                      : kProgressRefreshInterval;
 
   std::unique_ptr<input_stream> header_ifs;
 
