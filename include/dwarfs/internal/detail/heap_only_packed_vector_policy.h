@@ -34,7 +34,7 @@ namespace dwarfs::internal::detail {
 
 struct heap_only_packed_vector_policy {
   static constexpr bool supports_inline = false;
-  static constexpr std::size_t capacity_granularity_bytes = 1;
+  static constexpr std::size_t capacity_granularity_bytes = 8;
 };
 
 } // namespace dwarfs::internal::detail
