@@ -31,15 +31,17 @@
 
 #include <benchmark/benchmark.h>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/internal/compact_packed_int_vector.h>
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/segmented_packed_int_vector.h>
 
 using namespace dwarfs::internal;
+using namespace dwarfs::binary_literals;
 
 namespace {
 
-using value_type = uint32_t;
+using value_type = uint64_t;
 using std_vec = std::vector<value_type>;
 using compact_packed_vec = compact_packed_int_vector<value_type>;
 using compact_auto_packed_vec = compact_auto_packed_int_vector<value_type>;
@@ -564,16 +566,18 @@ BENCHMARK(bm_overwrite_auto_packed_vec)
 BENCHMARK(bm_overwrite_seg_packed_vec)
     ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
 
-BENCHMARK(bm_sort_std_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+BENCHMARK(bm_sort_std_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
 BENCHMARK(bm_sort_compact_packed_vec)
-    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
 BENCHMARK(bm_sort_compact_auto_packed_vec)
-    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
-BENCHMARK(bm_sort_packed_vec)->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
+BENCHMARK(bm_sort_packed_vec)
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
 BENCHMARK(bm_sort_auto_packed_vec)
-    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
 BENCHMARK(bm_sort_seg_packed_vec)
-    ->ArgsProduct({{5, 13, 17, 31}, {4096, 65536}});
+    ->ArgsProduct({{5, 13, 17, 31}, {8, 4096, 65536, 4_MiB}});
 
 BENCHMARK(bm_build_std_vec_worst_case_reference)
     ->Arg(32)
