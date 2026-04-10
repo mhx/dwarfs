@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstring>
@@ -58,10 +59,8 @@ struct packed_vector_heap_storage {
   };
 
   static constexpr size_type payload_alignment = alignof(T);
-  static constexpr size_type
-      block_alignment = alignof(heap_prefix) > payload_alignment
-                            ? alignof(heap_prefix)
-                            : payload_alignment;
+  static constexpr size_type block_alignment =
+      std::max(alignof(heap_prefix), payload_alignment);
   static constexpr size_type payload_offset =
       round_up_to_multiple(sizeof(heap_prefix), payload_alignment);
 
