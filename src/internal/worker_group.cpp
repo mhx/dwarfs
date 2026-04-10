@@ -240,6 +240,8 @@ class worker_group_impl_ final : public worker_group_impl {
                   << exception_str(std::current_exception());
       }
 
+      job.reset();
+
       bool notify_done = false;
 
       {
