@@ -217,6 +217,69 @@ struct ascii_case_string_policy {
   using index_type = std::unordered_set<std::size_t, Hash, Equal>;
 };
 
+template <class T>
+class append_only_store {
+ public:
+  using value_type = T;
+
+  [[nodiscard]] std::size_t size() const noexcept { return values_.size(); }
+
+  template <class... Args>
+  decltype(auto) emplace_back(Args&&... args) {
+    return values_.emplace_back(std::forward<Args>(args)...);
+  }
+
+  [[nodiscard]] T& operator[](std::size_t index) noexcept {
+    return values_[index];
+  }
+  [[nodiscard]] T const& operator[](std::size_t index) const noexcept {
+    return values_[index];
+  }
+
+  [[nodiscard]] T& at(std::size_t index) { return values_.at(index); }
+  [[nodiscard]] T const& at(std::size_t index) const {
+    return values_.at(index);
+  }
+
+  [[nodiscard]] std::vector<T> const& values() const noexcept {
+    return values_;
+  }
+
+ private:
+  std::vector<T> values_;
+};
+
+template <class T>
+struct append_only_store_policy {
+  using store_type = append_only_store<T>;
+  using hash_type = default_value_hash<T>;
+  using equal_type = std::equal_to<>;
+  template <typename Hash, typename Equal>
+  using index_type = std::unordered_set<std::size_t, Hash, Equal>;
+};
+
+struct counted_string {
+  std::string value;
+
+  counted_string() = default;
+  counted_string(char const* s)
+      : value(s) {}
+  counted_string(std::string s)
+      : value(std::move(s)) {}
+
+  friend bool
+  operator==(counted_string const&, counted_string const&) = default;
+};
+
+} // namespace
+
+template <>
+struct std::hash<counted_string> {
+  std::size_t operator()(counted_string const& v) const noexcept {
+    return std::hash<std::string_view>{}(v.value);
+  }
+};
+
 using tested_policy_wrappers =
     ::testing::Types<policy_wrapper<std_dense_value_index_policy>,
                      policy_wrapper<internal::flat_dense_value_index_policy>>;
@@ -502,4 +565,83 @@ TYPED_TEST(dense_value_index_string_policy_test,
   EXPECT_THROW(static_cast<void>(this->index.at(1)), std::out_of_range);
 }
 
-} // namespace
+class append_only_string_index_test : public ::testing::Test {
+ protected:
+  using index_type =
+      basic_dense_value_index<std::string, append_only_store_policy>;
+
+  append_only_store<std::string> store;
+  index_type index{store};
+};
+
+TEST_F(append_only_string_index_test,
+       inserts_new_values_using_append_only_store) {
+  auto const first = index.emplace("alpha");
+  auto const second = index.emplace("beta");
+
+  EXPECT_EQ(first.index, 0);
+  EXPECT_TRUE(first.inserted);
+  EXPECT_EQ(second.index, 1);
+  EXPECT_TRUE(second.inserted);
+
+  EXPECT_EQ(index.size(), 2);
+  EXPECT_THAT(store.values(), ElementsAre("alpha", "beta"));
+  EXPECT_THAT(index[0], Eq("alpha"));
+  EXPECT_THAT(index[1], Eq("beta"));
+}
+
+TEST_F(append_only_string_index_test,
+       duplicate_insert_returns_existing_index_without_appending) {
+  auto const first = index.emplace("alpha");
+  auto const duplicate = index.emplace(std::string{"alpha"});
+
+  EXPECT_EQ(first.index, 0);
+  EXPECT_TRUE(first.inserted);
+  EXPECT_EQ(duplicate.index, 0);
+  EXPECT_FALSE(duplicate.inserted);
+
+  EXPECT_EQ(index.size(), 1);
+  EXPECT_THAT(store.values(), ElementsAre("alpha"));
+}
+
+TEST_F(append_only_string_index_test,
+       supports_heterogeneous_lookup_on_append_only_store_path) {
+  index.add("alpha");
+  index.add("beta");
+
+  EXPECT_TRUE(index.contains(std::string_view{"alpha"}));
+  EXPECT_TRUE(index.contains(std::string_view{"beta"}));
+  EXPECT_FALSE(index.contains(std::string_view{"gamma"}));
+
+  EXPECT_THAT(index.index_of(std::string_view{"alpha"}), Optional(Eq(0)));
+  EXPECT_THAT(index.index_of(std::string_view{"beta"}), Optional(Eq(1)));
+  EXPECT_THAT(index.index_of(std::string_view{"gamma"}), Eq(std::nullopt));
+}
+
+TEST_F(append_only_string_index_test, at_works_with_append_only_store) {
+  index.add("alpha");
+  index.add("beta");
+
+  EXPECT_THAT(index.at(0), Eq("alpha"));
+  EXPECT_THAT(index.at(1), Eq("beta"));
+  EXPECT_THROW(static_cast<void>(index.at(2)), std::out_of_range);
+}
+
+TEST(dense_value_index_append_only_test,
+     duplicate_value_is_still_stored_only_once) {
+  append_only_store<counted_string> store;
+  basic_dense_value_index<counted_string, append_only_store_policy> index(
+      store);
+
+  auto const first = index.emplace("alpha");
+  auto const duplicate = index.emplace("alpha");
+
+  EXPECT_EQ(first.index, 0);
+  EXPECT_TRUE(first.inserted);
+  EXPECT_EQ(duplicate.index, 0);
+  EXPECT_FALSE(duplicate.inserted);
+
+  EXPECT_EQ(index.size(), 1);
+  EXPECT_EQ(store.size(), 1);
+  EXPECT_THAT(store[0].value, Eq("alpha"));
+}
