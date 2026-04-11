@@ -26,18 +26,203 @@
 #include <sstream>
 #include <utility>
 
+#include <boost/container_hash/hash.hpp>
+
+#include <parallel_hashmap/phmap.h>
+
 #include <dwarfs/container/chunked_append_only_vector.h>
+#include <dwarfs/container/segmented_packed_int_vector.h>
+#include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
+#include <dwarfs/util.h>
 #include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
+
+// TODO: disable everywhere but Windows
+#define DWARFS_KEEP_FS_PATHS 1
 
 namespace fs = std::filesystem;
 
 namespace dwarfs::writer {
 
 namespace {
+
+// TODO: consider using just a single mutex for *all* storage?
+//       then we could de-dupe things like names/paths across
+//       all different entry types
+//
+// It still makes sense to separate files/dirs/links/devices/other
+// since they will populate different slots of the data, and leave
+// others unpopulated. Not differentiating them would make storage
+// less efficient because e.g. *only* files and symlinks would
+// populate size; only files would populate allocated_size. Only
+// devices would populate device numbers, etc. If we use *one* data
+// structure to rule them all, but just keep some of the fields
+// unused for some entry types, this would make things *much*
+// simpler, since we never allocate memory for the unused fields.
+//
+// TODO: trace how often and where we're calling each accessor,
+//       and whether it's read or write. => build this as a compile
+//       time feature into entry_storage.
+//
+// TODO: rethink if we still need visitors - it might make more sense
+//       to just have some `for_each_device` etc. methods and those
+//       might play better with the storage idea (but then again, they
+//       may not, because we don't know upfront which fields are going
+//       to be accessed) - still, the visitors seem a bit overkill
+
+template <std::integral T, std::size_t SegmentSize = 4096>
+using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
+
+class path_component {
+ public:
+  path_component() = default;
+  path_component(fs::path const& path, bool is_root)
+#if DWARFS_KEEP_FS_PATHS
+      : path_{is_root ? path : path.filename()}
+      , name_{path_to_utf8_string_sanitized(path_)}
+#else
+      : name_{path_to_utf8_string_sanitized(is_root ? path : path.filename())}
+#endif
+  {
+  }
+
+  friend bool
+  operator==(path_component const&, path_component const&) = default;
+
+  fs::path path() const {
+#if DWARFS_KEEP_FS_PATHS
+    return path_;
+#else
+    return fs::path(name_);
+#endif
+  }
+
+  std::string_view name() const { return name_; }
+
+ private:
+  friend struct std::hash<path_component>;
+
+#if DWARFS_KEEP_FS_PATHS
+  fs::path path_;
+#endif
+  std::string name_;
+};
+
+} // namespace
+} // namespace dwarfs::writer
+
+template <>
+struct std::hash<dwarfs::writer::path_component> {
+  std::size_t
+  operator()(dwarfs::writer::path_component const& pc) const noexcept {
+    std::size_t seed = 0;
+#if DWARFS_KEEP_FS_PATHS
+    boost::hash_combine(seed, pc.path_);
+#endif
+    boost::hash_combine(seed, pc.name_);
+    return seed;
+  }
+};
+
+namespace dwarfs::writer {
+namespace {
+
+constexpr char kLocalPathSeparator{
+    static_cast<char>(fs::path::preferred_separator)};
+
+bool is_root_path(std::string_view path) {
+#ifdef _WIN32
+  return path == "/" || path == "\\";
+#else
+  return path == "/";
+#endif
+}
+
+template <typename T>
+using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
+
+template <typename T>
+struct flat_cao_dense_value_index_policy {
+  using store_type = cao_vector<T>;
+  using hash_type = default_value_hash<T>;
+  using equal_type = std::equal_to<>;
+  template <typename Hash, typename Equal>
+  using index_type = phmap::flat_hash_set<std::size_t, Hash, Equal>;
+};
+
+template <typename T>
+using flat_cao_index =
+    dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
+
+struct shared_entry_data {
+  void drop_indices() { path_index_.reset(); }
+
+  auto add_path_component(fs::path const& component, bool is_root) {
+    return path_index_->add(component, is_root);
+  }
+
+  cao_vector<path_component> path_components_;
+  std::optional<flat_cao_index<path_component>> path_index_{path_components_};
+};
+
+struct packed_entry_data {
+  segtor<size_t> path_name_index;
+  segtor<uint64_t> parent_dir_index_plus_one; // 0 means no parent
+  segtor<size_t> entry_index;
+  // TODO: stat
+
+  // file-specific
+  segtor<size_t> order_index;
+  segtor<size_t>
+      inode_index; // TODO change this in `entry` first to make sure it works
+  segtor<size_t> file_data_index; // indexes into `file_data`
+
+  // dir-specific
+  // TODO: these are more interesting, especially the lookup table, `optional`
+  // and the
+  //       `entries` vector
+
+  // link-specific
+  segtor<size_t> link_target_index; // indexes into de-duped link target vector
+  // TODO: optional inode again
+
+  // device-specific
+  // TODO: again, optional inode - this is required for *all* types, except for
+  // files
+  //       which have this info in `file_data` already.
+
+  void add_entry_common(shared_entry_data& shared, fs::path const& path,
+                        file_stat const&, entry_id const parent) {
+    bool const is_root = !parent.valid();
+    assert(is_root || parent.is_dir());
+    auto path_ix = shared.add_path_component(path, is_root);
+    path_name_index.push_back(path_ix);
+    parent_dir_index_plus_one.push_back(is_root ? 0 : parent.index() + 1);
+  }
+
+  entry_id get_parent(uint64_t const index) const {
+    entry_id rv;
+    if (auto const id = parent_dir_index_plus_one.at(index); id != 0) {
+      rv = {entry_type::E_DIR, id - 1};
+    }
+    return rv;
+  }
+
+  fs::path
+  get_path(shared_entry_data const& shared, uint64_t const index) const {
+    auto const path_ix = path_name_index.at(index);
+    return shared.path_components_.at(path_ix).path();
+  }
+
+  std::string_view
+  get_path_string(shared_entry_data const& shared, uint64_t const index) const {
+    auto const path_ix = path_name_index.at(index);
+    return shared.path_components_.at(path_ix).name();
+  }
+};
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
 
@@ -47,8 +232,6 @@ template <bool Frozen>
 class entry_storage_ final : public entry_storage::impl {
  public:
   static constexpr bool is_mutable = !Frozen;
-  template <typename T>
-  using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
 
   friend class entry_storage_<true>;
 
@@ -63,10 +246,17 @@ class entry_storage_ final : public entry_storage::impl {
       , links_{std::move(other.links_)}
       , devices_{std::move(other.devices_)}
       , others_{std::move(other.others_)}
-      , file_data_{std::move(other.file_data_)} {}
+      , file_data_{std::move(other.file_data_)}
+      , shared_{std::move(other.shared_)}
+      , packed_files_{std::move(other.packed_files_)}
+      , packed_dirs_{std::move(other.packed_dirs_)}
+      , packed_links_{std::move(other.packed_links_)}
+      , packed_devices_{std::move(other.packed_devices_)}
+      , packed_others_{std::move(other.packed_others_)} {}
 
   std::unique_ptr<impl> freeze() override {
     if constexpr (is_mutable) {
+      shared_.drop_indices();
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -75,11 +265,10 @@ class entry_storage_ final : public entry_storage::impl {
 
   template <typename T>
   static entry_id
-  make_obj_(cao_vector<T>& vec, entry_type type, fs::path const& path,
-            file_stat const& st, entry_id const parent) {
+  make_obj_(cao_vector<T>& vec, entry_type type, file_stat const& st) {
     if constexpr (is_mutable) {
       auto ix = vec.size();
-      vec.emplace_back(path, st, parent);
+      vec.emplace_back(st);
       return {type, ix};
     } else {
       frozen_panic();
@@ -88,27 +277,32 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_id make_file(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    return make_obj_(files_, entry_type::E_FILE, path, st, parent);
+    packed_files_.add_entry_common(shared_, path, st, parent);
+    return make_obj_(files_, entry_type::E_FILE, st);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
                     entry_id const parent) override {
-    return make_obj_(dirs_, entry_type::E_DIR, path, st, parent);
+    packed_dirs_.add_entry_common(shared_, path, st, parent);
+    return make_obj_(dirs_, entry_type::E_DIR, st);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    return make_obj_(links_, entry_type::E_LINK, path, st, parent);
+    packed_links_.add_entry_common(shared_, path, st, parent);
+    return make_obj_(links_, entry_type::E_LINK, st);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
                        entry_id const parent) override {
-    return make_obj_(devices_, entry_type::E_DEVICE, path, st, parent);
+    packed_devices_.add_entry_common(shared_, path, st, parent);
+    return make_obj_(devices_, entry_type::E_DEVICE, st);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
                       entry_id const parent) override {
-    return make_obj_(others_, entry_type::E_OTHER, path, st, parent);
+    packed_others_.add_entry_common(shared_, path, st, parent);
+    return make_obj_(others_, entry_type::E_OTHER, st);
   }
 
   bool empty() const noexcept override { return dirs_.empty(); }
@@ -147,13 +341,115 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
+  entry_id get_parent(entry_id const id) override {
+    return get_parent_impl(id);
+  }
+
+  fs::path get_path(entry_id const id) override {
+    fs::path p = get_path_impl(id);
+
+    if (auto const parent = get_parent_impl(id)) {
+      p = get_path(parent) / p;
+    }
+
+    return p;
+  }
+
+  std::string get_unix_dpath(entry_id const id) override {
+    std::string p{get_path_string_impl(id)};
+
+    if (is_root_path(p)) {
+      p = "/";
+    } else {
+      if (id.is_dir() && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
+        p += '/';
+      }
+
+      if (auto const parent = get_parent_impl(id)) {
+        p = get_unix_dpath(parent) + p;
+      } else if constexpr (kLocalPathSeparator != '/') {
+        std::ranges::replace(p, kLocalPathSeparator, '/');
+      }
+    }
+
+    return p;
+  }
+
+  std::string_view get_name(entry_id const id) override {
+    return get_path_string_impl(id);
+  }
+
  private:
+  template <typename Method, typename... Args>
+  decltype(auto)
+  dispatch_(Method method, entry_id const id, Args&&... args) const {
+    assert(id.valid());
+    switch (id.type()) {
+    case entry_type::E_FILE:
+      return (packed_files_.*method)(id.index(), std::forward<Args>(args)...);
+    case entry_type::E_DIR:
+      return (packed_dirs_.*method)(id.index(), std::forward<Args>(args)...);
+    case entry_type::E_LINK:
+      return (packed_links_.*method)(id.index(), std::forward<Args>(args)...);
+    case entry_type::E_DEVICE:
+      return (packed_devices_.*method)(id.index(), std::forward<Args>(args)...);
+    case entry_type::E_OTHER:
+      return (packed_others_.*method)(id.index(), std::forward<Args>(args)...);
+    default:
+      DWARFS_PANIC("invalid entry type");
+    }
+  }
+
+  template <typename Method, typename... Args>
+  decltype(auto)
+  dispatch_shared_(Method method, entry_id const id, Args&&... args) const {
+    assert(id.valid());
+    switch (id.type()) {
+    case entry_type::E_FILE:
+      return (packed_files_.*method)(shared_, id.index(),
+                                     std::forward<Args>(args)...);
+    case entry_type::E_DIR:
+      return (packed_dirs_.*method)(shared_, id.index(),
+                                    std::forward<Args>(args)...);
+    case entry_type::E_LINK:
+      return (packed_links_.*method)(shared_, id.index(),
+                                     std::forward<Args>(args)...);
+    case entry_type::E_DEVICE:
+      return (packed_devices_.*method)(shared_, id.index(),
+                                       std::forward<Args>(args)...);
+    case entry_type::E_OTHER:
+      return (packed_others_.*method)(shared_, id.index(),
+                                      std::forward<Args>(args)...);
+    default:
+      DWARFS_PANIC("invalid entry type");
+    }
+  }
+
+  entry_id get_parent_impl(entry_id const id) const {
+    return dispatch_(&packed_entry_data::get_parent, id);
+  }
+
+  fs::path get_path_impl(entry_id const id) const {
+    return dispatch_shared_(&packed_entry_data::get_path, id);
+  }
+
+  std::string_view get_path_string_impl(entry_id const id) const {
+    return dispatch_shared_(&packed_entry_data::get_path_string, id);
+  }
+
   cao_vector<internal::file> files_;
   cao_vector<internal::dir> dirs_;
   cao_vector<internal::link> links_;
   cao_vector<internal::device> devices_;
   cao_vector<internal::other> others_;
   cao_vector<internal::file_data> file_data_;
+
+  shared_entry_data shared_;
+  packed_entry_data packed_files_;
+  packed_entry_data packed_dirs_;
+  packed_entry_data packed_links_;
+  packed_entry_data packed_devices_;
+  packed_entry_data packed_others_;
 };
 
 template <bool Frozen>
@@ -203,6 +499,22 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   internal::entry* get_entry(entry_id const id) override {
     return impl_.lock()->get_entry(id);
+  }
+
+  entry_id get_parent(entry_id const id) override {
+    return impl_.lock()->get_parent(id);
+  }
+
+  fs::path get_path(entry_id const id) override {
+    return impl_.lock()->get_path(id);
+  }
+
+  std::string get_unix_dpath(entry_id const id) override {
+    return impl_.lock()->get_unix_dpath(id);
+  }
+
+  std::string_view get_name(entry_id const id) override {
+    return impl_.lock()->get_name(id);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
