@@ -32,8 +32,7 @@ progress::progress() = default;
 progress::~progress() = default;
 
 void progress::add_context(std::shared_ptr<context> const& ctx) const {
-  std::lock_guard lock(mx_);
-  contexts_.push_back(ctx);
+  contexts_.lock()->push_back(ctx);
 }
 
 auto progress::get_active_contexts() const
@@ -42,20 +41,18 @@ auto progress::get_active_contexts() const
 
   rv.reserve(16);
 
-  {
-    std::lock_guard lock(mx_);
-
+  contexts_.with_lock([&](auto& ctxts) {
     // NOLINTNEXTLINE(modernize-use-ranges)
-    contexts_.erase(std::remove_if(contexts_.begin(), contexts_.end(),
-                                   [&rv](auto& wp) {
-                                     if (auto sp = wp.lock()) {
-                                       rv.push_back(std::move(sp));
-                                       return false;
-                                     }
-                                     return true;
-                                   }),
-                    contexts_.end());
-  }
+    ctxts.erase(std::remove_if(ctxts.begin(), ctxts.end(),
+                               [&rv](auto& wp) {
+                                 if (auto sp = wp.lock()) {
+                                   rv.push_back(std::move(sp));
+                                   return false;
+                                 }
+                                 return true;
+                               }),
+                ctxts.end());
+  });
 
   std::ranges::stable_sort(rv, [](auto const& a, auto const& b) {
     return a->get_priority() > b->get_priority();
@@ -65,20 +62,17 @@ auto progress::get_active_contexts() const
 }
 
 void progress::set_status_function(status_function_type status_fun) {
-  std::lock_guard lock(mx_);
-  status_fun_ = std::make_shared<status_function_type>(std::move(status_fun));
+  status_fun_.with_lock([&](auto& fun) { fun = std::move(status_fun); });
 }
 
 std::string progress::status(size_t max_len) {
-  std::shared_ptr<status_function_type> fun;
-  {
-    std::lock_guard lock(mx_);
-    fun = status_fun_;
-  }
-  if (fun) {
-    return (*fun)(*this, max_len);
-  }
-  return {};
+  std::string rv;
+  status_fun_.with_lock([&](auto& fun) {
+    if (fun) {
+      rv = fun(*this, max_len);
+    }
+  });
+  return rv;
 }
 
 } // namespace dwarfs::writer::internal

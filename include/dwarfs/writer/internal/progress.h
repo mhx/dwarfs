@@ -30,7 +30,6 @@
 #include <functional>
 #include <iosfwd>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -39,6 +38,7 @@
 #include <dwarfs/types.h>
 #include <dwarfs/writer/entry_handle.h>
 
+#include <dwarfs/internal/move_only_function.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/speedometer.h>
 
@@ -69,8 +69,8 @@ class progress {
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
 
-  using status_function_type =
-      std::function<std::string(progress const&, file_size_t)>;
+  using status_function_type = dwarfs::internal::move_only_function<std::string(
+      progress const&, size_t)>;
 
   progress();
   ~progress();
@@ -164,9 +164,9 @@ class progress {
  private:
   void add_context(std::shared_ptr<context> const& ctx) const;
 
-  mutable std::mutex mx_;
-  std::shared_ptr<status_function_type> status_fun_;
-  std::vector<std::weak_ptr<context>> mutable contexts_;
+  dwarfs::internal::synchronized<status_function_type> status_fun_;
+  dwarfs::internal::synchronized<
+      std::vector<std::weak_ptr<context>>> mutable contexts_;
 };
 
 } // namespace internal
