@@ -67,6 +67,22 @@ class entry_storage {
     return impl_->get_entry(id);
   }
 
+  [[nodiscard]] entry_id get_parent(entry_id id) {
+    return impl_->get_parent(id);
+  }
+
+  [[nodiscard]] std::filesystem::path get_path(entry_id id) {
+    return impl_->get_path(id);
+  }
+
+  [[nodiscard]] std::string get_unix_dpath(entry_id id) {
+    return impl_->get_unix_dpath(id);
+  }
+
+  [[nodiscard]] std::string_view get_name(entry_id id) {
+    return impl_->get_name(id);
+  }
+
   size_t create_file_data() { return impl_->create_file_data(); }
 
   [[nodiscard]] internal::file_data& get_file_data(size_t id) {
@@ -97,6 +113,11 @@ class entry_storage {
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
     virtual internal::entry* get_entry(entry_id id) = 0;
+
+    virtual entry_id get_parent(entry_id id) = 0;
+    virtual std::filesystem::path get_path(entry_id id) = 0;
+    virtual std::string get_unix_dpath(entry_id id) = 0;
+    virtual std::string_view get_name(entry_id id) = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
