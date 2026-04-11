@@ -31,6 +31,7 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
+#include <mutex>
 #include <ostream>
 #include <ranges>
 #include <string_view>
@@ -256,11 +257,26 @@ bool checksum::verify(std::string const& alg, void const* data, size_t size,
   return verify_impl(alg, data, size, digest, digest_size);
 }
 
+std::unique_ptr<checksum::impl> make_sha2_512_256() {
+  static std::once_flag once;
+
+  // Call EVP_sha512_256() once *from a single thread* to avoid races in
+  // OpenSSL's internal initialization that otherwise trigger thread sanitizer.
+  std::call_once(once, [] {
+    checksum_evp cs(::EVP_sha512_256());
+    cs.update("", 0);
+    std::array<char, EVP_MAX_MD_SIZE> tmp;
+    cs.finalize(tmp.data());
+  });
+
+  return std::make_unique<checksum_evp>(::EVP_sha512_256());
+}
+
 checksum::checksum(xxh3_64_tag)
     : impl_(std::make_unique<checksum_xxh3_64>()) {}
 
 checksum::checksum(sha2_512_256_tag)
-    : impl_(std::make_unique<checksum_evp>(::EVP_sha512_256())) {}
+    : impl_{make_sha2_512_256()} {}
 
 checksum::checksum(std::string const& alg) {
   if (alg == "xxh3-64") {
