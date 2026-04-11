@@ -690,8 +690,12 @@ void scanner_<LoggerPolicy>::scan(
 
   // stop progress briefly to avoid race while freezing entry storage
   prog.current.store(std::monostate{});
+  prog.set_status_function(
+      [](progress const&, size_t) { return "freezing tree..."; });
 
   tree.freeze();
+
+  prog.set_status_function(status_string);
 
   LOG_INFO << "scanning CPU time: "
            << time_with_unit(wg_.try_get_cpu_time().value_or(0ns));
