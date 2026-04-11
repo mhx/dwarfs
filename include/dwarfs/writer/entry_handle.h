@@ -60,6 +60,7 @@ class file;
 class dir;
 class link;
 class device;
+class other;
 
 class inode;
 class global_entry_data;
@@ -92,6 +93,9 @@ class basic_link_handle;
 template <detail::mutability Mut>
 class basic_device_handle;
 
+template <detail::mutability Mut>
+class basic_other_handle;
+
 using const_entry_handle = basic_entry_handle<detail::mutability::const_>;
 using entry_handle = basic_entry_handle<detail::mutability::mutable_>;
 
@@ -107,6 +111,9 @@ using link_handle = basic_link_handle<detail::mutability::mutable_>;
 using const_device_handle = basic_device_handle<detail::mutability::const_>;
 using device_handle = basic_device_handle<detail::mutability::mutable_>;
 
+using const_other_handle = basic_other_handle<detail::mutability::const_>;
+using other_handle = basic_other_handle<detail::mutability::mutable_>;
+
 class entry_handle_visitor {
  public:
   virtual ~entry_handle_visitor() = default;
@@ -114,6 +121,7 @@ class entry_handle_visitor {
   virtual void visit(dir_handle h) = 0;
   virtual void visit(link_handle h) = 0;
   virtual void visit(device_handle h) = 0;
+  virtual void visit(other_handle h) = 0;
 };
 
 namespace detail {
@@ -229,6 +237,7 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) basic_entry_handle(basic_dir_handle<Mut> h);
   explicit(false) basic_entry_handle(basic_link_handle<Mut> h);
   explicit(false) basic_entry_handle(basic_device_handle<Mut> h);
+  explicit(false) basic_entry_handle(basic_other_handle<Mut> h);
 
   // TODO: GCC 12 chokes if the parentheses are removed
   // NOLINTBEGIN(readability-redundant-parentheses)
@@ -239,6 +248,8 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   explicit(false) basic_entry_handle(link_handle h)
     requires(is_const);
   explicit(false) basic_entry_handle(device_handle h)
+    requires(is_const);
+  explicit(false) basic_entry_handle(other_handle h)
     requires(is_const);
   // NOLINTEND(readability-redundant-parentheses)
 
@@ -252,6 +263,7 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   basic_dir_handle<Mut> as_dir() const noexcept;
   basic_link_handle<Mut> as_link() const noexcept;
   basic_device_handle<Mut> as_device() const noexcept;
+  basic_other_handle<Mut> as_other() const noexcept;
 
  private:
   using self_t = detail::mutability_t<internal::entry, Mut>;
@@ -386,13 +398,29 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_device_handle>();
   }
 
-  // TODO: remove after device / other split
-  bool is_device() const noexcept;
-
   std::uint64_t device_id() const;
 
  private:
   using self_t = detail::mutability_t<internal::device, Mut>;
+
+  self_t* self() const;
+};
+
+template <detail::mutability Mut>
+class basic_other_handle final : public detail::entry_handle_base<Mut> {
+ public:
+  static constexpr bool is_mutable = Mut == detail::mutability::mutable_;
+
+  using detail::entry_handle_base<Mut>::entry_handle_base;
+
+  explicit(false) operator const_other_handle() const
+    requires is_mutable
+  {
+    return this->template base_as<const_other_handle>();
+  }
+
+ private:
+  using self_t = detail::mutability_t<internal::other, Mut>;
 
   self_t* self() const;
 };
@@ -434,6 +462,13 @@ struct hash<dwarfs::writer::basic_link_handle<Mut>> {
 template <dwarfs::writer::detail::mutability Mut>
 struct hash<dwarfs::writer::basic_device_handle<Mut>> {
   size_t operator()(dwarfs::writer::basic_device_handle<Mut> const& h) const {
+    return h.object_hash();
+  }
+};
+
+template <dwarfs::writer::detail::mutability Mut>
+struct hash<dwarfs::writer::basic_other_handle<Mut>> {
+  size_t operator()(dwarfs::writer::basic_other_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };

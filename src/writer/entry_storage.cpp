@@ -63,6 +63,7 @@ class entry_storage_ final : public entry_storage::impl {
       , dirs_{other.dirs_.release()}
       , links_{other.links_.release()}
       , devices_{other.devices_.release()}
+      , others_{other.others_.release()}
       , file_data_{other.file_data_.release()} {}
 
   std::unique_ptr<impl> freeze() override {
@@ -128,6 +129,19 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
+  entry_id make_other(std::filesystem::path const& path, file_stat const& st,
+                      entry_id const id) override {
+    if constexpr (is_mutable) {
+      return others_.with_lock([&](auto& others) -> entry_id {
+        auto ix = others.size();
+        auto const& dev = others.emplace_back(path, st, id);
+        return {dev.type(), ix};
+      });
+    } else {
+      frozen_panic();
+    }
+  }
+
   bool empty() const noexcept override { return dirs_.lock()->empty(); }
 
   void dump(std::ostream& os) const override;
@@ -158,8 +172,9 @@ class entry_storage_ final : public entry_storage::impl {
     case entry_type::E_LINK:
       return &links_.lock()->at(id.index());
     case entry_type::E_DEVICE:
-    case entry_type::E_OTHER:
       return &devices_.lock()->at(id.index());
+    case entry_type::E_OTHER:
+      return &others_.lock()->at(id.index());
     default:
       throw std::runtime_error("invalid entry type");
     }
@@ -170,6 +185,7 @@ class entry_storage_ final : public entry_storage::impl {
   synchronized_vector<internal::dir> dirs_;
   synchronized_vector<internal::link> links_;
   synchronized_vector<internal::device> devices_;
+  synchronized_vector<internal::other> others_;
   synchronized_vector<internal::file_data> file_data_;
 };
 
@@ -180,6 +196,7 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   os << "num file data: " << file_data_.lock()->size() << "\n";
   os << "num links: " << links_.lock()->size() << "\n";
   os << "num devices: " << devices_.lock()->size() << "\n";
+  os << "num others: " << others_.lock()->size() << "\n";
 }
 
 entry_storage::entry_storage()
@@ -228,6 +245,13 @@ entry_storage::create_device(std::filesystem::path const& path,
                              entry_handle parent, file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_device(path, st, parent.id())};
+}
+
+other_handle
+entry_storage::create_other(std::filesystem::path const& path,
+                            entry_handle parent, file_stat const& st) {
+  assert(!empty());
+  return {*this, impl_->make_other(path, st, parent.id())};
 }
 
 } // namespace dwarfs::writer
