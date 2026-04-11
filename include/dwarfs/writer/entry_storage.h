@@ -84,15 +84,15 @@ class entry_storage {
     virtual ~impl() = default;
 
     virtual entry_id make_file(std::filesystem::path const& path,
-                               file_stat const& st, entry_id id) = 0;
+                               file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_dir(std::filesystem::path const& path,
-                              file_stat const& st, entry_id id) = 0;
+                              file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_link(std::filesystem::path const& path,
-                               file_stat const& st, entry_id id) = 0;
+                               file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_device(std::filesystem::path const& path,
-                                 file_stat const& st, entry_id id) = 0;
+                                 file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
-                                file_stat const& st, entry_id id) = 0;
+                                file_stat const& st, entry_id parent) = 0;
 
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
