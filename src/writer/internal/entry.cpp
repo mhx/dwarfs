@@ -313,18 +313,14 @@ void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
   prog.symlink_size += size();
 }
 
-entry::type_t device::type() const {
-  switch (status().type()) {
-  case posix_file_type::character:
-  case posix_file_type::block:
-    return entry_type::E_DEVICE;
-  default:
-    return entry_type::E_OTHER;
-  }
-}
+entry::type_t device::type() const { return entry_type::E_DEVICE; }
 
 void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
 uint64_t device::device_id() const { return status().rdev(); }
+
+entry::type_t other::type() const { return entry_type::E_OTHER; }
+
+void other::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
 } // namespace dwarfs::writer::internal

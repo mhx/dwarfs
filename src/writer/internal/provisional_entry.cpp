@@ -113,9 +113,11 @@ entry_handle provisional_entry::commit(entry_storage& tree) {
 
   case posix_file_type::character:
   case posix_file_type::block:
+    return tree.create_device(path_, parent_.value(), stat_);
+
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    return tree.create_device(path_, parent_.value(), stat_);
+    return tree.create_other(path_, parent_.value(), stat_);
 
   default:
     DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));

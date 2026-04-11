@@ -69,6 +69,7 @@ class file;
 class link;
 class dir;
 class device;
+class other;
 class global_entry_data;
 class inode;
 class progress;
@@ -230,8 +231,7 @@ class link : public entry {
 };
 
 /**
- * A `device` actually represents anything that's not a file,
- * dir or link.
+ * A `device` represents a character or block device.
  */
 class device : public entry {
  public:
@@ -241,6 +241,28 @@ class device : public entry {
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
   uint64_t device_id() const;
+
+  void set_inode_num(entry_storage&, uint32_t ino) override {
+    inode_num_ = ino;
+  }
+  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
+    return inode_num_;
+  }
+
+ private:
+  std::optional<uint32_t> inode_num_;
+};
+
+/**
+ * An `other` entry is a FIFO or socket.
+ */
+class other : public entry {
+ public:
+  using entry::entry;
+
+  type_t type() const override;
+  void scan(entry_storage& storage, entry_id self_id, os_access const& os,
+            progress& prog) override;
 
   void set_inode_num(entry_storage&, uint32_t ino) override {
     inode_num_ = ino;
