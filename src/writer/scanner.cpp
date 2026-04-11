@@ -95,6 +95,7 @@ class visitor_base : public entry_handle_visitor {
   void visit(link_handle) override {}
   void visit(dir_handle) override {}
   void visit(device_handle) override {}
+  void visit(other_handle) override {}
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -128,10 +129,8 @@ class device_set_inode_visitor : public visitor_base {
       : inode_num_(inode_num) {}
 
   void visit(device_handle p) override {
-    if (p.is_device()) {
-      p.set_inode_num(inode_num_++);
-      dev_ids_.push_back(p.device_id());
-    }
+    p.set_inode_num(inode_num_++);
+    dev_ids_.push_back(p.device_id());
   }
 
   std::vector<uint64_t>& device_ids() { return dev_ids_; }
@@ -146,11 +145,7 @@ class pipe_set_inode_visitor : public visitor_base {
   explicit pipe_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(device_handle p) override {
-    if (!p.is_device()) {
-      p.set_inode_num(inode_num_++);
-    }
-  }
+  void visit(other_handle p) override { p.set_inode_num(inode_num_++); }
 
  private:
   uint32_t& inode_num_;
@@ -164,6 +159,8 @@ class names_and_symlinks_visitor : public visitor_base {
   void visit(file_handle p) override { data_.add_name(p.name()); }
 
   void visit(device_handle p) override { data_.add_name(p.name()); }
+
+  void visit(other_handle p) override { data_.add_name(p.name()); }
 
   void visit(link_handle p) override {
     data_.add_name(p.name());
