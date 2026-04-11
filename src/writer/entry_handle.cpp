@@ -34,22 +34,7 @@
 
 namespace dwarfs::writer {
 
-namespace {
-
 namespace fs = std::filesystem;
-
-constexpr char kLocalPathSeparator{
-    static_cast<char>(fs::path::preferred_separator)};
-
-bool is_root_path(std::string_view path) {
-#ifdef _WIN32
-  return path == "/" || path == "\\";
-#else
-  return path == "/";
-#endif
-}
-
-} // namespace
 
 namespace detail {
 
@@ -60,23 +45,17 @@ auto entry_handle_base<Mut>::base() const -> base_t* {
 
 template <mutability Mut>
 bool entry_handle_base<Mut>::has_parent() const {
-  return base()->has_parent();
+  return storage_->get_parent(self_id_).valid();
 }
 
 template <mutability Mut>
 basic_entry_handle<Mut> entry_handle_base<Mut>::parent() const {
-  return {*storage_, base()->parent_id()};
+  return {*storage_, storage_->get_parent(self_id_)};
 }
 
 template <mutability Mut>
 fs::path entry_handle_base<Mut>::fs_path() const {
-  auto p = base()->name_as_path();
-
-  if (this->has_parent()) {
-    p = parent().fs_path() / p;
-  }
-
-  return p;
+  return storage_->get_path(self_id_);
 }
 
 template <mutability Mut>
@@ -86,29 +65,12 @@ std::string entry_handle_base<Mut>::path_as_string() const {
 
 template <mutability Mut>
 std::string entry_handle_base<Mut>::unix_dpath() const {
-  std::string p{base()->name()};
-
-  if (is_root_path(p)) {
-    p = "/";
-  } else {
-    if (this->type() == entry_type::E_DIR && !p.empty() &&
-        !p.ends_with(kLocalPathSeparator)) {
-      p += '/';
-    }
-
-    if (this->has_parent()) {
-      p = this->parent().unix_dpath() + p;
-    } else if constexpr (kLocalPathSeparator != '/') {
-      std::ranges::replace(p, kLocalPathSeparator, '/');
-    }
-  }
-
-  return p;
+  return storage_->get_unix_dpath(self_id_);
 }
 
 template <mutability Mut>
 std::string_view entry_handle_base<Mut>::name() const {
-  return base()->name();
+  return storage_->get_name(self_id_);
 }
 
 template <mutability Mut>
@@ -420,7 +382,12 @@ template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack_entry(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  self()->pack_entry(this->storage(), mv2, data, timeres);
+  auto& de = mv2.dir_entries()->emplace_back();
+  de.name_index() = this->has_parent() ? data.get_name_index(this->name()) : 0;
+  auto const inode_num = DWARFS_NOTHROW(this->inode_num().value());
+  de.inode_num() = inode_num;
+  detail::entry_handle_base<Mut>::pack(
+      DWARFS_NOTHROW(mv2.inodes()->at(inode_num)), data, timeres);
 }
 
 template <detail::mutability Mut>
