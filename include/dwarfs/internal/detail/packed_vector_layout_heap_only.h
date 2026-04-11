@@ -36,6 +36,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <dwarfs/bit_view.h>
+
 #include <dwarfs/internal/detail/packed_vector_heap_storage.h>
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
