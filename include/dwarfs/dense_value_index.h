@@ -225,16 +225,42 @@ class basic_dense_value_index {
   insert_result emplace(Args&&... args) {
     auto const new_index = store_->size();
 
-    store_->emplace_back(std::forward<Args>(args)...);
-    pop_back_guard rollback(store_);
+    if constexpr (requires(store_type& s) { s.pop_back(); }) {
+      store_->emplace_back(std::forward<Args>(args)...);
+      pop_back_guard rollback(store_);
 
-    auto const [it, inserted] = index_.insert(new_index);
-    if (inserted) {
-      rollback.release();
+      auto const [it, inserted] = index_.insert(new_index);
+      if (inserted) {
+        rollback.release();
+        return {.index = new_index, .inserted = true};
+      }
+
+      return {.index = *it, .inserted = false};
+    } else {
+      // Fallback for append-only stores without pop_back().
+      //
+      // Duplicate detection is performed before mutating the store.
+      // If store_->emplace_back() succeeds and index_.insert() throws,
+      // the strong exception guarantee cannot be preserved. However,
+      // that is likely only going to happen if the index runs out of
+      // memory. Exceptions thrown by the value's constructor or move
+      // constructor as well as by appending to the store will still
+      // leave the index in a valid state.
+
+      auto tmp = value_type(std::forward<Args>(args)...);
+
+      if (auto const ix = index_of(tmp)) {
+        return {.index = *ix, .inserted = false};
+      }
+
+      store_->emplace_back(std::move(tmp));
+      [[maybe_unused]] auto const [it, inserted] = index_.insert(new_index);
+
+      assert(inserted);
+      assert(*it == new_index);
+
       return {.index = new_index, .inserted = true};
     }
-
-    return {.index = *it, .inserted = false};
   }
 
   template <class... Args>
