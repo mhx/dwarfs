@@ -91,6 +91,8 @@ class entry_storage {
                                file_stat const& st, entry_id id) = 0;
     virtual entry_id make_device(std::filesystem::path const& path,
                                  file_stat const& st, entry_id id) = 0;
+    virtual entry_id make_other(std::filesystem::path const& path,
+                                file_stat const& st, entry_id id) = 0;
 
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
@@ -119,6 +121,9 @@ class entry_storage {
 
   device_handle create_device(std::filesystem::path const& path,
                               entry_handle parent, file_stat const& st);
+
+  other_handle create_other(std::filesystem::path const& path,
+                            entry_handle parent, file_stat const& st);
 
   std::unique_ptr<impl> impl_;
 };

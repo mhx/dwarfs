@@ -67,6 +67,9 @@ struct recording_visitor final : writer::entry_handle_visitor {
   void visit(writer::device_handle h) override {
     events.push_back("device:" + h.unix_dpath());
   }
+  void visit(writer::other_handle h) override {
+    events.push_back("other:" + h.unix_dpath());
+  }
   void visit(writer::link_handle h) override {
     events.push_back("link:" + h.unix_dpath());
   }
@@ -729,7 +732,7 @@ struct entry_handle_test : entry_test {
   writer::dir_handle somedir;
   writer::link_handle link;
   writer::device_handle dev;
-  writer::device_handle other;
+  writer::other_handle other;
   writer::entry_handle nested_file;
   writer::entry_handle nested_dev;
 
@@ -743,8 +746,7 @@ struct entry_handle_test : entry_test {
     somedir = create_entry(storage, sep / "somedir", root).as_dir();
     link = create_entry(storage, sep / "somelink", root).as_link();
     dev = create_entry(storage, sep / "somedir" / "null", somedir).as_device();
-    other =
-        create_entry(storage, sep / "somedir" / "pipe", somedir).as_device();
+    other = create_entry(storage, sep / "somedir" / "pipe", somedir).as_other();
     nested_file = create_entry(storage, sep / "somedir" / "ipsum.py", somedir);
     nested_dev = create_entry(storage, sep / "somedir" / "null", somedir);
 
@@ -772,7 +774,7 @@ TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
   auto cdir = static_cast<writer::const_dir_handle>(somedir);
   auto clink = static_cast<writer::const_link_handle>(link);
   auto cdev = static_cast<writer::const_device_handle>(dev);
-  auto cother = static_cast<writer::const_device_handle>(other);
+  auto cother = static_cast<writer::const_other_handle>(other);
 
   ASSERT_TRUE(cfile);
   ASSERT_TRUE(cdir);
@@ -789,11 +791,7 @@ TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
   EXPECT_EQ(link.name(), clink.name());
   EXPECT_EQ("somedir/ipsum.py", clink.linkname());
 
-  EXPECT_TRUE(cdev.is_device());
   EXPECT_EQ(dev.device_id(), cdev.device_id());
-
-  EXPECT_FALSE(cother.is_device());
-  EXPECT_EQ(other.device_id(), cother.device_id());
 }
 
 TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {
@@ -825,14 +823,16 @@ TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {
   ASSERT_TRUE(ce_dir.as_dir());
   ASSERT_TRUE(ce_link.as_link());
   ASSERT_TRUE(ce_dev.as_device());
-  ASSERT_TRUE(ce_other.as_device());
+  ASSERT_TRUE(ce_other.as_other());
 
   EXPECT_FALSE(ce_file.as_link());
   EXPECT_FALSE(ce_link.as_file());
   EXPECT_FALSE(ce_dir.as_device());
 
-  EXPECT_TRUE(ce_dev.as_device().is_device());
-  EXPECT_FALSE(ce_other.as_device().is_device());
+  EXPECT_TRUE(ce_dev.as_device());
+  EXPECT_FALSE(ce_other.as_device());
+  EXPECT_FALSE(ce_dev.as_other());
+  EXPECT_TRUE(ce_other.as_other());
 }
 
 TEST_F(entry_handle_test, const_handles_preserve_parent_information) {
@@ -883,6 +883,9 @@ TEST_F(entry_handle_test, handle_hash_support_works_for_all_types) {
   devices.insert(dev);
   devices.insert(dev);
   EXPECT_EQ(1, devices.size());
-  devices.insert(other);
-  EXPECT_EQ(2, devices.size());
+
+  std::unordered_set<writer::other_handle> others;
+  others.insert(other);
+  others.insert(other);
+  EXPECT_EQ(1, others.size());
 }

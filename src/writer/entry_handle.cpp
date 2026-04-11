@@ -193,8 +193,11 @@ void entry_handle_base<Mut>::accept(entry_handle_visitor& v, bool preorder)
     break;
 
   case entry_type::E_DEVICE:
-  case entry_type::E_OTHER:
     v.visit(device_handle{*storage_, self_id_});
+    break;
+
+  case entry_type::E_OTHER:
+    v.visit(other_handle{*storage_, self_id_});
     break;
   }
 }
@@ -448,13 +451,15 @@ auto basic_device_handle<Mut>::self() const -> self_t* {
 }
 
 template <detail::mutability Mut>
-bool basic_device_handle<Mut>::is_device() const noexcept {
-  return this->id().is_device();
-}
-
-template <detail::mutability Mut>
 std::uint64_t basic_device_handle<Mut>::device_id() const {
   return self()->device_id();
+}
+
+// --------- other_handle ----------
+
+template <detail::mutability Mut>
+auto basic_other_handle<Mut>::self() const -> self_t* {
+  return static_cast<self_t*>(this->base());
 }
 
 // ---------- entry_handle ----------
@@ -480,6 +485,10 @@ template <detail::mutability Mut>
 basic_entry_handle<Mut>::basic_entry_handle(basic_device_handle<Mut> h)
     : detail::entry_handle_base<Mut>{h} {}
 
+template <detail::mutability Mut>
+basic_entry_handle<Mut>::basic_entry_handle(basic_other_handle<Mut> h)
+    : detail::entry_handle_base<Mut>{h} {}
+
 // TODO: GCC 12 chokes if the parentheses are removed
 // NOLINTBEGIN(readability-redundant-parentheses)
 
@@ -500,6 +509,11 @@ basic_entry_handle<Mut>::basic_entry_handle(link_handle h)
 
 template <detail::mutability Mut>
 basic_entry_handle<Mut>::basic_entry_handle(device_handle h)
+  requires(is_const)
+    : detail::entry_handle_base<Mut>{h} {}
+
+template <detail::mutability Mut>
+basic_entry_handle<Mut>::basic_entry_handle(other_handle h)
   requires(is_const)
     : detail::entry_handle_base<Mut>{h} {}
 
@@ -531,8 +545,16 @@ basic_link_handle<Mut> basic_entry_handle<Mut>::as_link() const noexcept {
 
 template <detail::mutability Mut>
 basic_device_handle<Mut> basic_entry_handle<Mut>::as_device() const noexcept {
-  if (is_device() || is_other()) {
+  if (is_device()) {
     return this->template base_as<basic_device_handle<Mut>>();
+  }
+  return {};
+}
+
+template <detail::mutability Mut>
+basic_other_handle<Mut> basic_entry_handle<Mut>::as_other() const noexcept {
+  if (is_other()) {
+    return this->template base_as<basic_other_handle<Mut>>();
   }
   return {};
 }
