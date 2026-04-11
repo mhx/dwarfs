@@ -54,28 +54,8 @@ constexpr std::string_view const kHashContext{"[hashing] "};
 
 } // namespace
 
-entry::entry(fs::path const& path, file_stat const& st, entry_id parent_id)
-#ifdef _WIN32
-    : path_{parent_id ? path.filename() : path}
-    , name_{path_to_utf8_string_sanitized(path_)}
-#else
-    : name_{path_to_utf8_string_sanitized(parent_id ? path.filename() : path)}
-#endif
-    , parent_id_{parent_id}
-    , stat_{st} {
-}
-
-bool entry::has_parent() const { return parent_id_.valid(); }
-
-fs::path entry::name_as_path() const {
-#ifdef _WIN32
-  return path_;
-#else
-  return name_;
-#endif
-}
-
-std::string_view entry::name() const { return name_; }
+entry::entry(file_stat const& st)
+    : stat_{st} {}
 
 void entry::update(global_entry_data& data) const {
   stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
@@ -231,16 +211,6 @@ void dir::sort(entry_storage& storage) {
 }
 
 void dir::scan(entry_storage&, entry_id, os_access const&, progress&) {}
-
-void dir::pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
-                     global_entry_data const& data,
-                     time_resolution_converter const& timeres) const {
-  auto& de = mv2.dir_entries()->emplace_back();
-  de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
-  de.inode_num() = DWARFS_NOTHROW(inode_num(storage).value());
-  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
-              timeres);
-}
 
 void dir::remove_empty_dirs(entry_storage& storage, progress& prog) {
   auto last =

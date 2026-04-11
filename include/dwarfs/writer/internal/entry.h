@@ -81,13 +81,8 @@ class entry {
 
   virtual ~entry() = default;
 
-  entry(std::filesystem::path const& path, file_stat const& st,
-        entry_id parent_id);
+  entry(file_stat const& st);
 
-  bool has_parent() const;
-  entry_id parent_id() const { return parent_id_; }
-  std::filesystem::path name_as_path() const;
-  std::string_view name() const;
   file_size_t size() const;
   file_size_t allocated_size() const;
   virtual type_t type() const = 0;
@@ -109,11 +104,6 @@ class entry {
   void set_empty();
 
  private:
-#ifdef _WIN32
-  std::filesystem::path path_;
-#endif
-  std::string name_;
-  entry_id parent_id_;
   file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
@@ -178,9 +168,6 @@ class dir : public entry {
   type_t type() const override;
   void add(entry_handle e);
   void sort(entry_storage& storage);
-  void pack_entry(entry_storage& storage, thrift::metadata::metadata& mv2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
   bool empty() const { return entries_.empty(); }
