@@ -50,6 +50,12 @@ class segmented_packed_int_vector {
   using value_type = T;
   using size_type = std::size_t;
   using segment_type = auto_packed_int_vector<value_type>;
+  using reference =
+      detail::index_based_value_proxy<segmented_packed_int_vector>;
+  using const_reference = value_type;
+  using iterator = detail::index_based_iterator<segmented_packed_int_vector>;
+  using const_iterator =
+      detail::index_based_const_iterator<segmented_packed_int_vector>;
 
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
@@ -61,12 +67,6 @@ class segmented_packed_int_vector {
                              std::vector<segment_type>{}.max_size())
 #endif
       ;
-
-  using value_proxy =
-      detail::index_based_value_proxy<segmented_packed_int_vector>;
-  using iterator = detail::index_based_iterator<segmented_packed_int_vector>;
-  using const_iterator =
-      detail::index_based_const_iterator<segmented_packed_int_vector>;
 
   static constexpr size_type max_size() noexcept { return max_size_value; }
 
@@ -157,33 +157,33 @@ class segmented_packed_int_vector {
     size_ = 0;
   }
 
-  value_type operator[](size_type i) const { return get(i); }
+  const_reference operator[](size_type i) const { return get(i); }
 
-  value_proxy operator[](size_type i) { return value_proxy{*this, i}; }
+  reference operator[](size_type i) { return reference{*this, i}; }
 
-  value_type at(size_type i) const {
+  const_reference at(size_type i) const {
     if (i >= size_) {
       throw std::out_of_range("segmented_packed_int_vector::at");
     }
     return get(i);
   }
 
-  value_proxy at(size_type i) {
+  reference at(size_type i) {
     if (i >= size_) {
       throw std::out_of_range("segmented_packed_int_vector::at");
     }
     return (*this)[i];
   }
 
-  value_type front() const { return get(0); }
+  const_reference front() const { return get(0); }
 
-  value_proxy front() { return (*this)[0]; }
+  reference front() { return (*this)[0]; }
 
-  value_type back() const { return get(size_ - 1); }
+  const_reference back() const { return get(size_ - 1); }
 
-  value_proxy back() { return (*this)[size_ - 1]; }
+  reference back() { return (*this)[size_ - 1]; }
 
-  value_type get(size_type i) const {
+  const_reference get(size_type i) const {
     auto const [seg, off] = locate(i);
     return segments_[seg][off];
   }
