@@ -47,16 +47,24 @@
 #include <dwarfs/internal/detail/packed_vector_helpers.h>
 #include <dwarfs/internal/detail/packed_vector_layout.h>
 #include <dwarfs/internal/detail/vector_growth_policy.h>
+#include <dwarfs/internal/packed_value_traits.h>
 
 namespace dwarfs::internal {
+
+template <typename T>
+concept integer_packable = requires(
+    T const& v, typename packed_value_traits<T>::encoded_type e) {
+  requires integral_but_not_bool<typename packed_value_traits<T>::encoded_type>;
+  {
+    packed_value_traits<T>::encode(v)
+  } -> std::same_as<typename packed_value_traits<T>::encoded_type>;
+  { packed_value_traits<T>::decode(e) } -> std::same_as<T>;
+};
 
 enum class packed_vector_bit_width_strategy {
   fixed,
   automatic,
 };
-
-template <typename T>
-concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
 
 /**
  * Packed integer vector with configurable bit-width strategy and layout.
@@ -85,13 +93,15 @@ concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
  * referenced index remains valid, but operations that replace the logical
  * contents of the vector should be treated as invalidating all iterators.
  */
-template <integral_but_not_bool T,
-          packed_vector_bit_width_strategy BitWidthStrategy, typename Policy,
+template <integer_packable T, packed_vector_bit_width_strategy BitWidthStrategy,
+          typename Policy,
           typename GrowthPolicy = detail::default_block_growth_policy>
 class basic_packed_int_vector {
  public:
   using value_type = T;
-  using underlying_type = std::make_unsigned_t<T>;
+  using traits_type = packed_value_traits<T>;
+  using encoded_type = typename traits_type::encoded_type;
+  using underlying_type = std::make_unsigned_t<encoded_type>;
   using size_type = std::size_t;
   using policy_type = Policy;
   using growth_policy_type = GrowthPolicy;
@@ -101,7 +111,7 @@ class basic_packed_int_vector {
   static constexpr size_type bits_per_block =
       std::numeric_limits<underlying_type>::digits;
 
-  template <integral_but_not_bool, packed_vector_bit_width_strategy, typename,
+  template <integer_packable, packed_vector_bit_width_strategy, typename,
             typename>
   friend class basic_packed_int_vector;
 
@@ -118,7 +128,8 @@ class basic_packed_int_vector {
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
   using other_vector_type =
-      basic_packed_int_vector<T, OtherStrategy, OtherPolicy, OtherGrowthPolicy>;
+      basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
+                              OtherGrowthPolicy>;
   template <typename OtherLayout>
   static constexpr bool same_layout_v = std::same_as<layout_type, OtherLayout>;
 
@@ -148,22 +159,23 @@ class basic_packed_int_vector {
     initialize(checked_bits(bits), size);
   }
 
-  basic_packed_int_vector(std::initializer_list<T> ilist)
+  basic_packed_int_vector(std::initializer_list<value_type> ilist)
       : basic_packed_int_vector(required_bits_for(ilist), ilist.size()) {
     std::size_t i = 0;
-    for (T value : ilist) {
-      layout_.write(i++, value);
+    for (value_type value : ilist) {
+      layout_.write(i++, traits_type::encode(value));
     }
   }
 
   template <std::ranges::forward_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, T> &&
+    requires std::convertible_to<std::ranges::range_reference_t<R>,
+                                 value_type> &&
              std::ranges::sized_range<R>
   basic_packed_int_vector(from_range_t, R&& r)
       : basic_packed_int_vector(required_bits_for(r), std::ranges::size(r)) {
     size_type i = 0;
     for (auto&& v : std::forward<R>(r)) {
-      layout_.write(i++, static_cast<T>(v));
+      layout_.write(i++, traits_type::encode(static_cast<value_type>(v)));
     }
   }
 
@@ -196,24 +208,25 @@ class basic_packed_int_vector {
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
   basic_packed_int_vector(
-      basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
+      basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
                               OtherGrowthPolicy> const& other) {
     copy_from_impl(other);
   }
 
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
-  basic_packed_int_vector(basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
-                                                  OtherGrowthPolicy>&& other)
-      noexcept(
-          same_layout_v<typename basic_packed_int_vector<
-              T, OtherStrategy, OtherPolicy, OtherGrowthPolicy>::layout_type>) {
+  basic_packed_int_vector(
+      basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
+                              OtherGrowthPolicy>&& other)
+      noexcept(same_layout_v<typename basic_packed_int_vector<
+                   value_type, OtherStrategy, OtherPolicy,
+                   OtherGrowthPolicy>::layout_type>) {
     move_from_impl(std::move(other));
   }
 
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
-  auto operator=(basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
+  auto operator=(basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
                                          OtherGrowthPolicy> const& other)
       -> basic_packed_int_vector& {
     basic_packed_int_vector tmp;
@@ -224,7 +237,7 @@ class basic_packed_int_vector {
 
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
-  auto operator=(basic_packed_int_vector<T, OtherStrategy, OtherPolicy,
+  auto operator=(basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
                                          OtherGrowthPolicy>&& other)
       -> basic_packed_int_vector& {
     move_from_impl(std::move(other));
@@ -278,28 +291,16 @@ class basic_packed_int_vector {
     return std::reverse_iterator<const_iterator>{cbegin()};
   }
 
-  static constexpr auto required_bits(T value) noexcept -> size_type {
-    if (value == 0) {
-      return 0;
-    }
-
-    auto const uvalue = static_cast<underlying_type>(value);
-
-    if constexpr (std::is_signed_v<T>) {
-      if (value > 0) {
-        return bits_per_block - std::countl_zero(uvalue) + 1;
-      }
-      return bits_per_block - std::countl_one(uvalue) + 1;
-    } else {
-      return bits_per_block - std::countl_zero(uvalue);
-    }
+  static constexpr auto required_bits(value_type value)
+      noexcept(noexcept(traits_type::encode(value))) -> size_type {
+    return required_bits_encoded(traits_type::encode(value));
   }
 
   [[nodiscard]] auto required_bits() const -> size_type {
     auto const cur_size = size();
     size_type result = 0;
     for (size_type i = 0; i < cur_size && result < bits_per_block; ++i) {
-      result = std::max(result, required_bits(get(i)));
+      result = std::max(result, required_bits_encoded(get_encoded(i)));
     }
     return result;
   }
@@ -310,21 +311,23 @@ class basic_packed_int_vector {
     initialize(checked_bits(bits), sz);
   }
 
-  void resize(size_type new_size, T value = T{}) {
+  void resize(size_type new_size, value_type value = value_type{}) {
     check_size_limit(new_size);
 
     auto const old_size = size();
 
     if (new_size > old_size) {
       auto const old_bits = bits();
+      auto const encoded = traits_type::encode(value);
 
       if constexpr (auto_bit_width) {
-        ensure_bits(required_bits(value), new_size, old_size, old_bits);
+        ensure_bits(required_bits_encoded(encoded), new_size, old_size,
+                    old_bits);
       } else {
         ensure_capacity_for(new_size, old_bits, old_size);
       }
 
-      layout_.fill(old_size, new_size, value);
+      layout_.fill(old_size, new_size, encoded);
     }
 
     layout_.set_size(new_size);
@@ -379,18 +382,18 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto empty() const noexcept -> bool { return size() == 0; }
 
-  auto operator[](size_type i) const -> T { return get(i); }
+  auto operator[](size_type i) const -> value_type { return get(i); }
 
-  auto at(size_type i) const -> T {
+  auto at(size_type i) const -> value_type {
     if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
     return get(i);
   }
 
-  [[nodiscard]] auto get(size_type i) const -> T {
+  [[nodiscard]] auto get(size_type i) const -> value_type {
     assert(i < size());
-    return layout_.template read<T>(i);
+    return traits_type::decode(get_encoded(i));
   }
 
   auto operator[](size_type i) -> value_proxy { return value_proxy{*this, i}; }
@@ -402,34 +405,37 @@ class basic_packed_int_vector {
     return (*this)[i];
   }
 
-  void set(size_type i, T value) {
+  void set(size_type i, value_type value) {
     assert(i < size());
+
+    auto const encoded = traits_type::encode(value);
 
     if constexpr (auto_bit_width) {
       auto const cur_size = size();
-      ensure_bits(required_bits(value), cur_size, cur_size, bits());
+      ensure_bits(required_bits_encoded(encoded), cur_size, cur_size, bits());
     }
 
-    layout_.write(i, value);
+    layout_.write(i, encoded);
   }
 
-  void push_back(T value) {
+  void push_back(value_type value) {
     auto const old_size = size();
 
     if (old_size == max_size()) {
       throw_size_limit();
     }
 
+    auto const encoded = traits_type::encode(value);
     auto const new_size = old_size + 1;
     auto cur_bits = bits();
 
     if constexpr (auto_bit_width) {
-      ensure_bits(required_bits(value), new_size, old_size, cur_bits);
+      ensure_bits(required_bits_encoded(encoded), new_size, old_size, cur_bits);
     } else {
       ensure_capacity_for(new_size, cur_bits, old_size);
     }
 
-    layout_.write(old_size, value);
+    layout_.write(old_size, encoded);
     layout_.set_size(new_size);
   }
 
@@ -438,7 +444,7 @@ class basic_packed_int_vector {
     layout_.set_size(size() - 1);
   }
 
-  [[nodiscard]] auto back() const -> T {
+  [[nodiscard]] auto back() const -> value_type {
     assert(!empty());
     return get(size() - 1);
   }
@@ -448,7 +454,7 @@ class basic_packed_int_vector {
     return (*this)[size() - 1];
   }
 
-  [[nodiscard]] auto front() const -> T {
+  [[nodiscard]] auto front() const -> value_type {
     assert(!empty());
     return get(0);
   }
@@ -458,8 +464,8 @@ class basic_packed_int_vector {
     return (*this)[0];
   }
 
-  [[nodiscard]] auto unpack() const -> std::vector<T> {
-    std::vector<T> result(size());
+  [[nodiscard]] auto unpack() const -> std::vector<value_type> {
+    std::vector<value_type> result(size());
     for (size_type i = 0; i < size(); ++i) {
       result[i] = get(i);
     }
@@ -472,7 +478,7 @@ class basic_packed_int_vector {
     assert(pos.vec_ == this);
     assert(index < sz);
     for (size_type i = index + 1; i < sz; ++i) {
-      layout_.write(i - 1, get(i));
+      layout_.write(i - 1, get_encoded(i));
     }
     layout_.set_size(sz - 1);
     return iterator{this, index};
@@ -488,7 +494,7 @@ class basic_packed_int_vector {
     assert(last_index <= sz);
     auto const num_to_erase = last_index - first_index;
     for (size_type i = last_index; i < sz; ++i) {
-      layout_.write(i - num_to_erase, get(i));
+      layout_.write(i - num_to_erase, get_encoded(i));
     }
     layout_.set_size(sz - num_to_erase);
     return iterator{this, first_index};
@@ -503,7 +509,7 @@ class basic_packed_int_vector {
                  const_iterator{this, last.index_});
   }
 
-  iterator insert(const_iterator pos, size_type count, T value) {
+  iterator insert(const_iterator pos, size_type count, value_type value) {
     auto const index = pos.index_;
     assert(pos.vec_ == this);
     auto req_bits = bits();
@@ -513,7 +519,9 @@ class basic_packed_int_vector {
     return insert_known_n(index, count, req_bits, [value]() { return value; });
   }
 
-  iterator insert(const_iterator pos, T value) { return insert(pos, 1, value); }
+  iterator insert(const_iterator pos, value_type value) {
+    return insert(pos, 1, value);
+  }
 
   template <std::input_iterator InputIt>
   iterator insert(const_iterator pos, InputIt first, InputIt last) {
@@ -540,11 +548,11 @@ class basic_packed_int_vector {
     }
   }
 
-  iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+  iterator insert(const_iterator pos, std::initializer_list<value_type> ilist) {
     return insert(pos, ilist.begin(), ilist.end());
   }
 
-  void assign(size_type count, T value) {
+  void assign(size_type count, value_type value) {
     clear();
     insert(begin(), count, value);
   }
@@ -555,38 +563,61 @@ class basic_packed_int_vector {
     insert(begin(), first, last);
   }
 
-  void assign(std::initializer_list<T> ilist) {
+  void assign(std::initializer_list<value_type> ilist) {
     assign(ilist.begin(), ilist.end());
   }
 
   template <std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   iterator insert_range(const_iterator pos, R&& r) {
     auto&& range = std::forward<R>(r);
     return insert(pos, std::ranges::begin(range), std::ranges::end(range));
   }
 
   template <std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   void assign_range(R&& r) {
     auto&& range = std::forward<R>(r);
     assign(std::ranges::begin(range), std::ranges::end(range));
   }
 
   template <std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   void append_range(R&& r) {
     insert_range(end(), std::forward<R>(r));
   }
 
  private:
+  encoded_type get_encoded(size_type i) const {
+    assert(i < size());
+    return layout_.template read<encoded_type>(i);
+  }
+
+  static constexpr auto
+  required_bits_encoded(encoded_type encoded) noexcept -> size_type {
+    if (encoded == 0) {
+      return 0;
+    }
+
+    auto const uvalue = static_cast<underlying_type>(encoded);
+
+    if constexpr (std::is_signed_v<encoded_type>) {
+      if (encoded > 0) {
+        return bits_per_block - std::countl_zero(uvalue) + 1;
+      }
+      return bits_per_block - std::countl_one(uvalue) + 1;
+    } else {
+      return bits_per_block - std::countl_zero(uvalue);
+    }
+  }
+
   template <std::ranges::forward_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   static auto required_bits_for(R&& r) -> size_type {
     size_type bits = 0;
 
     for (auto&& v : std::forward<R>(r)) {
-      bits = std::max(bits, required_bits(static_cast<T>(v)));
+      bits = std::max(bits, required_bits(static_cast<value_type>(v)));
 
       if (bits == bits_per_block) {
         break;
@@ -620,12 +651,12 @@ class basic_packed_int_vector {
     }
 
     for (size_type i = old_size; i > index; --i) {
-      layout_.write(i + count - 1, get(i - 1));
+      layout_.write(i + count - 1, get_encoded(i - 1));
     }
 
     auto&& gen = std::forward<Producer>(produce);
     for (size_type i = 0; i < count; ++i) {
-      layout_.write(index + i, gen());
+      layout_.write(index + i, traits_type::encode(gen()));
     }
 
     layout_.set_size(new_size);
@@ -714,7 +745,7 @@ class basic_packed_int_vector {
 
     if (!copy_heap_blocks && src_bits > 0) {
       for (size_type i = 0; i < src_size; ++i) {
-        new_layout.write(i, other.get(i));
+        new_layout.write(i, other.get_encoded(i));
       }
     }
 
@@ -955,7 +986,7 @@ class basic_packed_int_vector {
 
     if (must_copy_elements) {
       for (size_type i = 0; i < copy_size; ++i) {
-        new_layout.write(i, get(i));
+        new_layout.write(i, get_encoded(i));
       }
     }
 

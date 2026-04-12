@@ -274,6 +274,21 @@ TEST(segmented_packed_int_vector, move_constructor_and_assignment) {
   EXPECT_THAT(other, ElementsAreArray(expected));
 }
 
+TEST(segmented_packed_int_vector, supports_custom_types) {
+  enum class my_enum : uint8_t { A = 0, B = 1, C = 2, D = 3 };
+  using vec_type = segmented_packed_int_vector<my_enum, 4>;
+
+  vec_type vec;
+  vec.push_back(my_enum::A);
+  vec.push_back(my_enum::C);
+  vec.push_back(my_enum::B);
+  vec.push_back(my_enum::D);
+  vec.push_back(my_enum::A);
+
+  EXPECT_THAT(vec, ElementsAre(my_enum::A, my_enum::C, my_enum::B, my_enum::D,
+                               my_enum::A));
+}
+
 TEST(compact_packed_int_vector, zero_bits_can_grow_inline_up_to_limit) {
   using vec_type = compact_packed_int_vector<uint32_t>;
   vec_type vec(0);

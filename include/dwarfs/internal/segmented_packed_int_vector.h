@@ -43,13 +43,13 @@
 
 namespace dwarfs::internal {
 
-template <std::integral T, std::size_t SegmentElements = 1024>
+template <integer_packable T, std::size_t SegmentElements = 1024>
   requires(!std::same_as<T, bool> && std::has_single_bit(SegmentElements))
 class segmented_packed_int_vector {
  public:
   using value_type = T;
   using size_type = std::size_t;
-  using segment_type = auto_packed_int_vector<T>;
+  using segment_type = auto_packed_int_vector<value_type>;
 
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
@@ -74,7 +74,9 @@ class segmented_packed_int_vector {
 
   explicit segmented_packed_int_vector(size_type size) { resize(size); }
 
-  segmented_packed_int_vector(size_type size, T value) { resize(size, value); }
+  segmented_packed_int_vector(size_type size, value_type value) {
+    resize(size, value);
+  }
 
   segmented_packed_int_vector(segmented_packed_int_vector const&) = default;
   segmented_packed_int_vector(segmented_packed_int_vector&&) = default;
@@ -155,11 +157,11 @@ class segmented_packed_int_vector {
     size_ = 0;
   }
 
-  T operator[](size_type i) const { return get(i); }
+  value_type operator[](size_type i) const { return get(i); }
 
   value_proxy operator[](size_type i) { return value_proxy{*this, i}; }
 
-  T at(size_type i) const {
+  value_type at(size_type i) const {
     if (i >= size_) {
       throw std::out_of_range("segmented_packed_int_vector::at");
     }
@@ -173,25 +175,25 @@ class segmented_packed_int_vector {
     return (*this)[i];
   }
 
-  T front() const { return get(0); }
+  value_type front() const { return get(0); }
 
   value_proxy front() { return (*this)[0]; }
 
-  T back() const { return get(size_ - 1); }
+  value_type back() const { return get(size_ - 1); }
 
   value_proxy back() { return (*this)[size_ - 1]; }
 
-  T get(size_type i) const {
+  value_type get(size_type i) const {
     auto const [seg, off] = locate(i);
     return segments_[seg][off];
   }
 
-  void set(size_type i, T value) {
+  void set(size_type i, value_type value) {
     auto const [seg, off] = locate(i);
     segments_[seg][off] = value;
   }
 
-  void push_back(T value) {
+  void push_back(value_type value) {
     if (segments_.empty() || segments_.back().size() == segment_elements) {
       segments_.push_back(make_empty_segment());
     }
@@ -211,7 +213,7 @@ class segmented_packed_int_vector {
     }
   }
 
-  void resize(size_type new_size, T value = T{}) {
+  void resize(size_type new_size, value_type value = value_type{}) {
     if (new_size < size_) {
       shrink_to(new_size);
     } else if (new_size > size_) {
@@ -226,8 +228,8 @@ class segmented_packed_int_vector {
     segments_.shrink_to_fit();
   }
 
-  [[nodiscard]] std::vector<T> unpack() const {
-    std::vector<T> result(size_);
+  [[nodiscard]] std::vector<value_type> unpack() const {
+    std::vector<value_type> result(size_);
     for (size_type i = 0; i < size_; ++i) {
       result[i] = get(i);
     }
@@ -262,7 +264,7 @@ class segmented_packed_int_vector {
     size_ = new_size;
   }
 
-  void grow_to(size_type new_size, T value) {
+  void grow_to(size_type new_size, value_type value) {
     while (size_ < new_size) {
       if (segments_.empty() || segments_.back().size() == segment_elements) {
         segments_.push_back(make_empty_segment());
