@@ -28,37 +28,23 @@
 
 #pragma once
 
-#include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/heap_only_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_heap_only.h>
+#include <optional>
+
+#include <dwarfs/internal/packed_value_traits.h>
 
 namespace dwarfs::internal {
 
-/**
- * Packed integer vector using heap storage only.
- *
- * This is the regular packed-vector variant. Non-empty vectors use heap
- * storage, while empty vectors require no allocation. The object itself stores
- * only the current bit width and a pointer to the heap block, making it compact
- * when embedded in other containers.
- *
- * This variant has no policy-imposed size limit beyond `std::size_t` and is
- * therefore suitable as the general-purpose packed integer vector.
- */
-template <integer_packable T>
-using packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
-                            detail::heap_only_packed_vector_policy>;
+template <std::unsigned_integral T>
+struct packed_value_traits<std::optional<T>> {
+  using encoded_type = T;
 
-/**
- * Heap-backed packed integer vector with automatic bit-width.
- *
- * Like `packed_int_vector`, but grows the element bit width automatically as
- * needed to represent newly inserted or assigned values.
- */
-template <integer_packable T>
-using auto_packed_int_vector =
-    basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
-                            detail::heap_only_packed_vector_policy>;
+  static encoded_type encode(std::optional<T> const& opt) {
+    return opt.has_value() ? *opt + 1 : 0;
+  }
+
+  static std::optional<T> decode(encoded_type encoded) {
+    return encoded > 0 ? std::optional<T>{encoded - 1} : std::nullopt;
+  }
+};
 
 } // namespace dwarfs::internal
