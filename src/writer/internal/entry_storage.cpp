@@ -109,6 +109,15 @@ class path_component {
 
   std::string_view name() const { return name_; }
 
+  std::size_t size_in_bytes() const {
+#if DWARFS_KEEP_FS_PATHS
+    return sizeof(path_component) +
+           path_.native().size() * sizeof(fs::path::value_type) + name_.size();
+#else
+    return sizeof(path_component) + name_.size();
+#endif
+  }
+
  private:
   friend struct std::hash<path_component>;
 
@@ -172,6 +181,27 @@ struct shared_entry_data {
 
   auto add_path_component(fs::path const& component, bool is_root) {
     return path_index_->add(component, is_root);
+  }
+
+  void dump(std::ostream& os) const {
+    auto const total_path_bytes =
+        std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
+                        [](std::size_t acc, path_component const& pc) {
+                          return acc + pc.size_in_bytes();
+                        });
+
+    auto const total_dir_entry_bytes =
+        std::accumulate(dir_entries_.begin(), dir_entries_.end(), 0ULL,
+                        [](std::size_t acc, auto const& de) {
+                          return acc + de.size_in_bytes();
+                        }) +
+        sizeof(dir_entries_[0]) * dir_entries_.size();
+
+    os << "shared entry data:\n";
+    os << "  path components: " << path_components_.size() << " ("
+       << size_with_unit(total_path_bytes) << ")\n";
+    os << "  dir entries: " << dir_entries_.size() << " ("
+       << size_with_unit(total_dir_entry_bytes) << ")\n";
   }
 
   // TODO; remove those trailing underscores?
@@ -261,6 +291,34 @@ struct packed_entry_data {
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
     auto const path_ix = path_name_index.at(index);
     return shared.path_components_.at(path_ix).name();
+  }
+
+  void dump(std::ostream& os, std::string_view name) const {
+    auto const path_name_index_bytes = path_name_index.size_in_bytes();
+    auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
+    auto const entry_index_bytes = entry_index.size_in_bytes();
+    auto const order_index_bytes = order_index.size_in_bytes();
+    auto const inode_index_bytes = inode_index.size_in_bytes();
+    auto const file_data_index_bytes = file_data_index.size_in_bytes();
+    auto const link_target_index_bytes = link_target_index.size_in_bytes();
+    auto const total_bytes = path_name_index_bytes + parent_dir_index_bytes +
+                             entry_index_bytes + order_index_bytes +
+                             inode_index_bytes + file_data_index_bytes +
+                             link_target_index_bytes;
+
+    os << path_name_index.size() << " " << name << " entries ("
+       << size_with_unit(total_bytes) << "):\n";
+    os << "  path name index: " << size_with_unit(path_name_index_bytes)
+       << "\n";
+    os << "  parent dir index: " << size_with_unit(parent_dir_index_bytes)
+       << "\n";
+    os << "  entry index: " << size_with_unit(entry_index_bytes) << "\n";
+    os << "  order index: " << size_with_unit(order_index_bytes) << "\n";
+    os << "  inode index: " << size_with_unit(inode_index_bytes) << "\n";
+    os << "  file data index: " << size_with_unit(file_data_index_bytes)
+       << "\n";
+    os << "  link target index: " << size_with_unit(link_target_index_bytes)
+       << "\n";
   }
 };
 
@@ -623,6 +681,14 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   os << "num links: " << links_.size() << "\n";
   os << "num devices: " << devices_.size() << "\n";
   os << "num others: " << others_.size() << "\n";
+  os << "num inodes: " << inodes_.size() << "\n";
+
+  shared_.dump(os);
+  packed_files_.dump(os, "files");
+  packed_dirs_.dump(os, "dirs");
+  packed_links_.dump(os, "links");
+  packed_devices_.dump(os, "devices");
+  packed_others_.dump(os, "others");
 }
 
 class synchronized_entry_storage_ final : public entry_storage::impl {
