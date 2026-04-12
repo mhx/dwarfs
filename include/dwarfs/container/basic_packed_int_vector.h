@@ -105,6 +105,11 @@ class basic_packed_int_vector {
   using size_type = std::size_t;
   using policy_type = Policy;
   using growth_policy_type = GrowthPolicy;
+  using reference = detail::index_based_value_proxy<basic_packed_int_vector>;
+  using const_reference = value_type;
+  using iterator = detail::index_based_iterator<basic_packed_int_vector>;
+  using const_iterator =
+      detail::index_based_const_iterator<basic_packed_int_vector>;
 
   static constexpr bool auto_bit_width =
       BitWidthStrategy == packed_vector_bit_width_strategy::automatic;
@@ -114,11 +119,6 @@ class basic_packed_int_vector {
   template <integer_packable, packed_vector_bit_width_strategy, typename,
             typename>
   friend class basic_packed_int_vector;
-
-  using value_proxy = detail::index_based_value_proxy<basic_packed_int_vector>;
-  using iterator = detail::index_based_iterator<basic_packed_int_vector>;
-  using const_iterator =
-      detail::index_based_const_iterator<basic_packed_int_vector>;
 
  private:
   using storage_type = detail::packed_vector_heap_storage<underlying_type>;
@@ -383,23 +383,23 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto empty() const noexcept -> bool { return size() == 0; }
 
-  auto operator[](size_type i) const -> value_type { return get(i); }
+  auto operator[](size_type i) const -> const_reference { return get(i); }
 
-  auto at(size_type i) const -> value_type {
+  auto at(size_type i) const -> const_reference {
     if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
     return get(i);
   }
 
-  [[nodiscard]] auto get(size_type i) const -> value_type {
+  [[nodiscard]] auto get(size_type i) const -> const_reference {
     assert(i < size());
     return traits_type::decode(get_encoded(i));
   }
 
-  auto operator[](size_type i) -> value_proxy { return value_proxy{*this, i}; }
+  auto operator[](size_type i) -> reference { return reference{*this, i}; }
 
-  auto at(size_type i) -> value_proxy {
+  auto at(size_type i) -> reference {
     if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
@@ -445,22 +445,22 @@ class basic_packed_int_vector {
     layout_.set_size(size() - 1);
   }
 
-  [[nodiscard]] auto back() const -> value_type {
+  [[nodiscard]] auto back() const -> const_reference {
     assert(!empty());
     return get(size() - 1);
   }
 
-  [[nodiscard]] auto back() -> value_proxy {
+  [[nodiscard]] auto back() -> reference {
     assert(!empty());
     return (*this)[size() - 1];
   }
 
-  [[nodiscard]] auto front() const -> value_type {
+  [[nodiscard]] auto front() const -> const_reference {
     assert(!empty());
     return get(0);
   }
 
-  [[nodiscard]] auto front() -> value_proxy {
+  [[nodiscard]] auto front() -> reference {
     assert(!empty());
     return (*this)[0];
   }
