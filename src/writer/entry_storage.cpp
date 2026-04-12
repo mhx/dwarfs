@@ -31,6 +31,7 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/container/chunked_append_only_vector.h>
+#include <dwarfs/container/packed_value_traits_optional.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
 #include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
@@ -73,7 +74,7 @@ namespace {
 //       may not, because we don't know upfront which fields are going
 //       to be accessed) - still, the visitors seem a bit overkill
 
-template <std::integral T, std::size_t SegmentSize = 4096>
+template <dwarfs::container::integer_packable T, std::size_t SegmentSize = 4096>
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
 
 class path_component {
@@ -170,7 +171,7 @@ struct shared_entry_data {
 
 struct packed_entry_data {
   segtor<size_t> path_name_index;
-  segtor<uint64_t> parent_dir_index_plus_one; // 0 means no parent
+  segtor<std::optional<uint64_t>> parent_dir_index;
   segtor<size_t> entry_index;
   // TODO: stat
 
@@ -200,13 +201,14 @@ struct packed_entry_data {
     assert(is_root || parent.is_dir());
     auto path_ix = shared.add_path_component(path, is_root);
     path_name_index.push_back(path_ix);
-    parent_dir_index_plus_one.push_back(is_root ? 0 : parent.index() + 1);
+    parent_dir_index.push_back(is_root ? std::nullopt
+                                       : std::make_optional(parent.index()));
   }
 
   entry_id get_parent(uint64_t const index) const {
     entry_id rv;
-    if (auto const id = parent_dir_index_plus_one.at(index); id != 0) {
-      rv = {entry_type::E_DIR, id - 1};
+    if (auto const id = parent_dir_index.at(index)) {
+      rv = {entry_type::E_DIR, *id};
     }
     return rv;
   }
