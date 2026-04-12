@@ -28,50 +28,28 @@
 
 #pragma once
 
-namespace dwarfs::internal::detail {
+#include <cstddef>
+#include <limits>
 
-template <typename Container>
-class index_based_value_proxy {
- public:
-  using container_type = Container;
-  using value_type = typename container_type::value_type;
-  using size_type = typename container_type::size_type;
+namespace dwarfs::container::detail {
 
-  index_based_value_proxy(container_type& vec, size_type i)
-      : vec_{vec}
-      , i_{i} {}
-
-  operator value_type() const { return vec_.get(i_); }
-
-  index_based_value_proxy& operator=(value_type value) {
-    vec_.set(i_, value);
-    return *this;
-  }
-
-  // Required for proxy-reference iterators to satisfy indirectly_writable.
-  // NOLINTNEXTLINE(misc-unconventional-assign-operator,cppcoreguidelines-c-copy-assignment-signature)
-  index_based_value_proxy const& operator=(value_type value) const {
-    vec_.set(i_, value);
-    return *this;
-  }
-
-  index_based_value_proxy& operator=(index_based_value_proxy const& other) {
-    if (this != &other) {
-      *this = static_cast<value_type>(other);
+struct default_block_growth_policy {
+  [[nodiscard]] constexpr auto
+  operator()(std::size_t current_capacity,
+             std::size_t min_capacity) const noexcept -> std::size_t {
+    if (current_capacity >= min_capacity) {
+      return current_capacity;
     }
-    return *this;
-  }
 
-  friend void
-  swap(index_based_value_proxy a, index_based_value_proxy b) noexcept {
-    value_type tmp = a;
-    a = static_cast<value_type>(b);
-    b = tmp;
+    std::size_t new_capacity = current_capacity == 0 ? 1 : current_capacity;
+    while (new_capacity < min_capacity) {
+      if (new_capacity > std::numeric_limits<std::size_t>::max() / 2) {
+        return min_capacity;
+      }
+      new_capacity *= 2;
+    }
+    return new_capacity;
   }
-
- private:
-  container_type& vec_;
-  size_type i_;
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail

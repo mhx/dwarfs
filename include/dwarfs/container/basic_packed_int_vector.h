@@ -41,15 +41,15 @@
 
 #include <dwarfs/ranges.h>
 
-#include <dwarfs/internal/detail/index_based_iterator.h>
-#include <dwarfs/internal/detail/index_based_value_proxy.h>
-#include <dwarfs/internal/detail/packed_vector_heap_storage.h>
-#include <dwarfs/internal/detail/packed_vector_helpers.h>
-#include <dwarfs/internal/detail/packed_vector_layout.h>
-#include <dwarfs/internal/detail/vector_growth_policy.h>
-#include <dwarfs/internal/packed_value_traits.h>
+#include <dwarfs/container/detail/index_based_iterator.h>
+#include <dwarfs/container/detail/index_based_value_proxy.h>
+#include <dwarfs/container/detail/packed_vector_heap_storage.h>
+#include <dwarfs/container/detail/packed_vector_helpers.h>
+#include <dwarfs/container/detail/packed_vector_layout.h>
+#include <dwarfs/container/detail/vector_growth_policy.h>
+#include <dwarfs/container/packed_value_traits.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::container {
 
 template <typename T>
 concept integer_packable = requires(
@@ -249,6 +249,7 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
+
   [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
 
   [[nodiscard]] const_iterator begin() const noexcept {
@@ -997,4 +998,4 @@ class basic_packed_int_vector {
   layout_type layout_{};
 };
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::container
