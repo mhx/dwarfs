@@ -25,6 +25,8 @@
 #pragma clang optimize off
 #endif
 
+#include <dwarfs/internal/packed_value_traits_optional.h>
+
 #include "packed_int_vector_test_helpers.h"
 
 using namespace dwarfs::test;
@@ -37,6 +39,21 @@ using ::testing::Ge;
 namespace {
 
 using stress_value_type = uint32_t;
+
+struct packable_struct {
+  friend bool
+  operator==(packable_struct const&, packable_struct const&) = default;
+  friend std::strong_ordering
+  operator<=>(packable_struct const&, packable_struct const&) = default;
+  friend std::ostream& operator<<(std::ostream& os, packable_struct const& s) {
+    return os << "{" << static_cast<int>(s.a) << ", " << static_cast<int>(s.b)
+              << ", " << s.c << "}";
+  }
+
+  uint8_t a{};
+  uint8_t b{};
+  uint16_t c{};
+};
 
 constexpr size_t stress_digits = std::numeric_limits<stress_value_type>::digits;
 
@@ -123,22 +140,44 @@ void expect_matches_model(Vec const& vec,
 }
 
 struct packed_int_vector_selector {
-  template <std::integral T>
+  template <dwarfs::internal::integer_packable T>
   using type = packed_int_vector<T>;
 
-  template <std::integral T>
+  template <dwarfs::internal::integer_packable T>
   using auto_type = auto_packed_int_vector<T>;
 };
 
 struct compact_packed_int_vector_selector {
-  template <std::integral T>
+  template <dwarfs::internal::integer_packable T>
   using type = compact_packed_int_vector<T>;
 
-  template <std::integral T>
+  template <dwarfs::internal::integer_packable T>
   using auto_type = compact_auto_packed_int_vector<T>;
 };
 
 } // namespace
+
+namespace dwarfs::internal {
+
+template <>
+struct packed_value_traits<packable_struct> {
+  using encoded_type = uint32_t;
+
+  static encoded_type encode(packable_struct const& value) {
+    return (static_cast<uint32_t>(value.b) << 24) |
+           (static_cast<uint32_t>(value.c) << 8) | value.a;
+  }
+
+  static packable_struct decode(encoded_type encoded) {
+    return {
+        .a = static_cast<uint8_t>(encoded & 0xFF),
+        .b = static_cast<uint8_t>((encoded >> 24) & 0xFF),
+        .c = static_cast<uint16_t>((encoded >> 8) & 0xFFFF),
+    };
+  }
+};
+
+} // namespace dwarfs::internal
 
 template <typename Vec>
 class packed_int_vec_tmpl_test : public ::testing::Test {};
@@ -742,6 +781,282 @@ TYPED_TEST(packed_int_vec_tmpl_test,
 
   EXPECT_EQ(vec.bits(), 3);
   EXPECT_THAT(vec, ElementsAre(0, 0, 7, 0));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, can_store_regular_enums) {
+  enum test_enum : std::uint16_t {
+    value1 = 0,
+    value2 = 1,
+    value3 = 2,
+    value4 = 63,
+  };
+
+  using vec_type = typename TypeParam::template auto_type<test_enum>;
+
+  EXPECT_EQ(vec_type::required_bits(value1), 0);
+  EXPECT_EQ(vec_type::required_bits(value4), 6);
+
+  vec_type vec;
+
+  vec.push_back(value1);
+
+  EXPECT_EQ(vec.bits(), 0);
+
+  vec.push_back(value2);
+  vec.push_back(value3);
+
+  EXPECT_EQ(vec.bits(), 2);
+
+  EXPECT_THAT(vec, ElementsAre(value1, value2, value3));
+
+  std::vector<test_enum> expected{value1, value2, value3};
+  EXPECT_EQ(vec.unpack(), expected);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, can_store_class_enums) {
+  enum class test_enum {
+    value1 = 0,
+    value2 = 1,
+    value3 = 2,
+    value4 = 63,
+  };
+
+  using vec_type = typename TypeParam::template auto_type<test_enum>;
+
+  EXPECT_EQ(vec_type::required_bits(test_enum::value1), 0);
+  EXPECT_EQ(vec_type::required_bits(test_enum::value4), 7);
+
+  vec_type vec;
+
+  vec.push_back(test_enum::value1);
+
+  EXPECT_EQ(vec.bits(), 0);
+
+  vec.push_back(test_enum::value2);
+  vec.push_back(test_enum::value3);
+
+  EXPECT_EQ(vec.bits(), 3);
+
+  EXPECT_THAT(vec, ElementsAre(test_enum::value1, test_enum::value2,
+                               test_enum::value3));
+
+  std::vector<test_enum> expected{test_enum::value1, test_enum::value2,
+                                  test_enum::value3};
+  EXPECT_EQ(vec.unpack(), expected);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, can_store_type_with_custom_traits) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+  vec_type vec;
+
+  EXPECT_EQ(vec_type::required_bits(std::nullopt), 0);
+  EXPECT_EQ(vec_type::required_bits(0), 1);
+
+  vec.push_back(std::nullopt);
+
+  EXPECT_EQ(vec.bits(), 0);
+
+  vec.push_back(42);
+  vec.push_back(12345);
+
+  EXPECT_THAT(vec, ElementsAre(std::nullopt, std::optional<uint32_t>{42},
+                               std::optional<uint32_t>{12345}));
+
+  std::vector<std::optional<uint32_t>> expected{std::nullopt,
+                                                std::optional<uint32_t>{42},
+                                                std::optional<uint32_t>{12345}};
+  EXPECT_EQ(vec.unpack(), expected);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, custom_types_are_ordered_correctly) {
+  using vec_type = typename TypeParam::template auto_type<packable_struct>;
+
+  std::mt19937_64 rng(4711);
+  std::uniform_int_distribution<unsigned> dist8(0, 255);
+  std::uniform_int_distribution<unsigned> dist16(0, 65535);
+
+  static constexpr size_t num_values = 100;
+  std::vector<packable_struct> input;
+  for (size_t i = 0; i < num_values; ++i) {
+    input.push_back({.a = static_cast<uint8_t>(dist8(rng)),
+                     .b = static_cast<uint8_t>(dist8(rng)),
+                     .c = static_cast<uint16_t>(dist16(rng))});
+  }
+
+  EXPECT_FALSE(std::ranges::is_sorted(input));
+
+  std::vector<packable_struct> sorted_input = input;
+  std::ranges::sort(sorted_input);
+
+  vec_type vec;
+
+  EXPECT_EQ(vec.bits(), 0);
+
+  for (auto const& value : input) {
+    vec.push_back(value);
+  }
+
+  EXPECT_THAT(vec, ElementsAreArray(input));
+
+  std::ranges::sort(vec);
+
+  EXPECT_THAT(vec, ElementsAreArray(sorted_input));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, custom_types_operations) {
+  using vec_type = typename TypeParam::template auto_type<packable_struct>;
+
+  vec_type vec{
+      packable_struct{.a = 5, .b = 4, .c = 3},
+      packable_struct{.a = 2, .b = 1, .c = 0},
+  };
+
+  vec.resize(3, {.a = 1, .b = 2, .c = 3});
+
+  EXPECT_EQ(vec.size(), 3);
+  EXPECT_THAT(vec, ElementsAre(packable_struct{.a = 5, .b = 4, .c = 3},
+                               packable_struct{.a = 2, .b = 1, .c = 0},
+                               packable_struct{.a = 1, .b = 2, .c = 3}));
+
+  vec.insert(vec.begin() + 1, {.a = 4, .b = 5, .c = 6});
+
+  vec.insert(vec.begin() + 3, {
+                                  packable_struct{.a = 9, .b = 8, .c = 7},
+                                  packable_struct{.a = 6, .b = 5, .c = 4},
+                              });
+
+  EXPECT_EQ(vec.size(), 6);
+  EXPECT_THAT(vec, ElementsAre(packable_struct{.a = 5, .b = 4, .c = 3},
+                               packable_struct{.a = 4, .b = 5, .c = 6},
+                               packable_struct{.a = 2, .b = 1, .c = 0},
+                               packable_struct{.a = 9, .b = 8, .c = 7},
+                               packable_struct{.a = 6, .b = 5, .c = 4},
+                               packable_struct{.a = 1, .b = 2, .c = 3}));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           fixed_width_enum_values_truncate_via_encoded_representation) {
+  enum class test_enum : uint8_t {
+    a = 0,
+    b = 1,
+    c = 3,
+    d = 7,
+  };
+
+  using vec_type = typename TypeParam::template type<test_enum>;
+
+  vec_type vec(2);
+  vec.push_back(test_enum::d); // 7 -> truncated to 3
+  vec.push_back(test_enum::b);
+
+  EXPECT_EQ(vec.bits(), 2);
+  EXPECT_THAT(vec, ElementsAre(test_enum::c, test_enum::b));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           signed_enum_round_trips_and_uses_signed_required_bits) {
+  enum class signed_enum : int8_t {
+    minus_one = -1,
+    minus_two = -2,
+    zero = 0,
+    plus_one = 1,
+  };
+
+  using vec_type = typename TypeParam::template auto_type<signed_enum>;
+
+  EXPECT_EQ(vec_type::required_bits(signed_enum::zero), 0);
+  EXPECT_EQ(vec_type::required_bits(signed_enum::minus_one), 1);
+  EXPECT_EQ(vec_type::required_bits(signed_enum::minus_two), 2);
+  EXPECT_EQ(vec_type::required_bits(signed_enum::plus_one), 2);
+
+  vec_type vec;
+  vec.push_back(signed_enum::minus_one);
+  vec.push_back(signed_enum::plus_one);
+  vec.push_back(signed_enum::minus_two);
+
+  EXPECT_EQ(vec.bits(), 2);
+  EXPECT_THAT(vec, ElementsAre(signed_enum::minus_one, signed_enum::plus_one,
+                               signed_enum::minus_two));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           fixed_width_custom_trait_type_truncates_encoded_values) {
+  using vec_type = typename TypeParam::template type<std::optional<uint32_t>>;
+
+  vec_type vec(3);
+  vec.push_back(std::nullopt); // encode = 0
+  vec.push_back(0);            // encode = 1
+  vec.push_back(7);            // encode = 8 -> truncated to 0
+
+  EXPECT_EQ(vec.bits(), 3);
+  EXPECT_THAT(
+      vec, ElementsAre(std::nullopt, std::optional<uint32_t>{0}, std::nullopt));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           custom_type_copy_and_move_preserve_values) {
+  using vec_type = typename TypeParam::template auto_type<packable_struct>;
+
+  vec_type vec{
+      {.a = 1, .b = 2, .c = 3},
+      {.a = 4, .b = 5, .c = 6},
+      {.a = 7, .b = 8, .c = 9},
+  };
+
+  vec_type copy{vec};
+  EXPECT_THAT(copy, ElementsAre(packable_struct{.a = 1, .b = 2, .c = 3},
+                                packable_struct{.a = 4, .b = 5, .c = 6},
+                                packable_struct{.a = 7, .b = 8, .c = 9}));
+
+  vec_type moved{std::move(copy)};
+  EXPECT_THAT(moved, ElementsAre(packable_struct{.a = 1, .b = 2, .c = 3},
+                                 packable_struct{.a = 4, .b = 5, .c = 6},
+                                 packable_struct{.a = 7, .b = 8, .c = 9}));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, custom_type_range_apis_work) {
+  using vec_type = typename TypeParam::template auto_type<packable_struct>;
+
+  std::array src{
+      packable_struct{.a = 1, .b = 2, .c = 3},
+      packable_struct{.a = 4, .b = 5, .c = 6},
+  };
+
+  vec_type vec(dwarfs::from_range, src);
+  EXPECT_THAT(vec, ElementsAre(src[0], src[1]));
+
+  vec.append_range(std::array{
+      packable_struct{.a = 7, .b = 8, .c = 9},
+  });
+  EXPECT_THAT(vec, ElementsAre(src[0], src[1],
+                               packable_struct{.a = 7, .b = 8, .c = 9}));
+
+  vec.insert_range(vec.begin() + 1, std::array{
+                                        packable_struct{.a = 9, .b = 9, .c = 9},
+                                    });
+  EXPECT_THAT(vec, ElementsAre(packable_struct{.a = 1, .b = 2, .c = 3},
+                               packable_struct{.a = 9, .b = 9, .c = 9},
+                               packable_struct{.a = 4, .b = 5, .c = 6},
+                               packable_struct{.a = 7, .b = 8, .c = 9}));
+
+  vec.assign_range(std::array{
+      packable_struct{.a = 3, .b = 2, .c = 1},
+  });
+  EXPECT_THAT(vec, ElementsAre(packable_struct{.a = 3, .b = 2, .c = 1}));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           required_bits_member_works_for_custom_types) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec;
+  vec.push_back(std::nullopt);
+  vec.push_back(0);
+  vec.push_back(12345);
+
+  EXPECT_EQ(vec.required_bits(), vec_type::required_bits(12345));
 }
 
 #ifdef __clang__
