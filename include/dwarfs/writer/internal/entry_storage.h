@@ -29,12 +29,11 @@
 #include <memory>
 
 #include <dwarfs/file_stat.h>
-#include <dwarfs/writer/entry_handle.h>
-#include <dwarfs/writer/entry_id.h>
 
-namespace dwarfs::writer {
+#include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/entry_id.h>
 
-namespace internal {
+namespace dwarfs::writer::internal {
 
 struct file_data;
 class progress;
@@ -48,8 +47,6 @@ class file;
 class dir;
 class link;
 class device;
-
-} // namespace internal
 
 class entry_storage {
  public:
@@ -69,12 +66,10 @@ class entry_storage {
   [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
 
   // TODO: this must go
-  [[nodiscard]] internal::entry* get_entry(entry_id id) {
-    return impl_->get_entry(id);
-  }
+  [[nodiscard]] entry* get_entry(entry_id id) { return impl_->get_entry(id); }
 
   // TODO: this must go
-  [[nodiscard]] internal::inode* get_inode(std::uint64_t index) {
+  [[nodiscard]] inode* get_inode(std::uint64_t index) {
     return impl_->get_inode(index);
   }
 
@@ -98,7 +93,7 @@ class entry_storage {
     return impl_->is_dir_empty(id);
   }
 
-  void remove_empty_dirs(internal::progress& prog) {
+  void remove_empty_dirs(progress& prog) {
     return impl_->remove_empty_dirs(prog);
   }
 
@@ -114,7 +109,7 @@ class entry_storage {
   size_t create_file_data() { return impl_->create_file_data(); }
 
   // TODO: this is probably not needed long-term
-  [[nodiscard]] internal::file_data& get_file_data(size_t id) {
+  [[nodiscard]] file_data& get_file_data(size_t id) {
     return impl_->get_file_data(id);
   }
 
@@ -138,19 +133,19 @@ class entry_storage {
                                  file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
                                 file_stat const& st, entry_id parent) = 0;
-    virtual internal::inode* make_inode() = 0;
+    virtual inode* make_inode() = 0;
 
     virtual size_t create_file_data() = 0;
-    virtual internal::file_data& get_file_data(size_t id) = 0;
-    virtual internal::entry* get_entry(entry_id id) = 0;
-    virtual internal::inode* get_inode(std::uint64_t index) = 0;
+    virtual file_data& get_file_data(size_t id) = 0;
+    virtual entry* get_entry(entry_id id) = 0;
+    virtual inode* get_inode(std::uint64_t index) = 0;
 
     virtual entry_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
     virtual std::string_view get_name(entry_id id) const = 0;
     virtual bool is_dir_empty(entry_id id) const = 0;
-    virtual void remove_empty_dirs(internal::progress& prog) = 0;
+    virtual void remove_empty_dirs(progress& prog) = 0;
     virtual void
     for_each_entry_in_dir(entry_id id,
                           std::function<void(entry_id)> const& f) const = 0;
@@ -163,9 +158,9 @@ class entry_storage {
   };
 
  private:
-  friend class internal::provisional_entry;
+  friend class provisional_entry;
   template <typename LoggerPolicy>
-  friend class internal::inode_manager_;
+  friend class inode_manager_;
 
   dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
@@ -186,9 +181,9 @@ class entry_storage {
                             entry_handle parent, file_stat const& st);
 
   // TODO: inode handle
-  internal::inode* create_inode();
+  inode* create_inode();
 
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal

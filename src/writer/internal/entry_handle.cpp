@@ -24,15 +24,15 @@
 #include <fmt/format.h>
 
 #include <dwarfs/util.h>
-#include <dwarfs/writer/entry_handle.h>
-#include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
-namespace dwarfs::writer {
+namespace dwarfs::writer::internal {
 
 namespace fs = std::filesystem;
 
@@ -531,4 +531,4 @@ template class basic_device_handle<detail::mutability::mutable_>;
 template class basic_other_handle<detail::mutability::const_>;
 template class basic_other_handle<detail::mutability::mutable_>;
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal

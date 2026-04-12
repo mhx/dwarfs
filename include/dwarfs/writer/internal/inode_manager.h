@@ -32,10 +32,10 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/fragment_category.h>
 
 #include <dwarfs/internal/worker_group_fwd.h>
+#include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/inode.h>
 
 namespace dwarfs {
@@ -45,11 +45,11 @@ class os_access;
 
 namespace writer {
 
-class entry_storage;
 struct inode_options;
 
 namespace internal {
 
+class entry_storage;
 class progress;
 
 class inode_manager {

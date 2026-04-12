@@ -29,8 +29,8 @@
 #include <dwarfs/error.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
-#include <dwarfs/writer/entry_storage.h>
 
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
 
 namespace dwarfs::writer::internal {
