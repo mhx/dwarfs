@@ -28,11 +28,11 @@
 
 #pragma once
 
-#include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/compact_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_inline_with_heap.h>
+#include <dwarfs/container/basic_packed_int_vector.h>
+#include <dwarfs/container/detail/compact_packed_vector_policy.h>
+#include <dwarfs/container/detail/packed_vector_layout_inline_with_heap.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::container {
 
 /**
  * Packed integer vector with inline storage for small vectors.
@@ -82,4 +82,4 @@ using compact_auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
                             detail::compact_packed_vector_policy>;
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::container

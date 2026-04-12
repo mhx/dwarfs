@@ -28,13 +28,39 @@
 
 #pragma once
 
-#include <cstddef>
+#include <concepts>
+#include <type_traits>
+#include <utility>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container {
 
-struct heap_only_packed_vector_policy {
-  static constexpr bool supports_inline = false;
-  static constexpr std::size_t capacity_granularity_bytes = 8;
+template <typename T>
+concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
+
+template <typename T>
+struct packed_value_traits;
+
+template <integral_but_not_bool T>
+struct packed_value_traits<T> {
+  using encoded_type = T;
+
+  static constexpr encoded_type encode(T v) noexcept { return v; }
+
+  static constexpr T decode(encoded_type v) noexcept { return v; }
 };
 
-} // namespace dwarfs::internal::detail
+template <typename E>
+  requires std::is_enum_v<E>
+struct packed_value_traits<E> {
+  using encoded_type = std::underlying_type_t<E>;
+
+  static constexpr encoded_type encode(E v) noexcept {
+    return static_cast<encoded_type>(v);
+  }
+
+  static constexpr E decode(encoded_type v) noexcept {
+    return static_cast<E>(v);
+  }
+};
+
+} // namespace dwarfs::container

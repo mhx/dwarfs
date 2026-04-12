@@ -37,9 +37,9 @@
 #include <new>
 #include <type_traits>
 
-#include <dwarfs/internal/detail/packed_vector_helpers.h>
+#include <dwarfs/container/detail/packed_vector_helpers.h>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container::detail {
 
 template <typename T>
 struct packed_vector_heap_storage {
@@ -153,4 +153,4 @@ struct packed_vector_heap_storage {
   }
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail

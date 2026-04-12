@@ -32,11 +32,11 @@
 #include <benchmark/benchmark.h>
 
 #include <dwarfs/binary_literals.h>
-#include <dwarfs/internal/compact_packed_int_vector.h>
-#include <dwarfs/internal/packed_int_vector.h>
-#include <dwarfs/internal/segmented_packed_int_vector.h>
+#include <dwarfs/container/compact_packed_int_vector.h>
+#include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/container/segmented_packed_int_vector.h>
 
-using namespace dwarfs::internal;
+using namespace dwarfs::container;
 using namespace dwarfs::binary_literals;
 
 namespace {

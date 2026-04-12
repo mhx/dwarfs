@@ -53,6 +53,7 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/transform.hpp>
 
+#include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
@@ -68,7 +69,6 @@
 
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_utils.h>
-#include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/internal/unicode_case_folding.h>
@@ -93,6 +93,7 @@
 
 namespace dwarfs::reader::internal {
 
+using namespace dwarfs::container;
 using namespace dwarfs::internal;
 namespace fs = std::filesystem;
 
