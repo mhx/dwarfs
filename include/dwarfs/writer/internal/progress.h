@@ -36,10 +36,10 @@
 
 #include <dwarfs/terminal.h>
 #include <dwarfs/types.h>
-#include <dwarfs/writer/entry_handle.h>
 
 #include <dwarfs/internal/move_only_function.h>
 #include <dwarfs/internal/synchronized.h>
+#include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/speedometer.h>
 
 namespace dwarfs::writer {

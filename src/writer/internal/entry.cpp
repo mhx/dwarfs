@@ -34,9 +34,9 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
-#include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/progress.h>

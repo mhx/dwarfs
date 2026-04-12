@@ -40,9 +40,10 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
-#include <dwarfs/writer/entry_id.h>
-#include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
+
+#include <dwarfs/writer/internal/entry_id.h>
+#include <dwarfs/writer/internal/entry_type.h>
 
 namespace dwarfs {
 
@@ -55,12 +56,6 @@ class metadata;
 
 class os_access;
 
-namespace writer {
-
-class entry_storage;
-
-} // namespace writer
-
 namespace writer::internal {
 
 class file;
@@ -68,6 +63,8 @@ class link;
 class dir;
 class device;
 class other;
+
+class entry_storage;
 class global_entry_data;
 class inode;
 class progress;
