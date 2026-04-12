@@ -39,6 +39,8 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/container/detail/index_based_iterator.h>
+
 namespace dwarfs::container {
 
 template <typename T, std::size_t MaxChunkBytes,
@@ -55,6 +57,10 @@ class basic_chunked_append_only_vector {
   using difference_type = std::ptrdiff_t;
   using reference = T&;
   using const_reference = T const&;
+  using iterator =
+      detail::index_based_iterator<basic_chunked_append_only_vector>;
+  using const_iterator =
+      detail::index_based_const_iterator<basic_chunked_append_only_vector>;
 
   static constexpr std::size_t
       chunk_elements_raw = MaxChunkBytes / sizeof(T) > 0
@@ -87,6 +93,50 @@ class basic_chunked_append_only_vector {
       other.clear();
     }
     return *this;
+  }
+
+  [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
+
+  [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
+
+  [[nodiscard]] const_iterator begin() const noexcept {
+    return const_iterator{this, 0};
+  }
+
+  [[nodiscard]] const_iterator end() const noexcept {
+    return const_iterator{this, size()};
+  }
+
+  [[nodiscard]] const_iterator cbegin() const noexcept {
+    return const_iterator{this, 0};
+  }
+
+  [[nodiscard]] const_iterator cend() const noexcept {
+    return const_iterator{this, size()};
+  }
+
+  [[nodiscard]] auto rbegin() noexcept {
+    return std::reverse_iterator<iterator>{end()};
+  }
+
+  [[nodiscard]] auto rend() noexcept {
+    return std::reverse_iterator<iterator>{begin()};
+  }
+
+  [[nodiscard]] auto rbegin() const noexcept {
+    return std::reverse_iterator<const_iterator>{end()};
+  }
+
+  [[nodiscard]] auto rend() const noexcept {
+    return std::reverse_iterator<const_iterator>{begin()};
+  }
+
+  [[nodiscard]] auto crbegin() const noexcept {
+    return std::reverse_iterator<const_iterator>{cend()};
+  }
+
+  [[nodiscard]] auto crend() const noexcept {
+    return std::reverse_iterator<const_iterator>{cbegin()};
   }
 
   [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
