@@ -21,9 +21,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -144,6 +146,19 @@ static_assert(no_rounding_vec::chunk_bytes == 24);
 
 static_assert(large_vec::chunk_elements == 1);
 static_assert(large_vec::chunk_bytes == sizeof(large_element));
+
+static_assert(std::random_access_iterator<int_vec_16::iterator>);
+static_assert(std::random_access_iterator<int_vec_16::const_iterator>);
+static_assert(std::sentinel_for<int_vec_16::iterator, int_vec_16::iterator>);
+static_assert(
+    std::sentinel_for<int_vec_16::const_iterator, int_vec_16::const_iterator>);
+
+static_assert(std::is_same_v<int_vec_16::reference, int&>);
+static_assert(std::is_same_v<int_vec_16::const_reference, int const&>);
+static_assert(
+    std::is_same_v<std::iter_reference_t<int_vec_16::iterator>, int&>);
+static_assert(std::is_same_v<std::iter_reference_t<int_vec_16::const_iterator>,
+                             int const&>);
 
 TEST(chunked_append_only_vector_test, default_constructed_container_is_empty) {
   int_vec_16 v;
@@ -520,6 +535,266 @@ TEST(chunked_append_only_vector_test,
   dst.emplace_back(4);
 
   EXPECT_THAT(snapshot(dst), ElementsAre(1, 2, 3, 4));
+}
+
+TEST(chunked_append_only_vector_test, begin_equals_end_for_empty_container) {
+  int_vec_16 v;
+
+  EXPECT_EQ(v.begin(), v.end());
+  EXPECT_EQ(v.cbegin(), v.cend());
+  EXPECT_EQ(v.rbegin(), v.rend());
+
+  auto const& cv = v;
+  EXPECT_EQ(cv.begin(), cv.end());
+  EXPECT_EQ(cv.cbegin(), cv.cend());
+  EXPECT_EQ(cv.rbegin(), cv.rend());
+  EXPECT_EQ(cv.crbegin(), cv.crend());
+}
+
+TEST(chunked_append_only_vector_test,
+     iterates_forward_with_non_const_iterator) {
+  int_vec_16 v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(i);
+  }
+
+  std::vector<int> out;
+  for (auto it = v.begin(); it != v.end(); ++it) {
+    out.push_back(*it);
+  }
+
+  EXPECT_THAT(out, ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+}
+
+TEST(chunked_append_only_vector_test, non_const_iterator_allows_modification) {
+  int_vec_16 v;
+  for (int i = 0; i < 6; ++i) {
+    v.emplace_back(i);
+  }
+
+  for (auto it = v.begin(); it != v.end(); ++it) {
+    *it += 10;
+  }
+
+  EXPECT_THAT(snapshot(v), ElementsAre(10, 11, 12, 13, 14, 15));
+}
+
+TEST(chunked_append_only_vector_test, iterates_forward_with_const_iterator) {
+  int_vec_16 v;
+  for (int i = 0; i < 6; ++i) {
+    v.emplace_back(100 + i);
+  }
+
+  auto const& cv = v;
+  std::vector<int> out;
+  for (auto it = cv.begin(); it != cv.end(); ++it) {
+    out.push_back(*it);
+  }
+
+  EXPECT_THAT(out, ElementsAre(100, 101, 102, 103, 104, 105));
+}
+
+TEST(chunked_append_only_vector_test, supports_range_for_iteration) {
+  int_vec_16 v;
+  for (int i = 1; i <= 5; ++i) {
+    v.emplace_back(i);
+  }
+
+  int sum = 0;
+  for (int x : v) {
+    sum += x;
+  }
+
+  EXPECT_EQ(15, sum);
+}
+
+TEST(chunked_append_only_vector_test,
+     iterator_random_access_operations_cross_chunk_boundaries) {
+  int_vec_16 v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(10 * i);
+  }
+
+  auto it = v.begin();
+
+  EXPECT_EQ(0, *it);
+  EXPECT_EQ(10, it[1]);
+  EXPECT_EQ(30, it[3]);
+  EXPECT_EQ(40, *(it + 4));
+  EXPECT_EQ(70, *(4 + it + 3));
+
+  it += 5;
+  EXPECT_EQ(50, *it);
+
+  it -= 2;
+  EXPECT_EQ(30, *it);
+
+  EXPECT_EQ(3, it - v.begin());
+  EXPECT_EQ(v.begin() + 10, v.end());
+  EXPECT_EQ(10, v.end() - v.begin());
+}
+
+TEST(chunked_append_only_vector_test,
+     const_iterator_random_access_operations_cross_chunk_boundaries) {
+  int_vec_16 v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(i);
+  }
+
+  auto const& cv = v;
+  auto it = cv.cbegin();
+
+  EXPECT_EQ(0, *it);
+  EXPECT_EQ(4, *(it + 4));
+  EXPECT_EQ(8, it[8]);
+  EXPECT_EQ(10, cv.cend() - cv.cbegin());
+}
+
+TEST(chunked_append_only_vector_test, iterator_comparisons_work) {
+  int_vec_16 v;
+  for (int i = 0; i < 8; ++i) {
+    v.emplace_back(i);
+  }
+
+  auto a = v.begin() + 2;
+  auto b = v.begin() + 5;
+
+  EXPECT_TRUE(a < b);
+  EXPECT_TRUE(a <= b);
+  EXPECT_TRUE(b > a);
+  EXPECT_TRUE(b >= a);
+  EXPECT_TRUE(a != b);
+  EXPECT_EQ(3, b - a);
+}
+
+TEST(chunked_append_only_vector_test,
+     reverse_iteration_visits_elements_in_reverse_order) {
+  int_vec_16 v;
+  for (int i = 1; i <= 6; ++i) {
+    v.emplace_back(i);
+  }
+
+  std::vector<int> out;
+  for (auto it = v.rbegin(); it != v.rend(); ++it) {
+    out.push_back(*it);
+  }
+
+  EXPECT_THAT(out, ElementsAre(6, 5, 4, 3, 2, 1));
+}
+
+TEST(chunked_append_only_vector_test,
+     const_reverse_iteration_visits_elements_in_reverse_order) {
+  int_vec_16 v;
+  for (int i = 1; i <= 6; ++i) {
+    v.emplace_back(i);
+  }
+
+  auto const& cv = v;
+  std::vector<int> out;
+  for (auto it = cv.crbegin(); it != cv.crend(); ++it) {
+    out.push_back(*it);
+  }
+
+  EXPECT_THAT(out, ElementsAre(6, 5, 4, 3, 2, 1));
+}
+
+TEST(chunked_append_only_vector_test, reverse_iterator_allows_modification) {
+  int_vec_16 v;
+  for (int i = 1; i <= 4; ++i) {
+    v.emplace_back(i);
+  }
+
+  for (auto it = v.rbegin(); it != v.rend(); ++it) {
+    *it *= 10;
+  }
+
+  EXPECT_THAT(snapshot(v), ElementsAre(10, 20, 30, 40));
+}
+
+TEST(chunked_append_only_vector_test,
+     iterators_to_existing_elements_remain_valid_after_append) {
+  int_vec_16 v;
+  for (int i = 0; i < 4; ++i) {
+    v.emplace_back(100 + i);
+  }
+
+  auto it0 = v.begin();
+  auto it2 = v.begin() + 2;
+  int* p0 = &*it0;
+  int* p2 = &*it2;
+
+  for (int i = 0; i < 20; ++i) {
+    v.emplace_back(200 + i);
+  }
+
+  EXPECT_EQ(100, *it0);
+  EXPECT_EQ(102, *it2);
+  EXPECT_EQ(p0, &*it0);
+  EXPECT_EQ(p2, &*it2);
+}
+
+TEST(chunked_append_only_vector_test,
+     old_end_iterator_becomes_dereferenceable_after_append) {
+  int_vec_16 v;
+  v.emplace_back(1);
+  v.emplace_back(2);
+
+  auto old_end = v.end();
+
+  v.emplace_back(3);
+
+  EXPECT_EQ(v.begin() + 2, old_end);
+  EXPECT_EQ(3, *old_end);
+}
+
+TEST(chunked_append_only_vector_test, works_with_ranges_find_and_distance) {
+  int_vec_16 v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(i * 3);
+  }
+
+  auto it = std::ranges::find(v, 12);
+  ASSERT_NE(it, v.end());
+  EXPECT_EQ(12, *it);
+  EXPECT_EQ(4, std::ranges::distance(v.begin(), it));
+}
+
+TEST(chunked_append_only_vector_test, works_with_ranges_sort) {
+  int_vec_16 v;
+  v.emplace_back(5);
+  v.emplace_back(1);
+  v.emplace_back(4);
+  v.emplace_back(2);
+  v.emplace_back(3);
+
+  std::ranges::sort(v);
+
+  EXPECT_THAT(snapshot(v), ElementsAre(1, 2, 3, 4, 5));
+}
+
+TEST(chunked_append_only_vector_test, works_with_ranges_reverse) {
+  int_vec_16 v;
+  for (int i = 1; i <= 5; ++i) {
+    v.emplace_back(i);
+  }
+
+  std::ranges::reverse(v);
+
+  EXPECT_THAT(snapshot(v), ElementsAre(5, 4, 3, 2, 1));
+}
+
+TEST(chunked_append_only_vector_test,
+     iterator_arrow_operator_returns_element_address) {
+  tracked_vec v;
+  v.emplace_back(7);
+  v.emplace_back(9);
+
+  auto it = v.begin();
+  EXPECT_EQ(&v[0], it.operator->());
+
+  auto const& cv = v;
+  auto cit = cv.begin();
+  EXPECT_EQ(&cv[0], cit.operator->());
 }
 
 } // namespace
