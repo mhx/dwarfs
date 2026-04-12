@@ -36,12 +36,12 @@
 #include <type_traits>
 #include <vector>
 
-#include <dwarfs/internal/detail/index_based_iterator.h>
-#include <dwarfs/internal/detail/index_based_value_proxy.h>
-#include <dwarfs/internal/detail/packed_vector_helpers.h>
-#include <dwarfs/internal/packed_int_vector.h>
+#include <dwarfs/container/detail/index_based_iterator.h>
+#include <dwarfs/container/detail/index_based_value_proxy.h>
+#include <dwarfs/container/detail/packed_vector_helpers.h>
+#include <dwarfs/container/packed_int_vector.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::container {
 
 template <integer_packable T, std::size_t SegmentElements = 1024>
   requires(!std::same_as<T, bool> && std::has_single_bit(SegmentElements))
@@ -284,4 +284,4 @@ class segmented_packed_int_vector {
   std::vector<segment_type> segments_;
 };
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::container

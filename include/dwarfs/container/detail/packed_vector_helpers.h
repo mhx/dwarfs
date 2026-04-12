@@ -28,39 +28,47 @@
 
 #pragma once
 
+#include <bit>
 #include <concepts>
-#include <type_traits>
-#include <utility>
+#include <cstddef>
+#include <limits>
 
-namespace dwarfs::internal {
+namespace dwarfs::container::detail {
 
-template <typename T>
-concept integral_but_not_bool = std::integral<T> && !std::same_as<T, bool>;
+template <std::unsigned_integral U>
+consteval auto bit_width_for_max(U max_value) noexcept -> std::size_t {
+  return max_value == 0 ? 1 : std::bit_width(max_value);
+}
 
-template <typename T>
-struct packed_value_traits;
-
-template <integral_but_not_bool T>
-struct packed_value_traits<T> {
-  using encoded_type = T;
-
-  static constexpr encoded_type encode(T v) noexcept { return v; }
-
-  static constexpr T decode(encoded_type v) noexcept { return v; }
-};
-
-template <typename E>
-  requires std::is_enum_v<E>
-struct packed_value_traits<E> {
-  using encoded_type = std::underlying_type_t<E>;
-
-  static constexpr encoded_type encode(E v) noexcept {
-    return static_cast<encoded_type>(v);
+template <std::unsigned_integral U>
+consteval auto max_for_bits(std::size_t bits) noexcept -> U {
+  if (bits == 0) {
+    return U{0};
   }
-
-  static constexpr E decode(encoded_type v) noexcept {
-    return static_cast<E>(v);
+  if (bits >= std::numeric_limits<U>::digits) {
+    return std::numeric_limits<U>::max();
   }
-};
+  return (U{1} << bits) - 1;
+}
 
-} // namespace dwarfs::internal
+constexpr auto ceil_div(std::size_t n, std::size_t d) noexcept -> std::size_t {
+  return d == 0 ? 0 : (n + d - 1) / d;
+}
+
+constexpr auto
+round_up_to_multiple(std::size_t n, std::size_t m) noexcept -> std::size_t {
+  return m == 0 || n == 0 ? n : ceil_div(n, m) * m;
+}
+
+consteval auto
+saturating_mul(std::size_t a, std::size_t b) noexcept -> std::size_t {
+  if (a == 0 || b == 0) {
+    return 0;
+  }
+  if (a > std::numeric_limits<std::size_t>::max() / b) {
+    return std::numeric_limits<std::size_t>::max();
+  }
+  return a * b;
+}
+
+} // namespace dwarfs::container::detail

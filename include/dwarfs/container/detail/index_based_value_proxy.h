@@ -28,47 +28,50 @@
 
 #pragma once
 
-#include <bit>
-#include <concepts>
-#include <cstddef>
-#include <limits>
+namespace dwarfs::container::detail {
 
-namespace dwarfs::internal::detail {
+template <typename Container>
+class index_based_value_proxy {
+ public:
+  using container_type = Container;
+  using value_type = typename container_type::value_type;
+  using size_type = typename container_type::size_type;
 
-template <std::unsigned_integral U>
-consteval auto bit_width_for_max(U max_value) noexcept -> std::size_t {
-  return max_value == 0 ? 1 : std::bit_width(max_value);
-}
+  index_based_value_proxy(container_type& vec, size_type i)
+      : vec_{vec}
+      , i_{i} {}
 
-template <std::unsigned_integral U>
-consteval auto max_for_bits(std::size_t bits) noexcept -> U {
-  if (bits == 0) {
-    return U{0};
+  operator value_type() const { return vec_.get(i_); }
+
+  index_based_value_proxy& operator=(value_type value) {
+    vec_.set(i_, value);
+    return *this;
   }
-  if (bits >= std::numeric_limits<U>::digits) {
-    return std::numeric_limits<U>::max();
+
+  // Required for proxy-reference iterators to satisfy indirectly_writable.
+  // NOLINTNEXTLINE(misc-unconventional-assign-operator,cppcoreguidelines-c-copy-assignment-signature)
+  index_based_value_proxy const& operator=(value_type value) const {
+    vec_.set(i_, value);
+    return *this;
   }
-  return (U{1} << bits) - 1;
-}
 
-constexpr auto ceil_div(std::size_t n, std::size_t d) noexcept -> std::size_t {
-  return d == 0 ? 0 : (n + d - 1) / d;
-}
-
-constexpr auto
-round_up_to_multiple(std::size_t n, std::size_t m) noexcept -> std::size_t {
-  return m == 0 || n == 0 ? n : ceil_div(n, m) * m;
-}
-
-consteval auto
-saturating_mul(std::size_t a, std::size_t b) noexcept -> std::size_t {
-  if (a == 0 || b == 0) {
-    return 0;
+  index_based_value_proxy& operator=(index_based_value_proxy const& other) {
+    if (this != &other) {
+      *this = static_cast<value_type>(other);
+    }
+    return *this;
   }
-  if (a > std::numeric_limits<std::size_t>::max() / b) {
-    return std::numeric_limits<std::size_t>::max();
-  }
-  return a * b;
-}
 
-} // namespace dwarfs::internal::detail
+  friend void
+  swap(index_based_value_proxy a, index_based_value_proxy b) noexcept {
+    value_type tmp = a;
+    a = static_cast<value_type>(b);
+    b = tmp;
+  }
+
+ private:
+  container_type& vec_;
+  size_type i_;
+};
+
+} // namespace dwarfs::container::detail

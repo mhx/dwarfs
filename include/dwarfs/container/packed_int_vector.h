@@ -28,11 +28,11 @@
 
 #pragma once
 
-#include <dwarfs/internal/basic_packed_int_vector.h>
-#include <dwarfs/internal/detail/heap_only_packed_vector_policy.h>
-#include <dwarfs/internal/detail/packed_vector_layout_heap_only.h>
+#include <dwarfs/container/basic_packed_int_vector.h>
+#include <dwarfs/container/detail/heap_only_packed_vector_policy.h>
+#include <dwarfs/container/detail/packed_vector_layout_heap_only.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::container {
 
 /**
  * Packed integer vector using heap storage only.
@@ -61,4 +61,4 @@ using auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
                             detail::heap_only_packed_vector_policy>;
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::container

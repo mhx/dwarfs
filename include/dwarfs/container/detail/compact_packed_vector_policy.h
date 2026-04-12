@@ -29,27 +29,17 @@
 #pragma once
 
 #include <cstddef>
-#include <limits>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container::detail {
 
-struct default_block_growth_policy {
-  [[nodiscard]] constexpr auto
-  operator()(std::size_t current_capacity,
-             std::size_t min_capacity) const noexcept -> std::size_t {
-    if (current_capacity >= min_capacity) {
-      return current_capacity;
-    }
-
-    std::size_t new_capacity = current_capacity == 0 ? 1 : current_capacity;
-    while (new_capacity < min_capacity) {
-      if (new_capacity > std::numeric_limits<std::size_t>::max() / 2) {
-        return min_capacity;
-      }
-      new_capacity *= 2;
-    }
-    return new_capacity;
-  }
+struct compact_packed_vector_policy {
+  static constexpr bool supports_inline = true;
+  // An inline size field width of 5 bits allows up to 31 elements to be
+  // stored inline, which is already quite generous. It doesn't really
+  // make sense to lower this number further, though, as an additional
+  // remaining bit would not allow for more elements to be stored inline.
+  static constexpr std::size_t inline_size_field_bits = 5;
+  static constexpr std::size_t capacity_granularity_bytes = 8;
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail

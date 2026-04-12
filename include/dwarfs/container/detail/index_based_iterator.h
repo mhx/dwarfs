@@ -33,7 +33,7 @@
 #include <iterator>
 #include <utility>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container::detail {
 
 template <typename Container>
 class index_based_const_iterator;
@@ -245,4 +245,4 @@ class index_based_const_iterator {
   size_type index_{0};
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail

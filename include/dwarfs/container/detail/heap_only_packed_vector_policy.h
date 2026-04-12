@@ -30,16 +30,11 @@
 
 #include <cstddef>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container::detail {
 
-struct compact_packed_vector_policy {
-  static constexpr bool supports_inline = true;
-  // An inline size field width of 5 bits allows up to 31 elements to be
-  // stored inline, which is already quite generous. It doesn't really
-  // make sense to lower this number further, though, as an additional
-  // remaining bit would not allow for more elements to be stored inline.
-  static constexpr std::size_t inline_size_field_bits = 5;
+struct heap_only_packed_vector_policy {
+  static constexpr bool supports_inline = false;
   static constexpr std::size_t capacity_granularity_bytes = 8;
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail
