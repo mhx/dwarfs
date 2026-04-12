@@ -47,7 +47,7 @@ class index_based_iterator {
   using iterator_category = std::random_access_iterator_tag;
   using value_type = Container::value_type;
   using difference_type = std::ptrdiff_t;
-  using reference = Container::value_proxy;
+  using reference = Container::reference;
 
   index_based_iterator() = default;
 
@@ -120,12 +120,12 @@ class index_based_iterator {
     return a.index_ <=> b.index_;
   }
 
-  friend value_type iter_move(index_based_iterator const& it) noexcept {
-    return it.vec_->get(it.index_);
+  friend value_type iter_move(index_based_iterator const& it) {
+    return std::move((*it.vec_)[it.index_]);
   }
 
-  friend void iter_swap(index_based_iterator const& a,
-                        index_based_iterator const& b) noexcept {
+  friend void
+  iter_swap(index_based_iterator const& a, index_based_iterator const& b) {
     using std::swap;
     swap((*a.vec_)[a.index_], (*b.vec_)[b.index_]);
   }
@@ -151,7 +151,7 @@ class index_based_const_iterator {
   using iterator_category = std::random_access_iterator_tag;
   using value_type = Container::value_type;
   using difference_type = std::ptrdiff_t;
-  using reference = Container::value_type;
+  using reference = Container::const_reference;
 
   index_based_const_iterator() = default;
 
@@ -230,8 +230,8 @@ class index_based_const_iterator {
     return a.index_ <=> b.index_;
   }
 
-  friend value_type iter_move(index_based_const_iterator const& it) noexcept {
-    return it.vec_->get(it.index_);
+  friend value_type iter_move(index_based_const_iterator const& it) {
+    return std::move((*it.vec_)[it.index_]);
   }
 
  private:
