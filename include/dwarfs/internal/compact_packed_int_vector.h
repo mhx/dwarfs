@@ -66,7 +66,7 @@ namespace dwarfs::internal {
  * potentially slower and will likely generate more code than the regular
  * heap-backed variant.
  */
-template <integral_but_not_bool T>
+template <integer_packable T>
 using compact_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
                             detail::compact_packed_vector_policy>;
@@ -77,7 +77,7 @@ using compact_packed_int_vector =
  * Like `compact_packed_int_vector`, but grows the element bit width
  * automatically as needed to represent newly inserted or assigned values.
  */
-template <integral_but_not_bool T>
+template <integer_packable T>
 using compact_auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
                             detail::compact_packed_vector_policy>;
