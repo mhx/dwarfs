@@ -34,22 +34,22 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/internal/compact_packed_int_vector.h>
-#include <dwarfs/internal/packed_int_vector.h>
-#include <dwarfs/internal/segmented_packed_int_vector.h>
+#include <dwarfs/container/compact_packed_int_vector.h>
+#include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/container/segmented_packed_int_vector.h>
 
 namespace dwarfs::test {
 
-template <internal::integer_packable T>
+template <container::integer_packable T>
 struct packed_int_vector_type_selector {
-  using type = internal::packed_int_vector<T>;
-  using auto_type = internal::auto_packed_int_vector<T>;
+  using type = container::packed_int_vector<T>;
+  using auto_type = container::auto_packed_int_vector<T>;
 };
 
-template <internal::integer_packable T>
+template <container::integer_packable T>
 struct compact_packed_int_vector_type_selector {
-  using type = internal::compact_packed_int_vector<T>;
-  using auto_type = internal::compact_auto_packed_int_vector<T>;
+  using type = container::compact_packed_int_vector<T>;
+  using auto_type = container::compact_auto_packed_int_vector<T>;
 };
 
 } // namespace dwarfs::test

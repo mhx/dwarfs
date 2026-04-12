@@ -38,11 +38,11 @@
 
 #include <dwarfs/bit_view.h>
 
-#include <dwarfs/internal/detail/packed_vector_heap_storage.h>
-#include <dwarfs/internal/detail/packed_vector_helpers.h>
-#include <dwarfs/internal/detail/packed_vector_layout.h>
+#include <dwarfs/container/detail/packed_vector_heap_storage.h>
+#include <dwarfs/container/detail/packed_vector_helpers.h>
+#include <dwarfs/container/detail/packed_vector_layout.h>
 
-namespace dwarfs::internal::detail {
+namespace dwarfs::container::detail {
 
 template <typename Policy, typename Underlying>
 class packed_vector_layout_impl<Policy, Underlying,
@@ -175,4 +175,4 @@ class packed_vector_layout_impl<Policy, Underlying,
   underlying_type* data_{nullptr};
 };
 
-} // namespace dwarfs::internal::detail
+} // namespace dwarfs::container::detail

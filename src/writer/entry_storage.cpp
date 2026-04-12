@@ -26,10 +26,10 @@
 #include <sstream>
 #include <utility>
 
+#include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/writer/entry_storage.h>
 
-#include <dwarfs/internal/chunked_append_only_vector.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
 
@@ -48,7 +48,7 @@ class entry_storage_ final : public entry_storage::impl {
  public:
   static constexpr bool is_mutable = !Frozen;
   template <typename T>
-  using cao_vector = dwarfs::internal::chunked_append_only_vector<T>;
+  using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
 
   friend class entry_storage_<true>;
 

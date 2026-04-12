@@ -42,6 +42,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
@@ -54,7 +55,6 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/associative_vector_types.h>
-#include <dwarfs/internal/chunked_append_only_vector.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
@@ -681,7 +681,7 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  chunked_append_only_vector<inode_> inode_storage_;
+  container::chunked_append_only_vector<inode_> inode_storage_;
   std::vector<inode_ptr> inodes_;
   progress& prog_;
   fs::path const root_path_;
