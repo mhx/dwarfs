@@ -28,23 +28,21 @@
 
 #pragma once
 
-#include <optional>
+namespace dwarfs::container::detail {
 
-#include <dwarfs/internal/packed_value_traits.h>
-
-namespace dwarfs::internal {
-
-template <std::unsigned_integral T>
-struct packed_value_traits<std::optional<T>> {
-  using encoded_type = T;
-
-  static encoded_type encode(std::optional<T> const& opt) {
-    return opt.has_value() ? *opt + 1 : 0;
-  }
-
-  static std::optional<T> decode(encoded_type encoded) {
-    return encoded > 0 ? std::optional<T>{encoded - 1} : std::nullopt;
-  }
+enum class packed_vector_policy_type {
+  inline_with_heap,
+  heap_only,
 };
 
-} // namespace dwarfs::internal
+template <typename Policy, typename Underlying,
+          packed_vector_policy_type =
+              Policy::supports_inline
+                  ? packed_vector_policy_type::inline_with_heap
+                  : packed_vector_policy_type::heap_only>
+class packed_vector_layout_impl;
+
+template <typename Policy, typename Underlying>
+using packed_vector_layout = packed_vector_layout_impl<Policy, Underlying>;
+
+} // namespace dwarfs::container::detail

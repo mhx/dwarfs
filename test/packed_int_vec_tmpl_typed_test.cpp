@@ -25,12 +25,12 @@
 #pragma clang optimize off
 #endif
 
-#include <dwarfs/internal/packed_value_traits_optional.h>
+#include <dwarfs/container/packed_value_traits_optional.h>
 
 #include "packed_int_vector_test_helpers.h"
 
 using namespace dwarfs::test;
-using namespace dwarfs::internal;
+using namespace dwarfs::container;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
@@ -140,24 +140,24 @@ void expect_matches_model(Vec const& vec,
 }
 
 struct packed_int_vector_selector {
-  template <dwarfs::internal::integer_packable T>
+  template <dwarfs::container::integer_packable T>
   using type = packed_int_vector<T>;
 
-  template <dwarfs::internal::integer_packable T>
+  template <dwarfs::container::integer_packable T>
   using auto_type = auto_packed_int_vector<T>;
 };
 
 struct compact_packed_int_vector_selector {
-  template <dwarfs::internal::integer_packable T>
+  template <dwarfs::container::integer_packable T>
   using type = compact_packed_int_vector<T>;
 
-  template <dwarfs::internal::integer_packable T>
+  template <dwarfs::container::integer_packable T>
   using auto_type = compact_auto_packed_int_vector<T>;
 };
 
 } // namespace
 
-namespace dwarfs::internal {
+namespace dwarfs::container {
 
 template <>
 struct packed_value_traits<packable_struct> {
@@ -177,7 +177,7 @@ struct packed_value_traits<packable_struct> {
   }
 };
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::container
 
 template <typename Vec>
 class packed_int_vec_tmpl_test : public ::testing::Test {};

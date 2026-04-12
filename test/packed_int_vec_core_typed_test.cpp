@@ -28,7 +28,7 @@
 #include "packed_int_vector_test_helpers.h"
 
 using namespace dwarfs::test;
-using namespace dwarfs::internal;
+using namespace dwarfs::container;
 using ::testing::Each;
 using ::testing::ElementsAreArray;
 
