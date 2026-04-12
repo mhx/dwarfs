@@ -49,11 +49,11 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
-#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/detail/inode_impl.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
 #include <dwarfs/writer/internal/progress.h>

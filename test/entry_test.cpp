@@ -26,8 +26,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/inode_options.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
@@ -38,14 +38,15 @@
 
 using namespace dwarfs;
 namespace fs = std::filesystem;
+namespace wi = writer::internal;
 
 namespace {
 
-using writer::entry_storage;
-using writer::entry_type;
-using writer::internal::entry;
-using writer::internal::inode_manager;
-using writer::internal::progress;
+using wi::entry;
+using wi::entry_storage;
+using wi::entry_type;
+using wi::inode_manager;
+using wi::progress;
 
 using dwarfs::test::os_access_mock;
 using dwarfs::test::test_logger;
@@ -58,22 +59,22 @@ fs::path make_root_path() {
 #endif
 }
 
-struct recording_visitor final : writer::entry_handle_visitor {
+struct recording_visitor final : wi::entry_handle_visitor {
   std::vector<std::string> events;
 
-  void visit(writer::file_handle h) override {
+  void visit(wi::file_handle h) override {
     events.push_back("file:" + h.unix_dpath());
   }
-  void visit(writer::device_handle h) override {
+  void visit(wi::device_handle h) override {
     events.push_back("device:" + h.unix_dpath());
   }
-  void visit(writer::other_handle h) override {
+  void visit(wi::other_handle h) override {
     events.push_back("other:" + h.unix_dpath());
   }
-  void visit(writer::link_handle h) override {
+  void visit(wi::link_handle h) override {
     events.push_back("link:" + h.unix_dpath());
   }
-  void visit(writer::dir_handle h) override {
+  void visit(wi::dir_handle h) override {
     events.push_back("dir:" + h.unix_dpath());
   }
 };
@@ -94,23 +95,22 @@ struct entry_test : public ::testing::Test {
 
   void TearDown() override { os.reset(); }
 
-  writer::entry_handle
+  wi::entry_handle
   create_entry(entry_storage& tree, os_access& osa, fs::path const& path) {
-    return writer::internal::provisional_entry(osa, path).commit(tree);
+    return wi::provisional_entry(osa, path).commit(tree);
   }
 
-  writer::entry_handle
-  create_entry(entry_storage& tree, os_access& osa, fs::path const& path,
-               writer::entry_handle parent) {
-    return writer::internal::provisional_entry(osa, path, parent).commit(tree);
+  wi::entry_handle create_entry(entry_storage& tree, os_access& osa,
+                                fs::path const& path, wi::entry_handle parent) {
+    return wi::provisional_entry(osa, path, parent).commit(tree);
   }
 
-  writer::entry_handle create_entry(entry_storage& tree, fs::path const& path) {
+  wi::entry_handle create_entry(entry_storage& tree, fs::path const& path) {
     return create_entry(tree, *os, path);
   }
 
-  writer::entry_handle create_entry(entry_storage& tree, fs::path const& path,
-                                    writer::entry_handle parent) {
+  wi::entry_handle create_entry(entry_storage& tree, fs::path const& path,
+                                wi::entry_handle parent) {
     return create_entry(tree, *os, path, parent);
   }
 };
@@ -274,7 +274,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   tree.freeze();
 
   std::vector<std::string> visited;
-  root.walk([&](writer::entry_handle e) { visited.push_back(e.unix_dpath()); });
+  root.walk([&](wi::entry_handle e) { visited.push_back(e.unix_dpath()); });
 
   EXPECT_EQ((std::vector<std::string>{
                 "/",
@@ -420,7 +420,7 @@ TEST_F(entry_test,
   tree.freeze();
 
   std::vector<std::string> after;
-  root.walk([&](writer::entry_handle e) { after.push_back(e.unix_dpath()); });
+  root.walk([&](wi::entry_handle e) { after.push_back(e.unix_dpath()); });
   EXPECT_EQ((std::vector<std::string>{
                 "/",
                 "/keep/",
@@ -693,14 +693,14 @@ namespace {
 struct entry_handle_test : entry_test {
   entry_storage storage;
 
-  writer::entry_handle root;
-  writer::file_handle file;
-  writer::dir_handle somedir;
-  writer::link_handle link;
-  writer::device_handle dev;
-  writer::other_handle other;
-  writer::entry_handle nested_file;
-  writer::entry_handle nested_dev;
+  wi::entry_handle root;
+  wi::file_handle file;
+  wi::dir_handle somedir;
+  wi::link_handle link;
+  wi::device_handle dev;
+  wi::other_handle other;
+  wi::entry_handle nested_file;
+  wi::entry_handle nested_dev;
 
   void SetUp() override {
     entry_test::SetUp();
@@ -736,11 +736,11 @@ struct entry_handle_test : entry_test {
 TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
   scan_link_target();
 
-  auto cfile = static_cast<writer::const_file_handle>(file);
-  auto cdir = static_cast<writer::const_dir_handle>(somedir);
-  auto clink = static_cast<writer::const_link_handle>(link);
-  auto cdev = static_cast<writer::const_device_handle>(dev);
-  auto cother = static_cast<writer::const_other_handle>(other);
+  auto cfile = static_cast<wi::const_file_handle>(file);
+  auto cdir = static_cast<wi::const_dir_handle>(somedir);
+  auto clink = static_cast<wi::const_link_handle>(link);
+  auto cdev = static_cast<wi::const_device_handle>(dev);
+  auto cother = static_cast<wi::const_other_handle>(other);
 
   ASSERT_TRUE(cfile);
   ASSERT_TRUE(cdir);
@@ -761,11 +761,11 @@ TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
 }
 
 TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {
-  writer::const_entry_handle ce_file(file);
-  writer::const_entry_handle ce_dir(somedir);
-  writer::const_entry_handle ce_link(link);
-  writer::const_entry_handle ce_dev(dev);
-  writer::const_entry_handle ce_other(other);
+  wi::const_entry_handle ce_file(file);
+  wi::const_entry_handle ce_dir(somedir);
+  wi::const_entry_handle ce_link(link);
+  wi::const_entry_handle ce_dev(dev);
+  wi::const_entry_handle ce_other(other);
 
   ASSERT_TRUE(ce_file);
   ASSERT_TRUE(ce_dir);
@@ -802,8 +802,8 @@ TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {
 }
 
 TEST_F(entry_handle_test, const_handles_preserve_parent_information) {
-  writer::const_entry_handle cf(nested_file);
-  writer::const_entry_handle cd(nested_dev);
+  wi::const_entry_handle cf(nested_file);
+  wi::const_entry_handle cd(nested_dev);
 
   ASSERT_TRUE(cf.has_parent());
   ASSERT_TRUE(cd.has_parent());
@@ -825,32 +825,32 @@ TEST_F(entry_handle_test, const_handles_preserve_parent_information) {
 }
 
 TEST_F(entry_handle_test, handle_hash_support_works_for_all_types) {
-  std::unordered_set<writer::entry_handle> entries;
+  std::unordered_set<wi::entry_handle> entries;
   entries.insert(root);
   entries.insert(root);
   EXPECT_EQ(1, entries.size());
 
-  std::unordered_set<writer::file_handle> files;
+  std::unordered_set<wi::file_handle> files;
   files.insert(file);
   files.insert(file);
   EXPECT_EQ(1, files.size());
 
-  std::unordered_set<writer::dir_handle> dirs;
+  std::unordered_set<wi::dir_handle> dirs;
   dirs.insert(somedir);
   dirs.insert(somedir);
   EXPECT_EQ(1, dirs.size());
 
-  std::unordered_set<writer::link_handle> links;
+  std::unordered_set<wi::link_handle> links;
   links.insert(link);
   links.insert(link);
   EXPECT_EQ(1, links.size());
 
-  std::unordered_set<writer::device_handle> devices;
+  std::unordered_set<wi::device_handle> devices;
   devices.insert(dev);
   devices.insert(dev);
   EXPECT_EQ(1, devices.size());
 
-  std::unordered_set<writer::other_handle> others;
+  std::unordered_set<wi::other_handle> others;
   others.insert(other);
   others.insert(other);
   EXPECT_EQ(1, others.size());

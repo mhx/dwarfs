@@ -28,7 +28,8 @@
 
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/types.h>
-#include <dwarfs/writer/entry_handle.h>
+
+#include <dwarfs/writer/internal/entry_handle.h>
 
 namespace dwarfs::writer::internal {
 

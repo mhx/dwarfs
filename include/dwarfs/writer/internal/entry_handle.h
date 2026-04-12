@@ -35,10 +35,11 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/types.h>
-#include <dwarfs/writer/detail/mutability.h>
-#include <dwarfs/writer/entry_id.h>
-#include <dwarfs/writer/entry_type.h>
-#include <dwarfs/writer/unique_inode_id.h>
+#include <dwarfs/writer/unique_inode_id.h> // TODO: move to internal?
+
+#include <dwarfs/writer/internal/detail/mutability.h>
+#include <dwarfs/writer/internal/entry_id.h>
+#include <dwarfs/writer/internal/entry_type.h>
 
 namespace dwarfs {
 
@@ -52,9 +53,7 @@ class metadata;
 
 } // namespace thrift::metadata
 
-namespace writer {
-
-namespace internal {
+namespace writer::internal {
 
 class entry;
 class file;
@@ -68,8 +67,6 @@ class global_entry_data;
 class progress;
 class provisional_entry;
 class time_resolution_converter;
-
-} // namespace internal
 
 class entry_storage;
 
@@ -409,50 +406,57 @@ class basic_other_handle final : public detail::entry_handle_base<Mut> {
   self_t* self() const;
 };
 
-} // namespace writer
+} // namespace writer::internal
+
 } // namespace dwarfs
 
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_entry_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_entry_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_entry_handle<Mut>> {
+  size_t
+  operator()(dwarfs::writer::internal::basic_entry_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_file_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_file_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_file_handle<Mut>> {
+  size_t
+  operator()(dwarfs::writer::internal::basic_file_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_dir_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_dir_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_dir_handle<Mut>> {
+  size_t
+  operator()(dwarfs::writer::internal::basic_dir_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_link_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_link_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_link_handle<Mut>> {
+  size_t
+  operator()(dwarfs::writer::internal::basic_link_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_device_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_device_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_device_handle<Mut>> {
+  size_t operator()(
+      dwarfs::writer::internal::basic_device_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };
 
-template <dwarfs::writer::detail::mutability Mut>
-struct hash<dwarfs::writer::basic_other_handle<Mut>> {
-  size_t operator()(dwarfs::writer::basic_other_handle<Mut> const& h) const {
+template <dwarfs::writer::internal::detail::mutability Mut>
+struct hash<dwarfs::writer::internal::basic_other_handle<Mut>> {
+  size_t
+  operator()(dwarfs::writer::internal::basic_other_handle<Mut> const& h) const {
     return h.object_hash();
   }
 };

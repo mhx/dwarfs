@@ -29,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/writer/entry_handle.h>
+#include <dwarfs/writer/internal/entry_handle.h>
 
 namespace dwarfs {
 
