@@ -142,8 +142,6 @@ add_library(
   src/writer/category_parser.cpp
   src/writer/compression_metadata_requirements.cpp
   src/writer/console_writer.cpp
-  src/writer/entry_handle.cpp
-  src/writer/entry_storage.cpp
   src/writer/fragment_order_options.cpp
   src/writer/filesystem_block_category_resolver.cpp
   src/writer/filesystem_writer.cpp
@@ -151,7 +149,6 @@ add_library(
   src/writer/fragment_category.cpp
   src/writer/fragment_order_parser.cpp
   src/writer/inode_fragments.cpp
-  src/writer/inode_handle.cpp
   src/writer/metadata_options.cpp
   src/writer/rule_based_entry_filter.cpp
   src/writer/scanner.cpp
@@ -164,10 +161,13 @@ add_library(
   src/writer/internal/chmod_transformer.cpp
   src/writer/internal/detail/inode_impl.cpp
   src/writer/internal/entry.cpp
+  src/writer/internal/entry_handle.cpp
+  src/writer/internal/entry_storage.cpp
   src/writer/internal/file_scanner.cpp
   src/writer/internal/fragment_chunkable.cpp
   src/writer/internal/global_entry_data.cpp
   src/writer/internal/inode_element_view.cpp
+  src/writer/internal/inode_handle.cpp
   src/writer/internal/inode_hole_mapper.cpp
   src/writer/internal/inode_manager.cpp
   src/writer/internal/inode_ordering.cpp

@@ -27,8 +27,9 @@
 #include <optional>
 
 #include <dwarfs/file_stat.h>
-#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/entry_interface.h>
+
+#include <dwarfs/writer/internal/entry_handle.h>
 
 namespace dwarfs {
 

@@ -56,8 +56,8 @@
 #include <dwarfs/version.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/entry_filter.h>
-#include <dwarfs/writer/entry_storage.h>
 #include <dwarfs/writer/filesystem_writer.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
 #include <dwarfs/writer/segmenter_factory.h>

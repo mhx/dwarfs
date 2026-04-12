@@ -32,13 +32,12 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
-#include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/inode_fragments.h>
-#include <dwarfs/writer/inode_handle.h>
-#include <dwarfs/writer/internal/sortable_span.h>
 
+#include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/nilsimsa.h>
+#include <dwarfs/writer/internal/sortable_span.h>
 
 namespace dwarfs {
 

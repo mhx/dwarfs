@@ -23,13 +23,14 @@
 
 #pragma once
 
-namespace dwarfs::writer::detail {
+namespace dwarfs::writer::internal {
 
-enum class mutability { mutable_, const_ };
+enum class entry_type : unsigned {
+  E_FILE,
+  E_DIR,
+  E_LINK,
+  E_DEVICE,
+  E_OTHER,
+};
 
-// TODO: remove once we don't need this anymore
-template <typename T, mutability Mut>
-using mutability_t =
-    std::conditional_t<Mut == mutability::const_, std::add_const_t<T>, T>;
-
-} // namespace dwarfs::writer::detail
+} // namespace dwarfs::writer::internal

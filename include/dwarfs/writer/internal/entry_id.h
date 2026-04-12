@@ -31,9 +31,10 @@
 #include <utility>
 
 #include <dwarfs/container/packed_value_traits.h>
-#include <dwarfs/writer/entry_type.h>
 
-namespace dwarfs::writer {
+#include <dwarfs/writer/internal/entry_type.h>
+
+namespace dwarfs::writer::internal {
 
 class entry_id {
  public:
@@ -84,11 +85,12 @@ class entry_id {
   uint64_t id_{kInvalidId};
 };
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal
 
 template <>
-struct std::hash<dwarfs::writer::entry_id> {
-  size_t operator()(dwarfs::writer::entry_id const& id) const noexcept {
+struct std::hash<dwarfs::writer::internal::entry_id> {
+  size_t
+  operator()(dwarfs::writer::internal::entry_id const& id) const noexcept {
     return id.hash();
   }
 };
@@ -96,11 +98,12 @@ struct std::hash<dwarfs::writer::entry_id> {
 namespace dwarfs::container {
 
 template <>
-struct packed_value_traits<dwarfs::writer::entry_id> {
+struct packed_value_traits<dwarfs::writer::internal::entry_id> {
+  using value_type = dwarfs::writer::internal::entry_id;
   using encoded_type = uint64_t;
   static constexpr uint64_t kNumTypes{5};
 
-  static encoded_type encode(dwarfs::writer::entry_id const& id) {
+  static encoded_type encode(value_type const& id) {
     if (!id.valid()) {
       return 0;
     }
@@ -113,13 +116,13 @@ struct packed_value_traits<dwarfs::writer::entry_id> {
     return index * kNumTypes + type + 1;
   }
 
-  static dwarfs::writer::entry_id decode(encoded_type encoded) {
+  static value_type decode(encoded_type encoded) {
     if (encoded == 0) {
       return {};
     }
 
-    auto const type =
-        static_cast<dwarfs::writer::entry_type>((encoded - 1) % kNumTypes);
+    auto const type = static_cast<dwarfs::writer::internal::entry_type>(
+        (encoded - 1) % kNumTypes);
     auto const index = (encoded - 1) / kNumTypes;
 
     return {type, index};

@@ -22,6 +22,7 @@
  */
 
 #include <cassert>
+#include <numeric>
 #include <ostream>
 #include <sstream>
 #include <utility>
@@ -37,11 +38,11 @@
 #include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
 #include <dwarfs/util.h>
-#include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/detail/inode_impl.h>
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/progress.h>
 
 // TODO: disable everywhere but Windows
@@ -49,7 +50,7 @@
 
 namespace fs = std::filesystem;
 
-namespace dwarfs::writer {
+namespace dwarfs::writer::internal {
 
 namespace {
 
@@ -79,6 +80,8 @@ namespace {
 
 template <dwarfs::container::integer_packable T, std::size_t SegmentSize = 4096>
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
+
+} // namespace
 
 class path_component {
  public:
@@ -115,13 +118,12 @@ class path_component {
   std::string name_;
 };
 
-} // namespace
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal
 
 template <>
-struct std::hash<dwarfs::writer::path_component> {
-  std::size_t
-  operator()(dwarfs::writer::path_component const& pc) const noexcept {
+struct std::hash<dwarfs::writer::internal::path_component> {
+  std::size_t operator()(
+      dwarfs::writer::internal::path_component const& pc) const noexcept {
     std::size_t seed = 0;
 #if DWARFS_KEEP_FS_PATHS
     boost::hash_combine(seed, pc.path_);
@@ -131,7 +133,7 @@ struct std::hash<dwarfs::writer::path_component> {
   }
 };
 
-namespace dwarfs::writer {
+namespace dwarfs::writer::internal {
 namespace {
 
 constexpr char kLocalPathSeparator{
@@ -351,7 +353,7 @@ class entry_storage_ final : public entry_storage::impl {
     return make_obj_(others_, entry_type::E_OTHER, st);
   }
 
-  internal::inode_ptr make_inode() override {
+  inode_ptr make_inode() override {
     if constexpr (is_mutable) {
       auto id [[maybe_unused]] = inodes_.size(); // TODO
       inodes_.emplace_back();
@@ -375,11 +377,11 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  [[nodiscard]] internal::file_data& get_file_data(size_t const id) override {
+  [[nodiscard]] file_data& get_file_data(size_t const id) override {
     return file_data_.at(id);
   }
 
-  internal::entry* get_entry(entry_id const id) override {
+  entry* get_entry(entry_id const id) override {
     assert(id.valid());
     switch (id.type()) {
     case entry_type::E_FILE:
@@ -397,7 +399,7 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  internal::inode* get_inode(std::uint64_t const index) override {
+  inode* get_inode(std::uint64_t const index) override {
     return &inodes_.at(index);
   }
 
@@ -444,7 +446,7 @@ class entry_storage_ final : public entry_storage::impl {
     return shared_.dir_entries_.at(id.index()).empty();
   }
 
-  void remove_empty_dirs(internal::progress& prog) override {
+  void remove_empty_dirs(progress& prog) override {
     if constexpr (is_mutable) {
       remove_empty_dirs_impl(prog, 0);
     } else {
@@ -519,7 +521,7 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  void remove_empty_dirs_impl(internal::progress& prog, uint64_t dir_index)
+  void remove_empty_dirs_impl(progress& prog, uint64_t dir_index)
     requires is_mutable
   {
     auto& de = shared_.dir_entries_.at(dir_index);
@@ -597,13 +599,13 @@ class entry_storage_ final : public entry_storage::impl {
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
   }
 
-  cao_vector<internal::file> files_;
-  cao_vector<internal::dir> dirs_;
-  cao_vector<internal::link> links_;
-  cao_vector<internal::device> devices_;
-  cao_vector<internal::other> others_;
-  cao_vector<internal::file_data> file_data_;
-  cao_vector<internal::detail::inode_impl> inodes_;
+  cao_vector<file> files_;
+  cao_vector<dir> dirs_;
+  cao_vector<link> links_;
+  cao_vector<device> devices_;
+  cao_vector<other> others_;
+  cao_vector<file_data> file_data_;
+  cao_vector<detail::inode_impl> inodes_;
 
   shared_entry_data shared_;
   packed_entry_data packed_files_;
@@ -650,23 +652,21 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->make_other(path, st, parent);
   }
 
-  internal::inode_ptr make_inode() override {
-    return impl_.lock()->make_inode();
-  }
+  inode_ptr make_inode() override { return impl_.lock()->make_inode(); }
 
   size_t create_file_data() override {
     return impl_.lock()->create_file_data();
   }
 
-  internal::file_data& get_file_data(size_t const id) override {
+  file_data& get_file_data(size_t const id) override {
     return impl_.lock()->get_file_data(id);
   }
 
-  internal::entry* get_entry(entry_id const id) override {
+  entry* get_entry(entry_id const id) override {
     return impl_.lock()->get_entry(id);
   }
 
-  internal::inode* get_inode(std::uint64_t const id) override {
+  inode* get_inode(std::uint64_t const id) override {
     return impl_.lock()->get_inode(id);
   }
 
@@ -690,7 +690,7 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->is_dir_empty(id);
   }
 
-  void remove_empty_dirs(internal::progress& prog) override {
+  void remove_empty_dirs(progress& prog) override {
     impl_.lock()->remove_empty_dirs(prog);
   }
 
@@ -768,8 +768,6 @@ entry_storage::create_other(fs::path const& path, entry_handle parent,
   return {*this, impl_->make_other(path, st, parent.id())};
 }
 
-internal::inode_ptr entry_storage::create_inode() {
-  return impl_->make_inode();
-}
+inode_ptr entry_storage::create_inode() { return impl_->make_inode(); }
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal
