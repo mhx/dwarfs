@@ -379,7 +379,7 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_device_handle>();
   }
 
-  std::uint64_t device_id() const;
+  std::uint64_t posix_device_id() const;
 
  private:
   using self_t = detail::mutability_t<internal::device, Mut>;
