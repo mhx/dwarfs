@@ -32,6 +32,8 @@
 
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/entry_id.h>
+#include <dwarfs/writer/internal/inode_handle.h>
+#include <dwarfs/writer/internal/inode_id.h>
 
 namespace dwarfs::writer::internal {
 
@@ -71,6 +73,9 @@ class entry_storage {
   [[nodiscard]] other_handle handle(other_id id) noexcept {
     return {*this, id};
   }
+  [[nodiscard]] inode_handle handle(inode_id id) noexcept {
+    return {*this, id};
+  }
 
   [[nodiscard]] entry_handle root() noexcept {
     return {*this, entry_id(entry_type::E_DIR, 0)};
@@ -81,14 +86,14 @@ class entry_storage {
   // TODO: this must go
   [[nodiscard]] entry* get_entry(entry_id id) { return impl_->get_entry(id); }
 
+  inode_handle create_inode();
+
   [[nodiscard]] std::size_t inode_count() const noexcept {
     return impl_->inode_count();
   }
 
   // TODO: this must go
-  [[nodiscard]] inode* get_inode(std::uint64_t index) {
-    return impl_->get_inode(index);
-  }
+  [[nodiscard]] inode* get_inode(inode_id id) { return impl_->get_inode(id); }
 
   [[nodiscard]] entry_id get_parent(entry_id id) const {
     return impl_->get_parent(id);
@@ -150,13 +155,13 @@ class entry_storage {
                                  file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
                                 file_stat const& st, entry_id parent) = 0;
-    virtual inode* make_inode() = 0;
+    virtual inode_id make_inode() = 0;
 
     virtual size_t create_file_data() = 0;
     virtual file_data& get_file_data(size_t id) = 0;
     virtual entry* get_entry(entry_id id) = 0;
     virtual std::size_t inode_count() const = 0;
-    virtual inode* get_inode(std::uint64_t index) = 0;
+    virtual inode* get_inode(inode_id id) = 0;
 
     virtual entry_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
@@ -177,8 +182,6 @@ class entry_storage {
 
  private:
   friend class provisional_entry;
-  template <typename LoggerPolicy>
-  friend class inode_manager_;
 
   dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
@@ -197,9 +200,6 @@ class entry_storage {
 
   other_handle create_other(std::filesystem::path const& path,
                             entry_handle parent, file_stat const& st);
-
-  // TODO: inode handle
-  inode* create_inode();
 
   std::unique_ptr<impl> impl_;
 };

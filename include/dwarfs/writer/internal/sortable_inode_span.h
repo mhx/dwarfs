@@ -111,10 +111,14 @@ class sortable_inode_span {
 
   const_inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
 
-  const_inode_handle raw_handle(std::size_t i) const { return {*storage_, i}; }
+  // TODO: size_t -> inode_id?
+  const_inode_handle raw_handle(std::size_t i) const {
+    return {*storage_, inode_id{i}};
+  }
 
+  // TODO: size_t -> inode_id?
   inode_handle mutable_raw_handle(std::size_t i) const {
-    return {*storage_, i};
+    return {*storage_, inode_id{i}};
   }
 
   std::size_t raw_size() const { return raw_size_; }

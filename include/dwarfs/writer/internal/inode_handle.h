@@ -32,6 +32,7 @@
 
 #include <dwarfs/writer/internal/detail/mutability.h>
 #include <dwarfs/writer/internal/inode.h>
+#include <dwarfs/writer/internal/inode_id.h>
 
 namespace dwarfs::writer::internal {
 
@@ -50,7 +51,7 @@ class basic_inode_handle final {
 
   basic_inode_handle() = default;
 
-  basic_inode_handle(entry_storage& storage, std::uint64_t id)
+  basic_inode_handle(entry_storage& storage, inode_id id)
       : storage_{&storage}
       , self_id_{id} {}
 
@@ -60,14 +61,17 @@ class basic_inode_handle final {
     return const_inode_handle{*storage_, self_id_};
   }
 
+  bool valid() const { return self_id_.valid(); }
+  explicit operator bool() const { return valid(); }
+
   std::size_t object_hash() const {
     std::size_t seed = 0;
     boost::hash_combine(seed, storage_);
-    boost::hash_combine(seed, self_id_);
+    boost::hash_combine(seed, self_id_.object_hash());
     return seed;
   }
 
-  std::uint64_t id() const { return self_id_; }
+  inode_id id() const { return self_id_; }
 
   void set_files(file_id_vector const& fv)
     requires is_mutable;
@@ -108,7 +112,7 @@ class basic_inode_handle final {
   self_t* self() const;
 
   entry_storage* storage_{nullptr};
-  std::uint64_t self_id_;
+  inode_id self_id_;
 };
 
 } // namespace dwarfs::writer::internal

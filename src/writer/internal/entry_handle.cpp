@@ -113,8 +113,8 @@ void entry_handle_base<Mut>::update(internal::global_entry_data& data) const {
 }
 
 template <mutability Mut>
-unique_inode_id entry_handle_base<Mut>::inode_id() const {
-  return base()->inode_id();
+unique_inode_id entry_handle_base<Mut>::get_unique_inode_id() const {
+  return base()->get_unique_inode_id();
 }
 
 template <mutability Mut>
@@ -262,14 +262,14 @@ bool basic_file_handle<Mut>::is_invalid() const {
 }
 
 template <detail::mutability Mut>
-void basic_file_handle<Mut>::set_inode(internal::inode* ino)
+void basic_file_handle<Mut>::set_inode(inode_id ino)
   requires is_mutable
 {
-  self()->set_inode(std::move(ino));
+  self()->set_inode(ino);
 }
 
 template <detail::mutability Mut>
-internal::inode* basic_file_handle<Mut>::get_inode() const {
+inode_id basic_file_handle<Mut>::get_inode() const {
   return self()->get_inode();
 }
 
@@ -300,7 +300,7 @@ uint32_t basic_file_handle<Mut>::order_index() const {
 
 template <detail::mutability Mut>
 uint32_t basic_file_handle<Mut>::unique_file_id() const {
-  return self()->unique_file_id();
+  return inode_handle{this->storage(), self()->get_inode()}.num();
 }
 
 template <detail::mutability Mut>
