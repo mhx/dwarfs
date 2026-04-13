@@ -80,7 +80,7 @@ class inode_manager {
                 std::filesystem::path const& root_path,
                 inode_options const& opts, bool list_mode);
 
-  inode_ptr create_inode() { return impl_->create_inode(); }
+  inode* create_inode() { return impl_->create_inode(); }
 
   size_t count() const { return impl_->count(); }
 
@@ -93,7 +93,7 @@ class inode_manager {
   }
 
   void scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                       inode_ptr ino, file_handle p) const {
+                       inode* ino, file_handle p) const {
     impl_->scan_background(wg, os, ino, p);
   }
 
@@ -121,13 +121,13 @@ class inode_manager {
    public:
     virtual ~impl() = default;
 
-    virtual inode_ptr create_inode() = 0;
+    virtual inode* create_inode() = 0;
     virtual size_t count() const = 0;
     virtual void for_each_inode_in_order(inode_cb const& fn) const = 0;
     virtual fragment_infos fragment_category_info() const = 0;
     virtual void
     scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                    inode_ptr ino, file_handle p) const = 0;
+                    inode* ino, file_handle p) const = 0;
     virtual bool has_invalid_inodes() const = 0;
     virtual void try_scan_invalid(dwarfs::internal::worker_group& wg,
                                   os_access const& os) = 0;

@@ -411,7 +411,7 @@ class entry_storage_ final : public entry_storage::impl {
     return make_obj_(others_, entry_type::E_OTHER, st);
   }
 
-  inode_ptr make_inode() override {
+  inode* make_inode() override {
     if constexpr (is_mutable) {
       auto id [[maybe_unused]] = inodes_.size(); // TODO
       inodes_.emplace_back();
@@ -717,7 +717,7 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->make_other(path, st, parent);
   }
 
-  inode_ptr make_inode() override { return impl_.lock()->make_inode(); }
+  inode* make_inode() override { return impl_.lock()->make_inode(); }
 
   size_t create_file_data() override {
     return impl_.lock()->create_file_data();
@@ -837,6 +837,6 @@ entry_storage::create_other(fs::path const& path, entry_handle parent,
   return {*this, impl_->make_other(path, st, parent.id())};
 }
 
-inode_ptr entry_storage::create_inode() { return impl_->make_inode(); }
+inode* entry_storage::create_inode() { return impl_->make_inode(); }
 
 } // namespace dwarfs::writer::internal
