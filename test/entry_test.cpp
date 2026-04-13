@@ -271,9 +271,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  root.add(a);
-  root.add(b);
-  a.add(c);
+  tree.freeze();
 
   std::vector<std::string> visited;
   root.walk([&](writer::entry_handle e) { visited.push_back(e.unix_dpath()); });
@@ -307,9 +305,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  root.add(a);
-  root.add(b);
-  a.add(c);
+  tree.freeze();
 
   recording_visitor pre;
   root.accept(pre, true);
@@ -338,13 +334,9 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     auto root = create_entry(tree, sep).as_dir();
     ASSERT_TRUE(root);
 
-    auto somelink = create_entry(tree, sep / "somelink", root);
-    auto somedir = create_entry(tree, sep / "somedir", root);
-    auto test_pl = create_entry(tree, sep / "test.pl", root);
-
-    root.add(somelink);
-    root.add(somedir);
-    root.add(test_pl);
+    create_entry(tree, sep / "somelink", root);
+    create_entry(tree, sep / "somedir", root);
+    create_entry(tree, sep / "test.pl", root);
 
     auto found_small = root.find("somelink");
     ASSERT_TRUE(found_small);
@@ -368,8 +360,8 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     ASSERT_TRUE(big_root);
 
     for (int i = 0; i < 20; ++i) {
-      big_root.add(create_entry(
-          tree, *local_os, root_path / ("f" + std::to_string(i)), big_root));
+      create_entry(tree, *local_os, root_path / ("f" + std::to_string(i)),
+                   big_root);
     }
 
     auto found_first = big_root.find("f0");
@@ -384,12 +376,6 @@ TEST_F(entry_test, find_works_below_and_above_lookup_threshold) {
     EXPECT_EQ("f11", found_mid.name());
     EXPECT_EQ("f19", found_last.name());
     EXPECT_FALSE(big_root.find("f20"));
-
-    // Also exercise behavior after sorting.
-    big_root.sort();
-    auto found_after_sort = big_root.find("f11");
-    ASSERT_TRUE(found_after_sort);
-    EXPECT_EQ("f11", found_after_sort.name());
   }
 }
 
@@ -425,29 +411,13 @@ TEST_F(entry_test,
   ASSERT_TRUE(nested);
   ASSERT_TRUE(empty_b);
 
-  root.add(keep);
-  root.add(empty_a);
-  root.add(nested);
-  keep.add(keep_file);
-  nested.add(empty_b);
-
-  std::vector<std::string> before;
-  root.walk([&](writer::entry_handle e) { before.push_back(e.unix_dpath()); });
-  EXPECT_EQ((std::vector<std::string>{
-                "/",
-                "/keep/",
-                "/keep/file.txt",
-                "/empty_a/",
-                "/nested/",
-                "/nested/empty_b/",
-            }),
-            before);
-
   progress prog{};
   prog.dirs_scanned = 4;
   prog.dirs_found = 4;
 
-  root.remove_empty_dirs(prog);
+  tree.remove_empty_dirs(prog);
+
+  tree.freeze();
 
   std::vector<std::string> after;
   root.walk([&](writer::entry_handle e) { after.push_back(e.unix_dpath()); });
@@ -457,10 +427,6 @@ TEST_F(entry_test,
                 "/keep/file.txt",
             }),
             after);
-
-  ASSERT_TRUE(root.find("keep"));
-  EXPECT_FALSE(root.find("empty_a"));
-  EXPECT_FALSE(root.find("nested"));
 
   // We started with 4 non-root dirs: keep, empty_a, nested, empty_b.
   // empty_a, nested, and empty_b should be removed.

@@ -103,10 +103,7 @@ class dir_set_inode_visitor : public visitor_base {
   explicit dir_set_inode_visitor(uint32_t& inode_num)
       : inode_num_(inode_num) {}
 
-  void visit(dir_handle p) override {
-    p.sort();
-    p.set_inode_num(inode_num_++);
-  }
+  void visit(dir_handle p) override { p.set_inode_num(inode_num_++); }
 
  private:
   uint32_t& inode_num_;
@@ -371,7 +368,6 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     }
 
     auto pe = ent.commit(tree);
-    parent.add(pe);
 
     switch (pe.type()) {
     case entry_type::E_DIR:
@@ -667,19 +663,8 @@ void scanner_<LoggerPolicy>::scan(
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
-    auto d = root.as_dir();
-    d.remove_empty_dirs(prog);
+    tree.remove_empty_dirs(prog);
   }
-
-  LOG_INFO << "assigning directory and link inodes...";
-
-  uint32_t first_link_inode = 0;
-  dir_set_inode_visitor dsiv(first_link_inode);
-  root.accept(dsiv, true);
-
-  uint32_t first_file_inode = first_link_inode;
-  link_set_inode_visitor lsiv(first_file_inode);
-  root.accept(lsiv, true);
 
   LOG_INFO << "waiting for background scanners...";
 
@@ -696,6 +681,16 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_INFO << "scanning CPU time: "
            << time_with_unit(wg_.try_get_cpu_time().value_or(0ns));
+
+  LOG_INFO << "assigning directory and link inodes...";
+
+  uint32_t first_link_inode = 0;
+  dir_set_inode_visitor dsiv(first_link_inode);
+  root.accept(dsiv, true);
+
+  uint32_t first_file_inode = first_link_inode;
+  link_set_inode_visitor lsiv(first_file_inode);
+  root.accept(lsiv, true);
 
   dump_state(kEnvVarDumpFilesRaw, "raw files", fa,
              [&fs](auto& os) { fs.dump(os); });
