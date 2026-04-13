@@ -85,12 +85,102 @@ class entry_id {
   uint64_t id_{kInvalidId};
 };
 
+template <entry_type Type>
+class typed_entry_id {
+ public:
+  static constexpr uint64_t kInvalidIndex{std::numeric_limits<uint64_t>::max()};
+
+  typed_entry_id() = default;
+
+  explicit typed_entry_id(entry_id id)
+      : index_{id.valid() && id.type() == Type ? id.index() : kInvalidIndex} {}
+
+  explicit(false) operator entry_id() const {
+    if (!valid()) {
+      return {};
+    }
+    return entry_id{Type, index_};
+  }
+
+  [[nodiscard]] bool valid() const { return index_ != kInvalidIndex; }
+  [[nodiscard]] explicit operator bool() const { return valid(); }
+
+  [[nodiscard]] std::size_t hash() const {
+    return std::hash<uint64_t>{}(index_);
+  }
+
+  [[nodiscard]] entry_type type() const {
+    assert(valid());
+    return Type;
+  }
+
+  [[nodiscard]] uint64_t index() const {
+    assert(valid());
+    return index_;
+  }
+
+  [[nodiscard]] bool is_file() const {
+    assert(valid());
+    return Type == entry_type::E_FILE;
+  }
+  [[nodiscard]] bool is_dir() const {
+    assert(valid());
+    return Type == entry_type::E_DIR;
+  }
+  [[nodiscard]] bool is_link() const {
+    assert(valid());
+    return Type == entry_type::E_LINK;
+  }
+  [[nodiscard]] bool is_device() const {
+    assert(valid());
+    return Type == entry_type::E_DEVICE;
+  }
+  [[nodiscard]] bool is_other() const {
+    assert(valid());
+    return Type == entry_type::E_OTHER;
+  }
+
+  friend bool operator==(typed_entry_id const& lhs,
+                         typed_entry_id const& rhs) noexcept = default;
+  friend std::strong_ordering
+  operator<=>(typed_entry_id const& lhs,
+              typed_entry_id const& rhs) noexcept = default;
+
+  friend bool
+  operator==(typed_entry_id const& lhs, entry_id const& rhs) noexcept {
+    return lhs.valid() && rhs.valid() && lhs.type() == rhs.type() &&
+           lhs.index() == rhs.index();
+  }
+
+  friend bool
+  operator==(entry_id const& lhs, typed_entry_id const& rhs) noexcept {
+    return rhs == lhs;
+  }
+
+ private:
+  uint64_t index_{kInvalidIndex};
+};
+
+using file_id = typed_entry_id<entry_type::E_FILE>;
+using dir_id = typed_entry_id<entry_type::E_DIR>;
+using link_id = typed_entry_id<entry_type::E_LINK>;
+using device_id = typed_entry_id<entry_type::E_DEVICE>;
+using other_id = typed_entry_id<entry_type::E_OTHER>;
+
 } // namespace dwarfs::writer::internal
 
 template <>
 struct std::hash<dwarfs::writer::internal::entry_id> {
   size_t
   operator()(dwarfs::writer::internal::entry_id const& id) const noexcept {
+    return id.hash();
+  }
+};
+
+template <dwarfs::writer::internal::entry_type Type>
+struct std::hash<dwarfs::writer::internal::typed_entry_id<Type>> {
+  size_t operator()(
+      dwarfs::writer::internal::typed_entry_id<Type> const& id) const noexcept {
     return id.hash();
   }
 };
@@ -126,6 +216,24 @@ struct packed_value_traits<dwarfs::writer::internal::entry_id> {
     auto const index = (encoded - 1) / kNumTypes;
 
     return {type, index};
+  }
+};
+
+template <dwarfs::writer::internal::entry_type Type>
+struct packed_value_traits<dwarfs::writer::internal::typed_entry_id<Type>> {
+  using value_type = dwarfs::writer::internal::typed_entry_id<Type>;
+  using encoded_type = uint64_t;
+
+  static encoded_type encode(value_type const& id) {
+    return id.valid() ? id.index() + 1 : 0;
+  }
+
+  static value_type decode(encoded_type encoded) {
+    if (encoded == 0) {
+      return {};
+    }
+
+    return value_type{dwarfs::writer::internal::entry_id{Type, encoded - 1}};
   }
 };
 
