@@ -44,6 +44,8 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/writer/internal/entry_id_vector.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/file_scanner.h>
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_manager.h>
@@ -63,8 +65,8 @@ constexpr file_size_t const kLargeFileStartHashSize = 4096;
 template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
  public:
-  file_scanner_(logger& lgr, worker_group& wg, os_access const& os,
-                inode_manager& im, progress& prog,
+  file_scanner_(logger& lgr, entry_storage& storage, worker_group& wg,
+                os_access const& os, inode_manager& im, progress& prog,
                 file_scanner::options const& opts);
 
   void scan(file_handle p) override;
@@ -86,11 +88,11 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   template <bool UniqueOnly = false, typename KeyType>
-  void finalize_files(fast_map_type<KeyType, file_handle_vector>& fmap,
+  void finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
                       uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool Unique, typename KeyType>
-  void finalize_inodes(std::vector<std::pair<KeyType, file_handle_vector>>& ent,
+  void finalize_inodes(std::vector<std::pair<KeyType, file_id_vector>>& ent,
                        uint32_t& inode_num, uint32_t& obj_num);
 
   template <typename T>
@@ -120,7 +122,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   void dump_value(std::ostream& os, const_file_handle p) const;
-  void dump_value(std::ostream& os, file_handle_vector const& vec) const;
+  void dump_value(std::ostream& os, file_id_vector const& vec) const;
 
   void dump_inodes(std::ostream& os) const;
   void dump_inode_create_info(std::ostream& os) const;
@@ -129,25 +131,26 @@ class file_scanner_ final : public file_scanner::impl {
   void dump_map(std::ostream& os, std::string_view name, T const& map) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
+  entry_storage& storage_;
   worker_group& wg_;
   os_access const& os_;
   inode_manager& im_;
   progress& prog_;
   file_scanner::options const opts_;
   uint32_t num_unique_{0};
-  fast_map_type<unique_inode_id, file_handle_vector> hardlinks_;
+  fast_map_type<unique_inode_id, file_id_vector> hardlinks_;
   std::mutex mutable mx_;
   // The pair stores the file size and optionally a hash of the first
   // 4 KiB of the file. If there's a collision, the worst that can
   // happen is that we unnecessary hash a file that is not a duplicate.
-  fast_map_type<std::pair<uint64_t, uint64_t>, file_handle_vector> unique_size_;
+  fast_map_type<std::pair<uint64_t, uint64_t>, file_id_vector> unique_size_;
   // We need this lookup table to later find the unique_size_ entry
   // given just a file pointer.
   fast_map_type<const_file_handle, uint64_t> file_start_hash_;
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
-  fast_map_type<unique_inode_id, file_handle_vector> by_inode_id_;
-  fast_map_type<std::string_view, file_handle_vector> by_hash_;
+  fast_map_type<unique_inode_id, file_id_vector> by_inode_id_;
+  fast_map_type<std::string_view, file_id_vector> by_hash_;
 
   struct inode_create_info {
     inode const* i;
@@ -197,11 +200,13 @@ class file_scanner_ final : public file_scanner::impl {
 //   it should happen rarely enough to not be a problem.
 
 template <typename LoggerPolicy>
-file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, worker_group& wg,
+file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
+                                           worker_group& wg,
                                            os_access const& os,
                                            inode_manager& im, progress& prog,
                                            file_scanner::options const& opts)
     : LOG_PROXY_INIT(lgr)
+    , storage_(storage)
     , wg_(wg)
     , os_(os)
     , im_(im)
@@ -214,10 +219,10 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
 
   if (p.num_hard_links() > 1) {
     auto& vec = hardlinks_[p.inode_id()];
-    vec.push_back(p);
+    vec.push_back(p.id());
 
     if (vec.size() > 1) {
-      p.hardlink(vec[0], prog_);
+      p.hardlink(storage_.handle(vec[0]), prog_);
       ++prog_.files_scanned;
       return;
     }
@@ -234,7 +239,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     prog_.current.store(p);
     p.scan({}, prog_, opts_.hash_algo); // TODO
 
-    by_inode_id_[p.inode_id()].push_back(p);
+    by_inode_id_[p.inode_id()].push_back(p.id());
 
     add_inode(p, __LINE__);
   }
@@ -247,7 +252,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   assert(first_file_hashed_.empty());
 
   if (opts_.hash_algo) {
-    finalize_hardlinks([this](const_file_handle p) -> file_handle_vector& {
+    finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       if (auto it = by_hash_.find(p.hash()); it != by_hash_.end()) {
         return it->second;
       }
@@ -265,7 +270,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(by_inode_id_, inode_num, obj_num);
     finalize_files(by_hash_, inode_num, obj_num);
   } else {
-    finalize_hardlinks([this](const_file_handle p) -> file_handle_vector& {
+    finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       return by_inode_id_.at(p.inode_id());
     });
     finalize_files(by_inode_id_, inode_num, obj_num);
@@ -304,12 +309,12 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
 
   auto const unique_key = std::make_pair(size, start_hash);
 
-  auto [it, is_new] = unique_size_.emplace(unique_key, file_handle_vector());
+  auto [it, is_new] = unique_size_.emplace(unique_key, file_id_vector());
 
   if (is_new) {
     // A file (size, start_hash) that has never been seen before. We can safely
     // create a new inode and we'll keep track of the file.
-    it->second.push_back(p);
+    it->second.push_back(p.id());
 
     {
       std::lock_guard lock(mx_);
@@ -344,29 +349,30 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
       }
 
       // Add a job for the first file
-      wg_.add_job([this, p = it->second.front(), latch, unique_key] {
-        hash_file(p);
+      wg_.add_job(
+          [this, p = storage_.handle(it->second.front()), latch, unique_key] {
+            hash_file(p);
 
-        {
-          std::lock_guard lock(mx_);
+            {
+              std::lock_guard lock(mx_);
 
-          assert(p.get_inode());
+              assert(p.get_inode());
 
-          if (p.is_invalid()) [[unlikely]] {
-            by_inode_id_[p.inode_id()].push_back(p);
-          } else {
-            auto& ref = by_hash_[p.hash()];
-            DWARFS_CHECK(ref.empty(),
-                         "internal error: unexpected existing hash");
-            ref.push_back(p);
-          }
+              if (p.is_invalid()) [[unlikely]] {
+                by_inode_id_[p.inode_id()].push_back(p.id());
+              } else {
+                auto& ref = by_hash_[p.hash()];
+                DWARFS_CHECK(ref.empty(),
+                             "internal error: unexpected existing hash");
+                ref.push_back(p.id());
+              }
 
-          latch->count_down();
+              latch->count_down();
 
-          DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
-                       "internal error: missing first file hashed latch");
-        }
-      });
+              DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
+                           "internal error: missing first file hashed latch");
+            }
+          });
 
       // Clear files vector, but don't delete the hash table entry, to indicate
       // that files of this (size, start_hash) *must* be hashed.
@@ -388,7 +394,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
 
         if (p.is_invalid()) [[unlikely]] {
           add_inode(p, __LINE__);
-          by_inode_id_[p.inode_id()].push_back(p);
+          by_inode_id_[p.inode_id()].push_back(p.id());
         } else {
           auto& ref = by_hash_[p.hash()];
 
@@ -396,7 +402,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
             // This is *not* a duplicate. We must allocate a new inode.
             add_inode(p, __LINE__);
           } else {
-            auto inode = ref.front().get_inode();
+            auto inode = storage_.handle(ref.front()).get_inode();
             assert(inode);
             p.set_inode(inode);
             ++prog_.files_scanned;
@@ -405,7 +411,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
             prog_.allocated_saved_by_deduplication += p.allocated_size();
           }
 
-          ref.push_back(p);
+          ref.push_back(p.id());
         }
       }
     });
@@ -470,9 +476,10 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
   for (auto& kv : hardlinks_) {
     auto& hlv = kv.second;
     if (hlv.size() > 1) {
-      auto& fv = lookup(hlv.front());
+      auto& fv = lookup(storage_.handle(hlv.front()));
       for (auto p : ranges::views::drop(hlv, 1)) {
-        p.set_inode(fv.front().get_inode());
+        auto handle = storage_.handle(p);
+        handle.set_inode(storage_.handle(fv.front()).get_inode());
         fv.push_back(p);
       }
     }
@@ -486,9 +493,9 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
 template <typename LoggerPolicy>
 template <bool UniqueOnly, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_files(
-    fast_map_type<KeyType, file_handle_vector>& fmap, uint32_t& inode_num,
+    fast_map_type<KeyType, file_id_vector>& fmap, uint32_t& inode_num,
     uint32_t& obj_num) {
-  std::vector<std::pair<KeyType, file_handle_vector>> ent;
+  std::vector<std::pair<KeyType, file_id_vector>> ent;
 
   auto tv = LOG_TIMED_VERBOSE;
 
@@ -496,7 +503,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   for (auto& [k, fv] : fmap) {
     if (!fv.empty()) {
       if constexpr (UniqueOnly) {
-        DWARFS_CHECK(fv.size() == fv.front().hardlink_count(),
+        DWARFS_CHECK(fv.size() == storage_.handle(fv.front()).hardlink_count(),
                      "internal error");
       }
       ent.emplace_back(std::move(k), std::move(fv));
@@ -520,8 +527,8 @@ void file_scanner_<LoggerPolicy>::finalize_files(
 template <typename LoggerPolicy>
 template <bool Unique, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_inodes(
-    std::vector<std::pair<KeyType, file_handle_vector>>& ent,
-    uint32_t& inode_num, uint32_t& obj_num) {
+    std::vector<std::pair<KeyType, file_id_vector>>& ent, uint32_t& inode_num,
+    uint32_t& obj_num) {
   int const obj_num_before = obj_num;
 
   auto tv = LOG_TIMED_VERBOSE;
@@ -536,7 +543,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
                                p.first));
 
       // this is true regardless of how the files are ordered
-      if (files.size() > files.front().hardlink_count()) {
+      if (files.size() > storage_.handle(files.front()).hardlink_count()) {
         continue;
       }
 
@@ -551,21 +558,22 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
 
       // needed for reproducibility
-      std::ranges::sort(files, [](const_file_handle a, const_file_handle b) {
-        return a.less_revpath(b);
+      std::ranges::sort(files, [this](file_id a, file_id b) {
+        return storage_.handle(a).less_revpath(storage_.handle(b));
       });
     }
 
     for (auto fp : files) {
+      auto fh = storage_.handle(fp);
       // need to check because hardlinks share the same number
-      if (!fp.inode_num()) {
-        fp.set_inode_num(inode_num);
+      if (!fh.inode_num()) {
+        fh.set_inode_num(inode_num);
         ++inode_num;
       }
     }
 
-    auto fp = files.front();
-    auto inode = fp.get_inode();
+    auto fh = storage_.handle(files.front());
+    auto inode = fh.get_inode();
     assert(inode);
     inode->set_num(obj_num);
     inode->set_files(files);
@@ -600,8 +608,8 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::dump_value(
-    std::ostream& os, file_handle_vector const& vec) const {
+void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
+                                             file_id_vector const& vec) const {
   os << "[\n";
   bool first = true;
   for (auto p : vec) {
@@ -610,7 +618,7 @@ void file_scanner_<LoggerPolicy>::dump_value(
     }
     first = false;
     os << "      ";
-    dump_value(os, p);
+    dump_value(os, storage_.handle(p));
   }
   os << "\n    ]";
 }
@@ -629,7 +637,7 @@ void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
     os << "    {\n"
        << R"(      "id": )" << ino.id() << ",\n"
        << R"(      "files": )";
-    dump_value(os, ino.all());
+    dump_value(os, ino.all_file_ids());
     os << "\n    }";
   }
   os << "\n  ]";
@@ -701,10 +709,11 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << "\n}\n";
 }
 
-file_scanner::file_scanner(logger& lgr, worker_group& wg, os_access const& os,
+file_scanner::file_scanner(logger& lgr, entry_storage& storage,
+                           worker_group& wg, os_access const& os,
                            inode_manager& im, progress& prog,
                            options const& opts)
     : impl_{make_unique_logging_object<impl, file_scanner_, logger_policies>(
-          lgr, wg, os, im, prog, opts)} {}
+          lgr, storage, wg, os, im, prog, opts)} {}
 
 } // namespace dwarfs::writer::internal

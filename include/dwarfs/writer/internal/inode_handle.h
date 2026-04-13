@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ranges>
 
 #include <boost/container_hash/hash.hpp>
 
@@ -68,7 +69,7 @@ class basic_inode_handle final {
 
   std::uint64_t id() const { return self_id_; }
 
-  void set_files(file_handle_vector const& fv)
+  void set_files(file_id_vector const& fv)
     requires is_mutable;
   void populate(file_size_t size)
     requires is_mutable;
@@ -83,7 +84,12 @@ class basic_inode_handle final {
   nilsimsa_similarity_hash(fragment_category cat) const;
   file_size_t size() const;
   const_file_handle any() const;
-  file_handle_vector all() const;
+  file_id_vector const& all_file_ids() const;
+  auto all() const {
+    return std::views::all(all_file_ids()) |
+           std::views::transform(
+               [this](file_id id) { return const_file_handle{*storage_, id}; });
+  }
   bool append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                         std::optional<inode_hole_mapper>& hole_mapper) const;
   inode_fragments const& fragments() const;
