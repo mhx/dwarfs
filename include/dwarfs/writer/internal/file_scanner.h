@@ -42,6 +42,7 @@ struct inode_options;
 
 namespace internal {
 
+class entry_storage;
 class inode_manager;
 class progress;
 
@@ -52,9 +53,9 @@ class file_scanner {
     bool debug_inode_create{false};
   };
 
-  file_scanner(logger& lgr, dwarfs::internal::worker_group& wg,
-               os_access const& os, inode_manager& im, progress& prog,
-               options const& opts);
+  file_scanner(logger& lgr, entry_storage& storage,
+               dwarfs::internal::worker_group& wg, os_access const& os,
+               inode_manager& im, progress& prog, options const& opts);
 
   void scan(file_handle p) { impl_->scan(p); }
   void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }

@@ -59,6 +59,19 @@ class entry_storage {
   entry_storage(entry_storage const&) = delete;
   entry_storage& operator=(entry_storage const&) = delete;
 
+  [[nodiscard]] entry_handle handle(entry_id id) noexcept {
+    return {*this, id};
+  }
+  [[nodiscard]] file_handle handle(file_id id) noexcept { return {*this, id}; }
+  [[nodiscard]] dir_handle handle(dir_id id) noexcept { return {*this, id}; }
+  [[nodiscard]] link_handle handle(link_id id) noexcept { return {*this, id}; }
+  [[nodiscard]] device_handle handle(device_id id) noexcept {
+    return {*this, id};
+  }
+  [[nodiscard]] other_handle handle(other_id id) noexcept {
+    return {*this, id};
+  }
+
   [[nodiscard]] entry_handle root() noexcept {
     return {*this, entry_id(entry_type::E_DIR, 0)};
   }
