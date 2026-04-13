@@ -134,8 +134,6 @@ class entry_handle_base {
   bool valid() const { return self_id_.valid(); }
   explicit operator bool() const { return valid(); }
 
-  entry_id id() const { return self_id_; }
-
   bool has_parent() const;
   basic_entry_handle<Mut> parent() const;
   std::filesystem::path fs_path() const;
@@ -195,6 +193,8 @@ class entry_handle_base {
 
   entry_storage& storage() const { return *storage_; }
 
+  entry_id base_id() const { return self_id_; }
+
  private:
   entry_storage* storage_{nullptr};
   entry_id self_id_;
@@ -220,6 +220,8 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   {
     return this->template base_as<const_entry_handle>();
   }
+
+  entry_id id() const { return this->base_id(); }
 
   explicit(false) basic_entry_handle(basic_file_handle<Mut> h);
   explicit(false) basic_entry_handle(basic_dir_handle<Mut> h);
@@ -272,6 +274,8 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_file_handle>();
   }
 
+  file_id id() const { return file_id{this->base_id()}; }
+
   std::string_view hash() const;
 
   void create_data()
@@ -321,6 +325,8 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_dir_handle>();
   }
 
+  dir_id id() const { return dir_id{this->base_id()}; }
+
   entry_handle find(std::filesystem::path const& path)
     requires is_mutable;
 
@@ -357,6 +363,8 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_link_handle>();
   }
 
+  link_id id() const { return link_id{this->base_id()}; }
+
   // TODO: string_view
   std::string const& linkname() const;
 
@@ -379,6 +387,8 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_device_handle>();
   }
 
+  device_id id() const { return device_id{this->base_id()}; }
+
   std::uint64_t posix_device_id() const;
 
  private:
@@ -399,6 +409,8 @@ class basic_other_handle final : public detail::entry_handle_base<Mut> {
   {
     return this->template base_as<const_other_handle>();
   }
+
+  other_id id() const { return other_id{this->base_id()}; }
 
  private:
   using self_t = detail::mutability_t<internal::other, Mut>;
