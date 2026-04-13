@@ -87,6 +87,7 @@ class inode {
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                    std::optional<inode_hole_mapper>& hole_mapper) const = 0;
   virtual inode_fragments& fragments() = 0;
+  virtual inode_fragments const& fragments() const = 0;
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
   virtual void set_scan_error(const_file_handle fp, std::exception_ptr ep) = 0;
   virtual std::optional<std::pair<const_file_handle, std::exception_ptr>>
