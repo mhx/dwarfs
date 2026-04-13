@@ -37,6 +37,7 @@ struct inode_options;
 
 namespace internal {
 
+class entry_storage;
 class scanner_progress;
 
 namespace detail {
@@ -63,18 +64,18 @@ class inode_impl final : public inode {
   nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const override;
 
-  void set_files(file_handle_vector const& fv) override;
+  void set_files(file_id_vector const& fv) override;
 
   void populate(file_size_t size) override;
 
   void
   scan(file_view const& mm, inode_options const& opts, progress& prog) override;
 
-  file_size_t size() const override;
+  file_size_t size(entry_storage& storage) const override;
 
-  const_file_handle any() const override;
+  const_file_handle any(entry_storage& storage) const override;
 
-  file_handle_vector all() const override;
+  file_id_vector const& all() const override;
 
   bool append_chunks_to(
       std::vector<chunk_type>& vec,
@@ -83,7 +84,8 @@ class inode_impl final : public inode {
   inode_fragments& fragments() override;
   inode_fragments const& fragments() const override;
 
-  void dump(std::ostream& os, inode_options const& options) const override;
+  void dump(entry_storage& storage, std::ostream& os,
+            inode_options const& options) const override;
 
   void set_scan_error(const_file_handle fp, std::exception_ptr ep) override;
 
@@ -91,7 +93,7 @@ class inode_impl final : public inode {
   get_scan_error() const override;
 
   inode_mmap_any_result
-  mmap_any(os_access const& os,
+  mmap_any(entry_storage& storage, os_access const& os,
            open_file_options const& of_opts) const override;
 
  private:
@@ -126,7 +128,7 @@ class inode_impl final : public inode {
   uint32_t flags_{0};
   uint32_t num_{0};
   inode_fragments fragments_;
-  file_handle_vector files_;
+  file_id_vector files_;
   std::unique_ptr<std::pair<const_file_handle, std::exception_ptr>> scan_error_;
 
   std::variant<

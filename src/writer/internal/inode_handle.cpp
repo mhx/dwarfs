@@ -39,7 +39,7 @@ auto basic_inode_handle<Mut>::self() const -> self_t* {
 }
 
 template <detail::mutability Mut>
-void basic_inode_handle<Mut>::set_files(file_handle_vector const& fv)
+void basic_inode_handle<Mut>::set_files(file_id_vector const& fv)
   requires is_mutable
 {
   return self()->set_files(fv);
@@ -91,16 +91,16 @@ basic_inode_handle<Mut>::nilsimsa_similarity_hash(fragment_category cat) const {
 
 template <detail::mutability Mut>
 file_size_t basic_inode_handle<Mut>::size() const {
-  return self()->size();
+  return self()->size(*this->storage_);
 }
 
 template <detail::mutability Mut>
 const_file_handle basic_inode_handle<Mut>::any() const {
-  return self()->any();
+  return self()->any(*this->storage_);
 }
 
 template <detail::mutability Mut>
-file_handle_vector basic_inode_handle<Mut>::all() const {
+file_id_vector const& basic_inode_handle<Mut>::all_file_ids() const {
   return self()->all();
 }
 
@@ -126,7 +126,7 @@ inode_fragments& basic_inode_handle<Mut>::fragments()
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::dump(std::ostream& os,
                                    inode_options const& options) const {
-  return self()->dump(os, options);
+  return self()->dump(*this->storage_, os, options);
 }
 
 template <detail::mutability Mut>
@@ -147,7 +147,7 @@ template <detail::mutability Mut>
 inode_mmap_any_result
 basic_inode_handle<Mut>::mmap_any(os_access const& os,
                                   open_file_options const& of_opts) const {
-  return self()->mmap_any(os, of_opts);
+  return self()->mmap_any(*this->storage_, os, of_opts);
 }
 
 template class basic_inode_handle<detail::mutability::const_>;
