@@ -155,7 +155,7 @@ class inode_manager_ final : public inode_manager::impl {
   void dump(std::ostream& os) const override;
 
   sortable_inode_span sortable_span() const override {
-    return sortable_inode_span(inodes_);
+    return sortable_inode_span(storage_, inodes_);
   }
 
   sortable_inode_span

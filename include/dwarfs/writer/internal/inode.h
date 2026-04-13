@@ -37,7 +37,6 @@
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/nilsimsa.h>
-#include <dwarfs/writer/internal/sortable_span.h>
 
 namespace dwarfs {
 
@@ -96,8 +95,7 @@ class inode {
   mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
 };
 
-using inode_ptr = inode*;
-using sortable_inode_span = sortable_span<inode_ptr const, uint32_t>;
+using inode_ptr = inode*; // TODO: remove
 
 } // namespace internal
 } // namespace writer

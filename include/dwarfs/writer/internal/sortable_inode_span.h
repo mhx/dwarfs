@@ -30,13 +30,16 @@
 
 #include <boost/iterator/iterator_facade.hpp>
 
+#include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/inode.h>
+#include <dwarfs/writer/internal/inode_handle.h>
+
 namespace dwarfs::writer::internal {
 
-template <typename T, typename IndexValueType = size_t>
-class sortable_span {
+class sortable_inode_span {
  public:
-  using value_type = T;
-  using index_value_type = IndexValueType;
+  using value_type = inode_ptr const;
+  using index_value_type = uint32_t;
 
   class iterator
       : public boost::iterator_facade<iterator, value_type,
@@ -51,9 +54,9 @@ class sortable_span {
 
    private:
     friend class boost::iterator_core_access;
-    friend class sortable_span;
+    friend class sortable_inode_span;
 
-    iterator(sortable_span const* vv,
+    iterator(sortable_inode_span const* vv,
              std::vector<index_value_type>::iterator it)
         : vv_(vv)
         , it_(it) {}
@@ -72,14 +75,16 @@ class sortable_span {
       return other.it_ - it_;
     }
 
-    value_type& dereference() const { return vv_->values_[*it_]; }
+    value_type const& dereference() const { return vv_->values_[*it_]; }
 
-    sortable_span const* vv_{nullptr};
+    sortable_inode_span const* vv_{nullptr};
     std::vector<index_value_type>::iterator it_;
   };
 
-  explicit sortable_span(std::span<value_type> values)
-      : values_{values} {}
+  explicit sortable_inode_span(entry_storage& storage,
+                               std::span<value_type> values)
+      : storage_{&storage}
+      , values_{values} {}
 
   template <typename P>
   void select(P const& predicate) {
@@ -109,9 +114,24 @@ class sortable_span {
   std::vector<index_value_type>& index() { return index_; }
   std::vector<index_value_type> const& index() const { return index_; }
 
+  // [[deprecated]]
   std::span<value_type> raw() const { return values_; }
 
+  inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
+
+  inode_handle raw_handle(std::size_t i) const {
+    return inode_handle{*storage_, i};
+  }
+
+  std::size_t raw_size() const { return values_.size(); }
+
+  // TODO: we can later refactor this to return read-only segmented
+  //       packed vectors, or at least something span-like / index-based
+  //       that can be used to access vector elements without the need
+  //       to use handles and jump through multiple interface layers
+
  private:
+  entry_storage* storage_{nullptr};
   std::vector<index_value_type> index_;
   std::span<value_type> const values_;
 };
