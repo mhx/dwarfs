@@ -34,14 +34,13 @@
 namespace dwarfs::writer::internal {
 
 class inode;
+class sortable_inode_span;
 
 class inode_element_view
     : public basic_array_similarity_element_view<256, uint64_t> {
  public:
-  inode_element_view() = default;
-
-  inode_element_view(std::span<inode* const> inodes,
-                     std::span<uint32_t const> index, fragment_category cat);
+  inode_element_view(sortable_inode_span& sp, std::span<uint32_t const> index,
+                     fragment_category cat);
 
   bool exists(size_t i) const override;
   size_t size() const override;
@@ -54,7 +53,7 @@ class inode_element_view
   nilsimsa::hash_type const& get_bits(size_t i) const override;
 
  private:
-  std::span<inode* const> inodes_;
+  sortable_inode_span& sp_;
   std::vector<nilsimsa::hash_type const*> hash_cache_;
   std::optional<fragment_category> cat_;
 };

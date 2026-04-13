@@ -114,14 +114,9 @@ class sortable_inode_span {
   std::vector<index_value_type>& index() { return index_; }
   std::vector<index_value_type> const& index() const { return index_; }
 
-  // [[deprecated]]
-  std::span<value_type> raw() const { return values_; }
+  const_inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
 
-  inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
-
-  inode_handle raw_handle(std::size_t i) const {
-    return inode_handle{*storage_, i};
-  }
+  const_inode_handle raw_handle(std::size_t i) const { return {*storage_, i}; }
 
   std::size_t raw_size() const { return values_.size(); }
 

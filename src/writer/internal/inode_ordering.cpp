@@ -39,14 +39,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// TODO: remove
-bool inode_less_by_size(inode const* a, inode const* b) {
-  auto sa = a->size();
-  auto sb = b->size();
-  return sa > sb || (sa == sb && a->any().less_revpath(b->any()));
-}
-
-bool inode_less_by_size(inode_handle const& a, inode_handle const& b) {
+bool inode_less_by_size(const_inode_handle const& a,
+                        const_inode_handle const& b) {
   auto sa = a.size();
   auto sb = b.size();
   return sa > sb || (sa == sb && a.any().less_revpath(b.any()));
@@ -77,8 +71,8 @@ class inode_ordering_ final : public inode_ordering::impl {
  private:
   void
   by_nilsimsa_impl(worker_group& wg, similarity_ordering_options const& opts,
-                   std::span<inode_ptr const> inodes,
-                   std::vector<uint32_t>& index, fragment_category cat) const;
+                   sortable_inode_span& sp, std::vector<uint32_t>& index,
+                   fragment_category cat) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
@@ -195,22 +189,21 @@ template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa(
     worker_group& wg, similarity_ordering_options const& opts,
     sortable_inode_span& sp, fragment_category cat) const {
-  auto raw = sp.raw();
   auto& index = sp.index();
 
   if (opts_.max_similarity_scan_size) {
     auto mid = std::stable_partition(index.begin(), index.end(), [&](auto i) {
-      return !raw[i]->nilsimsa_similarity_hash(cat);
+      return !sp.raw_handle(i).nilsimsa_similarity_hash(cat);
     });
 
     if (mid != index.begin()) {
       std::sort(index.begin(), mid, [&](auto a, auto b) {
-        return inode_less_by_size(raw[a], raw[b]);
+        return inode_less_by_size(sp.raw_handle(a), sp.raw_handle(b));
       });
 
       if (mid != index.end()) {
         std::vector<uint32_t> small_index(mid, index.end());
-        by_nilsimsa_impl(wg, opts, raw, small_index, cat);
+        by_nilsimsa_impl(wg, opts, sp, small_index, cat);
         std::ranges::copy(small_index, mid);
       }
 
@@ -218,15 +211,15 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
     }
   }
 
-  by_nilsimsa_impl(wg, opts, raw, index, cat);
+  by_nilsimsa_impl(wg, opts, sp, index, cat);
 }
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
     worker_group& wg, similarity_ordering_options const& opts,
-    std::span<inode_ptr const> inodes, std::vector<uint32_t>& index,
+    sortable_inode_span& sp, std::vector<uint32_t>& index,
     fragment_category cat) const {
-  auto ev = inode_element_view(inodes, index, cat);
+  auto ev = inode_element_view(sp, index, cat);
   std::promise<std::vector<uint32_t>> promise;
   auto future = promise.get_future();
   auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
@@ -239,7 +232,6 @@ template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_explicit_order(
     sortable_inode_span& sp, fs::path const& root_path,
     fragment_order_options const& opts) const {
-  auto raw = sp.raw();
   auto& index = sp.index();
   auto const& order = opts.explicit_order;
 
@@ -249,11 +241,11 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
 
   std::vector<std::filesystem::path> paths;
   std::vector<std::optional<size_t>> path_order;
-  paths.resize(raw.size());
-  path_order.resize(raw.size());
+  paths.resize(sp.raw_size());
+  path_order.resize(sp.raw_size());
 
   for (auto i : index) {
-    paths[i] = raw[i]->any().fs_path().lexically_relative(root_path);
+    paths[i] = sp.raw_handle(i).any().fs_path().lexically_relative(root_path);
 
     if (auto it = order.find(paths[i]); it != order.end()) {
       path_order[i] = it->second;
@@ -263,11 +255,12 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
     }
   }
 
-  std::ranges::sort(index, [&](auto a, auto b) {
+  std::ranges::sort(index, [&](auto const a, auto const b) {
     auto const& ai = path_order[a];
     auto const& bi = path_order[b];
-    return ai.has_value() && bi.has_value() ? *ai < *bi
-                                            : raw[a]->num() < raw[b]->num();
+    return ai.has_value() && bi.has_value()
+               ? *ai < *bi
+               : sp.raw_handle(a).num() < sp.raw_handle(b).num();
   });
 
   for (auto i : index) {
