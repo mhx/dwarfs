@@ -28,7 +28,7 @@
 #include <unordered_map>
 
 #include <dwarfs/internal/worker_group_fwd.h>
-#include <dwarfs/writer/internal/inode.h>
+#include <dwarfs/writer/internal/sortable_inode_span.h>
 
 namespace dwarfs {
 
