@@ -44,6 +44,7 @@
 
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/entry_type.h>
+#include <dwarfs/writer/internal/inode_id.h>
 
 namespace dwarfs {
 
@@ -90,7 +91,7 @@ class entry {
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  unique_inode_id inode_id() const;
+  unique_inode_id get_unique_inode_id() const;
   uint64_t num_hard_links() const;
   virtual void set_inode_num(entry_storage& storage, uint32_t ino) = 0;
   virtual std::optional<uint32_t> const&
@@ -117,15 +118,14 @@ class file : public entry {
 
   type_t type() const override;
   std::string_view hash(entry_storage& storage) const;
-  void set_inode(inode* ino);
-  inode* get_inode() const;
+  void set_inode(inode_id ino);
+  inode_id get_inode() const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
   void scan(entry_storage& storage, entry_id self_id, file_view const& mm,
             progress& prog, std::optional<std::string> const& hash_alg);
   void create_data(entry_storage& storage);
   void hardlink(entry_storage& storage, file* other, progress& prog);
-  uint32_t unique_file_id() const;
 
   void set_inode_num(entry_storage& storage, uint32_t ino) override;
   std::optional<uint32_t> const&
@@ -151,7 +151,7 @@ class file : public entry {
 
   file_data& get_data(entry_storage& storage) const;
 
-  inode* inode_{};
+  inode_id inode_{};
   uint32_t order_index_{0};
   uint32_t data_index_{kInvalidDataIndex};
 };

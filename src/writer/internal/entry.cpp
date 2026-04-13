@@ -79,7 +79,7 @@ file_size_t entry::size() const { return stat_.size(); }
 
 file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
 
-unique_inode_id entry::inode_id() const {
+unique_inode_id entry::get_unique_inode_id() const {
   return unique_inode_id{stat_.dev(), stat_.ino()};
 }
 
@@ -97,12 +97,12 @@ std::string_view file::hash(entry_storage& storage) const {
   return {h.data(), h.size()};
 }
 
-void file::set_inode(inode* ino) {
+void file::set_inode(inode_id ino) {
   DWARFS_CHECK(!inode_, "inode already set for file");
   inode_ = ino;
 }
 
-inode* file::get_inode() const { return inode_; }
+inode_id file::get_inode() const { return inode_; }
 
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
                 os_access const& /*os*/, progress& /*prog*/) {
@@ -150,8 +150,6 @@ void file::scan(entry_storage& storage, entry_id self_id, file_view const& mm,
     DWARFS_CHECK(cs.finalize(data.hash.data()), "checksum computation failed");
   }
 }
-
-uint32_t file::unique_file_id() const { return inode_->num(); }
 
 void file::set_inode_num(entry_storage& storage, uint32_t inode_num) {
   auto& data = get_data(storage);
