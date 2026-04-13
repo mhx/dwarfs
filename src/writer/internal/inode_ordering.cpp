@@ -39,10 +39,17 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// TODO: remove
 bool inode_less_by_size(inode const* a, inode const* b) {
   auto sa = a->size();
   auto sb = b->size();
   return sa > sb || (sa == sb && a->any().less_revpath(b->any()));
+}
+
+bool inode_less_by_size(inode_handle const& a, inode_handle const& b) {
+  auto sa = a.size();
+  auto sb = b.size();
+  return sa > sb || (sa == sb && a.any().less_revpath(b.any()));
 }
 
 } // namespace
@@ -81,16 +88,20 @@ class inode_ordering_ final : public inode_ordering::impl {
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_inode_number(
     sortable_inode_span& sp) const {
-  std::ranges::sort(sp.index(), [r = sp.raw()](auto a, auto b) {
-    return r[a]->num() < r[b]->num();
+  std::ranges::sort(sp.index(), [&sp](auto const a, auto const b) {
+    auto const& ha = sp.raw_handle(a);
+    auto const& hb = sp.raw_handle(b);
+    return ha.num() < hb.num();
   });
 }
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_input_order(
     sortable_inode_span& sp) const {
-  std::ranges::sort(sp.index(), [r = sp.raw()](auto a, auto b) {
-    return r[a]->any().order_index() < r[b]->any().order_index();
+  std::ranges::sort(sp.index(), [&sp](auto const a, auto const b) {
+    auto const& ha = sp.raw_handle(a);
+    auto const& hb = sp.raw_handle(b);
+    return ha.any().order_index() < hb.any().order_index();
   });
 }
 
@@ -98,26 +109,31 @@ template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
   std::vector<std::string> paths;
 
-  auto raw = sp.raw();
   auto& index = sp.index();
 
-  paths.resize(raw.size());
+  // TODO: this will potentially allocate space for *significantly* more
+  //       objects that are actually referenced by the index
+  paths.resize(sp.raw_size());
 
   for (auto i : index) {
-    paths[i] = raw[i]->any().path_as_string();
+    assert(i < paths.size());
+    paths[i] = sp.raw_handle(i).any().unix_dpath();
   }
 
-  std::ranges::sort(index, [&](auto a, auto b) { return paths[a] < paths[b]; });
+  std::ranges::sort(index, [&paths](auto const a, auto const b) {
+    return paths[a] < paths[b];
+  });
 }
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_reverse_path(
     sortable_inode_span& sp) const {
-  auto raw = sp.raw();
   auto& index = sp.index();
 
-  std::ranges::sort(index, [&](auto a, auto b) {
-    return raw[a]->any().less_revpath(raw[b]->any());
+  std::ranges::sort(index, [&sp](auto const a, auto const b) {
+    auto const& ha = sp.raw_handle(a);
+    auto const& hb = sp.raw_handle(b);
+    return ha.any().less_revpath(hb.any());
   });
 }
 
@@ -126,35 +142,37 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
                                                   fragment_category cat) const {
   std::vector<std::optional<uint32_t>> hash_cache;
 
-  auto raw = sp.raw();
   auto& index = sp.index();
   bool any_missing = false;
 
-  hash_cache.resize(raw.size());
+  hash_cache.resize(sp.raw_size());
 
   for (auto i : index) {
     auto& cache = hash_cache[i];
-    cache = raw[i]->similarity_hash(cat);
+    cache = sp.raw_handle(i).similarity_hash(cat);
     if (!cache.has_value()) {
       any_missing = true;
     }
   }
 
-  auto size_pred = [&](auto a, auto b) {
-    return inode_less_by_size(raw[a], raw[b]);
+  auto size_pred = [&sp](auto const a, auto const b) {
+    auto const& ha = sp.raw_handle(a);
+    auto const& hb = sp.raw_handle(b);
+    return inode_less_by_size(ha, hb);
   };
 
   auto start = index.begin();
 
   if (any_missing) {
-    start = std::stable_partition(index.begin(), index.end(), [&](auto i) {
-      return !hash_cache[i].has_value();
-    });
+    start =
+        std::stable_partition(index.begin(), index.end(), [&](auto const i) {
+          return !hash_cache[i].has_value();
+        });
 
     std::sort(index.begin(), start, size_pred);
   }
 
-  std::sort(start, index.end(), [&](auto a, auto b) {
+  std::sort(start, index.end(), [&](auto const a, auto const b) {
     assert(hash_cache[a].has_value());
     assert(hash_cache[b].has_value());
 
