@@ -40,6 +40,7 @@
 #include <dwarfs/internal/move_only_function.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/speedometer.h>
 
 namespace dwarfs::writer {
@@ -89,7 +90,7 @@ class progress {
   std::vector<std::shared_ptr<context>> get_active_contexts() const;
 
   using current_type =
-      std::variant<std::monostate, const_file_handle, inode const*>;
+      std::variant<std::monostate, const_file_handle, const_inode_handle>;
 
   // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   dwarfs::internal::synchronized<current_type> current{};
