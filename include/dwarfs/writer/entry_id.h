@@ -30,6 +30,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <dwarfs/container/packed_value_traits.h>
 #include <dwarfs/writer/entry_type.h>
 
 namespace dwarfs::writer {
@@ -91,3 +92,38 @@ struct std::hash<dwarfs::writer::entry_id> {
     return id.hash();
   }
 };
+
+namespace dwarfs::container {
+
+template <>
+struct packed_value_traits<dwarfs::writer::entry_id> {
+  using encoded_type = uint64_t;
+  static constexpr uint64_t kNumTypes{5};
+
+  static encoded_type encode(dwarfs::writer::entry_id const& id) {
+    if (!id.valid()) {
+      return 0;
+    }
+
+    auto const index = id.index();
+    auto const type = std::to_underlying(id.type());
+
+    assert(type < kNumTypes);
+
+    return index * kNumTypes + type + 1;
+  }
+
+  static dwarfs::writer::entry_id decode(encoded_type encoded) {
+    if (encoded == 0) {
+      return {};
+    }
+
+    auto const type =
+        static_cast<dwarfs::writer::entry_type>((encoded - 1) % kNumTypes);
+    auto const index = (encoded - 1) / kNumTypes;
+
+    return {type, index};
+  }
+};
+
+} // namespace dwarfs::container
