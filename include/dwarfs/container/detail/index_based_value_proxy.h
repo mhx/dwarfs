@@ -41,6 +41,9 @@ class index_based_value_proxy {
       : vec_{vec}
       , i_{i} {}
 
+  index_based_value_proxy(index_based_value_proxy const&) = default;
+  index_based_value_proxy(index_based_value_proxy&&) = default;
+
   operator value_type() const { return vec_.get(i_); }
 
   index_based_value_proxy& operator=(value_type value) {
