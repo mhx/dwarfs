@@ -81,6 +81,7 @@ class inode_impl final : public inode {
       std::optional<inode_hole_mapper>& hole_mapper) const override;
 
   inode_fragments& fragments() override;
+  inode_fragments const& fragments() const override;
 
   void dump(std::ostream& os, inode_options const& options) const override;
 

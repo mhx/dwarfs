@@ -86,6 +86,7 @@ class basic_inode_handle final {
   file_handle_vector all() const;
   bool append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                         std::optional<inode_hole_mapper>& hole_mapper) const;
+  inode_fragments const& fragments() const;
   inode_fragments& fragments()
     requires is_mutable;
   void dump(std::ostream& os, inode_options const& options) const;
