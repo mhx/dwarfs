@@ -32,6 +32,7 @@
 #include <limits>
 #include <numeric>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -79,13 +80,9 @@ class inode_manager_ final : public inode_manager::impl {
       , inodes_need_scanning_{inodes_need_scanning(opts_)}
       , list_mode_{list_mode} {}
 
-  inode* create_inode() override {
-    inode* ino = storage_.create_inode();
-    inodes_.push_back(ino);
-    return ino;
-  }
+  inode* create_inode() override { return storage_.create_inode(); }
 
-  size_t count() const override { return inodes_.size(); }
+  size_t count() const override { return storage_.inode_count(); }
 
   void
   for_each_inode_in_order(inode_manager::inode_cb const& fn) const override {
@@ -103,8 +100,8 @@ class inode_manager_ final : public inode_manager::impl {
     std::unordered_map<fragment_category::value_type, std::pair<size_t, size_t>>
         tmp;
 
-    for (auto const& i : inodes_) {
-      if (auto const& fragments = i->fragments(); !fragments.empty()) {
+    for (auto const& ino : all_inodes()) {
+      if (auto const& fragments = ino.fragments(); !fragments.empty()) {
         for (auto const& frag : fragments) {
           auto s = frag.size();
           auto& mv = tmp[frag.category().value()];
@@ -164,9 +161,35 @@ class inode_manager_ final : public inode_manager::impl {
   size_t get_max_data_chunk_size() const override;
 
  private:
+  auto all_inodes() {
+    using index_t = std::uint64_t;
+    return std::views::iota(index_t{0},
+                            static_cast<index_t>(storage_.inode_count())) |
+           std::views::transform([this](index_t i) -> decltype(auto) {
+             return inode_handle{storage_, i};
+           });
+  }
+
+  auto all_inodes() const {
+    using index_t = std::uint64_t;
+    return std::views::iota(index_t{0},
+                            static_cast<index_t>(storage_.inode_count())) |
+           std::views::transform([this](index_t i) -> decltype(auto) {
+             return const_inode_handle{storage_, i};
+           });
+  }
+
   void update_prog(inode* ino, const_file_handle p) const {
     if (p.size() > 0 && !p.is_invalid()) {
       prog_.fragments_found += ino->fragments().size();
+    }
+    ++prog_.inodes_scanned;
+    ++prog_.files_scanned;
+  }
+
+  void update_prog(const_inode_handle ino, const_file_handle p) const {
+    if (p.size() > 0 && !p.is_invalid()) {
+      prog_.fragments_found += ino.fragments().size();
     }
     ++prog_.inodes_scanned;
     ++prog_.files_scanned;
@@ -184,7 +207,6 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::vector<inode*> inodes_;
   entry_storage& storage_;
   progress& prog_;
   fs::path const root_path_;
@@ -254,22 +276,22 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
   LOG_VERBOSE << "trying to scan " << num_invalid_inodes_.load()
               << " invalid inodes...";
 
-  for (auto const& ino : inodes_) {
-    if (auto scan_err = ino->get_scan_error()) {
-      assert(ino->fragments().empty());
+  for (auto ino : all_inodes()) {
+    if (auto scan_err = ino.get_scan_error()) {
+      assert(ino.fragments().empty());
 
       std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
-      auto const& fv = ino->all();
+      auto const& fv = ino.all();
 
       if (fv.size() > 1) {
-        auto [mm, p, err] = ino->mmap_any(os, {});
+        auto [mm, p, err] = ino.mmap_any(os, {});
 
         if (mm) {
           LOG_DEBUG << "successfully opened: " << p.path_as_string();
 
           // TODO: p = p is a workaround for older Clang versions
-          wg.add_job([this, p = p, ino, mm = std::move(mm)] {
-            ino->scan(mm, opts_, prog_);
+          wg.add_job([this, p = p, ino, mm = std::move(mm)] mutable {
+            ino.scan(mm, opts_, prog_);
             update_prog(ino, p);
           });
 
@@ -279,10 +301,10 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
         errors = std::move(err);
       }
 
-      assert(ino->any().is_invalid());
+      assert(ino.any().is_invalid());
 
-      ino->scan({}, opts_, prog_);
-      update_prog(ino, ino->any());
+      ino.scan({}, opts_, prog_);
+      update_prog(ino, ino.any());
 
       errors.emplace_back(scan_err.value());
 
@@ -378,8 +400,8 @@ template <typename LoggerPolicy>
 size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
   file_size_t max_chunk_size{0};
 
-  for (auto const& ino : inodes_) {
-    for (auto const& frag : ino->fragments().span()) {
+  for (auto const& ino : all_inodes()) {
+    for (auto const& frag : ino.fragments().span()) {
       for (auto const& chk : frag.chunks()) {
         if (chk.is_data()) {
           max_chunk_size = std::max(max_chunk_size, chk.size());

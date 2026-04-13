@@ -205,6 +205,7 @@ bool inode_impl::append_chunks_to(
 }
 
 inode_fragments& inode_impl::fragments() { return fragments_; }
+inode_fragments const& inode_impl::fragments() const { return fragments_; }
 
 void inode_impl::dump(std::ostream& os, inode_options const& options) const {
   auto dump_category = [&os, &options](fragment_category const& cat) {

@@ -112,6 +112,11 @@ bool basic_inode_handle<Mut>::append_chunks_to(
 }
 
 template <detail::mutability Mut>
+inode_fragments const& basic_inode_handle<Mut>::fragments() const {
+  return self()->fragments();
+}
+
+template <detail::mutability Mut>
 inode_fragments& basic_inode_handle<Mut>::fragments()
   requires is_mutable
 {
