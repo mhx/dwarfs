@@ -36,8 +36,6 @@
 #include <string_view>
 #include <vector>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <dwarfs/compiler.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
@@ -166,12 +164,8 @@ class dir : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void add(entry_handle e);
-  void sort(entry_storage& storage);
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-  bool empty() const { return entries_.empty(); }
-  void remove_empty_dirs(entry_storage& storage, progress& prog);
 
   void set_inode_num(entry_storage&, uint32_t ino) override {
     inode_num_ = ino;
@@ -180,20 +174,8 @@ class dir : public entry {
     return inode_num_;
   }
 
-  entry_id find(entry_storage& storage, std::filesystem::path const& path);
-
-  void for_each_child(std::function<void(entry_id)> const& f) const;
-
  private:
-  static constexpr size_t kLookupTableSizeThreshold = 16;
-
-  using lookup_table = phmap::flat_hash_map<std::string_view, entry_id>;
-
-  void populate_lookup_table(entry_storage& storage);
-
-  std::vector<entry_id> entries_;
   std::optional<uint32_t> inode_num_;
-  std::unique_ptr<lookup_table> lookup_;
 };
 
 class link : public entry {
