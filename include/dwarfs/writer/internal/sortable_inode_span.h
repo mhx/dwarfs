@@ -82,31 +82,26 @@ class sortable_inode_span {
     std::vector<index_value_type>::iterator it_;
   };
 
-  explicit sortable_inode_span(entry_storage& storage,
-                               std::span<value_type> values)
+  explicit sortable_inode_span(entry_storage& storage)
       : storage_{&storage}
-      , values_{values} {}
+      , raw_size_{storage.inode_count()} {}
 
   template <typename P>
   void select(P const& predicate) {
-    index_.reserve(values_.size());
-    for (size_t i = 0; i < values_.size(); ++i) {
-      if (predicate(values_[i])) {
+    for (size_t i = 0; i < raw_size_; ++i) {
+      if (predicate(raw_handle(i))) {
         index_.push_back(i);
       }
     }
-    index_.shrink_to_fit();
   }
 
   void all() {
-    index_.resize(values_.size());
+    index_.resize(raw_size_);
     std::iota(index_.begin(), index_.end(), 0);
   }
 
   bool empty() const { return index_.empty(); }
   size_t size() const { return index_.size(); }
-
-  value_type const& operator[](size_t i) const { return values_[index_[i]]; }
 
   iterator begin() { return iterator(this, index_.begin()); }
 
@@ -123,7 +118,7 @@ class sortable_inode_span {
     return {*storage_, i};
   }
 
-  std::size_t raw_size() const { return values_.size(); }
+  std::size_t raw_size() const { return raw_size_; }
 
   // TODO: we can later refactor this to return read-only segmented
   //       packed vectors, or at least something span-like / index-based
@@ -133,7 +128,7 @@ class sortable_inode_span {
  private:
   entry_storage* storage_{nullptr};
   std::vector<index_value_type> index_;
-  std::span<value_type> const values_;
+  std::size_t const raw_size_{0};
 };
 
 } // namespace dwarfs::writer::internal

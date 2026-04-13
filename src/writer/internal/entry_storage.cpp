@@ -457,6 +457,8 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
+  std::size_t inode_count() const override { return inodes_.size(); }
+
   inode* get_inode(std::uint64_t const index) override {
     return &inodes_.at(index);
   }
@@ -727,6 +729,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   entry* get_entry(entry_id const id) override {
     return impl_.lock()->get_entry(id);
+  }
+
+  std::size_t inode_count() const override {
+    return impl_.lock()->inode_count();
   }
 
   inode* get_inode(std::uint64_t const id) override {

@@ -68,6 +68,10 @@ class entry_storage {
   // TODO: this must go
   [[nodiscard]] entry* get_entry(entry_id id) { return impl_->get_entry(id); }
 
+  [[nodiscard]] std::size_t inode_count() const noexcept {
+    return impl_->inode_count();
+  }
+
   // TODO: this must go
   [[nodiscard]] inode* get_inode(std::uint64_t index) {
     return impl_->get_inode(index);
@@ -138,6 +142,7 @@ class entry_storage {
     virtual size_t create_file_data() = 0;
     virtual file_data& get_file_data(size_t id) = 0;
     virtual entry* get_entry(entry_id id) = 0;
+    virtual std::size_t inode_count() const = 0;
     virtual inode* get_inode(std::uint64_t index) = 0;
 
     virtual entry_id get_parent(entry_id id) const = 0;
