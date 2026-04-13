@@ -40,6 +40,9 @@ struct file_data;
 class progress;
 class provisional_entry;
 
+template <typename LoggerPolicy>
+class inode_manager_;
+
 class entry;
 class file;
 class dir;
@@ -68,6 +71,11 @@ class entry_storage {
   // TODO: this must go
   [[nodiscard]] internal::entry* get_entry(entry_id id) {
     return impl_->get_entry(id);
+  }
+
+  // TODO: this must go
+  [[nodiscard]] internal::inode* get_inode(std::uint64_t index) {
+    return impl_->get_inode(index);
   }
 
   [[nodiscard]] entry_id get_parent(entry_id id) const {
@@ -130,10 +138,13 @@ class entry_storage {
                                  file_stat const& st, entry_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
                                 file_stat const& st, entry_id parent) = 0;
+    virtual internal::inode* make_inode() = 0;
 
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
     virtual internal::entry* get_entry(entry_id id) = 0;
+    virtual internal::inode* get_inode(std::uint64_t index) = 0;
+
     virtual entry_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
@@ -153,6 +164,8 @@ class entry_storage {
 
  private:
   friend class internal::provisional_entry;
+  template <typename LoggerPolicy>
+  friend class internal::inode_manager_;
 
   dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
@@ -171,6 +184,9 @@ class entry_storage {
 
   other_handle create_other(std::filesystem::path const& path,
                             entry_handle parent, file_stat const& st);
+
+  // TODO: inode handle
+  internal::inode* create_inode();
 
   std::unique_ptr<impl> impl_;
 };
