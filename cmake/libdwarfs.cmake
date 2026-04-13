@@ -151,6 +151,7 @@ add_library(
   src/writer/fragment_category.cpp
   src/writer/fragment_order_parser.cpp
   src/writer/inode_fragments.cpp
+  src/writer/inode_handle.cpp
   src/writer/metadata_options.cpp
   src/writer/rule_based_entry_filter.cpp
   src/writer/scanner.cpp
@@ -161,6 +162,7 @@ add_library(
 
   src/writer/internal/block_manager.cpp
   src/writer/internal/chmod_transformer.cpp
+  src/writer/internal/detail/inode_impl.cpp
   src/writer/internal/entry.cpp
   src/writer/internal/file_scanner.cpp
   src/writer/internal/fragment_chunkable.cpp

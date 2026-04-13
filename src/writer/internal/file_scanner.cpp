@@ -86,13 +86,12 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   template <bool UniqueOnly = false, typename KeyType>
-  void finalize_files(fast_map_type<KeyType, inode::files_vector>& fmap,
+  void finalize_files(fast_map_type<KeyType, file_handle_vector>& fmap,
                       uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool Unique, typename KeyType>
-  void
-  finalize_inodes(std::vector<std::pair<KeyType, inode::files_vector>>& ent,
-                  uint32_t& inode_num, uint32_t& obj_num);
+  void finalize_inodes(std::vector<std::pair<KeyType, file_handle_vector>>& ent,
+                       uint32_t& inode_num, uint32_t& obj_num);
 
   template <typename T>
   std::string format_key(T const& key) const {
@@ -121,7 +120,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   void dump_value(std::ostream& os, const_file_handle p) const;
-  void dump_value(std::ostream& os, inode::files_vector const& vec) const;
+  void dump_value(std::ostream& os, file_handle_vector const& vec) const;
 
   void dump_inodes(std::ostream& os) const;
   void dump_inode_create_info(std::ostream& os) const;
@@ -136,20 +135,19 @@ class file_scanner_ final : public file_scanner::impl {
   progress& prog_;
   file_scanner::options const opts_;
   uint32_t num_unique_{0};
-  fast_map_type<unique_inode_id, inode::files_vector> hardlinks_;
+  fast_map_type<unique_inode_id, file_handle_vector> hardlinks_;
   std::mutex mutable mx_;
   // The pair stores the file size and optionally a hash of the first
   // 4 KiB of the file. If there's a collision, the worst that can
   // happen is that we unnecessary hash a file that is not a duplicate.
-  fast_map_type<std::pair<uint64_t, uint64_t>, inode::files_vector>
-      unique_size_;
+  fast_map_type<std::pair<uint64_t, uint64_t>, file_handle_vector> unique_size_;
   // We need this lookup table to later find the unique_size_ entry
   // given just a file pointer.
   fast_map_type<const_file_handle, uint64_t> file_start_hash_;
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
-  fast_map_type<unique_inode_id, inode::files_vector> by_inode_id_;
-  fast_map_type<std::string_view, inode::files_vector> by_hash_;
+  fast_map_type<unique_inode_id, file_handle_vector> by_inode_id_;
+  fast_map_type<std::string_view, file_handle_vector> by_hash_;
 
   struct inode_create_info {
     inode const* i;
@@ -249,7 +247,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   assert(first_file_hashed_.empty());
 
   if (opts_.hash_algo) {
-    finalize_hardlinks([this](const_file_handle p) -> inode::files_vector& {
+    finalize_hardlinks([this](const_file_handle p) -> file_handle_vector& {
       if (auto it = by_hash_.find(p.hash()); it != by_hash_.end()) {
         return it->second;
       }
@@ -267,7 +265,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(by_inode_id_, inode_num, obj_num);
     finalize_files(by_hash_, inode_num, obj_num);
   } else {
-    finalize_hardlinks([this](const_file_handle p) -> inode::files_vector& {
+    finalize_hardlinks([this](const_file_handle p) -> file_handle_vector& {
       return by_inode_id_.at(p.inode_id());
     });
     finalize_files(by_inode_id_, inode_num, obj_num);
@@ -306,7 +304,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
 
   auto const unique_key = std::make_pair(size, start_hash);
 
-  auto [it, is_new] = unique_size_.emplace(unique_key, inode::files_vector());
+  auto [it, is_new] = unique_size_.emplace(unique_key, file_handle_vector());
 
   if (is_new) {
     // A file (size, start_hash) that has never been seen before. We can safely
@@ -488,9 +486,9 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
 template <typename LoggerPolicy>
 template <bool UniqueOnly, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_files(
-    fast_map_type<KeyType, inode::files_vector>& fmap, uint32_t& inode_num,
+    fast_map_type<KeyType, file_handle_vector>& fmap, uint32_t& inode_num,
     uint32_t& obj_num) {
-  std::vector<std::pair<KeyType, inode::files_vector>> ent;
+  std::vector<std::pair<KeyType, file_handle_vector>> ent;
 
   auto tv = LOG_TIMED_VERBOSE;
 
@@ -522,7 +520,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
 template <typename LoggerPolicy>
 template <bool Unique, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_inodes(
-    std::vector<std::pair<KeyType, inode::files_vector>>& ent,
+    std::vector<std::pair<KeyType, file_handle_vector>>& ent,
     uint32_t& inode_num, uint32_t& obj_num) {
   int const obj_num_before = obj_num;
 
@@ -570,7 +568,8 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
     auto inode = fp.get_inode();
     assert(inode);
     inode->set_num(obj_num);
-    inode->set_files(std::move(files));
+    inode->set_files(files);
+    files.clear();
 
     ++obj_num;
   }
@@ -602,7 +601,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::dump_value(
-    std::ostream& os, inode::files_vector const& vec) const {
+    std::ostream& os, file_handle_vector const& vec) const {
   os << "[\n";
   bool first = true;
   for (auto p : vec) {

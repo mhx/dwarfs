@@ -40,6 +40,7 @@
 #include <dwarfs/writer/entry_storage.h>
 
 #include <dwarfs/internal/synchronized.h>
+#include <dwarfs/writer/internal/detail/inode_impl.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/progress.h>
 
@@ -284,6 +285,7 @@ class entry_storage_ final : public entry_storage::impl {
       , devices_{std::move(other.devices_)}
       , others_{std::move(other.others_)}
       , file_data_{std::move(other.file_data_)}
+      , inodes_{std::move(other.inodes_)}
       , shared_{std::move(other.shared_)}
       , packed_files_{std::move(other.packed_files_)}
       , packed_dirs_{std::move(other.packed_dirs_)}
@@ -349,6 +351,16 @@ class entry_storage_ final : public entry_storage::impl {
     return make_obj_(others_, entry_type::E_OTHER, st);
   }
 
+  internal::inode_ptr make_inode() override {
+    if constexpr (is_mutable) {
+      auto id [[maybe_unused]] = inodes_.size(); // TODO
+      inodes_.emplace_back();
+      return &inodes_.back(); // TODO
+    } else {
+      frozen_panic();
+    }
+  }
+
   bool empty() const noexcept override { return dirs_.empty(); }
 
   void dump(std::ostream& os) const override;
@@ -383,6 +395,10 @@ class entry_storage_ final : public entry_storage::impl {
     default:
       throw std::runtime_error("invalid entry type");
     }
+  }
+
+  internal::inode* get_inode(std::uint64_t const index) override {
+    return &inodes_.at(index);
   }
 
   entry_id get_parent(entry_id const id) const override {
@@ -587,6 +603,7 @@ class entry_storage_ final : public entry_storage::impl {
   cao_vector<internal::device> devices_;
   cao_vector<internal::other> others_;
   cao_vector<internal::file_data> file_data_;
+  cao_vector<internal::detail::inode_impl> inodes_;
 
   shared_entry_data shared_;
   packed_entry_data packed_files_;
@@ -633,6 +650,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->make_other(path, st, parent);
   }
 
+  internal::inode_ptr make_inode() override {
+    return impl_.lock()->make_inode();
+  }
+
   size_t create_file_data() override {
     return impl_.lock()->create_file_data();
   }
@@ -643,6 +664,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   internal::entry* get_entry(entry_id const id) override {
     return impl_.lock()->get_entry(id);
+  }
+
+  internal::inode* get_inode(std::uint64_t const id) override {
+    return impl_.lock()->get_inode(id);
   }
 
   entry_id get_parent(entry_id const id) const override {
@@ -741,6 +766,10 @@ entry_storage::create_other(fs::path const& path, entry_handle parent,
                             file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_other(path, st, parent.id())};
+}
+
+internal::inode_ptr entry_storage::create_inode() {
+  return impl_->make_inode();
 }
 
 } // namespace dwarfs::writer
