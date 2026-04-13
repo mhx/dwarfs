@@ -66,6 +66,8 @@ class basic_inode_handle final {
     return seed;
   }
 
+  std::uint64_t id() const { return self_id_; }
+
   void set_files(file_handle_vector const& fv)
     requires is_mutable;
   void populate(file_size_t size)

@@ -226,9 +226,9 @@ std::string status_string(progress const& p, size_t width) {
              label = "scanning: ";
              path = fh.path_as_string();
            },
-           [&label, &path](inode const* i) {
+           [&label, &path](const_inode_handle const& ih) {
              label = "writing: ";
-             path = i->any().path_as_string();
+             path = ih.any().path_as_string();
            },
            [](std::monostate) {},
        };
@@ -839,22 +839,22 @@ void scanner_<LoggerPolicy>::scan(
                   meta);
             });
 
-        for (auto const& ino : span) {
+        for (auto ino : span) {
           prog.current.store(ino);
 
           // TODO: factor this code out
-          auto f = ino->any();
+          auto f = ino.any();
 
           if (auto size = f.size(); size > 0 && !f.is_invalid()) {
             auto [mm, _, errors] =
-                ino->mmap_any(os_, {.hollow = options_.hollow_filesystem});
+                ino.mmap_any(os_, {.hollow = options_.hollow_filesystem});
 
             if (mm) {
               file_off_t offset{0};
 
-              for (auto& frag : ino->fragments()) {
+              for (auto& frag : ino.fragments()) {
                 if (frag.category() == category) {
-                  fragment_chunkable fc(*ino, frag, offset, mm, catmgr);
+                  fragment_chunkable fc(ino, frag, offset, mm, catmgr);
                   seg.add_chunkable(fc);
                   prog.fragments_written++;
                 }
@@ -868,7 +868,7 @@ void scanner_<LoggerPolicy>::scan(
                           << ", creating empty inode";
                 ++prog.errors;
               }
-              for (auto& frag : ino->fragments()) {
+              for (auto& frag : ino.fragments()) {
                 if (frag.category() == category) {
                   prog.fragments_found--;
                 }

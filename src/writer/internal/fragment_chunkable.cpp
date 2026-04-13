@@ -31,7 +31,7 @@
 
 namespace dwarfs::writer::internal {
 
-fragment_chunkable::fragment_chunkable(inode const& ino,
+fragment_chunkable::fragment_chunkable(const_inode_handle ino,
                                        single_inode_fragment& frag,
                                        file_off_t offset, file_view const& mm,
                                        categorizer_manager const* catmgr)

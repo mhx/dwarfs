@@ -42,11 +42,12 @@ class sortable_inode_span {
   using index_value_type = uint32_t;
 
   class iterator
-      : public boost::iterator_facade<iterator, value_type,
-                                      boost::random_access_traversal_tag> {
+      : public boost::iterator_facade<iterator, inode_handle,
+                                      boost::random_access_traversal_tag,
+                                      inode_handle> {
    public:
     using difference_type = boost::iterator_facade<
-        iterator, value_type,
+        iterator, inode_handle,
         boost::random_access_traversal_tag>::difference_type;
 
     iterator() = default;
@@ -75,7 +76,7 @@ class sortable_inode_span {
       return other.it_ - it_;
     }
 
-    value_type const& dereference() const { return vv_->values_[*it_]; }
+    inode_handle dereference() const { return vv_->mutable_raw_handle(*it_); }
 
     sortable_inode_span const* vv_{nullptr};
     std::vector<index_value_type>::iterator it_;
@@ -117,6 +118,10 @@ class sortable_inode_span {
   const_inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
 
   const_inode_handle raw_handle(std::size_t i) const { return {*storage_, i}; }
+
+  inode_handle mutable_raw_handle(std::size_t i) const {
+    return {*storage_, i};
+  }
 
   std::size_t raw_size() const { return values_.size(); }
 

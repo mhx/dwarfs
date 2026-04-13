@@ -36,7 +36,8 @@
 
 #include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/entry_handle.h>
-#include <dwarfs/writer/internal/inode.h>
+#include <dwarfs/writer/internal/inode.h> // TODO: remove
+#include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/sortable_inode_span.h>
 
 namespace dwarfs {
@@ -55,7 +56,7 @@ class progress;
 
 class inode_manager {
  public:
-  using inode_cb = std::function<void(inode_ptr)>;
+  using inode_cb = std::function<void(const_inode_handle)>;
 
   struct fragment_info {
     fragment_info(fragment_category::value_type cat, size_t count, size_t size)
