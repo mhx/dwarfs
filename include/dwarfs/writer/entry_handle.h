@@ -35,6 +35,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/detail/mutability.h>
 #include <dwarfs/writer/entry_id.h>
 #include <dwarfs/writer/entry_type.h>
 #include <dwarfs/writer/unique_inode_id.h>
@@ -71,12 +72,6 @@ class time_resolution_converter;
 } // namespace internal
 
 class entry_storage;
-
-namespace detail {
-
-enum class mutability { mutable_, const_ };
-
-} // namespace detail
 
 template <detail::mutability Mut>
 class basic_entry_handle;
@@ -125,10 +120,6 @@ class entry_handle_visitor {
 };
 
 namespace detail {
-
-template <typename T, mutability Mut>
-using mutability_t =
-    std::conditional_t<Mut == mutability::const_, std::add_const_t<T>, T>;
 
 template <mutability Mut>
 class entry_handle_base {
