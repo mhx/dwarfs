@@ -153,8 +153,8 @@ class file_scanner_ final : public file_scanner::impl {
   fast_map_type<std::string_view, file_id_vector> by_hash_;
 
   struct inode_create_info {
-    inode const* i;
-    const_file_handle f;
+    inode_id i;
+    file_id f; // TODO: file_id?
     int line;
   };
   std::vector<inode_create_info> debug_inode_create_;
@@ -218,7 +218,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   // This method is supposed to be called from a single thread only.
 
   if (p.num_hard_links() > 1) {
-    auto& vec = hardlinks_[p.inode_id()];
+    auto& vec = hardlinks_[p.get_unique_inode_id()];
     vec.push_back(p.id());
 
     if (vec.size() > 1) {
@@ -239,7 +239,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     prog_.current.store(p);
     p.scan({}, prog_, opts_.hash_algo); // TODO
 
-    by_inode_id_[p.inode_id()].push_back(p.id());
+    by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
 
     add_inode(p, __LINE__);
   }
@@ -271,7 +271,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(by_hash_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      return by_inode_id_.at(p.inode_id());
+      return by_inode_id_.at(p.get_unique_inode_id());
     });
     finalize_files(by_inode_id_, inode_num, obj_num);
   }
@@ -359,7 +359,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
               assert(p.get_inode());
 
               if (p.is_invalid()) [[unlikely]] {
-                by_inode_id_[p.inode_id()].push_back(p.id());
+                by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
               } else {
                 auto& ref = by_hash_[p.hash()];
                 DWARFS_CHECK(ref.empty(),
@@ -394,7 +394,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
 
         if (p.is_invalid()) [[unlikely]] {
           add_inode(p, __LINE__);
-          by_inode_id_[p.inode_id()].push_back(p.id());
+          by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
         } else {
           auto& ref = by_hash_[p.hash()];
 
@@ -457,12 +457,12 @@ template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::add_inode(file_handle p, int lineno) {
   assert(!p.get_inode());
 
-  auto inode = im_.create_inode();
+  auto inode = storage_.create_inode();
 
-  p.set_inode(inode);
+  p.set_inode(inode.id());
 
   if (opts_.debug_inode_create) {
-    debug_inode_create_.push_back({inode, p, lineno});
+    debug_inode_create_.push_back({inode.id(), p.id(), lineno});
   }
 
   im_.scan_background(wg_, os_, inode, p);
@@ -573,10 +573,10 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
     }
 
     auto fh = storage_.handle(files.front());
-    auto inode = fh.get_inode();
+    auto inode = storage_.handle(fh.get_inode());
     assert(inode);
-    inode->set_num(obj_num);
-    inode->set_files(files);
+    inode.set_num(obj_num);
+    inode.set_files(files);
     files.clear();
 
     ++obj_num;
@@ -602,8 +602,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
      << R"(        "invalid": )" << (p.is_invalid() ? "true" : "false") << ",\n"
      << R"(        "inode_num": )"
      << (ino_num ? fmt::format("{}", *ino_num) : "null") << ",\n"
-     << R"(        "inode": ")"
-     << fmt::format("{}", reinterpret_cast<void const*>(ino)) << "\"\n"
+     << R"(        "inode": )" << ino.index() << "\n"
      << "      }";
 }
 
@@ -635,7 +634,7 @@ void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
     }
     first = false;
     os << "    {\n"
-       << R"(      "id": )" << ino.id() << ",\n"
+       << R"(      "index": )" << ino.id().index() << ",\n"
        << R"(      "files": )";
     dump_value(os, ino.all_file_ids());
     os << "\n    }";
@@ -654,10 +653,9 @@ void file_scanner_<LoggerPolicy>::dump_inode_create_info(
     }
     first = false;
     os << "    {\n"
-       << R"(      "inode": ")"
-       << fmt::format("{}", reinterpret_cast<void const*>(ici.i)) << "\",\n"
+       << R"(      "inode": )" << ici.i.index() << ",\n"
        << R"(      "file": )";
-    dump_value(os, ici.f);
+    dump_value(os, storage_.handle(ici.f));
     os << ",\n"
        << R"(      "line": )" << fmt::format("{}", ici.line) << "\n"
        << "    }";
