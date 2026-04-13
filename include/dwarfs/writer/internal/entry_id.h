@@ -56,7 +56,9 @@ class entry_id {
   [[nodiscard]] bool valid() const { return id_ != kInvalidId; }
   [[nodiscard]] explicit operator bool() const { return valid(); }
 
-  [[nodiscard]] std::size_t hash() const { return std::hash<uint64_t>{}(id_); }
+  [[nodiscard]] std::size_t object_hash() const {
+    return std::hash<uint64_t>{}(id_);
+  }
 
   [[nodiscard]] entry_type type() const {
     assert(valid());
@@ -105,7 +107,7 @@ class typed_entry_id {
   [[nodiscard]] bool valid() const { return index_ != kInvalidIndex; }
   [[nodiscard]] explicit operator bool() const { return valid(); }
 
-  [[nodiscard]] std::size_t hash() const {
+  [[nodiscard]] std::size_t object_hash() const {
     return std::hash<uint64_t>{}(index_);
   }
 
@@ -173,7 +175,7 @@ template <>
 struct std::hash<dwarfs::writer::internal::entry_id> {
   size_t
   operator()(dwarfs::writer::internal::entry_id const& id) const noexcept {
-    return id.hash();
+    return id.object_hash();
   }
 };
 
@@ -181,7 +183,7 @@ template <dwarfs::writer::internal::entry_type Type>
 struct std::hash<dwarfs::writer::internal::typed_entry_id<Type>> {
   size_t operator()(
       dwarfs::writer::internal::typed_entry_id<Type> const& id) const noexcept {
-    return id.hash();
+    return id.object_hash();
   }
 };
 
