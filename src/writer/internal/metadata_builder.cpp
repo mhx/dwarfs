@@ -303,15 +303,15 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
                         im.get_max_data_chunk_size());
   }
 
-  im.for_each_inode_in_order([&](inode_ptr ino) {
+  im.for_each_inode_in_order([&](const_inode_handle ino) {
     auto const total_chunks = md_.chunks()->size();
-    DWARFS_NOTHROW(md_.chunk_table()->at(ino->num())) = total_chunks;
-    if (!ino->append_chunks_to(md_.chunks().value(), hole_mapper)) {
+    DWARFS_NOTHROW(md_.chunk_table()->at(ino.num())) = total_chunks;
+    if (!ino.append_chunks_to(md_.chunks().value(), hole_mapper)) {
       std::ostringstream oss;
-      for (auto fp : ino->all()) {
+      for (auto fp : ino.all()) {
         oss << "\n  " << fp.path_as_string();
       }
-      LOG_ERROR << "inconsistent fragments in inode " << ino->num()
+      LOG_ERROR << "inconsistent fragments in inode " << ino.num()
                 << ", the following files will be empty:" << oss.str();
     }
   });

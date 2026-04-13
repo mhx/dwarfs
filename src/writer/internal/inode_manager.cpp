@@ -298,7 +298,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::dump(std::ostream& os) const {
   for_each_inode_in_order(
-      [this, &os](auto const& ino) { ino->dump(os, opts_); });
+      [this, &os](auto const& ino) { ino.dump(os, opts_); });
 }
 
 template <typename LoggerPolicy>
