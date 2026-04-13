@@ -45,6 +45,7 @@ class os_access;
 
 namespace writer {
 
+class entry_storage;
 struct inode_options;
 
 namespace internal {
@@ -73,7 +74,7 @@ class inode_manager {
     size_t total_size{0};
   };
 
-  inode_manager(logger& lgr, progress& prog,
+  inode_manager(logger& lgr, entry_storage& storage, progress& prog,
                 std::filesystem::path const& root_path,
                 inode_options const& opts, bool list_mode);
 
