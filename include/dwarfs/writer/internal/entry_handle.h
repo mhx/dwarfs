@@ -40,6 +40,7 @@
 #include <dwarfs/writer/internal/detail/mutability.h>
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/entry_type.h>
+#include <dwarfs/writer/internal/inode_id.h>
 
 namespace dwarfs {
 
@@ -145,7 +146,7 @@ class entry_handle_base {
   file_size_t allocated_size() const;
   entry_type type() const;
   void update(internal::global_entry_data& data) const;
-  unique_inode_id inode_id() const;
+  unique_inode_id get_unique_inode_id() const;
   uint64_t num_hard_links() const;
   std::optional<uint32_t> const& inode_num() const;
 
@@ -289,9 +290,9 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
     requires is_mutable;
   bool is_invalid() const;
 
-  void set_inode(internal::inode* ino)
+  void set_inode(inode_id ino) // TODO: inode_handle?
     requires is_mutable;
-  internal::inode* get_inode() const;
+  inode_id get_inode() const; // TODO: inode_handle?
 
   void hardlink(basic_file_handle<detail::mutability::mutable_> other,
                 internal::progress& prog)

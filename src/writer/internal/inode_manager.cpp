@@ -80,8 +80,6 @@ class inode_manager_ final : public inode_manager::impl {
       , inodes_need_scanning_{inodes_need_scanning(opts_)}
       , list_mode_{list_mode} {}
 
-  inode* create_inode() override { return storage_.create_inode(); }
-
   size_t count() const override { return storage_.inode_count(); }
 
   void
@@ -142,7 +140,7 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void scan_background(worker_group& wg, os_access const& os, inode* ino,
+  void scan_background(worker_group& wg, os_access const& os, inode_handle ino,
                        file_handle p) const override;
 
   bool has_invalid_inodes() const override;
@@ -166,7 +164,7 @@ class inode_manager_ final : public inode_manager::impl {
     return std::views::iota(index_t{0},
                             static_cast<index_t>(storage_.inode_count())) |
            std::views::transform([this](index_t i) -> decltype(auto) {
-             return inode_handle{storage_, i};
+             return inode_handle{storage_, inode_id{i}};
            });
   }
 
@@ -175,16 +173,8 @@ class inode_manager_ final : public inode_manager::impl {
     return std::views::iota(index_t{0},
                             static_cast<index_t>(storage_.inode_count())) |
            std::views::transform([this](index_t i) -> decltype(auto) {
-             return const_inode_handle{storage_, i};
+             return const_inode_handle{storage_, inode_id{i}};
            });
-  }
-
-  void update_prog(inode* ino, const_file_handle p) const {
-    if (p.size() > 0 && !p.is_invalid()) {
-      prog_.fragments_found += ino->fragments().size();
-    }
-    ++prog_.inodes_scanned;
-    ++prog_.files_scanned;
   }
 
   void update_prog(const_inode_handle ino, const_file_handle p) const {
@@ -219,7 +209,7 @@ class inode_manager_ final : public inode_manager::impl {
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
-                                                   inode* ino,
+                                                   inode_handle ino,
                                                    file_handle p) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
@@ -240,13 +230,13 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
           // chance that there's another file with the same hash. We can only
           // figure this out later when all files have been hashed, so we
           // save the error and try again later (in `try_scan_invalid()`).
-          ino->set_scan_error(p, std::current_exception());
+          ino.set_scan_error(p, std::current_exception());
           ++num_invalid_inodes_;
           return;
         }
 
         if (mm.size() != size) {
-          ino->set_scan_error(
+          ino.set_scan_error(
               p, std::make_exception_ptr(std::runtime_error(fmt::format(
                      "file size changed: was {}, now {}", size, mm.size()))));
           p.set_invalid();
@@ -255,11 +245,11 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
         }
       }
 
-      ino->scan(mm, opts_, prog_);
+      ino.scan(mm, opts_, prog_);
       update_prog(ino, p);
     });
   } else {
-    ino->populate(p.size());
+    ino.populate(p.size());
     update_prog(ino, p);
   }
 }

@@ -30,7 +30,6 @@
 
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
-#include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
 
@@ -46,7 +45,6 @@ namespace {
 using wi::entry;
 using wi::entry_storage;
 using wi::entry_type;
-using wi::inode_manager;
 using wi::progress;
 
 using dwarfs::test::os_access_mock;
@@ -677,16 +675,12 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
   auto f = empty_entry.as_file();
   ASSERT_TRUE(f);
 
-  test_logger lgr;
-  progress prog{};
-  inode_manager im{lgr, tree, prog, sep, {}, false};
+  auto ino1 = tree.create_inode();
+  auto ino2 = tree.create_inode();
 
-  auto ino1 = im.create_inode();
-  auto ino2 = im.create_inode();
+  f.set_inode(ino1.id());
 
-  f.set_inode(ino1);
-
-  ASSERT_DEATH(f.set_inode(ino2), "inode already set for file");
+  ASSERT_DEATH(f.set_inode(ino2.id()), "inode already set for file");
 }
 
 namespace {
