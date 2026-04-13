@@ -27,28 +27,29 @@
 
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_element_view.h>
+#include <dwarfs/writer/internal/sortable_inode_span.h>
 
 namespace dwarfs::writer::internal {
 
-inode_element_view::inode_element_view(std::span<inode_ptr const> inodes,
+inode_element_view::inode_element_view(sortable_inode_span& sp,
                                        std::span<uint32_t const> index,
                                        fragment_category cat)
-    : inodes_{inodes}
+    : sp_{sp}
     , cat_{cat} {
-  hash_cache_.resize(inodes_.size());
+  hash_cache_.resize(sp_.raw_size());
   for (auto i : index) {
-    hash_cache_[i] = inodes_[i]->nilsimsa_similarity_hash(cat);
+    hash_cache_[i] = sp_.raw_handle(i).nilsimsa_similarity_hash(cat);
   }
 }
 
 bool inode_element_view::exists(size_t i) const {
-  return !cat_ || inodes_[i]->has_category(*cat_);
+  return !cat_ || sp_.raw_handle(i).has_category(*cat_);
 }
 
-size_t inode_element_view::size() const { return inodes_.size(); }
+size_t inode_element_view::size() const { return sp_.raw_size(); }
 
 size_t inode_element_view::weight(size_t i) const {
-  return inodes_[i]->any().size();
+  return sp_.raw_handle(i).any().size();
 }
 
 bool inode_element_view::bitvec_less(size_t a, size_t b) const {
@@ -62,12 +63,12 @@ bool inode_element_view::bitvec_less(size_t a, size_t b) const {
   if (ha > hb) {
     return false;
   }
-  return inodes_[a]->any().less_revpath(inodes_[b]->any());
+  return sp_.raw_handle(a).any().less_revpath(sp_.raw_handle(b).any());
 }
 
 bool inode_element_view::order_less(size_t a, size_t b) const {
-  auto const fa = inodes_[a]->any();
-  auto const fb = inodes_[b]->any();
+  auto const fa = sp_.raw_handle(a).any();
+  auto const fb = sp_.raw_handle(b).any();
   auto sa = fa.size();
   auto sb = fb.size();
   return sa > sb || (sa == sb && fa.less_revpath(fb));
@@ -80,7 +81,7 @@ bool inode_element_view::bits_equal(size_t a, size_t b) const {
 }
 
 std::string inode_element_view::description(size_t i) const {
-  auto f = inodes_[i]->any();
+  auto f = sp_.raw_handle(i).any();
   return fmt::format("{} [{}]", f.path_as_string(), f.size());
 }
 
