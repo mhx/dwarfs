@@ -177,7 +177,7 @@ class entry_handle_base {
   std::size_t object_hash() const {
     std::size_t seed = 0;
     boost::hash_combine(seed, storage_);
-    boost::hash_combine(seed, self_id_.hash());
+    boost::hash_combine(seed, self_id_.object_hash());
     return seed;
   }
 
