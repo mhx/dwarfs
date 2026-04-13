@@ -316,42 +316,27 @@ auto basic_dir_handle<Mut>::self() const -> self_t* {
 }
 
 template <detail::mutability Mut>
-void basic_dir_handle<Mut>::add(entry_handle h)
-  requires is_mutable
-{
-  self()->add(h);
-}
-
-template <detail::mutability Mut>
-void basic_dir_handle<Mut>::sort()
-  requires is_mutable
-{
-  self()->sort(this->storage());
-}
-
-template <detail::mutability Mut>
-void basic_dir_handle<Mut>::remove_empty_dirs(internal::progress& prog)
-  requires is_mutable
-{
-  self()->remove_empty_dirs(this->storage(), prog);
-}
-
-template <detail::mutability Mut>
 entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
   requires is_mutable
 {
-  return {this->storage(), self()->find(this->storage(), path)};
+  // return {this->storage(), self()->find(this->storage(), path)};
+  return {this->storage(),
+          this->storage().find_in_dir(
+              this->id(), path_to_utf8_string_sanitized(path.filename()))};
 }
 
 template <detail::mutability Mut>
 bool basic_dir_handle<Mut>::empty() const {
-  return self()->empty();
+  // return self()->empty();
+  return this->storage().is_dir_empty(this->id());
 }
 
 template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
-    internal::time_resolution_converter const& timeres) const {
+    internal::time_resolution_converter const& timeres)
+  requires is_mutable
+{
   thrift::metadata::directory d;
   if (this->has_parent()) {
     auto pd = this->parent().as_dir();
@@ -367,8 +352,7 @@ void basic_dir_handle<Mut>::pack(
   DWARFS_CHECK(se, "self entry index not set");
   d.self_entry() = *se;
   mv2.directories()->push_back(d);
-  self()->for_each_child([&](entry_id cid) {
-    auto e = entry_handle(this->storage(), cid);
+  this->for_each_child([&](entry_handle e) {
     e.set_entry_index(mv2.dir_entries()->size());
     auto& de = mv2.dir_entries()->emplace_back();
     de.name_index() = data.get_name_index(e.name());
@@ -395,7 +379,8 @@ void basic_dir_handle<Mut>::for_each_child(
     std::function<void(entry_handle)> const& f)
   requires is_mutable
 {
-  self()->for_each_child([&](entry_id id) { f({this->storage(), id}); });
+  this->storage().for_each_entry_in_dir(
+      this->id(), [&](entry_id id) { f({this->storage(), id}); });
 }
 
 // ---------- link_handle ----------
@@ -542,5 +527,8 @@ template class basic_link_handle<detail::mutability::mutable_>;
 
 template class basic_device_handle<detail::mutability::const_>;
 template class basic_device_handle<detail::mutability::mutable_>;
+
+template class basic_other_handle<detail::mutability::const_>;
+template class basic_other_handle<detail::mutability::mutable_>;
 
 } // namespace dwarfs::writer

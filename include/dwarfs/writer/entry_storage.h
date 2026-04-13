@@ -24,6 +24,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <iosfwd>
 #include <memory>
 
@@ -36,6 +37,7 @@ namespace dwarfs::writer {
 namespace internal {
 
 struct file_data;
+class progress;
 class provisional_entry;
 
 class entry;
@@ -63,28 +65,47 @@ class entry_storage {
 
   [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
 
+  // TODO: this must go
   [[nodiscard]] internal::entry* get_entry(entry_id id) {
     return impl_->get_entry(id);
   }
 
-  [[nodiscard]] entry_id get_parent(entry_id id) {
+  [[nodiscard]] entry_id get_parent(entry_id id) const {
     return impl_->get_parent(id);
   }
 
-  [[nodiscard]] std::filesystem::path get_path(entry_id id) {
+  [[nodiscard]] std::filesystem::path get_path(entry_id id) const {
     return impl_->get_path(id);
   }
 
-  [[nodiscard]] std::string get_unix_dpath(entry_id id) {
+  [[nodiscard]] std::string get_unix_dpath(entry_id id) const {
     return impl_->get_unix_dpath(id);
   }
 
-  [[nodiscard]] std::string_view get_name(entry_id id) {
+  [[nodiscard]] std::string_view get_name(entry_id id) const {
     return impl_->get_name(id);
+  }
+
+  [[nodiscard]] bool is_dir_empty(entry_id id) const {
+    return impl_->is_dir_empty(id);
+  }
+
+  void remove_empty_dirs(internal::progress& prog) {
+    return impl_->remove_empty_dirs(prog);
+  }
+
+  void for_each_entry_in_dir(entry_id id,
+                             std::function<void(entry_id)> const& f) const {
+    return impl_->for_each_entry_in_dir(id, f);
+  }
+
+  entry_id find_in_dir(entry_id id, std::string_view name) const {
+    return impl_->find_in_dir(id, name);
   }
 
   size_t create_file_data() { return impl_->create_file_data(); }
 
+  // TODO: this is probably not needed long-term
   [[nodiscard]] internal::file_data& get_file_data(size_t id) {
     return impl_->get_file_data(id);
   }
@@ -113,11 +134,16 @@ class entry_storage {
     virtual size_t create_file_data() = 0;
     virtual internal::file_data& get_file_data(size_t id) = 0;
     virtual internal::entry* get_entry(entry_id id) = 0;
-
-    virtual entry_id get_parent(entry_id id) = 0;
-    virtual std::filesystem::path get_path(entry_id id) = 0;
-    virtual std::string get_unix_dpath(entry_id id) = 0;
-    virtual std::string_view get_name(entry_id id) = 0;
+    virtual entry_id get_parent(entry_id id) const = 0;
+    virtual std::filesystem::path get_path(entry_id id) const = 0;
+    virtual std::string get_unix_dpath(entry_id id) const = 0;
+    virtual std::string_view get_name(entry_id id) const = 0;
+    virtual bool is_dir_empty(entry_id id) const = 0;
+    virtual void remove_empty_dirs(internal::progress& prog) = 0;
+    virtual void
+    for_each_entry_in_dir(entry_id id,
+                          std::function<void(entry_id)> const& f) const = 0;
+    virtual entry_id find_in_dir(entry_id id, std::string_view name) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;

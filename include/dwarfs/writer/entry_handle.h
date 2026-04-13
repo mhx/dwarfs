@@ -324,14 +324,6 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
     return this->template base_as<const_dir_handle>();
   }
 
-  void add(entry_handle h)
-    requires is_mutable;
-
-  void sort()
-    requires is_mutable;
-  void remove_empty_dirs(internal::progress& prog)
-    requires is_mutable;
-
   entry_handle find(std::filesystem::path const& path)
     requires is_mutable;
 
@@ -339,7 +331,8 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
 
   void
   pack(thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
-       internal::time_resolution_converter const& timeres) const;
+       internal::time_resolution_converter const& timeres)
+    requires is_mutable;
   void pack_entry(thrift::metadata::metadata& mv2,
                   internal::global_entry_data const& data,
                   internal::time_resolution_converter const& timeres) const;
