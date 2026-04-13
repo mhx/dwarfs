@@ -27,8 +27,9 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/writer/inode_options.h>
-#include <dwarfs/writer/internal/entry_storage.h>
 
+#include <dwarfs/writer/internal/entry_id_vector.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
@@ -854,4 +855,46 @@ TEST_F(entry_handle_test, handle_hash_support_works_for_all_types) {
   others.insert(other);
   others.insert(other);
   EXPECT_EQ(1, others.size());
+}
+
+TEST(entry_id_test, entry_id_convertibility) {
+  wi::entry_id id1{entry_type::E_FILE, 42};
+
+  EXPECT_EQ(entry_type::E_FILE, id1.type());
+  EXPECT_EQ(42, id1.index());
+
+  wi::file_id fid1(id1);
+  wi::dir_id did1(id1);
+
+  ASSERT_TRUE(fid1.valid());
+  EXPECT_EQ(entry_type::E_FILE, fid1.type());
+  EXPECT_EQ(42, fid1.index());
+
+  EXPECT_FALSE(did1.valid());
+
+  wi::entry_id id2 = fid1;
+  wi::entry_id id3 = did1;
+
+  EXPECT_EQ(id1, id2);
+  EXPECT_FALSE(id3.valid());
+}
+
+TEST(entry_id_vector_test, value_packing) {
+  wi::entry_id_vector vec;
+  vec.push_back(wi::entry_id{entry_type::E_FILE, 42});
+  vec.push_back(wi::entry_id{entry_type::E_DIR, 17});
+
+  EXPECT_TRUE(vec.is_inline());
+
+  EXPECT_THAT(vec, testing::ElementsAre(wi::entry_id{entry_type::E_FILE, 42},
+                                        wi::entry_id{entry_type::E_DIR, 17}));
+
+  wi::file_id_vector fvec;
+  fvec.push_back(wi::file_id{wi::entry_id{entry_type::E_FILE, 42}});
+  fvec.push_back(wi::file_id{wi::entry_id{entry_type::E_FILE, 43}});
+
+  EXPECT_TRUE(fvec.is_inline());
+
+  EXPECT_THAT(fvec, testing::ElementsAre(wi::entry_id{entry_type::E_FILE, 42},
+                                         wi::entry_id{entry_type::E_FILE, 43}));
 }
