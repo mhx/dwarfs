@@ -569,10 +569,7 @@ class entry_storage_ final : public entry_storage::impl {
   void sort_all_directory_entries()
     requires is_mutable
   {
-    auto const num_dirs = shared_.dir_entries_.size();
-
-    for (std::size_t i = 0; i < num_dirs; ++i) {
-      auto& de = shared_.dir_entries_.at(i);
+    for (auto& de : shared_.dir_entries_) {
       std::ranges::sort(de, [this](entry_id const aid, entry_id const bid) {
         return get_name(aid) < get_name(bid);
       });
