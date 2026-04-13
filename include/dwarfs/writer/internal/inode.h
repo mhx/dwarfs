@@ -35,6 +35,7 @@
 #include <dwarfs/writer/inode_fragments.h>
 
 #include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/nilsimsa.h>
 
@@ -63,13 +64,11 @@ struct inode_mmap_any_result {
   std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
 };
 
-using file_handle_vector = small_vector<file_handle, 1>;
-
 class inode {
  public:
   virtual ~inode() = default;
 
-  virtual void set_files(file_handle_vector const& fv) = 0;
+  virtual void set_files(file_id_vector const& fv) = 0;
   virtual void populate(file_size_t size) = 0;
   virtual void
   scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
@@ -80,20 +79,22 @@ class inode {
   similarity_hash(fragment_category cat) const = 0;
   virtual nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
-  virtual file_size_t size() const = 0;
-  virtual const_file_handle any() const = 0;
-  virtual file_handle_vector all() const = 0;
+  virtual file_size_t size(entry_storage& storage) const = 0;
+  virtual const_file_handle any(entry_storage& storage) const = 0;
+  virtual file_id_vector const& all() const = 0;
   virtual bool
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                    std::optional<inode_hole_mapper>& hole_mapper) const = 0;
   virtual inode_fragments& fragments() = 0;
   virtual inode_fragments const& fragments() const = 0;
-  virtual void dump(std::ostream& os, inode_options const& options) const = 0;
+  virtual void dump(entry_storage& storage, std::ostream& os,
+                    inode_options const& options) const = 0;
   virtual void set_scan_error(const_file_handle fp, std::exception_ptr ep) = 0;
   virtual std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const = 0;
   virtual inode_mmap_any_result
-  mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
+  mmap_any(entry_storage& storage, os_access const& os,
+           open_file_options const& of_opts) const = 0;
 };
 
 } // namespace internal
