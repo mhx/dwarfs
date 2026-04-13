@@ -97,12 +97,12 @@ std::string_view file::hash(entry_storage& storage) const {
   return {h.data(), h.size()};
 }
 
-void file::set_inode(inode_ptr ino) {
+void file::set_inode(inode* ino) {
   DWARFS_CHECK(!inode_, "inode already set for file");
   inode_ = ino;
 }
 
-inode_ptr file::get_inode() const { return inode_; }
+inode* file::get_inode() const { return inode_; }
 
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
                 os_access const& /*os*/, progress& /*prog*/) {

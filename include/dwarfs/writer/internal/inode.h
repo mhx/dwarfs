@@ -95,8 +95,6 @@ class inode {
   mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
 };
 
-using inode_ptr = inode*; // TODO: remove
-
 } // namespace internal
 } // namespace writer
 } // namespace dwarfs
