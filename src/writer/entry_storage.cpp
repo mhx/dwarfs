@@ -31,6 +31,7 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/container/chunked_append_only_vector.h>
+#include <dwarfs/container/compact_packed_int_vector.h>
 #include <dwarfs/container/packed_value_traits_optional.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
 #include <dwarfs/dense_value_index.h>
@@ -40,6 +41,7 @@
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/progress.h>
 
 // TODO: disable everywhere but Windows
 #define DWARFS_KEEP_FS_PATHS 1
@@ -158,15 +160,29 @@ template <typename T>
 using flat_cao_index =
     dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
 
+template <typename T>
+using compact_auto_vec = dwarfs::container::compact_auto_packed_int_vector<T>;
+
 struct shared_entry_data {
   void drop_indices() { path_index_.reset(); }
+  void drop_lookup_tables() { dir_entry_lookup_.clear(); }
 
   auto add_path_component(fs::path const& component, bool is_root) {
     return path_index_->add(component, is_root);
   }
 
+  // TODO; remove those trailing underscores?
+
   cao_vector<path_component> path_components_;
   std::optional<flat_cao_index<path_component>> path_index_{path_components_};
+
+  // indexed by dir index, contains all entry ids of the directory
+  cao_vector<compact_auto_vec<entry_id>> dir_entries_;
+
+  using dir_entry_lookup_table =
+      phmap::flat_hash_map<std::string_view, entry_id>;
+  phmap::flat_hash_map<uint64_t,
+                       dir_entry_lookup_table> mutable dir_entry_lookup_;
 };
 
 struct packed_entry_data {
@@ -195,14 +211,33 @@ struct packed_entry_data {
   // files
   //       which have this info in `file_data` already.
 
-  void add_entry_common(shared_entry_data& shared, fs::path const& path,
-                        file_stat const&, entry_id const parent) {
+  void add_entry_common(shared_entry_data& shared, entry_type type,
+                        fs::path const& path, file_stat const&,
+                        entry_id const parent) {
     bool const is_root = !parent.valid();
     assert(is_root || parent.is_dir());
-    auto path_ix = shared.add_path_component(path, is_root);
+    auto const path_ix = shared.add_path_component(path, is_root);
+    auto const entry_ix = path_name_index.size();
     path_name_index.push_back(path_ix);
     parent_dir_index.push_back(is_root ? std::nullopt
                                        : std::make_optional(parent.index()));
+
+    if (!is_root) {
+      assert(parent.index() < shared.dir_entries_.size());
+      shared.dir_entries_.at(parent.index()).push_back({type, entry_ix});
+
+      if (auto const it = shared.dir_entry_lookup_.find(parent.index());
+          it != shared.dir_entry_lookup_.end()) {
+        auto& lookup = it->second;
+        auto inserted = lookup
+                            .emplace(shared.path_components_.at(path_ix).name(),
+                                     entry_id{type, entry_ix})
+                            .second;
+        if (!inserted) {
+          DWARFS_PANIC("duplicate entry name in directory");
+        }
+      }
+    }
   }
 
   entry_id get_parent(uint64_t const index) const {
@@ -258,7 +293,9 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::unique_ptr<impl> freeze() override {
     if constexpr (is_mutable) {
+      sort_all_directory_entries();
       shared_.drop_indices();
+      shared_.drop_lookup_tables();
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -279,31 +316,36 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_id make_file(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    packed_files_.add_entry_common(shared_, path, st, parent);
+    packed_files_.add_entry_common(shared_, entry_type::E_FILE, path, st,
+                                   parent);
     return make_obj_(files_, entry_type::E_FILE, st);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
                     entry_id const parent) override {
-    packed_dirs_.add_entry_common(shared_, path, st, parent);
+    packed_dirs_.add_entry_common(shared_, entry_type::E_DIR, path, st, parent);
+    shared_.dir_entries_.emplace_back();
     return make_obj_(dirs_, entry_type::E_DIR, st);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    packed_links_.add_entry_common(shared_, path, st, parent);
+    packed_links_.add_entry_common(shared_, entry_type::E_LINK, path, st,
+                                   parent);
     return make_obj_(links_, entry_type::E_LINK, st);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
                        entry_id const parent) override {
-    packed_devices_.add_entry_common(shared_, path, st, parent);
+    packed_devices_.add_entry_common(shared_, entry_type::E_DEVICE, path, st,
+                                     parent);
     return make_obj_(devices_, entry_type::E_DEVICE, st);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
                       entry_id const parent) override {
-    packed_others_.add_entry_common(shared_, path, st, parent);
+    packed_others_.add_entry_common(shared_, entry_type::E_OTHER, path, st,
+                                    parent);
     return make_obj_(others_, entry_type::E_OTHER, st);
   }
 
@@ -343,11 +385,11 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  entry_id get_parent(entry_id const id) override {
+  entry_id get_parent(entry_id const id) const override {
     return get_parent_impl(id);
   }
 
-  fs::path get_path(entry_id const id) override {
+  fs::path get_path(entry_id const id) const override {
     fs::path p = get_path_impl(id);
 
     if (auto const parent = get_parent_impl(id)) {
@@ -357,7 +399,7 @@ class entry_storage_ final : public entry_storage::impl {
     return p;
   }
 
-  std::string get_unix_dpath(entry_id const id) override {
+  std::string get_unix_dpath(entry_id const id) const override {
     std::string p{get_path_string_impl(id)};
 
     if (is_root_path(p)) {
@@ -377,11 +419,111 @@ class entry_storage_ final : public entry_storage::impl {
     return p;
   }
 
-  std::string_view get_name(entry_id const id) override {
+  std::string_view get_name(entry_id const id) const override {
     return get_path_string_impl(id);
   }
 
+  bool is_dir_empty(entry_id const id) const override {
+    assert(id.is_dir());
+    return shared_.dir_entries_.at(id.index()).empty();
+  }
+
+  void remove_empty_dirs(internal::progress& prog) override {
+    if constexpr (is_mutable) {
+      remove_empty_dirs_impl(prog, 0);
+    } else {
+      frozen_panic();
+    }
+  }
+
+  void
+  for_each_entry_in_dir(entry_id id,
+                        std::function<void(entry_id)> const& f) const override {
+    assert(id.is_dir());
+    for (auto const eid : shared_.dir_entries_.at(id.index())) {
+      f(eid);
+    }
+  }
+
+  static constexpr std::size_t kMinDirEntriesForLookupTable = 16;
+
+  entry_id find_in_dir(entry_id id, std::string_view name) const override {
+    assert(id.is_dir());
+
+    auto const& de = shared_.dir_entries_.at(id.index());
+
+    if constexpr (is_mutable) {
+      if (de.size() < kMinDirEntriesForLookupTable) {
+        auto const it = std::ranges::find_if(
+            de, [&](entry_id const id) { return get_name(id) == name; });
+
+        if (it != de.end()) {
+          return *it;
+        }
+      } else {
+        auto [lit, created] = shared_.dir_entry_lookup_.try_emplace(id.index());
+
+        if (created) {
+          for (auto const eid : de) {
+            if (!lit->second.emplace(get_name(eid), eid).second) {
+              DWARFS_PANIC("duplicate entry name in directory");
+            }
+          }
+        }
+
+        auto const& lookup = lit->second;
+        assert(lookup.size() == de.size());
+
+        auto const it = lookup.find(name);
+
+        if (it != lookup.end()) {
+          return it->second;
+        }
+      }
+    } else {
+      // If we ever need this, we can do a binary search here since frozen
+      // entries are sorted by name.
+      DWARFS_PANIC("find_in_dir not (yet) supported for frozen entry_storage");
+    }
+
+    return {};
+  }
+
  private:
+  void sort_all_directory_entries()
+    requires is_mutable
+  {
+    auto const num_dirs = shared_.dir_entries_.size();
+
+    for (std::size_t i = 0; i < num_dirs; ++i) {
+      auto& de = shared_.dir_entries_.at(i);
+      std::ranges::sort(de, [this](entry_id const aid, entry_id const bid) {
+        return get_name(aid) < get_name(bid);
+      });
+    }
+  }
+
+  void remove_empty_dirs_impl(internal::progress& prog, uint64_t dir_index)
+    requires is_mutable
+  {
+    auto& de = shared_.dir_entries_.at(dir_index);
+
+    auto last = std::remove_if(de.begin(), de.end(), [&](entry_id const id) {
+      if (id.is_dir()) {
+        remove_empty_dirs_impl(prog, id.index());
+        return shared_.dir_entries_.at(id.index()).empty();
+      }
+      return false;
+    });
+
+    if (last != de.end()) {
+      auto num = std::distance(last, de.end());
+      prog.dirs_scanned -= num;
+      prog.dirs_found -= num;
+      de.erase(last, de.end());
+    }
+  }
+
   template <typename Method, typename... Args>
   decltype(auto)
   dispatch_(Method method, entry_id const id, Args&&... args) const {
@@ -503,20 +645,38 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->get_entry(id);
   }
 
-  entry_id get_parent(entry_id const id) override {
+  entry_id get_parent(entry_id const id) const override {
     return impl_.lock()->get_parent(id);
   }
 
-  fs::path get_path(entry_id const id) override {
+  fs::path get_path(entry_id const id) const override {
     return impl_.lock()->get_path(id);
   }
 
-  std::string get_unix_dpath(entry_id const id) override {
+  std::string get_unix_dpath(entry_id const id) const override {
     return impl_.lock()->get_unix_dpath(id);
   }
 
-  std::string_view get_name(entry_id const id) override {
+  std::string_view get_name(entry_id const id) const override {
     return impl_.lock()->get_name(id);
+  }
+
+  bool is_dir_empty(entry_id const id) const override {
+    return impl_.lock()->is_dir_empty(id);
+  }
+
+  void remove_empty_dirs(internal::progress& prog) override {
+    impl_.lock()->remove_empty_dirs(prog);
+  }
+
+  void
+  for_each_entry_in_dir(entry_id,
+                        std::function<void(entry_id)> const&) const override {
+    DWARFS_PANIC("synchronized for_each_entry_in_dir is not supported");
+  }
+
+  entry_id find_in_dir(entry_id id, std::string_view name) const override {
+    return impl_.lock()->find_in_dir(id, name);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
