@@ -155,7 +155,7 @@ class inode_manager_ final : public inode_manager::impl {
   void dump(std::ostream& os) const override;
 
   sortable_inode_span sortable_span() const override {
-    return sortable_inode_span(storage_, inodes_);
+    return sortable_inode_span(storage_);
   }
 
   sortable_inode_span
@@ -309,7 +309,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
   auto opts = opts_.fragment_order.get(cat);
 
   auto span = sortable_span();
-  span.select([cat](auto const& v) { return v->has_category(cat); });
+  span.select([cat](const_inode_handle v) { return v.has_category(cat); });
 
   inode_ordering order(LOG_GET_LOGGER, prog_, opts_);
 
