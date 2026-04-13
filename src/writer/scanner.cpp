@@ -127,7 +127,7 @@ class device_set_inode_visitor : public visitor_base {
 
   void visit(device_handle p) override {
     p.set_inode_num(inode_num_++);
-    dev_ids_.push_back(p.device_id());
+    dev_ids_.push_back(p.posix_device_id());
   }
 
   std::vector<uint64_t>& device_ids() { return dev_ids_; }
