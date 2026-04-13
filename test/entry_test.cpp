@@ -678,7 +678,7 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
 
   test_logger lgr;
   progress prog{};
-  inode_manager im{lgr, prog, sep, {}, false};
+  inode_manager im{lgr, tree, prog, sep, {}, false};
 
   auto ino1 = im.create_inode();
   auto ino2 = im.create_inode();
