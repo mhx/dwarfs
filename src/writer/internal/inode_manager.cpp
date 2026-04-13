@@ -79,8 +79,8 @@ class inode_manager_ final : public inode_manager::impl {
       , inodes_need_scanning_{inodes_need_scanning(opts_)}
       , list_mode_{list_mode} {}
 
-  inode_ptr create_inode() override {
-    inode_ptr ino = storage_.create_inode();
+  inode* create_inode() override {
+    inode* ino = storage_.create_inode();
     inodes_.push_back(ino);
     return ino;
   }
@@ -145,7 +145,7 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void scan_background(worker_group& wg, os_access const& os, inode_ptr ino,
+  void scan_background(worker_group& wg, os_access const& os, inode* ino,
                        file_handle p) const override;
 
   bool has_invalid_inodes() const override;
@@ -164,7 +164,7 @@ class inode_manager_ final : public inode_manager::impl {
   size_t get_max_data_chunk_size() const override;
 
  private:
-  void update_prog(inode_ptr ino, const_file_handle p) const {
+  void update_prog(inode* ino, const_file_handle p) const {
     if (p.size() > 0 && !p.is_invalid()) {
       prog_.fragments_found += ino->fragments().size();
     }
@@ -184,7 +184,7 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::vector<inode_ptr> inodes_;
+  std::vector<inode*> inodes_;
   entry_storage& storage_;
   progress& prog_;
   fs::path const root_path_;
@@ -197,7 +197,7 @@ class inode_manager_ final : public inode_manager::impl {
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
-                                                   inode_ptr ino,
+                                                   inode* ino,
                                                    file_handle p) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
