@@ -42,6 +42,7 @@
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/detail/inode_impl.h>
 #include <dwarfs/writer/internal/entry.h>
+#include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/progress.h>
 
@@ -172,9 +173,6 @@ template <typename T>
 using flat_cao_index =
     dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
 
-template <typename T>
-using compact_auto_vec = dwarfs::container::compact_auto_packed_int_vector<T>;
-
 struct shared_entry_data {
   void drop_indices() { path_index_.reset(); }
   void drop_lookup_tables() { dir_entry_lookup_.clear(); }
@@ -210,7 +208,7 @@ struct shared_entry_data {
   std::optional<flat_cao_index<path_component>> path_index_{path_components_};
 
   // indexed by dir index, contains all entry ids of the directory
-  cao_vector<compact_auto_vec<entry_id>> dir_entries_;
+  cao_vector<entry_id_vector> dir_entries_;
 
   using dir_entry_lookup_table =
       phmap::flat_hash_map<std::string_view, entry_id>;
