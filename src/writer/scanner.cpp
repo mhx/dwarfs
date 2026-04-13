@@ -649,7 +649,7 @@ void scanner_<LoggerPolicy>::scan(
 
   inode_manager im(LOG_GET_LOGGER, tree, prog, path, options_.inode,
                    list.has_value());
-  file_scanner fs(LOG_GET_LOGGER, wg_, os_, im, prog,
+  file_scanner fs(LOG_GET_LOGGER, tree, wg_, os_, im, prog,
                   {.hash_algo = options_.file_hash_algorithm,
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                          os_.getenv(kEnvVarDumpFilesFinal)});

@@ -33,6 +33,7 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/detail/inode_impl.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/scanner_progress.h>
 #include <dwarfs/writer/internal/similarity.h>
 
@@ -81,7 +82,7 @@ inode_impl::nilsimsa_similarity_hash(fragment_category cat) const {
   return find_similarity<nilsimsa::hash_type>(cat);
 }
 
-void inode_impl::set_files(file_handle_vector const& fv) {
+void inode_impl::set_files(file_id_vector const& fv) {
   DWARFS_CHECK(files_.empty(), "files already set for inode");
   files_ = fv;
 }
@@ -164,19 +165,22 @@ void inode_impl::scan(file_view const& mm, inode_options const& opts,
   }
 }
 
-file_size_t inode_impl::size() const { return any().size(); }
-
-const_file_handle inode_impl::any() const {
-  DWARFS_CHECK(!files_.empty(), "inode has no file (any)");
-  for (auto const& f : files_) {
-    if (!f.is_invalid()) {
-      return f;
-    }
-  }
-  return files_.front();
+file_size_t inode_impl::size(entry_storage& storage) const {
+  return any(storage).size();
 }
 
-auto inode_impl::all() const -> file_handle_vector { return files_; }
+const_file_handle inode_impl::any(entry_storage& storage) const {
+  DWARFS_CHECK(!files_.empty(), "inode has no file (any)");
+  for (auto const& f : files_) {
+    auto fh = storage.handle(f);
+    if (!fh.is_invalid()) {
+      return fh;
+    }
+  }
+  return storage.handle(files_.front());
+}
+
+auto inode_impl::all() const -> file_id_vector const& { return files_; }
 
 bool inode_impl::append_chunks_to(
     std::vector<chunk_type>& vec,
@@ -207,7 +211,8 @@ bool inode_impl::append_chunks_to(
 inode_fragments& inode_impl::fragments() { return fragments_; }
 inode_fragments const& inode_impl::fragments() const { return fragments_; }
 
-void inode_impl::dump(std::ostream& os, inode_options const& options) const {
+void inode_impl::dump(entry_storage& storage, std::ostream& os,
+                      inode_options const& options) const {
   auto dump_category = [&os, &options](fragment_category const& cat) {
     if (options.categorizer_mgr) {
       os << "[" << options.categorizer_mgr->category_name(cat.value());
@@ -224,12 +229,13 @@ void inode_impl::dump(std::ostream& os, inode_options const& options) const {
     ino_num = std::to_string(num());
   }
 
-  os << "inode " << ino_num << " (" << any().size() << " bytes):\n";
+  os << "inode " << ino_num << " (" << size(storage) << " bytes):\n";
   os << "  files:\n";
 
   for (auto const& f : files_) {
-    os << "    " << f.path_as_string();
-    if (f.is_invalid()) {
+    auto fh = storage.handle(f);
+    os << "    " << fh.path_as_string();
+    if (fh.is_invalid()) {
       os << " (invalid)";
     }
     os << "\n";
@@ -293,33 +299,34 @@ inode_impl::get_scan_error() const {
   return std::nullopt;
 }
 
-auto inode_impl::mmap_any(os_access const& os,
+auto inode_impl::mmap_any(entry_storage& storage, os_access const& os,
                           open_file_options const& of_opts) const
     -> inode_mmap_any_result {
   file_view mm;
-  const_file_handle rfp;
+  const_file_handle rfh;
   std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
 
   for (auto fp : files_) {
-    if (!fp.is_invalid()) {
+    auto fh = storage.handle(fp);
+    if (!fh.is_invalid()) {
       try {
-        mm = os.open_file_with_options(fp.fs_path(), of_opts);
-        if (mm.size() != fp.size()) {
+        mm = os.open_file_with_options(fh.fs_path(), of_opts);
+        if (mm.size() != fh.size()) {
           auto const now_size = mm.size();
           mm.reset();
           throw std::runtime_error(fmt::format(
-              "file size changed: was {}, now {}", fp.size(), now_size));
+              "file size changed: was {}, now {}", fh.size(), now_size));
         }
-        rfp = fp;
+        rfh = fh;
         break;
       } catch (...) {
-        fp.set_invalid();
-        errors.emplace_back(fp, std::current_exception());
+        fh.set_invalid();
+        errors.emplace_back(fh, std::current_exception());
       }
     }
   }
 
-  return {std::move(mm), rfp, std::move(errors)};
+  return {std::move(mm), rfh, std::move(errors)};
 }
 
 std::shared_ptr<scanner_progress>
