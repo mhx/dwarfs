@@ -27,7 +27,6 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
-#include <tuple>
 #include <vector>
 
 #include <dwarfs/file_view.h>
@@ -35,6 +34,7 @@
 #include <dwarfs/types.h>
 #include <dwarfs/writer/entry_handle.h>
 #include <dwarfs/writer/inode_fragments.h>
+#include <dwarfs/writer/inode_handle.h>
 #include <dwarfs/writer/internal/sortable_span.h>
 
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
@@ -59,13 +59,19 @@ namespace internal {
 
 class progress;
 
+struct inode_mmap_any_result {
+  file_view view;
+  const_file_handle handle;
+  std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
+};
+
+using file_handle_vector = small_vector<file_handle, 1>;
+
 class inode {
  public:
-  using files_vector = small_vector<file_handle, 1>;
-
   virtual ~inode() = default;
 
-  virtual void set_files(files_vector&& fv) = 0;
+  virtual void set_files(file_handle_vector const& fv) = 0;
   virtual void populate(file_size_t size) = 0;
   virtual void
   scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
@@ -78,7 +84,7 @@ class inode {
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
   virtual file_size_t size() const = 0;
   virtual const_file_handle any() const = 0;
-  virtual files_vector const& all() const = 0;
+  virtual file_handle_vector all() const = 0;
   virtual bool
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                    std::optional<inode_hole_mapper>& hole_mapper) const = 0;
@@ -87,10 +93,7 @@ class inode {
   virtual void set_scan_error(const_file_handle fp, std::exception_ptr ep) = 0;
   virtual std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const = 0;
-  // TODO: WTH is this interface???
-  virtual std::tuple<
-      file_view, const_file_handle,
-      std::vector<std::pair<const_file_handle, std::exception_ptr>>>
+  virtual inode_mmap_any_result
   mmap_any(os_access const& os, open_file_options const& of_opts) const = 0;
 };
 

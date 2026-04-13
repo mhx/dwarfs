@@ -645,14 +645,15 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  inode_manager im(LOG_GET_LOGGER, prog, path, options_.inode,
+  auto tree = entry_storage{};
+
+  inode_manager im(LOG_GET_LOGGER, tree, prog, path, options_.inode,
                    list.has_value());
   file_scanner fs(LOG_GET_LOGGER, wg_, os_, im, prog,
                   {.hash_algo = options_.file_hash_algorithm,
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                          os_.getenv(kEnvVarDumpFilesFinal)});
 
-  auto tree = entry_storage{};
   auto root = list ? scan_list(tree, path, *list, prog, fs)
                    : scan_tree(tree, path, prog, fs);
 
