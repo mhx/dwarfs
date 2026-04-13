@@ -38,7 +38,6 @@ namespace dwarfs::writer::internal {
 
 class sortable_inode_span {
  public:
-  using value_type = inode_ptr const;
   using index_value_type = uint32_t;
 
   class iterator
