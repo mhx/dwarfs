@@ -105,6 +105,7 @@ TYPED_TEST(packed_int_vec_tuple_test, basic_fixed_width) {
 
   EXPECT_EQ(vec.size(), 2);
   EXPECT_EQ(vec.widths(), (widths_type{6, 9, 12}));
+  EXPECT_EQ(vec.bits(), 27);
 
   EXPECT_EQ(vec[0], (tuple_type{3, -7, 42}));
   EXPECT_EQ(vec[1], (tuple_type{17, 12, 511}));
@@ -116,6 +117,7 @@ TYPED_TEST(packed_int_vec_tuple_test, automatic_width_growth) {
 
   vec_type vec;
   EXPECT_EQ(vec.widths(), (widths_type{0, 0, 0}));
+  EXPECT_EQ(vec.bits(), 0);
 
   vec.push_back({1, 0, 3});
   EXPECT_EQ(vec.widths(), (widths_type{
@@ -127,6 +129,7 @@ TYPED_TEST(packed_int_vec_tuple_test, automatic_width_growth) {
   vec.push_back({255, -200, 70000});
   auto const expected = vec_type::required_widths(tuple_type{255, -200, 70000});
   EXPECT_EQ(vec.widths(), expected);
+  EXPECT_EQ(vec.bits(), std::accumulate(expected.begin(), expected.end(), 0));
 
   EXPECT_EQ(vec[0], (tuple_type{1, 0, 3}));
   EXPECT_EQ(vec[1], (tuple_type{255, -200, 70000}));
