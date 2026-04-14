@@ -62,6 +62,14 @@ struct packed_int_vector_selector {
   using auto_type = auto_packed_int_vector<T>;
 };
 
+struct compact_packed_int_vector_selector {
+  template <dwarfs::container::packed_vector_value T>
+  using type = compact_packed_int_vector<T>;
+
+  template <dwarfs::container::packed_vector_value T>
+  using auto_type = compact_auto_packed_int_vector<T>;
+};
+
 using tuple_type = std::tuple<uint16_t, int16_t, uint32_t>;
 
 } // namespace
@@ -69,7 +77,9 @@ using tuple_type = std::tuple<uint16_t, int16_t, uint32_t>;
 template <typename VecSelector>
 class packed_int_vec_tuple_test : public ::testing::Test {};
 
-using packed_tuple_vector_types = ::testing::Types<packed_int_vector_selector>;
+using packed_tuple_vector_types =
+    ::testing::Types<packed_int_vector_selector,
+                     compact_packed_int_vector_selector>;
 
 TYPED_TEST_SUITE(packed_int_vec_tuple_test, packed_tuple_vector_types);
 
