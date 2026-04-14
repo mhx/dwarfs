@@ -25,9 +25,11 @@
 #pragma clang optimize off
 #endif
 
-#include "packed_int_vector_test_helpers.h"
-
 #include <tuple>
+
+#include <dwarfs/container/packed_value_traits_optional.h>
+
+#include "packed_int_vector_test_helpers.h"
 
 using namespace dwarfs::test;
 using namespace dwarfs::container;
@@ -71,6 +73,15 @@ struct compact_packed_int_vector_selector {
 };
 
 using tuple_type = std::tuple<uint16_t, int16_t, uint32_t>;
+
+enum class small_enum : uint8_t {
+  zero = 0,
+  one = 1,
+  big = 17,
+};
+
+using trait_tuple_type =
+    std::tuple<small_enum, std::optional<uint16_t>, uint32_t>;
 
 } // namespace
 
@@ -594,4 +605,61 @@ TYPED_TEST(packed_int_vec_tuple_test,
   EXPECT_THAT(vec.unpack(),
               ElementsAre(tuple_type{1, 2, 3}, tuple_type{77, 20, 9999},
                           tuple_type{100, 200, 300}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           tuple_with_existing_packed_value_traits_roundtrip) {
+  using trait_tuple_type =
+      std::tuple<small_enum, std::optional<uint16_t>, uint32_t>;
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::nullopt, 3});
+  vec.push_back({small_enum::big, std::optional<uint16_t>{42}, 70000});
+
+  EXPECT_EQ(vec.get(0), (trait_tuple_type{small_enum::one, std::nullopt, 3}));
+  EXPECT_EQ(vec.get(1), (trait_tuple_type{small_enum::big,
+                                          std::optional<uint16_t>{42}, 70000}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           tuple_with_existing_packed_value_traits_widths) {
+  using trait_tuple_type =
+      std::tuple<small_enum, std::optional<uint16_t>, uint32_t>;
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::nullopt, 3});
+  vec.push_back({small_enum::big, std::optional<uint16_t>{42}, 70000});
+
+  EXPECT_EQ(
+      vec.widths(),
+      (max_widths_of<vec_type>({
+          trait_tuple_type{small_enum::one, std::nullopt, 3},
+          trait_tuple_type{small_enum::big, std::optional<uint16_t>{42}, 70000},
+      })));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           tuple_with_existing_packed_value_traits_field_access) {
+  using trait_tuple_type =
+      std::tuple<small_enum, std::optional<uint16_t>, uint32_t>;
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::nullopt, 3});
+
+  EXPECT_EQ(vec.template get_field<0>(0), small_enum::one);
+  EXPECT_EQ(vec.template get_field<1>(0), std::nullopt);
+  EXPECT_EQ(vec.template get_field<2>(0), 3);
+
+  vec.template set_field<0>(0, small_enum::big);
+  vec.template set_field<1>(0, std::optional<uint16_t>{99});
+  vec.template set_field<2>(0, 123456);
+
+  EXPECT_EQ(vec.get(0), (trait_tuple_type{
+                            small_enum::big,
+                            std::optional<uint16_t>{99},
+                            123456,
+                        }));
 }
