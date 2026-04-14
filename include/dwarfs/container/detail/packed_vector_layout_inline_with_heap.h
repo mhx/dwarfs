@@ -33,6 +33,7 @@
 #include <bit>
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <ostream>
 #include <type_traits>
@@ -62,6 +63,10 @@ class packed_vector_layout_impl<Policy, Underlying,
   static constexpr size_type pointer_bytes = sizeof(underlying_type*);
   static constexpr size_type state_bytes = metadata_bytes + pointer_bytes;
   static constexpr size_type state_bits = state_bytes * 8;
+
+  static constexpr size_type heap_pointer_offset_bytes =
+      state_bytes - pointer_bytes;
+  static constexpr size_type heap_pointer_bit = heap_pointer_offset_bytes * 8;
 
   static constexpr size_type inline_bits_field_bits =
       bit_width_for_max(bits_per_block);
@@ -94,17 +99,10 @@ class packed_vector_layout_impl<Policy, Underlying,
   static constexpr size_type max_capacity_blocks_value =
       std::numeric_limits<size_type>::max();
 
-  struct heap_repr {
-    std::array<std::byte, metadata_bytes> meta{};
-    underlying_type* data{nullptr};
-  };
-
   using state_type = std::array<std::byte, state_bytes>;
 
   static_assert(std::has_single_bit(capacity_granularity_bytes));
-  static_assert(std::is_trivially_copyable_v<heap_repr>);
   static_assert(std::is_trivially_copyable_v<state_type>);
-  static_assert(sizeof(heap_repr) == sizeof(state_type));
   static_assert(sizeof(state_type) % sizeof(underlying_type) == 0);
   static_assert(inline_payload_bits > 0);
   static_assert(capacity_granularity_blocks > 0);
@@ -117,6 +115,8 @@ class packed_vector_layout_impl<Policy, Underlying,
     os << "  max inline size: " << max_inline_size << '\n';
     os << "  max heap size: " << max_heap_size << '\n';
     os << "  max capacity blocks: " << max_capacity_blocks_value << '\n';
+    os << "  state bytes: " << state_bytes << '\n';
+    os << "  heap pointer offset: " << heap_pointer_offset_bytes << " bytes\n";
     os << "  inline flag bit: " << inline_flag_bit << " (1 bit)\n";
     os << "  inline bits field: " << inline_bits_bit << " ("
        << inline_bits_field_bits << " bits)\n";
@@ -232,7 +232,9 @@ class packed_vector_layout_impl<Policy, Underlying,
 
   [[nodiscard]] auto heap_data() const noexcept -> underlying_type const* {
     assert(!is_inline());
-    return std::bit_cast<heap_repr>(state_).data;
+    underlying_type* p = nullptr;
+    std::memcpy(&p, state_.data() + heap_pointer_offset_bytes, sizeof(p));
+    return p;
   }
 
   [[nodiscard]] auto release_heap_data() noexcept -> underlying_type* {
@@ -313,9 +315,7 @@ class packed_vector_layout_impl<Policy, Underlying,
   }
 
   void set_heap_data(underlying_type* p) noexcept {
-    auto repr = std::bit_cast<heap_repr>(state_);
-    repr.data = p;
-    state_ = std::bit_cast<state_type>(repr);
+    std::memcpy(state_.data() + heap_pointer_offset_bytes, &p, sizeof(p));
   }
 
   state_type state_{};
