@@ -124,7 +124,7 @@ class inode_impl final : public inode {
 
   static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
 
-  uint32_t flags_{0};
+  uint32_t flags_{0}; // lol, this is just saving the validity of num_
   uint32_t num_{0};
   inode_fragments fragments_;
   std::unique_ptr<std::pair<const_file_handle, std::exception_ptr>> scan_error_;
