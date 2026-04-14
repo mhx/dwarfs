@@ -35,14 +35,15 @@ enum class packed_vector_policy_type {
   heap_only,
 };
 
-template <typename Policy, typename Underlying,
+template <typename Policy, typename Value, typename Underlying,
           packed_vector_policy_type =
               Policy::supports_inline
                   ? packed_vector_policy_type::inline_with_heap
                   : packed_vector_policy_type::heap_only>
 class packed_vector_layout_impl;
 
-template <typename Policy, typename Underlying>
-using packed_vector_layout = packed_vector_layout_impl<Policy, Underlying>;
+template <typename Policy, typename Value, typename Underlying>
+using packed_vector_layout =
+    packed_vector_layout_impl<Policy, Value, Underlying>;
 
 } // namespace dwarfs::container::detail

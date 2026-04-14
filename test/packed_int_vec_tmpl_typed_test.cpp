@@ -667,6 +667,7 @@ TYPED_TEST(packed_int_vec_tmpl_test,
 
   using layout_type =
       detail::packed_vector_layout<typename vec_type::policy_type,
+                                   typename vec_type::value_type,
                                    typename vec_type::underlying_type>;
 
   if constexpr (layout_type::max_capacity_blocks_value <
