@@ -416,3 +416,19 @@ TEST(compact_packed_int_vector, assign_from_different_type_as_range) {
 
   EXPECT_THAT(other, ElementsAre(1, 2, 3));
 }
+
+TEST(packed_int_vector_static_api_test, scalar_field_arity_and_max_widths) {
+  using vec_type = dwarfs::container::packed_int_vector<uint32_t>;
+
+  EXPECT_EQ(vec_type::field_arity(), 1);
+  EXPECT_EQ(vec_type::max_widths(), (typename vec_type::widths_type{32}));
+}
+
+TEST(packed_int_vector_static_api_test, tuple_field_arity_and_max_widths) {
+  using vec_type = dwarfs::container::packed_int_vector<
+      std::tuple<uint16_t, int16_t, uint32_t>>;
+
+  EXPECT_EQ(vec_type::field_arity(), 3);
+  EXPECT_EQ(vec_type::max_widths(),
+            (typename vec_type::widths_type{16, 16, 32}));
+}
