@@ -469,10 +469,8 @@ class basic_packed_int_vector {
     return layout_.widths();
   }
 
-  [[nodiscard]] auto bits() const noexcept -> size_type
-    requires(field_count == 1)
-  {
-    return widths()[0];
+  [[nodiscard]] auto bits() const noexcept -> size_type {
+    return total_bits(widths());
   }
 
   void clear() noexcept { layout_.set_size(0); }
