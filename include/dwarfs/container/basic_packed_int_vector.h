@@ -43,6 +43,7 @@
 
 #include <dwarfs/container/detail/index_based_iterator.h>
 #include <dwarfs/container/detail/index_based_value_proxy.h>
+#include <dwarfs/container/detail/packed_field_descriptor.h>
 #include <dwarfs/container/detail/packed_vector_heap_storage.h>
 #include <dwarfs/container/detail/packed_vector_helpers.h>
 #include <dwarfs/container/detail/packed_vector_layout.h>
