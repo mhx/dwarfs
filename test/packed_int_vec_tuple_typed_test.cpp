@@ -768,3 +768,130 @@ TYPED_TEST(packed_int_vec_tuple_test, proxy_get_const_vector_reads_by_value) {
   EXPECT_EQ(get<1>(cvec[0]), -8);
   EXPECT_EQ(get<2>(cvec[0]), 999);
 }
+
+TYPED_TEST(packed_int_vec_tuple_test, value_proxy_const_assignment) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  auto const proxy = vec[0];
+  proxy = tuple_type{100, -50, 1000};
+
+  EXPECT_EQ(vec.get(0), (tuple_type{100, -50, 1000}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 6}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, value_proxy_comparisons) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({1, 2, 4});
+
+  tuple_type const v0{1, 2, 3};
+  tuple_type const v1{1, 2, 4};
+
+  EXPECT_TRUE(vec[0] == v0);
+  EXPECT_TRUE(v0 == vec[0]);
+  EXPECT_TRUE(vec[0] == vec[0]);
+  EXPECT_FALSE(vec[0] == v1);
+
+  EXPECT_TRUE((vec[0] <=> v0) == 0);
+  EXPECT_TRUE((vec[0] <=> v1) < 0);
+  EXPECT_TRUE((v1 <=> vec[0]) > 0);
+  EXPECT_TRUE((vec[0] <=> vec[1]) < 0);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_converts_to_value) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::optional<uint16_t>{42}, 7});
+
+  std::optional<uint16_t> value = get<1>(vec[0]);
+  EXPECT_EQ(value, std::optional<uint16_t>{42});
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_const_assignment) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::nullopt, 7});
+
+  auto const field = get<1>(vec[0]);
+  field = std::optional<uint16_t>{99};
+
+  EXPECT_EQ(vec.get(0), (trait_tuple_type{small_enum::one,
+                                          std::optional<uint16_t>{99}, 7}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_assignment_from_proxy) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::optional<uint16_t>{11}, 7});
+  vec.push_back({small_enum::big, std::optional<uint16_t>{22}, 8});
+
+  get<1>(vec[0]) = get<1>(vec[1]);
+
+  EXPECT_EQ(vec.get(0), (trait_tuple_type{small_enum::one,
+                                          std::optional<uint16_t>{22}, 7}));
+  EXPECT_EQ(vec.get(1), (trait_tuple_type{small_enum::big,
+                                          std::optional<uint16_t>{22}, 8}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_swap) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::optional<uint16_t>{11}, 7});
+  vec.push_back({small_enum::big, std::optional<uint16_t>{22}, 8});
+
+  auto a = get<1>(vec[0]);
+  auto b = get<1>(vec[1]);
+  using std::swap;
+  swap(a, b);
+
+  EXPECT_EQ(vec.get(0), (trait_tuple_type{small_enum::one,
+                                          std::optional<uint16_t>{22}, 7}));
+  EXPECT_EQ(vec.get(1), (trait_tuple_type{small_enum::big,
+                                          std::optional<uint16_t>{11}, 8}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_comparisons) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec;
+  vec.push_back({small_enum::one, std::optional<uint16_t>{11}, 7});
+  vec.push_back({small_enum::big, std::optional<uint16_t>{22}, 8});
+  vec.push_back({small_enum::zero, std::optional<uint16_t>{11}, 9});
+
+  auto const eleven = std::optional<uint16_t>{11};
+  auto const twenty_two = std::optional<uint16_t>{22};
+
+  EXPECT_TRUE(get<1>(vec[0]) == eleven);
+  EXPECT_TRUE(eleven == get<1>(vec[0]));
+  EXPECT_TRUE(get<1>(vec[0]) == get<1>(vec[2]));
+  EXPECT_FALSE(get<1>(vec[0]) == twenty_two);
+
+  EXPECT_TRUE((get<1>(vec[0]) <=> eleven) == 0);
+  EXPECT_TRUE((get<1>(vec[0]) <=> twenty_two) < 0);
+  EXPECT_TRUE((twenty_two <=> get<1>(vec[0])) > 0);
+  EXPECT_TRUE((get<1>(vec[0]) <=> get<1>(vec[2])) == 0);
+  EXPECT_TRUE((get<1>(vec[0]) <=> get<1>(vec[1])) < 0);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_scalar_field_roundtrip) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+
+  auto field = get<0>(vec[0]);
+  EXPECT_EQ(static_cast<uint16_t>(field), 1);
+
+  field = 255;
+  EXPECT_EQ(vec.get(0), (tuple_type{255, 2, 3}));
+}
