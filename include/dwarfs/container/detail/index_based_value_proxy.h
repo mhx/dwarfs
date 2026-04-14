@@ -31,9 +31,108 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <tuple>
 #include <type_traits>
 
+#include <dwarfs/container/detail/packed_field_descriptor.h>
+
 namespace dwarfs::container::detail {
+
+template <typename Container, std::size_t I>
+class index_based_field_proxy {
+ public:
+  using container_type = Container;
+  using size_type = typename container_type::size_type;
+  using value_type = typename packed_field_descriptor<
+      typename container_type::value_type>::template field_value_type<I>;
+
+  index_based_field_proxy(container_type& vec, size_type i)
+      : vec_{vec}
+      , i_{i} {}
+
+  index_based_field_proxy(index_based_field_proxy const&) = default;
+  index_based_field_proxy(index_based_field_proxy&&) = default;
+
+  operator value_type() const { return vec_.template get_field<I>(i_); }
+
+  index_based_field_proxy& operator=(value_type value) {
+    vec_.template set_field<I>(i_, value);
+    return *this;
+  }
+
+  // Required for proxy-reference style semantics.
+  // NOLINTNEXTLINE(misc-unconventional-assign-operator,cppcoreguidelines-c-copy-assignment-signature)
+  index_based_field_proxy const& operator=(value_type value) const {
+    vec_.template set_field<I>(i_, value);
+    return *this;
+  }
+
+  index_based_field_proxy& operator=(index_based_field_proxy const& other) {
+    if (this != &other) {
+      *this = static_cast<value_type>(other);
+    }
+    return *this;
+  }
+
+  friend void
+  swap(index_based_field_proxy a, index_based_field_proxy b) noexcept {
+    value_type tmp = a;
+    a = static_cast<value_type>(b);
+    b = tmp;
+  }
+
+  friend bool
+  operator==(index_based_field_proxy const& lhs, value_type const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return static_cast<value_type>(lhs) == rhs;
+  }
+
+  friend bool
+  operator==(value_type const& lhs, index_based_field_proxy const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return lhs == static_cast<value_type>(rhs);
+  }
+
+  friend bool operator==(index_based_field_proxy const& lhs,
+                         index_based_field_proxy const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return static_cast<value_type>(lhs) == static_cast<value_type>(rhs);
+  }
+
+  friend auto
+  operator<=>(index_based_field_proxy const& lhs, value_type const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return static_cast<value_type>(lhs) <=> rhs;
+  }
+
+  friend auto
+  operator<=>(value_type const& lhs, index_based_field_proxy const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return lhs <=> static_cast<value_type>(rhs);
+  }
+
+  friend auto operator<=>(index_based_field_proxy const& lhs,
+                          index_based_field_proxy const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return static_cast<value_type>(lhs) <=> static_cast<value_type>(rhs);
+  }
+
+ private:
+  container_type& vec_;
+  size_type i_;
+};
 
 template <typename Container>
 class index_based_value_proxy {
@@ -42,6 +141,11 @@ class index_based_value_proxy {
   using value_type = typename container_type::value_type;
   using size_type = typename container_type::size_type;
 
+ private:
+  using field_descriptor = packed_field_descriptor<value_type>;
+  static constexpr size_type field_count = field_descriptor::field_count;
+
+ public:
   index_based_value_proxy(container_type& vec, size_type i)
       : vec_{vec}
       , i_{i} {}
@@ -75,6 +179,14 @@ class index_based_value_proxy {
     value_type tmp = a;
     a = static_cast<value_type>(b);
     b = tmp;
+  }
+
+  template <size_type I>
+  [[nodiscard]] auto get() const
+    requires(field_count > 1)
+  {
+    static_assert(I < field_count);
+    return index_based_field_proxy<container_type, I>{vec_, i_};
   }
 
   friend bool
@@ -123,6 +235,13 @@ class index_based_value_proxy {
              std::three_way_comparable<value_type>
   {
     return static_cast<value_type>(lhs) <=> static_cast<value_type>(rhs);
+  }
+
+  template <size_type I>
+  friend auto get(index_based_value_proxy const& proxy)
+    requires(field_count > 1)
+  {
+    return proxy.template get<I>();
   }
 
  private:
