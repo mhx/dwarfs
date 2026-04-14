@@ -490,3 +490,108 @@ TYPED_TEST(packed_int_vec_tuple_test, reverse_iterators) {
   EXPECT_THAT(reversed, ElementsAre(tuple_type{7, 8, 9}, tuple_type{4, 5, 6},
                                     tuple_type{1, 2, 3}));
 }
+
+TYPED_TEST(packed_int_vec_tuple_test, get_field_reads_individual_fields) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+  using widths_type = typename vec_type::widths_type;
+
+  vec_type vec(widths_type{10, 10, 20});
+  vec.push_back({7, -8, 999});
+
+  EXPECT_EQ(vec.template get_field<0>(0), 7);
+  EXPECT_EQ(vec.template get_field<1>(0), -8);
+  EXPECT_EQ(vec.template get_field<2>(0), 999);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           set_field_updates_only_selected_field_fixed) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+  using widths_type = typename vec_type::widths_type;
+
+  vec_type vec(widths_type{10, 10, 20});
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  vec.template set_field<1>(0, -77);
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, -77, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 6}));
+  EXPECT_EQ(vec.widths(), (widths_type{10, 10, 20}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, set_field_grows_only_touched_width_auto) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  auto const before = vec.widths();
+
+  vec.template set_field<1>(0, -200);
+
+  auto const after = vec.widths();
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, -200, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 6}));
+
+  EXPECT_EQ(after[0], before[0]);
+  EXPECT_GE(after[1], before[1]);
+  EXPECT_EQ(after[2], before[2]);
+
+  EXPECT_EQ(after, (max_widths_of<vec_type>({
+                       tuple_type{1, -200, 3},
+                       tuple_type{4, 5, 6},
+                   })));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, set_field_can_grow_unsigned_field_auto) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  vec.template set_field<2>(1, 70000);
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, 2, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 70000}));
+
+  EXPECT_EQ(vec.widths(), (max_widths_of<vec_type>({
+                              tuple_type{1, 2, 3},
+                              tuple_type{4, 5, 70000},
+                          })));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, get_field_after_set_field_roundtrip) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({10, -20, 30});
+
+  vec.template set_field<0>(0, 255);
+  vec.template set_field<1>(0, -128);
+  vec.template set_field<2>(0, 123456);
+
+  EXPECT_EQ(vec.template get_field<0>(0), 255);
+  EXPECT_EQ(vec.template get_field<1>(0), -128);
+  EXPECT_EQ(vec.template get_field<2>(0), 123456);
+  EXPECT_EQ(vec.get(0), (tuple_type{255, -128, 123456}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           set_field_does_not_affect_other_elements) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({10, 20, 30});
+  vec.push_back({100, 200, 300});
+
+  vec.template set_field<0>(1, 77);
+  vec.template set_field<2>(1, 9999);
+
+  EXPECT_THAT(vec.unpack(),
+              ElementsAre(tuple_type{1, 2, 3}, tuple_type{77, 20, 9999},
+                          tuple_type{100, 200, 300}));
+}
