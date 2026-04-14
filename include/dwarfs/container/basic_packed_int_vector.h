@@ -52,7 +52,7 @@
 namespace dwarfs::container {
 
 template <typename T>
-concept integer_packable = requires(
+concept packed_vector_value = requires(
     T const& v, typename packed_value_traits<T>::encoded_type e) {
   requires integral_but_not_bool<typename packed_value_traits<T>::encoded_type>;
   {
@@ -93,8 +93,8 @@ enum class packed_vector_bit_width_strategy {
  * referenced index remains valid, but operations that replace the logical
  * contents of the vector should be treated as invalidating all iterators.
  */
-template <integer_packable T, packed_vector_bit_width_strategy BitWidthStrategy,
-          typename Policy,
+template <packed_vector_value T,
+          packed_vector_bit_width_strategy BitWidthStrategy, typename Policy,
           typename GrowthPolicy = detail::default_block_growth_policy>
 class basic_packed_int_vector {
  public:
@@ -116,7 +116,7 @@ class basic_packed_int_vector {
   static constexpr size_type bits_per_block =
       std::numeric_limits<underlying_type>::digits;
 
-  template <integer_packable, packed_vector_bit_width_strategy, typename,
+  template <packed_vector_value, packed_vector_bit_width_strategy, typename,
             typename>
   friend class basic_packed_int_vector;
 
