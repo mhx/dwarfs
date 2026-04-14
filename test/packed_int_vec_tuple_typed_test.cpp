@@ -33,6 +33,7 @@
 
 using namespace dwarfs::test;
 using namespace dwarfs::container;
+using std::get;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 
@@ -662,4 +663,108 @@ TYPED_TEST(packed_int_vec_tuple_test,
                             std::optional<uint16_t>{99},
                             123456,
                         }));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, proxy_get_reads_individual_fields) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+  using widths_type = typename vec_type::widths_type;
+
+  vec_type vec(widths_type{10, 10, 20});
+  vec.push_back({7, -8, 999});
+
+  EXPECT_EQ(get<0>(vec[0]), 7);
+  EXPECT_EQ(get<1>(vec[0]), -8);
+  EXPECT_EQ(get<2>(vec[0]), 999);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           proxy_get_writes_individual_fields_fixed) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+  using widths_type = typename vec_type::widths_type;
+
+  vec_type vec(widths_type{10, 10, 20});
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  get<1>(vec[0]) = -77;
+  get<2>(vec[1]) = 999;
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, -77, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 999}));
+  EXPECT_EQ(vec.widths(), (widths_type{10, 10, 20}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           proxy_get_writes_grow_only_touched_field_auto) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  auto const before = vec.widths();
+
+  get<1>(vec[0]) = -200;
+
+  auto const after = vec.widths();
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, -200, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 6}));
+
+  EXPECT_EQ(after[0], before[0]);
+  EXPECT_GE(after[1], before[1]);
+  EXPECT_EQ(after[2], before[2]);
+
+  EXPECT_EQ(after, (max_widths_of<vec_type>({
+                       tuple_type{1, -200, 3},
+                       tuple_type{4, 5, 6},
+                   })));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, proxy_get_writes_unsigned_field_auto) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+
+  get<2>(vec[1]) = 70000;
+
+  EXPECT_EQ(vec.get(0), (tuple_type{1, 2, 3}));
+  EXPECT_EQ(vec.get(1), (tuple_type{4, 5, 70000}));
+
+  EXPECT_EQ(vec.widths(), (max_widths_of<vec_type>({
+                              tuple_type{1, 2, 3},
+                              tuple_type{4, 5, 70000},
+                          })));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test,
+           proxy_get_does_not_affect_other_fields_or_elements) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({10, 20, 30});
+  vec.push_back({40, 50, 60});
+  vec.push_back({70, 80, 90});
+
+  get<0>(vec[1]) = 111;
+  get<2>(vec[1]) = 9999;
+
+  EXPECT_THAT(vec.unpack(),
+              ElementsAre(tuple_type{10, 20, 30}, tuple_type{111, 50, 9999},
+                          tuple_type{70, 80, 90}));
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, proxy_get_const_vector_reads_by_value) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({7, -8, 999});
+
+  vec_type const& cvec = vec;
+
+  EXPECT_EQ(get<0>(cvec[0]), 7);
+  EXPECT_EQ(get<1>(cvec[0]), -8);
+  EXPECT_EQ(get<2>(cvec[0]), 999);
 }
