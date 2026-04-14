@@ -466,3 +466,27 @@ TYPED_TEST(packed_int_vec_tuple_test, set_then_optimize_storage) {
   EXPECT_EQ(vec.widths(), expected);
   EXPECT_THAT(vec.unpack(), ElementsAre(tuple_type{1, 2, 3}));
 }
+
+TYPED_TEST(packed_int_vec_tuple_test, reverse_iterators) {
+  using vec_type = typename TypeParam::template auto_type<tuple_type>;
+
+  vec_type vec;
+  vec.push_back({1, 2, 3});
+  vec.push_back({4, 5, 6});
+  vec.push_back({7, 8, 9});
+
+  std::vector<tuple_type> reversed;
+  for (auto it = vec.rbegin(); it != vec.rend(); ++it) {
+    reversed.push_back(*it);
+  }
+  EXPECT_THAT(reversed, ElementsAre(tuple_type{7, 8, 9}, tuple_type{4, 5, 6},
+                                    tuple_type{1, 2, 3}));
+
+  vec_type const& cvec = vec;
+  reversed.clear();
+  for (auto it = cvec.crbegin(); it != cvec.crend(); ++it) {
+    reversed.push_back(*it);
+  }
+  EXPECT_THAT(reversed, ElementsAre(tuple_type{7, 8, 9}, tuple_type{4, 5, 6},
+                                    tuple_type{1, 2, 3}));
+}
