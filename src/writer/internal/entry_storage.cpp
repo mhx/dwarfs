@@ -173,6 +173,15 @@ template <typename T>
 using flat_cao_index =
     dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
 
+template <typename T>
+std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
+  return std::accumulate(vec.begin(), vec.end(), 0ULL,
+                         [](std::size_t acc, auto const& de) {
+                           return acc + de.size_in_bytes();
+                         }) +
+         sizeof(vec[0]) * vec.size();
+}
+
 struct shared_entry_data {
   void drop_indices() { path_index_.reset(); }
   void drop_lookup_tables() { dir_entry_lookup_.clear(); }
@@ -188,18 +197,11 @@ struct shared_entry_data {
                           return acc + pc.size_in_bytes();
                         });
 
-    auto const total_dir_entry_bytes =
-        std::accumulate(dir_entries_.begin(), dir_entries_.end(), 0ULL,
-                        [](std::size_t acc, auto const& de) {
-                          return acc + de.size_in_bytes();
-                        }) +
-        sizeof(dir_entries_[0]) * dir_entries_.size();
-
     os << "shared entry data:\n";
     os << "  path components: " << path_components_.size() << " ("
        << size_with_unit(total_path_bytes) << ")\n";
     os << "  dir entries: " << dir_entries_.size() << " ("
-       << size_with_unit(total_dir_entry_bytes) << ")\n";
+       << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
   }
 
   // TODO; remove those trailing underscores?
@@ -344,6 +346,7 @@ class entry_storage_ final : public entry_storage::impl {
       , others_{std::move(other.others_)}
       , file_data_{std::move(other.file_data_)}
       , inodes_{std::move(other.inodes_)}
+      , files_for_inode_{std::move(other.files_for_inode_)}
       , shared_{std::move(other.shared_)}
       , packed_files_{std::move(other.packed_files_)}
       , packed_dirs_{std::move(other.packed_dirs_)}
@@ -413,6 +416,7 @@ class entry_storage_ final : public entry_storage::impl {
     if constexpr (is_mutable) {
       auto id = inodes_.size();
       inodes_.emplace_back();
+      files_for_inode_.emplace_back();
       return inode_id{id};
     } else {
       frozen_panic();
@@ -459,6 +463,17 @@ class entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return &inodes_.at(id.index());
+  }
+
+  file_id_vector const& get_files_for_inode(inode_id id) const override {
+    return files_for_inode_.at(id.index());
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) override {
+    // this is safe even on frozen storage if it's single-threaded
+    auto& vec = files_for_inode_.at(id.index());
+    DWARFS_CHECK(vec.empty(), "files already set for inode");
+    vec = std::move(fv);
   }
 
   entry_id get_parent(entry_id const id) const override {
@@ -661,6 +676,7 @@ class entry_storage_ final : public entry_storage::impl {
   cao_vector<other> others_;
   cao_vector<file_data> file_data_;
   cao_vector<detail::inode_impl> inodes_;
+  cao_vector<file_id_vector> files_for_inode_;
 
   shared_entry_data shared_;
   packed_entry_data packed_files_;
@@ -679,6 +695,8 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   os << "num devices: " << devices_.size() << "\n";
   os << "num others: " << others_.size() << "\n";
   os << "num inodes: " << inodes_.size() << "\n";
+  os << "  hardlinks: "
+     << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
 
   shared_.dump(os);
   packed_files_.dump(os, "files");
@@ -735,6 +753,14 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return impl_.lock()->get_inode(id);
+  }
+
+  file_id_vector const& get_files_for_inode(inode_id id) const override {
+    return impl_.lock()->get_files_for_inode(id);
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) override {
+    impl_.lock()->set_files_for_inode(id, std::move(fv));
   }
 
   entry_id get_parent(entry_id const id) const override {
