@@ -53,13 +53,10 @@
 namespace dwarfs::container {
 
 template <typename T>
-concept packed_vector_value = requires(
-    T const& v, typename packed_value_traits<T>::encoded_type e) {
-  requires integral_but_not_bool<typename packed_value_traits<T>::encoded_type>;
-  {
-    packed_value_traits<T>::encode(v)
-  } -> std::same_as<typename packed_value_traits<T>::encoded_type>;
-  { packed_value_traits<T>::decode(e) } -> std::same_as<T>;
+concept packed_vector_value = requires {
+  typename detail::packed_field_descriptor<T>;
+  typename detail::packed_field_descriptor<T>::widths_type;
+  requires(detail::packed_field_descriptor<T>::field_count > 0);
 };
 
 enum class packed_vector_bit_width_strategy {
@@ -100,9 +97,6 @@ template <packed_vector_value T,
 class basic_packed_int_vector {
  public:
   using value_type = T;
-  using traits_type = packed_value_traits<T>;
-  using encoded_type = typename traits_type::encoded_type;
-  using underlying_type = std::make_unsigned_t<encoded_type>;
   using size_type = std::size_t;
   using policy_type = Policy;
   using growth_policy_type = GrowthPolicy;
@@ -112,14 +106,29 @@ class basic_packed_int_vector {
   using const_iterator =
       detail::index_based_const_iterator<basic_packed_int_vector>;
 
-  static constexpr bool auto_bit_width =
-      BitWidthStrategy == packed_vector_bit_width_strategy::automatic;
-  static constexpr size_type bits_per_block =
-      std::numeric_limits<underlying_type>::digits;
-
   template <packed_vector_value, packed_vector_bit_width_strategy, typename,
             typename>
   friend class basic_packed_int_vector;
+
+ private:
+  using field_descriptor = detail::packed_field_descriptor<value_type>;
+  static constexpr size_type field_count = field_descriptor::field_count;
+
+  template <size_type I>
+  using field_traits_type =
+      typename field_descriptor::template field_traits_type<I>;
+
+  template <size_type I>
+  using field_encoded_type =
+      typename field_descriptor::template field_encoded_type<I>;
+
+  using widths_type = typename field_descriptor::widths_type;
+
+ public:
+  // Still scalar-only for now in terms of physical storage.
+  // Later this will become an independent block type.
+  using encoded_type = field_encoded_type<0>;
+  using underlying_type = std::make_unsigned_t<encoded_type>;
 
  private:
   using storage_type = detail::packed_vector_heap_storage<underlying_type>;
@@ -135,6 +144,10 @@ class basic_packed_int_vector {
   static constexpr bool same_layout_v = std::same_as<layout_type, OtherLayout>;
 
  public:
+  static constexpr bool auto_bit_width =
+      BitWidthStrategy == packed_vector_bit_width_strategy::automatic;
+  static constexpr size_type bits_per_block =
+      std::numeric_limits<underlying_type>::digits;
   static constexpr bool has_inline_storage = layout_type::supports_inline;
 
   static constexpr size_type max_size() noexcept {
@@ -152,19 +165,19 @@ class basic_packed_int_vector {
   basic_packed_int_vector() = default;
 
   explicit basic_packed_int_vector(size_type bits) {
-    initialize(checked_bits(bits), 0);
+    initialize(scalar_bits(checked_widths(make_widths(bits))), 0);
   }
 
   basic_packed_int_vector(size_type bits, size_type size) {
     check_size_limit(size);
-    initialize(checked_bits(bits), size);
+    initialize(scalar_bits(checked_widths(make_widths(bits))), size);
   }
 
   basic_packed_int_vector(std::initializer_list<value_type> ilist)
       : basic_packed_int_vector(required_bits_for(ilist), ilist.size()) {
     std::size_t i = 0;
     for (value_type value : ilist) {
-      layout_.write(i++, traits_type::encode(value));
+      layout_.write(i++, encode_field<0>(value));
     }
   }
 
@@ -176,7 +189,7 @@ class basic_packed_int_vector {
       : basic_packed_int_vector(required_bits_for(r), std::ranges::size(r)) {
     size_type i = 0;
     for (auto&& v : std::forward<R>(r)) {
-      layout_.write(i++, traits_type::encode(static_cast<value_type>(v)));
+      layout_.write(i++, encode_field<0>(static_cast<value_type>(v)));
     }
   }
 
@@ -294,8 +307,8 @@ class basic_packed_int_vector {
   }
 
   static constexpr auto required_bits(value_type value)
-      noexcept(noexcept(traits_type::encode(value))) -> size_type {
-    return required_bits_encoded(traits_type::encode(value));
+      noexcept(noexcept(encode_field<0>(value))) -> size_type {
+    return required_bits_encoded(encode_field<0>(value));
   }
 
   [[nodiscard]] auto required_bits() const -> size_type {
@@ -310,7 +323,7 @@ class basic_packed_int_vector {
   void reset(size_type bits = 0, size_type sz = 0) {
     check_size_limit(sz);
     destroy_heap_storage();
-    initialize(checked_bits(bits), sz);
+    initialize(scalar_bits(checked_widths(make_widths(bits))), sz);
   }
 
   void resize(size_type new_size, value_type value = value_type{}) {
@@ -320,7 +333,7 @@ class basic_packed_int_vector {
 
     if (new_size > old_size) {
       auto const old_bits = bits();
-      auto const encoded = traits_type::encode(value);
+      auto const encoded = encode_field<0>(value);
 
       if constexpr (auto_bit_width) {
         ensure_bits(required_bits_encoded(encoded), new_size, old_size,
@@ -395,7 +408,7 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto get(size_type i) const -> const_reference {
     assert(i < size());
-    return traits_type::decode(get_encoded(i));
+    return decode_field<0>(get_encoded(i));
   }
 
   auto operator[](size_type i) -> reference { return reference{*this, i}; }
@@ -410,7 +423,7 @@ class basic_packed_int_vector {
   void set(size_type i, value_type value) {
     assert(i < size());
 
-    auto const encoded = traits_type::encode(value);
+    auto const encoded = encode_field<0>(value);
 
     if constexpr (auto_bit_width) {
       auto const cur_size = size();
@@ -427,7 +440,7 @@ class basic_packed_int_vector {
       throw_size_limit();
     }
 
-    auto const encoded = traits_type::encode(value);
+    auto const encoded = encode_field<0>(value);
     auto const new_size = old_size + 1;
     auto cur_bits = bits();
 
@@ -590,6 +603,62 @@ class basic_packed_int_vector {
   }
 
  private:
+  template <size_type I>
+  [[nodiscard]] auto
+  get_encoded_field(size_type i) const -> field_encoded_type<I> {
+    static_assert(I == 0);
+    return get_encoded(i);
+  }
+
+  template <size_type I>
+  void set_encoded_field(size_type i, field_encoded_type<I> value) {
+    static_assert(I == 0);
+    layout_.write(i, value);
+  }
+
+  template <size_type I>
+  static constexpr auto encode_field(value_type const& value)
+      noexcept(noexcept(field_descriptor::template encode_field<I>(value)))
+          -> field_encoded_type<I> {
+    return field_descriptor::template encode_field<I>(value);
+  }
+
+  template <size_type I>
+  static constexpr auto decode_field(field_encoded_type<I> encoded)
+      noexcept(noexcept(field_descriptor::template decode_field<I>(encoded))) ->
+      typename field_descriptor::template field_value_type<I> {
+    return field_descriptor::template decode_field<I>(encoded);
+  }
+
+  [[nodiscard]] static constexpr auto
+  make_widths(size_type bits) noexcept -> widths_type {
+    widths_type widths{};
+    widths[0] = static_cast<std::uint8_t>(bits);
+    return widths;
+  }
+
+  [[nodiscard]] static constexpr auto
+  scalar_bits(widths_type const& widths) noexcept -> size_type {
+    return widths[0];
+  }
+
+  [[nodiscard]] static constexpr auto
+  checked_widths(widths_type widths) -> widths_type {
+    widths[0] = static_cast<std::uint8_t>(checked_bits(widths[0]));
+    return widths;
+  }
+
+  [[nodiscard]] static constexpr auto required_widths(value_type value)
+      noexcept(noexcept(required_bits_encoded(encode_field<0>(value))))
+          -> widths_type {
+    return make_widths(required_bits_encoded(encode_field<0>(value)));
+  }
+
+  [[nodiscard]] static constexpr auto
+  total_bits(widths_type const& widths) noexcept -> size_type {
+    return scalar_bits(widths);
+  }
+
   encoded_type get_encoded(size_type i) const {
     assert(i < size());
     return layout_.template read<encoded_type>(i);
@@ -616,17 +685,18 @@ class basic_packed_int_vector {
   template <std::ranges::forward_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   static auto required_bits_for(R&& r) -> size_type {
-    size_type bits = 0;
+    widths_type widths{};
 
     for (auto&& v : std::forward<R>(r)) {
-      bits = std::max(bits, required_bits(static_cast<value_type>(v)));
+      auto const req = required_widths(static_cast<value_type>(v));
+      widths[0] = std::max(widths[0], req[0]);
 
-      if (bits == bits_per_block) {
+      if (widths[0] == bits_per_block) {
         break;
       }
     }
 
-    return bits;
+    return scalar_bits(widths);
   }
 
   template <typename Producer>
@@ -658,7 +728,7 @@ class basic_packed_int_vector {
 
     auto&& gen = std::forward<Producer>(produce);
     for (size_type i = 0; i < count; ++i) {
-      layout_.write(index + i, traits_type::encode(gen()));
+      layout_.write(index + i, encode_field<0>(gen()));
     }
 
     layout_.set_size(new_size);
