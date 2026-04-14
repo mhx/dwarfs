@@ -140,18 +140,18 @@ void expect_matches_model(Vec const& vec,
 }
 
 struct packed_int_vector_selector {
-  template <dwarfs::container::integer_packable T>
+  template <dwarfs::container::packed_vector_value T>
   using type = packed_int_vector<T>;
 
-  template <dwarfs::container::integer_packable T>
+  template <dwarfs::container::packed_vector_value T>
   using auto_type = auto_packed_int_vector<T>;
 };
 
 struct compact_packed_int_vector_selector {
-  template <dwarfs::container::integer_packable T>
+  template <dwarfs::container::packed_vector_value T>
   using type = compact_packed_int_vector<T>;
 
-  template <dwarfs::container::integer_packable T>
+  template <dwarfs::container::packed_vector_value T>
   using auto_type = compact_auto_packed_int_vector<T>;
 };
 

@@ -40,13 +40,13 @@
 
 namespace dwarfs::test {
 
-template <container::integer_packable T>
+template <container::packed_vector_value T>
 struct packed_int_vector_type_selector {
   using type = container::packed_int_vector<T>;
   using auto_type = container::auto_packed_int_vector<T>;
 };
 
-template <container::integer_packable T>
+template <container::packed_vector_value T>
 struct compact_packed_int_vector_type_selector {
   using type = container::compact_packed_int_vector<T>;
   using auto_type = container::compact_auto_packed_int_vector<T>;
