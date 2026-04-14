@@ -72,32 +72,32 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
 
  private:
   template <size_type I>
-  static constexpr auto max_field_bits() noexcept -> size_type {
+  static consteval auto max_field_bits() noexcept -> size_type {
     using encoded_type_i = field_encoded_type<I>;
     using unsigned_encoded_type_i = std::make_unsigned_t<encoded_type_i>;
     return std::numeric_limits<unsigned_encoded_type_i>::digits;
   }
 
   template <size_type... I>
-  static constexpr auto
+  static consteval auto
   max_widths_impl(std::index_sequence<I...>) noexcept -> widths_type {
     return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
   }
 
   template <size_type... I>
-  static constexpr auto
+  static consteval auto
   max_storable_width_impl(std::index_sequence<I...>) noexcept -> size_type {
     size_type result = 0;
     ((result = std::max(result, max_field_bits<I>())), ...);
     return result;
   }
 
-  [[nodiscard]] static constexpr auto
+  [[nodiscard]] static consteval auto
   max_widths_value() noexcept -> widths_type {
     return max_widths_impl(std::make_index_sequence<field_count>{});
   }
 
-  [[nodiscard]] static constexpr auto
+  [[nodiscard]] static consteval auto
   max_storable_width() noexcept -> size_type {
     return max_storable_width_impl(std::make_index_sequence<field_count>{});
   }
