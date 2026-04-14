@@ -79,7 +79,8 @@ namespace {
 //       may not, because we don't know upfront which fields are going
 //       to be accessed) - still, the visitors seem a bit overkill
 
-template <dwarfs::container::integer_packable T, std::size_t SegmentSize = 4096>
+template <dwarfs::container::packed_vector_value T,
+          std::size_t SegmentSize = 4096>
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
 
 } // namespace

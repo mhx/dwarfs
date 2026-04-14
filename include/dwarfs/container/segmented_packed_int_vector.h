@@ -43,7 +43,7 @@
 
 namespace dwarfs::container {
 
-template <integer_packable T, std::size_t SegmentElements = 1024>
+template <packed_vector_value T, std::size_t SegmentElements = 1024>
   requires(!std::same_as<T, bool> && std::has_single_bit(SegmentElements))
 class segmented_packed_int_vector {
  public:
