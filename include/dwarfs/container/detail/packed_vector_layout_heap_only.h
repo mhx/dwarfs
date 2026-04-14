@@ -89,11 +89,6 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   static_assert(std::has_single_bit(capacity_granularity_bytes));
 
   [[nodiscard]] static constexpr auto
-  can_store_inline(widths_type const&, size_type) noexcept -> bool {
-    return false;
-  }
-
-  [[nodiscard]] static constexpr auto
   can_store_heap(widths_type const& widths, size_type, size_type) noexcept
       -> bool {
     if constexpr (!std::same_as<underlying_type, std::uint8_t>) {
@@ -154,8 +149,6 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     assert(data_ || v == 0);
     storage_type::set_size(data_, v);
   }
-
-  void set_widths(widths_type const& widths) noexcept { widths_ = widths; }
 
   void
   set_heap_state(underlying_type* data, widths_type const& widths) noexcept {
