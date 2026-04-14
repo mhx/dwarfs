@@ -45,7 +45,7 @@ namespace dwarfs::container {
  * This variant has no policy-imposed size limit beyond `std::size_t` and is
  * therefore suitable as the general-purpose packed integer vector.
  */
-template <integer_packable T>
+template <packed_vector_value T>
 using packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::fixed,
                             detail::heap_only_packed_vector_policy>;
@@ -56,7 +56,7 @@ using packed_int_vector =
  * Like `packed_int_vector`, but grows the element bit width automatically as
  * needed to represent newly inserted or assigned values.
  */
-template <integer_packable T>
+template <packed_vector_value T>
 using auto_packed_int_vector =
     basic_packed_int_vector<T, packed_vector_bit_width_strategy::automatic,
                             detail::heap_only_packed_vector_policy>;
