@@ -33,6 +33,7 @@
 #include <bit>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <ostream>
@@ -40,6 +41,7 @@
 
 #include <dwarfs/bit_view.h>
 
+#include <dwarfs/container/detail/packed_field_descriptor.h>
 #include <dwarfs/container/detail/packed_vector_heap_storage.h>
 #include <dwarfs/container/detail/packed_vector_helpers.h>
 #include <dwarfs/container/detail/packed_vector_layout.h>
@@ -55,8 +57,15 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   using underlying_type = Underlying;
   using size_type = std::size_t;
   using storage_type = packed_vector_heap_storage<underlying_type>;
+  using field_descriptor = packed_field_descriptor<value_type>;
+  using widths_type = typename field_descriptor::widths_type;
+
+  template <size_type I>
+  using field_encoded_type =
+      typename field_descriptor::template field_encoded_type<I>;
 
   static constexpr bool supports_inline = policy_type::supports_inline;
+  static constexpr size_type field_count = field_descriptor::field_count;
   static constexpr size_type bits_per_block =
       std::numeric_limits<underlying_type>::digits;
 
@@ -143,8 +152,24 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   }
 
   [[nodiscard]] static constexpr auto
+  can_store_inline(widths_type const& widths, size_type size) noexcept -> bool
+    requires(field_count == 1)
+  {
+    return can_store_inline(static_cast<size_type>(widths[0]), size);
+  }
+
+  [[nodiscard]] static constexpr auto
   can_store_heap(size_type bits, size_type, size_type) noexcept -> bool {
     return bits <= bits_per_block;
+  }
+
+  [[nodiscard]] static constexpr auto
+  can_store_heap(widths_type const& widths, size_type size,
+                 size_type capacity_blocks) noexcept -> bool
+    requires(field_count == 1)
+  {
+    return can_store_heap(static_cast<size_type>(widths[0]), size,
+                          capacity_blocks);
   }
 
   [[nodiscard]] static auto
@@ -153,6 +178,13 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
       return max_inline_size;
     }
     return std::min(max_inline_size, inline_payload_bits / bits);
+  }
+
+  [[nodiscard]] static constexpr auto
+  inline_capacity_for_widths(widths_type const& widths) noexcept -> size_type
+    requires(field_count == 1)
+  {
+    return inline_capacity_for_bits(static_cast<size_type>(widths[0]));
   }
 
   packed_vector_layout_impl() { reset_empty(); }
@@ -198,6 +230,13 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     return (capacity_blocks() * bits_per_block) / bits;
   }
 
+  [[nodiscard]] auto
+  usable_capacity(widths_type const& widths) const noexcept -> size_type
+    requires(field_count == 1)
+  {
+    return usable_capacity(static_cast<size_type>(widths[0]));
+  }
+
   void set_size(size_type v) noexcept {
     if (is_inline()) {
       write_field(inline_size_bit, inline_size_field_bits, v);
@@ -215,6 +254,12 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     write_field(inline_size_bit, inline_size_field_bits, size);
   }
 
+  void set_inline_state(widths_type const& widths, size_type size) noexcept
+    requires(field_count == 1)
+  {
+    set_inline_state(static_cast<size_type>(widths[0]), size);
+  }
+
   void set_heap_state(underlying_type* data, size_type bits) noexcept {
     assert(bits <= bits_per_block);
 
@@ -222,6 +267,26 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     write_field(heap_flag_bit, 1, 0);
     write_field(heap_bits_bit, heap_bits_field_bits, bits);
     set_heap_data(data);
+  }
+
+  void set_heap_state(underlying_type* data, widths_type const& widths) noexcept
+    requires(field_count == 1)
+  {
+    set_heap_state(data, static_cast<size_type>(widths[0]));
+  }
+
+  [[nodiscard]] auto widths() const noexcept -> widths_type
+    requires(field_count == 1)
+  {
+    return widths_type{static_cast<std::uint8_t>(bits())};
+  }
+
+  template <size_type I>
+  [[nodiscard]] auto field_bits() const noexcept -> size_type
+    requires(field_count == 1)
+  {
+    static_assert(I == 0);
+    return bits();
   }
 
   void reset_empty() noexcept { set_inline_state(0, 0); }
@@ -299,6 +364,30 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     for (size_type i = first; i < last; ++i) {
       view.write({i * value_bits, value_bits}, value);
     }
+  }
+
+  template <size_type I>
+  [[nodiscard]] auto read_field(size_type i) const -> field_encoded_type<I>
+    requires(field_count == 1)
+  {
+    static_assert(I == 0);
+    return read<field_encoded_type<0>>(i);
+  }
+
+  template <size_type I>
+  void write_field(size_type i, field_encoded_type<I> value)
+    requires(field_count == 1)
+  {
+    static_assert(I == 0);
+    write(i, value);
+  }
+
+  template <size_type I>
+  void fill_field(size_type first, size_type last, field_encoded_type<I> value)
+    requires(field_count == 1)
+  {
+    static_assert(I == 0);
+    fill(first, last, value);
   }
 
  private:
