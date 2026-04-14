@@ -812,12 +812,6 @@ class basic_packed_int_vector {
     return layout_.template read_field<I>(i);
   }
 
-  template <size_type I>
-  void set_encoded_field(size_type i, field_encoded_type<I> value) {
-    assert(i < size());
-    layout_.template write_field<I>(i, value);
-  }
-
   [[nodiscard]] auto get_value(size_type i) const -> value_type {
     assert(i < size());
     return field_descriptor::decode_with(
