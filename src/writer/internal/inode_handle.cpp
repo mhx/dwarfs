@@ -42,14 +42,14 @@ template <detail::mutability Mut>
 void basic_inode_handle<Mut>::set_files(file_id_vector const& fv)
   requires is_mutable
 {
-  return self()->set_files(fv);
+  self()->set_files(fv);
 }
 
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::populate(file_size_t size)
   requires is_mutable
 {
-  return self()->populate(size);
+  self()->populate(size);
 }
 
 template <detail::mutability Mut>
@@ -57,14 +57,14 @@ void basic_inode_handle<Mut>::scan(file_view const& mm,
                                    inode_options const& options, progress& prog)
   requires is_mutable
 {
-  return self()->scan(mm, options, prog);
+  self()->scan(mm, options, prog);
 }
 
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::set_num(uint32_t num)
   requires is_mutable
 {
-  return self()->set_num(num);
+  self()->set_num(num);
 }
 
 template <detail::mutability Mut>
@@ -126,7 +126,7 @@ inode_fragments& basic_inode_handle<Mut>::fragments()
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::dump(std::ostream& os,
                                    inode_options const& options) const {
-  return self()->dump(*this->storage_, os, options);
+  self()->dump(*this->storage_, os, options);
 }
 
 template <detail::mutability Mut>
@@ -134,7 +134,7 @@ void basic_inode_handle<Mut>::set_scan_error(const_file_handle fp,
                                              std::exception_ptr ep)
   requires is_mutable
 {
-  return self()->set_scan_error(fp, ep);
+  self()->set_scan_error(fp, ep);
 }
 
 template <detail::mutability Mut>
