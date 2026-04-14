@@ -46,11 +46,12 @@
 
 namespace dwarfs::container::detail {
 
-template <typename Policy, typename Underlying>
-class packed_vector_layout_impl<Policy, Underlying,
+template <typename Policy, typename Value, typename Underlying>
+class packed_vector_layout_impl<Policy, Value, Underlying,
                                 packed_vector_policy_type::inline_with_heap> {
  public:
   using policy_type = Policy;
+  using value_type = Value;
   using underlying_type = Underlying;
   using size_type = std::size_t;
   using storage_type = packed_vector_heap_storage<underlying_type>;
