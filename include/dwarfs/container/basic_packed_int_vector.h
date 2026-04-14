@@ -137,7 +137,7 @@ class basic_packed_int_vector {
   using storage_type = detail::packed_vector_heap_storage<underlying_type>;
   using init_mode = typename storage_type::initialization;
   using layout_type =
-      detail::packed_vector_layout<policy_type, underlying_type>;
+      detail::packed_vector_layout<policy_type, value_type, underlying_type>;
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
   using other_vector_type =
