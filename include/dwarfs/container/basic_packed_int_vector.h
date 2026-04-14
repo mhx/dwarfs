@@ -488,6 +488,14 @@ class basic_packed_int_vector {
     return get_value(i);
   }
 
+  template <size_type I>
+  [[nodiscard]] auto get_field(size_type i) const ->
+      typename field_descriptor::template field_value_type<I>
+    requires(field_count > 1)
+  {
+    return get_field_value<I>(i);
+  }
+
   auto operator[](size_type i) -> reference { return reference{*this, i}; }
 
   auto at(size_type i) -> reference {
@@ -500,6 +508,14 @@ class basic_packed_int_vector {
   void set(size_type i, value_type value) {
     assert(i < size());
     set_value(i, value);
+  }
+
+  template <size_type I>
+  void set_field(size_type i,
+                 typename field_descriptor::template field_value_type<I> value)
+    requires(field_count > 1)
+  {
+    set_field_value<I>(i, value);
   }
 
   void push_back(value_type value) {
@@ -818,6 +834,46 @@ class basic_packed_int_vector {
         [&]<size_type I>() { return get_encoded_field<I>(i); });
   }
 
+  template <size_type I>
+  [[nodiscard]] auto get_field_value(size_type i) const ->
+      typename field_descriptor::template field_value_type<I> {
+    assert(i < size());
+    return field_traits_type<I>::decode(get_encoded_field<I>(i));
+  }
+
+  template <size_type I>
+  [[nodiscard]] static auto required_widths_for_field_value(
+      typename field_descriptor::template field_value_type<I> const& value)
+      -> widths_type {
+    auto req = zero_widths();
+    auto const encoded = field_traits_type<I>::encode(value);
+    req[I] = static_cast<std::uint8_t>(required_bits_encoded<I>(encoded));
+    return req;
+  }
+
+  void ensure_assignment_widths(widths_type const& required) {
+    if constexpr (auto_bit_width) {
+      auto const cur_size = size();
+      auto const old_widths = widths();
+      auto const new_widths = widened_widths(required, old_widths);
+      if (new_widths != old_widths) {
+        ensure_widths(new_widths, cur_size, cur_size, old_widths);
+      }
+    }
+  }
+
+  template <size_type I>
+  void set_field_value(
+      size_type i,
+      typename field_descriptor::template field_value_type<I> value) {
+    assert(i < size());
+
+    ensure_assignment_widths(required_widths_for_field_value<I>(value));
+
+    auto const encoded = field_traits_type<I>::encode(value);
+    layout_.template write_field<I>(i, encoded);
+  }
+
   void write_value(size_type i, value_type const& value) {
     field_descriptor::encode_with(value, [&]<size_type I>(auto encoded) {
       layout_.template write_field<I>(i, encoded);
@@ -826,17 +882,7 @@ class basic_packed_int_vector {
 
   void set_value(size_type i, value_type const& value) {
     assert(i < size());
-
-    if constexpr (auto_bit_width) {
-      auto const cur_size = size();
-      auto const old_widths = widths();
-      auto const new_widths =
-          widened_widths(required_widths(value), old_widths);
-      if (new_widths != old_widths) {
-        ensure_widths(new_widths, cur_size, cur_size, old_widths);
-      }
-    }
-
+    ensure_assignment_widths(required_widths(value));
     write_value(i, value);
   }
 
