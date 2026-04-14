@@ -44,6 +44,7 @@
 #include <dwarfs/container/detail/index_based_iterator.h>
 #include <dwarfs/container/detail/index_based_value_proxy.h>
 #include <dwarfs/container/detail/packed_field_descriptor.h>
+#include <dwarfs/container/detail/packed_storage_selector.h>
 #include <dwarfs/container/detail/packed_vector_heap_storage.h>
 #include <dwarfs/container/detail/packed_vector_helpers.h>
 #include <dwarfs/container/detail/packed_vector_layout.h>
@@ -122,13 +123,15 @@ class basic_packed_int_vector {
   using field_encoded_type =
       typename field_descriptor::template field_encoded_type<I>;
 
+  using storage_selector = detail::packed_storage_selector<value_type>;
+
   using widths_type = typename field_descriptor::widths_type;
 
  public:
   // Still scalar-only for now in terms of physical storage.
   // Later this will become an independent block type.
   using encoded_type = field_encoded_type<0>;
-  using underlying_type = std::make_unsigned_t<encoded_type>;
+  using underlying_type = typename storage_selector::underlying_type;
 
  private:
   using storage_type = detail::packed_vector_heap_storage<underlying_type>;
