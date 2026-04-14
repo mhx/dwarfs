@@ -135,6 +135,14 @@ class entry_storage {
     return impl_->get_file_data(id);
   }
 
+  [[nodiscard]] file_id_vector const& get_files_for_inode(inode_id id) const {
+    return impl_->get_files_for_inode(id);
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) {
+    impl_->set_files_for_inode(id, fv);
+  }
+
   void dump(std::ostream& os) const { impl_->dump(os); }
 
   std::string dump() const;
@@ -162,6 +170,9 @@ class entry_storage {
     virtual entry* get_entry(entry_id id) = 0;
     virtual std::size_t inode_count() const = 0;
     virtual inode* get_inode(inode_id id) = 0;
+
+    virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
+    virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;
 
     virtual entry_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
