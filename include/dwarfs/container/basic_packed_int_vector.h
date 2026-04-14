@@ -69,37 +69,50 @@ enum class packed_vector_bit_width_strategy {
 };
 
 /**
- * Packed vector with configurable bit-width strategy and layout.
+ * Packed vector with configurable bit-width strategy and storage layout.
  *
- * TODO: update the docs
+ * Stores values in a densely bit-packed representation. The element type may be
+ * either:
+ * - a scalar type supported by `packed_value_traits`
+ * - a `std::tuple` of such types
  *
- * For scalar values, this behaves like the original packed integer vector.
- * For tuple values, widths are tracked per field and values are stored in an
- * interleaved packed representation.
+ * For scalar values, each element uses exactly `bits()` bits.
  *
- * Stores integral values in a densely bit-packed representation using exactly
- * `bits()` bits per element. Element access is random-access, but references
- * are represented by proxy objects rather than native `T&`.
+ * For tuple values, each tuple field is packed independently and the fields of
+ * each logical element are stored in an interleaved representation. The active
+ * field widths can be queried via `widths()`. Field access is available through
+ * `get_field<I>()` / `set_field<I>()`, and element proxies support tuple-style
+ * `get<I>(vec[i])` access for mutable elements.
+ *
+ * Element access is random-access, but mutable references are represented by
+ * proxy objects rather than native `T&`. Whole-element assignment is supported,
+ * and for tuple-valued vectors individual fields can also be read and written
+ * without unpacking the full value explicitly.
  *
  * The vector supports two bit-width strategies:
- * - fixed: the bit width is chosen explicitly and remains unchanged unless
- *   `truncate_to_bits()` is called
- * - automatic: the bit width grows as needed to represent newly assigned values
- *   and can be reduced explicitly via `optimize_storage()`
+ * - fixed: the width configuration is chosen explicitly and remains unchanged
+ *   unless `truncate_to_bits()` / `truncate_to_widths()` is called
+ * - automatic: widths grow as needed to represent newly inserted or assigned
+ *   values and can be reduced explicitly via `optimize_storage()`
+ *
+ * For tuple-valued vectors, width growth and optimization are performed
+ * independently per field.
  *
  * Storage layout is controlled by the policy:
  * - heap-only policies always use heap storage for non-empty vectors
  * - compact policies may store small vectors inline and fall back to heap
  *   storage as needed
  *
- * Heap storage is shared between policy variants and stores the logical size
- * and reserved capacity together with the packed payload. Empty vectors require
- * no heap allocation.
+ * Empty vectors require no heap allocation. Heap storage keeps the logical size
+ * and reserved capacity together with the packed payload. Compact layouts reuse
+ * the object itself as inline storage when the active width configuration and
+ * size fit within the available inline payload.
  *
  * Iterators are random-access iterators implemented as index-based iterators.
  * They remain usable across storage relocation and repacking as long as the
- * referenced index remains valid, but operations that replace the logical
- * contents of the vector should be treated as invalidating all iterators.
+ * referenced index remains valid, but operations that replace or reorder the
+ * logical contents of the vector should be treated as invalidating all
+ * iterators.
  */
 template <packed_vector_value T,
           packed_vector_bit_width_strategy BitWidthStrategy, typename Policy,
