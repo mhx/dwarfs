@@ -64,18 +64,16 @@ class inode_impl final : public inode {
   nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const override;
 
-  void set_files(file_id_vector const& fv) override;
-
   void populate(file_size_t size) override;
 
   void
   scan(file_view const& mm, inode_options const& opts, progress& prog) override;
 
-  file_size_t size(entry_storage& storage) const override;
+  file_size_t
+  size(entry_storage& storage, file_id_vector const& files) const override;
 
-  const_file_handle any(entry_storage& storage) const override;
-
-  file_id_vector const& all() const override;
+  const_file_handle
+  any(entry_storage& storage, file_id_vector const& files) const override;
 
   bool append_chunks_to(
       std::vector<chunk_type>& vec,
@@ -84,17 +82,18 @@ class inode_impl final : public inode {
   inode_fragments& fragments() override;
   inode_fragments const& fragments() const override;
 
-  void dump(entry_storage& storage, std::ostream& os,
-            inode_options const& options) const override;
+  void
+  dump(entry_storage& storage, std::ostream& os, inode_options const& options,
+       file_id_vector const& files) const override;
 
   void set_scan_error(const_file_handle fp, std::exception_ptr ep) override;
 
   std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const override;
 
-  inode_mmap_any_result
-  mmap_any(entry_storage& storage, os_access const& os,
-           open_file_options const& of_opts) const override;
+  inode_mmap_any_result mmap_any(entry_storage& storage, os_access const& os,
+                                 open_file_options const& of_opts,
+                                 file_id_vector const& files) const override;
 
  private:
   std::shared_ptr<scanner_progress>
@@ -128,7 +127,6 @@ class inode_impl final : public inode {
   uint32_t flags_{0};
   uint32_t num_{0};
   inode_fragments fragments_;
-  file_id_vector files_;
   std::unique_ptr<std::pair<const_file_handle, std::exception_ptr>> scan_error_;
 
   std::variant<

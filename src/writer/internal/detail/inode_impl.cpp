@@ -82,11 +82,6 @@ inode_impl::nilsimsa_similarity_hash(fragment_category cat) const {
   return find_similarity<nilsimsa::hash_type>(cat);
 }
 
-void inode_impl::set_files(file_id_vector const& fv) {
-  DWARFS_CHECK(files_.empty(), "files already set for inode");
-  files_ = fv;
-}
-
 void inode_impl::populate(file_size_t size) {
   assert(fragments_.empty());
   fragments_.emplace_back(categorizer_manager::default_category(), size);
@@ -165,22 +160,22 @@ void inode_impl::scan(file_view const& mm, inode_options const& opts,
   }
 }
 
-file_size_t inode_impl::size(entry_storage& storage) const {
-  return any(storage).size();
+file_size_t
+inode_impl::size(entry_storage& storage, file_id_vector const& files) const {
+  return any(storage, files).size();
 }
 
-const_file_handle inode_impl::any(entry_storage& storage) const {
-  DWARFS_CHECK(!files_.empty(), "inode has no file (any)");
-  for (auto const& f : files_) {
+const_file_handle
+inode_impl::any(entry_storage& storage, file_id_vector const& files) const {
+  DWARFS_CHECK(!files.empty(), "inode has no file (any)");
+  for (auto const& f : files) {
     auto fh = storage.handle(f);
     if (!fh.is_invalid()) {
       return fh;
     }
   }
-  return storage.handle(files_.front());
+  return storage.handle(files.front());
 }
-
-auto inode_impl::all() const -> file_id_vector const& { return files_; }
 
 bool inode_impl::append_chunks_to(
     std::vector<chunk_type>& vec,
@@ -212,7 +207,8 @@ inode_fragments& inode_impl::fragments() { return fragments_; }
 inode_fragments const& inode_impl::fragments() const { return fragments_; }
 
 void inode_impl::dump(entry_storage& storage, std::ostream& os,
-                      inode_options const& options) const {
+                      inode_options const& options,
+                      file_id_vector const& files) const {
   auto dump_category = [&os, &options](fragment_category const& cat) {
     if (options.categorizer_mgr) {
       os << "[" << options.categorizer_mgr->category_name(cat.value());
@@ -229,10 +225,10 @@ void inode_impl::dump(entry_storage& storage, std::ostream& os,
     ino_num = std::to_string(num());
   }
 
-  os << "inode " << ino_num << " (" << size(storage) << " bytes):\n";
+  os << "inode " << ino_num << " (" << size(storage, files) << " bytes):\n";
   os << "  files:\n";
 
-  for (auto const& f : files_) {
+  for (auto const& f : files) {
     auto fh = storage.handle(f);
     os << "    " << fh.path_as_string();
     if (fh.is_invalid()) {
@@ -300,13 +296,14 @@ inode_impl::get_scan_error() const {
 }
 
 auto inode_impl::mmap_any(entry_storage& storage, os_access const& os,
-                          open_file_options const& of_opts) const
+                          open_file_options const& of_opts,
+                          file_id_vector const& files) const
     -> inode_mmap_any_result {
   file_view mm;
   const_file_handle rfh;
   std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
 
-  for (auto fp : files_) {
+  for (auto fp : files) {
     auto fh = storage.handle(fp);
     if (!fh.is_invalid()) {
       try {
