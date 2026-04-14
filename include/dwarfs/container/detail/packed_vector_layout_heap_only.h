@@ -222,63 +222,6 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     }
   }
 
-  // Scalar compatibility shims. These can go away once the vector no longer
-  // uses the scalar-shaped layout API.
-  [[nodiscard]] static constexpr auto
-  can_store_inline(size_type bits, size_type size) noexcept -> bool
-    requires(field_count == 1)
-  {
-    return can_store_inline(widths_type{static_cast<std::uint8_t>(bits)}, size);
-  }
-
-  [[nodiscard]] static constexpr auto
-  can_store_heap(size_type bits, size_type size,
-                 size_type capacity_blocks) noexcept -> bool
-    requires(field_count == 1)
-  {
-    return can_store_heap(widths_type{static_cast<std::uint8_t>(bits)}, size,
-                          capacity_blocks);
-  }
-
-  [[nodiscard]] auto bits() const noexcept -> size_type
-    requires(field_count == 1)
-  {
-    return widths_[0];
-  }
-
-  [[nodiscard]] auto usable_capacity(size_type bits) const noexcept -> size_type
-    requires(field_count == 1)
-  {
-    return usable_capacity(widths_type{static_cast<std::uint8_t>(bits)});
-  }
-
-  void set_heap_state(underlying_type* data, size_type bits) noexcept
-    requires(field_count == 1)
-  {
-    set_heap_state(data, widths_type{static_cast<std::uint8_t>(bits)});
-  }
-
-  template <typename V>
-  [[nodiscard]] auto read(size_type i) const -> V
-    requires(field_count == 1)
-  {
-    return static_cast<V>(read_field<0>(i));
-  }
-
-  template <typename V>
-  void write(size_type i, V value)
-    requires(field_count == 1)
-  {
-    write_field<0>(i, static_cast<field_encoded_type<0>>(value));
-  }
-
-  template <typename V>
-  void fill(size_type first, size_type last, V value)
-    requires(field_count == 1)
-  {
-    fill_field<0>(first, last, static_cast<field_encoded_type<0>>(value));
-  }
-
  private:
   [[nodiscard]] static constexpr auto
   total_bits_for(widths_type const& widths) noexcept -> size_type {
