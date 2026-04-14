@@ -28,6 +28,11 @@
 
 #pragma once
 
+#include <compare>
+#include <concepts>
+#include <cstddef>
+#include <type_traits>
+
 namespace dwarfs::container::detail {
 
 template <typename Container>
@@ -70,6 +75,54 @@ class index_based_value_proxy {
     value_type tmp = a;
     a = static_cast<value_type>(b);
     b = tmp;
+  }
+
+  friend bool
+  operator==(index_based_value_proxy const& lhs, value_type const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return static_cast<value_type>(lhs) == rhs;
+  }
+
+  friend bool
+  operator==(value_type const& lhs, index_based_value_proxy const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return lhs == static_cast<value_type>(rhs);
+  }
+
+  friend bool operator==(index_based_value_proxy const& lhs,
+                         index_based_value_proxy const& rhs)
+    requires std::is_class_v<value_type>
+  {
+    return static_cast<value_type>(lhs) == static_cast<value_type>(rhs);
+  }
+
+  friend auto
+  operator<=>(index_based_value_proxy const& lhs, value_type const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return static_cast<value_type>(lhs) <=> rhs;
+  }
+
+  friend auto
+  operator<=>(value_type const& lhs, index_based_value_proxy const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return lhs <=> static_cast<value_type>(rhs);
+  }
+
+  friend auto operator<=>(index_based_value_proxy const& lhs,
+                          index_based_value_proxy const& rhs)
+      -> std::compare_three_way_result_t<value_type>
+    requires std::is_class_v<value_type> &&
+             std::three_way_comparable<value_type>
+  {
+    return static_cast<value_type>(lhs) <=> static_cast<value_type>(rhs);
   }
 
  private:
