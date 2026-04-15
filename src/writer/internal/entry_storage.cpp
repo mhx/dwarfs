@@ -790,46 +790,52 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  template <typename Method, typename... Args>
-  decltype(auto)
-  dispatch_(Method method, entry_id const id, Args&&... args) const {
+  template <typename Self, typename Method, typename... Args>
+  decltype(auto) dispatch_(this Self&& self, Method method, entry_id const id,
+                           Args&&... args) {
+    auto&& me = std::forward<Self>(self);
     assert(id.valid());
     switch (id.type()) {
     case entry_type::E_FILE:
-      return (packed_files_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.packed_files_.*method)(id.index(),
+                                        std::forward<Args>(args)...);
     case entry_type::E_DIR:
-      return (packed_dirs_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.packed_dirs_.*method)(id.index(), std::forward<Args>(args)...);
     case entry_type::E_LINK:
-      return (packed_links_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.packed_links_.*method)(id.index(),
+                                        std::forward<Args>(args)...);
     case entry_type::E_DEVICE:
-      return (packed_devices_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.packed_devices_.*method)(id.index(),
+                                          std::forward<Args>(args)...);
     case entry_type::E_OTHER:
-      return (packed_others_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.packed_others_.*method)(id.index(),
+                                         std::forward<Args>(args)...);
     default:
       DWARFS_PANIC("invalid entry type");
     }
   }
 
-  template <typename Method, typename... Args>
-  decltype(auto)
-  dispatch_shared_(Method method, entry_id const id, Args&&... args) const {
+  template <typename Self, typename Method, typename... Args>
+  decltype(auto) dispatch_shared_(this Self&& self, Method method,
+                                  entry_id const id, Args&&... args) {
+    auto&& me = std::forward<Self>(self);
     assert(id.valid());
     switch (id.type()) {
     case entry_type::E_FILE:
-      return (packed_files_.*method)(shared_, id.index(),
-                                     std::forward<Args>(args)...);
+      return (me.packed_files_.*method)(me.shared_, id.index(),
+                                        std::forward<Args>(args)...);
     case entry_type::E_DIR:
-      return (packed_dirs_.*method)(shared_, id.index(),
-                                    std::forward<Args>(args)...);
-    case entry_type::E_LINK:
-      return (packed_links_.*method)(shared_, id.index(),
-                                     std::forward<Args>(args)...);
-    case entry_type::E_DEVICE:
-      return (packed_devices_.*method)(shared_, id.index(),
+      return (me.packed_dirs_.*method)(me.shared_, id.index(),
                                        std::forward<Args>(args)...);
+    case entry_type::E_LINK:
+      return (me.packed_links_.*method)(me.shared_, id.index(),
+                                        std::forward<Args>(args)...);
+    case entry_type::E_DEVICE:
+      return (me.packed_devices_.*method)(me.shared_, id.index(),
+                                          std::forward<Args>(args)...);
     case entry_type::E_OTHER:
-      return (packed_others_.*method)(shared_, id.index(),
-                                      std::forward<Args>(args)...);
+      return (me.packed_others_.*method)(me.shared_, id.index(),
+                                         std::forward<Args>(args)...);
     default:
       DWARFS_PANIC("invalid entry type");
     }
