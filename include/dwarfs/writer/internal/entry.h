@@ -85,7 +85,6 @@ class entry {
   void
   pack(thrift::metadata::inode_data& entry_v2, global_entry_data const& data,
        time_resolution_converter const& timeres) const;
-  void update(global_entry_data& data) const;
   virtual void scan(entry_storage& storage, entry_id self_id,
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
