@@ -44,6 +44,7 @@
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/progress.h>
 
 // TODO: disable everywhere but Windows
@@ -359,6 +360,19 @@ struct packed_entry_data {
     return shared.path_components_.at(path_ix).name();
   }
 
+  void update_global_entry_data(shared_entry_data const& shared,
+                                uint64_t const index,
+                                global_entry_data& data) const {
+    auto const& stat = stat_common_index.at(index);
+
+    data.add_mode(shared.modes_.at(get<kModeIndexField>(stat)));
+    data.add_uid(shared.uids_.at(get<kUidIndexField>(stat)));
+    data.add_gid(shared.gids_.at(get<kGidIndexField>(stat)));
+    data.add_atime(get<kAccessTimeSecondField>(stat));
+    data.add_mtime(get<kModificationTimeSecondField>(stat));
+    data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
+  }
+
   void dump(std::ostream& os, std::string_view name) const {
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
     auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
@@ -649,6 +663,11 @@ class entry_storage_ final : public entry_storage::impl {
     return {};
   }
 
+  void update_global_entry_data(entry_id id,
+                                global_entry_data& data) const override {
+    update_global_entry_data_impl(id, data);
+  }
+
  private:
   void sort_all_directory_entries()
     requires is_mutable
@@ -736,6 +755,11 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_path_string_impl(entry_id const id) const {
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
+  }
+
+  void update_global_entry_data_impl(entry_id const id,
+                                     global_entry_data& data) const {
+    dispatch_shared_(&packed_entry_data::update_global_entry_data, id, data);
   }
 
   cao_vector<file> files_;
@@ -864,6 +888,11 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   entry_id find_in_dir(entry_id id, std::string_view name) const override {
     return impl_.lock()->find_in_dir(id, name);
+  }
+
+  void update_global_entry_data(entry_id id,
+                                global_entry_data& data) const override {
+    impl_.lock()->update_global_entry_data(id, data);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }

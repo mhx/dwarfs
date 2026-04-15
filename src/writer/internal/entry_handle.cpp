@@ -109,7 +109,7 @@ entry_type entry_handle_base<Mut>::type() const {
 
 template <mutability Mut>
 void entry_handle_base<Mut>::update(internal::global_entry_data& data) const {
-  base()->update(data);
+  storage_->update_global_entry_data(self_id_, data);
 }
 
 template <mutability Mut>

@@ -57,18 +57,6 @@ constexpr std::string_view const kHashContext{"[hashing] "};
 entry::entry(file_stat const& st)
     : stat_{st} {}
 
-void entry::update(global_entry_data& data) const {
-  stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
-                     file_stat::mode_valid | file_stat::atime_valid |
-                     file_stat::mtime_valid | file_stat::ctime_valid);
-  data.add_uid(stat_.uid_unchecked());
-  data.add_gid(stat_.gid_unchecked());
-  data.add_mode(stat_.mode_unchecked());
-  data.add_atime(stat_.atime_unchecked());
-  data.add_mtime(stat_.mtime_unchecked());
-  data.add_ctime(stat_.ctime_unchecked());
-}
-
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data,
                  time_resolution_converter const& timeres) const {
