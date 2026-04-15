@@ -38,6 +38,7 @@
 namespace dwarfs::writer::internal {
 
 struct file_data;
+class global_entry_data;
 class progress;
 class provisional_entry;
 
@@ -128,6 +129,10 @@ class entry_storage {
     return impl_->find_in_dir(id, name);
   }
 
+  void update_global_entry_data(entry_id id, global_entry_data& data) const {
+    return impl_->update_global_entry_data(id, data);
+  }
+
   size_t create_file_data() { return impl_->create_file_data(); }
 
   // TODO: this is probably not needed long-term
@@ -184,6 +189,9 @@ class entry_storage {
     for_each_entry_in_dir(entry_id id,
                           std::function<void(entry_id)> const& f) const = 0;
     virtual entry_id find_in_dir(entry_id id, std::string_view name) const = 0;
+
+    virtual void
+    update_global_entry_data(entry_id id, global_entry_data& data) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
