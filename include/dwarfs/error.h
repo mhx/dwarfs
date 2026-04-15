@@ -101,10 +101,27 @@ class system_error : public error {
     ::dwarfs::handle_panic(message, DWARFS_CURRENT_SOURCE_LOCATION);           \
   } while (false)
 
+namespace detail {
+
+template <class T>
+constexpr decltype(auto) preserve_lvalue_or_copy(T&& x) {
+  if constexpr (std::is_lvalue_reference_v<T&&>) {
+    return x;
+  } else {
+    return std::decay_t<T>(std::forward<T>(x));
+  }
+}
+
+} // namespace detail
+
 #define DWARFS_NOTHROW(expr)                                                   \
-  [&]() -> decltype(expr) {                                                    \
+  [&]() -> decltype(auto) {                                                    \
     try {                                                                      \
-      return expr;                                                             \
+      if constexpr (std::is_void_v<decltype((expr))>) {                        \
+        return expr;                                                           \
+      } else {                                                                 \
+        return ::dwarfs::detail::preserve_lvalue_or_copy((expr));              \
+      }                                                                        \
     } catch (...) {                                                            \
       ::dwarfs::handle_nothrow(#expr, DWARFS_CURRENT_SOURCE_LOCATION);         \
     }                                                                          \
