@@ -187,6 +187,7 @@ std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
 struct shared_entry_data {
   void drop_indices() {
     path_index_.reset();
+    device_index_.reset();
     mode_index_.reset();
     uid_index_.reset();
     gid_index_.reset();
@@ -197,6 +198,8 @@ struct shared_entry_data {
   auto add_path_component(fs::path const& component, bool is_root) {
     return path_index_->add(component, is_root);
   }
+
+  auto add_device(file_stat::dev_type dev) { return device_index_->add(dev); }
 
   auto add_mode(file_stat::mode_type mode) { return mode_index_->add(mode); }
 
@@ -214,6 +217,8 @@ struct shared_entry_data {
     os << "shared entry data:\n";
     os << "  path components: " << path_components_.size() << " ("
        << size_with_unit(total_path_bytes) << ")\n";
+    os << "  devices: " << devices_.size() << " ("
+       << size_with_unit(devices_.size() * sizeof(devices_[0])) << ")\n";
     os << "  modes: " << modes_.size() << " ("
        << size_with_unit(modes_.size() * sizeof(modes_[0])) << ")\n";
     os << "  uids: " << uids_.size() << " ("
@@ -228,6 +233,9 @@ struct shared_entry_data {
 
   cao_vector<path_component> path_components_;
   std::optional<flat_cao_index<path_component>> path_index_{path_components_};
+
+  cao_vector<file_stat::dev_type> devices_;
+  std::optional<flat_cao_index<file_stat::dev_type>> device_index_{devices_};
 
   cao_vector<file_stat::mode_type> modes_;
   std::optional<flat_cao_index<file_stat::mode_type>> mode_index_{modes_};
@@ -283,10 +291,12 @@ struct packed_entry_data {
   static constexpr std::size_t kModificationTimeSubsecondField = 7;
   static constexpr std::size_t kStatusChangeTimeSecondField = 8;
   static constexpr std::size_t kStatusChangeTimeSubsecondField = 9;
+  static constexpr std::size_t kInodeField = 10;
+  static constexpr std::size_t kDeviceIndexField = 11;
   using stat_common =
       std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
-                 std::int64_t, std::uint64_t>;
+                 std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t>;
   segtor<stat_common> stat_common_index;
 
   void add_entry_common(shared_entry_data& shared, entry_type type,
@@ -300,10 +310,10 @@ struct packed_entry_data {
     parent_dir_index.push_back(is_root ? std::nullopt
                                        : std::make_optional(parent.index()));
 
-    st.ensure_valid(file_stat::nlink_valid | file_stat::mode_valid |
-                    file_stat::uid_valid | file_stat::gid_valid |
-                    file_stat::atime_valid | file_stat::mtime_valid |
-                    file_stat::ctime_valid);
+    st.ensure_valid(
+        file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
+        file_stat::gid_valid | file_stat::atime_valid | file_stat::mtime_valid |
+        file_stat::ctime_valid | file_stat::dev_valid | file_stat::ino_valid);
 
     auto const nlink = st.nlink_unchecked();
     assert(nlink > 0);
@@ -319,6 +329,8 @@ struct packed_entry_data {
     std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
     std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
     std::get<kStatusChangeTimeSubsecondField>(tmp) = st.ctime_nsec_unchecked();
+    std::get<kInodeField>(tmp) = st.ino_unchecked();
+    std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
 
     stat_common_index.push_back(tmp);
 
@@ -389,6 +401,13 @@ struct packed_entry_data {
     out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
                       get<kStatusChangeTimeSubsecondField>(stat));
     data.pack_inode_stat(entry_v2, out, timeres);
+  }
+
+  unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
+                                      uint64_t const index) const {
+    auto const& stat = stat_common_index.at(index);
+    return unique_inode_id{shared.devices_.at(get<kDeviceIndexField>(stat)),
+                           get<kInodeField>(stat)};
   }
 
   void dump(std::ostream& os, std::string_view name) const {
@@ -692,6 +711,10 @@ class entry_storage_ final : public entry_storage::impl {
     pack_entry_impl(id, entry_v2, data, timeres);
   }
 
+  unique_inode_id get_unique_inode_id(entry_id id) const override {
+    return get_unique_inode_id_impl(id);
+  }
+
  private:
   void sort_all_directory_entries()
     requires is_mutable
@@ -792,6 +815,10 @@ class entry_storage_ final : public entry_storage::impl {
                   time_resolution_converter const& timeres) const {
     dispatch_shared_(&packed_entry_data::pack_entry, id, entry_v2, data,
                      timeres);
+  }
+
+  unique_inode_id get_unique_inode_id_impl(entry_id id) const {
+    return dispatch_shared_(&packed_entry_data::get_unique_inode_id, id);
   }
 
   cao_vector<file> files_;
@@ -931,6 +958,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const override {
     impl_.lock()->pack_entry(id, entry_v2, data, timeres);
+  }
+
+  unique_inode_id get_unique_inode_id(entry_id id) const override {
+    return impl_.lock()->get_unique_inode_id(id);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }

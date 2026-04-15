@@ -61,10 +61,6 @@ file_size_t entry::size() const { return stat_.size(); }
 
 file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
 
-unique_inode_id entry::get_unique_inode_id() const {
-  return unique_inode_id{stat_.dev(), stat_.ino()};
-}
-
 uint64_t entry::num_hard_links() const { return stat_.nlink(); }
 
 void entry::set_empty() {

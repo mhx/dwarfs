@@ -34,6 +34,7 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/unique_inode_id.h>
 
 namespace dwarfs {
 
@@ -148,6 +149,10 @@ class entry_storage {
     impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
+  unique_inode_id get_unique_inode_id(entry_id id) const {
+    return impl_->get_unique_inode_id(id);
+  }
+
   size_t create_file_data() { return impl_->create_file_data(); }
 
   // TODO: this is probably not needed long-term
@@ -210,6 +215,8 @@ class entry_storage {
     virtual void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
                             global_entry_data const& data,
                             time_resolution_converter const& timeres) const = 0;
+
+    virtual unique_inode_id get_unique_inode_id(entry_id id) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
