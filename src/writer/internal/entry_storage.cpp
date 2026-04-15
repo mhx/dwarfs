@@ -373,6 +373,24 @@ struct packed_entry_data {
     data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
   }
 
+  void pack_entry(shared_entry_data const& shared, uint64_t const index,
+                  thrift::metadata::inode_data& entry_v2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const {
+    auto const& stat = stat_common_index.at(index);
+    file_stat out{};
+    out.set_mode(shared.modes_.at(get<kModeIndexField>(stat)));
+    out.set_uid(shared.uids_.at(get<kUidIndexField>(stat)));
+    out.set_gid(shared.gids_.at(get<kGidIndexField>(stat)));
+    out.set_atimespec(get<kAccessTimeSecondField>(stat),
+                      get<kAccessTimeSubsecondField>(stat));
+    out.set_mtimespec(get<kModificationTimeSecondField>(stat),
+                      get<kModificationTimeSubsecondField>(stat));
+    out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
+                      get<kStatusChangeTimeSubsecondField>(stat));
+    data.pack_inode_stat(entry_v2, out, timeres);
+  }
+
   void dump(std::ostream& os, std::string_view name) const {
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
     auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
@@ -668,6 +686,12 @@ class entry_storage_ final : public entry_storage::impl {
     update_global_entry_data_impl(id, data);
   }
 
+  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const override {
+    pack_entry_impl(id, entry_v2, data, timeres);
+  }
+
  private:
   void sort_all_directory_entries()
     requires is_mutable
@@ -760,6 +784,14 @@ class entry_storage_ final : public entry_storage::impl {
   void update_global_entry_data_impl(entry_id const id,
                                      global_entry_data& data) const {
     dispatch_shared_(&packed_entry_data::update_global_entry_data, id, data);
+  }
+
+  void
+  pack_entry_impl(entry_id const id, thrift::metadata::inode_data& entry_v2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const {
+    dispatch_shared_(&packed_entry_data::pack_entry, id, entry_v2, data,
+                     timeres);
   }
 
   cao_vector<file> files_;
@@ -893,6 +925,12 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   void update_global_entry_data(entry_id id,
                                 global_entry_data& data) const override {
     impl_.lock()->update_global_entry_data(id, data);
+  }
+
+  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const override {
+    impl_.lock()->pack_entry(id, entry_v2, data, timeres);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
