@@ -118,8 +118,8 @@ unique_inode_id entry_handle_base<Mut>::get_unique_inode_id() const {
 }
 
 template <mutability Mut>
-uint64_t entry_handle_base<Mut>::num_hard_links() const {
-  return base()->num_hard_links();
+file_stat::nlink_type entry_handle_base<Mut>::num_hard_links() const {
+  return storage_->get_nlink(self_id_);
 }
 
 template <mutability Mut>

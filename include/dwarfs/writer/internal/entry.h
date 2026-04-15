@@ -85,7 +85,6 @@ class entry {
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  uint64_t num_hard_links() const;
   virtual void set_inode_num(entry_storage& storage, uint32_t ino) = 0;
   virtual std::optional<uint32_t> const&
   inode_num(entry_storage& storage) const = 0;
