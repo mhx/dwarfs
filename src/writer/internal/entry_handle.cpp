@@ -214,7 +214,7 @@ void entry_handle_base<Mut>::pack(
     thrift::metadata::inode_data& entry_v2,
     internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  base()->pack(entry_v2, data, timeres);
+  storage_->pack_entry(self_id_, entry_v2, data, timeres);
 }
 
 template class entry_handle_base<mutability::const_>;
