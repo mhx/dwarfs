@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <dwarfs/container/packed_value_traits_optional.h>
+
 #include "packed_int_vector_test_helpers.h"
 
 using namespace dwarfs::test;
@@ -450,4 +452,31 @@ TEST(segmented_packed_int_vector, supports_tuple_types) {
                                std::make_tuple(my_enum::B, 99),
                                std::make_tuple(my_enum::D, 123),
                                std::make_tuple(my_enum::A, 7)));
+}
+
+TEST(packed_int_vector_proxy_test, optional_value_proxy_has_has_value) {
+  using vec_type = compact_auto_packed_int_vector<std::optional<uint32_t>>;
+  vec_type vec;
+
+  vec.push_back(std::nullopt);
+  vec.push_back(42);
+
+  EXPECT_FALSE(vec[0].has_value());
+  EXPECT_TRUE(vec[1].has_value());
+  EXPECT_EQ(vec[0], std::nullopt);
+  EXPECT_EQ(vec[1], 42);
+}
+
+TEST(packed_int_vector_proxy_test, optional_field_proxy_has_has_value) {
+  using vec_type = compact_auto_packed_int_vector<
+      std::tuple<std::optional<uint32_t>, uint16_t>>;
+  vec_type vec;
+
+  vec.push_back({std::nullopt, 42});
+  vec.push_back({123, 17});
+
+  EXPECT_FALSE(get<0>(vec[0]).has_value());
+  EXPECT_TRUE(get<0>(vec[1]).has_value());
+  EXPECT_EQ(get<0>(vec[0]), std::nullopt);
+  EXPECT_EQ(get<0>(vec[1]), 123);
 }
