@@ -259,13 +259,15 @@ struct packed_entry_data {
   segtor<size_t> path_name_index;
   segtor<std::optional<uint64_t>> parent_dir_index;
   segtor<size_t> entry_index;
-  // TODO: stat
 
   // file-specific
   segtor<size_t> order_index;
   segtor<size_t>
       inode_index; // TODO change this in `entry` first to make sure it works
   segtor<size_t> file_data_index; // indexes into `file_data`
+  segtor<file_stat::off_type> file_size;
+  phmap::flat_hash_map<uint64_t, file_stat::off_type>
+      allocated_file_size_lookup;
 
   // dir-specific
   // TODO: these are more interesting, especially the lookup table, `optional`
@@ -352,6 +354,17 @@ struct packed_entry_data {
     }
   }
 
+  void add_file_specific(file_stat const& st) {
+    st.ensure_valid(file_stat::size_valid | file_stat::allocated_size_valid);
+    auto const size = st.size_unchecked();
+    auto const allocated_size = st.allocated_size_unchecked();
+    auto const index = file_size.size();
+    file_size.push_back(size);
+    if (size != allocated_size) {
+      allocated_file_size_lookup.emplace(index, st.allocated_size_unchecked());
+    }
+  }
+
   entry_id get_parent(uint64_t const index) const {
     entry_id rv;
     if (auto const id = parent_dir_index.at(index)) {
@@ -416,6 +429,11 @@ struct packed_entry_data {
   }
 
   void dump(std::ostream& os, std::string_view name) const {
+    if (path_name_index.empty()) {
+      os << "no " << name << " entries\n";
+      return;
+    }
+
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
     auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
     auto const entry_index_bytes = entry_index.size_in_bytes();
@@ -424,10 +442,15 @@ struct packed_entry_data {
     auto const file_data_index_bytes = file_data_index.size_in_bytes();
     auto const link_target_index_bytes = link_target_index.size_in_bytes();
     auto const stat_common_index_bytes = stat_common_index.size_in_bytes();
+    auto const file_size_bytes = file_size.size_in_bytes();
+    auto const allocated_file_size_lookup_bytes =
+        allocated_file_size_lookup.capacity() *
+        sizeof(decltype(allocated_file_size_lookup)::value_type);
     auto const total_bytes = path_name_index_bytes + parent_dir_index_bytes +
                              entry_index_bytes + order_index_bytes +
                              inode_index_bytes + file_data_index_bytes +
-                             link_target_index_bytes + stat_common_index_bytes;
+                             link_target_index_bytes + stat_common_index_bytes +
+                             file_size_bytes + allocated_file_size_lookup_bytes;
 
     os << path_name_index.size() << " " << name << " entries ("
        << size_with_unit(total_bytes) << "):\n";
@@ -440,10 +463,20 @@ struct packed_entry_data {
     os << "  inode index: " << size_with_unit(inode_index_bytes) << "\n";
     os << "  file data index: " << size_with_unit(file_data_index_bytes)
        << "\n";
-    os << "  link target index: " << size_with_unit(link_target_index_bytes)
-       << "\n";
     os << "  stat common index: " << size_with_unit(stat_common_index_bytes)
        << "\n";
+
+    if (!link_target_index.empty()) {
+      os << "  link target index: " << size_with_unit(link_target_index_bytes)
+         << "\n";
+    }
+
+    if (!file_size.empty()) {
+      os << "  file size: " << size_with_unit(file_size.size_in_bytes())
+         << "\n";
+      os << "  allocated file size lookup: "
+         << size_with_unit(allocated_file_size_lookup_bytes) << "\n";
+    }
   }
 };
 
@@ -506,6 +539,7 @@ class entry_storage_ final : public entry_storage::impl {
                      entry_id const parent) override {
     packed_files_.add_entry_common(shared_, entry_type::E_FILE, path, st,
                                    parent);
+    packed_files_.add_file_specific(st);
     return make_obj_(files_, entry_type::E_FILE, st);
   }
 
