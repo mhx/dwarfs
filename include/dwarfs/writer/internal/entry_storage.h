@@ -153,6 +153,10 @@ class entry_storage {
     return impl_->get_unique_inode_id(id);
   }
 
+  file_stat::nlink_type get_nlink(entry_id id) const {
+    return impl_->get_nlink(id);
+  }
+
   size_t create_file_data() { return impl_->create_file_data(); }
 
   // TODO: this is probably not needed long-term
@@ -217,6 +221,8 @@ class entry_storage {
                             time_resolution_converter const& timeres) const = 0;
 
     virtual unique_inode_id get_unique_inode_id(entry_id id) const = 0;
+
+    virtual file_stat::nlink_type get_nlink(entry_id id) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
