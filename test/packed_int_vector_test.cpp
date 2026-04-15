@@ -432,3 +432,22 @@ TEST(packed_int_vector_static_api_test, tuple_field_arity_and_max_widths) {
   EXPECT_EQ(vec_type::max_widths(),
             (typename vec_type::widths_type{16, 16, 32}));
 }
+
+TEST(segmented_packed_int_vector, supports_tuple_types) {
+  enum class my_enum : uint8_t { A = 0, B = 1, C = 2, D = 3 };
+  using value_type = std::tuple<my_enum, uint16_t>;
+  using vec_type = segmented_packed_int_vector<value_type, 4>;
+
+  vec_type vec;
+  vec.push_back({my_enum::A, 42});
+  vec.push_back({my_enum::C, 17});
+  vec.push_back({my_enum::B, 99});
+  vec.push_back({my_enum::D, 123});
+  vec.push_back({my_enum::A, 7});
+
+  EXPECT_THAT(vec, ElementsAre(std::make_tuple(my_enum::A, 42),
+                               std::make_tuple(my_enum::C, 17),
+                               std::make_tuple(my_enum::B, 99),
+                               std::make_tuple(my_enum::D, 123),
+                               std::make_tuple(my_enum::A, 7)));
+}
