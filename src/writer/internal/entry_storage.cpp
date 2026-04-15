@@ -410,6 +410,11 @@ struct packed_entry_data {
                            get<kInodeField>(stat)};
   }
 
+  file_stat::nlink_type get_nlink(uint64_t const index) const {
+    auto const& stat = stat_common_index.at(index);
+    return get<kNlinkMinusOneField>(stat) + 1;
+  }
+
   void dump(std::ostream& os, std::string_view name) const {
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
     auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
@@ -715,6 +720,10 @@ class entry_storage_ final : public entry_storage::impl {
     return get_unique_inode_id_impl(id);
   }
 
+  file_stat::nlink_type get_nlink(entry_id id) const override {
+    return get_nlink_impl(id);
+  }
+
  private:
   void sort_all_directory_entries()
     requires is_mutable
@@ -819,6 +828,10 @@ class entry_storage_ final : public entry_storage::impl {
 
   unique_inode_id get_unique_inode_id_impl(entry_id id) const {
     return dispatch_shared_(&packed_entry_data::get_unique_inode_id, id);
+  }
+
+  file_stat::nlink_type get_nlink_impl(entry_id id) const {
+    return dispatch_(&packed_entry_data::get_nlink, id);
   }
 
   cao_vector<file> files_;
@@ -962,6 +975,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   unique_inode_id get_unique_inode_id(entry_id id) const override {
     return impl_.lock()->get_unique_inode_id(id);
+  }
+
+  file_stat::nlink_type get_nlink(entry_id id) const override {
+    return impl_.lock()->get_nlink(id);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
