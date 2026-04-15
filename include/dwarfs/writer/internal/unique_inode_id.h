@@ -33,7 +33,7 @@
 
 #include <dwarfs/compiler.h>
 
-namespace dwarfs::writer {
+namespace dwarfs::writer::internal {
 
 struct unique_inode_id {
   unique_inode_id() = default;
@@ -52,13 +52,14 @@ struct unique_inode_id {
   friend std::ostream& operator<<(std::ostream& os, unique_inode_id const& id);
 };
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal
 
 namespace std {
 
 template <>
-struct hash<dwarfs::writer::unique_inode_id> {
-  std::size_t operator()(dwarfs::writer::unique_inode_id const& id) const {
+struct hash<dwarfs::writer::internal::unique_inode_id> {
+  std::size_t
+  operator()(dwarfs::writer::internal::unique_inode_id const& id) const {
     std::size_t seed = 0;
     boost::hash_combine(seed, id.device_id);
     boost::hash_combine(seed, id.inode_num);
@@ -71,6 +72,7 @@ struct hash<dwarfs::writer::unique_inode_id> {
 namespace fmt {
 
 template <>
-struct formatter<dwarfs::writer::unique_inode_id> : ostream_formatter {};
+struct formatter<dwarfs::writer::internal::unique_inode_id>
+    : ostream_formatter {};
 
 } // namespace fmt
