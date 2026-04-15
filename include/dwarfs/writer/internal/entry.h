@@ -88,7 +88,6 @@ class entry {
   void update(global_entry_data& data) const;
   virtual void scan(entry_storage& storage, entry_id self_id,
                     os_access const& os, progress& prog) = 0;
-  file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
   unique_inode_id get_unique_inode_id() const;
@@ -100,6 +99,8 @@ class entry {
   void set_empty();
 
  private:
+  friend class device;
+
   file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
