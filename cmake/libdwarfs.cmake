@@ -154,7 +154,6 @@ add_library(
   src/writer/scanner.cpp
   src/writer/segmenter.cpp
   src/writer/segmenter_factory.cpp
-  src/writer/unique_inode_id.cpp
   src/writer/writer_progress.cpp
 
   src/writer/internal/block_manager.cpp
@@ -180,6 +179,7 @@ add_library(
   src/writer/internal/similarity.cpp
   src/writer/internal/similarity_ordering.cpp
   src/writer/internal/time_resolution_converter.cpp
+  src/writer/internal/unique_inode_id.cpp
 
   src/writer/categorizer/binary_categorizer.cpp
   src/writer/categorizer/fits_categorizer.cpp
