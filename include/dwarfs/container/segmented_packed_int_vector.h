@@ -243,7 +243,7 @@ class segmented_packed_int_vector {
   }
 
   [[nodiscard]] static segment_type make_empty_segment() {
-    segment_type seg(0);
+    segment_type seg;
     seg.reserve(segment_elements);
     return seg;
   }
