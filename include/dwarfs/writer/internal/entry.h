@@ -44,7 +44,6 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/entry_type.h>
 #include <dwarfs/writer/internal/inode_id.h>
-#include <dwarfs/writer/internal/unique_inode_id.h>
 
 namespace dwarfs {
 
@@ -86,7 +85,6 @@ class entry {
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  unique_inode_id get_unique_inode_id() const;
   uint64_t num_hard_links() const;
   virtual void set_inode_num(entry_storage& storage, uint32_t ino) = 0;
   virtual std::optional<uint32_t> const&
