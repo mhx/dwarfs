@@ -35,12 +35,21 @@
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
 
-namespace dwarfs::writer::internal {
+namespace dwarfs {
+
+namespace thrift::metadata {
+
+class inode_data;
+
+} // namespace thrift::metadata
+
+namespace writer::internal {
 
 struct file_data;
 class global_entry_data;
 class progress;
 class provisional_entry;
+class time_resolution_converter;
 
 template <typename LoggerPolicy>
 class inode_manager_;
@@ -130,7 +139,13 @@ class entry_storage {
   }
 
   void update_global_entry_data(entry_id id, global_entry_data& data) const {
-    return impl_->update_global_entry_data(id, data);
+    impl_->update_global_entry_data(id, data);
+  }
+
+  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
+                  global_entry_data const& data,
+                  time_resolution_converter const& timeres) const {
+    impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
   size_t create_file_data() { return impl_->create_file_data(); }
@@ -192,6 +207,9 @@ class entry_storage {
 
     virtual void
     update_global_entry_data(entry_id id, global_entry_data& data) const = 0;
+    virtual void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
+                            global_entry_data const& data,
+                            time_resolution_converter const& timeres) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
@@ -223,4 +241,5 @@ class entry_storage {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs::writer::internal
+} // namespace writer::internal
+} // namespace dwarfs

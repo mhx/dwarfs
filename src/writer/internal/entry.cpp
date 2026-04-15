@@ -57,12 +57,6 @@ constexpr std::string_view const kHashContext{"[hashing] "};
 entry::entry(file_stat const& st)
     : stat_{st} {}
 
-void entry::pack(thrift::metadata::inode_data& entry_v2,
-                 global_entry_data const& data,
-                 time_resolution_converter const& timeres) const {
-  data.pack_inode_stat(entry_v2, stat_, timeres);
-}
-
 file_size_t entry::size() const { return stat_.size(); }
 
 file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
