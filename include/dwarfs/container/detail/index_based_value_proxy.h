@@ -38,6 +38,15 @@
 
 namespace dwarfs::container::detail {
 
+template <typename T>
+struct is_std_optional : std::false_type {};
+
+template <typename U>
+struct is_std_optional<std::optional<U>> : std::true_type {};
+
+template <typename T>
+constexpr inline bool is_std_optional_v = is_std_optional<T>::value;
+
 template <typename Container, std::size_t I>
 class index_based_field_proxy {
  public:
@@ -79,6 +88,12 @@ class index_based_field_proxy {
     value_type tmp = a;
     a = static_cast<value_type>(b);
     b = tmp;
+  }
+
+  bool has_value() const
+    requires is_std_optional_v<value_type>
+  {
+    return static_cast<value_type>(*this).has_value();
   }
 
   friend bool
@@ -187,6 +202,12 @@ class index_based_value_proxy {
   {
     static_assert(I < field_count);
     return index_based_field_proxy<container_type, I>{vec_, i_};
+  }
+
+  bool has_value() const
+    requires is_std_optional_v<value_type>
+  {
+    return static_cast<value_type>(*this).has_value();
   }
 
   friend bool
