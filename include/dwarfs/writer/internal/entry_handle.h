@@ -147,7 +147,7 @@ class entry_handle_base {
   entry_type type() const;
   void update(internal::global_entry_data& data) const;
   unique_inode_id get_unique_inode_id() const;
-  uint64_t num_hard_links() const;
+  file_stat::nlink_type num_hard_links() const;
   std::optional<uint32_t> const& inode_num() const;
 
   void accept(entry_handle_visitor& v, bool preorder = false)
