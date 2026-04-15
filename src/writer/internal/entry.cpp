@@ -207,7 +207,7 @@ entry::type_t device::type() const { return entry_type::E_DEVICE; }
 
 void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
-uint64_t device::device_id() const { return status().rdev(); }
+uint64_t device::device_id() const { return stat_.rdev(); }
 
 entry::type_t other::type() const { return entry_type::E_OTHER; }
 
