@@ -23,12 +23,12 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/writer/unique_inode_id.h>
+#include <dwarfs/writer/internal/unique_inode_id.h>
 
-namespace dwarfs::writer {
+namespace dwarfs::writer::internal {
 
 std::ostream& operator<<(std::ostream& os, unique_inode_id const& id) {
   return os << fmt::format("{{dev={}, ino={}}}", id.device_id, id.inode_num);
 }
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::writer::internal

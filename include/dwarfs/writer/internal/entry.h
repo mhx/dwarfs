@@ -40,11 +40,11 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/small_vector.h>
-#include <dwarfs/writer/unique_inode_id.h>
 
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/entry_type.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/unique_inode_id.h>
 
 namespace dwarfs {
 
