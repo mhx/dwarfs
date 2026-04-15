@@ -184,12 +184,24 @@ std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
 }
 
 struct shared_entry_data {
-  void drop_indices() { path_index_.reset(); }
+  void drop_indices() {
+    path_index_.reset();
+    mode_index_.reset();
+    uid_index_.reset();
+    gid_index_.reset();
+  }
+
   void drop_lookup_tables() { dir_entry_lookup_.clear(); }
 
   auto add_path_component(fs::path const& component, bool is_root) {
     return path_index_->add(component, is_root);
   }
+
+  auto add_mode(file_stat::mode_type mode) { return mode_index_->add(mode); }
+
+  auto add_uid(file_stat::uid_type uid) { return uid_index_->add(uid); }
+
+  auto add_gid(file_stat::gid_type gid) { return gid_index_->add(gid); }
 
   void dump(std::ostream& os) const {
     auto const total_path_bytes =
@@ -201,6 +213,12 @@ struct shared_entry_data {
     os << "shared entry data:\n";
     os << "  path components: " << path_components_.size() << " ("
        << size_with_unit(total_path_bytes) << ")\n";
+    os << "  modes: " << modes_.size() << " ("
+       << size_with_unit(modes_.size() * sizeof(modes_[0])) << ")\n";
+    os << "  uids: " << uids_.size() << " ("
+       << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
+    os << "  gids: " << gids_.size() << " ("
+       << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
     os << "  dir entries: " << dir_entries_.size() << " ("
        << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
   }
@@ -209,6 +227,15 @@ struct shared_entry_data {
 
   cao_vector<path_component> path_components_;
   std::optional<flat_cao_index<path_component>> path_index_{path_components_};
+
+  cao_vector<file_stat::mode_type> modes_;
+  std::optional<flat_cao_index<file_stat::mode_type>> mode_index_{modes_};
+
+  cao_vector<file_stat::uid_type> uids_;
+  std::optional<flat_cao_index<file_stat::uid_type>> uid_index_{uids_};
+
+  cao_vector<file_stat::gid_type> gids_;
+  std::optional<flat_cao_index<file_stat::gid_type>> gid_index_{gids_};
 
   // indexed by dir index, contains all entry ids of the directory
   cao_vector<entry_id_vector> dir_entries_;
@@ -245,8 +272,24 @@ struct packed_entry_data {
   // files
   //       which have this info in `file_data` already.
 
+  static constexpr std::size_t kNlinkMinusOneField = 0;
+  static constexpr std::size_t kModeIndexField = 1;
+  static constexpr std::size_t kUidIndexField = 2;
+  static constexpr std::size_t kGidIndexField = 3;
+  static constexpr std::size_t kAccessTimeSecondField = 4;
+  static constexpr std::size_t kAccessTimeSubsecondField = 5;
+  static constexpr std::size_t kModificationTimeSecondField = 6;
+  static constexpr std::size_t kModificationTimeSubsecondField = 7;
+  static constexpr std::size_t kStatusChangeTimeSecondField = 8;
+  static constexpr std::size_t kStatusChangeTimeSubsecondField = 9;
+  using stat_common =
+      std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t,
+                 std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
+                 std::int64_t, std::uint64_t>;
+  segtor<stat_common> stat_common_index;
+
   void add_entry_common(shared_entry_data& shared, entry_type type,
-                        fs::path const& path, file_stat const&,
+                        fs::path const& path, file_stat const& st,
                         entry_id const parent) {
     bool const is_root = !parent.valid();
     assert(is_root || parent.is_dir());
@@ -255,6 +298,28 @@ struct packed_entry_data {
     path_name_index.push_back(path_ix);
     parent_dir_index.push_back(is_root ? std::nullopt
                                        : std::make_optional(parent.index()));
+
+    st.ensure_valid(file_stat::nlink_valid | file_stat::mode_valid |
+                    file_stat::uid_valid | file_stat::gid_valid |
+                    file_stat::atime_valid | file_stat::mtime_valid |
+                    file_stat::ctime_valid);
+
+    auto const nlink = st.nlink_unchecked();
+    assert(nlink > 0);
+
+    stat_common tmp{};
+    std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
+    std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
+    std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
+    std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
+    std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
+    std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
+    std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
+    std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
+    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
+    std::get<kStatusChangeTimeSubsecondField>(tmp) = st.ctime_nsec_unchecked();
+
+    stat_common_index.push_back(tmp);
 
     if (!is_root) {
       assert(parent.index() < shared.dir_entries_.size());
@@ -302,10 +367,11 @@ struct packed_entry_data {
     auto const inode_index_bytes = inode_index.size_in_bytes();
     auto const file_data_index_bytes = file_data_index.size_in_bytes();
     auto const link_target_index_bytes = link_target_index.size_in_bytes();
+    auto const stat_common_index_bytes = stat_common_index.size_in_bytes();
     auto const total_bytes = path_name_index_bytes + parent_dir_index_bytes +
                              entry_index_bytes + order_index_bytes +
                              inode_index_bytes + file_data_index_bytes +
-                             link_target_index_bytes;
+                             link_target_index_bytes + stat_common_index_bytes;
 
     os << path_name_index.size() << " " << name << " entries ("
        << size_with_unit(total_bytes) << "):\n";
@@ -319,6 +385,8 @@ struct packed_entry_data {
     os << "  file data index: " << size_with_unit(file_data_index_bytes)
        << "\n";
     os << "  link target index: " << size_with_unit(link_target_index_bytes)
+       << "\n";
+    os << "  stat common index: " << size_with_unit(stat_common_index_bytes)
        << "\n";
   }
 };
