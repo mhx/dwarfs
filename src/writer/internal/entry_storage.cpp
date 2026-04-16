@@ -278,7 +278,7 @@ struct packed_entry_data {
 
   segtor<size_t> path_name_index;
   segtor<std::optional<uint64_t>> parent_dir_index;
-  segtor<size_t> entry_index;
+  segtor<std::optional<size_t>> entry_index;
   segtor<std::optional<std::uint64_t>> inode_num;
 
   static constexpr std::size_t kNlinkMinusOneField = 0;
@@ -293,11 +293,11 @@ struct packed_entry_data {
   static constexpr std::size_t kStatusChangeTimeSubsecondField = 9;
   static constexpr std::size_t kInodeField = 10;
   static constexpr std::size_t kDeviceIndexField = 11;
-  using stat_common =
+  using stat_common_tuple =
       std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t>;
-  segtor<stat_common> stat_common_index;
+  segtor<stat_common_tuple> stat_common;
   segtor<file_stat::off_type> entry_size;
   phmap::flat_hash_map<uint64_t, file_stat::off_type>
       entry_allocated_size_lookup;
@@ -346,7 +346,7 @@ struct packed_entry_data {
     auto const nlink = st.nlink_unchecked();
     assert(nlink > 0);
 
-    stat_common tmp{};
+    stat_common_tuple tmp{};
     std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
     std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
     std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
@@ -360,7 +360,7 @@ struct packed_entry_data {
     std::get<kInodeField>(tmp) = st.ino_unchecked();
     std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
 
-    stat_common_index.push_back(tmp);
+    stat_common.push_back(tmp);
 
     auto const size = st.size_unchecked();
     auto const allocated_size = st.allocated_size_unchecked();
@@ -427,7 +427,7 @@ struct packed_entry_data {
   void update_global_entry_data(shared_entry_data const& shared,
                                 uint64_t const index,
                                 global_entry_data& data) const {
-    auto const& stat = stat_common_index.at(index);
+    auto const& stat = stat_common.at(index);
 
     data.add_mode(shared.modes_.at(get<kModeIndexField>(stat)));
     data.add_uid(shared.uids_.at(get<kUidIndexField>(stat)));
@@ -441,7 +441,7 @@ struct packed_entry_data {
                   thrift::metadata::inode_data& entry_v2,
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const {
-    auto const& stat = stat_common_index.at(index);
+    auto const& stat = stat_common.at(index);
     file_stat out{};
     out.set_mode(shared.modes_.at(get<kModeIndexField>(stat)));
     out.set_uid(shared.uids_.at(get<kUidIndexField>(stat)));
@@ -457,13 +457,13 @@ struct packed_entry_data {
 
   unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
                                       uint64_t const index) const {
-    auto const& stat = stat_common_index.at(index);
+    auto const& stat = stat_common.at(index);
     return unique_inode_id{shared.devices_.at(get<kDeviceIndexField>(stat)),
                            get<kInodeField>(stat)};
   }
 
   file_stat::nlink_type get_nlink(uint64_t const index) const {
-    auto const& stat = stat_common_index.at(index);
+    auto const& stat = stat_common.at(index);
     return get<kNlinkMinusOneField>(stat) + 1;
   }
 
@@ -599,7 +599,7 @@ struct packed_entry_data {
     auto const file_data_index_bytes = file_data_index.size_in_bytes();
     auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
     auto const link_target_index_bytes = link_target_index.size_in_bytes();
-    auto const stat_common_index_bytes = stat_common_index.size_in_bytes();
+    auto const stat_common_bytes = stat_common.size_in_bytes();
     auto const entry_size_bytes = entry_size.size_in_bytes();
     auto const entry_allocated_size_lookup_bytes =
         entry_allocated_size_lookup.capacity() *
@@ -609,9 +609,9 @@ struct packed_entry_data {
     auto const total_bytes =
         path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
         order_index_bytes + inode_num_bytes + file_data_index_bytes +
-        file_inode_id_bytes + link_target_index_bytes +
-        stat_common_index_bytes + entry_size_bytes +
-        entry_allocated_size_lookup_bytes + file_hashes_bytes;
+        file_inode_id_bytes + link_target_index_bytes + stat_common_bytes +
+        entry_size_bytes + entry_allocated_size_lookup_bytes +
+        file_hashes_bytes;
 
     os << path_name_index.size() << " " << name << " entries ("
        << size_with_unit(total_bytes) << "):\n";
@@ -625,8 +625,7 @@ struct packed_entry_data {
     os << "  file data index: " << size_with_unit(file_data_index_bytes)
        << "\n";
     os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
-    os << "  stat common index: " << size_with_unit(stat_common_index_bytes)
-       << "\n";
+    os << "  stat common: " << size_with_unit(stat_common_bytes) << "\n";
     os << "  size: " << size_with_unit(entry_size.size_in_bytes()) << "\n";
     os << "  allocated size lookup: "
        << size_with_unit(entry_allocated_size_lookup_bytes) << "\n";
