@@ -142,10 +142,6 @@ class entry_storage {
     return impl_->get_name(id);
   }
 
-  [[nodiscard]] bool is_dir_empty(entry_id id) const {
-    return impl_->is_dir_empty(id);
-  }
-
   void remove_empty_dirs(progress& prog) {
     return impl_->remove_empty_dirs(prog);
   }
@@ -286,7 +282,6 @@ class entry_storage {
     virtual std::filesystem::path get_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
     virtual std::string_view get_name(entry_id id) const = 0;
-    virtual bool is_dir_empty(entry_id id) const = 0;
     virtual void remove_empty_dirs(progress& prog) = 0;
     virtual void
     for_each_entry_in_dir(entry_id id,
