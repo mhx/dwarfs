@@ -103,12 +103,12 @@ bool entry_handle_base<Mut>::less_revpath(const_entry_handle rhs) const {
 
 template <mutability Mut>
 file_size_t entry_handle_base<Mut>::size() const {
-  return base()->size();
+  return this->storage().get_entry_size(self_id_);
 }
 
 template <mutability Mut>
 file_size_t entry_handle_base<Mut>::allocated_size() const {
-  return base()->allocated_size();
+  return this->storage().get_entry_allocated_size(self_id_);
 }
 
 template <mutability Mut>
@@ -184,7 +184,7 @@ template <mutability Mut>
 void entry_handle_base<Mut>::set_empty()
   requires is_mutable
 {
-  base()->set_empty();
+  this->storage().set_entry_empty(self_id_);
 }
 
 template <mutability Mut>

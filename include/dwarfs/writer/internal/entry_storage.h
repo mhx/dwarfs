@@ -177,6 +177,16 @@ class entry_storage {
     return impl_->get_file_hash(id);
   }
 
+  file_size_t get_entry_size(entry_id id) const {
+    return impl_->get_entry_size(id);
+  }
+
+  file_size_t get_entry_allocated_size(entry_id id) const {
+    return impl_->get_entry_allocated_size(id);
+  }
+
+  void set_entry_empty(entry_id id) { impl_->set_entry_empty(id); }
+
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) {
     impl_->set_inode_num_for_entry(id, ino);
   }
@@ -269,6 +279,10 @@ class entry_storage {
     virtual std::span<std::byte>
     get_file_hash_buffer(file_id id, std::size_t buffer_size) = 0;
     virtual std::string_view get_file_hash(file_id id) const = 0;
+
+    virtual file_size_t get_entry_size(entry_id id) const = 0;
+    virtual file_size_t get_entry_allocated_size(entry_id id) const = 0;
+    virtual void set_entry_empty(entry_id id) = 0;
 
     virtual void set_inode_num_for_entry(entry_id id, std::uint64_t ino) = 0;
     virtual std::optional<std::uint64_t>

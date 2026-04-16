@@ -268,17 +268,6 @@ struct packed_entry_data {
   segtor<size_t> entry_index;
   segtor<std::optional<std::uint64_t>> inode_num;
 
-  // file-specific
-  segtor<size_t> order_index;
-  segtor<inode_id> file_inode_id;
-  segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
-  segtor<file_stat::off_type> file_size;
-  phmap::flat_hash_map<uint64_t, file_stat::off_type>
-      allocated_file_size_lookup;
-
-  // link-specific
-  segtor<size_t> link_target_index; // indexes into de-duped link target vector
-
   static constexpr std::size_t kNlinkMinusOneField = 0;
   static constexpr std::size_t kModeIndexField = 1;
   static constexpr std::size_t kUidIndexField = 2;
@@ -296,7 +285,14 @@ struct packed_entry_data {
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t>;
   segtor<stat_common> stat_common_index;
+  segtor<file_stat::off_type> entry_size;
+  phmap::flat_hash_map<uint64_t, file_stat::off_type>
+      entry_allocated_size_lookup;
 
+  // file-specific
+  segtor<size_t> order_index;
+  segtor<inode_id> file_inode_id;
+  segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
   std::optional<dwarfs::container::pinned_byte_span_store<512>> file_hashes;
 
   static constexpr std::size_t kFileHashIndexField{0};
@@ -307,6 +303,9 @@ struct packed_entry_data {
                  std::optional<std::uint64_t>>;
   segtor<file_data_tuple> file_data_vec;
   cao_vector<std::atomic<bool>> file_invalid_vec;
+
+  // link-specific
+  segtor<size_t> link_target_index; // indexes into de-duped link target vector
 
   void add_entry_common(shared_entry_data& shared, entry_type type,
                         fs::path const& path, file_stat const& st,
@@ -325,7 +324,8 @@ struct packed_entry_data {
     st.ensure_valid(
         file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
         file_stat::gid_valid | file_stat::atime_valid | file_stat::mtime_valid |
-        file_stat::ctime_valid | file_stat::dev_valid | file_stat::ino_valid);
+        file_stat::ctime_valid | file_stat::dev_valid | file_stat::ino_valid |
+        file_stat::size_valid | file_stat::allocated_size_valid);
 
     auto const nlink = st.nlink_unchecked();
     assert(nlink > 0);
@@ -346,6 +346,14 @@ struct packed_entry_data {
 
     stat_common_index.push_back(tmp);
 
+    auto const size = st.size_unchecked();
+    auto const allocated_size = st.allocated_size_unchecked();
+    auto const index = entry_size.size();
+    entry_size.push_back(size);
+    if (size != allocated_size) {
+      entry_allocated_size_lookup.emplace(index, st.allocated_size_unchecked());
+    }
+
     if (!is_root) {
       assert(parent.index() < shared.dir_entries_.size());
       shared.dir_entries_.at(parent.index()).push_back({type, entry_ix});
@@ -364,15 +372,7 @@ struct packed_entry_data {
     }
   }
 
-  void add_file_specific(file_stat const& st) {
-    st.ensure_valid(file_stat::size_valid | file_stat::allocated_size_valid);
-    auto const size = st.size_unchecked();
-    auto const allocated_size = st.allocated_size_unchecked();
-    auto const index = file_size.size();
-    file_size.push_back(size);
-    if (size != allocated_size) {
-      allocated_file_size_lookup.emplace(index, st.allocated_size_unchecked());
-    }
+  void add_file_specific() {
     file_data_index.push_back(std::nullopt);
     file_inode_id.push_back(inode_id{});
   }
@@ -446,9 +446,9 @@ struct packed_entry_data {
     auto const& source_fdi = file_data_index.at(source.index());
     assert(!target_fdi.has_value());
     assert(source_fdi.has_value());
-    auto const size = file_size.at(source.index());
+    auto const size = entry_size.at(source.index());
     auto const allocated_size =
-        container::get_optional(allocated_file_size_lookup, source.index())
+        container::get_optional(entry_allocated_size_lookup, source.index())
             .value_or(size);
 
     prog.hardlink_size += size;
@@ -493,6 +493,20 @@ struct packed_entry_data {
   std::optional<std::size_t> get_file_hash_index(file_id id) const {
     auto const fdi = get_file_data_index(id.index());
     return get<kFileHashIndexField>(file_data_vec.at(fdi));
+  }
+
+  file_size_t get_size(uint64_t const index) const {
+    return entry_size.at(index);
+  }
+
+  file_size_t get_allocated_size(uint64_t const index) const {
+    return container::get_optional(entry_allocated_size_lookup, index)
+        .value_or(get_size(index));
+  }
+
+  void set_empty(uint64_t const index) {
+    entry_size.at(index) = 0;
+    entry_allocated_size_lookup.erase(index);
   }
 
   void set_inode_num(uint64_t const index, uint64_t ino) {
@@ -544,18 +558,18 @@ struct packed_entry_data {
     auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
     auto const link_target_index_bytes = link_target_index.size_in_bytes();
     auto const stat_common_index_bytes = stat_common_index.size_in_bytes();
-    auto const file_size_bytes = file_size.size_in_bytes();
-    auto const allocated_file_size_lookup_bytes =
-        allocated_file_size_lookup.capacity() *
-        sizeof(decltype(allocated_file_size_lookup)::value_type);
+    auto const entry_size_bytes = entry_size.size_in_bytes();
+    auto const entry_allocated_size_lookup_bytes =
+        entry_allocated_size_lookup.capacity() *
+        sizeof(decltype(entry_allocated_size_lookup)::value_type);
     auto const file_hashes_bytes =
         file_hashes ? file_hashes->size_in_bytes() : 0;
     auto const total_bytes =
         path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
         order_index_bytes + inode_num_bytes + file_data_index_bytes +
         file_inode_id_bytes + link_target_index_bytes +
-        stat_common_index_bytes + file_size_bytes +
-        allocated_file_size_lookup_bytes + file_hashes_bytes;
+        stat_common_index_bytes + entry_size_bytes +
+        entry_allocated_size_lookup_bytes + file_hashes_bytes;
 
     os << path_name_index.size() << " " << name << " entries ("
        << size_with_unit(total_bytes) << "):\n";
@@ -571,17 +585,16 @@ struct packed_entry_data {
     os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
     os << "  stat common index: " << size_with_unit(stat_common_index_bytes)
        << "\n";
+    os << "  size: " << size_with_unit(entry_size.size_in_bytes()) << "\n";
+    os << "  allocated size lookup: "
+       << size_with_unit(entry_allocated_size_lookup_bytes) << "\n";
 
     if (!link_target_index.empty()) {
       os << "  link target index: " << size_with_unit(link_target_index_bytes)
          << "\n";
     }
 
-    if (!file_size.empty()) {
-      os << "  file size: " << size_with_unit(file_size.size_in_bytes())
-         << "\n";
-      os << "  allocated file size lookup: "
-         << size_with_unit(allocated_file_size_lookup_bytes) << "\n";
+    if (file_hashes) {
       os << "  file hashes: " << size_with_unit(file_hashes_bytes) << "\n";
     }
   }
@@ -645,7 +658,7 @@ class entry_storage_ final : public entry_storage::impl {
                      entry_id const parent) override {
     packed_files_.add_entry_common(shared_, entry_type::E_FILE, path, st,
                                    parent);
-    packed_files_.add_file_specific(st);
+    packed_files_.add_file_specific();
     return make_obj_(files_, entry_type::E_FILE, st);
   }
 
@@ -921,6 +934,22 @@ class entry_storage_ final : public entry_storage::impl {
       }
     }
     return {};
+  }
+
+  file_size_t get_entry_size(entry_id id) const override {
+    return dispatch_(&packed_entry_data::get_size, id);
+  }
+
+  file_size_t get_entry_allocated_size(entry_id id) const override {
+    return dispatch_(&packed_entry_data::get_allocated_size, id);
+  }
+
+  void set_entry_empty(entry_id id) override {
+    if constexpr (is_mutable) {
+      dispatch_(&packed_entry_data::set_empty, id);
+    } else {
+      frozen_panic();
+    }
   }
 
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) override {
@@ -1251,6 +1280,18 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_file_hash(file_id id) const override {
     return impl_.lock()->get_file_hash(id);
+  }
+
+  file_size_t get_entry_size(entry_id id) const override {
+    return impl_.lock()->get_entry_size(id);
+  }
+
+  file_size_t get_entry_allocated_size(entry_id id) const override {
+    return impl_.lock()->get_entry_allocated_size(id);
+  }
+
+  void set_entry_empty(entry_id id) override {
+    impl_.lock()->set_entry_empty(id);
   }
 
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) override {

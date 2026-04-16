@@ -50,15 +50,6 @@ namespace fs = std::filesystem;
 entry::entry(file_stat const& st)
     : stat_{st} {}
 
-file_size_t entry::size() const { return stat_.size(); }
-
-file_size_t entry::allocated_size() const { return stat_.allocated_size(); }
-
-void entry::set_empty() {
-  stat_.set_size(0);
-  stat_.set_allocated_size(0);
-}
-
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
@@ -76,11 +67,11 @@ std::string const& link::linkname() const { return link_; }
 
 void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
                 progress& prog) {
-  link_ = path_to_utf8_string_sanitized(
-      os.read_symlink(link_handle{storage, self_id}.fs_path()));
-  prog.original_size += size();
-  prog.allocated_original_size += allocated_size();
-  prog.symlink_size += size();
+  auto self = storage.handle(self_id);
+  link_ = path_to_utf8_string_sanitized(os.read_symlink(self.fs_path()));
+  prog.original_size += self.size();
+  prog.allocated_original_size += self.allocated_size();
+  prog.symlink_size += self.size();
 }
 
 entry::type_t device::type() const { return entry_type::E_DEVICE; }
