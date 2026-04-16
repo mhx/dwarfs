@@ -1060,6 +1060,71 @@ TYPED_TEST(packed_int_vec_tmpl_test,
   EXPECT_EQ(vec.required_bits(), vec_type::required_bits(12345));
 }
 
+TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_plus_equals_and_minus_equals) {
+  using vec_type = typename TypeParam::template auto_type<uint32_t>;
+
+  vec_type vec{10, 20};
+
+  vec[0] += 5;
+  vec[1] -= 7;
+
+  EXPECT_THAT(vec.unpack(), ElementsAre(15, 13));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           value_proxy_prefix_increment_and_decrement) {
+  using vec_type = typename TypeParam::template auto_type<uint32_t>;
+
+  vec_type vec{10};
+
+  // Careful: using `auto` here would create a copy of the proxy, *not* the
+  // value.
+  uint32_t const inc_result = ++vec[0];
+  uint32_t const dec_result = --vec[0];
+
+  EXPECT_EQ(inc_result, 11);
+  EXPECT_EQ(dec_result, 10);
+  EXPECT_THAT(vec.unpack(), ElementsAre(10));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           value_proxy_postfix_increment_and_decrement) {
+  using vec_type = typename TypeParam::template auto_type<uint32_t>;
+
+  vec_type vec{10};
+
+  auto inc_result = vec[0]++;
+  auto dec_result = vec[0]--;
+
+  EXPECT_EQ(inc_result, 10);
+  EXPECT_EQ(dec_result, 11);
+  EXPECT_THAT(vec.unpack(), ElementsAre(10));
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_load_scalar) {
+  using vec_type = typename TypeParam::template auto_type<uint32_t>;
+
+  vec_type vec{10, 20};
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  EXPECT_EQ(p0.load(), 10);
+  EXPECT_EQ(p1.load(), 20);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_unary_plus_scalar) {
+  using vec_type = typename TypeParam::template auto_type<uint32_t>;
+
+  vec_type vec{10, 20};
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  EXPECT_EQ(+p0, 10);
+  EXPECT_EQ(+p1, 20);
+}
+
 #ifdef __clang__
 #pragma clang optimize on
 #endif
