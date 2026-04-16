@@ -77,15 +77,11 @@ class entry {
 
   entry(file_stat const& st);
 
-  file_size_t size() const;
-  file_size_t allocated_size() const;
   virtual type_t type() const = 0;
   virtual void scan(entry_storage& storage, entry_id self_id,
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-
-  void set_empty();
 
  private:
   friend class device;
