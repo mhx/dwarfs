@@ -106,7 +106,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   std::string format_key(const_file_handle key) const {
-    return fmt::format("{}", key.id().index());
+    return std::to_string(key.id().index());
   }
 
   std::string format_key(std::string_view key) const {
@@ -114,7 +114,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   void dump_value(std::ostream& os, std::integral auto val) const {
-    os << fmt::format("{}", val);
+    os << std::to_string(val);
   }
 
   void dump_value(std::ostream& os, std::shared_ptr<std::latch> const&) const {
@@ -593,16 +593,16 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
   auto ino_num = p.inode_num();
 
   os << "{\n"
-     << R"(        "index": )" << p.id().index() << ",\n"
+     << R"(        "index": )" << std::to_string(p.id().index()) << ",\n"
      << R"(        "path": )" << nlohmann::json{p.path_as_string()}.dump()
      << ",\n"
-     << R"(        "size": )" << fmt::format("{}", p.size()) << ",\n"
-     << R"(        "nlink": )" << fmt::format("{}", p.hardlink_count()) << ",\n"
+     << R"(        "size": )" << std::to_string(p.size()) << ",\n"
+     << R"(        "nlink": )" << std::to_string(p.hardlink_count()) << ",\n"
      << R"(        "hash": ")" << hexlify(p.hash()) << "\",\n"
      << R"(        "invalid": )" << (p.is_invalid() ? "true" : "false") << ",\n"
      << R"(        "inode_num": )"
-     << (ino_num ? fmt::format("{}", *ino_num) : "null") << ",\n"
-     << R"(        "inode": )" << ino.index() << "\n"
+     << (ino_num ? std::to_string(*ino_num) : "null") << ",\n"
+     << R"(        "inode": )" << std::to_string(ino.index()) << "\n"
      << "      }";
 }
 
@@ -653,11 +653,11 @@ void file_scanner_<LoggerPolicy>::dump_inode_create_info(
     }
     first = false;
     os << "    {\n"
-       << R"(      "inode": )" << ici.i.index() << ",\n"
+       << R"(      "inode": )" << std::to_string(ici.i.index()) << ",\n"
        << R"(      "file": )";
     dump_value(os, storage_.handle(ici.f));
     os << ",\n"
-       << R"(      "line": )" << fmt::format("{}", ici.line) << "\n"
+       << R"(      "line": )" << std::to_string(ici.line) << "\n"
        << "    }";
   }
   os << "\n  ]";
