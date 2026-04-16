@@ -148,7 +148,7 @@ class entry_handle_base {
   void update(internal::global_entry_data& data) const;
   unique_inode_id get_unique_inode_id() const;
   file_stat::nlink_type num_hard_links() const;
-  std::optional<uint32_t> const& inode_num() const;
+  std::optional<std::uint64_t> inode_num() const;
 
   void accept(entry_handle_visitor& v, bool preorder = false)
     requires is_mutable;
@@ -158,7 +158,7 @@ class entry_handle_base {
     requires is_mutable;
   void set_entry_index(uint32_t index)
     requires is_mutable;
-  void set_inode_num(uint32_t ino)
+  void set_inode_num(std::uint64_t ino)
     requires is_mutable;
   void
   walk(std::function<void(basic_entry_handle<mutability::mutable_>)> const& f)

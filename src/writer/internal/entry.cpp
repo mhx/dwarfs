@@ -28,7 +28,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/file_view.h>
@@ -48,12 +47,6 @@ namespace dwarfs::writer::internal {
 
 namespace fs = std::filesystem;
 
-namespace {
-
-constexpr std::string_view const kHashContext{"[hashing] "};
-
-} // namespace
-
 entry::entry(file_stat const& st)
     : stat_{st} {}
 
@@ -68,11 +61,6 @@ void entry::set_empty() {
 
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
-std::string_view file::hash(entry_storage& storage) const {
-  auto& h = get_data(storage).hash;
-  return {h.data(), h.size()};
-}
-
 void file::set_inode(inode_id ino) {
   DWARFS_CHECK(!inode_, "inode already set for file");
   inode_ = ino;
@@ -83,83 +71,6 @@ inode_id file::get_inode() const { return inode_; }
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
                 os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
-}
-
-void file::scan(entry_storage& storage, entry_id self_id, file_view const& mm,
-                progress& prog, std::optional<std::string> const& hash_alg) {
-  auto const s = size();
-
-  if (hash_alg) {
-    progress::scan_updater supd(prog.hash, s);
-    checksum cs(*hash_alg);
-
-    if (s > 0) {
-      std::shared_ptr<scanner_progress> pctx;
-      auto const chunk_size = prog.hash.chunk_size.load();
-
-      if (std::cmp_greater_equal(s, 4 * chunk_size)) {
-        pctx = prog.create_context<scanner_progress>(
-            termcolor::MAGENTA, kHashContext,
-            const_file_handle{storage, self_id}.path_as_string(), s);
-      }
-
-      assert(mm);
-
-      for (auto const& ext : mm.extents()) {
-        // TODO; See if we need to handle hole extents differently.
-        //       I guess not, since we can just make holes generate
-        //       zeroes efficiently in the file_view abstraction.
-        for (auto const& seg : ext.segments(chunk_size)) {
-          auto data = seg.span();
-          cs.update(data);
-          if (pctx) {
-            pctx->advance(data.size());
-          }
-        }
-      }
-    }
-
-    auto& data = get_data(storage);
-
-    data.hash.resize(cs.digest_size());
-
-    DWARFS_CHECK(cs.finalize(data.hash.data()), "checksum computation failed");
-  }
-}
-
-void file::set_inode_num(entry_storage& storage, uint32_t inode_num) {
-  auto& data = get_data(storage);
-  DWARFS_CHECK(!data.inode_num, "attempt to set inode number more than once");
-  data.inode_num = inode_num;
-}
-
-std::optional<uint32_t> const& file::inode_num(entry_storage& storage) const {
-  auto const& data = get_data(storage);
-  return data.inode_num;
-}
-
-void file::create_data(entry_storage& storage) {
-  assert(data_index_ == file::kInvalidDataIndex);
-  data_index_ = storage.create_file_data();
-}
-
-file_data& file::get_data(entry_storage& storage) const {
-  DWARFS_CHECK(data_index_ != file::kInvalidDataIndex, "file data unset");
-  return storage.get_file_data(data_index_);
-}
-
-void file::hardlink(entry_storage& storage, file* other, progress& prog) {
-  assert(data_index_ == kInvalidDataIndex);
-  assert(other->data_index_ != kInvalidDataIndex);
-
-  prog.hardlink_size += size();
-  prog.allocated_hardlink_size += allocated_size();
-  ++prog.hardlinks;
-
-  data_index_ = other->data_index_;
-
-  auto& data = get_data(storage);
-  ++data.hardlink_count;
 }
 
 entry::type_t dir::type() const { return entry_type::E_DIR; }
