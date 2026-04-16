@@ -452,6 +452,11 @@ TEST(segmented_packed_int_vector, supports_tuple_types) {
                                std::make_tuple(my_enum::B, 99),
                                std::make_tuple(my_enum::D, 123),
                                std::make_tuple(my_enum::A, 7)));
+
+  EXPECT_EQ(get<0>(vec[0]), my_enum::A);
+  EXPECT_EQ(get<1>(vec[1]), 17);
+  EXPECT_EQ(get<0>(vec[3]), my_enum::D);
+  EXPECT_EQ(get<1>(vec[4]), 7);
 }
 
 TEST(packed_int_vector_proxy_test, optional_value_proxy_has_has_value) {

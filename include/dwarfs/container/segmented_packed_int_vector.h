@@ -57,6 +57,9 @@ class segmented_packed_int_vector {
   using const_iterator =
       detail::index_based_const_iterator<segmented_packed_int_vector>;
 
+  using field_descriptor = detail::packed_field_descriptor<value_type>;
+  static constexpr size_type field_count = field_descriptor::field_count;
+
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
   static constexpr size_type max_size_value =
@@ -191,6 +194,24 @@ class segmented_packed_int_vector {
   void set(size_type i, value_type value) {
     auto const [seg, off] = locate(i);
     segments_[seg][off] = value;
+  }
+
+  template <size_type I>
+  [[nodiscard]] auto get_field(size_type i) const ->
+      typename field_descriptor::template field_value_type<I>
+    requires(field_count > 1)
+  {
+    auto const [seg, off] = locate(i);
+    return segments_[seg].template get_field<I>(off);
+  }
+
+  template <size_type I>
+  void set_field(size_type i,
+                 typename field_descriptor::template field_value_type<I> value)
+    requires(field_count > 1)
+  {
+    auto const [seg, off] = locate(i);
+    segments_[seg].template set_field<I>(off, value);
   }
 
   void push_back(value_type value) {
