@@ -58,12 +58,12 @@ class index_based_iterator {
 
   index_based_iterator() = default;
 
-  reference operator*() const { return (*vec_)[index_]; }
+  reference operator*() const { return (*vec_)[get_index()]; }
 
   auto operator->() const -> pointer
     requires std::is_reference_v<reference>
   {
-    return std::addressof((*vec_)[index_]);
+    return std::addressof((*vec_)[get_index()]);
   }
 
   reference operator[](difference_type n) const {
@@ -95,11 +95,7 @@ class index_based_iterator {
   }
 
   index_based_iterator& operator+=(difference_type n) {
-    if (n >= 0) {
-      index_ += static_cast<size_type>(n);
-    } else {
-      index_ -= static_cast<size_type>(-n);
-    }
+    index_ += n;
     return *this;
   }
 
@@ -126,8 +122,7 @@ class index_based_iterator {
   friend difference_type
   operator-(index_based_iterator a, index_based_iterator b) {
     assert(a.vec_ == b.vec_);
-    return static_cast<difference_type>(a.index_) -
-           static_cast<difference_type>(b.index_);
+    return a.index_ - b.index_;
   }
 
   friend bool operator==(index_based_iterator a, index_based_iterator b) {
@@ -143,13 +138,13 @@ class index_based_iterator {
   iter_move(index_based_iterator const& it)
     requires std::is_reference_v<reference>
   {
-    return std::move((*it.vec_)[it.index_]);
+    return std::move((*it.vec_)[it.get_index()]);
   }
 
   friend value_type iter_move(index_based_iterator const& it)
     requires(!std::is_reference_v<reference>)
   {
-    return static_cast<value_type>((*it.vec_)[it.index_]);
+    return static_cast<value_type>((*it.vec_)[it.get_index()]);
   }
 
   friend void
@@ -158,7 +153,7 @@ class index_based_iterator {
   {
     assert(a.vec_ == b.vec_);
     using std::swap;
-    swap((*a.vec_)[a.index_], (*b.vec_)[b.index_]);
+    swap((*a.vec_)[a.get_index()], (*b.vec_)[b.get_index()]);
   }
 
   friend void
@@ -166,9 +161,10 @@ class index_based_iterator {
     requires(!std::is_reference_v<reference>)
   {
     assert(a.vec_ == b.vec_);
-    value_type tmp = static_cast<value_type>((*a.vec_)[a.index_]);
-    (*a.vec_)[a.index_] = static_cast<value_type>((*b.vec_)[b.index_]);
-    (*b.vec_)[b.index_] = std::move(tmp);
+    auto tmp = static_cast<value_type>((*a.vec_)[a.get_index()]);
+    (*a.vec_)[a.get_index()] =
+        static_cast<value_type>((*b.vec_)[b.get_index()]);
+    (*b.vec_)[b.get_index()] = std::move(tmp);
   }
 
  private:
@@ -177,10 +173,21 @@ class index_based_iterator {
 
   index_based_iterator(container_type* vec, size_type index)
       : vec_{vec}
-      , index_{index} {}
+      , index_{to_index(index)} {}
+
+  size_type get_index() const {
+    assert(index_ >= 0);
+    return static_cast<size_type>(index_);
+  }
+
+  static difference_type to_index(size_type index) {
+    assert(index <=
+           static_cast<size_type>(std::numeric_limits<difference_type>::max()));
+    return static_cast<difference_type>(index);
+  }
 
   container_type* vec_{nullptr};
-  size_type index_{0};
+  difference_type index_{0};
 };
 
 template <typename Container>
@@ -204,12 +211,12 @@ class index_based_const_iterator {
       : vec_{it.vec_}
       , index_{it.index_} {}
 
-  reference operator*() const { return (*vec_)[index_]; }
+  reference operator*() const { return (*vec_)[get_index()]; }
 
   auto operator->() const -> pointer
     requires std::is_reference_v<reference>
   {
-    return std::addressof((*vec_)[index_]);
+    return std::addressof((*vec_)[get_index()]);
   }
 
   reference operator[](difference_type n) const {
@@ -241,11 +248,7 @@ class index_based_const_iterator {
   }
 
   index_based_const_iterator& operator+=(difference_type n) {
-    if (n >= 0) {
-      index_ += static_cast<size_type>(n);
-    } else {
-      index_ -= static_cast<size_type>(-n);
-    }
+    index_ += static_cast<size_type>(n);
     return *this;
   }
 
@@ -274,8 +277,7 @@ class index_based_const_iterator {
   friend difference_type
   operator-(index_based_const_iterator a, index_based_const_iterator b) {
     assert(a.vec_ == b.vec_);
-    return static_cast<difference_type>(a.index_) -
-           static_cast<difference_type>(b.index_);
+    return a.index_ - b.index_;
   }
 
   friend bool
@@ -293,13 +295,13 @@ class index_based_const_iterator {
   iter_move(index_based_const_iterator const& it)
     requires std::is_reference_v<reference>
   {
-    return std::move((*it.vec_)[it.index_]);
+    return std::move((*it.vec_)[it.get_index()]);
   }
 
   friend value_type iter_move(index_based_const_iterator const& it)
     requires(!std::is_reference_v<reference>)
   {
-    return static_cast<value_type>((*it.vec_)[it.index_]);
+    return static_cast<value_type>((*it.vec_)[it.get_index()]);
   }
 
  private:
@@ -307,10 +309,21 @@ class index_based_const_iterator {
 
   index_based_const_iterator(container_type const* vec, size_type index)
       : vec_{vec}
-      , index_{index} {}
+      , index_{to_index(index)} {}
+
+  size_type get_index() const {
+    assert(index_ >= 0);
+    return static_cast<size_type>(index_);
+  }
+
+  static difference_type to_index(size_type index) {
+    assert(index <=
+           static_cast<size_type>(std::numeric_limits<difference_type>::max()));
+    return static_cast<difference_type>(index);
+  }
 
   container_type const* vec_{nullptr};
-  size_type index_{0};
+  difference_type index_{0};
 };
 
 } // namespace dwarfs::container::detail
