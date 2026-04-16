@@ -63,6 +63,10 @@ class index_based_field_proxy {
   index_based_field_proxy(index_based_field_proxy&&) = default;
 
   operator value_type() const { return vec_.template get_field<I>(i_); }
+  [[nodiscard]] auto load() const -> value_type {
+    return static_cast<value_type>(*this);
+  }
+  [[nodiscard]] auto operator+() const -> value_type { return load(); }
 
   index_based_field_proxy& operator=(value_type value) {
     vec_.template set_field<I>(i_, value);
@@ -88,6 +92,66 @@ class index_based_field_proxy {
     value_type tmp = a;
     a = static_cast<value_type>(b);
     b = tmp;
+  }
+
+  // arithmetic operators support
+
+  template <typename Rhs>
+  index_based_field_proxy& operator+=(Rhs&& rhs)
+    requires requires(value_type lhs, Rhs&& r) {
+      { lhs + std::forward<Rhs>(r) } -> std::convertible_to<value_type>;
+    }
+  {
+    *this = static_cast<value_type>(*this) + std::forward<Rhs>(rhs);
+    return *this;
+  }
+
+  template <typename Rhs>
+  index_based_field_proxy& operator-=(Rhs&& rhs)
+    requires requires(value_type lhs, Rhs&& r) {
+      { lhs - std::forward<Rhs>(r) } -> std::convertible_to<value_type>;
+    }
+  {
+    *this = static_cast<value_type>(*this) - std::forward<Rhs>(rhs);
+    return *this;
+  }
+
+  index_based_field_proxy& operator++()
+    requires requires(value_type lhs) {
+      { lhs + 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    *this += 1;
+    return *this;
+  }
+
+  value_type operator++(int)
+    requires requires(value_type lhs) {
+      { lhs + 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    value_type old = *this;
+    ++*this;
+    return old;
+  }
+
+  index_based_field_proxy& operator--()
+    requires requires(value_type lhs) {
+      { lhs - 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    *this -= 1;
+    return *this;
+  }
+
+  value_type operator--(int)
+    requires requires(value_type lhs) {
+      { lhs - 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    value_type old = *this;
+    --*this;
+    return old;
   }
 
   bool has_value() const
@@ -169,6 +233,10 @@ class index_based_value_proxy {
   index_based_value_proxy(index_based_value_proxy&&) = default;
 
   operator value_type() const { return vec_.get(i_); }
+  [[nodiscard]] auto load() const -> value_type {
+    return static_cast<value_type>(*this);
+  }
+  [[nodiscard]] auto operator+() const -> value_type { return load(); }
 
   index_based_value_proxy& operator=(value_type value) {
     vec_.set(i_, value);
@@ -202,6 +270,66 @@ class index_based_value_proxy {
   {
     static_assert(I < field_count);
     return index_based_field_proxy<container_type, I>{vec_, i_};
+  }
+
+  // arithmetic operators support
+
+  template <typename Rhs>
+  index_based_value_proxy& operator+=(Rhs&& rhs)
+    requires requires(value_type lhs, Rhs&& r) {
+      { lhs + std::forward<Rhs>(r) } -> std::convertible_to<value_type>;
+    }
+  {
+    *this = static_cast<value_type>(*this) + std::forward<Rhs>(rhs);
+    return *this;
+  }
+
+  template <typename Rhs>
+  index_based_value_proxy& operator-=(Rhs&& rhs)
+    requires requires(value_type lhs, Rhs&& r) {
+      { lhs - std::forward<Rhs>(r) } -> std::convertible_to<value_type>;
+    }
+  {
+    *this = static_cast<value_type>(*this) - std::forward<Rhs>(rhs);
+    return *this;
+  }
+
+  index_based_value_proxy& operator++()
+    requires requires(value_type lhs) {
+      { lhs + 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    *this += 1;
+    return *this;
+  }
+
+  value_type operator++(int)
+    requires requires(value_type lhs) {
+      { lhs + 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    value_type old = *this;
+    ++*this;
+    return old;
+  }
+
+  index_based_value_proxy& operator--()
+    requires requires(value_type lhs) {
+      { lhs - 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    *this -= 1;
+    return *this;
+  }
+
+  value_type operator--(int)
+    requires requires(value_type lhs) {
+      { lhs - 1 } -> std::convertible_to<value_type>;
+    }
+  {
+    value_type old = *this;
+    --*this;
+    return old;
   }
 
   bool has_value() const
