@@ -105,6 +105,14 @@ class entry_storage {
   // TODO: this must go
   [[nodiscard]] inode* get_inode(inode_id id) { return impl_->get_inode(id); }
 
+  void set_link_target(link_id id, std::string link_target, progress& prog) {
+    impl_->set_link_target(id, std::move(link_target), prog);
+  }
+
+  [[nodiscard]] std::string_view get_link_target(link_id id) const {
+    return impl_->get_link_target(id);
+  }
+
   [[nodiscard]] entry_id get_parent(entry_id id) const {
     return impl_->get_parent(id);
   }
@@ -245,6 +253,10 @@ class entry_storage {
     virtual entry* get_entry(entry_id id) = 0;
     virtual std::size_t inode_count() const = 0;
     virtual inode* get_inode(inode_id id) = 0;
+
+    virtual void
+    set_link_target(link_id id, std::string link_target, progress& prog) = 0;
+    virtual std::string_view get_link_target(link_id id) const = 0;
 
     virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
     virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;

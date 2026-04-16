@@ -24,6 +24,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/entry.h>
@@ -177,7 +178,16 @@ template <mutability Mut>
 void entry_handle_base<Mut>::scan(os_access const& os, internal::progress& prog)
   requires is_mutable
 {
-  base()->scan(*this->storage_, this->self_id_, os, prog);
+  switch (type()) {
+  case entry_type::E_LINK:
+    storage_->set_link_target(
+        link_id{self_id_},
+        path_to_utf8_string_sanitized(os.read_symlink(fs_path())), prog);
+    break;
+
+  default:
+    break;
+  }
 }
 
 template <mutability Mut>
@@ -433,8 +443,8 @@ auto basic_link_handle<Mut>::self() const -> self_t* {
 }
 
 template <detail::mutability Mut>
-std::string const& basic_link_handle<Mut>::linkname() const {
-  return self()->linkname();
+std::string_view basic_link_handle<Mut>::linkname() const {
+  return this->storage().get_link_target(this->id());
 }
 
 // --------- device_handle ----------
