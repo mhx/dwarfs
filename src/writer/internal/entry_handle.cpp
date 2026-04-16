@@ -309,12 +309,12 @@ template <detail::mutability Mut>
 void basic_file_handle<Mut>::set_inode(inode_id ino)
   requires is_mutable
 {
-  self()->set_inode(ino);
+  this->storage().set_file_inode(this->id(), ino);
 }
 
 template <detail::mutability Mut>
 inode_id basic_file_handle<Mut>::get_inode() const {
-  return self()->get_inode();
+  return this->storage().get_file_inode(this->id());
 }
 
 template <detail::mutability Mut>
@@ -344,7 +344,7 @@ uint32_t basic_file_handle<Mut>::order_index() const {
 
 template <detail::mutability Mut>
 uint32_t basic_file_handle<Mut>::unique_file_id() const {
-  return inode_handle{this->storage(), self()->get_inode()}.num();
+  return inode_handle{this->storage(), this->get_inode()}.num();
 }
 
 template <detail::mutability Mut>
