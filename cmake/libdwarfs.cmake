@@ -159,7 +159,6 @@ add_library(
   src/writer/internal/block_manager.cpp
   src/writer/internal/chmod_transformer.cpp
   src/writer/internal/detail/inode_impl.cpp
-  src/writer/internal/entry.cpp
   src/writer/internal/entry_handle.cpp
   src/writer/internal/entry_storage.cpp
   src/writer/internal/file_scanner.cpp

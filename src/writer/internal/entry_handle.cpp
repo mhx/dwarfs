@@ -27,7 +27,6 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
