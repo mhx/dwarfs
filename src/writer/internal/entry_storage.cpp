@@ -303,7 +303,7 @@ struct packed_entry_data {
       entry_allocated_size_lookup;
 
   // file-specific
-  segtor<size_t> order_index;
+  segtor<size_t> file_order_index;
   segtor<inode_id> file_inode_id;
   segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
   std::optional<dwarfs::container::pinned_byte_span_store<512>> file_hashes;
@@ -393,6 +393,7 @@ struct packed_entry_data {
     assert(type == entry_type::E_FILE);
     file_data_index.push_back(std::nullopt);
     file_inode_id.push_back(inode_id{});
+    file_order_index.push_back(0);
   }
 
   void add_link_specific() {
@@ -520,6 +521,16 @@ struct packed_entry_data {
     return entry_index.at(index);
   }
 
+  void set_file_order_index(file_id id, std::size_t index) {
+    assert(type == entry_type::E_FILE);
+    file_order_index.at(id.index()) = index;
+  }
+
+  std::size_t get_file_order_index(file_id id) const {
+    assert(type == entry_type::E_FILE);
+    return file_order_index.at(id.index());
+  }
+
   void set_file_hash_index(file_id id, std::size_t index) {
     auto const fdi = get_file_data_index(id.index());
     auto hash_index = get<kFileHashIndexField>(file_data_vec.at(fdi));
@@ -605,7 +616,7 @@ struct packed_entry_data {
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
     auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
     auto const entry_index_bytes = entry_index.size_in_bytes();
-    auto const order_index_bytes = order_index.size_in_bytes();
+    auto const file_order_index_bytes = file_order_index.size_in_bytes();
     auto const inode_num_bytes = inode_num.size_in_bytes();
     auto const file_data_index_bytes = file_data_index.size_in_bytes();
     auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
@@ -619,7 +630,7 @@ struct packed_entry_data {
         file_hashes ? file_hashes->size_in_bytes() : 0;
     auto const total_bytes =
         path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
-        order_index_bytes + inode_num_bytes + file_data_index_bytes +
+        file_order_index_bytes + inode_num_bytes + file_data_index_bytes +
         file_inode_id_bytes + link_target_index_bytes + stat_common_bytes +
         entry_size_bytes + entry_allocated_size_lookup_bytes +
         file_hashes_bytes;
@@ -631,8 +642,9 @@ struct packed_entry_data {
     os << "  parent dir index: " << size_with_unit(parent_dir_index_bytes)
        << "\n";
     os << "  entry index: " << size_with_unit(entry_index_bytes) << "\n";
-    os << "  order index: " << size_with_unit(order_index_bytes) << "\n";
     os << "  inode number: " << size_with_unit(inode_num_bytes) << "\n";
+    os << "  file order index: " << size_with_unit(file_order_index_bytes)
+       << "\n";
     os << "  file data index: " << size_with_unit(file_data_index_bytes)
        << "\n";
     os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
@@ -801,6 +813,15 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::optional<std::size_t> get_entry_index(entry_id id) const override {
     return dispatch_(&packed_entry_data::get_entry_index, id);
+  }
+
+  void set_file_order_index(file_id id, std::size_t index) override {
+    // this is safe even on frozen storage if it's single-threaded
+    packed_files_.set_file_order_index(id, index);
+  }
+
+  std::size_t get_file_order_index(file_id id) const override {
+    return packed_files_.get_file_order_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target,
@@ -1279,6 +1300,14 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   std::optional<std::size_t> get_entry_index(entry_id id) const override {
     return impl_.lock()->get_entry_index(id);
+  }
+
+  void set_file_order_index(file_id id, std::size_t index) override {
+    impl_.lock()->set_file_order_index(id, index);
+  }
+
+  std::size_t get_file_order_index(file_id id) const override {
+    return impl_.lock()->get_file_order_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target,

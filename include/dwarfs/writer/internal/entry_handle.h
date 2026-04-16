@@ -297,13 +297,13 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
   void hardlink(basic_file_handle<detail::mutability::mutable_> other,
                 internal::progress& prog)
     requires is_mutable;
-  uint32_t hardlink_count() const;
+  uint32_t hardlink_count() const; // TODO: size_t
 
-  void set_order_index(uint32_t index)
+  void set_order_index(std::size_t index)
     requires is_mutable;
-  uint32_t order_index() const;
+  std::size_t order_index() const;
 
-  uint32_t unique_file_id() const;
+  uint32_t unique_file_id() const; // TODO: size_t
 
   std::string ptr_as_string() const; // TODO
 

@@ -113,6 +113,14 @@ class entry_storage {
     return impl_->get_entry_index(id);
   }
 
+  void set_file_order_index(file_id id, std::size_t index) {
+    impl_->set_file_order_index(id, index);
+  }
+
+  [[nodiscard]] std::size_t get_file_order_index(file_id id) const {
+    return impl_->get_file_order_index(id);
+  }
+
   void set_link_target(link_id id, std::string link_target, progress& prog) {
     impl_->set_link_target(id, std::move(link_target), prog);
   }
@@ -264,6 +272,9 @@ class entry_storage {
 
     virtual void set_entry_index(entry_id id, std::size_t index) = 0;
     virtual std::optional<std::size_t> get_entry_index(entry_id id) const = 0;
+
+    virtual void set_file_order_index(file_id id, std::size_t index) = 0;
+    virtual std::size_t get_file_order_index(file_id id) const = 0;
 
     virtual void
     set_link_target(link_id id, std::string link_target, progress& prog) = 0;
