@@ -47,8 +47,7 @@ namespace dwarfs::writer::internal {
 
 namespace fs = std::filesystem;
 
-entry::entry(file_stat const& st)
-    : stat_{st} {}
+entry::entry(file_stat const& /*st*/) {}
 
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
@@ -77,8 +76,6 @@ void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
 entry::type_t device::type() const { return entry_type::E_DEVICE; }
 
 void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
-
-uint64_t device::device_id() const { return stat_.rdev(); }
 
 entry::type_t other::type() const { return entry_type::E_OTHER; }
 

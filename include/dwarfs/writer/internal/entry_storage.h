@@ -195,6 +195,10 @@ class entry_storage {
     return impl_->get_inode_num_for_entry(id);
   }
 
+  file_stat::dev_type get_represented_device(device_id id) const {
+    return impl_->get_represented_device(id);
+  }
+
   void create_packed_file_data(file_id id) {
     return impl_->create_packed_file_data(id);
   }
@@ -287,6 +291,8 @@ class entry_storage {
     virtual void set_inode_num_for_entry(entry_id id, std::uint64_t ino) = 0;
     virtual std::optional<std::uint64_t>
     get_inode_num_for_entry(entry_id id) const = 0;
+
+    virtual file_stat::dev_type get_represented_device(device_id id) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;

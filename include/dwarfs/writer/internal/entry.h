@@ -86,7 +86,6 @@ class entry {
  private:
   friend class device;
 
-  file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
 
@@ -137,7 +136,6 @@ class device : public entry {
   type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-  uint64_t device_id() const;
 };
 
 /**
