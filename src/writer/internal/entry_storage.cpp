@@ -266,10 +266,11 @@ struct packed_entry_data {
   segtor<size_t> path_name_index;
   segtor<std::optional<uint64_t>> parent_dir_index;
   segtor<size_t> entry_index;
+  segtor<std::optional<std::uint64_t>> inode_num;
 
   // file-specific
   segtor<size_t> order_index;
-  segtor<std::optional<std::uint64_t>> inode_num;
+  segtor<inode_id> file_inode_id;
   segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
   segtor<file_stat::off_type> file_size;
   phmap::flat_hash_map<uint64_t, file_stat::off_type>
@@ -317,7 +318,9 @@ struct packed_entry_data {
     path_name_index.push_back(path_ix);
     parent_dir_index.push_back(is_root ? std::nullopt
                                        : std::make_optional(parent.index()));
-    inode_num.push_back(std::nullopt); // TODO: *not* for files
+    if (type != entry_type::E_FILE) {
+      inode_num.push_back(std::nullopt);
+    }
 
     st.ensure_valid(
         file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
@@ -371,6 +374,7 @@ struct packed_entry_data {
       allocated_file_size_lookup.emplace(index, st.allocated_size_unchecked());
     }
     file_data_index.push_back(std::nullopt);
+    file_inode_id.push_back(inode_id{});
   }
 
   entry_id get_parent(uint64_t const index) const {
@@ -513,6 +517,18 @@ struct packed_entry_data {
     return inode_num.at(index);
   }
 
+  void set_inode_id(file_id fid, inode_id iid) {
+    assert(type == entry_type::E_FILE);
+    auto inode = file_inode_id.at(fid.index());
+    DWARFS_CHECK(!inode.load().valid(), "inode already set for file");
+    inode = iid;
+  }
+
+  inode_id get_inode_id(file_id fid) const {
+    assert(type == entry_type::E_FILE);
+    return file_inode_id.at(fid.index());
+  }
+
   void dump(std::ostream& os, std::string_view name) const {
     if (path_name_index.empty()) {
       os << "no " << name << " entries\n";
@@ -525,6 +541,7 @@ struct packed_entry_data {
     auto const order_index_bytes = order_index.size_in_bytes();
     auto const inode_num_bytes = inode_num.size_in_bytes();
     auto const file_data_index_bytes = file_data_index.size_in_bytes();
+    auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
     auto const link_target_index_bytes = link_target_index.size_in_bytes();
     auto const stat_common_index_bytes = stat_common_index.size_in_bytes();
     auto const file_size_bytes = file_size.size_in_bytes();
@@ -536,7 +553,8 @@ struct packed_entry_data {
     auto const total_bytes =
         path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
         order_index_bytes + inode_num_bytes + file_data_index_bytes +
-        link_target_index_bytes + stat_common_index_bytes + file_size_bytes +
+        file_inode_id_bytes + link_target_index_bytes +
+        stat_common_index_bytes + file_size_bytes +
         allocated_file_size_lookup_bytes + file_hashes_bytes;
 
     os << path_name_index.size() << " " << name << " entries ("
@@ -550,6 +568,7 @@ struct packed_entry_data {
     os << "  inode number: " << size_with_unit(inode_num_bytes) << "\n";
     os << "  file data index: " << size_with_unit(file_data_index_bytes)
        << "\n";
+    os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
     os << "  stat common index: " << size_with_unit(stat_common_index_bytes)
        << "\n";
 
@@ -717,6 +736,15 @@ class entry_storage_ final : public entry_storage::impl {
     auto& vec = files_for_inode_.at(id.index());
     DWARFS_CHECK(vec.empty(), "files already set for inode");
     vec = std::move(fv);
+  }
+
+  void set_file_inode(file_id id, inode_id ino) override {
+    // this is safe even on frozen storage if it's single-threaded
+    packed_files_.set_inode_id(id, ino);
+  }
+
+  inode_id get_file_inode(file_id id) const override {
+    return packed_files_.get_inode_id(id);
   }
 
   entry_id get_parent(entry_id const id) const override {
@@ -1136,6 +1164,14 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   void set_files_for_inode(inode_id id, file_id_vector fv) override {
     impl_.lock()->set_files_for_inode(id, std::move(fv));
+  }
+
+  void set_file_inode(file_id id, inode_id ino) override {
+    impl_.lock()->set_file_inode(id, ino);
+  }
+
+  inode_id get_file_inode(file_id id) const override {
+    return impl_.lock()->get_file_inode(id);
   }
 
   entry_id get_parent(entry_id const id) const override {
