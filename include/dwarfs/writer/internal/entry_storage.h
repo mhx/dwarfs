@@ -197,6 +197,14 @@ class entry_storage {
     impl_->set_files_for_inode(id, fv);
   }
 
+  void set_file_inode(file_id id, inode_id ino) {
+    impl_->set_file_inode(id, ino);
+  }
+
+  inode_id get_file_inode(file_id id) const {
+    return impl_->get_file_inode(id);
+  }
+
   void dump(std::ostream& os) const { impl_->dump(os); }
 
   std::string dump() const;
@@ -226,6 +234,9 @@ class entry_storage {
 
     virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
     virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;
+
+    virtual void set_file_inode(file_id id, inode_id ino) = 0;
+    virtual inode_id get_file_inode(file_id id) const = 0;
 
     virtual entry_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;

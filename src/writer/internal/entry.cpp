@@ -61,13 +61,6 @@ void entry::set_empty() {
 
 entry::type_t file::type() const { return entry_type::E_FILE; }
 
-void file::set_inode(inode_id ino) {
-  DWARFS_CHECK(!inode_, "inode already set for file");
-  inode_ = ino;
-}
-
-inode_id file::get_inode() const { return inode_; }
-
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
                 os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
