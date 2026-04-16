@@ -1083,3 +1083,45 @@ TYPED_TEST(packed_int_vec_tuple_test, proxy_load_materializes_snapshot) {
   EXPECT_EQ(snapshot, (tuple_type{1, 2, 3}));
   EXPECT_EQ(vec.get(0), (tuple_type{99, 2, 3}));
 }
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_optional_value_and_deref) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec{
+      trait_tuple_type{small_enum::one, std::optional<uint16_t>{42}, 7},
+      trait_tuple_type{small_enum::big, std::optional<uint16_t>{9}, 8},
+  };
+
+  auto f0 = get<1>(vec[0]);
+  auto f1 = get<1>(vec[1]);
+
+  ASSERT_TRUE(f0.has_value());
+  ASSERT_TRUE(f1.has_value());
+
+  EXPECT_EQ(f0.value(), 42);
+  EXPECT_EQ(f1.value(), 9);
+
+  EXPECT_EQ(*f0, 42);
+  EXPECT_EQ(*f1, 9);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, field_proxy_optional_load_vs_value) {
+  using vec_type = typename TypeParam::template auto_type<trait_tuple_type>;
+
+  vec_type vec{
+      trait_tuple_type{small_enum::one, std::optional<uint16_t>{42}, 7},
+      trait_tuple_type{small_enum::big, std::nullopt, 8},
+  };
+
+  auto f0 = get<1>(vec[0]);
+  auto f1 = get<1>(vec[1]);
+
+  EXPECT_EQ(f0.load(), std::optional<uint16_t>{42});
+  EXPECT_EQ(+f0, std::optional<uint16_t>{42});
+  EXPECT_EQ(f0.value(), 42);
+  EXPECT_EQ(*f0, 42);
+
+  EXPECT_EQ(f1.load(), std::nullopt);
+  EXPECT_EQ(+f1, std::nullopt);
+  EXPECT_FALSE(f1.has_value());
+}
