@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -85,9 +84,6 @@ class entry {
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  virtual void set_inode_num(entry_storage& storage, uint32_t ino) = 0;
-  virtual std::optional<uint32_t> const&
-  inode_num(entry_storage& storage) const = 0;
 
   void set_empty();
 
@@ -98,43 +94,15 @@ class entry {
   std::optional<uint32_t> entry_index_;
 };
 
-struct file_data {
-  using hash_type = small_vector<char, 16>;
-  hash_type hash;
-  uint32_t hardlink_count{1};
-  std::optional<uint32_t> inode_num;
-  std::atomic<bool> invalid{false};
-};
-
 class file : public entry {
  public:
   using entry::entry;
 
   type_t type() const override;
-  std::string_view hash(entry_storage& storage) const;
   void set_inode(inode_id ino);
   inode_id get_inode() const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-  void scan(entry_storage& storage, entry_id self_id, file_view const& mm,
-            progress& prog, std::optional<std::string> const& hash_alg);
-  void create_data(entry_storage& storage);
-  void hardlink(entry_storage& storage, file* other, progress& prog);
-
-  void set_inode_num(entry_storage& storage, uint32_t ino) override;
-  std::optional<uint32_t> const&
-  inode_num(entry_storage& storage) const override;
-
-  void set_invalid(entry_storage& storage) {
-    get_data(storage).invalid.store(true);
-  }
-  bool is_invalid(entry_storage& storage) const {
-    return get_data(storage).invalid.load();
-  }
-
-  uint32_t hardlink_count(entry_storage& storage) const {
-    return get_data(storage).hardlink_count;
-  }
 
   void set_order_index(uint32_t index) { order_index_ = index; }
   uint32_t order_index() const { return order_index_; }
@@ -143,11 +111,8 @@ class file : public entry {
   static constexpr auto kInvalidDataIndex =
       std::numeric_limits<uint32_t>::max();
 
-  file_data& get_data(entry_storage& storage) const;
-
   inode_id inode_{};
   uint32_t order_index_{0};
-  uint32_t data_index_{kInvalidDataIndex};
 };
 
 class dir : public entry {
@@ -157,16 +122,6 @@ class dir : public entry {
   type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-
-  void set_inode_num(entry_storage&, uint32_t ino) override {
-    inode_num_ = ino;
-  }
-  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
-    return inode_num_;
-  }
-
- private:
-  std::optional<uint32_t> inode_num_;
 };
 
 class link : public entry {
@@ -178,16 +133,8 @@ class link : public entry {
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 
-  void set_inode_num(entry_storage&, uint32_t ino) override {
-    inode_num_ = ino;
-  }
-  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
-    return inode_num_;
-  }
-
  private:
   std::string link_;
-  std::optional<uint32_t> inode_num_;
 };
 
 /**
@@ -201,16 +148,6 @@ class device : public entry {
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
   uint64_t device_id() const;
-
-  void set_inode_num(entry_storage&, uint32_t ino) override {
-    inode_num_ = ino;
-  }
-  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
-    return inode_num_;
-  }
-
- private:
-  std::optional<uint32_t> inode_num_;
 };
 
 /**
@@ -223,16 +160,6 @@ class other : public entry {
   type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-
-  void set_inode_num(entry_storage&, uint32_t ino) override {
-    inode_num_ = ino;
-  }
-  std::optional<uint32_t> const& inode_num(entry_storage&) const override {
-    return inode_num_;
-  }
-
- private:
-  std::optional<uint32_t> inode_num_;
 };
 
 } // namespace writer::internal

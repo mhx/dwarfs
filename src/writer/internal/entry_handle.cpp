@@ -23,18 +23,27 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/checksum.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
+#include <dwarfs/writer/internal/progress.h>
+#include <dwarfs/writer/internal/scanner_progress.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
 
 namespace fs = std::filesystem;
+
+namespace {
+
+constexpr std::string_view const kHashContext{"[hashing] "};
+
+} // namespace
 
 namespace detail {
 
@@ -123,8 +132,8 @@ file_stat::nlink_type entry_handle_base<Mut>::num_hard_links() const {
 }
 
 template <mutability Mut>
-std::optional<uint32_t> const& entry_handle_base<Mut>::inode_num() const {
-  return base()->inode_num(*storage_);
+std::optional<std::uint64_t> entry_handle_base<Mut>::inode_num() const {
+  return storage_->get_inode_num_for_entry(self_id_);
 }
 
 template <mutability Mut>
@@ -191,10 +200,10 @@ std::optional<uint32_t> const& entry_handle_base<Mut>::entry_index() const {
 }
 
 template <mutability Mut>
-void entry_handle_base<Mut>::set_inode_num(uint32_t ino)
+void entry_handle_base<Mut>::set_inode_num(std::uint64_t ino)
   requires is_mutable
 {
-  base()->set_inode_num(*storage_, ino);
+  storage_->set_inode_num_for_entry(self_id_, ino);
 }
 
 template <mutability Mut>
@@ -231,14 +240,14 @@ auto basic_file_handle<Mut>::self() const -> self_t* {
 
 template <detail::mutability Mut>
 std::string_view basic_file_handle<Mut>::hash() const {
-  return self()->hash(this->storage());
+  return this->storage().get_file_hash(this->id());
 }
 
 template <detail::mutability Mut>
 void basic_file_handle<Mut>::create_data()
   requires is_mutable
 {
-  self()->create_data(this->storage());
+  this->storage().create_packed_file_data(this->id());
 }
 
 template <detail::mutability Mut>
@@ -246,19 +255,54 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
                                   std::optional<std::string> const& hash_alg)
   requires is_mutable
 {
-  self()->scan(this->storage(), this->id(), mm, prog, hash_alg);
+  auto const s = this->size();
+
+  if (hash_alg) {
+    progress::scan_updater supd(prog.hash, s);
+    checksum cs(*hash_alg);
+
+    if (s > 0) {
+      std::shared_ptr<scanner_progress> pctx;
+      auto const chunk_size = prog.hash.chunk_size.load();
+
+      if (std::cmp_greater_equal(s, 4 * chunk_size)) {
+        pctx = prog.create_context<scanner_progress>(
+            termcolor::MAGENTA, kHashContext, this->path_as_string(), s);
+      }
+
+      assert(mm);
+
+      for (auto const& ext : mm.extents()) {
+        // TODO; See if we need to handle hole extents differently.
+        //       I guess not, since we can just make holes generate
+        //       zeroes efficiently in the file_view abstraction.
+        for (auto const& seg : ext.segments(chunk_size)) {
+          auto data = seg.span();
+          cs.update(data);
+          if (pctx) {
+            pctx->advance(data.size());
+          }
+        }
+      }
+    }
+
+    auto buffer =
+        this->storage().get_file_hash_buffer(this->id(), cs.digest_size());
+
+    DWARFS_CHECK(cs.finalize(buffer.data()), "checksum computation failed");
+  }
 }
 
 template <detail::mutability Mut>
 void basic_file_handle<Mut>::set_invalid()
   requires is_mutable
 {
-  self()->set_invalid(this->storage());
+  this->storage().set_file_invalid(this->id());
 }
 
 template <detail::mutability Mut>
 bool basic_file_handle<Mut>::is_invalid() const {
-  return self()->is_invalid(this->storage());
+  return this->storage().is_file_invalid(this->id());
 }
 
 template <detail::mutability Mut>
@@ -278,12 +322,12 @@ void basic_file_handle<Mut>::hardlink(file_handle other,
                                       internal::progress& prog)
   requires is_mutable
 {
-  self()->hardlink(this->storage(), other.self(), prog);
+  this->storage().create_hardlink(this->id(), other.id(), prog);
 }
 
 template <detail::mutability Mut>
 uint32_t basic_file_handle<Mut>::hardlink_count() const {
-  return self()->hardlink_count(this->storage());
+  return this->storage().hardlink_count(this->id());
 }
 
 template <detail::mutability Mut>
@@ -319,7 +363,6 @@ template <detail::mutability Mut>
 entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
   requires is_mutable
 {
-  // return {this->storage(), self()->find(this->storage(), path)};
   return {this->storage(),
           this->storage().find_in_dir(
               this->id(), path_to_utf8_string_sanitized(path.filename()))};
@@ -327,7 +370,6 @@ entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
 
 template <detail::mutability Mut>
 bool basic_dir_handle<Mut>::empty() const {
-  // return self()->empty();
   return this->storage().is_dir_empty(this->id());
 }
 
