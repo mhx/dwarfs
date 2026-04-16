@@ -333,6 +333,7 @@ struct packed_entry_data {
     path_name_index.push_back(path_ix);
     parent_dir_index.push_back(is_root ? std::nullopt
                                        : std::make_optional(parent.index()));
+    entry_index.push_back(std::nullopt);
     if (type != entry_type::E_FILE) {
       inode_num.push_back(std::nullopt);
     }
@@ -507,6 +508,16 @@ struct packed_entry_data {
   bool is_file_invalid(file_id id) const {
     auto const fdi = get_file_data_index(id.index());
     return file_invalid_vec.at(fdi).load();
+  }
+
+  void set_entry_index(std::uint64_t const index, std::size_t const ix) {
+    auto ei = entry_index.at(index);
+    DWARFS_CHECK(!ei.has_value(), "attempt to set entry index more than once");
+    ei = ix;
+  }
+
+  std::optional<std::size_t> get_entry_index(std::uint64_t const index) const {
+    return entry_index.at(index);
   }
 
   void set_file_hash_index(file_id id, std::size_t index) {
@@ -781,6 +792,15 @@ class entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return &inodes_.at(id.index());
+  }
+
+  void set_entry_index(entry_id id, std::size_t index) override {
+    // this is safe even on frozen storage if it's single-threaded
+    dispatch_(&packed_entry_data::set_entry_index, id, index);
+  }
+
+  std::optional<std::size_t> get_entry_index(entry_id id) const override {
+    return dispatch_(&packed_entry_data::get_entry_index, id);
   }
 
   void set_link_target(link_id id, std::string link_target,
@@ -1251,6 +1271,14 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return impl_.lock()->get_inode(id);
+  }
+
+  void set_entry_index(entry_id id, std::size_t index) override {
+    impl_.lock()->set_entry_index(id, index);
+  }
+
+  std::optional<std::size_t> get_entry_index(entry_id id) const override {
+    return impl_.lock()->get_entry_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target,
