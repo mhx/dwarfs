@@ -93,9 +93,6 @@ class entry_storage {
 
   [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
 
-  // TODO: this must go
-  [[nodiscard]] entry* get_entry(entry_id id) { return impl_->get_entry(id); }
-
   inode_handle create_inode();
 
   [[nodiscard]] std::size_t inode_count() const noexcept {
@@ -266,7 +263,6 @@ class entry_storage {
     virtual inode_id make_inode() = 0;
 
     virtual void create_packed_file_data(file_id id) = 0;
-    virtual entry* get_entry(entry_id id) = 0;
     virtual std::size_t inode_count() const = 0;
     virtual inode* get_inode(inode_id id) = 0;
 
