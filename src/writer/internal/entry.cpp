@@ -56,16 +56,8 @@ void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
 
 void dir::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
-std::string const& link::linkname() const { return link_; }
-
 void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
-                progress& prog) {
-  auto self = storage.handle(self_id);
-  link_ = path_to_utf8_string_sanitized(os.read_symlink(self.fs_path()));
-  prog.original_size += self.size();
-  prog.allocated_original_size += self.allocated_size();
-  prog.symlink_size += self.size();
-}
+                progress& prog) {}
 
 void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
