@@ -583,7 +583,7 @@ class basic_packed_int_vector {
   }
 
   iterator erase(const_iterator pos) {
-    auto const index = pos.index_;
+    auto const index = pos.get_index();
     auto const sz = size();
     assert(pos.vec_ == this);
     assert(index < sz);
@@ -597,8 +597,8 @@ class basic_packed_int_vector {
   }
 
   iterator erase(const_iterator first, const_iterator last) {
-    auto const first_index = first.index_;
-    auto const last_index = last.index_;
+    auto const first_index = first.get_index();
+    auto const last_index = last.get_index();
     auto const sz = size();
 
     assert(first.vec_ == this);
@@ -616,16 +616,16 @@ class basic_packed_int_vector {
   }
 
   iterator erase(iterator pos) {
-    return erase(const_iterator{this, pos.index_});
+    return erase(const_iterator{this, pos.get_index()});
   }
 
   iterator erase(iterator first, iterator last) {
-    return erase(const_iterator{this, first.index_},
-                 const_iterator{this, last.index_});
+    return erase(const_iterator{this, first.get_index()},
+                 const_iterator{this, last.get_index()});
   }
 
   iterator insert(const_iterator pos, size_type count, value_type value) {
-    auto const index = pos.index_;
+    auto const index = pos.get_index();
     assert(pos.vec_ == this);
 
     auto req_widths = widths();
@@ -643,7 +643,7 @@ class basic_packed_int_vector {
 
   template <std::input_iterator InputIt>
   iterator insert(const_iterator pos, InputIt first, InputIt last) {
-    auto const index = pos.index_;
+    auto const index = pos.get_index();
     assert(pos.vec_ == this);
 
     if constexpr (std::forward_iterator<InputIt>) {
