@@ -307,6 +307,9 @@ struct packed_entry_data {
   // link-specific
   segtor<size_t> link_target_index; // indexes into de-duped link target vector
 
+  // device-specific:
+  segtor<file_stat::dev_type> represented_device;
+
   void add_entry_common(shared_entry_data& shared, entry_type type,
                         fs::path const& path, file_stat const& st,
                         entry_id const parent) {
@@ -373,8 +376,14 @@ struct packed_entry_data {
   }
 
   void add_file_specific() {
+    assert(type == entry_type::E_FILE);
     file_data_index.push_back(std::nullopt);
     file_inode_id.push_back(inode_id{});
+  }
+
+  void add_device_specific(file_stat const& st) {
+    assert(type == entry_type::E_DEVICE);
+    represented_device.push_back(st.rdev_unchecked());
   }
 
   entry_id get_parent(uint64_t const index) const {
@@ -680,6 +689,7 @@ class entry_storage_ final : public entry_storage::impl {
                        entry_id const parent) override {
     packed_devices_.add_entry_common(shared_, entry_type::E_DEVICE, path, st,
                                      parent);
+    packed_devices_.add_device_specific(st);
     return make_obj_(devices_, entry_type::E_DEVICE, st);
   }
 
@@ -959,6 +969,10 @@ class entry_storage_ final : public entry_storage::impl {
   std::optional<std::uint64_t>
   get_inode_num_for_entry(entry_id id) const override {
     return dispatch_(&packed_entry_data::get_inode_num, id);
+  }
+
+  file_stat::dev_type get_represented_device(device_id id) const override {
+    return packed_devices_.represented_device.at(id.index());
   }
 
  private:
@@ -1301,6 +1315,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   std::optional<std::uint64_t>
   get_inode_num_for_entry(entry_id id) const override {
     return impl_.lock()->get_inode_num_for_entry(id);
+  }
+
+  file_stat::dev_type get_represented_device(device_id id) const override {
+    return impl_.lock()->get_represented_device(id);
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
