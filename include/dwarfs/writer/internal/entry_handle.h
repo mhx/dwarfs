@@ -156,7 +156,7 @@ class entry_handle_base {
     requires is_mutable;
   void set_empty()
     requires is_mutable;
-  void set_entry_index(uint32_t index)
+  void set_entry_index(std::size_t index)
     requires is_mutable;
   void set_inode_num(std::uint64_t ino)
     requires is_mutable;
@@ -164,7 +164,7 @@ class entry_handle_base {
   walk(std::function<void(basic_entry_handle<mutability::mutable_>)> const& f)
     requires is_mutable;
 
-  std::optional<uint32_t> const& entry_index() const;
+  std::optional<std::size_t> entry_index() const;
 
   void pack(thrift::metadata::inode_data& entry_v2,
             internal::global_entry_data const& data,

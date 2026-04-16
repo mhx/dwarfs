@@ -79,13 +79,9 @@ class entry {
 
   virtual void scan(entry_storage& storage, entry_id self_id,
                     os_access const& os, progress& prog) = 0;
-  void set_entry_index(uint32_t index) { entry_index_ = index; }
-  std::optional<uint32_t> const& entry_index() const { return entry_index_; }
 
  private:
   friend class device;
-
-  std::optional<uint32_t> entry_index_;
 };
 
 class file : public entry {
