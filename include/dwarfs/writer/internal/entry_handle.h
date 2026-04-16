@@ -315,8 +315,6 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
   entry_handle find(std::filesystem::path const& path)
     requires is_mutable;
 
-  [[nodiscard]] bool empty() const;
-
   void
   pack(thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
        internal::time_resolution_converter const& timeres)

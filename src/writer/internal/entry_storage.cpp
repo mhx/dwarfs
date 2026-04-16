@@ -883,11 +883,6 @@ class entry_storage_ final : public entry_storage::impl {
     return get_path_string_impl(id);
   }
 
-  bool is_dir_empty(entry_id const id) const override {
-    assert(id.is_dir());
-    return shared_.dir_entries_.at(id.index()).empty();
-  }
-
   void remove_empty_dirs(progress& prog) override {
     if constexpr (is_mutable) {
       remove_empty_dirs_impl(prog, 0);
@@ -1317,10 +1312,6 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_name(entry_id const id) const override {
     return impl_.lock()->get_name(id);
-  }
-
-  bool is_dir_empty(entry_id const id) const override {
-    return impl_.lock()->is_dir_empty(id);
   }
 
   void remove_empty_dirs(progress& prog) override {
