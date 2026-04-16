@@ -183,10 +183,6 @@ class entry_handle_base {
   }
 
  protected:
-  using base_t = detail::mutability_t<internal::entry, Mut>;
-
-  base_t* base() const;
-
   template <typename DerivedHandle>
   DerivedHandle base_as() const {
     return DerivedHandle{*storage_, self_id_};
@@ -255,11 +251,6 @@ class basic_entry_handle final : public detail::entry_handle_base<Mut> {
   basic_link_handle<Mut> as_link() const noexcept;
   basic_device_handle<Mut> as_device() const noexcept;
   basic_other_handle<Mut> as_other() const noexcept;
-
- private:
-  using self_t = detail::mutability_t<internal::entry, Mut>;
-
-  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -304,13 +295,6 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
   std::size_t order_index() const;
 
   uint32_t unique_file_id() const; // TODO: size_t
-
-  std::string ptr_as_string() const; // TODO
-
- private:
-  using self_t = detail::mutability_t<internal::file, Mut>;
-
-  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -344,11 +328,6 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
   // const version can be implemented if needed
   void for_each_child(std::function<void(entry_handle)> const& f)
     requires is_mutable;
-
- private:
-  using self_t = detail::mutability_t<internal::dir, Mut>;
-
-  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -367,11 +346,6 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
   link_id id() const { return link_id{this->base_id()}; }
 
   std::string_view linkname() const;
-
- private:
-  using self_t = detail::mutability_t<internal::link, Mut>;
-
-  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -390,11 +364,6 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
   device_id id() const { return device_id{this->base_id()}; }
 
   std::uint64_t posix_device_id() const;
-
- private:
-  using self_t = detail::mutability_t<internal::device, Mut>;
-
-  self_t* self() const;
 };
 
 template <detail::mutability Mut>
@@ -411,11 +380,6 @@ class basic_other_handle final : public detail::entry_handle_base<Mut> {
   }
 
   other_id id() const { return other_id{this->base_id()}; }
-
- private:
-  using self_t = detail::mutability_t<internal::other, Mut>;
-
-  self_t* self() const;
 };
 
 } // namespace writer::internal

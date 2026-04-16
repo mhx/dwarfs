@@ -48,11 +48,6 @@ constexpr std::string_view const kHashContext{"[hashing] "};
 
 namespace detail {
 
-template <detail::mutability Mut>
-auto entry_handle_base<Mut>::base() const -> base_t* {
-  return static_cast<base_t*>(storage_->get_entry(self_id_));
-}
-
 template <mutability Mut>
 bool entry_handle_base<Mut>::has_parent() const {
   return storage_->get_parent(self_id_).valid();
@@ -244,11 +239,6 @@ template class entry_handle_base<mutability::mutable_>;
 // ---------- file_handle ----------
 
 template <detail::mutability Mut>
-auto basic_file_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
-
-template <detail::mutability Mut>
 std::string_view basic_file_handle<Mut>::hash() const {
   return this->storage().get_file_hash(this->id());
 }
@@ -357,17 +347,7 @@ uint32_t basic_file_handle<Mut>::unique_file_id() const {
   return inode_handle{this->storage(), this->get_inode()}.num();
 }
 
-template <detail::mutability Mut>
-std::string basic_file_handle<Mut>::ptr_as_string() const {
-  return fmt::format("{}", reinterpret_cast<void const*>(self()));
-}
-
 // ---------- dir_handle -----------
-
-template <detail::mutability Mut>
-auto basic_dir_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
 
 template <detail::mutability Mut>
 entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
@@ -438,11 +418,6 @@ void basic_dir_handle<Mut>::for_each_child(
 // ---------- link_handle ----------
 
 template <detail::mutability Mut>
-auto basic_link_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
-
-template <detail::mutability Mut>
 std::string_view basic_link_handle<Mut>::linkname() const {
   return this->storage().get_link_target(this->id());
 }
@@ -450,28 +425,11 @@ std::string_view basic_link_handle<Mut>::linkname() const {
 // --------- device_handle ----------
 
 template <detail::mutability Mut>
-auto basic_device_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
-
-template <detail::mutability Mut>
 std::uint64_t basic_device_handle<Mut>::posix_device_id() const {
   return this->storage().get_represented_device(this->id());
 }
 
-// --------- other_handle ----------
-
-template <detail::mutability Mut>
-auto basic_other_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
-
 // ---------- entry_handle ----------
-
-template <detail::mutability Mut>
-auto basic_entry_handle<Mut>::self() const -> self_t* {
-  return static_cast<self_t*>(this->base());
-}
 
 template <detail::mutability Mut>
 basic_entry_handle<Mut>::basic_entry_handle(basic_file_handle<Mut> h)
