@@ -1169,6 +1169,68 @@ TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_optional_load_vs_value) {
   EXPECT_FALSE(p1.has_value());
 }
 
+TYPED_TEST(packed_int_vec_tmpl_test,
+           value_proxy_three_way_compare_optional_proxy_value) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec{
+      std::optional<uint32_t>{10},
+      std::optional<uint32_t>{20},
+  };
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  std::optional<uint32_t> const v0{10};
+  std::optional<uint32_t> const v1{20};
+
+  EXPECT_TRUE((p0 <=> v0) == 0);
+  EXPECT_TRUE((p0 <=> v1) < 0);
+  EXPECT_TRUE((p1 <=> v0) > 0);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           value_proxy_three_way_compare_optional_value_proxy) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec{
+      std::optional<uint32_t>{10},
+      std::optional<uint32_t>{20},
+  };
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  std::optional<uint32_t> const v0{10};
+  std::optional<uint32_t> const v1{20};
+
+  EXPECT_TRUE((v0 <=> p0) == 0);
+  EXPECT_TRUE((v0 <=> p1) < 0);
+  EXPECT_TRUE((v1 <=> p0) > 0);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test,
+           value_proxy_three_way_compare_optional_proxy_proxy) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec{
+      std::optional<uint32_t>{10},
+      std::optional<uint32_t>{20},
+      std::optional<uint32_t>{10},
+  };
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+  auto p2 = vec[2];
+
+  EXPECT_TRUE((p0 <=> p2) == 0);
+  EXPECT_TRUE((p0 <=> p1) < 0);
+  EXPECT_TRUE((p1 <=> p0) > 0);
+}
+
 #ifdef __clang__
 #pragma clang optimize on
 #endif
