@@ -271,9 +271,9 @@ struct shared_entry_data {
 
 struct packed_entry_data {
   packed_entry_data(entry_type t)
-      : type{t} {}
+      : this_type{t} {}
 
-  entry_type type;
+  entry_type this_type;
 
   segtor<size_t> path_name_index;
   segtor<std::optional<uint64_t>> parent_dir_index;
@@ -393,19 +393,19 @@ struct packed_entry_data {
   }
 
   void add_file_specific() {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     file_data_index.push_back(std::nullopt);
     file_inode_id.push_back(inode_id{});
     file_order_index.push_back(0);
   }
 
   void add_link_specific() {
-    assert(type == entry_type::E_LINK);
+    assert(this_type == entry_type::E_LINK);
     link_target_index.push_back(std::nullopt);
   }
 
   void add_device_specific(file_stat const& st) {
-    assert(type == entry_type::E_DEVICE);
+    assert(this_type == entry_type::E_DEVICE);
     represented_device.push_back(st.rdev_unchecked());
   }
 
@@ -473,7 +473,7 @@ struct packed_entry_data {
   }
 
   void create_hardlink(file_id target, file_id source, progress& prog) {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     auto target_fdi = file_data_index.at(target.index());
     auto const& source_fdi = file_data_index.at(source.index());
     assert(!target_fdi.has_value());
@@ -493,7 +493,7 @@ struct packed_entry_data {
   }
 
   size_t get_file_data_index(std::uint64_t const index) const {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     auto fdi = file_data_index.at(index);
     DWARFS_CHECK(fdi.has_value(), "file data unset");
     return *fdi;
@@ -525,12 +525,12 @@ struct packed_entry_data {
   }
 
   void set_file_order_index(file_id id, std::size_t index) {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     file_order_index.at(id.index()) = index;
   }
 
   std::size_t get_file_order_index(file_id id) const {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     return file_order_index.at(id.index());
   }
 
@@ -562,7 +562,7 @@ struct packed_entry_data {
   }
 
   void set_inode_num(uint64_t const index, uint64_t ino) {
-    if (type == entry_type::E_FILE) {
+    if (this_type == entry_type::E_FILE) {
       auto const fdi = get_file_data_index(index);
       auto file_inode = get<kInodeNumberField>(file_data_vec.at(fdi));
       DWARFS_CHECK(!file_inode.has_value(),
@@ -576,7 +576,7 @@ struct packed_entry_data {
   }
 
   std::optional<uint64_t> get_inode_num(uint64_t const index) const {
-    if (type == entry_type::E_FILE) {
+    if (this_type == entry_type::E_FILE) {
       auto const fdi = get_file_data_index(index);
       return get<kInodeNumberField>(file_data_vec.at(fdi));
     }
@@ -584,19 +584,19 @@ struct packed_entry_data {
   }
 
   void set_inode_id(file_id fid, inode_id iid) {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     auto inode = file_inode_id.at(fid.index());
     DWARFS_CHECK(!inode.load().valid(), "inode already set for file");
     inode = iid;
   }
 
   inode_id get_inode_id(file_id fid) const {
-    assert(type == entry_type::E_FILE);
+    assert(this_type == entry_type::E_FILE);
     return file_inode_id.at(fid.index());
   }
 
   void set_link_target_index(link_id lid, size_t index) {
-    assert(type == entry_type::E_LINK);
+    assert(this_type == entry_type::E_LINK);
     auto link_target = link_target_index.at(lid.index());
     DWARFS_CHECK(!link_target.has_value(),
                  "attempt to set link target index more than once");
@@ -604,7 +604,7 @@ struct packed_entry_data {
   }
 
   std::size_t get_link_target_index(link_id lid) const {
-    assert(type == entry_type::E_LINK);
+    assert(this_type == entry_type::E_LINK);
     auto const link_target = link_target_index.at(lid.index());
     DWARFS_CHECK(link_target.has_value(), "link target index not set");
     return *link_target;
