@@ -1125,6 +1125,50 @@ TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_unary_plus_scalar) {
   EXPECT_EQ(+p1, 20);
 }
 
+TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_optional_value_and_deref) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec{
+      std::optional<uint32_t>{42},
+      std::optional<uint32_t>{7},
+  };
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  ASSERT_TRUE(p0.has_value());
+  ASSERT_TRUE(p1.has_value());
+
+  EXPECT_EQ(p0.value(), 42);
+  EXPECT_EQ(p1.value(), 7);
+
+  EXPECT_EQ(*p0, 42);
+  EXPECT_EQ(*p1, 7);
+}
+
+TYPED_TEST(packed_int_vec_tmpl_test, value_proxy_optional_load_vs_value) {
+  using vec_type =
+      typename TypeParam::template auto_type<std::optional<uint32_t>>;
+
+  vec_type vec{
+      std::optional<uint32_t>{42},
+      std::nullopt,
+  };
+
+  auto p0 = vec[0];
+  auto p1 = vec[1];
+
+  EXPECT_EQ(p0.load(), std::optional<uint32_t>{42});
+  EXPECT_EQ(+p0, std::optional<uint32_t>{42});
+  EXPECT_EQ(p0.value(), 42);
+  EXPECT_EQ(*p0, 42);
+
+  EXPECT_EQ(p1.load(), std::nullopt);
+  EXPECT_EQ(+p1, std::nullopt);
+  EXPECT_FALSE(p1.has_value());
+}
+
 #ifdef __clang__
 #pragma clang optimize on
 #endif

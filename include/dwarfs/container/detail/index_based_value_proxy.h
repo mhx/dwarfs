@@ -154,10 +154,24 @@ class index_based_field_proxy {
     return old;
   }
 
+  // optional-like interface for optional fields
+
   bool has_value() const
     requires is_std_optional_v<value_type>
   {
     return static_cast<value_type>(*this).has_value();
+  }
+
+  auto value() const
+    requires is_std_optional_v<value_type>
+  {
+    return static_cast<value_type>(*this).value();
+  }
+
+  auto operator*() const
+    requires is_std_optional_v<value_type>
+  {
+    return value();
   }
 
   friend bool
@@ -332,10 +346,24 @@ class index_based_value_proxy {
     return old;
   }
 
+  // optional-like interface for optional fields
+
   bool has_value() const
     requires is_std_optional_v<value_type>
   {
     return static_cast<value_type>(*this).has_value();
+  }
+
+  auto value() const
+    requires is_std_optional_v<value_type>
+  {
+    return static_cast<value_type>(*this).value();
+  }
+
+  auto operator*() const
+    requires is_std_optional_v<value_type>
+  {
+    return value();
   }
 
   friend bool
