@@ -446,7 +446,7 @@ auto basic_device_handle<Mut>::self() const -> self_t* {
 
 template <detail::mutability Mut>
 std::uint64_t basic_device_handle<Mut>::posix_device_id() const {
-  return self()->device_id();
+  return this->storage().get_represented_device(this->id());
 }
 
 // --------- other_handle ----------
