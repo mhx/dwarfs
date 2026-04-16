@@ -113,7 +113,7 @@ file_size_t entry_handle_base<Mut>::allocated_size() const {
 
 template <mutability Mut>
 entry_type entry_handle_base<Mut>::type() const {
-  return base()->type();
+  return self_id_.type();
 }
 
 template <mutability Mut>
@@ -140,7 +140,7 @@ template <mutability Mut>
 void entry_handle_base<Mut>::accept(entry_handle_visitor& v, bool preorder)
   requires is_mutable
 {
-  switch (base()->type()) {
+  switch (type()) {
   case entry_type::E_FILE:
     v.visit(file_handle{*storage_, self_id_});
     break;
