@@ -341,15 +341,15 @@ uint32_t basic_file_handle<Mut>::hardlink_count() const {
 }
 
 template <detail::mutability Mut>
-void basic_file_handle<Mut>::set_order_index(uint32_t index)
+void basic_file_handle<Mut>::set_order_index(std::size_t index)
   requires is_mutable
 {
-  return self()->set_order_index(index);
+  this->storage().set_file_order_index(this->id(), index);
 }
 
 template <detail::mutability Mut>
-uint32_t basic_file_handle<Mut>::order_index() const {
-  return self()->order_index();
+std::size_t basic_file_handle<Mut>::order_index() const {
+  return this->storage().get_file_order_index(this->id());
 }
 
 template <detail::mutability Mut>
