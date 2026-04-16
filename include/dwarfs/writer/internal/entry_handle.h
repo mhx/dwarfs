@@ -366,8 +366,7 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
 
   link_id id() const { return link_id{this->base_id()}; }
 
-  // TODO: string_view
-  std::string const& linkname() const;
+  std::string_view linkname() const;
 
  private:
   using self_t = detail::mutability_t<internal::link, Mut>;

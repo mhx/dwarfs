@@ -193,6 +193,7 @@ struct shared_entry_data {
     mode_index_.reset();
     uid_index_.reset();
     gid_index_.reset();
+    link_index_.reset();
   }
 
   void drop_lookup_tables() { dir_entry_lookup_.clear(); }
@@ -209,11 +210,18 @@ struct shared_entry_data {
 
   auto add_gid(file_stat::gid_type gid) { return gid_index_->add(gid); }
 
+  auto add_link(std::string link) { return link_index_->add(std::move(link)); }
+
   void dump(std::ostream& os) const {
     auto const total_path_bytes =
         std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
                         [](std::size_t acc, path_component const& pc) {
                           return acc + pc.size_in_bytes();
+                        });
+    auto const total_link_bytes =
+        std::accumulate(links_.begin(), links_.end(), 0ULL,
+                        [](std::size_t acc, std::string const& link) {
+                          return acc + sizeof(std::string) + link.size();
                         });
 
     os << "shared entry data:\n";
@@ -227,6 +235,8 @@ struct shared_entry_data {
        << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
     os << "  gids: " << gids_.size() << " ("
        << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
+    os << "  links: " << links_.size() << " ("
+       << size_with_unit(total_link_bytes) << ")\n";
     os << "  dir entries: " << dir_entries_.size() << " ("
        << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
   }
@@ -247,6 +257,9 @@ struct shared_entry_data {
 
   cao_vector<file_stat::gid_type> gids_;
   std::optional<flat_cao_index<file_stat::gid_type>> gid_index_{gids_};
+
+  cao_vector<std::string> links_;
+  std::optional<flat_cao_index<std::string>> link_index_{links_};
 
   // indexed by dir index, contains all entry ids of the directory
   cao_vector<entry_id_vector> dir_entries_;
@@ -305,7 +318,7 @@ struct packed_entry_data {
   cao_vector<std::atomic<bool>> file_invalid_vec;
 
   // link-specific
-  segtor<size_t> link_target_index; // indexes into de-duped link target vector
+  segtor<std::optional<size_t>> link_target_index;
 
   // device-specific:
   segtor<file_stat::dev_type> represented_device;
@@ -379,6 +392,11 @@ struct packed_entry_data {
     assert(type == entry_type::E_FILE);
     file_data_index.push_back(std::nullopt);
     file_inode_id.push_back(inode_id{});
+  }
+
+  void add_link_specific() {
+    assert(type == entry_type::E_LINK);
+    link_target_index.push_back(std::nullopt);
   }
 
   void add_device_specific(file_stat const& st) {
@@ -552,6 +570,21 @@ struct packed_entry_data {
     return file_inode_id.at(fid.index());
   }
 
+  void set_link_target_index(link_id lid, size_t index) {
+    assert(type == entry_type::E_LINK);
+    auto link_target = link_target_index.at(lid.index());
+    DWARFS_CHECK(!link_target.has_value(),
+                 "attempt to set link target index more than once");
+    link_target = index;
+  }
+
+  std::size_t get_link_target_index(link_id lid) const {
+    assert(type == entry_type::E_LINK);
+    auto const link_target = link_target_index.at(lid.index());
+    DWARFS_CHECK(link_target.has_value(), "link target index not set");
+    return *link_target;
+  }
+
   void dump(std::ostream& os, std::string_view name) const {
     if (path_name_index.empty()) {
       os << "no " << name << " entries\n";
@@ -682,6 +715,7 @@ class entry_storage_ final : public entry_storage::impl {
                      entry_id const parent) override {
     packed_links_.add_entry_common(shared_, entry_type::E_LINK, path, st,
                                    parent);
+    packed_links_.add_link_specific();
     return make_obj_(links_, entry_type::E_LINK, st);
   }
 
@@ -748,6 +782,25 @@ class entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return &inodes_.at(id.index());
+  }
+
+  void set_link_target(link_id id, std::string link_target,
+                       progress& prog) override {
+    if constexpr (is_mutable) {
+      auto const index = shared_.add_link(std::move(link_target));
+      packed_links_.set_link_target_index(id, index);
+      auto const size = packed_links_.get_size(id.index());
+      auto const allocated_size = packed_links_.get_allocated_size(id.index());
+      prog.original_size += size;
+      prog.allocated_original_size += allocated_size;
+      prog.symlink_size += size;
+    } else {
+      frozen_panic();
+    }
+  }
+
+  std::string_view get_link_target(link_id id) const override {
+    return shared_.links_.at(packed_links_.get_link_target_index(id));
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
@@ -1199,6 +1252,15 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     return impl_.lock()->get_inode(id);
+  }
+
+  void set_link_target(link_id id, std::string link_target,
+                       progress& prog) override {
+    impl_.lock()->set_link_target(id, std::move(link_target), prog);
+  }
+
+  std::string_view get_link_target(link_id id) const override {
+    return impl_.lock()->get_link_target(id);
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {

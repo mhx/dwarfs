@@ -114,12 +114,8 @@ class link : public entry {
  public:
   using entry::entry;
 
-  std::string const& linkname() const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
-
- private:
-  std::string link_;
 };
 
 /**
