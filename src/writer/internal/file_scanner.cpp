@@ -106,7 +106,7 @@ class file_scanner_ final : public file_scanner::impl {
   }
 
   std::string format_key(const_file_handle key) const {
-    return key.ptr_as_string();
+    return fmt::format("{}", key.id().index());
   }
 
   std::string format_key(std::string_view key) const {
@@ -593,7 +593,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
   auto ino_num = p.inode_num();
 
   os << "{\n"
-     << R"(        "ptr": ")" << p.ptr_as_string() << "\",\n"
+     << R"(        "index": )" << p.id().index() << ",\n"
      << R"(        "path": )" << nlohmann::json{p.path_as_string()}.dump()
      << ",\n"
      << R"(        "size": )" << fmt::format("{}", p.size()) << ",\n"
