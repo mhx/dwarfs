@@ -323,9 +323,11 @@ struct packed_entry_data {
   // device-specific:
   segtor<file_stat::dev_type> represented_device;
 
-  void add_entry_common(shared_entry_data& shared, entry_type type,
-                        fs::path const& path, file_stat const& st,
-                        entry_id const parent) {
+  bool empty() const { return path_name_index.empty(); }
+
+  std::size_t add_entry_common(shared_entry_data& shared, entry_type type,
+                               fs::path const& path, file_stat const& st,
+                               entry_id const parent) {
     bool const is_root = !parent.valid();
     assert(is_root || parent.is_dir());
     auto const path_ix = shared.add_path_component(path, is_root);
@@ -387,6 +389,8 @@ struct packed_entry_data {
         }
       }
     }
+
+    return entry_ix;
   }
 
   void add_file_specific() {
@@ -706,12 +710,27 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  template <typename T>
-  static entry_id
-  make_obj_(cao_vector<T>& vec, entry_type type, file_stat const& st) {
+  entry_id
+  make_obj_(entry_type const type, packed_entry_data& data,
+            fs::path const& path, file_stat const& st, entry_id const parent) {
     if constexpr (is_mutable) {
-      auto ix = vec.size();
-      vec.emplace_back(st);
+      auto const ix = data.add_entry_common(shared_, type, path, st, parent);
+      switch (type) {
+      case entry_type::E_FILE:
+        data.add_file_specific();
+        break;
+      case entry_type::E_DIR:
+        shared_.dir_entries_.emplace_back();
+        break;
+      case entry_type::E_LINK:
+        data.add_link_specific();
+        break;
+      case entry_type::E_DEVICE:
+        data.add_device_specific(st);
+        break;
+      case entry_type::E_OTHER:
+        break;
+      }
       return {type, ix};
     } else {
       frozen_panic();
@@ -720,40 +739,27 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_id make_file(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    packed_files_.add_entry_common(shared_, entry_type::E_FILE, path, st,
-                                   parent);
-    packed_files_.add_file_specific();
-    return make_obj_(files_, entry_type::E_FILE, st);
+    return make_obj_(entry_type::E_FILE, packed_files_, path, st, parent);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
                     entry_id const parent) override {
-    packed_dirs_.add_entry_common(shared_, entry_type::E_DIR, path, st, parent);
-    shared_.dir_entries_.emplace_back();
-    return make_obj_(dirs_, entry_type::E_DIR, st);
+    return make_obj_(entry_type::E_DIR, packed_dirs_, path, st, parent);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
                      entry_id const parent) override {
-    packed_links_.add_entry_common(shared_, entry_type::E_LINK, path, st,
-                                   parent);
-    packed_links_.add_link_specific();
-    return make_obj_(links_, entry_type::E_LINK, st);
+    return make_obj_(entry_type::E_LINK, packed_links_, path, st, parent);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
                        entry_id const parent) override {
-    packed_devices_.add_entry_common(shared_, entry_type::E_DEVICE, path, st,
-                                     parent);
-    packed_devices_.add_device_specific(st);
-    return make_obj_(devices_, entry_type::E_DEVICE, st);
+    return make_obj_(entry_type::E_DEVICE, packed_devices_, path, st, parent);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
                       entry_id const parent) override {
-    packed_others_.add_entry_common(shared_, entry_type::E_OTHER, path, st,
-                                    parent);
-    return make_obj_(others_, entry_type::E_OTHER, st);
+    return make_obj_(entry_type::E_OTHER, packed_others_, path, st, parent);
   }
 
   inode_id make_inode() override {
@@ -767,7 +773,7 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  bool empty() const noexcept override { return dirs_.empty(); }
+  bool empty() const noexcept override { return packed_dirs_.empty(); }
 
   void dump(std::ostream& os) const override;
 
