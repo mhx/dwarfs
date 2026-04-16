@@ -162,8 +162,8 @@ struct packed_field_descriptor<std::tuple<Ts...>> {
   template <typename Reader, size_type... I>
   static constexpr auto
   decode_with_impl(Reader& read, std::index_sequence<I...>) -> value_type {
-    return value_type {
-      decode_field<I>(read.template operator()<I>())...,
+    return value_type{
+        decode_field<I>(read.template operator()<I>())...,
     };
   }
 
