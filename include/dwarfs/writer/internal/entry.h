@@ -99,8 +99,6 @@ class file : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void set_inode(inode_id ino);
-  inode_id get_inode() const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 
@@ -108,10 +106,6 @@ class file : public entry {
   uint32_t order_index() const { return order_index_; }
 
  private:
-  static constexpr auto kInvalidDataIndex =
-      std::numeric_limits<uint32_t>::max();
-
-  inode_id inode_{};
   uint32_t order_index_{0};
 };
 
