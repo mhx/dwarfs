@@ -937,8 +937,8 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   template <typename Self, typename Method, typename... Args>
-  decltype(auto) dispatch_(this Self&& self, Method method, entry_id const id,
-                           Args&&... args) {
+  static decltype(auto) dispatch_impl_(Self&& self, Method method,
+                                       entry_id const id, Args&&... args) {
     auto&& me = std::forward<Self>(self);
     assert(id.valid());
     switch (id.type()) {
@@ -961,9 +961,23 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
+  // TODO: workaround while too many compilers don't support deducing this
+  template <typename Method, typename... Args>
+  decltype(auto) dispatch_(Method method, entry_id const id, Args&&... args) {
+    return dispatch_impl_(*this, method, id, std::forward<Args>(args)...);
+  }
+
+  // TODO: workaround while too many compilers don't support deducing this
+  template <typename Method, typename... Args>
+  decltype(auto)
+  dispatch_(Method method, entry_id const id, Args&&... args) const {
+    return dispatch_impl_(*this, method, id, std::forward<Args>(args)...);
+  }
+
   template <typename Self, typename Method, typename... Args>
-  decltype(auto) dispatch_shared_(this Self&& self, Method method,
-                                  entry_id const id, Args&&... args) {
+  static decltype(auto)
+  dispatch_shared_impl_(Self&& self, Method method, entry_id const id,
+                        Args&&... args) {
     auto&& me = std::forward<Self>(self);
     assert(id.valid());
     switch (id.type()) {
@@ -985,6 +999,22 @@ class entry_storage_ final : public entry_storage::impl {
     default:
       DWARFS_PANIC("invalid entry type");
     }
+  }
+
+  // TODO: workaround while too many compilers don't support deducing this
+  template <typename Method, typename... Args>
+  decltype(auto)
+  dispatch_shared_(Method method, entry_id const id, Args&&... args) {
+    return dispatch_shared_impl_(*this, method, id,
+                                 std::forward<Args>(args)...);
+  }
+
+  // TODO: workaround while too many compilers don't support deducing this
+  template <typename Method, typename... Args>
+  decltype(auto)
+  dispatch_shared_(Method method, entry_id const id, Args&&... args) const {
+    return dispatch_shared_impl_(*this, method, id,
+                                 std::forward<Args>(args)...);
   }
 
   entry_id get_parent_impl(entry_id const id) const {
