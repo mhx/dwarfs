@@ -43,7 +43,6 @@
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/detail/inode_impl.h>
-#include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
@@ -685,12 +684,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_storage_(entry_storage_<false>& other) noexcept
     requires Frozen
-      : files_{std::move(other.files_)}
-      , dirs_{std::move(other.dirs_)}
-      , links_{std::move(other.links_)}
-      , devices_{std::move(other.devices_)}
-      , others_{std::move(other.others_)}
-      , inodes_{std::move(other.inodes_)}
+      : inodes_{std::move(other.inodes_)}
       , files_for_inode_{std::move(other.files_for_inode_)}
       , shared_{std::move(other.shared_)}
       , packed_files_{std::move(other.packed_files_)}
@@ -785,24 +779,6 @@ class entry_storage_ final : public entry_storage::impl {
       packed_files_.file_invalid_vec.emplace_back(false);
     } else {
       frozen_panic();
-    }
-  }
-
-  entry* get_entry(entry_id const id) override {
-    assert(id.valid());
-    switch (id.type()) {
-    case entry_type::E_FILE:
-      return &files_.at(id.index());
-    case entry_type::E_DIR:
-      return &dirs_.at(id.index());
-    case entry_type::E_LINK:
-      return &links_.at(id.index());
-    case entry_type::E_DEVICE:
-      return &devices_.at(id.index());
-    case entry_type::E_OTHER:
-      return &others_.at(id.index());
-    default:
-      throw std::runtime_error("invalid entry type");
     }
   }
 
@@ -1220,11 +1196,6 @@ class entry_storage_ final : public entry_storage::impl {
     return dispatch_(&packed_entry_data::get_nlink, id);
   }
 
-  cao_vector<file> files_;
-  cao_vector<dir> dirs_;
-  cao_vector<link> links_;
-  cao_vector<device> devices_;
-  cao_vector<other> others_;
   cao_vector<detail::inode_impl> inodes_;
   cao_vector<file_id_vector> files_for_inode_;
 
@@ -1238,11 +1209,6 @@ class entry_storage_ final : public entry_storage::impl {
 
 template <bool Frozen>
 void entry_storage_<Frozen>::dump(std::ostream& os) const {
-  os << "num dirs: " << dirs_.size() << "\n";
-  os << "num files: " << files_.size() << "\n";
-  os << "num links: " << links_.size() << "\n";
-  os << "num devices: " << devices_.size() << "\n";
-  os << "num others: " << others_.size() << "\n";
   os << "num inodes: " << inodes_.size() << "\n";
   os << "  hardlinks: "
      << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
@@ -1286,10 +1252,6 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   void create_packed_file_data(file_id id) override {
     impl_.lock()->create_packed_file_data(id);
-  }
-
-  entry* get_entry(entry_id const id) override {
-    return impl_.lock()->get_entry(id);
   }
 
   std::size_t inode_count() const override {
