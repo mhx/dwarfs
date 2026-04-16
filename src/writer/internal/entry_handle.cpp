@@ -198,15 +198,15 @@ void entry_handle_base<Mut>::set_empty()
 }
 
 template <mutability Mut>
-void entry_handle_base<Mut>::set_entry_index(uint32_t index)
+void entry_handle_base<Mut>::set_entry_index(std::size_t index)
   requires is_mutable
 {
-  base()->set_entry_index(index);
+  storage_->set_entry_index(self_id_, index);
 }
 
 template <mutability Mut>
-std::optional<uint32_t> const& entry_handle_base<Mut>::entry_index() const {
-  return base()->entry_index();
+std::optional<std::size_t> entry_handle_base<Mut>::entry_index() const {
+  return storage_->get_entry_index(self_id_);
 }
 
 template <mutability Mut>
