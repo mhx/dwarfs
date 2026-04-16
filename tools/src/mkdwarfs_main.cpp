@@ -425,8 +425,7 @@ class time_value_tsv_logger {
   }
 
  private:
-  // use a shared_ptr to allow copy-construction with std::function
-  std::shared_ptr<output_stream> output_;
+  std::unique_ptr<output_stream> output_;
   std::chrono::steady_clock::time_point start_time_;
 };
 
@@ -1057,11 +1056,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   writer::console_writer lgr(iol.term, iol.err, *iol.os, cwopts, logopts);
 
   if (auto usage = get_self_memory_usage(); usage.total.has_value()) {
-    std::optional<time_value_tsv_logger> mem_logger;
+    std::shared_ptr<time_value_tsv_logger> mem_logger;
 
     if (auto file = iol.os->getenv("DWARFS_LOG_MEMORY_USAGE")) {
-      mem_logger = time_value_tsv_logger(
-          iol.file->open_output(*file), {"total", "anon", "file", "allocated"});
+      auto const header = std::initializer_list<std::string_view>{
+          "total"sv, "anon"sv, "file"sv, "allocated"sv};
+      mem_logger = std::make_shared<time_value_tsv_logger>(
+          iol.file->open_output(*file), header);
     }
 
     auto const mem_usage_mode =
@@ -1069,16 +1070,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
             ? memory_usage_mode::accurate
             : memory_usage_mode::fast;
 
-    lgr.set_memory_usage_function(
-        [mem_logger = std::move(mem_logger), mem_usage_mode] {
-          auto const mem = get_self_memory_usage(mem_usage_mode);
-          if (mem_logger) {
-            mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
-                            mem.file.value_or(0),
-                            get_allocated_memory().value_or(0));
-          }
-          return mem.total.value_or(0);
-        });
+    lgr.set_memory_usage_function([mem_logger, mem_usage_mode] {
+      auto const mem = get_self_memory_usage(mem_usage_mode);
+      if (mem_logger) {
+        mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
+                        mem.file.value_or(0),
+                        get_allocated_memory().value_or(0));
+      }
+      return mem.total.value_or(0);
+    });
   }
 
   std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
