@@ -77,7 +77,6 @@ class entry {
 
   entry(file_stat const& st);
 
-  virtual type_t type() const = 0;
   virtual void scan(entry_storage& storage, entry_id self_id,
                     os_access const& os, progress& prog) = 0;
   void set_entry_index(uint32_t index) { entry_index_ = index; }
@@ -93,7 +92,6 @@ class file : public entry {
  public:
   using entry::entry;
 
-  type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 
@@ -108,7 +106,6 @@ class dir : public entry {
  public:
   using entry::entry;
 
-  type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 };
@@ -117,7 +114,6 @@ class link : public entry {
  public:
   using entry::entry;
 
-  type_t type() const override;
   std::string const& linkname() const;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
@@ -133,7 +129,6 @@ class device : public entry {
  public:
   using entry::entry;
 
-  type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 };
@@ -145,7 +140,6 @@ class other : public entry {
  public:
   using entry::entry;
 
-  type_t type() const override;
   void scan(entry_storage& storage, entry_id self_id, os_access const& os,
             progress& prog) override;
 };

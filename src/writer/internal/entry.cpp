@@ -49,18 +49,12 @@ namespace fs = std::filesystem;
 
 entry::entry(file_stat const& /*st*/) {}
 
-entry::type_t file::type() const { return entry_type::E_FILE; }
-
 void file::scan(entry_storage& /*storage*/, entry_id /*self_id*/,
                 os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_PANIC("file::scan() without hash_alg is not used");
 }
 
-entry::type_t dir::type() const { return entry_type::E_DIR; }
-
 void dir::scan(entry_storage&, entry_id, os_access const&, progress&) {}
-
-entry::type_t link::type() const { return entry_type::E_LINK; }
 
 std::string const& link::linkname() const { return link_; }
 
@@ -73,11 +67,7 @@ void link::scan(entry_storage& storage, entry_id self_id, os_access const& os,
   prog.symlink_size += self.size();
 }
 
-entry::type_t device::type() const { return entry_type::E_DEVICE; }
-
 void device::scan(entry_storage&, entry_id, os_access const&, progress&) {}
-
-entry::type_t other::type() const { return entry_type::E_OTHER; }
 
 void other::scan(entry_storage&, entry_id, os_access const&, progress&) {}
 
