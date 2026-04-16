@@ -658,6 +658,7 @@ if(WITH_TESTS)
       test/integral_value_parser_test.cpp
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
+      test/map_utils_test.cpp
       test/mappable_file_test.cpp
       test/io_ops_test.cpp
       test/metadata_requirements_test.cpp
