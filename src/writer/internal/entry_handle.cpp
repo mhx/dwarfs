@@ -358,11 +358,6 @@ entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
 }
 
 template <detail::mutability Mut>
-bool basic_dir_handle<Mut>::empty() const {
-  return this->storage().is_dir_empty(this->id());
-}
-
-template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres)
