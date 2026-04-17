@@ -76,6 +76,8 @@ std::string provisional_entry::name() const {
   return path_to_utf8_string_sanitized(parent_ ? path_.filename() : path_);
 }
 
+file_size_t provisional_entry::size() const { return stat_.size(); }
+
 bool provisional_entry::is_directory() const {
   return type() == entry_type::E_DIR;
 }
