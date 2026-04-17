@@ -676,6 +676,8 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(
       [](progress const&, size_t) { return "freezing tree..."; });
 
+  LOG_VERBOSE << "entry storage (before freezing):\n" << tree.dump();
+
   tree.freeze();
 
   prog.set_status_function(status_string);
