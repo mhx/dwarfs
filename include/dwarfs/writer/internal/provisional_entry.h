@@ -49,6 +49,7 @@ class provisional_entry : public entry_interface {
 
   entry_type type() const;
   std::string name() const;
+  file_size_t size() const;
 
   bool is_directory() const override;
   std::string unix_dpath() const override;
