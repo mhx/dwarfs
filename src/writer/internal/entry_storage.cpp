@@ -985,6 +985,24 @@ class entry_storage_ final : public entry_storage::impl {
     return {};
   }
 
+  bool entry_less_revpath(entry_id lhs, entry_id rhs) const override {
+    TRACE_CALL;
+
+    while (lhs.valid() && rhs.valid()) {
+      auto const lname = get_path_string_impl(lhs);
+      auto const rname = get_path_string_impl(rhs);
+
+      if (lname != rname) {
+        return lname < rname;
+      }
+
+      lhs = get_parent_impl(lhs);
+      rhs = get_parent_impl(rhs);
+    }
+
+    return rhs.valid();
+  }
+
   void update_global_entry_data(entry_id id,
                                 global_entry_data& data) const override {
     TRACE_CALL;
@@ -1391,6 +1409,10 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   entry_id find_in_dir(entry_id id, std::string_view name) const override {
     return impl_.lock()->find_in_dir(id, name);
+  }
+
+  bool entry_less_revpath(entry_id lhs, entry_id rhs) const override {
+    return impl_.lock()->entry_less_revpath(lhs, rhs);
   }
 
   void update_global_entry_data(entry_id id,
