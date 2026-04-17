@@ -450,14 +450,14 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
   somelink.scan(*os, prog1);
   EXPECT_EQ("somedir/ipsum.py", somelink.linkname());
   EXPECT_EQ(somelink.size(), prog1.original_size);
-  EXPECT_EQ(somelink.allocated_size(), prog1.allocated_original_size);
+  EXPECT_EQ(somelink.size_info().allocated, prog1.allocated_original_size);
   EXPECT_EQ(somelink.size(), prog1.symlink_size);
 
   progress prog2{};
   bad.scan(*os, prog2);
   EXPECT_EQ("../foo", bad.linkname());
   EXPECT_EQ(bad.size(), prog2.original_size);
-  EXPECT_EQ(bad.allocated_size(), prog2.allocated_original_size);
+  EXPECT_EQ(bad.size_info().allocated, prog2.allocated_original_size);
   EXPECT_EQ(bad.size(), prog2.symlink_size);
 }
 
@@ -572,8 +572,7 @@ TEST_F(entry_test, file_hardlink_count_increments_and_is_shared) {
   EXPECT_EQ(1, foo.hardlink_count());
 
   progress prog{};
-  auto const foo_size = foo.size();
-  auto const foo_allocated_size = foo.allocated_size();
+  auto const [foo_size, foo_allocated_size] = foo.size_info();
 
   bar.hardlink(foo, prog);
 
