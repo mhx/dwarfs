@@ -306,8 +306,8 @@ if use_lib jemalloc; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${JEMALLOC_TARBALL}
     cd jemalloc-${JEMALLOC_VERSION}
-    fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
-    fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
+    # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
+    # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
     ./autogen.sh ${TRIPLETS}
     mkdir build-minimal
     cd build-minimal
