@@ -884,13 +884,13 @@ class entry_storage_ final : public entry_storage::impl {
     return get_parent_impl(id);
   }
 
-  fs::path get_path(entry_id const id) const override {
+  fs::path get_path(entry_id id) const override {
     TRACE_CALL;
 
     fs::path p = get_path_impl(id);
 
-    if (auto const parent = get_parent_impl(id)) {
-      p = get_path(parent) / p;
+    while ((id = get_parent_impl(id))) {
+      p = get_path_impl(id) / p;
     }
 
     return p;
