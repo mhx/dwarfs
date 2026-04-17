@@ -31,6 +31,7 @@
 
 #include <parallel_hashmap/phmap.h>
 
+#include <dwarfs/config.h>
 #include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/container/compact_packed_int_vector.h>
 #include <dwarfs/container/map_utils.h>
@@ -48,8 +49,24 @@
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/progress.h>
 
-// TODO: disable everywhere but Windows
+// #define DWARFS_TRACE_ENTRY_STORAGE_CALLS
+
+#ifndef DWARFS_STACKTRACE_ENABLED
+#undef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+#endif
+
+#ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+#include <dwarfs/internal/event_tracer.h>
+#define TRACE_CALL ev_.trace(std::source_location::current().function_name())
+#else
+#define TRACE_CALL                                                             \
+  do {                                                                         \
+  } while (0)
+#endif
+
+#ifdef _WIN32
 #define DWARFS_KEEP_FS_PATHS 1
+#endif
 
 namespace fs = std::filesystem;
 
@@ -767,7 +784,10 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  bool empty() const noexcept override { return packed_dirs_.empty(); }
+  bool empty() const noexcept override {
+    TRACE_CALL;
+    return packed_dirs_.empty();
+  }
 
   void dump(std::ostream& os) const override;
 
@@ -782,32 +802,41 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  std::size_t inode_count() const override { return inodes_.size(); }
+  std::size_t inode_count() const override {
+    TRACE_CALL;
+    return inodes_.size();
+  }
 
   inode* get_inode(inode_id const id) override {
+    TRACE_CALL;
     return &inodes_.at(id.index());
   }
 
   void set_entry_index(entry_id id, std::size_t index) override {
+    TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
     dispatch_(&packed_entry_data::set_entry_index, id, index);
   }
 
   std::optional<std::size_t> get_entry_index(entry_id id) const override {
+    TRACE_CALL;
     return dispatch_(&packed_entry_data::get_entry_index, id);
   }
 
   void set_file_order_index(file_id id, std::size_t index) override {
+    TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
     packed_files_.set_file_order_index(id, index);
   }
 
   std::size_t get_file_order_index(file_id id) const override {
+    TRACE_CALL;
     return packed_files_.get_file_order_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target,
                        progress& prog) override {
+    TRACE_CALL;
     if constexpr (is_mutable) {
       auto const index = shared_.add_link(std::move(link_target));
       packed_links_.set_link_target_index(id, index);
@@ -822,14 +851,17 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   std::string_view get_link_target(link_id id) const override {
+    TRACE_CALL;
     return shared_.links_.at(packed_links_.get_link_target_index(id));
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
+    TRACE_CALL;
     return files_for_inode_.at(id.index());
   }
 
   void set_files_for_inode(inode_id id, file_id_vector fv) override {
+    TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
     auto& vec = files_for_inode_.at(id.index());
     DWARFS_CHECK(vec.empty(), "files already set for inode");
@@ -837,19 +869,24 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   void set_file_inode(file_id id, inode_id ino) override {
+    TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
     packed_files_.set_inode_id(id, ino);
   }
 
   inode_id get_file_inode(file_id id) const override {
+    TRACE_CALL;
     return packed_files_.get_inode_id(id);
   }
 
   entry_id get_parent(entry_id const id) const override {
+    TRACE_CALL;
     return get_parent_impl(id);
   }
 
   fs::path get_path(entry_id const id) const override {
+    TRACE_CALL;
+
     fs::path p = get_path_impl(id);
 
     if (auto const parent = get_parent_impl(id)) {
@@ -860,6 +897,7 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   std::string get_unix_dpath(entry_id const id) const override {
+    TRACE_CALL;
     std::string p{get_path_string_impl(id)};
 
     if (is_root_path(p)) {
@@ -880,10 +918,12 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   std::string_view get_name(entry_id const id) const override {
+    TRACE_CALL;
     return get_path_string_impl(id);
   }
 
   void remove_empty_dirs(progress& prog) override {
+    TRACE_CALL;
     if constexpr (is_mutable) {
       remove_empty_dirs_impl(prog, 0);
     } else {
@@ -894,6 +934,7 @@ class entry_storage_ final : public entry_storage::impl {
   void
   for_each_entry_in_dir(entry_id id,
                         std::function<void(entry_id)> const& f) const override {
+    TRACE_CALL;
     assert(id.is_dir());
     for (auto const eid : shared_.dir_entries_.at(id.index())) {
       f(eid);
@@ -903,6 +944,7 @@ class entry_storage_ final : public entry_storage::impl {
   static constexpr std::size_t kMinDirEntriesForLookupTable = 16;
 
   entry_id find_in_dir(entry_id id, std::string_view name) const override {
+    TRACE_CALL;
     assert(id.is_dir());
 
     auto const& de = shared_.dir_entries_.at(id.index());
@@ -946,25 +988,30 @@ class entry_storage_ final : public entry_storage::impl {
 
   void update_global_entry_data(entry_id id,
                                 global_entry_data& data) const override {
+    TRACE_CALL;
     update_global_entry_data_impl(id, data);
   }
 
   void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const override {
+    TRACE_CALL;
     pack_entry_impl(id, entry_v2, data, timeres);
   }
 
   unique_inode_id get_unique_inode_id(entry_id id) const override {
+    TRACE_CALL;
     return get_unique_inode_id_impl(id);
   }
 
   file_stat::nlink_type get_nlink(entry_id id) const override {
+    TRACE_CALL;
     return get_nlink_impl(id);
   }
 
   void
   create_hardlink(file_id target, file_id source, progress& prog) override {
+    TRACE_CALL;
     if constexpr (is_mutable) {
       packed_files_.create_hardlink(target, source, prog);
     } else {
@@ -973,19 +1020,23 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   std::size_t hardlink_count(file_id id) const override {
+    TRACE_CALL;
     return packed_files_.hardlink_count(id);
   }
 
   void set_file_invalid(file_id id) override {
+    TRACE_CALL;
     packed_files_.set_file_invalid(id);
   }
 
   bool is_file_invalid(file_id id) const override {
+    TRACE_CALL;
     return packed_files_.is_file_invalid(id);
   }
 
   std::span<std::byte>
   get_file_hash_buffer(file_id id, std::size_t buffer_size) override {
+    TRACE_CALL;
     if constexpr (is_mutable) {
       if (!packed_files_.file_hashes.has_value()) {
         packed_files_.file_hashes.emplace(buffer_size);
@@ -1004,6 +1055,7 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   std::string_view get_file_hash(file_id id) const override {
+    TRACE_CALL;
     if (packed_files_.file_hashes.has_value()) {
       auto const& hashes = *packed_files_.file_hashes;
       auto const index = packed_files_.get_file_hash_index(id);
@@ -1017,14 +1069,17 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   file_size_t get_entry_size(entry_id id) const override {
+    TRACE_CALL;
     return dispatch_(&packed_entry_data::get_size, id);
   }
 
   file_size_t get_entry_allocated_size(entry_id id) const override {
+    TRACE_CALL;
     return dispatch_(&packed_entry_data::get_allocated_size, id);
   }
 
   void set_entry_empty(entry_id id) override {
+    TRACE_CALL;
     if constexpr (is_mutable) {
       dispatch_(&packed_entry_data::set_empty, id);
     } else {
@@ -1033,15 +1088,18 @@ class entry_storage_ final : public entry_storage::impl {
   }
 
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) override {
+    TRACE_CALL;
     dispatch_(&packed_entry_data::set_inode_num, id, ino);
   }
 
   std::optional<std::uint64_t>
   get_inode_num_for_entry(entry_id id) const override {
+    TRACE_CALL;
     return dispatch_(&packed_entry_data::get_inode_num, id);
   }
 
   file_stat::dev_type get_represented_device(device_id id) const override {
+    TRACE_CALL;
     return packed_devices_.represented_device.at(id.index());
   }
 
@@ -1200,6 +1258,10 @@ class entry_storage_ final : public entry_storage::impl {
   packed_entry_data packed_links_{entry_type::E_LINK};
   packed_entry_data packed_devices_{entry_type::E_DEVICE};
   packed_entry_data packed_others_{entry_type::E_OTHER};
+
+#ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+  dwarfs::internal::event_tracer mutable ev_;
+#endif
 };
 
 template <bool Frozen>
@@ -1214,6 +1276,10 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   packed_links_.dump(os, "links");
   packed_devices_.dump(os, "devices");
   packed_others_.dump(os, "others");
+
+#ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+  ev_.dump(os);
+#endif
 }
 
 class synchronized_entry_storage_ final : public entry_storage::impl {
