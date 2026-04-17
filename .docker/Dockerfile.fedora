@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM fedora:rawhide@sha256:b06a00b413ba20215272df3b0eb6e75d6ecc7c4ae71ae764b098b81b23b60f68
+FROM fedora:rawhide@sha256:af8cdc432037f5e8e288bbc26c2b55b96000a911ec5b37959cd464d830f6cc5b
 RUN dnf update -y
 RUN dnf install -y \
         bash-completion \
