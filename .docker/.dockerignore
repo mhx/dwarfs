@@ -1,1 +1,7 @@
+/build-freebsd.sh
+/build_dockerfile.pl
+/check_lib_versions.py
 /docker-0.2.x
+/list_docker_cache_mounts.sh
+/update_base_images.py
+/Makefile
