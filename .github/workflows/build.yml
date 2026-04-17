@@ -158,10 +158,8 @@ jobs:
             build_dist: ubuntu
             build_type: clang-reldbg-shared-ubsan-ninja
 
-          # This runs on 24.04 for now since 26.04 currently has a race
-          # condition in libcrypto.
           - build_arch: amd64
-            build_dist: ubuntu-2404
+            build_dist: ubuntu
             build_type: clang-debug-shared-tsan-ninja
 
           - build_arch: amd64
