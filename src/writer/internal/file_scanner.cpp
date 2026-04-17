@@ -80,7 +80,7 @@ class file_scanner_ final : public file_scanner::impl {
   template <typename Key, typename Value>
   using fast_map_type = phmap::flat_hash_map<Key, Value>;
 
-  void scan_dedupe(file_handle p);
+  void scan_dedupe(file_handle p, file_size_info size_info);
   void hash_file(file_handle p);
   void add_inode(file_handle p, int lineno);
 
@@ -230,11 +230,13 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
 
   p.create_data();
 
-  prog_.original_size += p.size();
-  prog_.allocated_original_size += p.allocated_size();
+  auto const size_info = p.size_info();
+
+  prog_.original_size += size_info.total;
+  prog_.allocated_original_size += size_info.allocated;
 
   if (opts_.hash_algo) {
-    scan_dedupe(p);
+    scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
     p.scan({}, prog_, opts_.hash_algo); // TODO
@@ -278,10 +280,11 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
+void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
+                                              file_size_info const size_info) {
   // We need no lock yet, as `unique_size_` is only manipulated from
   // this thread.
-  uint64_t size = p.size();
+  uint64_t const size = size_info.total;
   uint64_t start_hash{0};
 
   LOG_TRACE << "scanning file " << p.path_as_string() << " [size=" << size
@@ -380,7 +383,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
     }
 
     // Add a job for any subsequent files
-    wg_.add_job([this, p, latch] mutable {
+    wg_.add_job([this, p, latch, size_info] mutable {
       hash_file(p);
 
       if (latch) {
@@ -407,8 +410,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p) {
             p.set_inode(inode);
             ++prog_.files_scanned;
             ++prog_.duplicate_files;
-            prog_.saved_by_deduplication += p.size();
-            prog_.allocated_saved_by_deduplication += p.allocated_size();
+            prog_.saved_by_deduplication += size_info.total;
+            prog_.allocated_saved_by_deduplication += size_info.allocated;
           }
 
           ref.push_back(p.id());
