@@ -79,21 +79,7 @@ std::string_view entry_handle_base<Mut>::name() const {
 
 template <mutability Mut>
 bool entry_handle_base<Mut>::less_revpath(const_entry_handle rhs) const {
-  auto const lname = name();
-  auto const rname = rhs.name();
-
-  if (lname != rname) {
-    return lname < rname;
-  }
-
-  auto const lp = parent();
-  auto const rp = rhs.parent();
-
-  if (lp && rp) {
-    return lp.less_revpath(rp);
-  }
-
-  return rp.valid();
+  return storage_->entry_less_revpath(self_id_, rhs.self_id_);
 }
 
 template <mutability Mut>
