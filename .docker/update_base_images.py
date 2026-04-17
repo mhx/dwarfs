@@ -11,14 +11,14 @@ import subprocess
 import sys
 
 FROM_RE = re.compile(
-    r'^(?P<prefix>\s*FROM\s+)'
-    r'(?P<ref>\S+?)(?:@sha256:[0-9a-f]{64})?'
-    r'(?P<suffix>(?:\s+AS\s+base)?(?:\s+#.*)?\s*)$',
+    r"^(?P<prefix>\s*FROM\s+)"
+    r"(?P<ref>\S+?)(?:@sha256:[0-9a-f]{64})?"
+    r"(?P<suffix>(?:\s+AS\s+base)?(?:\s+#.*)?\s*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 
-ARG_RE = re.compile(r'^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$')
-VAR_RE = re.compile(r'\$(\w+)|\$\{(\w+)\}')
+ARG_RE = re.compile(r"^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$")
+VAR_RE = re.compile(r"\$(\w+)|\$\{(\w+)\}")
 
 
 def parse_arg_defaults(text: str) -> dict[str, str]:
@@ -101,7 +101,7 @@ def update_file(path: pathlib.Path, dry_run: bool) -> bool:
         nonlocal changed
 
         original_ref = match.group("ref")
-        bare_ref = re.sub(r'@sha256:[0-9a-f]{64}$', '', original_ref)
+        bare_ref = re.sub(r"@sha256:[0-9a-f]{64}$", "", original_ref)
 
         resolved_ref = expand_vars(bare_ref, defaults)
         digest = resolve_digest_remote(resolved_ref)
@@ -157,9 +157,10 @@ def main() -> int:
             any_error = True
             print(f"{path}: ERROR: {exc}", file=sys.stderr)
 
-    if any_error:
-        return 2
-    return 0 if any_changed else 1
+    if not any_changed and not any_error:
+        print("All files are up to date.")
+
+    return 1 if any_error else 0
 
 
 if __name__ == "__main__":
