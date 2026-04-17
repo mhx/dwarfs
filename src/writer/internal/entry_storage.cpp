@@ -495,13 +495,10 @@ struct packed_entry_data {
     auto const& source_fdi = file_data_index.at(source.index());
     assert(!target_fdi.has_value());
     assert(source_fdi.has_value());
-    auto const size = entry_size.at(source.index());
-    auto const allocated_size =
-        container::get_optional(entry_allocated_size_lookup, source.index())
-            .value_or(size);
+    auto const [total, allocated] = get_size_info(source.index());
 
-    prog.hardlink_size += size;
-    prog.allocated_hardlink_size += allocated_size;
+    prog.hardlink_size += total;
+    prog.allocated_hardlink_size += allocated;
     ++prog.hardlinks;
 
     auto const fdi = source_fdi.value();
@@ -568,9 +565,12 @@ struct packed_entry_data {
     return entry_size.at(index);
   }
 
-  file_size_t get_allocated_size(uint64_t const index) const {
-    return container::get_optional(entry_allocated_size_lookup, index)
-        .value_or(get_size(index));
+  file_size_info get_size_info(uint64_t const index) const {
+    auto const size = get_size(index);
+    auto const alloc_size =
+        container::get_optional(entry_allocated_size_lookup, index)
+            .value_or(size);
+    return {size, alloc_size};
   }
 
   void set_empty(uint64_t const index) {
@@ -840,11 +840,10 @@ class entry_storage_ final : public entry_storage::impl {
     if constexpr (is_mutable) {
       auto const index = shared_.add_link(std::move(link_target));
       packed_links_.set_link_target_index(id, index);
-      auto const size = packed_links_.get_size(id.index());
-      auto const allocated_size = packed_links_.get_allocated_size(id.index());
-      prog.original_size += size;
-      prog.allocated_original_size += allocated_size;
-      prog.symlink_size += size;
+      auto const [total, allocated] = packed_links_.get_size_info(id.index());
+      prog.original_size += total;
+      prog.allocated_original_size += allocated;
+      prog.symlink_size += total;
     } else {
       frozen_panic();
     }
@@ -1073,9 +1072,9 @@ class entry_storage_ final : public entry_storage::impl {
     return dispatch_(&packed_entry_data::get_size, id);
   }
 
-  file_size_t get_entry_allocated_size(entry_id id) const override {
+  file_size_info get_entry_size_info(entry_id id) const override {
     TRACE_CALL;
-    return dispatch_(&packed_entry_data::get_allocated_size, id);
+    return dispatch_(&packed_entry_data::get_size_info, id);
   }
 
   void set_entry_empty(entry_id id) override {
@@ -1443,8 +1442,8 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->get_entry_size(id);
   }
 
-  file_size_t get_entry_allocated_size(entry_id id) const override {
-    return impl_.lock()->get_entry_allocated_size(id);
+  file_size_info get_entry_size_info(entry_id id) const override {
+    return impl_.lock()->get_entry_size_info(id);
   }
 
   void set_entry_empty(entry_id id) override {
