@@ -102,8 +102,8 @@ file_size_t entry_handle_base<Mut>::size() const {
 }
 
 template <mutability Mut>
-file_size_t entry_handle_base<Mut>::allocated_size() const {
-  return this->storage().get_entry_allocated_size(self_id_);
+file_size_info entry_handle_base<Mut>::size_info() const {
+  return this->storage().get_entry_size_info(self_id_);
 }
 
 template <mutability Mut>

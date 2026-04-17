@@ -107,6 +107,11 @@ using device_handle = basic_device_handle<detail::mutability::mutable_>;
 using const_other_handle = basic_other_handle<detail::mutability::const_>;
 using other_handle = basic_other_handle<detail::mutability::mutable_>;
 
+struct file_size_info {
+  file_size_t total{0};
+  file_size_t allocated{0};
+};
+
 class entry_handle_visitor {
  public:
   virtual ~entry_handle_visitor() = default;
@@ -143,7 +148,7 @@ class entry_handle_base {
   std::string_view name() const;
   bool less_revpath(basic_entry_handle<mutability::const_> rhs) const;
   file_size_t size() const;
-  file_size_t allocated_size() const;
+  file_size_info size_info() const;
   entry_type type() const;
   void update(internal::global_entry_data& data) const;
   unique_inode_id get_unique_inode_id() const;
