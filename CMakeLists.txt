@@ -645,6 +645,7 @@ if(WITH_TESTS)
       test/endian_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
+      $<$<BOOL:${ENABLE_STACKTRACE}>:test/event_tracer_test.cpp>
       test/file_access_test.cpp
       test/file_range_utils_test.cpp
       test/file_utils_test.cpp
@@ -889,6 +890,11 @@ if(WITH_TESTS)
       target_link_libraries(${tgt} PRIVATE dwarfs_writer)
     endif()
   endforeach()
+
+  if(ENABLE_STACKTRACE)
+    list(APPEND GTEST_COMMON_PROPERTIES
+         "ENVIRONMENT" "DWARFS_EVENT_TRACER_DONT_RESOLVE=1")
+  endif()
 
   if(ENABLE_COVERAGE)
     list(APPEND GTEST_COMMON_PROPERTIES

@@ -60,6 +60,7 @@ add_library(
   src/varint.cpp
   src/xattr.cpp
 
+  $<$<BOOL:${ENABLE_STACKTRACE}>:src/internal/event_tracer.cpp>
   src/internal/features.cpp
   src/internal/file_status_conv.cpp
   src/internal/fs_section.cpp
