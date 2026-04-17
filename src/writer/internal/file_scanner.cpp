@@ -81,7 +81,7 @@ class file_scanner_ final : public file_scanner::impl {
   using fast_map_type = phmap::flat_hash_map<Key, Value>;
 
   void scan_dedupe(file_handle p, file_size_info size_info);
-  void hash_file(file_handle p);
+  void hash_file(file_handle p, file_size_t size);
   void add_inode(file_handle p, int lineno);
 
   template <typename Lookup>
@@ -352,30 +352,30 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
       }
 
       // Add a job for the first file
-      wg_.add_job(
-          [this, p = storage_.handle(it->second.front()), latch, unique_key] {
-            hash_file(p);
+      wg_.add_job([this, p = storage_.handle(it->second.front()), latch,
+                   unique_key, size] {
+        hash_file(p, size);
 
-            {
-              std::lock_guard lock(mx_);
+        {
+          std::lock_guard lock(mx_);
 
-              assert(p.get_inode());
+          assert(p.get_inode());
 
-              if (p.is_invalid()) [[unlikely]] {
-                by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
-              } else {
-                auto& ref = by_hash_[p.hash()];
-                DWARFS_CHECK(ref.empty(),
-                             "internal error: unexpected existing hash");
-                ref.push_back(p.id());
-              }
+          if (p.is_invalid()) [[unlikely]] {
+            by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
+          } else {
+            auto& ref = by_hash_[p.hash()];
+            DWARFS_CHECK(ref.empty(),
+                         "internal error: unexpected existing hash");
+            ref.push_back(p.id());
+          }
 
-              latch->count_down();
+          latch->count_down();
 
-              DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
-                           "internal error: missing first file hashed latch");
-            }
-          });
+          DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
+                       "internal error: missing first file hashed latch");
+        }
+      });
 
       // Clear files vector, but don't delete the hash table entry, to indicate
       // that files of this (size, start_hash) *must* be hashed.
@@ -384,7 +384,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
 
     // Add a job for any subsequent files
     wg_.add_job([this, p, latch, size_info] mutable {
-      hash_file(p);
+      hash_file(p, size_info.total);
 
       if (latch) {
         // Wait until the first file of this (size, start_hash) has been added
@@ -422,12 +422,12 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::hash_file(file_handle p) {
+void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
+                                            file_size_t const size) {
   if (p.is_invalid()) {
     return;
   }
 
-  auto const size = p.size();
   file_view mm;
 
   if (size > 0) {
