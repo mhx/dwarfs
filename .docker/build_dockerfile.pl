@@ -45,6 +45,10 @@ RUN $WITH_CACHES \\
 BLOATY
 }
 
+my $BASE_IMAGE = <<'BASEIMAGE';
+FROM alpine:edge@sha256:9a341ff2287c54b86425cbee0141114d811ae69d88a36019087be6d896cef241 AS base
+BASEIMAGE
+
 print <<ENDHEADER;
 # syntax=docker/dockerfile:1
 #
@@ -59,8 +63,7 @@ print <<ENDHEADER;
 #
 ###############################################################################
 
-FROM alpine:edge AS base
-
+$BASE_IMAGE
 RUN apk update
 RUN apk upgrade
 RUN apk add --no-cache \\

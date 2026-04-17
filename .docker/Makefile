@@ -116,3 +116,17 @@ prune_build_cache:
 
 prune_images:
 	@docker image prune -af
+
+update_base_images: _update_base_images dockerfiles
+
+_update_base_images:
+	@./update_base_images.py \
+		build_dockerfile.pl \
+		Dockerfile.arch \
+		Dockerfile.debian \
+		Dockerfile.debian-testing \
+		Dockerfile.fedora \
+		Dockerfile.suse \
+		Dockerfile.ubuntu \
+		Dockerfile.ubuntu-2204 \
+		Dockerfile.ubuntu-2404

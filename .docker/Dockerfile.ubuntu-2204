@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 ARG ARCH=amd64
-FROM $ARCH/ubuntu:22.04
+FROM $ARCH/ubuntu:22.04@sha256:6b7cf132b6752976df1452a015beae4ce1ab92058ac93075e62ba7aba38984e4
 RUN apt update
 RUN apt upgrade -y
 RUN apt install -y gnupg wget software-properties-common

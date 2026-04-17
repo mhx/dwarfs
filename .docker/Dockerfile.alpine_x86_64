@@ -11,7 +11,7 @@
 #
 ###############################################################################
 
-FROM alpine:edge AS base
+FROM alpine:edge@sha256:9a341ff2287c54b86425cbee0141114d811ae69d88a36019087be6d896cef241 AS base
 
 RUN apk update
 RUN apk upgrade

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 ARG ARCH=amd64
-FROM $ARCH/ubuntu:24.04
+FROM $ARCH/ubuntu:24.04@sha256:b62cfdac2469e1f1219fe4a69475248159349ade845855228599fe9b0c16ae8e
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
