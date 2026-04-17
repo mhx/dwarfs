@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 ARG ARCH=amd64
-FROM $ARCH/debian:latest
+FROM $ARCH/debian:latest@sha256:b06733b772385810e8000d3e10de693d1efd85a6cb64f5a3220e9d78af2e3979
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \

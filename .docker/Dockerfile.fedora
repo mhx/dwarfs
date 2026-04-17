@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 ARG ARCH=amd64
-FROM $ARCH/fedora:rawhide
+FROM $ARCH/fedora:rawhide@sha256:b06a00b413ba20215272df3b0eb6e75d6ecc7c4ae71ae764b098b81b23b60f68
 RUN dnf update -y
 RUN dnf install -y \
         bash-completion \

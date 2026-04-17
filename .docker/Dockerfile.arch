@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM archlinux:latest
+FROM archlinux:latest@sha256:d0adc0bcc3bdfeacf9f30abd853c8d4d1dd40b6363e17cc158312a40423e063b
 RUN pacman -Syu --noconfirm
 RUN pacman -S --noconfirm --needed \
         bash-completion \
