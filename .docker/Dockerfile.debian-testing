@@ -3,8 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-ARG ARCH=amd64
-FROM $ARCH/debian:testing-slim@sha256:e23d76e5f7eef69a4762083a408f800c7c67951ffdd62cc95e2012a77f2b4eb3
+FROM debian:testing-slim@sha256:e23d76e5f7eef69a4762083a408f800c7c67951ffdd62cc95e2012a77f2b4eb3
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
