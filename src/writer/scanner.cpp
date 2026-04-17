@@ -269,7 +269,7 @@ class scanner_ final : public scanner::impl {
             std::span<std::filesystem::path const> list, progress& prog,
             file_scanner& fs);
 
-  entry_handle add_entry(entry_storage& tree, std::filesystem::path const& name,
+  entry_handle add_entry(entry_storage& tree, std::filesystem::path const& path,
                          dir_handle parent, progress& prog, file_scanner& fs,
                          bool debug_filter = false);
 
@@ -308,24 +308,24 @@ DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 template <typename LoggerPolicy>
 entry_handle
 scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
-                                  std::filesystem::path const& name,
+                                  std::filesystem::path const& path,
                                   dir_handle parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
   try {
-    auto ent = internal::provisional_entry(os_, name, parent);
+    auto ent = internal::provisional_entry(os_, path, parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       try {
-        auto tmp [[maybe_unused]] = name.filename().u8string();
+        auto tmp [[maybe_unused]] = path.filename().u8string();
       } catch (std::system_error const& e) {
         LOG_ERROR << fmt::format(
-            R"(invalid file name in "{}", storing as "{}": {})",
-            path_to_utf8_string_sanitized(name.parent_path()), ent.name(),
+            R"(invalid file path in "{}", storing as "{}": {})",
+            path_to_utf8_string_sanitized(path.parent_path()), ent.name(),
             error_cp_to_utf8(e.what()));
 
         prog.errors++;
 
-        if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
+        if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(path))
                  .second) {
           LOG_ERROR << fmt::format(
               "cannot store \"{}\" as the name already exists", ent.name());
@@ -367,6 +367,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
     }
 
+    auto const size = ent.size();
     auto pe = ent.commit(tree);
 
     switch (pe.type()) {
@@ -379,13 +380,18 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
 
     case entry_type::E_FILE:
-      if (!debug_filter && pe.size() > 0 && os_.access(pe.fs_path(), R_OK)) {
-        LOG_ERROR << "cannot access " << pe.path_as_string()
+      assert(path == pe.fs_path());
+      assert(size == pe.size());
+
+      if (!debug_filter && size > 0 && os_.access(path, R_OK)) {
+        LOG_ERROR << "cannot access " << path_to_utf8_string_sanitized(path)
                   << ", creating empty file";
         pe.set_empty();
         prog.errors++;
       }
+
       prog.files_found++;
+
       if (!debug_filter) {
         fs.scan(pe.as_file());
       }
@@ -409,7 +415,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
 
     default:
       LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe.type())
-                << " (" << pe.path_as_string() << ")";
+                << " (" << path_to_utf8_string_sanitized(path) << ")";
       prog.errors++;
       break;
     }
@@ -417,7 +423,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     return pe;
   } catch (std::system_error const& e) {
     LOG_ERROR << fmt::format("error reading entry (path={}): {}",
-                             path_to_utf8_string_sanitized(name),
+                             path_to_utf8_string_sanitized(path),
                              exception_str(e));
     prog.errors++;
   }
