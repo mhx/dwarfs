@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM debian:latest@sha256:b06733b772385810e8000d3e10de693d1efd85a6cb64f5a3220e9d78af2e3979
+FROM debian:latest@sha256:3352c2e13876c8a5c5873ef20870e1939e73cb9a3c1aeba5e3e72172a85ce9ed
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
