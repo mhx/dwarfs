@@ -3,8 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-ARG ARCH=amd64
-FROM $ARCH/ubuntu:26.04@sha256:54373cf73ad2b91ad4fd3ce7598a4d50a394ff95cc4565cf1b5f151d6bd79576
+FROM ubuntu:26.04@sha256:54373cf73ad2b91ad4fd3ce7598a4d50a394ff95cc4565cf1b5f151d6bd79576
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \

@@ -71,7 +71,6 @@ jobs:
           fi
           docker buildx build --progress=plain -f "$dockerfile" \
             -t dwarfs-linux-build-${{ inputs.build_dist }} \
-            --build-arg ARCH=${{ inputs.build_arch }} \
             .docker
 
       - name: Run Build
