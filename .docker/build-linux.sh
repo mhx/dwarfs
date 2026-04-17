@@ -98,7 +98,7 @@ ARCH="$(uname -m)"
 
 if [[ "$BUILD_DIST" == "alpine" ]]; then
   GCC_VERSION=
-  CLANG_VERSION=-21
+  CLANG_VERSION=-22
 elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
   GCC_VERSION=-12
   CLANG_VERSION=-15
