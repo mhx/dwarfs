@@ -59,7 +59,7 @@ print <<ENDHEADER;
 #
 ###############################################################################
 
-FROM alpine:latest AS base
+FROM alpine:edge AS base
 
 RUN apk update
 RUN apk upgrade
@@ -74,7 +74,7 @@ RUN apk add --no-cache \\
         less \\
         gcc \\
         g++ \\
-        clang21 \\
+        clang22 \\
         lld \\
         git \\
         xz \\

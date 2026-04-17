@@ -8,7 +8,7 @@ set -ex
 ARCH="$(uname -m)"
 
 GCC="gcc"
-CLANG="clang-21"
+CLANG="clang-22"
 PKGS="$1"
 TARGET_ARCH="$2"
 COMPILER="$3"
