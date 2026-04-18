@@ -1,7 +1,7 @@
 /* vim:set ts=2 sw=2 sts=2 et: */
 /**
- * \author     Marcus Holland-Moritz (github@mhxnet.de)
- * \copyright  Copyright (c) Marcus Holland-Moritz
+ * \author     Bertrand Lebonnois
+ * \copyright  Copyright (c) Bertrand Lebonnois
  *
  * This file is part of dwarfs.
  *
@@ -28,17 +28,15 @@
 
 #include <zxc.h>
 
-#include <cstring>
-
 #include <fmt/format.h>
 
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/decompressor_registry.h>
-#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/varint.h>
 
 #include "base.h"
 
@@ -86,17 +84,15 @@ class zxc_block_compressor final : public block_compressor::impl {
   shared_byte_buffer compress(shared_byte_buffer const& data,
                               std::string const* /*metadata*/) const override {
     auto compressed = malloc_byte_buffer::create();
-    compressed.resize(sizeof(uint32_t) +
+    compressed.resize(varint::max_size +
                       ::zxc_compress_block_bound(data.size()));
 
-    // Store uncompressed size as little-endian uint32 prefix
-    uint32le_t size(data.size());
-    std::memcpy(compressed.data(), &size, sizeof(size));
+    size_t size_size = varint::encode(data.size(), compressed.data());
 
     auto const csize =
         ::zxc_compress_block(cctx_, data.data(), data.size(),
-                             compressed.data() + sizeof(uint32_t),
-                             compressed.size() - sizeof(uint32_t), nullptr);
+                             compressed.data() + size_size,
+                             compressed.size() - size_size, nullptr);
 
     if (csize < 0) {
       DWARFS_THROW(runtime_error,
@@ -104,11 +100,12 @@ class zxc_block_compressor final : public block_compressor::impl {
                                ::zxc_error_name(static_cast<int>(csize))));
     }
 
-    if (sizeof(uint32_t) + static_cast<size_t>(csize) >= data.size()) {
+    compressed.resize(size_size + static_cast<size_t>(csize));
+
+    if (compressed.size() >= data.size()) {
       throw bad_compression_ratio_error();
     }
 
-    compressed.resize(sizeof(uint32_t) + static_cast<size_t>(csize));
     compressed.shrink_to_fit();
     return compressed.share();
   }
@@ -127,7 +124,7 @@ class zxc_block_compressor final : public block_compressor::impl {
   }
 
   size_t estimate_memory_usage(size_t data_size) const override {
-    return sizeof(uint32_t) + ::zxc_compress_block_bound(data_size) + data_size;
+    return varint::max_size + ::zxc_compress_block_bound(data_size) + data_size;
   }
 
  private:
@@ -139,10 +136,8 @@ class zxc_block_compressor final : public block_compressor::impl {
 class zxc_block_decompressor final : public block_decompressor_base {
  public:
   zxc_block_decompressor(std::span<uint8_t const> data)
-      : data_(data.size() >= sizeof(uint32_t)
-                  ? data.subspan(sizeof(uint32_t))
-                  : throw std::runtime_error("ZXC: compressed data too small"))
-      , uncompressed_size_(get_uncompressed_size(data.data())) {
+      : data_(checked_subspan(data))
+      , uncompressed_size_(varint::decode(data_)) {
     if (uncompressed_size_ == 0) {
       DWARFS_THROW(runtime_error,
                    "ZXC: could not determine decompressed size");
@@ -188,14 +183,16 @@ class zxc_block_decompressor final : public block_decompressor_base {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  static size_t get_uncompressed_size(uint8_t const* data) {
-    uint32le_t size;
-    ::memcpy(&size, data, sizeof(size));
-    return size;
+  static std::span<uint8_t const>
+  checked_subspan(std::span<uint8_t const> data) {
+    if (data.empty()) {
+      DWARFS_THROW(runtime_error, "ZXC: compressed data is empty");
+    }
+    return data;
   }
 
   std::span<uint8_t const> data_;
-  size_t const uncompressed_size_;
+  uint64_t const uncompressed_size_;
   zxc_dctx* dctx_;
   std::string error_;
 };
