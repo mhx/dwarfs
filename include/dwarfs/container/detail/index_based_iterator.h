@@ -149,6 +149,7 @@ class index_based_iterator {
 
   friend void
   iter_swap(index_based_iterator const& a, index_based_iterator const& b)
+      noexcept(std::is_nothrow_swappable_v<std::remove_reference_t<reference>>)
     requires std::is_reference_v<reference>
   {
     assert(a.vec_ == b.vec_);
@@ -158,6 +159,12 @@ class index_based_iterator {
 
   friend void
   iter_swap(index_based_iterator const& a, index_based_iterator const& b)
+      noexcept(
+          noexcept(
+              value_type(static_cast<value_type>((*a.vec_)[a.get_index()]))) &&
+          noexcept((*a.vec_)[a.get_index()] =
+                       static_cast<value_type>((*b.vec_)[b.get_index()])) &&
+          noexcept((*b.vec_)[b.get_index()] = std::declval<value_type&&>()))
     requires(!std::is_reference_v<reference>)
   {
     assert(a.vec_ == b.vec_);
