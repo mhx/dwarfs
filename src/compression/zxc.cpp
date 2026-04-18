@@ -28,6 +28,9 @@
 
 #include <zxc.h>
 
+#include <algorithm>
+#include <bit>
+
 #include <fmt/format.h>
 
 #include <dwarfs/compressor_registry.h>
@@ -89,10 +92,17 @@ class zxc_block_compressor final : public block_compressor::impl {
 
     size_t size_size = varint::encode(data.size(), compressed.data());
 
+    zxc_compress_opts_t copts{};
+    copts.level = level_;
+    copts.block_size = std::max(
+        std::bit_ceil(data.size()),
+        static_cast<size_t>(ZXC_BLOCK_SIZE_MIN));
+    copts.checksum_enabled = 0;
+
     auto const csize =
         ::zxc_compress_block(cctx_, data.data(), data.size(),
                              compressed.data() + size_size,
-                             compressed.size() - size_size, nullptr);
+                             compressed.size() - size_size, &copts);
 
     if (csize < 0) {
       DWARFS_THROW(runtime_error,
