@@ -71,7 +71,7 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
   }
 
   void clear() override {
-    assert_not_frozen("clear");
+    // clear *only* resets the size and does not affect the allocated memory
     data_.clear();
   }
 
