@@ -152,19 +152,32 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    auto const aligned_size = std::max(
+    auto const aligned_size = static_cast<size_t>(std::max(
         std::bit_ceil(uncompressed_size_),
-        static_cast<uint64_t>(ZXC_BLOCK_SIZE_MIN));
-
-    decompressed_.resize(static_cast<size_t>(aligned_size));
+        static_cast<uint64_t>(ZXC_BLOCK_SIZE_MIN)));
 
     zxc_decompress_opts_t opts{};
     opts.checksum_enabled = 0;
 
-    auto const rv =
-        ::zxc_decompress_block(dctx_, data_.data(), data_.size(),
-                               decompressed_.data(), decompressed_.size(),
-                               &opts);
+    // ZXC requires a power-of-two dst_capacity, which may exceed the
+    // buffer reserved by the framework. Use a temporary when needed.
+    std::vector<uint8_t> tmp;
+    bool const needs_tmp = aligned_size > uncompressed_size_;
+    uint8_t* dst = nullptr;
+    size_t dst_cap = 0;
+
+    if (needs_tmp) {
+      tmp.resize(aligned_size);
+      dst = tmp.data();
+      dst_cap = tmp.size();
+    } else {
+      decompressed_.resize(static_cast<size_t>(uncompressed_size_));
+      dst = decompressed_.data();
+      dst_cap = decompressed_.size();
+    }
+
+    auto const rv = ::zxc_decompress_block(
+        dctx_, data_.data(), data_.size(), dst, dst_cap, &opts);
 
     if (rv < 0) {
       decompressed_.clear();
@@ -173,7 +186,11 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    decompressed_.resize(static_cast<size_t>(uncompressed_size_));
+    if (needs_tmp) {
+      decompressed_.resize(static_cast<size_t>(uncompressed_size_));
+      std::memcpy(decompressed_.data(), tmp.data(),
+                  static_cast<size_t>(uncompressed_size_));
+    }
 
     return true;
   }
