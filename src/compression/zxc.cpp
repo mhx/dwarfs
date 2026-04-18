@@ -170,7 +170,11 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    decompressed_.resize(uncompressed_size_);
+    auto const aligned_size = std::max(
+        std::bit_ceil(uncompressed_size_),
+        static_cast<uint64_t>(ZXC_BLOCK_SIZE_MIN));
+
+    decompressed_.resize(static_cast<size_t>(aligned_size));
 
     zxc_decompress_opts_t opts{};
     opts.checksum_enabled = 0;
@@ -186,6 +190,8 @@ class zxc_block_decompressor final : public block_decompressor_base {
                            ::zxc_error_name(static_cast<int>(rv)));
       DWARFS_THROW(runtime_error, error_);
     }
+
+    decompressed_.resize(static_cast<size_t>(uncompressed_size_));
 
     return true;
   }
