@@ -127,6 +127,9 @@ compression_registry<FactoryT, InfoT>::compression_registry() {
 #ifdef DWARFS_HAVE_LIBZSTD
   do_register<ZSTD>();
 #endif
+#ifdef DWARFS_HAVE_LIBZXC
+  do_register<ZXC>();
+#endif
 }
 
 } // namespace dwarfs::detail

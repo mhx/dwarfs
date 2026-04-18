@@ -94,6 +94,7 @@ add_library(
   $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/compression/brotli.cpp>
   $<$<BOOL:${FLAC_FOUND}>:src/compression/flac.cpp>
   $<$<BOOL:${ENABLE_RICEPP}>:src/compression/ricepp.cpp>
+  $<$<BOOL:${LIBZXC_FOUND}>:src/compression/zxc.cpp>
 )
 
 add_library(
@@ -313,6 +314,10 @@ endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+endif()
+
+if(LIBZXC_FOUND)
+  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBZXC)
 endif()
 
 if(ENABLE_STACKTRACE)
