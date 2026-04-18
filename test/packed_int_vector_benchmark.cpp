@@ -74,7 +74,7 @@ std::vector<value_type> make_values(std::size_t n, std::size_t bits,
   auto const mask = bit_mask(bits);
 
   for (std::size_t i = 0; i < n; ++i) {
-    values[i] = static_cast<value_type>(xorshift64star(seed)) & mask;
+    values[i] = xorshift64star(seed) & mask;
   }
 
   return values;
