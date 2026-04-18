@@ -161,8 +161,7 @@ class inode_manager_ final : public inode_manager::impl {
  private:
   auto all_inodes() {
     using index_t = std::uint64_t;
-    return std::views::iota(index_t{0},
-                            static_cast<index_t>(storage_.inode_count())) |
+    return std::views::iota(index_t{0}, storage_.inode_count()) |
            std::views::transform([this](index_t i) -> decltype(auto) {
              return inode_handle{storage_, inode_id{i}};
            });
@@ -170,8 +169,7 @@ class inode_manager_ final : public inode_manager::impl {
 
   auto all_inodes() const {
     using index_t = std::uint64_t;
-    return std::views::iota(index_t{0},
-                            static_cast<index_t>(storage_.inode_count())) |
+    return std::views::iota(index_t{0}, storage_.inode_count()) |
            std::views::transform([this](index_t i) -> decltype(auto) {
              return const_inode_handle{storage_, inode_id{i}};
            });
