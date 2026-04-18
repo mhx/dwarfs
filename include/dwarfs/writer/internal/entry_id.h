@@ -171,6 +171,7 @@ using other_id = typed_entry_id<entry_type::E_OTHER>;
 
 } // namespace dwarfs::writer::internal
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 template <>
 struct std::hash<dwarfs::writer::internal::entry_id> {
   size_t
@@ -186,6 +187,7 @@ struct std::hash<dwarfs::writer::internal::typed_entry_id<Type>> {
     return id.object_hash();
   }
 };
+// NOLINTEND(cert-dcl58-cpp)
 
 namespace dwarfs::container {
 
