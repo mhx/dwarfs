@@ -1,7 +1,7 @@
 /* vim:set ts=2 sw=2 sts=2 et: */
 /**
- * \author     Marcus Holland-Moritz (github@mhxnet.de)
- * \copyright  Copyright (c) Marcus Holland-Moritz
+ * \author     Bertrand Lebonnois
+ * \copyright  Copyright (c) Bertrand Lebonnois
  *
  * This file is part of dwarfs.
  *
@@ -28,17 +28,18 @@
 
 #include <zxc.h>
 
-#include <cstring>
+#include <algorithm>
+#include <bit>
 
 #include <fmt/format.h>
 
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/decompressor_registry.h>
-#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/varint.h>
 
 #include "base.h"
 
@@ -48,36 +49,10 @@ namespace {
 
 class zxc_block_compressor final : public block_compressor::impl {
  public:
-  explicit zxc_block_compressor(int level = ::zxc_default_level(),
-                                size_t block_size = ZXC_BLOCK_SIZE_DEFAULT)
-      : level_{level}
-      , block_size_{block_size} {
-    zxc_compress_opts_t opts{};
-    opts.level = level_;
-    opts.block_size = block_size_;
-    opts.checksum_enabled = 0;
-    cctx_ = ::zxc_create_cctx(&opts);
-    if (!cctx_) {
-      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
-    }
-  }
+  explicit zxc_block_compressor(int level = ::zxc_default_level())
+      : level_{level} {}
 
-  ~zxc_block_compressor() override { ::zxc_free_cctx(cctx_); }
-
-  zxc_block_compressor(zxc_block_compressor const& rhs)
-      : level_{rhs.level_}
-      , block_size_{rhs.block_size_} {
-    zxc_compress_opts_t opts{};
-    opts.level = level_;
-    opts.block_size = block_size_;
-    opts.checksum_enabled = 0;
-    cctx_ = ::zxc_create_cctx(&opts);
-    if (!cctx_) {
-      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
-    }
-  }
-
-  zxc_block_compressor& operator=(zxc_block_compressor const&) = delete;
+  zxc_block_compressor(zxc_block_compressor const&) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<zxc_block_compressor>(*this);
@@ -86,17 +61,28 @@ class zxc_block_compressor final : public block_compressor::impl {
   shared_byte_buffer compress(shared_byte_buffer const& data,
                               std::string const* /*metadata*/) const override {
     auto compressed = malloc_byte_buffer::create();
-    compressed.resize(sizeof(uint32_t) +
+    compressed.resize(varint::max_size +
                       ::zxc_compress_block_bound(data.size()));
 
-    // Store uncompressed size as little-endian uint32 prefix
-    uint32le_t size(data.size());
-    std::memcpy(compressed.data(), &size, sizeof(size));
+    size_t size_size = varint::encode(data.size(), compressed.data());
+
+    zxc_compress_opts_t copts{};
+    copts.level = level_;
+    copts.block_size = std::max(
+        std::bit_ceil(data.size()),
+        static_cast<size_t>(ZXC_BLOCK_SIZE_MIN));
+
+    zxc_cctx* cctx = ::zxc_create_cctx(&copts);
+    if (!cctx) {
+      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
+    }
 
     auto const csize =
-        ::zxc_compress_block(cctx_, data.data(), data.size(),
-                             compressed.data() + sizeof(uint32_t),
-                             compressed.size() - sizeof(uint32_t), nullptr);
+        ::zxc_compress_block(cctx, data.data(), data.size(),
+                             compressed.data() + size_size,
+                             compressed.size() - size_size, nullptr);
+
+    ::zxc_free_cctx(cctx);
 
     if (csize < 0) {
       DWARFS_THROW(runtime_error,
@@ -104,11 +90,12 @@ class zxc_block_compressor final : public block_compressor::impl {
                                ::zxc_error_name(static_cast<int>(csize))));
     }
 
-    if (sizeof(uint32_t) + static_cast<size_t>(csize) >= data.size()) {
+    compressed.resize(size_size + static_cast<size_t>(csize));
+
+    if (compressed.size() >= data.size()) {
       throw bad_compression_ratio_error();
     }
 
-    compressed.resize(sizeof(uint32_t) + static_cast<size_t>(csize));
     compressed.shrink_to_fit();
     return compressed.share();
   }
@@ -116,7 +103,7 @@ class zxc_block_compressor final : public block_compressor::impl {
   compression_type type() const override { return compression_type::ZXC; }
 
   std::string describe() const override {
-    return fmt::format("zxc [level={}, block_size={}]", level_, block_size_);
+    return fmt::format("zxc [level={}]", level_);
   }
 
   std::string metadata_requirements() const override { return {}; }
@@ -127,22 +114,18 @@ class zxc_block_compressor final : public block_compressor::impl {
   }
 
   size_t estimate_memory_usage(size_t data_size) const override {
-    return sizeof(uint32_t) + ::zxc_compress_block_bound(data_size) + data_size;
+    return varint::max_size + ::zxc_compress_block_bound(data_size) + data_size;
   }
 
  private:
   int const level_;
-  size_t const block_size_;
-  zxc_cctx* cctx_;
 };
 
 class zxc_block_decompressor final : public block_decompressor_base {
  public:
-  zxc_block_decompressor(std::span<uint8_t const> data)
-      : data_(data.size() >= sizeof(uint32_t)
-                  ? data.subspan(sizeof(uint32_t))
-                  : throw std::runtime_error("ZXC: compressed data too small"))
-      , uncompressed_size_(get_uncompressed_size(data.data())) {
+  explicit zxc_block_decompressor(std::span<uint8_t const> data)
+      : data_(checked_subspan(data))
+      , uncompressed_size_(varint::decode(data_)) {
     if (uncompressed_size_ == 0) {
       DWARFS_THROW(runtime_error,
                    "ZXC: could not determine decompressed size");
@@ -152,6 +135,15 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error,
                    "ZXC: failed to create decompression context");
     }
+    // ZXC's decoder uses speculative wild-copy writes; ZXC_PAD_SIZE * 66 =
+    // 2112 bytes of tail margin enables the fast path. The framework's
+    // target buffer is a fixed-reserve buffer (frozen at uncompressed_size)
+    // so we cannot oversize it directly and have to decompress into this
+    // scratch, then memcpy the payload out. TODO: Replace with
+    // ::zxc_decompress_block_bound(uncompressed_size_) once libzxc exposes
+    // it (next release).
+    static constexpr size_t kWildCopyPad = 2112;
+    tmp_.resize(static_cast<size_t>(uncompressed_size_) + kWildCopyPad);
   }
 
   ~zxc_block_decompressor() override { ::zxc_free_dctx(dctx_); }
@@ -165,15 +157,18 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    decompressed_.resize(uncompressed_size_);
-
     zxc_decompress_opts_t opts{};
-    opts.checksum_enabled = 0;
 
-    auto const rv =
-        ::zxc_decompress_block(dctx_, data_.data(), data_.size(),
-                               decompressed_.data(), decompressed_.size(),
-                               &opts);
+    // Decompressing into tmp_ then memcpy'ing into decompressed_ is
+    // required because zxc_decompress_block performs speculative wild-copy
+    // writes and needs tail padding beyond uncompressed_size. The framework
+    // target buffer is fixed-reserved at uncompressed_size exactly, so we
+    // cannot decompress into it directly.
+    // TODO: once libzxc exposes a zxc_decompress_block_safe() variant
+    // (bounds-checked, accepts dst_capacity == uncompressed_size), drop
+    // tmp_ and the memcpy and decompress straight into decompressed_.data().
+    auto const rv = ::zxc_decompress_block(
+        dctx_, data_.data(), data_.size(), tmp_.data(), tmp_.size(), &opts);
 
     if (rv < 0) {
       decompressed_.clear();
@@ -182,21 +177,27 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
+    decompressed_.resize(static_cast<size_t>(uncompressed_size_));
+    std::memcpy(decompressed_.data(), tmp_.data(),
+                static_cast<size_t>(uncompressed_size_));
     return true;
   }
 
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  static size_t get_uncompressed_size(uint8_t const* data) {
-    uint32le_t size;
-    ::memcpy(&size, data, sizeof(size));
-    return size;
+  static std::span<uint8_t const>
+  checked_subspan(std::span<uint8_t const> data) {
+    if (data.empty()) {
+      DWARFS_THROW(runtime_error, "ZXC: compressed data is empty");
+    }
+    return data;
   }
 
   std::span<uint8_t const> data_;
-  size_t const uncompressed_size_;
+  uint64_t const uncompressed_size_;
   zxc_dctx* dctx_;
+  std::vector<uint8_t> tmp_;
   std::string error_;
 };
 
@@ -226,15 +227,12 @@ class zxc_compressor_factory final
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {
     return std::make_unique<zxc_block_compressor>(
-        om.get<int>("level", ::zxc_default_level()),
-        om.get<size_t>("block_size", ZXC_BLOCK_SIZE_DEFAULT));
+        om.get<int>("level", ::zxc_default_level()));
   }
 
  private:
   std::vector<std::string> const options_{
-      fmt::format("level=[{}..{}]", ::zxc_min_level(), ::zxc_max_level()),
-      fmt::format("block_size=[{}..{}]", ZXC_BLOCK_SIZE_MIN,
-                  ZXC_BLOCK_SIZE_MAX)};
+      fmt::format("level=[{}..{}]", ::zxc_min_level(), ::zxc_max_level())};
 };
 
 class zxc_decompressor_factory final
