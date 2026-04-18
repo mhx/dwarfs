@@ -132,10 +132,12 @@ class pinned_byte_span_store {
 
   void ensure_capacity_for_one_more() {
     if (size_ == chunks_.size() * ChunkSize) {
+      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
       chunks_.push_back(std::make_unique<std::byte[]>(bytes_per_chunk()));
     }
   }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   std::vector<std::unique_ptr<std::byte[]>> chunks_;
   size_type span_size_;
   size_type size_{0};

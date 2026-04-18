@@ -403,6 +403,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   [[nodiscard]] auto heap_data() const noexcept -> underlying_type const* {
     assert(!is_inline());
     underlying_type* p = nullptr;
+    // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
     std::memcpy(&p, state_.data() + heap_pointer_offset_bytes, sizeof(p));
     return p;
   }
@@ -491,6 +492,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   }
 
   void set_heap_data(underlying_type* p) noexcept {
+    // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
     std::memcpy(state_.data() + heap_pointer_offset_bytes, &p, sizeof(p));
   }
 
