@@ -142,13 +142,11 @@ class entry_storage {
     return impl_->get_name(id);
   }
 
-  void remove_empty_dirs(progress& prog) {
-    return impl_->remove_empty_dirs(prog);
-  }
+  void remove_empty_dirs(progress& prog) { impl_->remove_empty_dirs(prog); }
 
   void for_each_entry_in_dir(entry_id id,
                              std::function<void(entry_id)> const& f) const {
-    return impl_->for_each_entry_in_dir(id, f);
+    impl_->for_each_entry_in_dir(id, f);
   }
 
   entry_id find_in_dir(entry_id id, std::string_view name) const {
@@ -221,7 +219,7 @@ class entry_storage {
   }
 
   void create_packed_file_data(file_id id) {
-    return impl_->create_packed_file_data(id);
+    impl_->create_packed_file_data(id);
   }
 
   [[nodiscard]] file_id_vector const& get_files_for_inode(inode_id id) const {
@@ -229,7 +227,7 @@ class entry_storage {
   }
 
   void set_files_for_inode(inode_id id, file_id_vector fv) {
-    impl_->set_files_for_inode(id, fv);
+    impl_->set_files_for_inode(id, std::move(fv));
   }
 
   void set_file_inode(file_id id, inode_id ino) {
@@ -304,7 +302,7 @@ class entry_storage {
     virtual file_stat::nlink_type get_nlink(entry_id id) const = 0;
 
     virtual void
-    create_hardlink(file_id source, file_id target, progress& prog) = 0;
+    create_hardlink(file_id target, file_id source, progress& prog) = 0;
     virtual std::size_t hardlink_count(file_id id) const = 0;
 
     virtual void set_file_invalid(file_id id) = 0;

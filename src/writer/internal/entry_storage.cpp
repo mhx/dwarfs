@@ -124,7 +124,7 @@ class path_component {
 #if DWARFS_KEEP_FS_PATHS
     return path_;
 #else
-    return fs::path(name_);
+    return {name_};
 #endif
   }
 
@@ -1435,8 +1435,8 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   }
 
   void
-  create_hardlink(file_id source, file_id target, progress& prog) override {
-    impl_.lock()->create_hardlink(source, target, prog);
+  create_hardlink(file_id target, file_id source, progress& prog) override {
+    impl_.lock()->create_hardlink(target, source, prog);
   }
 
   std::size_t hardlink_count(file_id id) const override {
