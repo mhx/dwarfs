@@ -96,15 +96,16 @@ class sortable_inode_span {
 
   void all() {
     index_.resize(raw_size_);
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::iota(index_.begin(), index_.end(), 0);
   }
 
   bool empty() const { return index_.empty(); }
   size_t size() const { return index_.size(); }
 
-  iterator begin() { return iterator(this, index_.begin()); }
+  iterator begin() { return {this, index_.begin()}; }
 
-  iterator end() { return iterator(this, index_.end()); }
+  iterator end() { return {this, index_.end()}; }
 
   std::vector<index_value_type>& index() { return index_; }
   std::vector<index_value_type> const& index() const { return index_; }
