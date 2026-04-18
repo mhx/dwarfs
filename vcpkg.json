@@ -25,6 +25,10 @@
     {"name": "range-v3", "version>=": "0.12.0#4"},
     {"name": "utfcpp", "version>=": "4.0.9"},
     {"name": "xxhash", "version>=": "0.8.3"},
-    {"name": "zstd", "version>=": "1.5.7"}
+    {"name": "zstd", "version>=": "1.5.7"},
+    {"name": "zxc", "version>=": "0.10.0"}
+  ],
+  "overrides": [
+    {"name": "zxc", "version": "0.10.0"}
   ]
 }
