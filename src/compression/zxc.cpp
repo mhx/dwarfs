@@ -52,33 +52,9 @@ class zxc_block_compressor final : public block_compressor::impl {
   explicit zxc_block_compressor(int level = ::zxc_default_level(),
                                 size_t block_size = ZXC_BLOCK_SIZE_DEFAULT)
       : level_{level}
-      , block_size_{block_size} {
-    zxc_compress_opts_t opts{};
-    opts.level = level_;
-    opts.block_size = block_size_;
-    opts.checksum_enabled = 0;
-    cctx_ = ::zxc_create_cctx(&opts);
-    if (!cctx_) {
-      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
-    }
-  }
+      , block_size_{block_size} {}
 
-  ~zxc_block_compressor() override { ::zxc_free_cctx(cctx_); }
-
-  zxc_block_compressor(zxc_block_compressor const& rhs)
-      : level_{rhs.level_}
-      , block_size_{rhs.block_size_} {
-    zxc_compress_opts_t opts{};
-    opts.level = level_;
-    opts.block_size = block_size_;
-    opts.checksum_enabled = 0;
-    cctx_ = ::zxc_create_cctx(&opts);
-    if (!cctx_) {
-      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
-    }
-  }
-
-  zxc_block_compressor& operator=(zxc_block_compressor const&) = delete;
+  zxc_block_compressor(zxc_block_compressor const&) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<zxc_block_compressor>(*this);
@@ -99,10 +75,17 @@ class zxc_block_compressor final : public block_compressor::impl {
         static_cast<size_t>(ZXC_BLOCK_SIZE_MIN));
     copts.checksum_enabled = 0;
 
+    zxc_cctx* cctx = ::zxc_create_cctx(&copts);
+    if (!cctx) {
+      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
+    }
+
     auto const csize =
-        ::zxc_compress_block(cctx_, data.data(), data.size(),
+        ::zxc_compress_block(cctx, data.data(), data.size(),
                              compressed.data() + size_size,
-                             compressed.size() - size_size, &copts);
+                             compressed.size() - size_size, nullptr);
+
+    ::zxc_free_cctx(cctx);
 
     if (csize < 0) {
       DWARFS_THROW(runtime_error,
@@ -140,7 +123,6 @@ class zxc_block_compressor final : public block_compressor::impl {
  private:
   int const level_;
   size_t const block_size_;
-  zxc_cctx* cctx_;
 };
 
 class zxc_block_decompressor final : public block_decompressor_base {
