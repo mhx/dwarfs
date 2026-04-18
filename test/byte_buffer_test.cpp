@@ -84,10 +84,6 @@ TEST(byte_buffer_test, malloc_byte_buffer) {
       ::testing::ThrowsMessage<std::runtime_error>(
           "operation not allowed on frozen buffer: append beyond capacity"));
 
-  EXPECT_THAT([&] { buf.clear(); },
-              ::testing::ThrowsMessage<std::runtime_error>(
-                  "operation not allowed on frozen buffer: clear"));
-
   EXPECT_THAT([&] { buf.shrink_to_fit(); },
               ::testing::ThrowsMessage<std::runtime_error>(
                   "operation not allowed on frozen buffer: shrink_to_fit"));
@@ -98,6 +94,10 @@ TEST(byte_buffer_test, malloc_byte_buffer) {
   EXPECT_EQ(buf2.size(), 6);
   EXPECT_NO_THROW(buf2.resize(30));
   EXPECT_TRUE(std::memcmp(buf.data(), buf2.data(), 6) == 0);
+
+  EXPECT_NO_THROW(buf.clear()); // still allowed to clear if frozen
+  EXPECT_TRUE(buf.empty());
+  EXPECT_EQ(buf.size(), 0);
 
   buf = dwarfs::malloc_byte_buffer::create(13);
 
