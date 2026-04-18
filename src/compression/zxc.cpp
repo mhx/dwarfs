@@ -145,7 +145,7 @@ class zxc_block_compressor final : public block_compressor::impl {
 
 class zxc_block_decompressor final : public block_decompressor_base {
  public:
-  zxc_block_decompressor(std::span<uint8_t const> data)
+  explicit zxc_block_decompressor(std::span<uint8_t const> data)
       : data_(checked_subspan(data))
       , uncompressed_size_(varint::decode(data_)) {
     if (uncompressed_size_ == 0) {
