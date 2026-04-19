@@ -49,10 +49,8 @@ namespace {
 
 class zxc_block_compressor final : public block_compressor::impl {
  public:
-  explicit zxc_block_compressor(int level = ::zxc_default_level(),
-                                size_t block_size = ZXC_BLOCK_SIZE_DEFAULT)
-      : level_{level}
-      , block_size_{block_size} {}
+  explicit zxc_block_compressor(int level = ::zxc_default_level())
+      : level_{level} {}
 
   zxc_block_compressor(zxc_block_compressor const&) = default;
 
@@ -106,7 +104,7 @@ class zxc_block_compressor final : public block_compressor::impl {
   compression_type type() const override { return compression_type::ZXC; }
 
   std::string describe() const override {
-    return fmt::format("zxc [level={}, block_size={}]", level_, block_size_);
+    return fmt::format("zxc [level={}]", level_);
   }
 
   std::string metadata_requirements() const override { return {}; }
@@ -122,7 +120,6 @@ class zxc_block_compressor final : public block_compressor::impl {
 
  private:
   int const level_;
-  size_t const block_size_;
 };
 
 class zxc_block_decompressor final : public block_decompressor_base {
@@ -238,15 +235,12 @@ class zxc_compressor_factory final
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {
     return std::make_unique<zxc_block_compressor>(
-        om.get<int>("level", ::zxc_default_level()),
-        om.get<size_t>("block_size", ZXC_BLOCK_SIZE_DEFAULT));
+        om.get<int>("level", ::zxc_default_level()));
   }
 
  private:
   std::vector<std::string> const options_{
-      fmt::format("level=[{}..{}]", ::zxc_min_level(), ::zxc_max_level()),
-      fmt::format("block_size=[{}..{}]", ZXC_BLOCK_SIZE_MIN,
-                  ZXC_BLOCK_SIZE_MAX)};
+      fmt::format("level=[{}..{}]", ::zxc_min_level(), ::zxc_max_level())};
 };
 
 class zxc_decompressor_factory final
