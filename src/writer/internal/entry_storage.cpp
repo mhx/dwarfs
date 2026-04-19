@@ -203,6 +203,7 @@ std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
 }
 
 struct shared_entry_data {
+ public:
   void drop_indices() {
     path_index_.reset();
     device_index_.reset();
@@ -211,8 +212,6 @@ struct shared_entry_data {
     gid_index_.reset();
     link_target_index_.reset();
   }
-
-  void drop_lookup_tables() { dir_entry_lookup_.clear(); }
 
   auto add_path_component(fs::path const& component, bool is_root) {
     return path_index_->add(component, is_root);
@@ -226,15 +225,58 @@ struct shared_entry_data {
 
   auto add_gid(file_stat::gid_type gid) { return gid_index_->add(gid); }
 
-  auto add_link(std::string link) {
+  auto add_link_target(std::string link) {
     return link_target_index_->add(std::move(link));
   }
 
-  void add_dir_entry(dir_id parent, std::uint64_t entry_ix, entry_type type,
-                     size_t path_ix);
+  void add_dir_entry_vec() { dir_entries_.emplace_back(); }
+
+  void add_dir_entry(dir_id parent, entry_type type, std::uint64_t entry_ix);
 
   void dump(std::ostream& os) const;
 
+  auto get_path_component(size_t index) const -> path_component const& {
+    return path_components_.at(index);
+  }
+
+  auto get_mode(size_t index) const -> file_stat::mode_type {
+    return modes_.at(index);
+  }
+
+  auto get_uid(size_t index) const -> file_stat::uid_type {
+    return uids_.at(index);
+  }
+
+  auto get_gid(size_t index) const -> file_stat::gid_type {
+    return gids_.at(index);
+  }
+
+  auto get_device(size_t index) const -> file_stat::dev_type {
+    return devices_.at(index);
+  }
+
+  auto get_link_target(size_t index) const -> std::string_view {
+    return link_targets_.at(index);
+  }
+
+  auto get_dir_entries(dir_id dir) -> entry_id_vector& {
+    assert(dir.valid());
+    return dir_entries_.at(dir.index());
+  }
+
+  auto get_dir_entries(dir_id dir) const -> entry_id_vector const& {
+    assert(dir.valid());
+    return dir_entries_.at(dir.index());
+  }
+
+  template <typename Predicate>
+  void sort_all_dir_entries(Predicate const& pred) {
+    for (auto& de : dir_entries_) {
+      std::ranges::sort(de, pred);
+    }
+  }
+
+ private:
   // TODO; remove those trailing underscores?
 
   cao_vector<path_component> path_components_;
@@ -257,14 +299,14 @@ struct shared_entry_data {
 
   // indexed by dir index, contains all entry ids of the directory
   cao_vector<entry_id_vector> dir_entries_;
-
-  using dir_entry_lookup_table =
-      phmap::flat_hash_map<std::string_view, entry_id>;
-  phmap::flat_hash_map<uint64_t,
-                       dir_entry_lookup_table> mutable dir_entry_lookup_;
 };
 
 struct packed_entry_data {
+  struct add_entry_result {
+    std::size_t entry_index;
+    std::size_t path_index;
+  };
+
   packed_entry_data(entry_type t)
       : this_type{t} {}
 
@@ -289,9 +331,9 @@ struct packed_entry_data {
 
   void dump(std::ostream& os, std::string_view name) const;
 
-  std::size_t
+  add_entry_result
   add_entry_common(shared_entry_data& shared, entry_type type,
-                   fs::path const& path, file_stat const& st, entry_id parent);
+                   fs::path const& path, file_stat const& st, dir_id parent);
 
   void add_file_specific() {
     assert(this_type == entry_type::E_FILE);
@@ -317,13 +359,13 @@ struct packed_entry_data {
   fs::path
   get_path(shared_entry_data const& shared, uint64_t const index) const {
     auto const path_ix = path_name_index.at(index);
-    return shared.path_components_.at(path_ix).path();
+    return shared.get_path_component(path_ix).path();
   }
 
   std::string_view
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
     auto const path_ix = path_name_index.at(index);
-    return shared.path_components_.at(path_ix).name();
+    return shared.get_path_component(path_ix).name();
   }
 
   void update_global_entry_data(shared_entry_data const& shared,
@@ -331,9 +373,9 @@ struct packed_entry_data {
                                 global_entry_data& data) const {
     auto const& stat = stat_common.at(index);
 
-    data.add_mode(shared.modes_.at(get<kModeIndexField>(stat)));
-    data.add_uid(shared.uids_.at(get<kUidIndexField>(stat)));
-    data.add_gid(shared.gids_.at(get<kGidIndexField>(stat)));
+    data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
+    data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
+    data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
     data.add_atime(get<kAccessTimeSecondField>(stat));
     data.add_mtime(get<kModificationTimeSecondField>(stat));
     data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
@@ -345,9 +387,9 @@ struct packed_entry_data {
                   time_resolution_converter const& timeres) const {
     auto const& stat = stat_common.at(index);
     file_stat out{};
-    out.set_mode(shared.modes_.at(get<kModeIndexField>(stat)));
-    out.set_uid(shared.uids_.at(get<kUidIndexField>(stat)));
-    out.set_gid(shared.gids_.at(get<kGidIndexField>(stat)));
+    out.set_mode(shared.get_mode(get<kModeIndexField>(stat)));
+    out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
+    out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
     out.set_atimespec(get<kAccessTimeSecondField>(stat),
                       get<kAccessTimeSubsecondField>(stat));
     out.set_mtimespec(get<kModificationTimeSecondField>(stat),
@@ -360,7 +402,7 @@ struct packed_entry_data {
   unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
                                       uint64_t const index) const {
     auto const& stat = stat_common.at(index);
-    return unique_inode_id{shared.devices_.at(get<kDeviceIndexField>(stat)),
+    return unique_inode_id{shared.get_device(get<kDeviceIndexField>(stat)),
                            get<kInodeField>(stat)};
   }
 
@@ -553,23 +595,11 @@ struct packed_entry_data {
   segtor<file_stat::dev_type> represented_device;
 };
 
-void shared_entry_data::add_dir_entry(dir_id parent, std::uint64_t entry_ix,
-                                      entry_type type, size_t path_ix) {
+void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
+                                      std::uint64_t entry_ix) {
   assert(parent.valid());
   assert(parent.index() < dir_entries_.size());
   dir_entries_.at(parent.index()).push_back({type, entry_ix});
-
-  if (auto const it = dir_entry_lookup_.find(parent.index());
-      it != dir_entry_lookup_.end()) {
-    auto& lookup = it->second;
-    auto const inserted = lookup
-                              .emplace(path_components_.at(path_ix).name(),
-                                       entry_id{type, entry_ix})
-                              .second;
-    if (!inserted) {
-      DWARFS_PANIC("duplicate entry name in directory");
-    }
-  }
 }
 
 void shared_entry_data::dump(std::ostream& os) const {
@@ -653,10 +683,11 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
   }
 }
 
-std::size_t
-packed_entry_data::add_entry_common(shared_entry_data& shared, entry_type type,
-                                    fs::path const& path, file_stat const& st,
-                                    entry_id const parent) {
+auto packed_entry_data::add_entry_common(shared_entry_data& shared,
+                                         entry_type type, fs::path const& path,
+                                         file_stat const& st,
+                                         dir_id const parent)
+    -> add_entry_result {
   st.ensure_valid(
       file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
       file_stat::gid_valid | file_stat::atime_valid | file_stat::mtime_valid |
@@ -664,11 +695,10 @@ packed_entry_data::add_entry_common(shared_entry_data& shared, entry_type type,
       file_stat::size_valid | file_stat::allocated_size_valid);
 
   bool const is_root = !parent.valid();
-  assert(is_root || parent.is_dir());
   auto const path_ix = shared.add_path_component(path, is_root);
   auto const entry_ix = path_name_index.size();
   path_name_index.push_back(path_ix);
-  parent_dir_id.push_back(dir_id{parent});
+  parent_dir_id.push_back(parent);
   entry_index.push_back(std::nullopt);
 
   auto const nlink = st.nlink_unchecked();
@@ -706,11 +736,7 @@ packed_entry_data::add_entry_common(shared_entry_data& shared, entry_type type,
     inode_num.push_back(std::nullopt);
   }
 
-  if (!is_root) {
-    shared.add_dir_entry(dir_id{parent}, entry_ix, type, path_ix);
-  }
-
-  return entry_ix;
+  return {entry_ix, path_ix};
 }
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
@@ -743,7 +769,6 @@ class entry_storage_ final : public entry_storage::impl {
     if constexpr (is_mutable) {
       sort_all_directory_entries();
       shared_.drop_indices();
-      shared_.drop_lookup_tables();
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -752,15 +777,34 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_id
   make_obj_(entry_type const type, packed_entry_data& data,
-            fs::path const& path, file_stat const& st, entry_id const parent) {
+            fs::path const& path, file_stat const& st, dir_id const parent) {
     if constexpr (is_mutable) {
-      auto const ix = data.add_entry_common(shared_, type, path, st, parent);
+      auto const [entry_ix, path_ix] =
+          data.add_entry_common(shared_, type, path, st, parent);
+
+      if (parent) {
+        shared_.add_dir_entry(parent, type, entry_ix);
+
+        if (auto const it = dir_entry_lookup_.find(parent.index());
+            it != dir_entry_lookup_.end()) {
+          auto& lookup = it->second;
+          auto const inserted =
+              lookup
+                  .emplace(shared_.get_path_component(path_ix).name(),
+                           entry_id{type, entry_ix})
+                  .second;
+          if (!inserted) {
+            DWARFS_PANIC("duplicate entry name in directory");
+          }
+        }
+      }
+
       switch (type) {
       case entry_type::E_FILE:
         data.add_file_specific();
         break;
       case entry_type::E_DIR:
-        shared_.dir_entries_.emplace_back();
+        shared_.add_dir_entry_vec();
         break;
       case entry_type::E_LINK:
         data.add_link_specific();
@@ -771,34 +815,35 @@ class entry_storage_ final : public entry_storage::impl {
       case entry_type::E_OTHER:
         break;
       }
-      return {type, ix};
+
+      return {type, entry_ix};
     } else {
       frozen_panic();
     }
   }
 
   entry_id make_file(fs::path const& path, file_stat const& st,
-                     entry_id const parent) override {
+                     dir_id const parent) override {
     return make_obj_(entry_type::E_FILE, packed_files_, path, st, parent);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
-                    entry_id const parent) override {
+                    dir_id const parent) override {
     return make_obj_(entry_type::E_DIR, packed_dirs_, path, st, parent);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
-                     entry_id const parent) override {
+                     dir_id const parent) override {
     return make_obj_(entry_type::E_LINK, packed_links_, path, st, parent);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
-                       entry_id const parent) override {
+                       dir_id const parent) override {
     return make_obj_(entry_type::E_DEVICE, packed_devices_, path, st, parent);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
-                      entry_id const parent) override {
+                      dir_id const parent) override {
     return make_obj_(entry_type::E_OTHER, packed_others_, path, st, parent);
   }
 
@@ -867,7 +912,7 @@ class entry_storage_ final : public entry_storage::impl {
                        progress& prog) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      auto const index = shared_.add_link(std::move(link_target));
+      auto const index = shared_.add_link_target(std::move(link_target));
       packed_links_.set_link_target_index(id, index);
       auto const [total, allocated] = packed_links_.get_size_info(id.index());
       prog.original_size += total;
@@ -880,7 +925,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_link_target(link_id id) const override {
     TRACE_CALL;
-    return shared_.link_targets_.at(packed_links_.get_link_target_index(id));
+    return shared_.get_link_target(packed_links_.get_link_target_index(id));
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
@@ -953,44 +998,43 @@ class entry_storage_ final : public entry_storage::impl {
   void remove_empty_dirs(progress& prog) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      remove_empty_dirs_impl(prog, 0);
+      remove_empty_dirs_impl(prog, dir_id{{entry_id{entry_type::E_DIR, 0}}});
     } else {
       frozen_panic();
     }
   }
 
   void
-  for_each_entry_in_dir(entry_id id,
+  for_each_entry_in_dir(dir_id id,
                         std::function<void(entry_id)> const& f) const override {
     TRACE_CALL;
-    assert(id.is_dir());
-    for (auto const eid : shared_.dir_entries_.at(id.index())) {
+    for (auto const eid : shared_.get_dir_entries(id)) {
       f(eid);
     }
   }
 
   static constexpr std::size_t kMinDirEntriesForLookupTable = 16;
 
-  entry_id find_in_dir(entry_id id, std::string_view name) const override {
+  entry_id find_in_dir(dir_id id, std::string_view name) const override {
     TRACE_CALL;
-    assert(id.is_dir());
-
-    auto const& de = shared_.dir_entries_.at(id.index());
 
     if constexpr (is_mutable) {
+      auto const& de = shared_.get_dir_entries(id);
+
       if (de.size() < kMinDirEntriesForLookupTable) {
-        auto const it = std::ranges::find_if(
-            de, [&](entry_id const id) { return get_name(id) == name; });
+        auto const it = std::ranges::find_if(de, [&](entry_id const id) {
+          return get_path_string_impl(id) == name;
+        });
 
         if (it != de.end()) {
           return *it;
         }
       } else {
-        auto [lit, created] = shared_.dir_entry_lookup_.try_emplace(id.index());
+        auto [lit, created] = dir_entry_lookup_.try_emplace(id.index());
 
         if (created) {
           for (auto const eid : de) {
-            if (!lit->second.emplace(get_name(eid), eid).second) {
+            if (!lit->second.emplace(get_path_string_impl(eid), eid).second) {
               DWARFS_PANIC("duplicate entry name in directory");
             }
           }
@@ -1153,22 +1197,21 @@ class entry_storage_ final : public entry_storage::impl {
   void sort_all_directory_entries()
     requires is_mutable
   {
-    for (auto& de : shared_.dir_entries_) {
-      std::ranges::sort(de, [this](entry_id const aid, entry_id const bid) {
-        return get_name(aid) < get_name(bid);
-      });
-    }
+    shared_.sort_all_dir_entries(
+        [this](entry_id const aid, entry_id const bid) {
+          return get_path_string_impl(aid) < get_path_string_impl(bid);
+        });
   }
 
-  void remove_empty_dirs_impl(progress& prog, uint64_t dir_index)
+  void remove_empty_dirs_impl(progress& prog, dir_id dir)
     requires is_mutable
   {
-    auto& de = shared_.dir_entries_.at(dir_index);
+    auto& de = shared_.get_dir_entries(dir);
 
     auto last = std::remove_if(de.begin(), de.end(), [&](entry_id const id) {
-      if (id.is_dir()) {
-        remove_empty_dirs_impl(prog, id.index());
-        return shared_.dir_entries_.at(id.index()).empty();
+      if (auto const did = dir_id{id}) {
+        remove_empty_dirs_impl(prog, did);
+        return shared_.get_dir_entries(did).empty();
       }
       return false;
     });
@@ -1306,6 +1349,11 @@ class entry_storage_ final : public entry_storage::impl {
   packed_entry_data packed_devices_{entry_type::E_DEVICE};
   packed_entry_data packed_others_{entry_type::E_OTHER};
 
+  using dir_entry_lookup_table =
+      phmap::flat_hash_map<std::string_view, entry_id>;
+  phmap::flat_hash_map<uint64_t,
+                       dir_entry_lookup_table> mutable dir_entry_lookup_;
+
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   dwarfs::internal::event_tracer mutable ev_;
 #endif
@@ -1333,27 +1381,27 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
 class synchronized_entry_storage_ final : public entry_storage::impl {
  public:
   entry_id make_file(fs::path const& path, file_stat const& st,
-                     entry_id const parent) override {
+                     dir_id const parent) override {
     return impl_.lock()->make_file(path, st, parent);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
-                    entry_id const parent) override {
+                    dir_id const parent) override {
     return impl_.lock()->make_dir(path, st, parent);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
-                     entry_id const parent) override {
+                     dir_id const parent) override {
     return impl_.lock()->make_link(path, st, parent);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
-                       entry_id const parent) override {
+                       dir_id const parent) override {
     return impl_.lock()->make_device(path, st, parent);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
-                      entry_id const parent) override {
+                      dir_id const parent) override {
     return impl_.lock()->make_other(path, st, parent);
   }
 
@@ -1433,12 +1481,12 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   }
 
   void
-  for_each_entry_in_dir(entry_id,
+  for_each_entry_in_dir(dir_id,
                         std::function<void(entry_id)> const&) const override {
     DWARFS_PANIC("synchronized for_each_entry_in_dir is not supported");
   }
 
-  entry_id find_in_dir(entry_id id, std::string_view name) const override {
+  entry_id find_in_dir(dir_id id, std::string_view name) const override {
     return impl_.lock()->find_in_dir(id, name);
   }
 
@@ -1543,38 +1591,36 @@ void entry_storage::freeze() noexcept { impl_ = impl_->freeze(); }
 dir_handle
 entry_storage::create_root_dir(fs::path const& path, file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, impl_->make_dir(path, st, entry_id())};
+  return {*this, impl_->make_dir(path, st, dir_id{})};
 }
 
-file_handle
-entry_storage::create_file(fs::path const& path, entry_handle parent,
-                           file_stat const& st) {
+file_handle entry_storage::create_file(fs::path const& path, dir_handle parent,
+                                       file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_file(path, st, parent.id())};
 }
 
-dir_handle entry_storage::create_dir(fs::path const& path, entry_handle parent,
+dir_handle entry_storage::create_dir(fs::path const& path, dir_handle parent,
                                      file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_dir(path, st, parent.id())};
 }
 
-link_handle
-entry_storage::create_link(fs::path const& path, entry_handle parent,
-                           file_stat const& st) {
+link_handle entry_storage::create_link(fs::path const& path, dir_handle parent,
+                                       file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_link(path, st, parent.id())};
 }
 
 device_handle
-entry_storage::create_device(fs::path const& path, entry_handle parent,
+entry_storage::create_device(fs::path const& path, dir_handle parent,
                              file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_device(path, st, parent.id())};
 }
 
 other_handle
-entry_storage::create_other(fs::path const& path, entry_handle parent,
+entry_storage::create_other(fs::path const& path, dir_handle parent,
                             file_stat const& st) {
   assert(!empty());
   return {*this, impl_->make_other(path, st, parent.id())};
