@@ -126,7 +126,7 @@ class entry_storage {
     return impl_->get_link_target(id);
   }
 
-  [[nodiscard]] entry_id get_parent(entry_id id) const {
+  [[nodiscard]] dir_id get_parent(entry_id id) const {
     return impl_->get_parent(id);
   }
 
@@ -280,7 +280,7 @@ class entry_storage {
     virtual void set_file_inode(file_id id, inode_id ino) = 0;
     virtual inode_id get_file_inode(file_id id) const = 0;
 
-    virtual entry_id get_parent(entry_id id) const = 0;
+    virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
     virtual std::string_view get_name(entry_id id) const = 0;
