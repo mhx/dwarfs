@@ -209,7 +209,7 @@ struct shared_entry_data {
     mode_index_.reset();
     uid_index_.reset();
     gid_index_.reset();
-    link_index_.reset();
+    link_target_index_.reset();
   }
 
   void drop_lookup_tables() { dir_entry_lookup_.clear(); }
@@ -226,7 +226,12 @@ struct shared_entry_data {
 
   auto add_gid(file_stat::gid_type gid) { return gid_index_->add(gid); }
 
-  auto add_link(std::string link) { return link_index_->add(std::move(link)); }
+  auto add_link(std::string link) {
+    return link_target_index_->add(std::move(link));
+  }
+
+  void add_dir_entry(dir_id parent, std::uint64_t entry_ix, entry_type type,
+                     size_t path_ix);
 
   void dump(std::ostream& os) const;
 
@@ -247,8 +252,8 @@ struct shared_entry_data {
   cao_vector<file_stat::gid_type> gids_;
   std::optional<flat_cao_index<file_stat::gid_type>> gid_index_{gids_};
 
-  cao_vector<std::string> links_;
-  std::optional<flat_cao_index<std::string>> link_index_{links_};
+  cao_vector<std::string> link_targets_;
+  std::optional<flat_cao_index<std::string>> link_target_index_{link_targets_};
 
   // indexed by dir index, contains all entry ids of the directory
   cao_vector<entry_id_vector> dir_entries_;
@@ -548,6 +553,25 @@ struct packed_entry_data {
   segtor<file_stat::dev_type> represented_device;
 };
 
+void shared_entry_data::add_dir_entry(dir_id parent, std::uint64_t entry_ix,
+                                      entry_type type, size_t path_ix) {
+  assert(parent.valid());
+  assert(parent.index() < dir_entries_.size());
+  dir_entries_.at(parent.index()).push_back({type, entry_ix});
+
+  if (auto const it = dir_entry_lookup_.find(parent.index());
+      it != dir_entry_lookup_.end()) {
+    auto& lookup = it->second;
+    auto const inserted = lookup
+                              .emplace(path_components_.at(path_ix).name(),
+                                       entry_id{type, entry_ix})
+                              .second;
+    if (!inserted) {
+      DWARFS_PANIC("duplicate entry name in directory");
+    }
+  }
+}
+
 void shared_entry_data::dump(std::ostream& os) const {
   auto const total_path_bytes =
       std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
@@ -555,7 +579,7 @@ void shared_entry_data::dump(std::ostream& os) const {
                         return acc + pc.size_in_bytes();
                       });
   auto const total_link_bytes =
-      std::accumulate(links_.begin(), links_.end(), 0ULL,
+      std::accumulate(link_targets_.begin(), link_targets_.end(), 0ULL,
                       [](std::size_t acc, std::string const& link) {
                         return acc + sizeof(std::string) + link.size();
                       });
@@ -571,8 +595,8 @@ void shared_entry_data::dump(std::ostream& os) const {
      << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
   os << "  gids: " << gids_.size() << " ("
      << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
-  os << "  links: " << links_.size() << " (" << size_with_unit(total_link_bytes)
-     << ")\n";
+  os << "  link targets: " << link_targets_.size() << " ("
+     << size_with_unit(total_link_bytes) << ")\n";
   os << "  dir entries: " << dir_entries_.size() << " ("
      << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
 }
@@ -683,20 +707,7 @@ packed_entry_data::add_entry_common(shared_entry_data& shared, entry_type type,
   }
 
   if (!is_root) {
-    assert(parent.index() < shared.dir_entries_.size());
-    shared.dir_entries_.at(parent.index()).push_back({type, entry_ix});
-
-    if (auto const it = shared.dir_entry_lookup_.find(parent.index());
-        it != shared.dir_entry_lookup_.end()) {
-      auto& lookup = it->second;
-      auto inserted = lookup
-                          .emplace(shared.path_components_.at(path_ix).name(),
-                                   entry_id{type, entry_ix})
-                          .second;
-      if (!inserted) {
-        DWARFS_PANIC("duplicate entry name in directory");
-      }
-    }
+    shared.add_dir_entry(dir_id{parent}, entry_ix, type, path_ix);
   }
 
   return entry_ix;
@@ -869,7 +880,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_link_target(link_id id) const override {
     TRACE_CALL;
-    return shared_.links_.at(packed_links_.get_link_target_index(id));
+    return shared_.link_targets_.at(packed_links_.get_link_target_index(id));
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
