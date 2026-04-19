@@ -266,7 +266,7 @@ struct packed_entry_data {
   entry_type this_type;
 
   segtor<size_t> path_name_index;
-  segtor<std::optional<uint64_t>> parent_dir_index;
+  segtor<dir_id> parent_dir_id;
   segtor<std::optional<size_t>> entry_index;
   segtor<std::optional<std::uint64_t>> inode_num;
 
@@ -322,8 +322,7 @@ struct packed_entry_data {
     auto const path_ix = shared.add_path_component(path, is_root);
     auto const entry_ix = path_name_index.size();
     path_name_index.push_back(path_ix);
-    parent_dir_index.push_back(is_root ? std::nullopt
-                                       : std::make_optional(parent.index()));
+    parent_dir_id.push_back(dir_id{parent});
     entry_index.push_back(std::nullopt);
     if (type != entry_type::E_FILE) {
       inode_num.push_back(std::nullopt);
@@ -399,12 +398,8 @@ struct packed_entry_data {
     represented_device.push_back(st.rdev_unchecked());
   }
 
-  entry_id get_parent(uint64_t const index) const {
-    entry_id rv;
-    if (auto const id = parent_dir_index.at(index)) {
-      rv = {entry_type::E_DIR, *id};
-    }
-    return rv;
+  dir_id get_parent(uint64_t const index) const {
+    return parent_dir_id.at(index);
   }
 
   fs::path
@@ -607,7 +602,7 @@ struct packed_entry_data {
     }
 
     auto const path_name_index_bytes = path_name_index.size_in_bytes();
-    auto const parent_dir_index_bytes = parent_dir_index.size_in_bytes();
+    auto const parent_dir_index_bytes = parent_dir_id.size_in_bytes();
     auto const entry_index_bytes = entry_index.size_in_bytes();
     auto const file_order_index_bytes = file_order_index.size_in_bytes();
     auto const inode_num_bytes = inode_num.size_in_bytes();
@@ -880,7 +875,7 @@ class entry_storage_ final : public entry_storage::impl {
     return packed_files_.get_inode_id(id);
   }
 
-  entry_id get_parent(entry_id const id) const override {
+  dir_id get_parent(entry_id const id) const override {
     TRACE_CALL;
     return get_parent_impl(id);
   }
@@ -1235,7 +1230,7 @@ class entry_storage_ final : public entry_storage::impl {
                                  std::forward<Args>(args)...);
   }
 
-  entry_id get_parent_impl(entry_id const id) const {
+  dir_id get_parent_impl(entry_id const id) const {
     return dispatch_(&packed_entry_data::get_parent, id);
   }
 
@@ -1385,7 +1380,7 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->get_file_inode(id);
   }
 
-  entry_id get_parent(entry_id const id) const override {
+  dir_id get_parent(entry_id const id) const override {
     return impl_.lock()->get_parent(id);
   }
 
