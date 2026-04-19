@@ -37,6 +37,7 @@
 
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
+#include <process.h>
 #else
 #include <sys/time.h>
 #endif
