@@ -228,34 +228,7 @@ struct shared_entry_data {
 
   auto add_link(std::string link) { return link_index_->add(std::move(link)); }
 
-  void dump(std::ostream& os) const {
-    auto const total_path_bytes =
-        std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
-                        [](std::size_t acc, path_component const& pc) {
-                          return acc + pc.size_in_bytes();
-                        });
-    auto const total_link_bytes =
-        std::accumulate(links_.begin(), links_.end(), 0ULL,
-                        [](std::size_t acc, std::string const& link) {
-                          return acc + sizeof(std::string) + link.size();
-                        });
-
-    os << "shared entry data:\n";
-    os << "  path components: " << path_components_.size() << " ("
-       << size_with_unit(total_path_bytes) << ")\n";
-    os << "  devices: " << devices_.size() << " ("
-       << size_with_unit(devices_.size() * sizeof(devices_[0])) << ")\n";
-    os << "  modes: " << modes_.size() << " ("
-       << size_with_unit(modes_.size() * sizeof(modes_[0])) << ")\n";
-    os << "  uids: " << uids_.size() << " ("
-       << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
-    os << "  gids: " << gids_.size() << " ("
-       << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
-    os << "  links: " << links_.size() << " ("
-       << size_with_unit(total_link_bytes) << ")\n";
-    os << "  dir entries: " << dir_entries_.size() << " ("
-       << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
-  }
+  void dump(std::ostream& os) const;
 
   // TODO; remove those trailing underscores?
 
@@ -683,6 +656,35 @@ struct packed_entry_data {
     }
   }
 };
+
+void shared_entry_data::dump(std::ostream& os) const {
+  auto const total_path_bytes =
+      std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
+                      [](std::size_t acc, path_component const& pc) {
+                        return acc + pc.size_in_bytes();
+                      });
+  auto const total_link_bytes =
+      std::accumulate(links_.begin(), links_.end(), 0ULL,
+                      [](std::size_t acc, std::string const& link) {
+                        return acc + sizeof(std::string) + link.size();
+                      });
+
+  os << "shared entry data:\n";
+  os << "  path components: " << path_components_.size() << " ("
+     << size_with_unit(total_path_bytes) << ")\n";
+  os << "  devices: " << devices_.size() << " ("
+     << size_with_unit(devices_.size() * sizeof(devices_[0])) << ")\n";
+  os << "  modes: " << modes_.size() << " ("
+     << size_with_unit(modes_.size() * sizeof(modes_[0])) << ")\n";
+  os << "  uids: " << uids_.size() << " ("
+     << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
+  os << "  gids: " << gids_.size() << " ("
+     << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
+  os << "  links: " << links_.size() << " (" << size_with_unit(total_link_bytes)
+     << ")\n";
+  os << "  dir entries: " << dir_entries_.size() << " ("
+     << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
+}
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
 
@@ -1270,6 +1272,7 @@ class entry_storage_ final : public entry_storage::impl {
   cao_vector<file_id_vector> files_for_inode_;
 
   shared_entry_data shared_;
+
   packed_entry_data packed_files_{entry_type::E_FILE};
   packed_entry_data packed_dirs_{entry_type::E_DIR};
   packed_entry_data packed_links_{entry_type::E_LINK};
@@ -1288,6 +1291,7 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
      << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
 
   shared_.dump(os);
+
   packed_files_.dump(os, "files");
   packed_dirs_.dump(os, "dirs");
   packed_links_.dump(os, "links");
