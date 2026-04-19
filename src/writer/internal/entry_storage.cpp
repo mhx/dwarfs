@@ -263,13 +263,6 @@ struct packed_entry_data {
   packed_entry_data(entry_type t)
       : this_type{t} {}
 
-  entry_type this_type;
-
-  segtor<size_t> path_name_index;
-  segtor<dir_id> parent_dir_id;
-  segtor<std::optional<size_t>> entry_index;
-  segtor<std::optional<std::uint64_t>> inode_num;
-
   static constexpr std::size_t kNlinkMinusOneField = 0;
   static constexpr std::size_t kModeIndexField = 1;
   static constexpr std::size_t kUidIndexField = 2;
@@ -286,100 +279,14 @@ struct packed_entry_data {
       std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t>;
-  segtor<stat_common_tuple> stat_common;
-  segtor<file_stat::off_type> entry_size;
-  phmap::flat_hash_map<uint64_t, file_stat::off_type>
-      entry_allocated_size_lookup;
-
-  // file-specific
-  segtor<size_t> file_order_index;
-  segtor<inode_id> file_inode_id;
-  segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
-  std::optional<dwarfs::container::pinned_byte_span_store<512>> file_hashes;
-
-  static constexpr std::size_t kFileHashIndexField{0};
-  static constexpr std::size_t kHardlinkCountMinusOneField{1};
-  static constexpr std::size_t kInodeNumberField{2};
-  using file_data_tuple =
-      std::tuple<std::optional<std::uint64_t>, std::uint64_t,
-                 std::optional<std::uint64_t>>;
-  segtor<file_data_tuple> file_data_vec;
-  cao_vector<std::atomic<bool>> file_invalid_vec;
-
-  // link-specific
-  segtor<std::optional<size_t>> link_target_index;
-
-  // device-specific:
-  segtor<file_stat::dev_type> represented_device;
 
   bool empty() const { return path_name_index.empty(); }
 
-  std::size_t add_entry_common(shared_entry_data& shared, entry_type type,
-                               fs::path const& path, file_stat const& st,
-                               entry_id const parent) {
-    bool const is_root = !parent.valid();
-    assert(is_root || parent.is_dir());
-    auto const path_ix = shared.add_path_component(path, is_root);
-    auto const entry_ix = path_name_index.size();
-    path_name_index.push_back(path_ix);
-    parent_dir_id.push_back(dir_id{parent});
-    entry_index.push_back(std::nullopt);
-    if (type != entry_type::E_FILE) {
-      inode_num.push_back(std::nullopt);
-    }
+  void dump(std::ostream& os, std::string_view name) const;
 
-    st.ensure_valid(
-        file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
-        file_stat::gid_valid | file_stat::atime_valid | file_stat::mtime_valid |
-        file_stat::ctime_valid | file_stat::dev_valid | file_stat::ino_valid |
-        file_stat::size_valid | file_stat::allocated_size_valid);
-
-    auto const nlink = st.nlink_unchecked();
-    assert(nlink > 0);
-
-    stat_common_tuple tmp{};
-    std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
-    std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
-    std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
-    std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
-    std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
-    std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
-    std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
-    std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
-    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
-    std::get<kStatusChangeTimeSubsecondField>(tmp) = st.ctime_nsec_unchecked();
-    std::get<kInodeField>(tmp) = st.ino_unchecked();
-    std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
-
-    stat_common.push_back(tmp);
-
-    auto const size = st.size_unchecked();
-    auto const allocated_size = st.allocated_size_unchecked();
-    auto const index = entry_size.size();
-    entry_size.push_back(size);
-    if (size != allocated_size) {
-      entry_allocated_size_lookup.emplace(index, st.allocated_size_unchecked());
-    }
-
-    if (!is_root) {
-      assert(parent.index() < shared.dir_entries_.size());
-      shared.dir_entries_.at(parent.index()).push_back({type, entry_ix});
-
-      if (auto const it = shared.dir_entry_lookup_.find(parent.index());
-          it != shared.dir_entry_lookup_.end()) {
-        auto& lookup = it->second;
-        auto inserted = lookup
-                            .emplace(shared.path_components_.at(path_ix).name(),
-                                     entry_id{type, entry_ix})
-                            .second;
-        if (!inserted) {
-          DWARFS_PANIC("duplicate entry name in directory");
-        }
-      }
-    }
-
-    return entry_ix;
-  }
+  std::size_t
+  add_entry_common(shared_entry_data& shared, entry_type type,
+                   fs::path const& path, file_stat const& st, entry_id parent);
 
   void add_file_specific() {
     assert(this_type == entry_type::E_FILE);
@@ -595,61 +502,50 @@ struct packed_entry_data {
     return *link_target;
   }
 
-  void dump(std::ostream& os, std::string_view name) const {
-    if (path_name_index.empty()) {
-      os << "no " << name << " entries\n";
-      return;
-    }
+  entry_type this_type;
 
-    auto const path_name_index_bytes = path_name_index.size_in_bytes();
-    auto const parent_dir_index_bytes = parent_dir_id.size_in_bytes();
-    auto const entry_index_bytes = entry_index.size_in_bytes();
-    auto const file_order_index_bytes = file_order_index.size_in_bytes();
-    auto const inode_num_bytes = inode_num.size_in_bytes();
-    auto const file_data_index_bytes = file_data_index.size_in_bytes();
-    auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
-    auto const link_target_index_bytes = link_target_index.size_in_bytes();
-    auto const stat_common_bytes = stat_common.size_in_bytes();
-    auto const entry_size_bytes = entry_size.size_in_bytes();
-    auto const entry_allocated_size_lookup_bytes =
-        entry_allocated_size_lookup.capacity() *
-        sizeof(decltype(entry_allocated_size_lookup)::value_type);
-    auto const file_hashes_bytes =
-        file_hashes ? file_hashes->size_in_bytes() : 0;
-    auto const total_bytes =
-        path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
-        file_order_index_bytes + inode_num_bytes + file_data_index_bytes +
-        file_inode_id_bytes + link_target_index_bytes + stat_common_bytes +
-        entry_size_bytes + entry_allocated_size_lookup_bytes +
-        file_hashes_bytes;
+  // index into `shared_entry_data::path_components_`
+  segtor<size_t> path_name_index;
 
-    os << path_name_index.size() << " " << name << " entries ("
-       << size_with_unit(total_bytes) << "):\n";
-    os << "  path name index: " << size_with_unit(path_name_index_bytes)
-       << "\n";
-    os << "  parent dir index: " << size_with_unit(parent_dir_index_bytes)
-       << "\n";
-    os << "  entry index: " << size_with_unit(entry_index_bytes) << "\n";
-    os << "  inode number: " << size_with_unit(inode_num_bytes) << "\n";
-    os << "  file order index: " << size_with_unit(file_order_index_bytes)
-       << "\n";
-    os << "  file data index: " << size_with_unit(file_data_index_bytes)
-       << "\n";
-    os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
-    os << "  stat common: " << size_with_unit(stat_common_bytes) << "\n";
-    os << "  size: " << size_with_unit(entry_size.size_in_bytes()) << "\n";
-    os << "  allocated size lookup: "
-       << size_with_unit(entry_allocated_size_lookup_bytes) << "\n";
+  // parent directory id (invalid for root)
+  segtor<dir_id> parent_dir_id;
 
-    if (!link_target_index.empty()) {
-      os << "  link target index: " << size_with_unit(link_target_index_bytes)
-         << "\n";
-    }
+  // final index of this entry assigned during packing
+  segtor<std::optional<size_t>> entry_index;
 
-    if (file_hashes) {
-      os << "  file hashes: " << size_with_unit(file_hashes_bytes) << "\n";
-    }
-  }
+  // inode number for non-file entries, assigned after scanning is complete
+  segtor<std::optional<std::uint64_t>> inode_num;
+
+  // file `stat()` data common to all entry types
+  segtor<stat_common_tuple> stat_common;
+
+  // size for files and symlinks
+  segtor<file_stat::off_type> entry_size;
+
+  // allocated size for files, only stored if different from `entry_size`
+  phmap::flat_hash_map<uint64_t, file_stat::off_type>
+      entry_allocated_size_lookup;
+
+  // file-specific
+  segtor<size_t> file_order_index;
+  segtor<inode_id> file_inode_id;
+  segtor<std::optional<size_t>> file_data_index; // indexes into `file_data_vec`
+  std::optional<dwarfs::container::pinned_byte_span_store<512>> file_hashes;
+
+  static constexpr std::size_t kFileHashIndexField{0};
+  static constexpr std::size_t kHardlinkCountMinusOneField{1};
+  static constexpr std::size_t kInodeNumberField{2};
+  using file_data_tuple =
+      std::tuple<std::optional<std::uint64_t>, std::uint64_t,
+                 std::optional<std::uint64_t>>;
+  segtor<file_data_tuple> file_data_vec;
+  cao_vector<std::atomic<bool>> file_invalid_vec;
+
+  // link-specific
+  segtor<std::optional<size_t>> link_target_index;
+
+  // device-specific:
+  segtor<file_stat::dev_type> represented_device;
 };
 
 void shared_entry_data::dump(std::ostream& os) const {
@@ -679,6 +575,131 @@ void shared_entry_data::dump(std::ostream& os) const {
      << ")\n";
   os << "  dir entries: " << dir_entries_.size() << " ("
      << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
+}
+
+void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
+  if (path_name_index.empty()) {
+    os << "no " << name << " entries\n";
+    return;
+  }
+
+  auto const path_name_index_bytes = path_name_index.size_in_bytes();
+  auto const parent_dir_index_bytes = parent_dir_id.size_in_bytes();
+  auto const entry_index_bytes = entry_index.size_in_bytes();
+  auto const file_order_index_bytes = file_order_index.size_in_bytes();
+  auto const inode_num_bytes = inode_num.size_in_bytes();
+  auto const file_data_index_bytes = file_data_index.size_in_bytes();
+  auto const file_inode_id_bytes = file_inode_id.size_in_bytes();
+  auto const link_target_index_bytes = link_target_index.size_in_bytes();
+  auto const stat_common_bytes = stat_common.size_in_bytes();
+  auto const entry_size_bytes = entry_size.size_in_bytes();
+  auto const entry_allocated_size_lookup_bytes =
+      entry_allocated_size_lookup.capacity() *
+      sizeof(decltype(entry_allocated_size_lookup)::value_type);
+  auto const file_hashes_bytes = file_hashes ? file_hashes->size_in_bytes() : 0;
+  auto const total_bytes =
+      path_name_index_bytes + parent_dir_index_bytes + entry_index_bytes +
+      file_order_index_bytes + inode_num_bytes + file_data_index_bytes +
+      file_inode_id_bytes + link_target_index_bytes + stat_common_bytes +
+      entry_size_bytes + entry_allocated_size_lookup_bytes + file_hashes_bytes;
+
+  os << path_name_index.size() << " " << name << " entries ("
+     << size_with_unit(total_bytes) << "):\n";
+  os << "  path name index: " << size_with_unit(path_name_index_bytes) << "\n";
+  os << "  parent dir index: " << size_with_unit(parent_dir_index_bytes)
+     << "\n";
+  os << "  entry index: " << size_with_unit(entry_index_bytes) << "\n";
+  os << "  inode number: " << size_with_unit(inode_num_bytes) << "\n";
+  os << "  file order index: " << size_with_unit(file_order_index_bytes)
+     << "\n";
+  os << "  file data index: " << size_with_unit(file_data_index_bytes) << "\n";
+  os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
+  os << "  stat common: " << size_with_unit(stat_common_bytes) << "\n";
+  os << "  size: " << size_with_unit(entry_size.size_in_bytes()) << "\n";
+  os << "  allocated size lookup: "
+     << size_with_unit(entry_allocated_size_lookup_bytes) << "\n";
+
+  if (!link_target_index.empty()) {
+    os << "  link target index: " << size_with_unit(link_target_index_bytes)
+       << "\n";
+  }
+
+  if (file_hashes) {
+    os << "  file hashes: " << size_with_unit(file_hashes_bytes) << "\n";
+  }
+}
+
+std::size_t
+packed_entry_data::add_entry_common(shared_entry_data& shared, entry_type type,
+                                    fs::path const& path, file_stat const& st,
+                                    entry_id const parent) {
+  st.ensure_valid(
+      file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
+      file_stat::gid_valid | file_stat::atime_valid | file_stat::mtime_valid |
+      file_stat::ctime_valid | file_stat::dev_valid | file_stat::ino_valid |
+      file_stat::size_valid | file_stat::allocated_size_valid);
+
+  bool const is_root = !parent.valid();
+  assert(is_root || parent.is_dir());
+  auto const path_ix = shared.add_path_component(path, is_root);
+  auto const entry_ix = path_name_index.size();
+  path_name_index.push_back(path_ix);
+  parent_dir_id.push_back(dir_id{parent});
+  entry_index.push_back(std::nullopt);
+
+  auto const nlink = st.nlink_unchecked();
+  assert(nlink > 0);
+
+  stat_common_tuple tmp{};
+  std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
+  std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
+  std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
+  std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
+  std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
+  std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
+  std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
+  std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
+  std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
+  std::get<kStatusChangeTimeSubsecondField>(tmp) = st.ctime_nsec_unchecked();
+  std::get<kInodeField>(tmp) = st.ino_unchecked();
+  std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
+
+  stat_common.push_back(tmp);
+
+  if (type == entry_type::E_FILE || type == entry_type::E_LINK) {
+    auto const size = st.size_unchecked();
+    auto const allocated_size = st.allocated_size_unchecked();
+
+    auto const index = entry_size.size();
+    entry_size.push_back(size);
+
+    if (size != allocated_size) {
+      entry_allocated_size_lookup.emplace(index, st.allocated_size_unchecked());
+    }
+  }
+
+  if (type != entry_type::E_FILE) {
+    inode_num.push_back(std::nullopt);
+  }
+
+  if (!is_root) {
+    assert(parent.index() < shared.dir_entries_.size());
+    shared.dir_entries_.at(parent.index()).push_back({type, entry_ix});
+
+    if (auto const it = shared.dir_entry_lookup_.find(parent.index());
+        it != shared.dir_entry_lookup_.end()) {
+      auto& lookup = it->second;
+      auto inserted = lookup
+                          .emplace(shared.path_components_.at(path_ix).name(),
+                                   entry_id{type, entry_ix})
+                          .second;
+      if (!inserted) {
+        DWARFS_PANIC("duplicate entry name in directory");
+      }
+    }
+  }
+
+  return entry_ix;
 }
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
