@@ -144,12 +144,12 @@ class entry_storage {
 
   void remove_empty_dirs(progress& prog) { impl_->remove_empty_dirs(prog); }
 
-  void for_each_entry_in_dir(entry_id id,
+  void for_each_entry_in_dir(dir_id id,
                              std::function<void(entry_id)> const& f) const {
     impl_->for_each_entry_in_dir(id, f);
   }
 
-  entry_id find_in_dir(entry_id id, std::string_view name) const {
+  entry_id find_in_dir(dir_id id, std::string_view name) const {
     return impl_->find_in_dir(id, name);
   }
 
@@ -249,15 +249,15 @@ class entry_storage {
     virtual ~impl() = default;
 
     virtual entry_id make_file(std::filesystem::path const& path,
-                               file_stat const& st, entry_id parent) = 0;
+                               file_stat const& st, dir_id parent) = 0;
     virtual entry_id make_dir(std::filesystem::path const& path,
-                              file_stat const& st, entry_id parent) = 0;
+                              file_stat const& st, dir_id parent) = 0;
     virtual entry_id make_link(std::filesystem::path const& path,
-                               file_stat const& st, entry_id parent) = 0;
+                               file_stat const& st, dir_id parent) = 0;
     virtual entry_id make_device(std::filesystem::path const& path,
-                                 file_stat const& st, entry_id parent) = 0;
+                                 file_stat const& st, dir_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
-                                file_stat const& st, entry_id parent) = 0;
+                                file_stat const& st, dir_id parent) = 0;
     virtual inode_id make_inode() = 0;
 
     virtual void create_packed_file_data(file_id id) = 0;
@@ -286,9 +286,9 @@ class entry_storage {
     virtual std::string_view get_name(entry_id id) const = 0;
     virtual void remove_empty_dirs(progress& prog) = 0;
     virtual void
-    for_each_entry_in_dir(entry_id id,
+    for_each_entry_in_dir(dir_id id,
                           std::function<void(entry_id)> const& f) const = 0;
-    virtual entry_id find_in_dir(entry_id id, std::string_view name) const = 0;
+    virtual entry_id find_in_dir(dir_id id, std::string_view name) const = 0;
     virtual bool entry_less_revpath(entry_id lhs, entry_id rhs) const = 0;
 
     virtual void
@@ -334,20 +334,20 @@ class entry_storage {
   dir_handle
   create_root_dir(std::filesystem::path const& path, file_stat const& st);
 
-  file_handle create_file(std::filesystem::path const& path,
-                          entry_handle parent, file_stat const& st);
+  file_handle create_file(std::filesystem::path const& path, dir_handle parent,
+                          file_stat const& st);
 
-  dir_handle create_dir(std::filesystem::path const& path, entry_handle parent,
+  dir_handle create_dir(std::filesystem::path const& path, dir_handle parent,
                         file_stat const& st);
 
-  link_handle create_link(std::filesystem::path const& path,
-                          entry_handle parent, file_stat const& st);
+  link_handle create_link(std::filesystem::path const& path, dir_handle parent,
+                          file_stat const& st);
 
   device_handle create_device(std::filesystem::path const& path,
-                              entry_handle parent, file_stat const& st);
+                              dir_handle parent, file_stat const& st);
 
   other_handle create_other(std::filesystem::path const& path,
-                            entry_handle parent, file_stat const& st);
+                            dir_handle parent, file_stat const& st);
 
   std::unique_ptr<impl> impl_;
 };

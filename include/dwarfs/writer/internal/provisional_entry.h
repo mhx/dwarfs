@@ -39,8 +39,9 @@ namespace writer::internal {
 
 class provisional_entry : public entry_interface {
  public:
+  // TODO: no need to use optional here...
   provisional_entry(os_access const& os, std::filesystem::path const& path,
-                    std::optional<entry_handle> parent = std::nullopt);
+                    std::optional<dir_handle> parent = std::nullopt);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
@@ -59,7 +60,7 @@ class provisional_entry : public entry_interface {
  private:
   std::filesystem::path path_;
   file_stat stat_;
-  std::optional<entry_handle> parent_;
+  std::optional<dir_handle> parent_;
 };
 
 } // namespace writer::internal

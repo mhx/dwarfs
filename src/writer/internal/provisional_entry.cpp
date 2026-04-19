@@ -37,7 +37,7 @@ namespace dwarfs::writer::internal {
 
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
-                                     std::optional<entry_handle> parent)
+                                     std::optional<dir_handle> parent)
     : path_{path}
     , stat_{os.symlink_info(path)}
     , parent_{parent} {

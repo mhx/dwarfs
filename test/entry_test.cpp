@@ -101,7 +101,7 @@ struct entry_test : public ::testing::Test {
 
   wi::entry_handle create_entry(entry_storage& tree, os_access& osa,
                                 fs::path const& path, wi::entry_handle parent) {
-    return wi::provisional_entry(osa, path, parent).commit(tree);
+    return wi::provisional_entry(osa, path, parent.as_dir()).commit(tree);
   }
 
   wi::entry_handle create_entry(entry_storage& tree, fs::path const& path) {
