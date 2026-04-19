@@ -71,7 +71,6 @@ class zxc_block_compressor final : public block_compressor::impl {
     copts.block_size = std::max(
         std::bit_ceil(data.size()),
         static_cast<size_t>(ZXC_BLOCK_SIZE_MIN));
-    copts.checksum_enabled = 0;
 
     zxc_cctx* cctx = ::zxc_create_cctx(&copts);
     if (!cctx) {
@@ -136,6 +135,15 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error,
                    "ZXC: failed to create decompression context");
     }
+    // ZXC's decoder uses speculative wild-copy writes; ZXC_PAD_SIZE * 66 =
+    // 2112 bytes of tail margin enables the fast path. The framework's
+    // target buffer is a fixed-reserve buffer (frozen at uncompressed_size)
+    // so we cannot oversize it directly and have to decompress into this
+    // scratch, then memcpy the payload out. TODO: Replace with
+    // ::zxc_decompress_block_bound(uncompressed_size_) once libzxc exposes
+    // it (next release).
+    static constexpr size_t kWildCopyPad = 2112;
+    tmp_.resize(static_cast<size_t>(uncompressed_size_) + kWildCopyPad);
   }
 
   ~zxc_block_decompressor() override { ::zxc_free_dctx(dctx_); }
@@ -149,32 +157,18 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    auto const aligned_size = static_cast<size_t>(std::max(
-        std::bit_ceil(uncompressed_size_),
-        static_cast<uint64_t>(ZXC_BLOCK_SIZE_MIN)));
-
     zxc_decompress_opts_t opts{};
-    opts.checksum_enabled = 0;
 
-    // ZXC requires a power-of-two dst_capacity, which may exceed the
-    // buffer reserved by the framework. Use a temporary when needed.
-    std::vector<uint8_t> tmp;
-    bool const needs_tmp = aligned_size > uncompressed_size_;
-    uint8_t* dst = nullptr;
-    size_t dst_cap = 0;
-
-    if (needs_tmp) {
-      tmp.resize(aligned_size);
-      dst = tmp.data();
-      dst_cap = tmp.size();
-    } else {
-      decompressed_.resize(static_cast<size_t>(uncompressed_size_));
-      dst = decompressed_.data();
-      dst_cap = decompressed_.size();
-    }
-
+    // Decompressing into tmp_ then memcpy'ing into decompressed_ is
+    // required because zxc_decompress_block performs speculative wild-copy
+    // writes and needs tail padding beyond uncompressed_size. The framework
+    // target buffer is fixed-reserved at uncompressed_size exactly, so we
+    // cannot decompress into it directly.
+    // TODO: once libzxc exposes a zxc_decompress_block_safe() variant
+    // (bounds-checked, accepts dst_capacity == uncompressed_size), drop
+    // tmp_ and the memcpy and decompress straight into decompressed_.data().
     auto const rv = ::zxc_decompress_block(
-        dctx_, data_.data(), data_.size(), dst, dst_cap, &opts);
+        dctx_, data_.data(), data_.size(), tmp_.data(), tmp_.size(), &opts);
 
     if (rv < 0) {
       decompressed_.clear();
@@ -183,12 +177,9 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    if (needs_tmp) {
-      decompressed_.resize(static_cast<size_t>(uncompressed_size_));
-      std::memcpy(decompressed_.data(), tmp.data(),
-                  static_cast<size_t>(uncompressed_size_));
-    }
-
+    decompressed_.resize(static_cast<size_t>(uncompressed_size_));
+    std::memcpy(decompressed_.data(), tmp_.data(),
+                static_cast<size_t>(uncompressed_size_));
     return true;
   }
 
@@ -206,6 +197,7 @@ class zxc_block_decompressor final : public block_decompressor_base {
   std::span<uint8_t const> data_;
   uint64_t const uncompressed_size_;
   zxc_dctx* dctx_;
+  std::vector<uint8_t> tmp_;
   std::string error_;
 };
 
