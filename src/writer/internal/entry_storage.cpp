@@ -678,51 +678,39 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
     return;
   }
 
-  auto const path_name_index_bytes = path_name_index_.size_in_bytes();
-  auto const parent_dir_index_bytes = parent_dir_id_.size_in_bytes();
-  auto const final_entry_index_bytes = final_entry_index_.size_in_bytes();
-  auto const file_order_index_bytes = file_order_index_.size_in_bytes();
-  auto const inode_num_bytes = inode_num_.size_in_bytes();
-  auto const file_data_index_bytes = file_data_index_.size_in_bytes();
-  auto const file_inode_id_bytes = file_inode_id_.size_in_bytes();
-  auto const link_target_index_bytes = link_target_index_.size_in_bytes();
-  auto const stat_common_bytes = stat_common_.size_in_bytes();
-  auto const entry_size_bytes = entry_size_.size_in_bytes();
-  auto const entry_allocated_size_bytes =
-      entry_allocated_size_.capacity() *
-      sizeof(decltype(entry_allocated_size_)::value_type);
-  auto const file_hashes_bytes =
-      file_hashes_ ? file_hashes_->size_in_bytes() : 0;
-  auto const total_bytes =
-      path_name_index_bytes + parent_dir_index_bytes + final_entry_index_bytes +
-      file_order_index_bytes + inode_num_bytes + file_data_index_bytes +
-      file_inode_id_bytes + link_target_index_bytes + stat_common_bytes +
-      entry_size_bytes + entry_allocated_size_bytes + file_hashes_bytes;
+  std::vector<std::pair<std::string_view, std::size_t>> sizes;
+
+  sizes.emplace_back("path name index", path_name_index_.size_in_bytes());
+  sizes.emplace_back("stat common", stat_common_.size_in_bytes());
+  sizes.emplace_back("size", entry_size_.size_in_bytes());
+  sizes.emplace_back("allocated size",
+                     entry_allocated_size_.capacity() *
+                         sizeof(decltype(entry_allocated_size_)::value_type));
+  sizes.emplace_back("parent dir index", parent_dir_id_.size_in_bytes());
+  sizes.emplace_back("link target index", link_target_index_.size_in_bytes());
+  sizes.emplace_back("represented device", represented_device_.size_in_bytes());
+  sizes.emplace_back("inode number", inode_num_.size_in_bytes());
+  sizes.emplace_back("final entry index", final_entry_index_.size_in_bytes());
+  sizes.emplace_back("file data vec", file_data_vec_.size_in_bytes());
+  sizes.emplace_back("file invalid vec",
+                     file_invalid_vec_.size() * sizeof(file_invalid_vec_[0]));
+  sizes.emplace_back("file hashes",
+                     file_hashes_ ? file_hashes_->size_in_bytes() : 0);
+  sizes.emplace_back("file inode id", file_inode_id_.size_in_bytes());
+  sizes.emplace_back("file data index", file_data_index_.size_in_bytes());
+  sizes.emplace_back("file order index", file_order_index_.size_in_bytes());
+
+  auto const total_bytes = std::accumulate(
+      sizes.begin(), sizes.end(), 0ULL,
+      [](std::size_t acc, auto const& pair) { return acc + pair.second; });
 
   os << path_name_index_.size() << " " << name << " entries ("
      << size_with_unit(total_bytes) << "):\n";
-  os << "  path name index: " << size_with_unit(path_name_index_bytes) << "\n";
-  os << "  parent dir index: " << size_with_unit(parent_dir_index_bytes)
-     << "\n";
-  os << "  final entry index: " << size_with_unit(final_entry_index_bytes)
-     << "\n";
-  os << "  inode number: " << size_with_unit(inode_num_bytes) << "\n";
-  os << "  file order index: " << size_with_unit(file_order_index_bytes)
-     << "\n";
-  os << "  file data index: " << size_with_unit(file_data_index_bytes) << "\n";
-  os << "  file inode id: " << size_with_unit(file_inode_id_bytes) << "\n";
-  os << "  stat common: " << size_with_unit(stat_common_bytes) << "\n";
-  os << "  size: " << size_with_unit(entry_size_.size_in_bytes()) << "\n";
-  os << "  allocated size: " << size_with_unit(entry_allocated_size_bytes)
-     << "\n";
 
-  if (!link_target_index_.empty()) {
-    os << "  link target index: " << size_with_unit(link_target_index_bytes)
-       << "\n";
-  }
-
-  if (file_hashes_) {
-    os << "  file hashes: " << size_with_unit(file_hashes_bytes) << "\n";
+  for (auto const& [label, bytes] : sizes) {
+    if (bytes > 0) {
+      os << "  " << label << ": " << size_with_unit(bytes) << "\n";
+    }
   }
 }
 
@@ -1399,11 +1387,11 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
 
   shared_.dump(os);
 
-  packed_files_.dump(os, "files");
-  packed_dirs_.dump(os, "dirs");
-  packed_links_.dump(os, "links");
-  packed_devices_.dump(os, "devices");
-  packed_others_.dump(os, "others");
+  packed_files_.dump(os, "file");
+  packed_dirs_.dump(os, "dir");
+  packed_links_.dump(os, "link");
+  packed_devices_.dump(os, "device");
+  packed_others_.dump(os, "other");
 
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   ev_.dump(os);
