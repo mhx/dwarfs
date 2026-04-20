@@ -74,24 +74,6 @@ namespace dwarfs::writer::internal {
 
 namespace {
 
-// TODO: consider using just a single mutex for *all* storage?
-//       then we could de-dupe things like names/paths across
-//       all different entry types
-//
-// It still makes sense to separate files/dirs/links/devices/other
-// since they will populate different slots of the data, and leave
-// others unpopulated. Not differentiating them would make storage
-// less efficient because e.g. *only* files and symlinks would
-// populate size; only files would populate allocated_size. Only
-// devices would populate device numbers, etc. If we use *one* data
-// structure to rule them all, but just keep some of the fields
-// unused for some entry types, this would make things *much*
-// simpler, since we never allocate memory for the unused fields.
-//
-// TODO: trace how often and where we're calling each accessor,
-//       and whether it's read or write. => build this as a compile
-//       time feature into entry_storage.
-//
 // TODO: rethink if we still need visitors - it might make more sense
 //       to just have some `for_each_device` etc. methods and those
 //       might play better with the storage idea (but then again, they
@@ -277,8 +259,6 @@ struct shared_entry_data {
   }
 
  private:
-  // TODO; remove those trailing underscores?
-
   cao_vector<path_component> path_components_;
   std::optional<flat_cao_index<path_component>> path_index_{path_components_};
 
