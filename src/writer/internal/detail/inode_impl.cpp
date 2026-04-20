@@ -51,16 +51,6 @@ constexpr std::string_view const kCategorizeContext{"[categorizing] "};
 inode_impl::inode_impl() = default;
 inode_impl::~inode_impl() = default;
 
-void inode_impl::set_num(uint32_t num) {
-  DWARFS_CHECK(!num_.has_value(), "attempt to set inode number multiple times");
-  num_ = num;
-}
-
-uint32_t inode_impl::num() const {
-  DWARFS_CHECK(num_.has_value(), "inode number is not set");
-  return *num_;
-}
-
 bool inode_impl::has_category(fragment_category cat) const {
   DWARFS_CHECK(!fragments_.empty(), "has_category() called with no fragments");
   return std::ranges::any_of(
@@ -204,8 +194,8 @@ bool inode_impl::append_chunks_to(
 inode_fragments& inode_impl::fragments() { return fragments_; }
 inode_fragments const& inode_impl::fragments() const { return fragments_; }
 
-void inode_impl::dump(entry_storage& storage, std::ostream& os,
-                      inode_options const& options,
+void inode_impl::dump(entry_storage& storage, inode_id self_id,
+                      std::ostream& os, inode_options const& options,
                       file_id_vector const& files) const {
   auto dump_category = [&os, &options](fragment_category const& cat) {
     if (options.categorizer_mgr) {
@@ -219,8 +209,8 @@ void inode_impl::dump(entry_storage& storage, std::ostream& os,
 
   std::string ino_num{"?"};
 
-  if (num_.has_value()) {
-    ino_num = std::to_string(*num_);
+  if (auto maybe_num = storage.get_inode_num(self_id)) {
+    ino_num = std::to_string(*maybe_num);
   }
 
   os << "inode " << ino_num << " (" << size(storage, files) << " bytes):\n";
