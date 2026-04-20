@@ -35,16 +35,16 @@
 namespace dwarfs::writer {
 
 class single_inode_fragment {
- private:
+ public:
   enum class chunk_kind : std::uint64_t {
     data = 0,
     hole = 1,
   };
 
-  static constexpr std::size_t kBlockIndex = 0;
-  static constexpr std::size_t kOffsetIndex = 1;
-  static constexpr std::size_t kSizeIndex = 2;
-  static constexpr std::size_t kKindIndex = 3;
+  static constexpr std::size_t kBlockField = 0;
+  static constexpr std::size_t kOffsetField = 1;
+  static constexpr std::size_t kSizeField = 2;
+  static constexpr std::size_t kKindField = 3;
 
   using packed_chunk_tuple =
       std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, chunk_kind>;
@@ -52,7 +52,6 @@ class single_inode_fragment {
   using packed_chunk_vector =
       dwarfs::container::compact_auto_packed_int_vector<packed_chunk_tuple>;
 
- public:
   struct hole_tag {};
   static constexpr hole_tag hole{};
 
@@ -74,19 +73,19 @@ class single_inode_fragment {
 
     block_type block() const {
       assert(is_data());
-      return get<kBlockIndex>(chunks_[index_]);
+      return get<kBlockField>(chunks_[index_]);
     }
 
     offset_type offset() const {
       assert(is_data());
-      return get<kOffsetIndex>(chunks_[index_]);
+      return get<kOffsetField>(chunks_[index_]);
     }
 
-    chunk_size_type size() const { return get<kSizeIndex>(chunks_[index_]); }
+    chunk_size_type size() const { return get<kSizeField>(chunks_[index_]); }
 
    private:
     [[nodiscard]] auto kind() const -> chunk_kind {
-      return get<kKindIndex>(chunks_[index_]);
+      return get<kKindField>(chunks_[index_]);
     }
 
     packed_chunk_vector const& chunks_;

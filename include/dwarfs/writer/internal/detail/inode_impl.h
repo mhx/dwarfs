@@ -61,10 +61,11 @@ class inode_impl final : public inode {
   nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const override;
 
-  void populate(file_size_t size) override;
-
   void
-  scan(file_view const& mm, inode_options const& opts, progress& prog) override;
+  populate(entry_storage& storage, inode_id self_id, file_size_t size) override;
+
+  void scan(entry_storage& storage, inode_id self_id, file_view const& mm,
+            inode_options const& opts, progress& prog) override;
 
   file_size_t
   size(entry_storage& storage, file_id_vector const& files) const override;
