@@ -90,9 +90,6 @@ class inode {
   virtual void
   dump(entry_storage& storage, std::ostream& os, inode_options const& options,
        file_id_vector const& files) const = 0;
-  virtual void set_scan_error(const_file_handle fp, std::exception_ptr ep) = 0;
-  virtual std::optional<std::pair<const_file_handle, std::exception_ptr>>
-  get_scan_error() const = 0;
   virtual inode_mmap_any_result
   mmap_any(entry_storage& storage, os_access const& os,
            open_file_options const& of_opts,

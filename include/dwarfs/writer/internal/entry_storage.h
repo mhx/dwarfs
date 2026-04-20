@@ -234,6 +234,15 @@ class entry_storage {
     return impl_->get_file_inode(id);
   }
 
+  void set_inode_scan_error(inode_id id, file_id fid, std::exception_ptr ep) {
+    impl_->set_inode_scan_error(id, fid, std::move(ep));
+  }
+
+  std::optional<std::pair<file_id, std::exception_ptr>>
+  get_inode_scan_error(inode_id id) const {
+    return impl_->get_inode_scan_error(id);
+  }
+
   void dump(std::ostream& os) const { impl_->dump(os); }
 
   std::string dump() const;
@@ -275,6 +284,11 @@ class entry_storage {
 
     virtual void set_file_inode(file_id id, inode_id ino) = 0;
     virtual inode_id get_file_inode(file_id id) const = 0;
+
+    virtual void
+    set_inode_scan_error(inode_id id, file_id fid, std::exception_ptr ep) = 0;
+    virtual std::optional<std::pair<file_id, std::exception_ptr>>
+    get_inode_scan_error(inode_id id) const = 0;
 
     virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
