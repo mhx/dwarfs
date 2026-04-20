@@ -87,10 +87,6 @@ class entry_storage {
     return {*this, id};
   }
 
-  [[nodiscard]] entry_handle root() noexcept {
-    return {*this, entry_id(entry_type::E_DIR, 0)};
-  }
-
   [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
 
   inode_handle create_inode();
