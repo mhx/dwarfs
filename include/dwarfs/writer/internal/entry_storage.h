@@ -251,6 +251,16 @@ class entry_storage {
     return impl_->get_inode_num(id);
   }
 
+  void set_inode_fragments(inode_id id, inode_fragments const& fragments) {
+    impl_->set_inode_fragments(id, fragments);
+  }
+
+  void set_inode_fragment_chunks(
+      inode_id id, std::size_t fragment_index,
+      single_inode_fragment::packed_chunk_vector&& chunks) {
+    impl_->set_inode_fragment_chunks(id, fragment_index, std::move(chunks));
+  }
+
   void dump(std::ostream& os) const { impl_->dump(os); }
 
   std::string dump() const;
@@ -300,6 +310,12 @@ class entry_storage {
 
     virtual void set_inode_num(inode_id id, std::uint64_t num) = 0;
     virtual std::optional<std::uint64_t> get_inode_num(inode_id id) const = 0;
+
+    virtual void
+    set_inode_fragments(inode_id id, inode_fragments const& fragments) = 0;
+    virtual void set_inode_fragment_chunks(
+        inode_id id, std::size_t fragment_index,
+        single_inode_fragment::packed_chunk_vector&& chunks) = 0;
 
     virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;

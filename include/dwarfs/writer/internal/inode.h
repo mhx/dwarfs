@@ -68,9 +68,11 @@ class inode {
  public:
   virtual ~inode() = default;
 
-  virtual void populate(file_size_t size) = 0;
   virtual void
-  scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
+  populate(entry_storage& storage, inode_id self_id, file_size_t size) = 0;
+  virtual void
+  scan(entry_storage& storage, inode_id self_id, file_view const& mm,
+       inode_options const& options, progress& prog) = 0;
   virtual bool has_category(fragment_category cat) const = 0;
   virtual std::optional<uint32_t>
   similarity_hash(fragment_category cat) const = 0;

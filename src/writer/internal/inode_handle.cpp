@@ -49,7 +49,7 @@ template <detail::mutability Mut>
 void basic_inode_handle<Mut>::populate(file_size_t size)
   requires is_mutable
 {
-  self()->populate(size);
+  self()->populate(*storage_, self_id_, size);
 }
 
 template <detail::mutability Mut>
@@ -57,7 +57,7 @@ void basic_inode_handle<Mut>::scan(file_view const& mm,
                                    inode_options const& options, progress& prog)
   requires is_mutable
 {
-  self()->scan(mm, options, prog);
+  self()->scan(*storage_, self_id_, mm, options, prog);
 }
 
 template <detail::mutability Mut>

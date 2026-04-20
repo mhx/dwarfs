@@ -620,11 +620,31 @@ class packed_entry_data {
 
 class packed_inode_data {
  public:
+  enum class fragment_kind : std::uint64_t {
+    data = 0,
+    hole = 1,
+  };
+
+  static constexpr std::size_t kFragmentCategoryField = 0;
+  static constexpr std::size_t kFragmentSubcategoryField = 1;
+  static constexpr std::size_t kFragmentKindField = 2;
+  static constexpr std::size_t kFragmentSizeField = 3;
+
+  using inode_fragment_tuple =
+      std::tuple<std::uint64_t, std::optional<std::uint64_t>, fragment_kind,
+                 std::uint64_t>;
+
+  static constexpr std::size_t kFragmentInfoOffsetField = 0;
+  static constexpr std::size_t kFragmentInfoCountField = 1;
+
+  using inode_fragment_info_tuple = std::tuple<std::uint64_t, std::uint64_t>;
+
   inode_id create() {
     auto const id = inodes_.size();
     inodes_.emplace_back();
     files_for_inode_.emplace_back();
     inode_num_.push_back(std::nullopt);
+    fragment_info_.push_back({0, 0});
     return inode_id{id};
   }
 
@@ -661,6 +681,43 @@ class packed_inode_data {
     return inode_num_.at(id.index());
   }
 
+  void set_fragments(inode_id id, inode_fragments const& fragments) {
+    auto info = fragment_info_.at(id.index());
+    get<kFragmentInfoOffsetField>(info) = fragment_data_.size();
+    get<kFragmentInfoCountField>(info) = fragments.size();
+    for (auto const& frag : fragments) {
+      fragment_chunks_.emplace_back();
+
+      auto const cat = frag.category();
+
+      inode_fragment_tuple data{};
+
+      get<kFragmentCategoryField>(data) = cat.value();
+
+      if (cat.has_subcategory()) {
+        get<kFragmentSubcategoryField>(data) = cat.subcategory();
+      }
+
+      get<kFragmentKindField>(data) =
+          frag.is_hole() ? fragment_kind::hole : fragment_kind::data;
+      get<kFragmentSizeField>(data) = frag.size();
+
+      fragment_data_.push_back(data);
+    }
+  }
+
+  void
+  set_fragment_chunks(inode_id id, std::size_t fragment_index,
+                      single_inode_fragment::packed_chunk_vector&& chunks) {
+    auto const info = fragment_info_.at(id.index());
+    auto const offset = get<kFragmentInfoOffsetField>(info);
+    auto const count = get<kFragmentInfoCountField>(info);
+
+    assert(fragment_index < count);
+
+    fragment_chunks_.at(offset + fragment_index) = std::move(chunks);
+  }
+
   void dump(std::ostream& os) const;
 
  private:
@@ -668,6 +725,10 @@ class packed_inode_data {
   cao_vector<file_id_vector> files_for_inode_;
   phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
   segtor<std::optional<std::uint64_t>> inode_num_;
+
+  segtor<inode_fragment_info_tuple> fragment_info_;
+  segtor<inode_fragment_tuple> fragment_data_;
+  cao_vector<single_inode_fragment::packed_chunk_vector> fragment_chunks_;
 };
 
 void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
@@ -763,6 +824,12 @@ void packed_inode_data::dump(std::ostream& os) const {
   os << "  scan errors: " << inode_scan_errors_.size() << " ("
      << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
      << ")\n";
+  os << "  fragment info: " << fragment_info_.size() << " ("
+     << size_with_unit(fragment_info_.size_in_bytes()) << ")\n";
+  os << "  fragment data: " << fragment_data_.size() << " ("
+     << size_with_unit(fragment_data_.size_in_bytes()) << ")\n";
+  os << "  fragment chunks: " << fragment_chunks_.size() << " ("
+     << size_with_unit(total_cao_id_vec_bytes(fragment_chunks_)) << ")\n";
 }
 
 auto packed_entry_data::add_entry_common(shared_entry_data& shared,
@@ -1050,6 +1117,23 @@ class entry_storage_ final : public entry_storage::impl {
   std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
     TRACE_CALL;
     return inodes_.get_inode_num(id);
+  }
+
+  void
+  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      inodes_.set_fragments(id, fragments);
+    } else {
+      frozen_panic();
+    }
+  }
+
+  void set_inode_fragment_chunks(
+      inode_id id, std::size_t fragment_index,
+      single_inode_fragment::packed_chunk_vector&& chunks) override {
+    TRACE_CALL;
+    inodes_.set_fragment_chunks(id, fragment_index, std::move(chunks));
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1561,6 +1645,18 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
     return impl_.lock()->get_inode_num(id);
+  }
+
+  void
+  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
+    impl_.lock()->set_inode_fragments(id, fragments);
+  }
+
+  void set_inode_fragment_chunks(
+      inode_id id, std::size_t fragment_index,
+      single_inode_fragment::packed_chunk_vector&& chunks) override {
+    impl_.lock()->set_inode_fragment_chunks(id, fragment_index,
+                                            std::move(chunks));
   }
 
   dir_id get_parent(entry_id const id) const override {
