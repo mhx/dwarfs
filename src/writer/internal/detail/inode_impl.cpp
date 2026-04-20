@@ -227,7 +227,7 @@ void inode_impl::dump(entry_storage& storage, inode_id self_id,
 
   os << "  fragments:\n";
 
-  for (auto const& f : fragments_.span()) {
+  for (auto const& f : fragments_) {
     os << "    ";
     dump_category(f.category());
     os << "(" << f.size() << " bytes)\n";
@@ -398,7 +398,7 @@ void inode_impl::scan_fragments(file_view const& mm, scanner_progress* sprog,
 
   file_off_t pos = 0;
 
-  for (auto const& f : fragments_.span()) {
+  for (auto const& f : fragments_) {
     auto const size = f.size();
 
     if (auto i = sc.find(f.category()); i != sc.end()) {

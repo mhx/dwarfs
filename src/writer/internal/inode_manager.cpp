@@ -389,7 +389,7 @@ size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
   file_size_t max_chunk_size{0};
 
   for (auto const& ino : all_inodes()) {
-    for (auto const& frag : ino.fragments().span()) {
+    for (auto const& frag : ino.fragments()) {
       for (auto const& chk : frag.chunks()) {
         if (chk.is_data()) {
           max_chunk_size = std::max(max_chunk_size, chk.size());

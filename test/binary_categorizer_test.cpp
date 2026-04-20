@@ -276,22 +276,21 @@ TEST_F(binary_categorizer, macho_basic_fat) {
   job_fat32.categorize_random_access(mm_fat32);
   auto frag_fat32 = job_fat32.result();
   ASSERT_EQ(4, frag_fat32.size());
-  auto span_fat32 = frag_fat32.span();
-  EXPECT_EQ(header_category, span_fat32[0].category().value());
-  EXPECT_EQ(macho_category, span_fat32[1].category().value());
-  EXPECT_EQ(header_category, span_fat32[2].category().value());
-  EXPECT_EQ(macho_category, span_fat32[3].category().value());
-  EXPECT_NE(span_fat32[1].category().subcategory(),
-            span_fat32[3].category().subcategory());
-  EXPECT_EQ(span_fat32[1].category().subcategory(),
+  EXPECT_EQ(header_category, frag_fat32[0].category().value());
+  EXPECT_EQ(macho_category, frag_fat32[1].category().value());
+  EXPECT_EQ(header_category, frag_fat32[2].category().value());
+  EXPECT_EQ(macho_category, frag_fat32[3].category().value());
+  EXPECT_NE(frag_fat32[1].category().subcategory(),
+            frag_fat32[3].category().subcategory());
+  EXPECT_EQ(frag_fat32[1].category().subcategory(),
             frag_x86_64.get_single_category().subcategory());
-  EXPECT_EQ(span_fat32[3].category().subcategory(),
+  EXPECT_EQ(frag_fat32[3].category().subcategory(),
             frag_arm64.get_single_category().subcategory());
   EXPECT_EQ(frag_fat32.total_size(), mm_fat32.size());
-  EXPECT_EQ(4096, span_fat32[0].size());
-  EXPECT_EQ(mm_x86_64.size(), span_fat32[1].size());
-  EXPECT_EQ(8016, span_fat32[2].size());
-  EXPECT_EQ(mm_arm64.size(), span_fat32[3].size());
+  EXPECT_EQ(4096, frag_fat32[0].size());
+  EXPECT_EQ(mm_x86_64.size(), frag_fat32[1].size());
+  EXPECT_EQ(8016, frag_fat32[2].size());
+  EXPECT_EQ(mm_arm64.size(), frag_fat32[3].size());
 
   auto job_fat64 = catmgr->job("macho-fat64-arm64-x86_64");
   auto mm_fat64 =
@@ -300,22 +299,21 @@ TEST_F(binary_categorizer, macho_basic_fat) {
   job_fat64.categorize_random_access(mm_fat64);
   auto frag_fat64 = job_fat64.result();
   ASSERT_EQ(4, frag_fat64.size());
-  auto span_fat64 = frag_fat64.span();
-  EXPECT_EQ(header_category, span_fat64[0].category().value());
-  EXPECT_EQ(macho_category, span_fat64[1].category().value());
-  EXPECT_EQ(header_category, span_fat64[2].category().value());
-  EXPECT_EQ(macho_category, span_fat64[3].category().value());
-  EXPECT_NE(span_fat64[1].category().subcategory(),
-            span_fat64[3].category().subcategory());
-  EXPECT_EQ(span_fat64[1].category().subcategory(),
+  EXPECT_EQ(header_category, frag_fat64[0].category().value());
+  EXPECT_EQ(macho_category, frag_fat64[1].category().value());
+  EXPECT_EQ(header_category, frag_fat64[2].category().value());
+  EXPECT_EQ(macho_category, frag_fat64[3].category().value());
+  EXPECT_NE(frag_fat64[1].category().subcategory(),
+            frag_fat64[3].category().subcategory());
+  EXPECT_EQ(frag_fat64[1].category().subcategory(),
             frag_x86_64.get_single_category().subcategory());
-  EXPECT_EQ(span_fat64[3].category().subcategory(),
+  EXPECT_EQ(frag_fat64[3].category().subcategory(),
             frag_arm64.get_single_category().subcategory());
   EXPECT_EQ(frag_fat64.total_size(), mm_fat64.size());
-  EXPECT_EQ(4096, span_fat64[0].size());
-  EXPECT_EQ(mm_x86_64.size(), span_fat64[1].size());
-  EXPECT_EQ(8016, span_fat64[2].size());
-  EXPECT_EQ(mm_arm64.size(), span_fat64[3].size());
+  EXPECT_EQ(4096, frag_fat64[0].size());
+  EXPECT_EQ(mm_x86_64.size(), frag_fat64[1].size());
+  EXPECT_EQ(8016, frag_fat64[2].size());
+  EXPECT_EQ(mm_arm64.size(), frag_fat64[3].size());
 }
 
 TEST_F(binary_categorizer, macho_fail_fat) {

@@ -144,15 +144,14 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
         job.set_total_size(mm.size());
         job.categorize_random_access(mm);
         auto frag = job.result();
-        auto fs = frag.span();
-        ASSERT_EQ(3, fs.size());
-        EXPECT_EQ(metadata_category, fs[0].category().value());
-        EXPECT_EQ(2880, fs[0].size());
-        EXPECT_EQ(image_category, fs[1].category().value());
-        EXPECT_EQ(256, fs[1].size());
-        EXPECT_EQ(metadata_category, fs[2].category().value());
-        EXPECT_EQ(2624, fs[2].size());
-        categories[fs[1].category()].insert(unused_lsb_count);
+        ASSERT_EQ(3, frag.size());
+        EXPECT_EQ(metadata_category, frag[0].category().value());
+        EXPECT_EQ(2880, frag[0].size());
+        EXPECT_EQ(image_category, frag[1].category().value());
+        EXPECT_EQ(256, frag[1].size());
+        EXPECT_EQ(metadata_category, frag[2].category().value());
+        EXPECT_EQ(2624, frag[2].size());
+        categories[frag[1].category()].insert(unused_lsb_count);
         pixel = 0;
       }
     }
