@@ -1361,7 +1361,14 @@ class entry_storage_ final : public entry_storage::impl {
 
 template <bool Frozen>
 void entry_storage_<Frozen>::dump(std::ostream& os) const {
-  os << "num inodes: " << inodes_.size() << "\n";
+  auto const total_inode_size =
+      std::accumulate(inodes_.begin(), inodes_.end(), 0ULL,
+                      [](std::size_t acc, auto const& ino) {
+                        return acc + ino.size_in_bytes();
+                      });
+
+  os << "num inodes: " << inodes_.size() << " ("
+     << size_with_unit(total_inode_size) << ")\n";
   os << "  hardlinks: "
      << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
 

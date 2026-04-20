@@ -97,6 +97,8 @@ class inode {
   mmap_any(entry_storage& storage, os_access const& os,
            open_file_options const& of_opts,
            file_id_vector const& files) const = 0;
+
+  virtual std::size_t size_in_bytes() const = 0;
 };
 
 } // namespace internal
