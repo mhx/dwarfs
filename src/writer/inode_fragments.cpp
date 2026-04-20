@@ -30,44 +30,6 @@
 
 namespace dwarfs::writer {
 
-void single_inode_fragment::add_chunk(size_t block, size_t offset,
-                                      size_t size) {
-  // This function triggers clang's array bound checker in folly/lang/ToAscii.h
-  // NOLINTBEGIN(clang-analyzer-security.ArrayBound)
-  if (!chunks_.empty()) {
-    auto& last = chunks_.back();
-    if (last.is_data() && last.block() == block &&
-        std::cmp_equal(last.offset() + last.size(), offset)) [[unlikely]] {
-      // merge chunks
-      last.grow_by(size);
-      return;
-    }
-  }
-
-  chunks_.emplace_back(to<chunk::block_type>(block),
-                       to<chunk::offset_type>(offset),
-                       to<chunk::size_type>(size));
-  // NOLINTEND(clang-analyzer-security.ArrayBound)
-}
-
-void single_inode_fragment::add_hole(file_size_t size) {
-  chunks_.emplace_back(chunk::hole, size);
-}
-
-bool single_inode_fragment::chunks_are_consistent() const {
-  auto const frag_size = size();
-
-  if (frag_size > 0 && chunks_.empty()) {
-    return false;
-  }
-
-  auto total_chunks_len =
-      std::accumulate(chunks_.begin(), chunks_.end(), file_size_t{0},
-                      [](auto acc, auto const& c) { return acc + c.size(); });
-
-  return total_chunks_len == frag_size;
-}
-
 void inode_fragments::append(inode_fragments const& other) {
   fragments_.insert(fragments_.end(), other.fragments_.begin(),
                     other.fragments_.end());
@@ -133,14 +95,6 @@ inode_fragments::get_category_sizes() const {
   }
 
   return result;
-}
-
-std::size_t single_inode_fragment::allocated_size_in_bytes() const {
-  if (chunks_.size() > 1) {
-    return chunks_.size() * sizeof(chunk);
-  }
-
-  return 0;
 }
 
 std::size_t inode_fragments::size_in_bytes() const {
