@@ -71,8 +71,6 @@ class inode {
   virtual void populate(file_size_t size) = 0;
   virtual void
   scan(file_view const& mm, inode_options const& options, progress& prog) = 0;
-  virtual void set_num(uint32_t num) = 0;
-  virtual uint32_t num() const = 0;
   virtual bool has_category(fragment_category cat) const = 0;
   virtual std::optional<uint32_t>
   similarity_hash(fragment_category cat) const = 0;
@@ -88,8 +86,8 @@ class inode {
   virtual inode_fragments& fragments() = 0;
   virtual inode_fragments const& fragments() const = 0;
   virtual void
-  dump(entry_storage& storage, std::ostream& os, inode_options const& options,
-       file_id_vector const& files) const = 0;
+  dump(entry_storage& storage, inode_id self_id, std::ostream& os,
+       inode_options const& options, file_id_vector const& files) const = 0;
   virtual inode_mmap_any_result
   mmap_any(entry_storage& storage, os_access const& os,
            open_file_options const& of_opts,

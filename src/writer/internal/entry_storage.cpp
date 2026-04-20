@@ -772,6 +772,7 @@ class entry_storage_ final : public entry_storage::impl {
       : inodes_{std::move(other.inodes_)}
       , files_for_inode_{std::move(other.files_for_inode_)}
       , inode_scan_errors_{std::move(other.inode_scan_errors_)}
+      , inode_num_{std::move(other.inode_num_)}
       , shared_{std::move(other.shared_)}
       , packed_files_{std::move(other.packed_files_)}
       , packed_dirs_{std::move(other.packed_dirs_)}
@@ -866,6 +867,7 @@ class entry_storage_ final : public entry_storage::impl {
       auto id = inodes_.size();
       inodes_.emplace_back();
       files_for_inode_.emplace_back();
+      inode_num_.push_back(std::nullopt);
       return inode_id{id};
     } else {
       frozen_panic();
@@ -978,6 +980,20 @@ class entry_storage_ final : public entry_storage::impl {
   get_inode_scan_error(inode_id id) const override {
     TRACE_CALL;
     return container::get_optional(inode_scan_errors_, id.index());
+  }
+
+  void set_inode_num(inode_id id, std::uint64_t num) override {
+    TRACE_CALL;
+    // this is safe even on frozen storage if it's single-threaded
+    auto ino_num = inode_num_.at(id.index());
+    DWARFS_CHECK(!ino_num.has_value(),
+                 "attempt to set inode number multiple times");
+    ino_num = num;
+  }
+
+  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
+    TRACE_CALL;
+    return inode_num_.at(id.index());
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1361,6 +1377,7 @@ class entry_storage_ final : public entry_storage::impl {
   cao_vector<detail::inode_impl> inodes_;
   cao_vector<file_id_vector> files_for_inode_;
   phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
+  segtor<std::optional<std::uint64_t>> inode_num_;
 
   shared_entry_data shared_;
 
@@ -1392,6 +1409,8 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
      << size_with_unit(total_inode_size) << ")\n";
   os << "  hardlinks: "
      << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
+  os << "  inode numbers: " << size_with_unit(inode_num_.size_in_bytes())
+     << "\n";
   os << "  scan errors: " << inode_scan_errors_.size() << " ("
      << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
      << ")\n";
@@ -1499,6 +1518,14 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   std::optional<inode_scan_error>
   get_inode_scan_error(inode_id id) const override {
     return impl_.lock()->get_inode_scan_error(id);
+  }
+
+  void set_inode_num(inode_id id, std::uint64_t num) override {
+    impl_.lock()->set_inode_num(id, num);
+  }
+
+  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
+    return impl_.lock()->get_inode_num(id);
   }
 
   dir_id get_parent(entry_id const id) const override {
