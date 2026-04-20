@@ -50,7 +50,7 @@ inode_fragments::to_stream(std::ostream& os,
     os << "[";
     bool first = true;
 
-    for (auto const& f : span()) {
+    for (auto const& f : *this) {
       if (first) {
         first = false;
       } else {
@@ -90,7 +90,7 @@ std::unordered_map<fragment_category, file_size_t>
 inode_fragments::get_category_sizes() const {
   std::unordered_map<fragment_category, file_size_t> result;
 
-  for (auto const& f : span()) {
+  for (auto const& f : *this) {
     result[f.category()] += f.size();
   }
 
@@ -102,7 +102,7 @@ std::size_t inode_fragments::size_in_bytes() const {
   if (fragments_.size() > 1) {
     total += fragments_.size() * sizeof(single_inode_fragment);
   }
-  for (auto const& f : span()) {
+  for (auto const& f : *this) {
     total += f.allocated_size_in_bytes();
   }
   return total;

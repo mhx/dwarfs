@@ -321,8 +321,8 @@ TEST(pcmaudio_categorizer, requirements) {
 
     EXPECT_EQ(2, frag.size());
 
-    auto const& first = frag.span()[0];
-    auto const& second = frag.span()[1];
+    auto const& first = frag[0];
+    auto const& second = frag[1];
     EXPECT_EQ("pcmaudio/metadata",
               catmgr.category_name(first.category().value()));
     EXPECT_EQ(44, first.size());
@@ -473,8 +473,8 @@ TEST_F(pcmaudio_error_test_wav, no_error) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(44, first.size());
@@ -695,9 +695,9 @@ TEST_F(pcmaudio_error_test_wav, chunk_size_mismatch) {
 
   ASSERT_EQ(3, frag.size());
 
-  auto f1 = frag.span()[0];
-  auto f2 = frag.span()[1];
-  auto f3 = frag.span()[2];
+  auto f1 = frag[0];
+  auto f2 = frag[1];
+  auto f3 = frag[2];
 
   EXPECT_EQ("pcmaudio/metadata", catmgr.category_name(f1.category().value()));
   EXPECT_EQ("pcmaudio/waveform", catmgr.category_name(f2.category().value()));
@@ -722,8 +722,8 @@ TEST_F(pcmaudio_error_test_wav, unexpected_file_size) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto f1 = frag.span()[0];
-  auto f2 = frag.span()[1];
+  auto f1 = frag[0];
+  auto f2 = frag[1];
 
   EXPECT_EQ("pcmaudio/metadata", catmgr.category_name(f1.category().value()));
   EXPECT_EQ(44, f1.size());
@@ -739,8 +739,8 @@ TEST_F(pcmaudio_error_test_wav64, no_error) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(104, first.size());
@@ -768,8 +768,8 @@ TEST_F(pcmaudio_error_test_wav64, no_error_alignment) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(112, first.size());
@@ -822,8 +822,8 @@ TEST_F(pcmaudio_error_test_aiff, no_error) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(54, first.size());
@@ -904,8 +904,8 @@ TEST_F(pcmaudio_error_test_caf, no_error) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(68, first.size());
@@ -925,8 +925,8 @@ TEST_F(pcmaudio_error_test_caf, no_error_unkown_data_size) {
 
   ASSERT_EQ(2, frag.size());
 
-  auto const& first = frag.span()[0];
-  auto const& second = frag.span()[1];
+  auto const& first = frag[0];
+  auto const& second = frag[1];
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(68, first.size());
