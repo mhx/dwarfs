@@ -497,4 +497,20 @@ void inode_impl::scan_full(file_view const& mm, scanner_progress* sprog,
   }
 }
 
+std::size_t inode_impl::size_in_bytes() const {
+  std::size_t size = sizeof(inode_impl);
+
+  size += fragments_.size_in_bytes();
+
+  if (scan_error_) {
+    size += sizeof(*scan_error_);
+  }
+
+  if (auto const* map = std::get_if<similarity_map_type>(&similarity_)) {
+    size += map->size() * sizeof(similarity_map_type::value_type);
+  }
+
+  return size;
+}
+
 } // namespace dwarfs::writer::internal::detail

@@ -95,6 +95,8 @@ class inode_impl final : public inode {
                                  open_file_options const& of_opts,
                                  file_id_vector const& files) const override;
 
+  std::size_t size_in_bytes() const override;
+
  private:
   std::shared_ptr<scanner_progress>
   make_progress_context(std::string_view context, file_view const& mm,

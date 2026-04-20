@@ -135,4 +135,23 @@ inode_fragments::get_category_sizes() const {
   return result;
 }
 
+std::size_t single_inode_fragment::allocated_size_in_bytes() const {
+  if (chunks_.size() > 1) {
+    return chunks_.size() * sizeof(chunk);
+  }
+
+  return 0;
+}
+
+std::size_t inode_fragments::size_in_bytes() const {
+  std::size_t total = sizeof(inode_fragments);
+  if (fragments_.size() > 1) {
+    total += fragments_.size() * sizeof(single_inode_fragment);
+  }
+  for (auto const& f : span()) {
+    total += f.allocated_size_in_bytes();
+  }
+  return total;
+}
+
 } // namespace dwarfs::writer

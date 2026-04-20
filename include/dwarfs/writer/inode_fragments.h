@@ -120,6 +120,8 @@ class single_inode_fragment {
 
   bool chunks_are_consistent() const;
 
+  std::size_t allocated_size_in_bytes() const;
+
  private:
   fragment_category category_;
   uint64_t bits_;
@@ -186,6 +188,8 @@ class inode_fragments {
   to_string(mapper_function_type const& mapper = mapper_function_type()) const;
 
   std::unordered_map<fragment_category, file_size_t> get_category_sizes() const;
+
+  std::size_t size_in_bytes() const;
 
  private:
   small_vector<single_inode_fragment, 1> fragments_;
