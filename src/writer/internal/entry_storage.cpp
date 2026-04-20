@@ -840,11 +840,11 @@ class entry_storage_ final : public entry_storage::impl {
     requires Frozen
       : shared_{std::move(other.shared_)}
       , inodes_{std::move(other.inodes_)}
-      , packed_files_{std::move(other.packed_files_)}
-      , packed_dirs_{std::move(other.packed_dirs_)}
-      , packed_links_{std::move(other.packed_links_)}
-      , packed_devices_{std::move(other.packed_devices_)}
-      , packed_others_{std::move(other.packed_others_)} {}
+      , files_{std::move(other.files_)}
+      , dirs_{std::move(other.dirs_)}
+      , links_{std::move(other.links_)}
+      , devices_{std::move(other.devices_)}
+      , others_{std::move(other.others_)} {}
 
   std::unique_ptr<impl> freeze() override {
     if constexpr (is_mutable) {
@@ -905,27 +905,27 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_id make_file(fs::path const& path, file_stat const& st,
                      dir_id const parent) override {
-    return make_obj_(entry_type::E_FILE, packed_files_, path, st, parent);
+    return make_obj_(entry_type::E_FILE, files_, path, st, parent);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
                     dir_id const parent) override {
-    return make_obj_(entry_type::E_DIR, packed_dirs_, path, st, parent);
+    return make_obj_(entry_type::E_DIR, dirs_, path, st, parent);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
                      dir_id const parent) override {
-    return make_obj_(entry_type::E_LINK, packed_links_, path, st, parent);
+    return make_obj_(entry_type::E_LINK, links_, path, st, parent);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
                        dir_id const parent) override {
-    return make_obj_(entry_type::E_DEVICE, packed_devices_, path, st, parent);
+    return make_obj_(entry_type::E_DEVICE, devices_, path, st, parent);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
                       dir_id const parent) override {
-    return make_obj_(entry_type::E_OTHER, packed_others_, path, st, parent);
+    return make_obj_(entry_type::E_OTHER, others_, path, st, parent);
   }
 
   inode_id make_inode() override {
@@ -938,14 +938,14 @@ class entry_storage_ final : public entry_storage::impl {
 
   bool empty() const noexcept override {
     TRACE_CALL;
-    return packed_dirs_.empty();
+    return dirs_.empty();
   }
 
   void dump(std::ostream& os) const override;
 
   void create_packed_file_data(file_id id) override {
     if constexpr (is_mutable) {
-      packed_files_.create_file_data(id);
+      files_.create_file_data(id);
     } else {
       frozen_panic();
     }
@@ -975,12 +975,12 @@ class entry_storage_ final : public entry_storage::impl {
   void set_file_order_index(file_id id, std::size_t index) override {
     TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
-    packed_files_.set_file_order_index(id, index);
+    files_.set_file_order_index(id, index);
   }
 
   std::size_t get_file_order_index(file_id id) const override {
     TRACE_CALL;
-    return packed_files_.get_file_order_index(id);
+    return files_.get_file_order_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target,
@@ -988,8 +988,8 @@ class entry_storage_ final : public entry_storage::impl {
     TRACE_CALL;
     if constexpr (is_mutable) {
       auto const index = shared_.add_link_target(std::move(link_target));
-      packed_links_.set_link_target_index(id, index);
-      auto const [total, allocated] = packed_links_.get_size_info(id.index());
+      links_.set_link_target_index(id, index);
+      auto const [total, allocated] = links_.get_size_info(id.index());
       prog.original_size += total;
       prog.allocated_original_size += allocated;
       prog.symlink_size += total;
@@ -1000,7 +1000,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_link_target(link_id id) const override {
     TRACE_CALL;
-    return shared_.get_link_target(packed_links_.get_link_target_index(id));
+    return shared_.get_link_target(links_.get_link_target_index(id));
   }
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
@@ -1017,12 +1017,12 @@ class entry_storage_ final : public entry_storage::impl {
   void set_file_inode(file_id id, inode_id ino) override {
     TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
-    packed_files_.set_inode_id(id, ino);
+    files_.set_inode_id(id, ino);
   }
 
   inode_id get_file_inode(file_id id) const override {
     TRACE_CALL;
-    return packed_files_.get_inode_id(id);
+    return files_.get_inode_id(id);
   }
 
   void set_inode_scan_error(inode_id id, file_id fid,
@@ -1214,7 +1214,7 @@ class entry_storage_ final : public entry_storage::impl {
   create_hardlink(file_id target, file_id source, progress& prog) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      packed_files_.create_hardlink(target, source, prog);
+      files_.create_hardlink(target, source, prog);
     } else {
       frozen_panic();
     }
@@ -1222,24 +1222,24 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::size_t hardlink_count(file_id id) const override {
     TRACE_CALL;
-    return packed_files_.hardlink_count(id);
+    return files_.hardlink_count(id);
   }
 
   void set_file_invalid(file_id id) override {
     TRACE_CALL;
-    packed_files_.set_file_invalid(id);
+    files_.set_file_invalid(id);
   }
 
   bool is_file_invalid(file_id id) const override {
     TRACE_CALL;
-    return packed_files_.is_file_invalid(id);
+    return files_.is_file_invalid(id);
   }
 
   std::span<std::byte>
   get_file_hash_buffer(file_id id, std::size_t buffer_size) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      return packed_files_.get_file_hash_buffer(id, buffer_size);
+      return files_.get_file_hash_buffer(id, buffer_size);
     } else {
       frozen_panic();
     }
@@ -1247,7 +1247,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   std::string_view get_file_hash(file_id id) const override {
     TRACE_CALL;
-    return packed_files_.get_file_hash(id);
+    return files_.get_file_hash(id);
   }
 
   file_size_t get_entry_size(entry_id id) const override {
@@ -1282,7 +1282,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   file_stat::dev_type get_represented_device(device_id id) const override {
     TRACE_CALL;
-    return packed_devices_.get_represented_device(id);
+    return devices_.get_represented_device(id);
   }
 
  private:
@@ -1323,19 +1323,15 @@ class entry_storage_ final : public entry_storage::impl {
     assert(id.valid());
     switch (id.type()) {
     case entry_type::E_FILE:
-      return (me.packed_files_.*method)(id.index(),
-                                        std::forward<Args>(args)...);
+      return (me.files_.*method)(id.index(), std::forward<Args>(args)...);
     case entry_type::E_DIR:
-      return (me.packed_dirs_.*method)(id.index(), std::forward<Args>(args)...);
+      return (me.dirs_.*method)(id.index(), std::forward<Args>(args)...);
     case entry_type::E_LINK:
-      return (me.packed_links_.*method)(id.index(),
-                                        std::forward<Args>(args)...);
+      return (me.links_.*method)(id.index(), std::forward<Args>(args)...);
     case entry_type::E_DEVICE:
-      return (me.packed_devices_.*method)(id.index(),
-                                          std::forward<Args>(args)...);
+      return (me.devices_.*method)(id.index(), std::forward<Args>(args)...);
     case entry_type::E_OTHER:
-      return (me.packed_others_.*method)(id.index(),
-                                         std::forward<Args>(args)...);
+      return (me.others_.*method)(id.index(), std::forward<Args>(args)...);
     default:
       DWARFS_PANIC("invalid entry type");
     }
@@ -1362,20 +1358,20 @@ class entry_storage_ final : public entry_storage::impl {
     assert(id.valid());
     switch (id.type()) {
     case entry_type::E_FILE:
-      return (me.packed_files_.*method)(me.shared_, id.index(),
-                                        std::forward<Args>(args)...);
+      return (me.files_.*method)(me.shared_, id.index(),
+                                 std::forward<Args>(args)...);
     case entry_type::E_DIR:
-      return (me.packed_dirs_.*method)(me.shared_, id.index(),
-                                       std::forward<Args>(args)...);
+      return (me.dirs_.*method)(me.shared_, id.index(),
+                                std::forward<Args>(args)...);
     case entry_type::E_LINK:
-      return (me.packed_links_.*method)(me.shared_, id.index(),
-                                        std::forward<Args>(args)...);
+      return (me.links_.*method)(me.shared_, id.index(),
+                                 std::forward<Args>(args)...);
     case entry_type::E_DEVICE:
-      return (me.packed_devices_.*method)(me.shared_, id.index(),
-                                          std::forward<Args>(args)...);
+      return (me.devices_.*method)(me.shared_, id.index(),
+                                   std::forward<Args>(args)...);
     case entry_type::E_OTHER:
-      return (me.packed_others_.*method)(me.shared_, id.index(),
-                                         std::forward<Args>(args)...);
+      return (me.others_.*method)(me.shared_, id.index(),
+                                  std::forward<Args>(args)...);
     default:
       DWARFS_PANIC("invalid entry type");
     }
@@ -1434,11 +1430,11 @@ class entry_storage_ final : public entry_storage::impl {
 
   packed_inode_data inodes_;
 
-  packed_entry_data packed_files_{entry_type::E_FILE};
-  packed_entry_data packed_dirs_{entry_type::E_DIR};
-  packed_entry_data packed_links_{entry_type::E_LINK};
-  packed_entry_data packed_devices_{entry_type::E_DEVICE};
-  packed_entry_data packed_others_{entry_type::E_OTHER};
+  packed_entry_data files_{entry_type::E_FILE};
+  packed_entry_data dirs_{entry_type::E_DIR};
+  packed_entry_data links_{entry_type::E_LINK};
+  packed_entry_data devices_{entry_type::E_DEVICE};
+  packed_entry_data others_{entry_type::E_OTHER};
 
   using dir_entry_lookup_table =
       phmap::flat_hash_map<std::string_view, entry_id>;
@@ -1456,11 +1452,11 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
 
   inodes_.dump(os);
 
-  packed_files_.dump(os, "file");
-  packed_dirs_.dump(os, "dir");
-  packed_links_.dump(os, "link");
-  packed_devices_.dump(os, "device");
-  packed_others_.dump(os, "other");
+  files_.dump(os, "file");
+  dirs_.dump(os, "dir");
+  links_.dump(os, "link");
+  devices_.dump(os, "device");
+  others_.dump(os, "other");
 
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   ev_.dump(os);
