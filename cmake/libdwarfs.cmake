@@ -155,6 +155,7 @@ add_library(
   src/writer/scanner.cpp
   src/writer/segmenter.cpp
   src/writer/segmenter_factory.cpp
+  src/writer/single_inode_fragment.cpp
   src/writer/writer_progress.cpp
 
   src/writer/internal/block_manager.cpp
