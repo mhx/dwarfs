@@ -278,21 +278,6 @@ void inode_impl::dump(entry_storage& storage, std::ostream& os,
                 };
 }
 
-void inode_impl::set_scan_error(const_file_handle fp, std::exception_ptr ep) {
-  assert(!scan_error_);
-  scan_error_ =
-      std::make_unique<std::pair<const_file_handle, std::exception_ptr>>(
-          fp, std::move(ep));
-}
-
-std::optional<std::pair<const_file_handle, std::exception_ptr>>
-inode_impl::get_scan_error() const {
-  if (scan_error_) {
-    return *scan_error_;
-  }
-  return std::nullopt;
-}
-
 auto inode_impl::mmap_any(entry_storage& storage, os_access const& os,
                           open_file_options const& of_opts,
                           file_id_vector const& files) const
@@ -499,10 +484,6 @@ std::size_t inode_impl::size_in_bytes() const {
   std::size_t size = sizeof(inode_impl);
 
   size += fragments_.size_in_bytes();
-
-  if (scan_error_) {
-    size += sizeof(*scan_error_);
-  }
 
   if (auto const* map = std::get_if<similarity_map_type>(&similarity_)) {
     size += map->size() * sizeof(similarity_map_type::value_type);

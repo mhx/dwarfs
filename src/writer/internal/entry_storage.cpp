@@ -752,6 +752,8 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
 
+using inode_scan_error = std::pair<file_id, std::exception_ptr>;
+
 } // namespace
 
 template <bool Frozen>
@@ -769,6 +771,7 @@ class entry_storage_ final : public entry_storage::impl {
     requires Frozen
       : inodes_{std::move(other.inodes_)}
       , files_for_inode_{std::move(other.files_for_inode_)}
+      , inode_scan_errors_{std::move(other.inode_scan_errors_)}
       , shared_{std::move(other.shared_)}
       , packed_files_{std::move(other.packed_files_)}
       , packed_dirs_{std::move(other.packed_dirs_)}
@@ -958,6 +961,23 @@ class entry_storage_ final : public entry_storage::impl {
   inode_id get_file_inode(file_id id) const override {
     TRACE_CALL;
     return packed_files_.get_inode_id(id);
+  }
+
+  void set_inode_scan_error(inode_id id, file_id fid,
+                            std::exception_ptr ep) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      inode_scan_errors_.emplace(id.index(),
+                                 std::make_pair(fid, std::move(ep)));
+    } else {
+      frozen_panic();
+    }
+  }
+
+  std::optional<inode_scan_error>
+  get_inode_scan_error(inode_id id) const override {
+    TRACE_CALL;
+    return container::get_optional(inode_scan_errors_, id.index());
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1340,6 +1360,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   cao_vector<detail::inode_impl> inodes_;
   cao_vector<file_id_vector> files_for_inode_;
+  phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
 
   shared_entry_data shared_;
 
@@ -1371,6 +1392,9 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
      << size_with_unit(total_inode_size) << ")\n";
   os << "  hardlinks: "
      << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
+  os << "  scan errors: " << inode_scan_errors_.size() << " ("
+     << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
+     << ")\n";
 
   shared_.dump(os);
 
@@ -1465,6 +1489,16 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
 
   inode_id get_file_inode(file_id id) const override {
     return impl_.lock()->get_file_inode(id);
+  }
+
+  void set_inode_scan_error(inode_id id, file_id fid,
+                            std::exception_ptr ep) override {
+    impl_.lock()->set_inode_scan_error(id, fid, std::move(ep));
+  }
+
+  std::optional<inode_scan_error>
+  get_inode_scan_error(inode_id id) const override {
+    return impl_.lock()->get_inode_scan_error(id);
   }
 
   dir_id get_parent(entry_id const id) const override {
