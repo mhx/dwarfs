@@ -52,15 +52,13 @@ inode_impl::inode_impl() = default;
 inode_impl::~inode_impl() = default;
 
 void inode_impl::set_num(uint32_t num) {
-  DWARFS_CHECK((flags_ & kNumIsValid) == 0,
-               "attempt to set inode number multiple times");
+  DWARFS_CHECK(!num_.has_value(), "attempt to set inode number multiple times");
   num_ = num;
-  flags_ |= kNumIsValid;
 }
 
 uint32_t inode_impl::num() const {
-  DWARFS_CHECK((flags_ & kNumIsValid) != 0, "inode number is not set");
-  return num_;
+  DWARFS_CHECK(num_.has_value(), "inode number is not set");
+  return *num_;
 }
 
 bool inode_impl::has_category(fragment_category cat) const {
@@ -221,8 +219,8 @@ void inode_impl::dump(entry_storage& storage, std::ostream& os,
 
   std::string ino_num{"?"};
 
-  if (flags_ & kNumIsValid) {
-    ino_num = std::to_string(num());
+  if (num_.has_value()) {
+    ino_num = std::to_string(*num_);
   }
 
   os << "inode " << ino_num << " (" << size(storage, files) << " bytes):\n";
