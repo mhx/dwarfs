@@ -151,6 +151,8 @@ namespace {
 constexpr char kLocalPathSeparator{
     static_cast<char>(fs::path::preferred_separator)};
 
+using inode_scan_error = std::pair<file_id, std::exception_ptr>;
+
 bool is_root_path(std::string_view path) {
 #ifdef _WIN32
   return path == "/" || path == "\\";
@@ -616,6 +618,58 @@ class packed_entry_data {
   segtor<file_stat::dev_type> represented_device_;
 };
 
+class packed_inode_data {
+ public:
+  inode_id create() {
+    auto const id = inodes_.size();
+    inodes_.emplace_back();
+    files_for_inode_.emplace_back();
+    inode_num_.push_back(std::nullopt);
+    return inode_id{id};
+  }
+
+  std::size_t size() const { return inodes_.size(); }
+
+  inode* get_raw_inode(inode_id id) { return &inodes_.at(id.index()); }
+
+  file_id_vector const& get_files(inode_id id) const {
+    return files_for_inode_.at(id.index());
+  }
+
+  void set_files(inode_id id, file_id_vector files) {
+    auto& vec = files_for_inode_.at(id.index());
+    DWARFS_CHECK(vec.empty(), "files already set for inode");
+    vec = std::move(files);
+  }
+
+  void set_scan_error(inode_id id, file_id fid, std::exception_ptr ep) {
+    inode_scan_errors_.emplace(id.index(), std::make_pair(fid, std::move(ep)));
+  }
+
+  std::optional<inode_scan_error> get_scan_error(inode_id id) const {
+    return container::get_optional(inode_scan_errors_, id.index());
+  }
+
+  void set_inode_num(inode_id id, std::uint64_t num) {
+    auto ino_num = inode_num_.at(id.index());
+    DWARFS_CHECK(!ino_num.has_value(),
+                 "attempt to set inode number multiple times");
+    ino_num = num;
+  }
+
+  std::optional<std::uint64_t> get_inode_num(inode_id id) const {
+    return inode_num_.at(id.index());
+  }
+
+  void dump(std::ostream& os) const;
+
+ private:
+  cao_vector<detail::inode_impl> inodes_;
+  cao_vector<file_id_vector> files_for_inode_;
+  phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
+  segtor<std::optional<std::uint64_t>> inode_num_;
+};
+
 void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
                                       std::uint64_t entry_ix) {
   assert(parent.valid());
@@ -694,6 +748,23 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
   }
 }
 
+void packed_inode_data::dump(std::ostream& os) const {
+  auto const total_inode_size =
+      std::accumulate(inodes_.begin(), inodes_.end(), 0ULL,
+                      [](std::size_t acc, auto const& ino) {
+                        return acc + ino.size_in_bytes();
+                      });
+  os << inodes_.size() << " inodes (" << size_with_unit(total_inode_size)
+     << ")\n";
+  os << "  hardlinks: "
+     << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
+  os << "  inode numbers: " << size_with_unit(inode_num_.size_in_bytes())
+     << "\n";
+  os << "  scan errors: " << inode_scan_errors_.size() << " ("
+     << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
+     << ")\n";
+}
+
 auto packed_entry_data::add_entry_common(shared_entry_data& shared,
                                          entry_type type, fs::path const& path,
                                          file_stat const& st,
@@ -752,8 +823,6 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
 
-using inode_scan_error = std::pair<file_id, std::exception_ptr>;
-
 } // namespace
 
 template <bool Frozen>
@@ -769,11 +838,8 @@ class entry_storage_ final : public entry_storage::impl {
 
   entry_storage_(entry_storage_<false>& other) noexcept
     requires Frozen
-      : inodes_{std::move(other.inodes_)}
-      , files_for_inode_{std::move(other.files_for_inode_)}
-      , inode_scan_errors_{std::move(other.inode_scan_errors_)}
-      , inode_num_{std::move(other.inode_num_)}
-      , shared_{std::move(other.shared_)}
+      : shared_{std::move(other.shared_)}
+      , inodes_{std::move(other.inodes_)}
       , packed_files_{std::move(other.packed_files_)}
       , packed_dirs_{std::move(other.packed_dirs_)}
       , packed_links_{std::move(other.packed_links_)}
@@ -864,11 +930,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   inode_id make_inode() override {
     if constexpr (is_mutable) {
-      auto id = inodes_.size();
-      inodes_.emplace_back();
-      files_for_inode_.emplace_back();
-      inode_num_.push_back(std::nullopt);
-      return inode_id{id};
+      return inodes_.create();
     } else {
       frozen_panic();
     }
@@ -896,7 +958,7 @@ class entry_storage_ final : public entry_storage::impl {
 
   inode* get_inode(inode_id const id) override {
     TRACE_CALL;
-    return &inodes_.at(id.index());
+    return inodes_.get_raw_inode(id);
   }
 
   void set_entry_index(entry_id id, std::size_t index) override {
@@ -943,15 +1005,13 @@ class entry_storage_ final : public entry_storage::impl {
 
   file_id_vector const& get_files_for_inode(inode_id id) const override {
     TRACE_CALL;
-    return files_for_inode_.at(id.index());
+    return inodes_.get_files(id);
   }
 
   void set_files_for_inode(inode_id id, file_id_vector fv) override {
     TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
-    auto& vec = files_for_inode_.at(id.index());
-    DWARFS_CHECK(vec.empty(), "files already set for inode");
-    vec = std::move(fv);
+    inodes_.set_files(id, std::move(fv));
   }
 
   void set_file_inode(file_id id, inode_id ino) override {
@@ -969,8 +1029,7 @@ class entry_storage_ final : public entry_storage::impl {
                             std::exception_ptr ep) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      inode_scan_errors_.emplace(id.index(),
-                                 std::make_pair(fid, std::move(ep)));
+      inodes_.set_scan_error(id, fid, std::move(ep));
     } else {
       frozen_panic();
     }
@@ -979,21 +1038,18 @@ class entry_storage_ final : public entry_storage::impl {
   std::optional<inode_scan_error>
   get_inode_scan_error(inode_id id) const override {
     TRACE_CALL;
-    return container::get_optional(inode_scan_errors_, id.index());
+    return inodes_.get_scan_error(id);
   }
 
   void set_inode_num(inode_id id, std::uint64_t num) override {
     TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
-    auto ino_num = inode_num_.at(id.index());
-    DWARFS_CHECK(!ino_num.has_value(),
-                 "attempt to set inode number multiple times");
-    ino_num = num;
+    inodes_.set_inode_num(id, num);
   }
 
   std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
     TRACE_CALL;
-    return inode_num_.at(id.index());
+    return inodes_.get_inode_num(id);
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1374,12 +1430,9 @@ class entry_storage_ final : public entry_storage::impl {
     return dispatch_(&packed_entry_data::get_nlink, id);
   }
 
-  cao_vector<detail::inode_impl> inodes_;
-  cao_vector<file_id_vector> files_for_inode_;
-  phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
-  segtor<std::optional<std::uint64_t>> inode_num_;
-
   shared_entry_data shared_;
+
+  packed_inode_data inodes_;
 
   packed_entry_data packed_files_{entry_type::E_FILE};
   packed_entry_data packed_dirs_{entry_type::E_DIR};
@@ -1399,23 +1452,9 @@ class entry_storage_ final : public entry_storage::impl {
 
 template <bool Frozen>
 void entry_storage_<Frozen>::dump(std::ostream& os) const {
-  auto const total_inode_size =
-      std::accumulate(inodes_.begin(), inodes_.end(), 0ULL,
-                      [](std::size_t acc, auto const& ino) {
-                        return acc + ino.size_in_bytes();
-                      });
-
-  os << "num inodes: " << inodes_.size() << " ("
-     << size_with_unit(total_inode_size) << ")\n";
-  os << "  hardlinks: "
-     << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
-  os << "  inode numbers: " << size_with_unit(inode_num_.size_in_bytes())
-     << "\n";
-  os << "  scan errors: " << inode_scan_errors_.size() << " ("
-     << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
-     << ")\n";
-
   shared_.dump(os);
+
+  inodes_.dump(os);
 
   packed_files_.dump(os, "file");
   packed_dirs_.dump(os, "dir");
