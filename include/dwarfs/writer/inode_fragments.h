@@ -57,11 +57,6 @@ class inode_fragments {
                                    length);
   }
 
-  std::span<single_inode_fragment const> span() const {
-    // TODO: workaround for older boost small_vector
-    return {fragments_.data(), fragments_.size()};
-  }
-
   single_inode_fragment const& back() const { return fragments_.back(); }
   single_inode_fragment& back() { return fragments_.back(); }
 
@@ -70,6 +65,10 @@ class inode_fragments {
 
   auto end() const { return fragments_.end(); }
   auto end() { return fragments_.end(); }
+
+  single_inode_fragment const& operator[](size_t index) const {
+    return fragments_[index];
+  }
 
   void append(inode_fragments const& other);
 
