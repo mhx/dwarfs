@@ -64,12 +64,14 @@ template <detail::mutability Mut>
 void basic_inode_handle<Mut>::set_num(uint32_t num)
   requires is_mutable
 {
-  self()->set_num(num);
+  storage_->set_inode_num(self_id_, num);
 }
 
 template <detail::mutability Mut>
 uint32_t basic_inode_handle<Mut>::num() const {
-  return self()->num();
+  auto maybe_num = storage_->get_inode_num(self_id_);
+  DWARFS_CHECK(maybe_num.has_value(), "inode number is not set");
+  return *maybe_num;
 }
 
 template <detail::mutability Mut>
@@ -126,7 +128,8 @@ inode_fragments& basic_inode_handle<Mut>::fragments()
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::dump(std::ostream& os,
                                    inode_options const& options) const {
-  self()->dump(*storage_, os, options, storage_->get_files_for_inode(self_id_));
+  self()->dump(*storage_, self_id_, os, options,
+               storage_->get_files_for_inode(self_id_));
 }
 
 template <detail::mutability Mut>

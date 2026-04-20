@@ -54,9 +54,6 @@ class inode_impl final : public inode {
   inode_impl();
   ~inode_impl() override;
 
-  void set_num(uint32_t num) override;
-  uint32_t num() const override;
-
   bool has_category(fragment_category cat) const override;
 
   std::optional<uint32_t> similarity_hash(fragment_category cat) const override;
@@ -82,9 +79,9 @@ class inode_impl final : public inode {
   inode_fragments& fragments() override;
   inode_fragments const& fragments() const override;
 
-  void
-  dump(entry_storage& storage, std::ostream& os, inode_options const& options,
-       file_id_vector const& files) const override;
+  void dump(entry_storage& storage, inode_id self_id, std::ostream& os,
+            inode_options const& options,
+            file_id_vector const& files) const override;
 
   inode_mmap_any_result mmap_any(entry_storage& storage, os_access const& os,
                                  open_file_options const& of_opts,
@@ -119,9 +116,6 @@ class inode_impl final : public inode {
   using similarity_map_type = dwarfs::internal::small_vector_map<
       fragment_category, std::variant<nilsimsa::hash_type, uint32_t>>;
 
-  static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
-
-  std::optional<uint32_t> num_;
   inode_fragments fragments_;
 
   std::variant<
