@@ -70,12 +70,15 @@ inode_impl::nilsimsa_similarity_hash(fragment_category cat) const {
   return find_similarity<nilsimsa::hash_type>(cat);
 }
 
-void inode_impl::populate(file_size_t size) {
+void inode_impl::populate(entry_storage& storage, inode_id self_id,
+                          file_size_t size) {
   assert(fragments_.empty());
   fragments_.emplace_back(categorizer_manager::default_category(), size);
+  storage.set_inode_fragments(self_id, fragments_);
 }
 
-void inode_impl::scan(file_view const& mm, inode_options const& opts,
+void inode_impl::scan(entry_storage& storage, inode_id self_id,
+                      file_view const& mm, inode_options const& opts,
                       progress& prog) {
   assert(fragments_.empty());
 
@@ -130,6 +133,10 @@ void inode_impl::scan(file_view const& mm, inode_options const& opts,
         progress::scan_updater supd(prog.similarity, mm.size());
         scan_fragments(mm, sp.get(), opts, chunk_size);
       }
+
+      if (!fragments_.empty()) {
+        storage.set_inode_fragments(self_id, fragments_);
+      }
     }
   }
 
@@ -139,7 +146,7 @@ void inode_impl::scan(file_view const& mm, inode_options const& opts,
   if (fragments_.size() <= 1) {
     file_size_t size = mm ? mm.size() : 0;
     if (fragments_.empty()) {
-      populate(size);
+      populate(storage, self_id, size);
     }
     auto const chunk_size = prog.similarity.chunk_size.load();
     auto sp = make_progress_context(kScanContext, mm, prog, 4 * chunk_size);

@@ -34,12 +34,12 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
   if (!chunks_.empty()) {
     auto last = chunks_.back();
 
-    if (get<kKindIndex>(last) == chunk_kind::data &&
-        get<kBlockIndex>(last) == to<block_type>(block) &&
-        std::cmp_equal(get<kOffsetIndex>(last) + get<kSizeIndex>(last), offset))
+    if (get<kKindField>(last) == chunk_kind::data &&
+        get<kBlockField>(last) == to<block_type>(block) &&
+        std::cmp_equal(get<kOffsetField>(last) + get<kSizeField>(last), offset))
         [[unlikely]] {
       // merge chunks
-      get<kSizeIndex>(last) += size;
+      get<kSizeField>(last) += size;
       return;
     }
   }
