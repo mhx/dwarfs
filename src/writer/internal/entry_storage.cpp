@@ -969,21 +969,32 @@ class entry_storage_ final : public entry_storage::impl {
     return p;
   }
 
-  std::string get_unix_dpath(entry_id const id) const override {
+  std::string get_unix_dpath(entry_id id) const override {
     TRACE_CALL;
-    std::string p{get_path_string_impl(id)};
 
-    if (is_root_path(p)) {
-      p = "/";
-    } else {
-      if (id.is_dir() && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
-        p += '/';
+    std::string p;
+
+    for (;;) {
+      auto const name = get_path_string_impl(id);
+      bool const is_root = is_root_path(name);
+
+      if (is_root || id.is_dir()) {
+        p.insert(0, std::string_view{"/"});
       }
 
-      if (auto const parent = get_parent_impl(id)) {
-        p = get_unix_dpath(parent) + p;
-      } else if constexpr (kLocalPathSeparator != '/') {
-        std::ranges::replace(p, kLocalPathSeparator, '/');
+      if (!is_root) {
+        p.insert(0, name);
+      }
+
+      id = get_parent_impl(id);
+
+      if (!id.valid()) {
+        if constexpr (kLocalPathSeparator != '/') {
+          std::replace(p.begin(), p.begin() + name.size(), kLocalPathSeparator,
+                       '/');
+        }
+
+        break;
       }
     }
 
