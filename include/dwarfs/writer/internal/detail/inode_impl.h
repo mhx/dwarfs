@@ -86,11 +86,6 @@ class inode_impl final : public inode {
   dump(entry_storage& storage, std::ostream& os, inode_options const& options,
        file_id_vector const& files) const override;
 
-  void set_scan_error(const_file_handle fp, std::exception_ptr ep) override;
-
-  std::optional<std::pair<const_file_handle, std::exception_ptr>>
-  get_scan_error() const override;
-
   inode_mmap_any_result mmap_any(entry_storage& storage, os_access const& os,
                                  open_file_options const& of_opts,
                                  file_id_vector const& files) const override;
@@ -128,7 +123,6 @@ class inode_impl final : public inode {
 
   std::optional<uint32_t> num_;
   inode_fragments fragments_;
-  std::unique_ptr<std::pair<const_file_handle, std::exception_ptr>> scan_error_;
 
   std::variant<
       // in case of no hashes at all

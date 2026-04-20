@@ -134,13 +134,19 @@ void basic_inode_handle<Mut>::set_scan_error(const_file_handle fp,
                                              std::exception_ptr ep)
   requires is_mutable
 {
-  self()->set_scan_error(fp, std::move(ep));
+  storage_->set_inode_scan_error(self_id_, fp.id(), std::move(ep));
 }
 
 template <detail::mutability Mut>
 std::optional<std::pair<const_file_handle, std::exception_ptr>>
 basic_inode_handle<Mut>::get_scan_error() const {
-  return self()->get_scan_error();
+  std::optional<std::pair<const_file_handle, std::exception_ptr>> rv;
+
+  if (auto err = storage_->get_inode_scan_error(self_id_)) {
+    rv.emplace(storage_->handle(err->first), std::move(err->second));
+  }
+
+  return rv;
 }
 
 template <detail::mutability Mut>
