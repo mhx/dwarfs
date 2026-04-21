@@ -27,12 +27,11 @@
 #include <dwarfs/writer/inode_fragments.h>
 
 #include <dwarfs/writer/internal/fragment_chunkable.h>
-#include <dwarfs/writer/internal/inode.h>
 
 namespace dwarfs::writer::internal {
 
 fragment_chunkable::fragment_chunkable(const_inode_handle ino,
-                                       single_inode_fragment& frag,
+                                       single_inode_fragment_view frag,
                                        file_off_t offset, file_view const& mm,
                                        categorizer_manager const* catmgr)
     : ino_{ino}

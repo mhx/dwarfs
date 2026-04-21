@@ -28,12 +28,12 @@
 #include <dwarfs/file_view.h>
 
 #include <dwarfs/writer/internal/chunkable.h>
+#include <dwarfs/writer/internal/inode_fragments_view.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 
 namespace dwarfs::writer {
 
 class categorizer_manager;
-class single_inode_fragment;
 
 namespace internal {
 
@@ -41,7 +41,7 @@ class inode;
 
 class fragment_chunkable : public chunkable {
  public:
-  fragment_chunkable(const_inode_handle ino, single_inode_fragment& frag,
+  fragment_chunkable(const_inode_handle ino, single_inode_fragment_view frag,
                      file_off_t offset, file_view const& mm,
                      categorizer_manager const* catmgr);
   ~fragment_chunkable() override;
@@ -55,7 +55,7 @@ class fragment_chunkable : public chunkable {
 
  private:
   const_inode_handle ino_;
-  single_inode_fragment& frag_;
+  single_inode_fragment_view frag_;
   file_off_t offset_;
   file_view const& mm_;
   categorizer_manager const* catmgr_;

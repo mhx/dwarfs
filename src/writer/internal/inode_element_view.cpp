@@ -25,7 +25,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_element_view.h>
 #include <dwarfs/writer/internal/sortable_inode_span.h>
 

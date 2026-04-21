@@ -519,10 +519,10 @@ TEST_P(map_file_error_test, delayed) {
         << dump.value();
   }
   if (extra_args.find("--order=revpath") != std::string::npos) {
-    EXPECT_THAT(dump.value(), ::testing::HasSubstr("similarity: none"))
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("no similarity hashes"))
         << dump.value();
   } else {
-    EXPECT_THAT(dump.value(), ::testing::HasSubstr("similarity: nilsimsa"))
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("nilsimsa ("))
         << dump.value();
   }
   if (extra_args.find("--categorize") != std::string::npos) {

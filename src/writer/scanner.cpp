@@ -69,7 +69,6 @@
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 #include <dwarfs/writer/internal/fragment_chunkable.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
-#include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
@@ -864,7 +863,7 @@ void scanner_<LoggerPolicy>::scan(
             if (mm) {
               file_off_t offset{0};
 
-              for (auto& frag : ino.fragments()) {
+              for (auto const& frag : ino.fragments_view()) {
                 if (frag.category() == category) {
                   fragment_chunkable fc(ino, frag, offset, mm, catmgr);
                   seg.add_chunkable(fc);
@@ -880,7 +879,7 @@ void scanner_<LoggerPolicy>::scan(
                           << ", creating empty inode";
                 ++prog.errors;
               }
-              for (auto& frag : ino.fragments()) {
+              for (auto const& frag : ino.fragments_view()) {
                 if (frag.category() == category) {
                   prog.fragments_found--;
                 }

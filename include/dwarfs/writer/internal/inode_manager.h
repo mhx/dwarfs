@@ -36,7 +36,6 @@
 
 #include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/entry_handle.h>
-#include <dwarfs/writer/internal/inode.h> // TODO: remove
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/sortable_inode_span.h>
 

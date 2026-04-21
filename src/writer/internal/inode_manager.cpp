@@ -53,7 +53,6 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/worker_group.h>
-#include <dwarfs/writer/internal/detail/inode_impl.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
@@ -99,7 +98,7 @@ class inode_manager_ final : public inode_manager::impl {
         tmp;
 
     for (auto const& ino : all_inodes()) {
-      if (auto const& fragments = ino.fragments(); !fragments.empty()) {
+      if (auto fragments = ino.fragments_view(); !fragments.empty()) {
         for (auto const& frag : fragments) {
           auto s = frag.size();
           auto& mv = tmp[frag.category().value()];
@@ -177,7 +176,7 @@ class inode_manager_ final : public inode_manager::impl {
 
   void update_prog(const_inode_handle ino, const_file_handle p) const {
     if (p.size() > 0 && !p.is_invalid()) {
-      prog_.fragments_found += ino.fragments().size();
+      prog_.fragments_found += ino.fragments_view().size();
     }
     ++prog_.inodes_scanned;
     ++prog_.files_scanned;
@@ -266,7 +265,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
   for (auto ino : all_inodes()) {
     if (auto scan_err = ino.get_scan_error()) {
-      assert(ino.fragments().empty());
+      assert(ino.fragments_view().empty());
 
       std::vector<std::pair<const_file_handle, std::exception_ptr>> errors;
       auto const& fv = ino.all();
@@ -389,7 +388,7 @@ size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
   file_size_t max_chunk_size{0};
 
   for (auto const& ino : all_inodes()) {
-    for (auto const& frag : ino.fragments()) {
+    for (auto const& frag : ino.fragments_view()) {
       for (auto const& chk : frag.chunks()) {
         if (chk.is_data()) {
           max_chunk_size = std::max(max_chunk_size, chk.size());

@@ -38,12 +38,13 @@
 #include <dwarfs/container/packed_value_traits_optional.h>
 #include <dwarfs/container/pinned_byte_span_store.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
+#include <dwarfs/conv.h>
 #include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
+#include <dwarfs/match.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/synchronized.h>
-#include <dwarfs/writer/internal/detail/inode_impl.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
@@ -639,18 +640,35 @@ class packed_inode_data {
 
   using inode_fragment_info_tuple = std::tuple<std::uint64_t, std::uint64_t>;
 
+  static constexpr std::size_t kSimilarityInfoOffsetField = 0;
+  static constexpr std::size_t kSimilarityInfoCountField = 1;
+
+  using inode_similarity_info_tuple = std::tuple<std::uint64_t, std::uint64_t>;
+
+  enum class similarity_hash_type : std::uint64_t {
+    similarity = 0,
+    nilsimsa = 1,
+  };
+
+  static constexpr std::size_t kSimilarityHashCategoryField = 0;
+  static constexpr std::size_t kSimilarityHashSubcategoryField = 1;
+  static constexpr std::size_t kSimilarityHashTypeField = 2;
+  static constexpr std::size_t kSimilarityHashIndexField = 3;
+
+  using inode_similarity_hash_tuple =
+      std::tuple<std::uint64_t, std::optional<std::uint64_t>,
+                 similarity_hash_type, std::uint64_t>;
+
   inode_id create() {
-    auto const id = inodes_.size();
-    inodes_.emplace_back();
+    auto const id = inode_num_.size();
     files_for_inode_.emplace_back();
     inode_num_.push_back(std::nullopt);
     fragment_info_.push_back({0, 0});
+    similarity_info_.push_back({0, 0});
     return inode_id{id};
   }
 
-  std::size_t size() const { return inodes_.size(); }
-
-  inode* get_raw_inode(inode_id id) { return &inodes_.at(id.index()); }
+  std::size_t size() const { return inode_num_.size(); }
 
   file_id_vector const& get_files(inode_id id) const {
     return files_for_inode_.at(id.index());
@@ -706,29 +724,235 @@ class packed_inode_data {
     }
   }
 
-  void
-  set_fragment_chunks(inode_id id, std::size_t fragment_index,
-                      single_inode_fragment::packed_chunk_vector&& chunks) {
+  void fragment_add_data_chunk(inode_id id, std::size_t fragment_index,
+                               size_t block, size_t offset, size_t size) {
+    auto& chunks = get_fragment_chunks(id, fragment_index);
+
+    if (!chunks.empty()) {
+      auto last = chunks.back();
+
+      if (get<kChunkKindField>(last) == chunk_kind::data &&
+          std::cmp_equal(get<kChunkBlockField>(last).load(), block) &&
+          std::cmp_equal(get<kChunkOffsetField>(last) +
+                             get<kChunkSizeField>(last),
+                         offset)) [[unlikely]] {
+        // merge chunks
+        get<kChunkSizeField>(last) += size;
+        return;
+      }
+    }
+
+    chunks.push_back(packed_chunk_tuple{
+        block,
+        offset,
+        size,
+        chunk_kind::data,
+    });
+  }
+
+  void fragment_add_hole_chunk(inode_id id, std::size_t fragment_index,
+                               file_size_t size) {
+    auto& chunks = get_fragment_chunks(id, fragment_index);
+
+    chunks.push_back(packed_chunk_tuple{
+        0,
+        0,
+        size,
+        chunk_kind::hole,
+    });
+  }
+
+  std::size_t get_fragment_count(inode_id id) const {
+    auto const info = fragment_info_.at(id.index());
+    return get<kFragmentInfoCountField>(info);
+  }
+
+  fragment_category
+  get_fragment_category(inode_id id, std::size_t fragment_index) const {
+    auto const& data = get_fragment_data(id, fragment_index);
+    auto cat = fragment_category(get<kFragmentCategoryField>(data));
+    if (auto subcat = get<kFragmentSubcategoryField>(data);
+        subcat.has_value()) {
+      cat.set_subcategory(*subcat);
+    }
+    return cat;
+  }
+
+  file_size_t get_fragment_size(inode_id id, std::size_t fragment_index) const {
+    auto const& data = get_fragment_data(id, fragment_index);
+    return get<kFragmentSizeField>(data);
+  }
+
+  packed_chunk_vector const&
+  get_fragment_packed_chunks(inode_id id, std::size_t index) const {
     auto const info = fragment_info_.at(id.index());
     auto const offset = get<kFragmentInfoOffsetField>(info);
-    auto const count = get<kFragmentInfoCountField>(info);
+    return fragment_chunks_.at(offset + index);
+  }
 
-    assert(fragment_index < count);
+  void set_similarity(inode_id id,
+                      std::span<inode_similarity_hash_data const> data) {
+    auto info = similarity_info_.at(id.index());
+    auto offset = similarity_hash_.size();
 
-    fragment_chunks_.at(offset + fragment_index) = std::move(chunks);
+    get<kSimilarityInfoOffsetField>(info) = offset;
+    get<kSimilarityInfoCountField>(info) = data.size();
+
+    for (auto const& row : data) {
+      inode_similarity_hash_tuple hash_data{};
+
+      get<kSimilarityHashCategoryField>(hash_data) = row.category.value();
+
+      if (row.category.has_subcategory()) {
+        get<kSimilarityHashSubcategoryField>(hash_data) =
+            row.category.subcategory();
+      }
+
+      row.hash | match{
+                     [&](std::uint32_t h) {
+                       get<kSimilarityHashTypeField>(hash_data) =
+                           similarity_hash_type::similarity;
+                       get<kSimilarityHashIndexField>(hash_data) =
+                           similarity_hash_data_.size();
+                       similarity_hash_data_.emplace_back(h);
+                     },
+                     [&](nilsimsa::hash_type const& h) {
+                       get<kSimilarityHashTypeField>(hash_data) =
+                           similarity_hash_type::nilsimsa;
+                       get<kSimilarityHashIndexField>(hash_data) =
+                           nilsimsa_hash_data_.size();
+                       nilsimsa_hash_data_.emplace_back(h);
+                     },
+                 };
+
+      similarity_hash_.push_back(hash_data);
+    }
+  }
+
+  std::optional<std::uint32_t>
+  get_similarity_hash(inode_id id, fragment_category cat) const {
+    auto const index =
+        find_similarity_hash_index(id, cat, similarity_hash_type::similarity);
+    if (index.has_value()) {
+      return similarity_hash_data_.at(*index);
+    }
+    return std::nullopt;
+  }
+
+  nilsimsa::hash_type const*
+  get_nilsimsa_hash(inode_id id, fragment_category cat) const {
+    auto const index =
+        find_similarity_hash_index(id, cat, similarity_hash_type::nilsimsa);
+    if (index.has_value()) {
+      return &nilsimsa_hash_data_.at(*index);
+    }
+    return nullptr;
+  }
+
+  void dump_similarity(
+      inode_id id, std::ostream& os,
+      std::function<std::string(fragment_category)> const& catlabel) const {
+    auto const info = similarity_info_.at(id.index());
+    std::size_t const count = get<kSimilarityInfoCountField>(info);
+
+    if (count == 0) {
+      os << "  no similarity hashes\n";
+      return;
+    }
+
+    std::size_t const offset = get<kSimilarityInfoOffsetField>(info);
+
+    os << "  similarity hashes:\n";
+
+    for (std::size_t i = 0; i < count; ++i) {
+      auto const hash_data = similarity_hash_.at(offset + i);
+      auto cat =
+          fragment_category(get<kSimilarityHashCategoryField>(hash_data));
+
+      if (auto subcat = get<kSimilarityHashSubcategoryField>(hash_data);
+          subcat.has_value()) {
+        cat.set_subcategory(*subcat);
+      }
+
+      auto type = get<kSimilarityHashTypeField>(hash_data);
+      auto index = get<kSimilarityHashIndexField>(hash_data);
+
+      os << "    " << catlabel(cat);
+
+      switch (type) {
+      case similarity_hash_type::similarity:
+        os << fmt::format("basic ({0:08x})\n", similarity_hash_data_.at(index));
+        break;
+      case similarity_hash_type::nilsimsa: {
+        auto const& nh = nilsimsa_hash_data_.at(index);
+        os << fmt::format("nilsimsa ({0:016x}{1:016x}{2:016x}{3:016x})\n",
+                          nh[0], nh[1], nh[2], nh[3]);
+        break;
+      }
+      }
+    }
   }
 
   void dump(std::ostream& os) const;
 
  private:
-  cao_vector<detail::inode_impl> inodes_;
+  [[nodiscard]] std::optional<std::size_t>
+  find_similarity_hash_index(inode_id id, fragment_category cat,
+                             similarity_hash_type type) const {
+    auto const info = similarity_info_.at(id.index());
+    std::size_t const offset = get<kSimilarityInfoOffsetField>(info);
+    std::size_t const count = get<kSimilarityInfoCountField>(info);
+
+    for (std::size_t i = 0; i < count; ++i) {
+      auto const hash_data = similarity_hash_.at(offset + i);
+
+      if (get<kSimilarityHashTypeField>(hash_data) == type) {
+        fragment_category hash_cat(
+            get<kSimilarityHashCategoryField>(hash_data));
+
+        if (auto const subcat =
+                get<kSimilarityHashSubcategoryField>(hash_data)) {
+          hash_cat.set_subcategory(*subcat);
+        }
+
+        if (hash_cat == cat) {
+          return get<kSimilarityHashIndexField>(hash_data);
+        }
+      }
+    }
+
+    return std::nullopt;
+  }
+
+  [[nodiscard]] auto
+  get_fragment_data(inode_id id, std::size_t fragment_index) const
+      -> segtor<inode_fragment_tuple>::const_reference {
+    auto const info = fragment_info_.at(id.index());
+    auto const offset = get<kFragmentInfoOffsetField>(info);
+    return fragment_data_.at(offset + fragment_index);
+  }
+
+  [[nodiscard]] auto
+  get_fragment_chunks(inode_id id, std::size_t fragment_index)
+      -> packed_chunk_vector& {
+    auto const info = fragment_info_.at(id.index());
+    auto const offset = get<kFragmentInfoOffsetField>(info);
+    assert(fragment_index < get<kFragmentInfoCountField>(info));
+    return fragment_chunks_.at(offset + fragment_index);
+  }
+
   cao_vector<file_id_vector> files_for_inode_;
   phmap::flat_hash_map<std::uint64_t, inode_scan_error> inode_scan_errors_;
   segtor<std::optional<std::uint64_t>> inode_num_;
 
   segtor<inode_fragment_info_tuple> fragment_info_;
   segtor<inode_fragment_tuple> fragment_data_;
-  cao_vector<single_inode_fragment::packed_chunk_vector> fragment_chunks_;
+  cao_vector<packed_chunk_vector> fragment_chunks_;
+
+  segtor<inode_similarity_info_tuple> similarity_info_;
+  segtor<inode_similarity_hash_tuple> similarity_hash_;
+  cao_vector<std::uint32_t> similarity_hash_data_;
+  cao_vector<nilsimsa::hash_type> nilsimsa_hash_data_;
 };
 
 void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
@@ -810,26 +1034,36 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
 }
 
 void packed_inode_data::dump(std::ostream& os) const {
-  auto const total_inode_size =
-      std::accumulate(inodes_.begin(), inodes_.end(), 0ULL,
-                      [](std::size_t acc, auto const& ino) {
-                        return acc + ino.size_in_bytes();
-                      });
-  os << inodes_.size() << " inodes (" << size_with_unit(total_inode_size)
-     << ")\n";
-  os << "  hardlinks: "
-     << size_with_unit(total_cao_id_vec_bytes(files_for_inode_)) << "\n";
-  os << "  inode numbers: " << size_with_unit(inode_num_.size_in_bytes())
-     << "\n";
-  os << "  scan errors: " << inode_scan_errors_.size() << " ("
-     << size_with_unit(inode_scan_errors_.capacity() * sizeof(inode_scan_error))
-     << ")\n";
-  os << "  fragment info: " << fragment_info_.size() << " ("
-     << size_with_unit(fragment_info_.size_in_bytes()) << ")\n";
-  os << "  fragment data: " << fragment_data_.size() << " ("
-     << size_with_unit(fragment_data_.size_in_bytes()) << ")\n";
-  os << "  fragment chunks: " << fragment_chunks_.size() << " ("
-     << size_with_unit(total_cao_id_vec_bytes(fragment_chunks_)) << ")\n";
+  std::vector<std::pair<std::string_view, std::size_t>> sizes;
+
+  sizes.emplace_back("hardlinks", total_cao_id_vec_bytes(files_for_inode_));
+  sizes.emplace_back("inode numbers", inode_num_.size_in_bytes());
+  sizes.emplace_back("scan errors",
+                     inode_scan_errors_.capacity() * sizeof(inode_scan_error));
+  sizes.emplace_back("fragment info", fragment_info_.size_in_bytes());
+  sizes.emplace_back("fragment data", fragment_data_.size_in_bytes());
+  sizes.emplace_back("fragment chunks",
+                     total_cao_id_vec_bytes(fragment_chunks_));
+  sizes.emplace_back("similarity info", similarity_info_.size_in_bytes());
+  sizes.emplace_back("similarity hashes", similarity_hash_.size_in_bytes());
+  sizes.emplace_back("similarity hash data",
+                     similarity_hash_data_.size() *
+                         sizeof(similarity_hash_data_[0]));
+  sizes.emplace_back("nilsimsa hash data", nilsimsa_hash_data_.size() *
+                                               sizeof(nilsimsa_hash_data_[0]));
+
+  auto const total_bytes = std::accumulate(
+      sizes.begin(), sizes.end(), 0ULL,
+      [](std::size_t acc, auto const& pair) { return acc + pair.second; });
+
+  os << inode_num_.size() << " inodes (" << size_with_unit(total_bytes)
+     << "):\n";
+
+  for (auto const& [label, bytes] : sizes) {
+    if (bytes > 0) {
+      os << "  " << label << ": " << size_with_unit(bytes) << "\n";
+    }
+  }
 }
 
 auto packed_entry_data::add_entry_common(shared_entry_data& shared,
@@ -1491,11 +1725,6 @@ class inode_storage_ final : public entry_storage::inode_impl {
     return inodes_.size();
   }
 
-  inode* get_inode(inode_id const id) override {
-    TRACE_CALL;
-    return inodes_.get_raw_inode(id);
-  }
-
   file_id_vector const& get_files_for_inode(inode_id id) const override {
     TRACE_CALL;
     return inodes_.get_files(id);
@@ -1544,11 +1773,71 @@ class inode_storage_ final : public entry_storage::inode_impl {
     }
   }
 
-  void set_inode_fragment_chunks(
-      inode_id id, std::size_t fragment_index,
-      single_inode_fragment::packed_chunk_vector&& chunks) override {
+  void inode_fragment_add_data_chunk(inode_id id, std::size_t fragment_index,
+                                     size_t block, size_t offset,
+                                     size_t size) override {
     TRACE_CALL;
-    inodes_.set_fragment_chunks(id, fragment_index, std::move(chunks));
+    inodes_.fragment_add_data_chunk(id, fragment_index, block, offset, size);
+  }
+
+  void inode_fragment_add_hole_chunk(inode_id id, std::size_t fragment_index,
+                                     file_size_t size) override {
+    TRACE_CALL;
+    inodes_.fragment_add_hole_chunk(id, fragment_index, size);
+  }
+
+  std::size_t get_inode_fragment_count(inode_id id) const override {
+    TRACE_CALL;
+    return inodes_.get_fragment_count(id);
+  }
+
+  fragment_category
+  get_inode_fragment_category(inode_id id, std::size_t index) const override {
+    TRACE_CALL;
+    return inodes_.get_fragment_category(id, index);
+  }
+
+  file_size_t
+  get_inode_fragment_size(inode_id id, std::size_t index) const override {
+    TRACE_CALL;
+    return inodes_.get_fragment_size(id, index);
+  }
+
+  packed_chunk_vector const&
+  get_inode_fragment_packed_chunks(inode_id id,
+                                   std::size_t index) const override {
+    TRACE_CALL;
+    return inodes_.get_fragment_packed_chunks(id, index);
+  }
+
+  void set_inode_similarity(
+      inode_id id, std::span<inode_similarity_hash_data const> data) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      inodes_.set_similarity(id, data);
+    } else {
+      frozen_panic();
+    }
+  }
+
+  std::optional<std::uint32_t>
+  get_inode_similarity_hash(inode_id id, fragment_category cat) const override {
+    TRACE_CALL;
+    return inodes_.get_similarity_hash(id, cat);
+  }
+
+  nilsimsa::hash_type const*
+  get_inode_nilsimsa_hash(inode_id id, fragment_category cat) const override {
+    TRACE_CALL;
+    return inodes_.get_nilsimsa_hash(id, cat);
+  }
+
+  void
+  dump_inode_similarity(inode_id id, std::ostream& os,
+                        std::function<std::string(fragment_category)> const&
+                            catlabel) const override {
+    TRACE_CALL;
+    inodes_.dump_similarity(id, os, catlabel);
   }
 
   void dump(std::ostream& os) const override;
@@ -1785,10 +2074,6 @@ class synchronized_inode_storage_ final : public entry_storage::inode_impl {
     return impl_.lock()->inode_count();
   }
 
-  inode* get_inode(inode_id const id) override {
-    return impl_.lock()->get_inode(id);
-  }
-
   void set_files_for_inode(inode_id id, file_id_vector fv) override {
     impl_.lock()->set_files_for_inode(id, std::move(fv));
   }
@@ -1820,11 +2105,58 @@ class synchronized_inode_storage_ final : public entry_storage::inode_impl {
     impl_.lock()->set_inode_fragments(id, fragments);
   }
 
-  void set_inode_fragment_chunks(
-      inode_id id, std::size_t fragment_index,
-      single_inode_fragment::packed_chunk_vector&& chunks) override {
-    impl_.lock()->set_inode_fragment_chunks(id, fragment_index,
-                                            std::move(chunks));
+  void inode_fragment_add_data_chunk(inode_id id, std::size_t fragment_index,
+                                     size_t block, size_t offset,
+                                     size_t size) override {
+    impl_.lock()->inode_fragment_add_data_chunk(id, fragment_index, block,
+                                                offset, size);
+  }
+
+  void inode_fragment_add_hole_chunk(inode_id id, std::size_t fragment_index,
+                                     file_size_t size) override {
+    impl_.lock()->inode_fragment_add_hole_chunk(id, fragment_index, size);
+  }
+
+  std::size_t get_inode_fragment_count(inode_id id) const override {
+    return impl_.lock()->get_inode_fragment_count(id);
+  }
+
+  fragment_category
+  get_inode_fragment_category(inode_id id, std::size_t index) const override {
+    return impl_.lock()->get_inode_fragment_category(id, index);
+  }
+
+  file_size_t
+  get_inode_fragment_size(inode_id id, std::size_t index) const override {
+    return impl_.lock()->get_inode_fragment_size(id, index);
+  }
+
+  packed_chunk_vector const&
+  get_inode_fragment_packed_chunks(inode_id id,
+                                   std::size_t index) const override {
+    return impl_.lock()->get_inode_fragment_packed_chunks(id, index);
+  }
+
+  void set_inode_similarity(
+      inode_id id, std::span<inode_similarity_hash_data const> data) override {
+    impl_.lock()->set_inode_similarity(id, data);
+  }
+
+  std::optional<std::uint32_t>
+  get_inode_similarity_hash(inode_id id, fragment_category cat) const override {
+    return impl_.lock()->get_inode_similarity_hash(id, cat);
+  }
+
+  nilsimsa::hash_type const*
+  get_inode_nilsimsa_hash(inode_id id, fragment_category cat) const override {
+    return impl_.lock()->get_inode_nilsimsa_hash(id, cat);
+  }
+
+  void
+  dump_inode_similarity(inode_id id, std::ostream& os,
+                        std::function<std::string(fragment_category)> const&
+                            catlabel) const override {
+    impl_.lock()->dump_inode_similarity(id, os, catlabel);
   }
 
   void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
