@@ -935,9 +935,6 @@ void scanner_<LoggerPolicy>::scan(
   root.accept(ssfv);
   mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
-  LOG_VERBOSE << "entry/inode storage:\n" << tree->dump();
-  tree.reset();
-
   if (auto catmgr = options_.inode.categorizer_mgr) {
     std::unordered_map<fragment_category::value_type, uint32_t>
         category_indices;
@@ -992,6 +989,10 @@ void scanner_<LoggerPolicy>::scan(
     mdb.gather_global_entry_data(ge_data);
     tv << "global entry data gathered for metadata";
   }
+
+  // free all entry storage
+  LOG_VERBOSE << "entry/inode storage:\n" << tree->dump();
+  tree.reset();
 
   auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
 

@@ -43,11 +43,13 @@ namespace dwarfs::writer::internal {
 namespace {
 
 template <typename T>
-  requires requires(T m) {
-    typename T::key_type;
-    typename T::mapped_type;
-  } && std::unsigned_integral<typename T::mapped_type> &&
-           std::totally_ordered<typename T::key_type>
+concept unsigned_mapped_map = requires {
+  typename T::key_type;
+  typename T::mapped_type;
+} && std::unsigned_integral<typename T::mapped_type>;
+
+template <unsigned_mapped_map T>
+  requires std::totally_ordered<typename T::key_type>
 void sort_and_index_map(T& map) {
   using index_type = T::mapped_type;
   using iterator = T::iterator;
@@ -68,15 +70,16 @@ void sort_and_index_map(T& map) {
   }
 }
 
-template <typename T>
-  requires requires(T t) {
-    typename T::key_type;
-    typename T::mapped_type;
-  } && std::unsigned_integral<typename T::mapped_type>
-std::vector<typename T::key_type> get_sorted_index_vector(T const& map) {
-  using K = T::key_type;
+template <typename OutT = void, unsigned_mapped_map MapT>
+  requires std::same_as<OutT, void> ||
+           std::constructible_from<OutT, typename MapT::key_type const&>
+auto get_sorted_index_vector(MapT const& map)
+    -> std::vector<std::conditional_t<std::same_as<OutT, void>,
+                                      typename MapT::key_type, OutT>> {
+  using Elem = std::conditional_t<std::same_as<OutT, void>,
+                                  typename MapT::key_type, OutT>;
 
-  std::vector<K> result(map.size());
+  std::vector<Elem> result(map.size());
 #ifndef NDEBUG
   std::vector<bool> seen(result.size(), false);
 #endif
@@ -124,11 +127,11 @@ auto global_entry_data::get_modes() const -> std::vector<mode_type> {
 }
 
 auto global_entry_data::get_names() const -> std::vector<std::string> {
-  return get_sorted_index_vector(names_);
+  return get_sorted_index_vector<std::string>(names_);
 }
 
 auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
-  return get_sorted_index_vector(symlinks_);
+  return get_sorted_index_vector<std::string>(symlinks_);
 }
 
 void global_entry_data::update_index() {
@@ -228,24 +231,16 @@ void global_entry_data::add_link(std::string_view link) {
 void global_entry_data::dump(std::ostream& os) const {
   std::vector<std::pair<std::string_view, std::size_t>> sizes;
 
-  auto string_keyed_map_size = [](auto const& map) {
-    return map.capacity() *
-               sizeof(typename std::decay_t<decltype(map)>::value_type) +
-           std::accumulate(map.begin(), map.end(), 0ULL,
-                           [](std::size_t acc, auto const& kv) {
-                             return acc + kv.first.size() +
-                                    1; // +1 for null terminator
-                           });
-  };
-
   sizes.emplace_back("uids",
                      uids_.capacity() * sizeof(decltype(uids_)::value_type));
   sizes.emplace_back("gids",
                      gids_.capacity() * sizeof(decltype(gids_)::value_type));
   sizes.emplace_back("modes",
                      modes_.capacity() * sizeof(decltype(modes_)::value_type));
-  sizes.emplace_back("names", string_keyed_map_size(names_));
-  sizes.emplace_back("symlinks", string_keyed_map_size(symlinks_));
+  sizes.emplace_back("names",
+                     names_.capacity() * sizeof(decltype(names_)::value_type));
+  sizes.emplace_back("symlinks", symlinks_.capacity() *
+                                     sizeof(decltype(symlinks_)::value_type));
 
   auto const total_bytes = std::accumulate(
       sizes.begin(), sizes.end(), 0ULL,
