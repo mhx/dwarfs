@@ -270,7 +270,7 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  tree.freeze();
+  tree.freeze_entries();
 
   std::vector<std::string> visited;
   root.walk([&](wi::entry_handle e) { visited.push_back(e.unix_dpath()); });
@@ -304,7 +304,7 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  tree.freeze();
+  tree.freeze_entries();
 
   recording_visitor pre;
   root.accept(pre, true);
@@ -416,7 +416,7 @@ TEST_F(entry_test,
 
   tree.remove_empty_dirs(prog);
 
-  tree.freeze();
+  tree.freeze_entries();
 
   std::vector<std::string> after;
   root.walk([&](wi::entry_handle e) { after.push_back(e.unix_dpath()); });

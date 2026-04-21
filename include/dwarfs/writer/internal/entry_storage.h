@@ -83,193 +83,201 @@ class entry_storage {
   [[nodiscard]] other_handle handle(other_id id) noexcept {
     return {*this, id};
   }
+
   [[nodiscard]] inode_handle handle(inode_id id) noexcept {
     return {*this, id};
   }
 
-  [[nodiscard]] bool empty() const noexcept { return impl_->empty(); }
-
-  inode_handle create_inode();
-
-  [[nodiscard]] std::size_t inode_count() const noexcept {
-    return impl_->inode_count();
-  }
-
-  // TODO: this must go
-  [[nodiscard]] inode* get_inode(inode_id id) { return impl_->get_inode(id); }
+  [[nodiscard]] bool empty() const noexcept { return entry_impl_->empty(); }
 
   void set_entry_index(entry_id id, std::size_t index) {
-    impl_->set_entry_index(id, index);
+    entry_impl_->set_entry_index(id, index);
   }
 
   [[nodiscard]] std::optional<std::size_t> get_entry_index(entry_id id) const {
-    return impl_->get_entry_index(id);
+    return entry_impl_->get_entry_index(id);
   }
 
   void set_file_order_index(file_id id, std::size_t index) {
-    impl_->set_file_order_index(id, index);
+    entry_impl_->set_file_order_index(id, index);
   }
 
   [[nodiscard]] std::size_t get_file_order_index(file_id id) const {
-    return impl_->get_file_order_index(id);
+    return entry_impl_->get_file_order_index(id);
   }
 
   void set_link_target(link_id id, std::string link_target, progress& prog) {
-    impl_->set_link_target(id, std::move(link_target), prog);
+    entry_impl_->set_link_target(id, std::move(link_target), prog);
   }
 
   [[nodiscard]] std::string_view get_link_target(link_id id) const {
-    return impl_->get_link_target(id);
+    return entry_impl_->get_link_target(id);
   }
 
   [[nodiscard]] dir_id get_parent(entry_id id) const {
-    return impl_->get_parent(id);
+    return entry_impl_->get_parent(id);
   }
 
   [[nodiscard]] std::filesystem::path get_path(entry_id id) const {
-    return impl_->get_path(id);
+    return entry_impl_->get_path(id);
   }
 
   [[nodiscard]] std::string get_unix_dpath(entry_id id) const {
-    return impl_->get_unix_dpath(id);
+    return entry_impl_->get_unix_dpath(id);
   }
 
   [[nodiscard]] std::string_view get_name(entry_id id) const {
-    return impl_->get_name(id);
+    return entry_impl_->get_name(id);
   }
 
-  void remove_empty_dirs(progress& prog) { impl_->remove_empty_dirs(prog); }
+  void remove_empty_dirs(progress& prog) {
+    entry_impl_->remove_empty_dirs(prog);
+  }
 
   void for_each_entry_in_dir(dir_id id,
                              std::function<void(entry_id)> const& f) const {
-    impl_->for_each_entry_in_dir(id, f);
+    entry_impl_->for_each_entry_in_dir(id, f);
   }
 
   entry_id find_in_dir(dir_id id, std::string_view name) const {
-    return impl_->find_in_dir(id, name);
+    return entry_impl_->find_in_dir(id, name);
   }
 
   bool entry_less_revpath(entry_id lhs, entry_id rhs) const {
-    return impl_->entry_less_revpath(lhs, rhs);
+    return entry_impl_->entry_less_revpath(lhs, rhs);
   }
 
   void update_global_entry_data(entry_id id, global_entry_data& data) const {
-    impl_->update_global_entry_data(id, data);
+    entry_impl_->update_global_entry_data(id, data);
   }
 
   void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
                   global_entry_data const& data,
                   time_resolution_converter const& timeres) const {
-    impl_->pack_entry(id, entry_v2, data, timeres);
+    entry_impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
   unique_inode_id get_unique_inode_id(entry_id id) const {
-    return impl_->get_unique_inode_id(id);
+    return entry_impl_->get_unique_inode_id(id);
   }
 
   file_stat::nlink_type get_nlink(entry_id id) const {
-    return impl_->get_nlink(id);
+    return entry_impl_->get_nlink(id);
   }
 
   void create_hardlink(file_id target, file_id source, progress& prog) {
-    impl_->create_hardlink(target, source, prog);
+    entry_impl_->create_hardlink(target, source, prog);
   }
 
   std::size_t hardlink_count(file_id id) const {
-    return impl_->hardlink_count(id);
+    return entry_impl_->hardlink_count(id);
   }
 
-  void set_file_invalid(file_id id) { impl_->set_file_invalid(id); }
+  void set_file_invalid(file_id id) { entry_impl_->set_file_invalid(id); }
 
-  bool is_file_invalid(file_id id) const { return impl_->is_file_invalid(id); }
+  bool is_file_invalid(file_id id) const {
+    return entry_impl_->is_file_invalid(id);
+  }
 
   std::span<std::byte>
   get_file_hash_buffer(file_id id, std::size_t buffer_size) {
-    return impl_->get_file_hash_buffer(id, buffer_size);
+    return entry_impl_->get_file_hash_buffer(id, buffer_size);
   }
 
   std::string_view get_file_hash(file_id id) const {
-    return impl_->get_file_hash(id);
+    return entry_impl_->get_file_hash(id);
   }
 
   file_size_t get_entry_size(entry_id id) const {
-    return impl_->get_entry_size(id);
+    return entry_impl_->get_entry_size(id);
   }
 
   file_size_info get_entry_size_info(entry_id id) const {
-    return impl_->get_entry_size_info(id);
+    return entry_impl_->get_entry_size_info(id);
   }
 
-  void set_entry_empty(entry_id id) { impl_->set_entry_empty(id); }
+  void set_entry_empty(entry_id id) { entry_impl_->set_entry_empty(id); }
 
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) {
-    impl_->set_inode_num_for_entry(id, ino);
+    entry_impl_->set_inode_num_for_entry(id, ino);
   }
 
   std::optional<std::uint64_t> get_inode_num_for_entry(entry_id id) const {
-    return impl_->get_inode_num_for_entry(id);
+    return entry_impl_->get_inode_num_for_entry(id);
   }
 
   file_stat::dev_type get_represented_device(device_id id) const {
-    return impl_->get_represented_device(id);
+    return entry_impl_->get_represented_device(id);
   }
 
   void create_packed_file_data(file_id id) {
-    impl_->create_packed_file_data(id);
-  }
-
-  [[nodiscard]] file_id_vector const& get_files_for_inode(inode_id id) const {
-    return impl_->get_files_for_inode(id);
-  }
-
-  void set_files_for_inode(inode_id id, file_id_vector fv) {
-    impl_->set_files_for_inode(id, std::move(fv));
+    entry_impl_->create_packed_file_data(id);
   }
 
   void set_file_inode(file_id id, inode_id ino) {
-    impl_->set_file_inode(id, ino);
+    entry_impl_->set_file_inode(id, ino);
   }
 
   inode_id get_file_inode(file_id id) const {
-    return impl_->get_file_inode(id);
+    return entry_impl_->get_file_inode(id);
+  }
+
+  inode_handle create_inode();
+
+  [[nodiscard]] std::size_t inode_count() const noexcept {
+    return inode_impl_->inode_count();
+  }
+
+  // TODO: this must go
+  [[nodiscard]] inode* get_inode(inode_id id) {
+    return inode_impl_->get_inode(id);
+  }
+
+  [[nodiscard]] file_id_vector const& get_files_for_inode(inode_id id) const {
+    return inode_impl_->get_files_for_inode(id);
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) {
+    inode_impl_->set_files_for_inode(id, std::move(fv));
   }
 
   void set_inode_scan_error(inode_id id, file_id fid, std::exception_ptr ep) {
-    impl_->set_inode_scan_error(id, fid, std::move(ep));
+    inode_impl_->set_inode_scan_error(id, fid, std::move(ep));
   }
 
   std::optional<std::pair<file_id, std::exception_ptr>>
   get_inode_scan_error(inode_id id) const {
-    return impl_->get_inode_scan_error(id);
+    return inode_impl_->get_inode_scan_error(id);
   }
 
   void set_inode_num(inode_id id, std::uint64_t num) {
-    impl_->set_inode_num(id, num);
+    inode_impl_->set_inode_num(id, num);
   }
 
   std::optional<std::uint64_t> get_inode_num(inode_id id) const {
-    return impl_->get_inode_num(id);
+    return inode_impl_->get_inode_num(id);
   }
 
   void set_inode_fragments(inode_id id, inode_fragments const& fragments) {
-    impl_->set_inode_fragments(id, fragments);
+    inode_impl_->set_inode_fragments(id, fragments);
   }
 
   void set_inode_fragment_chunks(
       inode_id id, std::size_t fragment_index,
       single_inode_fragment::packed_chunk_vector&& chunks) {
-    impl_->set_inode_fragment_chunks(id, fragment_index, std::move(chunks));
+    inode_impl_->set_inode_fragment_chunks(id, fragment_index,
+                                           std::move(chunks));
   }
 
-  void dump(std::ostream& os) const { impl_->dump(os); }
-
+  void dump(std::ostream& os) const;
   std::string dump() const;
 
-  void freeze() noexcept;
+  void freeze_entries() noexcept;
+  void freeze_inodes() noexcept;
 
-  class impl {
+  class entry_impl {
    public:
-    virtual ~impl() = default;
+    virtual ~entry_impl() = default;
 
     virtual entry_id make_file(std::filesystem::path const& path,
                                file_stat const& st, dir_id parent) = 0;
@@ -281,11 +289,11 @@ class entry_storage {
                                  file_stat const& st, dir_id parent) = 0;
     virtual entry_id make_other(std::filesystem::path const& path,
                                 file_stat const& st, dir_id parent) = 0;
-    virtual inode_id make_inode() = 0;
 
     virtual void create_packed_file_data(file_id id) = 0;
-    virtual std::size_t inode_count() const = 0;
-    virtual inode* get_inode(inode_id id) = 0;
+
+    virtual void set_file_inode(file_id id, inode_id ino) = 0;
+    virtual inode_id get_file_inode(file_id id) const = 0;
 
     virtual void set_entry_index(entry_id id, std::size_t index) = 0;
     virtual std::optional<std::size_t> get_entry_index(entry_id id) const = 0;
@@ -296,26 +304,6 @@ class entry_storage {
     virtual void
     set_link_target(link_id id, std::string link_target, progress& prog) = 0;
     virtual std::string_view get_link_target(link_id id) const = 0;
-
-    virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
-    virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;
-
-    virtual void set_file_inode(file_id id, inode_id ino) = 0;
-    virtual inode_id get_file_inode(file_id id) const = 0;
-
-    virtual void
-    set_inode_scan_error(inode_id id, file_id fid, std::exception_ptr ep) = 0;
-    virtual std::optional<std::pair<file_id, std::exception_ptr>>
-    get_inode_scan_error(inode_id id) const = 0;
-
-    virtual void set_inode_num(inode_id id, std::uint64_t num) = 0;
-    virtual std::optional<std::uint64_t> get_inode_num(inode_id id) const = 0;
-
-    virtual void
-    set_inode_fragments(inode_id id, inode_fragments const& fragments) = 0;
-    virtual void set_inode_fragment_chunks(
-        inode_id id, std::size_t fragment_index,
-        single_inode_fragment::packed_chunk_vector&& chunks) = 0;
 
     virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
@@ -362,7 +350,38 @@ class entry_storage {
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
 
-    virtual std::unique_ptr<impl> freeze() = 0;
+    virtual std::unique_ptr<entry_impl> freeze() = 0;
+  };
+
+  class inode_impl {
+   public:
+    virtual ~inode_impl() = default;
+
+    virtual inode_id make_inode() = 0;
+    virtual std::size_t inode_count() const = 0;
+
+    virtual inode* get_inode(inode_id id) = 0;
+
+    virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
+    virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;
+
+    virtual void
+    set_inode_scan_error(inode_id id, file_id fid, std::exception_ptr ep) = 0;
+    virtual std::optional<std::pair<file_id, std::exception_ptr>>
+    get_inode_scan_error(inode_id id) const = 0;
+
+    virtual void set_inode_num(inode_id id, std::uint64_t num) = 0;
+    virtual std::optional<std::uint64_t> get_inode_num(inode_id id) const = 0;
+
+    virtual void
+    set_inode_fragments(inode_id id, inode_fragments const& fragments) = 0;
+    virtual void set_inode_fragment_chunks(
+        inode_id id, std::size_t fragment_index,
+        single_inode_fragment::packed_chunk_vector&& chunks) = 0;
+
+    virtual void dump(std::ostream& os) const = 0;
+
+    virtual std::unique_ptr<inode_impl> freeze() = 0;
   };
 
  private:
@@ -386,7 +405,8 @@ class entry_storage {
   other_handle create_other(std::filesystem::path const& path,
                             dir_handle parent, file_stat const& st);
 
-  std::unique_ptr<impl> impl_;
+  std::unique_ptr<entry_impl> entry_impl_;
+  std::unique_ptr<inode_impl> inode_impl_;
 };
 
 } // namespace writer::internal
