@@ -192,7 +192,8 @@ template <typename T>
 std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
   return std::accumulate(vec.begin(), vec.end(), 0ULL,
                          [](std::size_t acc, auto const& de) {
-                           return acc + de.size_in_bytes();
+                           return acc +
+                                  (de.is_inline() ? 0 : de.size_in_bytes());
                          }) +
          sizeof(vec[0]) * vec.size();
 }
