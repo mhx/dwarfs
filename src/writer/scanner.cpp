@@ -682,7 +682,7 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(
       [](progress const&, size_t) { return "freezing tree..."; });
 
-  LOG_VERBOSE << "entry storage (before freezing):\n" << tree.dump();
+  LOG_VERBOSE << "entry storage (before freezing):\n" << tree.dump_entries();
 
   tree.freeze_entries();
 
@@ -718,6 +718,8 @@ void scanner_<LoggerPolicy>::scan(
     im.try_scan_invalid(wg_, os_);
     wg_.wait();
   }
+
+  LOG_VERBOSE << "inode storage (before freezing):\n" << tree.dump_inodes();
 
   tree.freeze_inodes();
 
@@ -1021,7 +1023,7 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "compressed " << orig_size << " to "
            << size_with_unit(prog.compressed_size) << " (" << comp_pct << ")";
 
-  LOG_VERBOSE << "entry storage:\n" << tree.dump();
+  LOG_VERBOSE << "entry/inode storage:\n" << tree.dump();
 }
 
 } // namespace internal

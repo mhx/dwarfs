@@ -1855,9 +1855,31 @@ void entry_storage::dump(std::ostream& os) const {
   inode_impl_->dump_events(os);
 }
 
+void entry_storage::dump_entries(std::ostream& os) const {
+  entry_impl_->dump(os);
+  entry_impl_->dump_events(os);
+}
+
+void entry_storage::dump_inodes(std::ostream& os) const {
+  inode_impl_->dump(os);
+  inode_impl_->dump_events(os);
+}
+
 std::string entry_storage::dump() const {
   std::ostringstream oss;
   dump(oss);
+  return oss.str();
+}
+
+std::string entry_storage::dump_entries() const {
+  std::ostringstream oss;
+  dump_entries(oss);
+  return oss.str();
+}
+
+std::string entry_storage::dump_inodes() const {
+  std::ostringstream oss;
+  dump_inodes(oss);
   return oss.str();
 }
 
