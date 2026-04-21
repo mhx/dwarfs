@@ -228,11 +228,6 @@ class entry_storage {
     return inode_impl_->inode_count();
   }
 
-  // TODO: this must go
-  [[nodiscard]] inode* get_inode(inode_id id) {
-    return inode_impl_->get_inode(id);
-  }
-
   [[nodiscard]] file_id_vector const& get_files_for_inode(inode_id id) const {
     return inode_impl_->get_files_for_inode(id);
   }
@@ -262,11 +257,54 @@ class entry_storage {
     inode_impl_->set_inode_fragments(id, fragments);
   }
 
-  void set_inode_fragment_chunks(
-      inode_id id, std::size_t fragment_index,
-      single_inode_fragment::packed_chunk_vector&& chunks) {
-    inode_impl_->set_inode_fragment_chunks(id, fragment_index,
-                                           std::move(chunks));
+  void inode_fragment_add_data_chunk(inode_id id, std::size_t fragment_index,
+                                     size_t block, size_t offset, size_t size) {
+    inode_impl_->inode_fragment_add_data_chunk(id, fragment_index, block,
+                                               offset, size);
+  }
+
+  void inode_fragment_add_hole_chunk(inode_id id, std::size_t fragment_index,
+                                     file_size_t size) {
+    inode_impl_->inode_fragment_add_hole_chunk(id, fragment_index, size);
+  }
+
+  std::size_t get_inode_fragment_count(inode_id id) const {
+    return inode_impl_->get_inode_fragment_count(id);
+  }
+
+  fragment_category
+  get_inode_fragment_category(inode_id id, std::size_t index) const {
+    return inode_impl_->get_inode_fragment_category(id, index);
+  }
+
+  file_size_t get_inode_fragment_size(inode_id id, std::size_t index) const {
+    return inode_impl_->get_inode_fragment_size(id, index);
+  }
+
+  packed_chunk_vector const&
+  get_inode_fragment_packed_chunks(inode_id id, std::size_t index) const {
+    return inode_impl_->get_inode_fragment_packed_chunks(id, index);
+  }
+
+  void set_inode_similarity(inode_id id,
+                            std::span<inode_similarity_hash_data const> data) {
+    inode_impl_->set_inode_similarity(id, data);
+  }
+
+  std::optional<std::uint32_t>
+  get_inode_similarity_hash(inode_id id, fragment_category cat) const {
+    return inode_impl_->get_inode_similarity_hash(id, cat);
+  }
+
+  nilsimsa::hash_type const*
+  get_inode_nilsimsa_hash(inode_id id, fragment_category cat) const {
+    return inode_impl_->get_inode_nilsimsa_hash(id, cat);
+  }
+
+  void dump_inode_similarity(
+      inode_id id, std::ostream& os,
+      std::function<std::string(fragment_category)> const& catlabel) const {
+    inode_impl_->dump_inode_similarity(id, os, catlabel);
   }
 
   void dump(std::ostream& os) const;
@@ -367,8 +405,6 @@ class entry_storage {
     virtual inode_id make_inode() = 0;
     virtual std::size_t inode_count() const = 0;
 
-    virtual inode* get_inode(inode_id id) = 0;
-
     virtual file_id_vector const& get_files_for_inode(inode_id id) const = 0;
     virtual void set_files_for_inode(inode_id id, file_id_vector fv) = 0;
 
@@ -382,9 +418,33 @@ class entry_storage {
 
     virtual void
     set_inode_fragments(inode_id id, inode_fragments const& fragments) = 0;
-    virtual void set_inode_fragment_chunks(
-        inode_id id, std::size_t fragment_index,
-        single_inode_fragment::packed_chunk_vector&& chunks) = 0;
+
+    virtual void
+    inode_fragment_add_data_chunk(inode_id id, std::size_t fragment_index,
+                                  size_t block, size_t offset, size_t size) = 0;
+    virtual void
+    inode_fragment_add_hole_chunk(inode_id id, std::size_t fragment_index,
+                                  file_size_t size) = 0;
+
+    virtual std::size_t get_inode_fragment_count(inode_id id) const = 0;
+    virtual fragment_category
+    get_inode_fragment_category(inode_id id, std::size_t index) const = 0;
+    virtual file_size_t
+    get_inode_fragment_size(inode_id id, std::size_t index) const = 0;
+    virtual packed_chunk_vector const&
+    get_inode_fragment_packed_chunks(inode_id id, std::size_t index) const = 0;
+
+    virtual void
+    set_inode_similarity(inode_id id,
+                         std::span<inode_similarity_hash_data const> data) = 0;
+    virtual std::optional<std::uint32_t>
+    get_inode_similarity_hash(inode_id id, fragment_category cat) const = 0;
+    virtual nilsimsa::hash_type const*
+    get_inode_nilsimsa_hash(inode_id id, fragment_category cat) const = 0;
+    virtual void
+    dump_inode_similarity(inode_id id, std::ostream& os,
+                          std::function<std::string(fragment_category)> const&
+                              catlabel) const = 0;
 
     virtual void dump(std::ostream& os) const = 0;
     virtual void dump_events(std::ostream& os) const = 0;

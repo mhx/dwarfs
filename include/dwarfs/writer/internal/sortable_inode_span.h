@@ -31,7 +31,6 @@
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <dwarfs/writer/internal/entry_storage.h>
-#include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 
 namespace dwarfs::writer::internal {
