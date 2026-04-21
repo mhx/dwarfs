@@ -349,6 +349,7 @@ class entry_storage {
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
+    virtual void dump_events(std::ostream& os) const = 0;
 
     virtual std::unique_ptr<entry_impl> freeze() = 0;
   };
@@ -380,6 +381,7 @@ class entry_storage {
         single_inode_fragment::packed_chunk_vector&& chunks) = 0;
 
     virtual void dump(std::ostream& os) const = 0;
+    virtual void dump_events(std::ostream& os) const = 0;
 
     virtual std::unique_ptr<inode_impl> freeze() = 0;
   };
