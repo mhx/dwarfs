@@ -272,6 +272,12 @@ class entry_storage {
   void dump(std::ostream& os) const;
   std::string dump() const;
 
+  void dump_entries(std::ostream& os) const;
+  std::string dump_entries() const;
+
+  void dump_inodes(std::ostream& os) const;
+  std::string dump_inodes() const;
+
   void freeze_entries() noexcept;
   void freeze_inodes() noexcept;
 
