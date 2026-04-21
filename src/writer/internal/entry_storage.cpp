@@ -43,6 +43,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/match.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer/metadata_options.h>
 
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
@@ -291,8 +292,14 @@ class packed_entry_data {
     std::size_t path_index;
   };
 
-  packed_entry_data(entry_type t)
+  explicit packed_entry_data(entry_type t)
       : this_type_{t} {}
+
+  packed_entry_data(entry_type t, metadata_options const& options)
+      : this_type_{t}
+      , keep_all_times_{options.keep_all_times}
+      , keep_subsecond_{options.time_resolution.value_or(std::chrono::seconds(
+                            1)) < std::chrono::seconds(1)} {}
 
   static constexpr std::size_t kNlinkMinusOneField = 0;
   static constexpr std::size_t kModeIndexField = 1;
@@ -360,9 +367,11 @@ class packed_entry_data {
     data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
     data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
     data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
-    data.add_atime(get<kAccessTimeSecondField>(stat));
     data.add_mtime(get<kModificationTimeSecondField>(stat));
-    data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
+    if (keep_all_times_) {
+      data.add_atime(get<kAccessTimeSecondField>(stat));
+      data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
+    }
   }
 
   void pack_entry(shared_entry_data const& shared, uint64_t const index,
@@ -371,15 +380,24 @@ class packed_entry_data {
                   time_resolution_converter const& timeres) const {
     auto const& stat = stat_common_.at(index);
     file_stat out{};
+
     out.set_mode(shared.get_mode(get<kModeIndexField>(stat)));
     out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
     out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
-    out.set_atimespec(get<kAccessTimeSecondField>(stat),
-                      get<kAccessTimeSubsecondField>(stat));
+
     out.set_mtimespec(get<kModificationTimeSecondField>(stat),
                       get<kModificationTimeSubsecondField>(stat));
-    out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
-                      get<kStatusChangeTimeSubsecondField>(stat));
+
+    if (keep_all_times_) {
+      out.set_atimespec(get<kAccessTimeSecondField>(stat),
+                        get<kAccessTimeSubsecondField>(stat));
+      out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
+                        get<kStatusChangeTimeSubsecondField>(stat));
+    } else {
+      out.set_atimespec(0, 0);
+      out.set_ctimespec(0, 0);
+    }
+
     data.pack_inode_stat(entry_v2, out, timeres);
   }
 
@@ -575,6 +593,9 @@ class packed_entry_data {
 
  private:
   entry_type this_type_;
+
+  bool const keep_all_times_{false};
+  bool const keep_subsecond_{false};
 
   // index into `shared_entry_data::path_components_`
   segtor<size_t> path_name_index_;
@@ -1092,12 +1113,24 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
   std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
   std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
-  std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
-  std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
+
   std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
-  std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
-  std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
-  std::get<kStatusChangeTimeSubsecondField>(tmp) = st.ctime_nsec_unchecked();
+
+  if (keep_subsecond_) {
+    std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
+  }
+
+  if (keep_all_times_) {
+    std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
+    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
+
+    if (keep_subsecond_) {
+      std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
+      std::get<kStatusChangeTimeSubsecondField>(tmp) =
+          st.ctime_nsec_unchecked();
+    }
+  }
+
   std::get<kInodeField>(tmp) = st.ino_unchecked();
   std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
 
@@ -1136,6 +1169,14 @@ class entry_storage_ final : public entry_storage::entry_impl {
   entry_storage_()
     requires is_mutable
   = default;
+
+  explicit entry_storage_(metadata_options const& options)
+    requires is_mutable
+      : files_{entry_type::E_FILE, options}
+      , dirs_{entry_type::E_DIR, options}
+      , links_{entry_type::E_LINK, options}
+      , devices_{entry_type::E_DEVICE, options}
+      , others_{entry_type::E_OTHER, options} {}
 
   entry_storage_(entry_storage_<false>& other) noexcept
     requires Frozen
@@ -1885,6 +1926,10 @@ void inode_storage_<Frozen>::dump_events(std::ostream& os
 
 class synchronized_entry_storage_ final : public entry_storage::entry_impl {
  public:
+  synchronized_entry_storage_() = default;
+  explicit synchronized_entry_storage_(metadata_options const& options)
+      : impl_{std::in_place, options} {}
+
   entry_id make_file(fs::path const& path, file_stat const& st,
                      dir_id const parent) override {
     return impl_.lock()->make_file(path, st, parent);
@@ -2174,6 +2219,10 @@ class synchronized_inode_storage_ final : public entry_storage::inode_impl {
 
 entry_storage::entry_storage()
     : entry_impl_{std::make_unique<synchronized_entry_storage_>()}
+    , inode_impl_{std::make_unique<synchronized_inode_storage_>()} {}
+
+entry_storage::entry_storage(metadata_options const& options)
+    : entry_impl_{std::make_unique<synchronized_entry_storage_>(options)}
     , inode_impl_{std::make_unique<synchronized_inode_storage_>()} {}
 
 entry_storage::~entry_storage() = default;
