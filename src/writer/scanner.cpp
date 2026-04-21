@@ -650,26 +650,26 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  auto tree = entry_storage{};
+  auto tree = std::make_optional<entry_storage>();
 
-  inode_manager im(LOG_GET_LOGGER, tree, prog, path, options_.inode,
+  inode_manager im(LOG_GET_LOGGER, *tree, prog, path, options_.inode,
                    list.has_value());
-  file_scanner fs(LOG_GET_LOGGER, tree, wg_, os_, im, prog,
+  file_scanner fs(LOG_GET_LOGGER, *tree, wg_, os_, im, prog,
                   {.hash_algo = options_.file_hash_algorithm,
                    .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                          os_.getenv(kEnvVarDumpFilesFinal)});
 
-  auto root = list ? scan_list(tree, path, *list, prog, fs)
-                   : scan_tree(tree, path, prog, fs);
+  auto root = list ? scan_list(*tree, path, *list, prog, fs)
+                   : scan_tree(*tree, path, prog, fs);
 
   if (options_.debug_filter_function) {
-    LOG_VERBOSE << "entry storage:\n" << tree.dump();
+    LOG_VERBOSE << "entry storage:\n" << tree->dump();
     return;
   }
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
-    tree.remove_empty_dirs(prog);
+    tree->remove_empty_dirs(prog);
   }
 
   LOG_INFO << "waiting for background scanners...";
@@ -681,9 +681,9 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(
       [](progress const&, size_t) { return "freezing tree..."; });
 
-  LOG_VERBOSE << "entry storage (before freezing):\n" << tree.dump_entries();
+  LOG_VERBOSE << "entry storage (before freezing):\n" << tree->dump_entries();
 
-  tree.freeze_entries();
+  tree->freeze_entries();
 
   prog.set_status_function(status_string);
 
@@ -718,9 +718,9 @@ void scanner_<LoggerPolicy>::scan(
     wg_.wait();
   }
 
-  LOG_VERBOSE << "inode storage (before freezing):\n" << tree.dump_inodes();
+  LOG_VERBOSE << "inode storage (before freezing):\n" << tree->dump_inodes();
 
-  tree.freeze_inodes();
+  tree->freeze_inodes();
 
   auto original_size = [&] {
     return options_.metadata.enable_sparse_files
@@ -935,6 +935,9 @@ void scanner_<LoggerPolicy>::scan(
   root.accept(ssfv);
   mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
+  LOG_VERBOSE << "entry/inode storage:\n" << tree->dump();
+  tree.reset();
+
   if (auto catmgr = options_.inode.categorizer_mgr) {
     std::unordered_map<fragment_category::value_type, uint32_t>
         category_indices;
@@ -1023,8 +1026,6 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_INFO << "compressed " << orig_size << " to "
            << size_with_unit(prog.compressed_size) << " (" << comp_pct << ")";
-
-  LOG_VERBOSE << "entry/inode storage:\n" << tree.dump();
 }
 
 } // namespace internal
