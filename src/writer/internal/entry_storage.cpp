@@ -893,7 +893,7 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 } // namespace
 
 template <bool Frozen>
-class entry_storage_ final : public entry_storage::impl {
+class entry_storage_ final : public entry_storage::entry_impl {
  public:
   static constexpr bool is_mutable = !Frozen;
 
@@ -906,14 +906,13 @@ class entry_storage_ final : public entry_storage::impl {
   entry_storage_(entry_storage_<false>& other) noexcept
     requires Frozen
       : shared_{std::move(other.shared_)}
-      , inodes_{std::move(other.inodes_)}
       , files_{std::move(other.files_)}
       , dirs_{std::move(other.dirs_)}
       , links_{std::move(other.links_)}
       , devices_{std::move(other.devices_)}
       , others_{std::move(other.others_)} {}
 
-  std::unique_ptr<impl> freeze() override {
+  std::unique_ptr<entry_impl> freeze() override {
     if constexpr (is_mutable) {
       sort_all_directory_entries();
       shared_.drop_indices();
@@ -995,20 +994,10 @@ class entry_storage_ final : public entry_storage::impl {
     return make_obj_(entry_type::E_OTHER, others_, path, st, parent);
   }
 
-  inode_id make_inode() override {
-    if constexpr (is_mutable) {
-      return inodes_.create();
-    } else {
-      frozen_panic();
-    }
-  }
-
   bool empty() const noexcept override {
     TRACE_CALL;
     return dirs_.empty();
   }
-
-  void dump(std::ostream& os) const override;
 
   void create_packed_file_data(file_id id) override {
     if constexpr (is_mutable) {
@@ -1018,14 +1007,15 @@ class entry_storage_ final : public entry_storage::impl {
     }
   }
 
-  std::size_t inode_count() const override {
+  void set_file_inode(file_id id, inode_id ino) override {
     TRACE_CALL;
-    return inodes_.size();
+    // this is safe even on frozen storage if it's single-threaded
+    files_.set_inode_id(id, ino);
   }
 
-  inode* get_inode(inode_id const id) override {
+  inode_id get_file_inode(file_id id) const override {
     TRACE_CALL;
-    return inodes_.get_raw_inode(id);
+    return files_.get_inode_id(id);
   }
 
   void set_entry_index(entry_id id, std::size_t index) override {
@@ -1068,72 +1058,6 @@ class entry_storage_ final : public entry_storage::impl {
   std::string_view get_link_target(link_id id) const override {
     TRACE_CALL;
     return shared_.get_link_target(links_.get_link_target_index(id));
-  }
-
-  file_id_vector const& get_files_for_inode(inode_id id) const override {
-    TRACE_CALL;
-    return inodes_.get_files(id);
-  }
-
-  void set_files_for_inode(inode_id id, file_id_vector fv) override {
-    TRACE_CALL;
-    // this is safe even on frozen storage if it's single-threaded
-    inodes_.set_files(id, std::move(fv));
-  }
-
-  void set_file_inode(file_id id, inode_id ino) override {
-    TRACE_CALL;
-    // this is safe even on frozen storage if it's single-threaded
-    files_.set_inode_id(id, ino);
-  }
-
-  inode_id get_file_inode(file_id id) const override {
-    TRACE_CALL;
-    return files_.get_inode_id(id);
-  }
-
-  void set_inode_scan_error(inode_id id, file_id fid,
-                            std::exception_ptr ep) override {
-    TRACE_CALL;
-    if constexpr (is_mutable) {
-      inodes_.set_scan_error(id, fid, std::move(ep));
-    } else {
-      frozen_panic();
-    }
-  }
-
-  std::optional<inode_scan_error>
-  get_inode_scan_error(inode_id id) const override {
-    TRACE_CALL;
-    return inodes_.get_scan_error(id);
-  }
-
-  void set_inode_num(inode_id id, std::uint64_t num) override {
-    TRACE_CALL;
-    // this is safe even on frozen storage if it's single-threaded
-    inodes_.set_inode_num(id, num);
-  }
-
-  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
-    TRACE_CALL;
-    return inodes_.get_inode_num(id);
-  }
-
-  void
-  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
-    TRACE_CALL;
-    if constexpr (is_mutable) {
-      inodes_.set_fragments(id, fragments);
-    } else {
-      frozen_panic();
-    }
-  }
-
-  void set_inode_fragment_chunks(
-      inode_id id, std::size_t fragment_index,
-      single_inode_fragment::packed_chunk_vector&& chunks) override {
-    TRACE_CALL;
-    inodes_.set_fragment_chunks(id, fragment_index, std::move(chunks));
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1369,6 +1293,8 @@ class entry_storage_ final : public entry_storage::impl {
     return devices_.get_represented_device(id);
   }
 
+  void dump(std::ostream& os) const override;
+
  private:
   void sort_all_directory_entries()
     requires is_mutable
@@ -1512,8 +1438,6 @@ class entry_storage_ final : public entry_storage::impl {
 
   shared_entry_data shared_;
 
-  packed_inode_data inodes_;
-
   packed_entry_data files_{entry_type::E_FILE};
   packed_entry_data dirs_{entry_type::E_DIR};
   packed_entry_data links_{entry_type::E_LINK};
@@ -1531,10 +1455,114 @@ class entry_storage_ final : public entry_storage::impl {
 };
 
 template <bool Frozen>
+class inode_storage_ final : public entry_storage::inode_impl {
+ public:
+  static constexpr bool is_mutable = !Frozen;
+
+  friend class inode_storage_<true>;
+
+  inode_storage_()
+    requires is_mutable
+  = default;
+
+  inode_storage_(inode_storage_<false>& other) noexcept
+    requires Frozen
+      : inodes_{std::move(other.inodes_)} {}
+
+  std::unique_ptr<inode_impl> freeze() override {
+    if constexpr (is_mutable) {
+      return std::make_unique<inode_storage_<true>>(*this);
+    } else {
+      frozen_panic();
+    }
+  }
+
+  inode_id make_inode() override {
+    if constexpr (is_mutable) {
+      return inodes_.create();
+    } else {
+      frozen_panic();
+    }
+  }
+
+  std::size_t inode_count() const override {
+    TRACE_CALL;
+    return inodes_.size();
+  }
+
+  inode* get_inode(inode_id const id) override {
+    TRACE_CALL;
+    return inodes_.get_raw_inode(id);
+  }
+
+  file_id_vector const& get_files_for_inode(inode_id id) const override {
+    TRACE_CALL;
+    return inodes_.get_files(id);
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) override {
+    TRACE_CALL;
+    // this is safe even on frozen storage if it's single-threaded
+    inodes_.set_files(id, std::move(fv));
+  }
+
+  void set_inode_scan_error(inode_id id, file_id fid,
+                            std::exception_ptr ep) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      inodes_.set_scan_error(id, fid, std::move(ep));
+    } else {
+      frozen_panic();
+    }
+  }
+
+  std::optional<inode_scan_error>
+  get_inode_scan_error(inode_id id) const override {
+    TRACE_CALL;
+    return inodes_.get_scan_error(id);
+  }
+
+  void set_inode_num(inode_id id, std::uint64_t num) override {
+    TRACE_CALL;
+    // this is safe even on frozen storage if it's single-threaded
+    inodes_.set_inode_num(id, num);
+  }
+
+  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
+    TRACE_CALL;
+    return inodes_.get_inode_num(id);
+  }
+
+  void
+  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      inodes_.set_fragments(id, fragments);
+    } else {
+      frozen_panic();
+    }
+  }
+
+  void set_inode_fragment_chunks(
+      inode_id id, std::size_t fragment_index,
+      single_inode_fragment::packed_chunk_vector&& chunks) override {
+    TRACE_CALL;
+    inodes_.set_fragment_chunks(id, fragment_index, std::move(chunks));
+  }
+
+  void dump(std::ostream& os) const override;
+
+ private:
+  packed_inode_data inodes_;
+
+#ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+  dwarfs::internal::event_tracer mutable ev_;
+#endif
+};
+
+template <bool Frozen>
 void entry_storage_<Frozen>::dump(std::ostream& os) const {
   shared_.dump(os);
-
-  inodes_.dump(os);
 
   files_.dump(os, "file");
   dirs_.dump(os, "dir");
@@ -1542,12 +1570,23 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   devices_.dump(os, "device");
   others_.dump(os, "other");
 
+  // TODO: move to separate method
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   ev_.dump(os);
 #endif
 }
 
-class synchronized_entry_storage_ final : public entry_storage::impl {
+template <bool Frozen>
+void inode_storage_<Frozen>::dump(std::ostream& os) const {
+  inodes_.dump(os);
+
+  // TODO: move to separate method
+#ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
+  ev_.dump(os);
+#endif
+}
+
+class synchronized_entry_storage_ final : public entry_storage::entry_impl {
  public:
   entry_id make_file(fs::path const& path, file_stat const& st,
                      dir_id const parent) override {
@@ -1574,18 +1613,8 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->make_other(path, st, parent);
   }
 
-  inode_id make_inode() override { return impl_.lock()->make_inode(); }
-
   void create_packed_file_data(file_id id) override {
     impl_.lock()->create_packed_file_data(id);
-  }
-
-  std::size_t inode_count() const override {
-    return impl_.lock()->inode_count();
-  }
-
-  inode* get_inode(inode_id const id) override {
-    return impl_.lock()->get_inode(id);
   }
 
   void set_entry_index(entry_id id, std::size_t index) override {
@@ -1613,50 +1642,12 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
     return impl_.lock()->get_link_target(id);
   }
 
-  file_id_vector const& get_files_for_inode(inode_id id) const override {
-    return impl_.lock()->get_files_for_inode(id);
-  }
-
-  void set_files_for_inode(inode_id id, file_id_vector fv) override {
-    impl_.lock()->set_files_for_inode(id, std::move(fv));
-  }
-
   void set_file_inode(file_id id, inode_id ino) override {
     impl_.lock()->set_file_inode(id, ino);
   }
 
   inode_id get_file_inode(file_id id) const override {
     return impl_.lock()->get_file_inode(id);
-  }
-
-  void set_inode_scan_error(inode_id id, file_id fid,
-                            std::exception_ptr ep) override {
-    impl_.lock()->set_inode_scan_error(id, fid, std::move(ep));
-  }
-
-  std::optional<inode_scan_error>
-  get_inode_scan_error(inode_id id) const override {
-    return impl_.lock()->get_inode_scan_error(id);
-  }
-
-  void set_inode_num(inode_id id, std::uint64_t num) override {
-    impl_.lock()->set_inode_num(id, num);
-  }
-
-  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
-    return impl_.lock()->get_inode_num(id);
-  }
-
-  void
-  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
-    impl_.lock()->set_inode_fragments(id, fragments);
-  }
-
-  void set_inode_fragment_chunks(
-      inode_id id, std::size_t fragment_index,
-      single_inode_fragment::packed_chunk_vector&& chunks) override {
-    impl_.lock()->set_inode_fragment_chunks(id, fragment_index,
-                                            std::move(chunks));
   }
 
   dir_id get_parent(entry_id const id) const override {
@@ -1766,18 +1757,86 @@ class synchronized_entry_storage_ final : public entry_storage::impl {
   bool empty() const noexcept override { return impl_.lock()->empty(); }
   void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
 
-  std::unique_ptr<impl> freeze() override { return impl_.lock()->freeze(); }
+  std::unique_ptr<entry_impl> freeze() override {
+    return impl_.lock()->freeze();
+  }
 
  private:
   dwarfs::internal::synchronized<entry_storage_<false>> impl_;
 };
 
+class synchronized_inode_storage_ final : public entry_storage::inode_impl {
+ public:
+  inode_id make_inode() override { return impl_.lock()->make_inode(); }
+
+  std::size_t inode_count() const override {
+    return impl_.lock()->inode_count();
+  }
+
+  inode* get_inode(inode_id const id) override {
+    return impl_.lock()->get_inode(id);
+  }
+
+  void set_files_for_inode(inode_id id, file_id_vector fv) override {
+    impl_.lock()->set_files_for_inode(id, std::move(fv));
+  }
+
+  file_id_vector const& get_files_for_inode(inode_id id) const override {
+    return impl_.lock()->get_files_for_inode(id);
+  }
+
+  void set_inode_scan_error(inode_id id, file_id fid,
+                            std::exception_ptr ep) override {
+    impl_.lock()->set_inode_scan_error(id, fid, std::move(ep));
+  }
+
+  std::optional<inode_scan_error>
+  get_inode_scan_error(inode_id id) const override {
+    return impl_.lock()->get_inode_scan_error(id);
+  }
+
+  void set_inode_num(inode_id id, std::uint64_t num) override {
+    impl_.lock()->set_inode_num(id, num);
+  }
+
+  std::optional<std::uint64_t> get_inode_num(inode_id id) const override {
+    return impl_.lock()->get_inode_num(id);
+  }
+
+  void
+  set_inode_fragments(inode_id id, inode_fragments const& fragments) override {
+    impl_.lock()->set_inode_fragments(id, fragments);
+  }
+
+  void set_inode_fragment_chunks(
+      inode_id id, std::size_t fragment_index,
+      single_inode_fragment::packed_chunk_vector&& chunks) override {
+    impl_.lock()->set_inode_fragment_chunks(id, fragment_index,
+                                            std::move(chunks));
+  }
+
+  void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
+
+  std::unique_ptr<inode_impl> freeze() override {
+    return impl_.lock()->freeze();
+  }
+
+ private:
+  dwarfs::internal::synchronized<inode_storage_<false>> impl_;
+};
+
 entry_storage::entry_storage()
-    : impl_(std::make_unique<synchronized_entry_storage_>()) {}
+    : entry_impl_{std::make_unique<synchronized_entry_storage_>()}
+    , inode_impl_{std::make_unique<synchronized_inode_storage_>()} {}
 
 entry_storage::~entry_storage() = default;
 entry_storage::entry_storage(entry_storage&&) noexcept = default;
 entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
+
+void entry_storage::dump(std::ostream& os) const {
+  entry_impl_->dump(os);
+  inode_impl_->dump(os);
+}
 
 std::string entry_storage::dump() const {
   std::ostringstream oss;
@@ -1785,48 +1844,54 @@ std::string entry_storage::dump() const {
   return oss.str();
 }
 
-void entry_storage::freeze() noexcept { impl_ = impl_->freeze(); }
+void entry_storage::freeze_entries() noexcept {
+  entry_impl_ = entry_impl_->freeze();
+}
+
+void entry_storage::freeze_inodes() noexcept {
+  inode_impl_ = inode_impl_->freeze();
+}
 
 dir_handle
 entry_storage::create_root_dir(fs::path const& path, file_stat const& st) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, impl_->make_dir(path, st, dir_id{})};
+  return {*this, entry_impl_->make_dir(path, st, dir_id{})};
 }
 
 file_handle entry_storage::create_file(fs::path const& path, dir_handle parent,
                                        file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_file(path, st, parent.id())};
+  return {*this, entry_impl_->make_file(path, st, parent.id())};
 }
 
 dir_handle entry_storage::create_dir(fs::path const& path, dir_handle parent,
                                      file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_dir(path, st, parent.id())};
+  return {*this, entry_impl_->make_dir(path, st, parent.id())};
 }
 
 link_handle entry_storage::create_link(fs::path const& path, dir_handle parent,
                                        file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_link(path, st, parent.id())};
+  return {*this, entry_impl_->make_link(path, st, parent.id())};
 }
 
 device_handle
 entry_storage::create_device(fs::path const& path, dir_handle parent,
                              file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_device(path, st, parent.id())};
+  return {*this, entry_impl_->make_device(path, st, parent.id())};
 }
 
 other_handle
 entry_storage::create_other(fs::path const& path, dir_handle parent,
                             file_stat const& st) {
   assert(!empty());
-  return {*this, impl_->make_other(path, st, parent.id())};
+  return {*this, entry_impl_->make_other(path, st, parent.id())};
 }
 
 inode_handle entry_storage::create_inode() {
-  return {*this, impl_->make_inode()};
+  return {*this, inode_impl_->make_inode()};
 }
 
 } // namespace dwarfs::writer::internal
