@@ -982,6 +982,8 @@ void scanner_<LoggerPolicy>::scan(
     mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
+  LOG_VERBOSE << ge_data.to_string();
+
   {
     auto tv = LOG_TIMED_VERBOSE;
     mdb.gather_global_entry_data(ge_data);
