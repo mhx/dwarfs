@@ -650,7 +650,7 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  auto tree = std::make_optional<entry_storage>();
+  auto tree = std::make_optional<entry_storage>(options_.metadata);
 
   inode_manager im(LOG_GET_LOGGER, *tree, prog, path, options_.inode,
                    list.has_value());

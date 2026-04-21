@@ -44,7 +44,11 @@ class inode_data;
 
 } // namespace thrift::metadata
 
-namespace writer::internal {
+namespace writer {
+
+struct metadata_options;
+
+namespace internal {
 
 class global_entry_data;
 class progress;
@@ -63,6 +67,7 @@ class device;
 class entry_storage {
  public:
   entry_storage();
+  explicit entry_storage(metadata_options const& options);
   ~entry_storage();
 
   entry_storage(entry_storage&&) noexcept;
@@ -477,5 +482,6 @@ class entry_storage {
   std::unique_ptr<inode_impl> inode_impl_;
 };
 
-} // namespace writer::internal
+} // namespace internal
+} // namespace writer
 } // namespace dwarfs
