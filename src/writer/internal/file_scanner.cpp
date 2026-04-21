@@ -47,7 +47,6 @@
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/file_scanner.h>
-#include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/progress.h>
 

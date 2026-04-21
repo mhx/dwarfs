@@ -29,14 +29,31 @@
 #include <boost/container_hash/hash.hpp>
 
 #include <dwarfs/types.h>
+#include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/detail/mutability.h>
-#include <dwarfs/writer/internal/inode.h>
+#include <dwarfs/writer/internal/entry_id_vector.h>
+#include <dwarfs/writer/internal/inode_fragments_view.h>
+#include <dwarfs/writer/internal/inode_hole_mapper.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/inode_types.h>
+
+namespace dwarfs {
+
+struct open_file_options;
+
+} // namespace dwarfs
+
+namespace dwarfs::thrift::metadata {
+
+class chunk;
+
+} // namespace dwarfs::thrift::metadata
 
 namespace dwarfs::writer::internal {
 
 class entry_storage;
+class inode_hole_mapper;
 
 template <detail::mutability Mut>
 class basic_inode_handle;
@@ -96,9 +113,7 @@ class basic_inode_handle final {
   }
   bool append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
                         std::optional<inode_hole_mapper>& hole_mapper) const;
-  inode_fragments const& fragments() const;
-  inode_fragments& fragments()
-    requires is_mutable;
+  inode_fragments_view fragments_view() const;
   void dump(std::ostream& os, inode_options const& options) const;
   void set_scan_error(const_file_handle fp, std::exception_ptr ep)
     requires is_mutable;
@@ -108,9 +123,6 @@ class basic_inode_handle final {
   mmap_any(os_access const& os, open_file_options const& of_opts) const;
 
  private:
-  using self_t = detail::mutability_t<inode, Mut>;
-  self_t* self() const;
-
   entry_storage* storage_{nullptr};
   inode_id self_id_;
 };

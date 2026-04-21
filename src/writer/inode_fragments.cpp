@@ -102,9 +102,6 @@ std::size_t inode_fragments::size_in_bytes() const {
   if (fragments_.size() > 1) {
     total += fragments_.size() * sizeof(single_inode_fragment);
   }
-  for (auto const& f : *this) {
-    total += f.allocated_size_in_bytes();
-  }
   return total;
 }
 
