@@ -1294,6 +1294,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   }
 
   void dump(std::ostream& os) const override;
+  void dump_events(std::ostream& os) const override;
 
  private:
   void sort_all_directory_entries()
@@ -1551,6 +1552,7 @@ class inode_storage_ final : public entry_storage::inode_impl {
   }
 
   void dump(std::ostream& os) const override;
+  void dump_events(std::ostream& os) const override;
 
  private:
   packed_inode_data inodes_;
@@ -1569,18 +1571,24 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   links_.dump(os, "link");
   devices_.dump(os, "device");
   others_.dump(os, "other");
+}
 
-  // TODO: move to separate method
+template <bool Frozen>
+void inode_storage_<Frozen>::dump(std::ostream& os) const {
+  inodes_.dump(os);
+}
+
+template <bool Frozen>
+void entry_storage_<Frozen>::dump_events(std::ostream& os
+                                         [[maybe_unused]]) const {
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   ev_.dump(os);
 #endif
 }
 
 template <bool Frozen>
-void inode_storage_<Frozen>::dump(std::ostream& os) const {
-  inodes_.dump(os);
-
-  // TODO: move to separate method
+void inode_storage_<Frozen>::dump_events(std::ostream& os
+                                         [[maybe_unused]]) const {
 #ifdef DWARFS_TRACE_ENTRY_STORAGE_CALLS
   ev_.dump(os);
 #endif
@@ -1755,7 +1763,11 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
   }
 
   bool empty() const noexcept override { return impl_.lock()->empty(); }
+
   void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
+  void dump_events(std::ostream& os) const override {
+    impl_.lock()->dump_events(os);
+  }
 
   std::unique_ptr<entry_impl> freeze() override {
     return impl_.lock()->freeze();
@@ -1816,6 +1828,9 @@ class synchronized_inode_storage_ final : public entry_storage::inode_impl {
   }
 
   void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
+  void dump_events(std::ostream& os) const override {
+    impl_.lock()->dump_events(os);
+  }
 
   std::unique_ptr<inode_impl> freeze() override {
     return impl_.lock()->freeze();
@@ -1836,6 +1851,8 @@ entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 void entry_storage::dump(std::ostream& os) const {
   entry_impl_->dump(os);
   inode_impl_->dump(os);
+  entry_impl_->dump_events(os);
+  inode_impl_->dump_events(os);
 }
 
 std::string entry_storage::dump() const {
