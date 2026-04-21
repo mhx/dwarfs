@@ -719,6 +719,8 @@ void scanner_<LoggerPolicy>::scan(
     wg_.wait();
   }
 
+  tree.freeze_inodes();
+
   auto original_size = [&] {
     return options_.metadata.enable_sparse_files
                ? prog.allocated_original_size.load()
