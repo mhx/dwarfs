@@ -21,10 +21,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
+#include <numeric>
+#include <sstream>
+#include <tuple>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
@@ -36,6 +42,39 @@
 namespace dwarfs::writer::internal {
 
 namespace {
+
+std::string metadata_memory_usage(thrift::metadata::metadata const& data) {
+  std::ostringstream oss;
+
+  std::vector<std::tuple<std::string_view, std::size_t, std::size_t>> sizes;
+
+  sizes.emplace_back("chunks", data.chunks()->size(),
+                     sizeof(thrift::metadata::chunk));
+  sizes.emplace_back("directories", data.directories()->size(),
+                     sizeof(thrift::metadata::directory));
+  sizes.emplace_back("inodes", data.inodes()->size(),
+                     sizeof(thrift::metadata::inode_data));
+  sizes.emplace_back("chunk_table", data.chunk_table()->size(),
+                     sizeof(std::uint32_t));
+  sizes.emplace_back("dir_entries", data.dir_entries()->size(),
+                     sizeof(thrift::metadata::dir_entry));
+
+  auto const total_bytes = std::accumulate(
+      sizes.begin(), sizes.end(), 0ULL, [](std::size_t acc, auto const& t) {
+        return acc + std::get<1>(t) * std::get<2>(t);
+      });
+
+  oss << "metadata memory usage (" << size_with_unit(total_bytes) << "):\n";
+
+  for (auto const& [label, count, elem_size] : sizes) {
+    if (count > 0) {
+      oss << "  " << count << " " << label << ": "
+          << size_with_unit(count * elem_size) << "\n";
+    }
+  }
+
+  return oss.str();
+}
 
 template <class T>
 std::pair<shared_byte_buffer, shared_byte_buffer> freeze_to_buffer(T const& x) {
@@ -68,6 +107,8 @@ class metadata_freezer_ : public metadata_freezer::impl {
 
   std::pair<shared_byte_buffer, shared_byte_buffer>
   freeze(thrift::metadata::metadata const& data) const override {
+    LOG_VERBOSE << metadata_memory_usage(data);
+
     auto ti = LOG_TIMED_VERBOSE;
     auto rv = freeze_to_buffer(data);
 
