@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iosfwd>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -87,6 +88,9 @@ class global_entry_data {
   pack_inode_stat(thrift::metadata::inode_data& inode, file_stat const& stat,
                   time_resolution_converter const& timeres) const;
 
+  void dump(std::ostream& os) const;
+  std::string to_string() const;
+
  private:
   using string_like_hash = dwarfs::detail::string_like_hash;
 
@@ -96,6 +100,7 @@ class global_entry_data {
   template <typename T>
   using index_map_type = map_type<T, index_type>;
 
+  // TODO: we should be able to use `string_view` here...
   template <typename T>
   using string_keyed_map_type =
       map_type<std::string, T, string_like_hash, std::equal_to<>>;
