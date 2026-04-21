@@ -86,6 +86,14 @@ template <dwarfs::container::packed_vector_value T,
           std::size_t SegmentSize = 4096>
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
 
+template <typename T>
+bool uses_inline_buffer(T const& s) {
+  auto const p = reinterpret_cast<std::uintptr_t>(s.data());
+  auto const b = reinterpret_cast<std::uintptr_t>(&s);
+  auto const e = b + sizeof(s);
+  return b <= p && p < e;
+}
+
 } // namespace
 
 class path_component {
@@ -119,7 +127,8 @@ class path_component {
     return sizeof(path_component) +
            path_.native().size() * sizeof(fs::path::value_type) + name_.size();
 #else
-    return sizeof(path_component) + name_.size();
+    return sizeof(path_component) +
+           (uses_inline_buffer(name_) ? 0 : name_.capacity());
 #endif
   }
 
