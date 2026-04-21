@@ -25,8 +25,12 @@
 #include <cassert>
 #include <concepts>
 #include <functional>
+#include <numeric>
+#include <ostream>
+#include <sstream>
 
 #include <dwarfs/error.h>
+#include <dwarfs/util.h>
 #include <dwarfs/writer/scanner_options.h>
 
 #include <dwarfs/writer/internal/global_entry_data.h>
@@ -219,6 +223,47 @@ void global_entry_data::add_name(std::string_view name) {
 
 void global_entry_data::add_link(std::string_view link) {
   symlinks_.emplace(link, 0);
+}
+
+void global_entry_data::dump(std::ostream& os) const {
+  std::vector<std::pair<std::string_view, std::size_t>> sizes;
+
+  auto string_keyed_map_size = [](auto const& map) {
+    return map.capacity() *
+               sizeof(typename std::decay_t<decltype(map)>::value_type) +
+           std::accumulate(map.begin(), map.end(), 0ULL,
+                           [](std::size_t acc, auto const& kv) {
+                             return acc + kv.first.size() +
+                                    1; // +1 for null terminator
+                           });
+  };
+
+  sizes.emplace_back("uids",
+                     uids_.capacity() * sizeof(decltype(uids_)::value_type));
+  sizes.emplace_back("gids",
+                     gids_.capacity() * sizeof(decltype(gids_)::value_type));
+  sizes.emplace_back("modes",
+                     modes_.capacity() * sizeof(decltype(modes_)::value_type));
+  sizes.emplace_back("names", string_keyed_map_size(names_));
+  sizes.emplace_back("symlinks", string_keyed_map_size(symlinks_));
+
+  auto const total_bytes = std::accumulate(
+      sizes.begin(), sizes.end(), 0ULL,
+      [](std::size_t acc, auto const& pair) { return acc + pair.second; });
+
+  os << "Global Entry Data (" << size_with_unit(total_bytes) << "):\n";
+
+  for (auto const& [label, bytes] : sizes) {
+    if (bytes > 0) {
+      os << "  " << label << ": " << size_with_unit(bytes) << "\n";
+    }
+  }
+}
+
+std::string global_entry_data::to_string() const {
+  std::ostringstream oss;
+  dump(oss);
+  return oss.str();
 }
 
 } // namespace dwarfs::writer::internal
