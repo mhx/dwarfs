@@ -706,7 +706,45 @@ class basic_packed_int_vector {
     insert_range(end(), std::forward<R>(r));
   }
 
+  friend bool operator==(basic_packed_int_vector const& lhs,
+                         basic_packed_int_vector const& rhs)
+    requires std::equality_comparable<value_type>
+  {
+    return lhs.equals_impl(rhs);
+  }
+
+  template <packed_vector_bit_width_strategy OtherStrategy,
+            typename OtherPolicy, typename OtherGrowthPolicy>
+  friend bool
+  operator==(basic_packed_int_vector const& lhs,
+             basic_packed_int_vector<value_type, OtherStrategy, OtherPolicy,
+                                     OtherGrowthPolicy> const& rhs)
+    requires std::equality_comparable<value_type>
+  {
+    return lhs.equals_impl(rhs);
+  }
+
  private:
+  template <packed_vector_bit_width_strategy OtherStrategy,
+            typename OtherPolicy, typename OtherGrowthPolicy>
+  [[nodiscard]] bool
+  equals_impl(other_vector_type<OtherStrategy, OtherPolicy,
+                                OtherGrowthPolicy> const& other) const {
+    auto const n = size();
+
+    if (n != other.size()) {
+      return false;
+    }
+
+    for (size_type i = 0; i < n; ++i) {
+      if (get(i) != other.get(i)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   template <size_type I>
   static constexpr auto max_field_bits() noexcept -> size_type {
     using encoded_type_i = field_encoded_type<I>;
