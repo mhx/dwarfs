@@ -46,6 +46,7 @@ class inode_data;
 
 namespace writer {
 
+class inode_fragments;
 struct metadata_options;
 
 namespace internal {

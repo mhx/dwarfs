@@ -179,6 +179,7 @@ add_library(
   src/writer/internal/scanner_progress.cpp
   src/writer/internal/similarity.cpp
   src/writer/internal/similarity_ordering.cpp
+  src/writer/internal/single_inode_fragment_view.cpp
   src/writer/internal/time_resolution_converter.cpp
   src/writer/internal/unique_inode_id.cpp
 

@@ -21,29 +21,38 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <dwarfs/writer/internal/entry_storage.h>
-#include <dwarfs/writer/internal/inode_fragments_view.h>
+#pragma once
+
+#include <dwarfs/writer/internal/chunk_list.h>
 
 namespace dwarfs::writer::internal {
 
-auto inode_fragments_view::size() const noexcept -> size_type {
-  return storage_->get_inode_fragment_count(id_);
-}
+class entry_storage;
 
-fragment_category inode_fragments_view::get_single_category() const {
-  assert(size() == 1);
-  return this->operator[](0).category();
-}
+class single_inode_fragment_view {
+ public:
+  single_inode_fragment_view(entry_storage& storage, inode_id id,
+                             std::uint64_t index)
+      : storage_{&storage}
+      , id_{id}
+      , index_{index} {}
 
-std::unordered_map<fragment_category, file_size_t>
-inode_fragments_view::get_category_sizes() const {
-  std::unordered_map<fragment_category, file_size_t> result;
+  [[nodiscard]] fragment_category category() const;
 
-  for (auto const& f : *this) {
-    result[f.category()] += f.size();
-  }
+  [[nodiscard]] file_size_t size() const;
 
-  return result;
-}
+  [[nodiscard]] auto chunks() const -> const_chunk_list;
+
+  void add_chunk(size_t block, size_t offset, size_t size);
+
+  void add_hole(file_size_t size);
+
+  [[nodiscard]] bool chunks_are_consistent() const;
+
+ private:
+  entry_storage* storage_{nullptr};
+  inode_id id_;
+  std::uint64_t index_{0};
+};
 
 } // namespace dwarfs::writer::internal
