@@ -1231,6 +1231,22 @@ TYPED_TEST(packed_int_vec_tmpl_test,
   EXPECT_TRUE((p1 <=> p0) > 0);
 }
 
+TYPED_TEST(packed_int_vec_tmpl_test, equality_ignores_representation) {
+  using vec_type = typename TypeParam::template type<uint32_t>;
+
+  vec_type a(5);
+  a.push_back(1);
+  a.push_back(2);
+  a.push_back(3);
+
+  vec_type b(17);
+  b.push_back(1);
+  b.push_back(2);
+  b.push_back(3);
+
+  EXPECT_EQ(a, b);
+}
+
 #ifdef __clang__
 #pragma clang optimize on
 #endif
