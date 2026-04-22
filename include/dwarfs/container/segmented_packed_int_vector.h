@@ -81,6 +81,14 @@ class segmented_packed_int_vector {
     resize(size, value);
   }
 
+  segmented_packed_int_vector(std::initializer_list<value_type> ilist) {
+    resize(ilist.size());
+    size_type i = 0;
+    for (auto const& value : ilist) {
+      set(i++, value);
+    }
+  }
+
   segmented_packed_int_vector(segmented_packed_int_vector const&) = default;
   segmented_packed_int_vector(segmented_packed_int_vector&&) = default;
   segmented_packed_int_vector&
@@ -257,7 +265,42 @@ class segmented_packed_int_vector {
     return result;
   }
 
+  friend bool operator==(segmented_packed_int_vector const& lhs,
+                         segmented_packed_int_vector const& rhs)
+    requires std::equality_comparable<value_type>
+  {
+    return lhs.equals_impl(rhs);
+  }
+
+  template <std::size_t OtherSegmentElements>
+  friend bool operator==(
+      segmented_packed_int_vector const& lhs,
+      segmented_packed_int_vector<value_type, OtherSegmentElements> const& rhs)
+    requires std::equality_comparable<value_type>
+  {
+    return lhs.equals_impl(rhs);
+  }
+
  private:
+  template <std::size_t OtherSegmentElements>
+  [[nodiscard]] bool equals_impl(
+      segmented_packed_int_vector<value_type, OtherSegmentElements> const&
+          other) const {
+    auto const n = size();
+
+    if (n != other.size()) {
+      return false;
+    }
+
+    for (size_type i = 0; i < n; ++i) {
+      if (get(i) != other.get(i)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   [[nodiscard]] static constexpr std::pair<size_type, size_type>
   locate(size_type i) noexcept {
     return {i / segment_elements, i % segment_elements};
