@@ -30,6 +30,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/metadata_defs.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>

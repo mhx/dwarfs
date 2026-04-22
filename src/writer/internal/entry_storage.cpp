@@ -43,6 +43,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/match.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/metadata_options.h>
 
 #include <dwarfs/internal/synchronized.h>
