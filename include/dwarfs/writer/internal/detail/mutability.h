@@ -27,9 +27,4 @@ namespace dwarfs::writer::internal::detail {
 
 enum class mutability { mutable_, const_ };
 
-// TODO: remove once we don't need this anymore
-template <typename T, mutability Mut>
-using mutability_t =
-    std::conditional_t<Mut == mutability::const_, std::add_const_t<T>, T>;
-
 } // namespace dwarfs::writer::internal::detail

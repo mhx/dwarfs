@@ -45,8 +45,6 @@ class single_inode_fragment {
 
   bool is_hole() const { return (bits_ & kChunkBitsHoleBit) != 0; }
 
-  bool is_data() const { return !is_hole(); }
-
   fragment_category category() const { return category_; }
 
   file_size_t size() const { return bits_ & kChunkBitsSizeMask; }
