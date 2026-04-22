@@ -26,6 +26,7 @@
 #include <ctime>
 #include <filesystem>
 #include <optional>
+#include <ranges>
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -416,9 +417,8 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
     std::span<block_mapping const> mapping, size_t new_block_count) {
   auto tv = LOG_TIMED_VERBOSE;
 
-  std::span<chunks_t::value_type> old_chunks = md_.chunks().value();
-  std::span<chunk_table_t::value_type> old_chunk_table =
-      md_.chunk_table().value();
+  auto& old_chunks = md_.chunks().value();
+  auto& old_chunk_table = md_.chunk_table().value();
 
   DWARFS_CHECK(!old_chunk_table.empty(), "chunk table must not be empty");
 
@@ -433,9 +433,10 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
 
   new_chunk_table.push_back(0);
 
+  // TODO: std::views::adjacent<2> once we drop gcc-12
   for (size_t i = 0; i < old_chunk_table.size() - 1; ++i) {
-    auto chunks = old_chunks.subspan(
-        old_chunk_table[i], old_chunk_table[i + 1] - old_chunk_table[i]);
+    auto chunks = old_chunks | std::views::drop(old_chunk_table[i]) |
+                  std::views::take(old_chunk_table[i + 1] - old_chunk_table[i]);
 
     std::vector<block_chunk> mapped_chunks;
 
