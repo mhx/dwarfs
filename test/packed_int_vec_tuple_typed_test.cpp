@@ -1127,3 +1127,26 @@ TYPED_TEST(packed_int_vec_tuple_test, field_proxy_optional_load_vs_value) {
   EXPECT_EQ(+f1, std::nullopt);
   EXPECT_FALSE(f1.has_value());
 }
+
+TYPED_TEST(packed_int_vec_tuple_test, equality_ignores_widths) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+
+  vec_type a({3, 4, 5});
+  a.push_back({1, -2, 3});
+  a.push_back({4, -5, 6});
+
+  vec_type b({8, 9, 10});
+  b.push_back({1, -2, 3});
+  b.push_back({4, -5, 6});
+
+  EXPECT_EQ(a, b);
+}
+
+TYPED_TEST(packed_int_vec_tuple_test, equality_detects_different_values) {
+  using vec_type = typename TypeParam::template type<tuple_type>;
+
+  vec_type a{{1, -2, 3}, {4, -5, 6}};
+  vec_type b{{1, -2, 3}, {4, -5, 7}};
+
+  EXPECT_NE(a, b);
+}
