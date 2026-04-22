@@ -96,16 +96,8 @@ class inode_fragments {
   std::string
   to_string(mapper_function_type const& mapper = mapper_function_type()) const;
 
-  std::unordered_map<fragment_category, file_size_t> get_category_sizes() const;
-
-  std::size_t size_in_bytes() const;
-
  private:
   small_vector<single_inode_fragment, 1> fragments_;
 };
-
-inline std::ostream& operator<<(std::ostream& os, inode_fragments const& frag) {
-  return frag.to_stream(os);
-}
 
 } // namespace dwarfs::writer
