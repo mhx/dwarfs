@@ -24,39 +24,12 @@
 #pragma once
 
 #include <dwarfs/container/detail/index_based_iterator.h>
-#include <dwarfs/writer/inode_fragments.h>
 
-#include <dwarfs/writer/internal/chunk_list.h>
+#include <dwarfs/writer/internal/single_inode_fragment_view.h>
 
 namespace dwarfs::writer::internal {
 
 class entry_storage;
-
-class single_inode_fragment_view {
- public:
-  single_inode_fragment_view(entry_storage& storage, inode_id id,
-                             std::uint64_t index)
-      : storage_{&storage}
-      , id_{id}
-      , index_{index} {}
-
-  [[nodiscard]] fragment_category category() const;
-
-  [[nodiscard]] file_size_t size() const;
-
-  [[nodiscard]] auto chunks() const -> const_chunk_list;
-
-  void add_chunk(size_t block, size_t offset, size_t size);
-
-  void add_hole(file_size_t size);
-
-  [[nodiscard]] bool chunks_are_consistent() const;
-
- private:
-  entry_storage* storage_{nullptr};
-  inode_id id_;
-  std::uint64_t index_{0};
-};
 
 class inode_fragments_view {
  public:
