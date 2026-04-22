@@ -10,6 +10,8 @@
 
 #include <deque>
 
+#include <dwarfs/container/basic_packed_int_vector.h>
+
 namespace apache::thrift::frozen {
 
 namespace detail {
@@ -344,3 +346,20 @@ struct Layout<T, std::enable_if_t<IsList<T>::value>>
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::vector)
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsList, std::deque)
+
+namespace apache {
+namespace thrift {
+
+// this needs a bit of manual work due to the non-type template parameters
+template <
+    ::dwarfs::container::packed_vector_value T,
+    ::dwarfs::container::packed_vector_bit_width_strategy BitWidthStrategy,
+    typename Policy,
+    typename GrowthPolicy>
+struct IsList<
+    ::dwarfs::container::
+        basic_packed_int_vector<T, BitWidthStrategy, Policy, GrowthPolicy>>
+    : std::true_type {};
+
+} // namespace thrift
+} // namespace apache
