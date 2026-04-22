@@ -212,7 +212,9 @@ struct protocol_methods<type_class::list<ValueTypeClass>, T> {
       try_reserve(out, size);
 
       for (auto i = std::int32_t{0}; i < size; ++i) {
-        value_protocol_methods::read(r, out.emplace_back());
+        value_type tmp{};
+        value_protocol_methods::read(r, tmp);
+        out.push_back(std::move(tmp));
       }
     } else {
       detail::skip_elements(r, size, {elem_type});
