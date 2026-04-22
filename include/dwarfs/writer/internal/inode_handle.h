@@ -26,8 +26,6 @@
 #include <cstdint>
 #include <ranges>
 
-#include <boost/container_hash/hash.hpp>
-
 #include <dwarfs/types.h>
 #include <dwarfs/writer/inode_options.h>
 
@@ -81,13 +79,6 @@ class basic_inode_handle final {
   bool valid() const { return self_id_.valid(); }
   explicit operator bool() const { return valid(); }
 
-  std::size_t object_hash() const {
-    std::size_t seed = 0;
-    boost::hash_combine(seed, storage_);
-    boost::hash_combine(seed, self_id_.object_hash());
-    return seed;
-  }
-
   inode_id id() const { return self_id_; }
 
   void set_files(file_id_vector const& fv)
@@ -128,17 +119,3 @@ class basic_inode_handle final {
 };
 
 } // namespace dwarfs::writer::internal
-
-// NOLINTBEGIN(cert-dcl58-cpp)
-namespace std {
-
-template <dwarfs::writer::internal::detail::mutability Mut>
-struct hash<dwarfs::writer::internal::basic_inode_handle<Mut>> {
-  size_t
-  operator()(dwarfs::writer::internal::basic_inode_handle<Mut> const& h) const {
-    return h.object_hash();
-  }
-};
-
-} // namespace std
-// NOLINTEND(cert-dcl58-cpp)
