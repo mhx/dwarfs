@@ -459,6 +459,22 @@ TEST(segmented_packed_int_vector, supports_tuple_types) {
   EXPECT_EQ(get<1>(vec[4]), 7);
 }
 
+TEST(segmented_packed_int_vector, equality_operator) {
+  enum class my_enum : uint8_t { A = 0, B = 1, C = 2, D = 3 };
+  using value_type = std::tuple<my_enum, uint16_t>;
+  using vec_type_a = segmented_packed_int_vector<value_type, 4>;
+  using vec_type_b = segmented_packed_int_vector<value_type, 2>;
+
+  vec_type_a a{{my_enum::A, 42}, {my_enum::C, 17}};
+  vec_type_b b{{my_enum::A, 42}, {my_enum::C, 17}};
+  vec_type_a c{{my_enum::A, 42}, {my_enum::B, 17}};
+  vec_type_b d{{my_enum::A, 42}, {my_enum::C, 17}, {my_enum::B, 99}};
+
+  EXPECT_EQ(a, b);
+  EXPECT_NE(a, c);
+  EXPECT_NE(a, d);
+}
+
 TEST(packed_int_vector_proxy_test, optional_value_proxy_has_has_value) {
   using vec_type = compact_auto_packed_int_vector<std::optional<uint32_t>>;
   vec_type vec;
