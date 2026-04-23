@@ -764,6 +764,544 @@ def cpp_type_for(
     die(f"unsupported type kind {t.kind!r}")
 
 
+def packed_vector_policy(field: FieldDef) -> Optional[str]:
+    return field.annotations.get("cpp.packed_vector")
+
+
+def resolve_typedefs(t: TypeRef, idl: ParsedIDL) -> TypeRef:
+    while t.kind == "id" and t.type_id in idl.typedefs_by_name:
+        t = idl.typedefs_by_name[t.type_id].true_type
+    return t
+
+
+def is_supported_packed_scalar(t: TypeRef, idl: ParsedIDL) -> bool:
+    t = resolve_typedefs(t, idl)
+    if t.kind != "base":
+        return False
+    return t.base in ("byte", "i16", "i32", "i64")
+
+
+def is_packed_scalar_list_field(field: FieldDef, idl: ParsedIDL) -> bool:
+    if packed_vector_policy(field) is None:
+        return False
+    if field.type_ref.kind != "list" or field.type_ref.elem is None:
+        return False
+    return is_supported_packed_scalar(field.type_ref.elem, idl)
+
+
+def is_packable_integral_type(t: TypeRef, idl: ParsedIDL) -> bool:
+    t = resolve_typedefs(t, idl)
+    return t.kind == "base" and t.base in ("byte", "i16", "i32", "i64")
+
+
+def is_packable_struct_type(type_id: str, idl: ParsedIDL) -> bool:
+    s = idl.structs_by_name.get(type_id)
+    if s is None:
+        return False
+
+    for f in s.fields:
+        if f.required == "optional":
+            return False
+        if not is_packable_integral_type(f.type_ref, idl):
+            return False
+
+    return True
+
+
+def is_packed_struct_list_field(field: FieldDef, idl: ParsedIDL) -> bool:
+    if packed_vector_policy(field) is None:
+        return False
+    if field.type_ref.kind != "list" or field.type_ref.elem is None:
+        return False
+
+    elem = resolve_typedefs(field.type_ref.elem, idl)
+    return (
+        elem.kind == "id"
+        and elem.type_id in idl.structs_by_name
+        and is_packable_struct_type(elem.type_id, idl)
+    )
+
+
+def packed_struct_defs(idl: ParsedIDL) -> Dict[str, List[str]]:
+    defs: Dict[str, List[str]] = {}
+    for s in idl.structs:
+        for f in s.fields:
+            if is_packed_struct_list_field(f, idl):
+                type_id = resolve_typedefs(f.type_ref.elem, idl).type_id
+                policy = packed_vector_policy(f)
+                if type_id not in defs:
+                    defs[type_id] = []
+                defs[type_id].append(policy)
+    return defs
+
+
+def packed_vector_cpp_type(policy: str, value_type: str) -> str:
+    if policy == "segmented":
+        return f"::dwarfs::container::segmented_packed_int_vector<{value_type}>"
+    if policy == "heap_only":
+        return (
+            "::dwarfs::container::basic_packed_int_vector<"
+            f"{value_type}, "
+            "::dwarfs::container::packed_vector_bit_width_strategy::automatic, "
+            "::dwarfs::container::detail::heap_only_packed_vector_policy>"
+        )
+    assert False, f"unsupported packed vector policy {policy!r}"
+
+
+def packed_storage_type_name(policy: str, struct_name: str) -> str:
+    return f"{struct_name}_{policy}_packed_storage_type"
+
+
+def packed_storage_vector_name(policy: str, struct_name: str) -> str:
+    return f"{struct_name}_{policy}_packed_storage_vector"
+
+
+def packed_const_ref_name(policy: str, struct_name: str) -> str:
+    return f"{struct_name}_{policy}_packed_const_ref"
+
+
+def packed_ref_name(policy: str, struct_name: str) -> str:
+    return f"{struct_name}_{policy}_packed_ref"
+
+
+def packed_vector_name(policy: str, struct_name: str) -> str:
+    return f"{struct_name}_{policy}_packed_vector"
+
+
+def packed_field_index_name(struct_name: str, field_name: str) -> str:
+    return f"{struct_name}_{field_name}_field_index"
+
+
+def member_cpp_type_for(
+    field: FieldDef,
+    idl: ParsedIDL,
+    fully_qualified: bool = False,
+) -> str:
+    if is_packed_scalar_list_field(field, idl):
+        assert field.type_ref.kind == "list" and field.type_ref.elem is not None
+        elem_cpp = cpp_type_for(
+            field.type_ref.elem,
+            idl,
+            fully_qualified=True,
+        )
+        return packed_vector_cpp_type(packed_vector_policy(field), elem_cpp)
+
+    if is_packed_struct_list_field(field, idl):
+        assert field.type_ref.kind == "list" and field.type_ref.elem is not None
+        elem = resolve_typedefs(field.type_ref.elem, idl)
+        assert elem.kind == "id" and elem.type_id is not None
+        prefix = (
+            f"::{idl.cpp_namespace}::" if fully_qualified and idl.cpp_namespace else ""
+        )
+        return prefix + packed_vector_name(packed_vector_policy(field), elem.type_id)
+
+    return cpp_type_for(
+        field.type_ref,
+        idl,
+        annotations=field.annotations,
+        fully_qualified=fully_qualified,
+    )
+
+
+def emit_packed_struct_support(
+    h: Emitter, s: StructDef, idl: ParsedIDL, policy: str
+) -> None:
+    storage_type = packed_storage_type_name(policy, s.name)
+    storage_vector = packed_storage_vector_name(policy, s.name)
+    const_ref = packed_const_ref_name(policy, s.name)
+    ref = packed_ref_name(policy, s.name)
+    vector = packed_vector_name(policy, s.name)
+
+    fields = [
+        {
+            "name": f.name,
+            "cpp_type": cpp_type_for(
+                f.type_ref,
+                idl,
+                annotations=f.annotations,
+                fully_qualified=False,
+            ),
+            "index": packed_field_index_name(s.name, f.name),
+        }
+        for f in s.fields
+    ]
+
+    tuple_types = ", ".join(field["cpp_type"] for field in fields)
+
+    def emit_load_body() -> None:
+        for field in fields:
+            h.emit(
+                f"tmp.{field['name']}() = vec_.template get_field<{field['index']}>(index_);\n",
+                indent=4,
+            )
+
+    def emit_assign_from_value() -> None:
+        for field in fields:
+            h.emit(
+                f"vec_.template set_field<{field['index']}>(index_, v.{field['name']}().value());\n",
+                indent=4,
+            )
+
+    def emit_tuple_push_values() -> None:
+        for field in fields:
+            h.emit(f"v.{field['name']}().value(),\n", indent=6)
+
+    def emit_named_accessors(*, mutable: bool) -> None:
+        for field in fields:
+            const_proxy = (
+                f"{s.name}_packed_const_field_proxy"
+                f"<{field['cpp_type']}, {field['index']}>"
+            )
+
+            if mutable:
+                mutable_proxy = (
+                    f"{s.name}_packed_field_proxy"
+                    f"<{field['cpp_type']}, {field['index']}>"
+                )
+                h.emit(
+                    f"""
+                    auto {field["name"]}() noexcept {{
+                      using proxy_type = {mutable_proxy};
+                      return ::dwarfs::thrift_lite::proxy_field_ref<proxy_type>{{proxy_type{{vec_, index_}}}};
+                    }}
+
+                    """,
+                    indent=2,
+                )
+
+            h.emit(
+                f"""
+                auto {field["name"]}() const noexcept {{
+                  using proxy_type = {const_proxy};
+                  return ::dwarfs::thrift_lite::proxy_field_ref<proxy_type>{{proxy_type{{vec_, index_}}}};
+                }}
+
+                """,
+                indent=2,
+            )
+
+    def emit_field_proxy_class(*, mutable: bool) -> None:
+        class_name = (
+            f"{s.name}_packed_field_proxy"
+            if mutable
+            else f"{s.name}_packed_const_field_proxy"
+        )
+        storage_ref = "storage_type&" if mutable else "storage_type const&"
+
+        h.emit(
+            f"""
+            template <typename Value, std::size_t FieldIndex>
+            class {class_name} {{
+             public:
+              using storage_type = {storage_vector};
+              using size_type = storage_type::size_type;
+              using value_type = Value;
+
+              {class_name}({storage_ref} vec, size_type index) noexcept
+                  : vec_{{vec}}
+                  , index_{{index}} {{}}
+
+              [[nodiscard]] auto load() const -> value_type {{
+                return vec_.template get_field<FieldIndex>(index_);
+              }}
+
+              operator value_type() const {{ return load(); }}
+
+            """,
+        )
+
+        if mutable:
+            h.emit(
+                f"""
+                  auto operator=(value_type const& v) -> {class_name}& {{
+                    vec_.template set_field<FieldIndex>(index_, v);
+                    return *this;
+                  }}
+
+                """,
+                indent=2,
+            )
+
+        h.emit(f"""
+             private:
+              {storage_ref} vec_;
+              size_type index_;
+            }};
+
+            """)
+
+    def emit_ref_class(class_name: str, *, mutable: bool) -> None:
+        storage_ref = "storage_type&" if mutable else "storage_type const&"
+
+        h.emit(
+            f"""
+            class {class_name} {{
+             public:
+              using storage_type = {storage_vector};
+              using size_type = storage_type::size_type;
+              using value_type = {s.name};
+
+              {class_name}({storage_ref} vec, size_type index) noexcept
+                  : vec_{{vec}}
+                  , index_{{index}} {{}}
+
+            """,
+        )
+
+        if not mutable:
+            h.emit(
+                f"""
+                  {class_name}({ref} const& other) noexcept
+                      : vec_{{other.vec_}}
+                      , index_{{other.index_}} {{}}
+
+                """,
+                indent=2,
+            )
+
+        h.emit(
+            """
+              [[nodiscard]] auto load() const -> value_type {
+                value_type tmp;
+            """,
+            indent=2,
+        )
+
+        emit_load_body()
+
+        h.emit(
+            """
+              return tmp;
+            }
+
+            operator value_type() const { return load(); }
+
+            """,
+            indent=2,
+        )
+
+        if mutable:
+            h.emit(
+                f"""
+                  auto operator=(value_type const& v) -> {class_name}& {{
+                """,
+                indent=2,
+            )
+
+            emit_assign_from_value()
+
+            h.emit(
+                """
+                    return *this;
+                  }
+
+                """,
+                indent=2,
+            )
+
+        emit_named_accessors(mutable=mutable)
+
+        h.emit("private:\n", indent=1)
+
+        if mutable:
+            h.emit(f"friend class {const_ref};\n", indent=2)
+
+        h.emit(f"""
+              {storage_ref} vec_;
+              size_type index_;
+            }};
+
+            """)
+
+    vector_type = packed_vector_cpp_type(policy, storage_type)
+
+    h.emit(
+        f"""
+        using {storage_type} = std::tuple<{tuple_types}>;
+        using {storage_vector} = {vector_type};
+
+        """,
+    )
+
+    for i, field in enumerate(fields):
+        h.emit(f"inline constexpr auto {field['index']} = std::size_t{{{i}}};\n")
+
+    h.emit("\n", strip=False)
+
+    emit_field_proxy_class(mutable=False)
+    emit_field_proxy_class(mutable=True)
+
+    h.emit(f"""
+        class {const_ref};
+        class {ref};
+
+        """)
+
+    emit_ref_class(ref, mutable=True)
+    emit_ref_class(const_ref, mutable=False)
+
+    h.emit(
+        f"""
+        class {vector} {{
+         public:
+          using value_type = {s.name};
+          using size_type = {storage_vector}::size_type;
+          using reference = {ref};
+          using const_reference = {const_ref};
+          using iterator = ::dwarfs::container::detail::index_based_iterator<{vector}>;
+          using const_iterator = ::dwarfs::container::detail::index_based_const_iterator<{vector}>;
+
+          {vector}() = default;
+          {vector}({vector} const&) = default;
+          {vector}({vector}&&) noexcept = default;
+          auto operator=({vector} const&) -> {vector}& = default;
+          auto operator=({vector}&&) noexcept -> {vector}& = default;
+
+          friend bool operator==({vector} const&, {vector} const&) = default;
+
+          void clear() noexcept {{ data_.clear(); }}
+          void reserve(size_type n) {{ data_.reserve(n); }}
+          void shrink_to_fit() {{ data_.shrink_to_fit(); }}
+
+          [[nodiscard]] auto size() const noexcept -> size_type {{ return data_.size(); }}
+          [[nodiscard]] auto empty() const noexcept -> bool {{ return data_.empty(); }}
+
+          void push_back(value_type const& v) {{
+            data_.push_back({storage_type}{{
+        """,
+    )
+
+    emit_tuple_push_values()
+
+    h.emit(
+        """
+            });
+          }
+
+          void push_back(value_type&& v) {
+            push_back(v);
+          }
+
+          template <typename... Args>
+            requires std::constructible_from<value_type, Args...>
+          auto emplace_back(Args&&... args) -> reference {
+            value_type tmp(std::forward<Args>(args)...);
+            push_back(tmp);
+            return back();
+          }
+
+          void resize(size_type n) {
+            resize(n, value_type{});
+          }
+
+          void resize(size_type n, value_type const& v) {
+            auto const cur = size();
+            if (n < cur) {
+              data_.resize(n);
+              return;
+            }
+
+            reserve(n);
+            for (auto i = cur; i < n; ++i) {
+              push_back(v);
+            }
+          }
+
+          [[nodiscard]] auto operator[](size_type i) -> reference {
+            return reference{data_, i};
+          }
+
+          [[nodiscard]] auto operator[](size_type i) const -> const_reference {
+            return const_reference{data_, i};
+          }
+
+          [[nodiscard]] auto at(size_type i) -> reference {
+            if (i >= size()) {
+              throw std::out_of_range{"packed vector index out of range"};
+            }
+            return (*this)[i];
+          }
+
+          [[nodiscard]] auto at(size_type i) const -> const_reference {
+            if (i >= size()) {
+              throw std::out_of_range{"packed vector index out of range"};
+            }
+            return (*this)[i];
+          }
+
+          template <typename InputIt>
+          auto insert(const_iterator pos, InputIt first, InputIt last) -> iterator {
+            if (pos != cend()) {
+              throw std::logic_error{
+                  "packed vector insert only supports end() position"};
+            }
+
+            auto const start = size();
+            for (; first != last; ++first) {
+              push_back(static_cast<value_type>(*first));
+            }
+            return iterator{this, start};
+          }
+
+          [[nodiscard]] auto front() -> reference {
+            return reference{data_, 0};
+          }
+
+          [[nodiscard]] auto front() const -> const_reference {
+            return const_reference{data_, 0};
+          }
+
+          [[nodiscard]] auto back() -> reference {
+            return reference{data_, size() - 1};
+          }
+
+          [[nodiscard]] auto back() const -> const_reference {
+            return const_reference{data_, size() - 1};
+          }
+
+          [[nodiscard]] auto begin() noexcept -> iterator {
+            return iterator{this, 0};
+          }
+
+          [[nodiscard]] auto end() noexcept -> iterator {
+            return iterator{this, size()};
+          }
+
+          [[nodiscard]] auto begin() const noexcept -> const_iterator {
+            return const_iterator{this, 0};
+          }
+
+          [[nodiscard]] auto end() const noexcept -> const_iterator {
+            return const_iterator{this, size()};
+          }
+
+          [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
+            return const_iterator{this, 0};
+          }
+
+          [[nodiscard]] auto cend() const noexcept -> const_iterator {
+            return const_iterator{this, size()};
+          }
+
+          [[nodiscard]] auto size_in_bytes() const -> std::size_t {
+            return data_.size_in_bytes();
+          }
+
+        """,
+        indent=2,
+    )
+    h.emit(
+        f"""
+         private:
+          friend class ::dwarfs::container::detail::index_based_iterator<{vector}>;
+          friend class ::dwarfs::container::detail::index_based_const_iterator<{vector}>;
+          {storage_vector} data_{{}};
+        }};
+
+        """,
+    )
+
+
 def typedef_cpp_underlying(
     td: TypedefDef,
     idl: ParsedIDL,
@@ -840,6 +1378,16 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             idl,
         )
 
+    packed_structs = packed_struct_defs(idl)
+
+    any_packed_scalar_lists = any(
+        is_packed_scalar_list_field(f, idl) for s in idl.structs for f in s.fields
+    )
+
+    any_packed_struct_lists = any(
+        is_packed_struct_list_field(f, idl) for s in idl.structs for f in s.fields
+    )
+
     # Header
     h = Emitter()
     h.emit("""
@@ -852,8 +1400,11 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         #include <map>
         #include <set>
         #include <span>
+        #include <stdexcept>
         #include <string>
         #include <string_view>
+        #include <tuple>
+        #include <utility>
         #include <vector>
 
         #include <dwarfs/thrift_lite/concepts.h>
@@ -862,6 +1413,14 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         #include <dwarfs/thrift_lite/types.h>
 
         """)
+
+    if any_packed_scalar_lists or any_packed_struct_lists:
+        h.emit("""
+            #include <dwarfs/container/basic_packed_int_vector.h>
+            #include <dwarfs/container/segmented_packed_int_vector.h>
+            #include <dwarfs/thrift_lite/proxy_field_ref.h>
+
+            """)
 
     extra_includes = idl.cpp_includes
     if extra_includes:
@@ -901,10 +1460,17 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         optional_fields = [f for f in s.fields if f.required == "optional"]
         has_optional = bool(optional_fields)
 
-        h.emit(
-            f"""
+        h.emit(f"""
             class {s.name} final {{
              public:
+            """)
+
+        for f in s.fields:
+            cpp_t = member_cpp_type_for(f, idl)
+            h.emit(f"using {f.name}_member_type = {cpp_t};\n", indent=2)
+
+        h.emit(
+            f"""
               {s.name}();
               {s.name}({s.name} const&);
               {s.name}({s.name}&&) noexcept;
@@ -925,16 +1491,14 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
               [[nodiscard]] auto has_any_fields_for_write(::dwarfs::thrift_lite::writer_options const& opts) const noexcept -> bool;
 
-            """
+            """,
+            strip=False,
         )
 
         # Field refs only
         for f in s.fields:
-            cpp_t = cpp_type_for(
-                f.type_ref,
-                idl,
-                annotations=f.annotations,
-            )
+            cpp_t = f"{f.name}_member_type"
+
             if f.required == "optional":
                 idx_c = f"{f.name}_isset_index"
                 h.emit(
@@ -992,13 +1556,12 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             )
 
         for f in s.fields:
-            cpp_t = cpp_type_for(
-                f.type_ref,
-                idl,
-                annotations=f.annotations,
-            )
-            h.emit(f"{cpp_t} {f.name}_{{}};\n", indent=2)
+            h.emit(f"{f.name}_member_type {f.name}_{{}};\n", indent=2)
         h.emit("};\n\n")
+
+        if packed_structs is not None and s.name in packed_structs:
+            for policy in packed_structs[s.name]:
+                emit_packed_struct_support(h, s, idl, policy)
 
     if idl.cpp_namespace:
         h.emit(f"}} // namespace {idl.cpp_namespace}\n\n")
@@ -1181,7 +1744,7 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             """)
 
     if idl.cpp_namespace:
-        hi.emit(f"}} // namespace {idl.cpp_namespace}\n\n")
+        hi.emit(f"}} // namespace {idl.cpp_namespace}\n")
 
     # Source
     c = Emitter()
@@ -1318,18 +1881,16 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
 
 def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
     def field_cpp_type(f: FieldDef) -> str:
-        return cpp_type_for(
-            f.type_ref,
+        return member_cpp_type_for(
+            f,
             idl,
-            annotations=f.annotations,
             fully_qualified=True,
         )
 
     h = Emitter()
     c = Emitter()
 
-    h.emit(
-        f"""
+    h.emit(f"""
         // @generated by thrift-lite.py; do not edit.
 
         #pragma once
@@ -1337,10 +1898,27 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         #include <thrift/lib/cpp2/frozen/Frozen.h>
         #include "{out_stem}_types.h"
 
+        """)
+
+    packed_structs = packed_struct_defs(idl)
+
+    if packed_structs:
+        h.emit("namespace apache::thrift {\n\n", strip=False)
+
+        for struct_name, policies in sorted(packed_structs.items()):
+            for policy in policies:
+                h.emit(f"""
+                    template <>
+                    struct IsList<::dwarfs::thrift::metadata::{packed_vector_name(policy, struct_name)}> : std::true_type {{}};
+
+                    """)
+
+        h.emit("} // namespace apache::thrift\n\n")
+
+    h.emit(f"""
         namespace apache::thrift::frozen {{
 
-        """
-    )
+        """)
 
     c.emit(f"""
         // @generated by thrift-lite.py; do not edit.
