@@ -43,33 +43,41 @@ namespace dwarfs::writer::internal {
 
 namespace {
 
+template <typename T>
+std::size_t size_in_bytes(T const& x) {
+  if constexpr (requires { x.size_in_bytes(); }) {
+    return x.size_in_bytes();
+  } else {
+    return sizeof(typename T::value_type) * x.size();
+  }
+}
+
 std::string metadata_memory_usage(thrift::metadata::metadata const& data) {
   std::ostringstream oss;
 
   std::vector<std::tuple<std::string_view, std::size_t, std::size_t>> sizes;
 
   sizes.emplace_back("chunks", data.chunks()->size(),
-                     sizeof(thrift::metadata::chunk));
+                     size_in_bytes(data.chunks().value()));
   sizes.emplace_back("directories", data.directories()->size(),
-                     sizeof(thrift::metadata::directory));
+                     size_in_bytes(data.directories().value()));
   sizes.emplace_back("inodes", data.inodes()->size(),
-                     sizeof(thrift::metadata::inode_data));
+                     size_in_bytes(data.inodes().value()));
   sizes.emplace_back("chunk_table", data.chunk_table()->size(),
-                     sizeof(std::uint32_t));
+                     size_in_bytes(data.chunk_table().value()));
   sizes.emplace_back("dir_entries", data.dir_entries()->size(),
-                     sizeof(thrift::metadata::dir_entry));
+                     size_in_bytes(data.dir_entries().value()));
 
   auto const total_bytes = std::accumulate(
-      sizes.begin(), sizes.end(), 0ULL, [](std::size_t acc, auto const& t) {
-        return acc + std::get<1>(t) * std::get<2>(t);
-      });
+      sizes.begin(), sizes.end(), 0ULL,
+      [](std::size_t acc, auto const& t) { return acc + std::get<2>(t); });
 
   oss << "metadata memory usage (" << size_with_unit(total_bytes) << "):\n";
 
-  for (auto const& [label, count, elem_size] : sizes) {
+  for (auto const& [label, count, total_size] : sizes) {
     if (count > 0) {
-      oss << "  " << count << " " << label << ": "
-          << size_with_unit(count * elem_size) << "\n";
+      oss << "  " << count << " " << label << ": " << size_with_unit(total_size)
+          << "\n";
     }
   }
 
