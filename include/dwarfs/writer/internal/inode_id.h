@@ -47,10 +47,6 @@ class inode_id {
   [[nodiscard]] bool valid() const { return index_ != kInvalidId; }
   [[nodiscard]] explicit operator bool() const { return valid(); }
 
-  [[nodiscard]] std::size_t object_hash() const {
-    return std::hash<uint64_t>{}(index_);
-  }
-
   [[nodiscard]] uint64_t index() const {
     assert(valid());
     return index_;
@@ -66,14 +62,6 @@ class inode_id {
 };
 
 } // namespace dwarfs::writer::internal
-
-template <>
-struct std::hash<dwarfs::writer::internal::inode_id> {
-  size_t
-  operator()(dwarfs::writer::internal::inode_id const& id) const noexcept {
-    return id.object_hash();
-  }
-};
 
 namespace dwarfs::container {
 
