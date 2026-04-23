@@ -26,10 +26,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/inode_types.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
 
@@ -701,6 +703,55 @@ TEST_F(entry_test, storage_file_hash_size_must_be_consistent) {
 
   EXPECT_DEATH(tree.get_file_hash_buffer(bar.id(), 32),
                "hash buffer size mismatch: expected 16, got 32");
+}
+
+TEST_F(entry_test, frozen_panic) {
+  auto tree = entry_storage{};
+
+  auto root = create_entry(tree, sep);
+  auto file = create_entry(tree, sep / "foo.pl", root).as_file();
+  auto link = create_entry(tree, sep / "somelink", root).as_link();
+
+  tree.freeze_entries();
+
+  EXPECT_DEATH(tree.freeze_entries(), "entry_storage is frozen");
+  EXPECT_DEATH(create_entry(tree, sep / "foo.pl", root),
+               "entry_storage is frozen");
+  EXPECT_DEATH(tree.create_packed_file_data(file.id()),
+               "entry_storage is frozen");
+  EXPECT_DEATH(tree.find_in_dir(root.as_dir().id(), "foo.pl"),
+               "find_in_dir not \\(yet\\) supported for frozen entry_storage");
+  EXPECT_DEATH(tree.get_file_hash_buffer(file.id(), 16),
+               "entry_storage is frozen");
+  EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
+
+  progress prog{};
+  EXPECT_DEATH(tree.set_link_target(link.id(), "target", prog),
+               "entry_storage is frozen");
+  EXPECT_DEATH(tree.remove_empty_dirs(prog), "entry_storage is frozen");
+  EXPECT_DEATH(tree.create_hardlink(file.id(), file.id(), prog),
+               "entry_storage is frozen");
+
+  auto inode = tree.create_inode();
+
+  tree.freeze_inodes();
+
+  EXPECT_DEATH(tree.freeze_inodes(), "entry_storage is frozen");
+  EXPECT_DEATH(tree.create_inode(), "entry_storage is frozen");
+  EXPECT_DEATH(tree.set_inode_scan_error(
+                   inode.id(), file.id(),
+                   std::make_exception_ptr(std::runtime_error("scan error"))),
+               "entry_storage is frozen");
+
+  writer::inode_fragments frags;
+  EXPECT_DEATH(tree.set_inode_fragments(inode.id(), frags),
+               "entry_storage is frozen");
+
+  std::array<writer::internal::inode_similarity_hash_data, 1> hash_data{{
+      {writer::fragment_category(0), 42},
+  }};
+  EXPECT_DEATH(tree.set_inode_similarity(inode.id(), hash_data),
+               "entry_storage is frozen");
 }
 
 namespace {
