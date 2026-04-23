@@ -36,6 +36,8 @@
 #include <dwarfs/writer/internal/inode_id.h>
 #include <dwarfs/writer/internal/inode_types.h>
 
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
+
 namespace dwarfs {
 
 struct open_file_options;
@@ -102,7 +104,7 @@ class basic_inode_handle final {
            std::views::transform(
                [this](file_id id) { return const_file_handle{*storage_, id}; });
   }
-  bool append_chunks_to(std::vector<thrift::metadata::chunk>& vec,
+  bool append_chunks_to(thrift::metadata::metadata::chunks_member_type& vec,
                         std::optional<inode_hole_mapper>& hole_mapper) const;
   inode_fragments_view fragments_view() const;
   void dump(std::ostream& os, inode_options const& options) const;

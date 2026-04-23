@@ -191,6 +191,9 @@ class save_directories_visitor : public visitor_base {
 
 class save_shared_files_visitor : public visitor_base {
  public:
+  using shared_files_table_type =
+      dwarfs::thrift::metadata::metadata::shared_files_table_member_type;
+
   explicit save_shared_files_visitor(uint32_t inode_begin, uint32_t inode_end,
                                      uint32_t num_unique_files)
       : begin_shared_{inode_begin + num_unique_files}
@@ -208,12 +211,12 @@ class save_shared_files_visitor : public visitor_base {
     }
   }
 
-  std::vector<uint32_t>& get_shared_files() { return shared_files_; }
+  shared_files_table_type& get_shared_files() { return shared_files_; }
 
  private:
   uint32_t const begin_shared_;
   uint32_t const num_unique_;
-  std::vector<uint32_t> shared_files_;
+  shared_files_table_type shared_files_;
 };
 
 std::string status_string(progress const& p, size_t width) {

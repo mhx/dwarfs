@@ -31,6 +31,8 @@
 
 #include <dwarfs/writer/internal/entry_handle.h>
 
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
+
 namespace dwarfs {
 
 struct filesystem_version;
@@ -40,11 +42,6 @@ class logger;
 namespace writer {
 struct metadata_options;
 }
-
-namespace thrift::metadata {
-class fs_options;
-class metadata;
-} // namespace thrift::metadata
 
 namespace writer::internal {
 
@@ -95,7 +92,9 @@ class metadata_builder {
     impl_->set_block_size(block_size);
   }
 
-  void set_shared_files_table(std::vector<uint32_t> shared_files) {
+  void set_shared_files_table(
+      dwarfs::thrift::metadata::metadata::shared_files_table_member_type
+          shared_files) {
     impl_->set_shared_files_table(std::move(shared_files));
   }
 
@@ -148,7 +147,9 @@ class metadata_builder {
     virtual void set_devices(std::vector<uint64_t> devices) = 0;
     virtual void set_symlink_table_size(size_t size) = 0;
     virtual void set_block_size(uint32_t block_size) = 0;
-    virtual void set_shared_files_table(std::vector<uint32_t> shared_files) = 0;
+    virtual void set_shared_files_table(
+        dwarfs::thrift::metadata::metadata::shared_files_table_member_type
+            shared_files) = 0;
     virtual void
     set_category_names(std::vector<std::string> category_names) = 0;
     virtual void

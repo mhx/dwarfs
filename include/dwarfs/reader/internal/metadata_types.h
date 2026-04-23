@@ -63,7 +63,7 @@ class global_metadata {
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
   using directories_view = ::apache::thrift::frozen::Layout<
-      std::vector<thrift::metadata::directory>>::View;
+      thrift::metadata::metadata::directories_member_type>::View;
   using bundled_directories_view =
       ::apache::thrift::frozen::Bundled<directories_view>;
 

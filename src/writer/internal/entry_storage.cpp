@@ -385,10 +385,11 @@ class packed_entry_data {
     }
   }
 
-  void pack_entry(shared_entry_data const& shared, uint64_t const index,
-                  thrift::metadata::inode_data& entry_v2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const {
+  void
+  pack_entry(shared_entry_data const& shared, uint64_t const index,
+             thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+             global_entry_data const& data,
+             time_resolution_converter const& timeres) const {
     auto const& stat = stat_common_.at(index);
     file_stat out{};
 
@@ -1487,9 +1488,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     update_global_entry_data_impl(id, data);
   }
 
-  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const override {
+  void
+  pack_entry(entry_id id,
+             thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+             global_entry_data const& data,
+             time_resolution_converter const& timeres) const override {
     TRACE_CALL;
     pack_entry_impl(id, entry_v2, data, timeres);
   }
@@ -1707,10 +1710,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     dispatch_shared_(&packed_entry_data::update_global_entry_data, id, data);
   }
 
-  void
-  pack_entry_impl(entry_id const id, thrift::metadata::inode_data& entry_v2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const {
+  void pack_entry_impl(
+      entry_id const id,
+      thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+      global_entry_data const& data,
+      time_resolution_converter const& timeres) const {
     dispatch_shared_(&packed_entry_data::pack_entry, id, entry_v2, data,
                      timeres);
   }
@@ -2042,9 +2046,11 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->update_global_entry_data(id, data);
   }
 
-  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const override {
+  void
+  pack_entry(entry_id id,
+             thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+             global_entry_data const& data,
+             time_resolution_converter const& timeres) const override {
     impl_.lock()->pack_entry(id, entry_v2, data, timeres);
   }
 
