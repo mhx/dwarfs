@@ -51,7 +51,7 @@ void block_manager::map_logical_blocks(
     std::vector<chunk_type>& vec,
     std::optional<inode_hole_mapper> const& hole_mapper) const {
   std::lock_guard lock{mx_};
-  for (auto& c : vec) {
+  for (auto&& c : vec) {
     if (hole_mapper && hole_mapper->is_hole(c)) {
       continue;
     }

@@ -51,7 +51,7 @@ bool append_chunks_to_impl(entry_storage& storage, inode_id id,
 
   for (auto const& frag : fragments) {
     for (auto const& src : frag.chunks()) {
-      auto& chk = vec.emplace_back();
+      auto&& chk = vec.emplace_back();
       if (src.is_hole()) {
         DWARFS_CHECK(hole_mapper.has_value(),
                      "inode has hole chunk but there's no hole mapper");

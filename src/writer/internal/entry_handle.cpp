@@ -366,7 +366,7 @@ void basic_dir_handle<Mut>::pack(
   mv2.directories()->push_back(d);
   this->for_each_child([&](entry_handle e) {
     e.set_entry_index(mv2.dir_entries()->size());
-    auto& de = mv2.dir_entries()->emplace_back();
+    auto&& de = mv2.dir_entries()->emplace_back();
     de.name_index() = data.get_name_index(e.name());
     de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
     e.pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
@@ -378,7 +378,7 @@ template <detail::mutability Mut>
 void basic_dir_handle<Mut>::pack_entry(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
-  auto& de = mv2.dir_entries()->emplace_back();
+  auto&& de = mv2.dir_entries()->emplace_back();
   de.name_index() = this->has_parent() ? data.get_name_index(this->name()) : 0;
   auto const inode_num = DWARFS_NOTHROW(this->inode_num().value());
   de.inode_num() = inode_num;
