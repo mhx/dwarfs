@@ -337,7 +337,7 @@ template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::gather_entries(
     std::span<dir_handle> dirs, global_entry_data const& ge_data,
     uint32_t num_inodes) {
-  md_.dir_entries() = std::vector<thrift::metadata::dir_entry>();
+  md_.dir_entries().ensure();
   md_.inodes()->resize(num_inodes);
   md_.directories()->reserve(dirs.size() + 1);
 
@@ -933,12 +933,12 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
           ++index;
           DWARFS_CHECK(i == index, "inconsistent shared files vector");
           DWARFS_CHECK(count >= 2, "unique file in shared files vector");
-          compressed.emplace_back(count - 2);
+          compressed.push_back(count - 2);
           count = 1;
         }
       }
 
-      compressed.emplace_back(count - 2);
+      compressed.push_back(count - 2);
 
       DWARFS_CHECK(compressed.size() == sf.back() + 1,
                    "unexpected compressed vector size");
