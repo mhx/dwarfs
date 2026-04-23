@@ -106,7 +106,7 @@ TEST_F(global_metadata_test, check_index_range) {
 
   raw.dir_entries().reset();
   raw.inodes()->clear();
-  auto& ino = raw.inodes()->emplace_back();
+  auto&& ino = raw.inodes()->emplace_back();
   raw.entry_table_v2_2()->push_back(1);
 
   ino.mode_index() = 1;
@@ -131,7 +131,7 @@ TEST_F(global_metadata_test, check_index_range) {
 
   // make this metadata v2.3+
   raw.dir_entries().emplace();
-  auto& de = raw.dir_entries()->emplace_back();
+  auto&& de = raw.dir_entries()->emplace_back();
 
   raw.compact_names().emplace();
   EXPECT_THAT([&] { check(raw); }, throws_error("empty compact_names index"));
@@ -299,7 +299,7 @@ TEST_F(global_metadata_test, check_chunks) {
   raw.names()->resize(1);
   raw.dir_entries().emplace();
   raw.dir_entries()->resize(2);
-  auto& c = raw.chunks()->emplace_back();
+  auto&& c = raw.chunks()->emplace_back();
 
   auto& ds = *raw.directories();
   ds[0].first_entry() = 1;
