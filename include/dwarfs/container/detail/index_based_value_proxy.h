@@ -55,12 +55,12 @@ class index_based_field_proxy {
   using value_type = typename packed_field_descriptor<
       typename container_type::value_type>::template field_value_type<I>;
 
-  index_based_field_proxy(container_type& vec, size_type i)
+  index_based_field_proxy(container_type& vec, size_type i) noexcept
       : vec_{vec}
       , i_{i} {}
 
-  index_based_field_proxy(index_based_field_proxy const&) = default;
-  index_based_field_proxy(index_based_field_proxy&&) = default;
+  index_based_field_proxy(index_based_field_proxy const&) noexcept = default;
+  index_based_field_proxy(index_based_field_proxy&&) noexcept = default;
 
   operator value_type() const { return vec_.template get_field<I>(i_); }
   [[nodiscard]] auto load() const -> value_type {
@@ -239,12 +239,12 @@ class index_based_value_proxy {
   static constexpr size_type field_count = field_descriptor::field_count;
 
  public:
-  index_based_value_proxy(container_type& vec, size_type i)
+  index_based_value_proxy(container_type& vec, size_type i) noexcept
       : vec_{vec}
       , i_{i} {}
 
-  index_based_value_proxy(index_based_value_proxy const&) = default;
-  index_based_value_proxy(index_based_value_proxy&&) = default;
+  index_based_value_proxy(index_based_value_proxy const&) noexcept = default;
+  index_based_value_proxy(index_based_value_proxy&&) noexcept = default;
 
   operator value_type() const { return vec_.get(i_); }
   [[nodiscard]] auto load() const -> value_type {
