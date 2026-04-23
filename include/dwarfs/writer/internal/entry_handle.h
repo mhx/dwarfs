@@ -42,17 +42,12 @@
 #include <dwarfs/writer/internal/inode_id.h>
 #include <dwarfs/writer/internal/unique_inode_id.h>
 
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
+
 namespace dwarfs {
 
 class file_view;
 class os_access;
-
-namespace thrift::metadata {
-
-class inode_data;
-class metadata;
-
-} // namespace thrift::metadata
 
 namespace writer::internal {
 
@@ -171,7 +166,7 @@ class entry_handle_base {
 
   std::optional<std::size_t> entry_index() const;
 
-  void pack(thrift::metadata::inode_data& entry_v2,
+  void pack(thrift::metadata::metadata::inodes_member_type::reference entry_v2,
             internal::global_entry_data const& data,
             internal::time_resolution_converter const& timeres) const;
 

@@ -47,8 +47,6 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/time_resolution_converter.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_types.h>
-
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace dwarfs::writer::internal {
@@ -187,7 +185,9 @@ class metadata_builder_ final : public metadata_builder::impl {
     md_.block_size() = block_size;
   }
 
-  void set_shared_files_table(std::vector<uint32_t> shared_files) override {
+  void set_shared_files_table(
+      dwarfs::thrift::metadata::metadata::shared_files_table_member_type
+          shared_files) override {
     md_.shared_files_table() = std::move(shared_files);
   }
 
@@ -920,7 +920,8 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
       auto&& sf = md_.shared_files_table().value();
       DWARFS_CHECK(std::ranges::is_sorted(sf),
                    "shared files vector not sorted");
-      std::vector<uint32_t> compressed;
+      dwarfs::thrift::metadata::metadata::shared_files_table_member_type
+          compressed;
       compressed.reserve(sf.back() + 1);
 
       uint32_t count = 0;

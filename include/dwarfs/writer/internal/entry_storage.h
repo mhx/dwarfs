@@ -36,15 +36,9 @@
 #include <dwarfs/writer/internal/inode_id.h>
 #include <dwarfs/writer/internal/unique_inode_id.h>
 
-namespace dwarfs {
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
-namespace thrift::metadata {
-
-class inode_data;
-
-} // namespace thrift::metadata
-
-namespace writer {
+namespace dwarfs::writer {
 
 class inode_fragments;
 struct metadata_options;
@@ -157,9 +151,11 @@ class entry_storage {
     entry_impl_->update_global_entry_data(id, data);
   }
 
-  void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
-                  global_entry_data const& data,
-                  time_resolution_converter const& timeres) const {
+  void
+  pack_entry(entry_id id,
+             thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+             global_entry_data const& data,
+             time_resolution_converter const& timeres) const {
     entry_impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
@@ -368,9 +364,11 @@ class entry_storage {
 
     virtual void
     update_global_entry_data(entry_id id, global_entry_data& data) const = 0;
-    virtual void pack_entry(entry_id id, thrift::metadata::inode_data& entry_v2,
-                            global_entry_data const& data,
-                            time_resolution_converter const& timeres) const = 0;
+    virtual void pack_entry(
+        entry_id id,
+        thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+        global_entry_data const& data,
+        time_resolution_converter const& timeres) const = 0;
 
     virtual unique_inode_id get_unique_inode_id(entry_id id) const = 0;
 
@@ -484,5 +482,4 @@ class entry_storage {
 };
 
 } // namespace internal
-} // namespace writer
-} // namespace dwarfs
+} // namespace dwarfs::writer

@@ -33,8 +33,6 @@
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/scanner_progress.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_types.h>
-
 namespace dwarfs::writer::internal {
 
 namespace fs = std::filesystem;
@@ -210,7 +208,7 @@ void entry_handle_base<Mut>::walk(std::function<void(entry_handle)> const& f)
 
 template <mutability Mut>
 void entry_handle_base<Mut>::pack(
-    thrift::metadata::inode_data& entry_v2,
+    thrift::metadata::metadata::inodes_member_type::reference entry_v2,
     internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
   storage_->pack_entry(self_id_, entry_v2, data, timeres);

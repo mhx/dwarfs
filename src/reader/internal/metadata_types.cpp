@@ -104,7 +104,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   auto metadir = meta.directories();
   auto const num_dir_inodes = metadir.size() - 1;
 
-  std::vector<thrift::metadata::directory> directories;
+  thrift::metadata::metadata::directories_member_type directories;
 
   if (opts->packed_directories()) {
     directories.resize(metadir.size());
@@ -200,7 +200,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   auto bits_per_dir_old =
       (*l_old)->directoriesField.layout.itemField.layout.bits;
   auto l_new = view.findFirstOfType<std::unique_ptr<
-      frozen::Layout<std::vector<thrift::metadata::directory>>>>();
+      frozen::Layout<thrift::metadata::metadata::directories_member_type>>>();
   auto bits_per_dir_new = (*l_new)->itemField.layout.bits;
 
   td << "unpacked directories table with " << directories.size() << " entries ("

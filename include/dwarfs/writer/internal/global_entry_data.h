@@ -35,9 +35,7 @@
 #include <dwarfs/detail/string_like_hash.h>
 #include <dwarfs/file_stat.h>
 
-namespace dwarfs::thrift::metadata {
-class inode_data;
-}
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer {
 
@@ -84,9 +82,9 @@ class global_entry_data {
 
   uint64_t get_timestamp_base() const;
 
-  void
-  pack_inode_stat(thrift::metadata::inode_data& inode, file_stat const& stat,
-                  time_resolution_converter const& timeres) const;
+  void pack_inode_stat(
+      thrift::metadata::metadata::inodes_member_type::reference inode,
+      file_stat const& stat, time_resolution_converter const& timeres) const;
 
   void dump(std::ostream& os) const;
   std::string to_string() const;

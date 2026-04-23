@@ -27,22 +27,23 @@
 #include <optional>
 #include <vector>
 
-#include <dwarfs/gen-cpp-lite/metadata_types.h>
 #include <dwarfs/writer/fragment_category.h>
 
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
+
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
 
 class block_manager {
  public:
-  using chunk_type = thrift::metadata::chunk;
+  using chunks_type = thrift::metadata::metadata::chunks_member_type;
 
   size_t get_logical_block() const;
   void set_written_block(size_t logical_block, size_t written_block,
                          fragment_category category);
   void
-  map_logical_blocks(std::vector<chunk_type>& vec,
+  map_logical_blocks(chunks_type& vec,
                      std::optional<inode_hole_mapper> const& hole_mapper) const;
   std::vector<fragment_category> get_written_block_categories() const;
   size_t num_blocks() const;

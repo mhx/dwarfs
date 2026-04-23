@@ -30,11 +30,7 @@
 
 #include <dwarfs/types.h>
 
-namespace dwarfs::thrift::metadata {
-
-class chunk;
-
-} // namespace dwarfs::thrift::metadata
+#include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
 
@@ -43,8 +39,12 @@ class inode_hole_mapper {
   inode_hole_mapper(size_t hole_block_index, size_t block_size,
                     size_t max_data_chunk_size);
 
-  void map_hole(dwarfs::thrift::metadata::chunk& out, file_size_t size);
-  bool is_hole(dwarfs::thrift::metadata::chunk const& chk) const;
+  void map_hole(
+      dwarfs::thrift::metadata::metadata::chunks_member_type::reference out,
+      file_size_t size);
+  bool is_hole(
+      dwarfs::thrift::metadata::metadata::chunks_member_type::const_reference
+          chk) const;
   bool has_holes() const { return hole_count_ > 0; }
   size_t hole_block_index() const { return hole_block_index_; }
   std::vector<uint64_t> const& large_hole_sizes() const {
