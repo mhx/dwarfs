@@ -250,6 +250,14 @@ class segmented_packed_int_vector {
     }
   }
 
+  void reserve(size_type) {
+    // no-op, doesn't make sense for this type
+  }
+
+  void shrink_to_fit() {
+    // no-op, doesn't make sense for this type
+  }
+
   void optimize_storage() {
     for (auto& seg : segments_) {
       seg.optimize_storage();
