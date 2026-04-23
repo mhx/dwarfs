@@ -390,7 +390,7 @@ void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
   inode_hole_mapper hole_mapper(new_hole_index, new_block_size,
                                 max_data_chunk_size);
 
-  for (auto& c : new_chunks) {
+  for (auto&& c : new_chunks) {
     if (c.block().value() == kTmpHoleIx) {
       auto const offset = c.offset().value();
       auto const size = c.size().value();
@@ -483,7 +483,7 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
     }
 
     for (auto const& chunk : mapped_chunks) {
-      auto& nc = new_chunks.emplace_back();
+      auto&& nc = new_chunks.emplace_back();
       nc.block() = chunk.block;
       nc.offset() = chunk.offset;
       nc.size() = chunk.size;
@@ -559,7 +559,7 @@ void metadata_builder_<LoggerPolicy>::update_inodes() {
           ? timeres_.offset_conversion_remainder(md_.timestamp_base().value())
           : 0;
 
-  for (auto& inode : md_.inodes().value()) {
+  for (auto&& inode : md_.inodes().value()) {
     if (update_uid) {
       inode.owner_index() = 0;
     }
@@ -621,7 +621,7 @@ void metadata_builder_<LoggerPolicy>::apply_chmod() {
   auto xfm =
       chmod_transformer::build_chain(options_.chmod_specifiers, options_.umask);
 
-  for (auto& inode : md_.inodes().value()) {
+  for (auto&& inode : md_.inodes().value()) {
     static constexpr uint32_t kPermissionsMask = 07777;
     auto const mode_index = inode.mode_index().value();
     auto const mode = md_.modes()->at(mode_index);
@@ -679,7 +679,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
     if (options_.no_hardlink_table) {
       nlink_table.resize(dev_offset - reg_offset);
 
-      for (auto& de : md_.dir_entries().value()) {
+      for (auto&& de : md_.dir_entries().value()) {
         auto const inode_num = de.inode_num().value();
         assert(inode_num < md_.inodes()->size());
 
@@ -822,7 +822,7 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
     LOG_DEBUG << "hardlink table disabled, clearing nlink fields";
 
     // simply set nlink_minus_one to 0 for all inodes
-    for (auto& inode : md_.inodes().value()) {
+    for (auto&& inode : md_.inodes().value()) {
       inode.nlink_minus_one() = 0;
     }
   } else {
@@ -834,18 +834,18 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
     }));
 
     if (dev_offset > reg_offset) {
-      for (auto& de : md_.dir_entries().value()) {
+      for (auto&& de : md_.dir_entries().value()) {
         auto const inode_num = de.inode_num().value();
         assert(inode_num < md_.inodes()->size());
         // only need to update regular files
         if (reg_offset <= inode_num && inode_num < dev_offset) {
-          auto& inode = md_.inodes()->at(inode_num);
+          auto&& inode = md_.inodes()->at(inode_num);
           ++inode.nlink_minus_one().value();
         }
       }
 
       for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
-        auto& inode = md_.inodes()->at(inode_num);
+        auto&& inode = md_.inodes()->at(inode_num);
         assert(inode.nlink_minus_one().value() >= 1);
         --inode.nlink_minus_one().value();
       }
@@ -886,7 +886,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     // pack directories
     uint32_t last_first_entry = 0;
 
-    for (auto& d : md_.directories().value()) {
+    for (auto&& d : md_.directories().value()) {
       d.parent_entry() = 0; // this will be recovered
       d.self_entry() = 0;   // this will be recovered
       auto delta = d.first_entry().value() - last_first_entry;
@@ -900,7 +900,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     // an off-by-one bug in `unpack_directories()`, the `self_entry` field
     // could get populated with a non-zero value. We simply clear it here.
 
-    auto& sentinel = md_.directories()->back();
+    auto&& sentinel = md_.directories()->back();
 
     if (sentinel.self_entry().value() != 0) {
       LOG_INFO << "fixing inconsistent sentinel directory";
@@ -917,7 +917,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
 
   if (options_.pack_shared_files_table) {
     if (!md_.shared_files_table()->empty()) {
-      auto& sf = md_.shared_files_table().value();
+      auto&& sf = md_.shared_files_table().value();
       DWARFS_CHECK(std::ranges::is_sorted(sf),
                    "shared files vector not sorted");
       std::vector<uint32_t> compressed;
@@ -1081,7 +1081,7 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
   inodes.resize(md_.inodes()->size());
 
   newmd.directories().copy_from(md_.directories());
-  for (auto& d : newmd.directories().value()) {
+  for (auto&& d : newmd.directories().value()) {
     d.parent_entry() = entry_table[d.parent_entry().value()];
   }
   auto& dirs = newmd.directories().value();
@@ -1097,7 +1097,7 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
 
   for (auto const& inode : md_.inodes().value()) {
     auto const self_index = dir_entries.size();
-    auto& de = dir_entries.emplace_back();
+    auto&& de = dir_entries.emplace_back();
     de.name_index() = inode.name_index_v2_2().value();
     auto inode_v2_2 = inode.inode_v2_2().value();
 
@@ -1143,7 +1143,7 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
                 << de.inode_num().value();
     }
 
-    auto& ni = inodes.at(de.inode_num().value());
+    auto&& ni = inodes.at(de.inode_num().value());
     ni.mode_index() = inode.mode_index().value();
     ni.owner_index() = inode.owner_index().value();
     ni.group_index() = inode.group_index().value();
