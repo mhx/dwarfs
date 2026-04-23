@@ -61,7 +61,8 @@ void sort_and_index_map(T& map) {
     order.push_back(it);
   }
 
-  std::ranges::sort(order, std::ranges::less{}, &T::value_type::first);
+  std::ranges::sort(order, {},
+                    [](iterator it) -> auto const& { return it->first; });
 
   index_type ix{0};
 
