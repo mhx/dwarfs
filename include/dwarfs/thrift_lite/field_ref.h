@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <dwarfs/thrift_lite/detail/concepts.h>
+
 namespace dwarfs::thrift_lite {
 
 namespace detail {
@@ -151,6 +153,46 @@ class field_ref {
   auto operator=(U&& v) -> field_ref& {
     *ptr_ = std::data(std::forward<U>(v));
     return *this;
+  }
+
+  auto operator+=(value_type const& v) -> field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    *ptr_ += v;
+    return *this;
+  }
+
+  auto operator-=(value_type const& v) -> field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    *ptr_ -= v;
+    return *this;
+  }
+
+  auto operator++() -> field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    ++(*ptr_);
+    return *this;
+  }
+
+  auto operator++(int) -> value_type
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    return (*ptr_)++;
+  }
+
+  auto operator--() -> field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    --(*ptr_);
+    return *this;
+  }
+
+  auto operator--(int) -> value_type
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    return (*ptr_)--;
   }
 
   void reset() noexcept
@@ -352,6 +394,50 @@ class optional_field_ref {
     is_set_ = true;
     *ptr_ = std::data(std::forward<U>(v));
     return *this;
+  }
+
+  auto operator+=(value_type const& v) -> optional_field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    value() += v;
+    return *this;
+  }
+
+  auto operator-=(value_type const& v) -> optional_field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    value() -= v;
+    return *this;
+  }
+
+  auto operator++() -> optional_field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    ++value();
+    return *this;
+  }
+
+  auto operator++(int) -> value_type
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    auto old = value_type(value());
+    ++(*this);
+    return old;
+  }
+
+  auto operator--() -> optional_field_ref&
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    --value();
+    return *this;
+  }
+
+  auto operator--(int) -> value_type
+    requires(is_mutable && detail::arithmetic_type<value_type>)
+  {
+    auto old = value_type(value());
+    --(*this);
+    return old;
   }
 
   void reset() noexcept
