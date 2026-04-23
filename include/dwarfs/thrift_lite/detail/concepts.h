@@ -75,4 +75,7 @@ template <typename It>
 concept byte_input_iterator =
     std::input_iterator<It> && byte_like_type<std::iter_value_t<It>>;
 
+template <typename T>
+concept arithmetic_type = std::is_arithmetic_v<T>;
+
 } // namespace dwarfs::thrift_lite::detail
