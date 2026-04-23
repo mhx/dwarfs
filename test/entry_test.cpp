@@ -682,6 +682,27 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
   ASSERT_DEATH(f.set_inode(ino2.id()), "inode already set for file");
 }
 
+TEST_F(entry_test, storage_file_hash_size_must_be_consistent) {
+  auto tree = entry_storage{};
+
+  auto root = create_entry(tree, sep);
+  auto foo = create_entry(tree, sep / "foo.pl", root).as_file();
+  auto bar = create_entry(tree, sep / "bar.pl", root).as_file();
+
+  ASSERT_TRUE(root);
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(bar);
+
+  tree.create_packed_file_data(foo.id());
+  tree.create_packed_file_data(bar.id());
+
+  auto foo_hash = tree.get_file_hash_buffer(foo.id(), 16);
+  EXPECT_EQ(16, foo_hash.size());
+
+  EXPECT_DEATH(tree.get_file_hash_buffer(bar.id(), 32),
+               "hash buffer size mismatch: expected 16, got 32");
+}
+
 namespace {
 
 struct entry_handle_test : entry_test {
