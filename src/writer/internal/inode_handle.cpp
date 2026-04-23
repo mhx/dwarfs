@@ -31,15 +31,13 @@
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 
-#include <dwarfs/gen-cpp-lite/metadata_types.h>
-
 namespace dwarfs::writer::internal {
 
 namespace {
 
 // TODO: maybe move this into entry_storage?
 bool append_chunks_to_impl(entry_storage& storage, inode_id id,
-                           std::vector<thrift::metadata::chunk>& vec,
+                           thrift::metadata::metadata::chunks_member_type& vec,
                            std::optional<inode_hole_mapper>& hole_mapper) {
   auto fragments = inode_fragments_view(storage, id);
 
@@ -236,7 +234,7 @@ file_id_vector const& basic_inode_handle<Mut>::all_file_ids() const {
 
 template <detail::mutability Mut>
 bool basic_inode_handle<Mut>::append_chunks_to(
-    std::vector<thrift::metadata::chunk>& vec,
+    thrift::metadata::metadata::chunks_member_type& vec,
     std::optional<inode_hole_mapper>& hole_mapper) const {
   return append_chunks_to_impl(*storage_, self_id_, vec, hole_mapper);
 }

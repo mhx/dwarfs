@@ -144,8 +144,8 @@ uint64_t global_entry_data::get_timestamp_base() const {
 }
 
 void global_entry_data::pack_inode_stat(
-    thrift::metadata::inode_data& inode, file_stat const& stat,
-    time_resolution_converter const& timeres) const {
+    thrift::metadata::metadata::inodes_member_type::reference inode,
+    file_stat const& stat, time_resolution_converter const& timeres) const {
   stat.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
                     file_stat::mode_valid | file_stat::atime_valid |
                     file_stat::mtime_valid | file_stat::ctime_valid);
