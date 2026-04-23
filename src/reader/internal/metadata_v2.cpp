@@ -344,6 +344,15 @@ struct nlink_info {
   std::optional<file_size_t> total_hardlink_size;
 };
 
+template <typename Dest, typename Src>
+void assign_packed_table(Dest&& dest, Src&& src) {
+  if constexpr (std::is_assignable_v<Dest, Src>) {
+    std::forward<Dest>(dest) = std::forward<Src>(src);
+  } else {
+    std::forward<Dest>(dest) = std::forward<Src>(src).unpack();
+  }
+}
+
 } // namespace
 
 class metadata_v2_data {
@@ -1901,13 +1910,13 @@ thrift::metadata::metadata metadata_v2_data::unpack_metadata() const {
 
   if (auto opts = meta.options()) {
     if (opts->packed_chunk_table().value()) {
-      meta.chunk_table() = chunk_table_.unpack();
+      assign_packed_table(meta.chunk_table(), chunk_table_);
     }
     if (auto const& dirs = global_.bundled_directories()) {
       meta.directories() = dirs->thaw();
     }
     if (opts->packed_shared_files_table().value()) {
-      meta.shared_files_table() = shared_files_.unpack();
+      assign_packed_table(meta.shared_files_table(), shared_files_);
     }
     if (auto const& names = global_.names(); names.is_packed()) {
       meta.names() = names.unpack();
