@@ -276,7 +276,7 @@ struct metadata {
     * Note that here `shared_files` is the unpacked version of
     * `shared_files_table`.
     */
-   1: list<chunk>      chunks
+   1: list<chunk>      chunks  (cpp.packed_vector = "segmented")
 
    /**
     * All directories, indexed by inode number. There's one extra
@@ -288,7 +288,7 @@ struct metadata {
     * if `options.packed_directories` is `true` and must be unpacked
     * before use. See the documentation for the `directory` struct.
     */
-   2: list<directory>  directories
+   2: list<directory>  directories  (cpp.packed_vector = "segmented")
 
    /**
     * Inode metadata, indexed by inode number.
@@ -311,7 +311,7 @@ struct metadata {
     * The number of shared regular files can be determined from
     * `shared_files_table`.
     */
-   3: list<inode_data> inodes
+   3: list<inode_data> inodes  (cpp.packed_vector = "segmented")
 
    /**
     * Chunk lookup table, indexed by `inode - file_inode_offset`.
@@ -322,7 +322,7 @@ struct metadata {
     * if `options.packed_chunk_table` is `true` and must be unpacked
     * before use.
     */
-   4: list<UInt32>     chunk_table
+   4: list<UInt32>     chunk_table  (cpp.packed_vector = "heap_only")
 
    /**
     * =========================================================================
@@ -334,7 +334,7 @@ struct metadata {
     */
 
    // symlink lookup table, indexed by `inode - symlink_inode_offset`
-   6: list<UInt32>     symlink_table
+   6: list<UInt32>     symlink_table  (cpp.packed_vector = "segmented")
 
    // user ids, for lookup by `inode.owner_index`
    7: list<UInt32>     uids
@@ -399,7 +399,7 @@ struct metadata {
     * which makes it possible to efficiently find entries using
     * binary search.
     */
-  19: optional list<dir_entry>  dir_entries
+  19: optional list<dir_entry>  dir_entries  (cpp.packed_vector = "segmented")
 
    /**
     * Shared files mapping
@@ -423,7 +423,7 @@ struct metadata {
     * of 10, a regular file inode 25 would be a shared file inode,
     * and the index for lookup in `chunk_table` would be `10 + 1`.
     */
-  20: optional list<UInt32>     shared_files_table
+  20: optional list<UInt32>     shared_files_table  (cpp.packed_vector = "heap_only")
 
    // total size of hardlinked files beyond the first link, in bytes
   21: optional UInt64           total_hardlink_size
