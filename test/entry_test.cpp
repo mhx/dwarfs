@@ -754,6 +754,68 @@ TEST_F(entry_test, frozen_panic) {
                "entry_storage is frozen");
 }
 
+TEST_F(entry_test, synchronized_storage_operations) {
+  auto tree = entry_storage{};
+
+  auto root = create_entry(tree, sep);
+  auto file = create_entry(tree, sep / "foo.pl", root).as_file();
+  auto link = create_entry(tree, sep / "somelink", root).as_link();
+
+  tree.set_entry_index(file.id(), 42);
+  EXPECT_EQ(42, tree.get_entry_index(file.id()).value());
+  EXPECT_FALSE(tree.get_entry_index(link.id()).has_value());
+
+  tree.set_file_order_index(file.id(), 17);
+  EXPECT_EQ(17, tree.get_file_order_index(file.id()));
+
+  EXPECT_DEATH(
+      tree.for_each_entry_in_dir(root.as_dir().id(), [](wi::entry_id) {}),
+      "synchronized for_each_entry_in_dir is not supported");
+
+  auto inode = tree.create_inode();
+
+  tree.set_inode_num(inode.id(), 1234);
+  EXPECT_EQ(1234, tree.get_inode_num(inode.id()).value());
+
+  writer::inode_fragments frags;
+  frags.emplace_back(writer::fragment_category(0), 42);
+  tree.set_inode_fragments(inode.id(), frags);
+
+  tree.inode_fragment_add_data_chunk(inode.id(), 0, 0, 0, 1024);
+  tree.inode_fragment_add_hole_chunk(inode.id(), 0, 1024);
+
+  auto const& chunks = tree.get_inode_fragment_packed_chunks(inode.id(), 0);
+  EXPECT_EQ(2, chunks.size());
+
+  auto const nsh = writer::internal::nilsimsa::hash_type{1, 2, 3, 4};
+  std::array<writer::internal::inode_similarity_hash_data, 2> hash_data{{
+      {writer::fragment_category(0), 42},
+      {writer::fragment_category(1, 7), nsh},
+  }};
+  tree.set_inode_similarity(inode.id(), hash_data);
+
+  EXPECT_EQ(42, tree.get_inode_similarity_hash(inode.id(),
+                                               writer::fragment_category{0})
+                    .value());
+  auto ptr =
+      tree.get_inode_nilsimsa_hash(inode.id(), writer::fragment_category{1, 7});
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(nsh, *ptr);
+
+  std::ostringstream oss;
+  tree.dump_inode_similarity(inode.id(), oss,
+                             [](writer::fragment_category cat) {
+                               auto str = std::to_string(cat.value());
+                               if (cat.has_subcategory()) {
+                                 str += "/" + std::to_string(cat.subcategory());
+                               }
+                               return str + " ";
+                             });
+  EXPECT_THAT(oss.str(), testing::HasSubstr("similarity hashes:"));
+  EXPECT_THAT(oss.str(), testing::HasSubstr("0 basic"));
+  EXPECT_THAT(oss.str(), testing::HasSubstr("1/7 nilsimsa"));
+}
+
 namespace {
 
 struct entry_handle_test : entry_test {
