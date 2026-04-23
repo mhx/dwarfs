@@ -73,7 +73,7 @@ class segmented_packed_int_vector {
 
   static constexpr size_type max_size() noexcept { return max_size_value; }
 
-  segmented_packed_int_vector() = default;
+  segmented_packed_int_vector() noexcept = default;
 
   explicit segmented_packed_int_vector(size_type size) { resize(size); }
 
@@ -90,11 +90,11 @@ class segmented_packed_int_vector {
   }
 
   segmented_packed_int_vector(segmented_packed_int_vector const&) = default;
-  segmented_packed_int_vector(segmented_packed_int_vector&&) = default;
+  segmented_packed_int_vector(segmented_packed_int_vector&&) noexcept = default;
   segmented_packed_int_vector&
   operator=(segmented_packed_int_vector const&) = default;
   segmented_packed_int_vector&
-  operator=(segmented_packed_int_vector&&) = default;
+  operator=(segmented_packed_int_vector&&) noexcept = default;
 
   [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
 
