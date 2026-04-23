@@ -840,14 +840,14 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
         // only need to update regular files
         if (reg_offset <= inode_num && inode_num < dev_offset) {
           auto&& inode = md_.inodes()->at(inode_num);
-          ++inode.nlink_minus_one().value();
+          ++inode.nlink_minus_one();
         }
       }
 
       for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
         auto&& inode = md_.inodes()->at(inode_num);
         assert(inode.nlink_minus_one().value() >= 1);
-        --inode.nlink_minus_one().value();
+        --inode.nlink_minus_one();
       }
     }
   }
