@@ -1222,14 +1222,12 @@ class entry_storage_ final : public entry_storage::entry_impl {
         if (auto const it = dir_entry_lookup_.find(parent.index());
             it != dir_entry_lookup_.end()) {
           auto& lookup = it->second;
-          auto const inserted =
+          auto const inserted [[maybe_unused]] =
               lookup
                   .emplace(shared_.get_path_component(path_ix).name(),
                            entry_id{type, entry_ix})
                   .second;
-          if (!inserted) {
-            DWARFS_PANIC("duplicate entry name in directory");
-          }
+          assert(inserted);
         }
       }
 
@@ -1440,9 +1438,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
         if (created) {
           for (auto const eid : de) {
-            if (!lit->second.emplace(get_path_string_impl(eid), eid).second) {
-              DWARFS_PANIC("duplicate entry name in directory");
-            }
+            auto const inserted [[maybe_unused]] =
+                lit->second.emplace(get_path_string_impl(eid), eid).second;
+            assert(inserted);
           }
         }
 
