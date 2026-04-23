@@ -190,7 +190,8 @@ class synchronized final {
     value_type value;
     {
       write_lock_type lock(mx_);
-      value.swap(value_);
+      using std::swap;
+      swap(value, value_);
     }
     return value;
   }
