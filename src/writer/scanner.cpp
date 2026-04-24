@@ -657,13 +657,16 @@ void scanner_<LoggerPolicy>::scan(
 
   inode_manager im(LOG_GET_LOGGER, *tree, prog, path, options_.inode,
                    list.has_value());
-  file_scanner fs(LOG_GET_LOGGER, *tree, wg_, os_, im, prog,
-                  {.hash_algo = options_.file_hash_algorithm,
-                   .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
-                                         os_.getenv(kEnvVarDumpFilesFinal)});
+  auto fs = std::make_optional<file_scanner>(
+      LOG_GET_LOGGER, *tree, wg_, os_, im, prog,
+      file_scanner::options{
+          .hash_algo = options_.file_hash_algorithm,
+          .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
+                                os_.getenv(kEnvVarDumpFilesFinal),
+      });
 
-  auto root = list ? scan_list(*tree, path, *list, prog, fs)
-                   : scan_tree(*tree, path, prog, fs);
+  auto root = list ? scan_list(*tree, path, *list, prog, *fs)
+                   : scan_tree(*tree, path, prog, *fs);
 
   if (options_.debug_filter_function) {
     LOG_VERBOSE << "entry storage:\n" << tree->dump();
@@ -704,14 +707,18 @@ void scanner_<LoggerPolicy>::scan(
   root.accept(lsiv, true);
 
   dump_state(kEnvVarDumpFilesRaw, "raw files", fa,
-             [&fs](auto& os) { fs.dump(os); });
+             [&fs](auto& os) { fs->dump(os); });
 
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
-  fs.finalize(first_device_inode);
+  fs->finalize(first_device_inode);
 
   dump_state(kEnvVarDumpFilesFinal, "final files", fa,
-             [&fs](auto& os) { fs.dump(os); });
+             [&fs](auto& os) { fs->dump(os); });
+
+  auto const num_unique_files = fs->num_unique();
+
+  fs.reset();
 
   // this must be done after finalizing the inodes since this is when
   // the file vectors are populated
@@ -939,7 +946,7 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
-                                 fs.num_unique());
+                                 num_unique_files);
   root.accept(ssfv);
   mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
