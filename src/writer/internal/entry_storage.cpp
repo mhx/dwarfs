@@ -572,6 +572,16 @@ class packed_entry_data {
     return represented_device_.at(id.index());
   }
 
+  void drop_hash_buffers() {
+    if (file_hashes_.has_value()) {
+      file_hashes_.reset();
+      for (auto&& fd : file_data_vec_) {
+        get<kFileHashIndexField>(fd) = std::nullopt;
+      }
+      file_data_vec_.optimize_storage();
+    }
+  }
+
  private:
   struct mtime_traits;
   struct atime_traits;
@@ -1642,6 +1652,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return devices_.get_represented_device(id);
   }
 
+  void drop_file_hashes() override {
+    TRACE_CALL;
+    files_.drop_hash_buffers();
+  }
+
   void dump(std::ostream& os) const override;
   void dump_events(std::ostream& os) const override;
 
@@ -2179,6 +2194,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
   void dump_events(std::ostream& os) const override {
     impl_.lock()->dump_events(os);
   }
+
+  void drop_file_hashes() override { impl_.lock()->drop_file_hashes(); }
 
   std::unique_ptr<entry_impl> freeze() override {
     return impl_.lock()->freeze();
