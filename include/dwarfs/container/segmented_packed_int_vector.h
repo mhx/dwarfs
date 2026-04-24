@@ -154,6 +154,23 @@ class segmented_packed_int_vector {
     return total;
   }
 
+  [[nodiscard]] auto
+  field_sizes_in_bytes() const -> std::array<size_type, field_count>
+    requires(field_count > 1)
+  {
+    std::array<size_type, field_count> total{};
+
+    for (auto const& seg : segments_) {
+      auto const widths = seg.widths();
+      auto const seg_size = seg.size();
+      for (size_type i = 0; i < field_count; ++i) {
+        total[i] += (widths[i] * seg_size + 7) / 8;
+      }
+    }
+
+    return total;
+  }
+
   [[nodiscard]] std::array<size_type, bits_per_block + 1>
   segment_bits_histogram() const {
     std::array<size_type, bits_per_block + 1> hist{};
