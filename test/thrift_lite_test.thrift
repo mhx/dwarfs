@@ -24,7 +24,7 @@
 namespace cpp dwarfs.thrift_lite.test
 
 cpp_include "<unordered_map>"
-cpp_include "<parallel_hashmap/btree.h>"
+cpp_include "<dwarfs/internal/btree.h>"
 
 // ---- Typedefs / cpp.type mapping ----
 
@@ -101,8 +101,8 @@ struct Containers {
 
   // Optional containers
   7: optional list<i64> opt_list
-  8: optional map<i32, string> opt_map (cpp.template = "phmap::btree_map")
-  9: optional set<i32> opt_set (cpp.template = "phmap::btree_set")
+  8: optional map<i32, string> opt_map (cpp.template = "dwarfs::internal::btree_map")
+  9: optional set<i32> opt_set (cpp.template = "dwarfs::internal::btree_set")
 }
 
 // ---- Forward/backward compat exercises ----

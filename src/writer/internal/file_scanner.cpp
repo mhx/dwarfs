@@ -31,8 +31,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <range/v3/view/drop.hpp>
 
 #include <dwarfs/checksum.h>
@@ -43,6 +41,7 @@
 #include <dwarfs/types.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/phmap.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/file_scanner.h>
@@ -77,7 +76,7 @@ class file_scanner_ final : public file_scanner::impl {
 
  private:
   template <typename Key, typename Value>
-  using fast_map_type = phmap::flat_hash_map<Key, Value>;
+  using fast_map_type = dwarfs::internal::flat_hash_map<Key, Value>;
 
   void scan_dedupe(file* p);
   void hash_file(file* p);

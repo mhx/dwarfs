@@ -48,8 +48,6 @@
 
 #include <dwarfs/portability/unistd.h>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/transform.hpp>
 
@@ -69,6 +67,7 @@
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/packed_int_vector.h>
+#include <dwarfs/internal/phmap.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/internal/unicode_case_folding.h>
@@ -514,7 +513,7 @@ class metadata_v2_data {
 
  private:
   template <typename K>
-  using set_type = phmap::flat_hash_set<K>;
+  using set_type = dwarfs::internal::flat_hash_set<K>;
 
   int find_inode_offset(inode_rank rank) const {
     return find_inode_rank_offset(meta_, rank);
@@ -977,7 +976,8 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       });
 
       // Check and report any collisions in the directory
-      phmap::flat_hash_map<std::string_view, small_vector<uint32_t, 1>>
+      dwarfs::internal::flat_hash_map<std::string_view,
+                                      small_vector<uint32_t, 1>>
           collisions;
       collisions.reserve(range.size());
       for (size_t i = 0; i < names.size(); ++i) {

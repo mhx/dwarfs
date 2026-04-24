@@ -170,15 +170,15 @@ struct Layout<T, std::enable_if_t<IsHashSet<T>::value>>
 } // namespace apache::thrift::frozen
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, std::unordered_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, phmap::flat_hash_map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, phmap::node_hash_map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, dwarfs::internal::flat_hash_map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashMap, dwarfs::internal::node_hash_map)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, std::unordered_set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, phmap::flat_hash_set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, phmap::node_hash_set)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, dwarfs::internal::flat_hash_set)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsHashSet, dwarfs::internal::node_hash_set)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, std::map)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, phmap::btree_map)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedMap, dwarfs::internal::btree_map)
 
 THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, std::set)
-THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, phmap::btree_set)
+THRIFT_DECLARE_TRAIT_TEMPLATE(IsOrderedSet, dwarfs::internal::btree_set)

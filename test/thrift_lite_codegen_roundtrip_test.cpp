@@ -95,7 +95,7 @@ static_assert(
     std::is_same_v<
         std::remove_cvref_t<
             decltype(std::declval<gen::Containers>().opt_map().value())>,
-        phmap::btree_map<std::int32_t, std::string>>,
+        dwarfs::internal::btree_map<std::int32_t, std::string>>,
     "unexpected type for Containers::opt_map");
 
 static_assert(
@@ -109,7 +109,7 @@ static_assert(
     std::is_same_v<
         std::remove_cvref_t<
             decltype(std::declval<gen::Containers>().opt_set().value())>,
-        phmap::btree_set<std::int32_t>>,
+        dwarfs::internal::btree_set<std::int32_t>>,
     "unexpected type for Containers::opt_set");
 
 TEST(thrift_lite_compact_roundtrip, terse_mode_everything_empty) {

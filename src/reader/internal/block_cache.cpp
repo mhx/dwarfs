@@ -41,8 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/performance_monitor.h>
@@ -52,6 +50,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/phmap.h>
 #include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/reader/internal/block_cache.h>
@@ -772,7 +771,7 @@ class block_cache_ final : public block_cache::impl {
 
   using lru_type = lru_cache<size_t, std::shared_ptr<cached_block>>;
   template <typename Key, typename Value>
-  using fast_map_type = phmap::flat_hash_map<Key, Value>;
+  using fast_map_type = dwarfs::internal::flat_hash_map<Key, Value>;
 
   mutable std::mutex mx_;
   mutable lru_type cache_;

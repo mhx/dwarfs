@@ -28,17 +28,33 @@
 
 #pragma once
 
-// NOLINTBEGIN(cppcoreguidelines-macro-to-enum)
-#cmakedefine DWARFS_HAVE_ABSEIL 1
-#cmakedefine DWARFS_HAVE_LIBMAGIC 1
-#cmakedefine DWARFS_HAVE_LIBLZ4 1
-#cmakedefine DWARFS_HAVE_LIBLZMA 1
-#cmakedefine DWARFS_HAVE_LIBBROTLI 1
-#cmakedefine DWARFS_HAVE_FLAC 1
-#cmakedefine DWARFS_HAVE_RICEPP 1
-#cmakedefine DWARFS_HAVE_LIBZSTD 1
-#cmakedefine DWARFS_BUILTIN_MANPAGE 1
-#cmakedefine DWARFS_PERFMON_ENABLED 1
-#cmakedefine DWARFS_STACKTRACE_ENABLED 1
-#cmakedefine DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT 1
-// NOLINTEND(cppcoreguidelines-macro-to-enum)
+#if __has_include(<dwarfs/config.h>)
+#include <dwarfs/config.h>
+#elif __has_include(<include/dwarfs/config.h>)
+#include <include/dwarfs/config.h>
+#endif
+
+#ifdef DWARFS_HAVE_ABSEIL
+
+#include <absl/container/btree_map.h>
+#include <absl/container/btree_set.h>
+
+namespace dwarfs::internal {
+
+using absl::btree_map;
+using absl::btree_set;
+
+} // namespace dwarfs::internal
+
+#else
+
+#include <parallel_hashmap/btree.h>
+
+namespace dwarfs::internal {
+
+using phmap::btree_map;
+using phmap::btree_set;
+
+} // namespace dwarfs::internal
+
+#endif

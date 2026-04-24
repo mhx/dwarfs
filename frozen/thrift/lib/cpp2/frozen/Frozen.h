@@ -30,9 +30,6 @@
 
 #include <xxhash.h>
 
-#include <parallel_hashmap/btree.h>
-#include <parallel_hashmap/phmap.h>
-
 #include <thrift/lib/cpp2/frozen/FixedSizeStringHash.h>
 #include <thrift/lib/cpp2/frozen/FrozenMacros.h>
 #include <thrift/lib/cpp2/frozen/HintTypes.h>
@@ -41,6 +38,8 @@
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 #include <dwarfs/bit_view.h>
+#include <dwarfs/internal/btree.h>
+#include <dwarfs/internal/phmap.h>
 #include <dwarfs/thrift_lite/assert.h>
 #include <dwarfs/thrift_lite/demangle.h>
 #include <dwarfs/thrift_lite/utility.h>

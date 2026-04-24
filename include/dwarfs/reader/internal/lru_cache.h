@@ -32,7 +32,7 @@
 #include <iterator>
 #include <list>
 
-#include <parallel_hashmap/phmap.h>
+#include <dwarfs/internal/phmap.h>
 
 namespace dwarfs::reader::internal {
 
@@ -134,7 +134,7 @@ class lru_cache {
   }
 
   size_t max_size_;
-  phmap::flat_hash_map<key_type, iterator> index_;
+  dwarfs::internal::flat_hash_map<key_type, iterator> index_;
   std::list<value_type> cache_;
   prune_hook_type prune_hook_;
 };

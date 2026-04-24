@@ -37,10 +37,15 @@
 
 #include <boost/version.hpp>
 #include <openssl/crypto.h>
-#include <parallel_hashmap/phmap_config.h>
 #include <xxhash.h>
 
 #include <dwarfs/config.h>
+
+#ifdef DWARFS_HAVE_ABSEIL
+#include <absl/base/config.h>
+#else
+#include <parallel_hashmap/phmap_config.h>
+#endif
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/version.hpp>
@@ -117,8 +122,19 @@ void library_dependencies::add_common_libraries() {
   add_library("libfmt", FMT_VERSION, version_format::maj_min_patch_dec_100);
   add_library(fmt::format("crypto-{}", get_crypto_version()));
   add_library("libboost", BOOST_VERSION, version_format::boost);
+
+#ifdef DWARFS_HAVE_ABSEIL
+#ifdef ABSL_LTS_RELEASE_VERSION
+  add_library("abseil", fmt::format("{}.{}", ABSL_LTS_RELEASE_VERSION,
+                                    ABSL_LTS_RELEASE_PATCH_LEVEL));
+#else
+  add_library("abseil-head");
+#endif
+#else
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
               PHMAP_VERSION_PATCH);
+#endif
+
 #ifdef DWARFS_STACKTRACE_ENABLED
   add_library("cpptrace", CPPTRACE_VERSION_MAJOR, CPPTRACE_VERSION_MINOR,
               CPPTRACE_VERSION_PATCH);

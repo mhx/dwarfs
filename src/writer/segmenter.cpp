@@ -36,8 +36,6 @@
 
 #include <fmt/format.h>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/error.h>
@@ -50,6 +48,7 @@
 
 #include <dwarfs/internal/associative_vector_types.h>
 #include <dwarfs/internal/malloc_buffer.h>
+#include <dwarfs/internal/phmap.h>
 #include <dwarfs/internal/value_stream_quantile_estimator.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
@@ -106,8 +105,8 @@ template <typename KeyT, typename ValT, size_t MaxCollInline = 2>
 class fast_multimap {
  private:
   using collision_vector = small_vector<ValT, MaxCollInline>;
-  using blockhash_t = phmap::flat_hash_map<KeyT, ValT>;
-  using collision_t = phmap::flat_hash_map<KeyT, collision_vector>;
+  using blockhash_t = dwarfs::internal::flat_hash_map<KeyT, ValT>;
+  using collision_t = dwarfs::internal::flat_hash_map<KeyT, collision_vector>;
 
  public:
   DWARFS_FORCE_INLINE void insert(KeyT const& key, ValT const& val) {
@@ -175,8 +174,8 @@ class fast_multimap {
   collision_t collisions_;
 };
 
-using repeating_sequence_map_type =
-    phmap::flat_hash_map<uint32_t, dwarfs::internal::small_vector_set<uint8_t>>;
+using repeating_sequence_map_type = dwarfs::internal::flat_hash_map<
+    uint32_t, dwarfs::internal::small_vector_set<uint8_t>>;
 using repeating_collisions_map_type = std::unordered_map<uint8_t, uint32_t>;
 
 /**

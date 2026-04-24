@@ -44,6 +44,7 @@ option(WITH_ALL_BENCHMARKS "build with *all* benchmarks" OFF)
 option(WITH_FUZZ "build with fuzzing binaries" OFF)
 option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
+option(TRY_ENABLE_ABSEIL "use Abseil instead of parallel-hashmap" ON)
 option(TRY_ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(TRY_ENABLE_BROTLI "build with BROTLI compression support" ON)
@@ -211,7 +212,18 @@ include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 
 if(WITH_LIBDWARFS)
-  include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
+  set(DWARFS_HAVE_ABSEIL OFF)
+
+  if(TRY_ENABLE_ABSEIL)
+    find_package(absl CONFIG)
+    if (absl_FOUND)
+      include(${CMAKE_SOURCE_DIR}/cmake/need_abseil.cmake)
+    endif()
+  endif()
+
+  if(NOT DWARFS_HAVE_ABSEIL)
+    include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
+  endif()
 
   find_package(Threads REQUIRED)
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
@@ -825,7 +837,7 @@ if(WITH_TESTS)
   endif()
 
   if(TARGET dwarfs_unit_tests)
-    target_link_libraries(dwarfs_unit_tests PRIVATE phmap)
+    target_link_libraries(dwarfs_unit_tests PRIVATE $<IF:${DWARFS_HAVE_ABSEIL},${DWARFS_ABSEIL_DEPS},phmap>)
   endif()
 
   if(TARGET manpage_test)
@@ -977,9 +989,13 @@ if(BUILD_FSST_MAIN)
 endif()
 
 foreach(tgt ${LIBDWARFS_TARGETS})
-  target_include_directories(${tgt} SYSTEM PRIVATE
-    $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
-  )
+  if(DWARFS_HAVE_ABSEIL)
+    target_link_libraries(${tgt} PUBLIC ${DWARFS_ABSEIL_DEPS})
+  else()
+    target_include_directories(${tgt} SYSTEM PRIVATE
+      $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+    )
+  endif()
 endforeach()
 
 foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}

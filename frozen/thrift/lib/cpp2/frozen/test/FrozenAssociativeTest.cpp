@@ -62,7 +62,7 @@ TYPED_TEST_P(FrozenMapBasic, Basic) {
 
 REGISTER_TYPED_TEST_SUITE_P(FrozenMapBasic, Basic);
 using FrozenMapTypes =
-    testing::Types<std::map<int, int>, phmap::btree_map<int, int>>;
+    testing::Types<std::map<int, int>, dwarfs::internal::btree_map<int, int>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(
     FrozenAssociativeTest, FrozenMapBasic, FrozenMapTypes);
 
@@ -110,8 +110,8 @@ void testFrozenHashMapBasic() {
 
 TEST(FrozenHashMap, Basic) {
   testFrozenHashMapBasic<std::unordered_map<int, int>>();
-  testFrozenHashMapBasic<phmap::flat_hash_map<int, int>>();
-  testFrozenHashMapBasic<phmap::node_hash_map<int, int>>();
+  testFrozenHashMapBasic<dwarfs::internal::flat_hash_map<int, int>>();
+  testFrozenHashMapBasic<dwarfs::internal::node_hash_map<int, int>>();
 }
 
 TEST(FrozenHashMap, Iteration) {
@@ -253,7 +253,7 @@ TYPED_TEST_P(FrozenSetFull, Full) {
 
 REGISTER_TYPED_TEST_SUITE_P(FrozenSetFull, Full);
 using FrozenSetTypes =
-    testing::Types<std::set<uint32_t>, phmap::btree_set<uint32_t>>;
+    testing::Types<std::set<uint32_t>, dwarfs::internal::btree_set<uint32_t>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(
     FrozenAssociativeTest, FrozenSetFull, FrozenSetTypes);
 
@@ -284,8 +284,8 @@ void testFrozenHashSetFull() {
 
 TEST(FrozenHashSet, Full) {
   testFrozenHashSetFull<std::unordered_set<uint32_t>>();
-  testFrozenHashSetFull<phmap::flat_hash_set<uint32_t>>();
-  testFrozenHashSetFull<phmap::node_hash_set<uint32_t>>();
+  testFrozenHashSetFull<dwarfs::internal::flat_hash_set<uint32_t>>();
+  testFrozenHashSetFull<dwarfs::internal::node_hash_set<uint32_t>>();
 }
 
 TEST(Frozen, IntHashMapBig) {

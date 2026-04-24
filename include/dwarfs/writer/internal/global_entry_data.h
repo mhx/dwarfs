@@ -28,9 +28,8 @@
 #include <string>
 #include <vector>
 
-#include <parallel_hashmap/phmap.h>
-
 #include <dwarfs/file_stat.h>
+#include <dwarfs/internal/phmap.h>
 
 namespace dwarfs::thrift::metadata {
 class inode_data;
@@ -86,7 +85,7 @@ class global_entry_data {
 
  private:
   template <typename K, typename V>
-  using map_type = phmap::flat_hash_map<K, V>;
+  using map_type = dwarfs::internal::flat_hash_map<K, V>;
 
   template <typename T, typename U>
   std::vector<T> get_vector(map_type<T, U> const& map) const;

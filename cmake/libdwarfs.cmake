@@ -228,9 +228,15 @@ target_include_directories(dwarfs_frozen PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
-target_include_directories(dwarfs_frozen SYSTEM PUBLIC
-  $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
-)
+
+if(DWARFS_HAVE_ABSEIL)
+  target_link_libraries(dwarfs_frozen PUBLIC ${DWARFS_ABSEIL_DEPS})
+else()
+  target_include_directories(dwarfs_frozen SYSTEM PUBLIC
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+  )
+endif()
+
 target_link_libraries(dwarfs_frozen PUBLIC PkgConfig::XXHASH)
 
 add_library(
