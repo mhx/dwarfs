@@ -224,6 +224,8 @@ class entry_storage {
     return entry_impl_->get_file_inode(id);
   }
 
+  void drop_file_hashes() { entry_impl_->drop_file_hashes(); }
+
   inode_handle create_inode();
 
   [[nodiscard]] std::size_t inode_count() const noexcept {
@@ -398,6 +400,8 @@ class entry_storage {
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual void dump_events(std::ostream& os) const = 0;
+
+    virtual void drop_file_hashes() = 0;
 
     virtual std::unique_ptr<entry_impl> freeze() = 0;
   };
