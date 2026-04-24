@@ -308,7 +308,9 @@ class packed_entry_data {
 
   packed_entry_data(entry_type t, metadata_options const& options)
       : this_type_{t}
-      , keep_all_times_{options.keep_all_times}
+      , keep_mtime_{!options.timestamp.has_value()}
+      , keep_atime_{options.keep_all_times}
+      , keep_ctime_{options.keep_all_times}
       , keep_subsecond_{options.time_resolution.value_or(std::chrono::seconds(
                             1)) < std::chrono::seconds(1)} {}
 
@@ -378,9 +380,13 @@ class packed_entry_data {
     data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
     data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
     data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
-    data.add_mtime(get<kModificationTimeSecondField>(stat));
-    if (keep_all_times_) {
+    if (keep_mtime_) {
+      data.add_mtime(get<kModificationTimeSecondField>(stat));
+    }
+    if (keep_atime_) {
       data.add_atime(get<kAccessTimeSecondField>(stat));
+    }
+    if (keep_ctime_) {
       data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
     }
   }
@@ -397,16 +403,24 @@ class packed_entry_data {
     out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
     out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
 
-    out.set_mtimespec(get<kModificationTimeSecondField>(stat),
-                      get<kModificationTimeSubsecondField>(stat));
+    if (keep_mtime_) {
+      out.set_mtimespec(get<kModificationTimeSecondField>(stat),
+                        get<kModificationTimeSubsecondField>(stat));
+    } else {
+      out.set_mtimespec(0, 0);
+    }
 
-    if (keep_all_times_) {
+    if (keep_atime_) {
       out.set_atimespec(get<kAccessTimeSecondField>(stat),
                         get<kAccessTimeSubsecondField>(stat));
+    } else {
+      out.set_atimespec(0, 0);
+    }
+
+    if (keep_ctime_) {
       out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
                         get<kStatusChangeTimeSubsecondField>(stat));
     } else {
-      out.set_atimespec(0, 0);
       out.set_ctimespec(0, 0);
     }
 
@@ -606,7 +620,9 @@ class packed_entry_data {
  private:
   entry_type this_type_;
 
-  bool const keep_all_times_{false};
+  bool const keep_mtime_{true};
+  bool const keep_atime_{false};
+  bool const keep_ctime_{false};
   bool const keep_subsecond_{false};
 
   // index into `shared_entry_data::path_components_`
@@ -1126,18 +1142,27 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
   std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
 
-  std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
+  if (keep_mtime_) {
+    std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
 
-  if (keep_subsecond_) {
-    std::get<kModificationTimeSubsecondField>(tmp) = st.mtime_nsec_unchecked();
+    if (keep_subsecond_) {
+      std::get<kModificationTimeSubsecondField>(tmp) =
+          st.mtime_nsec_unchecked();
+    }
   }
 
-  if (keep_all_times_) {
+  if (keep_atime_) {
     std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
-    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
 
     if (keep_subsecond_) {
       std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
+    }
+  }
+
+  if (keep_ctime_) {
+    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
+
+    if (keep_subsecond_) {
       std::get<kStatusChangeTimeSubsecondField>(tmp) =
           st.ctime_nsec_unchecked();
     }
