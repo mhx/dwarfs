@@ -72,6 +72,7 @@
 #endif
 
 namespace fs = std::filesystem;
+using namespace std::string_view_literals;
 
 namespace dwarfs::writer::internal {
 
@@ -94,6 +95,62 @@ bool uses_inline_buffer(T const& s) {
   auto const e = b + sizeof(s);
   return b <= p && p < e;
 }
+
+class memory_usage_dumper {
+ public:
+  struct size_info {
+    std::string_view label;
+    std::size_t bytes;
+    std::optional<std::size_t> count;
+    bool is_tuple_field;
+  };
+
+  void add(std::string_view label, std::size_t bytes,
+           std::optional<std::size_t> count = std::nullopt) {
+    sizes_.push_back({label, bytes, count, false});
+  }
+
+  template <typename TupleType>
+  void add_tuple_field_sizes(
+      segtor<TupleType> const& data,
+      std::array<std::string_view, std::tuple_size_v<TupleType>> const&
+          field_labels) {
+    auto const field_bytes = data.field_sizes_in_bytes();
+    for (std::size_t i = 0; i < field_labels.size(); ++i) {
+      if (field_bytes[i] > 0) {
+        sizes_.push_back({field_labels[i], field_bytes[i], std::nullopt, true});
+      }
+    }
+  }
+
+  void dump(std::ostream& os, std::string_view name,
+            std::optional<std::size_t> count = std::nullopt) const {
+    auto const total_bytes =
+        std::accumulate(sizes_.begin(), sizes_.end(), 0ULL,
+                        [](std::size_t acc, auto const& si) {
+                          return acc + (si.is_tuple_field ? 0 : si.bytes);
+                        });
+
+    if (count.has_value()) {
+      os << *count << " ";
+    }
+
+    os << name << ": " << size_with_unit(total_bytes) << "\n";
+
+    for (auto const& [label, bytes, num, is_tuple_field] : sizes_) {
+      if (bytes > 0) {
+        os << (is_tuple_field ? "    " : "  ");
+        if (num.has_value()) {
+          os << *num << " ";
+        }
+        os << label << ": " << size_with_unit(bytes) << "\n";
+      }
+    }
+  }
+
+ private:
+  std::vector<size_info> sizes_;
+};
 
 } // namespace
 
@@ -326,6 +383,12 @@ class packed_entry_data {
   static constexpr std::size_t kStatusChangeTimeSubsecondField = 9;
   static constexpr std::size_t kInodeField = 10;
   static constexpr std::size_t kDeviceIndexField = 11;
+  static constexpr std::array kStatCommonFieldNames{
+      "nlink"sv,     "mode"sv,       "uid"sv,       "gid"sv,
+      "atime sec"sv, "atime nsec"sv, "mtime sec"sv, "mtime nsec"sv,
+      "ctime sec"sv, "ctime nsec"sv, "inode"sv,     "device index"sv,
+  };
+
   using stat_common_tuple =
       std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
@@ -633,9 +696,16 @@ class packed_entry_data {
   static constexpr std::size_t kFileHashIndexField{0};
   static constexpr std::size_t kHardlinkCountMinusOneField{1};
   static constexpr std::size_t kInodeNumberField{2};
+  static constexpr std::array kFileDataFieldNames{
+      "file hash index"sv,
+      "hardlink count"sv,
+      "inode number"sv,
+  };
+
   using file_data_tuple =
       std::tuple<std::optional<std::uint64_t>, std::uint64_t,
                  std::optional<std::uint64_t>>;
+
   segtor<file_data_tuple> file_data_vec_;
   cao_vector<std::atomic<bool>> file_invalid_vec_;
 
@@ -702,6 +772,12 @@ class packed_inode_data {
   static constexpr std::size_t kFragmentSubcategoryField = 1;
   static constexpr std::size_t kFragmentKindField = 2;
   static constexpr std::size_t kFragmentSizeField = 3;
+  static constexpr std::array kInodeFragmentFieldNames{
+      "category"sv,
+      "subcategory"sv,
+      "kind"sv,
+      "size"sv,
+  };
 
   using inode_fragment_tuple =
       std::tuple<std::uint64_t, std::optional<std::uint64_t>, fragment_kind,
@@ -709,11 +785,19 @@ class packed_inode_data {
 
   static constexpr std::size_t kFragmentInfoOffsetField = 0;
   static constexpr std::size_t kFragmentInfoCountField = 1;
+  static constexpr std::array kInodeFragmentInfoFieldNames{
+      "offset"sv,
+      "count"sv,
+  };
 
   using inode_fragment_info_tuple = std::tuple<std::uint64_t, std::uint64_t>;
 
   static constexpr std::size_t kSimilarityInfoOffsetField = 0;
   static constexpr std::size_t kSimilarityInfoCountField = 1;
+  static constexpr std::array kInodeSimilarityInfoFieldNames{
+      "offset"sv,
+      "count"sv,
+  };
 
   using inode_similarity_info_tuple = std::tuple<std::uint64_t, std::uint64_t>;
 
@@ -726,6 +810,12 @@ class packed_inode_data {
   static constexpr std::size_t kSimilarityHashSubcategoryField = 1;
   static constexpr std::size_t kSimilarityHashTypeField = 2;
   static constexpr std::size_t kSimilarityHashIndexField = 3;
+  static constexpr std::array kInodeSimilarityHashFieldNames{
+      "category"sv,
+      "subcategory"sv,
+      "type"sv,
+      "index"sv,
+  };
 
   using inode_similarity_hash_tuple =
       std::tuple<std::uint64_t, std::optional<std::uint64_t>,
@@ -1046,21 +1136,18 @@ void shared_entry_data::dump(std::ostream& os) const {
                         return acc + sizeof(std::string) + link.size();
                       });
 
-  os << "shared entry data:\n";
-  os << "  path components: " << path_components_.size() << " ("
-     << size_with_unit(total_path_bytes) << ")\n";
-  os << "  devices: " << devices_.size() << " ("
-     << size_with_unit(devices_.size() * sizeof(devices_[0])) << ")\n";
-  os << "  modes: " << modes_.size() << " ("
-     << size_with_unit(modes_.size() * sizeof(modes_[0])) << ")\n";
-  os << "  uids: " << uids_.size() << " ("
-     << size_with_unit(uids_.size() * sizeof(uids_[0])) << ")\n";
-  os << "  gids: " << gids_.size() << " ("
-     << size_with_unit(gids_.size() * sizeof(gids_[0])) << ")\n";
-  os << "  link targets: " << link_targets_.size() << " ("
-     << size_with_unit(total_link_bytes) << ")\n";
-  os << "  dir entries: " << dir_entries_.size() << " ("
-     << size_with_unit(total_cao_id_vec_bytes(dir_entries_)) << ")\n";
+  memory_usage_dumper d;
+
+  d.add("path components", total_path_bytes, path_components_.size());
+  d.add("devices", devices_.size() * sizeof(devices_[0]), devices_.size());
+  d.add("modes", modes_.size() * sizeof(modes_[0]), modes_.size());
+  d.add("uids", uids_.size() * sizeof(uids_[0]), uids_.size());
+  d.add("gids", gids_.size() * sizeof(gids_[0]), gids_.size());
+  d.add("link targets", total_link_bytes, link_targets_.size());
+  d.add("dir entries", total_cao_id_vec_bytes(dir_entries_),
+        dir_entries_.size());
+
+  d.dump(os, "shared entry data");
 }
 
 void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
@@ -1069,73 +1156,58 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
     return;
   }
 
-  std::vector<std::pair<std::string_view, std::size_t>> sizes;
+  memory_usage_dumper d;
 
-  sizes.emplace_back("path name index", path_name_index_.size_in_bytes());
-  sizes.emplace_back("stat common", stat_common_.size_in_bytes());
-  sizes.emplace_back("size", entry_size_.size_in_bytes());
-  sizes.emplace_back("allocated size",
-                     entry_allocated_size_.capacity() *
-                         sizeof(decltype(entry_allocated_size_)::value_type));
-  sizes.emplace_back("parent dir index", parent_dir_id_.size_in_bytes());
-  sizes.emplace_back("link target index", link_target_index_.size_in_bytes());
-  sizes.emplace_back("represented device", represented_device_.size_in_bytes());
-  sizes.emplace_back("inode number", inode_num_.size_in_bytes());
-  sizes.emplace_back("final entry index", final_entry_index_.size_in_bytes());
-  sizes.emplace_back("file data vec", file_data_vec_.size_in_bytes());
-  sizes.emplace_back("file invalid vec",
-                     file_invalid_vec_.size() * sizeof(file_invalid_vec_[0]));
-  sizes.emplace_back("file hashes",
-                     file_hashes_ ? file_hashes_->size_in_bytes() : 0);
-  sizes.emplace_back("file inode id", file_inode_id_.size_in_bytes());
-  sizes.emplace_back("file data index", file_data_index_.size_in_bytes());
-  sizes.emplace_back("file order index", file_order_index_.size_in_bytes());
+  d.add("path name index", path_name_index_.size_in_bytes());
+  d.add("stat common", stat_common_.size_in_bytes());
+  d.add_tuple_field_sizes(stat_common_, kStatCommonFieldNames);
+  d.add("size", entry_size_.size_in_bytes());
+  d.add("allocated size",
+        entry_allocated_size_.capacity() *
+            sizeof(decltype(entry_allocated_size_)::value_type));
+  d.add("parent dir index", parent_dir_id_.size_in_bytes());
+  d.add("link target index", link_target_index_.size_in_bytes());
+  d.add("represented device", represented_device_.size_in_bytes());
+  d.add("inode number", inode_num_.size_in_bytes());
+  d.add("final entry index", final_entry_index_.size_in_bytes());
+  d.add("file data vec", file_data_vec_.size_in_bytes(), file_data_vec_.size());
+  d.add_tuple_field_sizes(file_data_vec_, kFileDataFieldNames);
+  d.add("file invalid vec",
+        file_invalid_vec_.size() * sizeof(file_invalid_vec_[0]),
+        file_invalid_vec_.size());
+  d.add("file hashes", file_hashes_ ? file_hashes_->size_in_bytes() : 0,
+        file_hashes_ ? file_hashes_->size() : 0);
+  d.add("file inode id", file_inode_id_.size_in_bytes());
+  d.add("file data index", file_data_index_.size_in_bytes());
+  d.add("file order index", file_order_index_.size_in_bytes());
 
-  auto const total_bytes = std::accumulate(
-      sizes.begin(), sizes.end(), 0ULL,
-      [](std::size_t acc, auto const& pair) { return acc + pair.second; });
-
-  os << path_name_index_.size() << " " << name << " entries ("
-     << size_with_unit(total_bytes) << "):\n";
-
-  for (auto const& [label, bytes] : sizes) {
-    if (bytes > 0) {
-      os << "  " << label << ": " << size_with_unit(bytes) << "\n";
-    }
-  }
+  d.dump(os, std::string{name} + " entries", path_name_index_.size());
 }
 
 void packed_inode_data::dump(std::ostream& os) const {
   std::vector<std::pair<std::string_view, std::size_t>> sizes;
 
-  sizes.emplace_back("hardlinks", total_cao_id_vec_bytes(files_for_inode_));
-  sizes.emplace_back("inode numbers", inode_num_.size_in_bytes());
-  sizes.emplace_back("scan errors",
-                     inode_scan_errors_.capacity() * sizeof(inode_scan_error));
-  sizes.emplace_back("fragment info", fragment_info_.size_in_bytes());
-  sizes.emplace_back("fragment data", fragment_data_.size_in_bytes());
-  sizes.emplace_back("fragment chunks",
-                     total_cao_id_vec_bytes(fragment_chunks_));
-  sizes.emplace_back("similarity info", similarity_info_.size_in_bytes());
-  sizes.emplace_back("similarity hashes", similarity_hash_.size_in_bytes());
-  sizes.emplace_back("similarity hash data",
-                     similarity_hash_data_.size() *
-                         sizeof(similarity_hash_data_[0]));
-  sizes.emplace_back("nilsimsa hash data", nilsimsa_hash_data_.size() *
-                                               sizeof(nilsimsa_hash_data_[0]));
+  memory_usage_dumper d;
 
-  auto const total_bytes = std::accumulate(
-      sizes.begin(), sizes.end(), 0ULL,
-      [](std::size_t acc, auto const& pair) { return acc + pair.second; });
+  d.add("hardlinks", total_cao_id_vec_bytes(files_for_inode_));
+  d.add("inode numbers", inode_num_.size_in_bytes());
+  d.add("scan errors",
+        inode_scan_errors_.capacity() * sizeof(inode_scan_error));
+  d.add("fragment info", fragment_info_.size_in_bytes());
+  d.add_tuple_field_sizes(fragment_info_, kInodeFragmentInfoFieldNames);
+  d.add("fragment data", fragment_data_.size_in_bytes());
+  d.add_tuple_field_sizes(fragment_data_, kInodeFragmentFieldNames);
+  d.add("fragment chunks", total_cao_id_vec_bytes(fragment_chunks_));
+  d.add("similarity info", similarity_info_.size_in_bytes());
+  d.add_tuple_field_sizes(similarity_info_, kInodeSimilarityInfoFieldNames);
+  d.add("similarity hashes", similarity_hash_.size_in_bytes());
+  d.add_tuple_field_sizes(similarity_hash_, kInodeSimilarityHashFieldNames);
+  d.add("similarity hash data",
+        similarity_hash_data_.size() * sizeof(similarity_hash_data_[0]));
+  d.add("nilsimsa hash data",
+        nilsimsa_hash_data_.size() * sizeof(nilsimsa_hash_data_[0]));
 
-  os << inode_num_.size() << " inodes (" << size_with_unit(total_bytes)
-     << "):\n";
-
-  for (auto const& [label, bytes] : sizes) {
-    if (bytes > 0) {
-      os << "  " << label << ": " << size_with_unit(bytes) << "\n";
-    }
-  }
+  d.dump(os, "inodes", inode_num_.size());
 }
 
 auto packed_entry_data::add_entry_common(shared_entry_data& shared,
