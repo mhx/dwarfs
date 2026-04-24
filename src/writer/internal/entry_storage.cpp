@@ -372,60 +372,15 @@ class packed_entry_data {
     return shared.get_path_component(path_ix).name();
   }
 
-  void update_global_entry_data(shared_entry_data const& shared,
-                                uint64_t const index,
-                                global_entry_data& data) const {
-    auto const& stat = stat_common_.at(index);
-
-    data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
-    data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
-    data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
-    if (keep_mtime_) {
-      data.add_mtime(get<kModificationTimeSecondField>(stat));
-    }
-    if (keep_atime_) {
-      data.add_atime(get<kAccessTimeSecondField>(stat));
-    }
-    if (keep_ctime_) {
-      data.add_ctime(get<kStatusChangeTimeSecondField>(stat));
-    }
-  }
+  void
+  update_global_entry_data(shared_entry_data const& shared,
+                           uint64_t const index, global_entry_data& data) const;
 
   void
   pack_entry(shared_entry_data const& shared, uint64_t const index,
              thrift::metadata::metadata::inodes_member_type::reference entry_v2,
              global_entry_data const& data,
-             time_resolution_converter const& timeres) const {
-    auto const& stat = stat_common_.at(index);
-    file_stat out{};
-
-    out.set_mode(shared.get_mode(get<kModeIndexField>(stat)));
-    out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
-    out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
-
-    if (keep_mtime_) {
-      out.set_mtimespec(get<kModificationTimeSecondField>(stat),
-                        get<kModificationTimeSubsecondField>(stat));
-    } else {
-      out.set_mtimespec(0, 0);
-    }
-
-    if (keep_atime_) {
-      out.set_atimespec(get<kAccessTimeSecondField>(stat),
-                        get<kAccessTimeSubsecondField>(stat));
-    } else {
-      out.set_atimespec(0, 0);
-    }
-
-    if (keep_ctime_) {
-      out.set_ctimespec(get<kStatusChangeTimeSecondField>(stat),
-                        get<kStatusChangeTimeSubsecondField>(stat));
-    } else {
-      out.set_ctimespec(0, 0);
-    }
-
-    data.pack_inode_stat(entry_v2, out, timeres);
-  }
+             time_resolution_converter const& timeres) const;
 
   unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
                                       uint64_t const index) const {
@@ -618,6 +573,19 @@ class packed_entry_data {
   }
 
  private:
+  struct mtime_traits;
+  struct atime_traits;
+  struct ctime_traits;
+
+  template <typename... Ts, typename Fn>
+  static void for_each_time(Fn const& fn) {
+    (fn.template operator()<Ts>(), ...);
+  }
+
+  static void for_all_times(auto&& fn) {
+    for_each_time<mtime_traits, atime_traits, ctime_traits>(fn);
+  }
+
   entry_type this_type_;
 
   bool const keep_mtime_{true};
@@ -666,6 +634,51 @@ class packed_entry_data {
 
   // device-specific:
   segtor<file_stat::dev_type> represented_device_;
+};
+
+struct packed_entry_data::mtime_traits {
+  static constexpr auto keep = &packed_entry_data::keep_mtime_;
+
+  static constexpr auto sec_field = kModificationTimeSecondField;
+  static constexpr auto nsec_field = kModificationTimeSubsecondField;
+
+  static auto sec(auto const& st) { return st.mtime_unchecked(); }
+  static auto nsec(auto const& st) { return st.mtime_nsec_unchecked(); }
+
+  static void add(auto& data, auto v) { data.add_mtime(v); }
+  static void set_spec(auto& out, auto sec, auto nsec) {
+    out.set_mtimespec(sec, nsec);
+  }
+};
+
+struct packed_entry_data::atime_traits {
+  static constexpr auto keep = &packed_entry_data::keep_atime_;
+
+  static constexpr auto sec_field = kAccessTimeSecondField;
+  static constexpr auto nsec_field = kAccessTimeSubsecondField;
+
+  static auto sec(auto const& st) { return st.atime_unchecked(); }
+  static auto nsec(auto const& st) { return st.atime_nsec_unchecked(); }
+
+  static void add(auto& data, auto v) { data.add_atime(v); }
+  static void set_spec(auto& out, auto sec, auto nsec) {
+    out.set_atimespec(sec, nsec);
+  }
+};
+
+struct packed_entry_data::ctime_traits {
+  static constexpr auto keep = &packed_entry_data::keep_ctime_;
+
+  static constexpr auto sec_field = kStatusChangeTimeSecondField;
+  static constexpr auto nsec_field = kStatusChangeTimeSubsecondField;
+
+  static auto sec(auto const& st) { return st.ctime_unchecked(); }
+  static auto nsec(auto const& st) { return st.ctime_nsec_unchecked(); }
+
+  static void add(auto& data, auto v) { data.add_ctime(v); }
+  static void set_spec(auto& out, auto sec, auto nsec) {
+    out.set_ctimespec(sec, nsec);
+  }
 };
 
 class packed_inode_data {
@@ -1142,31 +1155,15 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
   std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
 
-  if (keep_mtime_) {
-    std::get<kModificationTimeSecondField>(tmp) = st.mtime_unchecked();
+  for_all_times([&]<typename time>() {
+    if (this->*time::keep) {
+      std::get<time::sec_field>(tmp) = time::sec(st);
 
-    if (keep_subsecond_) {
-      std::get<kModificationTimeSubsecondField>(tmp) =
-          st.mtime_nsec_unchecked();
+      if (this->keep_subsecond_) {
+        std::get<time::nsec_field>(tmp) = time::nsec(st);
+      }
     }
-  }
-
-  if (keep_atime_) {
-    std::get<kAccessTimeSecondField>(tmp) = st.atime_unchecked();
-
-    if (keep_subsecond_) {
-      std::get<kAccessTimeSubsecondField>(tmp) = st.atime_nsec_unchecked();
-    }
-  }
-
-  if (keep_ctime_) {
-    std::get<kStatusChangeTimeSecondField>(tmp) = st.ctime_unchecked();
-
-    if (keep_subsecond_) {
-      std::get<kStatusChangeTimeSubsecondField>(tmp) =
-          st.ctime_nsec_unchecked();
-    }
-  }
+  });
 
   std::get<kInodeField>(tmp) = st.ino_unchecked();
   std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
@@ -1190,6 +1187,46 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   }
 
   return {entry_ix, path_ix};
+}
+
+void packed_entry_data::update_global_entry_data(
+    shared_entry_data const& shared, uint64_t const index,
+    global_entry_data& data) const {
+  auto const& stat = stat_common_.at(index);
+
+  data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
+  data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
+  data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
+
+  for_all_times([&]<typename time>() {
+    if (this->*time::keep) {
+      time::add(data, std::get<time::sec_field>(stat));
+    }
+  });
+}
+
+void packed_entry_data::pack_entry(
+    shared_entry_data const& shared, uint64_t const index,
+    thrift::metadata::metadata::inodes_member_type::reference entry_v2,
+    global_entry_data const& data,
+    time_resolution_converter const& timeres) const {
+  auto const& stat = stat_common_.at(index);
+  file_stat out{};
+
+  out.set_mode(shared.get_mode(get<kModeIndexField>(stat)));
+  out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
+  out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
+
+  for_all_times([&]<typename time>() {
+    if (this->*time::keep) {
+      time::set_spec(out, std::get<time::sec_field>(stat),
+                     std::get<time::nsec_field>(stat));
+    } else {
+      time::set_spec(out, 0, 0);
+    }
+  });
+
+  data.pack_inode_stat(entry_v2, out, timeres);
 }
 
 [[noreturn]] void frozen_panic() { DWARFS_PANIC("entry_storage is frozen"); }
