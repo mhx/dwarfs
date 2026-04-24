@@ -765,7 +765,7 @@ void scanner_<LoggerPolicy>::scan(
     }
   }
 
-  global_entry_data ge_data(options_.metadata);
+  auto ge_data = std::make_optional<global_entry_data>(options_.metadata);
   metadata_builder mdb(LOG_GET_LOGGER, options_.metadata);
 
   LOG_INFO << "assigning device inodes...";
@@ -785,22 +785,22 @@ void scanner_<LoggerPolicy>::scan(
 
   wg_.add_job([&] {
     LOG_INFO << "saving names and symlinks...";
-    names_and_symlinks_visitor nlv(ge_data);
+    names_and_symlinks_visitor nlv(*ge_data);
     root.accept(nlv);
 
     {
       auto tv = LOG_TIMED_VERBOSE;
-      ge_data.update_index();
+      ge_data->update_index();
       tv << "global name and link indices updated";
     }
 
     LOG_INFO << "updating name and link indices...";
     root.walk([&](entry_handle ep) {
-      ep.update(ge_data);
+      ep.update(*ge_data);
       if (auto lp = ep.as_link()) {
         mdb.add_symlink_table_entry(
             ep.inode_num().value() - first_link_inode,
-            ge_data.get_symlink_table_entry(lp.linkname()));
+            ge_data->get_symlink_table_entry(lp.linkname()));
       }
     });
   });
@@ -942,7 +942,7 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "saving directories...";
   save_directories_visitor sdv(first_link_inode);
   root.accept(sdv);
-  mdb.gather_entries(sdv.get_directories(), ge_data, last_inode);
+  mdb.gather_entries(sdv.get_directories(), *ge_data, last_inode);
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
@@ -997,17 +997,18 @@ void scanner_<LoggerPolicy>::scan(
     mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
-  LOG_VERBOSE << ge_data.to_string();
+  LOG_VERBOSE << ge_data->to_string();
 
   {
     auto tv = LOG_TIMED_VERBOSE;
-    mdb.gather_global_entry_data(ge_data);
+    mdb.gather_global_entry_data(*ge_data);
     tv << "global entry data gathered for metadata";
   }
 
   // free all entry storage
   LOG_VERBOSE << "entry/inode storage:\n" << tree->dump();
   tree.reset();
+  ge_data.reset();
 
   auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
 
