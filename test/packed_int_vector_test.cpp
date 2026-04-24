@@ -457,6 +457,9 @@ TEST(segmented_packed_int_vector, supports_tuple_types) {
   EXPECT_EQ(get<1>(vec[1]), 17);
   EXPECT_EQ(get<0>(vec[3]), my_enum::D);
   EXPECT_EQ(get<1>(vec[4]), 7);
+
+  auto const field_sizes = vec.field_sizes_in_bytes();
+  EXPECT_THAT(field_sizes, ElementsAre(1, 5));
 }
 
 TEST(segmented_packed_int_vector, equality_operator) {
