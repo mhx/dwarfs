@@ -28,6 +28,8 @@
 #include <optional>
 #include <ranges>
 
+#include <parallel_hashmap/phmap.h>
+
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -1048,7 +1050,8 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
   LOG_TRACE << "reg_offset: " << reg_offset;
   LOG_TRACE << "dev_offset: " << dev_offset;
 
-  std::vector<uint32_t> reg_inode_refs(md_.chunk_table()->size() - 1, 0);
+  dwarfs::container::auto_packed_int_vector<std::size_t> reg_inode_refs(
+      0, md_.chunk_table()->size() - 1);
 
   for (auto const& inode : md_.inodes().value()) {
     auto const inode_v2_2 = inode.inode_v2_2().value();
@@ -1096,9 +1099,9 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
   uint32_t unique_inode = reg_offset;
   uint32_t shared_inode = shared_offset;
   uint32_t shared_chunk_index = 0;
-  std::unordered_map<uint32_t, uint32_t> shared_inode_map;
-  std::vector<thrift::metadata::chunk> shared_chunks;
-  std::vector<uint32_t> shared_chunk_table;
+  phmap::flat_hash_map<uint32_t, uint32_t> shared_inode_map;
+  thrift::metadata::metadata::chunks_member_type shared_chunks;
+  dwarfs::container::auto_packed_int_vector<std::size_t> shared_chunk_table;
   shared_chunk_table.push_back(0);
 
   for (auto const& inode : md_.inodes().value()) {
