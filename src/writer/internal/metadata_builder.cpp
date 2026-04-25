@@ -28,6 +28,7 @@
 #include <optional>
 #include <ranges>
 
+#include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
@@ -678,7 +679,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
   }
 
   if (reg_offset < dev_offset) {
-    std::vector<uint32_t> nlink_table;
+    dwarfs::container::auto_packed_int_vector<std::size_t> nlink_table;
 
     if (options_.no_hardlink_table) {
       nlink_table.resize(dev_offset - reg_offset);
