@@ -1334,6 +1334,7 @@ file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/src/*.cpp
