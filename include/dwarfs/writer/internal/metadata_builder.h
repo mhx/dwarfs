@@ -29,7 +29,9 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/container/packed_int_vector.h>
+
+#include <dwarfs/writer/internal/entry_id.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
@@ -45,6 +47,7 @@ struct metadata_options;
 
 namespace writer::internal {
 
+class entry_storage;
 class global_entry_data;
 class inode_manager;
 class block_manager;
@@ -65,6 +68,8 @@ struct block_mapping {
 
 class metadata_builder {
  public:
+  using dir_id_vector = container::auto_packed_int_vector<dir_id>;
+
   // Start with empty metadata
   metadata_builder(logger& lgr, metadata_options const& options);
 
@@ -124,9 +129,9 @@ class metadata_builder {
     impl_->gather_chunks(im, bm, chunk_count);
   }
 
-  void gather_entries(std::span<dir_handle> dirs,
+  void gather_entries(entry_storage& storage, dir_id_vector const& dirs,
                       global_entry_data const& ge_data, uint32_t num_inodes) {
-    impl_->gather_entries(dirs, ge_data, num_inodes);
+    impl_->gather_entries(storage, dirs, ge_data, num_inodes);
   }
 
   void gather_global_entry_data(global_entry_data const& ge_data) {
@@ -162,8 +167,8 @@ class metadata_builder {
     virtual void gather_chunks(inode_manager const& im, block_manager const& bm,
                                size_t chunk_count) = 0;
     virtual void
-    gather_entries(std::span<dir_handle> dirs, global_entry_data const& ge_data,
-                   uint32_t num_inodes) = 0;
+    gather_entries(entry_storage& storage, dir_id_vector const& dirs,
+                   global_entry_data const& ge_data, uint32_t num_inodes) = 0;
     virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
     virtual void remap_blocks(std::span<block_mapping const> mapping,
                               size_t new_block_count) = 0;
