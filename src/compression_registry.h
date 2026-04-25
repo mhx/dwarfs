@@ -40,9 +40,9 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/config.h>
-#include <dwarfs/library_dependencies.h>
 #include <dwarfs/detail/compression_registry.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/library_dependencies.h>
 
 namespace dwarfs::detail {
 
@@ -75,12 +75,11 @@ void compression_registry<FactoryT, InfoT>::for_each_algorithm(
 template <typename FactoryT, typename InfoT>
 void compression_registry<FactoryT, InfoT>::add_library_dependencies(
     library_dependencies& deps) const {
-  this->for_each_algorithm(
-      [&](compression_type, InfoT const& info) {
-        for (auto const& lib : info.library_dependencies()) {
-          deps.add_library(lib);
-        }
-      });
+  this->for_each_algorithm([&](compression_type, InfoT const& info) {
+    for (auto const& lib : info.library_dependencies()) {
+      deps.add_library(lib);
+    }
+  });
 }
 
 template <typename FactoryT, typename InfoT>
