@@ -470,11 +470,11 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   auto root = internal::provisional_entry(os_, path).commit(tree);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
-  std::deque<entry_handle> queue({root});
+  std::deque<entry_id> queue({root.id()});
   prog.dirs_found++;
 
   while (!queue.empty()) {
-    auto parent = queue.front().as_dir();
+    auto parent = tree.handle(queue.front()).as_dir();
 
     DWARFS_CHECK(parent, "expected directory");
 
@@ -484,12 +484,12 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
     try {
       auto d = os_.opendir(ppath);
       std::filesystem::path name;
-      std::vector<entry_handle> subdirs;
+      std::vector<entry_id> subdirs;
 
       while (d->read(name)) {
         if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
           if (pe.is_dir()) {
-            subdirs.push_back(pe);
+            subdirs.push_back(pe.id());
           }
         }
       }
