@@ -38,6 +38,7 @@ namespace dwarfs::writer::internal {
 class sortable_inode_span {
  public:
   using index_value_type = uint32_t;
+  using index_type = std::vector<index_value_type>;
 
   class iterator
       : public boost::iterator_facade<iterator, inode_handle,
@@ -55,8 +56,7 @@ class sortable_inode_span {
     friend class boost::iterator_core_access;
     friend class sortable_inode_span;
 
-    iterator(sortable_inode_span const* vv,
-             std::vector<index_value_type>::iterator it)
+    iterator(sortable_inode_span const* vv, index_type::iterator it)
         : vv_(vv)
         , it_(it) {}
 
@@ -77,7 +77,7 @@ class sortable_inode_span {
     inode_handle dereference() const { return vv_->mutable_raw_handle(*it_); }
 
     sortable_inode_span const* vv_{nullptr};
-    std::vector<index_value_type>::iterator it_;
+    index_type::iterator it_;
   };
 
   explicit sortable_inode_span(entry_storage& storage)
@@ -106,8 +106,8 @@ class sortable_inode_span {
 
   iterator end() { return {this, index_.end()}; }
 
-  std::vector<index_value_type>& index() { return index_; }
-  std::vector<index_value_type> const& index() const { return index_; }
+  index_type& index() { return index_; }
+  index_type const& index() const { return index_; }
 
   const_inode_handle handle(size_t i) const { return raw_handle(index_[i]); }
 
@@ -130,7 +130,7 @@ class sortable_inode_span {
 
  private:
   entry_storage* storage_{nullptr};
-  std::vector<index_value_type> index_;
+  index_type index_;
   std::size_t const raw_size_{0};
 };
 

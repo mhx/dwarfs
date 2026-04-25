@@ -29,6 +29,7 @@
 
 #include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/receiver.h>
+#include <dwarfs/writer/internal/sortable_inode_span.h>
 
 namespace dwarfs {
 
@@ -77,8 +78,8 @@ class similarity_ordering {
 
   void
   order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
-                 receiver<std::vector<index_value_type>> rec,
-                 std::vector<index_value_type> index) const {
+                 receiver<sortable_inode_span::index_type> rec,
+                 sortable_inode_span::index_type index) const {
     impl_->order_nilsimsa(ev, std::move(rec), std::move(index));
   }
 
@@ -88,8 +89,8 @@ class similarity_ordering {
 
     virtual void
     order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
-                   receiver<std::vector<index_value_type>> rec,
-                   std::vector<index_value_type> index) const = 0;
+                   receiver<sortable_inode_span::index_type> rec,
+                   sortable_inode_span::index_type index) const = 0;
   };
 
  private:

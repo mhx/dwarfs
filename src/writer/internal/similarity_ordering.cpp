@@ -231,7 +231,7 @@ template <size_t Bits, typename BitsType, typename CountsType,
 struct basic_cluster {
   using centroid_type = basic_centroid<Bits, BitsType, CountsType>;
   using index_value_type = IndexValueType;
-  using index_type = std::vector<index_value_type>;
+  using index_type = sortable_inode_span::index_type;
 
   basic_cluster() = default;
   explicit basic_cluster(index_type&& index)
@@ -294,7 +294,7 @@ template <typename LoggerPolicy>
 class similarity_ordering_ final : public similarity_ordering::impl {
  public:
   using index_value_type = similarity_ordering::index_value_type;
-  using index_type = std::vector<index_value_type>;
+  using index_type = sortable_inode_span::index_type;
   using duplicates_map = std::unordered_map<index_value_type, index_type>;
   using nilsimsa_element_view =
       basic_array_similarity_element_view<256, uint64_t>;
@@ -453,8 +453,9 @@ void similarity_ordering_<LoggerPolicy>::order_cluster(
 
     auto getter = [&bits](auto i) { return bits[i]; };
     auto swapper = [&bits, &index](auto i, auto k) {
-      std::swap(bits[i], bits[k]);
-      std::swap(index[i], index[k]);
+      using std::swap;
+      swap(bits[i], bits[k]);
+      swap(index[i], index[k]);
     };
 
     order_by_shortest_path(index.size(), getter, getter, swapper);

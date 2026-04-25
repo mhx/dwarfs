@@ -30,16 +30,18 @@
 
 #include <dwarfs/writer/internal/nilsimsa.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>
+#include <dwarfs/writer/internal/sortable_inode_span.h>
 
 namespace dwarfs::writer::internal {
 
 class inode;
-class sortable_inode_span;
 
 class inode_element_view
     : public basic_array_similarity_element_view<256, uint64_t> {
  public:
-  inode_element_view(sortable_inode_span& sp, std::span<uint32_t const> index,
+  using index_type = sortable_inode_span::index_type;
+
+  inode_element_view(sortable_inode_span& sp, index_type const& index,
                      fragment_category cat);
 
   bool exists(size_t i) const override;

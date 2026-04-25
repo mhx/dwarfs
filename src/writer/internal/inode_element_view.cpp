@@ -31,12 +31,12 @@
 namespace dwarfs::writer::internal {
 
 inode_element_view::inode_element_view(sortable_inode_span& sp,
-                                       std::span<uint32_t const> index,
+                                       index_type const& index,
                                        fragment_category cat)
     : sp_{sp}
     , cat_{cat} {
   hash_cache_.resize(sp_.raw_size());
-  for (auto i : index) {
+  for (auto&& i : index) {
     hash_cache_[i] = sp_.raw_handle(i).nilsimsa_similarity_hash(cat);
   }
 }
