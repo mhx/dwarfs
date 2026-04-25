@@ -247,6 +247,11 @@ class basic_packed_int_vector {
     }
   }
 
+  template <std::input_iterator InputIt>
+  basic_packed_int_vector(InputIt first, InputIt last) {
+    insert(begin(), first, last);
+  }
+
   template <std::ranges::forward_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>,
                                  value_type> &&
