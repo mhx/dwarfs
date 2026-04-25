@@ -69,9 +69,11 @@ class inode_ordering_ final : public inode_ordering::impl {
                          fragment_order_options const& opts) const override;
 
  private:
+  using index_type = typename sortable_inode_span::index_type;
+
   void
   by_nilsimsa_impl(worker_group& wg, similarity_ordering_options const& opts,
-                   sortable_inode_span& sp, std::vector<uint32_t>& index,
+                   sortable_inode_span& sp, index_type& index,
                    fragment_category cat) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -202,7 +204,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
       });
 
       if (mid != index.end()) {
-        std::vector<uint32_t> small_index(mid, index.end());
+        index_type small_index(mid, index.end());
         by_nilsimsa_impl(wg, opts, sp, small_index, cat);
         std::ranges::copy(small_index, mid);
       }
@@ -217,10 +219,9 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
     worker_group& wg, similarity_ordering_options const& opts,
-    sortable_inode_span& sp, std::vector<uint32_t>& index,
-    fragment_category cat) const {
+    sortable_inode_span& sp, index_type& index, fragment_category cat) const {
   auto ev = inode_element_view(sp, index, cat);
-  std::promise<std::vector<uint32_t>> promise;
+  std::promise<index_type> promise;
   auto future = promise.get_future();
   auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
   sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)),
