@@ -26,9 +26,10 @@
 #include <cassert>
 #include <numeric>
 #include <span>
-#include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+
+#include <dwarfs/container/packed_int_vector.h>
 
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/inode_handle.h>
@@ -37,8 +38,9 @@ namespace dwarfs::writer::internal {
 
 class sortable_inode_span {
  public:
-  using index_value_type = uint32_t;
-  using index_type = std::vector<index_value_type>;
+  using index_value_type = std::size_t;
+  using index_type =
+      dwarfs::container::auto_packed_int_vector<index_value_type>;
 
   class iterator
       : public boost::iterator_facade<iterator, inode_handle,
