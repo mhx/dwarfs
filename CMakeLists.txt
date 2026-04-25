@@ -155,6 +155,7 @@ endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/compile.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/detect_libstdcpp_version.cmake)
 
 if(NOT PRJ_VERSION_FULL)
   message(FATAL_ERROR "PRJ_VERSION_FULL is not set")
@@ -166,6 +167,16 @@ if(ENABLE_BUILD_TIME_TRACE)
   add_compile_options(
     $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-ftime-trace>
   )
+endif()
+
+detect_libstdcpp_version(LIBSTDCXX_VERSION)
+
+if(LIBSTDCXX_VERSION)
+  if(LIBSTDCXX_VERSION VERSION_LESS "13")
+    message(FATAL_ERROR "DwarFS requires libstdc++ 13 or newer, but found only version ${LIBSTDCXX_VERSION}")
+  else()
+    message(STATUS "Found libstdc++ version ${LIBSTDCXX_VERSION}")
+  endif()
 endif()
 
 find_package(PkgConfig)
