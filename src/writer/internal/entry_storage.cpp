@@ -42,6 +42,7 @@
 #include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
 #include <dwarfs/match.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -178,7 +179,7 @@ class path_component {
 #endif
   }
 
-  std::string_view name() const { return name_; }
+  std::string const& name() const { return name_; }
 
   std::size_t size_in_bytes() const {
 #if DWARFS_KEEP_FS_PATHS
@@ -187,6 +188,15 @@ class path_component {
 #else
     return sizeof(path_component) +
            (uses_inline_buffer(name_) ? 0 : name_.capacity());
+#endif
+  }
+
+  fs::path::string_type const& native() const {
+#if DWARFS_KEEP_FS_PATHS
+    return path_.native();
+#else
+    static_assert(std::is_same_v<fs::path::string_type, std::string>);
+    return name_;
 #endif
   }
 
@@ -217,18 +227,7 @@ struct std::hash<dwarfs::writer::internal::path_component> {
 namespace dwarfs::writer::internal {
 namespace {
 
-constexpr char kLocalPathSeparator{
-    static_cast<char>(fs::path::preferred_separator)};
-
 using inode_scan_error = std::pair<file_id, std::exception_ptr>;
-
-bool is_root_path(std::string_view path) {
-#ifdef _WIN32
-  return path == "/" || path == "\\";
-#else
-  return path == "/";
-#endif
-}
 
 template <typename T>
 using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
@@ -429,7 +428,14 @@ class packed_entry_data {
     return shared.get_path_component(path_ix).path();
   }
 
-  std::string_view
+  fs::path::string_type const&
+  get_native_path_string(shared_entry_data const& shared,
+                         uint64_t const index) const {
+    auto const path_ix = path_name_index_.at(index);
+    return shared.get_path_component(path_ix).native();
+  }
+
+  std::string const&
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
     auto const path_ix = path_name_index_.at(index);
     return shared.get_path_component(path_ix).name();
@@ -1497,42 +1503,34 @@ class entry_storage_ final : public entry_storage::entry_impl {
   fs::path get_path(entry_id id) const override {
     TRACE_CALL;
 
-    fs::path p = get_path_impl(id);
+    small_vector<entry_id, 64> components;
 
-    while ((id = get_parent_impl(id))) {
-      p = get_path_impl(id) / p;
-    }
+    fill_path_components(id, components);
 
-    return p;
+    return fs::path(build_path_from_components<fs::path::string_type,
+                                               fs::path::preferred_separator>(
+        components, [this](entry_id const id) -> fs::path::string_type const& {
+          return get_native_path_string_impl(id);
+        }));
   }
 
   std::string get_unix_dpath(entry_id id) const override {
     TRACE_CALL;
 
+    bool const is_dir = id.is_dir();
     std::string p;
 
-    for (;;) {
-      auto const name = get_path_string_impl(id);
-      bool const is_root = is_root_path(name);
+    small_vector<entry_id, 64> components;
 
-      if (is_root || id.is_dir()) {
-        p.insert(0, std::string_view{"/"});
-      }
+    fill_path_components(id, components);
 
-      if (!is_root) {
-        p.insert(0, name);
-      }
+    p = build_path_from_components<std::string, '/'>(
+        components, [this](entry_id const id) -> std::string const& {
+          return get_path_string_impl(id);
+        });
 
-      id = get_parent_impl(id);
-
-      if (!id.valid()) {
-        if constexpr (kLocalPathSeparator != '/') {
-          std::replace(p.begin(), p.begin() + name.size(), kLocalPathSeparator,
-                       '/');
-        }
-
-        break;
-      }
+    if (is_dir && !p.ends_with('/')) {
+      p.append(1, '/');
     }
 
     return p;
@@ -1610,8 +1608,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
     TRACE_CALL;
 
     while (lhs.valid() && rhs.valid()) {
-      auto const lname = get_path_string_impl(lhs);
-      auto const rname = get_path_string_impl(rhs);
+      auto const& lname = get_path_string_impl(lhs);
+      auto const& rname = get_path_string_impl(rhs);
 
       if (lname != rname) {
         return lname < rname;
@@ -1733,6 +1731,57 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void dump_events(std::ostream& os) const override;
 
  private:
+  template <typename Vector>
+  void fill_path_components(entry_id id, Vector& components) const {
+    while (id.valid()) {
+      components.push_back(id);
+      id = get_parent_impl(id);
+    }
+  }
+
+  template <typename Output, Output::value_type Separator, typename Vector,
+            typename GetPathFunc>
+  Output build_path_from_components(Vector const& components,
+                                    GetPathFunc const& get_path_func) const {
+    static constexpr std::size_t kDefaultPathSize = 255;
+
+    Output p;
+
+    // TODO: we might be able to determine a better size hint here by looking
+    //       at the components, but this is probably overkill since these
+    //       buffers are usually only temporary
+
+    p.reserve(kDefaultPathSize);
+
+    bool first = true;
+
+    for (auto it = components.rbegin(); it != components.rend(); ++it) {
+      auto const& name = get_path_func(*it);
+
+      if (!p.empty() && !p.ends_with(Separator)) {
+        p.append(1, Separator);
+      }
+
+      p.append(name);
+
+      if (first) {
+        static constexpr auto kLocalPathSeparator =
+            static_cast<Output::value_type>(fs::path::preferred_separator);
+        first = false;
+        if constexpr (kLocalPathSeparator != Separator) {
+          std::replace(p.begin(), p.end(), kLocalPathSeparator, Separator);
+        } else {
+#ifdef _WIN32
+          std::replace(p.begin(), p.end(), static_cast<Output::value_type>('/'),
+                       Separator);
+#endif
+        }
+      }
+    }
+
+    return p;
+  }
+
   void sort_all_directory_entries()
     requires is_mutable
   {
@@ -1848,7 +1897,12 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return dispatch_shared_(&packed_entry_data::get_path, id);
   }
 
-  std::string_view get_path_string_impl(entry_id const id) const {
+  fs::path::string_type const&
+  get_native_path_string_impl(entry_id const id) const {
+    return dispatch_shared_(&packed_entry_data::get_native_path_string, id);
+  }
+
+  std::string const& get_path_string_impl(entry_id const id) const {
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
   }
 
