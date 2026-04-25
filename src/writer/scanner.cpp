@@ -175,18 +175,20 @@ class names_and_symlinks_visitor : public visitor_base {
 
 class save_directories_visitor : public visitor_base {
  public:
-  explicit save_directories_visitor(size_t num_directories) {
-    directories_.resize(num_directories);
-  }
+  using dir_id_vector = metadata_builder::dir_id_vector;
+
+  explicit save_directories_visitor(size_t num_directories)
+      : directory_ids_(std::bit_width(num_directories), num_directories) {}
 
   void visit(dir_handle p) override {
-    directories_.at(p.inode_num().value()) = p;
+    auto const ino = p.inode_num().value();
+    directory_ids_.at(ino) = p.id();
   }
 
-  std::span<dir_handle> get_directories() { return directories_; }
+  dir_id_vector const& get_directory_ids() { return directory_ids_; }
 
  private:
-  std::vector<dir_handle> directories_;
+  dir_id_vector directory_ids_;
 };
 
 class save_shared_files_visitor : public visitor_base {
@@ -940,15 +942,19 @@ void scanner_<LoggerPolicy>::scan(
   mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
 
   LOG_INFO << "saving directories...";
-  save_directories_visitor sdv(first_link_inode);
-  root.accept(sdv);
-  mdb.gather_entries(sdv.get_directories(), *ge_data, last_inode);
+  {
+    save_directories_visitor sdv(first_link_inode);
+    root.accept(sdv);
+    mdb.gather_entries(*tree, sdv.get_directory_ids(), *ge_data, last_inode);
+  }
 
   LOG_INFO << "saving shared files table...";
-  save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
-                                 num_unique_files);
-  root.accept(ssfv);
-  mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
+  {
+    save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
+                                   num_unique_files);
+    root.accept(ssfv);
+    mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
+  }
 
   if (auto catmgr = options_.inode.categorizer_mgr) {
     std::unordered_map<fragment_category::value_type, uint32_t>
