@@ -48,4 +48,3 @@ struct fmt::formatter<std::endian> : formatter<std::string_view> {
     return formatter<std::string_view>::format(sv, ctx);
   }
 };
-
