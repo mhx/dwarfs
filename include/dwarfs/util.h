@@ -82,6 +82,7 @@ bool is_well_formed_utf16_path(std::filesystem::path const& p);
 
 std::filesystem::path canonical_path(std::filesystem::path p);
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p);
+std::u8string path_to_u8string_sanitized(std::filesystem::path const& p);
 
 bool getenv_is_enabled(char const* var);
 bool getenv_is_enabled(os_access const& os, char const* var);

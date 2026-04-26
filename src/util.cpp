@@ -380,6 +380,26 @@ bool less_than_one_thousandth(rounded_decimal const& x) {
   return scientific_exponent(x) < -3;
 }
 
+#ifdef _WIN32
+template <typename OutT>
+OutT path_to_utf8_string_sanitized_impl(std::filesystem::path const& p) {
+  static_assert(std::is_same_v<std::filesystem::path::value_type, wchar_t>);
+
+  auto const& in = p.native();
+  if (in.empty()) {
+    return {};
+  }
+  int const in_size = static_cast<int>(in.size());
+  int const size_needed = ::WideCharToMultiByte(CP_UTF8, 0, in.data(), in_size,
+                                                NULL, 0, NULL, NULL);
+  OutT out(size_needed, 0);
+  ::WideCharToMultiByte(CP_UTF8, 0, in.data(), in_size,
+                        reinterpret_cast<LPSTR>(&out[0]), size_needed, NULL,
+                        NULL);
+  return out;
+}
+#endif
+
 } // namespace
 
 std::string size_with_unit(file_size_t const size) {
@@ -878,20 +898,17 @@ bool is_well_formed_utf16_path(std::filesystem::path const& p) {
 
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p) {
 #ifdef _WIN32
-  static_assert(std::is_same_v<std::filesystem::path::value_type, wchar_t>);
-
-  auto const& in = p.native();
-  if (in.empty()) {
-    return {};
-  }
-  int size_needed = ::WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(),
-                                          NULL, 0, NULL, NULL);
-  std::string out(size_needed, 0);
-  ::WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(), &out[0],
-                        size_needed, NULL, NULL);
-  return out;
+  return path_to_utf8_string_sanitized_impl<std::string>(p);
 #else
   return u8string_to_string(p.u8string());
+#endif
+}
+
+std::u8string path_to_u8string_sanitized(std::filesystem::path const& p) {
+#ifdef _WIN32
+  return path_to_utf8_string_sanitized_impl<std::u8string>(p);
+#else
+  return p.u8string();
 #endif
 }
 
