@@ -97,6 +97,7 @@ class basic_inode_handle final {
   nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const;
   file_size_t size() const;
+  const_file_handle first_file() const;
   const_file_handle any() const;
   file_id_vector const& all_file_ids() const;
   auto all() const {

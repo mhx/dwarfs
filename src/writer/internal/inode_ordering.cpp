@@ -43,7 +43,7 @@ bool inode_less_by_size(const_inode_handle const& a,
                         const_inode_handle const& b) {
   auto sa = a.size();
   auto sb = b.size();
-  return sa > sb || (sa == sb && a.any().less_revpath(b.any()));
+  return sa > sb || (sa == sb && a.first_file().less_revpath(b.first_file()));
 }
 
 } // namespace
@@ -97,7 +97,7 @@ void inode_ordering_<LoggerPolicy>::by_input_order(
   std::ranges::sort(sp.index(), [&sp](auto const a, auto const b) {
     auto const& ha = sp.raw_handle(a);
     auto const& hb = sp.raw_handle(b);
-    return ha.any().order_index() < hb.any().order_index();
+    return ha.first_file().order_index() < hb.first_file().order_index();
   });
 }
 
@@ -113,7 +113,7 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
 
   for (auto i : index) {
     assert(i < paths.size());
-    paths[i] = sp.raw_handle(i).any().unix_dpath();
+    paths[i] = sp.raw_handle(i).first_file().unix_dpath();
   }
 
   std::ranges::sort(index, [&paths](auto const a, auto const b) {
@@ -129,7 +129,7 @@ void inode_ordering_<LoggerPolicy>::by_reverse_path(
   std::ranges::sort(index, [&sp](auto const a, auto const b) {
     auto const& ha = sp.raw_handle(a);
     auto const& hb = sp.raw_handle(b);
-    return ha.any().less_revpath(hb.any());
+    return ha.first_file().less_revpath(hb.first_file());
   });
 }
 
@@ -246,7 +246,8 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   path_order.resize(sp.raw_size());
 
   for (auto i : index) {
-    paths[i] = sp.raw_handle(i).any().fs_path().lexically_relative(root_path);
+    paths[i] =
+        sp.raw_handle(i).first_file().fs_path().lexically_relative(root_path);
 
     if (auto it = order.find(paths[i]); it != order.end()) {
       path_order[i] = it->second;
