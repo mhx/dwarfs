@@ -71,7 +71,7 @@ std::string entry_handle_base<Mut>::unix_dpath() const {
 }
 
 template <mutability Mut>
-std::string_view entry_handle_base<Mut>::name() const {
+std::string entry_handle_base<Mut>::name() const {
   return storage_->get_name(self_id_);
 }
 
@@ -396,7 +396,7 @@ void basic_dir_handle<Mut>::for_each_child(
 // ---------- link_handle ----------
 
 template <detail::mutability Mut>
-std::string_view basic_link_handle<Mut>::linkname() const {
+std::string basic_link_handle<Mut>::linkname() const {
   return this->storage().get_link_target(this->id());
 }
 

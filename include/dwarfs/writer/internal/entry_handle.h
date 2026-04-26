@@ -140,7 +140,7 @@ class entry_handle_base {
   std::filesystem::path fs_path() const;
   std::string path_as_string() const;
   std::string unix_dpath() const;
-  std::string_view name() const;
+  std::string name() const;
   bool less_revpath(basic_entry_handle<mutability::const_> rhs) const;
   file_size_t size() const;
   file_size_info size_info() const;
@@ -343,7 +343,7 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
 
   link_id id() const { return link_id{this->base_id()}; }
 
-  std::string_view linkname() const;
+  std::string linkname() const;
 };
 
 template <detail::mutability Mut>

@@ -308,7 +308,7 @@ struct shared_entry_data {
     return devices_.at(index);
   }
 
-  auto get_link_target(size_t index) const -> std::string_view {
+  auto get_link_target(size_t index) const -> std::string {
     return link_targets_.at(index);
   }
 
@@ -1490,7 +1490,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  std::string_view get_link_target(link_id id) const override {
+  std::string get_link_target(link_id id) const override {
     TRACE_CALL;
     return shared_.get_link_target(links_.get_link_target_index(id));
   }
@@ -1536,7 +1536,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return p;
   }
 
-  std::string_view get_name(entry_id const id) const override {
+  std::string get_name(entry_id const id) const override {
     TRACE_CALL;
     return get_path_string_impl(id);
   }
@@ -1936,8 +1936,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   packed_entry_data devices_{entry_type::E_DEVICE};
   packed_entry_data others_{entry_type::E_OTHER};
 
-  using dir_entry_lookup_table =
-      phmap::flat_hash_map<std::string_view, entry_id>;
+  using dir_entry_lookup_table = phmap::flat_hash_map<std::string, entry_id>;
   phmap::flat_hash_map<uint64_t,
                        dir_entry_lookup_table> mutable dir_entry_lookup_;
 
@@ -2196,7 +2195,7 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->set_link_target(id, std::move(link_target), prog);
   }
 
-  std::string_view get_link_target(link_id id) const override {
+  std::string get_link_target(link_id id) const override {
     return impl_.lock()->get_link_target(id);
   }
 
@@ -2220,7 +2219,7 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->get_unix_dpath(id);
   }
 
-  std::string_view get_name(entry_id const id) const override {
+  std::string get_name(entry_id const id) const override {
     return impl_.lock()->get_name(id);
   }
 

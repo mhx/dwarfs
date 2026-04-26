@@ -70,6 +70,7 @@ class global_entry_data {
 
   void update_index();
 
+  // TODO: size_t? better: remove entirely
   uint32_t get_name_index(std::string_view name) const;
   uint32_t get_symlink_table_entry(std::string_view link) const;
 
@@ -99,16 +100,16 @@ class global_entry_data {
   using index_map_type = map_type<T, index_type>;
 
   template <typename T>
-  using string_view_keyed_map_type =
-      map_type<std::string_view, T, string_like_hash, std::equal_to<>>;
+  using string_keyed_map_type =
+      map_type<std::string, T, string_like_hash, std::equal_to<>>;
 
-  using string_view_index_map_type = string_view_keyed_map_type<index_type>;
+  using string_index_map_type = string_keyed_map_type<index_type>;
 
   index_map_type<uid_type> uids_;
   index_map_type<gid_type> gids_;
   index_map_type<mode_type> modes_;
-  string_view_index_map_type names_;
-  string_view_index_map_type symlinks_;
+  string_index_map_type names_;
+  string_index_map_type symlinks_;
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   metadata_options const& options_;
 };
