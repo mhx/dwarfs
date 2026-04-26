@@ -325,6 +325,67 @@ struct shared_entry_data {
     swap(native_path_components_.at(a), native_path_components_.at(b));
   }
 
+  std::vector<std::string>
+  get_sorted_path_components(path_name_storage_tuple const& root) const {
+    std::vector<std::string> result;
+    std::size_t skip_count [[maybe_unused]] = 0;
+
+    result.reserve(utf8_path_components_.size() +
+                   native_path_components_.size() - 1);
+
+    for (std::size_t i = 0; i < utf8_path_components_.size(); ++i) {
+      if (root != path_name_storage_tuple{i, path_name_storage::utf8}) {
+        result.push_back(u8string_to_string(utf8_path_components_[i]));
+      } else {
+        ++skip_count;
+      }
+    }
+
+    for (std::size_t i = 0; i < native_path_components_.size(); ++i) {
+      if (root != path_name_storage_tuple{i, path_name_storage::native}) {
+        result.push_back(
+            path_to_utf8_string_sanitized(native_path_components_[i]));
+      } else {
+        ++skip_count;
+      }
+    }
+
+    assert(skip_count == 1);
+
+    assert(result.size() ==
+           utf8_path_components_.size() + native_path_components_.size() - 1);
+
+    return result;
+  }
+
+  std::size_t
+  get_path_component_index(path_name_storage_tuple const& root,
+                           path_name_storage_tuple const& entry) const {
+    if (root == entry) {
+      return 0;
+    }
+
+    auto [rindex, rtype] = root;
+    auto [index, type] = entry;
+
+    if (rtype == path_name_storage::native) {
+      rindex += utf8_path_components_.size();
+    }
+
+    if (type == path_name_storage::native) {
+      index += utf8_path_components_.size();
+    }
+
+    if (index > rindex) {
+      --index;
+    }
+
+    assert(index <
+           utf8_path_components_.size() + native_path_components_.size() - 1);
+
+    return index;
+  }
+
  private:
   auto add_path_component_impl(fs::path const& component)
       -> path_name_storage_tuple {
@@ -1660,6 +1721,27 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return rhs.valid();
   }
 
+  std::vector<std::string> get_sorted_path_components() const override {
+    TRACE_CALL;
+
+    if constexpr (is_mutable) {
+      DWARFS_PANIC("sorted path components can only be used after freezing");
+    } else {
+      return shared_.get_sorted_path_components(dirs_.get_path_storage(0));
+    }
+  }
+
+  std::size_t get_path_component_index(entry_id id) const override {
+    TRACE_CALL;
+
+    if constexpr (is_mutable) {
+      DWARFS_PANIC("path component index can only be used after freezing");
+    } else {
+      return shared_.get_path_component_index(dirs_.get_path_storage(0),
+                                              get_path_storage_impl(id));
+    }
+  }
+
   void update_global_entry_data(entry_id id,
                                 global_entry_data& data) const override {
     TRACE_CALL;
@@ -2628,6 +2710,14 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   bool entry_less_revpath(entry_id lhs, entry_id rhs) const override {
     return impl_.lock()->entry_less_revpath(lhs, rhs);
+  }
+
+  std::vector<std::string> get_sorted_path_components() const override {
+    return impl_.lock()->get_sorted_path_components();
+  }
+
+  std::size_t get_path_component_index(entry_id id) const override {
+    return impl_.lock()->get_path_component_index(id);
   }
 
   void update_global_entry_data(entry_id id,

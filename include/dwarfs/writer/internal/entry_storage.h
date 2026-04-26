@@ -147,6 +147,14 @@ class entry_storage {
     return entry_impl_->entry_less_revpath(lhs, rhs);
   }
 
+  std::vector<std::string> get_sorted_path_components() const {
+    return entry_impl_->get_sorted_path_components();
+  }
+
+  std::size_t get_path_component_index(entry_id id) const {
+    return entry_impl_->get_path_component_index(id);
+  }
+
   void update_global_entry_data(entry_id id, global_entry_data& data) const {
     entry_impl_->update_global_entry_data(id, data);
   }
@@ -363,6 +371,8 @@ class entry_storage {
                           std::function<void(entry_id)> const& f) const = 0;
     virtual entry_id find_in_dir(dir_id id, std::string_view name) const = 0;
     virtual bool entry_less_revpath(entry_id lhs, entry_id rhs) const = 0;
+    virtual std::vector<std::string> get_sorted_path_components() const = 0;
+    virtual std::size_t get_path_component_index(entry_id id) const = 0;
 
     virtual void
     update_global_entry_data(entry_id id, global_entry_data& data) const = 0;
