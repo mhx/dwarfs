@@ -122,6 +122,43 @@ struct tracked {
   int value;
 };
 
+struct throwing_default_constructible {
+  static inline int live_count = 0;
+  static inline int constructions_before_throw = -1;
+
+  int value = 0;
+
+  static void reset() noexcept {
+    live_count = 0;
+    constructions_before_throw = -1;
+  }
+
+  throwing_default_constructible() {
+    if (constructions_before_throw == 0) {
+      throw std::runtime_error("boom");
+    }
+    if (constructions_before_throw > 0) {
+      --constructions_before_throw;
+    }
+    ++live_count;
+  }
+
+  explicit throwing_default_constructible(int v)
+      : value{v} {
+    ++live_count;
+  }
+
+  ~throwing_default_constructible() { --live_count; }
+
+  throwing_default_constructible(throwing_default_constructible const&) =
+      delete;
+  throwing_default_constructible&
+  operator=(throwing_default_constructible const&) = delete;
+  throwing_default_constructible(throwing_default_constructible&&) = delete;
+  throwing_default_constructible&
+  operator=(throwing_default_constructible&&) = delete;
+};
+
 using int_vec_16 = basic_chunked_append_only_vector<int, 16>;
 using int_vec_24 = basic_chunked_append_only_vector<int, 24>;
 using int_vec_16_pow2 = basic_chunked_append_only_vector<int, 16, true>;
@@ -132,6 +169,8 @@ using pow2_rounding_vec =
     basic_chunked_append_only_vector<std::uint32_t, 24, true>;
 using no_rounding_vec =
     basic_chunked_append_only_vector<std::uint32_t, 24, false>;
+
+} // namespace
 
 static_assert(int_vec_16::chunk_elements == 4);
 static_assert(int_vec_16::chunk_bytes == 16);
@@ -797,4 +836,85 @@ TEST(chunked_append_only_vector_test,
   EXPECT_EQ(&cv[0], cit.operator->());
 }
 
-} // namespace
+TEST(chunked_append_only_vector_test, resize_grows_and_shrinks) {
+  using vector_type = basic_chunked_append_only_vector<int, 2 * sizeof(int)>;
+
+  vector_type v;
+  v.emplace_back(1);
+  v.emplace_back(2);
+  v.emplace_back(3);
+
+  ASSERT_EQ(v.size(), 3);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 3);
+
+  v.resize(5);
+
+  ASSERT_EQ(v.size(), 5);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 3);
+  EXPECT_EQ(v[3], 0);
+  EXPECT_EQ(v[4], 0);
+
+  v[3] = 30;
+  v[4] = 40;
+
+  v.resize(2);
+
+  ASSERT_EQ(v.size(), 2);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_THROW(static_cast<void>(v.at(2)), std::out_of_range);
+
+  v.resize(4);
+
+  ASSERT_EQ(v.size(), 4);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 0);
+  EXPECT_EQ(v[3], 0);
+}
+
+TEST(chunked_append_only_vector_test,
+     resize_is_exception_safe_when_default_construction_throws) {
+  using value_type = throwing_default_constructible;
+  using vector_type =
+      basic_chunked_append_only_vector<value_type, 2 * sizeof(value_type)>;
+
+  value_type::reset();
+
+  {
+    vector_type v;
+    v.emplace_back(11);
+    v.emplace_back(22);
+
+    ASSERT_EQ(v.size(), 2);
+    ASSERT_EQ(value_type::live_count, 2);
+    EXPECT_EQ(v[0].value, 11);
+    EXPECT_EQ(v[1].value, 22);
+
+    value_type::constructions_before_throw = 1;
+
+    EXPECT_THROW(v.resize(5), std::runtime_error);
+
+    EXPECT_EQ(v.size(), 2);
+    EXPECT_EQ(value_type::live_count, 2);
+    EXPECT_EQ(v[0].value, 11);
+    EXPECT_EQ(v[1].value, 22);
+    EXPECT_THROW(static_cast<void>(v.at(2)), std::out_of_range);
+
+    value_type::constructions_before_throw = -1;
+
+    EXPECT_NO_THROW(v.resize(4));
+    ASSERT_EQ(v.size(), 4);
+    EXPECT_EQ(value_type::live_count, 4);
+    EXPECT_EQ(v[0].value, 11);
+    EXPECT_EQ(v[1].value, 22);
+    EXPECT_EQ(v[2].value, 0);
+    EXPECT_EQ(v[3].value, 0);
+  }
+
+  EXPECT_EQ(value_type::live_count, 0);
+}
