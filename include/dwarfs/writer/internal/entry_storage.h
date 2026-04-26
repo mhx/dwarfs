@@ -110,7 +110,7 @@ class entry_storage {
     entry_impl_->set_link_target(id, std::move(link_target), prog);
   }
 
-  [[nodiscard]] std::string_view get_link_target(link_id id) const {
+  [[nodiscard]] std::string get_link_target(link_id id) const {
     return entry_impl_->get_link_target(id);
   }
 
@@ -126,7 +126,7 @@ class entry_storage {
     return entry_impl_->get_unix_dpath(id);
   }
 
-  [[nodiscard]] std::string_view get_name(entry_id id) const {
+  [[nodiscard]] std::string get_name(entry_id id) const {
     return entry_impl_->get_name(id);
   }
 
@@ -351,12 +351,12 @@ class entry_storage {
 
     virtual void
     set_link_target(link_id id, std::string link_target, progress& prog) = 0;
-    virtual std::string_view get_link_target(link_id id) const = 0;
+    virtual std::string get_link_target(link_id id) const = 0;
 
     virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
-    virtual std::string_view get_name(entry_id id) const = 0;
+    virtual std::string get_name(entry_id id) const = 0;
     virtual void remove_empty_dirs(progress& prog) = 0;
     virtual void
     for_each_entry_in_dir(dir_id id,
