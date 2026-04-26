@@ -209,6 +209,43 @@ class basic_chunked_append_only_vector {
     size_ = 0;
   }
 
+  void resize(size_type new_size)
+    requires std::default_initializable<T>
+  {
+    if (new_size < size_) {
+      while (size_ > new_size) {
+        --size_;
+        auto [c, o] = locate(size_);
+        std::destroy_at(ptr_at(c, o));
+      }
+
+      size_type const needed_chunks =
+          new_size == 0 ? 0 : locate(new_size - 1).first + 1;
+      chunks_.resize(needed_chunks);
+    } else if (new_size > size_) {
+      while (new_size > chunks_.size() * chunk_elements) {
+        chunks_.push_back(std::make_unique<chunk>());
+      }
+
+      size_type const old_size = size_;
+
+      try {
+        while (size_ < new_size) {
+          auto [c, o] = locate(size_);
+          std::construct_at(ptr_at(c, o));
+          ++size_;
+        }
+      } catch (...) {
+        while (size_ > old_size) {
+          --size_;
+          auto [c, o] = locate(size_);
+          std::destroy_at(ptr_at(c, o));
+        }
+        throw;
+      }
+    }
+  }
+
  private:
   struct chunk {
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
