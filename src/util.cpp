@@ -842,6 +842,40 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
   return p;
 }
 
+#ifdef _WIN32
+bool is_well_formed_utf16_path(std::filesystem::path const& p) {
+  auto const& s = p.native();
+
+  size_t i = 0;
+
+  while (i < s.size()) {
+    auto const cu = static_cast<unsigned>(s[i++]);
+
+    // high surrogate
+    if (0xD800 <= cu && cu <= 0xDBFF) {
+      if (i == s.size()) {
+        return false;
+      }
+
+      auto const cu2 = static_cast<unsigned>(s[i++]);
+
+      if (!(0xDC00 <= cu2 && cu2 <= 0xDFFF)) {
+        return false;
+      }
+
+      continue;
+    }
+
+    // lone low surrogate
+    if (0xDC00 <= cu && cu <= 0xDFFF) {
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif
+
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p) {
 #ifdef _WIN32
   static_assert(std::is_same_v<std::filesystem::path::value_type, wchar_t>);

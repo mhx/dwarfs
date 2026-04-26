@@ -76,6 +76,10 @@ std::string error_cp_to_utf8(std::string_view error);
 
 void shorten_path_string(std::string& path, char separator, size_t max_len);
 
+#ifdef _WIN32
+bool is_well_formed_utf16_path(std::filesystem::path const& p);
+#endif
+
 std::filesystem::path canonical_path(std::filesystem::path p);
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p);
 
