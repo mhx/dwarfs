@@ -208,7 +208,14 @@ basic_inode_handle<Mut>::nilsimsa_similarity_hash(fragment_category cat) const {
 
 template <detail::mutability Mut>
 file_size_t basic_inode_handle<Mut>::size() const {
-  return any().size();
+  return first_file().size();
+}
+
+template <detail::mutability Mut>
+const_file_handle basic_inode_handle<Mut>::first_file() const {
+  auto const& files = storage_->get_files_for_inode(self_id_);
+  DWARFS_CHECK(!files.empty(), "inode has no file (first_file)");
+  return storage_->handle(files.front());
 }
 
 template <detail::mutability Mut>
