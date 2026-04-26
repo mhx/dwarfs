@@ -299,6 +299,32 @@ struct shared_entry_data {
     }
   }
 
+  std::size_t utf8_path_component_count() const {
+    return utf8_path_components_.size();
+  }
+
+  std::size_t native_path_component_count() const {
+    return native_path_components_.size();
+  }
+
+  void set_utf8_path_component_count(std::size_t const count) {
+    utf8_path_components_.resize(count);
+  }
+
+  void set_native_path_component_count(std::size_t const count) {
+    native_path_components_.resize(count);
+  }
+
+  void swap_utf8_path_components(std::size_t const a, std::size_t const b) {
+    using std::swap;
+    swap(utf8_path_components_.at(a), utf8_path_components_.at(b));
+  }
+
+  void swap_native_path_components(std::size_t const a, std::size_t const b) {
+    using std::swap;
+    swap(native_path_components_.at(a), native_path_components_.at(b));
+  }
+
  private:
   auto add_path_component_impl(fs::path const& component)
       -> path_name_storage_tuple {
@@ -432,6 +458,15 @@ class packed_entry_data {
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
     auto const storage_ix = path_storage_index_.at(index);
     return shared.get_utf8_path_component(storage_ix);
+  }
+
+  path_name_storage_tuple get_path_storage(uint64_t const index) const {
+    return path_storage_index_.at(index);
+  }
+
+  void set_path_storage(uint64_t const index,
+                        path_name_storage_tuple const storage) {
+    path_storage_index_.at(index) = storage;
   }
 
   void
@@ -1353,8 +1388,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   std::unique_ptr<entry_impl> freeze() override {
     if constexpr (is_mutable) {
-      sort_all_directory_entries();
       shared_.drop_indices();
+      sort_all_directory_entries();
+      sort_path_storage();
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -1733,6 +1769,26 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void dump_events(std::ostream& os) const override;
 
  private:
+  void sort_path_storage()
+    requires is_mutable;
+
+  template <typename Func>
+  void walk_entries(Func const& func) const {
+    auto const root = entry_id{entry_type::E_DIR, 0};
+    func(root);
+    walk_entries_rec(dir_id{root}, func);
+  }
+
+  template <typename Func>
+  void walk_entries_rec(dir_id dir, Func const& func) const {
+    for (auto const eid : shared_.get_dir_entries(dir)) {
+      func(eid);
+      if (auto const did = dir_id{eid}) {
+        walk_entries_rec(did, func);
+      }
+    }
+  }
+
   template <typename Vector>
   void fill_path_components(entry_id id, Vector& components) const {
     while (id.valid()) {
@@ -1905,6 +1961,15 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   std::string get_path_string_impl(entry_id const id) const {
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
+  }
+
+  path_name_storage_tuple get_path_storage_impl(entry_id const id) const {
+    return dispatch_(&packed_entry_data::get_path_storage, id);
+  }
+
+  void set_path_storage_impl(entry_id const id,
+                             path_name_storage_tuple const value) {
+    dispatch_(&packed_entry_data::set_path_storage, id, value);
   }
 
   void update_global_entry_data_impl(entry_id const id,
@@ -2107,6 +2172,329 @@ class inode_storage_ final : public entry_storage::inode_impl {
   dwarfs::internal::event_tracer mutable ev_;
 #endif
 };
+
+namespace {
+
+using reorder_map_type =
+    dwarfs::container::packed_int_vector<std::optional<std::size_t>>;
+
+// At this point, after compaction and sorting, the prefix of `map` contains
+// the sorted order:
+//
+//   map[order] = old_index
+//
+// for `order` in [0, used).
+//
+// What we need for updating entries is the inverse mapping:
+//
+//   map[old_index] = new_order
+//
+// We build that inverse mapping in-place, without allocating a second map.
+//
+// The problem is that the source permutation lives in `map[0..used)`, and
+// some old indices may also be in that same range. So writing
+//
+//   map[old_index] = order
+//
+// can overwrite another still-unprocessed source value:
+//
+//   map[old_index] = some_other_old_index
+//
+// To handle this, we walk the permutation as a set of chains/cycles. Whenever
+// the destination slot `old_index` is inside the source prefix and still
+// contains an unprocessed source value, we first save that source value, then
+// overwrite the slot with the final inverse mapping, and continue from the
+// saved value.
+//
+// Final inverse values are tagged as:
+//
+//   count + order
+//
+// This lets us distinguish them from unprocessed source values, which are
+// always less than `count`.
+//
+// Therefore, during inversion:
+//
+//   value < count     => unprocessed source old_index
+//   value >= count    => finalized inverse mapping, i.e. count + order
+//   nullopt           => no mapping / already cleared chain marker
+//
+// After this phase:
+//
+//   map[old_index] = count + order   for used components
+//   map[old_index] = nullopt         for unused components
+
+void invert_map_in_place(reorder_map_type& map, std::size_t const used,
+                         std::size_t const count) {
+  auto is_source_value = [count](std::optional<std::size_t> const& value) {
+    return value.has_value() && *value < count;
+  };
+
+  auto tag = [count](std::size_t const order) { return count + order; };
+
+  for (std::size_t i = 0; i < used; ++i) {
+    // If this slot still contains an unprocessed source value, then it is
+    // part of the order -> old_index mapping. If it already contains a tagged
+    // value or nullopt, it has been handled by an earlier chain walk.
+    auto const value = map[i].load();
+
+    if (!is_source_value(value)) {
+      continue;
+    }
+
+    // We are currently processing:
+    //
+    //   map[order] = old_index
+    //
+    // and want to write:
+    //
+    //   map[old_index] = tag(order)
+    auto order = i;
+    auto old_index = *value;
+
+    // Clear the starting slot. This acts as a marker that breaks cycles.
+    // Example cycle:
+    //
+    //   map[0] = 1
+    //   map[1] = 0
+    //
+    // Clearing map[0] lets the walk terminate when it comes back to 0.
+    map[i] = std::nullopt;
+
+    for (;;) {
+      if (old_index < used) {
+        // `old_index` is also inside the source prefix. It may still contain
+        // another source mapping:
+        //
+        //   map[old_index] = next_old_index
+        //
+        // If so, save it before overwriting this slot with its final inverse
+        // mapping.
+        auto const next = map[old_index].load();
+
+        if (is_source_value(next)) {
+          map[old_index] = tag(order);
+
+          // Continue with the source mapping we just displaced:
+          //
+          //   map[old_index] used to mean:
+          //     order = old_index
+          //     old_index = *next
+          order = old_index;
+          old_index = *next;
+          continue;
+        }
+      }
+
+      // Either `old_index` is outside the source prefix, or the slot inside
+      // the prefix no longer contains an unprocessed source value. In both
+      // cases, we can safely write the final inverse mapping and terminate
+      // this chain.
+      map[old_index] = tag(order);
+      break;
+    }
+  }
+}
+
+// After map inversion and updating all entries, the map still contains:
+//
+//   map[old_index] = count + new_index
+//
+// This is exactly the information needed to reorder the storage vector in
+// place:
+//
+//   component currently at old_index should move to new_index
+//
+// The first `used` elements of the storage vector should become the sorted
+// path components. The tail [used, count) contains orphaned components and
+// does not need to preserve any meaningful order.
+//
+// The algorithm below repeatedly swaps the component at `pos` into its final
+// target position. The mapping travels with the component: `map[position]`
+// describes where the component currently at `position` still needs to go.
+//
+// When a component is swapped into its final target position, we clear the
+// mapping at that target. A cleared mapping means: the component currently
+// here is already in its final place, or this is an unused/orphaned slot.
+//
+// This consumes the map while reordering; after this phase, the map no longer
+// contains useful information.
+
+void reorder_by_map(reorder_map_type& map,
+                    std::size_t const used [[maybe_unused]],
+                    std::size_t const count, auto const& swap_component) {
+  auto untag = [count](std::size_t value) {
+    assert(value >= count);
+    return value - count;
+  };
+
+  for (std::size_t pos = 0; pos < count; ++pos) {
+    while (true) {
+      auto value = map[pos].load();
+
+      // If there is no mapping at `pos`, either this position is already
+      // settled or it is an unused/orphaned tail slot.
+      if (!value.has_value()) {
+        break;
+      }
+
+      // The component currently at `pos` belongs at `target`.
+      auto const target = untag(*value);
+
+      assert(target < used);
+
+      if (target == pos) {
+        // The component at `pos` is already in the correct sorted
+        // position. Clear the map entry to mark this position as settled.
+        map[pos] = std::nullopt;
+        break;
+      }
+
+      // We are about to move the component at `pos` to `target`, but
+      // `target` currently contains some other component. Save that
+      // component's mapping before the swap, because after the swap that
+      // displaced component will be at `pos`.
+      auto displaced_mapping = map[target].load();
+
+      swap_component(pos, target);
+
+      // The component moved from `pos` to `target`, and `target` is
+      // exactly where it belongs, so `target` is now settled.
+      map[target] = std::nullopt;
+
+      // The component displaced from `target` is now at `pos`. Its old
+      // mapping must move with it so the next loop iteration can place
+      // it.
+      //
+      // If `displaced_mapping` is nullopt, then the displaced component
+      // is an unused/orphaned component, and the loop will terminate on
+      // the next iteration.
+      map[pos] = displaced_mapping;
+    }
+  }
+}
+
+} // namespace
+
+template <bool Frozen>
+void entry_storage_<Frozen>::sort_path_storage()
+  requires is_mutable
+{
+  auto const utf8_count = shared_.utf8_path_component_count();
+  auto const native_count = shared_.native_path_component_count();
+  reorder_map_type utf8_map(reorder_map_type::required_bits(2 * utf8_count),
+                            utf8_count);
+  reorder_map_type native_map(reorder_map_type::required_bits(2 * native_count),
+                              native_count);
+
+  //---------------------------------------------------------------------------
+  // mark used path components
+  //---------------------------------------------------------------------------
+
+  walk_entries([&](entry_id const id) {
+    auto const [index, type] = get_path_storage_impl(id);
+    if (type == path_name_storage::utf8) {
+      utf8_map[index] = 0;
+    } else {
+      native_map[index] = 0;
+    }
+  });
+
+  //---------------------------------------------------------------------------
+  // compact used indices
+  //---------------------------------------------------------------------------
+
+  auto compact_map = [&](reorder_map_type& map, std::size_t const count) {
+    std::size_t used = 0;
+
+    for (std::size_t i = 0; i < count; ++i) {
+      if (map[i].has_value()) {
+        map[used++] = i;
+      }
+    }
+
+    std::fill(map.begin() + used, map.begin() + count, std::nullopt);
+
+    return used;
+  };
+
+  auto const utf8_used = compact_map(utf8_map, utf8_count);
+  auto const native_used = compact_map(native_map, native_count);
+
+  //---------------------------------------------------------------------------
+  // sort used indices
+  //---------------------------------------------------------------------------
+
+  auto sort_prefix = [](reorder_map_type& map, std::size_t const used,
+                        auto const& get_component) {
+    std::sort(map.begin(), map.begin() + used,
+              [&](std::optional<std::size_t> a, std::optional<std::size_t> b) {
+                assert(a.has_value() && b.has_value());
+                return get_component(*a) < get_component(*b);
+              });
+  };
+
+  sort_prefix(utf8_map, utf8_used, [&](std::size_t index) {
+    return shared_.get_utf8_path_component({index, path_name_storage::utf8});
+  });
+
+  sort_prefix(native_map, native_used, [&](std::size_t index) {
+    return shared_.get_native_path_component(
+        {index, path_name_storage::native});
+  });
+
+  //---------------------------------------------------------------------------
+  // invert the maps in-place
+  //---------------------------------------------------------------------------
+
+  invert_map_in_place(utf8_map, utf8_used, utf8_count);
+  invert_map_in_place(native_map, native_used, native_count);
+
+  //---------------------------------------------------------------------------
+  // update entries with new indices
+  //---------------------------------------------------------------------------
+
+  // The map is still keyed by old indices here. Entries must be updated before
+  // the path component vectors are physically reordered.
+
+  auto translated_index = [](reorder_map_type const& map,
+                             std::size_t const old_index,
+                             std::size_t const count) {
+    auto const value = map[old_index];
+    assert(value.has_value());
+    assert(*value >= count);
+    return *value - count;
+  };
+
+  walk_entries([&](entry_id const id) {
+    auto [index, type] = get_path_storage_impl(id);
+
+    if (type == path_name_storage::utf8) {
+      index = translated_index(utf8_map, index, utf8_count);
+    } else {
+      index = translated_index(native_map, index, native_count);
+    }
+
+    set_path_storage_impl(id, {index, type});
+  });
+
+  //---------------------------------------------------------------------------
+  // re-order the path storage vectors
+  //---------------------------------------------------------------------------
+
+  reorder_by_map(utf8_map, utf8_used, utf8_count,
+                 [&](std::size_t a, std::size_t b) {
+                   shared_.swap_utf8_path_components(a, b);
+                 });
+
+  reorder_by_map(native_map, native_used, native_count,
+                 [&](std::size_t a, std::size_t b) {
+                   shared_.swap_native_path_components(a, b);
+                 });
+
+  shared_.set_utf8_path_component_count(utf8_used);
+  shared_.set_native_path_component_count(native_used);
+}
 
 template <bool Frozen>
 void entry_storage_<Frozen>::dump(std::ostream& os) const {
