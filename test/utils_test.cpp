@@ -764,3 +764,38 @@ TEST(utils, hexlify_string_view) {
 
   EXPECT_EQ(expected, hexlify(strv));
 }
+
+#ifdef _WIN32
+TEST(utils, is_well_formed_utf16_path) {
+  std::filesystem::path const root{L"\\some\\path"};
+
+  auto make_wstring = [](std::initializer_list<unsigned> code_units) {
+    std::wstring s;
+    s.reserve(code_units.size());
+    for (auto cu : code_units) {
+      s.push_back(static_cast<wchar_t>(cu));
+    }
+    return s;
+  };
+
+  EXPECT_TRUE(is_well_formed_utf16_path(root));
+  EXPECT_TRUE(is_well_formed_utf16_path(root / L"file.txt"));
+  EXPECT_TRUE(is_well_formed_utf16_path(root / L"我爱你.txt"));
+
+  // valid surrogate pair: U+1F600 GRINNING FACE
+  EXPECT_TRUE(is_well_formed_utf16_path(
+      root / make_wstring({0xD83D, 0xDE00, '.', 't', 'x', 't'})));
+
+  // lone high surrogate at end
+  EXPECT_FALSE(
+      is_well_formed_utf16_path(root / make_wstring({'b', 'a', 'd', 0xD800})));
+
+  // high surrogate followed by non-low-surrogate
+  EXPECT_FALSE(is_well_formed_utf16_path(
+      root / make_wstring({'b', 'a', 'd', 0xD800, 'x'})));
+
+  // lone low surrogate
+  EXPECT_FALSE(is_well_formed_utf16_path(
+      root / make_wstring({'b', 'a', 'd', 0xDC00, 'x'})));
+}
+#endif
