@@ -74,6 +74,7 @@ class index_based_iterator {
 
   index_based_iterator& operator++() {
     ++index_;
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -85,6 +86,7 @@ class index_based_iterator {
 
   index_based_iterator& operator--() {
     --index_;
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -96,6 +98,7 @@ class index_based_iterator {
 
   index_based_iterator& operator+=(difference_type n) {
     index_ += n;
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -176,7 +179,9 @@ class index_based_iterator {
 
   index_based_iterator(container_type* vec, size_type index)
       : vec_{vec}
-      , index_{to_index(index)} {}
+      , index_{to_index(index)} {
+    assert(index_ >= 0);
+  }
 
   size_type get_index() const {
     assert(index_ >= 0);
@@ -212,7 +217,9 @@ class index_based_const_iterator {
 
   index_based_const_iterator(index_based_iterator<container_type> it)
       : vec_{it.vec_}
-      , index_{it.index_} {}
+      , index_{it.index_} {
+    assert(index_ >= 0);
+  }
 
   reference operator*() const { return (*vec_)[get_index()]; }
 
@@ -230,6 +237,7 @@ class index_based_const_iterator {
 
   index_based_const_iterator& operator++() {
     ++index_;
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -241,6 +249,7 @@ class index_based_const_iterator {
 
   index_based_const_iterator& operator--() {
     --index_;
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -252,6 +261,7 @@ class index_based_const_iterator {
 
   index_based_const_iterator& operator+=(difference_type n) {
     index_ += static_cast<size_type>(n);
+    assert(index_ >= 0);
     return *this;
   }
 
@@ -312,7 +322,9 @@ class index_based_const_iterator {
 
   index_based_const_iterator(container_type const* vec, size_type index)
       : vec_{vec}
-      , index_{to_index(index)} {}
+      , index_{to_index(index)} {
+    assert(index_ >= 0);
+  }
 
   size_type get_index() const {
     assert(index_ >= 0);
