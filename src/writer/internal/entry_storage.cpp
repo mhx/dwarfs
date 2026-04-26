@@ -97,6 +97,11 @@ bool uses_inline_buffer(T const& s) {
   return b <= p && p < e;
 }
 
+template <typename T>
+std::size_t string_memory_usage(T const& s) {
+  return sizeof(s) + (uses_inline_buffer(s) ? 0 : s.capacity());
+}
+
 class memory_usage_dumper {
  public:
   struct size_info {
@@ -153,79 +158,19 @@ class memory_usage_dumper {
   std::vector<size_info> sizes_;
 };
 
-} // namespace
-
-class path_component {
- public:
-  path_component() = default;
-  path_component(fs::path const& path, bool is_root)
-#if DWARFS_KEEP_FS_PATHS
-      : path_{is_root ? path : path.filename()}
-      , name_{path_to_utf8_string_sanitized(path_)}
-#else
-      : name_{path_to_utf8_string_sanitized(is_root ? path : path.filename())}
-#endif
-  {
-  }
-
-  friend bool
-  operator==(path_component const&, path_component const&) = default;
-
-  fs::path path() const {
-#if DWARFS_KEEP_FS_PATHS
-    return path_;
-#else
-    return {name_};
-#endif
-  }
-
-  std::string const& name() const { return name_; }
-
-  std::size_t size_in_bytes() const {
-#if DWARFS_KEEP_FS_PATHS
-    return sizeof(path_component) +
-           path_.native().size() * sizeof(fs::path::value_type) + name_.size();
-#else
-    return sizeof(path_component) +
-           (uses_inline_buffer(name_) ? 0 : name_.capacity());
-#endif
-  }
-
-  fs::path::string_type const& native() const {
-#if DWARFS_KEEP_FS_PATHS
-    return path_.native();
-#else
-    static_assert(std::is_same_v<fs::path::string_type, std::string>);
-    return name_;
-#endif
-  }
-
- private:
-  friend struct std::hash<path_component>;
-
-#if DWARFS_KEEP_FS_PATHS
-  fs::path path_;
-#endif
-  std::string name_;
+enum class path_name_storage : std::size_t {
+  utf8 = 0,
+  native = 1,
 };
 
-} // namespace dwarfs::writer::internal
-
-template <>
-struct std::hash<dwarfs::writer::internal::path_component> {
-  std::size_t operator()(
-      dwarfs::writer::internal::path_component const& pc) const noexcept {
-    std::size_t seed = 0;
-#if DWARFS_KEEP_FS_PATHS
-    boost::hash_combine(seed, pc.path_);
-#endif
-    boost::hash_combine(seed, pc.name_);
-    return seed;
-  }
+// TODO: remove if we don't need these
+// constexpr std::size_t kPathNameStorageIndexField{0};
+// constexpr std::size_t kPathNameStorageTypeField{1};
+constexpr std::array kPathNameStorageFieldNames{
+    "index"sv,
+    "type"sv,
 };
-
-namespace dwarfs::writer::internal {
-namespace {
+using path_name_storage_tuple = std::tuple<size_t, path_name_storage>;
 
 using inode_scan_error = std::pair<file_id, std::exception_ptr>;
 
@@ -258,7 +203,8 @@ std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
 struct shared_entry_data {
  public:
   void drop_indices() {
-    path_index_.reset();
+    utf8_path_index_.reset();
+    native_path_index_.reset();
     device_index_.reset();
     mode_index_.reset();
     uid_index_.reset();
@@ -266,8 +212,9 @@ struct shared_entry_data {
     link_target_index_.reset();
   }
 
-  auto add_path_component(fs::path const& component, bool is_root) {
-    return path_index_->add(component, is_root);
+  auto add_path_component(fs::path const& component, bool is_root)
+      -> path_name_storage_tuple {
+    return add_path_component_impl(is_root ? component : component.filename());
   }
 
   auto add_device(file_stat::dev_type dev) { return device_index_->add(dev); }
@@ -288,8 +235,31 @@ struct shared_entry_data {
 
   void dump(std::ostream& os) const;
 
-  auto get_path_component(size_t index) const -> path_component const& {
-    return path_components_.at(index);
+  auto get_utf8_path_component(path_name_storage_tuple const& storage) const
+      -> std::string {
+    auto const& [index, type] = storage;
+    if (type == path_name_storage::utf8) {
+      return u8string_to_string(utf8_path_components_.at(index));
+    }
+    return path_to_utf8_string_sanitized(native_path_components_.at(index));
+  }
+
+  auto get_native_path_component(path_name_storage_tuple const& storage) const
+      -> fs::path::string_type {
+    auto const& [index, type] = storage;
+    if (type == path_name_storage::native) {
+      return native_path_components_.at(index);
+    }
+    return fs::path(utf8_path_components_.at(index)).native();
+  }
+
+  auto get_fs_path_component(path_name_storage_tuple const& storage) const
+      -> fs::path {
+    auto const& [index, type] = storage;
+    if (type == path_name_storage::utf8) {
+      return {utf8_path_components_.at(index)};
+    }
+    return {native_path_components_.at(index)};
   }
 
   auto get_mode(size_t index) const -> file_stat::mode_type {
@@ -330,8 +300,32 @@ struct shared_entry_data {
   }
 
  private:
-  cao_vector<path_component> path_components_;
-  std::optional<flat_cao_index<path_component>> path_index_{path_components_};
+  auto add_path_component_impl(fs::path const& component)
+      -> path_name_storage_tuple {
+    std::size_t index;
+    path_name_storage type{path_name_storage::utf8};
+
+#ifdef _WIN32
+    if (!is_well_formed_utf16_path(component)) {
+      type = path_name_storage::native;
+      index = native_path_index_->add(component);
+    }
+#endif
+
+    if (type == path_name_storage::utf8) {
+      index = utf8_path_index_->add(path_to_u8string_sanitized(component));
+    }
+
+    return {index, type};
+  }
+
+  cao_vector<std::u8string> utf8_path_components_;
+  std::optional<flat_cao_index<std::u8string>> utf8_path_index_{
+      utf8_path_components_};
+
+  cao_vector<fs::path::string_type> native_path_components_;
+  std::optional<flat_cao_index<fs::path::string_type>> native_path_index_{
+      native_path_components_};
 
   cao_vector<file_stat::dev_type> devices_;
   std::optional<flat_cao_index<file_stat::dev_type>> device_index_{devices_};
@@ -356,7 +350,7 @@ class packed_entry_data {
  public:
   struct add_entry_result {
     std::size_t entry_index;
-    std::size_t path_index;
+    path_name_storage_tuple path_storage;
   };
 
   explicit packed_entry_data(entry_type t)
@@ -393,7 +387,7 @@ class packed_entry_data {
                  std::int64_t, std::uint64_t, std::int64_t, std::uint64_t,
                  std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t>;
 
-  bool empty() const { return path_name_index_.empty(); }
+  bool empty() const { return path_storage_index_.empty(); }
 
   void dump(std::ostream& os, std::string_view name) const;
 
@@ -424,21 +418,20 @@ class packed_entry_data {
 
   fs::path
   get_path(shared_entry_data const& shared, uint64_t const index) const {
-    auto const path_ix = path_name_index_.at(index);
-    return shared.get_path_component(path_ix).path();
+    auto const storage_ix = path_storage_index_.at(index);
+    return shared.get_fs_path_component(storage_ix);
   }
 
-  fs::path::string_type const&
-  get_native_path_string(shared_entry_data const& shared,
-                         uint64_t const index) const {
-    auto const path_ix = path_name_index_.at(index);
-    return shared.get_path_component(path_ix).native();
+  fs::path::string_type get_native_path_string(shared_entry_data const& shared,
+                                               uint64_t const index) const {
+    auto const storage_ix = path_storage_index_.at(index);
+    return shared.get_native_path_component(storage_ix);
   }
 
-  std::string const&
+  std::string
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
-    auto const path_ix = path_name_index_.at(index);
-    return shared.get_path_component(path_ix).name();
+    auto const storage_ix = path_storage_index_.at(index);
+    return shared.get_utf8_path_component(storage_ix);
   }
 
   void
@@ -673,7 +666,7 @@ class packed_entry_data {
   bool const keep_subsecond_{false};
 
   // index into `shared_entry_data::path_components_`
-  segtor<size_t> path_name_index_;
+  segtor<path_name_storage_tuple> path_storage_index_;
 
   // parent directory id (invalid for root)
   segtor<dir_id> parent_dir_id_;
@@ -1131,11 +1124,16 @@ void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
 }
 
 void shared_entry_data::dump(std::ostream& os) const {
-  auto const total_path_bytes =
-      std::accumulate(path_components_.begin(), path_components_.end(), 0ULL,
-                      [](std::size_t acc, path_component const& pc) {
-                        return acc + pc.size_in_bytes();
-                      });
+  auto const total_utf8_path_bytes = std::accumulate(
+      utf8_path_components_.begin(), utf8_path_components_.end(), 0ULL,
+      [](std::size_t acc, auto const& pc) {
+        return acc + string_memory_usage(pc);
+      });
+  auto const total_native_path_bytes = std::accumulate(
+      native_path_components_.begin(), native_path_components_.end(), 0ULL,
+      [](std::size_t acc, auto const& pc) {
+        return acc + string_memory_usage(pc);
+      });
   auto const total_link_bytes =
       std::accumulate(link_targets_.begin(), link_targets_.end(), 0ULL,
                       [](std::size_t acc, std::string const& link) {
@@ -1144,7 +1142,10 @@ void shared_entry_data::dump(std::ostream& os) const {
 
   memory_usage_dumper d;
 
-  d.add("path components", total_path_bytes, path_components_.size());
+  d.add("utf8 path components", total_utf8_path_bytes,
+        utf8_path_components_.size());
+  d.add("native path components", total_native_path_bytes,
+        native_path_components_.size());
   d.add("devices", devices_.size() * sizeof(devices_[0]), devices_.size());
   d.add("modes", modes_.size() * sizeof(modes_[0]), modes_.size());
   d.add("uids", uids_.size() * sizeof(uids_[0]), uids_.size());
@@ -1157,14 +1158,15 @@ void shared_entry_data::dump(std::ostream& os) const {
 }
 
 void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
-  if (path_name_index_.empty()) {
+  if (path_storage_index_.empty()) {
     os << "no " << name << " entries\n";
     return;
   }
 
   memory_usage_dumper d;
 
-  d.add("path name index", path_name_index_.size_in_bytes());
+  d.add("path storage index", path_storage_index_.size_in_bytes());
+  d.add_tuple_field_sizes(path_storage_index_, kPathNameStorageFieldNames);
   d.add("stat common", stat_common_.size_in_bytes());
   d.add_tuple_field_sizes(stat_common_, kStatCommonFieldNames);
   d.add("size", entry_size_.size_in_bytes());
@@ -1187,7 +1189,7 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
   d.add("file data index", file_data_index_.size_in_bytes());
   d.add("file order index", file_order_index_.size_in_bytes());
 
-  d.dump(os, std::string{name} + " entries", path_name_index_.size());
+  d.dump(os, std::string{name} + " entries", path_storage_index_.size());
 }
 
 void packed_inode_data::dump(std::ostream& os) const {
@@ -1228,9 +1230,9 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
       file_stat::size_valid | file_stat::allocated_size_valid);
 
   bool const is_root = !parent.valid();
-  auto const path_ix = shared.add_path_component(path, is_root);
-  auto const entry_ix = path_name_index_.size();
-  path_name_index_.push_back(path_ix);
+  auto const path_storage = shared.add_path_component(path, is_root);
+  auto const entry_ix = path_storage_index_.size();
+  path_storage_index_.push_back(path_storage);
   parent_dir_id_.push_back(parent);
   final_entry_index_.push_back(std::nullopt);
 
@@ -1274,7 +1276,7 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
     inode_num_.push_back(std::nullopt);
   }
 
-  return {entry_ix, path_ix};
+  return {entry_ix, path_storage};
 }
 
 void packed_entry_data::update_global_entry_data(
@@ -1363,7 +1365,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   make_obj_(entry_type const type, packed_entry_data& data,
             fs::path const& path, file_stat const& st, dir_id const parent) {
     if constexpr (is_mutable) {
-      auto const [entry_ix, path_ix] =
+      auto const [entry_ix, path_storage] =
           data.add_entry_common(shared_, type, path, st, parent);
 
       if (parent) {
@@ -1374,7 +1376,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
           auto& lookup = it->second;
           auto const inserted [[maybe_unused]] =
               lookup
-                  .emplace(shared_.get_path_component(path_ix).name(),
+                  .emplace(shared_.get_utf8_path_component(path_storage),
                            entry_id{type, entry_ix})
                   .second;
           assert(inserted);
@@ -1509,7 +1511,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
     return fs::path(build_path_from_components<fs::path::string_type,
                                                fs::path::preferred_separator>(
-        components, [this](entry_id const id) -> fs::path::string_type const& {
+        components, [this](entry_id const id) -> fs::path::string_type {
           return get_native_path_string_impl(id);
         }));
   }
@@ -1525,7 +1527,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     fill_path_components(id, components);
 
     p = build_path_from_components<std::string, '/'>(
-        components, [this](entry_id const id) -> std::string const& {
+        components, [this](entry_id const id) -> std::string {
           return get_path_string_impl(id);
         });
 
@@ -1897,12 +1899,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return dispatch_shared_(&packed_entry_data::get_path, id);
   }
 
-  fs::path::string_type const&
-  get_native_path_string_impl(entry_id const id) const {
+  fs::path::string_type get_native_path_string_impl(entry_id const id) const {
     return dispatch_shared_(&packed_entry_data::get_native_path_string, id);
   }
 
-  std::string const& get_path_string_impl(entry_id const id) const {
+  std::string get_path_string_impl(entry_id const id) const {
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
   }
 
