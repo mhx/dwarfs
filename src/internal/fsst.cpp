@@ -28,6 +28,7 @@
 
 #include <cassert>
 #include <numeric>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
@@ -105,17 +106,19 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
                         std::accumulate(out_len_vec.begin(), out_len_vec.end(),
                                         static_cast<size_t>(0))));
 
+  auto const max_out_len = std::ranges::max(out_len_vec);
+
   buffer.resize(static_cast<size_t>(compressed_size));
 
   output.emplace();
 
   output->dictionary = std::move(symtab);
   output->buffer = std::move(buffer);
-  output->compressed_data.reserve(size);
+  output->compressed_sizes.reset(
+      fsst_encoder::compressed_sizes_type::required_bits(max_out_len), size);
 
   for (size_t i = 0; i < size; ++i) {
-    output->compressed_data.emplace_back(
-        reinterpret_cast<char*>(out_ptr_vec[i]), out_len_vec[i]);
+    output->compressed_sizes.set(i, out_len_vec[i]);
   }
 
   return output;
