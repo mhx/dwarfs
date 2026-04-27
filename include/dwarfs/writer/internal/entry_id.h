@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <cassert>
 #include <concepts>
 #include <cstdint>
 #include <limits>
@@ -32,6 +31,7 @@
 
 #include <dwarfs/container/packed_value_traits.h>
 
+#include <dwarfs/internal/constexpr_assert.h>
 #include <dwarfs/writer/internal/entry_type.h>
 
 namespace dwarfs::writer::internal {
@@ -45,42 +45,51 @@ class entry_id {
   static constexpr uint64_t kEntryTypeShift{64 - kEntryTypeBits};
   static constexpr uint64_t kIndexMask{(1ULL << kEntryTypeShift) - 1};
 
-  entry_id() = default;
-  entry_id(entry_type type, uint64_t index)
+  constexpr entry_id() = default;
+  constexpr entry_id(entry_type type, uint64_t index)
       : id_{(static_cast<uint64_t>(type) << kEntryTypeShift) |
             (index & kIndexMask)} {
-    assert((index & ~kIndexMask) == 0);
-    assert(static_cast<uint64_t>(type) <= (1ULL << kEntryTypeBits) - 1);
+    constexpr_assert((index & ~kIndexMask) == 0);
+    constexpr_assert(static_cast<uint64_t>(type) <=
+                     (1ULL << kEntryTypeBits) - 1);
   }
 
-  [[nodiscard]] bool valid() const { return id_ != kInvalidId; }
-  [[nodiscard]] explicit operator bool() const { return valid(); }
+  [[nodiscard]] constexpr bool valid() const { return id_ != kInvalidId; }
+  [[nodiscard]] constexpr explicit operator bool() const { return valid(); }
 
   [[nodiscard]] std::size_t object_hash() const {
     return std::hash<uint64_t>{}(id_);
   }
 
-  [[nodiscard]] entry_type type() const {
-    assert(valid());
+  [[nodiscard]] constexpr entry_type type() const {
+    constexpr_assert(valid());
     return static_cast<entry_type>(id_ >> kEntryTypeShift);
   }
 
-  [[nodiscard]] uint64_t index() const {
-    assert(valid());
+  [[nodiscard]] constexpr uint64_t index() const {
+    constexpr_assert(valid());
     return id_ & kIndexMask;
   }
 
-  [[nodiscard]] bool is_file() const { return type() == entry_type::E_FILE; }
-  [[nodiscard]] bool is_dir() const { return type() == entry_type::E_DIR; }
-  [[nodiscard]] bool is_link() const { return type() == entry_type::E_LINK; }
-  [[nodiscard]] bool is_device() const {
+  [[nodiscard]] constexpr bool is_file() const {
+    return type() == entry_type::E_FILE;
+  }
+  [[nodiscard]] constexpr bool is_dir() const {
+    return type() == entry_type::E_DIR;
+  }
+  [[nodiscard]] constexpr bool is_link() const {
+    return type() == entry_type::E_LINK;
+  }
+  [[nodiscard]] constexpr bool is_device() const {
     return type() == entry_type::E_DEVICE;
   }
-  [[nodiscard]] bool is_other() const { return type() == entry_type::E_OTHER; }
+  [[nodiscard]] constexpr bool is_other() const {
+    return type() == entry_type::E_OTHER;
+  }
 
-  friend bool
+  friend constexpr bool
   operator==(entry_id const& lhs, entry_id const& rhs) noexcept = default;
-  friend std::strong_ordering
+  friend constexpr std::strong_ordering
   operator<=>(entry_id const& lhs, entry_id const& rhs) noexcept = default;
 
  private:
@@ -92,69 +101,70 @@ class typed_entry_id {
  public:
   static constexpr uint64_t kInvalidIndex{std::numeric_limits<uint64_t>::max()};
 
-  typed_entry_id() = default;
+  constexpr typed_entry_id() = default;
 
-  explicit typed_entry_id(entry_id id)
+  constexpr explicit typed_entry_id(entry_id id)
       : index_{id.valid() && id.type() == Type ? id.index() : kInvalidIndex} {}
 
-  explicit(false) operator entry_id() const {
+  constexpr explicit(false) operator entry_id() const {
     if (!valid()) {
       return {};
     }
     return entry_id{Type, index_};
   }
 
-  [[nodiscard]] bool valid() const { return index_ != kInvalidIndex; }
-  [[nodiscard]] explicit operator bool() const { return valid(); }
+  [[nodiscard]] constexpr bool valid() const { return index_ != kInvalidIndex; }
+  [[nodiscard]] constexpr explicit operator bool() const { return valid(); }
 
   [[nodiscard]] std::size_t object_hash() const {
     return std::hash<uint64_t>{}(index_);
   }
 
-  [[nodiscard]] entry_type type() const {
-    assert(valid());
+  [[nodiscard]] constexpr entry_type type() const {
+    constexpr_assert(valid());
     return Type;
   }
 
-  [[nodiscard]] uint64_t index() const {
-    assert(valid());
+  [[nodiscard]] constexpr uint64_t index() const {
+    constexpr_assert(valid());
     return index_;
   }
 
-  [[nodiscard]] bool is_file() const {
-    assert(valid());
+  [[nodiscard]] constexpr bool is_file() const {
+    constexpr_assert(valid());
     return Type == entry_type::E_FILE;
   }
-  [[nodiscard]] bool is_dir() const {
-    assert(valid());
+  [[nodiscard]] constexpr bool is_dir() const {
+    constexpr_assert(valid());
     return Type == entry_type::E_DIR;
   }
-  [[nodiscard]] bool is_link() const {
-    assert(valid());
+  [[nodiscard]] constexpr bool is_link() const {
+    constexpr_assert(valid());
     return Type == entry_type::E_LINK;
   }
-  [[nodiscard]] bool is_device() const {
-    assert(valid());
+  [[nodiscard]] constexpr bool is_device() const {
+    constexpr_assert(valid());
     return Type == entry_type::E_DEVICE;
   }
-  [[nodiscard]] bool is_other() const {
-    assert(valid());
+  [[nodiscard]] constexpr bool is_other() const {
+    constexpr_assert(valid());
     return Type == entry_type::E_OTHER;
   }
 
-  friend bool operator==(typed_entry_id const& lhs,
-                         typed_entry_id const& rhs) noexcept = default;
-  friend std::strong_ordering
+  friend constexpr bool
+  operator==(typed_entry_id const& lhs,
+             typed_entry_id const& rhs) noexcept = default;
+  friend constexpr std::strong_ordering
   operator<=>(typed_entry_id const& lhs,
               typed_entry_id const& rhs) noexcept = default;
 
-  friend bool
+  friend constexpr bool
   operator==(typed_entry_id const& lhs, entry_id const& rhs) noexcept {
     return lhs.valid() && rhs.valid() && lhs.type() == rhs.type() &&
            lhs.index() == rhs.index();
   }
 
-  friend bool
+  friend constexpr bool
   operator==(entry_id const& lhs, typed_entry_id const& rhs) noexcept {
     return rhs == lhs;
   }
@@ -197,7 +207,7 @@ struct packed_value_traits<dwarfs::writer::internal::entry_id> {
   using encoded_type = uint64_t;
   static constexpr uint64_t kNumTypes{5};
 
-  static encoded_type encode(value_type const& id) {
+  static constexpr encoded_type encode(value_type const& id) {
     if (!id.valid()) {
       return 0;
     }
@@ -205,12 +215,12 @@ struct packed_value_traits<dwarfs::writer::internal::entry_id> {
     auto const index = id.index();
     auto const type = std::to_underlying(id.type());
 
-    assert(type < kNumTypes);
+    constexpr_assert(type < kNumTypes);
 
     return index * kNumTypes + type + 1;
   }
 
-  static value_type decode(encoded_type encoded) {
+  static constexpr value_type decode(encoded_type encoded) {
     if (encoded == 0) {
       return {};
     }
@@ -228,11 +238,11 @@ struct packed_value_traits<dwarfs::writer::internal::typed_entry_id<Type>> {
   using value_type = dwarfs::writer::internal::typed_entry_id<Type>;
   using encoded_type = uint64_t;
 
-  static encoded_type encode(value_type const& id) {
+  static constexpr encoded_type encode(value_type const& id) {
     return id.valid() ? id.index() + 1 : 0;
   }
 
-  static value_type decode(encoded_type encoded) {
+  static constexpr value_type decode(encoded_type encoded) {
     if (encoded == 0) {
       return {};
     }
