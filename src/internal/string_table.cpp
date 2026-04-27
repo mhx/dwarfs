@@ -190,7 +190,7 @@ string_table::pack_generic(std::span<T const> input,
     output.symtab() = std::move(res->dictionary);
     output.index()->resize(size);
     for (size_t i = 0; i < size; ++i) {
-      output.index()[i] = res->compressed_data[i].size();
+      output.index()[i] = res->compressed_sizes[i].load();
     }
   } else {
     // store uncompressed

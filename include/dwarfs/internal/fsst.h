@@ -37,6 +37,8 @@
 #include <string_view>
 #include <vector>
 
+#include <dwarfs/container/packed_int_vector.h>
+
 namespace dwarfs::internal {
 
 namespace detail {
@@ -50,10 +52,13 @@ concept fsst_string_type =
 
 class fsst_encoder {
  public:
+  using compressed_sizes_type =
+      dwarfs::container::packed_int_vector<std::size_t>;
+
   struct bulk_compression_result {
     std::string dictionary;
     std::string buffer;
-    std::vector<std::string_view> compressed_data;
+    compressed_sizes_type compressed_sizes;
   };
 
   static std::optional<bulk_compression_result>
