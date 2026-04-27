@@ -29,6 +29,7 @@
 #include <cassert>
 #include <numeric>
 #include <stdexcept>
+#include <utility>
 
 #include <dwarfs/internal/fsst.h>
 
@@ -40,31 +41,18 @@ namespace dwarfs::internal {
 
 namespace {
 
-template <typename T>
 std::optional<fsst_encoder::bulk_compression_result>
-fsst_compress_(std::span<T const> input, bool force) {
+fsst_compress_(std::span<unsigned char const*> ptr_span,
+               std::span<std::size_t const> len_span,
+               std::size_t const total_input_size, bool force) {
   std::optional<fsst_encoder::bulk_compression_result> output;
 
-  if (input.empty()) {
-    return output;
-  }
-
-  auto const size = input.size();
-  size_t total_input_size = 0;
-  std::vector<size_t> len_vec;
-  std::vector<unsigned char const*> ptr_vec;
-
-  len_vec.reserve(size);
-  ptr_vec.reserve(size);
-
-  for (auto const& s : input) {
-    ptr_vec.emplace_back(reinterpret_cast<unsigned char const*>(s.data()));
-    len_vec.emplace_back(s.size());
-    total_input_size += s.size();
-  }
+  auto const size = ptr_span.size();
+  assert(size == len_span.size());
 
   std::unique_ptr<::fsst_encoder_t, decltype(&::fsst_destroy)> enc{
-      ::fsst_create(size, len_vec.data(), ptr_vec.data(), 0), &::fsst_destroy};
+      ::fsst_create(size, len_span.data(), ptr_span.data(), 0),
+      &::fsst_destroy};
 
   std::string symtab;
 
@@ -74,7 +62,7 @@ fsst_compress_(std::span<T const> input, bool force) {
       ::fsst_export(enc.get(), reinterpret_cast<unsigned char*>(symtab.data()));
   symtab.resize(symtab_size);
 
-  std::vector<size_t> out_len_vec;
+  std::vector<std::size_t> out_len_vec;
   std::vector<unsigned char*> out_ptr_vec;
   std::string buffer;
 
@@ -89,7 +77,7 @@ fsst_compress_(std::span<T const> input, bool force) {
 
   for (;;) {
     auto const num_compressed = ::fsst_compress(
-        enc.get(), size, len_vec.data(), ptr_vec.data(), buffer.size(),
+        enc.get(), size, len_span.data(), ptr_span.data(), buffer.size(),
         reinterpret_cast<unsigned char*>(buffer.data()), out_len_vec.data(),
         out_ptr_vec.data());
 
@@ -104,19 +92,20 @@ fsst_compress_(std::span<T const> input, bool force) {
     buffer.resize(2 * buffer.size());
   }
 
-  size_t const compressed_size =
+  auto const compressed_size =
       (out_ptr_vec.back() - out_ptr_vec.front()) + out_len_vec.back();
 
   if (symtab_size + compressed_size >= total_input_size && !force) {
     return output;
   }
 
+  assert(compressed_size >= 0);
   assert(reinterpret_cast<char*>(out_ptr_vec.front()) == buffer.data());
-  assert(compressed_size == std::accumulate(out_len_vec.begin(),
-                                            out_len_vec.end(),
-                                            static_cast<size_t>(0)));
+  assert(std::cmp_equal(compressed_size,
+                        std::accumulate(out_len_vec.begin(), out_len_vec.end(),
+                                        static_cast<size_t>(0))));
 
-  buffer.resize(compressed_size);
+  buffer.resize(static_cast<size_t>(compressed_size));
 
   output.emplace();
 
@@ -143,18 +132,31 @@ class fsst_decoder_ : public fsst_decoder::impl {
     }
   }
 
-  std::string decompress(std::string_view data) const override {
-    thread_local std::string out;
-    auto const size = data.size();
-    out.resize(8 * size);
-    auto outlen = ::fsst_decompress(
-        &decoder_, size, reinterpret_cast<unsigned char const*>(data.data()),
-        out.size(), reinterpret_cast<unsigned char*>(out.data()));
-    out.resize(outlen);
-    return out;
+  void
+  decompress_append_to(std::string& out, std::string_view data) const override {
+    decompress_append_to_impl(out, data);
+  }
+
+  void decompress_append_to_u8(std::u8string& out,
+                               std::u8string_view data) const override {
+    decompress_append_to_impl(out, data);
   }
 
  private:
+  template <typename StringType, typename StringViewType>
+    requires std::same_as<typename StringType::value_type,
+                          typename StringViewType::value_type>
+  void decompress_append_to_impl(StringType& out, StringViewType data) const {
+    thread_local StringType buf;
+    auto const size = data.size();
+    buf.resize(8 * size);
+    auto outlen = ::fsst_decompress(
+        &decoder_, size, reinterpret_cast<unsigned char const*>(data.data()),
+        buf.size(), reinterpret_cast<unsigned char*>(buf.data()));
+    buf.resize(outlen);
+    out.append(buf);
+  }
+
   ::fsst_decoder_t decoder_;
 };
 
@@ -162,12 +164,30 @@ class fsst_decoder_ : public fsst_decoder::impl {
 
 auto fsst_encoder::compress(std::span<std::string_view const> data, bool force)
     -> std::optional<bulk_compression_result> {
-  return fsst_compress_(data, force);
+  return compress(data.begin(), data.end(), force);
 }
 
 auto fsst_encoder::compress(std::span<std::string const> data, bool force)
     -> std::optional<bulk_compression_result> {
-  return fsst_compress_(data, force);
+  return compress(data.begin(), data.end(), force);
+}
+
+auto fsst_encoder::compress(std::span<std::u8string_view const> data,
+                            bool force)
+    -> std::optional<bulk_compression_result> {
+  return compress(data.begin(), data.end(), force);
+}
+
+auto fsst_encoder::compress(std::span<std::u8string const> data, bool force)
+    -> std::optional<bulk_compression_result> {
+  return compress(data.begin(), data.end(), force);
+}
+
+auto fsst_encoder::compress(std::span<unsigned char const*> ptr_span,
+                            std::span<size_t const> len_span,
+                            std::size_t const total_input_size, bool force)
+    -> std::optional<bulk_compression_result> {
+  return fsst_compress_(ptr_span, len_span, total_input_size, force);
 }
 
 fsst_decoder::fsst_decoder(std::string_view dictionary)
