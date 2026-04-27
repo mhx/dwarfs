@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include <array>
 #include <memory>
 #include <span>
 #include <string>
@@ -80,19 +79,6 @@ class string_table {
   static thrift::metadata::string_table
   pack(std::span<std::string_view const> input,
        pack_options const& options = pack_options());
-
-  static thrift::metadata::string_table
-  pack(std::vector<std::string> const& input,
-       pack_options const& options = pack_options()) {
-    return pack(std::span(input.data(), input.size()), options);
-  }
-
-  template <size_t N>
-  static thrift::metadata::string_table
-  pack(std::array<std::string_view, N> const& input,
-       pack_options const& options = pack_options()) {
-    return pack(std::span(input.data(), input.size()), options);
-  }
 
   class impl {
    public:
