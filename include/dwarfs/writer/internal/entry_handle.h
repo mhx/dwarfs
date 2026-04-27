@@ -141,6 +141,7 @@ class entry_handle_base {
   std::string path_as_string() const;
   std::string unix_dpath() const;
   std::string name() const;
+  std::size_t path_component_index() const;
   bool less_revpath(basic_entry_handle<mutability::const_> rhs) const;
   file_size_t size() const;
   file_size_info size_info() const;
