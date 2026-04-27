@@ -76,6 +76,11 @@ std::string entry_handle_base<Mut>::name() const {
 }
 
 template <mutability Mut>
+std::size_t entry_handle_base<Mut>::path_component_index() const {
+  return storage_->get_path_component_index(self_id_);
+}
+
+template <mutability Mut>
 bool entry_handle_base<Mut>::less_revpath(const_entry_handle rhs) const {
   return storage_->entry_less_revpath(self_id_, rhs.self_id_);
 }
