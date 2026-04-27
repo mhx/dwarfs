@@ -65,20 +65,17 @@ class global_entry_data {
   void add_atime(uint64_t time);
   void add_ctime(uint64_t time);
 
-  void add_name(std::string_view name);
   void add_link(std::string_view link);
 
   void update_index();
 
   // TODO: size_t? better: remove entirely
-  uint32_t get_name_index(std::string_view name) const;
   uint32_t get_symlink_table_entry(std::string_view link) const;
 
   std::vector<uid_type> get_uids() const;
   std::vector<gid_type> get_gids() const;
   std::vector<mode_type> get_modes() const;
 
-  std::vector<std::string> get_names() const;
   std::vector<std::string> get_symlinks() const;
 
   uint64_t get_timestamp_base() const;
@@ -108,7 +105,6 @@ class global_entry_data {
   index_map_type<uid_type> uids_;
   index_map_type<gid_type> gids_;
   index_map_type<mode_type> modes_;
-  string_index_map_type names_;
   string_index_map_type symlinks_;
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   metadata_options const& options_;
