@@ -49,7 +49,7 @@ file_size_t fragment_chunkable::size() const { return frag_.size(); }
 std::string fragment_chunkable::description() const {
   return fmt::format("{}fragment at offset {} of inode {} [{}] - size: {}",
                      category_prefix(catmgr_, frag_.category()), offset_,
-                     ino_.num(), ino_.any().name(), size());
+                     ino_.num(), ino_.first_file().unix_dpath(), size());
 }
 
 file_extents_iterable fragment_chunkable::extents() const {
