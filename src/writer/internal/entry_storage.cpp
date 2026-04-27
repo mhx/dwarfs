@@ -1423,6 +1423,7 @@ template <bool Frozen>
 class entry_storage_ final : public entry_storage::entry_impl {
  public:
   static constexpr bool is_mutable = !Frozen;
+  static constexpr entry_id kRootId{entry_type::E_DIR, 0};
 
   friend class entry_storage_<true>;
 
@@ -1643,7 +1644,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void remove_empty_dirs(progress& prog) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      remove_empty_dirs_impl(prog, dir_id{{entry_id{entry_type::E_DIR, 0}}});
+      remove_empty_dirs_impl(prog, dir_id{kRootId});
     } else {
       frozen_panic();
     }
@@ -1856,9 +1857,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   template <typename Func>
   void walk_entries(Func const& func) const {
-    auto const root = entry_id{entry_type::E_DIR, 0};
-    func(root);
-    walk_entries_rec(dir_id{root}, func);
+    func(kRootId);
+    walk_entries_rec(dir_id{kRootId}, func);
   }
 
   template <typename Func>
