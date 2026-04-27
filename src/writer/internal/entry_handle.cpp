@@ -370,7 +370,7 @@ void basic_dir_handle<Mut>::pack(
   this->for_each_child([&](entry_handle e) {
     e.set_entry_index(mv2.dir_entries()->size());
     auto&& de = mv2.dir_entries()->emplace_back();
-    de.name_index() = data.get_name_index(e.name());
+    de.name_index() = e.path_component_index();
     de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
     e.pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data,
            timeres);
@@ -382,7 +382,7 @@ void basic_dir_handle<Mut>::pack_entry(
     thrift::metadata::metadata& mv2, internal::global_entry_data const& data,
     internal::time_resolution_converter const& timeres) const {
   auto&& de = mv2.dir_entries()->emplace_back();
-  de.name_index() = this->has_parent() ? data.get_name_index(this->name()) : 0;
+  de.name_index() = this->path_component_index();
   auto const inode_num = DWARFS_NOTHROW(this->inode_num().value());
   de.inode_num() = inode_num;
   detail::entry_handle_base<Mut>::pack(

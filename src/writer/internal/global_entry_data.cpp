@@ -127,18 +127,11 @@ auto global_entry_data::get_modes() const -> std::vector<mode_type> {
   return get_sorted_index_vector(modes_);
 }
 
-auto global_entry_data::get_names() const -> std::vector<std::string> {
-  return get_sorted_index_vector<std::string>(names_);
-}
-
 auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
   return get_sorted_index_vector<std::string>(symlinks_);
 }
 
-void global_entry_data::update_index() {
-  sort_and_index_map(names_);
-  sort_and_index_map(symlinks_);
-}
+void global_entry_data::update_index() { sort_and_index_map(symlinks_); }
 
 uint64_t global_entry_data::get_timestamp_base() const {
   return options_.timestamp ? *options_.timestamp : timestamp_base_;
@@ -182,10 +175,6 @@ void global_entry_data::pack_inode_stat(
   }
 }
 
-uint32_t global_entry_data::get_name_index(std::string_view name) const {
-  return DWARFS_NOTHROW(names_.at(name));
-}
-
 uint32_t
 global_entry_data::get_symlink_table_entry(std::string_view link) const {
   return DWARFS_NOTHROW(symlinks_.at(link));
@@ -221,10 +210,6 @@ void global_entry_data::add_ctime(uint64_t time) {
   }
 }
 
-void global_entry_data::add_name(std::string_view name) {
-  names_.emplace(name, 0);
-}
-
 void global_entry_data::add_link(std::string_view link) {
   symlinks_.emplace(link, 0);
 }
@@ -238,8 +223,6 @@ void global_entry_data::dump(std::ostream& os) const {
                      gids_.capacity() * sizeof(decltype(gids_)::value_type));
   sizes.emplace_back("modes",
                      modes_.capacity() * sizeof(decltype(modes_)::value_type));
-  sizes.emplace_back("names",
-                     names_.capacity() * sizeof(decltype(names_)::value_type));
   sizes.emplace_back("symlinks", symlinks_.capacity() *
                                      sizeof(decltype(symlinks_)::value_type));
 

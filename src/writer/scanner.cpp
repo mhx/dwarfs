@@ -152,22 +152,7 @@ class names_and_symlinks_visitor : public visitor_base {
   explicit names_and_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
 
-  void visit(file_handle p) override { data_.add_name(p.name()); }
-
-  void visit(device_handle p) override { data_.add_name(p.name()); }
-
-  void visit(other_handle p) override { data_.add_name(p.name()); }
-
-  void visit(link_handle p) override {
-    data_.add_name(p.name());
-    data_.add_link(p.linkname());
-  }
-
-  void visit(dir_handle p) override {
-    if (p.has_parent()) {
-      data_.add_name(p.name());
-    }
-  }
+  void visit(link_handle p) override { data_.add_link(p.linkname()); }
 
  private:
   global_entry_data& data_;
@@ -691,7 +676,11 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << "entry storage (before freezing):\n" << tree->dump_entries();
 
-  tree->freeze_entries();
+  {
+    auto tv = LOG_TIMED_VERBOSE;
+    tree->freeze_entries();
+    tv << "entry storage frozen";
+  }
 
   prog.set_status_function(status_string);
 
@@ -1007,7 +996,7 @@ void scanner_<LoggerPolicy>::scan(
 
   {
     auto tv = LOG_TIMED_VERBOSE;
-    mdb.gather_global_entry_data(*ge_data);
+    mdb.gather_global_entry_data(*tree, *ge_data);
     tv << "global entry data gathered for metadata";
   }
 

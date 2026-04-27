@@ -134,8 +134,9 @@ class metadata_builder {
     impl_->gather_entries(storage, dirs, ge_data, num_inodes);
   }
 
-  void gather_global_entry_data(global_entry_data const& ge_data) {
-    impl_->gather_global_entry_data(ge_data);
+  void gather_global_entry_data(entry_storage& storage,
+                                global_entry_data const& ge_data) {
+    impl_->gather_global_entry_data(storage, ge_data);
   }
 
   void
@@ -169,7 +170,8 @@ class metadata_builder {
     virtual void
     gather_entries(entry_storage& storage, dir_id_vector const& dirs,
                    global_entry_data const& ge_data, uint32_t num_inodes) = 0;
-    virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
+    virtual void gather_global_entry_data(entry_storage& storage,
+                                          global_entry_data const& ge_data) = 0;
     virtual void remap_blocks(std::span<block_mapping const> mapping,
                               size_t new_block_count) = 0;
 

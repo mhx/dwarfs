@@ -225,7 +225,8 @@ class metadata_builder_ final : public metadata_builder::impl {
                       global_entry_data const& ge_data,
                       uint32_t num_inodes) override;
 
-  void gather_global_entry_data(global_entry_data const& ge_data) override;
+  void gather_global_entry_data(entry_storage& storage,
+                                global_entry_data const& ge_data) override;
   void remap_blocks(std::span<block_mapping const> mapping,
                     size_t new_block_count) override;
 
@@ -366,8 +367,8 @@ void metadata_builder_<LoggerPolicy>::gather_entries(
 
 template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
-    global_entry_data const& ge_data) {
-  md_.names() = ge_data.get_names();
+    entry_storage& storage, global_entry_data const& ge_data) {
+  md_.names() = storage.get_sorted_path_components();
 
   md_.symlinks() = ge_data.get_symlinks();
 
