@@ -212,9 +212,16 @@ struct shared_entry_data {
     link_target_index_.reset();
   }
 
-  auto add_path_component(fs::path const& component, bool is_root)
+  auto set_root_path_component(fs::path const& component)
       -> path_name_storage_tuple {
-    return add_path_component_impl(is_root ? component : component.filename());
+    utf8_root_path_component_ = path_to_u8string_sanitized(component);
+    native_root_path_component_ = component.native();
+    return {}; // doesn't matter
+  }
+
+  auto
+  add_path_component(fs::path const& component) -> path_name_storage_tuple {
+    return add_path_component_impl(component.filename());
   }
 
   auto add_device(file_stat::dev_type dev) { return device_index_->add(dev); }
@@ -235,6 +242,10 @@ struct shared_entry_data {
 
   void dump(std::ostream& os) const;
 
+  auto get_utf8_root_path_component() const -> std::string {
+    return u8string_to_string(utf8_root_path_component_.value());
+  }
+
   auto get_utf8_path_component(path_name_storage_tuple const& storage) const
       -> std::string {
     auto const& [index, type] = storage;
@@ -244,6 +255,10 @@ struct shared_entry_data {
     return path_to_utf8_string_sanitized(native_path_components_.at(index));
   }
 
+  auto get_native_root_path_component() const -> fs::path::string_type {
+    return native_root_path_component_.value();
+  }
+
   auto get_native_path_component(path_name_storage_tuple const& storage) const
       -> fs::path::string_type {
     auto const& [index, type] = storage;
@@ -251,6 +266,10 @@ struct shared_entry_data {
       return native_path_components_.at(index);
     }
     return fs::path(utf8_path_components_.at(index)).native();
+  }
+
+  auto get_fs_root_path_component() const -> fs::path {
+    return {native_root_path_component_.value()};
   }
 
   auto get_fs_path_component(path_name_storage_tuple const& storage) const
@@ -325,63 +344,33 @@ struct shared_entry_data {
     swap(native_path_components_.at(a), native_path_components_.at(b));
   }
 
-  std::vector<std::string>
-  get_sorted_path_components(path_name_storage_tuple const& root) const {
+  std::vector<std::string> get_sorted_path_components() const {
     std::vector<std::string> result;
-    std::size_t skip_count [[maybe_unused]] = 0;
 
     result.reserve(utf8_path_components_.size() +
-                   native_path_components_.size() - 1);
+                   native_path_components_.size());
 
-    for (std::size_t i = 0; i < utf8_path_components_.size(); ++i) {
-      if (root != path_name_storage_tuple{i, path_name_storage::utf8}) {
-        result.push_back(u8string_to_string(utf8_path_components_[i]));
-      } else {
-        ++skip_count;
-      }
+    for (auto const& component : utf8_path_components_) {
+      result.push_back(u8string_to_string(component));
     }
 
-    for (std::size_t i = 0; i < native_path_components_.size(); ++i) {
-      if (root != path_name_storage_tuple{i, path_name_storage::native}) {
-        result.push_back(
-            path_to_utf8_string_sanitized(native_path_components_[i]));
-      } else {
-        ++skip_count;
-      }
+    for (auto const& component : native_path_components_) {
+      result.push_back(path_to_utf8_string_sanitized(component));
     }
-
-    assert(skip_count == 1);
-
-    assert(result.size() ==
-           utf8_path_components_.size() + native_path_components_.size() - 1);
 
     return result;
   }
 
   std::size_t
-  get_path_component_index(path_name_storage_tuple const& root,
-                           path_name_storage_tuple const& entry) const {
-    if (root == entry) {
-      return 0;
-    }
-
-    auto [rindex, rtype] = root;
+  get_path_component_index(path_name_storage_tuple const& entry) const {
     auto [index, type] = entry;
-
-    if (rtype == path_name_storage::native) {
-      rindex += utf8_path_components_.size();
-    }
 
     if (type == path_name_storage::native) {
       index += utf8_path_components_.size();
     }
 
-    if (index > rindex) {
-      --index;
-    }
-
     assert(index <
-           utf8_path_components_.size() + native_path_components_.size() - 1);
+           utf8_path_components_.size() + native_path_components_.size());
 
     return index;
   }
@@ -405,6 +394,9 @@ struct shared_entry_data {
 
     return {index, type};
   }
+
+  std::optional<std::u8string> utf8_root_path_component_;
+  std::optional<fs::path::string_type> native_root_path_component_;
 
   cao_vector<std::u8string> utf8_path_components_;
   std::optional<flat_cao_index<std::u8string>> utf8_path_index_{
@@ -530,12 +522,11 @@ class packed_entry_data {
     path_storage_index_.at(index) = storage;
   }
 
-  void
-  update_global_entry_data(shared_entry_data const& shared,
-                           uint64_t const index, global_entry_data& data) const;
+  void update_global_entry_data(shared_entry_data const& shared, uint64_t index,
+                                global_entry_data& data) const;
 
   void
-  pack_entry(shared_entry_data const& shared, uint64_t const index,
+  pack_entry(shared_entry_data const& shared, uint64_t index,
              thrift::metadata::metadata::inodes_member_type::reference entry_v2,
              global_entry_data const& data,
              time_resolution_converter const& timeres) const;
@@ -1326,7 +1317,8 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
       file_stat::size_valid | file_stat::allocated_size_valid);
 
   bool const is_root = !parent.valid();
-  auto const path_storage = shared.add_path_component(path, is_root);
+  auto const path_storage = is_root ? shared.set_root_path_component(path)
+                                    : shared.add_path_component(path);
   auto const entry_ix = path_storage_index_.size();
   path_storage_index_.push_back(path_storage);
   parent_dir_id_.push_back(parent);
@@ -1728,7 +1720,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     if constexpr (is_mutable) {
       DWARFS_PANIC("sorted path components can only be used after freezing");
     } else {
-      return shared_.get_sorted_path_components(dirs_.get_path_storage(0));
+      return shared_.get_sorted_path_components();
     }
   }
 
@@ -1738,8 +1730,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     if constexpr (is_mutable) {
       DWARFS_PANIC("path component index can only be used after freezing");
     } else {
-      return shared_.get_path_component_index(dirs_.get_path_storage(0),
-                                              get_path_storage_impl(id));
+      if (id == kRootId) {
+        return 0;
+      }
+
+      return shared_.get_path_component_index(get_path_storage_impl(id));
     }
   }
 
@@ -1856,8 +1851,13 @@ class entry_storage_ final : public entry_storage::entry_impl {
     requires is_mutable;
 
   template <typename Func>
-  void walk_entries(Func const& func) const {
+  void walk_entries_with_root(Func const& func) const {
     func(kRootId);
+    walk_entries(func);
+  }
+
+  template <typename Func>
+  void walk_entries(Func const& func) const {
     walk_entries_rec(dir_id{kRootId}, func);
   }
 
@@ -2034,14 +2034,23 @@ class entry_storage_ final : public entry_storage::entry_impl {
   }
 
   fs::path get_path_impl(entry_id const id) const {
+    if (id == kRootId) {
+      return shared_.get_fs_root_path_component();
+    }
     return dispatch_shared_(&packed_entry_data::get_path, id);
   }
 
   fs::path::string_type get_native_path_string_impl(entry_id const id) const {
+    if (id == kRootId) {
+      return shared_.get_native_root_path_component();
+    }
     return dispatch_shared_(&packed_entry_data::get_native_path_string, id);
   }
 
   std::string get_path_string_impl(entry_id const id) const {
+    if (id == kRootId) {
+      return shared_.get_utf8_root_path_component();
+    }
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
   }
 
