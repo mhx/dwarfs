@@ -358,6 +358,11 @@ class timed_level_log_entry::state {
   source_location const loc_;
 };
 
+timed_level_log_entry::timed_level_log_entry(timed_level_log_entry&&) noexcept =
+    default;
+timed_level_log_entry&
+timed_level_log_entry::operator=(timed_level_log_entry&&) noexcept = default;
+
 timed_level_log_entry::timed_level_log_entry(logger& lgr,
                                              logger::level_type level,
                                              source_location loc,

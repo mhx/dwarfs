@@ -170,6 +170,9 @@ class timed_level_log_entry {
   timed_level_log_entry(logger& lgr, logger::level_type level,
                         source_location loc, bool with_cpu = false);
   timed_level_log_entry(timed_level_log_entry const&) = delete;
+  timed_level_log_entry& operator=(timed_level_log_entry const&) = delete;
+  timed_level_log_entry(timed_level_log_entry&&) noexcept;
+  timed_level_log_entry& operator=(timed_level_log_entry&&) noexcept;
   ~timed_level_log_entry();
 
   template <typename T>
