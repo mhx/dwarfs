@@ -30,6 +30,7 @@
 
 #include <dwarfs/file_stat.h>
 
+#include <dwarfs/internal/fsst.h>
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/inode_handle.h>
@@ -153,6 +154,15 @@ class entry_storage {
 
   std::size_t get_path_component_index(entry_id id) const {
     return entry_impl_->get_path_component_index(id);
+  }
+
+  bool has_bulk_compressed_path_components() const {
+    return entry_impl_->has_bulk_compressed_path_components();
+  }
+
+  dwarfs::internal::fsst_encoder::bulk_compression_result
+  steal_bulk_compressed_path_components() {
+    return entry_impl_->steal_bulk_compressed_path_components();
   }
 
   void update_global_entry_data(entry_id id, global_entry_data& data) const {
@@ -373,6 +383,9 @@ class entry_storage {
     virtual bool entry_less_revpath(entry_id lhs, entry_id rhs) const = 0;
     virtual std::vector<std::string> get_sorted_path_components() const = 0;
     virtual std::size_t get_path_component_index(entry_id id) const = 0;
+    virtual bool has_bulk_compressed_path_components() const = 0;
+    virtual dwarfs::internal::fsst_encoder::bulk_compression_result
+    steal_bulk_compressed_path_components() = 0;
 
     virtual void
     update_global_entry_data(entry_id id, global_entry_data& data) const = 0;
