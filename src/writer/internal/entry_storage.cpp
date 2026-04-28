@@ -354,8 +354,8 @@ struct shared_entry_data {
       result.reserve(*utf8_path_component_count_);
 
       for (std::size_t i = 0; i < *utf8_path_component_count_; ++i) {
-        auto const begin = compressed_utf8_path_positions_.get(i);
-        auto const end = compressed_utf8_path_positions_.get(i + 1);
+        auto const begin = compressed_utf8_path_components_->positions.get(i);
+        auto const end = compressed_utf8_path_components_->positions.get(i + 1);
         auto const sv =
             std::string_view{compressed_utf8_path_components_->buffer}.substr(
                 begin, end - begin);
@@ -415,15 +415,6 @@ struct shared_entry_data {
       return;
     }
 
-    compressed_utf8_path_positions_.reset(
-        dwarfs::internal::fsst_encoder::compressed_sizes_type::required_bits(
-            compressed_utf8_path_components_->buffer.size()),
-        compressed_utf8_path_components_->compressed_sizes.size() + 1);
-
-    std::partial_sum(compressed_utf8_path_components_->compressed_sizes.begin(),
-                     compressed_utf8_path_components_->compressed_sizes.end(),
-                     compressed_utf8_path_positions_.begin() + 1);
-
     utf8_path_decoder_.emplace(compressed_utf8_path_components_->dictionary);
 
     utf8_path_components_.clear();
@@ -446,8 +437,9 @@ struct shared_entry_data {
       assert(index < *utf8_path_component_count_);
       assert(compressed_utf8_path_components_.has_value());
       assert(utf8_path_decoder_.has_value());
-      auto const begin = compressed_utf8_path_positions_.get(index);
-      auto const end = compressed_utf8_path_positions_.get(index + 1);
+      auto const begin = compressed_utf8_path_components_->positions.get(index);
+      auto const end =
+          compressed_utf8_path_components_->positions.get(index + 1);
       auto const& buffer = compressed_utf8_path_components_->buffer;
       auto const sv =
           std::u8string_view{reinterpret_cast<char8_t const*>(buffer.data()),
@@ -487,8 +479,6 @@ struct shared_entry_data {
   std::optional<std::size_t> utf8_path_component_count_;
   std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
       compressed_utf8_path_components_;
-  dwarfs::container::packed_int_vector<std::size_t>
-      compressed_utf8_path_positions_;
   std::optional<dwarfs::internal::fsst_decoder> utf8_path_decoder_;
 
   cao_vector<fs::path::string_type> native_path_components_;
