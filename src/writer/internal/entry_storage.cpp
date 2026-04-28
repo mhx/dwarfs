@@ -166,13 +166,13 @@ enum class path_name_storage : std::size_t {
 };
 
 // TODO: remove if we don't need these
-// constexpr std::size_t kPathNameStorageIndexField{0};
+constexpr std::size_t kPathNameStorageIndexField{0};
 // constexpr std::size_t kPathNameStorageTypeField{1};
 constexpr std::array kPathNameStorageFieldNames{
     "index"sv,
     "type"sv,
 };
-using path_name_storage_tuple = std::tuple<size_t, path_name_storage>;
+using path_name_storage_tuple = std::tuple<std::size_t, path_name_storage>;
 
 using inode_scan_error = std::pair<file_id, std::exception_ptr>;
 
@@ -593,8 +593,13 @@ class packed_entry_data {
     return shared.get_utf8_path_component(storage_ix);
   }
 
+  std::size_t get_path_storage_index(uint64_t const index) const {
+    return path_storage_index_.template get_field<kPathNameStorageIndexField>(
+        index);
+  }
+
   path_name_storage_tuple get_path_storage(uint64_t const index) const {
-    return path_storage_index_.at(index);
+    return path_storage_index_.get(index);
   }
 
   void set_path_storage(uint64_t const index,
@@ -1807,9 +1812,27 @@ class entry_storage_ final : public entry_storage::entry_impl {
   bool entry_less_revpath(entry_id lhs, entry_id rhs) const override {
     TRACE_CALL;
 
-    return entry_less_impl(lhs, rhs, [this](entry_id const id) {
-      return get_path_string_impl(id);
-    });
+    if constexpr (is_mutable) {
+      DWARFS_PANIC(
+          "entry_less_revpath is not supported for mutable entry_storage");
+    } else {
+#ifdef _WIN32
+      if (shared_.native_path_component_count() > 0) {
+        return entry_less_impl(lhs, rhs, [this](entry_id const id) {
+          return get_path_string_impl(id);
+        });
+      }
+#endif
+      assert(shared_.native_path_component_count() == 0);
+
+      // If there are no native path components, and after freezing, path
+      // components are ordered, and so are their indices. We can thus
+      // compare entries directly by their path storage index without
+      // having to materialize the path strings at all.
+      return entry_less_impl(lhs, rhs, [this](entry_id const id) {
+        return get_path_storage_index_impl(id);
+      });
+    }
   }
 
   std::vector<std::string> get_sorted_path_components() const override {
@@ -1964,6 +1987,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
       DWARFS_PANIC(
           "sorting file_id_vector is not supported for mutable entry_storage");
     } else {
+      // See comment in `entry_less_revpath` about ordering. In this case,
+      // we only want deterministic ordering, so we don't care about the
+      // native paths at all.
       std::ranges::sort(fv, [this](file_id const a, file_id const b) {
         return entry_less_impl(a, b, [this](entry_id const id) {
           return get_path_storage_impl(id);
@@ -2204,6 +2230,10 @@ class entry_storage_ final : public entry_storage::entry_impl {
       return shared_.get_utf8_root_path_component();
     }
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
+  }
+
+  std::size_t get_path_storage_index_impl(entry_id const id) const {
+    return dispatch_(&packed_entry_data::get_path_storage_index, id);
   }
 
   path_name_storage_tuple get_path_storage_impl(entry_id const id) const {

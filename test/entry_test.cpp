@@ -244,6 +244,10 @@ TEST_F(entry_test, parent_roundtrip_and_less_revpath_work) {
   ASSERT_TRUE(ax.parent().parent());
   EXPECT_EQ(root, ax.parent().parent());
 
+  test_logger lgr;
+  progress prog{};
+  tree.freeze_entries(lgr, prog);
+
   EXPECT_TRUE(a.less_revpath(b));
   EXPECT_FALSE(b.less_revpath(a));
 
