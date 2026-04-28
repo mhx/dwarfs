@@ -47,6 +47,7 @@
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/metadata_options.h>
 
+#include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
@@ -250,7 +251,7 @@ struct shared_entry_data {
       -> std::string {
     auto const& [index, type] = storage;
     if (type == path_name_storage::utf8) {
-      return u8string_to_string(utf8_path_components_.at(index));
+      return u8string_to_string(utf8_component_at(index));
     }
     return path_to_utf8_string_sanitized(native_path_components_.at(index));
   }
@@ -265,7 +266,7 @@ struct shared_entry_data {
     if (type == path_name_storage::native) {
       return native_path_components_.at(index);
     }
-    return fs::path(utf8_path_components_.at(index)).native();
+    return fs::path(utf8_component_at(index)).native();
   }
 
   auto get_fs_root_path_component() const -> fs::path {
@@ -276,7 +277,7 @@ struct shared_entry_data {
       -> fs::path {
     auto const& [index, type] = storage;
     if (type == path_name_storage::utf8) {
-      return {utf8_path_components_.at(index)};
+      return {utf8_component_at(index)};
     }
     return {native_path_components_.at(index)};
   }
@@ -319,7 +320,7 @@ struct shared_entry_data {
   }
 
   std::size_t utf8_path_component_count() const {
-    return utf8_path_components_.size();
+    return utf8_path_component_count_.value_or(utf8_path_components_.size());
   }
 
   std::size_t native_path_component_count() const {
@@ -327,6 +328,7 @@ struct shared_entry_data {
   }
 
   void set_utf8_path_component_count(std::size_t const count) {
+    assert(!utf8_path_component_count_.has_value());
     utf8_path_components_.resize(count);
   }
 
@@ -335,6 +337,7 @@ struct shared_entry_data {
   }
 
   void swap_utf8_path_components(std::size_t const a, std::size_t const b) {
+    assert(!utf8_path_component_count_.has_value());
     using std::swap;
     swap(utf8_path_components_.at(a), utf8_path_components_.at(b));
   }
@@ -347,15 +350,28 @@ struct shared_entry_data {
   std::vector<std::string> get_sorted_path_components() const {
     std::vector<std::string> result;
 
-    result.reserve(utf8_path_components_.size() +
-                   native_path_components_.size());
+    if (utf8_path_component_count_.has_value()) {
+      result.reserve(*utf8_path_component_count_);
 
-    for (auto const& component : utf8_path_components_) {
-      result.push_back(u8string_to_string(component));
-    }
+      for (std::size_t i = 0; i < *utf8_path_component_count_; ++i) {
+        auto const begin = compressed_utf8_path_positions_.get(i);
+        auto const end = compressed_utf8_path_positions_.get(i + 1);
+        auto const sv =
+            std::string_view{compressed_utf8_path_components_->buffer}.substr(
+                begin, end - begin);
+        result.push_back(utf8_path_decoder_->decompress(sv));
+      }
+    } else {
+      result.reserve(utf8_path_components_.size() +
+                     native_path_components_.size());
 
-    for (auto const& component : native_path_components_) {
-      result.push_back(path_to_utf8_string_sanitized(component));
+      for (auto const& component : utf8_path_components_) {
+        result.push_back(u8string_to_string(component));
+      }
+
+      for (auto const& component : native_path_components_) {
+        result.push_back(path_to_utf8_string_sanitized(component));
+      }
     }
 
     return result;
@@ -365,17 +381,84 @@ struct shared_entry_data {
   get_path_component_index(path_name_storage_tuple const& entry) const {
     auto [index, type] = entry;
 
+    auto const utf8_count =
+        utf8_path_component_count_.value_or(utf8_path_components_.size());
+
     if (type == path_name_storage::native) {
-      index += utf8_path_components_.size();
+      index += utf8_count;
     }
 
-    assert(index <
-           utf8_path_components_.size() + native_path_components_.size());
+    assert(index < utf8_count + native_path_components_.size());
 
     return index;
   }
 
+  void freeze_path_storage() {
+    assert(!utf8_path_component_count_.has_value());
+
+    if (utf8_path_components_.empty()) {
+      return;
+    }
+
+    utf8_path_component_count_ = utf8_path_components_.size();
+
+    for (auto& component : native_path_components_) {
+      utf8_path_components_.emplace_back(path_to_u8string_sanitized(component));
+    }
+
+    compressed_utf8_path_components_ =
+        dwarfs::internal::fsst_encoder::compress(utf8_path_components_);
+
+    if (!compressed_utf8_path_components_) {
+      utf8_path_components_.resize(*utf8_path_component_count_);
+      utf8_path_component_count_.reset();
+      return;
+    }
+
+    compressed_utf8_path_positions_.reset(
+        dwarfs::internal::fsst_encoder::compressed_sizes_type::required_bits(
+            compressed_utf8_path_components_->buffer.size()),
+        compressed_utf8_path_components_->compressed_sizes.size() + 1);
+
+    std::partial_sum(compressed_utf8_path_components_->compressed_sizes.begin(),
+                     compressed_utf8_path_components_->compressed_sizes.end(),
+                     compressed_utf8_path_positions_.begin() + 1);
+
+    utf8_path_decoder_.emplace(compressed_utf8_path_components_->dictionary);
+
+    utf8_path_components_.clear();
+  }
+
+  bool has_bulk_compressed_path_components() const {
+    return compressed_utf8_path_components_.has_value();
+  }
+
+  dwarfs::internal::fsst_encoder::bulk_compression_result
+  steal_bulk_compressed_path_components() {
+    auto result = std::move(compressed_utf8_path_components_.value());
+    compressed_utf8_path_components_.reset();
+    return result;
+  }
+
  private:
+  std::u8string utf8_component_at(std::size_t index) const {
+    if (utf8_path_component_count_.has_value()) {
+      assert(index < *utf8_path_component_count_);
+      assert(compressed_utf8_path_components_.has_value());
+      assert(utf8_path_decoder_.has_value());
+      auto const begin = compressed_utf8_path_positions_.get(index);
+      auto const end = compressed_utf8_path_positions_.get(index + 1);
+      auto const& buffer = compressed_utf8_path_components_->buffer;
+      auto const sv =
+          std::u8string_view{reinterpret_cast<char8_t const*>(buffer.data()),
+                             buffer.size()}
+              .substr(begin, end - begin);
+      return utf8_path_decoder_->decompress(sv);
+    }
+
+    return utf8_path_components_.at(index);
+  }
+
   auto add_path_component_impl(fs::path const& component)
       -> path_name_storage_tuple {
     std::size_t index;
@@ -401,6 +484,12 @@ struct shared_entry_data {
   cao_vector<std::u8string> utf8_path_components_;
   std::optional<flat_cao_index<std::u8string>> utf8_path_index_{
       utf8_path_components_};
+  std::optional<std::size_t> utf8_path_component_count_;
+  std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
+      compressed_utf8_path_components_;
+  dwarfs::container::packed_int_vector<std::size_t>
+      compressed_utf8_path_positions_;
+  std::optional<dwarfs::internal::fsst_decoder> utf8_path_decoder_;
 
   cao_vector<fs::path::string_type> native_path_components_;
   std::optional<flat_cao_index<fs::path::string_type>> native_path_index_{
@@ -1445,6 +1534,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
       shared_.drop_indices();
       sort_all_directory_entries();
       sort_path_storage();
+      shared_.freeze_path_storage();
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -1735,6 +1825,28 @@ class entry_storage_ final : public entry_storage::entry_impl {
       }
 
       return shared_.get_path_component_index(get_path_storage_impl(id));
+    }
+  }
+
+  bool has_bulk_compressed_path_components() const override {
+    TRACE_CALL;
+
+    if constexpr (is_mutable) {
+      return false;
+    } else {
+      return shared_.has_bulk_compressed_path_components();
+    }
+  }
+
+  dwarfs::internal::fsst_encoder::bulk_compression_result
+  steal_bulk_compressed_path_components() override {
+    TRACE_CALL;
+
+    if constexpr (is_mutable) {
+      DWARFS_PANIC(
+          "bulk compressed path components can only be stolen after freezing");
+    } else {
+      return shared_.steal_bulk_compressed_path_components();
     }
   }
 
@@ -2727,6 +2839,15 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   std::size_t get_path_component_index(entry_id id) const override {
     return impl_.lock()->get_path_component_index(id);
+  }
+
+  bool has_bulk_compressed_path_components() const override {
+    return impl_.lock()->has_bulk_compressed_path_components();
+  }
+
+  dwarfs::internal::fsst_encoder::bulk_compression_result
+  steal_bulk_compressed_path_components() override {
+    return impl_.lock()->steal_bulk_compressed_path_components();
   }
 
   void update_global_entry_data(entry_id id,
