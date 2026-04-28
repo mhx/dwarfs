@@ -78,7 +78,7 @@ class generic_dir_reader final : public dir_reader {
       : it_(fs::directory_iterator(path)) {}
 
   bool read(fs::path& name) override {
-    if (it_ != fs::directory_iterator()) {
+    if (it_ != std::default_sentinel) {
       name.assign(it_->path());
       ++it_;
       return true;
