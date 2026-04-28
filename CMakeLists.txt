@@ -639,6 +639,7 @@ endif()
 if(WITH_TESTS)
   if(WITH_LIBDWARFS AND NOT ONLY_TOOLS_TEST)
     add_executable(dwarfs_unit_tests
+      test/activity_barrier_test.cpp
       test/align_advise_range_test.cpp
       test/associative_vector_types_test.cpp
       test/badfs_test.cpp
