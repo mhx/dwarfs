@@ -58,7 +58,7 @@ class provisional_entry : public entry_interface {
   entry_handle commit(entry_storage& tree);
 
  private:
-  std::filesystem::path path_;
+  std::filesystem::path const& path_;
   file_stat stat_;
   std::optional<dir_handle> parent_;
 };
