@@ -278,21 +278,6 @@ struct shared_entry_data {
     return fs::path(utf8_component_at(index)).native();
   }
 
-  auto get_fs_root_path_component() const -> fs::path {
-    return {native_root_path_component_.value()};
-  }
-
-  auto get_fs_path_component(path_name_storage_tuple const& storage) const
-      -> fs::path {
-    auto const& [index, type] = storage;
-#ifdef DWARFS_HANDLE_NATIVE_PATHS
-    if (type == path_name_storage::native) {
-      return {native_path_components_.at(index)};
-    }
-#endif
-    return {utf8_component_at(index)};
-  }
-
   auto
   get_utf8_path_component_ref(std::size_t index) const -> std::u8string_view {
     return utf8_path_components_.at(index);
@@ -612,12 +597,6 @@ class packed_entry_data {
 
   dir_id get_parent(uint64_t const index) const {
     return parent_dir_id_.at(index);
-  }
-
-  fs::path
-  get_path(shared_entry_data const& shared, uint64_t const index) const {
-    auto const storage_ix = path_storage_index_.at(index);
-    return shared.get_fs_path_component(storage_ix);
   }
 
   fs::path::string_type get_native_path_string(shared_entry_data const& shared,
@@ -2266,13 +2245,6 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   dir_id get_parent_impl(entry_id const id) const {
     return dispatch_(&packed_entry_data::get_parent, id);
-  }
-
-  fs::path get_path_impl(entry_id const id) const {
-    if (id == kRootId) {
-      return shared_.get_fs_root_path_component();
-    }
-    return dispatch_shared_(&packed_entry_data::get_path, id);
   }
 
   fs::path::string_type get_native_path_string_impl(entry_id const id) const {
