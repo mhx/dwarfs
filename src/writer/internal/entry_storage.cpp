@@ -41,6 +41,7 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
+#include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
@@ -1519,12 +1520,39 @@ class entry_storage_ final : public entry_storage::entry_impl {
       , devices_{std::move(other.devices_)}
       , others_{std::move(other.others_)} {}
 
-  std::unique_ptr<entry_impl> freeze() override {
+  std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) override {
     if constexpr (is_mutable) {
-      shared_.drop_indices();
-      sort_all_directory_entries();
-      sort_path_storage();
-      shared_.freeze_path_storage();
+      auto set_status = [&prog](std::string_view status) {
+        prog.set_status_function(
+            [message = "freezing entries: " + std::string{status}](
+                progress const&, size_t) { return message; });
+      };
+
+      LOG_PROXY(debug_logger_policy, lgr);
+
+      set_status("dropping indices");
+      {
+        auto tv = LOG_CPU_TIMED_VERBOSE;
+        shared_.drop_indices();
+        tv << "dropped indices";
+      }
+
+      set_status("sorting directory entries");
+      {
+        auto tv = LOG_CPU_TIMED_VERBOSE;
+        sort_all_directory_entries();
+        tv << "sorted directory entries";
+      }
+
+      sort_path_storage(lgr, set_status);
+
+      set_status("compressing path storage");
+      {
+        auto tv = LOG_CPU_TIMED_VERBOSE;
+        shared_.freeze_path_storage();
+        tv << "compressed path storage";
+      }
+
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -1949,7 +1977,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void dump_events(std::ostream& os) const override;
 
  private:
-  void sort_path_storage()
+  template <typename StatusFunc>
+  void sort_path_storage(logger& lgr, StatusFunc const& set_status)
     requires is_mutable;
 
   template <typename Func>
@@ -2570,9 +2599,14 @@ void reorder_by_map(reorder_map_type& map,
 } // namespace
 
 template <bool Frozen>
-void entry_storage_<Frozen>::sort_path_storage()
+template <typename StatusFunc>
+void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
+                                               StatusFunc const& set_status)
   requires is_mutable
 {
+  LOG_PROXY(debug_logger_policy, lgr);
+  std::optional<std::decay_t<decltype(LOG_TIMED_VERBOSE)>> timer;
+
   auto const utf8_count = shared_.utf8_path_component_count();
   auto const native_count = shared_.native_path_component_count();
   reorder_map_type utf8_map(reorder_map_type::required_bits(2 * utf8_count),
@@ -2584,6 +2618,9 @@ void entry_storage_<Frozen>::sort_path_storage()
   // mark used path components
   //---------------------------------------------------------------------------
 
+  set_status("marking used path components");
+  timer = LOG_TIMED_VERBOSE;
+
   walk_entries([&](entry_id const id) {
     auto const [index, type] = get_path_storage_impl(id);
     if (type == path_name_storage::utf8) {
@@ -2593,9 +2630,15 @@ void entry_storage_<Frozen>::sort_path_storage()
     }
   });
 
+  *timer << "marked used path components";
+  timer.reset();
+
   //---------------------------------------------------------------------------
   // compact used indices
   //---------------------------------------------------------------------------
+
+  set_status("compacting path indices");
+  timer = LOG_TIMED_VERBOSE;
 
   auto compact_map = [&](reorder_map_type& map, std::size_t const count) {
     std::size_t used = 0;
@@ -2614,9 +2657,16 @@ void entry_storage_<Frozen>::sort_path_storage()
   auto const utf8_used = compact_map(utf8_map, utf8_count);
   auto const native_used = compact_map(native_map, native_count);
 
+  *timer << "compacted " << utf8_count << " -> " << utf8_used << " UTF-8 and "
+         << native_count << " -> " << native_used << " native path components";
+  timer.reset();
+
   //---------------------------------------------------------------------------
   // sort used indices
   //---------------------------------------------------------------------------
+
+  set_status("sorting path indices");
+  timer = LOG_TIMED_VERBOSE;
 
   auto sort_prefix = [](reorder_map_type& map, std::size_t const used,
                         auto const& get_component) {
@@ -2636,16 +2686,28 @@ void entry_storage_<Frozen>::sort_path_storage()
         {index, path_name_storage::native});
   });
 
+  *timer << "sorted path indices";
+  timer.reset();
+
   //---------------------------------------------------------------------------
   // invert the maps in-place
   //---------------------------------------------------------------------------
 
+  set_status("inverting path index maps");
+  timer = LOG_TIMED_VERBOSE;
+
   invert_map_in_place(utf8_map, utf8_used, utf8_count);
   invert_map_in_place(native_map, native_used, native_count);
+
+  *timer << "inverted path index maps";
+  timer.reset();
 
   //---------------------------------------------------------------------------
   // update entries with new indices
   //---------------------------------------------------------------------------
+
+  set_status("updating entry path component indices");
+  timer = LOG_TIMED_VERBOSE;
 
   // The map is still keyed by old indices here. Entries must be updated before
   // the path component vectors are physically reordered.
@@ -2671,9 +2733,15 @@ void entry_storage_<Frozen>::sort_path_storage()
     set_path_storage_impl(id, {index, type});
   });
 
+  *timer << "updated entry path component indices";
+  timer.reset();
+
   //---------------------------------------------------------------------------
   // re-order the path storage vectors
   //---------------------------------------------------------------------------
+
+  set_status("sorting path storage vectors");
+  timer = LOG_TIMED_VERBOSE;
 
   reorder_by_map(utf8_map, utf8_used, utf8_count,
                  [&](std::size_t a, std::size_t b) {
@@ -2687,6 +2755,8 @@ void entry_storage_<Frozen>::sort_path_storage()
 
   shared_.set_utf8_path_component_count(utf8_used);
   shared_.set_native_path_component_count(native_used);
+
+  *timer << "sorted path storage vectors";
 }
 
 template <bool Frozen>
@@ -2921,8 +2991,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   void drop_file_hashes() override { impl_.lock()->drop_file_hashes(); }
 
-  std::unique_ptr<entry_impl> freeze() override {
-    return impl_.lock()->freeze();
+  std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) override {
+    return impl_.lock()->freeze(lgr, prog);
   }
 
  private:
@@ -3082,8 +3152,8 @@ std::string entry_storage::dump_inodes() const {
   return oss.str();
 }
 
-void entry_storage::freeze_entries() noexcept {
-  entry_impl_ = entry_impl_->freeze();
+void entry_storage::freeze_entries(logger& lgr, progress& prog) noexcept {
+  entry_impl_ = entry_impl_->freeze(lgr, prog);
 }
 
 void entry_storage::freeze_inodes() noexcept {

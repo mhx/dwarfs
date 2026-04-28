@@ -39,7 +39,11 @@
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
-namespace dwarfs::writer {
+namespace dwarfs {
+
+class logger;
+
+namespace writer {
 
 class inode_fragments;
 struct metadata_options;
@@ -338,7 +342,7 @@ class entry_storage {
   void dump_inodes(std::ostream& os) const;
   std::string dump_inodes() const;
 
-  void freeze_entries() noexcept;
+  void freeze_entries(logger& lgr, progress& prog) noexcept;
   void freeze_inodes() noexcept;
 
   class entry_impl {
@@ -426,7 +430,7 @@ class entry_storage {
 
     virtual void drop_file_hashes() = 0;
 
-    virtual std::unique_ptr<entry_impl> freeze() = 0;
+    virtual std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) = 0;
   };
 
   class inode_impl {
@@ -509,4 +513,5 @@ class entry_storage {
 };
 
 } // namespace internal
-} // namespace dwarfs::writer
+} // namespace writer
+} // namespace dwarfs
