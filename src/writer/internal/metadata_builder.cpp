@@ -293,6 +293,8 @@ class metadata_builder_ final : public metadata_builder::impl {
   metadata_options const& options_;
   std::optional<size_t> old_block_size_;
   time_resolution_converter timeres_;
+  std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
+      compressed_names_;
 };
 
 template <typename LoggerPolicy>
@@ -368,7 +370,12 @@ void metadata_builder_<LoggerPolicy>::gather_entries(
 template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
     entry_storage& storage, global_entry_data const& ge_data) {
-  md_.names() = storage.get_sorted_path_components();
+  if (!options_.plain_names_table && options_.pack_names &&
+      storage.has_bulk_compressed_path_components()) {
+    compressed_names_ = storage.steal_bulk_compressed_path_components();
+  } else {
+    md_.names() = storage.get_sorted_path_components();
+  }
 
   md_.symlinks() = ge_data.get_symlinks();
 
@@ -957,12 +964,19 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
 
   if (!options_.plain_names_table) {
     auto ti = LOG_TIMED_INFO;
-    md_.compact_names() = string_table::pack(
-        md_.names().value(), string_table::pack_options(
-                                 options_.pack_names, options_.pack_names_index,
-                                 options_.force_pack_string_tables));
-    thrift::metadata::metadata tmp;
-    md_.names().copy_from(tmp.names());
+    auto const options = string_table::pack_options(
+        options_.pack_names, options_.pack_names_index,
+        options_.force_pack_string_tables);
+
+    if (compressed_names_) {
+      md_.compact_names() =
+          string_table::pack(std::move(*compressed_names_), options);
+      compressed_names_.reset();
+    } else {
+      md_.compact_names() = string_table::pack(md_.names().value(), options);
+      thrift::metadata::metadata tmp;
+      md_.names().copy_from(tmp.names());
+    }
     ti << "saving names table...";
   }
 
