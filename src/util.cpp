@@ -862,8 +862,9 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
   return p;
 }
 
+bool is_well_formed_utf16_path(std::filesystem::path const& p
+                               [[maybe_unused]]) {
 #ifdef _WIN32
-bool is_well_formed_utf16_path(std::filesystem::path const& p) {
   auto const& s = p.native();
 
   size_t i = 0;
@@ -891,10 +892,10 @@ bool is_well_formed_utf16_path(std::filesystem::path const& p) {
       return false;
     }
   }
+#endif
 
   return true;
 }
-#endif
 
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p) {
 #ifdef _WIN32

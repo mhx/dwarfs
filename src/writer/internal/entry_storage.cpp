@@ -71,7 +71,7 @@
 #endif
 
 #ifdef _WIN32
-#define DWARFS_KEEP_FS_PATHS 1
+#define DWARFS_HANDLE_NATIVE_PATHS
 #endif
 
 namespace fs = std::filesystem;
@@ -162,7 +162,9 @@ class memory_usage_dumper {
 
 enum class path_name_storage : std::size_t {
   utf8 = 0,
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   native = 1,
+#endif
 };
 
 // TODO: remove if we don't need these
@@ -206,7 +208,9 @@ struct shared_entry_data {
  public:
   void drop_indices() {
     utf8_path_index_.reset();
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     native_path_index_.reset();
+#endif
     device_index_.reset();
     mode_index_.reset();
     uid_index_.reset();
@@ -250,11 +254,13 @@ struct shared_entry_data {
 
   auto get_utf8_path_component(path_name_storage_tuple const& storage) const
       -> std::string {
-    auto const& [index, type] = storage;
-    if (type == path_name_storage::utf8) {
-      return u8string_to_string(utf8_component_at(index));
+    [[maybe_unused]] auto const& [index, type] = storage;
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
+    if (type == path_name_storage::native) {
+      return path_to_utf8_string_sanitized(native_path_components_.at(index));
     }
-    return path_to_utf8_string_sanitized(native_path_components_.at(index));
+#endif
+    return u8string_to_string(utf8_component_at(index));
   }
 
   auto get_native_root_path_component() const -> fs::path::string_type {
@@ -263,10 +269,12 @@ struct shared_entry_data {
 
   auto get_native_path_component(path_name_storage_tuple const& storage) const
       -> fs::path::string_type {
-    auto const& [index, type] = storage;
+    [[maybe_unused]] auto const& [index, type] = storage;
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     if (type == path_name_storage::native) {
       return native_path_components_.at(index);
     }
+#endif
     return fs::path(utf8_component_at(index)).native();
   }
 
@@ -277,10 +285,12 @@ struct shared_entry_data {
   auto get_fs_path_component(path_name_storage_tuple const& storage) const
       -> fs::path {
     auto const& [index, type] = storage;
-    if (type == path_name_storage::utf8) {
-      return {utf8_component_at(index)};
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
+    if (type == path_name_storage::native) {
+      return {native_path_components_.at(index)};
     }
-    return {native_path_components_.at(index)};
+#endif
+    return {utf8_component_at(index)};
   }
 
   auto
@@ -288,10 +298,12 @@ struct shared_entry_data {
     return utf8_path_components_.at(index);
   }
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   auto get_native_path_component_ref(std::size_t index) const
       -> std::basic_string_view<fs::path::string_type::value_type> {
     return native_path_components_.at(index);
   }
+#endif
 
   auto get_mode(size_t index) const -> file_stat::mode_type {
     return modes_.at(index);
@@ -334,18 +346,22 @@ struct shared_entry_data {
     return utf8_path_component_count_.value_or(utf8_path_components_.size());
   }
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   std::size_t native_path_component_count() const {
     return native_path_components_.size();
   }
+#endif
 
   void set_utf8_path_component_count(std::size_t const count) {
     assert(!utf8_path_component_count_.has_value());
     utf8_path_components_.resize(count);
   }
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   void set_native_path_component_count(std::size_t const count) {
     native_path_components_.resize(count);
   }
+#endif
 
   void swap_utf8_path_components(std::size_t const a, std::size_t const b) {
     assert(!utf8_path_component_count_.has_value());
@@ -353,10 +369,12 @@ struct shared_entry_data {
     swap(utf8_path_components_.at(a), utf8_path_components_.at(b));
   }
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   void swap_native_path_components(std::size_t const a, std::size_t const b) {
     using std::swap;
     swap(native_path_components_.at(a), native_path_components_.at(b));
   }
+#endif
 
   std::vector<std::string> get_sorted_path_components() const {
     std::vector<std::string> result;
@@ -373,16 +391,21 @@ struct shared_entry_data {
         result.push_back(utf8_path_decoder_->decompress(sv));
       }
     } else {
-      result.reserve(utf8_path_components_.size() +
-                     native_path_components_.size());
+      result.reserve(utf8_path_components_.size()
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
+                     + native_path_components_.size()
+#endif
+      );
 
       for (auto const& component : utf8_path_components_) {
         result.push_back(u8string_to_string(component));
       }
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
       for (auto const& component : native_path_components_) {
         result.push_back(path_to_utf8_string_sanitized(component));
       }
+#endif
     }
 
     return result;
@@ -390,8 +413,9 @@ struct shared_entry_data {
 
   std::size_t
   get_path_component_index(path_name_storage_tuple const& entry) const {
-    auto [index, type] = entry;
+    [[maybe_unused]] auto [index, type] = entry;
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     auto const utf8_count =
         utf8_path_component_count_.value_or(utf8_path_components_.size());
 
@@ -400,6 +424,7 @@ struct shared_entry_data {
     }
 
     assert(index < utf8_count + native_path_components_.size());
+#endif
 
     return index;
   }
@@ -413,9 +438,11 @@ struct shared_entry_data {
 
     utf8_path_component_count_ = utf8_path_components_.size();
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     for (auto& component : native_path_components_) {
       utf8_path_components_.emplace_back(path_to_u8string_sanitized(component));
     }
+#endif
 
     compressed_utf8_path_components_ =
         dwarfs::internal::fsst_encoder::compress(utf8_path_components_);
@@ -467,7 +494,7 @@ struct shared_entry_data {
     std::size_t index;
     path_name_storage type{path_name_storage::utf8};
 
-#ifdef _WIN32
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     if (!is_well_formed_utf16_path(component)) {
       type = path_name_storage::native;
       index = native_path_index_->add(component);
@@ -492,9 +519,11 @@ struct shared_entry_data {
       compressed_utf8_path_components_;
   std::optional<dwarfs::internal::fsst_decoder> utf8_path_decoder_;
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   cao_vector<fs::path::string_type> native_path_components_;
   std::optional<flat_cao_index<fs::path::string_type>> native_path_index_{
       native_path_components_};
+#endif
 
   cao_vector<file_stat::dev_type> devices_;
   std::optional<flat_cao_index<file_stat::dev_type>> device_index_{devices_};
@@ -1311,11 +1340,13 @@ void shared_entry_data::dump(std::ostream& os) const {
       [](std::size_t acc, auto const& pc) {
         return acc + string_memory_usage(pc);
       });
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   auto const total_native_path_bytes = std::accumulate(
       native_path_components_.begin(), native_path_components_.end(), 0ULL,
       [](std::size_t acc, auto const& pc) {
         return acc + string_memory_usage(pc);
       });
+#endif
   auto const total_link_bytes =
       std::accumulate(link_targets_.begin(), link_targets_.end(), 0ULL,
                       [](std::size_t acc, std::string const& link) {
@@ -1326,8 +1357,10 @@ void shared_entry_data::dump(std::ostream& os) const {
 
   d.add("utf8 path components", total_utf8_path_bytes,
         utf8_path_components_.size());
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   d.add("native path components", total_native_path_bytes,
         native_path_components_.size());
+#endif
   d.add("devices", devices_.size() * sizeof(devices_[0]), devices_.size());
   d.add("modes", modes_.size() * sizeof(modes_[0]), modes_.size());
   d.add("uids", uids_.size() * sizeof(uids_[0]), uids_.size());
@@ -1829,14 +1862,13 @@ class entry_storage_ final : public entry_storage::entry_impl {
       DWARFS_PANIC(
           "entry_less_revpath is not supported for mutable entry_storage");
     } else {
-#ifdef _WIN32
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
       if (shared_.native_path_component_count() > 0) {
         return entry_less_impl(lhs, rhs, [this](entry_id const id) {
           return get_path_string_impl(id);
         });
       }
 #endif
-      assert(shared_.native_path_component_count() == 0);
 
       // If there are no native path components, and after freezing, path
       // components are ordered, and so are their indices. We can thus
@@ -2102,7 +2134,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
         if constexpr (kLocalPathSeparator != Separator) {
           std::replace(p.begin(), p.end(), kLocalPathSeparator, Separator);
         } else {
-#ifdef _WIN32
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
           std::replace(p.begin(), p.end(), static_cast<Output::value_type>('/'),
                        Separator);
 #endif
@@ -2116,7 +2148,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void sort_all_directory_entries()
     requires is_mutable
   {
-#ifdef _WIN32
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     if (shared_.native_path_component_count() > 0) {
       shared_.sort_all_dir_entries(
           [this](entry_id const aid, entry_id const bid) {
@@ -2684,11 +2716,13 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
   std::optional<std::decay_t<decltype(LOG_TIMED_VERBOSE)>> timer;
 
   auto const utf8_count = shared_.utf8_path_component_count();
-  auto const native_count = shared_.native_path_component_count();
   reorder_map_type utf8_map(reorder_map_type::required_bits(2 * utf8_count),
                             utf8_count);
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
+  auto const native_count = shared_.native_path_component_count();
   reorder_map_type native_map(reorder_map_type::required_bits(2 * native_count),
                               native_count);
+#endif
 
   //---------------------------------------------------------------------------
   // mark used path components
@@ -2698,12 +2732,17 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
   timer = LOG_TIMED_VERBOSE;
 
   walk_entries([&](entry_id const id) {
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     auto const [index, type] = get_path_storage_impl(id);
     if (type == path_name_storage::utf8) {
       utf8_map[index] = 0;
     } else {
       native_map[index] = 0;
     }
+#else
+    auto const index = get_path_storage_index_impl(id);
+    utf8_map[index] = 0;
+#endif
   });
 
   *timer << "marked used path components";
@@ -2731,10 +2770,18 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
   };
 
   auto const utf8_used = compact_map(utf8_map, utf8_count);
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   auto const native_used = compact_map(native_map, native_count);
+#endif
 
-  *timer << "compacted " << utf8_count << " -> " << utf8_used << " UTF-8 and "
-         << native_count << " -> " << native_used << " native path components";
+  *timer << "compacted " << utf8_count << " -> " << utf8_used
+         << " UTF-8"
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
+            " and "
+         << native_count << " -> " << native_used
+         << " native"
+#endif
+            " path components";
   timer.reset();
 
   //---------------------------------------------------------------------------
@@ -2758,9 +2805,11 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
     return shared_.get_utf8_path_component_ref(index);
   });
 
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   sort_prefix(native_map, native_used, [&](std::size_t index) {
     return shared_.get_native_path_component_ref(index);
   });
+#endif
 
   *timer << "sorted path indices";
   timer.reset();
@@ -2773,7 +2822,9 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
   timer = LOG_TIMED_VERBOSE;
 
   invert_map_in_place(utf8_map, utf8_used, utf8_count);
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   invert_map_in_place(native_map, native_used, native_count);
+#endif
 
   *timer << "inverted path index maps";
   timer.reset();
@@ -2798,6 +2849,7 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
   };
 
   walk_entries([&](entry_id const id) {
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
     auto [index, type] = get_path_storage_impl(id);
 
     if (type == path_name_storage::utf8) {
@@ -2807,6 +2859,11 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
     }
 
     set_path_storage_impl(id, {index, type});
+#else
+    auto index = get_path_storage_index_impl(id);
+    index = translated_index(utf8_map, index, utf8_count);
+    set_path_storage_impl(id, {index, path_name_storage::utf8});
+#endif
   });
 
   *timer << "updated entry path component indices";
@@ -2824,13 +2881,16 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
                    shared_.swap_utf8_path_components(a, b);
                  });
 
+  shared_.set_utf8_path_component_count(utf8_used);
+
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   reorder_by_map(native_map, native_used, native_count,
                  [&](std::size_t a, std::size_t b) {
                    shared_.swap_native_path_components(a, b);
                  });
 
-  shared_.set_utf8_path_component_count(utf8_used);
   shared_.set_native_path_component_count(native_used);
+#endif
 
   *timer << "sorted path storage vectors";
 }
