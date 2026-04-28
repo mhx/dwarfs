@@ -456,6 +456,8 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   std::deque<entry_id> queue({root.id()});
+  std::filesystem::path name;
+  std::vector<entry_id> subdirs;
   prog.dirs_found++;
 
   while (!queue.empty()) {
@@ -468,8 +470,6 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
 
     try {
       auto d = os_.opendir(ppath);
-      std::filesystem::path name;
-      std::vector<entry_id> subdirs;
 
       while (d->read(name)) {
         if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
@@ -480,6 +480,8 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
       }
 
       queue.insert(queue.begin(), subdirs.begin(), subdirs.end());
+
+      subdirs.clear();
 
       prog.dirs_scanned++;
     } catch (std::system_error const& e) {
