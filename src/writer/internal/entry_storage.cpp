@@ -1542,14 +1542,17 @@ class entry_storage_ final : public entry_storage::entry_impl {
         tv << "dropped indices";
       }
 
+      // This must be done before sorting directory entries, since
+      // `sort_all_directory_entries()` relies on the path storage indices
+      // to already be sorted.
+      sort_path_storage(lgr, set_status);
+
       set_status("sorting directory entries");
       {
         auto tv = LOG_CPU_TIMED_VERBOSE;
         sort_all_directory_entries();
         tv << "sorted directory entries";
       }
-
-      sort_path_storage(lgr, set_status);
 
       set_status("compressing path storage");
       {
@@ -2103,9 +2106,21 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void sort_all_directory_entries()
     requires is_mutable
   {
+#ifdef _WIN32
+    if (shared_.native_path_component_count() > 0) {
+      shared_.sort_all_dir_entries(
+          [this](entry_id const aid, entry_id const bid) {
+            return get_path_string_impl(aid) < get_path_string_impl(bid);
+          });
+      return;
+    }
+#endif
+
+    // See comment in `entry_less_revpath` about ordering.
     shared_.sort_all_dir_entries(
         [this](entry_id const aid, entry_id const bid) {
-          return get_path_string_impl(aid) < get_path_string_impl(bid);
+          return get_path_storage_index_impl(aid) <
+                 get_path_storage_index_impl(bid);
         });
   }
 
