@@ -226,7 +226,7 @@ pack_generic(std::span<T const> input,
 
     for (auto const& s : input) {
       output.buffer().value() += s;
-      output.index()->emplace_back(s.size());
+      output.index()->push_back(s.size());
     }
   }
 

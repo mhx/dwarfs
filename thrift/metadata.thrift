@@ -210,7 +210,7 @@ struct string_table {
 
    // the (optionally packed) index; if packed, the index is stored
    // delta-compressed
-   3: list<UInt32> index
+   3: list<UInt32> index  (cpp.packed_vector = "heap_only")
 
    // indicates if the index is packed
    4: bool packed_index
