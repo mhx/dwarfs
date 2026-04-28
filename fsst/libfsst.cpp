@@ -257,7 +257,7 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
       if (((len[curLine]-curOff)*2 + 7) > budget) break; // see below for the +7
       else budget -= (len[curLine]-curOff)*2;
 
-      strOut[curLine] = (u8*) 0; 
+      if (strOut) strOut[curLine] = (u8*) 0;
       lenOut[curLine] = 0;
 
       do {
@@ -361,7 +361,7 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
             for(size_t i=0; i<batchPos; i++) {
                size_t lineNr = jobLine[i]; // the sort must be order-preserving, as we concatenate results string in order
                size_t sz = input[i].end; // had stored compressed lengths here
-               if (!strOut[lineNr]) strOut[lineNr] = dst; // first segment will be the strOut pointer
+               if (strOut && !strOut[lineNr]) strOut[lineNr] = dst; // first segment will be the strOut pointer
                lenOut[lineNr] += sz; // add segment (lenOut starts at 0 for this reason)
                memcpy(dst, codeBase+input[i].out, sz);
                dst += sz;
@@ -422,7 +422,8 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const
 
    for(curLine=0; curLine<nlines; curLine++) {
       size_t chunk, curOff = 0;
-      strOut[curLine] = out;
+      auto const lastOut = out;
+      if (strOut) strOut[curLine] = out;
       do {
          cur = strIn[curLine] + curOff; 
          chunk = lenIn[curLine] - curOff;
@@ -447,7 +448,7 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const
           compressVariant(false, false);
          }
       } while((curOff += chunk) < lenIn[curLine]);
-      lenOut[curLine] = (size_t) (out - strOut[curLine]);
+      lenOut[curLine] = (size_t) (out - lastOut);
    } 
    return curLine;
 }
