@@ -31,7 +31,9 @@
 #include <iostream>
 
 #ifndef _WIN32
+#include <dirent.h>
 #include <pthread.h>
+#include <sys/types.h>
 #endif
 
 #include <dwarfs/portability/unistd.h>
@@ -72,6 +74,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
+#ifdef _WIN32
+
 class generic_dir_reader final : public dir_reader {
  public:
   explicit generic_dir_reader(fs::path const& path)
@@ -91,11 +95,65 @@ class generic_dir_reader final : public dir_reader {
   fs::directory_iterator it_;
 };
 
+#else
+
+class posix_dir_reader final : public dir_reader {
+ public:
+  explicit posix_dir_reader(fs::path const& path)
+      : parent_{path}
+      , dir_{::opendir(path.c_str())} {
+    if (!dir_) {
+      throw std::system_error(errno, std::generic_category(),
+                              "opendir: " + path.string());
+    }
+  }
+
+  bool read(fs::path& name) override {
+    errno = 0;
+
+    while (auto* ent = ::readdir(dir_.get())) {
+      std::string_view leaf{&ent->d_name[0]};
+
+      if (leaf == "." || leaf == "..") {
+        continue;
+      }
+
+      name = parent_;
+      name /= leaf;
+      return true;
+    }
+
+    if (errno != 0) {
+      throw std::system_error(errno, std::generic_category(), "readdir");
+    }
+
+    return false;
+  }
+
+ private:
+  struct closer {
+    void operator()(DIR* d) const noexcept {
+      if (d) {
+        ::closedir(d);
+      }
+    }
+  };
+
+  fs::path parent_;
+  std::unique_ptr<DIR, closer> dir_;
+};
+
+#endif
+
 } // namespace
 
 std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
+#ifdef _WIN32
   return std::make_unique<generic_dir_reader>(path);
+#else
+  return std::make_unique<posix_dir_reader>(path);
+#endif
 }
 
 file_stat os_access_generic::symlink_info(fs::path const& path) const {
