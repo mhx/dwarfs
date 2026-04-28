@@ -678,12 +678,16 @@ void scanner_<LoggerPolicy>::scan(
 
   tree->freeze_entries(LOG_GET_LOGGER, prog);
 
-  prog.set_status_function(status_string);
+  auto set_status = [&prog](std::string_view status) {
+    prog.set_status_function(
+        [msg = std::string(status)](progress const&, size_t) { return msg; });
+  };
 
   LOG_INFO << "scanning CPU time: "
            << time_with_unit(wg_.try_get_cpu_time().value_or(0ns));
 
   LOG_INFO << "assigning directory and link inodes...";
+  set_status("assigning directory and link inodes");
 
   uint32_t first_link_inode = 0;
   dir_set_inode_visitor dsiv(first_link_inode);
@@ -697,6 +701,7 @@ void scanner_<LoggerPolicy>::scan(
              [&fs](auto& os) { fs->dump(os); });
 
   LOG_INFO << "finalizing file inodes...";
+  set_status("finalizing file inodes");
   uint32_t first_device_inode = first_file_inode;
   fs->finalize(first_device_inode);
 
@@ -722,6 +727,7 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << "inode storage (before freezing):\n" << tree->dump_inodes();
 
+  set_status("freezing inodes");
   tree->freeze_inodes();
 
   auto original_size = [&] {
@@ -756,17 +762,17 @@ void scanner_<LoggerPolicy>::scan(
   metadata_builder mdb(LOG_GET_LOGGER, options_.metadata);
 
   LOG_INFO << "assigning device inodes...";
+  set_status("assigning device inodes");
   uint32_t first_pipe_inode = first_device_inode;
   device_set_inode_visitor devsiv(first_pipe_inode);
   root.accept(devsiv);
   mdb.set_devices(std::move(devsiv.device_ids()));
 
   LOG_INFO << "assigning pipe/socket inodes...";
+  set_status("assigning pipe/socket inodes");
   uint32_t last_inode = first_pipe_inode;
   pipe_set_inode_visitor pipsiv(last_inode);
   root.accept(pipsiv);
-
-  LOG_INFO << "building metadata...";
 
   mdb.set_symlink_table_size(first_file_inode - first_link_inode);
 
@@ -795,6 +801,8 @@ void scanner_<LoggerPolicy>::scan(
   dump_state(kEnvVarDumpInodes, "inodes", fa, [&im](auto& os) { im.dump(os); });
 
   LOG_INFO << "building blocks...";
+
+  prog.set_status_function(status_string);
 
   // TODO:
   // - get rid of multiple worker groups
@@ -916,17 +924,18 @@ void scanner_<LoggerPolicy>::scan(
   // seg.finish();
   wg_.wait();
 
-  prog.set_status_function([](progress const&, size_t) {
-    return "waiting for block compression to finish";
-  });
   prog.current.store(std::monostate{});
+  prog.set_status_function_and_drain(
+      [](progress const&, size_t) { return std::string(); });
 
   mdb.set_block_size(segmenter_factory_.get_block_size());
 
   LOG_INFO << "saving chunks...";
+  set_status("saving chunks");
   mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
 
   LOG_INFO << "saving directories...";
+  set_status("saving directories");
   {
     save_directories_visitor sdv(first_link_inode);
     root.accept(sdv);
@@ -934,6 +943,7 @@ void scanner_<LoggerPolicy>::scan(
   }
 
   LOG_INFO << "saving shared files table...";
+  set_status("saving shared files table");
   {
     save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                    num_unique_files);
@@ -990,6 +1000,7 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << ge_data->to_string();
 
+  set_status("gathering global entry data");
   {
     auto tv = LOG_TIMED_VERBOSE;
     mdb.gather_global_entry_data(*tree, *ge_data);
@@ -1001,7 +1012,14 @@ void scanner_<LoggerPolicy>::scan(
   tree.reset();
   ge_data.reset();
 
-  auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
+  set_status("building metadata");
+  auto metadata = std::make_optional(mdb.build());
+
+  set_status("freezing metadata");
+  auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(*metadata);
+
+  // free memory again
+  metadata.reset();
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
@@ -1015,6 +1033,7 @@ void scanner_<LoggerPolicy>::scan(
   }
 
   LOG_INFO << "waiting for compression to finish...";
+  set_status("waiting for block compression to finish");
 
   fsw.flush();
 
