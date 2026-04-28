@@ -272,7 +272,9 @@ TEST_F(entry_test, walk_visits_preorder_in_insertion_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  tree.freeze_entries();
+  progress prog{};
+  test_logger lgr;
+  tree.freeze_entries(lgr, prog);
 
   std::vector<std::string> visited;
   root.walk([&](wi::entry_handle e) { visited.push_back(e.unix_dpath()); });
@@ -306,7 +308,9 @@ TEST_F(entry_test, accept_visits_dirs_pre_and_post_in_current_order) {
   ASSERT_TRUE(b);
   ASSERT_TRUE(c);
 
-  tree.freeze_entries();
+  progress prog{};
+  test_logger lgr;
+  tree.freeze_entries(lgr, prog);
 
   recording_visitor pre;
   root.accept(pre, true);
@@ -418,7 +422,8 @@ TEST_F(entry_test,
 
   tree.remove_empty_dirs(prog);
 
-  tree.freeze_entries();
+  test_logger lgr;
+  tree.freeze_entries(lgr, prog);
 
   std::vector<std::string> after;
   root.walk([&](wi::entry_handle e) { after.push_back(e.unix_dpath()); });
@@ -712,9 +717,11 @@ TEST_F(entry_test, frozen_panic) {
   auto file = create_entry(tree, sep / "foo.pl", root).as_file();
   auto link = create_entry(tree, sep / "somelink", root).as_link();
 
-  tree.freeze_entries();
+  progress prog{};
+  test_logger lgr;
+  tree.freeze_entries(lgr, prog);
 
-  EXPECT_DEATH(tree.freeze_entries(), "entry_storage is frozen");
+  EXPECT_DEATH(tree.freeze_entries(lgr, prog), "entry_storage is frozen");
   EXPECT_DEATH(create_entry(tree, sep / "foo.pl", root),
                "entry_storage is frozen");
   EXPECT_DEATH(tree.create_packed_file_data(file.id()),
@@ -725,7 +732,6 @@ TEST_F(entry_test, frozen_panic) {
                "entry_storage is frozen");
   EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
 
-  progress prog{};
   EXPECT_DEATH(tree.set_link_target(link.id(), "target", prog),
                "entry_storage is frozen");
   EXPECT_DEATH(tree.remove_empty_dirs(prog), "entry_storage is frozen");
