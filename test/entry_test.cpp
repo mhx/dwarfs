@@ -731,7 +731,7 @@ TEST_F(entry_test, frozen_panic) {
   EXPECT_DEATH(tree.create_packed_file_data(file.id()),
                "entry_storage is frozen");
   EXPECT_DEATH(tree.find_in_dir(root.as_dir().id(), "foo.pl"),
-               "find_in_dir not \\(yet\\) supported for frozen entry_storage");
+               "entry_storage is frozen");
   EXPECT_DEATH(tree.get_file_hash_buffer(file.id(), 16),
                "entry_storage is frozen");
   EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
@@ -778,9 +778,30 @@ TEST_F(entry_test, synchronized_storage_operations) {
   tree.set_file_order_index(file.id(), 17);
   EXPECT_EQ(17, tree.get_file_order_index(file.id()));
 
+  EXPECT_FALSE(tree.has_bulk_compressed_path_components());
+
   EXPECT_DEATH(
       tree.for_each_entry_in_dir(root.as_dir().id(), [](wi::entry_id) {}),
-      "synchronized for_each_entry_in_dir is not supported");
+      "entry_storage is not frozen");
+
+  EXPECT_DEATH(tree.entry_less_revpath(file.id(), file.id()),
+               "entry_storage is not frozen");
+
+  EXPECT_DEATH(tree.get_sorted_path_components(),
+               "entry_storage is not frozen");
+
+  EXPECT_DEATH(tree.get_path_component_index(root.id()),
+               "entry_storage is not frozen");
+
+  EXPECT_DEATH(tree.steal_bulk_compressed_path_components(),
+               "entry_storage is not frozen");
+
+  EXPECT_DEATH(tree.drop_file_hashes(), "entry_storage is not frozen");
+
+  {
+    wi::file_id_vector vec;
+    EXPECT_DEATH(tree.sort_file_id_vector(vec), "entry_storage is not frozen");
+  }
 
   auto inode = tree.create_inode();
 
