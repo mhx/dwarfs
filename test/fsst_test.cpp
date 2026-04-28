@@ -1044,32 +1044,23 @@ constexpr auto total_string_length = std::accumulate(
     test_strings.begin(), test_strings.end(), 0,
     [](size_t sum, std::string_view str) { return sum + str.size(); });
 
-template <typename T>
-std::vector<std::size_t> get_positions(T const& sizes) {
-  std::vector<std::size_t> positions(sizes.size() + 1);
-  std::partial_sum(sizes.begin(), sizes.end(), positions.begin() + 1);
-  return positions;
-}
-
 } // namespace
 
 TEST(fsst_test, basic) {
   auto const res = fsst_encoder::compress(test_strings);
 
   ASSERT_TRUE(res.has_value());
-  EXPECT_EQ(test_strings.size(), res->compressed_sizes.size());
+  EXPECT_EQ(test_strings.size() + 1, res->positions.size());
   EXPECT_GT(res->dictionary.size(), 550);
   EXPECT_LT(res->dictionary.size(), 600);
   EXPECT_LT(res->buffer.size(), 9 * total_string_length / 17);
-
-  auto const positions = get_positions(res->compressed_sizes);
 
   auto const decoder = fsst_decoder{res->dictionary};
 
   for (size_t i = 0; i < test_strings.size(); ++i) {
     auto const& str = test_strings[i];
     auto const compressed_data = std::string_view{res->buffer}.substr(
-        positions[i], positions[i + 1] - positions[i]);
+        res->positions[i], res->positions[i + 1] - res->positions[i]);
 
     auto const decompressed = decoder.decompress(compressed_data);
 
@@ -1106,7 +1097,7 @@ TEST(fsst_random_test, random_strings) {
       ASSERT_FALSE(res2.has_value());
     } else {
       ASSERT_TRUE(res.has_value());
-      EXPECT_EQ(input.size(), res->compressed_sizes.size());
+      EXPECT_EQ(input.size() + 1, res->positions.size());
 
       auto const total_input_length =
           std::accumulate(input.begin(), input.end(), size_t{0},
@@ -1130,14 +1121,12 @@ TEST(fsst_random_test, random_strings) {
         EXPECT_LE(res->buffer.size(), 200 * total_input_length / 100);
       }
 
-      auto const positions = get_positions(res->compressed_sizes);
-
       auto const decoder = fsst_decoder{res->dictionary};
 
       for (size_t i = 0; i < input.size(); ++i) {
         auto const& str = input[i];
         auto const compressed_data = std::string_view{res->buffer}.substr(
-            positions[i], positions[i + 1] - positions[i]);
+            res->positions[i], res->positions[i + 1] - res->positions[i]);
 
         auto const decompressed = decoder.decompress(compressed_data);
 

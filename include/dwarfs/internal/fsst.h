@@ -52,13 +52,13 @@ concept fsst_string_type =
 
 class fsst_encoder {
  public:
-  using compressed_sizes_type =
-      dwarfs::container::packed_int_vector<std::size_t>;
+  // The uint32_t is used for compatibility with the Thrift type.
+  using index_type = dwarfs::container::packed_int_vector<std::uint32_t>;
 
   struct bulk_compression_result {
     std::string dictionary;
     std::string buffer;
-    compressed_sizes_type compressed_sizes;
+    index_type positions;
   };
 
   static std::optional<bulk_compression_result>

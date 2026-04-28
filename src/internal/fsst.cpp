@@ -106,7 +106,9 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
                         std::accumulate(out_len_vec.begin(), out_len_vec.end(),
                                         static_cast<size_t>(0))));
 
-  auto const max_out_len = std::ranges::max(out_len_vec);
+  // TODO: we can probably get rid of this entirely
+  out_ptr_vec.clear();
+  out_ptr_vec.shrink_to_fit();
 
   buffer.resize(static_cast<size_t>(compressed_size));
 
@@ -114,12 +116,11 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
 
   output->dictionary = std::move(symtab);
   output->buffer = std::move(buffer);
-  output->compressed_sizes.reset(
-      fsst_encoder::compressed_sizes_type::required_bits(max_out_len), size);
+  output->positions.reset(
+      fsst_encoder::index_type::required_bits(compressed_size), size + 1);
 
-  for (size_t i = 0; i < size; ++i) {
-    output->compressed_sizes.set(i, out_len_vec[i]);
-  }
+  std::partial_sum(out_len_vec.begin(), out_len_vec.end(),
+                   output->positions.begin() + 1);
 
   return output;
 }

@@ -168,26 +168,20 @@ void update_index(thrift::metadata::string_table& output,
                   string_table::pack_options const& options) {
   output.packed_index() = options.pack_index;
 
-  if (!options.pack_index) {
-    output.index()->insert(output.index()->begin(), 0);
-    std::partial_sum(output.index()->begin(), output.index()->end(),
-                     output.index()->begin());
+  if (options.pack_index) {
+    std::adjacent_difference(output.index()->begin() + 1, output.index()->end(),
+                             output.index()->begin());
+    output.index()->pop_back();
+    output.index()->optimize_storage();
   }
 }
 
 void set_from_compression_result(thrift::metadata::string_table& output,
-                                 fsst_encoder::bulk_compression_result&& res,
-                                 string_table::pack_options const& options) {
-  auto const size = res.compressed_sizes.size();
-
-  output.buffer() = std::move(res.buffer);
-  output.symtab() = std::move(res.dictionary);
-  output.index()->reserve(size + (options.pack_index ? 0 : 1));
-  output.index()->resize(size);
-
-  for (size_t i = 0; i < size; ++i) {
-    output.index()[i] = res.compressed_sizes.get(i);
-  }
+                                 fsst_encoder::bulk_compression_result&& res) {
+  auto r = std::move(res);
+  output.buffer() = std::move(r.buffer);
+  output.symtab() = std::move(r.dictionary);
+  output.index() = std::move(r.positions);
 }
 
 thrift::metadata::string_table
@@ -195,7 +189,7 @@ pack_compressed(fsst_encoder::bulk_compression_result&& res,
                 string_table::pack_options const& options) {
   assert(options.pack_data);
   thrift::metadata::string_table output;
-  set_from_compression_result(output, std::move(res), options);
+  set_from_compression_result(output, std::move(res));
   update_index(output, options);
   return output;
 }
@@ -214,7 +208,7 @@ pack_generic(std::span<T const> input,
 
   if (res) {
     // store compressed
-    set_from_compression_result(output, std::move(*res), options);
+    set_from_compression_result(output, std::move(*res));
   } else {
     // store uncompressed
     auto const total_input_size =
@@ -222,11 +216,15 @@ pack_generic(std::span<T const> input,
                         [](size_t n, auto const& s) { return n + s.size(); });
 
     output.buffer()->reserve(total_input_size);
-    output.index()->reserve(input.size() + (options.pack_index ? 0 : 1));
+    output.index()->reserve(input.size() + 1);
+
+    fsst_encoder::index_type::value_type pos = 0;
+    output.index()->push_back(pos);
 
     for (auto const& s : input) {
       output.buffer().value() += s;
-      output.index()->push_back(s.size());
+      pos += s.size();
+      output.index()->push_back(pos);
     }
   }
 
