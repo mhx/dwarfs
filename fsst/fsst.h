@@ -136,7 +136,7 @@ fsst_compress(
    size_t outsize,          /* IN: byte-length of output buffer. */
    unsigned char *output,   /* OUT: memory buffer to put the compressed strings in (one after the other). */
    size_t lenOut[],         /* OUT: byte-lengths of the compressed strings. */
-   unsigned char *strOut[]  /* OUT: output string start pointers. Will all point into [output,output+size). */
+   unsigned char *strOut[]  /* OUT: output string start pointers. Will all point into [output,output+size). Can be NULL. */
 );
 
 /* Decompress a single string, inlined for speed. */
