@@ -283,6 +283,16 @@ struct shared_entry_data {
     return {native_path_components_.at(index)};
   }
 
+  auto
+  get_utf8_path_component_ref(std::size_t index) const -> std::u8string_view {
+    return utf8_path_components_.at(index);
+  }
+
+  auto get_native_path_component_ref(std::size_t index) const
+      -> std::basic_string_view<fs::path::string_type::value_type> {
+    return native_path_components_.at(index);
+  }
+
   auto get_mode(size_t index) const -> file_stat::mode_type {
     return modes_.at(index);
   }
@@ -2715,7 +2725,7 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
       }
     }
 
-    std::fill(map.begin() + used, map.begin() + count, std::nullopt);
+    std::fill(map.begin() + used, map.end(), std::nullopt);
 
     return used;
   };
@@ -2736,20 +2746,20 @@ void entry_storage_<Frozen>::sort_path_storage(logger& lgr,
 
   auto sort_prefix = [](reorder_map_type& map, std::size_t const used,
                         auto const& get_component) {
-    std::sort(map.begin(), map.begin() + used,
-              [&](std::optional<std::size_t> a, std::optional<std::size_t> b) {
-                assert(a.has_value() && b.has_value());
-                return get_component(*a) < get_component(*b);
-              });
+    std::ranges::sort(
+        map.begin(), map.begin() + used,
+        [&](std::optional<std::size_t> a, std::optional<std::size_t> b) {
+          assert(a.has_value() && b.has_value());
+          return get_component(*a) < get_component(*b);
+        });
   };
 
   sort_prefix(utf8_map, utf8_used, [&](std::size_t index) {
-    return shared_.get_utf8_path_component({index, path_name_storage::utf8});
+    return shared_.get_utf8_path_component_ref(index);
   });
 
   sort_prefix(native_map, native_used, [&](std::size_t index) {
-    return shared_.get_native_path_component(
-        {index, path_name_storage::native});
+    return shared_.get_native_path_component_ref(index);
   });
 
   *timer << "sorted path indices";
