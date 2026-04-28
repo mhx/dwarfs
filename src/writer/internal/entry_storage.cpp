@@ -1807,19 +1807,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
   bool entry_less_revpath(entry_id lhs, entry_id rhs) const override {
     TRACE_CALL;
 
-    while (lhs.valid() && rhs.valid()) {
-      auto const& lname = get_path_string_impl(lhs);
-      auto const& rname = get_path_string_impl(rhs);
-
-      if (lname != rname) {
-        return lname < rname;
-      }
-
-      lhs = get_parent_impl(lhs);
-      rhs = get_parent_impl(rhs);
-    }
-
-    return rhs.valid();
+    return entry_less_impl(lhs, rhs, [this](entry_id const id) {
+      return get_path_string_impl(id);
+    });
   }
 
   std::vector<std::string> get_sorted_path_components() const override {
@@ -1968,6 +1958,20 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return devices_.get_represented_device(id);
   }
 
+  void sort_file_id_vector(file_id_vector& fv) const override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      DWARFS_PANIC(
+          "sorting file_id_vector is not supported for mutable entry_storage");
+    } else {
+      std::ranges::sort(fv, [this](file_id const a, file_id const b) {
+        return entry_less_impl(a, b, [this](entry_id const id) {
+          return get_path_storage_impl(id);
+        });
+      });
+    }
+  }
+
   void drop_file_hashes() override {
     TRACE_CALL;
     files_.drop_hash_buffers();
@@ -1977,6 +1981,23 @@ class entry_storage_ final : public entry_storage::entry_impl {
   void dump_events(std::ostream& os) const override;
 
  private:
+  template <typename KeyFn>
+  bool entry_less_impl(entry_id lhs, entry_id rhs, KeyFn const& key_fn) const {
+    while (lhs.valid() && rhs.valid()) {
+      auto const& lkey = key_fn(lhs);
+      auto const& rkey = key_fn(rhs);
+
+      if (lkey != rkey) {
+        return lkey < rkey;
+      }
+
+      lhs = get_parent_impl(lhs);
+      rhs = get_parent_impl(rhs);
+    }
+
+    return rhs.valid();
+  }
+
   template <typename StatusFunc>
   void sort_path_storage(logger& lgr, StatusFunc const& set_status)
     requires is_mutable;
@@ -2987,6 +3008,10 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
   void dump(std::ostream& os) const override { impl_.lock()->dump(os); }
   void dump_events(std::ostream& os) const override {
     impl_.lock()->dump_events(os);
+  }
+
+  void sort_file_id_vector(file_id_vector& fv) const override {
+    impl_.lock()->sort_file_id_vector(fv);
   }
 
   void drop_file_hashes() override { impl_.lock()->drop_file_hashes(); }

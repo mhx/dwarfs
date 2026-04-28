@@ -560,9 +560,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
 
       // needed for reproducibility
-      std::ranges::sort(files, [this](file_id a, file_id b) {
-        return storage_.handle(a).less_revpath(storage_.handle(b));
-      });
+      storage_.sort_file_id_vector(files);
     }
 
     for (auto fp : files) {

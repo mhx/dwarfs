@@ -246,6 +246,10 @@ class entry_storage {
     return entry_impl_->get_file_inode(id);
   }
 
+  void sort_file_id_vector(file_id_vector& fv) const {
+    entry_impl_->sort_file_id_vector(fv);
+  }
+
   void drop_file_hashes() { entry_impl_->drop_file_hashes(); }
 
   inode_handle create_inode();
@@ -427,6 +431,8 @@ class entry_storage {
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual void dump_events(std::ostream& os) const = 0;
+
+    virtual void sort_file_id_vector(file_id_vector& fv) const = 0;
 
     virtual void drop_file_hashes() = 0;
 
