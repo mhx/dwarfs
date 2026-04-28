@@ -34,7 +34,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 
-#include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/string_table.h>
 
 namespace dwarfs::internal {
@@ -165,17 +164,46 @@ build_string_table(logger& lgr, std::string_view name,
   return std::make_unique<packed_string_table<false, false>>(lgr, name, v);
 }
 
-} // namespace
+void update_index(thrift::metadata::string_table& output,
+                  string_table::pack_options const& options) {
+  output.packed_index() = options.pack_index;
 
-string_table::string_table(logger& lgr, std::string_view name,
-                           PackedTableView v)
-    : impl_{build_string_table(lgr, name, v)} {}
+  if (!options.pack_index) {
+    output.index()->insert(output.index()->begin(), 0);
+    std::partial_sum(output.index()->begin(), output.index()->end(),
+                     output.index()->begin());
+  }
+}
+
+void set_from_compression_result(thrift::metadata::string_table& output,
+                                 fsst_encoder::bulk_compression_result&& res,
+                                 string_table::pack_options const& options) {
+  auto const size = res.compressed_sizes.size();
+
+  output.buffer() = std::move(res.buffer);
+  output.symtab() = std::move(res.dictionary);
+  output.index()->reserve(size + (options.pack_index ? 0 : 1));
+  output.index()->resize(size);
+
+  for (size_t i = 0; i < size; ++i) {
+    output.index()[i] = res.compressed_sizes.get(i);
+  }
+}
+
+thrift::metadata::string_table
+pack_compressed(fsst_encoder::bulk_compression_result&& res,
+                string_table::pack_options const& options) {
+  assert(options.pack_data);
+  thrift::metadata::string_table output;
+  set_from_compression_result(output, std::move(res), options);
+  update_index(output, options);
+  return output;
+}
 
 template <typename T>
 thrift::metadata::string_table
-string_table::pack_generic(std::span<T const> input,
-                           pack_options const& options) {
-  auto const size = input.size();
+pack_generic(std::span<T const> input,
+             string_table::pack_options const& options) {
   std::optional<fsst_encoder::bulk_compression_result> res;
 
   if (options.pack_data) {
@@ -184,37 +212,34 @@ string_table::pack_generic(std::span<T const> input,
 
   thrift::metadata::string_table output;
 
-  if (res.has_value()) {
+  if (res) {
     // store compressed
-    output.buffer() = std::move(res->buffer);
-    output.symtab() = std::move(res->dictionary);
-    output.index()->resize(size);
-    for (size_t i = 0; i < size; ++i) {
-      output.index()[i] = res->compressed_sizes[i].load();
-    }
+    set_from_compression_result(output, std::move(*res), options);
   } else {
     // store uncompressed
     auto const total_input_size =
         std::accumulate(input.begin(), input.end(), size_t{0},
                         [](size_t n, auto const& s) { return n + s.size(); });
+
     output.buffer()->reserve(total_input_size);
-    output.index()->reserve(size);
+    output.index()->reserve(input.size() + (options.pack_index ? 0 : 1));
+
     for (auto const& s : input) {
       output.buffer().value() += s;
       output.index()->emplace_back(s.size());
     }
   }
 
-  output.packed_index() = options.pack_index;
-
-  if (!options.pack_index) {
-    output.index()->insert(output.index()->begin(), 0);
-    std::partial_sum(output.index()->begin(), output.index()->end(),
-                     output.index()->begin());
-  }
+  update_index(output, options);
 
   return output;
 }
+
+} // namespace
+
+string_table::string_table(logger& lgr, std::string_view name,
+                           PackedTableView v)
+    : impl_{build_string_table(lgr, name, v)} {}
 
 thrift::metadata::string_table
 string_table::pack(std::span<std::string const> input,
@@ -226,6 +251,12 @@ thrift::metadata::string_table
 string_table::pack(std::span<std::string_view const> input,
                    pack_options const& options) {
   return pack_generic(input, options);
+}
+
+thrift::metadata::string_table
+string_table::pack(fsst_encoder::bulk_compression_result&& input,
+                   pack_options const& options) {
+  return pack_compressed(std::move(input), options);
 }
 
 } // namespace dwarfs::internal

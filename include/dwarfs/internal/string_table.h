@@ -34,6 +34,8 @@
 #include <string_view>
 #include <vector>
 
+#include <dwarfs/internal/fsst.h>
+
 #include <dwarfs/gen-cpp-lite/metadata_layouts.h>
 
 namespace dwarfs {
@@ -80,6 +82,10 @@ class string_table {
   pack(std::span<std::string_view const> input,
        pack_options const& options = pack_options());
 
+  static thrift::metadata::string_table
+  pack(fsst_encoder::bulk_compression_result&& input,
+       pack_options const& options = pack_options());
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -91,10 +97,6 @@ class string_table {
   };
 
  private:
-  template <typename T>
-  static thrift::metadata::string_table
-  pack_generic(std::span<T const> input, pack_options const& options);
-
   std::unique_ptr<impl const> impl_;
 };
 
