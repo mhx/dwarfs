@@ -64,11 +64,9 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
   symtab.resize(symtab_size);
 
   std::vector<std::size_t> out_len_vec;
-  std::vector<unsigned char*> out_ptr_vec;
   std::string buffer;
 
   out_len_vec.resize(size);
-  out_ptr_vec.resize(size);
 
   if (symtab_size >= total_input_size && !force) {
     return output;
@@ -80,7 +78,7 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
     auto const num_compressed = ::fsst_compress(
         enc.get(), size, len_span.data(), ptr_span.data(), buffer.size(),
         reinterpret_cast<unsigned char*>(buffer.data()), out_len_vec.data(),
-        out_ptr_vec.data());
+        nullptr);
 
     if (num_compressed == size) {
       break;
@@ -93,31 +91,21 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
     buffer.resize(2 * buffer.size());
   }
 
-  auto const compressed_size =
-      (out_ptr_vec.back() - out_ptr_vec.front()) + out_len_vec.back();
+  auto const total_compressed_size = std::accumulate(
+      out_len_vec.begin(), out_len_vec.end(), static_cast<size_t>(0));
 
-  if (symtab_size + compressed_size >= total_input_size && !force) {
+  if (symtab_size + total_compressed_size >= total_input_size && !force) {
     return output;
   }
 
-  assert(compressed_size >= 0);
-  assert(reinterpret_cast<char*>(out_ptr_vec.front()) == buffer.data());
-  assert(std::cmp_equal(compressed_size,
-                        std::accumulate(out_len_vec.begin(), out_len_vec.end(),
-                                        static_cast<size_t>(0))));
-
-  // TODO: we can probably get rid of this entirely
-  out_ptr_vec.clear();
-  out_ptr_vec.shrink_to_fit();
-
-  buffer.resize(static_cast<size_t>(compressed_size));
+  buffer.resize(static_cast<size_t>(total_compressed_size));
 
   output.emplace();
 
   output->dictionary = std::move(symtab);
   output->buffer = std::move(buffer);
   output->positions.reset(
-      fsst_encoder::index_type::required_bits(compressed_size), size + 1);
+      fsst_encoder::index_type::required_bits(total_compressed_size), size + 1);
 
   std::partial_sum(out_len_vec.begin(), out_len_vec.end(),
                    output->positions.begin() + 1);
