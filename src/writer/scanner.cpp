@@ -671,7 +671,7 @@ void scanner_<LoggerPolicy>::scan(
 
   // stop progress briefly to avoid race while freezing entry storage
   prog.current.store(std::monostate{});
-  prog.set_status_function(
+  prog.set_status_function_and_drain(
       [](progress const&, size_t) { return "freezing entries"; });
 
   LOG_VERBOSE << "entry storage (before freezing):\n" << tree->dump_entries();

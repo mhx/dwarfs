@@ -37,7 +37,7 @@
 #include <dwarfs/terminal.h>
 #include <dwarfs/types.h>
 
-#include <dwarfs/internal/move_only_function.h>
+#include <dwarfs/internal/activity_barrier.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/inode_handle.h>
@@ -70,13 +70,14 @@ class progress {
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
 
-  using status_function_type = dwarfs::internal::move_only_function<std::string(
-      progress const&, size_t)>;
+  using status_function_type =
+      std::function<std::string(progress const&, size_t)>;
 
   progress();
   ~progress();
 
   void set_status_function(status_function_type status_fun);
+  void set_status_function_and_drain(status_function_type status_fun);
 
   std::string status(size_t max_len);
 
@@ -166,6 +167,7 @@ class progress {
   void add_context(std::shared_ptr<context> const& ctx) const;
 
   dwarfs::internal::synchronized<status_function_type> status_fun_;
+  dwarfs::internal::activity_barrier status_activity_;
   dwarfs::internal::synchronized<
       std::vector<std::weak_ptr<context>>> mutable contexts_;
 };

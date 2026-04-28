@@ -65,14 +65,23 @@ void progress::set_status_function(status_function_type status_fun) {
   status_fun_.with_lock([&](auto& fun) { fun = std::move(status_fun); });
 }
 
+void progress::set_status_function_and_drain(status_function_type status_fun) {
+  status_fun_.store(std::move(status_fun));
+
+  auto const old_epoch = status_activity_.begin_new_epoch();
+  status_activity_.wait_for_older_activity(old_epoch);
+}
+
 std::string progress::status(size_t max_len) {
-  std::string rv;
-  status_fun_.with_lock([&](auto& fun) {
-    if (fun) {
-      rv = fun(*this, max_len);
-    }
-  });
-  return rv;
+  auto activity = status_activity_.enter();
+
+  auto fun = status_fun_.load();
+
+  if (fun) {
+    return fun(*this, max_len);
+  }
+
+  return {};
 }
 
 } // namespace dwarfs::writer::internal
