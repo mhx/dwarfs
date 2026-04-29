@@ -172,13 +172,13 @@ template <typename Policy>
 class checksum_xxh3 : public checksum::impl {
  public:
   checksum_xxh3()
-      : state_{XXH3_createState(), &XXH3_freeState} {
-    DWARFS_CHECK(Policy::reset(state_.get()) == XXH_OK, "XXH3 reset failed");
+      : state_{get_state()} {
+    DWARFS_CHECK(Policy::reset(state_) == XXH_OK, "XXH3 reset failed");
   }
 
   void update(void const* data, size_t size) override {
     assert(state_);
-    auto err = Policy::update(state_.get(), data, size);
+    auto err = Policy::update(state_, data, size);
     DWARFS_CHECK(err == XXH_OK,
                  fmt::format("XXH3 update failed: {}", static_cast<int>(err)));
   }
@@ -188,8 +188,8 @@ class checksum_xxh3 : public checksum::impl {
       return false;
     }
     typename Policy::canonical_type canonical;
-    Policy::canonical(&canonical, Policy::digest(state_.get()));
-    state_.reset();
+    Policy::canonical(&canonical, Policy::digest(state_));
+    state_ = nullptr;
     // compat: we always store the digest in little-endian order :/
     std::ranges::reverse(canonical.digest);
     ::memcpy(digest, &canonical, sizeof(canonical));
@@ -206,7 +206,13 @@ class checksum_xxh3 : public checksum::impl {
   }
 
  private:
-  std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state_;
+  static XXH3_state_t* get_state() {
+    thread_local std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state{
+        XXH3_createState(), &XXH3_freeState};
+    return state.get();
+  }
+
+  XXH3_state_t* state_;
 };
 
 using checksum_xxh3_64 = checksum_xxh3<xxh3_64_policy>;
