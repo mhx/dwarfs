@@ -89,8 +89,8 @@ HANDLE open_file(std::filesystem::path const& path, bool writeable,
                  std::error_code& ec) {
   UNICODE_STRING nt_path;
 
-  if (auto r = ::RtlDosPathNameToNtPathName_U_WithStatus(
-          path.wstring().c_str(), &nt_path, nullptr, nullptr);
+  if (auto r = ::RtlDosPathNameToNtPathName_U_WithStatus(path.c_str(), &nt_path,
+                                                         nullptr, nullptr);
       r != 0) {
     ec = std::error_code(r, std::system_category());
     return nullptr;
