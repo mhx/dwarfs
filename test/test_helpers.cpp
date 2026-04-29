@@ -390,6 +390,17 @@ void os_access_mock::set_access_fail(fs::path const& path) {
   access_fail_set_.emplace(path);
 }
 
+void os_access_mock::set_open_fail(fs::path const& path) {
+  set_map_file_error(
+      path, std::make_exception_ptr(std::runtime_error("open failed")));
+}
+
+bool os_access_mock::is_open_fail(std::filesystem::path const& path) const {
+  auto it = map_file_errors_.find(path);
+  return it != map_file_errors_.end() &&
+         it->second.remaining_successful_attempts.load() < 0;
+}
+
 void os_access_mock::set_map_file_error(std::filesystem::path const& path,
                                         std::exception_ptr ep,
                                         int after_n_attempts) {
