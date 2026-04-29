@@ -240,7 +240,7 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
 
 class mappable_file_ final : public mappable_file::impl {
  public:
-  mappable_file_(io_ops const& ops, std::any handle, file_size_t size)
+  mappable_file_(io_ops const& ops, std::any&& handle, file_size_t size)
       : handle_{std::move(handle)}
       , size_{size}
       , ops_{ops} {}
@@ -421,7 +421,7 @@ mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
                       std::error_code& ec) {
   ec.clear();
 
-  auto const handle = ops.open(path, ec);
+  auto handle = ops.open(path, ec);
 
   if (ec) {
     return {};
@@ -434,7 +434,8 @@ mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
     return {};
   }
 
-  return mappable_file{std::make_unique<mappable_file_>(ops, handle, size)};
+  return mappable_file{
+      std::make_unique<mappable_file_>(ops, std::move(handle), size)};
 }
 
 mappable_file
