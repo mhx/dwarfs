@@ -153,6 +153,9 @@ class os_access_mock : public os_access {
   void add_local_files(std::filesystem::path const& path);
 
   void set_access_fail(std::filesystem::path const& path);
+  void set_open_fail(std::filesystem::path const& path);
+  bool is_open_fail(std::filesystem::path const& path) const;
+
   void set_map_file_error(std::filesystem::path const& path,
                           std::exception_ptr ep, int after_n_attempts = 0);
   void set_map_file_delay(std::filesystem::path const& path,

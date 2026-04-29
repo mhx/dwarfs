@@ -354,12 +354,10 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
     }
 
-    auto const size = ent.size();
     auto pe = ent.commit(tree);
 
     switch (pe.type()) {
     case entry_type::E_DIR:
-      // prog.current.store(pe.get());
       prog.dirs_found++;
       if (!debug_filter) {
         pe.scan(os_, prog);
@@ -368,14 +366,6 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
 
     case entry_type::E_FILE:
       assert(path == pe.fs_path());
-      assert(size == pe.size());
-
-      if (!debug_filter && size > 0 && os_.access(path, R_OK)) {
-        LOG_ERROR << "cannot access " << path_to_utf8_string_sanitized(path)
-                  << ", creating empty file";
-        pe.set_empty();
-        prog.errors++;
-      }
 
       prog.files_found++;
 
