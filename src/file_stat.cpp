@@ -452,7 +452,7 @@ file_stat::file_stat(fs::path const& path) {
 file_stat::file_stat(fs::path const& path) {
   struct ::stat st;
 
-  if (::lstat(path.string().c_str(), &st) != 0) {
+  if (::lstat(path.c_str(), &st) != 0) {
     exception_ = std::make_exception_ptr(std::system_error(
         errno, std::generic_category(),
         fmt::format("lstat: {}", path_to_utf8_string_sanitized(path))));
