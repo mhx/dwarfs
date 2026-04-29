@@ -249,33 +249,53 @@ struct shared_entry_data {
   void dump(std::ostream& os) const;
 
   auto get_utf8_root_path_component() const -> std::string {
-    return u8string_to_string(utf8_root_path_component_.value());
+    std::string result;
+    append_utf8_root_path_component(result);
+    return result;
+  }
+
+  void append_utf8_root_path_component(std::string& p) const {
+    p.append(reinterpret_cast<char const*>(utf8_root_path_component_->data()),
+             utf8_root_path_component_->size());
   }
 
   auto get_utf8_path_component(path_name_storage_tuple const& storage) const
       -> std::string {
+    std::string result;
+    append_utf8_path_component(result, storage);
+    return result;
+  }
+
+  void
+  append_utf8_path_component(std::string& p,
+                             path_name_storage_tuple const& storage) const {
     [[maybe_unused]] auto const& [index, type] = storage;
 #ifdef DWARFS_HANDLE_NATIVE_PATHS
     if (type == path_name_storage::native) {
-      return path_to_utf8_string_sanitized(native_path_components_.at(index));
+      p.append(
+          path_to_utf8_string_sanitized(native_path_components_.at(index)));
     }
 #endif
-    return u8string_to_string(utf8_component_at(index));
+    append_utf8_component_at(p, index);
   }
 
-  auto get_native_root_path_component() const -> fs::path::string_type {
-    return native_root_path_component_.value();
+  void append_native_root_path_component(fs::path::string_type& p) const {
+    p.append(native_root_path_component_.value());
   }
 
-  auto get_native_path_component(path_name_storage_tuple const& storage) const
-      -> fs::path::string_type {
+  void
+  append_native_path_component(fs::path::string_type& p,
+                               path_name_storage_tuple const& storage) const {
     [[maybe_unused]] auto const& [index, type] = storage;
 #ifdef DWARFS_HANDLE_NATIVE_PATHS
     if (type == path_name_storage::native) {
-      return native_path_components_.at(index);
+      p.append(native_path_components_.at(index));
+      return;
     }
+    p.append(fs::path(utf8_component_at(index)).native());
+#else
+    append_utf8_component_at(p, index);
 #endif
-    return fs::path(utf8_component_at(index)).native();
   }
 
   auto
@@ -455,23 +475,35 @@ struct shared_entry_data {
   }
 
  private:
+#ifdef DWARFS_HANDLE_NATIVE_PATHS
   std::u8string utf8_component_at(std::size_t index) const {
+    std::u8string result;
+    append_utf8_component_at(result, index);
+    return result;
+  }
+#endif
+
+  template <typename StringType>
+    requires(sizeof(typename StringType::value_type) == sizeof(char))
+  void append_utf8_component_at(StringType& p, std::size_t index) const {
+    using char_type = typename StringType::value_type;
     if (utf8_path_component_count_.has_value()) {
       assert(index < *utf8_path_component_count_);
       assert(compressed_utf8_path_components_.has_value());
       assert(utf8_path_decoder_.has_value());
-      auto const begin = compressed_utf8_path_components_->positions.get(index);
-      auto const end =
-          compressed_utf8_path_components_->positions.get(index + 1);
-      auto const& buffer = compressed_utf8_path_components_->buffer;
+      auto const& buf = compressed_utf8_path_components_->buffer;
+      auto const& pos = compressed_utf8_path_components_->positions;
+      auto const begin = pos.get(index);
+      auto const end = pos.get(index + 1);
       auto const sv =
-          std::u8string_view{reinterpret_cast<char8_t const*>(buffer.data()),
-                             buffer.size()}
+          std::basic_string_view<char_type>{
+              reinterpret_cast<char_type const*>(buf.data()), buf.size()}
               .substr(begin, end - begin);
-      return utf8_path_decoder_->decompress(sv);
+      utf8_path_decoder_->decompress_append_to(p, sv);
+    } else {
+      auto const& u8c = utf8_path_components_.at(index);
+      p.append(reinterpret_cast<char_type const*>(u8c.data()), u8c.size());
     }
-
-    return utf8_path_components_.at(index);
   }
 
   auto add_path_component_impl(fs::path const& component)
@@ -599,16 +631,23 @@ class packed_entry_data {
     return parent_dir_id_.at(index);
   }
 
-  fs::path::string_type get_native_path_string(shared_entry_data const& shared,
-                                               uint64_t const index) const {
+  void append_native_path_string(shared_entry_data const& shared,
+                                 uint64_t const index,
+                                 fs::path::string_type& p) const {
     auto const storage_ix = path_storage_index_.at(index);
-    return shared.get_native_path_component(storage_ix);
+    shared.append_native_path_component(p, storage_ix);
   }
 
   std::string
   get_path_string(shared_entry_data const& shared, uint64_t const index) const {
     auto const storage_ix = path_storage_index_.at(index);
     return shared.get_utf8_path_component(storage_ix);
+  }
+
+  void append_path_string(shared_entry_data const& shared, uint64_t const index,
+                          std::string& p) const {
+    auto const storage_ix = path_storage_index_.at(index);
+    shared.append_utf8_path_component(p, storage_ix);
   }
 
   std::size_t get_path_storage_index(uint64_t const index) const {
@@ -1742,8 +1781,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
     return fs::path(build_path_from_components<fs::path::string_type,
                                                fs::path::preferred_separator>(
-        components, [this](entry_id const id) -> fs::path::string_type {
-          return get_native_path_string_impl(id);
+        components, [this](fs::path::string_type& p, entry_id const id) {
+          append_native_path_string_impl(p, id);
         }));
   }
 
@@ -1758,8 +1797,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
     fill_path_components(id, components);
 
     p = build_path_from_components<std::string, '/'>(
-        components, [this](entry_id const id) -> std::string {
-          return get_path_string_impl(id);
+        components, [this](std::string& p, entry_id const id) {
+          append_path_string_impl(p, id);
         });
 
     if (is_dir && !p.ends_with('/')) {
@@ -2090,9 +2129,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
   }
 
   template <typename Output, Output::value_type Separator, typename Vector,
-            typename GetPathFunc>
+            typename AppendFn>
   Output build_path_from_components(Vector const& components,
-                                    GetPathFunc const& get_path_func) const {
+                                    AppendFn const& append_fn) const {
     static constexpr std::size_t kDefaultPathSize = 255;
 
     Output p;
@@ -2106,13 +2145,11 @@ class entry_storage_ final : public entry_storage::entry_impl {
     bool first = true;
 
     for (auto it = components.rbegin(); it != components.rend(); ++it) {
-      auto const& name = get_path_func(*it);
-
       if (!p.empty() && !p.ends_with(Separator)) {
         p.append(1, Separator);
       }
 
-      p.append(name);
+      append_fn(p, *it);
 
       if (first) {
         static constexpr auto kLocalPathSeparator =
@@ -2255,11 +2292,13 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return dispatch_(&packed_entry_data::get_parent, id);
   }
 
-  fs::path::string_type get_native_path_string_impl(entry_id const id) const {
+  void append_native_path_string_impl(fs::path::string_type& p,
+                                      entry_id const id) const {
     if (id == kRootId) {
-      return shared_.get_native_root_path_component();
+      shared_.append_native_root_path_component(p);
+    } else {
+      dispatch_shared_(&packed_entry_data::append_native_path_string, id, p);
     }
-    return dispatch_shared_(&packed_entry_data::get_native_path_string, id);
   }
 
   std::string get_path_string_impl(entry_id const id) const {
@@ -2267,6 +2306,14 @@ class entry_storage_ final : public entry_storage::entry_impl {
       return shared_.get_utf8_root_path_component();
     }
     return dispatch_shared_(&packed_entry_data::get_path_string, id);
+  }
+
+  void append_path_string_impl(std::string& p, entry_id const id) const {
+    if (id == kRootId) {
+      shared_.append_utf8_root_path_component(p);
+    } else {
+      dispatch_shared_(&packed_entry_data::append_path_string, id, p);
+    }
   }
 
   std::size_t get_path_storage_index_impl(entry_id const id) const {
