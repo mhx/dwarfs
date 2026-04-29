@@ -137,7 +137,7 @@ void basic_end_to_end_test(
     bool keep_all_times, bool pack_chunk_table, bool pack_directories,
     bool pack_shared_files_table, bool pack_names, bool pack_names_index,
     bool pack_symlinks, bool pack_symlinks_index, bool plain_names_table,
-    bool plain_symlinks_table, bool access_fail, size_t readahead,
+    bool plain_symlinks_table, bool open_fail, size_t readahead,
     std::optional<std::string> file_hash_algo) {
   writer::segmenter::config cfg;
   writer::scanner_options options;
@@ -180,8 +180,8 @@ void basic_end_to_end_test(
 
   auto input = test::os_access_mock::create_test_instance();
 
-  if (access_fail) {
-    input->set_access_fail("/somedir/ipsum.py");
+  if (open_fail) {
+    input->set_open_fail("/somedir/ipsum.py");
   }
 
   writer::writer_progress wprog;
@@ -199,7 +199,8 @@ void basic_end_to_end_test(
   bool similarity = file_order == writer::fragment_order_mode::SIMILARITY ||
                     file_order == writer::fragment_order_mode::NILSIMSA;
 
-  size_t const num_fail_empty = access_fail ? 1 : 0;
+  size_t const num_fail_empty = open_fail ? 1 : 0;
+  size_t const failed_file_size = open_fail ? 10000 : 0;
 
   auto& prog = wprog.get_internal();
 
@@ -210,23 +211,23 @@ void basic_end_to_end_test(
   EXPECT_EQ(2, prog.symlinks_found);
   EXPECT_EQ(2, prog.symlinks_scanned);
   EXPECT_EQ(2 * with_devices + with_specials, prog.specials_found);
-  EXPECT_EQ(file_hash_algo ? 3 + num_fail_empty : 0, prog.duplicate_files);
+  EXPECT_EQ(file_hash_algo ? 3 : 0, prog.duplicate_files);
   EXPECT_EQ(1, prog.hardlinks);
   EXPECT_GE(prog.block_count, 1);
   EXPECT_GE(prog.chunk_count, 100);
   EXPECT_EQ(7 - prog.duplicate_files, prog.inodes_scanned);
-  EXPECT_EQ(file_hash_algo ? 4 - num_fail_empty : 7, prog.inodes_written);
+  EXPECT_EQ(file_hash_algo ? 4 : 7, prog.inodes_written);
   EXPECT_EQ(prog.files_found - prog.duplicate_files - prog.hardlinks,
             prog.inodes_written);
   EXPECT_EQ(prog.block_count, prog.blocks_written);
   EXPECT_EQ(num_fail_empty, prog.errors);
-  EXPECT_EQ(access_fail ? 2046934 : 2056934, prog.original_size);
+  EXPECT_EQ(2056934, prog.original_size);
   EXPECT_EQ(23456, prog.hardlink_size);
   EXPECT_EQ(file_hash_algo ? 23456 : 0, prog.saved_by_deduplication);
   EXPECT_GE(prog.saved_by_segmentation, block_size_bits == 12 ? 0 : 1000000);
   EXPECT_EQ(prog.original_size -
                 (prog.saved_by_deduplication + prog.saved_by_segmentation +
-                 prog.symlink_size),
+                 prog.symlink_size + failed_file_size),
             prog.filesystem_size);
   // TODO:
   // EXPECT_EQ(prog.similarity_scans, similarity ? prog.inodes_scanned.load() :
@@ -235,7 +236,7 @@ void basic_end_to_end_test(
             similarity ? prog.original_size -
                              (prog.saved_by_deduplication + prog.symlink_size)
                        : 0);
-  EXPECT_EQ(prog.hash.scans, file_hash_algo ? 5 + num_fail_empty : 0);
+  EXPECT_EQ(prog.hash.scans, file_hash_algo ? 5 : 0);
   EXPECT_EQ(prog.hash.bytes, file_hash_algo ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
@@ -253,7 +254,7 @@ void basic_end_to_end_test(
 
   EXPECT_EQ(1, vfsbuf.bsize);
   EXPECT_EQ(1, vfsbuf.frsize);
-  EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.blocks);
+  EXPECT_EQ(open_fail ? 2046934 : 2056934, vfsbuf.blocks);
   EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.files);
   EXPECT_TRUE(vfsbuf.readonly);
   EXPECT_GT(vfsbuf.namemax, 0);
@@ -466,7 +467,7 @@ void basic_end_to_end_test(
   ASSERT_TRUE(dev);
   iv = dev->inode();
   st1 = fs.getattr(iv);
-  EXPECT_EQ(access_fail ? 0 : 10000, st1.size());
+  EXPECT_EQ(open_fail ? 0 : 10000, st1.size());
   EXPECT_TRUE(fs.access(iv, R_OK, 1000, 100));
   dev = fs.find(0, "baz.pl");
   ASSERT_TRUE(dev);
@@ -499,7 +500,7 @@ void basic_end_to_end_test(
       EXPECT_EQ(set_uid ? 0 : ref.uid(), st.uid()) << p;
       EXPECT_EQ(set_gid ? 0 : ref.gid(), st.gid()) << p;
       if (!st.is_directory()) {
-        if (input->access(p, R_OK) == 0) {
+        if (input->access(p, R_OK) == 0 && !input->is_open_fail(p)) {
           EXPECT_EQ(ref.size(), st.size()) << p;
         } else {
           EXPECT_EQ(0, st.size()) << p;
@@ -635,13 +636,12 @@ TEST_P(compression_test, end_to_end) {
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        access_fail, file_hash_algo] = GetParam();
+        open_fail, file_hash_algo] = GetParam();
 
-  basic_end_to_end_test(kCompressionOpts[0], 15,
-                        writer::fragment_order_mode::NONE, with_devices,
-                        with_specials, set_uid, set_gid, set_time,
-                        keep_all_times, true, true, true, true, true, true,
-                        true, false, false, access_fail, 0, file_hash_algo);
+  basic_end_to_end_test(
+      kCompressionOpts[0], 15, writer::fragment_order_mode::NONE, with_devices,
+      with_specials, set_uid, set_gid, set_time, keep_all_times, true, true,
+      true, true, true, true, true, false, false, open_fail, 0, file_hash_algo);
 }
 
 TEST_P(hashing_test, end_to_end) {
