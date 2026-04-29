@@ -48,7 +48,7 @@ class file_input_stream : public input_stream {
  public:
   file_input_stream(std::filesystem::path const& path, std::error_code& ec,
                     std::ios_base::openmode mode)
-      : is_{path.string().c_str(), mode} {
+      : is_{path, mode} {
     if (is_.bad() || is_.fail() || !is_.is_open()) {
       assign_error_code(ec);
     }
@@ -79,7 +79,7 @@ class file_output_stream : public output_stream {
  public:
   file_output_stream(std::filesystem::path const& path, std::error_code& ec,
                      std::ios_base::openmode mode)
-      : os_{path.string().c_str(), mode} {
+      : os_{path, mode} {
     if (os_.bad() || os_.fail() || !os_.is_open()) {
       assign_error_code(ec);
     }
