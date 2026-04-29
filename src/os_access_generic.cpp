@@ -190,9 +190,9 @@ memory_mapping os_access_generic::map_empty(size_t size) const {
 
 int os_access_generic::access(fs::path const& path, int mode) const {
 #ifdef _WIN32
-  return ::_waccess(path.wstring().c_str(), mode);
+  return ::_waccess(path.c_str(), mode);
 #else
-  return ::access(path.string().c_str(), mode);
+  return ::access(path.c_str(), mode);
 #endif
 }
 
