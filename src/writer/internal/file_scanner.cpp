@@ -238,10 +238,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
-    p.scan({}, prog_, opts_.hash_algo); // TODO
-
     by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
-
     add_inode(p, __LINE__);
   }
 }
