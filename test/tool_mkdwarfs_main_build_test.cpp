@@ -200,7 +200,7 @@ TEST(mkdwarfs_test, filesystem_header) {
 TEST(mkdwarfs_test, recoverable_errors) {
   {
     mkdwarfs_tester t;
-    t.os->set_access_fail("/somedir/ipsum.py");
+    t.os->set_open_fail("/somedir/ipsum.py");
     EXPECT_EQ(2, t.run("-i / -o - -l4")) << t.err();
     EXPECT_THAT(t.err(),
                 ::testing::HasSubstr("filesystem created with 1 error"));
@@ -208,8 +208,8 @@ TEST(mkdwarfs_test, recoverable_errors) {
 
   {
     mkdwarfs_tester t;
-    t.os->set_access_fail("/somedir/ipsum.py");
-    t.os->set_access_fail("/baz.pl");
+    t.os->set_open_fail("/somedir/ipsum.py");
+    t.os->set_open_fail("/baz.pl");
     EXPECT_EQ(2, t.run("-i / -o - -l4")) << t.err();
     EXPECT_THAT(t.err(),
                 ::testing::HasSubstr("filesystem created with 2 errors"));

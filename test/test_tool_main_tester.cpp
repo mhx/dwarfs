@@ -198,20 +198,11 @@ mkdwarfs_tester::add_random_file_tree(random_file_tree_options const& opt) {
 
         if (opt.with_errors) {
           auto failpath = fs::path{"/"} / f;
-          switch (rng() % 8) {
-          case 0:
-            os->set_access_fail(failpath);
-            [[fallthrough]];
-          case 1:
-          case 2:
+          if (rng() % 4 == 0) {
             os->set_map_file_error(
                 failpath,
                 std::make_exception_ptr(std::runtime_error("map_file_error")),
                 rng() % 4);
-            break;
-
-          default:
-            break;
           }
         }
       }
