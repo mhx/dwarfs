@@ -1477,11 +1477,10 @@ TEST_P(tools_test, end_to_end) {
           << runner.cmdline();
       if (uid_gid_override) {
         struct ::stat st;
-        ASSERT_EQ(0, ::lstat(mountpoint.string().c_str(), &st))
-            << runner.cmdline();
+        ASSERT_EQ(0, ::lstat(mountpoint.c_str(), &st)) << runner.cmdline();
         EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
         EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
-        ASSERT_EQ(0, ::lstat((mountpoint / "format.sh").string().c_str(), &st))
+        ASSERT_EQ(0, ::lstat((mountpoint / "format.sh").c_str(), &st))
             << runner.cmdline();
         EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
         EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
