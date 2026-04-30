@@ -32,6 +32,7 @@
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
+#include <optional>
 #include <type_traits>
 
 #include <dwarfs/error.h>
@@ -82,6 +83,9 @@ class file_stat {
 
   file_stat();
   explicit file_stat(std::filesystem::path const& path);
+#ifndef _WIN32
+  file_stat(int fd, std::filesystem::path const& relpath);
+#endif
 
   void ensure_valid(valid_fields_type fields) const;
 
@@ -208,6 +212,10 @@ class file_stat {
   }
 
  private:
+#ifndef _WIN32
+  file_stat(std::filesystem::path const& relpath, std::optional<int> fd);
+#endif
+
   uint32_t valid_fields_{0};
   dev_type dev_{};
   ino_type ino_{};

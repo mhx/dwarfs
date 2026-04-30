@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cerrno>
 #include <ctime>
 #include <filesystem>
@@ -449,14 +450,34 @@ file_stat::file_stat(fs::path const& path) {
 
 #else
 
-file_stat::file_stat(fs::path const& path) {
+file_stat::file_stat(fs::path const& path)
+    : file_stat(path, std::nullopt) {}
+
+file_stat::file_stat(int fd, fs::path const& path)
+    : file_stat(path, fd) {}
+
+file_stat::file_stat(fs::path const& path, std::optional<int> fd) {
   struct ::stat st;
 
-  if (::lstat(path.c_str(), &st) != 0) {
+  auto set_exception = [this, &path](std::string const& what) {
+    auto const err = errno;
     exception_ = std::make_exception_ptr(std::system_error(
-        errno, std::generic_category(),
-        fmt::format("lstat: {}", path_to_utf8_string_sanitized(path))));
-    return;
+        err, std::generic_category(),
+        fmt::format("{}: {}", what, path_to_utf8_string_sanitized(path))));
+  };
+
+  if (fd.has_value()) {
+    assert(*fd >= 0);
+    assert(path.is_relative());
+    if (::fstatat(*fd, path.c_str(), &st, AT_SYMLINK_NOFOLLOW) != 0) {
+      set_exception("fstatat");
+      return;
+    }
+  } else {
+    if (::lstat(path.c_str(), &st) != 0) {
+      set_exception("lstat");
+      return;
+    }
   }
 
   valid_fields_ = file_stat::all_valid;
