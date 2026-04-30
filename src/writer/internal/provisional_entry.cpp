@@ -50,12 +50,13 @@ make_dir_entry(os_access const& os, std::filesystem::path const& path) {
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
                                      std::optional<dir_handle> parent)
-    : provisional_entry(os, make_dir_entry(os, path), parent) {}
+    : provisional_entry(os, {}, make_dir_entry(os, path), parent) {}
 
-provisional_entry::provisional_entry(os_access const& os,
+provisional_entry::provisional_entry(os_access const& os, dir_descriptor dd,
                                      dir_entry const& entry,
                                      std::optional<dir_handle> parent)
-    : entry_{entry}
+    : dd_{std::move(dd)}
+    , entry_{entry}
     , parent_{parent}
     , os_{os} {
   if (!parent_ && entry_.type != posix_file_type::directory) {
@@ -123,8 +124,11 @@ entry_handle provisional_entry::commit(entry_storage& tree) {
 
   if (entry_.stat_hint) {
     stat = *entry_.stat_hint;
+  } else if (dd_) {
+    // TODO: entry_.name should really be a relative path
+    stat = dd_.symlink_info(entry_.name.filename());
   } else {
-    stat = os_.symlink_info(entry_.name);
+    stat = os_.symlink_info(path);
   }
 
   switch (entry_.type) {
