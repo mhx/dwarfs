@@ -46,7 +46,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
@@ -271,7 +270,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
       auto const& fv = ino.all();
 
       if (fv.size() > 1) {
-        auto [mm, p, err] = ino.mmap_any(os, {});
+        auto [mm, p, err] = ino.mmap_any(os);
 
         if (mm) {
           LOG_DEBUG << "successfully opened: " << p.path_as_string();

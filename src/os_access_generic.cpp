@@ -57,7 +57,6 @@
 #include <mach/thread_info.h>
 #endif
 
-#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/util.h>
 
@@ -165,18 +164,12 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_generic::open_file(fs::path const& path) const {
-  return open_file_with_options(path, {});
-}
-
-file_view
-os_access_generic::open_file_with_options(fs::path const& path,
-                                          open_file_options const& opts) const {
   if (data_->open_mode() == internal::open_file_mode::mmap) {
     return internal::create_mmap_file_view(data_->mm_ops(), path,
-                                           data_->fv_opts(), opts);
+                                           data_->fv_opts());
   }
 
-  return internal::create_read_file_view(data_->mm_ops(), path, opts);
+  return internal::create_read_file_view(data_->mm_ops(), path);
 }
 
 readonly_memory_mapping

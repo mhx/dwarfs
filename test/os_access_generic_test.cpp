@@ -49,7 +49,6 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/file_util.h>
-#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access_generic.h>
 
 #include <dwarfs/internal/os_access_generic_data.h>
@@ -532,39 +531,6 @@ TEST_P(open_file_test, open_regular_file) {
   EXPECT_EQ(1, extents.size());
   EXPECT_THAT(extents, ElementsAre(Property(&dwarfs::file_extent::kind,
                                             dwarfs::extent_kind::data)));
-}
-
-TEST_P(open_file_test, open_hollow) {
-  auto const path = td->path() / "file";
-
-  dwarfs::write_file(path, "Hello World!");
-
-  auto fv = os->open_file_with_options(path, {.hollow = true});
-
-  ASSERT_TRUE(fv.valid());
-  EXPECT_EQ(12, fv.size());
-  EXPECT_EQ(path, fv.path());
-  // reading from a hollow file view *should* yield zeroes, but currently
-  // "hollow" only affects extents
-
-  auto extents = fv.extents();
-  EXPECT_EQ(1, extents.size());
-  EXPECT_THAT(extents, ElementsAre(Property(&dwarfs::file_extent::kind,
-                                            dwarfs::extent_kind::hole)));
-}
-
-TEST_P(open_file_test, open_empty_hollow) {
-  auto const path = td->path() / "file";
-
-  dwarfs::write_file(path, "");
-
-  auto fv = os->open_file_with_options(path, {.hollow = true});
-
-  ASSERT_TRUE(fv.valid());
-  EXPECT_EQ(0, fv.size());
-  EXPECT_EQ(path, fv.path());
-
-  EXPECT_EQ(0, fv.extents().size());
 }
 
 INSTANTIATE_TEST_SUITE_P(iolayer_modes, open_file_test,

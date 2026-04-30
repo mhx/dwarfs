@@ -38,12 +38,6 @@
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
-namespace dwarfs {
-
-struct open_file_options;
-
-} // namespace dwarfs
-
 namespace dwarfs::thrift::metadata {
 
 class chunk;
@@ -113,8 +107,7 @@ class basic_inode_handle final {
     requires is_mutable;
   std::optional<std::pair<const_file_handle, std::exception_ptr>>
   get_scan_error() const;
-  inode_mmap_any_result
-  mmap_any(os_access const& os, open_file_options const& of_opts) const;
+  inode_mmap_any_result mmap_any(os_access const& os) const;
 
  private:
   entry_storage* storage_{nullptr};
