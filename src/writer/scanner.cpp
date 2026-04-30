@@ -869,31 +869,40 @@ void scanner_<LoggerPolicy>::scan(
           auto f = ino.any();
 
           if (auto size = f.size(); size > 0 && !f.is_invalid()) {
-            auto [mm, _, errors] =
-                ino.mmap_any(os_, {.hollow = options_.hollow_filesystem});
-
-            if (mm) {
+            auto for_each_fragment = [&](auto&& func) {
               file_off_t offset{0};
-
-              for (auto const& frag : ino.fragments_view()) {
+              for (auto&& frag : ino.fragments_view()) {
                 if (frag.category() == category) {
-                  fragment_chunkable fc(ino, frag, offset, mm, catmgr);
-                  seg.add_chunkable(fc);
+                  func(frag, offset);
                   prog.fragments_written++;
                 }
-
                 offset += frag.size();
               }
+            };
+
+            if (options_.hollow_filesystem) {
+              for_each_fragment(
+                  [&](auto&& frag, auto) { frag.add_hole(frag.size()); });
             } else {
-              for (auto& [fp, e] : errors) {
-                LOG_ERROR << "failed to map file " << fp.path_as_string()
-                          << ": " << exception_str(e)
-                          << ", creating empty inode";
-                ++prog.errors;
-              }
-              for (auto const& frag : ino.fragments_view()) {
-                if (frag.category() == category) {
-                  prog.fragments_found--;
+              auto [mm, _, errors] = ino.mmap_any(os_, {});
+
+              if (mm) {
+                auto& mm_ref = mm; // workaround for AppleClang 15
+                for_each_fragment([&](auto&& frag, auto offset) {
+                  fragment_chunkable fc(ino, frag, offset, mm_ref, catmgr);
+                  seg.add_chunkable(fc);
+                });
+              } else {
+                for (auto& [fp, e] : errors) {
+                  LOG_ERROR << "failed to map file " << fp.path_as_string()
+                            << ": " << exception_str(e)
+                            << ", creating empty inode";
+                  ++prog.errors;
+                }
+                for (auto const& frag : ino.fragments_view()) {
+                  if (frag.category() == category) {
+                    prog.fragments_found--;
+                  }
                 }
               }
             }
