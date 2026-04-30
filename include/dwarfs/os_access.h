@@ -50,11 +50,40 @@ struct dir_entry {
   std::optional<file_stat> stat_hint;
 };
 
+class dir_descriptor {
+ public:
+  dir_descriptor() = default;
+
+  explicit operator bool() const noexcept { return static_cast<bool>(impl_); }
+
+  file_stat symlink_info(std::filesystem::path const& relpath) const;
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& relpath) const;
+  file_view open_file(std::filesystem::path const& relpath) const;
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual file_stat
+    symlink_info(std::filesystem::path const& relpath) const = 0;
+    virtual std::filesystem::path
+    read_symlink(std::filesystem::path const& relpath) const = 0;
+    virtual file_view open_file(std::filesystem::path const& relpath) const = 0;
+  };
+
+  explicit dir_descriptor(std::shared_ptr<impl> dd);
+
+ private:
+  std::shared_ptr<impl> impl_;
+};
+
 class dir_reader {
  public:
   virtual ~dir_reader() = default;
 
   virtual bool read(dir_entry& entry) = 0;
+  virtual dir_descriptor descriptor() const = 0;
 };
 
 // TODO: refactor this so we avoid all the smart pointers everywhere

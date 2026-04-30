@@ -32,6 +32,7 @@
 
 #ifndef _WIN32
 #include <dirent.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/types.h>
 #endif
@@ -82,10 +83,36 @@ namespace {
 
 #ifdef _WIN32
 
+class generic_dir_descriptor final : public dir_descriptor::impl {
+ public:
+  generic_dir_descriptor(os_access const& os, fs::path const& path)
+      : os_{&os}
+      , path_{path} {}
+
+  file_stat symlink_info(std::filesystem::path const& relpath) const override {
+    return os_->symlink_info(path_ / relpath);
+  }
+
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& relpath) const override {
+    return os_->read_symlink(path_ / relpath);
+  }
+
+  file_view open_file(std::filesystem::path const& relpath) const override {
+    return os_->open_file(path_ / relpath);
+  }
+
+ private:
+  os_access const* os_{nullptr};
+  fs::path path_;
+};
+
 class generic_dir_reader final : public dir_reader {
  public:
-  explicit generic_dir_reader(fs::path const& path)
-      : it_(fs::directory_iterator(path)) {}
+  generic_dir_reader(os_access const& os, fs::path const& path)
+      : os_{&os}
+      , dir_path_{path}
+      , it_{fs::directory_iterator(path)} {}
 
   bool read(dir_entry& entry) override {
     if (it_ != std::default_sentinel) {
@@ -102,17 +129,110 @@ class generic_dir_reader final : public dir_reader {
     return false;
   }
 
+  dir_descriptor descriptor() const override {
+    return dir_descriptor(
+        std::make_shared<generic_dir_descriptor>(*os_, dir_path_));
+  }
+
  private:
+  os_access const* os_{nullptr};
+  fs::path dir_path_;
   fs::directory_iterator it_;
 };
 
 #else
 
+class posix_dir_descriptor final : public dir_descriptor::impl {
+ public:
+  posix_dir_descriptor(int fd, internal::os_access_generic_data const& data)
+      : fd_{dup_dir_fd(fd)}
+      , data_{&data} {}
+
+  ~posix_dir_descriptor() {
+    if (fd_ != -1) {
+      ::close(fd_);
+    }
+  }
+
+  file_stat symlink_info(std::filesystem::path const& relpath) const override {
+    return {fd_, relpath};
+  }
+
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& relpath) const override {
+    std::string buf(256, '\0');
+
+    for (;;) {
+      ssize_t nread;
+
+      do {
+        nread = ::readlinkat(fd_, relpath.c_str(), buf.data(), buf.size());
+      } while (nread < 0 && errno == EINTR);
+
+      if (nread < 0) {
+        auto const err = errno;
+        throw std::system_error(err, std::generic_category(),
+                                "readlinkat: " + relpath.string());
+      }
+
+      if (static_cast<size_t>(nread) < buf.size()) {
+        buf.resize(static_cast<size_t>(nread));
+        break;
+      }
+
+      // grow and retry
+      buf.resize(buf.size() * 2);
+    }
+
+    return fs::path(std::move(buf));
+  }
+
+  file_view open_file(std::filesystem::path const& relpath) const override {
+    auto const& ops = data_->mm_ops();
+
+    if (data_->open_mode() == internal::open_file_mode::mmap) {
+      return internal::create_mmap_file_view(ops, fd_, relpath,
+                                             data_->fv_opts());
+    }
+
+    return internal::create_read_file_view(ops, fd_, relpath);
+  }
+
+ private:
+  static int dup_dir_fd(int fd) {
+    int dup_fd;
+
+#ifdef F_DUPFD_CLOEXEC
+    dup_fd = ::fcntl(fd, F_DUPFD_CLOEXEC, 3);
+#else
+    dup_fd = ::fcntl(fd, F_DUPFD, 3);
+#endif
+
+    if (dup_fd == -1) {
+      throw std::system_error(errno, std::generic_category(), "dup dirfd");
+    }
+
+#ifndef F_DUPFD_CLOEXEC
+    int flags = ::fcntl(dup_fd, F_GETFD);
+    if (flags != -1) {
+      ::fcntl(dup_fd, F_SETFD, flags | FD_CLOEXEC);
+    }
+#endif
+
+    return dup_fd;
+  }
+
+  int fd_{-1};
+  internal::os_access_generic_data const* data_{nullptr};
+};
+
 class posix_dir_reader final : public dir_reader {
  public:
-  explicit posix_dir_reader(fs::path const& path)
+  posix_dir_reader(fs::path const& path,
+                   internal::os_access_generic_data const& data)
       : parent_{path}
-      , dir_{::opendir(path.c_str())} {
+      , dir_{::opendir(path.c_str())}
+      , descriptor_{make_descriptor(dir_.get(), data)} {
     if (!dir_) {
       throw std::system_error(errno, std::generic_category(),
                               "opendir: " + path.string());
@@ -185,7 +305,20 @@ class posix_dir_reader final : public dir_reader {
     return false;
   }
 
+  dir_descriptor descriptor() const override { return descriptor_; }
+
  private:
+  static std::shared_ptr<dir_descriptor::impl>
+  make_descriptor(DIR* dir, internal::os_access_generic_data const& data) {
+    int const fd = ::dirfd(dir);
+
+    if (fd == -1) {
+      throw std::system_error(errno, std::generic_category(), "dirfd");
+    }
+
+    return std::make_shared<posix_dir_descriptor>(fd, data);
+  }
+
   struct closer {
     void operator()(DIR* d) const noexcept {
       if (d) {
@@ -196,18 +329,40 @@ class posix_dir_reader final : public dir_reader {
 
   fs::path parent_;
   std::unique_ptr<DIR, closer> dir_;
+  dir_descriptor descriptor_;
 };
 
 #endif
 
 } // namespace
 
+dir_descriptor::dir_descriptor(std::shared_ptr<impl> dd)
+    : impl_{std::move(dd)} {}
+
+file_stat dir_descriptor::symlink_info(fs::path const& relpath) const {
+  DWARFS_CHECK(impl_, "invalid directory descriptor");
+  DWARFS_CHECK(relpath.is_relative(), "relative path expected");
+  return impl_->symlink_info(relpath);
+}
+
+fs::path dir_descriptor::read_symlink(fs::path const& relpath) const {
+  DWARFS_CHECK(impl_, "invalid directory descriptor");
+  DWARFS_CHECK(relpath.is_relative(), "relative path expected");
+  return impl_->read_symlink(relpath);
+}
+
+file_view dir_descriptor::open_file(fs::path const& relpath) const {
+  DWARFS_CHECK(impl_, "invalid directory descriptor");
+  DWARFS_CHECK(relpath.is_relative(), "relative path expected");
+  return impl_->open_file(relpath);
+}
+
 std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
 #ifdef _WIN32
-  return std::make_unique<generic_dir_reader>(path);
+  return std::make_unique<generic_dir_reader>(*this, path);
 #else
-  return std::make_unique<posix_dir_reader>(path);
+  return std::make_unique<posix_dir_reader>(path, *data_);
 #endif
 }
 

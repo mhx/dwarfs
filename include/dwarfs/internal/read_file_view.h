@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <any>
 #include <filesystem>
 
 #include <dwarfs/file_view.h>
@@ -38,5 +39,8 @@ class io_ops;
 
 file_view create_read_file_view(internal::io_ops const& ops,
                                 std::filesystem::path const& path);
+file_view
+create_read_file_view(internal::io_ops const& ops, std::any const& dir,
+                      std::filesystem::path const& relpath);
 
 } // namespace dwarfs::internal

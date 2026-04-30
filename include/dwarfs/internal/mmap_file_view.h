@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <any>
 #include <filesystem>
 #include <optional>
 
@@ -46,5 +47,9 @@ file_view create_mmap_file_view(internal::io_ops const& ops,
 file_view create_mmap_file_view(internal::io_ops const& ops,
                                 std::filesystem::path const& path,
                                 mmap_file_view_options const& opts);
+file_view
+create_mmap_file_view(internal::io_ops const& ops, std::any const& dir,
+                      std::filesystem::path const& relpath,
+                      mmap_file_view_options const& opts);
 
 } // namespace dwarfs::internal

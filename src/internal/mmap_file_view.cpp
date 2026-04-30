@@ -66,7 +66,7 @@ class mmap_file_view final
       public std::enable_shared_from_this<mmap_file_view> {
  public:
   mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
-                 mmap_file_view_options const& opts)
+                 mmap_file_view_options const& opts, std::any const& /*dir*/)
       : file_{mappable_file::create(ops, path)}
       , path_{path}
       , extents_{file_.get_extents_noexcept()}
@@ -308,12 +308,20 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 file_view
 create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
                       mmap_file_view_options const& opts) {
-  return file_view(std::make_shared<mmap_file_view>(ops, path, opts));
+  return file_view(
+      std::make_shared<mmap_file_view>(ops, path, opts, std::any{}));
 }
 
 file_view
 create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path) {
   return create_mmap_file_view(ops, path, {});
+}
+
+file_view
+create_mmap_file_view(internal::io_ops const& ops, std::any const& dir,
+                      std::filesystem::path const& relpath,
+                      mmap_file_view_options const& opts) {
+  return file_view(std::make_shared<mmap_file_view>(ops, relpath, opts, dir));
 }
 
 } // namespace dwarfs::internal

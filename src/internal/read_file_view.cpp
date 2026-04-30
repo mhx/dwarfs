@@ -57,7 +57,8 @@ class read_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<read_file_view> {
  public:
-  read_file_view(io_ops const& ops, std::filesystem::path const& path)
+  read_file_view(io_ops const& ops, std::filesystem::path const& path,
+                 std::any const& /*dir*/)
       : handle_{open_file(ops, path)}
       , path_{path}
       , extents_{get_file_extents_noexcept(ops, handle_)}
@@ -194,7 +195,12 @@ void read_file_view::copy_bytes(void* dest, file_range range,
 
 file_view
 create_read_file_view(io_ops const& ops, std::filesystem::path const& path) {
-  return file_view(std::make_shared<read_file_view>(ops, path));
+  return file_view(std::make_shared<read_file_view>(ops, path, std::any{}));
+}
+
+file_view create_read_file_view(io_ops const& ops, std::any const& dir,
+                                std::filesystem::path const& relpath) {
+  return file_view(std::make_shared<read_file_view>(ops, relpath, dir));
 }
 
 } // namespace dwarfs::internal

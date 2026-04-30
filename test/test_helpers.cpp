@@ -193,12 +193,39 @@ void os_access_mock::mock_directory::add(std::string const& name,
   de.v = std::move(var);
 }
 
+class dir_descriptor_mock final : public dir_descriptor::impl {
+ public:
+  dir_descriptor_mock(os_access_mock const& os, fs::path const& path)
+      : os_{&os}
+      , path_{path} {}
+
+  file_stat symlink_info(std::filesystem::path const& relpath) const override {
+    return os_->symlink_info(path_ / relpath);
+  }
+
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& relpath) const override {
+    return os_->read_symlink(path_ / relpath);
+  }
+
+  file_view open_file(std::filesystem::path const& relpath) const override {
+    return os_->open_file(path_ / relpath);
+  }
+
+ private:
+  os_access_mock const* os_{nullptr};
+  fs::path path_;
+};
+
 class dir_reader_mock : public dir_reader {
  public:
-  explicit dir_reader_mock(std::vector<dir_entry>&& entries,
+  explicit dir_reader_mock(os_access_mock const& os, fs::path const& dir_path,
+                           std::vector<dir_entry>&& entries,
                            std::chrono::nanoseconds delay)
-      : entries_(entries)
-      , index_(0)
+      : os_{&os}
+      , dir_path_{dir_path}
+      , entries_{entries}
+      , index_{0}
       , delay_{delay} {}
 
   bool read(dir_entry& entry) override {
@@ -214,7 +241,14 @@ class dir_reader_mock : public dir_reader {
     return false;
   }
 
+  dir_descriptor descriptor() const override {
+    return dir_descriptor(
+        std::make_shared<dir_descriptor_mock>(*os_, dir_path_));
+  }
+
  private:
+  os_access_mock const* os_{nullptr};
+  fs::path dir_path_;
   std::vector<dir_entry> entries_;
   size_t index_;
   std::chrono::nanoseconds const delay_;
@@ -485,7 +519,7 @@ os_access_mock::opendir(fs::path const& path) const {
       entry.name = path / string_to_u8string(e.name);
       entry.type = e.status.type();
     }
-    return std::make_unique<dir_reader_mock>(std::move(entries),
+    return std::make_unique<dir_reader_mock>(*this, path, std::move(entries),
                                              dir_reader_delay_);
   }
 
