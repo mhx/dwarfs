@@ -50,12 +50,14 @@ make_dir_entry(os_access const& os, std::filesystem::path const& path) {
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
                                      std::optional<dir_handle> parent)
-    : provisional_entry(os, {}, make_dir_entry(os, path), parent) {}
+    : provisional_entry(os, path, {}, make_dir_entry(os, path), parent) {}
 
-provisional_entry::provisional_entry(os_access const& os, dir_descriptor dd,
-                                     dir_entry const& entry,
+provisional_entry::provisional_entry(os_access const& os,
+                                     std::filesystem::path const& path,
+                                     dir_descriptor dd, dir_entry const& entry,
                                      std::optional<dir_handle> parent)
-    : dd_{std::move(dd)}
+    : path_{path}
+    , dd_{std::move(dd)}
     , entry_{entry}
     , parent_{parent}
     , os_{os} {
@@ -92,8 +94,7 @@ entry_type provisional_entry::type() const {
 }
 
 std::string provisional_entry::name() const {
-  return path_to_utf8_string_sanitized(parent_ ? entry_.name.filename()
-                                               : entry_.name);
+  return path_to_utf8_string_sanitized(parent_ ? path_.filename() : path_);
 }
 
 bool provisional_entry::is_directory() const {
@@ -104,8 +105,7 @@ std::string provisional_entry::unix_dpath() const {
   static constexpr char kLocalPathSeparator{
       static_cast<char>(std::filesystem::path::preferred_separator)};
 
-  // TODO: must be adapted once `name` does no longer include the full path
-  auto path = path_to_utf8_string_sanitized(entry_.name);
+  auto path = path_to_utf8_string_sanitized(path_);
 
   if (kLocalPathSeparator != '/') {
     std::ranges::replace(path, kLocalPathSeparator, '/');

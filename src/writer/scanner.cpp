@@ -262,9 +262,9 @@ class scanner_ final : public scanner::impl {
                          bool debug_filter = false);
 
   entry_handle
-  add_entry(entry_storage& tree, dir_descriptor dd, dir_entry const& entry,
-            dir_handle parent, progress& prog, file_scanner& fs,
-            bool debug_filter = false);
+  add_entry(entry_storage& tree, std::filesystem::path const& path,
+            dir_descriptor dd, dir_entry const& entry, dir_handle parent,
+            progress& prog, file_scanner& fs, bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
@@ -308,17 +308,19 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
   entry.name = path;
   entry.stat_hint = os_.symlink_info(path);
   entry.type = entry.stat_hint->type();
-  return add_entry(tree, {}, entry, parent, prog, fs, debug_filter);
+  return add_entry(tree, path, {}, entry, parent, prog, fs, debug_filter);
 }
 
 template <typename LoggerPolicy>
 entry_handle
-scanner_<LoggerPolicy>::add_entry(entry_storage& tree, dir_descriptor dd,
-                                  dir_entry const& entry, dir_handle parent,
-                                  progress& prog, file_scanner& fs,
-                                  bool debug_filter) {
+scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
+                                  std::filesystem::path const& path,
+                                  dir_descriptor dd, dir_entry const& entry,
+                                  dir_handle parent, progress& prog,
+                                  file_scanner& fs, bool debug_filter) {
   try {
-    auto ent = internal::provisional_entry(os_, std::move(dd), entry, parent);
+    auto ent =
+        internal::provisional_entry(os_, path, std::move(dd), entry, parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       auto const& path = entry.name;
@@ -484,8 +486,10 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
       auto desc = d->descriptor();
 
       while (d->read(entry)) {
-        if (auto pe =
-                add_entry(tree, desc, entry, parent, prog, fs, debug_filter)) {
+        // TODO: the `.filename()` should be unnecessary once `entry.name` ==
+        // `entry.name.filename()`
+        if (auto pe = add_entry(tree, ppath / entry.name.filename(), desc,
+                                entry, parent, prog, fs, debug_filter)) {
           if (pe.is_dir()) {
             subdirs.push_back(pe.id());
           }
