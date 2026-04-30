@@ -163,6 +163,8 @@ class mm_ops_lowlevel_mock {
   using handle_type = fake_mm_ops_lowlevel::handle_type;
 
   MOCK_METHOD(handle_type, open, (fs::path const&, std::error_code&), (const));
+  MOCK_METHOD(handle_type, openat,
+              (std::any const&, fs::path const&, std::error_code&), (const));
   MOCK_METHOD(void, close, (handle_type const&, std::error_code&), (const));
   MOCK_METHOD(file_size_t, size, (handle_type const&, std::error_code&),
               (const));
@@ -220,6 +222,11 @@ class fake_mm_ops_adapter : public internal::io_ops {
 
   std::any open(fs::path const& path, std::error_code& ec) const override {
     return {ll_.open(path, ec)};
+  }
+
+  std::any openat(std::any const& dir, fs::path const& path,
+                  std::error_code& ec) const override {
+    return {ll_.openat(dir, path, ec)};
   }
 
   void close(std::any const& handle, std::error_code& ec) const override {

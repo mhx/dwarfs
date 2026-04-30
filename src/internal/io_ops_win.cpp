@@ -244,6 +244,11 @@ class io_ops_win : public io_ops {
     return win_handle{file, mapping, static_cast<uint64_t>(size_li.QuadPart)};
   }
 
+  std::any openat(std::any const&, std::filesystem::path const&,
+                  std::error_code&) const override {
+    DWARFS_PANIC("openat is not supported on Windows");
+  }
+
   void close(std::any const& handle, std::error_code& ec) const override {
     if (auto const* h = get_handle(handle, ec)) {
       if (h->mapping && !::CloseHandle(h->mapping)) {

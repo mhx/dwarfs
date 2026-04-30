@@ -143,45 +143,20 @@ class io_ops_posix : public io_ops {
 
   std::any
   open(std::filesystem::path const& path, std::error_code& ec) const override {
-    ec.clear();
-
     // NOLINTNEXTLINE: cppcoreguidelines-pro-type-vararg
     int fd = ::open(path.c_str(), O_RDONLY);
+    return finalize_open(fd, ec);
+  }
 
-    if (fd == -1) {
-      ec = std::error_code{errno, std::generic_category()};
-      return {};
-    }
-
-    // Ensure that we don't accidentally use stdin, stdout, or stderr
-    //
-    // This is necessary because in the FUSE driver, if we open a file
-    // before the FUSE library forks into the background, and we still
-    // need the fd of the file in the child process, our fd is not going
-    // to survive the fork if it is 0, 1, or 2.
-    if (fd <= 2) {
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-      int const new_fd = ::fcntl(fd, F_DUPFD, 3);
-
-      ::close(fd);
-
-      if (new_fd == -1) {
-        ec = std::error_code{errno, std::generic_category()};
-        return {};
-      }
-
-      fd = new_fd;
-    }
-
-    auto const size = ::lseek(fd, 0, SEEK_END);
-
-    if (size == -1) {
-      ec = std::error_code{errno, std::generic_category()};
-      ::close(fd);
-      return {};
-    }
-
-    return posix_handle{fd, static_cast<uint64_t>(size)};
+  std::any openat(std::any const& dir, std::filesystem::path const& relpath,
+                  std::error_code& ec) const override {
+    assert(dir.has_value());
+    assert(relpath.is_relative());
+    auto const* pfd = std::any_cast<int>(&dir);
+    assert(pfd);
+    // NOLINTNEXTLINE: cppcoreguidelines-pro-type-vararg
+    int fd = ::openat(*pfd, relpath.c_str(), O_RDONLY);
+    return finalize_open(fd, ec);
   }
 
   void close(std::any const& handle, std::error_code& ec) const override {
@@ -295,6 +270,45 @@ class io_ops_posix : public io_ops {
   }
 
  private:
+  std::any finalize_open(int fd, std::error_code& ec) const {
+    ec.clear();
+
+    if (fd == -1) {
+      ec = std::error_code{errno, std::generic_category()};
+      return {};
+    }
+
+    // Ensure that we don't accidentally use stdin, stdout, or stderr
+    //
+    // This is necessary because in the FUSE driver, if we open a file
+    // before the FUSE library forks into the background, and we still
+    // need the fd of the file in the child process, our fd is not going
+    // to survive the fork if it is 0, 1, or 2.
+    if (fd <= 2) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+      int const new_fd = ::fcntl(fd, F_DUPFD, 3);
+
+      ::close(fd);
+
+      if (new_fd == -1) {
+        ec = std::error_code{errno, std::generic_category()};
+        return {};
+      }
+
+      fd = new_fd;
+    }
+
+    auto const size = ::lseek(fd, 0, SEEK_END);
+
+    if (size == -1) {
+      ec = std::error_code{errno, std::generic_category()};
+      ::close(fd);
+      return {};
+    }
+
+    return std::make_any<posix_handle>(fd, static_cast<uint64_t>(size));
+  }
+
   posix_handle const*
   get_handle(std::any const& handle, std::error_code& ec) const {
     auto const* h = std::any_cast<posix_handle>(&handle);

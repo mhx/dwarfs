@@ -51,6 +51,9 @@ class io_ops {
 
   virtual std::any
   open(std::filesystem::path const& path, std::error_code& ec) const = 0;
+  virtual std::any
+  openat(std::any const& dir, std::filesystem::path const& relpath,
+         std::error_code& ec) const = 0;
   virtual void close(std::any const& handle, std::error_code& ec) const = 0;
 
   virtual file_size_t
