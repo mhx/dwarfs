@@ -44,11 +44,17 @@
 
 namespace dwarfs {
 
+struct dir_entry {
+  std::filesystem::path name;
+  posix_file_type::value type;
+  std::optional<file_stat> stat_hint;
+};
+
 class dir_reader {
  public:
   virtual ~dir_reader() = default;
 
-  virtual bool read(std::filesystem::path& name) = 0;
+  virtual bool read(dir_entry& entry) = 0;
 };
 
 // TODO: refactor this so we avoid all the smart pointers everywhere

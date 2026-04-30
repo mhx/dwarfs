@@ -195,19 +195,19 @@ void os_access_mock::mock_directory::add(std::string const& name,
 
 class dir_reader_mock : public dir_reader {
  public:
-  explicit dir_reader_mock(std::vector<fs::path>&& files,
+  explicit dir_reader_mock(std::vector<dir_entry>&& entries,
                            std::chrono::nanoseconds delay)
-      : files_(files)
+      : entries_(entries)
       , index_(0)
       , delay_{delay} {}
 
-  bool read(fs::path& name) override {
+  bool read(dir_entry& entry) override {
     if (delay_ > std::chrono::nanoseconds::zero()) {
       std::this_thread::sleep_for(delay_);
     }
 
-    if (index_ < files_.size()) {
-      name = files_[index_++];
+    if (index_ < entries_.size()) {
+      entry = entries_[index_++];
       return true;
     }
 
@@ -215,7 +215,7 @@ class dir_reader_mock : public dir_reader {
   }
 
  private:
-  std::vector<fs::path> files_;
+  std::vector<dir_entry> entries_;
   size_t index_;
   std::chrono::nanoseconds const delay_;
 };
@@ -478,12 +478,14 @@ std::unique_ptr<dir_reader>
 os_access_mock::opendir(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::directory) {
-    std::vector<fs::path> files;
+    std::vector<dir_entry> entries;
     for (auto const& e :
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
-      files.push_back(path / string_to_u8string(e.name));
+      auto& entry = entries.emplace_back();
+      entry.name = path / string_to_u8string(e.name);
+      entry.type = e.status.type();
     }
-    return std::make_unique<dir_reader_mock>(std::move(files),
+    return std::make_unique<dir_reader_mock>(std::move(entries),
                                              dir_reader_delay_);
   }
 

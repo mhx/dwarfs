@@ -57,6 +57,7 @@
 #include <mach/thread_info.h>
 #endif
 
+#include <dwarfs/error.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/util.h>
 
@@ -66,6 +67,12 @@
 #include <dwarfs/internal/os_access_generic_data.h>
 #include <dwarfs/internal/read_file_view.h>
 #include <dwarfs/internal/thread_util.h>
+
+#if defined(_DIRENT_HAVE_D_TYPE) || defined(__linux__) ||                      \
+    defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) ||       \
+    defined(__OpenBSD__)
+#define DWARFS_HAVE_DIRENT_D_TYPE 1
+#endif
 
 namespace dwarfs {
 
@@ -80,9 +87,14 @@ class generic_dir_reader final : public dir_reader {
   explicit generic_dir_reader(fs::path const& path)
       : it_(fs::directory_iterator(path)) {}
 
-  bool read(fs::path& name) override {
+  bool read(dir_entry& entry) override {
     if (it_ != std::default_sentinel) {
-      name.assign(it_->path());
+      // TODO: only fill in the leaf name
+      entry.name.assign(it_->path());
+      // TODO: maybe we can optimize this for Windows...
+      entry.stat_hint.reset();
+      entry.stat_hint.emplace(it_->path());
+      entry.type = entry.stat_hint->type();
       ++it_;
       return true;
     }
@@ -107,7 +119,7 @@ class posix_dir_reader final : public dir_reader {
     }
   }
 
-  bool read(fs::path& name) override {
+  bool read(dir_entry& entry) override {
     errno = 0;
 
     while (auto* ent = ::readdir(dir_.get())) {
@@ -117,8 +129,52 @@ class posix_dir_reader final : public dir_reader {
         continue;
       }
 
-      name = parent_;
-      name /= leaf;
+      // TODO: only fill in the leaf name
+      entry.name = parent_;
+      entry.name /= leaf;
+      entry.stat_hint.reset();
+
+      std::optional<posix_file_type::value> type;
+
+#ifdef DWARFS_HAVE_DIRENT_D_TYPE
+      switch (ent->d_type) {
+      case DT_BLK:
+        type = posix_file_type::block;
+        break;
+      case DT_CHR:
+        type = posix_file_type::character;
+        break;
+      case DT_DIR:
+        type = posix_file_type::directory;
+        break;
+      case DT_FIFO:
+        type = posix_file_type::fifo;
+        break;
+      case DT_LNK:
+        type = posix_file_type::symlink;
+        break;
+      case DT_REG:
+        type = posix_file_type::regular;
+        break;
+      case DT_SOCK:
+        type = posix_file_type::socket;
+        break;
+      case DT_UNKNOWN:
+        // filled below
+        break;
+      default:
+        DWARFS_PANIC("unsupported d_type value: " +
+                     std::to_string(ent->d_type));
+      }
+#endif
+
+      if (type.has_value()) {
+        entry.type = *type;
+      } else {
+        entry.stat_hint.emplace(entry.name);
+        entry.type = entry.stat_hint->type();
+      }
+
       return true;
     }
 

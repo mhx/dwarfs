@@ -27,7 +27,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/entry_storage.h>
@@ -35,21 +34,39 @@
 
 namespace dwarfs::writer::internal {
 
+namespace {
+
+dir_entry
+make_dir_entry(os_access const& os, std::filesystem::path const& path) {
+  dir_entry entry;
+  entry.name = path;
+  entry.stat_hint = os.symlink_info(path);
+  entry.type = entry.stat_hint->type();
+  return entry;
+}
+
+} // namespace
+
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
                                      std::optional<dir_handle> parent)
-    : path_{path}
-    , stat_{os.symlink_info(path)}
-    , parent_{parent} {
-  if (!parent_ && stat_.type() != posix_file_type::directory) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("root entry '{}' must be a directory", path.string()));
+    : provisional_entry(os, make_dir_entry(os, path), parent) {}
+
+provisional_entry::provisional_entry(os_access const& os,
+                                     dir_entry const& entry,
+                                     std::optional<dir_handle> parent)
+    : entry_{entry}
+    , parent_{parent}
+    , os_{os} {
+  if (!parent_ && entry_.type != posix_file_type::directory) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("root entry '{}' must be a directory",
+                             path_to_utf8_string_sanitized(entry_.name)));
   }
 }
 
 entry_type provisional_entry::type() const {
-  switch (stat_.type()) {
+  switch (entry_.type) {
   case posix_file_type::regular:
     return entry_type::E_FILE;
 
@@ -68,23 +85,26 @@ entry_type provisional_entry::type() const {
     return entry_type::E_OTHER;
 
   default:
-    DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));
+    DWARFS_PANIC(fmt::format("unknown file type for '{}'",
+                             path_to_utf8_string_sanitized(entry_.name)));
   }
 }
 
 std::string provisional_entry::name() const {
-  return path_to_utf8_string_sanitized(parent_ ? path_.filename() : path_);
+  return path_to_utf8_string_sanitized(parent_ ? entry_.name.filename()
+                                               : entry_.name);
 }
 
 bool provisional_entry::is_directory() const {
-  return type() == entry_type::E_DIR;
+  return entry_.type == posix_file_type::directory;
 }
 
 std::string provisional_entry::unix_dpath() const {
   static constexpr char kLocalPathSeparator{
       static_cast<char>(std::filesystem::path::preferred_separator)};
 
-  auto path = path_to_utf8_string_sanitized(path_);
+  // TODO: must be adapted once `name` does no longer include the full path
+  auto path = path_to_utf8_string_sanitized(entry_.name);
 
   if (kLocalPathSeparator != '/') {
     std::ranges::replace(path, kLocalPathSeparator, '/');
@@ -98,29 +118,38 @@ std::string provisional_entry::unix_dpath() const {
 }
 
 entry_handle provisional_entry::commit(entry_storage& tree) {
-  switch (stat_.type()) {
+  auto const& path = entry_.name;
+  file_stat stat;
+
+  if (entry_.stat_hint) {
+    stat = *entry_.stat_hint;
+  } else {
+    stat = os_.symlink_info(entry_.name);
+  }
+
+  switch (entry_.type) {
   case posix_file_type::regular:
-    return tree.create_file(path_, parent_.value(), stat_);
+    return tree.create_file(path, parent_.value(), stat);
 
   case posix_file_type::directory:
     if (parent_) {
-      return tree.create_dir(path_, *parent_, stat_);
+      return tree.create_dir(path, *parent_, stat);
     }
-    return tree.create_root_dir(path_, stat_);
+    return tree.create_root_dir(path, stat);
 
   case posix_file_type::symlink:
-    return tree.create_link(path_, parent_.value(), stat_);
+    return tree.create_link(path, parent_.value(), stat);
 
   case posix_file_type::character:
   case posix_file_type::block:
-    return tree.create_device(path_, parent_.value(), stat_);
+    return tree.create_device(path, parent_.value(), stat);
 
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    return tree.create_other(path_, parent_.value(), stat_);
+    return tree.create_other(path, parent_.value(), stat);
 
   default:
-    DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));
+    DWARFS_PANIC(fmt::format("unknown file type for '{}'", path.string()));
   }
 }
 

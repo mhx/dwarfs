@@ -261,6 +261,10 @@ class scanner_ final : public scanner::impl {
                          dir_handle parent, progress& prog, file_scanner& fs,
                          bool debug_filter = false);
 
+  entry_handle
+  add_entry(entry_storage& tree, dir_entry const& entry, dir_handle parent,
+            progress& prog, file_scanner& fs, bool debug_filter = false);
+
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
                   std::function<void(std::ostream&)> const& dumper) const;
@@ -299,10 +303,23 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   std::filesystem::path const& path,
                                   dir_handle parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
+  dir_entry entry;
+  entry.name = path;
+  entry.stat_hint = os_.symlink_info(path);
+  entry.type = entry.stat_hint->type();
+  return add_entry(tree, entry, parent, prog, fs, debug_filter);
+}
+
+template <typename LoggerPolicy>
+entry_handle
+scanner_<LoggerPolicy>::add_entry(entry_storage& tree, dir_entry const& entry,
+                                  dir_handle parent, progress& prog,
+                                  file_scanner& fs, bool debug_filter) {
   try {
-    auto ent = internal::provisional_entry(os_, path, parent);
+    auto ent = internal::provisional_entry(os_, entry, parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
+      auto const& path = entry.name;
       try {
         auto tmp [[maybe_unused]] = path.filename().u8string();
       } catch (std::system_error const& e) {
@@ -366,7 +383,8 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
 
     case entry_type::E_FILE:
-      assert(path == pe.fs_path());
+      // TODO: only valid while `name` is still a full path
+      assert(entry.name == pe.fs_path());
 
       prog.files_found++;
 
@@ -392,16 +410,18 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       break;
 
     default:
+      // TODO: update to show full path once `name` is no longer a full path
       LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe.type())
-                << " (" << path_to_utf8_string_sanitized(path) << ")";
+                << " (" << path_to_utf8_string_sanitized(entry.name) << ")";
       prog.errors++;
       break;
     }
 
     return pe;
   } catch (std::system_error const& e) {
+    // TODO: update to show full path once `name` is no longer a full path
     LOG_ERROR << fmt::format("error reading entry (path={}): {}",
-                             path_to_utf8_string_sanitized(path),
+                             path_to_utf8_string_sanitized(entry.name),
                              exception_str(e));
     prog.errors++;
   }
@@ -445,7 +465,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   std::deque<entry_id> queue({root.id()});
-  std::filesystem::path name;
+  dir_entry entry;
   std::vector<entry_id> subdirs;
   prog.dirs_found++;
 
@@ -460,8 +480,8 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
     try {
       auto d = os_.opendir(ppath);
 
-      while (d->read(name)) {
-        if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
+      while (d->read(entry)) {
+        if (auto pe = add_entry(tree, entry, parent, prog, fs, debug_filter)) {
           if (pe.is_dir()) {
             subdirs.push_back(pe.id());
           }

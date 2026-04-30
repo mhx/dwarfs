@@ -27,6 +27,7 @@
 #include <optional>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/os_access.h>
 #include <dwarfs/writer/entry_interface.h>
 
 #include <dwarfs/writer/internal/entry_handle.h>
@@ -41,6 +42,9 @@ class provisional_entry : public entry_interface {
  public:
   // TODO: no need to use optional here...
   provisional_entry(os_access const& os, std::filesystem::path const& path,
+                    std::optional<dir_handle> parent = std::nullopt);
+  // TODO: no need to use optional here...
+  provisional_entry(os_access const& os, dir_entry const& entry,
                     std::optional<dir_handle> parent = std::nullopt);
 
   provisional_entry(provisional_entry const&) = delete;
@@ -57,9 +61,9 @@ class provisional_entry : public entry_interface {
   entry_handle commit(entry_storage& tree);
 
  private:
-  std::filesystem::path const& path_;
-  file_stat stat_;
+  dir_entry entry_;
   std::optional<dir_handle> parent_;
+  os_access const& os_;
 };
 
 } // namespace writer::internal
