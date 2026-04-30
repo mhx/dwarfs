@@ -43,9 +43,15 @@ namespace {
 
 using namespace binary_literals;
 
-std::any open_file(io_ops const& ops, std::filesystem::path const& path) {
+std::any open_file(io_ops const& ops, std::filesystem::path const& path,
+                   std::any const& dir) {
   std::error_code ec;
-  auto hdl = ops.open(path, ec);
+  std::any hdl;
+  if (dir.has_value()) {
+    hdl = ops.openat(dir, path, ec);
+  } else {
+    hdl = ops.open(path, ec);
+  }
   if (ec) {
     throw std::system_error(ec, "failed to open file: " +
                                     path_to_utf8_string_sanitized(path));
@@ -58,8 +64,8 @@ class read_file_view final
       public std::enable_shared_from_this<read_file_view> {
  public:
   read_file_view(io_ops const& ops, std::filesystem::path const& path,
-                 std::any const& /*dir*/)
-      : handle_{open_file(ops, path)}
+                 std::any const& dir)
+      : handle_{open_file(ops, path, dir)}
       , path_{path}
       , extents_{get_file_extents_noexcept(ops, handle_)}
       , ops_{ops} {}
