@@ -35,6 +35,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/error.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
 #include <dwarfs/os_access_generic.h>
@@ -475,7 +476,7 @@ os_access_mock::opendir(fs::path const& path) const {
                                              dir_reader_delay_);
   }
 
-  throw std::runtime_error(fmt::format("oops in opendir: {}", path.string()));
+  DWARFS_PANIC(fmt::format("oops in opendir: {}", path.string()));
 }
 
 file_stat os_access_mock::symlink_info(fs::path const& path) const {
@@ -483,8 +484,7 @@ file_stat os_access_mock::symlink_info(fs::path const& path) const {
     return make_file_stat(de->status);
   }
 
-  throw std::runtime_error(
-      fmt::format("oops in symlink_info: {}", path.string()));
+  DWARFS_PANIC(fmt::format("oops in symlink_info: {}", path.string()));
 }
 
 fs::path os_access_mock::read_symlink(fs::path const& path) const {
@@ -493,8 +493,7 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
     return std::get<std::string>(de->v);
   }
 
-  throw std::runtime_error(
-      fmt::format("oops in read_symlink: {}", path.string()));
+  DWARFS_PANIC(fmt::format("oops in read_symlink: {}", path.string()));
 }
 
 file_view os_access_mock::open_file(fs::path const& path) const {
@@ -514,15 +513,13 @@ file_view os_access_mock::open_file(fs::path const& path) const {
       return make_mock_file_view(std::get<test_file_data>(de->v), path);
     }
 
-    auto data = de->v | match{
-                            [](std::string const& str) { return str; },
-                            [](std::function<std::string()> const& fun) {
-                              return fun();
-                            },
-                            [](auto const&) -> std::string {
-                              throw std::runtime_error("oops in match");
-                            },
-                        };
+    auto data =
+        de->v |
+        match{
+            [](std::string const& str) { return str; },
+            [](std::function<std::string()> const& fun) { return fun(); },
+            [](auto const&) -> std::string { DWARFS_PANIC("oops in match"); },
+        };
 
     if (std::cmp_greater_equal(data.size(), map_file_delay_min_size_)) {
       if (auto it = map_file_delays_.find(path); it != map_file_delays_.end()) {
@@ -533,7 +530,7 @@ file_view os_access_mock::open_file(fs::path const& path) const {
     return make_mock_file_view(std::move(data), path);
   }
 
-  throw std::runtime_error(fmt::format("oops in open_file: {}", path.string()));
+  DWARFS_PANIC(fmt::format("oops in open_file: {}", path.string()));
 }
 
 readonly_memory_mapping os_access_mock::map_empty_readonly(size_t size) const {
