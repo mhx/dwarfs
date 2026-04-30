@@ -66,8 +66,8 @@ class mmap_file_view final
       public std::enable_shared_from_this<mmap_file_view> {
  public:
   mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
-                 mmap_file_view_options const& opts, std::any const& /*dir*/)
-      : file_{mappable_file::create(ops, path)}
+                 mmap_file_view_options const& opts, std::any const& dir)
+      : file_{mappable_file::create(ops, dir, path)}
       , path_{path}
       , extents_{file_.get_extents_noexcept()}
       , ops_{ops} {
