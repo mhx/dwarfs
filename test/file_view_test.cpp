@@ -1038,7 +1038,7 @@ TEST(read_file_view, get_extents_error) {
             return std::vector<dwarfs::detail::file_extent_info>{};
           }));
 
-  auto view = create_read_file_view(ops, path, {});
+  auto view = create_read_file_view(ops, path);
 
   EXPECT_TRUE(view);
   EXPECT_EQ(kFileSize, view.size());

@@ -498,12 +498,6 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
 }
 
 file_view os_access_mock::open_file(fs::path const& path) const {
-  return open_file_with_options(path, {});
-}
-
-file_view
-os_access_mock::open_file_with_options(fs::path const& path,
-                                       open_file_options const& opts) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
@@ -517,8 +511,7 @@ os_access_mock::open_file_with_options(fs::path const& path,
     }
 
     if (std::holds_alternative<test_file_data>(de->v)) {
-      return make_mock_file_view(std::get<test_file_data>(de->v), path,
-                                 {.of_opts = opts});
+      return make_mock_file_view(std::get<test_file_data>(de->v), path);
     }
 
     auto data = de->v | match{
@@ -537,7 +530,7 @@ os_access_mock::open_file_with_options(fs::path const& path,
       }
     }
 
-    return make_mock_file_view(std::move(data), path, {.of_opts = opts});
+    return make_mock_file_view(std::move(data), path);
   }
 
   throw std::runtime_error(fmt::format("oops in open_file: {}", path.string()));

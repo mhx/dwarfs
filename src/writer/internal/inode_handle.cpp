@@ -116,8 +116,7 @@ void dump_impl(entry_storage& storage, inode_id self_id, std::ostream& os,
 }
 
 auto mmap_any_impl(entry_storage& storage, inode_id self_id,
-                   os_access const& os, open_file_options const& of_opts)
-    -> inode_mmap_any_result {
+                   os_access const& os) -> inode_mmap_any_result {
   auto self = storage.handle(self_id);
   auto const& files = self.all_file_ids();
   file_view mm;
@@ -129,7 +128,7 @@ auto mmap_any_impl(entry_storage& storage, inode_id self_id,
 
     if (!fh.is_invalid()) {
       try {
-        mm = os.open_file_with_options(fh.fs_path(), of_opts);
+        mm = os.open_file(fh.fs_path());
         if (mm.size() != fh.size()) {
           auto const now_size = mm.size();
           mm.reset();
@@ -279,9 +278,8 @@ basic_inode_handle<Mut>::get_scan_error() const {
 
 template <detail::mutability Mut>
 inode_mmap_any_result
-basic_inode_handle<Mut>::mmap_any(os_access const& os,
-                                  open_file_options const& of_opts) const {
-  return mmap_any_impl(*storage_, self_id_, os, of_opts);
+basic_inode_handle<Mut>::mmap_any(os_access const& os) const {
+  return mmap_any_impl(*storage_, self_id_, os);
 }
 
 template class basic_inode_handle<detail::mutability::const_>;

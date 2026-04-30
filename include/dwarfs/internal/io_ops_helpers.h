@@ -34,15 +34,9 @@
 
 #include <dwarfs/internal/io_ops.h>
 
-namespace dwarfs {
-
-struct open_file_options;
-
-namespace internal {
+namespace dwarfs::internal {
 
 std::vector<dwarfs::detail::file_extent_info>
-get_file_extents_noexcept(io_ops const& ops, std::any const& handle,
-                          open_file_options const& opts);
+get_file_extents_noexcept(io_ops const& ops, std::any const& handle);
 
-} // namespace internal
-} // namespace dwarfs
+} // namespace dwarfs::internal
