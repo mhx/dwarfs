@@ -49,7 +49,6 @@
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
-#include <dwarfs/open_file_options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -889,7 +888,7 @@ void scanner_<LoggerPolicy>::scan(
               for_each_fragment(
                   [&](auto&& frag, auto) { frag.add_hole(frag.size()); });
             } else {
-              auto [mm, _, errors] = ino.mmap_any(os_, {});
+              auto [mm, _, errors] = ino.mmap_any(os_);
 
               if (mm) {
                 auto& mm_ref = mm; // workaround for AppleClang 15
