@@ -416,12 +416,18 @@ memory_mapping mappable_file::map_empty(io_ops const& ops, size_t size) {
   return mapping;
 }
 
-mappable_file
-mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
-                      std::error_code& ec) {
+mappable_file mappable_file::create(io_ops const& ops, std::any const& dir,
+                                    std::filesystem::path const& relpath,
+                                    std::error_code& ec) {
   ec.clear();
 
-  auto handle = ops.open(path, ec);
+  std::any handle;
+
+  if (dir.has_value()) {
+    handle = ops.openat(dir, relpath, ec);
+  } else {
+    handle = ops.open(relpath, ec);
+  }
 
   if (ec) {
     return {};
@@ -436,6 +442,22 @@ mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
 
   return mappable_file{
       std::make_unique<mappable_file_>(ops, std::move(handle), size)};
+}
+
+mappable_file
+mappable_file::create(io_ops const& ops, std::filesystem::path const& path,
+                      std::error_code& ec) {
+  return create(ops, {}, path, ec);
+}
+
+mappable_file mappable_file::create(io_ops const& ops, std::any const& dir,
+                                    std::filesystem::path const& relpath) {
+  std::error_code ec;
+  auto file = create(ops, dir, relpath, ec);
+  if (ec) {
+    throw std::system_error{ec, "create"};
+  }
+  return file;
 }
 
 mappable_file

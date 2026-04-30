@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <any>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -59,6 +60,12 @@ class mappable_file {
   static mappable_file
   create(io_ops const& ops, std::filesystem::path const& path,
          std::error_code& ec);
+
+  static mappable_file create(io_ops const& ops, std::any const& dir,
+                              std::filesystem::path const& relpath);
+  static mappable_file
+  create(io_ops const& ops, std::any const& dir,
+         std::filesystem::path const& relpath, std::error_code& ec);
 
   mappable_file() = default;
 
