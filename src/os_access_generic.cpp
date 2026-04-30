@@ -231,13 +231,8 @@ class posix_dir_reader final : public dir_reader {
   posix_dir_reader(fs::path const& path,
                    internal::os_access_generic_data const& data)
       : parent_{path}
-      , dir_{::opendir(path.c_str())}
-      , descriptor_{make_descriptor(dir_.get(), data)} {
-    if (!dir_) {
-      throw std::system_error(errno, std::generic_category(),
-                              "opendir: " + path.string());
-    }
-  }
+      , dir_{checked_opendir(path)}
+      , descriptor_{make_descriptor(dir_.get(), data)} {}
 
   bool read(dir_entry& entry) override {
     errno = 0;
@@ -308,6 +303,16 @@ class posix_dir_reader final : public dir_reader {
   dir_descriptor descriptor() const override { return descriptor_; }
 
  private:
+  static DIR* checked_opendir(fs::path const& path) {
+    auto* dir = ::opendir(path.c_str());
+    if (!dir) {
+      auto const err = errno;
+      throw std::system_error(err, std::generic_category(),
+                              "opendir: " + path.string());
+    }
+    return dir;
+  }
+
   static std::shared_ptr<dir_descriptor::impl>
   make_descriptor(DIR* dir, internal::os_access_generic_data const& data) {
     int const fd = ::dirfd(dir);
