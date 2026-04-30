@@ -424,6 +424,8 @@ mappable_file mappable_file::create(io_ops const& ops, std::any const& dir,
   std::any handle;
 
   if (dir.has_value()) {
+    assert(relpath.is_relative());
+    assert(relpath == relpath.filename());
     handle = ops.openat(dir, relpath, ec);
   } else {
     handle = ops.open(relpath, ec);

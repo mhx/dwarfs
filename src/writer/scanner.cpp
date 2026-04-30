@@ -319,8 +319,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
                                   dir_handle parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
   try {
-    auto ent =
-        internal::provisional_entry(os_, path, std::move(dd), entry, parent);
+    auto ent = internal::provisional_entry(os_, path, dd, entry, parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       auto const& path = entry.name;
@@ -393,7 +392,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       prog.files_found++;
 
       if (!debug_filter) {
-        fs.scan(pe.as_file());
+        fs.scan(dd, pe.as_file());
       }
       break;
 

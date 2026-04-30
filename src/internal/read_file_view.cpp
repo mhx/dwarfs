@@ -48,6 +48,8 @@ std::any open_file(io_ops const& ops, std::filesystem::path const& path,
   std::error_code ec;
   std::any hdl;
   if (dir.has_value()) {
+    assert(path.is_relative());
+    assert(path == path.filename());
     hdl = ops.openat(dir, path, ec);
   } else {
     hdl = ops.open(path, ec);

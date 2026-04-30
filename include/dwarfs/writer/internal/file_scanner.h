@@ -28,13 +28,14 @@
 #include <optional>
 #include <string>
 
+#include <dwarfs/os_access.h>
+
 #include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/entry_handle.h>
 
 namespace dwarfs {
 
 class logger;
-class os_access;
 
 namespace writer {
 
@@ -57,7 +58,7 @@ class file_scanner {
                dwarfs::internal::worker_group& wg, os_access const& os,
                inode_manager& im, progress& prog, options const& opts);
 
-  void scan(file_handle p) { impl_->scan(p); }
+  void scan(dir_descriptor dd, file_handle p) { impl_->scan(std::move(dd), p); }
   void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
   uint32_t num_unique() const { return impl_->num_unique(); }
   void dump(std::ostream& os) const { impl_->dump(os); }
@@ -66,7 +67,7 @@ class file_scanner {
    public:
     virtual ~impl() = default;
 
-    virtual void scan(file_handle p) = 0;
+    virtual void scan(dir_descriptor dd, file_handle p) = 0;
     virtual void finalize(uint32_t& inode_num) = 0;
     virtual uint32_t num_unique() const = 0;
     virtual void dump(std::ostream& os) const = 0;

@@ -39,7 +39,6 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/os_access.h>
 #include <dwarfs/types.h>
 #include <dwarfs/util.h>
 
@@ -68,7 +67,7 @@ class file_scanner_ final : public file_scanner::impl {
                 os_access const& os, inode_manager& im, progress& prog,
                 file_scanner::options const& opts);
 
-  void scan(file_handle p) override;
+  void scan(dir_descriptor dd, file_handle p) override;
   void finalize(uint32_t& inode_num) override;
 
   uint32_t num_unique() const override { return num_unique_; }
@@ -81,11 +80,12 @@ class file_scanner_ final : public file_scanner::impl {
 
   using start_hash_key = std::pair<uint64_t, uint64_t>;
 
-  void scan_dedupe(file_handle p, file_size_info size_info);
-  void scan_dedupe_after_start_hash(file_handle p, file_size_info size_info,
-                                    uint64_t start_hash);
-  uint64_t compute_start_hash(file_handle p);
-  void hash_file(file_handle p, file_size_t size);
+  void scan_dedupe(dir_descriptor dd, file_handle p, file_size_info size_info);
+  void
+  scan_dedupe_after_start_hash(dir_descriptor dd, file_handle p,
+                               file_size_info size_info, uint64_t start_hash);
+  uint64_t compute_start_hash(dir_descriptor dd, file_handle p);
+  void hash_file(dir_descriptor dd, file_handle p, file_size_t size);
   void add_inode(file_handle p, int lineno);
 
   template <typename KeyType>
@@ -137,6 +137,16 @@ class file_scanner_ final : public file_scanner::impl {
 
   template <typename T>
   void dump_map(std::ostream& os, std::string_view name, T const& map) const;
+
+  file_view open_file(dir_descriptor dd, file_handle p) const {
+    if (dd) {
+      // TODO: query filename directly from entry_handle without having
+      //       to reconstruct the full path
+      return dd.open_file(p.fs_path().filename());
+    }
+
+    return os_.open_file(p.fs_path());
+  }
 
   LOG_PROXY_DECL(LoggerPolicy);
   entry_storage& storage_;
@@ -233,7 +243,7 @@ file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
     , opts_{opts} {}
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::scan(file_handle p) {
+void file_scanner_<LoggerPolicy>::scan(dir_descriptor dd, file_handle p) {
   // This method is supposed to be called from a single thread only.
 
   if (p.num_hard_links() > 1) {
@@ -255,7 +265,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   prog_.allocated_original_size += size_info.allocated;
 
   if (opts_.hash_algo) {
-    scan_dedupe(p, size_info);
+    scan_dedupe(dd, p, size_info);
   } else {
     prog_.current.store(p);
     by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
@@ -264,13 +274,13 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
 }
 
 template <typename LoggerPolicy>
-uint64_t file_scanner_<LoggerPolicy>::compute_start_hash(file_handle p) {
+uint64_t file_scanner_<LoggerPolicy>::compute_start_hash(dir_descriptor dd,
+                                                         file_handle p) {
   uint64_t start_hash{0};
 
   if (!p.is_invalid()) {
     try {
-      auto seg =
-          os_.open_file(p.fs_path()).segment_at(0, kLargeFileStartHashSize);
+      auto seg = open_file(dd, p).segment_at(0, kLargeFileStartHashSize);
 
       checksum cs(checksum::xxh3_64);
       cs.update(seg.span());
@@ -349,7 +359,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
+void file_scanner_<LoggerPolicy>::scan_dedupe(dir_descriptor dd, file_handle p,
                                               file_size_info const size_info) {
   uint64_t const size = size_info.total;
 
@@ -359,7 +369,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
   // Small files are classified directly by size. We do not compute a start hash
   // for them.
   if (size < kLargeFileThreshold || p.is_invalid()) {
-    scan_dedupe_after_start_hash(p, size_info, 0);
+    scan_dedupe_after_start_hash(dd, p, size_info, 0);
     return;
   }
 
@@ -387,23 +397,25 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
     // longer unique-by-size; future files of this size must be start-hashed.
     it->second.clear();
 
-    auto const first_start_hash = compute_start_hash(first);
+    auto const first_start_hash = compute_start_hash(dd, first);
     file_start_hash_.emplace(first.id(), first_start_hash);
 
-    scan_dedupe_after_start_hash(first, first.size_info(), first_start_hash);
+    scan_dedupe_after_start_hash(dd, first, first.size_info(),
+                                 first_start_hash);
   }
 
   // This is either the second file of this size, or a later one. From now on,
   // all files of this large size need the start-hash discriminator.
-  auto const start_hash = compute_start_hash(p);
+  auto const start_hash = compute_start_hash(dd, p);
   file_start_hash_.emplace(p.id(), start_hash);
 
-  scan_dedupe_after_start_hash(p, size_info, start_hash);
+  scan_dedupe_after_start_hash(dd, p, size_info, start_hash);
 }
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
-    file_handle p, file_size_info const size_info, uint64_t const start_hash) {
+    dir_descriptor dd, file_handle p, file_size_info const size_info,
+    uint64_t const start_hash) {
   uint64_t const size = size_info.total;
   auto const unique_key = std::make_pair(size, start_hash);
 
@@ -452,7 +464,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
     // Add a job for the first file.
     wg_.add_job([this, p = storage_.handle(it->second.front()), latch,
                  unique_key, size] {
-      hash_file(p, size);
+      hash_file({}, p, size);
 
       {
         std::lock_guard lock(mx_);
@@ -480,8 +492,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
   }
 
   // Add a job for the current file.
-  wg_.add_job([this, p, latch, size_info] mutable {
-    hash_file(p, size_info.total);
+  wg_.add_job([this, dd, p, latch, size_info] mutable {
+    hash_file(dd, p, size_info.total);
 
     if (latch) {
       // Wait until the first file of this (size, start_hash) has been added to
@@ -519,7 +531,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
+void file_scanner_<LoggerPolicy>::hash_file(dir_descriptor dd, file_handle p,
                                             file_size_t const size) {
   if (p.is_invalid()) {
     return;
@@ -530,7 +542,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
   if (size > 0) {
     // TODO: use exception-less variant once provided
     try {
-      mm = os_.open_file(p.fs_path());
+      mm = open_file(dd, p);
     } catch (...) {
       LOG_ERROR << "failed to map file " << p.path_as_string() << ": "
                 << exception_str(std::current_exception())
