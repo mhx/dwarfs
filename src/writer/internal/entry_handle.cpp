@@ -174,13 +174,6 @@ void entry_handle_base<Mut>::scan(os_access const& os, internal::progress& prog)
 }
 
 template <mutability Mut>
-void entry_handle_base<Mut>::set_empty()
-  requires is_mutable
-{
-  this->storage().set_entry_empty(self_id_);
-}
-
-template <mutability Mut>
 void entry_handle_base<Mut>::set_entry_index(std::size_t index)
   requires is_mutable
 {

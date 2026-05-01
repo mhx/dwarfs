@@ -220,8 +220,6 @@ class entry_storage {
     return entry_impl_->get_entry_size_info(id);
   }
 
-  void set_entry_empty(entry_id id) { entry_impl_->set_entry_empty(id); }
-
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) {
     entry_impl_->set_inode_num_for_entry(id, ino);
   }
@@ -420,7 +418,6 @@ class entry_storage {
 
     virtual file_size_t get_entry_size(entry_id id) const = 0;
     virtual file_size_info get_entry_size_info(entry_id id) const = 0;
-    virtual void set_entry_empty(entry_id id) = 0;
 
     virtual void set_inode_num_for_entry(entry_id id, std::uint64_t ino) = 0;
     virtual std::optional<std::uint64_t>
