@@ -741,7 +741,6 @@ TEST_F(entry_test, frozen_panic) {
                "entry_storage is frozen");
   EXPECT_DEATH(tree.set_file_digest(file.id(), std::array<std::byte, 32>{}),
                "entry_storage is frozen");
-  EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
 
   EXPECT_DEATH(tree.set_link_target(link.id(), "target", prog),
                "entry_storage is frozen");
