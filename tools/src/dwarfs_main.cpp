@@ -2018,7 +2018,9 @@ class safe_fuse_cmdline_opts {
     switch (key) {
     case FUSE_OPT_KEY_NONOPT:
       if (!raw.mountpoint) {
-        raw.mountpoint = std::make_shared<std::string>(argsv);
+        std::filesystem::path mp{argsv};
+        raw.mountpoint =
+            std::make_shared<std::string>(canonical_path(mp).string());
         return kDiscardArg;
       }
       return kError; // too many non-option args
