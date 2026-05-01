@@ -28,12 +28,12 @@
 
 namespace dwarfs::writer {
 
-void debug_filter_output(std::ostream& os, bool exclude,
-                         entry_interface const& ei, debug_filter_mode mode) {
-  if (exclude ? mode == debug_filter_mode::INCLUDED or
-                    mode == debug_filter_mode::INCLUDED_FILES
-              : mode == debug_filter_mode::EXCLUDED or
-                    mode == debug_filter_mode::EXCLUDED_FILES) {
+void debug_filter_output(std::ostream& os, debug_filter_entry const& entry,
+                         debug_filter_mode mode) {
+  if (entry.exclude ? mode == debug_filter_mode::INCLUDED or
+                          mode == debug_filter_mode::INCLUDED_FILES
+                    : mode == debug_filter_mode::EXCLUDED or
+                          mode == debug_filter_mode::EXCLUDED_FILES) {
     return;
   }
 
@@ -41,17 +41,17 @@ void debug_filter_output(std::ostream& os, bool exclude,
                           mode == debug_filter_mode::INCLUDED_FILES or
                           mode == debug_filter_mode::EXCLUDED_FILES;
 
-  if (files_only and ei.is_directory()) {
+  if (files_only and entry.is_directory) {
     return;
   }
 
   char const* prefix = "";
 
   if (mode == debug_filter_mode::FILES or mode == debug_filter_mode::ALL) {
-    prefix = exclude ? "- " : "+ ";
+    prefix = entry.exclude ? "- " : "+ ";
   }
 
-  os << prefix << ei.unix_dpath() << "\n";
+  os << prefix << entry.path << "\n";
 }
 
 } // namespace dwarfs::writer

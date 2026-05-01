@@ -39,7 +39,13 @@ enum class debug_filter_mode {
   ALL
 };
 
-void debug_filter_output(std::ostream& os, bool exclude,
-                         entry_interface const& ei, debug_filter_mode mode);
+struct debug_filter_entry {
+  bool exclude{false};
+  bool is_directory{false};
+  std::string path;
+};
+
+void debug_filter_output(std::ostream& os, debug_filter_entry const& entry,
+                         debug_filter_mode mode);
 
 } // namespace dwarfs::writer

@@ -993,13 +993,16 @@ class filter_test
                                       writer::debug_filter_mode mode) {
     set_filter_rules(spec);
 
-    std::ostringstream oss;
+    std::vector<dwarfs::writer::debug_filter_entry> debug_filter_entries;
 
     writer::scanner_options options;
     options.remove_empty_dirs = false;
     options.debug_filter_function = [&](bool exclude,
                                         writer::entry_interface const& ei) {
-      debug_filter_output(oss, exclude, ei, mode);
+      auto& ent = debug_filter_entries.emplace_back();
+      ent.exclude = exclude;
+      ent.is_directory = ei.is_directory();
+      ent.path = ei.unix_dpath();
     };
 
     writer::writer_progress prog;
@@ -1014,6 +1017,14 @@ class filter_test
     writer::filesystem_writer fsw(null, lgr, pool, prog);
     fsw.add_default_compressor(bc);
     s.scan(fsw, std::filesystem::path("/"), prog);
+
+    std::ostringstream oss;
+
+    std::ranges::sort(debug_filter_entries, {},
+                      &dwarfs::writer::debug_filter_entry::path);
+    for (auto const& entry : debug_filter_entries) {
+      debug_filter_output(oss, entry, mode);
+    }
 
     return oss.str();
   }

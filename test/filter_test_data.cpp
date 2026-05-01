@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <ostream>
 
 #include <fmt/format.h>
@@ -155,7 +156,24 @@ std::string filter_test_data::get_expected_filter_output(
     }
   };
 
+  std::vector<std::pair<simplestat, std::string>> sorted_stats_and_names;
   for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
+    sorted_stats_and_names.emplace_back(stat, name);
+  }
+
+  std::ranges::sort(sorted_stats_and_names, [](auto const& a, auto const& b) {
+    auto name_a = a.second;
+    auto name_b = b.second;
+    if (a.first.type() == posix_file_type::directory) {
+      name_a += '/';
+    }
+    if (b.first.type() == posix_file_type::directory) {
+      name_b += '/';
+    }
+    return name_a < name_b;
+  });
+
+  for (auto const& [stat, name] : sorted_stats_and_names) {
     std::string path(name.substr(name.size() == 5 ? 5 : 6));
 
     if (path.empty()) {
