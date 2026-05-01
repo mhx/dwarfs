@@ -734,7 +734,6 @@ TEST_F(entry_test, frozen_panic) {
                "entry_storage is frozen");
   EXPECT_DEATH(tree.get_file_hash_buffer(file.id(), 16),
                "entry_storage is frozen");
-  EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
 
   EXPECT_DEATH(tree.set_link_target(link.id(), "target", prog),
                "entry_storage is frozen");

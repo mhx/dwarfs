@@ -2024,15 +2024,6 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return dispatch_(&packed_entry_data::get_size_info, id);
   }
 
-  void set_entry_empty(entry_id id) override {
-    TRACE_CALL;
-    if constexpr (is_mutable) {
-      dispatch_(&packed_entry_data::set_empty, id);
-    } else {
-      frozen_panic();
-    }
-  }
-
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) override {
     TRACE_CALL;
     dispatch_(&packed_entry_data::set_inode_num, id, ino);
@@ -3126,10 +3117,6 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   file_size_info get_entry_size_info(entry_id id) const override {
     return impl_.lock()->get_entry_size_info(id);
-  }
-
-  void set_entry_empty(entry_id id) override {
-    impl_.lock()->set_entry_empty(id);
   }
 
   void set_inode_num_for_entry(entry_id id, std::uint64_t ino) override {
