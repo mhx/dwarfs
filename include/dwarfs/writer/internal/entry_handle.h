@@ -155,8 +155,6 @@ class entry_handle_base {
     requires is_mutable;
   void scan(os_access const& os, internal::progress& prog)
     requires is_mutable;
-  void set_empty()
-    requires is_mutable;
   void set_entry_index(std::size_t index)
     requires is_mutable;
   void set_inode_num(std::uint64_t ino)
