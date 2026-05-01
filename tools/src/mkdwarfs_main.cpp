@@ -1023,14 +1023,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   options.num_segmenter_workers = num_segmenter_workers;
 
+  std::vector<writer::debug_filter_entry> debug_filter_entries;
+
   if (vm.contains("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
-      options.debug_filter_function =
-          [&iol, mode = it->second](bool exclude,
-                                    writer::entry_interface const& ei) {
-            debug_filter_output(iol.out, exclude, ei, mode);
-          };
+      options.debug_filter_function = [&](bool exclude,
+                                          writer::entry_interface const& ei) {
+        auto& ent = debug_filter_entries.emplace_back();
+        ent.exclude = exclude;
+        ent.is_directory = ei.is_directory();
+        ent.path = ei.unix_dpath();
+      };
       no_progress = true;
     } else {
       iol.err << "error: invalid filter debug mode '" << debug_filter << "'\n";
@@ -1579,6 +1583,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   } catch (std::exception const& e) {
     LOG_ERROR << exception_str(e);
     return 1;
+  }
+
+  if (!debug_filter_entries.empty()) {
+    auto const mode = debug_filter_modes.at(debug_filter);
+    std::ranges::sort(debug_filter_entries, std::less<>{},
+                      &writer::debug_filter_entry::path);
+    for (auto const& entry : debug_filter_entries) {
+      debug_filter_output(iol.out, entry, mode);
+    }
   }
 
   if (!options.debug_filter_function) {
