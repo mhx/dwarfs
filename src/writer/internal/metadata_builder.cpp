@@ -318,11 +318,23 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
     DWARFS_NOTHROW(md_.chunk_table()->at(ino.num())) = total_chunks;
     if (!ino.append_chunks_to(md_.chunks().value(), hole_mapper)) {
       std::ostringstream oss;
+      bool all_files_are_invalid{true};
       for (auto fp : ino.all()) {
-        oss << "\n  " << fp.path_as_string();
+        auto const is_invalid = fp.is_invalid();
+        oss << "\n  " << fp.path_as_string() << " ("
+            << (is_invalid ? "invalid" : "valid") << ")";
+        if (!is_invalid) {
+          all_files_are_invalid = false;
+        }
       }
-      LOG_ERROR << "inconsistent fragments in inode " << ino.num()
-                << ", the following files will be empty:" << oss.str();
+      if (all_files_are_invalid) {
+        // we've logged an error already, so keep this at debug level
+        LOG_DEBUG << "inconsistent fragments in inode " << ino.num()
+                  << ", the following files will be empty:" << oss.str();
+      } else {
+        LOG_ERROR << "inconsistent fragments in inode " << ino.num()
+                  << ", the following files will be empty:" << oss.str();
+      }
     }
   });
 
