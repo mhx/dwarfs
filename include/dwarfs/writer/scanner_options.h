@@ -46,6 +46,7 @@ struct scanner_options {
   inode_options inode;
   std::optional<std::function<void(bool, entry_interface const&)>>
       debug_filter_function;
+  size_t num_walk_workers{1};
   size_t num_segmenter_workers{1};
   bool enable_history{true};
   std::optional<std::vector<std::string>> command_line_arguments;

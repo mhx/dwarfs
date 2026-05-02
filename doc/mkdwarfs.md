@@ -106,11 +106,22 @@ Most other options are concerned with compression tuning:
   mapped to "below normal" priority, 6 to 10 are mapped to "lowest" priority
   and values greater than 10 are mapped to "background" priority.
 
+- `--num-walk-workers=`*value*:
+  Number of worker threads used for walking the input file system. By default,
+  `mkdwarfs` uses a single-threaded implementation that avoids synchronization
+  overhead and keeps memory usage to a minimum. But this is not ideal for
+  cases where the input file system is slow to access, e.g. for remote file
+  systems. In cases like this, it's worth enabling multiple walk workers; it
+  can even be worth enabling more workers than the number of CPU cores, as
+  the workers will mostly be idle waiting for I/O operations to complete.
+  However, especially with rotating disks, the single-threaded implementation
+  is usually faster than the multi-threaded one.
+
 - `--num-scanner-workers=`*value*:
-  Number of worker threads used for scanning the filesystem. Use this option
-  if you want to limit the resources used by `mkdwarfs` or to optimize build
-  speed. This option affects only the scanning phase. By default, the same
-  value is used as for `--num-workers`.
+  Number of worker threads used for scanning files. Use this option if you
+  want to limit the resources used by `mkdwarfs` or to optimize build speed.
+  This option affects only the scanning phase. By default, the same value is
+  used as for `--num-workers`.
   In the scanning phase, the worker threads are used to scan files in the
   background as they are discovered. File scanning includes checksumming
   for de-duplication as well as (optionally) checksumming for similarity

@@ -230,6 +230,11 @@ std::string status_string(progress const& p, size_t width) {
   return label + path;
 }
 
+struct no_mutex {
+  void lock() {}
+  void unlock() {}
+};
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -248,6 +253,12 @@ class scanner_ final : public scanner::impl {
        std::function<void(library_dependencies&)> const& extra_deps) override;
 
  private:
+  template <typename Lockable, typename OnSubdir>
+  void
+  scan_directory(Lockable& mx_scanner, std::filesystem::path& name,
+                 entry_storage& tree, entry_id dir_id, progress& prog,
+                 file_scanner& fs, bool debug_filter, OnSubdir&& on_subdir);
+
   entry_handle scan_tree(entry_storage& tree, std::filesystem::path const& path,
                          progress& prog, file_scanner& fs);
 
@@ -256,9 +267,18 @@ class scanner_ final : public scanner::impl {
             std::span<std::filesystem::path const> list, progress& prog,
             file_scanner& fs);
 
+  template <typename Lockable>
+  entry_handle
+  add_entry(Lockable& mx_walk, entry_storage& tree,
+            std::filesystem::path const& path, dir_handle parent,
+            progress& prog, file_scanner& fs, bool debug_filter = false);
+
   entry_handle add_entry(entry_storage& tree, std::filesystem::path const& path,
                          dir_handle parent, progress& prog, file_scanner& fs,
-                         bool debug_filter = false);
+                         bool debug_filter = false) {
+    no_mutex mx;
+    return add_entry(mx, tree, path, parent, prog, fs, debug_filter);
+  }
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> const& fa,
@@ -293,8 +313,9 @@ DWARFS_PUSH_WARNING
 DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
+template <typename Lockable>
 entry_handle
-scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
+scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
                                   std::filesystem::path const& path,
                                   dir_handle parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
@@ -312,8 +333,10 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
 
         prog.errors++;
 
+        std::unique_lock lock(mx_walk);
         if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(path))
                  .second) {
+          lock.unlock();
           LOG_ERROR << fmt::format(
               "cannot store \"{}\" as the name already exists", ent.name());
           return {};
@@ -326,6 +349,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
     });
 
     if (debug_filter) {
+      std::lock_guard lock(mx_walk);
       (*options_.debug_filter_function)(exclude, ent);
     }
 
@@ -370,6 +394,7 @@ scanner_<LoggerPolicy>::add_entry(entry_storage& tree,
       prog.files_found++;
 
       if (!debug_filter) {
+        std::lock_guard lock(mx_walk);
         fs.scan(pe.as_file());
       }
       break;
@@ -436,47 +461,85 @@ void scanner_<LoggerPolicy>::dump_state(
 }
 
 template <typename LoggerPolicy>
+template <typename Lockable, typename OnSubdir>
+void scanner_<LoggerPolicy>::scan_directory(Lockable& mx_scanner,
+                                            std::filesystem::path& name,
+                                            entry_storage& tree,
+                                            entry_id dir_id, progress& prog,
+                                            file_scanner& fs, bool debug_filter,
+                                            OnSubdir&& on_subdir) {
+  auto parent = tree.handle(dir_id).as_dir();
+
+  DWARFS_CHECK(parent, "expected directory");
+
+  auto ppath = parent.fs_path();
+
+  try {
+    auto d = os_.opendir(ppath);
+
+    while (d->read(name)) {
+      if (auto pe = add_entry(mx_scanner, tree, name, parent, prog, fs,
+                              debug_filter)) {
+        if (pe.is_dir()) {
+          on_subdir(pe.id());
+        }
+      }
+    }
+
+    prog.dirs_scanned++;
+  } catch (std::system_error const& e) {
+    LOG_ERROR << "cannot read directory '"
+              << path_to_utf8_string_sanitized(ppath)
+              << "': " << exception_str(e);
+    prog.errors++;
+  }
+}
+
+template <typename LoggerPolicy>
 entry_handle
 scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                   std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
   auto root = internal::provisional_entry(os_, path).commit(tree);
   bool const debug_filter = options_.debug_filter_function.has_value();
-
-  std::vector<entry_id> stack({root.id()});
-  std::filesystem::path name;
-  std::vector<entry_id> subdirs;
   prog.dirs_found++;
 
-  while (!stack.empty()) {
-    auto parent = tree.handle(stack.back()).as_dir();
+  if (options_.num_walk_workers > 1) {
+    std::mutex mx_scanner;
 
-    DWARFS_CHECK(parent, "expected directory");
+    worker_group wg_walk(LOG_GET_LOGGER, os_, "walk",
+                         {.num_workers = options_.num_walk_workers});
 
-    stack.pop_back();
-    auto ppath = parent.fs_path();
+    std::function<void(entry_id)> enqueue_dir;
 
-    try {
-      auto d = os_.opendir(ppath);
+    enqueue_dir = [&](entry_id id) {
+      wg_walk.add_job([&, id] {
+        std::filesystem::path namebuf;
 
-      while (d->read(name)) {
-        if (auto pe = add_entry(tree, name, parent, prog, fs, debug_filter)) {
-          if (pe.is_dir()) {
-            subdirs.push_back(pe.id());
-          }
-        }
-      }
+        scan_directory(mx_scanner, namebuf, tree, id, prog, fs, debug_filter,
+                       [&](entry_id const child_id) { enqueue_dir(child_id); });
+      });
+    };
 
-      stack.insert(stack.end(), subdirs.rbegin(), subdirs.rend());
+    enqueue_dir(root.id());
+    wg_walk.wait();
+  } else {
+    no_mutex mx_scanner;
+    std::vector<entry_id> stack({root.id()});
+    std::vector<entry_id> subdirs;
+    std::filesystem::path namebuf;
+
+    while (!stack.empty()) {
+      auto const id = stack.back();
+      stack.pop_back();
 
       subdirs.clear();
 
-      prog.dirs_scanned++;
-    } catch (std::system_error const& e) {
-      LOG_ERROR << "cannot read directory '"
-                << path_to_utf8_string_sanitized(ppath)
-                << "': " << exception_str(e);
-      prog.errors++;
+      scan_directory(
+          mx_scanner, namebuf, tree, id, prog, fs, debug_filter,
+          [&](entry_id const child_id) { subdirs.push_back(child_id); });
+
+      stack.insert(stack.end(), subdirs.rbegin(), subdirs.rend());
     }
   }
 
