@@ -1252,10 +1252,10 @@ TEST_P(tools_test, end_to_end) {
     ASSERT_TRUE(fs::exists(image));
     ASSERT_GT(fs::file_size(image), 1000);
 
-    auto out = subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
-                                     mkdwarfs_->args(), "-i", fsdata_dir, "-o",
-                                     "-", "--no-progress", "--no-history",
-                                     "--no-create-timestamp");
+    auto out = subprocess::check_run(
+        DWARFS_ARG_EMULATOR_ mkdwarfs_->path(), mkdwarfs_->args(), "-i",
+        fsdata_dir, "-o", "-", "--no-progress", "--no-history",
+        "--no-create-timestamp", "--num-walk-workers=8");
     ASSERT_TRUE(out);
     std::string ref;
     ASSERT_TRUE(read_file(image, ref));
