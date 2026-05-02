@@ -118,15 +118,17 @@ std::map<std::string_view, writer::debug_filter_mode> const debug_filter_modes{
 
 class tool_filter_test
     : public testing::TestWithParam<
-          std::tuple<test::filter_test_data, std::string_view>> {};
+          std::tuple<test::filter_test_data, std::string_view, size_t>> {};
 
 TEST_P(tool_filter_test, debug_filter) {
-  auto [data, mode] = GetParam();
+  auto [data, mode, num_walker_threads] = GetParam();
   auto t = mkdwarfs_tester::create_empty();
   t.add_test_file_tree();
   t.fa->set_file("filter.txt", data.filter());
-  ASSERT_EQ(0, t.run({"-i", "/", "-F", ". filter.txt",
-                      "--debug-filter=" + std::string(mode)}))
+  ASSERT_EQ(0,
+            t.run({"-i", "/", "-F", ". filter.txt",
+                   "--num-walk-workers=" + std::to_string(num_walker_threads),
+                   "--debug-filter=" + std::string(mode)}))
       << t.err();
   auto expected = data.get_expected_filter_output(debug_filter_modes.at(mode));
   EXPECT_EQ(expected, t.out());
@@ -135,7 +137,8 @@ TEST_P(tool_filter_test, debug_filter) {
 INSTANTIATE_TEST_SUITE_P(
     mkdwarfs_test, tool_filter_test,
     ::testing::Combine(::testing::ValuesIn(dwarfs::test::get_filter_tests()),
-                       ::testing::ValuesIn(debug_filter_mode_names)));
+                       ::testing::ValuesIn(debug_filter_mode_names),
+                       ::testing::Values(1, 4)));
 
 TEST(mkdwarfs_test, filter_recursion) {
   auto t = mkdwarfs_tester::create_empty();
@@ -534,11 +537,11 @@ TEST_P(map_file_error_test, delayed) {
 namespace {
 
 std::array const map_file_error_args{
-    "",
+    "--num-walk-workers=8",
     "--categorize",
     "--order=revpath",
     "--order=revpath --categorize",
-    "--file-hash=none",
+    "--file-hash=none --num-walk-workers=8",
     "--file-hash=none --categorize",
     "--file-hash=none --order=revpath",
     "--file-hash=none --order=revpath --categorize",

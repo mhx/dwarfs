@@ -64,8 +64,9 @@ TEST(mkdwarfs_test, pack_modes_random) {
 #else
     t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
 #endif
-    ASSERT_EQ(
-        0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1",
+                        "--num-walk-workers=" + std::to_string(1 + i % 7),
+                        "--pack-metadata=" + mode_arg}))
         << t.err();
     auto fs = t.fs_from_stdout();
     auto info =

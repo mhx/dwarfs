@@ -458,7 +458,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
-  size_t num_workers, num_scanner_workers, num_segmenter_workers;
+  size_t num_workers, num_scanner_workers, num_walk_workers,
+      num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
@@ -552,6 +553,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("compress-niceness",
         po::value<int>(&compress_niceness)->default_value(5),
         "compression worker threads niceness")
+    ("num-walk-workers",
+        po::value<size_t>(&num_walk_workers)->default_value(1),
+        "number of directory walking worker threads")
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers)
           ->value_name(dep_def_val("num-workers")),
@@ -1021,6 +1025,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     num_segmenter_workers = num_workers;
   }
 
+  options.num_walk_workers = num_walk_workers;
   options.num_segmenter_workers = num_segmenter_workers;
 
   std::vector<writer::debug_filter_entry> debug_filter_entries;
