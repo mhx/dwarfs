@@ -26,7 +26,6 @@
 #include <cstdint>
 #include <cstring>
 #include <ctime>
-#include <deque>
 #include <functional>
 #include <iterator>
 #include <numeric>
@@ -454,17 +453,17 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   auto root = internal::provisional_entry(os_, path).commit(tree);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
-  std::deque<entry_id> queue({root.id()});
+  std::vector<entry_id> stack({root.id()});
   std::filesystem::path name;
   std::vector<entry_id> subdirs;
   prog.dirs_found++;
 
-  while (!queue.empty()) {
-    auto parent = tree.handle(queue.front()).as_dir();
+  while (!stack.empty()) {
+    auto parent = tree.handle(stack.back()).as_dir();
 
     DWARFS_CHECK(parent, "expected directory");
 
-    queue.pop_front();
+    stack.pop_back();
     auto ppath = parent.fs_path();
 
     try {
@@ -478,7 +477,7 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
         }
       }
 
-      queue.insert(queue.begin(), subdirs.begin(), subdirs.end());
+      stack.insert(stack.end(), subdirs.rbegin(), subdirs.rend());
 
       subdirs.clear();
 
