@@ -110,7 +110,8 @@ class zxc_block_compressor final : public block_compressor::impl {
 
   size_t estimate_memory_usage(size_t data_size) const override {
     return ::zxc_compress_bound(data_size) +
-           ::zxc_estimate_cctx_size(pick_block_size(data_size)) + data_size;
+           ::zxc_estimate_cctx_size(pick_block_size(data_size), level_) +
+           data_size;
   }
 
  private:
