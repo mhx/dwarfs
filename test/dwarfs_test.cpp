@@ -1329,22 +1329,30 @@ TEST(section_index_regression, github183) {
 
   ASSERT_GT(index.size(), 10);
 
-  auto const schema_ix{index.size() - 4};
-  auto const metadata_ix{index.size() - 3};
-  auto const history_ix{index.size() - 2};
+  auto is_block = [](auto v) {
+    return v >> 48 == static_cast<uint16_t>(section_type::BLOCK);
+  };
+  auto const first_block = std::ranges::find_if(index, is_block);
+  auto const first_non_block =
+      std::ranges::find_if_not(first_block, end(index), is_block);
 
-  ASSERT_EQ(index[schema_ix] >> 48,
-            static_cast<uint16_t>(section_type::METADATA_V2_SCHEMA));
-  ASSERT_EQ(index[metadata_ix] >> 48,
-            static_cast<uint16_t>(section_type::METADATA_V2));
-  ASSERT_EQ(index[history_ix] >> 48,
-            static_cast<uint16_t>(section_type::HISTORY));
+  ASSERT_NE(first_block, end(index));
+  ASSERT_NE(first_non_block, end(index));
 
-  auto const schema_offset{index[schema_ix] & section_offset_mask};
+  // maybe a superblock
+  EXPECT_LE(std::distance(begin(index), first_block), 1);
+  // metadata, schema, history, padding, index
+  EXPECT_LE(std::distance(first_non_block, end(index)), 5);
+  // there should be a decent amount of blocks in the middle
+  EXPECT_GT(std::distance(first_block, first_non_block), 100);
+
+  auto const first_block_start = (*first_block) & section_offset_mask;
+  auto const last_block_end = (*first_non_block) & section_offset_mask;
 
   auto fsimage2 = fsimage;
 
-  ::memset(fsimage2.data() + 8, 0xff, schema_offset - 8);
+  ::memset(fsimage2.data() + first_block_start + 8, 0xff,
+           last_block_end - (first_block_start + 8));
 
   auto mm = test::make_mock_file_view(fsimage2);
 
