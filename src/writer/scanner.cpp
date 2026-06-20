@@ -912,6 +912,7 @@ void scanner_<LoggerPolicy>::scan(
                              {.num_workers = num_threads});
 
     fsw.configure(frag_info.categories, num_threads);
+    fsw.start_write_filesystem();
 
     tsan_visible_latch similarity_latch(frag_info.categories.size());
 
