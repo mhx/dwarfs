@@ -447,6 +447,11 @@ Most other options are concerned with compression tuning:
 - `--remove-header`:
   Remove header from a filesystem image. Only useful with `--recompress`.
 
+- `--no-superblock`:
+  Don't add a superblock to the file system. The superblock stores information
+  such as the file system size, UUID, and file system label. If you don't need
+  these features and want to save 160 bytes, you can disable the superblock.
+
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny
   and is used to speed up mount times for large file systems, as it avoids
