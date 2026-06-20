@@ -878,6 +878,7 @@ void scanner_<LoggerPolicy>::scan(
                              {.num_workers = num_threads});
 
     fsw.configure(frag_info.categories, num_threads);
+    fsw.start_write_filesystem();
 
     for (auto category : frag_info.categories) {
       auto cat_size = frag_info.category_size.at(category);
