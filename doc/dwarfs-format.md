@@ -229,6 +229,19 @@ Currently, the following different section types are defined:
   sections are supported. This section type is purely informational
   and not needed to read the DwarFS image.
 
+- `SUPERBLOCK` (11):
+  The superblock contains some basic information about the file system,
+  such as the file system size and alignment, a UUID, and the file
+  system label. This *must* be the first section in the file system
+  image, and it *must* be uncompressed. The structure of the superblock
+  is simple enough so it can easily be read by third-party tools.
+
+- `PADDING` (12):
+  A padding section is just an uncompressed, zero-filled section. While
+  it could occur anywhere in the image, it is usually used at the end
+  of the image (if no section index is present) or right before the
+  section index.
+
 ### Compression Algorithms
 
 DwarFS supports a wide range of section compression algorithms, some of
