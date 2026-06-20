@@ -452,6 +452,30 @@ Most other options are concerned with compression tuning:
   such as the file system size, UUID, and file system label. If you don't need
   these features and want to save 160 bytes, you can disable the superblock.
 
+- `--init-superblock`:
+  Initialize the superblock of a file system image. This should be used to
+  initialize uninitialized fields within the superblock, such as the file
+  system UUID (when `--empty-uuid` was used) or the file system size (when
+  the original image was written to stdout).
+
+- `--label=`*label*:
+  Set the file system label. This can be used during initial file system
+  creation, when recompressing an existing file system, or whenever a file
+  system was created with a superblock. Unlike other superblock fields, the
+  label can be changed at any time.
+
+- `--empty-uuid`:
+  Leave the file system UUID empty. This can be useful if you want to produce
+  bit-identical file system images. The UUID can be initialized later using
+  `--init-superblock`.
+
+- `--image-size-alignment`=*value*:
+  Align the file system image size to a multiple of this value. This can be
+  useful e.g. when the file system image is going to be attached to a loop
+  device which has a sector size requirement. This is 512 bytes by default.
+  If you want to avoid any padding within the file system image, you can set
+  this to 1.
+
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny
   and is used to speed up mount times for large file systems, as it avoids
