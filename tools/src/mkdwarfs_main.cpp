@@ -472,7 +472,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
-       estimate_compression_memory = false, no_dedupe = false;
+       estimate_compression_memory = false, no_dedupe = false,
+       no_superblock = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -633,6 +634,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&remove_header)->zero_tokens(),
         "remove any header present before filesystem data"
         " (use with --recompress)")
+    ("no-superblock",
+        po::value<bool>(&no_superblock)->zero_tokens(),
+        "don't add superblock to file system")
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
@@ -1515,6 +1519,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
+  fswopts.no_superblock = no_superblock;
 
   std::optional<writer::filesystem_writer> fsw;
 
