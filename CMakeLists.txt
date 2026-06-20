@@ -1043,6 +1043,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       target_compile_options(${tgt} PRIVATE
         -Wnull-dereference  # this is too flaky with GCC
+        -Wno-c2y-extensions # TODO: remove once https://github.com/llvm/llvm-project/pull/196689 is released
       )
     endif()
 
