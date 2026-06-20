@@ -30,8 +30,6 @@
 #include <bit>
 
 #include <zxc.h>
-#include <zxc_buffer.h>
-#include <zxc_constants.h>
 
 #include <fmt/format.h>
 
