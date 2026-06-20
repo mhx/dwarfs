@@ -904,7 +904,7 @@ TEST_P(file_scanner, inode_ordering) {
   opts.inode.fragment_order.set_default(order_opts);
   opts.metadata.no_create_timestamp = true;
 
-  fsw_opts.no_uuid = true; // for deterministic output
+  fsw_opts.empty_uuid = true; // for deterministic output
 
   auto input = std::make_shared<test::os_access_mock>();
 #if defined(DWARFS_TEST_RUNNING_ON_ASAN) ||                                    \

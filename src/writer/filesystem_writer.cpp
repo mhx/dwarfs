@@ -1293,16 +1293,16 @@ void filesystem_writer_<LoggerPolicy>::write_superblock() {
 
   superblock_v0 data{};
   data.superblock_version = SUPERBLOCK_VERSION;
-  data.sector_size = options_.sector_size;
+  data.fs_size_alignment = options_.image_size_alignment;
 
-  if (!options_.no_uuid) {
+  if (!options_.empty_uuid) {
     auto const uuid = boost::uuids::random_generator()();
     DWARFS_CHECK(uuid.size() == sizeof(data.fs_uuid), "unexpected UUID size");
     std::ranges::copy(uuid, data.fs_uuid.begin());
   }
 
-  if (options_.fs_label.has_value()) {
-    auto label = *options_.fs_label;
+  if (!options_.fs_label.empty()) {
+    auto label = options_.fs_label;
     if (label.size() > data.fs_label.size()) {
       LOG_WARN << "filesystem label truncated to " << data.fs_label.size()
                << " bytes";

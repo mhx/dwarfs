@@ -451,11 +451,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }()};
 
   writer::segmenter_factory::config sf_config;
-  sys_string path_str, input_list_str, output_str, header_str;
+  sys_string path_str, input_list_str, output_str, header_str, fs_label;
   std::string memory_limit, schema_compression, metadata_compression, timestamp,
       time_resolution, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
-      history_compression, recompress_categories;
+      history_compression, recompress_categories, image_size_alignment;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -465,7 +465,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
-       no_superblock = false;
+       empty_uuid = false, no_superblock = false, init_superblock = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -631,6 +631,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-superblock",
         po::value<bool>(&no_superblock)->zero_tokens(),
         "don't add superblock to file system")
+    ("init-superblock",
+        po::value<bool>(&init_superblock)->zero_tokens(),
+        "initialize all uninitialized superblock fields")
+    ("label",
+        po_sys_value<sys_string>(&fs_label),
+        "set filesystem label to this string")
+    ("empty-uuid",
+        po::value<bool>(&empty_uuid)->zero_tokens(),
+        "leave superblock UUID empty (all zeros)")
+    ("image-size-alignment",
+        po::value<std::string>(&image_size_alignment)->default_value("512"),
+        "make output image size a multiple of this value")
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
@@ -1498,6 +1510,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
   fswopts.no_superblock = no_superblock;
+  fswopts.image_size_alignment = parse_size_with_unit(image_size_alignment);
+  fswopts.empty_uuid = empty_uuid;
+  fswopts.fs_label = sys_string_to_string(fs_label);
 
   std::optional<writer::filesystem_writer> fsw;
 
