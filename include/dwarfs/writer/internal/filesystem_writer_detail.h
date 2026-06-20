@@ -83,6 +83,7 @@ class filesystem_writer_detail {
             size_t max_active_slots) = 0;
   virtual void
   configure_rewrite(size_t filesystem_size, size_t block_count) = 0;
+  virtual void start_write_filesystem() = 0;
   virtual void copy_header(file_extents_iterable header) = 0;
   virtual void write_block(fragment_category cat, shared_byte_buffer data,
                            physical_block_cb_type physical_block_cb,
