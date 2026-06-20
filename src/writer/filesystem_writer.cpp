@@ -688,6 +688,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   void configure(std::vector<fragment_category> const& expected_categories,
                  size_t max_active_slots) override;
   void configure_rewrite(size_t filesystem_size, size_t block_count) override;
+  void start_write_filesystem() override;
   void copy_header(file_extents_iterable header) override;
   void write_block(fragment_category cat, shared_byte_buffer data,
                    physical_block_cb_type physical_block_cb,
@@ -1250,10 +1251,6 @@ void filesystem_writer_<LoggerPolicy>::configure(
         on_block_merged(std::forward<decltype(holder)>(holder));
       },
       fsblock_merger_policy{options_.worst_case_block_size});
-
-  if (!options_.no_superblock) {
-    write_superblock();
-  }
 }
 
 template <typename LoggerPolicy>
@@ -1262,7 +1259,10 @@ void filesystem_writer_<LoggerPolicy>::configure_rewrite(size_t filesystem_size,
   prog_.original_size = filesystem_size;
   prog_.filesystem_size = filesystem_size;
   prog_.block_count = block_count;
+}
 
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::start_write_filesystem() {
   if (!options_.no_superblock) {
     write_superblock();
   }

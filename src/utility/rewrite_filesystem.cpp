@@ -360,6 +360,8 @@ void rewrite_filesystem(
     writer.copy_header(std::move(*header));
   }
 
+  writer.start_write_filesystem();
+
   size_t block_no{0};
   bool seen_history{false};
 
