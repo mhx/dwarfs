@@ -50,6 +50,8 @@ constexpr sorted_array_map sections{
     SECTION_TYPE_(METADATA_V2),
     SECTION_TYPE_(SECTION_INDEX),
     SECTION_TYPE_(HISTORY),
+    SECTION_TYPE_(SUPERBLOCK),
+    SECTION_TYPE_(PADDING),
 #undef SECTION_TYPE_
 };
 

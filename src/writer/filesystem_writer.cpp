@@ -35,6 +35,7 @@
 #include <unordered_map>
 
 #include <boost/chrono/thread_clock.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/checksum.h>
@@ -89,6 +90,10 @@ std::string get_friendly_section_name(section_type type) {
     return "block";
   case section_type::SECTION_INDEX:
     return "index";
+  case section_type::SUPERBLOCK:
+    return "superblock";
+  case section_type::PADDING:
+    return "padding";
   }
 
   return get_section_name(type);
@@ -186,8 +191,9 @@ class fsblock {
   size_t size() const { return impl_->size(); }
   size_t estimated_mem_usage() const { return impl_->estimated_mem_usage(); }
   double compression_time() const { return impl_->compression_time(); }
-  void set_block_no(uint32_t number) { impl_->set_block_no(number); }
-  uint32_t block_no() const { return impl_->block_no(); }
+  void set_section_num(uint32_t number) { impl_->set_section_num(number); }
+  void set_block_num(uint32_t number) { impl_->set_block_num(number); }
+  uint32_t section_num() const { return impl_->section_num(); }
   section_header_v2 const& header() const { return impl_->header(); }
 
   class impl {
@@ -205,8 +211,9 @@ class fsblock {
     virtual size_t size() const = 0;
     virtual size_t estimated_mem_usage() const = 0;
     virtual double compression_time() const = 0;
-    virtual void set_block_no(uint32_t number) = 0;
-    virtual uint32_t block_no() const = 0;
+    virtual void set_section_num(uint32_t number) = 0;
+    virtual void set_block_num(uint32_t number) = 0;
+    virtual uint32_t section_num() const = 0;
     virtual section_header_v2 const& header() const = 0;
   };
 
@@ -314,21 +321,21 @@ class raw_fsblock : public fsblock::impl {
     return data_.capacity();
   }
 
-  void set_block_no(uint32_t number) override {
-    {
-      std::lock_guard lock(mx_);
-      DWARFS_CHECK(!number_.has_value(), "block number already set");
-      number_ = number;
-    }
+  void set_section_num(uint32_t number) override {
+    std::lock_guard lock(mx_);
+    DWARFS_CHECK(!section_number_.has_value(), "section number already set");
+    section_number_ = number;
+  }
 
+  void set_block_num(uint32_t number) override {
     if (set_block_cb_) {
       set_block_cb_(number);
     }
   }
 
-  uint32_t block_no() const override {
+  uint32_t section_num() const override {
     std::lock_guard lock(mx_);
-    return number_.value();
+    return section_number_.value();
   }
 
   section_header_v2 const& header() const override {
@@ -347,7 +354,7 @@ class raw_fsblock : public fsblock::impl {
   mutable std::recursive_mutex mx_;
   shared_byte_buffer data_;
   std::future<void> future_;
-  std::optional<uint32_t> number_;
+  std::optional<uint32_t> section_number_;
   std::optional<section_header_v2> mutable header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
@@ -413,8 +420,11 @@ class compressed_fsblock : public fsblock::impl {
   double compression_time() const override { return 0.0; }
   size_t estimated_mem_usage() const override { return range_.size(); }
 
-  void set_block_no(uint32_t number) override { number_ = number; }
-  uint32_t block_no() const override { return number_.value(); }
+  void set_section_num(uint32_t number) override { number_ = number; }
+  uint32_t section_num() const override { return number_.value(); }
+  void set_block_num(uint32_t /* number */) override {
+    DWARFS_PANIC("compressed_fsblock does not support block numbers");
+  }
 
   section_header_v2 const& header() const override { return header_; }
 
@@ -500,7 +510,7 @@ class rewritten_fsblock : public fsblock::impl {
     return compressed_size_ + compressor_mem_usage_;
   }
 
-  void set_block_no(uint32_t number) override {
+  void set_section_num(uint32_t number) override {
     {
       std::lock_guard lock(mx_);
       DWARFS_CHECK(!number_.has_value(), "block number already set");
@@ -508,9 +518,13 @@ class rewritten_fsblock : public fsblock::impl {
     }
   }
 
-  uint32_t block_no() const override {
+  uint32_t section_num() const override {
     std::lock_guard lock(mx_);
     return number_.value();
+  }
+
+  void set_block_num(uint32_t /* number */) override {
+    DWARFS_PANIC("rewritten_fsblock does not support block numbers");
   }
 
   section_header_v2 const& header() const override {
@@ -611,7 +625,7 @@ void fsblock::build_section_header(section_header_v2& sh,
   ::memcpy(sh.magic.data(), "DWARFS", 6);
   sh.major = MAJOR_VERSION;
   sh.minor = MINOR_VERSION;
-  sh.number = fsb.block_no();
+  sh.number = fsb.section_num();
   sh.type = static_cast<uint16_t>(fsb.type());
   sh.compression = static_cast<uint16_t>(fsb.compression());
   sh.length = range.size();
@@ -706,6 +720,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
                                fsblock_merger_policy>;
   using block_holder_type = block_merger_type::block_holder_type;
 
+  void write_superblock();
   block_compressor const&
   compressor_for_category(fragment_category::value_type cat) const;
   void
@@ -746,6 +761,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   bool volatile flush_{true};
   std::thread writer_thread_;
   uint32_t section_number_{0};
+  uint32_t block_number_{0};
   std::vector<uint64le_t> section_index_;
   std::ostream::pos_type header_size_{0};
   std::unique_ptr<block_merger_type> merger_;
@@ -774,6 +790,10 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
   // TODO: the whole flush & thread thing needs to be revisited
   flush_ = false;
   writer_thread_ = std::thread(&filesystem_writer_::writer_thread, this);
+
+  if (!options_.no_superblock) {
+    write_superblock();
+  }
 }
 
 template <typename LoggerPolicy>
@@ -817,7 +837,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
     fsb->wait_until_compressed();
 
     LOG_DEBUG << get_friendly_section_name(fsb->type()) << " ["
-              << fsb->block_no() << "] compressed from "
+              << fsb->section_num() << "] compressed from "
               << size_with_unit(fsb->uncompressed_size()) << " to "
               << size_with_unit(fsb->size()) << " [" << fsb->description()
               << "] in " << time_with_unit(fsb->compression_time());
@@ -939,7 +959,8 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
     //       metadata in the background as we need to know
     //       the section numbers for that
     number = section_number_;
-    holder.value()->set_block_no(section_number_++);
+    holder.value()->set_section_num(section_number_++);
+    holder.value()->set_block_num(block_number_++);
 
     queue_.emplace_back(std::move(holder));
   }
@@ -972,7 +993,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
     auto fsb = std::make_unique<fsblock>(type, bc, std::move(data), pctx_);
 
     number = section_number_;
-    fsb->set_block_no(section_number_++);
+    fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
 
     queue_.emplace_back(std::move(fsb));
@@ -1063,7 +1084,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
         std::make_unique<fsblock>(type, bc, std::move(data), compressed_size,
                                   uncompressed_size, pctx_, cond_);
 
-    fsb->set_block_no(section_number_++);
+    fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
 
     queue_.emplace_back(std::move(fsb));
@@ -1136,7 +1157,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
 
     auto fsb = std::make_unique<fsblock>(sec, segment, pctx_);
 
-    fsb->set_block_no(section_number_++);
+    fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
 
     queue_.emplace_back(std::move(fsb));
@@ -1263,6 +1284,42 @@ void filesystem_writer_<LoggerPolicy>::copy_header(
 }
 
 template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_superblock() {
+  DWARFS_CHECK(section_number_ == 0, "superblock must be the first section");
+
+  superblock_v0 data{};
+  data.superblock_version = SUPERBLOCK_VERSION;
+  data.sector_size = options_.sector_size;
+
+  if (!options_.no_uuid) {
+    auto const uuid = boost::uuids::random_generator()();
+    DWARFS_CHECK(uuid.size() == sizeof(data.fs_uuid), "unexpected UUID size");
+    std::ranges::copy(uuid, data.fs_uuid.begin());
+  }
+
+  if (options_.fs_label.has_value()) {
+    auto label = *options_.fs_label;
+    if (label.size() > data.fs_label.size()) {
+      LOG_WARN << "filesystem label truncated to " << data.fs_label.size()
+               << " bytes";
+      label.resize(data.fs_label.size());
+    }
+    std::ranges::copy(label, data.fs_label.begin());
+  }
+
+  auto buffer =
+      std::span{reinterpret_cast<uint8_t const*>(&data), sizeof(data)};
+
+  auto fsb = fsblock(section_type::SUPERBLOCK, compression_type::NONE, buffer);
+
+  fsb.set_section_num(section_number_++);
+  fsb.compress(wg_);
+  fsb.wait_until_compressed();
+
+  write(fsb);
+}
+
+template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_block(
     fragment_category cat, shared_byte_buffer data,
     physical_block_cb_type physical_block_cb, std::optional<std::string> meta) {
@@ -1322,7 +1379,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 
   auto fsb = fsblock(section_type::SECTION_INDEX, compression_type::NONE, data);
 
-  fsb.set_block_no(section_number_++);
+  fsb.set_section_num(section_number_++);
   fsb.compress(wg_);
   fsb.wait_until_compressed();
 
