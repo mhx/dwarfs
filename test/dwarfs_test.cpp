@@ -895,6 +895,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   auto bmcfg = writer::segmenter::config();
   auto opts = writer::scanner_options();
+  auto fsw_opts = writer::filesystem_writer_options();
 
   writer::fragment_order_options order_opts;
   order_opts.mode = order_mode;
@@ -902,6 +903,8 @@ TEST_P(file_scanner, inode_ordering) {
   opts.file_hash_algorithm = file_hash_algo;
   opts.inode.fragment_order.set_default(order_opts);
   opts.metadata.no_create_timestamp = true;
+
+  fsw_opts.no_uuid = true; // for deterministic output
 
   auto input = std::make_shared<test::os_access_mock>();
 #if defined(DWARFS_TEST_RUNNING_ON_ASAN) ||                                    \
@@ -929,10 +932,10 @@ TEST_P(file_scanner, inode_ordering) {
     }
   }
 
-  auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts);
+  auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts, fsw_opts);
 
   for (int i = 0; i < repetitions; ++i) {
-    auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts);
+    auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts, fsw_opts);
     EXPECT_EQ(ref, fs);
     // if (ref != fs) {
     //   dwarfs::write_file(ref, "ref.dwarfs");
