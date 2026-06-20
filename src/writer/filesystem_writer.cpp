@@ -791,10 +791,6 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
   // TODO: the whole flush & thread thing needs to be revisited
   flush_ = false;
   writer_thread_ = std::thread(&filesystem_writer_::writer_thread, this);
-
-  if (!options_.no_superblock) {
-    write_superblock();
-  }
 }
 
 template <typename LoggerPolicy>
@@ -1257,6 +1253,10 @@ void filesystem_writer_<LoggerPolicy>::configure(
         on_block_merged(std::forward<decltype(holder)>(holder));
       },
       fsblock_merger_policy{options_.worst_case_block_size});
+
+  if (!options_.no_superblock) {
+    write_superblock();
+  }
 }
 
 template <typename LoggerPolicy>
@@ -1265,6 +1265,10 @@ void filesystem_writer_<LoggerPolicy>::configure_rewrite(size_t filesystem_size,
   prog_.original_size = filesystem_size;
   prog_.filesystem_size = filesystem_size;
   prog_.block_count = block_count;
+
+  if (!options_.no_superblock) {
+    write_superblock();
+  }
 }
 
 template <typename LoggerPolicy>
