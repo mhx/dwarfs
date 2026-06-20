@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 namespace dwarfs::writer {
 
@@ -32,6 +33,10 @@ struct filesystem_writer_options {
   size_t worst_case_block_size{4 << 20};
   bool remove_header{false};
   bool no_section_index{false};
+  bool no_superblock{false};
+  size_t sector_size{512};
+  bool no_uuid{false};
+  std::optional<std::string> fs_label{};
 };
 
 } // namespace dwarfs::writer

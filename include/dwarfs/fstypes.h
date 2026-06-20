@@ -57,10 +57,18 @@ enum class section_type : uint16_t {
   // Frozen metadata.
 
   SECTION_INDEX = 9,
-  // Section index.
+  // Section index, *must* be the last section in the file.
 
   HISTORY = 10,
   // History of file system changes.
+
+  SUPERBLOCK = 11,
+  // Superblock section, *must* be the first section in the file.
+  // Contains file system size, UUID, and label.
+
+  PADDING = 12,
+  // Padding section, used to align total file system size to a
+  // multiple of the sector size.
 };
 
 struct file_header {
@@ -112,6 +120,17 @@ struct filesystem_info {
 struct filesystem_version {
   uint8_t major{0};
   uint8_t minor{0};
+};
+
+constexpr uint8_t SUPERBLOCK_VERSION = 0;
+
+struct superblock_v0 {
+  uint16le_t superblock_version;
+  uint16le_t reserved0;
+  uint32le_t sector_size; // in bytes
+  uint64le_t fs_size;     // in bytes, must be a multiple of sector_size
+  std::array<uint8_t, 16> fs_uuid;
+  std::array<char, 64> fs_label; // zero-padded UTF-8 string
 };
 
 bool is_known_compression_type(compression_type type);
