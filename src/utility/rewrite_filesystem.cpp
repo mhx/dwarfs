@@ -540,7 +540,9 @@ void rewrite_filesystem(
       break;
 
     case section_type::SECTION_INDEX:
-      // this will be automatically added by the filesystem_writer
+    case section_type::SUPERBLOCK:
+    case section_type::PADDING:
+      // these will be automatically added by the filesystem_writer
       break;
 
     default:
