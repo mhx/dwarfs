@@ -127,8 +127,8 @@ constexpr uint8_t SUPERBLOCK_VERSION = 0;
 struct superblock_v0 {
   uint16le_t superblock_version;
   uint16le_t reserved0;
-  uint32le_t sector_size; // in bytes
-  uint64le_t fs_size;     // in bytes, must be a multiple of sector_size
+  uint32le_t fs_size_alignment; // in bytes
+  uint64le_t fs_size; // in bytes, must be a multiple of fs_size_alignment
   std::array<uint8_t, 16> fs_uuid;
   std::array<char, 64> fs_label; // zero-padded UTF-8 string
 };
