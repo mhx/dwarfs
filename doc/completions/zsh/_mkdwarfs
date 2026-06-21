@@ -39,17 +39,21 @@ _arguments -S \
 	"--chmod" \
 	"--compress-niceness" \
 	"--debug-filter" \
+	"--empty-uuid" \
 	"--file-hash:hashfnc:" \
 	"--header" \
 	"--history-compression:algos:($(__mkdwarfs_list_comp_algos))" \
 	"--hotness-list" \
+	"--image-size-alignment:size:" \
 	"--incompressible-block-size" \
 	"--incompressible-fragments" \
 	"--incompressible-min-input-size" \
 	"--incompressible-ratio" \
 	"--incompressible-zstd-level" \
+	"--init-superblock" \
 	"--input-list[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
 	"--keep-all-times[save atime and ctime in addition to mtime]" \
+	"--label:label:" \
 	"--log-level:level:(error warn info verbose debug trace)" \
 	"--log-with-context" \
 	"--max-similarity-size" \
@@ -63,6 +67,7 @@ _arguments -S \
 	"--no-metadata-version-history" \
 	"--no-progress" \
 	"--no-section-index" \
+	"--no-superblock" \
 	"--num-scanner-workers" \
 	"--num-segmenter-workers" \
 	"--order" \
