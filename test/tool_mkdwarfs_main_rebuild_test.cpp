@@ -950,7 +950,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
   EXPECT_THAT(get_md5_checksums(image1), ::testing::ContainerEq(ref_checksums));
 
   EXPECT_EQ(1 << 15, info1["block_size"].get<int>());
-  EXPECT_EQ(1758, info1["sections"].size());
+  EXPECT_EQ(1759, info1["sections"].size());
 
 #ifdef DWARFS_HAVE_FLAC
 
@@ -968,7 +968,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
               ::testing::ContainerEq(ref_checksums));
 
   EXPECT_EQ(1 << 15, info1b["block_size"].get<int>());
-  EXPECT_EQ(1762, info1b["sections"].size());
+  EXPECT_EQ(1763, info1b["sections"].size());
 
   auto t1c = rebuild_tester(image1);
   ASSERT_EQ(0, t1c.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5", "-S",
@@ -984,7 +984,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
               ::testing::ContainerEq(ref_checksums));
 
   EXPECT_EQ(1 << 16, info1c["block_size"].get<int>());
-  EXPECT_EQ(898, info1c["sections"].size());
+  EXPECT_EQ(899, info1c["sections"].size());
 
   EXPECT_LT(image1c.size(), image1b.size());
 
@@ -1007,7 +1007,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
 
   // Back to original block size and block count
   EXPECT_EQ(1 << 24, info2["block_size"].get<int>());
-  EXPECT_EQ(56, info2["sections"].size());
+  EXPECT_EQ(57, info2["sections"].size());
 
 #ifdef DWARFS_HAVE_FLAC
 
@@ -1025,7 +1025,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
               ::testing::ContainerEq(ref_checksums));
 
   EXPECT_EQ(1 << 16, info2b["block_size"].get<int>());
-  EXPECT_EQ(898, info2b["sections"].size());
+  EXPECT_EQ(899, info2b["sections"].size());
 
   auto t2c = rebuild_tester(image2b);
   EXPECT_NE(0,
@@ -1242,7 +1242,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(0, info["block_count"].get<int>());
   EXPECT_EQ(16_MiB, info["block_size"].get<int>());
   EXPECT_EQ(1, info["inode_count"].get<int>());
-  EXPECT_EQ(5, info["sections"].size());
+  EXPECT_EQ(6, info["sections"].size());
 
   auto t2 = mkdwarfs_tester::create_empty();
   t2.add_root_dir();
@@ -1256,7 +1256,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(0, info2["block_count"].get<int>());
   EXPECT_EQ(16_MiB, info2["block_size"].get<int>());
   EXPECT_EQ(1, info2["inode_count"].get<int>());
-  EXPECT_EQ(5, info2["sections"].size());
+  EXPECT_EQ(6, info2["sections"].size());
 
   auto t3 = mkdwarfs_tester::create_empty();
   t3.add_root_dir();
@@ -1271,14 +1271,15 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(0, info3["block_count"].get<int>());
   EXPECT_EQ(1_KiB, info3["block_size"].get<int>());
   EXPECT_EQ(1, info3["inode_count"].get<int>());
-  EXPECT_EQ(5, info3["sections"].size());
+  EXPECT_EQ(6, info3["sections"].size());
 }
 
 TEST(mkdwarfs_test, minimal_empty_filesystem) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "--no-create-timestamp",
-                      "--no-superblock", "--no-history", "--no-section-index"}))
+                      "--no-superblock", "--no-history", "--no-section-index",
+                      "--image-size-alignment=1"}))
       << t.err();
   auto fs = t.fs_from_stdout();
   auto info =
@@ -1291,9 +1292,10 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
   auto t2 = mkdwarfs_tester::create_empty();
   t2.add_root_dir();
   t2.os->add_file("test.dwarfs", t.out());
-  EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
-                       "--no-create-timestamp", "--no-superblock",
-                       "--no-history", "--no-section-index"}))
+  EXPECT_EQ(0,
+            t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
+                    "--no-create-timestamp", "--no-superblock", "--no-history",
+                    "--no-section-index", "--image-size-alignment=1"}))
       << t2.err();
   auto fs2 = t2.fs_from_stdout();
   auto info2 =
@@ -1321,7 +1323,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(16_MiB, info["block_size"].get<int>());
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
-    EXPECT_EQ(5, info["sections"].size());
+    EXPECT_EQ(6, info["sections"].size());
   }
 
   auto t2 = mkdwarfs_tester::create_empty();
@@ -1337,7 +1339,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(16_MiB, info["block_size"].get<int>());
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
-    EXPECT_EQ(5, info["sections"].size());
+    EXPECT_EQ(6, info["sections"].size());
   }
 
   auto t3 = mkdwarfs_tester::create_empty();
@@ -1354,7 +1356,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(1_KiB, info["block_size"].get<int>());
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
-    EXPECT_EQ(5, info["sections"].size());
+    EXPECT_EQ(6, info["sections"].size());
 
     size_t symlink_size{0};
     fs.walk([&](reader::dir_entry_view const& e) {
