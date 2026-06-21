@@ -722,6 +722,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   using block_holder_type = block_merger_type::block_holder_type;
 
   void write_superblock();
+  void pad_to_alignment();
   block_compressor const&
   compressor_for_category(fragment_category::value_type cat) const;
   void
@@ -1364,8 +1365,47 @@ void filesystem_writer_<LoggerPolicy>::flush() {
 
   writer_thread_.join();
 
+  pad_to_alignment();
+
   if (!options_.no_section_index) {
     write_section_index();
+  }
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::pad_to_alignment() {
+  if (options_.image_size_alignment <= 1) {
+    return;
+  }
+
+  auto section_index_size =
+      options_.no_section_index
+          ? 0
+          : sizeof(section_header_v2) +
+                sizeof(section_index_[0]) * (section_index_.size() + 1);
+  auto total_size = size() + section_index_size;
+  auto misalignment = total_size % options_.image_size_alignment;
+
+  if (misalignment != 0) {
+    total_size += sizeof(section_header_v2);
+
+    if (!options_.no_section_index) {
+      section_index_size += sizeof(section_index_[0]);
+      total_size += sizeof(section_index_[0]);
+    }
+
+    misalignment = total_size % options_.image_size_alignment;
+
+    auto const padding_needed = (options_.image_size_alignment - misalignment) %
+                                options_.image_size_alignment;
+    std::vector<uint8_t> padding(padding_needed, 0);
+    auto fsb = fsblock(section_type::PADDING, compression_type::NONE, padding);
+
+    fsb.set_section_num(section_number_++);
+    fsb.compress(wg_);
+    fsb.wait_until_compressed();
+
+    write(fsb);
   }
 }
 
