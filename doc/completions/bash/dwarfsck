@@ -70,8 +70,12 @@ _dwarfsck_completion()
         done
     fi
 
-    # show all options
-    _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+    # complete options, or the positional input filesystem
+    if [[ $cur == -* ]]; then
+        _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
+    else
+        _comp_compgen -a filedir dwarfs
+    fi
 
     return 0
 } &&

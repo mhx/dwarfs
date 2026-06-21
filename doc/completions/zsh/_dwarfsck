@@ -35,6 +35,7 @@ _arguments -S \
 	{-O,--image-offset=-}"[filesystem image offset in bytes]:num:" \
 	{-q,--quiet}"[don't print anything unless an error occurs]" \
 	{-v,--verbose}"[produce verbose output]" \
-	"$(__dwarfsck_disable_man)--man[show manual page and exit]" && ret=0
+	"$(__dwarfsck_disable_man)--man[show manual page and exit]" \
+	"1:filename:_files -g '*.dwarfs'" && ret=0
 
 return ret
