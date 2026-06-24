@@ -308,6 +308,7 @@ if use_lib jemalloc; then
     cd jemalloc-${JEMALLOC_VERSION}
     # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
     # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
+    fetch.sh https://github.com/jemalloc/jemalloc/commit/1a15fe33a48c52bfe26ea83e49f0d317a47da3ea.diff - | patch -p1
     ./autogen.sh ${TRIPLETS}
     mkdir build-minimal
     cd build-minimal
@@ -343,6 +344,7 @@ if use_lib fmt; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${FMT_TARBALL}
     cd fmt-${FMT_VERSION}
+    fetch.sh https://github.com/fmtlib/fmt/commit/588b3a0f8f6a8bcf2a959cae882d5b2703e86737.diff - | patch -p1
     mkdir build
     cd build
     cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF ${CMAKE_ARGS}
