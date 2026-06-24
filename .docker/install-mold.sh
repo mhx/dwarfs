@@ -9,12 +9,12 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
+# v2.41.0 has an issue with mixing LTO and non-LTO objects: #1613
 MOLD_VERSION=2.40.4
 
 fetch.sh https://github.com/rui314/mold/archive/refs/tags/v${MOLD_VERSION}.tar.gz mold-${MOLD_VERSION}.tar.gz
 tar xf mold-${MOLD_VERSION}.tar.gz
 cd mold-${MOLD_VERSION}
-# fetch.sh https://github.com/rui314/mold/commit/d9b20a158097a376154cb692f607edbe7a823338.diff - | patch -p1
 mkdir build
 cd build
 

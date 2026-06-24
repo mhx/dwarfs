@@ -4,16 +4,16 @@
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 
-LIBARCHIVE_VERSION=3.8.7                 # 2026-04-13
+LIBARCHIVE_VERSION=3.8.8                 # 2026-06-23
 FLAC_VERSION=1.5.0                       # 2025-02-11
 LIBUCONTEXT_VERSION=1.5                  # 2025-12-12
 LIBUNWIND_VERSION=1.8.3                  # 2026-01-21
 BENCHMARK_VERSION=1.9.5                  # 2025-05-19
-BOOST_VERSION=1.90.0                     # 2025-12-10
-OPENSSL_VERSION=4.0.0                    # 2026-04-14
-LIBRESSL_VERSION=4.2.1                   # 2025-10-30
+BOOST_VERSION=1.91.0-1                   # 2026-04-23
+OPENSSL_VERSION=4.0.1                    # 2026-06-09
+LIBRESSL_VERSION=4.3.1                   # 2026-04-19
 CPPTRACE_VERSION=1.0.4                   # 2025-07-25
-FMT_VERSION=12.1.0                       # 2025-10-29
+FMT_VERSION=12.2.0                       # 2026-06-10
 XXHASH_VERSION=0.8.3                     # 2024-12-30
 LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.2.0                     # 2025-10-27
@@ -25,7 +25,7 @@ JEMALLOC_VERSION=5.3.1                   # 2026-04-13
 XZ_VERSION=5.8.3                         # 2026-03-31
 LIBDWARF_VERSION=2.3.1                   # 2026-03-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
-UTFCPP_VERSION=4.0.9                     # 2025-12-29
+UTFCPP_VERSION=4.1.1                     # 2026-05-20
 RANGE_V3_VERSION=0.12.0                  # 2022-06-21
 PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21
 

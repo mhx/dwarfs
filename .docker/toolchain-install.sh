@@ -91,7 +91,7 @@ if [[ "$TARGETARCH" != "$ARCH" ]]; then
     cd gcc-${GCC_VERSION}-build-${TARGETARCH}-O${OPTIMIZE}-stage1
     "$HOME"/pkgs/gcc-${GCC_VERSION}/configure \
         --target=$TARGET --prefix=$PREFIX --with-sysroot=$SYSROOT ${GCC_CONFIGURE_ARGS} --with-newlib --without-headers \
-        --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads \
+        --disable-nls --disable-shared --disable-multilib --disable-threads \
         --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv \
         --disable-libstdcxx --enable-languages=c ${GCC_NODOCS}
     $MAKE_PARALLEL all-gcc ${GCC_NODOCS}
