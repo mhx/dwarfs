@@ -53,6 +53,15 @@ class output_stream {
   virtual void close(std::error_code& ec) = 0;
 };
 
+class input_output_stream {
+ public:
+  virtual ~input_output_stream() = default;
+
+  virtual std::iostream& ios() = 0;
+  virtual void close() = 0;
+  virtual void close(std::error_code& ec) = 0;
+};
+
 class file_access {
  public:
   virtual ~file_access() = default;
@@ -80,6 +89,13 @@ class file_access {
   virtual std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path,
                      std::error_code& ec) const = 0;
+
+  virtual std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path,
+       std::ios_base::openmode mode) const = 0;
+  virtual std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path, std::ios_base::openmode mode,
+       std::error_code& ec) const = 0;
 };
 
 } // namespace dwarfs
