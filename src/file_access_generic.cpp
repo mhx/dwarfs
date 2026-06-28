@@ -106,6 +106,37 @@ class file_output_stream : public output_stream {
   std::ofstream os_;
 };
 
+class file_input_output_stream : public input_output_stream {
+ public:
+  file_input_output_stream(std::filesystem::path const& path,
+                           std::ios_base::openmode mode, std::error_code& ec)
+      : ios_{path, mode} {
+    if (ios_.bad() || ios_.fail() || !ios_.is_open()) {
+      assign_error_code(ec);
+    }
+  }
+
+  std::iostream& ios() override { return ios_; }
+
+  void close(std::error_code& ec) override {
+    ios_.close();
+    if (ios_.bad()) {
+      assign_error_code(ec);
+    }
+  }
+
+  void close() override {
+    std::error_code ec;
+    close(ec);
+    if (ec) {
+      throw std::system_error(ec, "close()");
+    }
+  }
+
+ private:
+  std::fstream ios_;
+};
+
 class file_access_generic : public file_access {
  public:
   bool exists(std::filesystem::path const& path) const override {
@@ -114,6 +145,7 @@ class file_access_generic : public file_access {
 
   std::unique_ptr<input_stream> open_input(std::filesystem::path const& path,
                                            std::error_code& ec) const override {
+    ec.clear();
     auto rv = std::make_unique<file_input_stream>(path, ec, std::ios::in);
     if (ec) {
       rv.reset();
@@ -135,6 +167,7 @@ class file_access_generic : public file_access {
   std::unique_ptr<input_stream>
   open_input_binary(std::filesystem::path const& path,
                     std::error_code& ec) const override {
+    ec.clear();
     auto rv = std::make_unique<file_input_stream>(path, ec, std::ios::binary);
     if (ec) {
       rv.reset();
@@ -156,6 +189,7 @@ class file_access_generic : public file_access {
   std::unique_ptr<output_stream>
   open_output(std::filesystem::path const& path,
               std::error_code& ec) const override {
+    ec.clear();
     auto rv = std::make_unique<file_output_stream>(path, ec, std::ios::trunc);
     if (ec) {
       rv.reset();
@@ -177,6 +211,7 @@ class file_access_generic : public file_access {
   std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path,
                      std::error_code& ec) const override {
+    ec.clear();
     auto rv = std::make_unique<file_output_stream>(
         path, ec, std::ios::binary | std::ios::trunc);
     if (ec) {
@@ -192,6 +227,29 @@ class file_access_generic : public file_access {
     if (ec) {
       throw std::system_error(
           ec, fmt::format("open_output_binary('{}')", path.string()));
+    }
+    return rv;
+  }
+
+  std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path, std::ios_base::openmode mode,
+       std::error_code& ec) const override {
+    ec.clear();
+    auto rv = std::make_unique<file_input_output_stream>(path, mode, ec);
+    if (ec) {
+      rv.reset();
+    }
+    return rv;
+  }
+
+  std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path,
+       std::ios_base::openmode mode) const override {
+    std::error_code ec;
+    auto rv = open(path, mode, ec);
+    if (ec) {
+      throw std::system_error(
+          ec, fmt::format("open_input_output_binary('{}')", path.string()));
     }
     return rv;
   }
