@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <version>
+
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -110,4 +112,10 @@
 #define DWARFS_CLANG_DISABLE_WARNING(wname)
 #define DWARFS_MSVC_DISABLE_WARNING(wnum)
 
+#endif
+
+#if defined(__cpp_lib_ios_noreplace)
+#define DWARFS_HAVE_IOS_NOREPLACE 1
+#else
+#define DWARFS_HAVE_IOS_NOREPLACE 0
 #endif
