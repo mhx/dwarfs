@@ -22,10 +22,16 @@
  */
 
 #include <array>
+#include <filesystem>
 #include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <system_error>
 
 #include <fmt/format.h>
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/file_access_generic.h>
 #include <dwarfs/terminal_ansi.h>
 
@@ -34,6 +40,115 @@
 namespace dwarfs::test {
 
 namespace {
+
+// Classification of an openmode per C++23 [filebuf.members]. Anything not in
+// that table is invalid. std::stringbuf only understands in/out/ate, so we
+// resolve everything else here and drive the stringbuf accordingly.
+struct resolved_mode {
+  bool valid = false;
+  bool read = false;
+  bool write = false;
+  bool truncate = false;   // seed the buffer with "" instead of existing data
+  bool at_end = false;     // initial put position at end (ate, or append)
+  bool append = false;     // every write forced to end, ignoring seekp
+  bool must_exist = false; // 'r' family: fail if the file is absent
+  bool exclusive = false;  // noreplace: fail if the file exists
+};
+
+resolved_mode resolve_mode(std::ios_base::openmode m) {
+  using io = std::ios_base;
+  auto const none = io::openmode{};
+
+  bool const ate = (m & io::ate) != none;
+
+#if DWARFS_HAVE_IOS_NOREPLACE
+  bool const excl = (m & io::noreplace) != none;
+  auto const base = m & ~(io::ate | io::noreplace);
+#else
+  bool const excl = false;
+  auto const base = m & ~io::ate;
+#endif
+
+  auto const in = io::in, out = io::out, trunc = io::trunc, app = io::app;
+
+  resolved_mode r;
+  if (base == out || base == (out | trunc)) { // w
+    r = {.valid = true, .write = true, .truncate = true};
+  } else if (base == app || base == (out | app)) { // a
+    r = {.valid = true, .write = true, .at_end = true, .append = true};
+  } else if (base == in) { // r
+    r = {.valid = true, .read = true, .must_exist = true};
+  } else if (base == (in | out)) { // r+
+    r = {.valid = true, .read = true, .write = true, .must_exist = true};
+  } else if (base == (in | out | trunc)) { // w+
+    r = {.valid = true, .read = true, .write = true, .truncate = true};
+  } else if (base == (in | app) || base == (in | out | app)) { // a+
+    r = {.valid = true,
+         .read = true,
+         .write = true,
+         .at_end = true,
+         .append = true};
+  } else {
+    return {}; // not in the table -> invalid
+  }
+
+  if (ate) {
+    r.at_end = true;
+  }
+
+  if (excl) {
+    // noreplace is only meaningful for the creating, truncating modes.
+    if (r.must_exist || r.append) {
+      return {};
+    }
+    r.exclusive = true;
+  }
+
+  return r;
+}
+
+// A stringbuf that emulates O_APPEND: the put area is pinned to the end of the
+// buffer, so writes always land at EOF regardless of seekp(). Reads (the get
+// area) are unaffected, which is what a+ needs. For non-append modes this is
+// just a plain stringbuf.
+class mem_stringbuf : public std::stringbuf {
+ public:
+  mem_stringbuf(std::string init, std::ios_base::openmode mode, bool append)
+      : std::stringbuf(std::move(init), mode)
+      , append_{append} {}
+
+ protected:
+  pos_type seekpos(pos_type sp, std::ios_base::openmode which) override {
+    if (auto p = ignore_output_seek(which)) {
+      return *p;
+    }
+    return std::stringbuf::seekpos(sp, which);
+  }
+
+  pos_type seekoff(off_type off, std::ios_base::seekdir way,
+                   std::ios_base::openmode which) override {
+    if (auto p = ignore_output_seek(which)) {
+      return *p;
+    }
+    return std::stringbuf::seekoff(off, way, which);
+  }
+
+ private:
+  // If this is a pure output seek in append mode, report the current end of the
+  // put area without moving anything (a valid position, so the stream does not
+  // set failbit). Returns nullopt to fall through to the base implementation.
+  std::optional<pos_type> ignore_output_seek(std::ios_base::openmode& which) {
+    if (append_ && (which & std::ios_base::out) != std::ios_base::openmode{}) {
+      which &= ~std::ios_base::out; // never reposition the put area
+      if (which == std::ios_base::openmode{}) {
+        return pos_type(off_type(pptr() - pbase()));
+      }
+    }
+    return std::nullopt;
+  }
+
+  bool append_;
+};
 
 class test_input_stream : public input_stream {
  public:
@@ -71,7 +186,7 @@ class test_output_stream : public output_stream {
       : path_{path}
       , tfa_{tfa} {
     if (path_.empty()) {
-      ec = std::make_error_code(std::errc::invalid_argument);
+      ec = std::make_error_code(std::errc::no_such_file_or_directory);
     }
     if (auto error = tfa_->get_open_error(path_)) {
       ec = error.value();
@@ -102,6 +217,88 @@ class test_output_stream : public output_stream {
   test_file_access const* tfa_;
 };
 
+class test_input_output_stream : public input_output_stream {
+ public:
+  test_input_output_stream(std::filesystem::path const& path,
+                           std::ios_base::openmode mode, std::error_code& ec,
+                           test_file_access const* tfa)
+      : path_{path}
+      , tfa_{tfa}
+      , ios_{nullptr} {
+    ec.clear();
+
+    if (path_.empty()) {
+      ec = std::make_error_code(std::errc::no_such_file_or_directory);
+      return;
+    }
+
+    if (auto error = tfa_->get_open_error(path_)) {
+      ec = error.value();
+      return;
+    }
+
+    auto const rm = resolve_mode(mode);
+    if (!rm.valid) {
+      ec = std::make_error_code(std::errc::invalid_argument);
+      return;
+    }
+
+    auto content = tfa_->get_file(path_);
+
+    if (rm.exclusive && content) {
+      ec = std::make_error_code(std::errc::file_exists);
+      return;
+    }
+
+    if (rm.must_exist && !content) {
+      ec = std::make_error_code(std::errc::no_such_file_or_directory);
+      return;
+    }
+
+    // Build a sanitized mode the stringbuf actually understands.
+    auto sm = std::ios_base::openmode{};
+    if (rm.read) {
+      sm |= std::ios_base::in;
+    }
+    if (rm.write) {
+      sm |= std::ios_base::out;
+    }
+    if (rm.at_end) {
+      sm |= std::ios_base::ate;
+    }
+
+    std::string seed = rm.truncate ? std::string{} : content.value_or("");
+
+    buf_ = std::make_unique<mem_stringbuf>(std::move(seed), sm, rm.append);
+    ios_.rdbuf(buf_.get());
+  }
+
+  std::iostream& ios() override { return ios_; }
+
+  void close(std::error_code& ec) override {
+    ec.clear();
+    if (auto error = tfa_->get_close_error(path_)) {
+      ec = error.value();
+    } else if (buf_) {
+      tfa_->set_file(path_, buf_->str());
+    }
+  }
+
+  void close() override {
+    std::error_code ec;
+    close(ec);
+    if (ec) {
+      throw std::system_error(ec, fmt::format("close('{}')", path_.string()));
+    }
+  }
+
+ private:
+  std::filesystem::path path_;
+  test_file_access const* tfa_;
+  std::unique_ptr<mem_stringbuf> buf_;
+  std::iostream ios_;
+};
+
 } // namespace
 
 bool test_file_access::exists(std::filesystem::path const& path) const {
@@ -111,6 +308,7 @@ bool test_file_access::exists(std::filesystem::path const& path) const {
 std::unique_ptr<input_stream>
 test_file_access::open_input(std::filesystem::path const& path,
                              std::error_code& ec) const {
+  ec.clear();
   auto it = files_.find(path);
   if (it != files_.end()) {
     return std::make_unique<test_input_stream>(path, it->second, ec, this);
@@ -149,6 +347,7 @@ test_file_access::open_input_binary(std::filesystem::path const& path) const {
 std::unique_ptr<output_stream>
 test_file_access::open_output(std::filesystem::path const& path,
                               std::error_code& ec) const {
+  ec.clear();
   auto rv = std::make_unique<test_output_stream>(path, ec, this);
   if (ec) {
     rv.reset();
@@ -170,6 +369,7 @@ test_file_access::open_output(std::filesystem::path const& path) const {
 std::unique_ptr<output_stream>
 test_file_access::open_output_binary(std::filesystem::path const& path,
                                      std::error_code& ec) const {
+  ec.clear();
   auto rv = std::make_unique<test_output_stream>(path, ec, this);
   if (ec) {
     rv.reset();
@@ -184,6 +384,33 @@ test_file_access::open_output_binary(std::filesystem::path const& path) const {
   if (ec) {
     throw std::system_error(
         ec, fmt::format("open_output_binary('{}')", path.string()));
+  }
+  return rv;
+}
+
+std::unique_ptr<input_output_stream>
+test_file_access::open(std::filesystem::path const& path,
+                       std::ios_base::openmode mode,
+                       std::error_code& ec) const {
+  ec.clear();
+
+  auto rv = std::make_unique<test_input_output_stream>(path, mode, ec, this);
+
+  if (ec) {
+    rv.reset();
+  }
+
+  return rv;
+}
+
+std::unique_ptr<input_output_stream>
+test_file_access::open(std::filesystem::path const& path,
+                       std::ios_base::openmode mode) const {
+  std::error_code ec;
+  auto rv = open(path, mode, ec);
+  if (ec) {
+    throw std::system_error(
+        ec, fmt::format("open_input_binary('{}')", path.string()));
   }
   return rv;
 }
