@@ -324,6 +324,13 @@ class test_file_access : public file_access {
   std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path) const override;
 
+  std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path,
+       std::ios_base::openmode mode) const override;
+  std::unique_ptr<input_output_stream>
+  open(std::filesystem::path const& path, std::ios_base::openmode mode,
+       std::error_code& ec) const override;
+
   void set_file(std::filesystem::path const& path, std::string contents) const;
   std::optional<std::string> get_file(std::filesystem::path const& path) const;
 
