@@ -224,9 +224,9 @@ void frozen_analyzer::add_string_list_size(std::vector<usage_info>& usage,
     // NOLINTBEGIN(bugprone-suspicious-stringview-data-usage)
     auto const fmt =
         fmt_size(name, count, size) +
-        fmt_detail_pct("|- index", count, index_size, get_list_offset(list)) +
-        fmt_detail_pct("'- data", count, data_size,
-                       get_offset(list.front().data()));
+        fmt_detail_pct("|- data", count, data_size,
+                       get_offset(list.front().data())) +
+        fmt_detail_pct("'- index", count, index_size, get_list_offset(list));
     // NOLINTEND(bugprone-suspicious-stringview-data-usage)
     usage.emplace_back(get_list_offset(list), size, fmt);
   }
