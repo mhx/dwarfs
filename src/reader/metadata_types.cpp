@@ -131,6 +131,10 @@ bool directory_iterator::operator==(directory_iterator const& other) const {
           current_.raw().self_index() == other.current_.raw().self_index());
 }
 
+uint32_t directory_view::first_entry() const {
+  return g_->first_non_empty_dir_entry(inode_);
+}
+
 uint32_t directory_view::first_entry(uint32_t ino) const {
   return g_->first_dir_entry(ino);
 }

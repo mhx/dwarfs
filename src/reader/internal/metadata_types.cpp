@@ -557,7 +557,8 @@ void check_compact_strings(
 
 void check_plain_strings(
     ::apache::thrift::frozen::View<std::vector<std::string>> v,
-    size_t expected_num, size_t max_item_len, std::string const& what) {
+    size_t expected_num, size_t max_item_len, bool accept_empty,
+    std::string const& what) {
   if (v.size() != expected_num) {
     DWARFS_THROW(runtime_error,
                  fmt::format("unexpected number of {0}: {1} != {2}", what,
@@ -572,11 +573,15 @@ void check_plain_strings(
                    fmt::format("invalid item length in {0}: {1} > {2}", what,
                                s.size(), max_item_len));
     }
+    if (!accept_empty && s.empty()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("empty item in {0} is not allowed", what));
+    }
     total_size += s.size();
   }
 
   if (!v.empty()) {
-    auto const expected = frozen_string_table_size(v);
+    auto const expected = frozen_string_table_size(v, accept_empty);
     if (std::cmp_not_equal(total_size, expected)) {
       DWARFS_THROW(runtime_error,
                    fmt::format("unexpected data size in {0}: {1} != {2}", what,
@@ -621,7 +626,7 @@ void check_string_tables(global_metadata::Meta const& meta) {
     }
     check_compact_strings(*cn, expected_num_names, max_name_len, "names");
   } else {
-    check_plain_strings(meta.names(), expected_num_names, max_name_len,
+    check_plain_strings(meta.names(), expected_num_names, max_name_len, true,
                         "names");
   }
 
@@ -641,7 +646,7 @@ void check_string_tables(global_metadata::Meta const& meta) {
                           "symlink strings");
   } else {
     check_plain_strings(meta.symlinks(), num_symlink_strings, max_symlink_len,
-                        "symlink strings");
+                        false, "symlink strings");
   }
 }
 
@@ -856,6 +861,49 @@ void global_metadata::check_consistency(logger& lgr) const {
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
   return directories_[ino].first_entry();
+}
+
+uint32_t global_metadata::first_non_empty_dir_entry(uint32_t ino) const {
+
+  // This implements a workaround for the bug described in github issue #370.
+  //
+  // Building a file system image with --input-list using an input where
+  // directories had a trailing slash (e.g. "dir/") caused those directories
+  // to each contain a directory entry with an empty name. Since the entries
+  // are always sorted, the empty entry — if any — is always going to be the
+  // first one. If we detect such an entry, we simply skip it.
+
+  auto entry = first_dir_entry(ino);
+
+  // --input-list was added in v0.7.0, and dir_entries was added in v0.5.0,
+  // so we don't need to handle the case where dir_entries is not present.
+
+  if (auto const de = meta_.dir_entries()) {
+
+    // Make sure we don't consider empty directories. If entry == last, we're
+    // essentially pointing to the first entry of the next directory.
+
+    auto const last = first_dir_entry(ino + 1);
+
+    if (entry < last) {
+      DWARFS_CHECK(
+          entry < de->size(),
+          fmt::format("entry index out of range: {} >= {}", entry, de->size()));
+
+      auto const dev = (*de)[entry];
+
+      if (auto const name_index = dev.name_index(); name_index == 0)
+          [[unlikely]] {
+        auto const name = names()[name_index];
+
+        if (name.empty()) {
+          ++entry;
+        }
+      }
+    }
+  }
+
+  return entry;
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {

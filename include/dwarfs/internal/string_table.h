@@ -113,14 +113,37 @@ class string_table {
 };
 
 [[nodiscard]] inline std::ptrdiff_t
-frozen_string_table_size(auto const& table) {
+frozen_string_table_size(auto const& table,
+                         bool const accept_empty_first_string = false) {
   if (table.empty()) {
     return 0;
   }
+
+  auto first = table.begin();
+  auto const last = table.end() - 1;
+
+  // For an empty string, `.data()` will return `nullptr`, so we need
+  // to skip over empty strings at the start (and end) of the table.
+  // We only ever expect at most one empty string at the start of the
+  // table, though, so no need to loop or check the end of the table.
+
+  if (accept_empty_first_string && first < last && first->empty()) {
+    ++first;
+  }
+
+  if (first == last) {
+    return first->size();
+  }
+
+  if (first->empty() || last->empty()) {
+    // Something is wrong with the string table, return the maximum
+    // value to indicate an error.
+    return std::numeric_limits<std::ptrdiff_t>::max();
+  }
+
   // MSVC in debug mode barfs when doing fishy string_view operations...
   // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
-  return std::distance(table.front().data(),
-                       table.back().data() + table.back().size());
+  return std::distance(first->data(), last->data() + last->size());
 }
 
 } // namespace internal

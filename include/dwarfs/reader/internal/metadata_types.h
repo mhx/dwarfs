@@ -75,6 +75,7 @@ class global_metadata {
   Meta const& meta() const { return meta_; }
 
   uint32_t first_dir_entry(uint32_t ino) const;
+  uint32_t first_non_empty_dir_entry(uint32_t ino) const;
   uint32_t parent_dir_entry(uint32_t ino) const;
   uint32_t self_dir_entry(uint32_t ino) const;
 

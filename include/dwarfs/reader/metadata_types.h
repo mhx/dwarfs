@@ -153,7 +153,7 @@ class directory_view {
  public:
   uint32_t inode() const { return inode_; }
 
-  uint32_t first_entry() const { return first_entry(inode_); }
+  uint32_t first_entry() const;
   uint32_t parent_entry() const;
   uint32_t self_entry() const;
   uint32_t entry_count() const;

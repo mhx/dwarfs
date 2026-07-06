@@ -219,7 +219,7 @@ void frozen_analyzer::add_string_list_size(std::vector<usage_info>& usage,
                                            auto const& field) const {
   if (auto const count = list.size(); count > 0) {
     auto const index_size = list_size(list, field);
-    auto const data_size = frozen_string_table_size(list);
+    auto const data_size = frozen_string_table_size(list, true);
     auto const size = index_size + data_size;
     // NOLINTBEGIN(bugprone-suspicious-stringview-data-usage)
     auto const fmt =

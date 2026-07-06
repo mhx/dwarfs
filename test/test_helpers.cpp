@@ -479,7 +479,7 @@ os_access_mock::opendir(fs::path const& path) const {
 }
 
 file_stat os_access_mock::symlink_info(fs::path const& path) const {
-  if (auto de = find(path)) {
+  if (auto de = find(path.has_filename() ? path : path.parent_path())) {
     return make_file_stat(de->status);
   }
 

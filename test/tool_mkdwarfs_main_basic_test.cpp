@@ -162,6 +162,66 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   EXPECT_EQ(expected, actual);
 }
 
+TEST_P(mkdwarfs_input_list_test, trailing_dir_slash_gh370) {
+  using namespace std::string_view_literals;
+  static constexpr sorted_array_map input_lists{
+      std::pair{path_type::absolute,
+                "/somedir/\n/somedir/ipsum.py\n/somedir/empty\n"sv},
+      std::pair{path_type::relative,
+                "somedir/\nsomedir/ipsum.py\nsomedir/empty\n"sv},
+      std::pair{path_type::mixed,
+                "/somedir/\nsomedir/ipsum.py\n/somedir/empty\n"sv},
+  };
+
+  auto [mode, type] = GetParam();
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list{input_lists.at(type)};
+  mkdwarfs_tester t;
+  std::string input_file;
+
+  if (mode == input_mode::from_file) {
+    input_file = "input_list.txt";
+    t.fa->set_file(input_file, input_list);
+  } else {
+    input_file = "-";
+    t.iol->set_in(input_list);
+  }
+
+  ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/", "-o", image_file,
+                      "-P", "plain"}))
+      << t.err();
+
+  auto fs = t.fs_from_file(image_file);
+
+  auto ipsum = fs.find("/somedir/ipsum.py");
+  auto empty = fs.find("/somedir/empty");
+
+  ASSERT_TRUE(ipsum);
+  ASSERT_TRUE(empty);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
+  EXPECT_TRUE(empty->inode().is_regular_file());
+
+  std::set<fs::path> const expected = {
+      "",
+      "somedir",
+      "somedir/ipsum.py",
+      "somedir/empty",
+  };
+  std::set<fs::path> actual;
+  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+  EXPECT_EQ(expected, actual);
+
+  auto meta = fs.info_as_json(
+      {.features = {reader::fsinfo_feature::metadata_full_dump}});
+
+  EXPECT_THAT(meta["full_metadata"]["names"],
+              ::testing::Not(::testing::Contains("")));
+}
+
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
                          ::testing::Combine(::testing::ValuesIn(input_modes),
                                             ::testing::ValuesIn(path_types)));

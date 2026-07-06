@@ -22,6 +22,8 @@
  */
 
 #include <array>
+#include <filesystem>
+#include <set>
 #include <string_view>
 
 #include <gmock/gmock.h>
@@ -32,6 +34,7 @@
 #include <dwarfs/config.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -59,8 +62,13 @@
 #include "test_logger.h"
 
 using namespace dwarfs;
+using namespace std::string_view_literals;
+
+namespace fs = std::filesystem;
 
 namespace {
+
+auto const test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 
 std::string make_fragmented_file(size_t fragment_size, size_t fragment_count) {
   std::mt19937_64 rng{0};
@@ -230,4 +238,57 @@ TEST(metadata_options, output_stream) {
       "pack_names_index, plain_symlinks_table, pack_symlinks, "
       "pack_symlinks_index, force_pack_string_tables, no_create_timestamp, "
       "inode_size_cache_min_chunk_count: 1000}");
+}
+
+TEST(metadata, handle_empty_named_dir_entries_gh370) {
+  static constexpr std::array images = {
+      "gh370.dwarfs"sv,
+      "gh370-plain.dwarfs"sv,
+  };
+
+  test::test_logger lgr;
+  test::os_access_mock os;
+
+  std::set<fs::path> const expected = {
+      "",        "bug",   "bug/a", "bug/a/1", "bug/a/1/hello",
+      "bug/a/2", "bug/b", "bug/c",
+  };
+
+  for (auto const& image : images) {
+    auto const image_data = read_file(test_dir / "bugs" / image);
+    reader::filesystem_v2 fs(lgr, os, test::make_mock_file_view(image_data));
+
+    std::set<fs::path> actual;
+    fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+    EXPECT_EQ(expected, actual);
+
+    auto dev = fs.find("/bug");
+    ASSERT_TRUE(dev.has_value());
+
+    auto dir = fs.opendir(dev->inode());
+    ASSERT_TRUE(dir.has_value());
+
+    auto const count = fs.dirsize(*dir);
+    EXPECT_EQ(5, count);
+
+    std::vector<std::string> names;
+
+    for (size_t i = 0; i < count; ++i) {
+      auto const e = fs.readdir(*dir, i);
+      ASSERT_TRUE(e.has_value());
+      names.push_back(e->name());
+    }
+
+    EXPECT_THAT(names, testing::ElementsAre(".", "..", "a", "b", "c"));
+
+    if (image.contains("plain")) {
+      auto meta = fs.info_as_json(
+          {.features = {reader::fsinfo_feature::metadata_full_dump}});
+
+      EXPECT_THAT(
+          meta["full_metadata"]["names"],
+          testing::ElementsAre("", "1", "2", "a", "b", "bug", "c", "hello"));
+    }
+  }
 }

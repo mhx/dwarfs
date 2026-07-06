@@ -598,6 +598,11 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
       relpath = listpath.lexically_normal();
     }
 
+    // Remove trailing slash(es) if present, fixes gh #370.
+    if (!relpath.has_filename()) {
+      relpath = relpath.parent_path();
+    }
+
     auto parent = relpath.parent_path();
     std::shared_ptr<dir> pd;
 
