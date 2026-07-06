@@ -880,29 +880,39 @@ bool getenv_is_enabled(os_access const& os, char const* var) {
 }
 
 void setup_default_locale() {
-  try {
+  char const* const candidates[] = {
 #ifdef _WIN32
-    char const* locale = "en_US.utf8";
+      ".UTF-8",
 #else
-    char const* locale = "";
+      "",
+      "C.UTF-8",
 #endif
-    std::locale::global(std::locale(locale));
-    if (!std::setlocale(LC_ALL, locale)) {
-      std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
-    }
-  } catch (std::exception const& e) {
-    std::cerr << "warning: failed to set user default locale: " << e.what()
-              << "\n";
+      "en_US.UTF-8",
+  };
+
+  std::vector<std::string> errors;
+
+  for (auto const name : candidates) {
     try {
-      std::locale::global(std::locale::classic());
-      if (!std::setlocale(LC_ALL, "C")) {
-        std::cerr << "warning: setlocale(LC_ALL, \"C\") failed\n";
-      }
+      std::locale::global(std::locale(name));
+      std::setlocale(LC_ALL, name);
+      errors.clear();
+      break;
     } catch (std::exception const& e) {
-      std::cerr << "warning: also failed to set classic locale: " << e.what()
-                << "\n";
+      errors.emplace_back(
+          fmt::format("failed to set locale to \"{}\": {}", name, e.what()));
     }
   }
+
+  if (!errors.empty()) {
+    std::cerr << "warning: falling back to classic locale\n";
+    for (auto const& err : errors) {
+      std::cerr << "  " << err << "\n";
+    }
+    std::locale::global(std::locale::classic());
+    std::setlocale(LC_ALL, "C");
+  }
+
 #ifdef _WIN32
   SetConsoleOutputCP(CP_UTF8);
 #endif
