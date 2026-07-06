@@ -390,6 +390,9 @@ TEST_F(global_metadata_test, check_metadata) {
 
   raw.symlink_table()->resize(1);
   raw.symlinks()->resize(1);
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("empty item in symlink strings is not allowed"));
+  raw.symlinks()->at(0) = "a";
   EXPECT_THAT([&] { check(raw); }, throws_error("wrong number of links"));
   raw.symlink_table()->clear();
   raw.symlinks()->clear();
