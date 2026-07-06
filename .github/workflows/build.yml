@@ -77,6 +77,10 @@ jobs:
         run: |
           copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
           cmake --build ${{ runner.temp }}\build --target test
+
+      - name: Copy Test Logs
+        shell: cmd
+        run: |
           cmake --build ${{ runner.temp }}\build --target copy_test_logs
 
       - name: Build Package
