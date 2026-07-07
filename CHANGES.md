@@ -1,5 +1,37 @@
 # Change Log
 
+## Version 0.15.4 - 2026-07-08
+
+- (fix) When using `--input-list` and directory paths in that list contained
+  trailing slashes, `mkdwarfs` would create an additional directory with an
+  empty name below that path. When mounting such an image, trying to traverse
+  the file system would result in an I/O error when processing that empty-named
+  directory. This has been fixed by stripping trailing slashes. Another change
+  was made to detect and ignore empty-named directory entries when reading file
+  system images to hide the erroneously created extra directories and allow
+  "buggy" images to be mounted without errors. Fixes GitHub issue #370.
+
+- (fix) When running `dwarfs` in foreground more, the file system was not
+  properly unmounted when the process was terminated (e.g., with `Ctrl+C`).
+  This bug was introduced with the FUSE driver refactoring in 0.15.2. This
+  was fixed by canonicalizing the mount point path immediately after parsing.
+
+- (fix) `DWARFS_LOG_MEMORY_USAGE` was broken due to prematurely closing the
+  log file before anything was logged. This has been fixed.
+
+- (fix) The metadata analysis output from `dwarfsck` was not consistently
+  using the same order for "plain" and "compact" string table fields. This
+  has been fixed.
+
+- (fix) The debug output for similarity ordering contained a stray closing
+  parenthesis. This has been fixed.
+
+- (fix) A workaround was implemented for a benign race condition in OpenSLL
+  that would occasionally trigger TSAN warnings.
+
+- (build) Several dependencies were updated, the static release binaries are
+  now built using Clang 22 with GCC 16's libstdc++.
+
 ## Version 0.15.3 - 2026-04-01
 
 - (fix) The 0.15.2 release did not include the legacy FUSE v2 driver binaries
