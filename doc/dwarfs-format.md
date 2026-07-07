@@ -268,15 +268,15 @@ to each other:
     │ │  │                         │                │ nlink_minus_1:  0 │      │
     │ │  │    names[]              │                ├───────────────────┤      │      modes[]
     │ │  │   ┌────────────┐        │                │        ...        │      │     ┌─────────────┐
-    │ │  │   │ "usr"      │        │     S_IFREG ──►├───────────────────┤      └────►│   0040775   │
+    │ │  │   │ "lib"      │        │     S_IFREG ──►├───────────────────┤      └────►│   0040775   │
     │ │  │   ├────────────┤        │     (unique)   │ mode_index:     1 │            ├─────────────┤
-    │ │  │   │ "share"    │        ├───────────────►│ owner_index:    0 ├──────┐     │   0100644   │
+    │ │  │   │ "ls"       │        ├───────────────►│ owner_index:    0 ├──────┐     │   0100644   │
     │ │  │   ├────────────┤        │                │ group_index:    0 │      │     ├─────────────┤
-    │ │  └──►│ "words"    │        │                │ *time_offset: 298 │      │     │     ...     │
+    │ │  └──►│ "share"    │        │                │ *time_offset: 298 │      │     │     ...     │
     │ │      ├────────────┤        │                │ *time_subsec:  94 │      │     └─────────────┘
-    │ └─────►│ "lib"      │        │                │ nlink_minus_1:  2 │      │
+    │ └─────►│ "usr"      │        │                │ nlink_minus_1:  2 │      │
     │        ├────────────┤        │                ├───────────────────┤      │      uids[]
-    │        │ "ls"       │        │                │        ...        │      │     ┌─────────────┐
+    │        │ "words"    │        │                │        ...        │      │     ┌─────────────┐
     │        ├────────────┤        │     S_IFREG ──►├───────────────────┤      └────►│       0     │
     │        │    ...     │        │  ┌──(shared)   │ mode_index:     4 │            ├─────────────┤
     ▼        └────────────┘        │  │             │ owner_index:    2 │            │    1000     │
@@ -315,6 +315,13 @@ Thanks to the bit-packing, fields that are unused or only contain a
 single (zero) value, e.g. a `group_index` that's always zero because
 all files belong to the same group, does not occupy any space in the
 metadata section.
+
+To ensure reproducibility (i.e. being able to generate bit-identical
+file system images when running `mkdwarfs` multiple times on the same
+input), the `names`, `symlinks`, `modes`, `uids`, and `gids` tables
+are always sorted in ascending order. The order of the remaining tables
+is deterministic, but dependent on the ordering algorithm used when
+building the file system image.
 
 ### Features
 
