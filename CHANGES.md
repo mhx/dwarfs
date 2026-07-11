@@ -1,5 +1,15 @@
 # Change Log
 
+## Version 0.15.5 - 2026-07-11
+
+- (fix) The static release binaries for v0.15.4 were built using a new build
+  container and moving from GCC 15 to GCC 16, a lot of patches were dropped,
+  including a patch that prevented the locale code in libstc++ from throwing
+  exceptions for non `"C"` locales when using musl-libc. This caused all of
+  the Linux static release binaries to fail to set up the user locale, emit
+  errors on startup, or even die with a runtime error in some cases. The
+  patches were added back into the GCC build. Fixes GitHub issue #371.
+
 ## Version 0.15.4 - 2026-07-08
 
 - (fix) When using `--input-list` and directory paths in that list contained
