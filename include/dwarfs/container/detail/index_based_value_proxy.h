@@ -125,11 +125,12 @@ class basic_index_based_proxy {
     return *this;
   }
 
-  friend void
-  swap(basic_index_based_proxy a, basic_index_based_proxy b) noexcept {
+  friend void swap(basic_index_based_proxy a, basic_index_based_proxy b)
+      noexcept(noexcept(a = b.load()) &&
+               std::is_nothrow_move_constructible_v<value_type>) {
     value_type tmp = a.load();
     a = b.load();
-    b = tmp;
+    b = std::move(tmp);
   }
 
   // tuple-like access (only for proxies that actually have sub-fields)
