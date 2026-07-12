@@ -42,6 +42,7 @@ struct packed_value_traits<std::optional<T>> {
   using encoded_type = T;
 
   static encoded_type encode(std::optional<T> const& opt) {
+    assert(!opt || *opt < std::numeric_limits<T>::max());
     return opt.has_value() ? *opt + 1 : 0;
   }
 
