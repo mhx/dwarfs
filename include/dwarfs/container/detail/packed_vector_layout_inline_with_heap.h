@@ -285,7 +285,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
       return const_bit_view(state_.data())
           .template read<size_type>({inline_size_bit, inline_size_field_bits});
     }
-    return storage_type::size(mutable_heap_data());
+    return storage_type::size(heap_data());
   }
 
   [[nodiscard]] auto widths() const noexcept -> widths_type {
@@ -302,7 +302,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     if (is_inline()) {
       return 0;
     }
-    return storage_type::capacity_blocks(mutable_heap_data());
+    return storage_type::capacity_blocks(heap_data());
   }
 
   [[nodiscard]] static constexpr auto
