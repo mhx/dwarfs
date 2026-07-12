@@ -32,6 +32,7 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 

@@ -32,6 +32,7 @@
 #include <compare>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <type_traits>
 #include <utility>

@@ -35,11 +35,14 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <ostream>
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <dwarfs/ranges.h>
