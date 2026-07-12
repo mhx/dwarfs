@@ -261,7 +261,7 @@ class index_based_const_iterator {
   }
 
   index_based_const_iterator& operator+=(difference_type n) {
-    index_ += static_cast<size_type>(n);
+    index_ += n;
     assert(index_ >= 0);
     return *this;
   }
