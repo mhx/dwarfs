@@ -28,6 +28,9 @@
 
 #pragma once
 
+#include <cassert>
+#include <concepts>
+#include <limits>
 #include <optional>
 
 #include <dwarfs/container/packed_value_traits.h>
