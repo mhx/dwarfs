@@ -623,15 +623,6 @@ class basic_packed_int_vector {
     return iterator{this, first_index};
   }
 
-  iterator erase(iterator pos) {
-    return erase(const_iterator{this, pos.get_index()});
-  }
-
-  iterator erase(iterator first, iterator last) {
-    return erase(const_iterator{this, first.get_index()},
-                 const_iterator{this, last.get_index()});
-  }
-
   iterator insert(const_iterator pos, size_type count, value_type value) {
     auto const index = pos.get_index();
     assert(pos.vec_ == this);
