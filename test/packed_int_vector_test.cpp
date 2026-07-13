@@ -504,3 +504,30 @@ TEST(packed_int_vector_proxy_test, optional_field_proxy_has_has_value) {
   EXPECT_EQ(get<0>(vec[0]), std::nullopt);
   EXPECT_EQ(get<0>(vec[1]), 123);
 }
+
+TEST(packed_int_vector_test, capacity_overflow_throws_length_error) {
+  using vec_type = packed_int_vector<std::tuple<std::uint64_t, std::uint64_t>>;
+  using widths_type = typename vec_type::widths_type;
+
+  static constexpr auto huge = std::numeric_limits<std::size_t>::max();
+  static constexpr widths_type widths{{64, 64}};
+
+  // constructor path (via initialize)
+  EXPECT_THROW(vec_type(widths, huge), std::length_error);
+
+  vec_type v(widths);
+  v.push_back({1, 2});
+  v.push_back({3, 4});
+
+  // reserve path (via ensure_capacity_for)
+  EXPECT_THROW(v.reserve(huge), std::length_error);
+
+  // resize path — throws before fill_field ever runs
+  EXPECT_THROW(v.resize(huge), std::length_error);
+
+  // strong guarantee: the throw precedes any mutation
+  EXPECT_EQ(v.size(), 2);
+  EXPECT_EQ(v.widths(), widths);
+  EXPECT_EQ(v.get(0), (std::tuple<std::uint64_t, std::uint64_t>{1, 2}));
+  EXPECT_EQ(v.get(1), (std::tuple<std::uint64_t, std::uint64_t>{3, 4}));
+}
