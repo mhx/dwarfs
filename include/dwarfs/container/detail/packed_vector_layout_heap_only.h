@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cassert>
@@ -91,14 +92,12 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   [[nodiscard]] static constexpr auto
   can_store_heap(widths_type const& widths, size_type, size_type) noexcept
       -> bool {
-    if constexpr (!std::same_as<underlying_type, std::uint8_t>) {
-      for (auto const bits : widths) {
-        if (bits > bits_per_block) {
-          return false;
-        }
-      }
+    if constexpr (std::same_as<underlying_type, std::uint8_t>) {
+      return true;
+    } else {
+      return std::ranges::all_of(
+          widths, [](auto bits) { return bits <= bits_per_block; });
     }
-    return true;
   }
 
   packed_vector_layout_impl() { reset_empty(); }
