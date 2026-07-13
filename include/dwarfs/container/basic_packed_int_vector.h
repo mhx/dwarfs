@@ -1103,15 +1103,28 @@ class basic_packed_int_vector {
     }
   }
 
+  template <bool CheckOverflow>
   [[nodiscard]] static constexpr auto
-  min_data_size(size_type sz, widths_type const& widths) noexcept -> size_type {
+  min_data_size(size_type sz, widths_type const& widths)
+      noexcept(!CheckOverflow) -> size_type {
     auto const stride_bits = total_bits(widths);
+
     if (stride_bits == 0) {
       return 0;
     }
 
     auto const q = sz / bits_per_block;
     auto const r = sz % bits_per_block;
+
+    if constexpr (CheckOverflow) {
+      constexpr auto limit = std::numeric_limits<size_type>::max() -
+                             layout_type::capacity_granularity_blocks;
+
+      if (q >= limit / stride_bits) {
+        throw_size_limit();
+      }
+    }
+
     return q * stride_bits + detail::ceil_div(r * stride_bits, bits_per_block);
   }
 
@@ -1122,9 +1135,8 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] static constexpr auto
-  exact_capacity_blocks(size_type sz, widths_type const& widths) noexcept
-      -> size_type {
-    return normalize_capacity_blocks(min_data_size(sz, widths));
+  exact_capacity_blocks(size_type sz, widths_type const& widths) -> size_type {
+    return normalize_capacity_blocks(min_data_size<true>(sz, widths));
   }
 
   [[nodiscard]] static auto
@@ -1139,7 +1151,7 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] auto used_blocks() const noexcept -> size_type {
-    return min_data_size(size(), widths());
+    return min_data_size<false>(size(), widths());
   }
 
   static constexpr void check_size_limit(size_type n) {
