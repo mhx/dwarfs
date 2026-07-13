@@ -29,6 +29,7 @@
 #pragma once
 
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -213,40 +214,39 @@ class bit_view {
   template <detail::non_bool_integral T>
   [[nodiscard]] auto read(bit_range r) const noexcept -> T {
     using U = std::make_unsigned_t<T>;
+    using W = std::conditional_t<detail::uword_storage_element<Storage>,
+                                 std::remove_cv_t<Storage>, U>;
+    static_assert(sizeof(U) <= sizeof(W),
+                  "read<T>: T must not be wider than the storage word");
 
-    if constexpr (detail::uword_storage_element<Storage>) {
-      static_assert(sizeof(U) == sizeof(Storage),
-                    "for unsigned-integral storage, read<T> requires sizeof(T) "
-                    "== sizeof(Storage)");
-    }
-
-    constexpr unsigned chunk_bits = std::numeric_limits<U>::digits;
+    constexpr unsigned chunk_bits = std::numeric_limits<W>::digits;
 
     if (r.bit_width == 0) {
       return 0;
     }
 
-    auto const loc = detail::locate<U>(r.bit_offset);
+    assert(r.bit_width <= std::numeric_limits<U>::digits);
+
+    auto const loc = detail::locate<W>(r.bit_offset);
     unsigned const shift = loc.shift;
 
-    U value;
-    auto const a = access_.template load<U>(loc.chunk0_byte);
+    W value;
+    auto const a = access_.template load<W>(loc.chunk0_byte);
 
     if (shift + r.bit_width <= chunk_bits) {
       value = a >> shift;
     } else {
-      auto const b = access_.template load<U>(loc.chunk0_byte + sizeof(U));
-      auto const shift_b = chunk_bits - shift;
+      auto const b = access_.template load<W>(loc.chunk0_byte + sizeof(W));
       // NOLINTNEXTLINE(clang-analyzer-core.BitwiseShift)
-      value = (a >> shift) | (b << shift_b);
+      value = (a >> shift) | (b << (chunk_bits - shift));
     }
 
-    value &= detail::bit_mask<U>(r.bit_width);
+    value &= detail::bit_mask<W>(r.bit_width);
 
     if constexpr (std::signed_integral<T>) {
-      return detail::sign_extend(value, r.bit_width);
+      return detail::sign_extend(static_cast<U>(value), r.bit_width);
     } else {
-      return value;
+      return static_cast<T>(value);
     }
   }
 
@@ -255,47 +255,47 @@ class bit_view {
     requires(!is_const)
   {
     using U = std::make_unsigned_t<T>;
+    using W = std::conditional_t<detail::uword_storage_element<Storage>,
+                                 std::remove_cv_t<Storage>, U>;
+    static_assert(sizeof(U) <= sizeof(W),
+                  "write<T>: T must not be wider than the storage word");
 
-    if constexpr (detail::uword_storage_element<Storage>) {
-      static_assert(sizeof(U) == sizeof(Storage),
-                    "for unsigned-integral storage, write<T> requires "
-                    "sizeof(T) == sizeof(Storage)");
-    }
-
-    constexpr unsigned chunk_bits = std::numeric_limits<U>::digits;
+    constexpr unsigned chunk_bits = std::numeric_limits<W>::digits;
 
     if (r.bit_width == 0) {
       return;
     }
 
-    auto const value_mask = detail::bit_mask<U>(r.bit_width);
-    U value = detail::to_unsigned<T>(v);
+    assert(r.bit_width <= std::numeric_limits<U>::digits);
+
+    auto const value_mask = detail::bit_mask<W>(r.bit_width);
+    W value = static_cast<W>(detail::to_unsigned<T>(v));
     value &= value_mask;
 
-    auto const loc = detail::locate<U>(r.bit_offset);
+    auto const loc = detail::locate<W>(r.bit_offset);
     unsigned const shift = loc.shift;
 
     if (shift + r.bit_width <= chunk_bits) {
-      auto a = access_.template load<U>(loc.chunk0_byte);
+      auto a = access_.template load<W>(loc.chunk0_byte);
       a = (a & ~(value_mask << shift)) | (value << shift);
-      access_.template store<U>(loc.chunk0_byte, a);
+      access_.template store<W>(loc.chunk0_byte, a);
       return;
     }
 
     auto const lo_bits = chunk_bits - shift;
     auto const hi_bits = r.bit_width - lo_bits;
 
-    U a = access_.template load<U>(loc.chunk0_byte);
-    U b = access_.template load<U>(loc.chunk0_byte + sizeof(U));
+    W a = access_.template load<W>(loc.chunk0_byte);
+    W b = access_.template load<W>(loc.chunk0_byte + sizeof(W));
 
-    U const lo_mask = detail::bit_mask<U>(lo_bits) << shift;
-    U const hi_mask = detail::bit_mask<U>(hi_bits);
+    W const lo_mask = detail::bit_mask<W>(lo_bits) << shift;
+    W const hi_mask = detail::bit_mask<W>(hi_bits);
 
     a = (a & ~lo_mask) | ((value << shift) & lo_mask);
     b = (b & ~hi_mask) | (value >> lo_bits);
 
-    access_.template store<U>(loc.chunk0_byte, a);
-    access_.template store<U>(loc.chunk0_byte + sizeof(U), b);
+    access_.template store<W>(loc.chunk0_byte, a);
+    access_.template store<W>(loc.chunk0_byte + sizeof(W), b);
   }
 
  private:

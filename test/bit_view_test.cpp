@@ -120,7 +120,16 @@ template <typename Storage, typename T>
 constexpr bool supports_value_type_v =
     std::integral<std::remove_cv_t<T>> &&
     !std::is_same_v<std::remove_cv_t<T>, bool> &&
-    (is_byte_storage_v<Storage> || (sizeof(T) == sizeof(Storage)));
+    (is_byte_storage_v<Storage> || (sizeof(T) <= sizeof(Storage)));
+
+static_assert(supports_value_type_v<std::uint64_t, std::int64_t>);
+static_assert(supports_value_type_v<std::uint64_t, std::uint32_t>);
+static_assert(supports_value_type_v<std::uint64_t, std::int16_t>);
+static_assert(supports_value_type_v<std::uint64_t, std::uint8_t>);
+static_assert(!supports_value_type_v<std::uint16_t, std::uint64_t>);
+static_assert(!supports_value_type_v<std::uint16_t, std::int32_t>);
+static_assert(supports_value_type_v<std::uint16_t, std::uint16_t>);
+static_assert(supports_value_type_v<std::uint16_t, std::int8_t>);
 
 template <typename Storage>
 auto storage_bytes(std::vector<Storage> const& storage)
