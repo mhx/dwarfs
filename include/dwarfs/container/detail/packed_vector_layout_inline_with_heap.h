@@ -196,8 +196,8 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
 
   static constexpr size_type capacity_granularity_bytes =
       policy_type::capacity_granularity_bytes;
-  static constexpr size_type capacity_granularity_blocks = std::max<size_type>(
-      capacity_granularity_bytes / sizeof(underlying_type), 1);
+  static constexpr size_type capacity_granularity_blocks =
+      ceil_div(capacity_granularity_bytes, sizeof(underlying_type));
 
   static constexpr size_type max_heap_size =
       std::numeric_limits<size_type>::max();
