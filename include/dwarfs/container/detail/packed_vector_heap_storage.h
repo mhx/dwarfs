@@ -88,6 +88,22 @@ struct packed_vector_heap_storage {
     return const_cast<heap_prefix*>(header(static_cast<T const*>(payload)));
   }
 
+  [[nodiscard]] static auto aligned_new(size_type size) -> void* {
+    if constexpr (block_alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+      return ::operator new(size);
+    } else {
+      return ::operator new(size, std::align_val_t{block_alignment});
+    }
+  }
+
+  static void aligned_delete(void* ptr) noexcept {
+    if constexpr (block_alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+      ::operator delete(ptr);
+    } else {
+      ::operator delete(ptr, std::align_val_t{block_alignment});
+    }
+  }
+
  public:
   [[nodiscard]] static auto
   allocate(size_type size, size_type capacity_blocks, initialization init,
@@ -104,8 +120,7 @@ struct packed_vector_heap_storage {
     auto const payload_bytes = capacity_blocks * sizeof(T);
     auto const total_bytes = payload_offset + payload_bytes;
 
-    auto* raw = static_cast<std::byte*>(
-        ::operator new(total_bytes, std::align_val_t{block_alignment}));
+    auto* raw = static_cast<std::byte*>(aligned_new(total_bytes));
 
     std::construct_at(reinterpret_cast<heap_prefix*>(raw),
                       heap_prefix{size, capacity_blocks});
@@ -125,7 +140,7 @@ struct packed_vector_heap_storage {
 
   static void deallocate(T* payload) noexcept {
     if (payload) {
-      ::operator delete(raw_block(payload), std::align_val_t{block_alignment});
+      aligned_delete(raw_block(payload));
     }
   }
 
