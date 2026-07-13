@@ -77,6 +77,8 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   using field_encoded_type =
       typename field_descriptor::template field_encoded_type<I>;
 
+  static_assert(std::has_single_bit(capacity_granularity_bytes));
+
   static void dump(std::ostream& os) {
     os << "heap-only layout\n";
     os << "  field count: " << field_count << '\n';
@@ -86,8 +88,6 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     os << "  max heap size: " << max_heap_size << '\n';
     os << "  max capacity blocks: " << max_capacity_blocks_value << '\n';
   }
-
-  static_assert(std::has_single_bit(capacity_granularity_bytes));
 
   [[nodiscard]] static constexpr auto
   can_store_heap(widths_type const& widths, size_type, size_type) noexcept
