@@ -116,8 +116,8 @@ TEST_P(CompatibilityTest, Read) {
     auto root = mapFrozen<Root>(dwarfs::read_file(path));
     EXPECT_FALSE(test.fails);
     EXPECT_EQ(test.root.value(), root.thaw());
-  } catch (const std::exception&) {
-    EXPECT_TRUE(test.fails);
+  } catch (const std::exception& e) {
+    EXPECT_TRUE(test.fails) << "unexpected exception: " << e.what();
   }
 }
 
