@@ -49,8 +49,10 @@ template <typename T, byte_like_type U>
            !std::is_union_v<std::remove_cv_t<T>> && !std::is_volatile_v<T> &&
            !std::is_volatile_v<U> && std::is_const_v<T> == std::is_const_v<U>)
 [[nodiscard]] auto as_aligned_ptr(U* p) -> T* {
-  assert(reinterpret_cast<std::uintptr_t>(p) % alignof(T) == 0);
-  return std::assume_aligned<alignof(T)>(reinterpret_cast<T*>(p));
+  using void_ptr_t = std::conditional_t<std::is_const_v<T>, void const*, void*>;
+  auto* raw = static_cast<void_ptr_t>(p);
+  assert(reinterpret_cast<std::uintptr_t>(raw) % alignof(T) == 0);
+  return std::assume_aligned<alignof(T)>(reinterpret_cast<T*>(raw));
 }
 
 } // namespace dwarfs::internal

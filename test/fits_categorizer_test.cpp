@@ -130,8 +130,9 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
   for (size_t offset = 0; offset < 64; offset += 2) {
     std::span<uint8_t> fits{data.data() + offset, 2 * 2880};
     fill_fits_header(fits);
-    std::span<uint16_t> image{reinterpret_cast<uint16_t*>(fits.data() + 2880),
-                              8 * 16};
+    std::span<uint16_t> image{
+        reinterpret_cast<uint16_t*>(static_cast<void*>(fits.data() + 2880)),
+        8 * 16};
     for (auto& pixel : image) {
       for (unsigned unused_lsb_count = 0; unused_lsb_count <= 8;
            ++unused_lsb_count) {
