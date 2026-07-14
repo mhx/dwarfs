@@ -64,6 +64,14 @@ struct FixedSizeStringLayout : public LayoutBase {
     os << dwarfs::thrift_lite::demangle(type.name());
   }
 
+  void validate(LoadRoot& root) const override {
+    Base::validate(root);
+    if (!empty() && (size != T::kFixedSize || bits != 0)) {
+      throw schema::SchemaValidationException(
+          "invalid fixed-size string layout");
+    }
+  }
+
   struct View : public std::span<uint8_t const> {
    public:
     using std::span<uint8_t const>::span;

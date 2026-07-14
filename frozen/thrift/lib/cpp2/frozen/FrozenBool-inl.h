@@ -60,6 +60,16 @@ struct BoolLayout : public LayoutBase {
     os << "packed bool";
   }
 
+  void validate(LoadRoot& root) const override {
+    Base::validate(root);
+    if (empty()) {
+      return;
+    }
+    if (bits != 1 || (size != 0 && size != 1)) {
+      throw schema::SchemaValidationException("invalid packed bool layout");
+    }
+  }
+
   using View = T;
 
   View view(ViewPosition self) const {

@@ -172,9 +172,15 @@
     FROZEN_SAVE_BODY(__VA_ARGS__)                  \
   }
 
-#define FROZEN_LOAD_FIELD(NAME, ID)                                   \
-  case ID:                                                            \
-    this->NAME##Field.template load<SchemaInfo>(schema, field, root); \
+#define FROZEN_LOAD_FIELD(NAME, ID)                                          \
+  case ID:                                                                   \
+    this->NAME##Field.template load<SchemaInfo>(schema, field, root, *this); \
+    break;
+
+#define FROZEN_LOAD_FIELD_OUT_OF_LINE(NAME, ID)                 \
+  case ID:                                                      \
+    this->NAME##Field.template load<SchemaInfo>(                \
+        schema, field, root, *this, FieldPlacement::OutOfLine); \
     break;
 
 #define FROZEN_LOAD_BODY(...)                             \

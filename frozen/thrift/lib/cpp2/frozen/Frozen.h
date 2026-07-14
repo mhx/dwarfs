@@ -240,6 +240,12 @@ struct LayoutBase {
   virtual void print(std::ostream& os, int level) const;
 
   /**
+   * Validates constraints imposed by the concrete layout type after loading
+   * it from a schema. Composite field bounds are checked by LoadRoot.
+   */
+  virtual void validate(LoadRoot&) const;
+
+  /**
    * Populates a 'layout' with a description of this layout in the context of
    * 'schema'. Child classes must implement.
    */
@@ -263,6 +269,7 @@ struct LayoutBase {
       const SchemaInfo::Schema&, const SchemaInfo::Layout& layout, LoadRoot&) {
     size = layout.getSize();
     bits = layout.getBits();
+    inlined = size == 0 && bits > 0;
   }
 
   template <typename K>
@@ -324,6 +331,39 @@ struct FieldBase {
   virtual void clear() = 0;
 };
 
+enum class FieldPlacement {
+  Embedded,
+  OutOfLine,
+};
+
+/**
+ * Context object threaded through Layout::load() calls when deserializing
+ * and validating a layout tree from a schema.
+ */
+class LoadRoot {
+ public:
+  LoadRoot() = default;
+
+  void registerField(
+      const LayoutBase& parent,
+      const FieldBase& field,
+      const LayoutBase& child,
+      int16_t encodedOffset,
+      FieldPlacement placement);
+
+  void finish();
+
+ private:
+  struct FieldInterval {
+    const LayoutBase* parent;
+    size_t begin;
+    size_t end;
+    const char* name;
+  };
+
+  std::vector<FieldInterval> fields_;
+};
+
 template <class T, class Layout = Layout<std::decay_t<T>>>
 struct Field final : public FieldBase {
   Layout layout;
@@ -361,7 +401,10 @@ struct Field final : public FieldBase {
   void load(
       const SchemaInfo::Schema& schema,
       const SchemaInfo::Field& field,
-      LoadRoot& root) {
+      LoadRoot& root,
+      const LayoutBase& parent,
+      FieldPlacement placement = FieldPlacement::Embedded) {
+    pos = FieldPosition();
     auto offset = field.getOffset();
     if (offset < 0) {
       pos.bitOffset = -offset;
@@ -370,6 +413,9 @@ struct Field final : public FieldBase {
     }
     this->layout.template load<SchemaInfo>(
         schema, schema.getLayoutForField(field), root);
+    this->layout.validate(root);
+    root.registerField(
+        parent, *this, this->layout, field.getOffset(), placement);
   }
 
   /**
@@ -795,17 +841,6 @@ class ByteRangeFreezer final : public FreezeRoot {
   std::span<uint8_t>& write_;
 };
 
-/**
- * Context object threaded through Layout::load() calls when deserializing
- * a layout tree from a schema. Currently empty; kept because it is part of
- * the load() signatures in generated code, and it is the natural place for
- * load-time schema validation state.
- */
-class LoadRoot {
- public:
-  LoadRoot() = default;
-};
-
 template <typename T, typename SchemaInfo = schema::SchemaInfo>
 void saveRoot(const Layout<T>& layout, typename SchemaInfo::Schema& schema) {
   typename SchemaInfo::Helper helper(schema);
@@ -816,8 +851,12 @@ void saveRoot(const Layout<T>& layout, typename SchemaInfo::Schema& schema) {
 
 template <typename T, typename SchemaInfo = schema::SchemaInfo>
 void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
+  schema.validate();
+  layout.clear();
   LoadRoot root;
   layout.template load<SchemaInfo>(schema, schema.getRootLayout(), root);
+  layout.validate(root);
+  root.finish();
 }
 
 struct Holder {
