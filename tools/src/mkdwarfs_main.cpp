@@ -32,6 +32,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -399,7 +400,7 @@ compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
 class time_value_tsv_logger {
  public:
   time_value_tsv_logger(std::unique_ptr<output_stream> output,
-                        std::initializer_list<std::string_view> header)
+                        std::span<std::string_view const> header)
       : output_{std::move(output)}
       , start_time_{std::chrono::steady_clock::now()} {
     fmt::print(output_->os(), "{}\t{}\n", "time", fmt::join(header, "\t"));
@@ -1064,8 +1065,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<time_value_tsv_logger> mem_logger;
 
     if (auto file = iol.os->getenv("DWARFS_LOG_MEMORY_USAGE")) {
-      auto const header = std::initializer_list<std::string_view>{
-          "total"sv, "anon"sv, "file"sv, "allocated"sv};
+      constexpr std::array header = {
+          "total"sv,
+          "anon"sv,
+          "file"sv,
+          "allocated"sv,
+      };
       mem_logger = std::make_shared<time_value_tsv_logger>(
           iol.file->open_output(*file), header);
     }
