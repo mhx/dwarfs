@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <utility>
+
 #include <dwarfs/container/packed_value_traits_optional.h>
 
 #include "packed_int_vector_test_helpers.h"
@@ -35,12 +37,13 @@ using ::testing::Ge;
 
 namespace {
 
-static_assert(packed_int_vector<uint32_t>::max_size() ==
-              std::numeric_limits<std::size_t>::max());
-static_assert(compact_packed_int_vector<uint32_t>::max_size() ==
-              std::numeric_limits<std::size_t>::max());
+constexpr auto max_vec_size =
+    static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max());
+
+static_assert(packed_int_vector<uint32_t>::max_size() == max_vec_size);
+static_assert(compact_packed_int_vector<uint32_t>::max_size() == max_vec_size);
 static_assert(segmented_packed_int_vector<uint32_t>::max_size() ==
-              std::numeric_limits<std::size_t>::max());
+              max_vec_size);
 
 static_assert(sizeof(packed_int_vector<uint32_t>) == 2 * sizeof(std::size_t));
 static_assert(sizeof(compact_packed_int_vector<uint32_t>) ==

@@ -177,7 +177,10 @@ class basic_packed_int_vector {
   friend class basic_packed_int_vector;
 
   static constexpr auto max_size() noexcept -> size_type {
-    return layout_type::max_heap_size;
+    return std::min(
+        static_cast<size_type>(
+            std::numeric_limits<typename iterator::difference_type>::max()),
+        layout_type::max_heap_size);
   }
 
   static void dump_layout(std::ostream& os) { layout_type::dump(os); }

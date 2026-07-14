@@ -209,6 +209,7 @@ class index_based_iterator_impl {
       : vec_{vec}
       , index_{to_index(index)} {
     assert(vec_);
+    assert(index_ <= to_index(vec_->size()));
   }
 
   static difference_type to_index(size_type index) {
