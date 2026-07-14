@@ -51,6 +51,11 @@ struct FixedSizeStringLayout : public LayoutBase {
     if (size == T::kFixedSize) {
       out.resize(T::kFixedSize);
       memcpy(&out[0], self.start, T::kFixedSize);
+    } else {
+      // Empty layout: the field was absent from the serialized schema
+      // (e.g. a file written by an older version of the struct). Produce
+      // the default value.
+      out.clear();
     }
   }
 
@@ -59,24 +64,36 @@ struct FixedSizeStringLayout : public LayoutBase {
     os << dwarfs::thrift_lite::demangle(type.name());
   }
 
-  struct View final : public std::span<uint8_t const> {
+  struct View : public std::span<uint8_t const> {
    public:
     using std::span<uint8_t const>::span;
 
     View(std::span<uint8_t const> bytes) : std::span<uint8_t const>(bytes) {
-      assert(bytes.size() == T::kFixedSize);
+      assert(bytes.size() == T::kFixedSize || bytes.empty());
     }
 
     bool operator==(View rhs) const {
-      return memcmp(this->data(), rhs.data(), T::kFixedSize) == 0;
+      if (this->size() != rhs.size()) {
+        return false;
+      }
+      return this->empty() ||
+          memcmp(this->data(), rhs.data(), this->size()) == 0;
     }
 
-    std::string toString() const {
-      return {reinterpret_cast<const char*>(this->data()), this->size()};
-    }
+    std::string toString() const { return {this->begin(), this->end()}; }
   };
 
-  View view(ViewPosition self) const { return View(self.start, T::kFixedSize); }
+  View view(ViewPosition self) const {
+    if (size != T::kFixedSize) {
+      // Empty layout (field absent from the serialized schema, e.g. a file
+      // written by an older version of the struct) or a corrupt size:
+      // reading T::kFixedSize bytes here would trust the static type over
+      // the schema and may read out of bounds. An empty view represents
+      // the default value.
+      return View{};
+    }
+    return View{std::span<uint8_t const>{self.start, T::kFixedSize}};
+  }
 
   static size_t hash(const T& value) {
     return FixedSizeStringHash<T::kFixedSize, T>::hash(value);
