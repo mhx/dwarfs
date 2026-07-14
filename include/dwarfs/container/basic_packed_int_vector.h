@@ -501,17 +501,16 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto empty() const noexcept -> bool { return size() == 0; }
 
-  auto operator[](size_type i) const -> const_reference { return get(i); }
+  auto operator[](size_type i) const -> const_reference { return get_value(i); }
 
   auto at(size_type i) const -> const_reference {
     if (i >= size()) {
       throw std::out_of_range("basic_packed_int_vector::at");
     }
-    return get(i);
+    return get_value(i);
   }
 
   [[nodiscard]] auto get(size_type i) const -> const_reference {
-    assert(i < size());
     return get_value(i);
   }
 
@@ -572,7 +571,7 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto back() const -> const_reference {
     assert(!empty());
-    return get(size() - 1);
+    return get_value(size() - 1);
   }
 
   [[nodiscard]] auto back() -> reference {
@@ -582,7 +581,7 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto front() const -> const_reference {
     assert(!empty());
-    return get(0);
+    return get_value(0);
   }
 
   [[nodiscard]] auto front() -> reference {
@@ -591,9 +590,10 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] auto unpack() const -> std::vector<value_type> {
-    std::vector<value_type> result(size());
-    for (size_type i = 0; i < size(); ++i) {
-      result[i] = get(i);
+    auto const n = size();
+    std::vector<value_type> result(n);
+    for (size_type i = 0; i < n; ++i) {
+      result[i] = get_value(i);
     }
     return result;
   }
@@ -744,7 +744,7 @@ class basic_packed_int_vector {
     }
 
     for (size_type i = 0; i < n; ++i) {
-      if (get(i) != other.get(i)) {
+      if (get_value(i) != other.get_value(i)) {
         return false;
       }
     }
