@@ -55,7 +55,7 @@ struct packed_value_traits<E> {
   using encoded_type = std::underlying_type_t<E>;
 
   static constexpr encoded_type encode(E v) noexcept {
-    return static_cast<encoded_type>(v);
+    return std::to_underlying(v);
   }
 
   static constexpr E decode(encoded_type v) noexcept {
