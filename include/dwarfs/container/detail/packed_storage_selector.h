@@ -51,29 +51,33 @@ struct packed_storage_selector {
   template <size_type I>
   using field_storage_type = std::make_unsigned_t<field_encoded_type<I>>;
 
+  template <typename... Ts>
+  struct widest_unsigned;
+
+  template <typename U>
+  struct widest_unsigned<U> : std::type_identity<U> {
+    static_assert(std::is_unsigned_v<U>);
+  };
+
+  template <typename U, typename V, typename... Rest>
+  struct widest_unsigned<U, V, Rest...>
+      : widest_unsigned<std::conditional_t<(std::numeric_limits<U>::digits >=
+                                            std::numeric_limits<V>::digits),
+                                           U, V>,
+                        Rest...> {};
+
   template <typename IndexSequence>
   struct impl;
 
-  template <size_type... I>
-  struct impl<std::index_sequence<I...>> {
-    using first_storage_type = field_storage_type<0>;
-
-    static constexpr bool uses_shared_underlying =
-        (std::same_as<first_storage_type, field_storage_type<I>> && ...);
-
-    using underlying_type =
-        std::conditional_t<uses_shared_underlying, first_storage_type,
-                           std::uint8_t>;
-  };
+  template <std::size_t... I>
+  struct impl<std::index_sequence<I...>>
+      : widest_unsigned<field_storage_type<I>...> {};
 
   using impl_type =
       impl<std::make_index_sequence<field_descriptor::field_count>>;
 
  public:
-  static constexpr bool uses_shared_underlying =
-      impl_type::uses_shared_underlying;
-
-  using underlying_type = typename impl_type::underlying_type;
+  using underlying_type = typename impl_type::type;
 };
 
 } // namespace dwarfs::container::detail
