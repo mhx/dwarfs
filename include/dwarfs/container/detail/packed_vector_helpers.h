@@ -86,7 +86,6 @@ class basic_width_ops {
 
   [[nodiscard]] static constexpr auto zero_widths() noexcept -> widths_type {
     widths_type widths{};
-    widths.fill(0);
     return widths;
   }
 
