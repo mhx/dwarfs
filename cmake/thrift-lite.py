@@ -1240,7 +1240,7 @@ def emit_packed_struct_support(
             for (; first != last; ++first) {
               push_back(static_cast<value_type>(*first));
             }
-            return iterator{this, start};
+            return iterator::from_index(*this, start);
           }
 
           [[nodiscard]] auto front() -> reference {
@@ -1260,27 +1260,27 @@ def emit_packed_struct_support(
           }
 
           [[nodiscard]] auto begin() noexcept -> iterator {
-            return iterator{this, 0};
+            return iterator::from_index(*this, 0);
           }
 
           [[nodiscard]] auto end() noexcept -> iterator {
-            return iterator{this, size()};
+            return iterator::from_index(*this, size());
           }
 
           [[nodiscard]] auto begin() const noexcept -> const_iterator {
-            return const_iterator{this, 0};
+            return const_iterator::from_index(*this, 0);
           }
 
           [[nodiscard]] auto end() const noexcept -> const_iterator {
-            return const_iterator{this, size()};
+            return const_iterator::from_index(*this, size());
           }
 
           [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
-            return const_iterator{this, 0};
+            return const_iterator::from_index(*this, 0);
           }
 
           [[nodiscard]] auto cend() const noexcept -> const_iterator {
-            return const_iterator{this, size()};
+            return const_iterator::from_index(*this, size());
           }
 
           [[nodiscard]] auto size_in_bytes() const -> std::size_t {
@@ -1293,8 +1293,6 @@ def emit_packed_struct_support(
     h.emit(
         f"""
          private:
-          friend class ::dwarfs::container::detail::index_based_iterator<{vector}>;
-          friend class ::dwarfs::container::detail::index_based_const_iterator<{vector}>;
           {storage_vector} data_{{}};
         }};
 

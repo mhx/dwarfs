@@ -336,23 +336,27 @@ class basic_packed_int_vector {
     layout_.swap(other.layout_);
   }
 
-  [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
-  [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
+  [[nodiscard]] iterator begin() noexcept {
+    return iterator::from_index(*this, 0);
+  }
+  [[nodiscard]] iterator end() noexcept {
+    return iterator::from_index(*this, size());
+  }
 
   [[nodiscard]] const_iterator begin() const noexcept {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] const_iterator end() const noexcept {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
   [[nodiscard]] const_iterator cbegin() const noexcept {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] const_iterator cend() const noexcept {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
   [[nodiscard]] auto rbegin() noexcept {
@@ -593,7 +597,7 @@ class basic_packed_int_vector {
   iterator erase(const_iterator pos) {
     auto const index = pos.get_index();
     auto const sz = size();
-    assert(pos.vec_ == this);
+    assert(pos.belongs_to(*this));
     assert(index < sz);
 
     for (size_type i = index + 1; i < sz; ++i) {
@@ -601,7 +605,7 @@ class basic_packed_int_vector {
     }
 
     layout_.set_size(sz - 1);
-    return iterator{this, index};
+    return iterator::from_index(*this, index);
   }
 
   iterator erase(const_iterator first, const_iterator last) {
@@ -609,8 +613,8 @@ class basic_packed_int_vector {
     auto const last_index = last.get_index();
     auto const sz = size();
 
-    assert(first.vec_ == this);
-    assert(last.vec_ == this);
+    assert(first.belongs_to(*this));
+    assert(last.belongs_to(*this));
     assert(first_index <= last_index);
     assert(last_index <= sz);
 
@@ -620,12 +624,12 @@ class basic_packed_int_vector {
     }
 
     layout_.set_size(sz - num_to_erase);
-    return iterator{this, first_index};
+    return iterator::from_index(*this, first_index);
   }
 
   iterator insert(const_iterator pos, size_type count, value_type value) {
     auto const index = pos.get_index();
-    assert(pos.vec_ == this);
+    assert(pos.belongs_to(*this));
 
     auto req_widths = widths();
     if constexpr (auto_bit_width) {
@@ -643,7 +647,7 @@ class basic_packed_int_vector {
   template <std::input_iterator InputIt>
   iterator insert(const_iterator pos, InputIt first, InputIt last) {
     auto const index = pos.get_index();
-    assert(pos.vec_ == this);
+    assert(pos.belongs_to(*this));
 
     if constexpr (std::forward_iterator<InputIt>) {
       auto req_widths = widths();
@@ -942,7 +946,7 @@ class basic_packed_int_vector {
     assert(index <= old_size);
 
     if (count == 0) {
-      return iterator{this, index};
+      return iterator::from_index(*this, index);
     }
 
     if (count > max_size() || old_size > max_size() - count) {
@@ -968,7 +972,7 @@ class basic_packed_int_vector {
     }
 
     layout_.set_size(new_size);
-    return iterator{this, index};
+    return iterator::from_index(*this, index);
   }
 
   template <std::input_iterator I>
@@ -979,8 +983,9 @@ class basic_packed_int_vector {
       push_back(static_cast<value_type>(*first));
     }
 
-    std::rotate(iterator{this, idx}, iterator{this, old_size}, end());
-    return iterator{this, idx};
+    std::rotate(iterator::from_index(*this, idx),
+                iterator::from_index(*this, old_size), end());
+    return iterator::from_index(*this, idx);
   }
 
   [[nodiscard]] auto
