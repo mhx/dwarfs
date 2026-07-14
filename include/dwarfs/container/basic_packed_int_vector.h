@@ -196,8 +196,7 @@ class basic_packed_int_vector {
 
   static constexpr auto
   required_widths(value_type const& value) noexcept -> widths_type {
-    widths_type widths{};
-    widths.fill(0);
+    widths_type widths;
 
     field_descriptor::encode_with(value, [&]<size_type I>(auto encoded) {
       widths[I] = static_cast<std::uint8_t>(required_bits_encoded<I>(encoded));
