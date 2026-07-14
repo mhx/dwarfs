@@ -1150,22 +1150,19 @@ class basic_packed_int_vector {
 
     if constexpr (auto_bit_width && has_needed_widths) {
       auto const new_widths = widened_widths(needed_widths(), old_widths);
+      bool const must_grow = reserve_size > layout_.usable_capacity(new_widths);
 
-      if (new_widths != old_widths) {
+      if (must_grow || new_widths != old_widths) {
         auto target_blocks = layout_.capacity_blocks();
 
-        if (reserve_size > layout_.usable_capacity(new_widths)) {
+        if (must_grow) {
           target_blocks = select_heap_capacity_blocks(
               target_blocks, exact_capacity_blocks(reserve_size, new_widths));
         }
 
         rebuild_storage(new_widths, cur_size, reserve_size, target_blocks);
-
-        return;
       }
-    }
-
-    if (reserve_size > layout_.usable_capacity(old_widths)) {
+    } else if (reserve_size > layout_.usable_capacity(old_widths)) {
       rebuild_storage(old_widths, cur_size, reserve_size,
                       select_heap_capacity_blocks(
                           layout_.capacity_blocks(),
