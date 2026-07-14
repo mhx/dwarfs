@@ -50,65 +50,10 @@ concept field_packable = requires(
   { packed_value_traits<T>::decode(e) } -> std::same_as<T>;
 };
 
-template <typename T>
-struct packed_field_descriptor;
-
-// Scalar case: one logical value is one packed field.
-template <field_packable T>
-struct packed_field_descriptor<T> {
-  using value_type = T;
-  using tuple_type = std::tuple<T>;
-  using size_type = std::size_t;
-
-  static constexpr size_type field_count = 1;
-
-  using widths_type = std::array<std::uint8_t, field_count>;
-
-  template <size_type I>
-  using field_value_type = std::tuple_element_t<I, tuple_type>;
-
-  template <size_type I>
-  using field_traits_type = packed_value_traits<field_value_type<I>>;
-
-  template <size_type I>
-  using field_encoded_type = typename field_traits_type<I>::encoded_type;
-
-  template <size_type I>
-  static constexpr auto encode_field(value_type const& value)
-      noexcept(noexcept(field_traits_type<I>::encode(value)))
-          -> field_encoded_type<I> {
-    static_assert(I == 0);
-    return field_traits_type<0>::encode(value);
-  }
-
-  template <size_type I>
-  static constexpr auto decode_field(field_encoded_type<I> encoded)
-      noexcept(noexcept(field_traits_type<I>::decode(encoded)))
-          -> field_value_type<I> {
-    static_assert(I == 0);
-    return field_traits_type<0>::decode(encoded);
-  }
-
-  template <typename Writer>
-  static constexpr void encode_with(value_type const& value, Writer&& write)
-      noexcept(noexcept(std::forward<Writer>(write).template operator()<0>(
-          encode_field<0>(value)))) {
-    std::forward<Writer>(write).template operator()<0>(encode_field<0>(value));
-  }
-
-  template <typename Reader>
-  static constexpr auto decode_with(Reader&& read) noexcept(noexcept(
-      decode_field<0>(std::forward<Reader>(read).template operator()<0>())))
-      -> value_type {
-    return decode_field<0>(std::forward<Reader>(read).template operator()<0>());
-  }
-};
-
-// Tuple case: one logical value is N independently packed fields.
-template <field_packable... Ts>
-struct packed_field_descriptor<std::tuple<Ts...>> {
-  using value_type = std::tuple<Ts...>;
-  using tuple_type = value_type;
+template <typename Value, field_packable... Ts>
+struct packed_field_descriptor_base {
+  using value_type = Value;
+  using tuple_type = std::tuple<Ts...>;
   using size_type = std::size_t;
 
   static constexpr size_type field_count = sizeof...(Ts);
@@ -126,8 +71,21 @@ struct packed_field_descriptor<std::tuple<Ts...>> {
 
   template <size_type I>
   static constexpr auto encode_field(value_type const& value)
+      noexcept(noexcept(field_traits_type<I>::encode(value)))
+          -> field_encoded_type<I>
+    requires(field_count == 1)
+  {
+    static_assert(I == 0);
+    return field_traits_type<0>::encode(value);
+  }
+
+  template <size_type I>
+  static constexpr auto encode_field(value_type const& value)
       noexcept(noexcept(field_traits_type<I>::encode(std::get<I>(value))))
-          -> field_encoded_type<I> {
+          -> field_encoded_type<I>
+    requires(field_count > 1)
+  {
+    static_assert(I < field_count);
     return field_traits_type<I>::encode(std::get<I>(value));
   }
 
@@ -177,5 +135,17 @@ struct packed_field_descriptor<std::tuple<Ts...>> {
     }(std::make_index_sequence<field_count>{});
   }
 };
+
+template <typename T>
+struct packed_field_descriptor;
+
+// Scalar case: one logical value is one packed field.
+template <field_packable T>
+struct packed_field_descriptor<T> final : packed_field_descriptor_base<T, T> {};
+
+// Tuple case: one logical value is N independently packed fields.
+template <field_packable... Ts>
+struct packed_field_descriptor<std::tuple<Ts...>> final
+    : packed_field_descriptor_base<std::tuple<Ts...>, Ts...> {};
 
 } // namespace dwarfs::container::detail
