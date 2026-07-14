@@ -775,33 +775,19 @@ class basic_packed_int_vector {
     return lhs;
   }
 
-  template <typename F, size_type... I>
-  static constexpr void for_each_field_impl(F&& f, std::index_sequence<I...>) {
-    auto&& func = std::forward<F>(f);
-    (func.template operator()<I>(), ...);
-  }
-
   template <typename F>
   static constexpr void for_each_field(F&& f) {
-    for_each_field_impl(std::forward<F>(f),
-                        std::make_index_sequence<field_count>{});
-  }
-
-  template <typename DstLayout, typename SrcLayout, size_type... I>
-  static void
-  copy_encoded_fields_impl(DstLayout& dst, size_type dst_index,
-                           SrcLayout const& src, size_type src_index,
-                           std::index_sequence<I...>) {
-    (dst.template write_field<I>(dst_index,
-                                 src.template read_field<I>(src_index)),
-     ...);
+    [&]<size_type... I>(std::index_sequence<I...>) {
+      (f.template operator()<I>(), ...);
+    }(std::make_index_sequence<field_count>{});
   }
 
   template <typename DstLayout, typename SrcLayout>
-  static void copy_encoded_fields(DstLayout& dst, size_type dst_index,
-                                  SrcLayout const& src, size_type src_index) {
-    copy_encoded_fields_impl(dst, dst_index, src, src_index,
-                             std::make_index_sequence<field_count>{});
+  static void copy_encoded_fields(DstLayout& dst, size_type di,
+                                  SrcLayout const& src, size_type si) {
+    for_each_field([&]<size_type I>() {
+      dst.template write_field<I>(di, src.template read_field<I>(si));
+    });
   }
 
   template <size_type I>

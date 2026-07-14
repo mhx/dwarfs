@@ -91,11 +91,17 @@ class basic_width_ops {
 
   [[nodiscard]] static consteval auto
   max_storable_width() noexcept -> size_type {
-    return max_storable_width_impl(std::make_index_sequence<field_count>{});
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+      size_type result = 0;
+      ((result = std::max(result, max_field_bits<I>())), ...);
+      return result;
+    }(std::make_index_sequence<field_count>{});
   }
 
   [[nodiscard]] static consteval auto max_widths() noexcept -> widths_type {
-    return max_widths_impl(std::make_index_sequence<field_count>{});
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+      return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
+    }(std::make_index_sequence<field_count>{});
   }
 
   [[nodiscard]] static constexpr auto
@@ -124,20 +130,6 @@ class basic_width_ops {
     using encoded_type_i = field_encoded_type<I>;
     using unsigned_encoded_type_i = std::make_unsigned_t<encoded_type_i>;
     return std::numeric_limits<unsigned_encoded_type_i>::digits;
-  }
-
-  template <size_type... I>
-  [[nodiscard]] static consteval auto
-  max_storable_width_impl(std::index_sequence<I...>) noexcept -> size_type {
-    size_type result = 0;
-    ((result = std::max(result, max_field_bits<I>())), ...);
-    return result;
-  }
-
-  template <size_type... I>
-  [[nodiscard]] static consteval auto
-  max_widths_impl(std::index_sequence<I...>) noexcept -> widths_type {
-    return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
   }
 };
 
