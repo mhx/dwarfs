@@ -426,13 +426,8 @@ class basic_packed_int_vector {
     auto const old_size = size();
 
     if (new_size > old_size) {
-      auto const old_widths = widths();
-
-      if constexpr (auto_bit_width) {
-        ensure_widths(required_widths(value), new_size, old_size, old_widths);
-      } else {
-        ensure_capacity_for(new_size, old_widths, old_size);
-      }
+      ensure_storage_for(new_size, old_size,
+                         [&] { return required_widths(value); });
 
       field_descriptor::encode_with(value, [&]<size_type I>(auto encoded) {
         layout_.template fill_field<I>(old_size, new_size, encoded);
@@ -444,7 +439,7 @@ class basic_packed_int_vector {
 
   void reserve(size_type sz) {
     check_size_limit(sz);
-    ensure_capacity_for(sz, widths(), size());
+    ensure_storage_for(sz, size(), [] {});
   }
 
   void shrink_to_fit() { repack_exact(widths(), size()); }
@@ -552,13 +547,9 @@ class basic_packed_int_vector {
     }
 
     auto const new_size = old_size + 1;
-    auto const old_widths = widths();
 
-    if constexpr (auto_bit_width) {
-      ensure_widths(required_widths(value), new_size, old_size, old_widths);
-    } else {
-      ensure_capacity_for(new_size, old_widths, old_size);
-    }
+    ensure_storage_for(new_size, old_size,
+                       [&] { return required_widths(value); });
 
     write_value(old_size, value);
     layout_.set_size(new_size);
@@ -635,13 +626,9 @@ class basic_packed_int_vector {
     auto const index = pos.get_index();
     assert(pos.belongs_to(*this));
 
-    auto req_widths = widths();
-    if constexpr (auto_bit_width) {
-      req_widths = required_widths(value);
-    }
-
-    return insert_known_n(index, count, req_widths,
-                          [value]() { return value; });
+    return insert_known_n(
+        index, count, [&] { return required_widths(value); },
+        [value]() { return value; });
   }
 
   iterator insert(const_iterator pos, value_type value) {
@@ -667,8 +654,9 @@ class basic_packed_int_vector {
         count = std::distance(first, last);
       }
 
-      return insert_known_n(index, count, req_widths,
-                            [first]() mutable { return *first++; });
+      return insert_known_n(
+          index, count, [&] { return req_widths; },
+          [first]() mutable { return *first++; });
     } else {
       return insert_single_pass(index, first, last);
     }
@@ -868,7 +856,7 @@ class basic_packed_int_vector {
       auto const old_widths = widths();
       auto const new_widths = widened_widths(required, old_widths);
       if (new_widths != old_widths) {
-        ensure_widths(new_widths, cur_size, cur_size, old_widths);
+        ensure_storage_for(cur_size, cur_size, [&] { return new_widths; });
       }
     }
   }
@@ -897,9 +885,9 @@ class basic_packed_int_vector {
     write_value(i, value);
   }
 
-  template <typename Producer>
+  template <typename NeededWidthsFn, typename Producer>
   iterator insert_known_n(size_type index, size_type count,
-                          widths_type const& req_widths, Producer&& produce) {
+                          NeededWidthsFn&& needed_widths, Producer&& produce) {
     auto const old_size = size();
     assert(index <= old_size);
 
@@ -912,13 +900,9 @@ class basic_packed_int_vector {
     }
 
     auto const new_size = old_size + count;
-    auto const old_widths = widths();
 
-    if constexpr (auto_bit_width) {
-      ensure_widths(req_widths, new_size, old_size, old_widths);
-    } else {
-      ensure_capacity_for(new_size, old_widths, old_size);
-    }
+    ensure_storage_for(new_size, old_size,
+                       std::forward<NeededWidthsFn>(needed_widths));
 
     for (size_type i = old_size; i > index; --i) {
       copy_encoded_fields(layout_, i + count - 1, layout_, i - 1);
@@ -1153,41 +1137,40 @@ class basic_packed_int_vector {
     layout_.set_heap_state(data, widths);
   }
 
-  void ensure_capacity_for(size_type new_size, widths_type const& new_widths,
-                           size_type old_size) {
-    if (new_size <= layout_.usable_capacity(new_widths)) {
-      return;
+  template <typename NeededWidthsFn>
+  void ensure_storage_for(size_type reserve_size, size_type cur_size,
+                          NeededWidthsFn&& needed_widths) {
+    using needed_result = std::invoke_result_t<NeededWidthsFn>;
+    constexpr bool has_needed_widths =
+        std::is_same_v<std::decay_t<needed_result>, widths_type>;
+    static_assert(has_needed_widths || std::is_void_v<needed_result>,
+                  "needed_widths generator must return widths_type or void");
+
+    auto const old_widths = widths();
+
+    if constexpr (auto_bit_width && has_needed_widths) {
+      auto const new_widths = widened_widths(needed_widths(), old_widths);
+
+      if (new_widths != old_widths) {
+        auto target_blocks = layout_.capacity_blocks();
+
+        if (reserve_size > layout_.usable_capacity(new_widths)) {
+          target_blocks = select_heap_capacity_blocks(
+              target_blocks, exact_capacity_blocks(reserve_size, new_widths));
+        }
+
+        rebuild_storage(new_widths, cur_size, reserve_size, target_blocks);
+
+        return;
+      }
     }
 
-    auto const min_blocks = exact_capacity_blocks(new_size, new_widths);
-    auto const new_blocks =
-        select_heap_capacity_blocks(layout_.capacity_blocks(), min_blocks);
-
-    rebuild_storage(new_widths, old_size, new_size, new_blocks);
-  }
-
-  void ensure_widths(widths_type const& needed_widths, size_type reserve_size,
-                     size_type cur_size, widths_type const& old_widths)
-    requires auto_bit_width
-  {
-    auto const new_widths = widened_widths(needed_widths, old_widths);
-
-    if (new_widths == old_widths) {
-      ensure_capacity_for(reserve_size, new_widths, cur_size);
-      return;
+    if (reserve_size > layout_.usable_capacity(old_widths)) {
+      rebuild_storage(old_widths, cur_size, reserve_size,
+                      select_heap_capacity_blocks(
+                          layout_.capacity_blocks(),
+                          exact_capacity_blocks(reserve_size, old_widths)));
     }
-
-    if (reserve_size <= layout_.usable_capacity(new_widths)) {
-      rebuild_storage(new_widths, cur_size, reserve_size,
-                      layout_.capacity_blocks());
-      return;
-    }
-
-    auto const min_blocks = exact_capacity_blocks(reserve_size, new_widths);
-    auto const new_blocks =
-        select_heap_capacity_blocks(layout_.capacity_blocks(), min_blocks);
-
-    rebuild_storage(new_widths, cur_size, reserve_size, new_blocks);
   }
 
   [[nodiscard]] auto
