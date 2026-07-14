@@ -71,6 +71,17 @@ struct PackedIntegerLayout : public LayoutBase {
        << dwarfs::thrift_lite::demangle(type.name());
   }
 
+  void validate(LoadRoot& root) const override {
+    Base::validate(root);
+    if (empty()) {
+      return;
+    }
+    if (bits == 0 || bits > sizeof(T) * 8 ||
+        (size != 0 && size != (bits + 7) / 8)) {
+      throw schema::SchemaValidationException("invalid packed integer layout");
+    }
+  }
+
   using View = T;
 
   View view(ViewPosition self) const {

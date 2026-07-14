@@ -51,6 +51,13 @@ struct TrivialLayout : public LayoutBase {
     os << "blitted " << dwarfs::thrift_lite::demangle(type.name());
   }
 
+  void validate(LoadRoot& root) const override {
+    Base::validate(root);
+    if (!empty() && (size != sizeof(T) || bits != 0)) {
+      throw schema::SchemaValidationException("invalid trivial layout");
+    }
+  }
+
   using View = T;
   View view(ViewPosition self) const {
     View v;

@@ -146,7 +146,7 @@ struct ArrayLayout : public LayoutBase {
                          FROZEN_SAVE_FIELD(item))
 
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(distance, 1) FROZEN_LOAD_FIELD(count, 2)
-                         FROZEN_LOAD_FIELD(item, 3))
+                         FROZEN_LOAD_FIELD_OUT_OF_LINE(item, 3))
 
   /**
    * A view of a range, which produces views of items upon indexing or iterator
