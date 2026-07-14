@@ -262,13 +262,15 @@ class basic_chunked_append_only_vector {
   }
 
   [[nodiscard]] T* ptr_at(size_type chunk_index, size_type offset) noexcept {
-    auto* raw = &chunks_[chunk_index]->storage[offset];
+    void* raw = &chunks_[chunk_index]->storage[offset];
+    assert(reinterpret_cast<std::uintptr_t>(raw) % alignof(T) == 0);
     return std::launder(reinterpret_cast<T*>(raw));
   }
 
   [[nodiscard]] T const*
   ptr_at(size_type chunk_index, size_type offset) const noexcept {
-    auto const* raw = &chunks_[chunk_index]->storage[offset];
+    void const* raw = &chunks_[chunk_index]->storage[offset];
+    assert(reinterpret_cast<std::uintptr_t>(raw) % alignof(T) == 0);
     return std::launder(reinterpret_cast<T const*>(raw));
   }
 

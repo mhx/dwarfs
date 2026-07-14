@@ -70,7 +70,8 @@ struct StringLayout : public LayoutBase {
     root.appendBytes(self.start, n * sizeof(Item), range, dist, alignof(Item));
     root.freezeField(self, distanceField, dist);
     root.freezeField(self, countField, n);
-    std::span<Item> target(reinterpret_cast<Item*>(range.data()), n);
+    std::span<Item> target(
+        reinterpret_cast<Item*>(static_cast<void*>(range.data())), n);
     Helper::copyTo(o, target);
   }
 
@@ -89,7 +90,7 @@ struct StringLayout : public LayoutBase {
     thawField(self, countField, n);
     if (n) {
       thawField(self, distanceField, dist);
-      const byte* read = self.start + dist;
+      const void* read = self.start + dist;
       range = {reinterpret_cast<const Item*>(read), n};
     }
     return range;

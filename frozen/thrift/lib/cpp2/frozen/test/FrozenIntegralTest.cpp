@@ -75,6 +75,7 @@ TEST(FrozenIntegral, UIntPacking) {
     for (size_t bits = width; bits <= 64 - start; bits += 5) {
       DWARFS_PUSH_WARNING
       DWARFS_GCC_DISABLE_WARNING("-Warray-bounds")
+      DWARFS_GCC_DISABLE_WARNING("-Wstringop-overread")
       apache::thrift::frozen::Layout<uint64_t> l;
       l.bits = bits;
       // allocate on the heap so ASAN will catch out of bounds accesses
