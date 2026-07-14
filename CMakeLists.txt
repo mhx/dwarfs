@@ -882,6 +882,7 @@ if(WITH_TESTS)
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt}
+      DISCOVERY_MODE PRE_TEST
       DISCOVERY_TIMEOUT 120
       PROPERTIES ${GTEST_COMMON_PROPERTIES}
     )
@@ -890,12 +891,14 @@ if(WITH_TESTS)
   foreach(tgt dwarfs_categorizer_tests tools_test)
     if(TARGET ${tgt})
       gtest_discover_tests(${tgt}
+        DISCOVERY_MODE PRE_TEST
         DISCOVERY_TIMEOUT 120
         TEST_SUFFIX ".iolayer-read"
         PROPERTIES ${GTEST_COMMON_PROPERTIES}
                    ENVIRONMENT "DWARFS_IOLAYER_OPTS=open_mode=read"
       )
       gtest_discover_tests(${tgt}
+        DISCOVERY_MODE PRE_TEST
         DISCOVERY_TIMEOUT 120
         TEST_SUFFIX ".iolayer-map-size"
         PROPERTIES ${GTEST_COMMON_PROPERTIES}
