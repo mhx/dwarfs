@@ -544,82 +544,11 @@ Layout<T> maximumLayout() {
   return layout;
 }
 
-class FieldCycleHolder {
- public:
-  template <class T, class D>
-  Field<T>* pushCycle(
-      std::unique_ptr<Field<T>, D>& owned, int16_t key, const char* name) {
-    auto& slot = cyclicFields_[typeid(T)];
-    if (slot.refCount++ == 0) {
-      if (!owned) {
-        owned = std::make_unique<Field<T>>(key, name);
-      }
-      slot.field = owned.get();
-    }
-    TL_CHECK(slot.field, "internal error");
-    return static_cast<Field<T>*>(slot.field);
-  }
-
-  template <class T, class D>
-  void popCycle(std::unique_ptr<Field<T>, D>& owned) {
-    auto& slot = cyclicFields_[typeid(T)];
-    if (--slot.refCount == 0) {
-      TL_CHECK(owned != nullptr, "internal error");
-      TL_CHECK(owned.get() == slot.field, "internal error");
-      slot.field = nullptr;
-    } else {
-      TL_CHECK(owned == nullptr, "internal error");
-    }
-  }
-
-  template <class T>
-  Field<T>* pushCycle(
-      std::shared_ptr<Field<T>>& owned, int16_t key, const char* name) {
-    auto& slot = cyclicFields_[typeid(T)];
-    if (slot.refCount++ == 0) {
-      if (!owned) {
-        owned = std::make_shared<Field<T>>(key, name);
-      }
-      slot.field = owned.get();
-    }
-    TL_CHECK(slot.field, "internal error");
-    return static_cast<Field<T>*>(slot.field);
-  }
-
-  template <class T>
-  void popCycle(std::shared_ptr<Field<T>>& owned) {
-    auto& slot = cyclicFields_[typeid(T)];
-    if (--slot.refCount == 0) {
-      TL_CHECK(owned != nullptr, "internal error");
-      TL_CHECK(owned.get() == slot.field, "internal error");
-      slot.field = nullptr;
-    } else {
-      TL_CHECK(owned == nullptr, "internal error");
-    }
-  }
-
-  template <class T>
-  void updateCycle(std::shared_ptr<Field<T>>& owned) {
-    TL_CHECK(owned != nullptr, "internal error");
-    auto& slot = cyclicFields_[typeid(T)];
-    // only the first one can update, otherwise we have no way to inform others
-    TL_CHECK(slot.refCount == 1, "internal error");
-    slot.field = owned.get();
-  }
-
- private:
-  struct SharedField {
-    FieldBase* field = nullptr;
-    size_t refCount = 0;
-  };
-  std::unordered_map<std::type_index, SharedField> cyclicFields_;
-};
-
 /**
  * LayoutRoot calculates the layout necessary to store a given object,
  * recursively. The logic of layout should closely match that of freezing.
  */
-class LayoutRoot : public FieldCycleHolder {
+class LayoutRoot {
   LayoutRoot() = default;
   /**
    * Lays out a given object from the root, repeatedly running layout until a
@@ -635,9 +564,6 @@ class LayoutRoot : public FieldCycleHolder {
       if (!resized_) {
         return cursor_ + kPaddingBytes;
       }
-      // clear the trackers to restart graph traversal
-      sharedFields_.clear();
-      positions_.clear();
     }
     assert(false); // layout should always reach a fixed point.
     return 0;
@@ -748,41 +674,9 @@ class LayoutRoot : public FieldCycleHolder {
     return worstCaseDistance;
   }
 
-  template <typename T>
-  void shareField(const T* ptr, std::shared_ptr<Field<T>> field) {
-    assert(sharedFieldOf(ptr) == nullptr);
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    sharedFields_[key] = field;
-  }
-
-  template <typename T>
-  std::shared_ptr<Field<T>> sharedFieldOf(const T* ptr) const {
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    auto it = sharedFields_.find(key);
-    return it != sharedFields_.end()
-        ? std::dynamic_pointer_cast<Field<T>>(it->second)
-        : nullptr;
-  }
-
-  template <typename T>
-  void registerLayoutPosition(const T* ptr, LayoutPosition pos) {
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    assert(!positions_.contains(key));
-    positions_[key] = pos;
-  }
-
-  template <typename T>
-  const LayoutPosition* layoutPositionOf(const T* ptr) const {
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    auto it = positions_.find(key);
-    return it == positions_.end() ? nullptr : &it->second;
-  }
-
  private:
   bool resized_;
   size_t cursor_;
-  std::unordered_map<uintptr_t, std::shared_ptr<FieldBase>> sharedFields_;
-  std::unordered_map<uintptr_t, LayoutPosition> positions_;
 };
 
 /**
@@ -814,8 +708,6 @@ class LayoutTypeMismatchException : public std::logic_error {
  * management is defined by a child class of FreezeRoot.
  */
 class FreezeRoot {
-  std::unordered_map<uintptr_t, FreezePosition> positions_;
-
  protected:
   template <class T>
   Layout<T>::View doFreeze(const Layout<T>& layout, const T& root) {
@@ -848,24 +740,6 @@ class FreezeRoot {
       const Field<std::optional<T>, Layout>& field,
       ::dwarfs::thrift_lite::optional_field_ref<const T&, BitRef> ref) {
     freezeField(self, field, ref ? std::make_optional(*ref) : std::nullopt);
-  }
-
-  /**
-   * Helpers to freeze reference nodes. Note the difference between unique_ptr
-   * and shared_ptr, see the comments of shouldLayout() in LayoutRoot class
-   */
-  template <typename T>
-  const FreezePosition* freezePositionOf(const T* ptr) const {
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    auto it = positions_.find(key);
-    return it == positions_.end() ? nullptr : &it->second;
-  }
-
-  template <typename T>
-  void registerFreezePosition(const T* ptr, FreezePosition pos) {
-    auto key = reinterpret_cast<uintptr_t>(ptr);
-    assert(!positions_.contains(key));
-    positions_[key] = pos;
   }
 
   /**
@@ -922,9 +796,12 @@ class ByteRangeFreezer final : public FreezeRoot {
 };
 
 /**
- * The root that manage the referred fields at load time
+ * Context object threaded through Layout::load() calls when deserializing
+ * a layout tree from a schema. Currently empty; kept because it is part of
+ * the load() signatures in generated code, and it is the natural place for
+ * load-time schema validation state.
  */
-class LoadRoot : public FieldCycleHolder {
+class LoadRoot {
  public:
   LoadRoot() = default;
 };
@@ -1051,17 +928,6 @@ void thawField(
   } else {
     f.layout.thaw(self(f.pos), ref.ensure());
   }
-}
-
-/**
- * Helper for thawing a ref field into an shared_ptr field
- */
-template <class T>
-void thawField(
-    ViewPosition self,
-    const Field<std::shared_ptr<T>>& f,
-    std::shared_ptr<T>& out) {
-  f.layout.thaw(self(f.pos), out);
 }
 
 /**
