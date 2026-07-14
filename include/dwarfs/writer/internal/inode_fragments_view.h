@@ -54,11 +54,11 @@ class inode_fragments_view {
   }
 
   [[nodiscard]] auto begin() const noexcept -> const_iterator {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] auto end() const noexcept -> const_iterator {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
   [[nodiscard]] fragment_category get_single_category() const;
@@ -67,9 +67,6 @@ class inode_fragments_view {
   get_category_sizes() const;
 
  private:
-  friend class dwarfs::container::detail::index_based_const_iterator<
-      inode_fragments_view>;
-
   entry_storage* storage_{nullptr};
   inode_id id_;
 };

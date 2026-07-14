@@ -96,24 +96,28 @@ class segmented_packed_int_vector {
   segmented_packed_int_vector&
   operator=(segmented_packed_int_vector&&) noexcept = default;
 
-  [[nodiscard]] iterator begin() noexcept { return iterator{this, 0}; }
+  [[nodiscard]] iterator begin() noexcept {
+    return iterator::from_index(*this, 0);
+  }
 
-  [[nodiscard]] iterator end() noexcept { return iterator{this, size()}; }
+  [[nodiscard]] iterator end() noexcept {
+    return iterator::from_index(*this, size());
+  }
 
   [[nodiscard]] const_iterator begin() const noexcept {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] const_iterator end() const noexcept {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
   [[nodiscard]] const_iterator cbegin() const noexcept {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] const_iterator cend() const noexcept {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
   [[nodiscard]] auto rbegin() noexcept {

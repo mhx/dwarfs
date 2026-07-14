@@ -54,17 +54,14 @@ class const_chunk_list {
   }
 
   [[nodiscard]] auto begin() const noexcept -> const_iterator {
-    return const_iterator{this, 0};
+    return const_iterator::from_index(*this, 0);
   }
 
   [[nodiscard]] auto end() const noexcept -> const_iterator {
-    return const_iterator{this, size()};
+    return const_iterator::from_index(*this, size());
   }
 
  private:
-  friend class dwarfs::container::detail::index_based_const_iterator<
-      const_chunk_list>;
-
   packed_chunk_vector const& chunks_;
 };
 
