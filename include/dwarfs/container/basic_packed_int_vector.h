@@ -155,6 +155,7 @@ class basic_packed_int_vector {
   using init_mode = typename storage_type::initialization;
   using layout_type =
       detail::packed_vector_layout<policy_type, value_type, underlying_type>;
+  using width_ops = detail::basic_width_ops<field_descriptor>;
 
   template <packed_vector_bit_width_strategy OtherStrategy,
             typename OtherPolicy, typename OtherGrowthPolicy>
@@ -190,7 +191,7 @@ class basic_packed_int_vector {
   }
 
   static constexpr auto max_widths() noexcept -> widths_type {
-    return max_widths_impl(std::make_index_sequence<field_count>{});
+    return width_ops::max_widths();
   }
 
   static constexpr auto
@@ -388,7 +389,7 @@ class basic_packed_int_vector {
 
   [[nodiscard]] auto required_widths() const -> widths_type {
     auto const cur_size = size();
-    auto result = zero_widths();
+    auto result = width_ops::zero_widths();
 
     for (size_type i = 0; i < cur_size; ++i) {
       for_each_field([&]<size_type I>() {
@@ -407,7 +408,8 @@ class basic_packed_int_vector {
     return required_widths()[0];
   }
 
-  void reset(widths_type const& widths = zero_widths(), size_type sz = 0) {
+  void reset(widths_type const& widths = width_ops::zero_widths(),
+             size_type sz = 0) {
     check_size_limit(sz);
     destroy_heap_storage();
     initialize(checked_widths(widths), sz);
@@ -485,7 +487,7 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] auto bits() const noexcept -> size_type {
-    return total_bits(widths());
+    return width_ops::total_bits_for(widths());
   }
 
   void clear() noexcept { layout_.set_size(0); }
@@ -751,25 +753,6 @@ class basic_packed_int_vector {
     return true;
   }
 
-  template <size_type I>
-  static constexpr auto max_field_bits() noexcept -> size_type {
-    using encoded_type_i = field_encoded_type<I>;
-    using unsigned_encoded_type_i = std::make_unsigned_t<encoded_type_i>;
-    return std::numeric_limits<unsigned_encoded_type_i>::digits;
-  }
-
-  template <size_type... I>
-  static constexpr auto
-  max_widths_impl(std::index_sequence<I...>) noexcept -> widths_type {
-    return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
-  }
-
-  [[nodiscard]] static constexpr auto zero_widths() noexcept -> widths_type {
-    widths_type widths{};
-    widths.fill(0);
-    return widths;
-  }
-
   [[nodiscard]] static constexpr auto
   make_widths(size_type bits) noexcept -> widths_type
     requires(field_count == 1)
@@ -777,22 +760,9 @@ class basic_packed_int_vector {
     return widths_type{static_cast<std::uint8_t>(bits)};
   }
 
-  [[nodiscard]] static constexpr auto
-  total_bits(widths_type const& widths) noexcept -> size_type {
-    size_type total = 0;
-    for (auto const bits : widths) {
-      total += bits;
-    }
-    return total;
-  }
-
   [[nodiscard]] static auto checked_widths(widths_type widths) -> widths_type {
-    auto const max = max_widths();
-    for (size_type i = 0; i < field_count; ++i) {
-      if (widths[i] > max[i]) {
-        throw std::invalid_argument(
-            "basic_packed_int_vector: invalid bit width");
-      }
+    if (!width_ops::widths_fit(widths)) {
+      throw std::invalid_argument("basic_packed_int_vector: invalid bit width");
     }
     return widths;
   }
@@ -862,7 +832,7 @@ class basic_packed_int_vector {
   template <std::ranges::forward_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
   static auto required_widths_for(R&& r) -> widths_type {
-    auto widths = zero_widths();
+    auto widths = width_ops::zero_widths();
     auto const max = max_widths();
 
     for (auto&& v : std::forward<R>(r)) {
@@ -901,7 +871,7 @@ class basic_packed_int_vector {
   [[nodiscard]] static auto required_widths_for_field_value(
       typename field_descriptor::template field_value_type<I> const& value)
       -> widths_type {
-    auto req = zero_widths();
+    auto req = width_ops::zero_widths();
     auto const encoded = field_traits_type<I>::encode(value);
     req[I] = static_cast<std::uint8_t>(required_bits_encoded<I>(encoded));
     return req;
@@ -1056,7 +1026,7 @@ class basic_packed_int_vector {
       }
     }
 
-    if (!copy_heap_blocks && total_bits(src_widths) > 0) {
+    if (!copy_heap_blocks && width_ops::total_bits_for(src_widths) > 0) {
       for (size_type i = 0; i < src_size; ++i) {
         copy_encoded_fields(new_layout, i, other.layout_, i);
       }
@@ -1106,7 +1076,7 @@ class basic_packed_int_vector {
   [[nodiscard]] static constexpr auto
   min_data_size(size_type sz, widths_type const& widths)
       noexcept(!CheckOverflow) -> size_type {
-    auto const stride_bits = total_bits(widths);
+    auto const stride_bits = width_ops::total_bits_for(widths);
 
     if (stride_bits == 0) {
       return 0;
@@ -1269,8 +1239,8 @@ class basic_packed_int_vector {
                   size_type reserved_size, size_type target_capacity_blocks) {
     auto const copy_size = std::min(size(), logical_size);
     auto const old_widths = widths();
-    auto const old_total_bits = total_bits(old_widths);
-    auto const new_total_bits = total_bits(new_widths);
+    auto const old_total_bits = width_ops::total_bits_for(old_widths);
+    auto const new_total_bits = width_ops::total_bits_for(new_widths);
 
     auto const must_materialize_zero_prefix =
         copy_size > 0 && old_total_bits == 0 && new_total_bits > 0;

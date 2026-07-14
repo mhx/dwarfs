@@ -71,62 +71,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
       typename field_descriptor::template field_encoded_type<I>;
 
  private:
-  template <size_type I>
-  static consteval auto max_field_bits() noexcept -> size_type {
-    using encoded_type_i = field_encoded_type<I>;
-    using unsigned_encoded_type_i = std::make_unsigned_t<encoded_type_i>;
-    return std::numeric_limits<unsigned_encoded_type_i>::digits;
-  }
-
-  template <size_type... I>
-  static consteval auto
-  max_widths_impl(std::index_sequence<I...>) noexcept -> widths_type {
-    return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
-  }
-
-  template <size_type... I>
-  static consteval auto
-  max_storable_width_impl(std::index_sequence<I...>) noexcept -> size_type {
-    size_type result = 0;
-    ((result = std::max(result, max_field_bits<I>())), ...);
-    return result;
-  }
-
-  [[nodiscard]] static consteval auto
-  max_widths_value() noexcept -> widths_type {
-    return max_widths_impl(std::make_index_sequence<field_count>{});
-  }
-
-  [[nodiscard]] static consteval auto
-  max_storable_width() noexcept -> size_type {
-    return max_storable_width_impl(std::make_index_sequence<field_count>{});
-  }
-
-  [[nodiscard]] static constexpr auto zero_widths() noexcept -> widths_type {
-    widths_type widths{};
-    widths.fill(0);
-    return widths;
-  }
-
-  [[nodiscard]] static constexpr auto
-  total_bits_for(widths_type const& widths) noexcept -> size_type {
-    size_type total = 0;
-    for (auto const bits : widths) {
-      total += bits;
-    }
-    return total;
-  }
-
-  [[nodiscard]] static constexpr auto
-  widths_fit(widths_type const& widths) noexcept -> bool {
-    auto const max = max_widths_value();
-    for (size_type i = 0; i < field_count; ++i) {
-      if (widths[i] > max[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
+  using width_ops = basic_width_ops<field_descriptor>;
 
   [[nodiscard]] static constexpr auto
   width_field_offset(size_type i) noexcept -> size_type {
@@ -173,7 +118,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   }
 
   [[nodiscard]] auto total_bits() const noexcept -> size_type {
-    return total_bits_for(read_widths());
+    return width_ops::total_bits_for(read_widths());
   }
 
   template <size_type I>
@@ -208,7 +153,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   static constexpr size_type pointer_bits = pointer_bytes * 8;
 
   static constexpr size_type width_field_bits =
-      bit_width_for_max(max_storable_width());
+      bit_width_for_max(width_ops::max_storable_width());
 
   static constexpr size_type widths_bits = field_count * width_field_bits;
 
@@ -307,11 +252,11 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
 
   [[nodiscard]] static constexpr auto
   can_store_inline(widths_type const& widths, size_type size) noexcept -> bool {
-    if (!widths_fit(widths) || size > max_inline_size) {
+    if (!width_ops::widths_fit(widths) || size > max_inline_size) {
       return false;
     }
 
-    auto const stride_bits = total_bits_for(widths);
+    auto const stride_bits = width_ops::total_bits_for(widths);
     if (stride_bits == 0) {
       return true;
     }
@@ -322,7 +267,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
   [[nodiscard]] static constexpr auto
   can_store_heap(widths_type const& widths, size_type, size_type) noexcept
       -> bool {
-    if (!widths_fit(widths)) {
+    if (!width_ops::widths_fit(widths)) {
       return false;
     }
 
@@ -336,11 +281,11 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
 
   [[nodiscard]] static constexpr auto
   inline_capacity_for_widths(widths_type const& widths) noexcept -> size_type {
-    if (!widths_fit(widths)) {
+    if (!width_ops::widths_fit(widths)) {
       return 0;
     }
 
-    auto const stride_bits = total_bits_for(widths);
+    auto const stride_bits = width_ops::total_bits_for(widths);
     if (stride_bits == 0) {
       return max_inline_size;
     }
@@ -356,7 +301,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
 
     assert(heap_data() != nullptr);
 
-    auto const stride_bits = total_bits_for(widths);
+    auto const stride_bits = width_ops::total_bits_for(widths);
     if (stride_bits == 0) {
       return max_heap_size;
     }
@@ -393,7 +338,7 @@ class packed_vector_layout_impl<Policy, Value, Underlying,
     set_heap_data(data);
   }
 
-  void reset_empty() noexcept { set_inline_state(zero_widths(), 0); }
+  void reset_empty() noexcept { set_inline_state(width_ops::zero_widths(), 0); }
 
   void swap(packed_vector_layout_impl& other) noexcept {
     using std::swap;

@@ -32,6 +32,7 @@
 #include <concepts>
 #include <cstddef>
 #include <limits>
+#include <type_traits>
 
 namespace dwarfs::container::detail {
 
@@ -70,5 +71,75 @@ saturating_mul(std::size_t a, std::size_t b) noexcept -> std::size_t {
   }
   return a * b;
 }
+
+template <typename FieldDescriptor>
+class basic_width_ops {
+ public:
+  using field_descriptor = FieldDescriptor;
+  using size_type = std::size_t;
+  template <size_type I>
+  using field_encoded_type =
+      typename field_descriptor::template field_encoded_type<I>;
+  using widths_type = typename field_descriptor::widths_type;
+
+  static constexpr size_type field_count = field_descriptor::field_count;
+
+  [[nodiscard]] static constexpr auto zero_widths() noexcept -> widths_type {
+    widths_type widths{};
+    widths.fill(0);
+    return widths;
+  }
+
+  [[nodiscard]] static consteval auto
+  max_storable_width() noexcept -> size_type {
+    return max_storable_width_impl(std::make_index_sequence<field_count>{});
+  }
+
+  [[nodiscard]] static consteval auto max_widths() noexcept -> widths_type {
+    return max_widths_impl(std::make_index_sequence<field_count>{});
+  }
+
+  [[nodiscard]] static constexpr auto
+  total_bits_for(widths_type const& widths) noexcept -> size_type {
+    size_type total = 0;
+    for (auto const bits : widths) {
+      total += bits;
+    }
+    return total;
+  }
+
+  [[nodiscard]] static constexpr auto
+  widths_fit(widths_type const& widths) noexcept -> bool {
+    auto const max = max_widths();
+    for (size_type i = 0; i < field_count; ++i) {
+      if (widths[i] > max[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+ private:
+  template <size_type I>
+  [[nodiscard]] static consteval auto max_field_bits() noexcept -> size_type {
+    using encoded_type_i = field_encoded_type<I>;
+    using unsigned_encoded_type_i = std::make_unsigned_t<encoded_type_i>;
+    return std::numeric_limits<unsigned_encoded_type_i>::digits;
+  }
+
+  template <size_type... I>
+  [[nodiscard]] static consteval auto
+  max_storable_width_impl(std::index_sequence<I...>) noexcept -> size_type {
+    size_type result = 0;
+    ((result = std::max(result, max_field_bits<I>())), ...);
+    return result;
+  }
+
+  template <size_type... I>
+  [[nodiscard]] static consteval auto
+  max_widths_impl(std::index_sequence<I...>) noexcept -> widths_type {
+    return widths_type{static_cast<std::uint8_t>(max_field_bits<I>())...};
+  }
+};
 
 } // namespace dwarfs::container::detail
