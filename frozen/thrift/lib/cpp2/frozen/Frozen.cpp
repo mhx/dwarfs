@@ -10,6 +10,7 @@
 
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
+#include <functional>
 #include <utility>
 
 namespace apache::thrift::frozen {
@@ -62,6 +63,116 @@ void LayoutBase::clear() {
   size = 0;
   bits = 0;
   inlined = false;
+}
+
+void LayoutBase::validate(LoadRoot&) const {
+  const auto bitBytes = bits / 8 + static_cast<size_t>(bits % 8 != 0);
+  if (size > 0 && bitBytes > size) {
+    throw schema::SchemaValidationException(
+        "frozen layout bit region does not fit in its byte size");
+  }
+}
+
+void LoadRoot::registerField(
+    const LayoutBase& parent,
+    const FieldBase& field,
+    const LayoutBase& child,
+    int16_t encodedOffset,
+    FieldPlacement placement) {
+  if (placement == FieldPlacement::OutOfLine) {
+    return;
+  }
+
+  // Older schemas may retain fields whose layouts require no storage.
+  // They have no interval to register, but their position must still remain
+  // within the parent because field access forms a ViewPosition from it.
+  if (child.empty()) {
+    if (encodedOffset < 0) {
+      const auto bitOffset =
+          static_cast<size_t>(-static_cast<int32_t>(encodedOffset));
+      if (bitOffset > parent.bits) {
+        throw schema::SchemaValidationException(
+            "empty field '" + std::string(field.name) +
+            "' has a bit offset outside its parent layout");
+      }
+    } else if (static_cast<size_t>(encodedOffset) > parent.size) {
+      throw schema::SchemaValidationException(
+          "empty field '" + std::string(field.name) +
+          "' has a byte offset outside its parent layout");
+    }
+    return;
+  }
+
+  size_t begin;
+  size_t end;
+  if (child.size > 0) {
+    if (encodedOffset < 0) {
+      throw schema::SchemaValidationException(
+          "byte field '" + std::string(field.name) + "' has a bit offset");
+    }
+
+    const auto byteOffset = static_cast<size_t>(encodedOffset);
+    if (byteOffset > parent.size || child.size > parent.size - byteOffset) {
+      throw schema::SchemaValidationException(
+          "byte field '" + std::string(field.name) +
+          "' extends beyond its parent layout");
+    }
+
+    const auto bitBytes = (parent.bits + 7) / 8;
+    if (byteOffset < bitBytes) {
+      throw schema::SchemaValidationException(
+          "byte field '" + std::string(field.name) +
+          "' overlaps its parent's packed-bit region");
+    }
+
+    begin = byteOffset * 8;
+    end = begin + child.size * 8;
+  } else {
+    if (encodedOffset > 0) {
+      throw schema::SchemaValidationException(
+          "bit field '" + std::string(field.name) + "' has a byte offset");
+    }
+
+    const auto bitOffset = encodedOffset < 0
+        ? static_cast<size_t>(-static_cast<int32_t>(encodedOffset))
+        : size_t{0};
+    if (bitOffset > parent.bits || child.bits > parent.bits - bitOffset) {
+      throw schema::SchemaValidationException(
+          "bit field '" + std::string(field.name) +
+          "' extends beyond its parent layout");
+    }
+
+    begin = bitOffset;
+    end = begin + child.bits;
+  }
+
+  fields_.push_back({&parent, begin, end, field.name});
+}
+
+void LoadRoot::finish() {
+  std::ranges::sort(fields_, [](const auto& lhs, const auto& rhs) {
+    const auto less = std::less<const LayoutBase*>();
+    if (less(lhs.parent, rhs.parent)) {
+      return true;
+    }
+    if (less(rhs.parent, lhs.parent)) {
+      return false;
+    }
+    if (lhs.begin != rhs.begin) {
+      return lhs.begin < rhs.begin;
+    }
+    return lhs.end < rhs.end;
+  });
+
+  for (size_t i = 1; i < fields_.size(); ++i) {
+    const auto& previous = fields_[i - 1];
+    const auto& current = fields_[i];
+    if (previous.parent == current.parent && current.begin < previous.end) {
+      throw schema::SchemaValidationException(
+          "fields '" + std::string(previous.name) + "' and '" +
+          std::string(current.name) + "' overlap");
+    }
+  }
 }
 
 void ByteRangeFreezer::doAppendBytes(

@@ -12,6 +12,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 #include <boost/container_hash/hash.hpp>
@@ -50,6 +51,11 @@ THRIFT_DECLARE_HASH(apache::thrift::frozen::schema::MemorySchema)
 
 namespace apache::thrift::frozen::schema {
 
+class SchemaValidationException : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
 // Trivially copyable, hashed bytewise.
 class MemoryField {
  public:
@@ -86,15 +92,15 @@ class MemoryField {
 
  private:
   // Thrift field index
-  int16_t id;
+  int16_t id{0};
 
   // Index into MemorySchema::layouts
-  int16_t layoutId;
+  int16_t layoutId{0};
 
   // field offset:
   //  < 0: -(bit offset)
   //  >= 0: byte offset
-  int16_t offset;
+  int16_t offset{0};
 };
 
 static_assert(
@@ -129,8 +135,8 @@ class MemoryLayoutBase {
   int16_t getBits() const { return bits; }
 
  private:
-  int32_t size;
-  int16_t bits;
+  int32_t size{0};
+  int16_t bits{0};
 };
 
 class MemoryLayout : public MemoryLayoutBase {
@@ -182,11 +188,12 @@ class MemorySchema {
   }
 
   bool operator==(const MemorySchema& other) const {
-    return layouts == other.layouts;
+    return layouts == other.layouts && rootLayout == other.rootLayout;
   }
 
   void setRootLayoutId(int16_t rootId) {
-    assert(rootId < static_cast<int16_t>(layouts.size()));
+    assert(rootId >= 0);
+    assert(static_cast<size_t>(rootId) < layouts.size());
     rootLayout = rootId;
   }
 
@@ -214,9 +221,15 @@ class MemorySchema {
 
   void initFromSchema(Schema&& schema);
 
+  /**
+   * Validates the schema independently of the concrete C++ type it will be
+   * loaded into. Type-specific validation is performed by loadRoot().
+   */
+  void validate() const;
+
  private:
   std::vector<MemoryLayout> layouts;
-  int16_t rootLayout;
+  int16_t rootLayout{0};
 };
 
 struct SchemaInfo {
