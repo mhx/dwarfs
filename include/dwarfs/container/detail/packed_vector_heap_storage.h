@@ -65,22 +65,23 @@ struct packed_vector_heap_storage {
       round_up_to_multiple(sizeof(heap_prefix), payload_alignment);
 
   static_assert(payload_offset % payload_alignment == 0);
+  static_assert(payload_offset % alignof(T) == 0);
   static_assert(block_alignment >= alignof(heap_prefix));
   static_assert(block_alignment >= payload_alignment);
 
   [[nodiscard]] static auto
-  raw_block(T const* payload) noexcept -> std::byte const* {
+  raw_block(T const* payload) noexcept -> void const* {
     return reinterpret_cast<std::byte const*>(payload) - payload_offset;
   }
 
-  [[nodiscard]] static auto raw_block(T* payload) noexcept -> std::byte* {
+  [[nodiscard]] static auto raw_block(T* payload) noexcept -> void* {
     return reinterpret_cast<std::byte*>(payload) - payload_offset;
   }
 
   [[nodiscard]] static auto
   header(T const* payload) noexcept -> heap_prefix const* {
-    return payload ? std::launder(reinterpret_cast<heap_prefix const*>(
-                         raw_block(payload)))
+    return payload ? std::launder(
+                         static_cast<heap_prefix const*>(raw_block(payload)))
                    : nullptr;
   }
 
@@ -120,12 +121,15 @@ struct packed_vector_heap_storage {
     auto const payload_bytes = capacity_blocks * sizeof(T);
     auto const total_bytes = payload_offset + payload_bytes;
 
-    auto* raw = static_cast<std::byte*>(aligned_new(total_bytes));
+    auto* raw = aligned_new(total_bytes);
 
-    std::construct_at(reinterpret_cast<heap_prefix*>(raw),
+    assert(reinterpret_cast<std::uintptr_t>(raw) % block_alignment == 0);
+
+    std::construct_at(static_cast<heap_prefix*>(raw),
                       heap_prefix{size, capacity_blocks});
 
-    auto* payload = reinterpret_cast<T*>(raw + payload_offset);
+    auto* payload = static_cast<T*>(
+        static_cast<void*>(static_cast<std::byte*>(raw) + payload_offset));
 
     if (capacity_blocks > 0) {
       if (init == initialization::zero_init) {
