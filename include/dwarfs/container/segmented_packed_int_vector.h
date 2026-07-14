@@ -32,6 +32,7 @@
 #include <bit>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -62,14 +63,16 @@ class segmented_packed_int_vector {
 
   static constexpr size_type segment_elements = SegmentElements;
   static constexpr size_type bits_per_block = segment_type::bits_per_block;
-  static constexpr size_type max_size_value =
+  static constexpr size_type max_size_value = std::min(
+      static_cast<size_type>(
+          std::numeric_limits<typename iterator::difference_type>::max()),
 #if defined(__APPLE__) && defined(__clang__) && __clang_major__ < 16
       segment_type::max_size()
 #else
       detail::saturating_mul(segment_elements,
                              std::vector<segment_type>{}.max_size())
 #endif
-      ;
+  );
 
   static constexpr size_type max_size() noexcept { return max_size_value; }
 
