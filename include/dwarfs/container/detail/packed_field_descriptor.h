@@ -142,55 +142,39 @@ struct packed_field_descriptor<std::tuple<Ts...>> {
   static constexpr void encode_with(value_type const& value, Writer&& write)
       noexcept(noexcept_encode_with<Writer>()) {
     auto&& writer = std::forward<Writer>(write);
-    encode_with_impl(value, writer, std::make_index_sequence<field_count>{});
+    [&]<size_type... I>(std::index_sequence<I...>) {
+      (writer.template operator()<I>(encode_field<I>(value)), ...);
+    }(std::make_index_sequence<field_count>{});
   }
 
   template <typename Reader>
   static constexpr auto decode_with(Reader&& read)
       noexcept(noexcept_decode_with<Reader>()) -> value_type {
     auto&& reader = std::forward<Reader>(read);
-    return decode_with_impl(reader, std::make_index_sequence<field_count>{});
+    return [&]<size_type... I>(std::index_sequence<I...>) {
+      return value_type{
+          decode_field<I>(reader.template operator()<I>())...,
+      };
+    }(std::make_index_sequence<field_count>{});
   }
 
  private:
-  template <typename Writer, size_type... I>
-  static constexpr void encode_with_impl(value_type const& value, Writer& write,
-                                         std::index_sequence<I...>) {
-    (write.template operator()<I>(encode_field<I>(value)), ...);
-  }
-
-  template <typename Reader, size_type... I>
-  static constexpr auto
-  decode_with_impl(Reader& read, std::index_sequence<I...>) -> value_type {
-    return value_type{
-        decode_field<I>(read.template operator()<I>())...,
-    };
-  }
-
-  template <typename Writer, size_type... I>
-  static consteval bool noexcept_encode_with_impl(std::index_sequence<I...>) {
-    return (noexcept(std::declval<Writer&>().template operator()<I>(
-                std::declval<field_encoded_type<I>>())) &&
-            ...);
-  }
-
   template <typename Writer>
   static consteval bool noexcept_encode_with() {
-    return noexcept_encode_with_impl<Writer>(
-        std::make_index_sequence<field_count>{});
-  }
-
-  template <typename Reader, size_type... I>
-  static consteval bool noexcept_decode_with_impl(std::index_sequence<I...>) {
-    return (noexcept(decode_field<I>(
-                std::declval<Reader&>().template operator()<I>())) &&
-            ...);
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+      return (noexcept(std::declval<Writer&>().template operator()<I>(
+                  std::declval<field_encoded_type<I>>())) &&
+              ...);
+    }(std::make_index_sequence<field_count>{});
   }
 
   template <typename Reader>
   static consteval bool noexcept_decode_with() {
-    return noexcept_decode_with_impl<Reader>(
-        std::make_index_sequence<field_count>{});
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+      return (noexcept(decode_field<I>(
+                  std::declval<Reader&>().template operator()<I>())) &&
+              ...);
+    }(std::make_index_sequence<field_count>{});
   }
 };
 
