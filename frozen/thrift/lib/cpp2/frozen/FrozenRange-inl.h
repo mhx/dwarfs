@@ -164,6 +164,7 @@ struct ArrayLayout : public LayoutBase {
     context.registerAllocation(dataOffset, dataSize, "range data");
 
     for (size_t index = 0; index < count; ++index) {
+      auto scope = context.pushIndex(index);
       DataValidationPosition itemPosition;
       if (itemBytes != 0) {
         const auto itemOffset =
@@ -175,6 +176,7 @@ struct ArrayLayout : public LayoutBase {
         itemPosition.bitOffset =
             context.checkedMultiply(index, itemBits, "range item bit position");
       }
+      scope.setPosition(itemPosition);
       itemField.layout.validateData(context, itemPosition);
     }
   }

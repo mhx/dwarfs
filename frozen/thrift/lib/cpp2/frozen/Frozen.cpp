@@ -81,8 +81,9 @@ void LayoutBase::validateData(
   }
   if (size != 0) {
     if (position.bitOffset != 0) {
-      throw DataValidationException(
-          "byte layout has a non-zero data bit offset");
+      context.fail(
+          "byte layout has a non-zero data bit offset: actual=" +
+          std::to_string(position.bitOffset) + ", expected=0");
     }
     context.requireLogicalBytes(position.byteOffset, size, "frozen object");
   } else {
@@ -90,21 +91,105 @@ void LayoutBase::validateData(
   }
 }
 
+DataValidationContext::PathScope::PathScope(
+    DataValidationContext& context, PathComponent component)
+    : context_(&context),
+      pathSize_(context.path_.size()),
+      previousPosition_(context.currentPosition_) {
+  context.path_.push_back(component);
+}
+
+DataValidationContext::PathScope::PathScope(PathScope&& other) noexcept
+    : context_(std::exchange(other.context_, nullptr)),
+      pathSize_(other.pathSize_),
+      previousPosition_(other.previousPosition_) {}
+
+DataValidationContext::PathScope::~PathScope() {
+  if (context_ != nullptr) {
+    context_->path_.resize(pathSize_);
+    context_->currentPosition_ = previousPosition_;
+  }
+}
+
+void DataValidationContext::PathScope::setPosition(
+    DataValidationPosition position) noexcept {
+  context_->currentPosition_ = position;
+}
+
 DataValidationContext::DataValidationContext(
     std::span<const byte> data, ValidationOptions options)
     : data_(data), options_(options) {
-  if (data.size() < LayoutRoot::kPaddingBytes) {
-    throw DataValidationException(
-        "frozen data is missing the trailing packed-read padding");
+  initialize();
+}
+
+DataValidationContext::DataValidationContext(
+    std::span<const byte> data,
+    std::type_index rootType,
+    ValidationOptions options)
+    : data_(data),
+      options_(options),
+      rootType_(dwarfs::thrift_lite::demangle(rootType.name())),
+      currentPosition_(DataValidationPosition{}) {
+  initialize();
+}
+
+void DataValidationContext::initialize() {
+  if (data_.size() < LayoutRoot::kPaddingBytes) {
+    fail(
+        "frozen data is missing the trailing packed-read padding: actual "
+        "size=" +
+        std::to_string(data_.size()) +
+        ", required minimum=" + std::to_string(LayoutRoot::kPaddingBytes));
   }
-  logicalSize_ = data.size() - LayoutRoot::kPaddingBytes;
+  logicalSize_ = data_.size() - LayoutRoot::kPaddingBytes;
+}
+
+DataValidationContext::PathScope DataValidationContext::pushField(
+    std::string_view name) {
+  return PathScope(*this, PathComponent{PathComponent::Kind::Field, name, 0});
+}
+
+DataValidationContext::PathScope DataValidationContext::pushIndex(
+    size_t index) {
+  return PathScope(*this, PathComponent{PathComponent::Kind::Index, {}, index});
+}
+
+std::string DataValidationContext::path() const {
+  std::string result = rootType_.empty() ? "<unknown>" : rootType_;
+  for (const auto& component : path_) {
+    switch (component.kind) {
+      case PathComponent::Kind::Field:
+        result += '.';
+        result += component.field;
+        break;
+      case PathComponent::Kind::Index:
+        result += '[';
+        result += std::to_string(component.index);
+        result += ']';
+        break;
+    }
+  }
+  return result;
+}
+
+[[noreturn]] void DataValidationContext::fail(std::string message) const {
+  std::string result = "at " + path();
+  if (currentPosition_) {
+    result += " (byte offset=" + std::to_string(currentPosition_->byteOffset) +
+        ", bit offset=" + std::to_string(currentPosition_->bitOffset) + ')';
+  }
+  result += ": ";
+  result += message;
+  throw DataValidationException(std::move(result));
 }
 
 size_t DataValidationContext::checkedAdd(
     size_t lhs, size_t rhs, std::string_view what) const {
   if (rhs > std::numeric_limits<size_t>::max() - lhs) {
-    throw DataValidationException(
-        std::string(what) + " overflows while adding offsets");
+    fail(
+        std::string(what) + " overflows while adding offsets: lhs=" +
+        std::to_string(lhs) + ", rhs=" + std::to_string(rhs) +
+        ", maximum=" + std::to_string(std::numeric_limits<size_t>::max()));
   }
   return lhs + rhs;
 }
@@ -112,8 +197,10 @@ size_t DataValidationContext::checkedAdd(
 size_t DataValidationContext::checkedMultiply(
     size_t lhs, size_t rhs, std::string_view what) const {
   if (lhs != 0 && rhs > std::numeric_limits<size_t>::max() / lhs) {
-    throw DataValidationException(
-        std::string(what) + " overflows while computing its size");
+    fail(
+        std::string(what) + " overflows while computing its size: lhs=" +
+        std::to_string(lhs) + ", rhs=" + std::to_string(rhs) +
+        ", maximum=" + std::to_string(std::numeric_limits<size_t>::max()));
   }
   return lhs * rhs;
 }
@@ -122,7 +209,11 @@ DataValidationPosition DataValidationContext::position(
     DataValidationPosition parent, FieldPosition field) const {
   if (field.offset < 0 || field.bitOffset < 0 ||
       (field.offset != 0 && field.bitOffset != 0)) {
-    throw DataValidationException("invalid loaded field position");
+    fail(
+        "invalid loaded field position: byte offset=" +
+        std::to_string(field.offset) +
+        ", bit offset=" + std::to_string(field.bitOffset) +
+        ", expected non-negative offsets with at most one non-zero value");
   }
   return {
       checkedAdd(
@@ -138,8 +229,10 @@ DataValidationPosition DataValidationContext::position(
 void DataValidationContext::requireLogicalBytes(
     size_t offset, size_t size, std::string_view what) const {
   if (offset > logicalSize_ || size > logicalSize_ - offset) {
-    throw DataValidationException(
-        std::string(what) + " extends beyond the frozen data range");
+    fail(
+        std::string(what) + " extends beyond the frozen data range: offset=" +
+        std::to_string(offset) + ", size=" + std::to_string(size) +
+        ", logical size=" + std::to_string(logicalSize_));
   }
 }
 
@@ -153,8 +246,11 @@ void DataValidationContext::requireLogicalBits(
 void DataValidationContext::requirePhysicalBytes(
     size_t offset, size_t size, std::string_view what) const {
   if (offset > data_.size() || size > data_.size() - offset) {
-    throw DataValidationException(
-        std::string(what) + " performs a read beyond the frozen data range");
+    fail(
+        std::string(what) +
+        " performs a read beyond the frozen data range: offset=" +
+        std::to_string(offset) + ", read size=" + std::to_string(size) +
+        ", physical size=" + std::to_string(data_.size()));
   }
 }
 
@@ -167,7 +263,9 @@ void DataValidationContext::requirePackedRead(
     return;
   }
   if (!std::has_single_bit(wordBytes)) {
-    throw DataValidationException("invalid packed-read word size");
+    fail(
+        "invalid packed-read word size: actual=" + std::to_string(wordBytes) +
+        ", expected a non-zero power of two");
   }
 
   const auto byteInObject = position.bitOffset >> 3;
@@ -188,13 +286,20 @@ void DataValidationContext::requirePackedRead(
 void DataValidationContext::requireAlignment(
     size_t offset, size_t alignment, std::string_view what) const {
   if (!std::has_single_bit(alignment)) {
-    throw DataValidationException("invalid frozen-data alignment");
+    fail(
+        "invalid frozen-data alignment: actual=" + std::to_string(alignment) +
+        ", expected a non-zero power of two");
   }
   requirePhysicalBytes(offset, 0, what);
   const auto address = reinterpret_cast<uintptr_t>(data_.data()) + offset;
-  if ((address & (alignment - 1)) != 0) {
-    throw DataValidationException(
-        std::string(what) + " is not correctly aligned");
+  const auto remainder = address & (alignment - 1);
+  if (remainder != 0) {
+    fail(
+        std::string(what) + " is not correctly aligned: offset=" +
+        std::to_string(offset) + ", address=" + std::to_string(address) +
+        ", actual remainder=" + std::to_string(remainder) +
+        ", expected alignment=" + std::to_string(alignment) +
+        " and remainder=0");
   }
 }
 
@@ -208,18 +313,27 @@ void DataValidationContext::registerAllocation(
   const auto end = offset + size;
   auto next = allocations_.lower_bound(offset);
   if (next != allocations_.end() && end > next->first) {
-    throw DataValidationException(
-        std::string(what) + " overlaps " + next->second.description);
+    fail(
+        std::string(what) + " overlaps " + next->second.what +
+        ": actual interval=[" + std::to_string(offset) + ", " +
+        std::to_string(end) + "), conflicting interval=[" +
+        std::to_string(next->first) + ", " + std::to_string(next->second.end) +
+        "), conflicting location=" + next->second.location);
   }
   if (next != allocations_.begin()) {
     const auto previous = std::prev(next);
     if (previous->second.end > offset) {
-      throw DataValidationException(
-          std::string(what) + " overlaps " + previous->second.description);
+      fail(
+          std::string(what) + " overlaps " + previous->second.what +
+          ": actual interval=[" + std::to_string(offset) + ", " +
+          std::to_string(end) + "), conflicting interval=[" +
+          std::to_string(previous->first) + ", " +
+          std::to_string(previous->second.end) +
+          "), conflicting location=" + previous->second.location);
     }
   }
 
-  allocations_.emplace(offset, Allocation{end, std::string(what)});
+  allocations_.emplace(offset, Allocation{end, std::string(what), path()});
 }
 
 ViewPosition DataValidationContext::viewPosition(
