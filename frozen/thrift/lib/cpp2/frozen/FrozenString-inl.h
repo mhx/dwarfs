@@ -35,6 +35,9 @@ struct StringLayout : public LayoutBase {
   using Base = LayoutBase;
   using Helper = BufferHelpers<T>;
   using Item = Helper::Item;
+
+  static constexpr bool kMayRequirePerItemValidation = true;
+
   Field<size_t> distanceField;
   Field<size_t> countField;
 

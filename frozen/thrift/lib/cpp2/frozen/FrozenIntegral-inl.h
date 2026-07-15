@@ -29,6 +29,9 @@ template <std::integral T>
 template <class T>
 struct PackedIntegerLayout : public LayoutBase {
   using Base = LayoutBase;
+
+  static constexpr bool kMayRequirePerItemValidation = false;
+
   PackedIntegerLayout() : LayoutBase(typeid(T)) {}
   explicit PackedIntegerLayout(const std::type_info& _type)
       : LayoutBase(_type) {}

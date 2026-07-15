@@ -33,6 +33,45 @@ struct WideStringForValidation : public std::vector<uint64_t> {
   using std::vector<uint64_t>::vector;
 };
 
+struct FixedValidationProbe {
+  uint32_t value;
+};
+
+struct DynamicValidationProbe {
+  uint32_t value;
+};
+
+template <>
+struct Layout<FixedValidationProbe>
+    : detail::TrivialLayout<FixedValidationProbe> {
+  using Base = detail::TrivialLayout<FixedValidationProbe>;
+
+  static inline size_t validationCount = 0;
+
+  void validateData(
+      DataValidationContext& context,
+      DataValidationPosition position) const override {
+    ++validationCount;
+    Base::validateData(context, position);
+  }
+};
+
+template <>
+struct Layout<DynamicValidationProbe>
+    : detail::TrivialLayout<DynamicValidationProbe> {
+  using Base = detail::TrivialLayout<DynamicValidationProbe>;
+
+  static constexpr bool kMayRequirePerItemValidation = true;
+  static inline size_t validationCount = 0;
+
+  void validateData(
+      DataValidationContext& context,
+      DataValidationPosition position) const override {
+    ++validationCount;
+    Base::validateData(context, position);
+  }
+};
+
 } // namespace apache::thrift::frozen
 
 namespace apache::thrift {
@@ -46,7 +85,9 @@ namespace apache::thrift::frozen {
 namespace {
 
 using ::apache::thrift::test::Empty;
+using ::apache::thrift::test::Nesting;
 using ::apache::thrift::test::Person1;
+using ::apache::thrift::test::Ratio;
 
 using testing::AllOf;
 using testing::AnyOf;
@@ -64,6 +105,28 @@ static_assert(!detail::is_blit_layout_v<PackedMapItem>);
 static_assert(!detail::is_blit_layout_v<detail::Block>);
 static_assert(HasRawRange<Layout<std::vector<double>>::View>);
 static_assert(!HasRawRange<Layout<std::vector<PackedMapItem>>::View>);
+
+static_assert(!detail::may_require_per_item_validation_v<Layout<bool>>);
+static_assert(!detail::may_require_per_item_validation_v<Layout<int32_t>>);
+static_assert(!detail::may_require_per_item_validation_v<Layout<double>>);
+static_assert(
+    !detail::may_require_per_item_validation_v<Layout<FixedSizeString<4>>>);
+static_assert(
+    !detail::may_require_per_item_validation_v<Layout<detail::Block>>);
+static_assert(
+    !detail::may_require_per_item_validation_v<Layout<std::optional<int32_t>>>);
+static_assert(detail::may_require_per_item_validation_v<
+              Layout<std::optional<std::string>>>);
+static_assert(!detail::may_require_per_item_validation_v<
+              Layout<std::pair<int32_t, double>>>);
+static_assert(detail::may_require_per_item_validation_v<
+              Layout<std::pair<int32_t, std::string>>>);
+static_assert(
+    detail::may_require_per_item_validation_v<Layout<std::vector<int32_t>>>);
+static_assert(!detail::may_require_per_item_validation_v<Layout<Ratio>>);
+static_assert(!detail::may_require_per_item_validation_v<Layout<Nesting>>);
+static_assert(detail::may_require_per_item_validation_v<Layout<Person1>>);
+static_assert(!detail::may_require_per_item_validation_v<Layout<Empty>>);
 
 std::span<const byte> byteSpan(const std::string& data) {
   return {reinterpret_cast<const byte*>(data.data()), data.size()};
@@ -407,6 +470,26 @@ TEST(FrozenDataValidation, AssociativeConsistencyRejectsDuplicateHashKeys) {
 TEST(FrozenDataValidation, AcceptsRangeWithZeroStorageItems) {
   expectValid(std::vector<int32_t>(100, 0));
   expectValid(std::vector<std::pair<int32_t, int32_t>>(100));
+}
+
+TEST(FrozenDataValidation, SkipsValidationForFixedRangeItems) {
+  const std::vector<FixedValidationProbe> value{{1}, {2}, {3}};
+  Layout<std::vector<FixedValidationProbe>> layout;
+  const auto data = freezeData(value, layout);
+
+  Layout<FixedValidationProbe>::validationCount = 0;
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_EQ(0, Layout<FixedValidationProbe>::validationCount);
+}
+
+TEST(FrozenDataValidation, ValidatesEveryDynamicRangeItem) {
+  const std::vector<DynamicValidationProbe> value{{1}, {2}, {3}};
+  Layout<std::vector<DynamicValidationProbe>> layout;
+  const auto data = freezeData(value, layout);
+
+  Layout<DynamicValidationProbe>::validationCount = 0;
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_EQ(value.size(), Layout<DynamicValidationProbe>::validationCount);
 }
 
 TEST(FrozenDataValidation, AcceptsMisalignedPackedMapItems) {
