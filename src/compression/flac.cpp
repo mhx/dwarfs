@@ -489,6 +489,15 @@ class flac_block_decompressor final : public block_decompressor_base {
     thrift_lite::compact_reader r(std::as_bytes(span));
     hdr.read(r);
     span = span.subspan(r.consumed_bytes());
+    auto const bytes_per_sample =
+        (hdr.flags().value() & kBytesPerSampleMask) + 1;
+    auto const bits_per_sample = hdr.bits_per_sample().value();
+    if (bits_per_sample > bytes_per_sample * 8) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("[FLAC] bits per sample {} exceeds bytes per sample {}",
+                      bits_per_sample, bytes_per_sample));
+    }
     return hdr;
   }
 
