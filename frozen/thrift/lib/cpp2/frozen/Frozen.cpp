@@ -11,6 +11,7 @@
 #include <thrift/lib/cpp2/frozen/Frozen.h>
 
 #include <functional>
+#include <limits>
 #include <utility>
 
 namespace apache::thrift::frozen {
@@ -71,6 +72,164 @@ void LayoutBase::validate(LoadRoot&) const {
     throw schema::SchemaValidationException(
         "frozen layout bit region does not fit in its byte size");
   }
+}
+
+void LayoutBase::validateData(
+    DataValidationContext& context, DataValidationPosition position) const {
+  if (empty()) {
+    return;
+  }
+  if (size != 0) {
+    if (position.bitOffset != 0) {
+      throw DataValidationException(
+          "byte layout has a non-zero data bit offset");
+    }
+    context.requireLogicalBytes(position.byteOffset, size, "frozen object");
+  } else {
+    context.requireLogicalBits(position, bits, "frozen object");
+  }
+}
+
+DataValidationContext::DataValidationContext(
+    std::span<const byte> data, ValidationOptions options)
+    : data_(data), options_(options) {
+  if (data.size() < LayoutRoot::kPaddingBytes) {
+    throw DataValidationException(
+        "frozen data is missing the trailing packed-read padding");
+  }
+  logicalSize_ = data.size() - LayoutRoot::kPaddingBytes;
+}
+
+size_t DataValidationContext::checkedAdd(
+    size_t lhs, size_t rhs, std::string_view what) const {
+  if (rhs > std::numeric_limits<size_t>::max() - lhs) {
+    throw DataValidationException(
+        std::string(what) + " overflows while adding offsets");
+  }
+  return lhs + rhs;
+}
+
+size_t DataValidationContext::checkedMultiply(
+    size_t lhs, size_t rhs, std::string_view what) const {
+  if (lhs != 0 && rhs > std::numeric_limits<size_t>::max() / lhs) {
+    throw DataValidationException(
+        std::string(what) + " overflows while computing its size");
+  }
+  return lhs * rhs;
+}
+
+DataValidationPosition DataValidationContext::position(
+    DataValidationPosition parent, FieldPosition field) const {
+  if (field.offset < 0 || field.bitOffset < 0 ||
+      (field.offset != 0 && field.bitOffset != 0)) {
+    throw DataValidationException("invalid loaded field position");
+  }
+  return {
+      checkedAdd(
+          parent.byteOffset,
+          static_cast<size_t>(field.offset),
+          "field position"),
+      checkedAdd(
+          parent.bitOffset,
+          static_cast<size_t>(field.bitOffset),
+          "field bit position")};
+}
+
+void DataValidationContext::requireLogicalBytes(
+    size_t offset, size_t size, std::string_view what) const {
+  if (offset > logicalSize_ || size > logicalSize_ - offset) {
+    throw DataValidationException(
+        std::string(what) + " extends beyond the frozen data range");
+  }
+}
+
+void DataValidationContext::requireLogicalBits(
+    DataValidationPosition position, size_t bits, std::string_view what) const {
+  const auto endBit = checkedAdd(position.bitOffset, bits, what);
+  const auto bytes = endBit / 8 + static_cast<size_t>(endBit % 8 != 0);
+  requireLogicalBytes(position.byteOffset, bytes, what);
+}
+
+void DataValidationContext::requirePhysicalBytes(
+    size_t offset, size_t size, std::string_view what) const {
+  if (offset > data_.size() || size > data_.size() - offset) {
+    throw DataValidationException(
+        std::string(what) + " performs a read beyond the frozen data range");
+  }
+}
+
+void DataValidationContext::requirePackedRead(
+    DataValidationPosition position,
+    size_t bits,
+    size_t wordBytes,
+    std::string_view what) const {
+  if (bits == 0) {
+    return;
+  }
+  if (!std::has_single_bit(wordBytes)) {
+    throw DataValidationException("invalid packed-read word size");
+  }
+
+  const auto byteInObject = position.bitOffset >> 3;
+  const auto chunkOffset = byteInObject & ~(wordBytes - 1);
+  const auto bitInByte = position.bitOffset & 7;
+  const auto shift = checkedAdd(
+      checkedMultiply(byteInObject - chunkOffset, size_t{8}, what),
+      bitInByte,
+      what);
+  const auto wordBits = checkedMultiply(wordBytes, size_t{8}, what);
+  const auto readWords =
+      checkedAdd(shift, bits, what) <= wordBits ? size_t{1} : size_t{2};
+  const auto readOffset = checkedAdd(position.byteOffset, chunkOffset, what);
+  const auto readSize = checkedMultiply(readWords, wordBytes, what);
+  requirePhysicalBytes(readOffset, readSize, what);
+}
+
+void DataValidationContext::requireAlignment(
+    size_t offset, size_t alignment, std::string_view what) const {
+  if (!std::has_single_bit(alignment)) {
+    throw DataValidationException("invalid frozen-data alignment");
+  }
+  requirePhysicalBytes(offset, 0, what);
+  const auto address = reinterpret_cast<uintptr_t>(data_.data()) + offset;
+  if ((address & (alignment - 1)) != 0) {
+    throw DataValidationException(
+        std::string(what) + " is not correctly aligned");
+  }
+}
+
+void DataValidationContext::registerAllocation(
+    size_t offset, size_t size, std::string_view what) {
+  if (size == 0) {
+    return;
+  }
+
+  requireLogicalBytes(offset, size, what);
+  const auto end = offset + size;
+  auto next = allocations_.lower_bound(offset);
+  if (next != allocations_.end() && end > next->first) {
+    throw DataValidationException(
+        std::string(what) + " overlaps " + next->second.description);
+  }
+  if (next != allocations_.begin()) {
+    const auto previous = std::prev(next);
+    if (previous->second.end > offset) {
+      throw DataValidationException(
+          std::string(what) + " overlaps " + previous->second.description);
+    }
+  }
+
+  allocations_.emplace(offset, Allocation{end, std::string(what)});
+}
+
+ViewPosition DataValidationContext::viewPosition(
+    DataValidationPosition position) const {
+  requirePhysicalBytes(position.byteOffset, 0, "view position");
+  const byte* start = nullptr;
+  if (!data_.empty()) {
+    start = data_.data() + position.byteOffset;
+  }
+  return {start, position.bitOffset};
 }
 
 void LoadRoot::registerField(
@@ -219,6 +378,13 @@ void BlockLayout::freeze(
     FreezeRoot& root, const T& x, FreezePosition self) const {
   FROZEN_FREEZE_FIELD_REQ(mask);
   FROZEN_FREEZE_FIELD_REQ(offset);
+}
+
+void BlockLayout::validateData(
+    DataValidationContext& context, DataValidationPosition self) const {
+  Base::validateData(context, self);
+  validateDataField(context, self, maskField);
+  validateDataField(context, self, offsetField);
 }
 
 void BlockLayout::print(std::ostream& os, int level) const {

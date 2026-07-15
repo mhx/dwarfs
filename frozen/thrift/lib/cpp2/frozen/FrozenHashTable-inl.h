@@ -44,6 +44,8 @@ struct BlockLayout : public LayoutBase {
   FieldPosition maximize();
   FieldPosition layout(LayoutRoot& root, const T& x, LayoutPosition self);
   void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;
+  void validateData(
+      DataValidationContext& context, DataValidationPosition self) const final;
   void print(std::ostream& os, int level) const final;
   void clear() final;
 
