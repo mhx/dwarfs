@@ -158,13 +158,13 @@ struct ascii_case_hash {
   using is_transparent = void;
 
   std::size_t operator()(std::string_view sv) const noexcept {
-    std::size_t h = 1469598103934665603ULL;
+    std::uint64_t h = 1469598103934665603ULL;
     for (unsigned char c : sv) {
       auto const lower = static_cast<unsigned char>(std::tolower(c));
       h ^= lower;
       h *= 1099511628211ULL;
     }
-    return h;
+    return static_cast<std::size_t>(h);
   }
 
   std::size_t operator()(std::string const& s) const noexcept {
