@@ -19,8 +19,10 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <typeindex>
 #include <typeinfo>
@@ -79,6 +81,8 @@ namespace apache::thrift::frozen {
 using byte = uint8_t;
 
 class LoadRoot;
+class DataValidationContext;
+struct DataValidationPosition;
 
 /**
  * Simply represents an indented line separator for use in debugging
@@ -246,6 +250,13 @@ struct LayoutBase {
   virtual void validate(LoadRoot&) const;
 
   /**
+   * Validates all data accesses performed by this layout at the specified
+   * position. Composite layouts override this to recurse into their fields.
+   */
+  virtual void validateData(
+      DataValidationContext&, DataValidationPosition) const;
+
+  /**
    * Populates a 'layout' with a description of this layout in the context of
    * 'schema'. Child classes must implement.
    */
@@ -292,6 +303,71 @@ struct Layout : public LayoutBase {
 };
 
 std::ostream& operator<<(std::ostream& os, const LayoutBase& layout);
+
+class DataValidationException : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
+struct ValidationOptions {
+  bool checkAssociativeConsistency{false};
+};
+
+struct DataValidationPosition {
+  size_t byteOffset{0};
+  size_t bitOffset{0};
+};
+
+/**
+ * Validation state for an immutable Frozen data range. All positions are
+ * represented as offsets until their complete physical read range has been
+ * checked.
+ */
+class DataValidationContext {
+ public:
+  explicit DataValidationContext(
+      std::span<const byte> data, ValidationOptions options = {});
+
+  const ValidationOptions& options() const noexcept { return options_; }
+  size_t logicalSize() const noexcept { return logicalSize_; }
+
+  size_t checkedAdd(size_t lhs, size_t rhs, std::string_view what) const;
+  size_t checkedMultiply(size_t lhs, size_t rhs, std::string_view what) const;
+
+  DataValidationPosition position(
+      DataValidationPosition parent, FieldPosition field) const;
+
+  void requireLogicalBytes(
+      size_t offset, size_t size, std::string_view what) const;
+  void requireLogicalBits(
+      DataValidationPosition position,
+      size_t bits,
+      std::string_view what) const;
+  void requirePhysicalBytes(
+      size_t offset, size_t size, std::string_view what) const;
+  void requirePackedRead(
+      DataValidationPosition position,
+      size_t bits,
+      size_t wordBytes,
+      std::string_view what) const;
+  void requireAlignment(
+      size_t offset, size_t alignment, std::string_view what) const;
+
+  void registerAllocation(size_t offset, size_t size, std::string_view what);
+
+  ViewPosition viewPosition(DataValidationPosition position) const;
+
+ private:
+  struct Allocation {
+    size_t end;
+    std::string description;
+  };
+
+  std::span<const byte> data_;
+  ValidationOptions options_;
+  size_t logicalSize_{0};
+  std::map<size_t, Allocation> allocations_;
+};
 
 /**
  * FieldBase (with concrete implementations provided by Field<T,...>) represents
@@ -447,6 +523,24 @@ struct Field final : public FieldBase {
     parent.addField(std::move(field));
   }
 };
+
+template <class T, class Layout>
+void validateDataField(
+    DataValidationContext& context,
+    DataValidationPosition self,
+    const Field<T, Layout>& field) {
+  field.layout.validateData(context, context.position(self, field.pos));
+}
+
+template <class T, class Layout>
+auto validatedDataFieldView(
+    DataValidationContext& context,
+    DataValidationPosition self,
+    const Field<T, Layout>& field) {
+  const auto position = context.position(self, field.pos);
+  field.layout.validateData(context, position);
+  return field.layout.view(context.viewPosition(position));
+}
 
 /**
  * A view of an unqualified field of a Frozen object. It provides a consistent
@@ -857,6 +951,19 @@ void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
   layout.template load<SchemaInfo>(schema, schema.getRootLayout(), root);
   layout.validate(root);
   root.finish();
+}
+
+template <typename T>
+void validateFrozenData(
+    const Layout<T>& layout,
+    std::span<const byte> data,
+    ValidationOptions options = {}) {
+  DataValidationContext context(data, options);
+  const auto rootBytes = layout.size != 0
+      ? layout.size
+      : (layout.bits / 8 + static_cast<size_t>(layout.bits % 8 != 0));
+  context.registerAllocation(0, rootBytes, "root object");
+  layout.validateData(context, {});
 }
 
 struct Holder {

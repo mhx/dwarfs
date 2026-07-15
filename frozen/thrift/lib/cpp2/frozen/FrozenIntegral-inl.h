@@ -82,6 +82,15 @@ struct PackedIntegerLayout : public LayoutBase {
     }
   }
 
+  void validateData(
+      DataValidationContext& context,
+      DataValidationPosition position) const override {
+    Base::validateData(context, position);
+    if (!empty()) {
+      context.requirePackedRead(position, bits, sizeof(T), "packed integer");
+    }
+  }
+
   using View = T;
 
   View view(ViewPosition self) const {

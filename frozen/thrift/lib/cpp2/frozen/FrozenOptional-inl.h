@@ -142,6 +142,14 @@ struct OptionalLayout : public LayoutBase {
     }
   }
 
+  void validateData(DataValidationContext& context, DataValidationPosition self)
+      const override {
+    Base::validateData(context, self);
+    if (validatedDataFieldView(context, self, issetField)) {
+      validateDataField(context, self, valueField);
+    }
+  }
+
   using View = OptionalFieldView<typename Layout<T>::View>;
 
   View view(ViewPosition self) const {
