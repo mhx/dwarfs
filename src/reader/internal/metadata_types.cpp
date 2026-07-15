@@ -775,7 +775,14 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     size_t num_reg_shared = 0;
 
     if (auto sfp = meta.shared_files_table()) {
-      if (meta.options() and meta.options()->packed_shared_files_table()) {
+      auto opts = meta.options();
+
+      if (!opts) {
+        DWARFS_THROW(runtime_error,
+                     "shared_files_table present but options missing");
+      }
+
+      if (opts->packed_shared_files_table()) {
         num_reg_shared =
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
         num_reg_unique -= sfp->size();
