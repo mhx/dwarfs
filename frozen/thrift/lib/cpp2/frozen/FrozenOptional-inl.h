@@ -90,6 +90,10 @@ namespace detail {
 template <class T>
 struct OptionalLayout : public LayoutBase {
   using Base = LayoutBase;
+
+  static constexpr bool kMayRequirePerItemValidation =
+      may_require_per_item_validation_v<Layout<T>>;
+
   Field<bool> issetField;
   Field<T> valueField;
 

@@ -22,6 +22,11 @@ struct PairLayout : public LayoutBase {
   using LayoutSelf = PairLayout;
   using FirstDecayed = std::decay_t<First>;
   using SecondDecayed = std::decay_t<Second>;
+
+  static constexpr bool kMayRequirePerItemValidation =
+      may_require_per_item_validation_v<Layout<FirstDecayed>> ||
+      may_require_per_item_validation_v<Layout<SecondDecayed>>;
+
   Field<FirstDecayed> firstField;
   Field<SecondDecayed> secondField;
 

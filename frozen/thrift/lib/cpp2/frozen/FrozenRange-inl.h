@@ -26,6 +26,7 @@ struct ArrayLayout : public LayoutBase {
   using Base = LayoutBase;
   using LayoutSelf = ArrayLayout;
 
+  static constexpr bool kMayRequirePerItemValidation = true;
   static constexpr bool kIsBlitLayout = is_blit_layout_v<Item>;
   static constexpr size_t kItemAlign = kIsBlitLayout ? alignof(Item) : 1;
 
@@ -164,12 +165,14 @@ struct ArrayLayout : public LayoutBase {
     }
     context.registerAllocation(dataOffset, dataSize, "range data");
 
-    for (size_t index = 0; index < count; ++index) {
-      auto scope = context.pushIndex(index);
-      const auto itemPosition =
-          validationItemPosition(context, dataOffset, index);
-      scope.setPosition(itemPosition);
-      itemField.layout.validateData(context, itemPosition);
+    if constexpr (may_require_per_item_validation_v<Layout<Item>>) {
+      for (size_t index = 0; index < count; ++index) {
+        auto scope = context.pushIndex(index);
+        const auto itemPosition =
+            validationItemPosition(context, dataOffset, index);
+        scope.setPosition(itemPosition);
+        itemField.layout.validateData(context, itemPosition);
+      }
     }
   }
 

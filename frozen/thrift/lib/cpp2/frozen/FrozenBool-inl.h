@@ -21,6 +21,8 @@ struct BoolLayout : public LayoutBase {
   using Base = LayoutBase;
   using T = bool;
 
+  static constexpr bool kMayRequirePerItemValidation = false;
+
   BoolLayout() : LayoutBase(typeid(T)) {}
 
   FieldPosition maximize() {
