@@ -129,4 +129,13 @@ struct Layout<
         !apache::thrift::frozen::detail::IsStdOptional<T>::value &&
         !std::is_pointer_v<T>>>
     : apache::thrift::frozen::detail::TrivialLayout<T> {};
+
+namespace detail {
+
+template <class T>
+inline constexpr bool is_blit_layout_v =
+    std::is_base_of_v<TrivialLayout<T>, Layout<T>>;
+
+} // namespace detail
+
 } // namespace apache::thrift::frozen
