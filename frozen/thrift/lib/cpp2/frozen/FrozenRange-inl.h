@@ -257,7 +257,15 @@ struct ArrayLayout : public LayoutBase {
     }
 
     ItemView operator[](size_t index) const {
+      assert(index < count_);
       return itemLayout().view(indexPosition(data_, index, itemLayout()));
+    }
+
+    ItemView at(size_t index) const {
+      if (index < count_) {
+        return (*this)[index];
+      }
+      throw std::out_of_range("index out of range");
     }
 
     ItemView front() const {
