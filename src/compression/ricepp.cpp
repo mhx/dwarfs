@@ -183,11 +183,14 @@ class ricepp_block_compressor final : public block_compressor::impl {
 
 class ricepp_block_decompressor final : public block_decompressor_base {
  public:
+  using pixel_type = uint16_t;
+  static constexpr auto kPixelBits = std::numeric_limits<pixel_type>::digits;
+
   ricepp_block_decompressor(std::span<uint8_t const> data)
       : uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , data_{data}
-      , decoder_{ricepp::create_decoder<uint16_t>(
+      , decoder_{ricepp::create_decoder<pixel_type>(
             {.block_size = header_.block_size().value(),
              .component_stream_count = header_.component_count().value(),
              .byteorder = header_.big_endian().value() ? std::endian::big
@@ -196,6 +199,16 @@ class ricepp_block_decompressor final : public block_decompressor_base {
     if (header_.bytes_per_sample().value() != 2) {
       DWARFS_THROW(runtime_error,
                    fmt::format("[RICEPP] unsupported bytes per sample: {}",
+                               header_.bytes_per_sample().value()));
+    }
+    if (uncompressed_size_ % (header_.component_count().value() *
+                              header_.bytes_per_sample().value()) !=
+        0) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("[RICEPP] inconsistent uncompressed size: {} "
+                               "bytes, {} components, {} bytes per sample",
+                               uncompressed_size_,
+                               header_.component_count().value(),
                                header_.bytes_per_sample().value()));
     }
   }
@@ -220,8 +233,8 @@ class ricepp_block_decompressor final : public block_decompressor_base {
     }
 
     decompressed_.resize(uncompressed_size_);
-    std::span<uint16_t> output{
-        internal::as_aligned_ptr<uint16_t>(decompressed_.data()),
+    std::span<pixel_type> output{
+        internal::as_aligned_ptr<pixel_type>(decompressed_.data()),
         decompressed_.size() / 2};
 
     decoder_->decode(output, data_);
@@ -245,13 +258,24 @@ class ricepp_block_decompressor final : public block_decompressor_base {
                    fmt::format("[RICEPP] unsupported version: {}",
                                hdr.ricepp_version().value()));
     }
+    if (hdr.unused_lsb_count().value() >= kPixelBits) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("[RICEPP] invalid unused_lsb_count: {} >= {}",
+                               hdr.unused_lsb_count().value(), kPixelBits));
+    }
+    if (hdr.block_size().value() == 0) {
+      DWARFS_THROW(runtime_error, "[RICEPP] invalid block_size: 0");
+    }
+    if (hdr.component_count().value() == 0) {
+      DWARFS_THROW(runtime_error, "[RICEPP] invalid component_count: 0");
+    }
     return hdr;
   }
 
   uint64_t const uncompressed_size_;
   thrift::compression::ricepp_block_header const header_;
   std::span<uint8_t const> data_;
-  std::unique_ptr<ricepp::decoder_interface<uint16_t>> decoder_;
+  std::unique_ptr<ricepp::decoder_interface<pixel_type>> decoder_;
 };
 
 template <typename Base>
