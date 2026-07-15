@@ -72,6 +72,16 @@ struct FixedSizeStringLayout : public LayoutBase {
     }
   }
 
+  void validateData(
+      DataValidationContext& context,
+      DataValidationPosition position) const override {
+    Base::validateData(context, position);
+    if (!empty()) {
+      context.requirePhysicalBytes(
+          position.byteOffset, T::kFixedSize, "fixed-size string");
+    }
+  }
+
   struct View : public std::span<uint8_t const> {
    public:
     using std::span<uint8_t const>::span;

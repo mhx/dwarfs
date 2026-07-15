@@ -142,6 +142,17 @@
       [[maybe_unused]] ViewPosition self, [[maybe_unused]] T& out) const { \
     __VA_ARGS__;                                                           \
   }
+
+#define FROZEN_VALIDATE_DATA_FIELD(NAME) \
+  validateDataField(context, self, this->NAME##Field);
+
+#define FROZEN_VALIDATE_DATA_INLINE(...)                           \
+  void validateData(                                               \
+      DataValidationContext& context, DataValidationPosition self) \
+      const final {                                                \
+    Base::validateData(context, self);                             \
+    __VA_ARGS__                                                    \
+  }
 #define FROZEN_DEBUG_FIELD(NAME) this->NAME##Field.print(os, level + 1);
 #define FROZEN_DEBUG(TYPE, ...)                                 \
   void Layout<TYPE>::print(std::ostream& os, int level) const { \
