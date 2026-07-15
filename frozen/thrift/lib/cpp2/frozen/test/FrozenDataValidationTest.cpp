@@ -44,6 +44,8 @@ namespace {
 
 using ::apache::thrift::test::Empty;
 using ::apache::thrift::test::Person1;
+
+using testing::AllOf;
 using testing::HasSubstr;
 using testing::ThrowsMessage;
 
@@ -175,8 +177,10 @@ TEST(FrozenDataValidation, RejectsInvalidGeneratedStructFieldData) {
 
   EXPECT_THAT(
       [&] { validateFrozenData(layout, byteSpan(data)); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("string data extends beyond the frozen data range")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".pets[0].name"),
+          HasSubstr("string data extends beyond the frozen data range"),
+          HasSubstr("logical size="))));
 }
 
 TEST(FrozenDataValidation, RejectsStringDataOutsideFrozenRange) {
@@ -332,8 +336,10 @@ TEST(FrozenDataValidation, RejectsMisalignedRangeData) {
 
   EXPECT_THAT(
       [&] { validateFrozenData(layout, byteSpan(data)); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("range data is not correctly aligned")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("range data is not correctly aligned"),
+          HasSubstr("actual remainder="),
+          HasSubstr("expected alignment=8"))));
 }
 
 TEST(FrozenDataValidation, RejectsOverlappingStringPayloads) {
@@ -357,8 +363,12 @@ TEST(FrozenDataValidation, RejectsOverlappingStringPayloads) {
 
   EXPECT_THAT(
       [&] { validateFrozenData(layout, byteSpan(data)); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("string data overlaps string data")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".second"),
+          HasSubstr("string data overlaps string data"),
+          HasSubstr("actual interval=["),
+          HasSubstr("conflicting location="),
+          HasSubstr(".first"))));
 }
 
 TEST(FrozenDataValidation, RejectsInvalidNestedStringPayload) {
@@ -421,8 +431,11 @@ TEST(FrozenDataValidation, RejectsByteLayoutWithDataBitOffset) {
 
   EXPECT_THAT(
       [&] { validateFrozenData(layout, byteSpan(data)); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("byte layout has a non-zero data bit offset")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".mask"),
+          HasSubstr("byte layout has a non-zero data bit offset"),
+          HasSubstr("actual=1"),
+          HasSubstr("expected=0"))));
 }
 
 TEST(FrozenDataValidation, RetainsValidationOptions) {
@@ -499,8 +512,10 @@ TEST(FrozenDataValidation, RejectsInvalidPackedReadWordSize) {
 
   EXPECT_THAT(
       [&] { context.requirePackedRead({}, 1, 3, "test packed read"); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("invalid packed-read word size")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("invalid packed-read word size"),
+          HasSubstr("actual=3"),
+          HasSubstr("expected a non-zero power of two"))));
 }
 
 TEST(FrozenDataValidation, RejectsInvalidAlignmentRequirement) {
@@ -509,8 +524,10 @@ TEST(FrozenDataValidation, RejectsInvalidAlignmentRequirement) {
 
   EXPECT_THAT(
       [&] { context.requireAlignment(0, 3, "test allocation"); },
-      ThrowsMessage<DataValidationException>(
-          HasSubstr("invalid frozen-data alignment")));
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("invalid frozen-data alignment"),
+          HasSubstr("actual=3"),
+          HasSubstr("expected a non-zero power of two"))));
 }
 
 TEST(FrozenDataValidation, RejectsSizeOverflow) {
