@@ -378,6 +378,7 @@ TEST_F(global_metadata_test, check_metadata) {
   raw.inodes()->at(0).mode_index() = 0;
   raw.inodes()->at(1).mode_index() = 0;
 
+  raw.options().emplace();
   raw.shared_files_table().emplace();
   raw.shared_files_table()->push_back(1);
   raw.shared_files_table()->push_back(0);
