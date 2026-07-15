@@ -26,6 +26,9 @@ struct ArrayLayout : public LayoutBase {
   using Base = LayoutBase;
   using LayoutSelf = ArrayLayout;
 
+  static constexpr bool kIsBlitLayout = is_blit_layout_v<Item>;
+  static constexpr size_t kItemAlign = kIsBlitLayout ? alignof(Item) : 1;
+
   Field<size_t> distanceField;
   Field<size_t> countField;
   Field<Item> itemField;
@@ -53,9 +56,10 @@ struct ArrayLayout : public LayoutBase {
     }
     size_t itemBytes = itemField.layout.size;
     size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
-    size_t align = IsBlitType<Item>::value ? alignof(Item) : 1;
     size_t dist = root.layoutBytesDistance(
-        self.start, itemBits ? (n * itemBits + 7) / 8 : n * itemBytes, align);
+        self.start,
+        itemBits ? (n * itemBits + 7) / 8 : n * itemBytes,
+        kItemAlign);
 
     pos = root.layoutField(self, pos, distanceField, dist);
 
@@ -91,13 +95,12 @@ struct ArrayLayout : public LayoutBase {
     size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
     std::span<uint8_t> range;
     size_t dist;
-    size_t align = IsBlitType<Item>::value ? alignof(Item) : 1;
     root.appendBytes(
         self.start,
         itemBits ? (n * itemBits + 7) / 8 : n * itemBytes,
         range,
         dist,
-        align);
+        kItemAlign);
 
     root.freezeField(self, distanceField, dist);
 
@@ -158,7 +161,7 @@ struct ArrayLayout : public LayoutBase {
     }
 
     context.requireLogicalBytes(dataOffset, dataSize, "range data");
-    if constexpr (IsBlitType<Item>::value) {
+    if constexpr (kIsBlitLayout) {
       context.requireAlignment(dataOffset, alignof(Item), "range data");
     }
     context.registerAllocation(dataOffset, dataSize, "range data");
@@ -262,8 +265,9 @@ struct ArrayLayout : public LayoutBase {
     bool empty() const { return !count_; }
     size_t size() const { return count_; }
 
-    std::span<const Item> range() const {
-      static_assert(apache::thrift::frozen::detail::IsBlitType<Item>::value);
+    std::span<const Item> range() const
+      requires kIsBlitLayout
+    {
       static_assert(
           !std::is_floating_point_v<Item> ||
           std::endian::native == std::endian::little);
