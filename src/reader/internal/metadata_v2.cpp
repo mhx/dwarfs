@@ -627,12 +627,14 @@ class metadata_v2_data {
 
   // TODO: see if we really need to pass the extra dir_entry_view in
   //       addition to directory_view
-  void dump(std::ostream& os, std::string const& indent,
-            dir_entry_view const& entry, fsinfo_options const& opts,
-            std::function<void(std::string const&, uint32_t)> const& icb) const;
+  void
+  dump(std::ostream& os, std::string const& indent, dir_entry_view const& entry,
+       fsinfo_options const& opts, set_type<int>& seen,
+       std::function<void(std::string const&, uint32_t)> const& icb) const;
 
   void dump(std::ostream& os, std::string const& indent, directory_view dir,
             dir_entry_view const& entry, fsinfo_options const& opts,
+            set_type<int>& seen,
             std::function<void(std::string const&, uint32_t)> const& icb) const;
 
   inode_view_impl make_inode_view_impl(uint32_t inode) const {
@@ -1660,6 +1662,7 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
 void metadata_v2_data::dump(
     std::ostream& os, std::string const& indent, directory_view dir,
     dir_entry_view const& entry, fsinfo_options const& opts,
+    set_type<int>& seen,
     std::function<void(std::string const&, uint32_t)> const& icb) const {
   auto range = dir.entry_range();
 
@@ -1668,7 +1671,7 @@ void metadata_v2_data::dump(
 
   for (auto i : range) {
     dump(os, indent, make_dir_entry_view(i, entry.raw().self_index()), opts,
-         icb);
+         seen, icb);
   }
 }
 
@@ -1846,13 +1849,14 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::directory_tree)) {
-    dump(os, "", root_, opts, icb);
+    set_type<int> seen;
+    dump(os, "", root_, opts, seen, icb);
   }
 }
 
 void metadata_v2_data::dump(
     std::ostream& os, std::string const& indent, dir_entry_view const& entry,
-    fsinfo_options const& opts,
+    fsinfo_options const& opts, set_type<int>& seen,
     std::function<void(std::string const&, uint32_t)> const& icb) const {
   auto iv = entry.inode();
   auto mode = iv.mode();
@@ -1878,7 +1882,10 @@ void metadata_v2_data::dump(
   } break;
 
   case posix_file_type::directory:
-    dump(os, indent + "  ", make_directory_view(iv), entry, opts, icb);
+    if (!seen.emplace(inode).second) {
+      DWARFS_THROW(runtime_error, "cycle detected during directory walk");
+    }
+    dump(os, indent + "  ", make_directory_view(iv), entry, opts, seen, icb);
     break;
 
   case posix_file_type::symlink:
