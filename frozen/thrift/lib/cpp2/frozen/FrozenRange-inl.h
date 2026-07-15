@@ -127,6 +127,58 @@ struct ArrayLayout : public LayoutBase {
     }
   }
 
+  void validateData(DataValidationContext& context, DataValidationPosition self)
+      const override {
+    Base::validateData(context, self);
+
+    const auto count = validatedDataFieldView(context, self, countField);
+    if (count == 0) {
+      return;
+    }
+
+    const auto distance = validatedDataFieldView(context, self, distanceField);
+    const auto dataOffset =
+        context.checkedAdd(self.byteOffset, distance, "range data position");
+
+    const auto itemBytes = itemField.layout.size;
+    const auto itemBits = itemBytes == 0 ? itemField.layout.bits : size_t{0};
+
+    if (itemBytes == 0 && itemBits == 0) {
+      context.requirePhysicalBytes(dataOffset, 0, "range data position");
+      return;
+    }
+
+    size_t dataSize;
+    if (itemBytes != 0) {
+      dataSize = context.checkedMultiply(count, itemBytes, "range data");
+    } else {
+      const auto totalBits =
+          context.checkedMultiply(count, itemBits, "range data");
+      dataSize = totalBits / 8 + static_cast<size_t>(totalBits % 8 != 0);
+    }
+
+    context.requireLogicalBytes(dataOffset, dataSize, "range data");
+    if constexpr (IsBlitType<Item>::value) {
+      context.requireAlignment(dataOffset, alignof(Item), "range data");
+    }
+    context.registerAllocation(dataOffset, dataSize, "range data");
+
+    for (size_t index = 0; index < count; ++index) {
+      DataValidationPosition itemPosition;
+      if (itemBytes != 0) {
+        const auto itemOffset =
+            context.checkedMultiply(index, itemBytes, "range item position");
+        itemPosition.byteOffset =
+            context.checkedAdd(dataOffset, itemOffset, "range item position");
+      } else {
+        itemPosition.byteOffset = dataOffset;
+        itemPosition.bitOffset =
+            context.checkedMultiply(index, itemBits, "range item bit position");
+      }
+      itemField.layout.validateData(context, itemPosition);
+    }
+  }
+
   void print(std::ostream& os, int level) const override {
     LayoutBase::print(os, level);
     os << "range of " << dwarfs::thrift_lite::demangle(type.name());
