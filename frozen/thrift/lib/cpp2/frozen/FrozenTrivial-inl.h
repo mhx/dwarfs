@@ -21,6 +21,9 @@ namespace detail {
 template <class T>
 struct TrivialLayout : public LayoutBase {
   using Base = LayoutBase;
+
+  static constexpr bool kMayRequirePerItemValidation = false;
+
   TrivialLayout() : LayoutBase(typeid(T)) {}
 
   FieldPosition maximize() { return FieldPosition(sizeof(T), 0); }

@@ -31,6 +31,9 @@ class FixedSizeMismatchException : public std::length_error {
 template <typename T>
 struct FixedSizeStringLayout : public LayoutBase {
   using Base = LayoutBase;
+
+  static constexpr bool kMayRequirePerItemValidation = false;
+
   FixedSizeStringLayout() : LayoutBase(typeid(T)) {}
 
   FieldPosition maximize() { return FieldPosition(T::kFixedSize, 0); }

@@ -35,6 +35,8 @@ struct BlockLayout : public LayoutBase {
   using T = Block;
   using LayoutSelf = BlockLayout;
 
+  static constexpr bool kMayRequirePerItemValidation = false;
+
   Field<uint64_t, TrivialLayout<uint64_t>> maskField;
   Field<uint64_t> offsetField;
 

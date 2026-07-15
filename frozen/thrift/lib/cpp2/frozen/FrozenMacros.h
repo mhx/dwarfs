@@ -143,6 +143,14 @@
     __VA_ARGS__;                                                           \
   }
 
+#define FROZEN_MAY_REQUIRE_PER_ITEM_VALIDATION_FIELD(NAME)                 \
+  ||                                                                       \
+      ::apache::thrift::frozen::detail::may_require_per_item_validation_v< \
+          decltype(NAME##Field.layout)>
+
+#define FROZEN_MAY_REQUIRE_PER_ITEM_VALIDATION(...) \
+  static constexpr bool kMayRequirePerItemValidation = false __VA_ARGS__;
+
 #define FROZEN_VALIDATE_DATA_FIELD(NAME) \
   validateDataField(context, self, this->NAME##Field);
 
