@@ -249,6 +249,7 @@ void check_index_range(global_metadata::Meta const& meta) {
   auto const num_gids = meta.gids().size();
   auto num_names = meta.names().size();
   auto const num_inodes = meta.inodes().size();
+  auto const num_directories = meta.directories().size();
   bool const v2_2 = !static_cast<bool>(meta.dir_entries());
   auto const max_names = v2_2 ? num_inodes : meta.dir_entries()->size();
   auto const max_inodes =
@@ -332,6 +333,13 @@ void check_index_range(global_metadata::Meta const& meta) {
       }
     }
 
+    if (auto const root_ino = dep->front().inode_num();
+        root_ino >= num_directories) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("root inode number out of range: {} >= {}",
+                               root_ino, num_directories));
+    }
+
     for (auto de : *dep) {
       if (auto i = de.name_index(); i >= num_names && i > 0) {
         DWARFS_THROW(
@@ -351,6 +359,13 @@ void check_index_range(global_metadata::Meta const& meta) {
                    fmt::format("invalid number of entries: {} >= {}",
                                meta.entry_table_v2_2().size(),
                                std::numeric_limits<uint32_t>::max()));
+    }
+
+    if (auto iv = meta.inodes().at(0);
+        iv.inode_v2_2() >= meta.directories().size()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("root inode number out of range: {} >= {}",
+                               iv.inode_v2_2(), meta.directories().size()));
     }
 
     for (auto ent : meta.entry_table_v2_2()) {
@@ -776,14 +791,20 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     auto num_reg_unique = meta.chunk_table().size() - 1;
     size_t num_reg_shared = 0;
 
-    if (auto sfp = meta.shared_files_table()) {
-      auto opts = meta.options();
+    auto opts = meta.options();
 
-      if (!opts) {
+    if (!opts) {
+      if (meta.shared_files_table()) {
         DWARFS_THROW(runtime_error,
                      "shared_files_table present but options missing");
       }
 
+      if (meta.dir_entries()) {
+        DWARFS_THROW(runtime_error, "dir_entries present but options missing");
+      }
+    }
+
+    if (auto sfp = meta.shared_files_table()) {
       if (opts->packed_shared_files_table()) {
         num_reg_shared =
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());

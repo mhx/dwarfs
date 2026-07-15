@@ -131,6 +131,9 @@ TEST_F(global_metadata_test, check_index_range) {
 
   // make this metadata v2.3+
   raw.dir_entries().emplace();
+
+  EXPECT_THAT([&] { check(raw); }, throws_error("empty dir_entries table"));
+
   auto&& de = raw.dir_entries()->emplace_back();
 
   raw.compact_names().emplace();
@@ -142,6 +145,13 @@ TEST_F(global_metadata_test, check_index_range) {
   de.name_index() = 0;
 
   de.inode_num() = 1;
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("root inode number out of range"));
+  de.inode_num() = 0;
+
+  auto&& de2 = raw.dir_entries()->emplace_back();
+  de2.name_index() = 0;
+  de2.inode_num() = 1;
   EXPECT_THAT([&] { check(raw); }, throws_error("inode_num out of range"));
 }
 
@@ -378,8 +388,16 @@ TEST_F(global_metadata_test, check_metadata) {
   raw.inodes()->at(0).mode_index() = 0;
   raw.inodes()->at(1).mode_index() = 0;
 
-  raw.options().emplace();
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("dir_entries present but options missing"));
+
   raw.shared_files_table().emplace();
+
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("shared_files_table present but options missing"));
+
+  raw.options().emplace();
+
   raw.shared_files_table()->push_back(1);
   raw.shared_files_table()->push_back(0);
   EXPECT_THAT([&] { check(raw); },
