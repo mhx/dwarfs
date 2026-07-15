@@ -172,10 +172,12 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
       }
     }
 
-    DWARFS_CHECK(
-        count == num_dir_inodes,
-        fmt::format("could not recover all self entries, expected {} got {}",
-                    num_dir_inodes, count));
+    if (count != num_dir_inodes) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not recover all self entries, expected {} got {}",
+                      num_dir_inodes, count));
+    }
 
     tt << "recovered " << count << " self entries from " << dirent.size()
        << " dir entries";
