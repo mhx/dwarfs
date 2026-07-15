@@ -27,6 +27,8 @@ TYPED_TEST_P(FrozenRange, ArrayLike) {
   EXPECT_EQ(fv.size(), 4);
   EXPECT_FALSE(fv.empty());
   EXPECT_EQ(fv[2], 12);
+  EXPECT_EQ(fv.at(2), 12);
+  EXPECT_THROW(fv.at(4), std::out_of_range);
 }
 
 TYPED_TEST_P(FrozenRange, Iterators) {
