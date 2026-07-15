@@ -115,38 +115,18 @@ deserialize_schema(std::span<uint8_t const> data) {
   return schema;
 }
 
-void check_schema(std::span<uint8_t const> data) {
-  auto schema = deserialize_schema(data);
-  if (!schema.layouts()->contains(*schema.rootLayout())) {
-    DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
-  }
-  for (auto const& kvl : *schema.layouts()) {
-    auto const& layout = kvl.second;
-    if (std::cmp_greater_equal(kvl.first, schema.layouts()->size())) {
-      DWARFS_THROW(runtime_error, "invalid layout key in schema");
-    }
-    if (*layout.size() < 0) {
-      DWARFS_THROW(runtime_error, "negative size in schema");
-    }
-    if (*layout.bits() < 0) {
-      DWARFS_THROW(runtime_error, "negative bits in schema");
-    }
-    for (auto const& kvf : *layout.fields()) {
-      auto const& field = kvf.second;
-      if (!schema.layouts()->contains(*field.layoutId())) {
-        DWARFS_THROW(runtime_error, "invalid layoutId in field");
-      }
-    }
-  }
-}
-
 template <typename T>
-MappedFrozen<T>
-map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
+MappedFrozen<T> map_frozen(logger& lgr, std::span<uint8_t const> schema,
+                           std::span<uint8_t const> data) {
+  LOG_PROXY(debug_logger_policy, lgr);
   using namespace ::apache::thrift::frozen;
-  check_schema(schema);
   auto layout = std::make_unique<Layout<T>>();
   deserializeRootLayout(schema, *layout);
+  {
+    auto tv = LOG_TIMED_VERBOSE;
+    validateFrozenData(*layout, data, {.checkAssociativeConsistency = true});
+    tv << "validated frozen data";
+  }
   MappedFrozen<T> ret(layout->view({data.data(), 0}));
   ret.hold(std::move(layout));
   return ret;
@@ -170,7 +150,10 @@ global_metadata::Meta const&
 check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
                            bool force_consistency_check) {
   if (force_consistency_check) {
+    LOG_PROXY(debug_logger_policy, lgr);
+    auto tv = LOG_TIMED_VERBOSE;
     global_metadata::check_consistency(lgr, meta);
+    tv << "checked metadata consistency";
   }
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
@@ -752,7 +735,8 @@ metadata_v2_data::metadata_v2_data(
     std::shared_ptr<performance_monitor const> const& perfmon [[maybe_unused]])
     : schema_{schema.begin(), schema.end()}
     , data_{data}
-    , meta_{check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_))}
+    , meta_{check_frozen(
+          map_frozen<thrift::metadata::metadata>(lgr, schema, data_))}
     , timeres_handler_{meta_}
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
