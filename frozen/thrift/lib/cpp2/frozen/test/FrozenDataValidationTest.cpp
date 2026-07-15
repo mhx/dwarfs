@@ -15,6 +15,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -48,6 +49,7 @@ using ::apache::thrift::test::Empty;
 using ::apache::thrift::test::Person1;
 
 using testing::AllOf;
+using testing::AnyOf;
 using testing::HasSubstr;
 using testing::ThrowsMessage;
 
@@ -124,8 +126,9 @@ void writeField(
   const auto bitOffset =
       (parent.byteOffset + static_cast<size_t>(field.pos.offset)) * 8 +
       parent.bitOffset + static_cast<size_t>(field.pos.bitOffset);
+  const auto bits = field.layout.size != 0 ? sizeof(T) * 8 : field.layout.bits;
   dwarfs::bit_view(reinterpret_cast<byte*>(data.data()))
-      .write({bitOffset, field.layout.bits}, value);
+      .write({bitOffset, bits}, value);
 }
 
 template <typename Layout>
@@ -134,6 +137,34 @@ DataValidationPosition fieldPosition(
   return {
       parent.byteOffset + static_cast<size_t>(field.pos.offset),
       parent.bitOffset + static_cast<size_t>(field.pos.bitOffset)};
+}
+
+template <typename Layout>
+DataValidationPosition rangeDataPosition(
+    const std::string& data,
+    DataValidationPosition self,
+    const Layout& layout) {
+  return {self.byteOffset + readField(data, self, layout.distanceField), 0};
+}
+
+template <typename Layout>
+DataValidationPosition rangeItemPosition(
+    const std::string& data,
+    DataValidationPosition self,
+    const Layout& layout,
+    size_t index) {
+  const auto rangeData = rangeDataPosition(data, self, layout);
+  if (layout.itemField.layout.size != 0) {
+    return {rangeData.byteOffset + index * layout.itemField.layout.size, 0};
+  }
+  return {rangeData.byteOffset, index * layout.itemField.layout.bits};
+}
+
+template <typename T>
+void expectValid(const T& value, ValidationOptions options) {
+  Layout<T> layout;
+  const auto data = freezeData(value, layout);
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data), options));
 }
 
 TEST(FrozenDataValidation, AcceptsValidFixedData) {
@@ -165,6 +196,212 @@ TEST(FrozenDataValidation, AcceptsValidOutOfLineData) {
   expectValid(
       std::pair<std::string, std::vector<std::string>>{
           "title", {"first", "second"}});
+}
+
+TEST(FrozenDataValidation, AcceptsValidAssociativeData) {
+  const ValidationOptions options{.checkAssociativeConsistency = true};
+  expectValid(std::map<uint32_t, uint64_t>{{1, 10}, {2, 20}, {3, 30}}, options);
+  expectValid(
+      std::unordered_map<uint32_t, uint64_t>{{1, 10}, {2, 20}, {3, 30}},
+      options);
+}
+
+TEST(FrozenDataValidation, AssociativeConsistencyRejectsUnorderedKeys) {
+  using Value = std::map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+
+  const auto second = rangeItemPosition(data, {}, layout, 1);
+
+  writeField(data, second, layout.itemField.layout.firstField, uint32_t{0});
+
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_THAT(
+      [&] {
+        validateFrozenData(
+            layout,
+            byteSpan(data),
+            ValidationOptions{.checkAssociativeConsistency = true});
+      },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("[1]"),
+          HasSubstr("ordered table keys are not strictly increasing"),
+          HasSubstr("previous index=0"),
+          HasSubstr("current index=1"),
+          HasSubstr("expected previous key < current key"))));
+}
+
+TEST(FrozenDataValidation, AssociativeConsistencyRejectsDuplicateOrderedKeys) {
+  using Value = std::map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+
+  const auto second = rangeItemPosition(data, {}, layout, 1);
+
+  writeField(data, second, layout.itemField.layout.firstField, uint32_t{1});
+
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_THAT(
+      [&] {
+        validateFrozenData(
+            layout,
+            byteSpan(data),
+            ValidationOptions{.checkAssociativeConsistency = true});
+      },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("[1]"),
+          HasSubstr("ordered table keys are not strictly increasing"))));
+}
+
+TEST(FrozenDataValidation, RejectsNonEmptyHashTableWithoutBuckets) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+
+  const auto sparseTable = fieldPosition({}, layout.sparseTableField);
+
+  writeField(
+      data, sparseTable, layout.sparseTableField.layout.countField, size_t{0});
+
+  EXPECT_THAT(
+      [&] { validateFrozenData(layout, byteSpan(data)); },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".sparseTable"),
+          HasSubstr("non-empty hash table has no buckets"),
+          HasSubstr("item count=2"),
+          HasSubstr("bucket count=0"))));
+}
+
+TEST(FrozenDataValidation, RejectsNonCanonicalHashBlockOffset) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  Value value;
+  for (uint32_t i = 0; i < 30; ++i) {
+    value.emplace(i, i + 1);
+  }
+
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(value, layout);
+  const auto sparseTable = fieldPosition({}, layout.sparseTableField);
+  const auto block =
+      rangeItemPosition(data, sparseTable, layout.sparseTableField.layout, 0);
+
+  writeField(
+      data,
+      block,
+      layout.sparseTableField.layout.itemField.layout.offsetField,
+      uint64_t{1});
+
+  EXPECT_THAT(
+      [&] { validateFrozenData(layout, byteSpan(data)); },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".sparseTable[0].offset"),
+          HasSubstr(
+              "hash table block offset does not match preceding population"),
+          HasSubstr("actual=1"),
+          HasSubstr("expected=0"))));
+}
+
+TEST(FrozenDataValidation, RejectsHashBlockPopulationBeyondItems) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+  const auto sparseTable = fieldPosition({}, layout.sparseTableField);
+  const auto block =
+      rangeItemPosition(data, sparseTable, layout.sparseTableField.layout, 0);
+
+  writeField(
+      data,
+      block,
+      layout.sparseTableField.layout.itemField.layout.maskField,
+      std::numeric_limits<uint64_t>::max());
+
+  EXPECT_THAT(
+      [&] { validateFrozenData(layout, byteSpan(data)); },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".sparseTable[0].mask"),
+          HasSubstr("hash table block population exceeds the item count"),
+          HasSubstr("population=64"),
+          HasSubstr("item count=2"))));
+}
+
+TEST(FrozenDataValidation, RejectsHashPopulationBelowItemCount) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+  const auto sparseTable = fieldPosition({}, layout.sparseTableField);
+  const auto block =
+      rangeItemPosition(data, sparseTable, layout.sparseTableField.layout, 0);
+  const auto& maskField =
+      layout.sparseTableField.layout.itemField.layout.maskField;
+  const auto mask = readField(data, block, maskField);
+  ASSERT_EQ(2, std::popcount(mask));
+
+  writeField(data, block, maskField, mask & (mask - 1));
+
+  EXPECT_THAT(
+      [&] { validateFrozenData(layout, byteSpan(data)); },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr(".sparseTable"),
+          HasSubstr("hash table population does not match the item count"),
+          HasSubstr("actual=1"),
+          HasSubstr("expected=2"))));
+}
+
+TEST(FrozenDataValidation, AssociativeConsistencyRejectsInvalidHashIndex) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+
+  const auto first = rangeItemPosition(data, {}, layout, 0);
+  const auto second = rangeItemPosition(data, {}, layout, 1);
+  const auto& keyField = layout.itemField.layout.firstField;
+  const auto firstKey = readField(data, first, keyField);
+  const auto secondKey = readField(data, second, keyField);
+  ASSERT_NE(firstKey, secondKey);
+
+  writeField(data, first, keyField, secondKey);
+  writeField(data, second, keyField, firstKey);
+
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_THAT(
+      [&] {
+        validateFrozenData(
+            layout,
+            byteSpan(data),
+            ValidationOptions{.checkAssociativeConsistency = true});
+      },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("[0]"),
+          AnyOf(
+              HasSubstr("hash table key is not reachable through its index"),
+              HasSubstr("hash table key resolves to a different item")),
+          HasSubstr("expected item index=0"))));
+}
+
+TEST(FrozenDataValidation, AssociativeConsistencyRejectsDuplicateHashKeys) {
+  using Value = std::unordered_map<uint32_t, uint32_t>;
+  auto layout = maximumLayout<Value>();
+  auto data = freezeData(Value{{1, 10}, {2, 20}}, layout);
+
+  const auto first = rangeItemPosition(data, {}, layout, 0);
+  const auto second = rangeItemPosition(data, {}, layout, 1);
+  const auto& keyField = layout.itemField.layout.firstField;
+  const auto firstKey = readField(data, first, keyField);
+
+  writeField(data, second, keyField, firstKey);
+
+  EXPECT_NO_THROW(validateFrozenData(layout, byteSpan(data)));
+  EXPECT_THAT(
+      [&] {
+        validateFrozenData(
+            layout,
+            byteSpan(data),
+            ValidationOptions{.checkAssociativeConsistency = true});
+      },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("[1]"),
+          HasSubstr("hash table key resolves to a different item"),
+          HasSubstr("expected item index=1"))));
 }
 
 TEST(FrozenDataValidation, AcceptsRangeWithZeroStorageItems) {
@@ -353,6 +590,7 @@ TEST(FrozenDataValidation, RejectsZeroStorageRangePositionOutsideData) {
   auto data = freezeData(value, layout);
 
   ASSERT_TRUE(layout.itemField.layout.empty());
+
   writeField(data, {}, layout.distanceField, data.size() + 1);
 
   EXPECT_THAT(
@@ -444,6 +682,7 @@ TEST(FrozenDataValidation, RejectsInvalidNestedStringPayload) {
 
   const auto rangeDistance = readField(data, {}, layout.distanceField);
   const DataValidationPosition item{.byteOffset = rangeDistance};
+
   writeField(
       data,
       item,

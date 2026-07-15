@@ -282,6 +282,39 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
   };
 
   View view(ViewPosition self) const { return View(this, self); }
+
+  void validateData(
+      DataValidationContext& context, DataValidationPosition self) const final {
+    Base::validateData(context, self);
+    if (!context.options().checkAssociativeConsistency) {
+      return;
+    }
+
+    const auto table = view(context.viewPosition(self));
+    if (table.size() < 2) {
+      return;
+    }
+
+    const auto dataOffset = this->validationDataOffset(context, self);
+    auto previous = table.begin();
+    auto item = previous;
+    ++item;
+    for (size_t index = 1; item != table.end(); ++item, ++index) {
+      auto scope = context.pushIndex(index);
+      scope.setPosition(
+          this->validationItemPosition(context, dataOffset, index));
+      const auto previousKey = KeyExtractor::getViewKey(*previous);
+      const auto currentKey = KeyExtractor::getViewKey(*item);
+      if (!(previousKey < currentKey)) {
+        context.fail(
+            "ordered table keys are not strictly increasing: previous "
+            "index=" +
+            std::to_string(index - 1) + ", current index=" +
+            std::to_string(index) + ", expected previous key < current key");
+      }
+      previous = item;
+    }
+  }
 };
 
 } // namespace apache::thrift::frozen::detail
