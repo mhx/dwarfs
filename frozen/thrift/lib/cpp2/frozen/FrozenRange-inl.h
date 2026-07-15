@@ -139,9 +139,7 @@ struct ArrayLayout : public LayoutBase {
       return;
     }
 
-    const auto distance = validatedDataFieldView(context, self, distanceField);
-    const auto dataOffset =
-        context.checkedAdd(self.byteOffset, distance, "range data position");
+    const auto dataOffset = validationDataOffset(context, self);
 
     const auto itemBytes = itemField.layout.size;
     const auto itemBits = itemBytes == 0 ? itemField.layout.bits : size_t{0};
@@ -168,17 +166,8 @@ struct ArrayLayout : public LayoutBase {
 
     for (size_t index = 0; index < count; ++index) {
       auto scope = context.pushIndex(index);
-      DataValidationPosition itemPosition;
-      if (itemBytes != 0) {
-        const auto itemOffset =
-            context.checkedMultiply(index, itemBytes, "range item position");
-        itemPosition.byteOffset =
-            context.checkedAdd(dataOffset, itemOffset, "range item position");
-      } else {
-        itemPosition.byteOffset = dataOffset;
-        itemPosition.bitOffset =
-            context.checkedMultiply(index, itemBits, "range item bit position");
-      }
+      const auto itemPosition =
+          validationItemPosition(context, dataOffset, index);
       scope.setPosition(itemPosition);
       itemField.layout.validateData(context, itemPosition);
     }
@@ -205,6 +194,28 @@ struct ArrayLayout : public LayoutBase {
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(distance, 1) FROZEN_LOAD_FIELD(count, 2)
                          FROZEN_LOAD_FIELD_OUT_OF_LINE(item, 3))
 
+ protected:
+  size_t validationDataOffset(
+      DataValidationContext& context, DataValidationPosition self) const {
+    const auto distance = validatedDataFieldView(context, self, distanceField);
+    return context.checkedAdd(self.byteOffset, distance, "range data position");
+  }
+
+  DataValidationPosition validationItemPosition(
+      DataValidationContext& context, size_t dataOffset, size_t index) const {
+    if (itemField.layout.size != 0) {
+      const auto itemOffset = context.checkedMultiply(
+          index, itemField.layout.size, "range item position");
+      return {
+          context.checkedAdd(dataOffset, itemOffset, "range item position"), 0};
+    }
+    return {
+        dataOffset,
+        context.checkedMultiply(
+            index, itemField.layout.bits, "range item bit position")};
+  }
+
+ public:
   /**
    * A view of a range, which produces views of items upon indexing or iterator
    * dereference

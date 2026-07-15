@@ -351,6 +351,129 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
   };
 
   View view(ViewPosition self) const { return View(this, self); }
+
+  void validateData(
+      DataValidationContext& context, DataValidationPosition self) const final {
+    Base::validateData(context, self);
+
+    const auto itemCount =
+        validatedDataFieldView(context, self, this->countField);
+
+    {
+      auto tableScope = context.pushField(sparseTableField.name);
+      const auto tablePosition = context.position(self, sparseTableField.pos);
+      tableScope.setPosition(tablePosition);
+      sparseTableField.layout.validateData(context, tablePosition);
+      const auto table =
+          sparseTableField.layout.view(context.viewPosition(tablePosition));
+
+      const auto bucketCount = context.checkedMultiply(
+          table.size(), Block::bits, "hash table bucket count");
+      if (itemCount != 0 && bucketCount == 0) {
+        context.fail(
+            "non-empty hash table has no buckets: item count=" +
+            std::to_string(itemCount) + ", bucket count=0");
+      }
+
+      size_t expectedOffset = 0;
+      if (!table.empty()) {
+        const auto tableDistance = validatedDataFieldView(
+            context, tablePosition, sparseTableField.layout.distanceField);
+        const auto tableDataOffset = context.checkedAdd(
+            tablePosition.byteOffset, tableDistance, "range data position");
+        const auto& blockLayout = sparseTableField.layout.itemField.layout;
+
+        for (size_t blockIndex = 0; blockIndex < table.size(); ++blockIndex) {
+          auto blockScope = context.pushIndex(blockIndex);
+          DataValidationPosition blockPosition;
+          if (blockLayout.size != 0) {
+            const auto blockOffset = context.checkedMultiply(
+                blockIndex, blockLayout.size, "hash table block position");
+            blockPosition.byteOffset = context.checkedAdd(
+                tableDataOffset, blockOffset, "hash table block position");
+          } else {
+            blockPosition.byteOffset = tableDataOffset;
+            blockPosition.bitOffset = context.checkedMultiply(
+                blockIndex, blockLayout.bits, "hash table block bit position");
+          }
+          blockScope.setPosition(blockPosition);
+
+          const auto block = table[blockIndex];
+          const auto rawOffset = block.offset();
+          if (std::cmp_greater(rawOffset, std::numeric_limits<size_t>::max())) {
+            auto offsetScope = context.pushField(blockLayout.offsetField.name);
+            offsetScope.setPosition(
+                context.position(blockPosition, blockLayout.offsetField.pos));
+            context.fail(
+                "hash table block offset is not representable: actual=" +
+                std::to_string(rawOffset) + ", maximum=" +
+                std::to_string(std::numeric_limits<size_t>::max()));
+          }
+
+          const auto offset = static_cast<size_t>(rawOffset);
+          if (offset != expectedOffset) {
+            auto offsetScope = context.pushField(blockLayout.offsetField.name);
+            offsetScope.setPosition(
+                context.position(blockPosition, blockLayout.offsetField.pos));
+            context.fail(
+                "hash table block offset does not match preceding "
+                "population: actual=" +
+                std::to_string(offset) +
+                ", expected=" + std::to_string(expectedOffset));
+          }
+
+          const auto population =
+              static_cast<size_t>(std::popcount(block.mask()));
+          if (population > itemCount - expectedOffset) {
+            auto maskScope = context.pushField(blockLayout.maskField.name);
+            maskScope.setPosition(
+                context.position(blockPosition, blockLayout.maskField.pos));
+            context.fail(
+                "hash table block population exceeds the item count: "
+                "offset=" +
+                std::to_string(expectedOffset) +
+                ", population=" + std::to_string(population) +
+                ", item count=" + std::to_string(itemCount));
+          }
+          expectedOffset += population;
+        }
+      }
+
+      if (expectedOffset != itemCount) {
+        context.fail(
+            "hash table population does not match the item count: actual=" +
+            std::to_string(expectedOffset) +
+            ", expected=" + std::to_string(itemCount));
+      }
+    }
+
+    if (!context.options().checkAssociativeConsistency || itemCount == 0) {
+      return;
+    }
+
+    const auto tableView = view(context.viewPosition(self));
+    const auto dataOffset = this->validationDataOffset(context, self);
+    auto item = tableView.begin();
+    for (size_t index = 0; item != tableView.end(); ++item, ++index) {
+      auto itemScope = context.pushIndex(index);
+      itemScope.setPosition(
+          this->validationItemPosition(context, dataOffset, index));
+      const auto key = KeyExtractor::getViewKey(*item);
+      const auto found = tableView.find(key);
+      if (found == tableView.end()) {
+        context.fail(
+            "hash table key is not reachable through its index: expected "
+            "item index=" +
+            std::to_string(index) + ", actual=not found");
+      }
+      if (found != item) {
+        context.fail(
+            "hash table key resolves to a different item: expected item "
+            "index=" +
+            std::to_string(index));
+      }
+    }
+  }
 };
 } // namespace detail
 } // namespace apache::thrift::frozen
