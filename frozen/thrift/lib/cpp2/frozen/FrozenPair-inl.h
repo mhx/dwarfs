@@ -60,6 +60,13 @@ struct PairLayout : public LayoutBase {
     thawField(self, secondField, const_cast<SecondDecayed&>(out.second));
   }
 
+  void validateData(DataValidationContext& context, DataValidationPosition self)
+      const override {
+    Base::validateData(context, self);
+    validateDataField(context, self, firstField);
+    validateDataField(context, self, secondField);
+  }
+
   FROZEN_VIEW(FROZEN_VIEW_FIELD(first, FirstDecayed)
                   FROZEN_VIEW_FIELD(second, SecondDecayed))
 

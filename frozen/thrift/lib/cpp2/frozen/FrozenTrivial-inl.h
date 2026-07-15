@@ -58,6 +58,16 @@ struct TrivialLayout : public LayoutBase {
     }
   }
 
+  void validateData(
+      DataValidationContext& context,
+      DataValidationPosition position) const override {
+    Base::validateData(context, position);
+    if (!empty()) {
+      context.requirePhysicalBytes(
+          position.byteOffset, sizeof(T), "trivial value");
+    }
+  }
+
   using View = T;
   View view(ViewPosition self) const {
     View v;
