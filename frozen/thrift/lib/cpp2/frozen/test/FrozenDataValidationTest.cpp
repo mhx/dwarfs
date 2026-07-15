@@ -10,7 +10,9 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
@@ -49,8 +51,37 @@ using testing::AllOf;
 using testing::HasSubstr;
 using testing::ThrowsMessage;
 
+using PackedMap = std::map<uint32_t, uint64_t>;
+using PackedMapItem = PackedMap::value_type;
+
+template <typename View>
+concept HasRawRange = requires(const View& view) { view.range(); };
+
+static_assert(detail::is_blit_layout_v<double>);
+static_assert(!detail::is_blit_layout_v<PackedMapItem>);
+static_assert(!detail::is_blit_layout_v<detail::Block>);
+static_assert(HasRawRange<Layout<std::vector<double>>::View>);
+static_assert(!HasRawRange<Layout<std::vector<PackedMapItem>>::View>);
+
 std::span<const byte> byteSpan(const std::string& data) {
   return {reinterpret_cast<const byte*>(data.data()), data.size()};
+}
+
+std::span<const byte> relocateWithMisalignedRangeData(
+    const std::string& data,
+    size_t distance,
+    size_t alignment,
+    std::vector<byte>& storage) {
+  assert(alignment > 1);
+
+  storage.resize(data.size() + alignment);
+  const auto base = reinterpret_cast<uintptr_t>(storage.data());
+  size_t shift = 0;
+  while ((base + shift + distance) % alignment == 0) {
+    ++shift;
+  }
+  std::memcpy(storage.data() + shift, data.data(), data.size());
+  return {storage.data() + shift, data.size()};
 }
 
 template <typename T>
@@ -139,6 +170,41 @@ TEST(FrozenDataValidation, AcceptsValidOutOfLineData) {
 TEST(FrozenDataValidation, AcceptsRangeWithZeroStorageItems) {
   expectValid(std::vector<int32_t>(100, 0));
   expectValid(std::vector<std::pair<int32_t, int32_t>>(100));
+}
+
+TEST(FrozenDataValidation, AcceptsMisalignedPackedMapItems) {
+  const PackedMap value{{1, 2}, {3, 4}, {5, 6}};
+  Layout<PackedMap> layout;
+  const auto data = freezeData(value, layout);
+  const auto distance = readField(data, {}, layout.distanceField);
+
+  std::vector<byte> storage;
+  const auto relocated = relocateWithMisalignedRangeData(
+      data, distance, alignof(PackedMapItem), storage);
+  ASSERT_NE(
+      0U,
+      (reinterpret_cast<uintptr_t>(relocated.data()) + distance) %
+          alignof(PackedMapItem));
+
+  EXPECT_NO_THROW(validateFrozenData(layout, relocated));
+  EXPECT_EQ(value, layout.view({relocated.data(), 0}).thaw());
+}
+
+TEST(FrozenDataValidation, RejectsMisalignedRelocatedBlitRange) {
+  const std::vector<double> value{1.0, 2.0, 3.0};
+  Layout<std::vector<double>> layout;
+  const auto data = freezeData(value, layout);
+  const auto distance = readField(data, {}, layout.distanceField);
+
+  std::vector<byte> storage;
+  const auto relocated =
+      relocateWithMisalignedRangeData(data, distance, alignof(double), storage);
+
+  EXPECT_THAT(
+      [&] { validateFrozenData(layout, relocated); },
+      ThrowsMessage<DataValidationException>(AllOf(
+          HasSubstr("range data is not correctly aligned"),
+          HasSubstr("expected alignment=" + std::to_string(alignof(double))))));
 }
 
 TEST(FrozenDataValidation, AcceptsGeneratedStructData) {
@@ -339,7 +405,7 @@ TEST(FrozenDataValidation, RejectsMisalignedRangeData) {
       ThrowsMessage<DataValidationException>(AllOf(
           HasSubstr("range data is not correctly aligned"),
           HasSubstr("actual remainder="),
-          HasSubstr("expected alignment=8"))));
+          HasSubstr("expected alignment=" + std::to_string(alignof(double))))));
 }
 
 TEST(FrozenDataValidation, RejectsOverlappingStringPayloads) {
