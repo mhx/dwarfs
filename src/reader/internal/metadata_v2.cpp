@@ -430,7 +430,7 @@ class metadata_v2_data {
   std::optional<std::string> get_block_category(size_t block_number) const {
     if (auto catnames = meta_.category_names()) {
       if (auto categories = meta_.block_categories()) {
-        return std::string(catnames.value()[categories.value()[block_number]]);
+        return std::string(catnames->at(categories->at(block_number)));
       }
     }
     return std::nullopt;
