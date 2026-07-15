@@ -79,6 +79,26 @@ struct StringLayout : public LayoutBase {
     Helper::thawTo(view(self), out);
   }
 
+  void validateData(DataValidationContext& context, DataValidationPosition self)
+      const override {
+    Base::validateData(context, self);
+
+    const auto count = validatedDataFieldView(context, self, countField);
+    if (count == 0) {
+      return;
+    }
+
+    const auto distance = validatedDataFieldView(context, self, distanceField);
+    const auto dataOffset =
+        context.checkedAdd(self.byteOffset, distance, "string data position");
+    const auto dataSize =
+        context.checkedMultiply(count, sizeof(Item), "string data");
+
+    context.requireLogicalBytes(dataOffset, dataSize, "string data");
+    context.requireAlignment(dataOffset, alignof(Item), "string data");
+    context.registerAllocation(dataOffset, dataSize, "string data");
+  }
+
   using View = std::conditional_t<
       std::is_same_v<Item, char>,
       std::string_view,

@@ -1949,6 +1949,7 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             ("VIEW", "VIEW", True, lambda f: field_cpp_type(f)),
             ("SAVE_INLINE", "SAVE", False, None),
             ("LOAD_INLINE", "LOAD", False, lambda f: str(f.field_id)),
+            ("VALIDATE_DATA_INLINE", "VALIDATE_DATA", False, None),
         ):
             if first:
                 first = False
