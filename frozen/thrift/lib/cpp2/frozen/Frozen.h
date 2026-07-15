@@ -324,12 +324,44 @@ struct DataValidationPosition {
  * checked.
  */
 class DataValidationContext {
+ private:
+  struct PathComponent;
+
  public:
+  class PathScope {
+   public:
+    PathScope(const PathScope&) = delete;
+    PathScope& operator=(const PathScope&) = delete;
+    PathScope(PathScope&& other) noexcept;
+    PathScope& operator=(PathScope&&) = delete;
+    ~PathScope();
+
+    void setPosition(DataValidationPosition position) noexcept;
+
+   private:
+    friend class DataValidationContext;
+
+    PathScope(DataValidationContext& context, PathComponent component);
+
+    DataValidationContext* context_;
+    size_t pathSize_;
+    std::optional<DataValidationPosition> previousPosition_;
+  };
+
   explicit DataValidationContext(
       std::span<const byte> data, ValidationOptions options = {});
+  DataValidationContext(
+      std::span<const byte> data,
+      std::type_index rootType,
+      ValidationOptions options = {});
 
   const ValidationOptions& options() const noexcept { return options_; }
   size_t logicalSize() const noexcept { return logicalSize_; }
+
+  [[nodiscard]] PathScope pushField(std::string_view name);
+  [[nodiscard]] PathScope pushIndex(size_t index);
+
+  [[noreturn]] void fail(std::string message) const;
 
   size_t checkedAdd(size_t lhs, size_t rhs, std::string_view what) const;
   size_t checkedMultiply(size_t lhs, size_t rhs, std::string_view what) const;
@@ -358,14 +390,27 @@ class DataValidationContext {
   ViewPosition viewPosition(DataValidationPosition position) const;
 
  private:
+  struct PathComponent {
+    enum class Kind { Field, Index } kind;
+    std::string_view field;
+    size_t index{0};
+  };
+
   struct Allocation {
     size_t end;
-    std::string description;
+    std::string what;
+    std::string location;
   };
+
+  void initialize();
+  std::string path() const;
 
   std::span<const byte> data_;
   ValidationOptions options_;
   size_t logicalSize_{0};
+  std::string rootType_;
+  std::vector<PathComponent> path_;
+  std::optional<DataValidationPosition> currentPosition_;
   std::map<size_t, Allocation> allocations_;
 };
 
@@ -529,7 +574,10 @@ void validateDataField(
     DataValidationContext& context,
     DataValidationPosition self,
     const Field<T, Layout>& field) {
-  field.layout.validateData(context, context.position(self, field.pos));
+  auto scope = context.pushField(field.name);
+  const auto position = context.position(self, field.pos);
+  scope.setPosition(position);
+  field.layout.validateData(context, position);
 }
 
 template <class T, class Layout>
@@ -537,7 +585,9 @@ auto validatedDataFieldView(
     DataValidationContext& context,
     DataValidationPosition self,
     const Field<T, Layout>& field) {
+  auto scope = context.pushField(field.name);
   const auto position = context.position(self, field.pos);
+  scope.setPosition(position);
   field.layout.validateData(context, position);
   return field.layout.view(context.viewPosition(position));
 }
@@ -958,7 +1008,7 @@ void validateFrozenData(
     const Layout<T>& layout,
     std::span<const byte> data,
     ValidationOptions options = {}) {
-  DataValidationContext context(data, options);
+  DataValidationContext context(data, typeid(T), options);
   const auto rootBytes = layout.size != 0
       ? layout.size
       : (layout.bits / 8 + static_cast<size_t>(layout.bits % 8 != 0));
