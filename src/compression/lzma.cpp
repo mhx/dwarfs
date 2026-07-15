@@ -305,12 +305,25 @@ class lzma_block_decompressor final : public block_decompressor_base {
 
     lzma_action action = LZMA_RUN;
 
-    if (decompressed_.size() + frame_size > uncompressed_size_) {
-      frame_size = uncompressed_size_ - decompressed_.size();
+    size_t const pos = decompressed_.size();
+
+    if (pos + frame_size > uncompressed_size_) {
+      if (pos > uncompressed_size_) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("[LZMA] decompressed size {} exceeds expected size {}",
+                        pos, uncompressed_size_));
+      }
+      frame_size = uncompressed_size_ - pos;
       action = LZMA_FINISH;
     }
 
-    assert(frame_size > 0);
+    if (frame_size == 0) {
+      DWARFS_THROW(runtime_error,
+                   "[LZMA] frame size must be greater than zero");
+    }
+
+    assert(pos + frame_size <= uncompressed_size_);
 
     size_t offset = decompressed_.size();
     decompressed_.resize(offset + frame_size);

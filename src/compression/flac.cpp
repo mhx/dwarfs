@@ -442,17 +442,26 @@ class flac_block_decompressor final : public block_decompressor_base {
   bool decompress_frame(size_t frame_size) override {
     DWARFS_CHECK(decompressed_, "decompression not started");
 
-    size_t pos = decompressed_.size();
+    size_t const pos = decompressed_.size();
 
     if (pos + frame_size > uncompressed_size_) {
-      assert(uncompressed_size_ >= pos);
+      if (pos > uncompressed_size_) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("[FLAC] decompressed size {} exceeds expected size {}",
+                        pos, uncompressed_size_));
+      }
       frame_size = uncompressed_size_ - pos;
     }
 
-    size_t wanted = pos + frame_size;
+    if (frame_size == 0) {
+      DWARFS_THROW(runtime_error,
+                   "[FLAC] frame size must be greater than zero");
+    }
+
+    size_t const wanted = pos + frame_size;
 
     assert(wanted <= uncompressed_size_);
-    assert(frame_size > 0);
 
     while (decompressed_.size() < wanted) {
       if (!decoder_->process_single()) {

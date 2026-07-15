@@ -627,15 +627,25 @@ class brotli_block_decompressor final : public block_decompressor_base {
   bool decompress_frame(size_t frame_size) override {
     DWARFS_CHECK(decompressed_, "decompression not started");
 
-    size_t pos = decompressed_.size();
+    size_t const pos = decompressed_.size();
 
     if (pos + frame_size > uncompressed_size_) {
-      assert(uncompressed_size_ >= pos);
+      if (pos > uncompressed_size_) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format(
+                "[BROTLI] decompressed size {} exceeds expected size {}", pos,
+                uncompressed_size_));
+      }
       frame_size = uncompressed_size_ - pos;
     }
 
+    if (frame_size == 0) {
+      DWARFS_THROW(runtime_error,
+                   "[BROTLI] frame size must be greater than zero");
+    }
+
     assert(pos + frame_size <= uncompressed_size_);
-    assert(frame_size > 0);
 
     decompressed_.resize(pos + frame_size);
     uint8_t* next_out = decompressed_.data() + pos;
