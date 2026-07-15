@@ -731,6 +731,27 @@ void check_chunks(global_metadata::Meta const& meta,
   }
 }
 
+void check_categories(global_metadata::Meta const& meta) {
+  auto categories = meta.block_categories();
+  auto catnames = meta.category_names();
+
+  if (categories.has_value() != catnames.has_value()) {
+    DWARFS_THROW(
+        runtime_error,
+        "categories and category_names must be both present or both absent");
+  }
+
+  if (categories) {
+    for (auto cat : *categories) {
+      if (cat >= catnames->size()) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("category index out of range: {} >= {}", cat,
+                                 catnames->size()));
+      }
+    }
+  }
+}
+
 std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
   std::array<size_t, 6> offsets;
 
@@ -784,6 +805,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     check_packed_tables(lgr, meta);
     check_string_tables(meta);
     check_chunks(meta, features);
+    check_categories(meta);
     auto offsets = check_partitioning(meta);
 
     auto num_dir = meta.directories().size() - 1;
