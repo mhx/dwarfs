@@ -302,6 +302,14 @@ struct Layout : public LayoutBase {
       "'#include \"..._layouts.h\"'");
 };
 
+namespace detail {
+
+template <class LayoutType>
+inline constexpr bool may_require_per_item_validation_v =
+    LayoutType::kMayRequirePerItemValidation;
+
+} // namespace detail
+
 std::ostream& operator<<(std::ostream& os, const LayoutBase& layout);
 
 class DataValidationException : public std::runtime_error {
