@@ -650,3 +650,55 @@ extern "C" fsst_decoder_t fsst_decoder(fsst_encoder_t *encoder) {
    assert(cnt1 == cnt2); (void) cnt1; (void) cnt2; 
    return decoder;
 }
+
+// Validate a serialized FSST symbol table ("header") before handing it to fsst_import().
+// This is a pure memory-safety predicate: it does not check whether the table decodes to meaningful
+// data, only that fsst_import() cannot overrun the decoder arrays or read past the buffer.
+extern "C" size_t fsst_validate_header(const unsigned char *buf, size_t bufLen) {
+   if (bufLen < 17) return 0;                       // version(8) + zeroTerminated(1) + lenHisto(8)
+
+   u64 version = 0;                                 // same logic as fsst_import()
+   memcpy(&version, buf, 8);
+   version = swap64_if_be(version);
+   if ((version >> 32) != FSST_VERSION) return 0;
+
+   unsigned zeroTerminated = buf[8] & 1;
+   u8 lenHisto[8];
+   memcpy(lenHisto, buf + 9, 8);
+
+   unsigned code = zeroTerminated;
+   if (zeroTerminated) {
+      if (lenHisto[0] == 0) return 0;               // fsst_import() would underflows lenHisto[0]
+      lenHisto[0]--;
+   }
+
+   size_t pos = 17;
+   for (unsigned l = 1; l <= 8; l++) {
+      const unsigned symLen = (l & 7) + 1;          // 2,3,4,5,6,7,8,1  (same logic as fsst_import())
+      for (unsigned i = 0; i < lenHisto[l & 7]; i++) {
+         if (code >= 255) return 0;                 // fsst_import() would overflow the code table
+         pos += symLen;
+         code++;
+      }
+   }
+
+   if (pos > bufLen) return 0;                      // fsst_import() would read past the buffer
+
+   return pos;
+}
+
+// Validate a single FSST-compressed string before handing it to fsst_decompress().
+// The only way fsst_decompress() can read past the input buffer is if the last input
+// byte is a dangling escape.
+extern "C" int fsst_validate_compressed(const unsigned char *strIn, size_t lenIn) {
+   size_t posIn = 0;
+   while (posIn < lenIn) {
+      if (strIn[posIn] == FSST_ESC) {
+         if (lenIn - posIn < 2) return 0;           // last byte -> dangling escape
+         posIn += 2;                                // skip over the escaped byte
+      } else {
+         posIn += 1;
+      }
+   }
+   return 1;
+}
