@@ -239,7 +239,7 @@ static inline ulong compressBulk(SymbolMap &symbolMap, ulong nlines, const ulong
          }
          cur += (code >> 12);
          res |= (code&FSST_CODE_MASK) << 12;
-         memcpy(out, &res, sizeof(u64));
+         memcpy(out, &res, sizeof(u32));
          out += 3; 
       }
       while (cur < end) {
@@ -250,14 +250,14 @@ static inline ulong compressBulk(SymbolMap &symbolMap, ulong nlines, const ulong
          }
          cur += code >> 12;
          if (cur >= end) {
-            memcpy(out, &res, sizeof(u64));
-	    out += 2;
+            memcpy(out, &res, sizeof(u32)); 
+			out += 2;
             break;
          }
          code = symbolMap.findExpansion(Symbol(cur, end));
          res |= (code&FSST_CODE_MASK) << 12;
          cur += code >> 12;
-         memcpy(out, &res, sizeof(u64));
+         memcpy(out, &res, sizeof(u32));
 	 out += 3;
       } 
       lenOut[curLine] = out - strOut[curLine];
