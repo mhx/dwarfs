@@ -136,6 +136,12 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
 
         auto p_ino = dirent[parent].inode_num();
 
+        if (p_ino >= num_dir_inodes) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("invalid parent inode number {} >= {}",
+                                   p_ino, num_dir_inodes));
+        }
+
         auto beg = directories[p_ino].first_entry().value();
         auto end = directories[p_ino + 1].first_entry().value();
 
