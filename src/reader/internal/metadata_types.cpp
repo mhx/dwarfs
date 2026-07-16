@@ -748,11 +748,38 @@ void check_categories(global_metadata::Meta const& meta) {
   }
 
   if (categories) {
+    if (categories->empty()) {
+      DWARFS_THROW(runtime_error, "categories table is present but empty");
+    }
+
     for (auto cat : *categories) {
       if (cat >= catnames->size()) {
         DWARFS_THROW(runtime_error,
                      fmt::format("category index out of range: {} >= {}", cat,
                                  catnames->size()));
+      }
+    }
+  }
+
+  auto cat_meta_json = meta.category_metadata_json();
+  auto cat_meta_index = meta.block_category_metadata();
+
+  if (cat_meta_json.has_value() != cat_meta_index.has_value()) {
+    DWARFS_THROW(
+        runtime_error,
+        "category_metadata_json and block_category_metadata must be both "
+        "present or both absent");
+  }
+
+  if (cat_meta_json) {
+    auto const num_meta = cat_meta_json->size();
+
+    for (auto const& ent : *cat_meta_index) {
+      if (auto const index = ent.second(); index >= num_meta) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("category metadata index out of range: {} >= {}", index,
+                        num_meta));
       }
     }
   }
