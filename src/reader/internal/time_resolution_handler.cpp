@@ -43,8 +43,8 @@ using ::apache::thrift::frozen::View;
 namespace {
 
 uint32_t get_resolution(auto const& meta) {
-  if (meta.options()) {
-    if (auto const val = meta.options()->time_resolution_sec()) {
+  if (auto opts = meta.options()) {
+    if (auto const val = opts->time_resolution_sec()) {
       assert(*val > 0);
       return *val;
     }
@@ -55,9 +55,8 @@ uint32_t get_resolution(auto const& meta) {
 
 uint32_t
 get_nsec_multiplier(auto const& meta, uint32_t resolution [[maybe_unused]]) {
-  if (meta.options()) {
-    if (auto const val =
-            meta.options()->subsecond_resolution_nsec_multiplier()) {
+  if (auto opts = meta.options()) {
+    if (auto const val = opts->subsecond_resolution_nsec_multiplier()) {
       assert(resolution == 1);
       assert(*val > 0 && *val < 1'000'000'000);
       return *val;
