@@ -121,6 +121,29 @@ fsst_compress(
    unsigned char *strOut[]  /* OUT: output string start pointers. Will all point into [output,output+size). */
 );
 
+/* Loads two codes out of the first 24 bits of the 32-bit value and writes their symbols to the output buffer. */
+inline void write_two_codes_aligned(const unsigned char *__restrict__ len, unsigned long*__restrict__ symbol,
+                            unsigned char *__restrict__ strOut, unsigned long &posOut, const unsigned long size,
+                            const unsigned int code) {
+   const unsigned int code0 = code & 4095;
+   const unsigned int code1 = (code >> 12) & 4095;
+   unsigned char *__restrict__ src, *__restrict__ lim, *__restrict__ dst = strOut+posOut;
+   for(lim=strOut+((posOut+len[code0])>size?size:posOut+len[code0]), src=(unsigned char*__restrict__) &symbol[code0]; dst < lim; dst++, src++) *dst = *src;
+   posOut += len[code0];
+   for(lim=strOut+((posOut+len[code1])>size?size:posOut+len[code1]), src=(unsigned char*__restrict__) &symbol[code1]; dst < lim; dst++, src++) *dst = *src;
+   posOut += len[code1];
+}
+
+/* Loads one code out of the first 12 bits of the 16-bit value and writes its symbol to the output buffer. */
+inline void write_one_code_aligned(const unsigned char *__restrict__ len, unsigned long*__restrict__ symbol,
+                               unsigned char *__restrict__ strOut, unsigned long &posOut, const unsigned long size,
+                               unsigned short code) {
+   code &= 4095;
+   unsigned char *__restrict__ src, *__restrict__ lim, *__restrict__ dst = strOut+posOut;
+   for(lim=strOut+((posOut+len[code])>size?size:posOut+len[code]), src=(unsigned char*__restrict__) &symbol[code]; dst < lim; dst++, src++) *dst = *src;
+   posOut += len[code];
+}
+
 /* Decompress a single string, inlined for speed. */
 inline unsigned long        /* OUT: bytesize of the decompressed string. If > size, the decoded output is truncated to size. */
 fsst_decompress(
@@ -131,7 +154,7 @@ fsst_decompress(
    unsigned char *output    /* OUT: memory buffer to put the decompressed string in. */
 ) {
    unsigned char*__restrict__ len = (unsigned char* __restrict__) decoder->len;
-   unsigned long*__restrict__ symbol = (unsigned long* __restrict__) decoder->symbol; 
+   unsigned long long*__restrict__ symbol = (unsigned long long* __restrict__) decoder->symbol; 
    unsigned char*__restrict__ strOut = (unsigned char* __restrict__) output;
    unsigned long posOut = 0, posIn = 0;
 #define FSST_UNALIGNED_STORE(dst,src) memcpy((unsigned long long*) (dst), &(src), sizeof(unsigned long long))
@@ -147,35 +170,31 @@ fsst_decompress(
       FSST_UNALIGNED_STORE(strOut+posOut, symbol[code1]); 
       posOut += len[code1];
    }
-   if (posOut+8 <= size && posIn < lenIn) {
-      unsigned short code;
-      memcpy(&code, strIn+posIn, sizeof(unsigned short));
-      code &= 4095;
-      posIn=lenIn;
-      FSST_UNALIGNED_STORE(strOut+posOut, symbol[code]); 
-      posOut += len[code];
-   }
 #endif
-   while (posIn+3 < lenIn) {
-      unsigned int code, code0, code1;
+   while (posIn+4 < lenIn) {
+      unsigned int code;
       memcpy(&code, strIn+posIn, sizeof(unsigned int));
-      code0 = code & 4095;
-      code1 = (code >> 12) & 4095;
+      write_two_codes_aligned(len, symbol, strOut, posOut, size, code);
       posIn += 3;
-      unsigned char *__restrict__ src, *__restrict__ lim, *__restrict__ dst = strOut+posOut;
-      for(lim=strOut+((posOut+len[code0])>size?size:posOut+len[code0]), src=(unsigned char*__restrict__) &symbol[code0]; dst < lim; dst++, src++) *dst = *src;
-      posOut += len[code0];
-      for(lim=strOut+((posOut+len[code1])>size?size:posOut+len[code1]), src=(unsigned char*__restrict__) &symbol[code1]; dst < lim; dst++, src++) *dst = *src;
-      posOut += len[code1];
    }
-   if (posIn < lenIn) {
+
+   // handle tail: The number of bytes left can be 0 (nothing to do), 2 (one code left) or 3 (two codes left).
+   // 1 byte left is invalid as we need at least 12 bits for a code.
+   const unsigned int bytesLeft = lenIn - posIn;
+   if (bytesLeft == 2) { // one code left in 2 bytes
       unsigned short code;
       memcpy(&code, strIn+posIn, sizeof(unsigned short));
-      code &= 4095;
+      write_one_code_aligned(len, symbol, strOut, posOut, size, code);
       posIn=lenIn;
-      unsigned char *__restrict__ src, *__restrict__ lim, *__restrict__ dst = strOut+posOut;
-      for(lim=strOut+((posOut+len[code])>size?size:posOut+len[code]), src=(unsigned char*__restrict__) &symbol[code]; dst < lim; dst++, src++) *dst = *src;
-      posOut += len[code];
+   } else if (bytesLeft == 3) { // two codes left in 3 bytes
+      unsigned int code;
+      memcpy(&code, strIn+posIn, 3);
+      write_two_codes_aligned(len, symbol, strOut, posOut, size, code);
+      posIn=lenIn;
+   } else if (bytesLeft == 0) {
+      /* nothing to do */
+   } else {
+      assert(false); /* corrupted input */
    }
    return posOut; /* full size of decompressed string (could be >size, then the actually decompressed part) */
 }
