@@ -35,6 +35,7 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
+#include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/fs_section_checker.h>
@@ -42,6 +43,14 @@
 namespace dwarfs::internal {
 
 namespace {
+
+#ifdef DWARFS_WITH_FUZZ
+bool checksums_disabled_for_fuzzing() {
+  static bool const disabled =
+      getenv_is_enabled("DWARFS_DISABLE_CHECKSUMS_FOR_FUZZING");
+  return disabled;
+}
+#endif
 
 template <typename T>
 void read_section_header_common(T& header, file_off_t& start,
@@ -229,6 +238,12 @@ class fs_section_v2 final : public fs_section::impl {
     }
 
     auto ok = fs_section_checker(seg).check(*this);
+
+#ifdef DWARFS_WITH_FUZZ
+    if (checksums_disabled_for_fuzzing()) {
+      ok = true;
+    }
+#endif
 
     if (auto state = check_state_.load(); state == check_state::failed) {
       ok = false;
