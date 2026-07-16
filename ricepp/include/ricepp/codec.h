@@ -64,7 +64,10 @@ class codec final {
               BitstreamWriter& writer) const {
     using value_type = uint_fast32_t;
 
-    assert(input.size() % kComponentStreamCount == 0);
+    if (input.size() % kComponentStreamCount != 0) {
+      throw std::invalid_argument(
+          "input size must be a multiple of component stream count");
+    }
 
     if constexpr (kComponentStreamCount == 1) {
       value_type last_value;
@@ -98,6 +101,10 @@ class codec final {
     }
 
     writer.flush();
+
+    if (traits_.error_count() > 0) {
+      throw std::runtime_error("ricepp encode error");
+    }
   }
 
   template <typename BitstreamReader>
@@ -105,7 +112,10 @@ class codec final {
   decode(std::span<pixel_value_type> output, BitstreamReader& reader) const {
     using value_type = uint_fast32_t;
 
-    assert(output.size() % kComponentStreamCount == 0);
+    if (output.size() % kComponentStreamCount != 0) {
+      throw std::invalid_argument(
+          "output size must be a multiple of component stream count");
+    }
 
     if constexpr (kComponentStreamCount == 1) {
       value_type last_value;
@@ -137,12 +147,19 @@ class codec final {
         }
       }
     }
+
+    if (traits_.error_count() > 0) {
+      throw std::runtime_error("ricepp decode error");
+    }
   }
 
-  [[nodiscard]] size_t worst_case_bit_count(size_t pixel_count) const noexcept {
+  [[nodiscard]] size_t worst_case_bit_count(size_t pixel_count) const {
     static constexpr size_t const kFsBits{
         static_cast<size_t>(std::countr_zero(pixel_traits::kBitCount))};
-    assert(pixel_count % kComponentStreamCount == 0);
+    if (pixel_count % kComponentStreamCount != 0) {
+      throw std::invalid_argument(
+          "pixel_count must be a multiple of component stream count");
+    }
     pixel_count /= kComponentStreamCount;
     size_t num = pixel_traits::kBitCount; // initial value
     num += kFsBits * ((pixel_count + block_size_ - 1) / block_size_); // fs
