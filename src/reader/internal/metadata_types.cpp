@@ -792,6 +792,24 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
   return offsets;
 }
 
+void check_options(auto const& opts) {
+  if (auto const val = opts.time_resolution_sec()) {
+    if (*val <= 0) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("time_resolution_sec out of range: {}", *val));
+    }
+  }
+
+  if (auto const val = opts.subsecond_resolution_nsec_multiplier()) {
+    if (*val <= 0 || *val >= 1'000'000'000) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("subsecond_resolution_nsec_multiplier out of range: {}",
+                      *val));
+    }
+  }
+}
+
 global_metadata::Meta const&
 check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
   if (check) {
@@ -821,7 +839,9 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 
     auto opts = meta.options();
 
-    if (!opts) {
+    if (opts) {
+      check_options(*opts);
+    } else {
       if (meta.shared_files_table()) {
         DWARFS_THROW(runtime_error,
                      "shared_files_table present but options missing");
