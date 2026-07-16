@@ -846,6 +846,14 @@ void check_options(auto const& opts) {
   }
 }
 
+void check_history(auto const& history) {
+  for (auto const& ent : history) {
+    if (auto opts = ent.options()) {
+      check_options(*opts);
+    }
+  }
+}
+
 global_metadata::Meta const&
 check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
   if (check) {
@@ -886,6 +894,10 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
       if (meta.dir_entries()) {
         DWARFS_THROW(runtime_error, "dir_entries present but options missing");
       }
+    }
+
+    if (auto history = meta.metadata_version_history()) {
+      check_history(*history);
     }
 
     if (auto sfp = meta.shared_files_table()) {
