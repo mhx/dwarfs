@@ -1005,7 +1005,7 @@ void global_metadata::check_consistency(logger& lgr) const {
 }
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
-  return directories_[ino].first_entry();
+  return directories_.at(ino).first_entry();
 }
 
 uint32_t global_metadata::first_non_empty_dir_entry(uint32_t ino) const {
