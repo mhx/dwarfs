@@ -700,8 +700,8 @@ class metadata_v2_data {
   std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
-  time_resolution_handler timeres_handler_;
   global_metadata const global_;
+  time_resolution_handler timeres_handler_;
   dir_entry_view root_;
   int const inode_offset_;
   int const symlink_inode_offset_;
@@ -737,10 +737,10 @@ metadata_v2_data::metadata_v2_data(
     , data_{data}
     , meta_{check_frozen(
           map_frozen<thrift::metadata::metadata>(lgr, schema, data_))}
-    , timeres_handler_{meta_}
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
                                                   force_consistency_check)}
+    , timeres_handler_{meta_}
     , root_{dir_entry_view_impl::from_dir_entry_index_shared(0, global_)}
     , inode_offset_{inode_offset}
     , symlink_inode_offset_{find_inode_offset(inode_rank::INO_LNK)}
