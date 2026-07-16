@@ -578,6 +578,13 @@ void check_compact_strings(
                  fmt::format("invalid item length in compact {0}: {1} > {2}",
                              what, longest_item_len, max_item_len));
   }
+
+  if (auto dict = v.symtab()) {
+    if (dict->empty()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("empty dictionary for compact {0}", what));
+    }
+  }
 }
 
 void check_plain_strings(
