@@ -915,6 +915,10 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
       if (opts->packed_shared_files_table()) {
         num_reg_shared =
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
+        if (std::cmp_greater(sfp->size(), num_reg_unique)) {
+          DWARFS_THROW(runtime_error,
+                       "too many shared files in packed shared_files_table");
+        }
         num_reg_unique -= sfp->size();
       } else {
         if (!std::ranges::is_sorted(*sfp)) {
@@ -923,6 +927,10 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
         }
         num_reg_shared = sfp->size();
         if (!sfp->empty()) {
+          if (std::cmp_greater(sfp->back() + 1, num_reg_unique)) {
+            DWARFS_THROW(runtime_error,
+                         "too many shared files in shared_files_table");
+          }
           num_reg_unique -= sfp->back() + 1;
         }
       }
