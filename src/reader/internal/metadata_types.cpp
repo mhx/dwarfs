@@ -240,6 +240,10 @@ void check_empty_tables(global_metadata::Meta const& meta) {
     if (de->empty()) {
       DWARFS_THROW(runtime_error, "empty dir_entries table");
     }
+    if (!meta.entry_table_v2_2().empty()) {
+      DWARFS_THROW(runtime_error,
+                   "both dir_entries and entry_table_v2_2 tables are present");
+    }
   } else {
     if (meta.entry_table_v2_2().empty()) {
       DWARFS_THROW(runtime_error, "empty entry_table_v2_2 table");
