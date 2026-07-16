@@ -130,6 +130,7 @@ TEST_F(global_metadata_test, check_index_range) {
               throws_error("entry_table_v2_2 value out of range"));
 
   // make this metadata v2.3+
+  raw.entry_table_v2_2()->clear();
   raw.dir_entries().emplace();
 
   EXPECT_THAT([&] { check(raw); }, throws_error("empty dir_entries table"));
