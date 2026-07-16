@@ -116,6 +116,7 @@ fsst_compress_(std::span<unsigned char const*> ptr_span,
 class fsst_decoder_ : public fsst_decoder::impl {
  public:
   explicit fsst_decoder_(std::string_view dictionary) {
+    assert(!dictionary.empty());
     auto const read = ::fsst_import(
         &decoder_, reinterpret_cast<unsigned char const*>(dictionary.data()));
     if (read != dictionary.size()) {
