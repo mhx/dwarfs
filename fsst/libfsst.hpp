@@ -466,6 +466,6 @@ fsst_compressAVX512(
    size_t unroll);   // IN: degree of SIMD unrolling
 
 // C++ fsst-compress function with some more control of how the compression happens (algorithm flavor, simd unroll degree)
-size_t compressImpl(Encoder *encoder, size_t n, size_t lenIn[], u8 *strIn[], size_t size, u8 * output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd);
-size_t compressAuto(Encoder *encoder, size_t n, size_t lenIn[], u8 *strIn[], size_t size, u8 * output, size_t *lenOut, u8 *strOut[], int simd);
+size_t compressImpl(Encoder *encoder, size_t n, const size_t lenIn[], const u8 *strIn[], size_t size, u8 * output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd);
+size_t compressAuto(Encoder *encoder, size_t n, const size_t lenIn[], const u8 *strIn[], size_t size, u8 * output, size_t *lenOut, u8 *strOut[], int simd);
 }  // namespace libfsst
