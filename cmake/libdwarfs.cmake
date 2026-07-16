@@ -298,6 +298,10 @@ target_compile_definitions(
   DWARFS_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
+if(WITH_FUZZ)
+  target_compile_definitions(dwarfs_common PRIVATE DWARFS_WITH_FUZZ)
+endif()
+
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
 endif()
