@@ -29,6 +29,7 @@ add_library(
 
   src/byte_buffer.cpp
   src/checksum.cpp
+  src/compression.cpp
   src/compression_registry.cpp
   src/conv.cpp
   src/detail/file_extent_info.cpp
