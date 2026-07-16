@@ -32,6 +32,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <dwarfs/error.h>
 #include <dwarfs/internal/fsst.h>
 
 #include <fmt/format.h>
@@ -117,12 +118,20 @@ class fsst_decoder_ : public fsst_decoder::impl {
  public:
   explicit fsst_decoder_(std::string_view dictionary) {
     assert(!dictionary.empty());
-    auto const read = ::fsst_import(
-        &decoder_, reinterpret_cast<unsigned char const*>(dictionary.data()));
+    auto const* header =
+        reinterpret_cast<unsigned char const*>(dictionary.data());
+    auto const read = ::fsst_validate_header(header, dictionary.size());
+    if (read == 0) {
+      throw std::runtime_error("invalid FSST dictionary");
+    }
     if (read != dictionary.size()) {
       throw std::runtime_error(fmt::format(
           "read {0} symtab bytes, expected {1}", read, dictionary.size()));
     }
+    auto const read2 = ::fsst_import(&decoder_, header);
+    DWARFS_CHECK(
+        read2 == read,
+        fmt::format("imported {0} symtab bytes, expected {1}", read2, read));
   }
 
   void
@@ -185,5 +194,22 @@ auto fsst_encoder::compress(std::span<unsigned char const*> ptr_span,
 
 fsst_decoder::fsst_decoder(std::string_view dictionary)
     : impl_{std::make_unique<fsst_decoder_>(dictionary)} {}
+
+bool fsst_decoder::is_valid_dictionary(std::string_view dictionary) {
+  if (dictionary.empty()) {
+    return false;
+  }
+
+  auto const* const header =
+      reinterpret_cast<unsigned char const*>(dictionary.data());
+  auto const read = ::fsst_validate_header(header, dictionary.size());
+
+  return read == dictionary.size();
+}
+
+bool fsst_decoder::is_valid_compressed_string(std::string_view str) {
+  auto const* const buf = reinterpret_cast<unsigned char const*>(str.data());
+  return ::fsst_validate_compressed(buf, str.size()) != 0;
+}
 
 } // namespace dwarfs::internal
