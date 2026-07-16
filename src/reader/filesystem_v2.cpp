@@ -1613,6 +1613,7 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
                             bool check_integrity, file_off_t image_offset) {
   filesystem_options fsopts;
   fsopts.image_offset = image_offset;
+  fsopts.metadata.check_consistency = true;
   filesystem_v2 fs(lgr, os, mm, fsopts);
 
   auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
