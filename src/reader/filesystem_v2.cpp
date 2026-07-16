@@ -147,13 +147,18 @@ class section_wrapper {
       : fv_{fv}
       , sec_{sec} {}
 
-  std::optional<block_decompressor> try_get_block_decompressor() {
+  std::optional<block_decompressor> try_get_block_decompressor(logger& lgr) {
     try {
       return get_block_decompressor();
-    } catch (std::exception const&) { // NOLINT(bugprone-empty-catch)
+    } catch (unsupported_compression_error const& e) {
+      LOG_PROXY(debug_logger_policy, lgr);
+      LOG_VERBOSE << e.what() << " (in section " << sec_.description() << ")";
+      return std::nullopt;
+    } catch (std::exception const& e) {
+      LOG_PROXY(debug_logger_policy, lgr);
+      LOG_ERROR << e.what() << " (in section " << sec_.description() << ")";
+      return std::nullopt;
     }
-
-    return std::nullopt;
   }
 
   size_t get_uncompressed_size() {
@@ -745,7 +750,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
       auto const& s = *sp;
 
       auto section = section_wrapper(mm_, s);
-      auto bd = section.try_get_block_decompressor();
+      auto bd = section.try_get_block_decompressor(LOG_GET_LOGGER);
       std::string block_size;
 
       if (bd) {
@@ -853,7 +858,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
           {"checksum_ok", checksum_ok},
       };
 
-      auto bd = section.try_get_block_decompressor();
+      auto bd = section.try_get_block_decompressor(LOG_GET_LOGGER);
 
       if (bd) {
         auto uncompressed_size = bd->uncompressed_size();
