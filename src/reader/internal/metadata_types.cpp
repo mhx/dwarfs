@@ -43,6 +43,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
@@ -587,6 +588,32 @@ void check_compact_strings(
     if (dict->empty()) {
       DWARFS_THROW(runtime_error,
                    fmt::format("empty dictionary for compact {0}", what));
+    }
+
+    if (!fsst_decoder::is_valid_dictionary(*dict)) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid dictionary for compact {0}", what));
+    }
+
+    if (v.packed_index()) {
+      size_t start = 0;
+
+      for (size_t const len : v.index()) {
+        std::string_view sv(v.buffer().data() + start, len);
+        if (!fsst_decoder::is_valid_compressed_string(sv)) {
+          DWARFS_THROW(runtime_error, "invalid compressed string");
+        }
+        start += len;
+      }
+    } else {
+      for (size_t i = 1; i < v.index().size(); ++i) {
+        size_t const start = v.index()[i - 1];
+        size_t const len = v.index()[i] - start;
+        std::string_view sv(v.buffer().data() + start, len);
+        if (!fsst_decoder::is_valid_compressed_string(sv)) {
+          DWARFS_THROW(runtime_error, "invalid compressed string");
+        }
+      }
     }
   }
 }

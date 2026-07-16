@@ -116,6 +116,9 @@ class fsst_encoder {
 
 class fsst_decoder {
  public:
+  static bool is_valid_dictionary(std::string_view dictionary);
+  static bool is_valid_compressed_string(std::string_view str);
+
   explicit fsst_decoder(std::string_view dictionary);
 
   void decompress_append_to(std::string& out, std::string_view data) const {
