@@ -34,6 +34,8 @@
 
 #include <fmt/format.h>
 
+#include <nlohmann/json.hpp>
+
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
@@ -780,6 +782,13 @@ void check_categories(global_metadata::Meta const& meta) {
             runtime_error,
             fmt::format("category metadata index out of range: {} >= {}", index,
                         num_meta));
+      }
+    }
+
+    for (auto const& ent : *cat_meta_json) {
+      if (!nlohmann::json::accept(ent)) {
+        DWARFS_THROW(runtime_error,
+                     "invalid category metadata JSON: " + std::string{ent});
       }
     }
   }
