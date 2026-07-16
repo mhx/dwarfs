@@ -29,6 +29,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 
 // clang-format off
 #define DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE, SEPARATOR) \
@@ -60,6 +61,11 @@ enum class compression_type : uint16_t {
                                DWARFS_COMMA_)
 #undef DWARFS_COMPRESSION_TYPE_ENUMERATION_
 #undef DWARFS_COMMA_
+};
+
+class unsupported_compression_error : public std::runtime_error {
+ public:
+  explicit unsupported_compression_error(compression_type type);
 };
 
 } // namespace dwarfs

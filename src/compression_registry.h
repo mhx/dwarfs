@@ -94,8 +94,7 @@ FactoryT const& compression_registry<FactoryT, InfoT>::get_factory(
   auto it = factories_.find(type);
 
   if (it == factories_.end()) {
-    DWARFS_THROW(runtime_error,
-                 "unsupported compression type: " + get_compression_name(type));
+    throw unsupported_compression_error(type);
   }
 
   return *it->second;
