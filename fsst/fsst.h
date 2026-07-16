@@ -112,6 +112,16 @@ fsst_export(
 void
 fsst_destroy(fsst_encoder_t*);
 
+/* Validate a serialized symbol table (as produced by fsst_export) before importing it.
+   Returns the number of header bytes fsst_import would consume (== its return value) if the
+   import is guaranteed memory-safe, or 0 if buf[0..bufLen) is malformed. Use this to screen
+   untrusted (possibly corrupted) input before calling fsst_import. */
+size_t fsst_validate_header(unsigned char const *buf, size_t bufLen);
+
+/* Validate a compressed string before decompressing it. Returns 1 if fsst_decompress cannot
+   over-read strIn[0..lenIn), 0 otherwise. */
+int fsst_validate_compressed(unsigned char const *strIn, size_t lenIn);
+
 /* Return a decoder structure from serialized format (typically used in a block-, file- or row-group header). */
 unsigned int                /* OUT: number of bytes consumed in buf (0 on failure). */
 fsst_import(
