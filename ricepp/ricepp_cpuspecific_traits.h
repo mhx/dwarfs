@@ -26,10 +26,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <bit>
 #include <cassert>
+#include <concepts>
 #include <cstdint>
-
-#include <iostream>
+#include <limits>
+#include <memory>
 
 #include <ricepp/byteswap.h>
 #include <ricepp/codec_config.h>
@@ -52,35 +54,37 @@ class dynamic_pixel_traits {
                        unsigned unused_lsb_count) noexcept
       : unused_lsb_count_{unused_lsb_count}
       , byteorder_{byteorder}
-#ifndef NDEBUG
       , lsb_mask_{static_cast<value_type>(~(kAllOnes << unused_lsb_count))}
-      , msb_mask_{static_cast<value_type>(~(kAllOnes >> unused_lsb_count))}
-#endif
-  {
+      , msb_mask_{static_cast<value_type>(~(kAllOnes >> unused_lsb_count))} {
     assert(unused_lsb_count < kBitCount);
   }
 
-  [[nodiscard]] RICEPP_FORCE_INLINE value_type
-  read(value_type value) const noexcept {
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type read(value_type value) const {
     value_type tmp = ricepp::byteswap(value, byteorder_);
-    assert((tmp & lsb_mask_) == 0);
+    if (tmp & lsb_mask_) [[unlikely]] {
+      ++error_count_;
+    }
     return tmp >> unused_lsb_count_;
   }
 
-  [[nodiscard]] RICEPP_FORCE_INLINE value_type
-  write(value_type value) const noexcept {
-    assert((value & msb_mask_) == 0);
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type write(value_type value) const {
+    if (value & msb_mask_) [[unlikely]] {
+      ++error_count_;
+    }
     return ricepp::byteswap(static_cast<value_type>(value << unused_lsb_count_),
                             byteorder_);
+  }
+
+  [[nodiscard]] std::size_t error_count() const noexcept {
+    return error_count_;
   }
 
  private:
   unsigned const unused_lsb_count_;
   std::endian const byteorder_;
-#ifndef NDEBUG
   value_type const lsb_mask_;
   value_type const msb_mask_;
-#endif
+  std::size_t mutable error_count_{0};
 };
 
 template <std::unsigned_integral ValueType, std::endian ByteOrder,
@@ -100,19 +104,34 @@ class static_pixel_traits {
       static_cast<value_type>(~(kAllOnes >> kUnusedLsbCount));
   static_assert(kUnusedLsbCount < kBitCount);
 
-  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
-  read(value_type value) noexcept {
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type
+  read(value_type value) const noexcept {
     value_type tmp = ricepp::byteswap<kByteOrder>(value);
-    assert((tmp & kLsbMask) == 0);
+    if constexpr (kLsbMask != 0) {
+      if (tmp & kLsbMask) [[unlikely]] {
+        ++error_count_;
+      }
+    }
     return tmp >> kUnusedLsbCount;
   }
 
-  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
-  write(value_type value) noexcept {
-    assert((value & kMsbMask) == 0);
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type
+  write(value_type value) const noexcept {
+    if constexpr (kMsbMask != 0) {
+      if (value & kMsbMask) [[unlikely]] {
+        ++error_count_;
+      }
+    }
     return ricepp::byteswap<kByteOrder>(
         static_cast<value_type>(value << kUnusedLsbCount));
   }
+
+  [[nodiscard]] std::size_t error_count() const noexcept {
+    return error_count_;
+  }
+
+ private:
+  std::size_t mutable error_count_{0};
 };
 
 template <template <std::unsigned_integral> typename CodecInterface,
