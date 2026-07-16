@@ -711,6 +711,17 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
           DWARFS_THROW(runtime_error, "duplicate section: " + s.name());
         }
       }
+
+      if (level == filesystem_check_level::FULL) {
+        auto section = section_wrapper(mm_, s);
+
+        try {
+          auto const sz [[maybe_unused]] = section.get_uncompressed_size();
+        } catch (std::exception const& e) {
+          LOG_ERROR << exception_str(e) << " in section " << s.description();
+          ++errors;
+        }
+      }
     } catch (std::exception const& e) {
       LOG_ERROR << exception_str(e);
       ++errors;
