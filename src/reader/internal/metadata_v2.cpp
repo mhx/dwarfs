@@ -442,7 +442,7 @@ class metadata_v2_data {
       if (auto block_cat_meta = meta_.block_category_metadata()) {
         if (auto it = block_cat_meta->find(block_number);
             it != block_cat_meta->end()) {
-          return nlohmann::json::parse(meta_json.value()[it->second()]);
+          return nlohmann::json::parse(meta_json->at(it->second()));
         }
       }
     }
