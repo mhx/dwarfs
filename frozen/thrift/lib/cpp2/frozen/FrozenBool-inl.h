@@ -57,8 +57,11 @@ struct BoolLayout : public LayoutBase {
     }
   }
 
-  void print(std::ostream& os, int level) const override {
-    LayoutBase::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    LayoutBase::print(os, options, level);
     os << "packed bool";
   }
 

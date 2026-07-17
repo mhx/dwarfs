@@ -8,6 +8,7 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
+#include <algorithm>
 #include <string>
 #include <unordered_set>
 
@@ -499,7 +500,7 @@ TYPED_TEST_P(FrozenLayout, PrintAndClear) {
 
   {
     std::ostringstream oss;
-    layout.print(oss, 0);
+    layout.print(oss);
     auto const& got = oss.str();
     EXPECT_THAT(got, testing::HasSubstr("@ bit "));
     EXPECT_THAT(got, testing::HasSubstr("@ offset "));
@@ -509,7 +510,7 @@ TYPED_TEST_P(FrozenLayout, PrintAndClear) {
 
   {
     std::ostringstream oss;
-    layout.print(oss, 0);
+    layout.print(oss);
     auto const& got = oss.str();
     EXPECT_THAT(got, testing::HasSubstr("empty"));
     EXPECT_THAT(got, testing::HasSubstr("@ start"));
@@ -552,6 +553,63 @@ TEST(Frozen, DedupedSchema) {
     saveRoot(l, schema);
     EXPECT_LE(schema.getLayouts().size(), 24); // 49 layouts originally
   }
+}
+
+TEST(Frozen, LoadedLayoutPrintsSchemaLayoutIds) {
+  auto source = layout(tom1);
+  EXPECT_THAT(toString(source), Not(HasSubstr("layout #")));
+
+  schema::MemorySchema schema;
+  saveRoot(source, schema);
+
+  Layout<Person1> loaded;
+  loadRoot(loaded, schema);
+
+  auto fieldLayoutId = [&](int16_t fieldId) {
+    const auto& fields = schema.getRootLayout().getFields();
+    const auto it =
+        std::find_if(fields.begin(), fields.end(), [&](const auto& field) {
+          return field.getId() == fieldId;
+        });
+    EXPECT_NE(it, fields.end());
+    return it != fields.end() ? it->getLayoutId()
+                              : LayoutBase::kNoSchemaLayoutId;
+  };
+
+  EXPECT_EQ(loaded.schemaLayoutId, schema.getRootLayoutId());
+  EXPECT_EQ(loaded.nameField.layout.schemaLayoutId, fieldLayoutId(1));
+  EXPECT_EQ(loaded.petsField.layout.schemaLayoutId, fieldLayoutId(4));
+  EXPECT_EQ(toString(source), toString(loaded));
+
+  std::ostringstream annotated;
+  loaded.print(annotated, LayoutPrintOptions{.includeSchemaLayoutIds = true});
+  const auto printed = annotated.str();
+  EXPECT_THAT(
+      printed,
+      HasSubstr("layout #" + std::to_string(schema.getRootLayoutId())));
+  EXPECT_THAT(
+      printed,
+      HasSubstr(
+          "layout #" + std::to_string(loaded.nameField.layout.schemaLayoutId)));
+
+  annotated << loaded;
+  EXPECT_THAT(
+      annotated.str().substr(printed.size()), Not(HasSubstr("layout #")));
+
+  loaded.clear();
+  EXPECT_EQ(loaded.schemaLayoutId, LayoutBase::kNoSchemaLayoutId);
+  std::ostringstream cleared;
+  loaded.print(cleared, LayoutPrintOptions{.includeSchemaLayoutIds = true});
+  EXPECT_THAT(cleared.str(), Not(HasSubstr("layout #")));
+
+  auto pairSource = layout(std::pair{3, 3});
+  schema::MemorySchema pairSchema;
+  saveRoot(pairSource, pairSchema);
+  Layout<std::pair<int, int>> pairLoaded;
+  loadRoot(pairLoaded, pairSchema);
+  EXPECT_EQ(
+      pairLoaded.firstField.layout.schemaLayoutId,
+      pairLoaded.secondField.layout.schemaLayoutId);
 }
 
 TEST(Frozen, TypeHelpers) {

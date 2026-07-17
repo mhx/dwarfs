@@ -176,6 +176,12 @@ struct ViewPosition {
   }
 };
 
+/** Options controlling recursive layout printing. */
+struct LayoutPrintOptions {
+  /** Include raw IDs for layouts loaded from a serialized schema. */
+  bool includeSchemaLayoutIds = false;
+};
+
 /**
  * LayoutBase is the common base of all layouts, which will specialize
  * Layout<T>.  Layout<T> represents all information needed to specify the layout
@@ -184,6 +190,8 @@ struct ViewPosition {
  * fields, given a ViewPosition and a field.
  */
 struct LayoutBase {
+  static constexpr int16_t kNoSchemaLayoutId = -1;
+
   /**
    * The number of bytes occupied by this layout. If this layout was not
    * inlined, this also includes enough bytes to store 'bits' bits. If this is
@@ -200,6 +208,11 @@ struct LayoutBase {
    * layout.
    */
   bool inlined = false;
+  /**
+   * Raw ID of the schema layout from which this contextual layout was loaded.
+   * Locally computed layouts use kNoSchemaLayoutId.
+   */
+  int16_t schemaLayoutId = kNoSchemaLayoutId;
   std::type_index type;
 
   /**
@@ -241,7 +254,10 @@ struct LayoutBase {
   /**
    * Prints a description of this layout to the given stream, recursively
    */
-  virtual void print(std::ostream& os, int level) const;
+  virtual void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const;
 
   /**
    * Validates constraints imposed by the concrete layout type after loading
@@ -540,7 +556,10 @@ struct Field final : public FieldBase {
   /**
    * Prints a description of this layout to the given stream, recursively.
    */
-  void print(std::ostream& os, int level) const {
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const {
     os << DebugLine(level) << name;
     if (pos.offset) {
       os << " @ offset " << pos.offset;
@@ -549,7 +568,7 @@ struct Field final : public FieldBase {
     } else {
       os << " @ start";
     }
-    layout.print(os, level + 1);
+    layout.print(os, options, level + 1);
   }
 
   /**
@@ -578,6 +597,7 @@ struct Field final : public FieldBase {
     } else {
       pos.offset = offset;
     }
+    this->layout.schemaLayoutId = field.getLayoutId();
     this->layout.template load<SchemaInfo>(
         schema, schema.getLayoutForField(field), root);
     this->layout.validate(root);
@@ -1044,6 +1064,7 @@ void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
   schema.validate();
   layout.clear();
   LoadRoot root;
+  layout.schemaLayoutId = schema.getRootLayoutId();
   layout.template load<SchemaInfo>(schema, schema.getRootLayout(), root);
   layout.validate(root);
   root.finish();

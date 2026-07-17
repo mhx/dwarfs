@@ -66,7 +66,10 @@
     FieldPosition layout(LayoutRoot& root, const T& x, LayoutPosition self); \
     void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;    \
     void thaw(ViewPosition self, T& out) const;                              \
-    void print(std::ostream& os, int level) const final;                     \
+    void print(                                                              \
+        std::ostream& os,                                                    \
+        const LayoutPrintOptions& options = {},                              \
+        int level = 0) const final;                                          \
     void clear() final;                                                      \
     struct View;                                                             \
     static size_t hash(const TYPE&);                                         \
@@ -160,12 +163,14 @@
     Base::inspectData(context, self);                                 \
     __VA_ARGS__                                                       \
   }
-#define FROZEN_DEBUG_FIELD(NAME) this->NAME##Field.print(os, level + 1);
-#define FROZEN_DEBUG(TYPE, ...)                                 \
-  void Layout<TYPE>::print(std::ostream& os, int level) const { \
-    LayoutBase::print(os, level);                               \
-    os << #TYPE;                                                \
-    __VA_ARGS__                                                 \
+#define FROZEN_DEBUG_FIELD(NAME) \
+  this->NAME##Field.print(os, options, level + 1);
+#define FROZEN_DEBUG(TYPE, ...)                                               \
+  void Layout<TYPE>::print(                                                   \
+      std::ostream& os, const LayoutPrintOptions& options, int level) const { \
+    LayoutBase::print(os, options, level);                                    \
+    os << #TYPE;                                                              \
+    __VA_ARGS__                                                               \
   }
 #define FROZEN_CLEAR_FIELD(NAME) this->NAME##Field.clear();
 #define FROZEN_CLEAR(TYPE, ...) \
