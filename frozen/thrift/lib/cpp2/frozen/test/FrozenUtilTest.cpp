@@ -32,7 +32,55 @@ TEST(FrozenUtil, FutureVersion) {
   }
 
   EXPECT_THROW(
+      decodeSchema(make_byte_span(store)), FrozenFileForwardIncompatible);
+  EXPECT_THROW(
       mapFrozen<std::string>(std::move(store)), FrozenFileForwardIncompatible);
+}
+
+TEST(FrozenUtil, DecodeSchema) {
+  using TestType = std::vector<std::string>;
+  const TestType value{"hello", "world"};
+
+  Layout<TestType> layout;
+  LayoutRoot::layout(value, layout);
+
+  schema::MemorySchema expected;
+  saveRoot(layout, expected);
+
+  std::string encoded;
+  serializeRootLayout(layout, encoded);
+
+  constexpr std::string_view trailing{"\0data", 5};
+  auto input = encoded;
+  input.append(trailing);
+
+  auto decoded = decodeSchema(make_byte_span(input));
+  EXPECT_EQ(decoded.encodedSize, encoded.size());
+  EXPECT_EQ(decoded.memorySchema, expected);
+  EXPECT_NO_THROW(decoded.memorySchema.validate());
+}
+
+TEST(FrozenUtil, DeserializeRootLayoutConsumesOnlySchema) {
+  using TestType = std::vector<std::string>;
+  const TestType value{"hello", "world"};
+
+  Layout<TestType> layout;
+  LayoutRoot::layout(value, layout);
+
+  std::string encoded;
+  serializeRootLayout(layout, encoded);
+
+  constexpr std::string_view trailing{"\0data", 5};
+  auto input = encoded;
+  input.append(trailing);
+
+  auto range = make_byte_span(input);
+  Layout<TestType> decodedLayout;
+  deserializeRootLayout(range, decodedLayout);
+
+  EXPECT_EQ(range.size(), trailing.size());
+  EXPECT_EQ(range.data(), make_byte_span(input).data() + encoded.size());
+  EXPECT_TRUE(std::equal(range.begin(), range.end(), trailing.begin()));
 }
 
 TEST(FrozenUtil, FrozenSize) {
