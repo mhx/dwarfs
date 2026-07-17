@@ -496,7 +496,7 @@ metadata_analyzer::metadata_analyzer(
     , data_{data} {}
 
 void metadata_analyzer::print_layout(std::ostream& os) const {
-  get_layout(meta_).print(os, 0);
+  get_layout(meta_).print(os, {.includeSchemaLayoutIds = true});
   os << "\n";
 }
 

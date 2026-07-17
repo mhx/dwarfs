@@ -122,8 +122,11 @@ struct MapTableLayout
 
   View view(ViewPosition self) const { return View(this, self); }
 
-  void print(std::ostream& os, int level) const override {
-    Base::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    Base::print(os, options, level);
     os << DebugLine(level) << "...viewed as a map";
   }
 };
@@ -132,8 +135,11 @@ template <class T, class V, template <class, class, class, class> class Table>
 struct SetTableLayout : public Table<T, V, SelfKey<V>, V> {
   using Base = Table<T, V, SelfKey<V>, V>;
 
-  void print(std::ostream& os, int level) const override {
-    Base::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    Base::print(os, options, level);
     os << DebugLine(level) << "...viewed as a set";
   }
 };

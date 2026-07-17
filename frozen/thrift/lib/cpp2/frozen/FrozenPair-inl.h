@@ -75,11 +75,14 @@ struct PairLayout : public LayoutBase {
   FROZEN_VIEW(FROZEN_VIEW_FIELD(first, FirstDecayed)
                   FROZEN_VIEW_FIELD(second, SecondDecayed))
 
-  void print(std::ostream& os, int level) const final {
-    LayoutBase::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const final {
+    LayoutBase::print(os, options, level);
     os << dwarfs::thrift_lite::demangle(type.name());
-    firstField.print(os, level + 1);
-    secondField.print(os, level + 1);
+    firstField.print(os, options, level + 1);
+    secondField.print(os, options, level + 1);
   }
 
   void clear() final {

@@ -197,12 +197,15 @@ struct ArrayLayout : public LayoutBase {
     }
   }
 
-  void print(std::ostream& os, int level) const override {
-    LayoutBase::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    LayoutBase::print(os, options, level);
     os << "range of " << dwarfs::thrift_lite::demangle(type.name());
-    distanceField.print(os, level + 1);
-    countField.print(os, level + 1);
-    itemField.print(os, level + 1);
+    distanceField.print(os, options, level + 1);
+    countField.print(os, options, level + 1);
+    itemField.print(os, options, level + 1);
   }
 
   void clear() override {
