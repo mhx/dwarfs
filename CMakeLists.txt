@@ -642,7 +642,6 @@ if(WITH_TESTS)
       test/activity_barrier_test.cpp
       test/align_advise_range_test.cpp
       test/associative_vector_types_test.cpp
-      test/badfs_test.cpp
       test/bits_test.cpp
       test/bit_view_test.cpp
       test/block_merger_test.cpp
@@ -784,6 +783,7 @@ if(WITH_TESTS)
       test/tool_main_cmdline_test.cpp
       test/tool_main_logging_test.cpp
       test/tool_main_perfmon_test.cpp
+      test/tool_dwarfsck_main_badfs_test.cpp
       test/tool_dwarfsck_main_basic_test.cpp
       test/tool_dwarfsextract_main_basic_test.cpp
       test/tool_mkdwarfs_main_basic_test.cpp
