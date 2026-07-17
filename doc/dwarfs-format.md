@@ -56,14 +56,14 @@ This document describes the DwarFS file system format, version 2.5.
 
 - **`file_view`**: An abstraction representing a single file in a file system
   and allowing read access to its contents. The exact mechanism to access the
-  file contents is implementation-defined. Different implementation have
+  file contents is implementation-defined. Different implementations have
   different trade-offs in terms of memory usage, speed and error handling.
   For example, the default on 64-bit systems is to memory-map the entire file.
   While this is usually *extremely* fast, there are no means for gracefully
   handling I/O errors and they will typically result in the process crashing
   with a bus error (`SIGBUS`). On 32-bit systems, the default is to only
   memory-map "segments" of the file at a time. This limits the amount of
-  address space used, bus uses more system calls and is thus slower. On
+  address space used, but uses more system calls and is thus slower. On
   either platform, it is also possible to use an implementation that reads
   data into allocated buffers. This is the slowest option and the one that
   will use the most process memory, but it is the only option that allows for
@@ -89,9 +89,9 @@ This document describes the DwarFS file system format, version 2.5.
   by a `pcmaudio/waveform` fragment, optionally followed by `pcmaudio/metadata`
   if there's any trailing metadata. The fragments from each category will be
   processed as separate streams: that is, all `pcmaudio/metadata` fragments will
-  be ordered (e.g. by similarity) and the fed into the segmenter, which will
+  be ordered (e.g. by similarity) and then fed into the segmenter, which will
   further split each fragment into "chunks" (these are the chunks that will
-  eventually be stored in the `chunk_table` in the metadata).
+  eventually be stored in the `chunks` list in the metadata).
 
 - **Chunks** are the smallest entity of contiguous file data that DwarFS
   manages. The segmenter splits data into chunks, adding references to data
@@ -152,6 +152,12 @@ A couple of notes:
   sections and choosing the majority. The explicit section number helps
   to recover data if multiple sections are missing.
 
+- Sections are numbered sequentially in the order in which they appear
+  in the image, starting at zero.
+
+- The XXH3-64 hash value is stored in little-endian byte order, just
+  like all other integer fields in the section header.
+
 - A major version number change will render the format incompatible.
 
 - A minor version number change will be backwards compatible, i.e. an
@@ -188,10 +194,11 @@ Currently, the following different section types are defined:
 
 - `METADATA_V2_SCHEMA` (7):
   The [schema](../frozen/thrift/lib/thrift/frozen.thrift)
-  used to layout the `METADATA_V2` section contents. This is stored in
+  used to lay out the `METADATA_V2` section contents. This is stored in
   "compact" thrift encoding. The metadata cannot be read without the
   schema, as it defines the exact bit widths used to store each metadata
-  field.
+  field. The schema format is described in detail in
+  [dwarfs-frozen-format(5)](dwarfs-frozen-format.md).
 
 - `METADATA_V2` (8):
   This section contains the bulk of the metadata. It's essentially just
@@ -202,18 +209,25 @@ Currently, the following different section types are defined:
   derives from that definition uses
   [Frozen2](../frozen/thrift/lib/cpp2/frozen/Frozen.h).
   Frozen2 is not only extremely space efficient, it also allows accessing
-  huge data structures directly through memory-mapping.
+  huge data structures directly through memory-mapping. The Frozen2 format
+  is described in detail in [dwarfs-frozen-format(5)](dwarfs-frozen-format.md).
+  The decompressed section content is exactly the Frozen2 data region,
+  starting with the root `struct metadata` at offset zero and including
+  the trailing padding required by Frozen2. A DwarFS image currently
+  contains exactly one `METADATA_V2_SCHEMA` and one `METADATA_V2`
+  section; this may change in future versions.
 
 - `SECTION_INDEX` (9):
   The section index is, well, an index of all sections in the file
   system. If present (creation of the index can be suppressed with
   `--no-section-index`), this is *required* to be the last section.
-  Each entry in the section index is a 64-bit value with the upper
-  16 bits being the section type and the lower 48 bits being the
-  offset relative to the first section. That is, the section index
-  is independent of whether or not a header is present before the
-  first section. The whole point of the section index is to avoid
-  having to build an index by visiting all section headers. Since
+  Each entry in the section index is a 64-bit little-endian value
+  with the upper 16 bits being the section type and the lower 48 bits
+  being the offset relative to the first section. The last entry in
+  the index is the entry for the section index section itself. That is,
+  the section index is independent of whether or not a header is present
+  before the first section. The whole point of the section index is to
+  avoid having to build an index by visiting all section headers. Since
   the offsets in the index are sorted, the section index is *always*
   stored uncompressed, and the section index *must* be the last
   section, you can find the start of the section index by reading
@@ -224,7 +238,8 @@ Currently, the following different section types are defined:
   index.
 
 - `HISTORY` (10):
-  File system history information as defined `thrift/history.thrift`.
+  File system history information as defined in
+  [`thrift/history.thrift`](../thrift/history.thrift).
   This is stored in "compact" thrift encoding. Zero or more history
   sections are supported. This section type is purely informational
   and not needed to read the DwarFS image.
@@ -253,15 +268,15 @@ to each other:
     ╔════╗   ┌────────────────┐       │  S_IFDIR ──►┌───────────────────┐         │  ┌────────────────┴─┐
     ║root╟──►│ name_index:  0 │       │             │ mode_index:     0 ├──────┐  └─►│ parent_entry:  0 │
     ╚════╝   │ inode_num:   0 ├───────┴────────────►│ owner_index:    0 │      │     │ first_entry:   1 │
-             ├────────────────┤                     │ group_index:    0 │      │     | self_entry:    0 |
+             ├────────────────┤                     │ group_index:    0 │      │     │ self_entry:    0 │
          ┌───┤ name_index:  2 │                     │ *time_offset: 417 │      │     ├──────────────────┤
     ┌────┼───┤ inode_num:   5 ├───────┐             │ *time_subsec:  13 │      │     │ parent_entry:  0 │
     │    │   ├────────────────┤       │             │ nlink_minus_1:  0 │      │     │ first_entry:  11 │
-    │ ┌──┼───┤ name_index:  3 │       │             ├───────────────────┤      │     | self_entry:    1 |
+    │ ┌──┼───┤ name_index:  3 │       │             ├───────────────────┤      │     │ self_entry:    1 │
     │ │  │   │ inode_num:   9 ├────┐  │             │        ...        │      │     ├──────────────────┤
     │ │  │   ├────────────────┤    │  │  S_IFLNK ──►├───────────────────┤      │     │ parent_entry:  5 │
     │ │  │   │                │    │  │             │ mode_index:     2 │      │     │ first_entry:  12 │
-    │ │  │   │      ...       │    │  └────────────►│ owner_index:    2 │      │     | self_entry:    7 |
+    │ │  │   │      ...       │    │  └────────────►│ owner_index:    2 │      │     │ self_entry:    7 │
     │ │  │   │                │    │                │ group_index:    0 │      │     ├──────────────────┤
     │ │  │   └────────────────┘    │                │ *time_offset: 298 │      │     │       ...        │
     │ │  │                         │                │ *time_subsec:  88 │      │     └──────────────────┘
@@ -341,9 +356,15 @@ made two changes to address this:
   it can support, and if it encounters a feature it doesn't know, it will
   refuse to mount the file system.
 
+The known features are defined in
+[`features.thrift`](../thrift/features.thrift). Features are serialized
+in the metadata by their stringified enumerator names, so enumerator
+names must never be renamed or reused. The only feature currently
+defined is `sparsefiles` (see the Sparse Files section).
+
 There's one small version gap that needs to be mentioned for completeness.
 Since v0.7.3 did *not* increment the minor version, releases v0.7.0 to
-v0.7.2 cat accept file system images with any features set. In practice,
+v0.7.2 can accept file system images with any features set. In practice,
 however, they will likely bail out because these releases do not accept
 unknown section types, and by default `mkdwarfs` has been adding `HISTORY`
 sections since v0.7.3. In hindsight, we should have bumped the *accepted*
@@ -369,8 +390,8 @@ The `inodes` list is strictly in the following order:
 
 The offsets can thus be found by using a binary search with a
 predicate on the inode mode. The shared file offset can be found
-by subtracting the length of `shared_files_table` from the total
-number of regular files.
+by subtracting the length of the *unpacked* `shared_files_table`
+from the total number of regular files.
 
 ### Unique and Shared File Inodes
 
@@ -386,20 +407,53 @@ the `chunk_table`.
 The `shared_files_table` provides the necessary indirection that
 maps a *shared* file inode to a `chunk_table` index.
 
+### Timestamps
+
+All inode timestamps are stored relative to `metadata.timestamp_base`.
+Timestamps are stored at a configurable resolution; both the base and
+the per-inode offsets are in resolution units. The number of seconds
+since the epoch is computed as:
+
+    time_sec = time_resolution_sec * (timestamp_base + time_offset)
+
+The resolution is `options.time_resolution_sec` if set, or 1 second
+otherwise. A resolution of more than one second must be a whole number
+of seconds.
+
+If `options.subsecond_resolution_nsec_multiplier` is set, timestamps
+additionally carry a subsecond component in the `*_subsec` fields,
+which is converted to nanoseconds as follows:
+
+    time_nsec = subsecond_resolution_nsec_multiplier * time_subsec
+
+A subsecond multiplier is only valid if the resolution is one second,
+and it must be a whole divisor of one second (i.e. of 1,000,000,000
+nanoseconds). If the multiplier is not set, the subsecond fields are
+unused.
+
+If `options.mtime_only` is set, only the mtime fields are valid, and
+readers should report the mtime value for atime and ctime as well.
+
+The btime (birth time) fields are only valid if `options.has_btime`
+is set.
+
 ### Sparse Files
 
-DwarFS can optionally support sparse files since v0.14.0. However, images
-created with sparse file support will not be backwards compatible.
+DwarFS can optionally support sparse files since v0.14.0. Images that
+use sparse file support carry the `sparsefiles` feature flag and are
+therefore not backwards compatible; older releases will refuse to use
+them. The `hole_block_index` metadata field is present if and only if
+the `sparsefiles` feature is set.
 
-Sparse file data is stored as usual. Holes are stored in the `chunk_table`
-using a "special" block index. In a file system with N blocks, the highest
+Sparse file data is stored as usual. Holes are stored in the `chunks`
+list using a "special" block index. In a file system with N blocks, the highest
 valid block index is N-1. Holes are stored using the block index N. This
 is cheaper than having to allocate an extra bit per chunk to indicate
 whether it's a data or a hole chunk. The block index used to encode a hole
 chunk is stored in the metadata as `hole_block_index`.
 
 Since holes can get quite large, their size is encoded in both the `size`
-and `offset` fields of the corresponding `chunk_table` entry. While the
+and `offset` fields of the corresponding `chunks` entry. While the
 `offset` field values are typically randomly distributed, the `size` field
 value distribution is usually skewed towards small values. Thus it makes
 sense to store the hole size as follows:
@@ -409,13 +463,23 @@ chunk.offset = hole_size % BLOCK_SIZE
 chunk.size   = hole_size / BLOCK_SIZE
 ```
 
-With large `BLOCK_SIZE` values, the `chunk.size` field will usually occupy
-a few bits less than the `chunk.offset` field. In order to prevent a single
-large hole from excessively widening the storage used for `chunk.size`, we
-use a separate list `large_hole_size` to store the sizes of holes that are
-larger than a certain threshold (that is derived from the block size). The
-index into this list will be stored in `chunk.size`, indicated by setting
-`chunk.offset` to `BLOCK_SIZE - 1`.
+Note that `BLOCK_SIZE` (i.e. `metadata.block_size`) is always a power of
+two. With large `BLOCK_SIZE` values, the `chunk.size` field will usually
+occupy a few bits less than the `chunk.offset` field. In order to prevent
+a single large hole from excessively widening the storage used for
+`chunk.size`, we use a separate list `large_hole_size` to store the sizes
+of holes that are larger than a writer-defined threshold (derived from
+the block size and the largest data chunk size). The index into this
+list will be stored in `chunk.size`, indicated by setting `chunk.offset`
+to the reserved marker value `BLOCK_SIZE - 1`.
+
+The marker value is reserved exclusively for `large_hole_size`
+references: the writer must never encode a hole directly if its size
+remainder would equal `BLOCK_SIZE - 1`, and instead store such holes in
+`large_hole_size` regardless of the threshold (but see the next paragraph
+for why this is actually unlikely in practice). Conversely, a reader must
+treat any hole chunk whose `offset` equals the marker as a `large_hole_size`
+reference.
 
 ### Traversing the Metadata
 
@@ -432,6 +496,15 @@ the directory is empty. Otherwise, we can look up the entries in
 
 So for directory inodes, you can directly index into `directories`
 using the inode number.
+
+The `self_entry` field of a directory references the directory's
+*own* entry in `dir_entries[]`, i.e. the entry in its parent directory
+that carries the directory's name. This allows constructing a
+directory's name and full path without searching its parent, and
+enables efficient emulation of the `.` and `..` entries in `readdir()`.
+For the root directory, `self_entry` is 0, referencing the root's
+implicit entry `dir_entries[0]`; for the sentinel directory it is
+unused and always 0.
 
 For link inodes, you can index into `symlink_table`, but you have
 to adjust the index for the link inode offset determined before:
@@ -463,7 +536,9 @@ these values are equal, the file is empty. Otherwise, you need
 to look up the range of chunks in `chunks`.
 
 Each chunk references a range of bytes in one file system `BLOCK`.
-These need to be concatenated to produce the file contents.
+These need to be concatenated to produce the file contents. Chunk
+`offset` and `size` refer to the *uncompressed* block content, and for
+data chunks, `offset + size` never exceeds `metadata.block_size`.
 
 Both `chunk_table` and `directories` have a sentinel entry at the
 end to make sure you can perform range lookups for all indices.
@@ -503,19 +578,28 @@ is true.
 ### Directories Packing
 
 The `directories` table, when stored in packed format, omits
-all `parent_entry` fields and uses delta compression for the
-`first_entry` fields.
+all `parent_entry` and `self_entry` fields and uses delta
+compression for the `first_entry` fields.
 
 In order to unpack all information, you first have to delta-
 decompress the `first_entry` fields, then traverse the whole
-directory tree once to fill in the `parent_entry` fields.
-This sounds like a lot of work, but it's actually reasonably
+directory tree once to fill in the `parent_entry` and `self_entry`
+fields. This sounds like a lot of work, but it's actually reasonably
 fast. For example, for a file system with 15 million entries
 in 90,000 directories, reconstructing the `directories` takes
 only about 50 milliseconds.
 
 The packed format is used when `options.packed_directories`
 is true.
+
+Reconstruction of `self_entry` is also required for unpacked images
+written before the field was introduced in v2.5: iterate over
+`dir_entries[]` and record, for each entry that references a directory
+inode, the entry's index in that directory's `self_entry` field.
+Whether the field is present can be determined from the frozen schema,
+as its layout allocates no bits in older images. (An image containing
+only the root directory also allocates no bits for the field, but in
+that case the implicit zero values are already correct.)
 
 ### Chunk Table Packing
 
@@ -596,12 +680,16 @@ to `"DwarFS!"`.
 
 The string table is constructed from the `symtab` record as follows:
 
-Bytes 0 to 7 are the header and are of the form `01 ll xx xx 0A 14 34 01`;
-bytes 2 and 3 store encoder parameters; they can be ignored. Byte 1
-(`ll`) stores the number of codes, this information is redundant and
-can also be ignored, but it could be used as an additional sanity check
-if so desired. The rest is fixed and if any of those bytes are
-different, `symtab` should be considered to be corrupt.
+Bytes 0 to 7 are the header and are of the form `01 ll xx xx 0A 14 34 01`.
+Byte 0 is the FSST endianness marker, which is always `01` as the header
+is stored in little-endian byte order. Byte 1 (`ll`) stores the number
+of codes; this information is redundant and can also be ignored, but it
+could be used as an additional sanity check if so desired. Bytes 2 and 3
+store encoder parameters (the terminator code and the suffix limit);
+they can be ignored. Bytes 4 to 7 are the little-endian FSST version
+(20190218, encoded as `0A 14 34 01`). The remaining fixed bytes must
+match; if any of them are different, `symtab` should be considered to
+be corrupt.
 
 Byte 8 should always be `00`. If it's `01`, it means the data was
 compressed as zero-terminated strings and requires slightly different
@@ -633,12 +721,49 @@ the histogram; so to construct the string table, the first code
 assigned has to be 1, not 0 and the first entry in the histogram has
 to be decremented by 1.
 
+### Auxiliary Metadata Fields
+
+A number of metadata fields are informational or serve special purposes
+and are not required for basic traversal:
+
+- `block_size`, `total_fs_size`, `total_hardlink_size` and
+  `total_allocated_fs_size` describe global properties of the file
+  system. `block_size` is always a power of two.
+
+- `dwarfs_version` and `create_timestamp` identify the tool version
+  used to create the metadata and the time of creation.
+
+- `preferred_path_separator` stores the path separator character code
+  of the original file system (e.g. `/` or `\`), allowing tools to
+  faithfully reproduce paths on extraction.
+
+- `category_names` and `block_categories` associate each `BLOCK`
+  section with the data category it was created for (see the mkdwarfs(1)
+  documentation on categorizers). `category_metadata_json` and
+  `block_category_metadata` optionally attach per-block categorization
+  metadata (JSON strings); these are primarily used when recompressing
+  an image.
+
+- `reg_file_size_cache` caches the sizes of regular files that have at
+  least `min_chunk_count` chunks, so that file sizes of highly
+  fragmented inodes can be determined without iterating over all of
+  their chunks. For sparse files, `allocated_size_lookup` additionally
+  caches the allocated (non-hole) size.
+
+- `metadata_version_history` records, for rewritten images, the format
+  version and options of each previous metadata generation. Note that
+  the `history_entry` struct used here is defined in `metadata.thrift`
+  and is unrelated to the identically named struct in `history.thrift`.
+
 ### Binary Metadata Format Details
 
-The binary metadata is stored using
-[Frozen2](../frozen/thrift/lib/cpp2/frozen/Frozen.h).
-This format is, unfortunately, not really documented. Also, as of now,
-there is only a C++ implementation to read or write this format.
+The binary metadata is stored using Frozen2, a schema-driven,
+bit-packed, memory-mappable serialization format originally developed
+as part of [fbthrift](https://github.com/facebook/fbthrift). DwarFS
+uses its own fork of Frozen2, which is described in detail in
+[dwarfs-frozen-format(5)](dwarfs-frozen-format.md); that document is
+intended to be sufficient for writing an independent implementation.
+The reference implementation is C++.
 
 To interpret the binary data in the `METADATA_V2` section, both the thrift
 definitions in [`metadata.thrift`](../thrift/metadata.thrift) and the
@@ -761,8 +886,11 @@ The tricky bit is that layout `5` does *not* refer to the `struct chunk` in
 the IDL, but *actually* to the `list<chunk>`. A `list` (or an `ArrayLayout`
 in Frozen2) is represented using 3 fields: `distance` (`1`), `count` (`2`)
 and `item` (`3`). `count` is just the actual length of the list/array/vector.
-`distance` is the offset at which the data for the list starts. And `item`
-finally refers to the layout for the `struct chunk`, in this case `4`.
+`distance` is the offset at which the data for the list starts,
+relative to the start of the object containing the range descriptor --
+which here is the root `struct metadata` at offset 0 (see the POSITION
+MODEL section in [dwarfs-frozen-format(5)](dwarfs-frozen-format.md)). And
+`item` finally refers to the layout for the `struct chunk`, in this case `4`.
 
 Layout `4` contains 2 out of the 3 members of `struct chunk`: `offset` (`2`)
 and `size` (`3`). The first member, `block`, is missing simply because there
@@ -857,4 +985,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-[mkdwarfs(1)](mkdwarfs.md), [dwarfs(1)](dwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md)
+[mkdwarfs(1)](mkdwarfs.md), [dwarfs(1)](dwarfs.md), [dwarfsextract(1)](dwarfsextract.md), [dwarfsck(1)](dwarfsck.md), [dwarfs-frozen-format(5)](dwarfs-frozen-format.md)
