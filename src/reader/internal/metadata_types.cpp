@@ -755,7 +755,13 @@ void check_chunks(global_metadata::Meta const& meta,
                           s, lhs->size()));
         }
       } else {
-        // pretty much any value here is fair game
+        if (o >= block_size) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format(
+                  "hole chunk size remainder exceeds block size: {} >= {}", o,
+                  block_size));
+        }
       }
     } else {
       if (o >= block_size) {
