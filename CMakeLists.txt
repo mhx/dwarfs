@@ -745,6 +745,7 @@ if(WITH_TESTS)
       frozen/thrift/lib/cpp2/frozen/test/CompatibilityTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenAssociativeTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenDataValidationTest.cpp
+      frozen/thrift/lib/cpp2/frozen/test/FrozenEndianTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenHintTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenIntegralTest.cpp
       frozen/thrift/lib/cpp2/frozen/test/FrozenRangeTest.cpp

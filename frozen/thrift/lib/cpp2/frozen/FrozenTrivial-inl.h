@@ -80,15 +80,27 @@ struct TrivialLayout : public LayoutBase {
   static size_t hash(const T& value) { return std::hash<T>()(value); }
 
  private:
+  // Scalar arithmetic values frozen through TrivialLayout have a canonical
+  // little-endian byte order on disk. Besides floating-point values, this
+  // covers integral values explicitly frozen through TrivialLayout, most
+  // notably the 64-bit hash-table block occupancy mask (BlockLayout), which
+  // would otherwise be written in native byte order and misread when the
+  // data is exchanged between hosts of different endianness. Other
+  // trivially copyable types are stored in their native object
+  // representation; see the PORTABILITY section of the format document.
   template <class O, class P>
   static void swap(P* ptr) {
+    constexpr bool kIsSwappableScalar =
+        (std::is_integral_v<O> || std::is_floating_point_v<O>) && sizeof(O) > 1;
     if constexpr (
-        std::is_floating_point_v<O> &&
-        std::endian::native == std::endian::big) {
+        kIsSwappableScalar && std::endian::native == std::endian::big) {
       static_assert(
           std::is_same_v<O, P> || sizeof(P) == 1, "unexpected pointer type");
-      using U = std::conditional_t<sizeof(O) == 4, uint32_t, uint64_t>;
-      static_assert(sizeof(O) == sizeof(U), "unexpected float size");
+      using U = std::conditional_t<
+          sizeof(O) == 2,
+          uint16_t,
+          std::conditional_t<sizeof(O) == 4, uint32_t, uint64_t>>;
+      static_assert(sizeof(O) == sizeof(U), "unexpected scalar size");
       U tmp;
       std::memcpy(&tmp, ptr, sizeof(U));
       tmp = std::byteswap(tmp);
