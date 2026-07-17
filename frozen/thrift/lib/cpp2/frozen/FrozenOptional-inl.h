@@ -91,8 +91,8 @@ template <class T>
 struct OptionalLayout : public LayoutBase {
   using Base = LayoutBase;
 
-  static constexpr bool kMayRequirePerItemValidation =
-      may_require_per_item_validation_v<Layout<T>>;
+  static constexpr bool kMayRequirePerItemInspection =
+      may_require_per_item_inspection_v<Layout<T>>;
 
   Field<bool> issetField;
   Field<T> valueField;
@@ -146,11 +146,11 @@ struct OptionalLayout : public LayoutBase {
     }
   }
 
-  void validateData(DataValidationContext& context, DataValidationPosition self)
-      const override {
-    Base::validateData(context, self);
-    if (validatedDataFieldView(context, self, issetField)) {
-      validateDataField(context, self, valueField);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const override {
+    Base::inspectData(context, self);
+    if (inspectDataFieldView(context, self, issetField)) {
+      inspectDataField(context, self, valueField);
     }
   }
 

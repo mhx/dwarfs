@@ -74,8 +74,8 @@ void LayoutBase::validate(LoadRoot&) const {
   }
 }
 
-void LayoutBase::validateData(
-    DataValidationContext& context, DataValidationPosition position) const {
+void LayoutBase::inspectData(
+    DataInspectionContext& context, DataPosition position) const {
   if (empty()) {
     return;
   }
@@ -91,49 +91,49 @@ void LayoutBase::validateData(
   }
 }
 
-DataValidationContext::PathScope::PathScope(
-    DataValidationContext& context, PathComponent component)
+DataInspectionContext::PathScope::PathScope(
+    DataInspectionContext& context, PathComponent component)
     : context_(&context),
       pathSize_(context.path_.size()),
       previousPosition_(context.currentPosition_) {
   context.path_.push_back(component);
 }
 
-DataValidationContext::PathScope::PathScope(PathScope&& other) noexcept
+DataInspectionContext::PathScope::PathScope(PathScope&& other) noexcept
     : context_(std::exchange(other.context_, nullptr)),
       pathSize_(other.pathSize_),
       previousPosition_(other.previousPosition_) {}
 
-DataValidationContext::PathScope::~PathScope() {
+DataInspectionContext::PathScope::~PathScope() {
   if (context_ != nullptr) {
     context_->path_.resize(pathSize_);
     context_->currentPosition_ = previousPosition_;
   }
 }
 
-void DataValidationContext::PathScope::setPosition(
-    DataValidationPosition position) noexcept {
+void DataInspectionContext::PathScope::setPosition(
+    DataPosition position) noexcept {
   context_->currentPosition_ = position;
 }
 
-DataValidationContext::DataValidationContext(
-    std::span<const byte> data, ValidationOptions options)
+DataInspectionContext::DataInspectionContext(
+    std::span<const byte> data, DataInspectionOptions options)
     : data_(data), options_(options) {
   initialize();
 }
 
-DataValidationContext::DataValidationContext(
+DataInspectionContext::DataInspectionContext(
     std::span<const byte> data,
     std::type_index rootType,
-    ValidationOptions options)
+    DataInspectionOptions options)
     : data_(data),
       options_(options),
       rootType_(dwarfs::thrift_lite::demangle(rootType.name())),
-      currentPosition_(DataValidationPosition{}) {
+      currentPosition_(DataPosition{}) {
   initialize();
 }
 
-void DataValidationContext::initialize() {
+void DataInspectionContext::initialize() {
   if (data_.size() < LayoutRoot::kPaddingBytes) {
     fail(
         "frozen data is missing the trailing packed-read padding: actual "
@@ -144,17 +144,17 @@ void DataValidationContext::initialize() {
   logicalSize_ = data_.size() - LayoutRoot::kPaddingBytes;
 }
 
-DataValidationContext::PathScope DataValidationContext::pushField(
+DataInspectionContext::PathScope DataInspectionContext::pushField(
     std::string_view name) {
   return PathScope(*this, PathComponent{PathComponent::Kind::Field, name, 0});
 }
 
-DataValidationContext::PathScope DataValidationContext::pushIndex(
+DataInspectionContext::PathScope DataInspectionContext::pushIndex(
     size_t index) {
   return PathScope(*this, PathComponent{PathComponent::Kind::Index, {}, index});
 }
 
-std::string DataValidationContext::path() const {
+std::string DataInspectionContext::path() const {
   std::string result = rootType_.empty() ? "<unknown>" : rootType_;
   for (const auto& component : path_) {
     switch (component.kind) {
@@ -172,7 +172,7 @@ std::string DataValidationContext::path() const {
   return result;
 }
 
-[[noreturn]] void DataValidationContext::fail(std::string message) const {
+[[noreturn]] void DataInspectionContext::fail(std::string message) const {
   std::string result = "at " + path();
   if (currentPosition_) {
     result += " (byte offset=" + std::to_string(currentPosition_->byteOffset) +
@@ -180,10 +180,10 @@ std::string DataValidationContext::path() const {
   }
   result += ": ";
   result += message;
-  throw DataValidationException(std::move(result));
+  throw DataInspectionException(std::move(result));
 }
 
-size_t DataValidationContext::checkedAdd(
+size_t DataInspectionContext::checkedAdd(
     size_t lhs, size_t rhs, std::string_view what) const {
   if (rhs > std::numeric_limits<size_t>::max() - lhs) {
     fail(
@@ -194,7 +194,7 @@ size_t DataValidationContext::checkedAdd(
   return lhs + rhs;
 }
 
-size_t DataValidationContext::checkedMultiply(
+size_t DataInspectionContext::checkedMultiply(
     size_t lhs, size_t rhs, std::string_view what) const {
   if (lhs != 0 && rhs > std::numeric_limits<size_t>::max() / lhs) {
     fail(
@@ -205,8 +205,8 @@ size_t DataValidationContext::checkedMultiply(
   return lhs * rhs;
 }
 
-DataValidationPosition DataValidationContext::position(
-    DataValidationPosition parent, FieldPosition field) const {
+DataPosition DataInspectionContext::position(
+    DataPosition parent, FieldPosition field) const {
   if (field.offset < 0 || field.bitOffset < 0 ||
       (field.offset != 0 && field.bitOffset != 0)) {
     fail(
@@ -226,7 +226,7 @@ DataValidationPosition DataValidationContext::position(
           "field bit position")};
 }
 
-void DataValidationContext::requireLogicalBytes(
+void DataInspectionContext::requireLogicalBytes(
     size_t offset, size_t size, std::string_view what) const {
   if (offset > logicalSize_ || size > logicalSize_ - offset) {
     fail(
@@ -236,14 +236,14 @@ void DataValidationContext::requireLogicalBytes(
   }
 }
 
-void DataValidationContext::requireLogicalBits(
-    DataValidationPosition position, size_t bits, std::string_view what) const {
+void DataInspectionContext::requireLogicalBits(
+    DataPosition position, size_t bits, std::string_view what) const {
   const auto endBit = checkedAdd(position.bitOffset, bits, what);
   const auto bytes = endBit / 8 + static_cast<size_t>(endBit % 8 != 0);
   requireLogicalBytes(position.byteOffset, bytes, what);
 }
 
-void DataValidationContext::requirePhysicalBytes(
+void DataInspectionContext::requirePhysicalBytes(
     size_t offset, size_t size, std::string_view what) const {
   if (offset > data_.size() || size > data_.size() - offset) {
     fail(
@@ -254,8 +254,8 @@ void DataValidationContext::requirePhysicalBytes(
   }
 }
 
-void DataValidationContext::requirePackedRead(
-    DataValidationPosition position,
+void DataInspectionContext::requirePackedRead(
+    DataPosition position,
     size_t bits,
     size_t wordBytes,
     std::string_view what) const {
@@ -283,7 +283,7 @@ void DataValidationContext::requirePackedRead(
   requirePhysicalBytes(readOffset, readSize, what);
 }
 
-void DataValidationContext::requireAlignment(
+void DataInspectionContext::requireAlignment(
     size_t offset, size_t alignment, std::string_view what) const {
   if (!std::has_single_bit(alignment)) {
     fail(
@@ -303,29 +303,35 @@ void DataValidationContext::requireAlignment(
   }
 }
 
-void DataValidationContext::registerAllocation(
-    size_t offset, size_t size, std::string_view what) {
-  if (size == 0) {
+void DataInspectionContext::registerRegion(
+    DataRegion region, std::string_view what) {
+  if (region.layout == nullptr) {
+    fail(std::string(what) + " has no owning layout");
+  }
+
+  if (region.size == 0) {
+    requirePhysicalBytes(region.offset, 0, what);
+    regions_.push_back(std::move(region));
     return;
   }
 
-  requireLogicalBytes(offset, size, what);
-  const auto end = offset + size;
-  auto next = allocations_.lower_bound(offset);
-  if (next != allocations_.end() && end > next->first) {
+  requireLogicalBytes(region.offset, region.size, what);
+  const auto end = region.offset + region.size;
+  auto next = occupiedRegions_.lower_bound(region.offset);
+  if (next != occupiedRegions_.end() && end > next->first) {
     fail(
         std::string(what) + " overlaps " + next->second.what +
-        ": actual interval=[" + std::to_string(offset) + ", " +
+        ": actual interval=[" + std::to_string(region.offset) + ", " +
         std::to_string(end) + "), conflicting interval=[" +
         std::to_string(next->first) + ", " + std::to_string(next->second.end) +
         "), conflicting location=" + next->second.location);
   }
-  if (next != allocations_.begin()) {
+  if (next != occupiedRegions_.begin()) {
     const auto previous = std::prev(next);
-    if (previous->second.end > offset) {
+    if (previous->second.end > region.offset) {
       fail(
           std::string(what) + " overlaps " + previous->second.what +
-          ": actual interval=[" + std::to_string(offset) + ", " +
+          ": actual interval=[" + std::to_string(region.offset) + ", " +
           std::to_string(end) + "), conflicting interval=[" +
           std::to_string(previous->first) + ", " +
           std::to_string(previous->second.end) +
@@ -333,11 +339,16 @@ void DataValidationContext::registerAllocation(
     }
   }
 
-  allocations_.emplace(offset, Allocation{end, std::string(what), path()});
+  occupiedRegions_.emplace(
+      region.offset, OccupiedRegion{end, std::string(what), path()});
+  regions_.push_back(std::move(region));
 }
 
-ViewPosition DataValidationContext::viewPosition(
-    DataValidationPosition position) const {
+DataInspectionResult DataInspectionContext::takeResult() && noexcept {
+  return DataInspectionResult{.regions = std::move(regions_)};
+}
+
+ViewPosition DataInspectionContext::viewPosition(DataPosition position) const {
   requirePhysicalBytes(position.byteOffset, 0, "view position");
   const byte* start = nullptr;
   if (!data_.empty()) {
@@ -494,11 +505,11 @@ void BlockLayout::freeze(
   FROZEN_FREEZE_FIELD_REQ(offset);
 }
 
-void BlockLayout::validateData(
-    DataValidationContext& context, DataValidationPosition self) const {
-  Base::validateData(context, self);
-  validateDataField(context, self, maskField);
-  validateDataField(context, self, offsetField);
+void BlockLayout::inspectData(
+    DataInspectionContext& context, DataPosition self) const {
+  Base::inspectData(context, self);
+  inspectDataField(context, self, maskField);
+  inspectDataField(context, self, offsetField);
 }
 
 void BlockLayout::print(std::ostream& os, int level) const {

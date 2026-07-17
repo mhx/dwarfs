@@ -81,8 +81,8 @@ namespace apache::thrift::frozen {
 using byte = uint8_t;
 
 class LoadRoot;
-class DataValidationContext;
-struct DataValidationPosition;
+class DataInspectionContext;
+struct DataPosition;
 
 /**
  * Simply represents an indented line separator for use in debugging
@@ -250,11 +250,10 @@ struct LayoutBase {
   virtual void validate(LoadRoot&) const;
 
   /**
-   * Validates all data accesses performed by this layout at the specified
+   * Inspects all data accesses performed by this layout at the specified
    * position. Composite layouts override this to recurse into their fields.
    */
-  virtual void validateData(
-      DataValidationContext&, DataValidationPosition) const;
+  virtual void inspectData(DataInspectionContext&, DataPosition) const;
 
   /**
    * Populates a 'layout' with a description of this layout in the context of
@@ -305,33 +304,72 @@ struct Layout : public LayoutBase {
 namespace detail {
 
 template <class LayoutType>
-inline constexpr bool may_require_per_item_validation_v =
-    LayoutType::kMayRequirePerItemValidation;
+inline constexpr bool may_require_per_item_inspection_v =
+    LayoutType::kMayRequirePerItemInspection;
 
 } // namespace detail
 
 std::ostream& operator<<(std::ostream& os, const LayoutBase& layout);
 
-class DataValidationException : public std::runtime_error {
+class DataInspectionException : public std::runtime_error {
  public:
   using std::runtime_error::runtime_error;
 };
 
-struct ValidationOptions {
+struct DataInspectionOptions {
   bool checkAssociativeConsistency{false};
 };
 
-struct DataValidationPosition {
+struct DataPosition {
   size_t byteOffset{0};
   size_t bitOffset{0};
+
+  friend bool operator==(const DataPosition&, const DataPosition&) = default;
+};
+
+enum class DataRegionKind {
+  RootObject,
+  RangeItems,
+  StringBytes,
 };
 
 /**
- * Validation state for an immutable Frozen data range. All positions are
- * represented as offsets until their complete physical read range has been
- * checked.
+ * A physical region reached while inspecting Frozen data. The layout pointer
+ * refers to the concrete node in the loaded layout tree and remains valid only
+ * as long as that layout tree remains alive.
  */
-class DataValidationContext {
+struct DataRegion {
+  const LayoutBase* layout{nullptr};
+  DataRegionKind kind{DataRegionKind::RootObject};
+
+  // Position of the layout instance which owns or references this region.
+  DataPosition objectPosition{};
+
+  // Half-open byte interval [offset, offset + size) in the logical data range.
+  size_t offset{0};
+  size_t size{0};
+
+  // Populated for ranges and strings. At most one stride is non-zero.
+  size_t elementCount{0};
+  size_t elementByteStride{0};
+  size_t elementBitStride{0};
+};
+
+/**
+ * Regions are returned in inspection order. Their layout pointers borrow from
+ * the layout tree passed to inspectFrozenData().
+ */
+struct DataInspectionResult {
+  std::vector<DataRegion> regions;
+};
+
+/**
+ * Inspection state for an immutable Frozen data range. All positions are
+ * represented as offsets until their complete physical read range has been
+ * checked. The same pass both validates every reachable access and records
+ * the physical regions reached through the loaded layout tree.
+ */
+class DataInspectionContext {
  private:
   struct PathComponent;
 
@@ -344,26 +382,26 @@ class DataValidationContext {
     PathScope& operator=(PathScope&&) = delete;
     ~PathScope();
 
-    void setPosition(DataValidationPosition position) noexcept;
+    void setPosition(DataPosition position) noexcept;
 
    private:
-    friend class DataValidationContext;
+    friend class DataInspectionContext;
 
-    PathScope(DataValidationContext& context, PathComponent component);
+    PathScope(DataInspectionContext& context, PathComponent component);
 
-    DataValidationContext* context_;
+    DataInspectionContext* context_;
     size_t pathSize_;
-    std::optional<DataValidationPosition> previousPosition_;
+    std::optional<DataPosition> previousPosition_;
   };
 
-  explicit DataValidationContext(
-      std::span<const byte> data, ValidationOptions options = {});
-  DataValidationContext(
+  explicit DataInspectionContext(
+      std::span<const byte> data, DataInspectionOptions options = {});
+  DataInspectionContext(
       std::span<const byte> data,
       std::type_index rootType,
-      ValidationOptions options = {});
+      DataInspectionOptions options = {});
 
-  const ValidationOptions& options() const noexcept { return options_; }
+  const DataInspectionOptions& options() const noexcept { return options_; }
   size_t logicalSize() const noexcept { return logicalSize_; }
 
   [[nodiscard]] PathScope pushField(std::string_view name);
@@ -374,28 +412,27 @@ class DataValidationContext {
   size_t checkedAdd(size_t lhs, size_t rhs, std::string_view what) const;
   size_t checkedMultiply(size_t lhs, size_t rhs, std::string_view what) const;
 
-  DataValidationPosition position(
-      DataValidationPosition parent, FieldPosition field) const;
+  DataPosition position(DataPosition parent, FieldPosition field) const;
 
   void requireLogicalBytes(
       size_t offset, size_t size, std::string_view what) const;
   void requireLogicalBits(
-      DataValidationPosition position,
-      size_t bits,
-      std::string_view what) const;
+      DataPosition position, size_t bits, std::string_view what) const;
   void requirePhysicalBytes(
       size_t offset, size_t size, std::string_view what) const;
   void requirePackedRead(
-      DataValidationPosition position,
+      DataPosition position,
       size_t bits,
       size_t wordBytes,
       std::string_view what) const;
   void requireAlignment(
       size_t offset, size_t alignment, std::string_view what) const;
 
-  void registerAllocation(size_t offset, size_t size, std::string_view what);
+  void registerRegion(DataRegion region, std::string_view what);
 
-  ViewPosition viewPosition(DataValidationPosition position) const;
+  ViewPosition viewPosition(DataPosition position) const;
+
+  DataInspectionResult takeResult() && noexcept;
 
  private:
   struct PathComponent {
@@ -404,7 +441,7 @@ class DataValidationContext {
     size_t index{0};
   };
 
-  struct Allocation {
+  struct OccupiedRegion {
     size_t end;
     std::string what;
     std::string location;
@@ -414,12 +451,13 @@ class DataValidationContext {
   std::string path() const;
 
   std::span<const byte> data_;
-  ValidationOptions options_;
+  DataInspectionOptions options_;
   size_t logicalSize_{0};
   std::string rootType_;
   std::vector<PathComponent> path_;
-  std::optional<DataValidationPosition> currentPosition_;
-  std::map<size_t, Allocation> allocations_;
+  std::optional<DataPosition> currentPosition_;
+  std::map<size_t, OccupiedRegion> occupiedRegions_;
+  std::vector<DataRegion> regions_;
 };
 
 /**
@@ -578,25 +616,25 @@ struct Field final : public FieldBase {
 };
 
 template <class T, class Layout>
-void validateDataField(
-    DataValidationContext& context,
-    DataValidationPosition self,
+void inspectDataField(
+    DataInspectionContext& context,
+    DataPosition self,
     const Field<T, Layout>& field) {
   auto scope = context.pushField(field.name);
   const auto position = context.position(self, field.pos);
   scope.setPosition(position);
-  field.layout.validateData(context, position);
+  field.layout.inspectData(context, position);
 }
 
 template <class T, class Layout>
-auto validatedDataFieldView(
-    DataValidationContext& context,
-    DataValidationPosition self,
+auto inspectDataFieldView(
+    DataInspectionContext& context,
+    DataPosition self,
     const Field<T, Layout>& field) {
   auto scope = context.pushField(field.name);
   const auto position = context.position(self, field.pos);
   scope.setPosition(position);
-  field.layout.validateData(context, position);
+  field.layout.inspectData(context, position);
   return field.layout.view(context.viewPosition(position));
 }
 
@@ -1012,16 +1050,25 @@ void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
 }
 
 template <typename T>
-void validateFrozenData(
+DataInspectionResult inspectFrozenData(
     const Layout<T>& layout,
     std::span<const byte> data,
-    ValidationOptions options = {}) {
-  DataValidationContext context(data, typeid(T), options);
+    DataInspectionOptions options = {}) {
+  DataInspectionContext context(data, typeid(T), options);
   const auto rootBytes = layout.size != 0
       ? layout.size
       : (layout.bits / 8 + static_cast<size_t>(layout.bits % 8 != 0));
-  context.registerAllocation(0, rootBytes, "root object");
-  layout.validateData(context, {});
+  context.registerRegion(
+      DataRegion{
+          .layout = &layout,
+          .kind = DataRegionKind::RootObject,
+          .objectPosition = {},
+          .offset = 0,
+          .size = rootBytes,
+      },
+      "root object");
+  layout.inspectData(context, {});
+  return std::move(context).takeResult();
 }
 
 struct Holder {
