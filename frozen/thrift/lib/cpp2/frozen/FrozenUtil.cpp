@@ -23,6 +23,22 @@ FrozenFileForwardIncompatible::FrozenFileForwardIncompatible(int fileVersion)
           " are supported."),
       fileVersion_(fileVersion) {}
 
+DecodedSchema decodeSchema(std::span<const byte> serialized) {
+  schema::Schema schema;
+  ::dwarfs::thrift_lite::compact_reader reader(std::as_bytes(serialized));
+  schema.read(reader);
+
+  if (*schema.fileVersion() >
+      schema::frozen_constants::kCurrentFrozenFileVersion()) {
+    throw FrozenFileForwardIncompatible(*schema.fileVersion());
+  }
+
+  DecodedSchema decoded;
+  schema::convert(std::move(schema), decoded.memorySchema);
+  decoded.encodedSize = reader.consumed_bytes();
+  return decoded;
+}
+
 // NOLINTBEGIN(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
 // TODO: revisit the use of malloc/free here
 MallocFreezer::Segment::Segment(size_t _size)

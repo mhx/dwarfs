@@ -173,6 +173,10 @@ class Schema;
 class MemorySchema {
  public:
   MemorySchema() = default;
+  MemorySchema(const MemorySchema&) = default;
+  MemorySchema(MemorySchema&&) noexcept = default;
+  MemorySchema& operator=(const MemorySchema&) = default;
+  MemorySchema& operator=(MemorySchema&&) noexcept = default;
   ~MemorySchema() = default;
 
   size_t hash() const noexcept {
