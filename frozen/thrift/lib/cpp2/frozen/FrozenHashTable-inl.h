@@ -48,7 +48,10 @@ struct BlockLayout : public LayoutBase {
   void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;
   void inspectData(
       DataInspectionContext& context, DataPosition self) const final;
-  void print(std::ostream& os, int level) const final;
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const final;
   void clear() final;
 
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(mask) FROZEN_SAVE_FIELD(offset))
@@ -236,9 +239,12 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
     }
   }
 
-  void print(std::ostream& os, int level) const override {
-    Base::print(os, level);
-    sparseTableField.print(os, level + 1);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    Base::print(os, options, level);
+    sparseTableField.print(os, options, level + 1);
   }
 
   void clear() final {

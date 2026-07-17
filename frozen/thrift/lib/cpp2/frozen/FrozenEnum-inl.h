@@ -38,8 +38,11 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
     out = T(x);
   }
 
-  void print(std::ostream& os, int level) const override {
-    Base::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const override {
+    Base::print(os, options, level);
     os << " as enum " << dwarfs::thrift_lite::demangle(this->type.name());
   }
 

@@ -166,11 +166,14 @@ struct OptionalLayout : public LayoutBase {
     return v;
   }
 
-  void print(std::ostream& os, int level) const final {
-    LayoutBase::print(os, level);
+  void print(
+      std::ostream& os,
+      const LayoutPrintOptions& options = {},
+      int level = 0) const final {
+    LayoutBase::print(os, options, level);
     os << "optional " << dwarfs::thrift_lite::demangle(type.name());
-    issetField.print(os, level + 1);
-    valueField.print(os, level + 1);
+    issetField.print(os, options, level + 1);
+    valueField.print(os, options, level + 1);
   }
 
   void clear() final {

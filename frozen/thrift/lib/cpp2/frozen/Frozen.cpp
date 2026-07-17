@@ -25,7 +25,7 @@ std::ostream& operator<<(std::ostream& os, DebugLine dl) {
 }
 
 std::ostream& operator<<(std::ostream& os, const LayoutBase& layout) {
-  layout.print(os, 0);
+  layout.print(os);
   return os;
 }
 
@@ -45,7 +45,8 @@ bool LayoutBase::resize(FieldPosition after, bool _inlined) {
   return resized;
 }
 
-void LayoutBase::print(std::ostream& os, int level) const {
+void LayoutBase::print(
+    std::ostream& os, const LayoutPrintOptions& options, int level) const {
   os << DebugLine(level);
   if (size) {
     os << size << " byte";
@@ -58,12 +59,16 @@ void LayoutBase::print(std::ostream& os, int level) const {
     os << "empty";
   }
   os << ' ';
+  if (options.includeSchemaLayoutIds && schemaLayoutId != kNoSchemaLayoutId) {
+    os << "layout #" << schemaLayoutId << ' ';
+  }
 }
 
 void LayoutBase::clear() {
   size = 0;
   bits = 0;
   inlined = false;
+  schemaLayoutId = kNoSchemaLayoutId;
 }
 
 void LayoutBase::validate(LoadRoot&) const {
@@ -512,11 +517,12 @@ void BlockLayout::inspectData(
   inspectDataField(context, self, offsetField);
 }
 
-void BlockLayout::print(std::ostream& os, int level) const {
-  LayoutBase::print(os, level);
+void BlockLayout::print(
+    std::ostream& os, const LayoutPrintOptions& options, int level) const {
+  LayoutBase::print(os, options, level);
   os << dwarfs::thrift_lite::demangle(type.name());
-  maskField.print(os, level + 1);
-  offsetField.print(os, level + 1);
+  maskField.print(os, options, level + 1);
+  offsetField.print(os, options, level + 1);
 }
 
 void BlockLayout::clear() {
