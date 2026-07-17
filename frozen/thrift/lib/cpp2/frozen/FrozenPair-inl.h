@@ -23,9 +23,9 @@ struct PairLayout : public LayoutBase {
   using FirstDecayed = std::decay_t<First>;
   using SecondDecayed = std::decay_t<Second>;
 
-  static constexpr bool kMayRequirePerItemValidation =
-      may_require_per_item_validation_v<Layout<FirstDecayed>> ||
-      may_require_per_item_validation_v<Layout<SecondDecayed>>;
+  static constexpr bool kMayRequirePerItemInspection =
+      may_require_per_item_inspection_v<Layout<FirstDecayed>> ||
+      may_require_per_item_inspection_v<Layout<SecondDecayed>>;
 
   Field<FirstDecayed> firstField;
   Field<SecondDecayed> secondField;
@@ -65,11 +65,11 @@ struct PairLayout : public LayoutBase {
     thawField(self, secondField, const_cast<SecondDecayed&>(out.second));
   }
 
-  void validateData(DataValidationContext& context, DataValidationPosition self)
-      const override {
-    Base::validateData(context, self);
-    validateDataField(context, self, firstField);
-    validateDataField(context, self, secondField);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const override {
+    Base::inspectData(context, self);
+    inspectDataField(context, self, firstField);
+    inspectDataField(context, self, secondField);
   }
 
   FROZEN_VIEW(FROZEN_VIEW_FIELD(first, FirstDecayed)

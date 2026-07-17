@@ -124,7 +124,7 @@ MappedFrozen<T> map_frozen(logger& lgr, std::span<uint8_t const> schema,
   deserializeRootLayout(schema, *layout);
   {
     auto tv = LOG_TIMED_VERBOSE;
-    validateFrozenData(*layout, data, {.checkAssociativeConsistency = true});
+    inspectFrozenData(*layout, data, {.checkAssociativeConsistency = true});
     tv << "validated frozen data";
   }
   MappedFrozen<T> ret(layout->view({data.data(), 0}));
