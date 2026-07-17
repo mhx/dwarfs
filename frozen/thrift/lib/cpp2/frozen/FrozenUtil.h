@@ -40,6 +40,18 @@ class FrozenFileForwardIncompatible : public std::runtime_error {
   int fileVersion_;
 };
 
+struct DecodedSchema {
+  schema::MemorySchema memorySchema;
+  size_t encodedSize{0};
+};
+
+/**
+ * Decodes a compact-encoded Frozen schema from the beginning of `serialized`.
+ * Any trailing bytes are ignored and `encodedSize` reports how many bytes were
+ * consumed by the schema.
+ */
+DecodedSchema decodeSchema(std::span<const byte> serialized);
+
 /**
  * A FreezeRoot that mallocs buffers as needed.
  */
@@ -142,20 +154,9 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
 template <class T>
 void deserializeRootLayout(
     std::span<uint8_t const>& range, Layout<T>& layoutOut) {
-  schema::Schema schema;
-  ::dwarfs::thrift_lite::compact_reader reader(std::as_bytes(range));
-  schema.read(reader);
-  size_t schemaSize = reader.consumed_bytes();
-
-  if (*schema.fileVersion() >
-      schema::frozen_constants::kCurrentFrozenFileVersion()) {
-    throw FrozenFileForwardIncompatible(*schema.fileVersion());
-  }
-
-  schema::MemorySchema memSchema;
-  schema::convert(std::move(schema), memSchema);
-  loadRoot(layoutOut, memSchema);
-  range = range.subspan(schemaSize);
+  auto decoded = decodeSchema(range);
+  loadRoot(layoutOut, decoded.memorySchema);
+  range = range.subspan(decoded.encodedSize);
 }
 
 template <class T>
