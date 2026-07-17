@@ -274,10 +274,10 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     return 0;
   }
 
-  try {
-    stream_logger lgr(iol.term, iol.err, *iol.os, logopts);
-    LOG_PROXY(debug_logger_policy, lgr);
+  stream_logger lgr(iol.term, iol.err, *iol.os, logopts);
+  LOG_PROXY(debug_logger_policy, lgr);
 
+  try {
     if (no_check && check_integrity) {
       LOG_WARN << "--no-check and --check-integrity are mutually exclusive";
       return 1;
@@ -389,7 +389,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
   } catch (std::exception const& e) {
-    iol.err << exception_str(e) << "\n";
+    LOG_ERROR << "error: " << e.what();
     return 1;
   }
 
