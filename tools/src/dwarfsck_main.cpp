@@ -354,6 +354,16 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
                                      : reader::filesystem_check_level::CHECKSUM;
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
+        if (!no_check && check_integrity) {
+          try {
+            fs.walk([&](auto const&) {});
+          } catch (std::exception const& e) {
+            LOG_ERROR << "error: failed to walk filesystem: "
+                      << exception_str(e);
+            return 1;
+          }
+        }
+
         if (!quiet && !list_files && checksum_algo.empty()) {
           reader::fsinfo_options opts;
 
