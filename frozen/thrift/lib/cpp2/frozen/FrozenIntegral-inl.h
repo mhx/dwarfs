@@ -30,7 +30,7 @@ template <class T>
 struct PackedIntegerLayout : public LayoutBase {
   using Base = LayoutBase;
 
-  static constexpr bool kMayRequirePerItemValidation = false;
+  static constexpr bool kMayRequirePerItemInspection = false;
 
   PackedIntegerLayout() : LayoutBase(typeid(T)) {}
   explicit PackedIntegerLayout(const std::type_info& _type)
@@ -85,10 +85,9 @@ struct PackedIntegerLayout : public LayoutBase {
     }
   }
 
-  void validateData(
-      DataValidationContext& context,
-      DataValidationPosition position) const override {
-    Base::validateData(context, position);
+  void inspectData(
+      DataInspectionContext& context, DataPosition position) const override {
+    Base::inspectData(context, position);
     if (!empty()) {
       context.requirePackedRead(position, bits, sizeof(T), "packed integer");
     }

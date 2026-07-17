@@ -143,23 +143,22 @@
     __VA_ARGS__;                                                           \
   }
 
-#define FROZEN_MAY_REQUIRE_PER_ITEM_VALIDATION_FIELD(NAME)                 \
+#define FROZEN_MAY_REQUIRE_PER_ITEM_INSPECTION_FIELD(NAME)                 \
   ||                                                                       \
-      ::apache::thrift::frozen::detail::may_require_per_item_validation_v< \
+      ::apache::thrift::frozen::detail::may_require_per_item_inspection_v< \
           decltype(NAME##Field.layout)>
 
-#define FROZEN_MAY_REQUIRE_PER_ITEM_VALIDATION(...) \
-  static constexpr bool kMayRequirePerItemValidation = false __VA_ARGS__;
+#define FROZEN_MAY_REQUIRE_PER_ITEM_INSPECTION(...) \
+  static constexpr bool kMayRequirePerItemInspection = false __VA_ARGS__;
 
-#define FROZEN_VALIDATE_DATA_FIELD(NAME) \
-  validateDataField(context, self, this->NAME##Field);
+#define FROZEN_INSPECT_DATA_FIELD(NAME) \
+  inspectDataField(context, self, this->NAME##Field);
 
-#define FROZEN_VALIDATE_DATA_INLINE(...)                           \
-  void validateData(                                               \
-      DataValidationContext& context, DataValidationPosition self) \
-      const final {                                                \
-    Base::validateData(context, self);                             \
-    __VA_ARGS__                                                    \
+#define FROZEN_INSPECT_DATA_INLINE(...)                               \
+  void inspectData(DataInspectionContext& context, DataPosition self) \
+      const final {                                                   \
+    Base::inspectData(context, self);                                 \
+    __VA_ARGS__                                                       \
   }
 #define FROZEN_DEBUG_FIELD(NAME) this->NAME##Field.print(os, level + 1);
 #define FROZEN_DEBUG(TYPE, ...)                                 \

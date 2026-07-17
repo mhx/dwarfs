@@ -36,7 +36,7 @@ struct StringLayout : public LayoutBase {
   using Helper = BufferHelpers<T>;
   using Item = Helper::Item;
 
-  static constexpr bool kMayRequirePerItemValidation = true;
+  static constexpr bool kMayRequirePerItemInspection = true;
 
   Field<size_t> distanceField;
   Field<size_t> countField;
@@ -82,16 +82,16 @@ struct StringLayout : public LayoutBase {
     Helper::thawTo(view(self), out);
   }
 
-  void validateData(DataValidationContext& context, DataValidationPosition self)
-      const override {
-    Base::validateData(context, self);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const override {
+    Base::inspectData(context, self);
 
-    const auto count = validatedDataFieldView(context, self, countField);
+    const auto count = inspectDataFieldView(context, self, countField);
     if (count == 0) {
       return;
     }
 
-    const auto distance = validatedDataFieldView(context, self, distanceField);
+    const auto distance = inspectDataFieldView(context, self, distanceField);
     const auto dataOffset =
         context.checkedAdd(self.byteOffset, distance, "string data position");
     const auto dataSize =
@@ -99,7 +99,17 @@ struct StringLayout : public LayoutBase {
 
     context.requireLogicalBytes(dataOffset, dataSize, "string data");
     context.requireAlignment(dataOffset, alignof(Item), "string data");
-    context.registerAllocation(dataOffset, dataSize, "string data");
+    context.registerRegion(
+        DataRegion{
+            .layout = this,
+            .kind = DataRegionKind::StringBytes,
+            .objectPosition = self,
+            .offset = dataOffset,
+            .size = dataSize,
+            .elementCount = count,
+            .elementByteStride = sizeof(Item),
+        },
+        "string data");
   }
 
   using View = std::conditional_t<

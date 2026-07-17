@@ -26,7 +26,7 @@ struct ArrayLayout : public LayoutBase {
   using Base = LayoutBase;
   using LayoutSelf = ArrayLayout;
 
-  static constexpr bool kMayRequirePerItemValidation = true;
+  static constexpr bool kMayRequirePerItemInspection = true;
   static constexpr bool kIsBlitLayout = is_blit_layout_v<Item>;
   static constexpr size_t kItemAlign = kIsBlitLayout ? alignof(Item) : 1;
 
@@ -131,22 +131,32 @@ struct ArrayLayout : public LayoutBase {
     }
   }
 
-  void validateData(DataValidationContext& context, DataValidationPosition self)
-      const override {
-    Base::validateData(context, self);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const override {
+    Base::inspectData(context, self);
 
-    const auto count = validatedDataFieldView(context, self, countField);
+    const auto count = inspectDataFieldView(context, self, countField);
     if (count == 0) {
       return;
     }
 
-    const auto dataOffset = validationDataOffset(context, self);
+    const auto dataOffset = inspectionDataOffset(context, self);
 
     const auto itemBytes = itemField.layout.size;
     const auto itemBits = itemBytes == 0 ? itemField.layout.bits : size_t{0};
 
     if (itemBytes == 0 && itemBits == 0) {
       context.requirePhysicalBytes(dataOffset, 0, "range data position");
+      context.registerRegion(
+          DataRegion{
+              .layout = this,
+              .kind = DataRegionKind::RangeItems,
+              .objectPosition = self,
+              .offset = dataOffset,
+              .size = 0,
+              .elementCount = count,
+          },
+          "range data");
       return;
     }
 
@@ -163,15 +173,26 @@ struct ArrayLayout : public LayoutBase {
     if constexpr (kIsBlitLayout) {
       context.requireAlignment(dataOffset, alignof(Item), "range data");
     }
-    context.registerAllocation(dataOffset, dataSize, "range data");
+    context.registerRegion(
+        DataRegion{
+            .layout = this,
+            .kind = DataRegionKind::RangeItems,
+            .objectPosition = self,
+            .offset = dataOffset,
+            .size = dataSize,
+            .elementCount = count,
+            .elementByteStride = itemBytes,
+            .elementBitStride = itemBits,
+        },
+        "range data");
 
-    if constexpr (may_require_per_item_validation_v<Layout<Item>>) {
+    if constexpr (may_require_per_item_inspection_v<Layout<Item>>) {
       for (size_t index = 0; index < count; ++index) {
         auto scope = context.pushIndex(index);
         const auto itemPosition =
-            validationItemPosition(context, dataOffset, index);
+            inspectionItemPosition(context, dataOffset, index);
         scope.setPosition(itemPosition);
-        itemField.layout.validateData(context, itemPosition);
+        itemField.layout.inspectData(context, itemPosition);
       }
     }
   }
@@ -198,14 +219,14 @@ struct ArrayLayout : public LayoutBase {
                          FROZEN_LOAD_FIELD_OUT_OF_LINE(item, 3))
 
  protected:
-  size_t validationDataOffset(
-      DataValidationContext& context, DataValidationPosition self) const {
-    const auto distance = validatedDataFieldView(context, self, distanceField);
+  size_t inspectionDataOffset(
+      DataInspectionContext& context, DataPosition self) const {
+    const auto distance = inspectDataFieldView(context, self, distanceField);
     return context.checkedAdd(self.byteOffset, distance, "range data position");
   }
 
-  DataValidationPosition validationItemPosition(
-      DataValidationContext& context, size_t dataOffset, size_t index) const {
+  DataPosition inspectionItemPosition(
+      DataInspectionContext& context, size_t dataOffset, size_t index) const {
     if (itemField.layout.size != 0) {
       const auto itemOffset = context.checkedMultiply(
           index, itemField.layout.size, "range item position");

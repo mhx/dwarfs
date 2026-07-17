@@ -35,7 +35,7 @@ struct BlockLayout : public LayoutBase {
   using T = Block;
   using LayoutSelf = BlockLayout;
 
-  static constexpr bool kMayRequirePerItemValidation = false;
+  static constexpr bool kMayRequirePerItemInspection = false;
 
   Field<uint64_t, TrivialLayout<uint64_t>> maskField;
   Field<uint64_t> offsetField;
@@ -46,8 +46,8 @@ struct BlockLayout : public LayoutBase {
   FieldPosition maximize();
   FieldPosition layout(LayoutRoot& root, const T& x, LayoutPosition self);
   void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;
-  void validateData(
-      DataValidationContext& context, DataValidationPosition self) const final;
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const final;
   void print(std::ostream& os, int level) const final;
   void clear() final;
 
@@ -354,18 +354,18 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
 
   View view(ViewPosition self) const { return View(this, self); }
 
-  void validateData(
-      DataValidationContext& context, DataValidationPosition self) const final {
-    Base::validateData(context, self);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const final {
+    Base::inspectData(context, self);
 
     const auto itemCount =
-        validatedDataFieldView(context, self, this->countField);
+        inspectDataFieldView(context, self, this->countField);
 
     {
       auto tableScope = context.pushField(sparseTableField.name);
       const auto tablePosition = context.position(self, sparseTableField.pos);
       tableScope.setPosition(tablePosition);
-      sparseTableField.layout.validateData(context, tablePosition);
+      sparseTableField.layout.inspectData(context, tablePosition);
       const auto table =
           sparseTableField.layout.view(context.viewPosition(tablePosition));
 
@@ -379,7 +379,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
 
       size_t expectedOffset = 0;
       if (!table.empty()) {
-        const auto tableDistance = validatedDataFieldView(
+        const auto tableDistance = inspectDataFieldView(
             context, tablePosition, sparseTableField.layout.distanceField);
         const auto tableDataOffset = context.checkedAdd(
             tablePosition.byteOffset, tableDistance, "range data position");
@@ -387,7 +387,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
 
         for (size_t blockIndex = 0; blockIndex < table.size(); ++blockIndex) {
           auto blockScope = context.pushIndex(blockIndex);
-          DataValidationPosition blockPosition;
+          DataPosition blockPosition;
           if (blockLayout.size != 0) {
             const auto blockOffset = context.checkedMultiply(
                 blockIndex, blockLayout.size, "hash table block position");
@@ -454,12 +454,12 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
     }
 
     const auto tableView = view(context.viewPosition(self));
-    const auto dataOffset = this->validationDataOffset(context, self);
+    const auto dataOffset = this->inspectionDataOffset(context, self);
     auto item = tableView.begin();
     for (size_t index = 0; item != tableView.end(); ++item, ++index) {
       auto itemScope = context.pushIndex(index);
       itemScope.setPosition(
-          this->validationItemPosition(context, dataOffset, index));
+          this->inspectionItemPosition(context, dataOffset, index));
       const auto key = KeyExtractor::getViewKey(*item);
       const auto found = tableView.find(key);
       if (found == tableView.end()) {

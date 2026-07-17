@@ -1950,12 +1950,12 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
             ("SAVE_INLINE", "SAVE", False, None),
             ("LOAD_INLINE", "LOAD", False, lambda f: str(f.field_id)),
             (
-                "MAY_REQUIRE_PER_ITEM_VALIDATION",
-                "MAY_REQUIRE_PER_ITEM_VALIDATION",
+                "MAY_REQUIRE_PER_ITEM_INSPECTION",
+                "MAY_REQUIRE_PER_ITEM_INSPECTION",
                 False,
                 None,
             ),
-            ("VALIDATE_DATA_INLINE", "VALIDATE_DATA", False, None),
+            ("INSPECT_DATA_INLINE", "INSPECT_DATA", False, None),
         ):
             if first:
                 first = False

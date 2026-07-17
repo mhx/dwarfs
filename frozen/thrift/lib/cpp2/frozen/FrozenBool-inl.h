@@ -21,7 +21,7 @@ struct BoolLayout : public LayoutBase {
   using Base = LayoutBase;
   using T = bool;
 
-  static constexpr bool kMayRequirePerItemValidation = false;
+  static constexpr bool kMayRequirePerItemInspection = false;
 
   BoolLayout() : LayoutBase(typeid(T)) {}
 
@@ -72,10 +72,9 @@ struct BoolLayout : public LayoutBase {
     }
   }
 
-  void validateData(
-      DataValidationContext& context,
-      DataValidationPosition position) const override {
-    Base::validateData(context, position);
+  void inspectData(
+      DataInspectionContext& context, DataPosition position) const override {
+    Base::inspectData(context, position);
     if (!empty()) {
       context.requirePackedRead(position, bits, 1, "packed bool");
     }

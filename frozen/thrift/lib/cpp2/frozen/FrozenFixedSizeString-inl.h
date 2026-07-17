@@ -32,7 +32,7 @@ template <typename T>
 struct FixedSizeStringLayout : public LayoutBase {
   using Base = LayoutBase;
 
-  static constexpr bool kMayRequirePerItemValidation = false;
+  static constexpr bool kMayRequirePerItemInspection = false;
 
   FixedSizeStringLayout() : LayoutBase(typeid(T)) {}
 
@@ -75,10 +75,9 @@ struct FixedSizeStringLayout : public LayoutBase {
     }
   }
 
-  void validateData(
-      DataValidationContext& context,
-      DataValidationPosition position) const override {
-    Base::validateData(context, position);
+  void inspectData(
+      DataInspectionContext& context, DataPosition position) const override {
+    Base::inspectData(context, position);
     if (!empty()) {
       context.requirePhysicalBytes(
           position.byteOffset, T::kFixedSize, "fixed-size string");

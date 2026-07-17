@@ -283,9 +283,9 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
 
   View view(ViewPosition self) const { return View(this, self); }
 
-  void validateData(
-      DataValidationContext& context, DataValidationPosition self) const final {
-    Base::validateData(context, self);
+  void inspectData(
+      DataInspectionContext& context, DataPosition self) const final {
+    Base::inspectData(context, self);
     if (!context.options().checkAssociativeConsistency) {
       return;
     }
@@ -295,14 +295,14 @@ struct SortedTableLayout : public ArrayLayout<T, Item> {
       return;
     }
 
-    const auto dataOffset = this->validationDataOffset(context, self);
+    const auto dataOffset = this->inspectionDataOffset(context, self);
     auto previous = table.begin();
     auto item = previous;
     ++item;
     for (size_t index = 1; item != table.end(); ++item, ++index) {
       auto scope = context.pushIndex(index);
       scope.setPosition(
-          this->validationItemPosition(context, dataOffset, index));
+          this->inspectionItemPosition(context, dataOffset, index));
       const auto previousKey = KeyExtractor::getViewKey(*previous);
       const auto currentKey = KeyExtractor::getViewKey(*item);
       if (!(previousKey < currentKey)) {
