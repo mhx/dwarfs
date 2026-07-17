@@ -21,25 +21,19 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <algorithm>
 #include <filesystem>
-#include <random>
-#include <sstream>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/logger.h>
-#include <dwarfs/reader/filesystem_options.h>
-#include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/file_util.h>
 
-#include "test_helpers.h"
-#include "test_logger.h"
+#include "test_tool_main_tester.h"
 
 using namespace dwarfs;
+using namespace dwarfs::test;
 
 namespace {
-
-using namespace std::string_view_literals;
 
 auto const testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
 
@@ -50,13 +44,6 @@ std::vector<std::string> find_all_filesystems() {
       files.push_back(e.path().filename().string());
     }
   }
-#if defined(DWARFS_TEST_CROSS_COMPILE) || defined(__APPLE__) || defined(_WIN32)
-  static constexpr size_t kMaxFiles = 100;
-  std::mt19937 rng(std::hash<std::string>{}(__TIME__));
-  std::vector<std::string> sampled_files;
-  std::ranges::sample(files, std::back_inserter(sampled_files), kMaxFiles, rng);
-  std::swap(files, sampled_files);
-#endif
   return files;
 }
 
@@ -65,29 +52,18 @@ std::vector<std::string> const get_files() {
   return files;
 }
 
-class bad_fs : public ::testing::TestWithParam<std::string> {};
+class dwarfsck_badfs : public ::testing::TestWithParam<std::string> {};
 
 } // namespace
 
-TEST_P(bad_fs, test) {
+TEST_P(dwarfsck_badfs, test) {
   auto const filename = GetParam();
   auto const filepath = testdata / GetParam();
 
-  test::test_logger lgr;
-  test::os_access_mock os;
-  std::ostringstream oss;
-
-  int nerror = 0;
-
-  try {
-    nerror = reader::filesystem_v2::identify(
-        lgr, os, test::make_real_file_view(filepath), oss, 9, 1, true,
-        reader::filesystem_options::IMAGE_OFFSET_AUTO);
-  } catch (std::exception const&) {
-    nerror = 1;
-  }
-
-  EXPECT_GT(nerror, 0);
+  auto t = dwarfsck_tester::create_with_image(read_file(filepath));
+  EXPECT_NE(0, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("error: "));
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, bad_fs, ::testing::ValuesIn(get_files()));
+INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsck_badfs,
+                         ::testing::ValuesIn(get_files()));
