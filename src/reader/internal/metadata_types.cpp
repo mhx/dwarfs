@@ -717,7 +717,15 @@ void check_chunks(global_metadata::Meta const& meta,
                   feature_set const& features) {
   auto block_size = meta.block_size();
   bool const has_sparse = features.has(feature::sparsefiles);
+  bool const has_new_hole_marker = features.has(feature::sparsefiles_new_lhm);
   auto const hole_ix = meta.hole_block_index();
+  auto const large_hole_offset_marker =
+      has_new_hole_marker ? block_size - 1 : kChunkOffsetIsLargeHoleCompat;
+
+  if (has_new_hole_marker && !has_sparse) {
+    DWARFS_THROW(runtime_error,
+                 "sparsefiles_new_lhm feature implies sparsefiles feature");
+  }
 
   if (hole_ix.has_value() && !has_sparse) {
     DWARFS_THROW(runtime_error,
@@ -742,7 +750,7 @@ void check_chunks(global_metadata::Meta const& meta,
     auto const s = c.size();
 
     if (has_sparse && b == hole_ix.value()) {
-      if (o == kChunkOffsetIsLargeHole) {
+      if (o == large_hole_offset_marker) {
         auto lhs = meta.large_hole_size();
         if (!lhs.has_value()) {
           DWARFS_THROW(runtime_error,

@@ -87,11 +87,13 @@ class inode_size_provider {
       : chunk_table_{md.chunk_table().value()}
       , chunks_{md.chunks().value()}
       , block_size_{md.block_size().value()}
-      , hole_ix_{md.hole_block_index().value_or(UINT32_MAX)} {
+      , hole_ix_{md.hole_block_index().value_or(UINT32_MAX)}
+      , large_hole_offset_marker_{static_cast<uint32_t>(block_size_ - 1)} {
     if (md.large_hole_size()) {
       large_hole_size_ = &md.large_hole_size().value();
     }
     assert(std::has_single_bit(block_size_));
+    assert(std::cmp_less_equal(block_size_ - 1, UINT32_MAX));
   }
 
   inode_size_info get(size_t index) const {
@@ -110,7 +112,7 @@ class inode_size_provider {
       auto const s = chunk.size().value();
 
       if (b == hole_ix_) {
-        if (o == kChunkOffsetIsLargeHole) {
+        if (o == large_hole_offset_marker_) {
           assert(large_hole_size_);
           assert(s < large_hole_size_->size());
           size += large_hole_size_->at(s);
@@ -139,6 +141,7 @@ class inode_size_provider {
   chunks_t const& chunks_;
   uint64_t block_size_;
   uint32_t hole_ix_;
+  uint32_t large_hole_offset_marker_;
   large_hole_size_t const* large_hole_size_{nullptr};
 };
 
@@ -171,6 +174,12 @@ class metadata_builder_ final : public metadata_builder::impl {
       DWARFS_CHECK(
           non_sparse_image || options_.enable_sparse_files,
           "image uses sparse files but sparse files support is disabled");
+
+      if (features_.has(feature::sparsefiles) &&
+          md_.large_hole_size().has_value() &&
+          !features_.has(feature::sparsefiles_new_lhm)) {
+        holes_need_remapping_ = true;
+      }
     }
 
     upgrade_metadata(orig_fs_options, orig_fs_version);
@@ -249,7 +258,7 @@ class metadata_builder_ final : public metadata_builder::impl {
                                        .block())::value_type>::max();
 
   void remap_holes(chunks_t& new_chunks, size_t new_hole_index,
-                   size_t max_data_chunk_size);
+                   size_t max_data_chunk_size, size_t old_hole_index);
   void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
                         filesystem_version const& orig_fs_version);
   void upgrade_from_pre_v2_2();
@@ -295,6 +304,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   time_resolution_converter timeres_;
   std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
       compressed_names_;
+  bool holes_need_remapping_{false};
 };
 
 template <typename LoggerPolicy>
@@ -395,23 +405,37 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
 template <typename LoggerPolicy>
 void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
                                                   size_t new_hole_index,
-                                                  size_t max_data_chunk_size) {
+                                                  size_t max_data_chunk_size,
+                                                  size_t old_hole_index) {
   LOG_DEBUG << "remapping holes (hole index: " << md_.hole_block_index().value()
             << " -> " << new_hole_index << ")";
 
   auto const old_block_size = old_block_size_.value();
   auto const new_block_size = md_.block_size().value();
 
+  // Backwards compatibility: the marker for a large hole should always have
+  // been (block_size - 1), but it was kChunkOffsetIsLargeHoleCompat in the
+  // initial implementation. We support both for backwards compatibility.
+  // See the "Sparse Files" section in dwarfs-format.md for a full discussion
+  // of the large hole representation.
+  auto const old_large_hole_offset_mask =
+      features_.has(feature::sparsefiles_new_lhm)
+          ? static_cast<uint32_t>(old_block_size - 1)
+          : kChunkOffsetIsLargeHoleCompat;
+
+  assert(std::has_single_bit(old_block_size));
+  assert(std::has_single_bit(new_block_size));
+
   inode_hole_mapper hole_mapper(new_hole_index, new_block_size,
                                 max_data_chunk_size);
 
   for (auto&& c : new_chunks) {
-    if (c.block().value() == kTmpHoleIx) {
+    if (c.block().value() == old_hole_index) {
       auto const offset = c.offset().value();
       auto const size = c.size().value();
       file_size_t hole_size{0};
 
-      if (offset == kChunkOffsetIsLargeHole) {
+      if (offset == old_large_hole_offset_mask) {
         assert(md_.large_hole_size());
         assert(size < md_.large_hole_size()->size());
         hole_size = md_.large_hole_size()->at(size);
@@ -425,6 +449,8 @@ void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
 
   md_.hole_block_index() = hole_mapper.hole_block_index();
   md_.large_hole_size() = hole_mapper.large_hole_sizes();
+
+  holes_need_remapping_ = false;
 }
 
 template <typename LoggerPolicy>
@@ -512,7 +538,7 @@ void metadata_builder_<LoggerPolicy>::remap_blocks(
   }
 
   if (old_hole_ix) {
-    remap_holes(new_chunks, new_block_count, max_data_chunk_size);
+    remap_holes(new_chunks, new_block_count, max_data_chunk_size, kTmpHoleIx);
   }
 
   auto const& old_categories = md_.block_categories();
@@ -710,6 +736,10 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
 
     auto const& shared = md_.shared_files_table();
     auto const num_unique_files = (dev_offset - reg_offset) - shared->size();
+
+    DWARFS_CHECK(!holes_need_remapping_,
+                 "inode_size_provider requires remapped holes");
+
     inode_size_provider isp(md_);
 
     for (auto inode_num = reg_offset; inode_num < dev_offset;) {
@@ -894,6 +924,23 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   fsopts.packed_shared_files_table() = options_.pack_shared_files_table;
   fsopts.inodes_have_nlink() = !options_.no_hardlink_table;
 
+  if (holes_need_remapping_) {
+    auto& chunks = md_.chunks().value();
+    auto const hole_block_ix = md_.hole_block_index();
+    size_t max_data_chunk_size{0};
+
+    assert(hole_block_ix.has_value());
+
+    // We could optimize this by looking up the number of bits used to store
+    // the chunk size, but this is hardly ever going to be used...
+    for (auto const& chunk : chunks) {
+      max_data_chunk_size =
+          std::max<size_t>(max_data_chunk_size, chunk.size().value());
+    }
+
+    remap_holes(chunks, *hole_block_ix, max_data_chunk_size, *hole_block_ix);
+  }
+
   update_nlink();
   update_totals_and_size_cache();
 
@@ -1000,6 +1047,14 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   if (options_.no_category_names || options_.no_category_metadata) {
     md_.category_metadata_json().reset();
     md_.block_category_metadata().reset();
+  }
+
+  if (md_.large_hole_size()) {
+    if (md_.large_hole_size()->empty()) {
+      md_.large_hole_size().reset();
+    } else {
+      features_.add(feature::sparsefiles_new_lhm);
+    }
   }
 
   md_.options() = fsopts;

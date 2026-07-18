@@ -158,6 +158,17 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
+bool must_use_old_large_hole_mask(
+    MappedFrozen<thrift::metadata::metadata> const& meta) {
+  if (auto const feat = meta.features()) {
+    feature_set features;
+    features.set(feat->thaw());
+    return !features.has(feature::sparsefiles_new_lhm);
+  }
+
+  return true;
+}
+
 template <typename T>
 class push_back_if_enabled {
  public:
@@ -669,7 +680,7 @@ class metadata_v2_data {
       ec.clear();
       uint32_t begin = chunk_table_lookup(index);
       uint32_t end = chunk_table_lookup(index + 1);
-      return {meta_, begin, end};
+      return {meta_, begin, end, use_old_large_hole_mask_};
     }
 
     ec = make_error_code(std::errc::invalid_argument);
@@ -711,6 +722,7 @@ class metadata_v2_data {
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
   int const unique_files_;
+  bool const use_old_large_hole_mask_;
   std::optional<nlink_info> const nlinks_;
   metadata_options const options_;
   string_table const symlinks_;
@@ -756,6 +768,7 @@ metadata_v2_data::metadata_v2_data(
                                ? meta_.shared_files_table()->size()
                                : 0
                          : shared_files_.size()))
+    , use_old_large_hole_mask_{must_use_old_large_hole_mask(meta_)}
     , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , options_{options}
     , symlinks_{meta_.compact_symlinks()
