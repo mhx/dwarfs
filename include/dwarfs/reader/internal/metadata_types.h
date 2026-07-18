@@ -209,22 +209,31 @@ class chunk_view {
  public:
   chunk_view() = default;
   chunk_view(Meta const* meta,
-             ::apache::thrift::frozen::View<thrift::metadata::chunk> v) {
+             ::apache::thrift::frozen::View<thrift::metadata::chunk> v,
+             bool use_old_large_hole_mask) {
     auto const b = v.block();
     auto const o = v.offset();
     auto const s = v.size();
     auto const hole_ix = meta->hole_block_index();
 
     if (hole_ix.has_value() && b == *hole_ix) { // this is a hole
+      auto const block_size = meta->block_size();
+      assert(std::has_single_bit(block_size));
+      // Backwards compatibility: the marker for a large hole should always have
+      // been (block_size - 1), but it was kChunkOffsetIsLargeHoleCompat in the
+      // initial implementation. We support both for backwards compatibility.
+      // See the "Sparse Files" section in dwarfs-format.md for a full
+      // discussion of the large hole representation.
+      auto const large_hole_mask = use_old_large_hole_mask
+                                       ? kChunkOffsetIsLargeHoleCompat
+                                       : (block_size - 1);
       block_ = 0;
       offset_ = 0;
-      if (o == kChunkOffsetIsLargeHole) {
+      if (o == large_hole_mask) {
         assert(meta->large_hole_size().has_value());
         assert(s < meta->large_hole_size()->size());
         bits_ = (*meta->large_hole_size())[s];
       } else {
-        auto const block_size = meta->block_size();
-        assert(std::has_single_bit(block_size));
         assert(o < block_size);
         bits_ = (static_cast<uint64_t>(s) * block_size) + o;
       }
@@ -263,6 +272,7 @@ class chunk_view {
 class chunk_range {
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+  using const_meta_ptr = dwarfs::internal::packed_ptr<Meta const, 1, bool>;
 
   friend class internal::metadata_v2_data;
 
@@ -281,7 +291,7 @@ class chunk_range {
     friend class boost::iterator_core_access;
     friend class chunk_range;
 
-    iterator(Meta const* meta, uint32_t it)
+    iterator(const_meta_ptr meta, uint32_t it)
         : meta_{meta}
         , it_{it} {}
 
@@ -302,11 +312,11 @@ class chunk_range {
 
     // TODO: this is nasty; can we do this without boost::iterator_facade?
     chunk_view const& dereference() const {
-      view_ = chunk_view(meta_, meta_->chunks()[it_]);
+      view_ = chunk_view(meta_.get(), meta_->chunks()[it_], meta_.get_data());
       return view_;
     }
 
-    Meta const* meta_;
+    const_meta_ptr meta_;
     uint32_t it_{0};
     mutable chunk_view view_;
   };
@@ -322,12 +332,13 @@ class chunk_range {
  private:
   chunk_range() = default;
 
-  chunk_range(Meta const& meta, uint32_t begin, uint32_t end)
-      : meta_(&meta)
+  chunk_range(Meta const& meta, uint32_t begin, uint32_t end,
+              bool use_old_large_hole_mask)
+      : meta_(&meta, use_old_large_hole_mask)
       , begin_(begin)
       , end_(end) {}
 
-  Meta const* meta_{nullptr};
+  const_meta_ptr meta_{nullptr};
   uint32_t begin_{0};
   uint32_t end_{0};
 };

@@ -34,6 +34,6 @@ namespace dwarfs {
 
 constexpr uint64_t kChunkBitsSizeMask{UINT64_C(0x7FFF'FFFF'FFFF'FFFF)};
 constexpr uint64_t kChunkBitsHoleBit{UINT64_C(0x8000'0000'0000'0000)};
-constexpr uint32_t kChunkOffsetIsLargeHole{UINT32_C(0xFFFF'FFFF)};
+constexpr uint32_t kChunkOffsetIsLargeHoleCompat{UINT32_MAX};
 
 } // namespace dwarfs

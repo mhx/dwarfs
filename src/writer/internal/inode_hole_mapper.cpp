@@ -46,9 +46,11 @@ inode_hole_mapper::inode_hole_mapper(size_t hole_block_index, size_t block_size,
                                      size_t max_data_chunk_size)
     : hole_block_index_{hole_block_index}
     , block_size_bits_{std::countr_zero(block_size)}
+    , large_hole_offset_marker_{static_cast<uint32_t>(block_size - 1)}
     , inline_hole_size_limit_{compute_inline_hole_size_limit(
           std::bit_width(max_data_chunk_size), block_size_bits_)} {
   assert(std::has_single_bit(block_size));
+  assert(std::cmp_less_equal(block_size - 1, UINT32_MAX));
 }
 
 void inode_hole_mapper::map_hole(
@@ -61,11 +63,12 @@ void inode_hole_mapper::map_hole(
 
   out.block() = hole_block_index_;
 
-  if (size64 <= inline_hole_size_limit_ && offset != kChunkOffsetIsLargeHole) {
+  if (size64 <= inline_hole_size_limit_ &&
+      offset != large_hole_offset_marker_) {
     out.offset() = offset;
     out.size() = size64 >> block_size_bits_;
   } else {
-    out.offset() = kChunkOffsetIsLargeHole;
+    out.offset() = large_hole_offset_marker_;
     auto [it, inserted] =
         large_hole_size_map_.emplace(size64, large_hole_sizes_.size());
     if (inserted) {
