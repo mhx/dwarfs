@@ -23,12 +23,15 @@
 
 #include <algorithm>
 
+#include <fmt/format.h>
+
 #include <gmock/gmock.h>
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/vfs_stat.h>
@@ -42,6 +45,154 @@ namespace fs = std::filesystem;
 
 using namespace std::literals::string_view_literals;
 using namespace dwarfs::binary_literals;
+
+using ::testing::AllOf;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
+
+namespace {
+
+struct extent_data {
+  detail::file_extent_info info;
+  std::optional<std::string> xxh_hexdigest{};
+
+  friend bool operator==(extent_data const&, extent_data const&) = default;
+
+  friend std::ostream& operator<<(std::ostream& os, extent_data const& e) {
+    os << e.info;
+    if (e.xxh_hexdigest) {
+      os << " (xxh3_64: " << *e.xxh_hexdigest << ")";
+    }
+    return os;
+  }
+
+  static extent_data make_hole(uint64_t size) {
+    return extent_data{detail::file_extent_info{extent_kind::hole, {0, size}}};
+  }
+};
+
+struct sparse_file {
+  std::string_view name;
+  std::vector<extent_data> extents;
+};
+
+std::vector<sparse_file> const expected_sparse_files = {
+    {"20bits",
+     {
+         {{extent_kind::hole, {0, 1048575}}},
+     }},
+    {"data_only",
+     {
+         {{extent_kind::data, {0, 12288}}, "045aeca5c6fa5ca4"},
+     }},
+    {"data_then_hole",
+     {
+         {{extent_kind::data, {0, 12288}}, "045aeca5c6fa5ca4"},
+         {{extent_kind::hole, {12288, 1048576}}},
+     }},
+    {"hole_data_hole_data_hole",
+     {
+         {{extent_kind::hole, {0, 1048576}}},
+         {{extent_kind::data, {1048576, 12288}}, "045aeca5c6fa5ca4"},
+         {{extent_kind::hole, {1060864, 1048576}}},
+         {{extent_kind::data, {2109440, 12288}}, "045aeca5c6fa5ca4"},
+         {{extent_kind::hole, {2121728, 1048576}}},
+     }},
+    {"hole_only",
+     {
+         {{extent_kind::hole, {0, 1048576}}},
+     }},
+    {"hole_then_data",
+     {
+         {{extent_kind::hole, {0, 1048576}}},
+         {{extent_kind::data, {1048576, 12288}}, "045aeca5c6fa5ca4"},
+     }},
+    {"large_data_hole_data",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 999997440}}},
+         {{extent_kind::data, {1000026112, 31231}}, "684ef6689e96bf0a"},
+     }},
+    {"large_data_hole_data2",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 999997440}}},
+         {{extent_kind::data, {1000026112, 31231}}, "684ef6689e96bf0a"},
+     }},
+    {"large_data_hole_data3",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 999997440}}},
+         {{extent_kind::data, {1000026112, 32255}}, "8bc4350eeb002bc2"},
+     }},
+    {"large_data_hole_data4",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 999997440}}},
+         {{extent_kind::data, {1000026112, 32255}}, "c157878ec3cbd5d6"},
+     }},
+    {"large_data_then_hole",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 1073741824}}},
+     }},
+    {"large_hole_only",
+     {
+         {{extent_kind::hole, {0, 1073741824}}},
+     }},
+    {"large_hole_then_data",
+     {
+         {{extent_kind::hole, {0, 1073741824}}},
+         {{extent_kind::data, {1073741824, 28672}}, "5f7fee76fb6a26a2"},
+     }},
+    {"very_large_data_hole_data",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 68719476736}}},
+         {{extent_kind::data, {68719505408, 28672}}, "5f7fee76fb6a26a2"},
+     }},
+    {"very_large_data_hole_data2",
+     {
+         {{extent_kind::data, {0, 28672}}, "5f7fee76fb6a26a2"},
+         {{extent_kind::hole, {28672, 68719476736}}},
+         {{extent_kind::data, {68719505408, 28672}}, "b31214bc5ccb2e8c"},
+     }},
+};
+
+std::vector<extent_data>
+get_extents(reader::filesystem_v2 const& fs, reader::inode_view iv) {
+  reader::detail::file_reader fr(fs, iv);
+  std::vector<extent_data> extents;
+  auto const inode = iv.inode_num();
+
+  for (auto const& ei : fr.extents()) {
+    auto& e = extents.emplace_back();
+
+    e.info = ei;
+
+    if (ei.kind == extent_kind::data) {
+      auto const& range = ei.range;
+      std::vector<std::byte> buffer(range.size());
+      auto const num_read =
+          fs.read(inode, reinterpret_cast<char*>(buffer.data()), range.size(),
+                  range.offset());
+
+      if (std::cmp_not_equal(num_read, range.size())) {
+        throw std::runtime_error(
+            "failed to read data for checksum calculation");
+      }
+
+      e.xxh_hexdigest = checksum(checksum::xxh3_64).update(buffer).hexdigest();
+    }
+  }
+
+  return extents;
+}
+
+} // namespace
 
 TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
   std::string const image_file = "test.dwarfs";
@@ -70,6 +221,9 @@ TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
   auto const info = fs.info_as_json({});
   auto const& features = info["features"];
   EXPECT_TRUE(std::ranges::find(features, "sparsefiles") == features.end())
+      << info.dump(2);
+  EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
+              features.end())
       << info.dump(2);
 
   vfs_stat vfs;
@@ -112,6 +266,9 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
     auto const& features = info["features"];
     EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
+                features.end())
+        << info.dump(2);
 
     vfs_stat vfs;
     fs.statvfs(&vfs);
@@ -142,9 +299,16 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
     EXPECT_EQ(40'000, stat.size());
     EXPECT_EQ(20'000, stat.allocated_size());
 
-    auto const info = fs.info_as_json({});
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    auto const& meta = info["full_metadata"];
     auto const& features = info["features"];
+    EXPECT_TRUE(meta.find("large_hole_size") == meta.end()) << info.dump(2);
     EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
+        << info.dump(2);
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
+                features.end())
         << info.dump(2);
 
     vfs_stat vfs;
@@ -162,7 +326,7 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
         << t.err();
     EXPECT_THAT(
         t.err(),
-        testing::HasSubstr(
+        HasSubstr(
             "cannot disable sparse files when the input filesystem uses them"));
   }
 }
@@ -204,18 +368,25 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     EXPECT_EQ(tfd.size(), stat.size());
     EXPECT_EQ(total_data_size, stat.allocated_size());
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::all()});
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
     auto const& features = info["features"];
     EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
         << info.dump(2);
-    auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
+    auto const& meta = info["full_metadata"];
+    auto const& size_cache = meta["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
     ASSERT_EQ(1, size_cache["allocated_size_lookup"].size()) << info.dump(2);
     EXPECT_EQ(tfd.size(), size_cache["size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
     EXPECT_EQ(total_data_size,
               size_cache["allocated_size_lookup"][0][1].get<file_size_t>())
+        << info.dump(2);
+
+    EXPECT_TRUE(meta.find("large_hole_size") != meta.end()) << info.dump(2);
+    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") !=
+                features.end())
         << info.dump(2);
 
     for (auto const& ext : tfd.extents) {
@@ -236,7 +407,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     EXPECT_THAT(tfd.extents | ranges::views::transform([](auto const& e) {
                   return e.info;
                 }) | ranges::to<std::vector>(),
-                testing::ElementsAreArray(fr.extents()));
+                ElementsAreArray(fr.extents()));
 
     vfs_stat vfs;
     fs.statvfs(&vfs);
@@ -277,14 +448,15 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     EXPECT_THAT(tfd.extents | ranges::views::transform([](auto const& e) {
                   return e.info;
                 }) | ranges::to<std::vector>(),
-                testing::ElementsAreArray(fr.extents()));
+                ElementsAreArray(fr.extents()));
 
     auto stat = fs.getattr(iv);
     EXPECT_EQ(tfd.size(), stat.size());
     EXPECT_EQ(total_data_size, stat.allocated_size());
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::all()});
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
 
     auto const& features = info["features"];
     EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
@@ -749,4 +921,396 @@ TEST(mkdwarfs_test, hollow_filesystem) {
   EXPECT_TRUE(empty->inode().is_regular_file());
   EXPECT_EQ(0, fs.getattr(empty->inode()).size());
   EXPECT_TRUE(fs.read_string(fs.open(empty->inode())).empty());
+}
+
+TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
+  std::string const image_file = "sparse-v0.15.3.dwarfs";
+  auto const sparse_image = test_dir / "compat" / image_file;
+  auto image_data = read_file(sparse_image);
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    auto fs = t.fs_from_data(image_data);
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 20, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+    EXPECT_THAT(meta["large_hole_size"], UnorderedElementsAre(64_GiB));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // We expect the old marker to consume 32 bits, even though it should
+    // really consume at most 20 bits (i.e. block_size - 1).
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [15]"), HasSubstr("- offset [32]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
+
+    for (auto const& esf : expected_sparse_files) {
+      SCOPED_TRACE(esf.name);
+
+      auto const file = fs.find(esf.name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(esf.extents.back().info.range.end(), size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
+    }
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "18", "-C",
+                        "zstd:level=5", "--change-block-size"}))
+        << t.err();
+
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 18, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+    EXPECT_THAT(meta["large_hole_size"],
+                UnorderedElementsAre(1_MiB - 1, 64_GiB));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // The new marker should consume *exactly* 18 bits in the offset field.
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [15]"), HasSubstr("- offset [18]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features,
+                UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
+
+    for (auto const& esf : expected_sparse_files) {
+      SCOPED_TRACE(esf.name);
+
+      auto const file = fs.find(esf.name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(esf.extents.back().info.range.end(), size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
+    }
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "22", "-C",
+                        "zstd:level=5", "--change-block-size"}))
+        << t.err();
+
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 22, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+    EXPECT_TRUE(meta.find("large_hole_size") == meta.end()) << info.dump(2);
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // There is no marker and the offset field might use less bits than the
+    // block size.
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [15]"), HasSubstr("- offset [21]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
+
+    for (auto const& esf : expected_sparse_files) {
+      SCOPED_TRACE(esf.name);
+
+      auto const file = fs.find(esf.name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(esf.extents.back().info.range.end(), size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
+    }
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5",
+                        "--rebuild-metadata"}))
+        << t.err();
+
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+
+    // Block size should be unchanged.
+    EXPECT_EQ(1 << 20, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+    EXPECT_THAT(meta["large_hole_size"],
+                UnorderedElementsAre(1_MiB - 1, 64_GiB));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // The new marker should consume *exactly* 20 bits in the offset field.
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [15]"), HasSubstr("- offset [20]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features,
+                UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
+
+    for (auto const& esf : expected_sparse_files) {
+      SCOPED_TRACE(esf.name);
+
+      auto const file = fs.find(esf.name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(esf.extents.back().info.range.end(), size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
+    }
+  }
+}
+
+TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
+  std::string const image_file = "sparse-holes-v0.15.3.dwarfs";
+  auto const sparse_image = test_dir / "compat" / image_file;
+  auto image_data = read_file(sparse_image);
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    auto fs = t.fs_from_data(image_data);
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 24, info["block_size"].get<int>());
+
+    // (1 << 24) - 1 is the largest hole size that can be represented, since
+    // the large hole marker is buggy and uses 31 bits for the size field.
+    std::vector<uint64_t> expected_large_hole_sizes;
+    for (uint64_t i = 25; i <= 63; ++i) {
+      expected_large_hole_sizes.push_back((1ULL << i) - 1);
+    }
+
+    auto const& meta = info["full_metadata"];
+
+    EXPECT_THAT(meta["large_hole_size"],
+                ElementsAreArray(expected_large_hole_sizes));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // size = 6 since we have more than 31 holes that use a large hole size
+    // offset = 32 because of the buggy large hole marker
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [6]"), HasSubstr("- offset [32]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
+
+    for (int bits = 1; bits <= 63; ++bits) {
+      SCOPED_TRACE(fmt::format("bits={}", bits));
+
+      auto const expected_size = (1ULL << bits) - 1;
+      auto const file_name = fmt::format("/{}bits", bits);
+      auto const file = fs.find(file_name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(expected_size, size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
+    }
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "18", "-C",
+                        "zstd:level=5", "--change-block-size"}))
+        << t.err();
+
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 18, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+
+    // When rebuilding, (1 << 18) - 1 is *included*, since that's the
+    // new large hole size marker.
+    std::vector<uint64_t> expected_large_hole_sizes;
+    for (uint64_t i = 18; i <= 63; ++i) {
+      expected_large_hole_sizes.push_back((1ULL << i) - 1);
+    }
+
+    EXPECT_THAT(meta["large_hole_size"],
+                ElementsAreArray(expected_large_hole_sizes));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // The new marker should consume *exactly* 18 bits in the offset field.
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [6]"), HasSubstr("- offset [18]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features,
+                UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
+
+    for (int bits = 1; bits <= 63; ++bits) {
+      SCOPED_TRACE(fmt::format("bits={}", bits));
+
+      auto const expected_size = (1ULL << bits) - 1;
+      auto const file_name = fmt::format("/{}bits", bits);
+      auto const file = fs.find(file_name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(expected_size, size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
+    }
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5",
+                        "--rebuild-metadata"}))
+        << t.err();
+
+    auto fs = t.fs_from_stdout();
+
+    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+
+    auto const info = fs.info_as_json(
+        {.features = {reader::fsinfo_feature::metadata_summary,
+                      reader::fsinfo_feature::metadata_full_dump}});
+    EXPECT_EQ(1 << 24, info["block_size"].get<int>());
+
+    auto const& meta = info["full_metadata"];
+
+    // When rebuilding, (1 << 24) - 1 is *included*, since that's the
+    // new large hole size marker.
+    std::vector<uint64_t> expected_large_hole_sizes;
+    for (uint64_t i = 24; i <= 63; ++i) {
+      expected_large_hole_sizes.push_back((1ULL << i) - 1);
+    }
+
+    EXPECT_THAT(meta["large_hole_size"],
+                ElementsAreArray(expected_large_hole_sizes));
+
+    auto const analysis =
+        fs.dump({.features = {reader::fsinfo_feature::frozen_analysis}});
+
+    // The new marker should consume *exactly* 24 bits in the offset field.
+    EXPECT_THAT(analysis,
+                AllOf(HasSubstr("- size [6]"), HasSubstr("- offset [24]")));
+
+    auto const& features = info["features"];
+
+    EXPECT_THAT(features,
+                UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
+
+    for (int bits = 1; bits <= 63; ++bits) {
+      SCOPED_TRACE(fmt::format("bits={}", bits));
+
+      auto const expected_size = (1ULL << bits) - 1;
+      auto const file_name = fmt::format("/{}bits", bits);
+      auto const file = fs.find(file_name);
+      ASSERT_TRUE(file);
+      EXPECT_TRUE(file->inode().is_regular_file());
+
+      auto const attr = fs.getattr(file->inode());
+      auto const size = attr.size();
+
+      EXPECT_EQ(expected_size, size);
+
+      auto extents = get_extents(fs, file->inode());
+
+      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
+    }
+  }
 }

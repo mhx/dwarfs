@@ -37,5 +37,9 @@ namespace cpp dwarfs.internal
 // as this will break compatibility with older metadata using
 // the feature defined by the removed enumerator.
 enum feature {
-  sparsefiles = 0,       // support for sparse files (v0.14.0)
+  sparsefiles = 0,               // support for sparse files (v0.14.0)
+
+  sparsefiles_new_lhm = 1,       // bugfix for large hole markers, added
+                                 // in v0.16.0, only set on demand; see
+                                 // dwarfs-format.md for full details
 }

@@ -481,6 +481,29 @@ for why this is actually unlikely in practice). Conversely, a reader must
 treat any hole chunk whose `offset` equals the marker as a `large_hole_size`
 reference.
 
+Note that while the above was the design goal, the initial implementation
+in v0.14.x and v0.15.x actually had a bug and used `UINT32_MAX` as the
+marker value instead of `BLOCK_SIZE - 1`. This was fixed in v0.16.0.
+
+The two marker conventions must never be mixed within one image: old
+writers could legitimately produce direct-encoded holes whose `offset`
+equals `BLOCK_SIZE - 1` (for example, for a file ending in a hole of
+byte-granular length), so a reader must select exactly one marker value
+*before* interpreting any hole chunk. Images that use the new marker
+value carry the feature flag `sparsefiles_new_lhm` (which implies the
+`sparsefiles` flag); the flag also prevents older releases from reading
+such images. The marker value is `BLOCK_SIZE - 1` if the flag is
+present, and `UINT32_MAX` otherwise. The flag is only set if an image
+actually contains `large_hole_size` references, so sparse images
+without large holes remain readable by older releases.
+
+Besides deviating from the intended design, the old marker value forced
+the shared `offset` field to a width of 32 bits whenever an image
+contained large holes. Old images can be converted to the new encoding
+by rebuilding the metadata with v0.16.0 or later (e.g. using
+`mkdwarfs --rebuild-metadata`), which re-encodes all hole chunks and
+sets the feature flag.
+
 ### Traversing the Metadata
 
 You typically start at the root directory which is at `dir_entries[0]`,

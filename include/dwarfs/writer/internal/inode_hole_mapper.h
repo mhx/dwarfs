@@ -55,6 +55,7 @@ class inode_hole_mapper {
   size_t hole_count_{0};
   size_t hole_block_index_{0};
   int block_size_bits_{0};
+  uint32_t large_hole_offset_marker_{0};
   uint64_t inline_hole_size_limit_{0};
   std::vector<uint64_t> large_hole_sizes_;
   std::unordered_map<uint64_t, size_t> large_hole_size_map_;
