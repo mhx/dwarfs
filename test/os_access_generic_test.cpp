@@ -152,7 +152,7 @@ TEST(os_access_generic_data, empty_environment) {
   if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
-    EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());
+    EXPECT_EQ(data.fv_opts().max_eager_map_size, 1_TiB);
   }
 }
 
@@ -189,7 +189,7 @@ TEST(os_access_generic_data, invalid_max_eager_map_size) {
   if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
-    EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());
+    EXPECT_EQ(data.fv_opts().max_eager_map_size, 1_TiB);
   }
 
   EXPECT_THAT(err.str(), testing::HasSubstr(
@@ -207,7 +207,7 @@ TEST(os_access_generic_data, unknown_option) {
   if constexpr (sizeof(void*) == 4) {
     EXPECT_EQ(data.fv_opts().max_eager_map_size, 32_MiB);
   } else {
-    EXPECT_FALSE(data.fv_opts().max_eager_map_size.has_value());
+    EXPECT_EQ(data.fv_opts().max_eager_map_size, 1_TiB);
   }
 
   EXPECT_THAT(
