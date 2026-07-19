@@ -69,6 +69,7 @@
 
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_utils.h>
+#include <dwarfs/internal/sparse_chunk_codec.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/synchronized.h>
 #include <dwarfs/internal/unicode_case_folding.h>
@@ -158,15 +159,27 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
-bool must_use_old_large_hole_mask(
-    MappedFrozen<thrift::metadata::metadata> const& meta) {
+sparse_chunk_codec::hole_marker_mode
+get_hole_marker_mode(MappedFrozen<thrift::metadata::metadata> const& meta) {
+  using enum sparse_chunk_codec::hole_marker_mode;
+
   if (auto const feat = meta.features()) {
     feature_set features;
     features.set(feat->thaw());
-    return !features.has(feature::sparsefiles_new_lhm);
+    if (features.has(feature::sparsefiles_new_lhm)) {
+      return block_size_based;
+    }
   }
 
-  return true;
+  return legacy_compat;
+}
+
+large_hole_size_view
+get_large_hole_sizes(MappedFrozen<thrift::metadata::metadata> const& meta) {
+  if (auto const sizes = meta.large_hole_size()) {
+    return large_hole_size_view::by_value(*sizes);
+  }
+  return {};
 }
 
 template <typename T>
@@ -680,7 +693,7 @@ class metadata_v2_data {
       ec.clear();
       uint32_t begin = chunk_table_lookup(index);
       uint32_t end = chunk_table_lookup(index + 1);
-      return {meta_, begin, end, use_old_large_hole_mask_};
+      return {chunk_range_ctx_, begin, end};
     }
 
     ec = make_error_code(std::errc::invalid_argument);
@@ -712,6 +725,8 @@ class metadata_v2_data {
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   global_metadata const global_;
+  sparse_chunk_codec const chunk_codec_;
+  chunk_range_context const chunk_range_ctx_{meta_, chunk_codec_};
   time_resolution_handler timeres_handler_;
   dir_entry_view root_;
   int const inode_offset_;
@@ -722,7 +737,6 @@ class metadata_v2_data {
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
   int const unique_files_;
-  bool const use_old_large_hole_mask_;
   std::optional<nlink_info> const nlinks_;
   metadata_options const options_;
   string_table const symlinks_;
@@ -739,6 +753,9 @@ class metadata_v2_data {
   PERFMON_CLS_TIMER_DECL(unpack_metadata)
 };
 
+// needed to ensure chunk_range_context validity
+static_assert(!std::is_move_constructible_v<metadata_v2_data>);
+
 template <typename LoggerPolicy>
 metadata_v2_data::metadata_v2_data(
     LoggerPolicy const&, logger& lgr, std::span<uint8_t const> schema,
@@ -752,6 +769,8 @@ metadata_v2_data::metadata_v2_data(
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
                                                   force_consistency_check)}
+    , chunk_codec_{meta_.block_size(), meta_.hole_block_index().toStdOptional(),
+                   get_hole_marker_mode(meta_), get_large_hole_sizes(meta_)}
     , timeres_handler_{meta_}
     , root_{dir_entry_view_impl::from_dir_entry_index_shared(0, global_)}
     , inode_offset_{inode_offset}
@@ -768,7 +787,6 @@ metadata_v2_data::metadata_v2_data(
                                ? meta_.shared_files_table()->size()
                                : 0
                          : shared_files_.size()))
-    , use_old_large_hole_mask_{must_use_old_large_hole_mask(meta_)}
     , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
     , options_{options}
     , symlinks_{meta_.compact_symlinks()
@@ -1372,7 +1390,6 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
   DWARFS_CHECK(!ec,
                fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
-  file_size_result result;
   bool const enable_sparse = options_.enable_sparse_files;
 
   if (use_cache) {
@@ -1381,6 +1398,7 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
         trace(index);
 
         if (auto const size = cache->size_lookup().getOptional(index)) {
+          file_size_result result;
           result.size = *size;
           result.allocated_size =
               enable_sparse
@@ -1395,15 +1413,13 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
 
   // This is the expensive part for highly fragmented inodes
 
+  sparse_chunk_size_accumulator sizes{/*holes_are_allocated=*/!enable_sparse};
   for (auto const& chk : cr) {
-    auto const chunk_size = chk.size();
-    if (!enable_sparse || chk.is_data()) {
-      result.allocated_size += chunk_size;
-    }
-    result.size += chunk_size;
+    sizes.add(chk);
   }
 
-  return result;
+  return {static_cast<file_size_t>(sizes.size()),
+          static_cast<file_size_t>(sizes.allocated_size())};
 }
 
 void metadata_v2_data::serialize_as_json(std::ostream& os, bool terse) const {
