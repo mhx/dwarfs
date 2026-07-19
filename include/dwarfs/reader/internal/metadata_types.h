@@ -29,13 +29,13 @@
 #pragma once
 
 #include <cassert>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <iterator>
 #include <string>
 #include <variant>
-
-#include <boost/iterator/iterator_facade.hpp>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
@@ -247,55 +247,110 @@ class chunk_view {
 };
 
 class chunk_range {
-  using Meta =
-      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
-  using Codec = dwarfs::internal::sparse_chunk_codec;
-
   friend class internal::metadata_v2_data;
 
  public:
-  class iterator
-      : public boost::iterator_facade<iterator, chunk_view const,
-                                      boost::random_access_traversal_tag> {
+  class iterator {
    public:
+    class arrow_proxy {
+     public:
+      explicit arrow_proxy(chunk_view value)
+          : value_{std::move(value)} {}
+
+      chunk_view const* operator->() const noexcept {
+        return std::addressof(value_);
+      }
+
+     private:
+      chunk_view value_;
+    };
+
+    using iterator_category = std::random_access_iterator_tag;
+    using iterator_concept = std::random_access_iterator_tag;
+    using value_type = chunk_view;
+    using difference_type = std::ptrdiff_t;
+    using reference = value_type;
+    using pointer = arrow_proxy;
+
     iterator() = default;
 
-    iterator(iterator const& other)
-        : ctx_{other.ctx_}
-        , it_{other.it_} {}
+    reference operator*() const {
+      return {ctx_->codec(), ctx_->meta().chunks()[it_]};
+    }
+
+    arrow_proxy operator->() const { return arrow_proxy{operator*()}; }
+
+    reference operator[](difference_type n) const { return *(*this + n); }
+
+    iterator& operator++() {
+      ++it_;
+      return *this;
+    }
+
+    iterator operator++(int) {
+      auto copy = *this;
+      ++*this;
+      return copy;
+    }
+
+    iterator& operator--() {
+      --it_;
+      return *this;
+    }
+
+    iterator operator--(int) {
+      auto copy = *this;
+      --*this;
+      return copy;
+    }
+
+    iterator& operator+=(difference_type n) {
+      it_ = static_cast<uint32_t>(static_cast<difference_type>(it_) + n);
+      return *this;
+    }
+
+    iterator& operator-=(difference_type n) { return *this += -n; }
+
+    friend iterator operator+(iterator it, difference_type n) {
+      it += n;
+      return it;
+    }
+
+    friend iterator operator+(difference_type n, iterator it) {
+      it += n;
+      return it;
+    }
+
+    friend iterator operator-(iterator it, difference_type n) {
+      it -= n;
+      return it;
+    }
+
+    friend difference_type operator-(iterator const& lhs, iterator const& rhs) {
+      assert(lhs.ctx_ == rhs.ctx_);
+      return static_cast<difference_type>(lhs.it_) -
+             static_cast<difference_type>(rhs.it_);
+    }
+
+    friend bool operator==(iterator const& lhs, iterator const& rhs) {
+      assert(lhs.ctx_ == rhs.ctx_);
+      return lhs.it_ == rhs.it_;
+    }
+
+    friend auto operator<=>(iterator const& lhs, iterator const& rhs) {
+      assert(lhs.ctx_ == rhs.ctx_);
+      return lhs.it_ <=> rhs.it_;
+    }
 
    private:
-    friend class boost::iterator_core_access;
     friend class chunk_range;
 
     iterator(chunk_range_context const* ctx, uint32_t it)
         : ctx_{ctx}
         , it_{it} {}
 
-    bool equal(iterator const& other) const {
-      return ctx_ == other.ctx_ && it_ == other.it_;
-    }
-
-    void increment() { ++it_; }
-
-    void decrement() { --it_; }
-
-    void advance(difference_type n) { it_ += n; }
-
-    difference_type distance_to(iterator const& other) const {
-      return static_cast<difference_type>(other.it_) -
-             static_cast<difference_type>(it_);
-    }
-
-    // TODO: this is nasty; can we do this without boost::iterator_facade?
-    chunk_view const& dereference() const {
-      view_ = chunk_view(ctx_->codec(), ctx_->meta().chunks()[it_]);
-      return view_;
-    }
-
     chunk_range_context const* ctx_{nullptr};
     uint32_t it_{0};
-    mutable chunk_view view_;
   };
 
   iterator begin() const { return {ctx_, begin_}; }
@@ -318,6 +373,8 @@ class chunk_range {
   uint32_t begin_{0};
   uint32_t end_{0};
 };
+
+static_assert(std::random_access_iterator<chunk_range::iterator>);
 
 } // namespace reader::internal
 
