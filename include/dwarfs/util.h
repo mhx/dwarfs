@@ -28,7 +28,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -39,6 +41,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 
 #include <dwarfs/types.h>
@@ -47,9 +50,42 @@ namespace dwarfs {
 
 class os_access;
 
+namespace detail {
+
+std::string size_with_unit_impl(std::uint64_t size);
+std::string size_with_unit_impl_signed(std::int64_t size);
+
+template <typename T>
+struct size_with_unit_impl_dispatcher;
+
+template <std::integral T>
+struct size_with_unit_impl_dispatcher<T> {
+  static std::string call(T const size) {
+    if constexpr (std::is_signed_v<T>) {
+      return size_with_unit_impl_signed(size);
+    } else {
+      return size_with_unit_impl(size);
+    }
+  }
+};
+
+template <std::integral T>
+struct size_with_unit_impl_dispatcher<std::atomic<T>> {
+  static std::string call(std::atomic<T> const& size) {
+    return size_with_unit_impl_dispatcher<T>::call(size.load());
+  }
+};
+
+} // namespace detail
+
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
-std::string size_with_unit(file_size_t size);
+
+template <typename T>
+std::string size_with_unit(T const& size) {
+  return detail::size_with_unit_impl_dispatcher<T>::call(size);
+}
+
 std::string
 ratio_to_string(std::uint64_t num, std::uint64_t den, int precision = 3);
 file_size_t parse_size_with_unit(std::string const& str);
