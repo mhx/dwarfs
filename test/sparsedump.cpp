@@ -23,35 +23,68 @@
 
 #include <iostream>
 
+#include <dwarfs/checksum.h>
 #include <dwarfs/scope_exit.h>
 
 #include <dwarfs/internal/io_ops.h>
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <file>\n";
+  if (argc == 1) {
+    std::cerr << "Usage: " << argv[0] << " <file> ...\n";
     return 1;
   }
 
   auto const& ops = dwarfs::internal::get_native_memory_mapping_ops();
-  std::error_code ec;
 
-  auto h = ops.open(argv[1], ec);
-  if (ec) {
-    std::cerr << "Error opening file: " << ec.message() << "\n";
-    return 1;
-  }
+  for (int i = 1; i < argc; ++i) {
+    auto const filename = argv[i];
+    std::error_code ec;
 
-  dwarfs::scope_exit close_handle{[&]() { ops.close(h, ec); }};
+    std::cout << filename << "\n";
 
-  auto extents = ops.get_extents(h, ec);
-  if (ec) {
-    std::cerr << "Error getting extents: " << ec.message() << "\n";
-    return 1;
-  }
+    auto h = ops.open(filename, ec);
+    if (ec) {
+      std::cerr << "Error opening file: " << ec.message() << "\n";
+      return 1;
+    }
 
-  for (auto const& e : extents) {
-    std::cout << e << "\n";
+    dwarfs::scope_exit close_handle{[&]() { ops.close(h, ec); }};
+
+    auto extents = ops.get_extents(h, ec);
+    if (ec) {
+      std::cerr << "Error getting extents: " << ec.message() << "\n";
+      return 1;
+    }
+
+    std::cout << "{\n";
+
+    for (auto const& e : extents) {
+      std::cout << "  {" << e;
+
+      if (e.kind == dwarfs::extent_kind::data) {
+        std::vector<std::byte> buffer(e.range.size());
+        auto const read_bytes =
+            ops.pread(h, buffer.data(), buffer.size(), e.range.offset(), ec);
+        if (ec) {
+          std::cerr << "Error reading data: " << ec.message() << "\n";
+          return 1;
+        }
+        if (read_bytes != buffer.size()) {
+          std::cerr << "Error reading data: read " << read_bytes
+                    << " bytes, expected " << buffer.size() << "\n";
+          return 1;
+        }
+
+        std::cout << ", \"" + dwarfs::checksum(dwarfs::checksum::xxh3_64)
+                                  .update(buffer)
+                                  .hexdigest()
+                  << "\"";
+      }
+
+      std::cout << "},\n";
+    }
+
+    std::cout << "}\n";
   }
 
   return 0;
