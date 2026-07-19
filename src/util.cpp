@@ -402,18 +402,25 @@ OutT path_to_utf8_string_sanitized_impl(std::filesystem::path const& p) {
 
 } // namespace
 
-std::string size_with_unit(file_size_t const size) {
+namespace detail {
+
+std::string size_with_unit_impl(std::uint64_t const size) {
   static constexpr std::array units{"B",   "KiB", "MiB", "GiB",
                                     "TiB", "PiB", "EiB"};
-  auto const mag =
-      (std::bit_width(
-           static_cast<std::make_unsigned_t<file_size_t>>(size | 1)) -
-       1) /
-      10;
+  auto const mag = (std::bit_width(size | 1) - 1) / 10;
   return fmt::format("{:.4g} {}",
                      static_cast<double>(size) / (1ULL << (mag * 10)),
                      units[mag]);
 }
+
+std::string size_with_unit_impl_signed(std::int64_t const size) {
+  if (size >= 0) {
+    return size_with_unit_impl(static_cast<std::uint64_t>(size));
+  }
+  return "-" + size_with_unit_impl(-static_cast<std::uint64_t>(size));
+}
+
+} // namespace detail
 
 std::string time_with_unit(double const sec) {
   return time_with_unit(

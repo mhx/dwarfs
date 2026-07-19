@@ -496,6 +496,19 @@ TEST(utils, size_with_unit) {
   EXPECT_EQ("1 TiB", size_with_unit(1_TiB));
   EXPECT_EQ("1024 TiB", size_with_unit(1_TiB * 1024 - 1));
   EXPECT_EQ("1 PiB", size_with_unit(1_TiB * 1024));
+  EXPECT_EQ("-8 EiB", size_with_unit(-9223372036854775807ll));
+  EXPECT_EQ("-8 EiB", size_with_unit(-9223372036854775807ll - 1));
+  EXPECT_EQ("16 EiB", size_with_unit(18446744073709551615ull));
+}
+
+TEST(utils, size_with_unit_atomic) {
+  std::atomic<file_size_t> size1{1_GiB};
+  std::atomic<std::uint32_t> size2{2_GiB};
+  std::atomic<std::int16_t> size3{-1023};
+
+  EXPECT_EQ("1 GiB", size_with_unit(size1));
+  EXPECT_EQ("2 GiB", size_with_unit(size2));
+  EXPECT_EQ("-1023 B", size_with_unit(size3));
 }
 
 TEST(utils, time_with_unit) {
