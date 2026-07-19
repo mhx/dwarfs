@@ -117,6 +117,9 @@ TEST(Frozen, EndToEnd) {
   EXPECT_EQ(*tom1.age(), view.age().value());
   EXPECT_EQ(*tom1.height(), view.height());
   EXPECT_EQ(view.pets()[0].name(), *tom1.pets()[0].name());
+  auto age = view.age().toStdOptional();
+  static_assert(std::is_same_v<decltype(age), std::optional<int32_t>>);
+  EXPECT_EQ(*tom1.age(), age.value());
   auto& pets = *tom1.pets();
   auto fpets = view.pets();
   ASSERT_EQ(pets.size(), fpets.size());
