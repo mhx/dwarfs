@@ -24,7 +24,7 @@ boolean options). The following options are supported:
   is limited. *value* can be either `unlimited`, a size in bytes, or
   an integer value with a suffix of `k`, `m`, or `g` to indicate
   kibibytes, mebibytes, or gibibytes, respectively. The default is
-  `unlimited` on 64-bit systems and 32 MiB on 32-bit systems.
+  1 TiB on 64-bit systems and 32 MiB on 32-bit systems.
 
 - `open_mode=mmap`|`read`:
   Chooses between memory-mapped I/O (`mmap`) and using "standard" read
