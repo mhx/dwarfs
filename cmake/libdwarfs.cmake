@@ -78,6 +78,7 @@ add_library(
   src/internal/option_parser.cpp
   src/internal/os_access_generic_data.cpp
   src/internal/read_file_view.cpp
+  src/internal/sparse_chunk_codec.cpp
   src/internal/string_table.cpp
   src/internal/thread_util.cpp
   src/internal/unicode_case_folding.cpp

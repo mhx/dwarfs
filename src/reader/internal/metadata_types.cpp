@@ -45,6 +45,7 @@
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/metadata_utils.h>
+#include <dwarfs/internal/sparse_chunk_codec.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
@@ -725,8 +726,6 @@ void check_chunks(global_metadata::Meta const& meta,
   bool const has_sparse = features.has(feature::sparsefiles);
   bool const has_new_hole_marker = features.has(feature::sparsefiles_new_lhm);
   auto const hole_ix = meta.hole_block_index();
-  auto const large_hole_offset_marker =
-      has_new_hole_marker ? block_size - 1 : kChunkOffsetIsLargeHoleCompat;
 
   if (has_new_hole_marker && !has_sparse) {
     DWARFS_THROW(runtime_error,
@@ -748,6 +747,12 @@ void check_chunks(global_metadata::Meta const& meta,
                  fmt::format("invalid block size: {}", block_size));
   }
 
+  auto const large_hole_sizes = meta.large_hole_size();
+  sparse_chunk_codec const codec{
+      block_size, hole_ix.toStdOptional(), features,
+      large_hole_sizes ? large_hole_size_view::by_value(*large_hole_sizes)
+                       : large_hole_size_view{}};
+
   // chunks().size() is already covered by check_packed_tables()
 
   for (auto c : meta.chunks()) {
@@ -755,43 +760,49 @@ void check_chunks(global_metadata::Meta const& meta,
     auto const o = c.offset();
     auto const s = c.size();
 
-    if (has_sparse && b == hole_ix.value()) {
-      if (o == large_hole_offset_marker) {
-        auto lhs = meta.large_hole_size();
-        if (!lhs.has_value()) {
-          DWARFS_THROW(runtime_error,
-                       "large hole chunk but no large_hole_size set");
-        }
-        if (s >= lhs->size()) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("large hole chunk size index out of range: {} >= {}",
-                          s, lhs->size()));
-        }
-      } else {
-        if (o >= block_size) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format(
-                  "hole chunk size remainder exceeds block size: {} >= {}", o,
-                  block_size));
-        }
-      }
-    } else {
-      if (o >= block_size) {
+    auto const chunk = codec.classify(b, o, s);
+    if (!chunk) {
+      switch (chunk.error()) {
+      case sparse_chunk_codec::error::data_offset_out_of_range:
         DWARFS_THROW(
             runtime_error,
             fmt::format("chunk offset out of range: {} >= {}", o, block_size));
-      }
-      if (s > block_size) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("chunk size out of range: {} > {}", s, block_size));
-      }
-      if (o + s > block_size) {
+        break;
+      case sparse_chunk_codec::error::data_size_out_of_range:
+        if (s > block_size) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format("chunk size out of range: {} > {}", s, block_size));
+        }
         DWARFS_THROW(runtime_error,
                      fmt::format("chunk end outside of block: {} + {} > {}", o,
                                  s, block_size));
+        break;
+      case sparse_chunk_codec::error::hole_remainder_out_of_range:
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format(
+                "hole chunk size remainder exceeds block size: {} >= {}", o,
+                block_size));
+        break;
+      case sparse_chunk_codec::error::large_hole_list_missing:
+        DWARFS_THROW(runtime_error,
+                     "large hole chunk but no large_hole_size set");
+        break;
+      case sparse_chunk_codec::error::large_hole_index_out_of_range:
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("large hole chunk size index out of range: {} >= {}", s,
+                        large_hole_sizes->size()));
+        break;
+      case sparse_chunk_codec::error::large_hole_size_out_of_range:
+        DWARFS_THROW(runtime_error,
+                     fmt::format("large hole chunk size out of range: {} > {}",
+                                 (*large_hole_sizes)[s], kChunkBitsSizeMask));
+        break;
+      default:
+        DWARFS_PANIC(fmt::format("unexpected sparse_chunk_codec error: {}",
+                                 std::to_underlying(chunk.error())));
       }
     }
   }

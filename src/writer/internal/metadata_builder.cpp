@@ -34,13 +34,13 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/metadata_defs.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>
 
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_utils.h>
+#include <dwarfs/internal/sparse_chunk_codec.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chmod_transformer.h>
@@ -75,6 +75,14 @@ get_conversion_factors(thrift::metadata::fs_options const* fs_options) {
   return rv;
 }
 
+large_hole_size_view
+get_large_hole_sizes(thrift::metadata::metadata const& md) {
+  if (md.large_hole_size()) {
+    return large_hole_size_view::by_ref(md.large_hole_size().value());
+  }
+  return {};
+}
+
 class inode_size_provider {
  public:
   struct inode_size_info {
@@ -83,18 +91,15 @@ class inode_size_provider {
     uint64_t allocated_size;
   };
 
-  explicit inode_size_provider(thrift::metadata::metadata const& md)
+  inode_size_provider(thrift::metadata::metadata const& md,
+                      feature_set const& features)
       : chunk_table_{md.chunk_table().value()}
       , chunks_{md.chunks().value()}
-      , block_size_{md.block_size().value()}
-      , hole_ix_{md.hole_block_index().value_or(UINT32_MAX)}
-      , large_hole_offset_marker_{static_cast<uint32_t>(block_size_ - 1)} {
-    if (md.large_hole_size()) {
-      large_hole_size_ = &md.large_hole_size().value();
-    }
-    assert(std::has_single_bit(block_size_));
-    assert(std::cmp_less_equal(block_size_ - 1, UINT32_MAX));
-  }
+      , codec_{md.block_size().value(),
+               md.hole_block_index().has_value()
+                   ? std::optional<uint32_t>{md.hole_block_index().value()}
+                   : std::nullopt,
+               features, get_large_hole_sizes(md)} {}
 
   inode_size_info get(size_t index) const {
     assert(index + 1 < chunk_table_.size());
@@ -102,31 +107,15 @@ class inode_size_provider {
     auto const begin = chunk_table_[index];
     auto const end = chunk_table_[index + 1];
     auto const num_chunks = end - begin;
-    uint64_t size{0};
-    uint64_t allocated_size{0};
+    sparse_chunk_size_accumulator sizes;
 
     for (uint32_t ix = begin; ix < end; ++ix) {
-      auto const& chunk = chunks_[ix];
-      auto const b = chunk.block().value();
-      auto const o = chunk.offset().value();
-      auto const s = chunk.size().value();
-
-      if (b == hole_ix_) {
-        if (o == large_hole_offset_marker_) {
-          assert(large_hole_size_);
-          assert(s < large_hole_size_->size());
-          size += large_hole_size_->at(s);
-        } else {
-          assert(o < block_size_);
-          size += s * block_size_ + o;
-        }
-      } else {
-        size += s;
-        allocated_size += s;
-      }
+      auto const sc = codec_.classify(chunks_[ix]);
+      assert(sc.has_value());
+      sizes.add(*sc);
     }
 
-    return inode_size_info{num_chunks, size, allocated_size};
+    return inode_size_info{num_chunks, sizes.size(), sizes.allocated_size()};
   }
 
  private:
@@ -134,15 +123,9 @@ class inode_size_provider {
       decltype(std::declval<thrift::metadata::metadata>().chunks())::value_type;
   using chunk_table_t = decltype(std::declval<thrift::metadata::metadata>()
                                      .chunk_table())::value_type;
-  using large_hole_size_t = decltype(std::declval<thrift::metadata::metadata>()
-                                         .large_hole_size())::value_type;
-
   chunk_table_t const& chunk_table_;
   chunks_t const& chunks_;
-  uint64_t block_size_;
-  uint32_t hole_ix_;
-  uint32_t large_hole_offset_marker_;
-  large_hole_size_t const* large_hole_size_{nullptr};
+  sparse_chunk_codec codec_;
 };
 
 template <typename LoggerPolicy>
@@ -413,37 +396,23 @@ void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
   auto const old_block_size = old_block_size_.value();
   auto const new_block_size = md_.block_size().value();
 
-  // Backwards compatibility: the marker for a large hole should always have
-  // been (block_size - 1), but it was kChunkOffsetIsLargeHoleCompat in the
-  // initial implementation. We support both for backwards compatibility.
-  // See the "Sparse Files" section in dwarfs-format.md for a full discussion
-  // of the large hole representation.
-  auto const old_large_hole_offset_mask =
-      features_.has(feature::sparsefiles_new_lhm)
-          ? static_cast<uint32_t>(old_block_size - 1)
-          : kChunkOffsetIsLargeHoleCompat;
-
-  assert(std::has_single_bit(old_block_size));
-  assert(std::has_single_bit(new_block_size));
-
   inode_hole_mapper hole_mapper(new_hole_index, new_block_size,
                                 max_data_chunk_size);
 
-  for (auto&& c : new_chunks) {
-    if (c.block().value() == old_hole_index) {
-      auto const offset = c.offset().value();
-      auto const size = c.size().value();
-      file_size_t hole_size{0};
+  {
+    // Keep this in a scope since old_codec borrows md_.large_hole_sizes(),
+    // which we re-assign below.
+    sparse_chunk_codec const old_codec{static_cast<uint32_t>(old_block_size),
+                                       static_cast<uint32_t>(old_hole_index),
+                                       features_, get_large_hole_sizes(md_)};
 
-      if (offset == old_large_hole_offset_mask) {
-        assert(md_.large_hole_size());
-        assert(size < md_.large_hole_size()->size());
-        hole_size = md_.large_hole_size()->at(size);
-      } else {
-        hole_size = static_cast<file_size_t>(size) * old_block_size + offset;
+    for (auto&& c : new_chunks) {
+      if (c.block().value() == old_hole_index) {
+        auto const chunk = old_codec.classify(c);
+        assert(chunk.has_value());
+        assert(chunk->is_hole());
+        hole_mapper.map_hole(c, chunk->size());
       }
-
-      hole_mapper.map_hole(c, hole_size);
     }
   }
 
@@ -740,7 +709,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
     DWARFS_CHECK(!holes_need_remapping_,
                  "inode_size_provider requires remapped holes");
 
-    inode_size_provider isp(md_);
+    inode_size_provider isp(md_, features_);
 
     for (auto inode_num = reg_offset; inode_num < dev_offset;) {
       auto const reg_inode_num = inode_num - reg_offset;
@@ -941,6 +910,14 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     remap_holes(chunks, *hole_block_ix, max_data_chunk_size, *hole_block_ix);
   }
 
+  if (md_.large_hole_size()) {
+    if (md_.large_hole_size()->empty()) {
+      md_.large_hole_size().reset();
+    } else {
+      features_.add(feature::sparsefiles_new_lhm);
+    }
+  }
+
   update_nlink();
   update_totals_and_size_cache();
 
@@ -1047,14 +1024,6 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   if (options_.no_category_names || options_.no_category_metadata) {
     md_.category_metadata_json().reset();
     md_.block_category_metadata().reset();
-  }
-
-  if (md_.large_hole_size()) {
-    if (md_.large_hole_size()->empty()) {
-      md_.large_hole_size().reset();
-    } else {
-      features_.add(feature::sparsefiles_new_lhm);
-    }
   }
 
   md_.options() = fsopts;

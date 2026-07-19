@@ -30,6 +30,8 @@
 
 #include <dwarfs/types.h>
 
+#include <dwarfs/internal/sparse_chunk_codec.h>
+
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
 namespace dwarfs::writer::internal {
@@ -46,16 +48,14 @@ class inode_hole_mapper {
       dwarfs::thrift::metadata::metadata::chunks_member_type::const_reference
           chk) const;
   bool has_holes() const { return hole_count_ > 0; }
-  size_t hole_block_index() const { return hole_block_index_; }
+  size_t hole_block_index() const { return codec_.hole_block_index().value(); }
   std::vector<uint64_t> const& large_hole_sizes() const {
     return large_hole_sizes_;
   }
 
  private:
   size_t hole_count_{0};
-  size_t hole_block_index_{0};
-  int block_size_bits_{0};
-  uint32_t large_hole_offset_marker_{0};
+  dwarfs::internal::sparse_chunk_codec codec_;
   uint64_t inline_hole_size_limit_{0};
   std::vector<uint64_t> large_hole_sizes_;
   std::unordered_map<uint64_t, size_t> large_hole_size_map_;
