@@ -50,9 +50,7 @@ constexpr auto kOpenModeOpt = "open_mode";
 os_access_generic_data::os_access_generic_data(std::ostream& err,
                                                get_env_func const& get_env)
     : mm_ops_{get_native_memory_mapping_ops()} {
-  if (kIs32BitArch) {
-    fv_opts_.max_eager_map_size.emplace(32_MiB);
-  }
+  fv_opts_.max_eager_map_size.emplace(kIs32BitArch ? 32_MiB : 1_TiB);
 
   if (auto const value = get_env(kIolayerOptsVar)) {
     option_parser parser{value};
