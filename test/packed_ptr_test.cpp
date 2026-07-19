@@ -104,6 +104,10 @@ TEST(packed_ptr, integral) {
   EXPECT_THAT(
       [&] { pp.set(reinterpret_cast<ptr_type*>(0x100001)); },
       testing::ThrowsMessage<std::invalid_argument>("pointer is not aligned"));
+
+  decltype(pp) pp2(pp.get(), pp.get_data());
+
+  EXPECT_EQ(pp, pp2);
 }
 
 TEST(packed_ptr, enumeration) {
@@ -131,4 +135,8 @@ TEST(packed_ptr, enumeration) {
   EXPECT_THAT(
       [&] { pp.set_data(test_enum::D); },
       testing::ThrowsMessage<std::invalid_argument>("data out of bounds"));
+
+  decltype(pp) pp2(pp.get(), pp.get_data());
+
+  EXPECT_EQ(pp, pp2);
 }

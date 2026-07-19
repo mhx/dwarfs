@@ -77,6 +77,9 @@ class packed_ptr {
   data_type get_data() const { return static_cast<data_type>(p_ & data_mask); }
   void set_data(data_type data) { p_ = build_packed_ptr(get(), data); }
 
+  friend bool
+  operator==(packed_ptr const& lhs, packed_ptr const& rhs) = default;
+
  private:
   static uintptr_t build_packed_ptr(T* p, data_type data) {
     auto value = reinterpret_cast<uintptr_t>(p);
