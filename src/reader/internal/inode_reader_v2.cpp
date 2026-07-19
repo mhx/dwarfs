@@ -264,11 +264,13 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
   }
 
   while (it != end) {
-    if (it_offset + it->size() >= readahead_pos) {
-      cache_.get(it->block(), it->offset(), it->size());
+    auto const chk = *it;
+
+    if (it_offset + chk.size() >= readahead_pos) {
+      cache_.get(chk.block(), chk.offset(), chk.size());
     }
 
-    it_offset += it->size();
+    it_offset += chk.size();
 
     if (it_offset >= readahead_until) {
       break;
@@ -359,7 +361,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   size_t num_read = 0;
 
   while (it != end) {
-    auto const chunksize = it->size();
+    auto const chk = *it;
+    auto const chunksize = chk.size();
     auto copysize = chunksize - offset;
 
     DWARFS_CHECK(copysize > 0, "unexpected zero-sized chunk");
@@ -368,16 +371,16 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
       copysize = size - num_read;
     }
 
-    if (it->is_data()) {
-      file_off_t const copyoff = it->offset() + offset;
+    if (chk.is_data()) {
+      file_off_t const copyoff = chk.offset() + offset;
 
       assert(std::cmp_less_equal(copyoff, std::numeric_limits<size_t>::max()));
       assert(std::cmp_less_equal(copysize, std::numeric_limits<size_t>::max()));
 
-      LOG_TRACE << "read_internal: adding data chunk (block=" << it->block()
+      LOG_TRACE << "read_internal: adding data chunk (block=" << chk.block()
                 << ", offset=" << copyoff << ", size=" << copysize << ")";
 
-      ranges.emplace_back(cache_.get(it->block(), copyoff, copysize));
+      ranges.emplace_back(cache_.get(chk.block(), copyoff, copysize));
 
       num_read += copysize;
     } else {
