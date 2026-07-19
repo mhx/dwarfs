@@ -29,6 +29,8 @@ class OptionalFieldView : private std::optional<T> {
   using std::optional<T>::reset;
   using std::optional<T>::emplace;
 
+  std::optional<T> toStdOptional() const { return this->toStd(); }
+
   template <typename L, typename R>
   friend bool operator==(
       const OptionalFieldView<L>& lhs, const OptionalFieldView<R>& rhs);
