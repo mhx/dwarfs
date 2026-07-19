@@ -24,8 +24,6 @@
 #include <bit>
 #include <cassert>
 
-#include <dwarfs/metadata_defs.h>
-
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
 
 namespace dwarfs::writer::internal {
@@ -44,11 +42,10 @@ compute_inline_hole_size_limit(int size_bits, int offset_bits) {
 
 inode_hole_mapper::inode_hole_mapper(size_t hole_block_index, size_t block_size,
                                      size_t max_data_chunk_size)
-    : hole_block_index_{hole_block_index}
-    , block_size_bits_{std::countr_zero(block_size)}
-    , large_hole_offset_marker_{static_cast<uint32_t>(block_size - 1)}
+    : codec_{static_cast<uint32_t>(block_size),
+             static_cast<uint32_t>(hole_block_index)}
     , inline_hole_size_limit_{compute_inline_hole_size_limit(
-          std::bit_width(max_data_chunk_size), block_size_bits_)} {
+          std::bit_width(max_data_chunk_size), std::countr_zero(block_size))} {
   assert(std::has_single_bit(block_size));
   assert(std::cmp_less_equal(block_size - 1, UINT32_MAX));
 }
@@ -57,18 +54,17 @@ void inode_hole_mapper::map_hole(
     dwarfs::thrift::metadata::metadata::chunks_member_type::reference out,
     file_size_t const size) {
   auto const size64 = static_cast<uint64_t>(size);
-  uint64_t offset = size64 & ((UINT64_C(1) << block_size_bits_) - 1);
 
   ++hole_count_;
 
-  out.block() = hole_block_index_;
+  out.block() = codec_.hole_block_index().value();
 
-  if (size64 <= inline_hole_size_limit_ &&
-      offset != large_hole_offset_marker_) {
-    out.offset() = offset;
-    out.size() = size64 >> block_size_bits_;
+  if (auto const direct =
+          codec_.encode_direct(size64, inline_hole_size_limit_)) {
+    out.offset() = direct->offset;
+    out.size() = direct->size;
   } else {
-    out.offset() = large_hole_offset_marker_;
+    out.offset() = codec_.large_hole_marker();
     auto [it, inserted] =
         large_hole_size_map_.emplace(size64, large_hole_sizes_.size());
     if (inserted) {
@@ -81,7 +77,7 @@ void inode_hole_mapper::map_hole(
 bool inode_hole_mapper::is_hole(
     dwarfs::thrift::metadata::metadata::chunks_member_type::const_reference chk)
     const {
-  return chk.block().value() == hole_block_index_;
+  return codec_.is_hole_block(chk.block().value());
 }
 
 } // namespace dwarfs::writer::internal

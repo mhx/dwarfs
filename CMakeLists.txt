@@ -684,6 +684,7 @@ if(WITH_TESTS)
       test/pinned_byte_span_store_test.cpp
       test/scoped_output_capture_test.cpp
       test/sorted_array_map_test.cpp
+      test/sparse_chunk_codec_test.cpp
       test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
       test/string_test.cpp
