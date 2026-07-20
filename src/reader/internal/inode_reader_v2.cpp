@@ -264,11 +264,13 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
   }
 
   while (it != end) {
-    if (it_offset + it->size() >= readahead_pos) {
-      cache_.get(it->block(), it->offset(), it->size());
+    auto const chk = *it;
+
+    if (chk.is_data() && it_offset + chk.size() >= readahead_pos) {
+      cache_.get(chk.block(), chk.offset(), chk.size());
     }
 
-    it_offset += it->size();
+    it_offset += chk.size();
 
     if (it_offset >= readahead_until) {
       break;
