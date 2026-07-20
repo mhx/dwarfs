@@ -245,27 +245,7 @@ class sparse_chunk_codec {
 
   // classify a raw chunk into a data or hole chunk
   std::expected<sparse_chunk, error>
-  classify(uint32_t block, uint32_t offset, uint32_t size) const {
-    if (!is_hole_block(block)) {
-      if (offset >= block_size_) {
-        return std::unexpected{error::data_offset_out_of_range};
-      }
-      if (uint64_t{offset} + uint64_t{size} > block_size_) {
-        return std::unexpected{error::data_size_out_of_range};
-      }
-      return sparse_chunk::make_data(block, offset, size);
-    }
-
-    if (offset == large_hole_marker_) [[unlikely]] {
-      return classify_large_hole(size);
-    }
-
-    if (offset >= block_size_) {
-      return std::unexpected{error::hole_remainder_out_of_range};
-    }
-
-    return sparse_chunk::make_hole(decode_direct(offset, size));
-  }
+  classify(uint32_t block, uint32_t offset, uint32_t size) const;
 
   // convenience overload for raw thrift chunk
   std::expected<sparse_chunk, error>
@@ -278,6 +258,27 @@ class sparse_chunk_codec {
   std::expected<sparse_chunk, error>
   classify(raw_frozen_chunk auto const& chunk) const {
     return classify(chunk.block(), chunk.offset(), chunk.size());
+  }
+
+  // decode raw chunk into a data or hole chunk without validation
+  sparse_chunk decode(uint32_t block, uint32_t offset, uint32_t size) const {
+    auto r = classify_impl<false>(block, offset, size);
+#ifndef NDEBUG
+    auto r2 = classify(block, offset, size);
+    assert(r2.has_value() && r2.value() == r);
+#endif
+    return r;
+  }
+
+  // convenience overload for raw thrift chunk
+  sparse_chunk decode(raw_thrift_chunk auto const& chunk) const {
+    return decode(chunk.block().value(), chunk.offset().value(),
+                  chunk.size().value());
+  }
+
+  // convenience overload for raw frozen chunk
+  sparse_chunk decode(raw_frozen_chunk auto const& chunk) const {
+    return decode(chunk.block(), chunk.offset(), chunk.size());
   }
 
   // decode a directly encoded hole size
@@ -308,10 +309,57 @@ class sparse_chunk_codec {
   }
 
  private:
-  std::expected<sparse_chunk, error> classify_large_hole(uint32_t index) const;
+  template <bool Validate>
+  std::conditional_t<Validate, std::expected<sparse_chunk, error>, sparse_chunk>
+  classify_impl(uint32_t block, uint32_t offset, uint32_t size) const {
+    if (!is_hole_block(block)) [[likely]] {
+      if constexpr (Validate) {
+        if (offset >= block_size_) [[unlikely]] {
+          return std::unexpected{error::data_offset_out_of_range};
+        }
 
-  uint32_t block_size_;
+        if (uint64_t{offset} + uint64_t{size} > block_size_) [[unlikely]] {
+          return std::unexpected{error::data_size_out_of_range};
+        }
+      }
+
+      return sparse_chunk::make_data(block, offset, size);
+    }
+
+    if (offset == large_hole_marker_) [[unlikely]] {
+      if constexpr (Validate) {
+        if (!large_hole_sizes_.valid()) [[unlikely]] {
+          return std::unexpected{error::large_hole_list_missing};
+        }
+
+        if (std::cmp_greater_equal(size, large_hole_sizes_.size()))
+            [[unlikely]] {
+          return std::unexpected{error::large_hole_index_out_of_range};
+        }
+      }
+
+      auto const hole_size = large_hole_sizes_[size];
+
+      if constexpr (Validate) {
+        if (hole_size > kChunkBitsSizeMask) [[unlikely]] {
+          return std::unexpected{error::large_hole_size_out_of_range};
+        }
+      }
+
+      return sparse_chunk::make_hole(hole_size);
+    }
+
+    if constexpr (Validate) {
+      if (offset >= block_size_) [[unlikely]] {
+        return std::unexpected{error::hole_remainder_out_of_range};
+      }
+    }
+
+    return sparse_chunk::make_hole(decode_direct(offset, size));
+  }
+
   unsigned block_size_bits_;
+  uint32_t block_size_;
   uint32_t large_hole_marker_;
   std::optional<uint32_t> hole_block_index_;
   large_hole_size_view large_hole_sizes_;

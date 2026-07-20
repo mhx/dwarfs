@@ -110,9 +110,7 @@ class inode_size_provider {
     sparse_chunk_size_accumulator sizes;
 
     for (uint32_t ix = begin; ix < end; ++ix) {
-      auto const sc = codec_.classify(chunks_[ix]);
-      assert(sc.has_value());
-      sizes.add(*sc);
+      sizes.add(codec_.decode(chunks_[ix]));
     }
 
     return inode_size_info{num_chunks, sizes.size(), sizes.allocated_size()};
@@ -409,8 +407,8 @@ void metadata_builder_<LoggerPolicy>::remap_holes(chunks_t& new_chunks,
     for (auto&& c : new_chunks) {
       if (c.block().value() == old_hole_index) {
         auto const chunk = old_codec.classify(c);
-        assert(chunk.has_value());
-        assert(chunk->is_hole());
+        DWARFS_CHECK(chunk.has_value(), "failed to classify chunk");
+        DWARFS_CHECK(chunk->is_hole(), "expected hole chunk");
         hole_mapper.map_hole(c, chunk->size());
       }
     }

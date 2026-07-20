@@ -44,8 +44,8 @@ sparse_chunk_codec::sparse_chunk_codec(uint32_t block_size,
                                        std::optional<uint32_t> hole_block_index,
                                        hole_marker_mode mode,
                                        large_hole_size_view large_hole_sizes)
-    : block_size_{block_size}
-    , block_size_bits_{static_cast<unsigned>(std::countr_zero(block_size))}
+    : block_size_bits_{static_cast<unsigned>(std::countr_zero(block_size))}
+    , block_size_{block_size}
     , large_hole_marker_{mode == hole_marker_mode::legacy_compat
                              ? kChunkOffsetIsLargeHoleCompat
                              : block_size - 1}
@@ -62,19 +62,10 @@ sparse_chunk_codec::sparse_chunk_codec(uint32_t block_size,
     : sparse_chunk_codec{block_size, hole_block_index, mode_from(features),
                          std::move(large_hole_sizes)} {}
 
-std::expected<sparse_chunk, sparse_chunk_codec::error>
-sparse_chunk_codec::classify_large_hole(uint32_t index) const {
-  if (!large_hole_sizes_.valid()) {
-    return std::unexpected{error::large_hole_list_missing};
-  }
-  if (std::cmp_greater_equal(index, large_hole_sizes_.size())) {
-    return std::unexpected{error::large_hole_index_out_of_range};
-  }
-  auto const hole_size = large_hole_sizes_[index];
-  if (hole_size > kChunkBitsSizeMask) {
-    return std::unexpected{error::large_hole_size_out_of_range};
-  }
-  return sparse_chunk::make_hole(hole_size);
+auto sparse_chunk_codec::classify(uint32_t block, uint32_t offset,
+                                  uint32_t size) const
+    -> std::expected<sparse_chunk, error> {
+  return classify_impl<true>(block, offset, size);
 }
 
 std::string_view to_string(sparse_chunk_codec::error e) {

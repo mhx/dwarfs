@@ -95,6 +95,7 @@ TEST(sparse_chunk_codec, data_chunk_passthrough) {
   EXPECT_EQ(4096, r->offset());
   EXPECT_EQ(100, r->size());
   EXPECT_EQ(sparse_chunk::make_data(3, 4096, 100), *r);
+  EXPECT_EQ(codec.decode(3, 4096, 100), *r);
 }
 
 TEST(sparse_chunk_codec, no_hole_block_index_means_all_data) {
@@ -105,6 +106,7 @@ TEST(sparse_chunk_codec, no_hole_block_index_means_all_data) {
   ASSERT_TRUE(r.has_value());
   EXPECT_TRUE(r->is_data());
   EXPECT_EQ(kBlockSize - 1, r->offset());
+  EXPECT_EQ(codec.decode(kHoleIx, codec.large_hole_marker(), 1), *r);
 }
 
 TEST(sparse_chunk_codec, marker_offset_on_data_block_is_data) {
@@ -113,6 +115,7 @@ TEST(sparse_chunk_codec, marker_offset_on_data_block_is_data) {
   auto const r = codec.classify(7, codec.large_hole_marker(), 1);
   ASSERT_TRUE(r.has_value());
   EXPECT_TRUE(r->is_data());
+  EXPECT_EQ(codec.decode(7, codec.large_hole_marker(), 1), *r);
 }
 
 TEST(sparse_chunk_codec, data_chunk_bounds) {
@@ -149,12 +152,16 @@ TEST(sparse_chunk_codec, direct_hole_decode) {
   auto classify = [&](uint32_t o, uint32_t s) {
     return codec.classify(kHoleIx, o, s);
   };
+  auto decode = [&](uint32_t o, uint32_t s) {
+    return codec.decode(kHoleIx, o, s);
+  };
 
   {
     auto const r = classify(0, 0);
     ASSERT_TRUE(r.has_value());
     EXPECT_TRUE(r->is_hole());
     EXPECT_EQ(0, r->size());
+    EXPECT_EQ(decode(0, 0), *r);
   }
   {
     auto const r = classify(4096, 3);
@@ -163,6 +170,7 @@ TEST(sparse_chunk_codec, direct_hole_decode) {
     EXPECT_EQ(uint64_t{3} * kBlockSize + 4096,
               static_cast<uint64_t>(r->size()));
     EXPECT_EQ(sparse_chunk::make_hole(uint64_t{3} * kBlockSize + 4096), *r);
+    EXPECT_EQ(decode(4096, 3), *r);
   }
   {
     // largest direct remainder under the new convention
@@ -170,6 +178,7 @@ TEST(sparse_chunk_codec, direct_hole_decode) {
     ASSERT_TRUE(r.has_value());
     EXPECT_EQ(uint64_t{1} * kBlockSize + kBlockSize - 2,
               static_cast<uint64_t>(r->size()));
+    EXPECT_EQ(decode(kBlockSize - 2, 1), *r);
   }
 }
 
@@ -183,6 +192,7 @@ TEST(sparse_chunk_codec, old_convention_boundary_remainder_is_direct) {
   EXPECT_TRUE(r->is_hole());
   EXPECT_EQ(uint64_t{7} * kBlockSize + kBlockSize - 1,
             static_cast<uint64_t>(r->size()));
+  EXPECT_EQ(codec.decode(kHoleIx, kBlockSize - 1, 7), *r);
 }
 
 TEST(sparse_chunk_codec, large_hole_reference) {
@@ -200,10 +210,12 @@ TEST(sparse_chunk_codec, large_hole_reference) {
     ASSERT_TRUE(r0.has_value());
     EXPECT_TRUE(r0->is_hole());
     EXPECT_EQ(10, r0->size());
+    EXPECT_EQ(codec.decode(kHoleIx, marker, 0), *r0);
 
     auto const r1 = codec.classify(kHoleIx, marker, 1);
     ASSERT_TRUE(r1.has_value());
     EXPECT_EQ(uint64_t{1} << 40, static_cast<uint64_t>(r1->size()));
+    EXPECT_EQ(codec.decode(kHoleIx, marker, 1), *r1);
 
     auto const oob = codec.classify(kHoleIx, marker, 2);
     ASSERT_FALSE(oob.has_value());
@@ -225,6 +237,7 @@ TEST(sparse_chunk_codec, large_hole_reference) {
     auto const r = codec.classify(kHoleIx, UINT32_MAX, 1);
     ASSERT_TRUE(r.has_value());
     EXPECT_EQ(uint64_t{1} << 40, static_cast<uint64_t>(r->size()));
+    EXPECT_EQ(codec.decode(kHoleIx, UINT32_MAX, 1), *r);
   }
 }
 
@@ -238,6 +251,7 @@ TEST(sparse_chunk_codec, large_hole_size_view_by_value) {
   auto const r = codec.classify(kHoleIx, codec.large_hole_marker(), 0);
   ASSERT_TRUE(r.has_value());
   EXPECT_EQ(123, r->size());
+  EXPECT_EQ(codec.decode(kHoleIx, codec.large_hole_marker(), 0), *r);
 }
 
 TEST(sparse_chunk_codec, conventions_are_mutually_exclusive) {
@@ -259,6 +273,7 @@ TEST(sparse_chunk_codec, large_hole_size_mask_limit) {
   auto const r = ok_codec.classify(kHoleIx, ok_codec.large_hole_marker(), 0);
   ASSERT_TRUE(r.has_value());
   EXPECT_EQ(kChunkBitsSizeMask, static_cast<uint64_t>(r->size()));
+  EXPECT_EQ(ok_codec.decode(kHoleIx, ok_codec.large_hole_marker(), 0), *r);
 
   // an entry with the hole bit set would silently corrupt the size
   std::vector<uint64_t> const bad{kChunkBitsSizeMask + 1};
@@ -338,6 +353,7 @@ TEST(sparse_chunk_codec, power_of_two_minus_one_sweep) {
       auto const r = codec.classify(kHoleIx, e->offset, e->size);
       ASSERT_TRUE(r.has_value()) << "b=" << b;
       EXPECT_EQ(h, static_cast<uint64_t>(r->size())) << "b=" << b;
+      EXPECT_EQ(codec.decode(kHoleIx, e->offset, e->size), *r) << "b=" << b;
     }
   }
 }

@@ -212,38 +212,13 @@ class chunk_range_context {
       : meta_{&meta}
       , codec_{&codec} {}
 
-  Meta const& meta() const { return *meta_; }
-  Codec const& codec() const { return *codec_; }
+  auto decode_chunk(uint32_t chunk_index) const {
+    return codec_->decode(meta_->chunks()[chunk_index]);
+  }
 
  private:
   Meta const* meta_;
   Codec const* codec_;
-};
-
-class chunk_view {
-  using Codec = dwarfs::internal::sparse_chunk_codec;
-
- public:
-  chunk_view() = default;
-  chunk_view(Codec const& codec,
-             ::apache::thrift::frozen::View<thrift::metadata::chunk> chunk) {
-    auto const decoded = codec.classify(chunk);
-    assert(decoded.has_value());
-    chunk_ = *decoded;
-  }
-
-  bool is_data() const { return chunk_.is_data(); }
-
-  bool is_hole() const { return chunk_.is_hole(); }
-
-  uint32_t block() const { return chunk_.block(); }
-
-  uint32_t offset() const { return chunk_.offset(); }
-
-  file_off_t size() const { return chunk_.size(); }
-
- private:
-  dwarfs::internal::sparse_chunk chunk_;
 };
 
 class chunk_range {
@@ -252,31 +227,30 @@ class chunk_range {
  public:
   class iterator {
    public:
+    using iterator_category = std::input_iterator_tag;
+    using iterator_concept = std::random_access_iterator_tag;
+    using value_type = dwarfs::internal::sparse_chunk;
+    using difference_type = std::ptrdiff_t;
+    using reference = value_type;
+
     class arrow_proxy {
      public:
-      explicit arrow_proxy(chunk_view value)
+      explicit arrow_proxy(value_type value)
           : value_{std::move(value)} {}
 
-      chunk_view const* operator->() const noexcept {
+      value_type const* operator->() const noexcept {
         return std::addressof(value_);
       }
 
      private:
-      chunk_view value_;
+      value_type value_;
     };
 
-    using iterator_category = std::random_access_iterator_tag;
-    using iterator_concept = std::random_access_iterator_tag;
-    using value_type = chunk_view;
-    using difference_type = std::ptrdiff_t;
-    using reference = value_type;
     using pointer = arrow_proxy;
 
     iterator() = default;
 
-    reference operator*() const {
-      return {ctx_->codec(), ctx_->meta().chunks()[it_]};
-    }
+    reference operator*() const { return ctx_->decode_chunk(it_); }
 
     arrow_proxy operator->() const { return arrow_proxy{operator*()}; }
 
