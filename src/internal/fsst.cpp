@@ -149,6 +149,8 @@ class fsst_decoder_ : public fsst_decoder::impl {
     requires std::same_as<typename StringType::value_type,
                           typename StringViewType::value_type>
   void decompress_append_to_impl(StringType& out, StringViewType data) const {
+    assert(fsst_decoder::is_valid_compressed_string(std::string_view{
+        reinterpret_cast<char const*>(data.data()), data.size()}));
     thread_local StringType buf;
     auto const size = data.size();
     buf.resize(std::max<size_t>(1, 8 * size));
