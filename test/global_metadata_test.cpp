@@ -337,7 +337,7 @@ TEST_F(global_metadata_test, check_partitioning) {
   metadata raw;
   raw.directories()->resize(2);
   raw.chunk_table()->push_back(1);
-  raw.chunks()->resize(1);
+  raw.chunks()->emplace_back().size() = 1;
   raw.uids()->resize(1);
   raw.gids()->resize(1);
   raw.names()->resize(1);
@@ -370,7 +370,7 @@ TEST_F(global_metadata_test, check_metadata) {
   metadata raw;
   raw.directories()->resize(2);
   raw.chunk_table()->push_back(1);
-  raw.chunks()->resize(1);
+  raw.chunks()->emplace_back().size() = 1;
   raw.inodes()->resize(2);
   raw.uids()->resize(1);
   raw.gids()->resize(1);
@@ -419,7 +419,7 @@ TEST_F(global_metadata_test, check_metadata) {
 
   EXPECT_THAT([&] { check(raw); }, throws_error("wrong number of files"));
   raw.chunk_table()->push_back(2);
-  raw.chunks()->resize(2);
+  raw.chunks()->emplace_back().size() = 1;
 
   raw.devices().emplace();
   raw.devices()->resize(1);

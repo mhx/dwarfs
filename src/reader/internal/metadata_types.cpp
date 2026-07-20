@@ -760,8 +760,14 @@ void check_chunks(global_metadata::Meta const& meta,
     auto const o = c.offset();
     auto const s = c.size();
 
-    auto const chunk = codec.classify(b, o, s);
-    if (!chunk) {
+    if (auto const chunk = codec.classify(b, o, s)) {
+      if (chunk->size() == 0) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("chunk size is zero: block={} offset={} size={}", b, o,
+                        s));
+      }
+    } else {
       switch (chunk.error()) {
       case sparse_chunk_codec::error::data_offset_out_of_range:
         DWARFS_THROW(
