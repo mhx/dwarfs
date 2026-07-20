@@ -600,6 +600,9 @@ void check_compact_strings(
 
       for (size_t const len : v.index()) {
         std::string_view sv(v.buffer().data() + start, len);
+        if (sv.empty()) {
+          DWARFS_THROW(runtime_error, "empty compressed string");
+        }
         if (!fsst_decoder::is_valid_compressed_string(sv)) {
           DWARFS_THROW(runtime_error, "invalid compressed string");
         }
@@ -610,6 +613,9 @@ void check_compact_strings(
         size_t const start = v.index()[i - 1];
         size_t const len = v.index()[i] - start;
         std::string_view sv(v.buffer().data() + start, len);
+        if (sv.empty()) {
+          DWARFS_THROW(runtime_error, "empty compressed string");
+        }
         if (!fsst_decoder::is_valid_compressed_string(sv)) {
           DWARFS_THROW(runtime_error, "invalid compressed string");
         }
