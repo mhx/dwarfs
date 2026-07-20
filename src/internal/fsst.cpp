@@ -151,7 +151,7 @@ class fsst_decoder_ : public fsst_decoder::impl {
   void decompress_append_to_impl(StringType& out, StringViewType data) const {
     thread_local StringType buf;
     auto const size = data.size();
-    buf.resize(8 * size);
+    buf.resize(std::max<size_t>(1, 8 * size));
     auto outlen = ::fsst_decompress(
         &decoder_, size, reinterpret_cast<unsigned char const*>(data.data()),
         buf.size(), reinterpret_cast<unsigned char*>(buf.data()));
