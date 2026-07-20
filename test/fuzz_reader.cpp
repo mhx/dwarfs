@@ -26,6 +26,7 @@
 
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -47,9 +48,33 @@ int main(int argc, char** argv) {
   {
     try {
       std::ostringstream oss;
-      reader::filesystem_v2 fs(lgr, os, argv[1],
-                               {.metadata = {.check_consistency = true}});
+      reader::filesystem_v2 fs(
+          lgr, os, argv[1],
+          {
+              .block_cache = {.max_bytes = 256 * 1024,
+                              .sequential_access_detector_threshold = 4},
+              .metadata = {.check_consistency = true},
+              .inode_reader = {.readahead = 4},
+          });
       fs.dump(oss, {.features = reader::fsinfo_features::all()});
+      fs.walk([&](auto const& de) {
+        auto iv = de.inode();
+        if (iv.is_regular_file()) {
+          reader::detail::file_reader fr(fs, iv);
+          std::vector<char> buffer;
+          for (auto const& ei : fr.extents()) {
+            if (ei.kind == extent_kind::data) {
+              auto const& range = ei.range;
+              buffer.resize(range.size());
+              auto const num_read = fs.read(iv.inode_num(), buffer.data(),
+                                            range.size(), range.offset());
+              if (std::cmp_not_equal(num_read, range.size())) {
+                throw std::runtime_error("read failed");
+              }
+            }
+          }
+        }
+      });
     } catch (std::exception const& e [[maybe_unused]]) {
       // std::cerr << "Exception: " << e.what() << "\n";
     }
