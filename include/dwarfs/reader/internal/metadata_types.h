@@ -34,6 +34,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <iterator>
+#include <optional>
+#include <span>
 #include <string>
 #include <variant>
 
@@ -69,8 +71,12 @@ class global_metadata {
 
   global_metadata(logger& lgr, Meta const& meta);
 
-  static void check_consistency(logger& lgr, Meta const& meta);
-  void check_consistency(logger& lgr) const;
+  static void check_consistency(
+      logger& lgr, Meta const& meta,
+      std::span<std::optional<std::size_t> const> uncompressed_block_size);
+  void
+  check_consistency(logger& lgr, std::span<std::optional<std::size_t> const>
+                                     uncompressed_block_size) const;
 
   Meta const& meta() const { return meta_; }
 

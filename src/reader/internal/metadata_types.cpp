@@ -720,12 +720,23 @@ void check_string_tables(global_metadata::Meta const& meta) {
   }
 }
 
-void check_chunks(global_metadata::Meta const& meta,
-                  feature_set const& features) {
+void check_chunks(
+    global_metadata::Meta const& meta, feature_set const& features,
+    std::span<std::optional<std::size_t> const> uncompressed_block_size) {
   auto block_size = meta.block_size();
   bool const has_sparse = features.has(feature::sparsefiles);
   bool const has_new_hole_marker = features.has(feature::sparsefiles_new_lhm);
   auto const hole_ix = meta.hole_block_index();
+
+  for (size_t i = 0; i < uncompressed_block_size.size(); ++i) {
+    auto const& bs = uncompressed_block_size[i];
+    if (bs.has_value() && *bs > block_size) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("invalid uncompressed block size for block {}: {} > {}",
+                      i, *bs, block_size));
+    }
+  }
 
   if (has_new_hole_marker && !has_sparse) {
     DWARFS_THROW(runtime_error,
@@ -766,6 +777,25 @@ void check_chunks(global_metadata::Meta const& meta,
             runtime_error,
             fmt::format("chunk size is zero: block={} offset={} size={}", b, o,
                         s));
+      }
+
+      if (chunk->is_data()) {
+        if (chunk->block() >= uncompressed_block_size.size()) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("chunk block index {} out of range (raw "
+                                   "chunk: block={}, offset={}, size={})",
+                                   chunk->block(), b, o, s));
+        }
+
+        if (auto bs = uncompressed_block_size[chunk->block()]) {
+          if (std::cmp_greater(chunk->offset() + chunk->size(), *bs)) {
+            DWARFS_THROW(
+                runtime_error,
+                fmt::format("chunk end outside of uncompressed block: {} + {} "
+                            "> {} (raw chunk: block={}, offset={}, size={})",
+                            chunk->offset(), chunk->size(), *bs, b, o, s));
+          }
+        }
       }
     } else {
       switch (chunk.error()) {
@@ -929,114 +959,110 @@ void check_history(auto const& history) {
   }
 }
 
-global_metadata::Meta const&
-check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
-  if (check) {
-    LOG_PROXY(debug_logger_policy, lgr);
+global_metadata::Meta const& check_metadata(
+    logger& lgr, global_metadata::Meta const& meta,
+    std::span<std::optional<std::size_t> const> uncompressed_block_size) {
+  LOG_PROXY(debug_logger_policy, lgr);
 
-    auto ti = LOG_TIMED_DEBUG;
+  auto ti = LOG_TIMED_DEBUG;
 
-    ti << "check metadata consistency";
+  ti << "check metadata consistency";
 
-    feature_set features;
-    if (auto const feat = meta.features()) {
-      features.set(feat->thaw());
+  feature_set features;
+  if (auto const feat = meta.features()) {
+    features.set(feat->thaw());
+  }
+
+  check_empty_tables(meta);
+  check_index_range(meta);
+  check_packed_tables(lgr, meta);
+  check_string_tables(meta);
+  check_chunks(meta, features, uncompressed_block_size);
+  check_categories(meta);
+  auto offsets = check_partitioning(meta);
+
+  auto num_dir = meta.directories().size() - 1;
+  auto num_lnk = meta.symlink_table().size();
+  auto num_reg_unique = meta.chunk_table().size() - 1;
+  size_t num_reg_shared = 0;
+
+  auto opts = meta.options();
+
+  if (opts) {
+    check_options(*opts);
+  } else {
+    if (meta.shared_files_table()) {
+      DWARFS_THROW(runtime_error,
+                   "shared_files_table present but options missing");
     }
 
-    check_empty_tables(meta);
-    check_index_range(meta);
-    check_packed_tables(lgr, meta);
-    check_string_tables(meta);
-    check_chunks(meta, features);
-    check_categories(meta);
-    auto offsets = check_partitioning(meta);
+    if (meta.dir_entries()) {
+      DWARFS_THROW(runtime_error, "dir_entries present but options missing");
+    }
+  }
 
-    auto num_dir = meta.directories().size() - 1;
-    auto num_lnk = meta.symlink_table().size();
-    auto num_reg_unique = meta.chunk_table().size() - 1;
-    size_t num_reg_shared = 0;
+  if (auto history = meta.metadata_version_history()) {
+    check_history(*history);
+  }
 
-    auto opts = meta.options();
-
-    if (opts) {
-      check_options(*opts);
-    } else {
-      if (meta.shared_files_table()) {
+  if (auto sfp = meta.shared_files_table()) {
+    if (opts->packed_shared_files_table()) {
+      num_reg_shared =
+          std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
+      if (std::cmp_greater(sfp->size(), num_reg_unique)) {
         DWARFS_THROW(runtime_error,
-                     "shared_files_table present but options missing");
+                     "too many shared files in packed shared_files_table");
       }
-
-      if (meta.dir_entries()) {
-        DWARFS_THROW(runtime_error, "dir_entries present but options missing");
+      num_reg_unique -= sfp->size();
+    } else {
+      if (!std::ranges::is_sorted(*sfp)) {
+        DWARFS_THROW(runtime_error,
+                     "unpacked shared_files_table is not sorted");
       }
-    }
-
-    if (auto history = meta.metadata_version_history()) {
-      check_history(*history);
-    }
-
-    if (auto sfp = meta.shared_files_table()) {
-      if (opts->packed_shared_files_table()) {
-        num_reg_shared =
-            std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
-        if (std::cmp_greater(sfp->size(), num_reg_unique)) {
+      num_reg_shared = sfp->size();
+      if (!sfp->empty()) {
+        if (std::cmp_greater(sfp->back() + 1, num_reg_unique)) {
           DWARFS_THROW(runtime_error,
-                       "too many shared files in packed shared_files_table");
+                       "too many shared files in shared_files_table");
         }
-        num_reg_unique -= sfp->size();
-      } else {
-        if (!std::ranges::is_sorted(*sfp)) {
-          DWARFS_THROW(runtime_error,
-                       "unpacked shared_files_table is not sorted");
-        }
-        num_reg_shared = sfp->size();
-        if (!sfp->empty()) {
-          if (std::cmp_greater(sfp->back() + 1, num_reg_unique)) {
-            DWARFS_THROW(runtime_error,
-                         "too many shared files in shared_files_table");
-          }
-          num_reg_unique -= sfp->back() + 1;
-        }
+        num_reg_unique -= sfp->back() + 1;
       }
     }
+  }
 
-    size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
+  size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
 
-    if (num_dir != offsets[1]) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("wrong number of directories: {} != {}", num_dir,
-                               offsets[1]));
-    }
+  if (num_dir != offsets[1]) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("wrong number of directories: {} != {}", num_dir,
+                             offsets[1]));
+  }
 
-    if (num_lnk != offsets[2] - offsets[1]) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("wrong number of links: {} != {}", num_lnk,
-                               offsets[2] - offsets[1]));
-    }
+  if (num_lnk != offsets[2] - offsets[1]) {
+    DWARFS_THROW(runtime_error, fmt::format("wrong number of links: {} != {}",
+                                            num_lnk, offsets[2] - offsets[1]));
+  }
 
-    if (num_reg_unique + num_reg_shared != offsets[3] - offsets[2]) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("wrong number of files: {} + {} != {}",
-                               num_reg_unique, num_reg_shared,
-                               offsets[3] - offsets[2]));
-    }
+  if (num_reg_unique + num_reg_shared != offsets[3] - offsets[2]) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("wrong number of files: {} + {} != {}",
+                             num_reg_unique, num_reg_shared,
+                             offsets[3] - offsets[2]));
+  }
 
-    if (num_dev != offsets[4] - offsets[3]) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("wrong number of devices: {} != {}", num_dev,
-                               offsets[4] - offsets[3]));
-    }
+  if (num_dev != offsets[4] - offsets[3]) {
+    DWARFS_THROW(runtime_error, fmt::format("wrong number of devices: {} != {}",
+                                            num_dev, offsets[4] - offsets[3]));
+  }
 
-    if (!meta.dir_entries()) {
-      for (auto ino : meta.inodes()) {
-        auto mode = meta.modes()[ino.mode_index()];
-        auto i = ino.inode_v2_2();
-        int base = mode_rank(mode);
+  if (!meta.dir_entries()) {
+    for (auto ino : meta.inodes()) {
+      auto mode = meta.modes()[ino.mode_index()];
+      auto i = ino.inode_v2_2();
+      int base = mode_rank(mode);
 
-        if (i < offsets[base] ||
-            (i >= offsets[base + 1] && i > offsets[base])) {
-          DWARFS_THROW(runtime_error, "inode_v2_2 out of range");
-        }
+      if (i < offsets[base] || (i >= offsets[base + 1] && i > offsets[base])) {
+        DWARFS_THROW(runtime_error, "inode_v2_2 out of range");
       }
     }
   }
@@ -1060,12 +1086,16 @@ global_metadata::global_metadata(logger& lgr, Meta const& meta)
                  ? string_table(lgr, "names", *meta_.compact_names())
                  : string_table(meta_.names())} {}
 
-void global_metadata::check_consistency(logger& lgr, Meta const& meta) {
-  check_metadata(lgr, meta, true);
+void global_metadata::check_consistency(
+    logger& lgr, Meta const& meta,
+    std::span<std::optional<std::size_t> const> uncompressed_block_size) {
+  check_metadata(lgr, meta, uncompressed_block_size);
 }
 
-void global_metadata::check_consistency(logger& lgr) const {
-  check_consistency(lgr, meta_);
+void global_metadata::check_consistency(
+    logger& lgr,
+    std::span<std::optional<std::size_t> const> uncompressed_block_size) const {
+  check_consistency(lgr, meta_, uncompressed_block_size);
 }
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
