@@ -606,11 +606,18 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   while (auto s = parser.next_section()) {
     if (s->type() == section_type::BLOCK) {
-      // Don't use check_section() here because it'll trigger the lazy
-      // section to load, defeating the purpose of the section index.
-      // See github issue #183.
-      LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
-                << s->length() << " bytes]";
+      // Don't use check_section() here unless `check_consistency` is set,
+      // because it'll trigger the lazy section to load, defeating the
+      // purpose of the section index. See github issue #183.
+
+      if (options.metadata.check_consistency) {
+        LOG_VERBOSE << "checking section " << s->name() << " @ " << s->start()
+                    << " [" << s->length() << " bytes]";
+        check_section(*s);
+      } else {
+        LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
+                  << s->length() << " bytes]";
+      }
 
       cache.insert(*s);
     } else {

@@ -448,6 +448,18 @@ fs_section::impl const& fs_section_v2_lazy::section() const {
   if (!sec_) {
     sec_ = std::make_unique<fs_section_v2>(*mm_, offset_, image_end_);
     mm_.reset();
+    if (sec_->type() != type_) [[unlikely]] {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("section type mismatch: expected {} from index, got {}",
+                      get_section_name(type_), get_section_name(sec_->type())));
+    }
+    if (sec_->length() != this->length()) [[unlikely]] {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("section length mismatch: expected {} from index, got {}",
+                      this->length(), sec_->length()));
+    }
   }
 
   return *sec_;
