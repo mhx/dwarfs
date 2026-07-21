@@ -33,6 +33,7 @@
 #include <dwarfs/metadata_defs.h>
 
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/string_table.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_layouts.h>
@@ -45,6 +46,8 @@ using namespace apache::thrift::frozen;
 using namespace dwarfs::test;
 
 namespace {
+
+using metadata_thrift_string_table = dwarfs::thrift::metadata::string_table;
 
 // A minimal but fully consistent metadata object, matching the end state
 // of the `check_metadata` test below. Used as a base for tests that only
@@ -125,6 +128,35 @@ metadata make_valid_metadata_with_subdir() {
   ds[2].self_entry() = 0;
 
   return raw;
+}
+
+// Consistent metadata with a second (empty) directory, but *without* any
+// self_entry bits, so that global_metadata has to recover them:
+//
+//   dir_entries[0] -> inode 0 (root dir)
+//   dir_entries[1] -> inode 1 (sub dir, empty)
+//   dir_entries[2] -> inode 2 (regular file)
+metadata make_valid_metadata_without_self_entry() {
+  auto raw = make_valid_metadata_with_subdir();
+  for (auto&& d : *raw.directories()) {
+    d.self_entry() = 0;
+  }
+  return raw;
+}
+
+// Produce a genuine FSST-compressed string table, so that the dictionary
+// passes fsst_decoder::is_valid_dictionary().
+metadata_thrift_string_table
+pack_compressed_names(std::vector<std::string> const& names,
+                      bool const pack_index) {
+  using dwarfs::internal::string_table;
+  auto st = string_table::pack(
+      std::span<std::string const>{names},
+      string_table::pack_options{/*pack_data=*/true, pack_index,
+                                 /*force_pack_data=*/true});
+  EXPECT_TRUE(st.symtab().has_value())
+      << "expected the test string table to be FSST-compressed";
+  return st;
 }
 
 } // namespace
@@ -890,4 +922,131 @@ TEST_F(global_metadata_test, check_hole_block_index_aliases_real_block) {
 
   EXPECT_THAT([&] { check(raw); },
               throws_error("hole_block_index 0 references a real block"));
+}
+
+// ---------------------------------------------------------------------------
+// global_metadata construction (unpack_directories)
+// ---------------------------------------------------------------------------
+
+class global_metadata_unpack_test : public ::testing::Test {
+ public:
+  static auto throws_error(std::string_view msg) {
+    return testing::ThrowsMessage<dwarfs::error>(testing::HasSubstr(msg));
+  }
+
+  // Assert that the metadata passes the consistency check, so that any
+  // failure below is genuinely *not* covered by check_consistency().
+  void expect_consistent(metadata const& raw) {
+    std::vector<std::optional<std::size_t>> ubs;
+    ubs.push_back(1);
+    auto meta = freeze(raw);
+    EXPECT_NO_THROW(global_metadata::check_consistency(lgr, meta, ubs));
+  }
+
+  test_logger lgr;
+};
+
+TEST_F(global_metadata_unpack_test, recovers_self_entries) {
+  auto raw = make_valid_metadata_without_self_entry();
+  expect_consistent(raw);
+
+  auto meta = freeze(raw);
+  EXPECT_NO_THROW(global_metadata(lgr, meta));
+
+  global_metadata const gm{lgr, meta};
+  EXPECT_EQ(0, gm.self_dir_entry(0)); // root
+  EXPECT_EQ(1, gm.self_dir_entry(1)); // sub directory
+}
+
+TEST_F(global_metadata_unpack_test, unreferenced_directory_inode) {
+  // Directory inode 1 is never referenced by a dir_entry; the second and
+  // third entries both refer to the regular file inode instead. This is
+  // NOT caught by check_consistency().
+  auto raw = make_valid_metadata_without_self_entry();
+  raw.dir_entries()->at(1).inode_num() = 2;
+  raw.dir_entries()->at(2).inode_num() = 2;
+  expect_consistent(raw);
+
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("could not recover all self entries"));
+}
+
+TEST_F(global_metadata_unpack_test, duplicate_directory_inode) {
+  // Directory inode 1 is referenced twice. This is NOT caught by
+  // check_consistency() either.
+  auto raw = make_valid_metadata_without_self_entry();
+  raw.dir_entries()->at(2).inode_num() = 1;
+  expect_consistent(raw);
+
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("could not recover all self entries"));
+}
+
+TEST_F(global_metadata_unpack_test, invalid_parent_inode_when_packed) {
+  auto raw = make_valid_metadata_without_self_entry();
+  raw.options()->packed_directories() = true;
+
+  // delta-encode first_entry (1, 3, 3) -> (1, 2, 0)
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 2;
+  ds[2].first_entry() = 0;
+
+  // the root entry must reference a directory inode
+  raw.dir_entries()->at(0).inode_num() = 2;
+
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("invalid parent inode number"));
+}
+
+// ---------------------------------------------------------------------------
+// compressed string tables
+// ---------------------------------------------------------------------------
+
+TEST_F(global_metadata_test, check_compact_names_empty_compressed_string) {
+  auto raw = make_valid_metadata();
+  raw.names()->clear();
+  raw.compact_names() = pack_compressed_names({"hello"}, /*pack_index=*/false);
+
+  auto&& cn = raw.compact_names().value();
+  // shrink the single string to zero length
+  *std::next(cn.index()->begin()) = 0;
+  cn.buffer()->clear();
+
+  EXPECT_THAT([&] { check(raw); }, throws_error("empty compressed string"));
+}
+
+TEST_F(global_metadata_test,
+       check_compact_names_empty_compressed_string_packed) {
+  auto raw = make_valid_metadata();
+  raw.names()->clear();
+  raw.compact_names() = pack_compressed_names({"hello"}, /*pack_index=*/true);
+
+  auto&& cn = raw.compact_names().value();
+  *cn.index()->begin() = 0;
+  cn.buffer()->clear();
+
+  EXPECT_THAT([&] { check(raw); }, throws_error("empty compressed string"));
+}
+
+TEST_F(global_metadata_test, check_compact_names_invalid_compressed_string) {
+  auto raw = make_valid_metadata();
+  raw.names()->clear();
+  raw.compact_names() = pack_compressed_names({"hello"}, /*pack_index=*/false);
+
+  auto&& cn = raw.compact_names().value();
+  // a trailing escape byte cannot be decoded
+  cn.buffer()->back() = static_cast<char>(0xff);
+
+  EXPECT_THAT([&] { check(raw); }, throws_error("invalid compressed string"));
+}
+
+TEST_F(global_metadata_test, check_compact_names_valid_compressed) {
+  auto raw = make_valid_metadata();
+  raw.names()->clear();
+  raw.compact_names() = pack_compressed_names({"hello"}, /*pack_index=*/false);
+  EXPECT_NO_THROW(check(raw));
 }
