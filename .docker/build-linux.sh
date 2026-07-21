@@ -23,33 +23,33 @@ if [[ -n "$GITHUB_RUN_ID" ]]; then
         echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
     }
 
-    if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
-        echo "Skipping git repo update because it already ran in the last three hours."
-    else
-        echo "Running git repo update."
+    if [[ "$BUILD_TYPE" != "*-static-*" ]]; then
+      if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
+          echo "Skipping git repo update because it already ran in the last three hours."
+      else
+          echo "Running git repo update."
 
-        log "begin:repo-update"
+          log "begin:repo-update"
 
-        for repo in "fmtlib/fmt" \
-                    "google/googletest" \
-                    "ericniebler/range-v3" \
-                    "greg7mdp/parallel-hashmap"; do
-          reponame=$(basename "$repo")
-          cd "$LOCAL_REPO_PATH"
-          if [ -d "$reponame" ]; then
-            cd "$reponame"
-            time git fetch
-          else
-            time git clone "https://github.com/$repo.git"
-          fi
-        done
+          for repo in "fmtlib/fmt" \
+                      "google/googletest" \
+                      "ericniebler/range-v3" \
+                      "greg7mdp/parallel-hashmap"; do
+            reponame=$(basename "$repo")
+            cd "$LOCAL_REPO_PATH"
+            if [ -d "$reponame" ]; then
+              cd "$reponame"
+              time git fetch
+            else
+              time git clone "https://github.com/$repo.git"
+            fi
+          done
 
-        log "end:repo-update"
+          log "end:repo-update"
 
-        touch "$LAST_UPDATE_FILE"
-    fi
+          touch "$LAST_UPDATE_FILE"
+      fi
 
-    if [[ "$BUILD_TYPE" != "clang-release-ninja-static" ]]; then
       export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
     fi
 
