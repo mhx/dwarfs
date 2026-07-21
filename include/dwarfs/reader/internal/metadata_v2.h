@@ -78,10 +78,15 @@ class metadata_v2 {
   metadata_v2(
       logger& lgr, std::span<uint8_t const> schema,
       std::span<uint8_t const> data, metadata_options const& options,
+      std::optional<std::span<std::optional<std::size_t> const>>
+          uncompressed_block_size = std::nullopt,
       int inode_offset = 0, bool force_consistency_check = false,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
-  void check_consistency() const { impl_->check_consistency(); }
+  void check_consistency(std::span<std::optional<std::size_t> const>
+                             uncompressed_block_size) const {
+    impl_->check_consistency(uncompressed_block_size);
+  }
 
   size_t size() const { return impl_->size(); }
 
@@ -198,7 +203,8 @@ class metadata_v2 {
    public:
     virtual ~impl() = default;
 
-    virtual void check_consistency() const = 0;
+    virtual void check_consistency(std::span<std::optional<std::size_t> const>
+                                       uncompressed_block_size) const = 0;
 
     virtual size_t size() const = 0;
 

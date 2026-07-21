@@ -147,13 +147,17 @@ check_frozen(MappedFrozen<thrift::metadata::metadata> meta) {
   return meta;
 }
 
-global_metadata::Meta const&
-check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
-                           bool force_consistency_check) {
+global_metadata::Meta const& check_metadata_consistency(
+    logger& lgr, global_metadata::Meta const& meta,
+    std::optional<std::span<std::optional<std::size_t> const>>
+        uncompressed_block_size,
+    bool force_consistency_check) {
   if (force_consistency_check) {
+    DWARFS_CHECK(uncompressed_block_size.has_value(),
+                 "consistency check requires uncompressed block size");
     LOG_PROXY(debug_logger_policy, lgr);
     auto tv = LOG_TIMED_VERBOSE;
-    global_metadata::check_consistency(lgr, meta);
+    global_metadata::check_consistency(lgr, meta, *uncompressed_block_size);
     tv << "checked metadata consistency";
   }
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
@@ -368,8 +372,10 @@ class metadata_v2_data {
   metadata_v2_data(LoggerPolicy const&, logger& lgr,
                    std::span<uint8_t const> schema,
                    std::span<uint8_t const> data,
-                   metadata_options const& options, int inode_offset,
-                   bool force_consistency_check,
+                   metadata_options const& options,
+                   std::optional<std::span<std::optional<std::size_t> const>>
+                       uncompressed_block_size,
+                   int inode_offset, bool force_consistency_check,
                    std::shared_ptr<performance_monitor const> const& perfmon);
 
   size_t size() const { return data_.size(); }
@@ -494,9 +500,11 @@ class metadata_v2_data {
   std::vector<file_stat::gid_type> get_all_gids() const;
 
   template <typename LoggerPolicy>
-  void check_consistency(LOG_PROXY_REF(LoggerPolicy)) const {
+  void check_consistency(LOG_PROXY_REF(LoggerPolicy),
+                         std::span<std::optional<std::size_t> const>
+                             uncompressed_block_size) const {
     // TODO: can we easily use LOG_PROXY here?
-    global_.check_consistency(LOG_GET_LOGGER);
+    global_.check_consistency(LOG_GET_LOGGER, uncompressed_block_size);
     check_inode_size_cache(LOG_PROXY_ARG);
   }
 
@@ -760,15 +768,17 @@ template <typename LoggerPolicy>
 metadata_v2_data::metadata_v2_data(
     LoggerPolicy const&, logger& lgr, std::span<uint8_t const> schema,
     std::span<uint8_t const> data, metadata_options const& options,
+    std::optional<std::span<std::optional<std::size_t> const>>
+        uncompressed_block_size,
     int inode_offset, bool force_consistency_check,
     std::shared_ptr<performance_monitor const> const& perfmon [[maybe_unused]])
     : schema_{schema.begin(), schema.end()}
     , data_{data}
     , meta_{check_frozen(
           map_frozen<thrift::metadata::metadata>(lgr, schema, data_))}
-    , global_{lgr, check_metadata_consistency(lgr, meta_,
-                                              options.check_consistency ||
-                                                  force_consistency_check)}
+    , global_{lgr, check_metadata_consistency(
+                       lgr, meta_, uncompressed_block_size,
+                       options.check_consistency || force_consistency_check)}
     , chunk_codec_{meta_.block_size(), meta_.hole_block_index().toStdOptional(),
                    get_hole_marker_mode(meta_), get_large_hole_sizes(meta_)}
     , timeres_handler_{meta_}
@@ -2412,20 +2422,20 @@ class metadata_ final : public metadata_v2::impl {
  public:
   metadata_(logger& lgr, std::span<uint8_t const> schema,
             std::span<uint8_t const> data, metadata_options const& options,
+            std::optional<std::span<std::optional<std::size_t> const>>
+                uncompressed_block_size,
             int inode_offset, bool force_consistency_check,
             std::shared_ptr<performance_monitor const> const& perfmon)
       : LOG_PROXY_INIT(lgr)
-      , data_{LoggerPolicy{},
-              lgr,
-              schema,
-              data,
-              options,
-              inode_offset,
-              force_consistency_check,
+      , data_{LoggerPolicy{}, lgr,
+              schema,         data,
+              options,        uncompressed_block_size,
+              inode_offset,   force_consistency_check,
               perfmon} {}
 
-  void check_consistency() const override {
-    data_.check_consistency(LOG_PROXY_ARG);
+  void check_consistency(std::span<std::optional<std::size_t> const>
+                             uncompressed_block_size) const override {
+    data_.check_consistency(LOG_PROXY_ARG, uncompressed_block_size);
   }
 
   size_t size() const override { return data_.size(); }
@@ -2611,12 +2621,14 @@ metadata_v2_utils::thaw_fs_options() const {
 
 metadata_v2::metadata_v2(
     logger& lgr, std::span<uint8_t const> schema, std::span<uint8_t const> data,
-    metadata_options const& options, int inode_offset,
-    bool force_consistency_check,
+    metadata_options const& options,
+    std::optional<std::span<std::optional<std::size_t> const>>
+        uncompressed_block_size,
+    int inode_offset, bool force_consistency_check,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, schema, data, options, inode_offset, force_consistency_check,
-          perfmon)) {}
+          lgr, schema, data, options, uncompressed_block_size, inode_offset,
+          force_consistency_check, perfmon)) {}
 
 } // namespace dwarfs::reader::internal
