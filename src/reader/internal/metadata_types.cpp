@@ -662,8 +662,6 @@ void check_plain_strings(
                              v.size(), expected_num));
   }
 
-  size_t total_size = 0;
-
   for (auto s : v) {
     if (s.size() > max_item_len) {
       DWARFS_THROW(runtime_error,
@@ -673,16 +671,6 @@ void check_plain_strings(
     if (!accept_empty && s.empty()) {
       DWARFS_THROW(runtime_error,
                    fmt::format("empty item in {0} is not allowed", what));
-    }
-    total_size += s.size();
-  }
-
-  if (!v.empty()) {
-    auto const expected = frozen_string_table_size(v, accept_empty);
-    if (std::cmp_not_equal(total_size, expected)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("unexpected data size in {0}: {1} != {2}", what,
-                               total_size, expected));
     }
   }
 }
