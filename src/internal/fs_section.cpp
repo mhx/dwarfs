@@ -440,7 +440,11 @@ fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm,
     , type_{type}
     , offset_{offset}
     , size_{size}
-    , image_end_{image_end} {}
+    , image_end_{image_end} {
+  DWARFS_CHECK(size_ >= sizeof(section_header_v2),
+               fmt::format("lazy section too small for header: {} < {}", size_,
+                           sizeof(section_header_v2)));
+}
 
 fs_section::impl const& fs_section_v2_lazy::section() const {
   std::lock_guard lock(mx_);
