@@ -406,6 +406,10 @@ void filesystem_parser_<LoggerPolicy>::find_index() {
     return;
   }
 
+  if (section.end() != image_end()) {
+    return;
+  }
+
   auto seg = section.segment(mm_);
 
   if (!section.check_fast(seg)) {
@@ -428,16 +432,27 @@ void filesystem_parser_<LoggerPolicy>::find_index() {
   std::ranges::transform(tmp, index_.begin(),
                          [](auto const& v) { return v.load(); });
 
-  // index entries must be sorted by offset
-  if (!std::ranges::is_sorted(index_, [](auto const a, auto const b) {
-        return (a & section_offset_mask) < (b & section_offset_mask);
-      })) {
-    // remove the index again if it is not sorted
+  constexpr uint64_t kMinSectionBytes{sizeof(section_header_v2)};
+
+  auto const section_offset = [](uint64_t v) {
+    return v & section_offset_mask;
+  };
+
+  // Section offsets must be strictly increasing, and each section must be
+  // large enough to hold at least its header. Checking the gap subsumes strict
+  // ordering: equal offsets give a gap of zero.
+  if (std::ranges::adjacent_find(index_, [&](uint64_t a, uint64_t b) {
+        auto const oa = section_offset(a);
+        auto const ob = section_offset(b);
+        return ob < oa || ob - oa < kMinSectionBytes;
+      }) != index_.end()) {
+    // remove the index again if it fails this check
     index_.clear();
     return;
   }
 
-  if ((index_.at(0) & section_offset_mask) != 0) {
+  // The first section must start at the beginning of the filesystem image.
+  if (section_offset(index_.at(0)) != 0) {
     index_.clear();
     return;
   }
