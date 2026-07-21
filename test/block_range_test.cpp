@@ -47,6 +47,9 @@ class mock_cached_block : public reader::internal::cached_block {
   uint8_t const* data() const override {
     return span_ ? span_->data() : nullptr;
   }
+  std::span<uint8_t const> span() const override {
+    return span_ ? *span_ : std::span<uint8_t const>();
+  }
   void decompress_until(size_t) override {}
   size_t uncompressed_size() const override { return 0; }
   void touch() override {}
@@ -61,6 +64,9 @@ class mock_cached_block : public reader::internal::cached_block {
   std::optional<std::span<uint8_t const>> span_;
 };
 
+auto const kInvalidSpan =
+    std::span<uint8_t const>(reinterpret_cast<uint8_t const*>(0), 1);
+
 } // namespace
 
 TEST(block_range, uncompressed) {
@@ -68,21 +74,43 @@ TEST(block_range, uncompressed) {
   std::iota(data.begin(), data.end(), 0);
 
   {
-    reader::block_range range{data.data(), 0, data.size()};
+    reader::block_range range{data, 0, data.size()};
     EXPECT_EQ(range.data(), data.data());
     EXPECT_EQ(range.size(), 100);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin()));
   }
 
   {
-    reader::block_range range{data.data(), 10, 20};
+    reader::block_range range{data, 10, 20};
     EXPECT_EQ(range.size(), 20);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
   }
 
-  EXPECT_THAT([] { reader::block_range range(nullptr, 0, 0); },
-              ::testing::ThrowsMessage<dwarfs::runtime_error>(
-                  ::testing::HasSubstr("block_range: block data is null")));
+  {
+    reader::block_range range{data, 100, 0};
+    EXPECT_EQ(range.size(), 0);
+  }
+
+  {
+    reader::block_range range{data, 99, 1};
+    EXPECT_EQ(range.size(), 1);
+    EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 99));
+  }
+
+  EXPECT_THAT(
+      [&data] { reader::block_range range(data, 101, 0); },
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(::testing::HasSubstr(
+          "block_range: offset out of range (101 > 100)")));
+
+  EXPECT_THAT(
+      [&data] { reader::block_range range(data, 100, 1); },
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(::testing::HasSubstr(
+          "block_range: size out of range (100 + 1 > 100)")));
+
+  EXPECT_THAT(
+      [] { reader::block_range range(kInvalidSpan, 0, 1); },
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(
+          ::testing::HasSubstr("block_range: non-empty block data is null")));
 }
 
 TEST(block_range, compressed) {
@@ -104,19 +132,33 @@ TEST(block_range, compressed) {
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
   }
 
+  {
+    auto block = std::make_shared<mock_cached_block>();
+    reader::block_range range{block, 0, 0};
+    EXPECT_EQ(range.size(), 0);
+  }
+
   EXPECT_THAT(
       [] {
-        auto block = std::make_shared<mock_cached_block>();
-        reader::block_range range(block, 0, 0);
+        auto block = std::make_shared<mock_cached_block>(kInvalidSpan);
+        reader::block_range range(block, 0, 1);
       },
       ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          ::testing::HasSubstr("block_range: block data is null")));
+          ::testing::HasSubstr("block_range: non-empty block data is null")));
+
+  EXPECT_THAT(
+      [&] {
+        auto block = std::make_shared<mock_cached_block>(data);
+        reader::block_range range(block, 101, 0);
+      },
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(::testing::HasSubstr(
+          "block_range: offset out of range (101 > 100)")));
 
   EXPECT_THAT(
       [&] {
         auto block = std::make_shared<mock_cached_block>(data);
         reader::block_range range(block, 100, 1);
       },
-      ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(::testing::HasSubstr(
+          "block_range: size out of range (100 + 1 > 100)")));
 }

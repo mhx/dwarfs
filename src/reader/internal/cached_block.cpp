@@ -89,6 +89,10 @@ class cached_block_ final : public cached_block {
   // somehow enforce that this cannot happen.
   uint8_t const* data() const override { return data_.data(); }
 
+  std::span<uint8_t const> span() const override {
+    return std::span<uint8_t const>(data_.data(), range_end());
+  }
+
   void decompress_until(size_t end) override {
     auto pos = data_.size();
 

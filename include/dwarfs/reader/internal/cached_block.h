@@ -31,6 +31,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace dwarfs {
@@ -61,6 +62,7 @@ class cached_block {
 
   virtual size_t range_end() const = 0;
   virtual uint8_t const* data() const = 0;
+  virtual std::span<uint8_t const> span() const = 0;
   virtual void decompress_until(size_t end) = 0;
   virtual size_t uncompressed_size() const = 0;
   virtual void touch() = 0;
