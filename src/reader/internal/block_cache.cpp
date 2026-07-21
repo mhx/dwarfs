@@ -411,8 +411,7 @@ class block_cache_ final : public block_cache::impl {
         if (section.compression() == compression_type::NONE) {
           LOG_TRACE << "block " << block_no
                     << " is uncompressed, bypassing cache";
-          promise.set_value(
-              block_range(section.raw_bytes(mm_).data(), offset, size));
+          promise.set_value(block_range(section.raw_bytes(mm_), offset, size));
           return future;
         }
       }

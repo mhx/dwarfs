@@ -35,25 +35,40 @@
 
 namespace dwarfs::reader {
 
-block_range::block_range(uint8_t const* data, size_t offset, size_t size)
-    : span_{data + offset, size} {
-  if (!data) {
-    DWARFS_THROW(runtime_error, "block_range: block data is null");
+namespace {
+
+std::span<uint8_t const>
+checked_subspan(std::span<uint8_t const> data, size_t offset, size_t size) {
+  if (offset > data.size()) [[unlikely]] {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("block_range: offset out of range ({0} > {1})",
+                             offset, data.size()));
   }
+
+  if (auto const available = data.size() - offset; size > available)
+      [[unlikely]] {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("block_range: size out of range ({0} + {1} > {2})",
+                             offset, size, data.size()));
+  }
+
+  if (size > 0 && !data.data()) [[unlikely]] {
+    DWARFS_THROW(runtime_error, "block_range: non-empty block data is null");
+  }
+
+  return data.subspan(offset, size);
 }
+
+} // namespace
+
+block_range::block_range(std::span<uint8_t const> data, size_t offset,
+                         size_t size)
+    : span_{checked_subspan(data, offset, size)} {}
 
 block_range::block_range(std::shared_ptr<internal::cached_block const> block,
                          size_t offset, size_t size)
-    : span_{block->data() + offset, size}
-    , block_{std::move(block)} {
-  if (!block_->data()) {
-    DWARFS_THROW(runtime_error, "block_range: block data is null");
-  }
-  if (offset + size > block_->range_end()) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("block_range: size out of range ({0} > {1})",
-                             offset + size, block_->range_end()));
-  }
+    : block_range(block->span(), offset, size) {
+  block_ = std::move(block);
 }
 
 } // namespace dwarfs::reader
