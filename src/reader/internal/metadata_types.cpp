@@ -433,8 +433,21 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
               expected, meta.dir_entries()->size()));
     }
   } else {
-    size_t num_entries =
-        meta.dir_entries() ? meta.dir_entries()->size() : meta.inodes().size();
+    bool const has_dir_entries = meta.dir_entries().has_value();
+
+    // In v2.2 metadata, `first_entry` indexes into what is now the `inodes`
+    // table (it was called `entries` back then), so the inode count is the
+    // exact bound. In v2.3+, it indexes into `dir_entries`.
+    size_t const num_entries =
+        has_dir_entries ? meta.dir_entries()->size() : meta.inodes().size();
+
+    // In v2.2 metadata, `parent_entry` is really the parent *inode* number
+    // (the field was called `parent_inode`), which is resolved through
+    // `entry_table_v2_2` by global_metadata::parent_dir_entry(). That table
+    // has one element per inode, which can be fewer than the number of
+    // entries when hardlinks are present, so it needs its own bound.
+    size_t const num_parents = has_dir_entries ? meta.dir_entries()->size()
+                                               : meta.entry_table_v2_2().size();
 
     if (!std::ranges::is_sorted(meta.directories(), [](auto a, auto b) {
           return a.first_entry() < b.first_entry();
@@ -464,23 +477,26 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                                  num_entries));
       }
 
-      if (p >= num_entries) {
+      if (p >= num_parents) {
         DWARFS_THROW(runtime_error,
                      fmt::format("[{}] parent_entry out of range: {} >= {}", i,
-                                 p, num_entries));
+                                 p, num_parents));
       }
 
-      if (f == p) {
+      // Only meaningful for v2.3+, where both are dir_entries indices; in
+      // v2.2, `first_entry` is an entry index and `parent_entry` an inode
+      // number, so comparing them is meaningless.
+      if (has_dir_entries && f == p) {
         DWARFS_THROW(runtime_error,
                      fmt::format("[{}] first_entry == parent_entry", i));
       }
 
       if (i == 0 || is_last) {
+        auto const what = i == 0 ? "root" : "sentinel";
         if (p != 0) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("[{}] parent_entry {} != 0 for root directory", i,
-                          p));
+          DWARFS_THROW(runtime_error,
+                       fmt::format("[{}] parent_entry {} != 0 for {} directory",
+                                   i, p, what));
         }
         if (has_self && s != 0) {
           if (is_last) {
@@ -489,10 +505,9 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                      << ", this is harmless and can be fixed by rebuilding the "
                         "metadata";
           } else {
-            DWARFS_THROW(
-                runtime_error,
-                fmt::format("[{}] self_entry {} != 0 for root directory", i,
-                            s));
+            DWARFS_THROW(runtime_error,
+                         fmt::format("[{}] self_entry {} != 0 for {} directory",
+                                     i, s, what));
           }
         }
       } else if (has_self) {
@@ -506,6 +521,18 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                        fmt::format("[{}] self_entry == parent_entry", i));
         }
       }
+    }
+
+    // The sentinel directory terminates the last real directory, so its
+    // first_entry must cover all directory entries; otherwise there would
+    // be unreachable entries at the end of the table, and the entry count
+    // of the last directory would be wrong. For packed directories, this
+    // is implied by the first_entry sum check above.
+    if (auto const last = meta.directories().back().first_entry();
+        std::cmp_not_equal(last, num_entries)) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("sentinel first_entry mismatch: {} != {}", last,
+                               num_entries));
     }
   }
 
@@ -753,6 +780,17 @@ void check_chunks(
                  "sparsefiles feature set but hole_block_index missing");
   }
 
+  // The hole block is virtual; it must not alias a real block, or data
+  // chunks in that block would silently be interpreted as holes.
+  if (hole_ix.has_value() &&
+      std::cmp_less(*hole_ix, uncompressed_block_size.size())) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("hole_block_index {} references a real block (block "
+                    "count is {})",
+                    *hole_ix, uncompressed_block_size.size()));
+  }
+
   if (!std::has_single_bit(block_size)) {
     DWARFS_THROW(runtime_error,
                  fmt::format("invalid block size: {}", block_size));
@@ -836,10 +874,12 @@ void check_chunks(
                      fmt::format("large hole chunk size out of range: {} > {}",
                                  (*large_hole_sizes)[s], kChunkBitsSizeMask));
         break;
-      default:
-        DWARFS_PANIC(fmt::format("unexpected sparse_chunk_codec error: {}",
-                                 std::to_underlying(chunk.error())));
       }
+
+      // NB: deliberately no `default:` label above, so that -Wswitch flags
+      //     any newly added error enumerator at compile time.
+      DWARFS_PANIC(fmt::format("unexpected sparse_chunk_codec error: {}",
+                               std::to_underlying(chunk.error())));
     }
   }
 }
@@ -1031,6 +1071,18 @@ global_metadata::Meta const& check_metadata(
   }
 
   size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
+
+  // check_partitioning() only determines partition points for the known
+  // inode ranks; make sure no entry has a rank beyond the last one.
+  auto const num_partitioned = meta.dir_entries()
+                                   ? meta.inodes().size()
+                                   : meta.entry_table_v2_2().size();
+
+  if (offsets.back() != num_partitioned) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unexpected inode rank in table: {} != {}",
+                             offsets.back(), num_partitioned));
+  }
 
   if (num_dir != offsets[1]) {
     DWARFS_THROW(runtime_error,
