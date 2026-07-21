@@ -623,17 +623,21 @@ void check_compact_strings(
                    fmt::format("invalid dictionary for compact {0}", what));
     }
 
+    auto check_compressed_string = [&](std::string_view sv) {
+      if (sv.empty()) {
+        DWARFS_THROW(runtime_error, "empty compressed string");
+      }
+      if (!fsst_decoder::is_valid_compressed_string(sv)) {
+        DWARFS_THROW(runtime_error, "invalid compressed string");
+      }
+    };
+
     if (v.packed_index()) {
       size_t start = 0;
 
       for (size_t const len : v.index()) {
         std::string_view sv(v.buffer().data() + start, len);
-        if (sv.empty()) {
-          DWARFS_THROW(runtime_error, "empty compressed string");
-        }
-        if (!fsst_decoder::is_valid_compressed_string(sv)) {
-          DWARFS_THROW(runtime_error, "invalid compressed string");
-        }
+        check_compressed_string(sv);
         start += len;
       }
     } else {
@@ -641,12 +645,7 @@ void check_compact_strings(
         size_t const start = v.index()[i - 1];
         size_t const len = v.index()[i] - start;
         std::string_view sv(v.buffer().data() + start, len);
-        if (sv.empty()) {
-          DWARFS_THROW(runtime_error, "empty compressed string");
-        }
-        if (!fsst_decoder::is_valid_compressed_string(sv)) {
-          DWARFS_THROW(runtime_error, "invalid compressed string");
-        }
+        check_compressed_string(sv);
       }
     }
   }
