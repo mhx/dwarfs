@@ -214,6 +214,8 @@ class section_wrapper {
 
 std::tuple<section_wrapper::section_data, metadata_v2>
 make_metadata(logger& lgr, file_view const& mm, section_map const& sections,
+              std::optional<std::span<std::optional<std::size_t> const>>
+                  uncompressed_block_size,
               metadata_options const& options, int inode_offset,
               mlock_mode lock_mode, bool force_consistency_check,
               std::shared_ptr<performance_monitor const> const& perfmon) {
@@ -258,7 +260,8 @@ make_metadata(logger& lgr, file_view const& mm, section_map const& sections,
 
   return {meta_buffer,
           metadata_v2{lgr, schema_buffer.span(), meta_buffer.span(), options,
-                      inode_offset, force_consistency_check, perfmon}};
+                      uncompressed_block_size, inode_offset,
+                      force_consistency_check, perfmon}};
 }
 
 } // namespace
@@ -599,21 +602,33 @@ filesystem_<LoggerPolicy>::filesystem_(
     has_valid_section_index_ = true;
   }
 
+  bool const force_consistency_check =
+      !parser.has_checksums() || options.metadata.check_consistency;
+
   header_ = parser.header();
   version_ = parser.fs_version();
 
   section_map sections;
+  std::vector<std::optional<std::size_t>> uncompressed_block_size;
 
   while (auto s = parser.next_section()) {
     if (s->type() == section_type::BLOCK) {
-      // Don't use check_section() here unless `check_consistency` is set,
-      // because it'll trigger the lazy section to load, defeating the
+      // Don't use check_section() here unless `force_consistency_check` is
+      // set, because it'll trigger the lazy section to load, defeating the
       // purpose of the section index. See github issue #183.
 
-      if (options.metadata.check_consistency) {
+      if (force_consistency_check) {
         LOG_VERBOSE << "checking section " << s->name() << " @ " << s->start()
                     << " [" << s->length() << " bytes]";
         check_section(*s);
+
+        auto& uncompressed_size = uncompressed_block_size.emplace_back();
+
+        try {
+          uncompressed_size = section_wrapper(mm_, *s).get_uncompressed_size();
+        } catch (std::exception const& e) {
+          LOG_ERROR << exception_str(e) << " in section " << s->description();
+        }
       } else {
         LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
                   << s->length() << " bytes]";
@@ -642,8 +657,12 @@ filesystem_<LoggerPolicy>::filesystem_(
   }
 
   std::tie(meta_buffer_, meta_) =
-      make_metadata(lgr, mm_, sections, options.metadata, options.inode_offset,
-                    options.lock_mode, !parser.has_checksums(), perfmon);
+      make_metadata(lgr, mm_, sections,
+                    force_consistency_check
+                        ? std::make_optional(std::span(uncompressed_block_size))
+                        : std::nullopt,
+                    options.metadata, options.inode_offset, options.lock_mode,
+                    force_consistency_check, perfmon);
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -705,6 +724,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
     wg.add_job(std::move(task));
   }
 
+  std::vector<std::optional<std::size_t>> uncompressed_block_size;
   std::unordered_set<section_type> seen;
   int errors = 0;
 
@@ -721,12 +741,17 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 
       if (level == filesystem_check_level::FULL) {
         auto section = section_wrapper(mm_, s);
+        std::optional<std::size_t> uncompressed_size;
 
         try {
-          auto const sz [[maybe_unused]] = section.get_uncompressed_size();
+          uncompressed_size = section.get_uncompressed_size();
         } catch (std::exception const& e) {
           LOG_ERROR << exception_str(e) << " in section " << s.description();
           ++errors;
+        }
+
+        if (s.type() == section_type::BLOCK) {
+          uncompressed_block_size.emplace_back(uncompressed_size);
         }
       }
     } catch (std::exception const& e) {
@@ -737,7 +762,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 
   if (level == filesystem_check_level::FULL) {
     try {
-      meta_.check_consistency();
+      meta_.check_consistency(uncompressed_block_size);
     } catch (std::exception const& e) {
       LOG_ERROR << exception_str(e);
       ++errors;

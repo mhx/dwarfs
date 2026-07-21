@@ -38,8 +38,10 @@ using namespace dwarfs::test;
 class global_metadata_test : public ::testing::Test {
  public:
   void check(metadata const& raw) {
+    std::vector<std::optional<std::size_t>> uncompressed_block_size;
+    uncompressed_block_size.push_back(1);
     auto meta = freeze(raw);
-    global_metadata::check_consistency(lgr, meta);
+    global_metadata::check_consistency(lgr, meta, uncompressed_block_size);
   }
 
   static auto throws_error(std::string_view msg) {
