@@ -998,6 +998,227 @@ This makes a lot more sense now that we've already looked at the raw schema
 dump. This representation already associates the types from the thrift IDL
 with the layouts in the schema.
 
+## LEGACY METADATA FORMAT (v2.2 AND EARLIER)
+
+File system images written by releases before `dwarfs-0.5.0` use metadata
+format version 2.2 or earlier. These are still readable by current
+releases, but the structure of the metadata differs substantially from
+what is described in the METADATA FORMAT section above.
+
+The central difference is that there is no `dir_entries` table. Its role
+was played by a table called `entries`, which contained one element per
+*directory entry* and carried both the entry's name and the inode number
+it refers to, along with all of the per-inode metadata. Consequently, a
+"directory entry index" in v2.2 is an index into `entries`, and a separate
+table, `entry_index`, is needed to get from an inode number back to its
+entry.
+
+Here is a high-level overview of how the pieces relate to each other:
+
+    ═════════════
+     DwarFS v2.2
+    ═════════════
+                    entries[]                                  directories[]
+    ╔════╗      ┌───────────────────┐                      ┌──────────────────┐
+    ║root╟─────►│ name_index:     0 │         S_IFDIR ┌───►│ parent_inode:  0 │
+    ╚════╝      │ mode_index:     0 ├───────┐         │    │ first_entry:   1 │
+                │ owner_index:    0 ├────┐  │         │    ├──────────────────┤
+                │ group_index:    0 ├─┐  │  │         │    │ parent_inode:  0 │
+                │ *time_offset: 417 │ │  │  │         │    │ first_entry:  11 │
+                │ inode:          0 ├─┼──┼──┼─────────┤    ├──────────────────┤
+                ├───────────────────┤ │  │  │         │    │       ...        │
+            ┌───┤ name_index:     2 │ │  │  │         │    └──────────────────┘
+            │   │ mode_index:     1 │ │  │  │         │
+            │   │ owner_index:    0 │ │  │  │         │     link_index[]     links[]
+            │   │ group_index:    0 │ │  │  │         │    ┌───────────┐    ┌────────────┐
+            │   │ *time_offset: 298 │ │  │  │ S_IFLNK ├───►│     1     ├───►│ "../foo"   │
+            │   │ inode:          5 ├─┼──┼──┼─────────┤    ├───────────┤    ├────────────┤
+            │   ├───────────────────┤ │  │  │         │    │    ...    │    │    ...     │
+            │   │        ...        │ │  │  │         │    └───────────┘    └────────────┘
+            │   └───────────────────┘ │  │  │         │
+            │                         │  │  │         │     chunk_index[]    chunks[]
+            │    names[]              │  │  │         │    ┌─────────────┐  ┌──────────────┐
+            │   ┌────────────┐        │  │  │ S_IFREG ├───►│      0      ├─►│ block:     0 │
+            │   │ "lib"      │        │  │  │         │    ├─────────────┤  │ offset: 1698 │
+            │   ├────────────┤        │  │  │         │    │      2      │  │ size:   1012 │
+            │   │ "ls"       │        │  │  │         │    ├─────────────┤  ├──────────────┤
+            │   ├────────────┤        │  │  │         │    │     ...     │  │     ...      │
+            └──►│ "share"    │        │  │  │         │    └─────────────┘  └──────────────┘
+                ├────────────┤        │  │  │         │
+                │    ...     │        │  │  │ S_IFBLK │      devices[]
+                └────────────┘        │  │  │ S_IFCHR │     ┌────────────┐
+                                      │  │  │         └────►│   0x0107   │
+                 gids[]               │  │  │               ├────────────┤
+                ┌─────────────┐       │  │  │               │    ...     │
+                │       0     │◄──────┘  │  │               └────────────┘
+                ├─────────────┤          │  │
+                │     100     │          │  │      entry_index[]
+                ├─────────────┤          │  │     ┌─────────────┐
+                │     ...     │          │  │     │      0      │  indexed by inode
+                └─────────────┘          │  │     ├─────────────┤  number, yields an
+                                         │  │     │      7      │  index into entries[]
+                 uids[]                  │  │     ├─────────────┤
+                ┌─────────────┐          │  │     │     ...     │
+                │       0     │◄─────────┘  │     └─────────────┘
+                ├─────────────┤             │
+                │    1000     │             │      modes[]
+                ├─────────────┤             │     ┌─────────────┐
+                │     ...     │             └────►│   0040775   │
+                └─────────────┘                   ├─────────────┤
+                                                  │   0100644   │
+                                                  ├─────────────┤
+                                                  │     ...     │
+                                                  └─────────────┘
+
+The `(inode - offset)` subtractions have been omitted from the diagram;
+see "Determining Inode Offsets" below.
+
+### Renamed Fields
+
+The thrift field IDs have been kept stable throughout, so the on-disk
+layout of the surviving fields is unchanged; only the names and, in one
+case, the semantics changed. The renamed `metadata` fields are:
+
+| Field ID | v2.2 name     | Current name       |
+| -------- | ------------- | ------------------ |
+| 3        | `entries`     | `inodes`           |
+| 4        | `chunk_index` | `chunk_table`      |
+| 5        | `entry_index` | `entry_table_v2_2` |
+| 6        | `link_index`  | `symlink_table`    |
+| 11       | `links`       | `symlinks`         |
+
+The v2.2 `entry` struct is what is called `inode_data` today. Two of its
+fields are used only by v2.2 and earlier:
+
+| Field ID | v2.2 name    | Current name       |
+| -------- | ------------ | ------------------ |
+| 1        | `name_index` | `name_index_v2_2`  |
+| 3        | `inode`      | `inode_v2_2`       |
+
+The `_v2_2` suffix marks a member that is no longer written by current
+releases and is only kept in order to be able to read old images. Such
+fields occupy no space in v2.3 and above.
+
+In the `directory` struct, field 1 was renamed from `parent_inode` to
+`parent_entry` when v2.3 was introduced, and **its meaning changed**:
+
+- In v2.2, `parent_inode` holds the *inode number* of the parent
+  directory. To obtain the parent's entry, it must be resolved through
+  `entry_index`.
+- In v2.3 and later, `parent_entry` holds an index into `dir_entries`
+  directly.
+
+This is worth emphasizing because the field name in the current IDL does
+not describe what an older image actually stores. Note that
+`directory.first_entry` was *not* renamed, but its target table changed:
+in v2.2 it indexes into `entries` (i.e. today's `inodes`), whereas from
+v2.3 on it indexes into `dir_entries`.
+
+In hindsight, it would have been better to create a new structure to
+describe directories in v2.3, rather than reusing the `directory` struct
+and changing the semantics of its fields.
+
+The `directory.self_entry` field does not exist before v2.5.
+
+A number of fields were widened from `UInt16` to `UInt32` when v2.3 was
+introduced: `entry.mode_index`, `entry.owner_index`, `entry.group_index`,
+and the `uids`, `gids` and `modes` tables. Since integers are bit-packed
+and the actual width is taken from the schema, this does not affect the
+ability to read older images.
+
+Field IDs 13 and 14 are permanently reserved. They were used for
+`chunk_index_offset` and `link_index_offset`, which are redundant because
+the inode offsets can be determined at run time by binary search over the
+inode modes.
+
+### Traversing v2.2 Metadata
+
+Inodes are assigned strictly in the order directories, symbolic links,
+regular files, character and block devices, named pipes and sockets, with
+the root directory at inode 0 — the same order as in later versions,
+except that regular files are not split into unique and shared files. The
+inode offsets are determined the same way as described in the
+"Determining Inode Offsets" section.
+
+Since directory inodes come first, `directories` can be indexed directly
+by a directory's inode number. As in later versions, there is a sentinel
+element at the end of `directories` whose `first_entry` points to the end
+of `entries`.
+
+The entries contained in the directory with inode number `ino` are:
+
+    entries[directories[ino].first_entry]
+    ..
+    entries[directories[ino + 1].first_entry - 1]
+
+For an element of `entries` at index `i`, the entry's name is
+`names[entries[i].name_index]` and the inode it refers to is
+`entries[i].inode`. All other per-inode metadata is looked up as in later
+versions, i.e. `modes[entries[i].mode_index]`,
+`uids[entries[i].owner_index]` and `gids[entries[i].group_index]`.
+
+Note that the index of an element in `entries` is *not* its inode number,
+and that the same inode number can appear in several elements of
+`entries`. To go the other way, from an inode number to the corresponding
+element of `entries`, use `entry_index`:
+
+    entries[entry_index[ino]]
+
+The parent directory of a directory with inode number `ino` is:
+
+    directories[ino].parent_inode
+
+which is again an inode number, so the parent's own entry is
+`entries[entry_index[directories[ino].parent_inode]]`. Reconstructing a
+path therefore alternates between `directories`, `entry_index` and
+`entries` until the root directory (inode 0) is reached.
+
+The remaining lookups all use an inode number reduced by the offset for
+the corresponding inode type:
+
+- The target of a symbolic link is
+  `links[link_index[inode - link_index_offset]]`.
+- The chunks of a regular file are
+  `chunks[chunk_index[inode - chunk_index_offset]]` ..
+  `chunks[chunk_index[inode - chunk_index_offset + 1] - 1]`.
+- The device id of a device inode is `devices[inode - device_index_offset]`.
+
+### Hard Links
+
+Version 2.2 was unable to preserve the hard link structure of the input
+file system. There is no `shared_files_table`, and `chunk_index` is
+indexed by inode number, so two regular files could only share their
+chunks by sharing an inode number — which is exactly how a hard link is
+represented. As a result, *all* files with identical contents were stored
+as hard links to a single inode, regardless of whether they were hard
+linked in the original input file system. Conversely, hard links in the
+input that had to be stored as separate inodes could not be represented.
+
+The link count reported for a regular file was derived by counting how
+many elements of `entries` refer to its inode.
+
+Version 2.3 solved this by introducing `shared_files_table`, which adds a
+level of indirection between file inodes and chunk ranges, so that
+distinct inodes can share a chunk range. This is why regular file inodes
+are split into unique and shared files from v2.3 onwards.
+
+### Other Differences
+
+- None of the optionally packed structures described in the
+  OPTIONALLY PACKED STRUCTURES section exist. The `names` and `links`
+  tables are always plain string lists, and there is no `compact_names`
+  or `compact_symlinks` string table.
+
+- `fs_options` contains only `mtime_only` and `time_resolution_sec`.
+
+- The `devices` and `options` fields were added with `dwarfs-0.3.0`
+  (file system version 2.1), so images written by even older releases do
+  not have them at all.
+
+- All fields added with file system version 2.5 (`self_entry`, the
+  subsecond and birth time fields, `nlink_minus_one`, and the various
+  auxiliary fields) are absent.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
