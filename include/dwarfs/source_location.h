@@ -28,46 +28,19 @@
 
 #pragma once
 
-// All this mess is necessary because of AppleClang missing <source_location>
-// TODO: remove once AppleClang has caught up
-
-#include <version>
-
-#if __has_include(<source_location>) && defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201907L
-
-#include <source_location>
-
-namespace dwarfs {
-using source_location = std::source_location;
-} // namespace dwarfs
-
-#define DWARFS_CURRENT_SOURCE_LOCATION ::dwarfs::source_location::current()
-
-#elif __has_include(<experimental/source_location>)
-
-#include <experimental/source_location>
-
-namespace dwarfs {
-using source_location = std::experimental::source_location;
-} // namespace dwarfs
-
-#define DWARFS_CURRENT_SOURCE_LOCATION ::dwarfs::source_location::current()
-
-#else
-
 #include <cstdint>
 
 namespace dwarfs {
 
+// This version doesn't store the function name (which isn't being used
+// anywhere, but for which the compiler still generates all the constant
+// strings). This saves more than 100 KiB of constant data.
+
 struct source_location {
   static constexpr source_location
-  current(char const* file = "unknown", std::uint_least32_t line = 0,
-          char const* func = "unknown") noexcept {
-    return {file, line, func};
+  current(char const* file, std::uint_least32_t line) noexcept {
+    return {file, line};
   }
-
-  constexpr source_location() noexcept
-      : source_location{current()} {}
 
   source_location(source_location const&) = default;
   source_location& operator=(source_location const&) = default;
@@ -77,23 +50,17 @@ struct source_location {
   constexpr char const* file_name() const noexcept { return file_; }
   constexpr std::uint_least32_t line() const noexcept { return line_; }
   constexpr std::uint_least32_t column() const noexcept { return 0; }
-  constexpr char const* function_name() const noexcept { return func_; }
 
  private:
-  constexpr source_location(char const* file, std::uint_least32_t line,
-                            char const* func) noexcept
+  constexpr source_location(char const* file, std::uint_least32_t line) noexcept
       : file_{file}
-      , line_{line}
-      , func_{func} {}
+      , line_{line} {}
 
   char const* file_;
   std::uint_least32_t line_;
-  char const* func_;
 };
 
 } // namespace dwarfs
 
 #define DWARFS_CURRENT_SOURCE_LOCATION                                         \
-  ::dwarfs::source_location::current(__FILE__, __LINE__, __func__)
-
-#endif
+  ::dwarfs::source_location::current(__FILE__, __LINE__)
