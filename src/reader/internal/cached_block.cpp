@@ -165,8 +165,8 @@ cached_block::create(logger& lgr, fs_section const& b, file_segment const& seg,
                      byte_buffer_factory const& bbf,
                      bool disable_integrity_check) {
   return make_unique_logging_object<cached_block, cached_block_,
-                                    logger_policies>(lgr, b, seg, bbf,
-                                                     disable_integrity_check);
+                                    hot_path_logger_policy>(
+      lgr, b, seg, bbf, disable_integrity_check);
 }
 
 } // namespace dwarfs::reader::internal
