@@ -24,7 +24,7 @@ struct TrivialLayout : public LayoutBase {
 
   static constexpr bool kMayRequirePerItemInspection = false;
 
-  TrivialLayout() : LayoutBase(typeid(T)) {}
+  TrivialLayout() = default;
 
   FieldPosition maximize() { return FieldPosition(sizeof(T), 0); }
   FieldPosition layout(LayoutRoot&, const T&, LayoutPosition /* start */) {
@@ -49,12 +49,16 @@ struct TrivialLayout : public LayoutBase {
     }
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     LayoutBase::print(os, options, level);
-    os << "blitted " << dwarfs::thrift_lite::demangle(type.name());
+    os << "blitted " << dwarfs::thrift_lite::type_name<T>;
   }
 
   void validate(LoadRoot& root) const override {

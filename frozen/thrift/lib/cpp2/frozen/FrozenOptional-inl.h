@@ -99,8 +99,7 @@ struct OptionalLayout : public LayoutBase {
   Field<bool> issetField;
   Field<T> valueField;
 
-  OptionalLayout()
-      : LayoutBase(typeid(T)), issetField(1, "isset"), valueField(2, "value") {}
+  OptionalLayout() : issetField(1, "isset"), valueField(2, "value") {}
 
   FieldPosition maximize() {
     FieldPosition pos = startFieldPosition();
@@ -168,12 +167,16 @@ struct OptionalLayout : public LayoutBase {
     return v;
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const final {
     LayoutBase::print(os, options, level);
-    os << "optional " << dwarfs::thrift_lite::demangle(type.name());
+    os << "optional " << dwarfs::thrift_lite::type_name<T>;
     issetField.print(os, options, level + 1);
     valueField.print(os, options, level + 1);
   }

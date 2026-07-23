@@ -35,8 +35,7 @@ struct ArrayLayout : public LayoutBase {
   Field<Item> itemField;
 
   ArrayLayout()
-      : LayoutBase(typeid(T)),
-        distanceField(1, "distance"),
+      : distanceField(1, "distance"),
         countField(2, "count"),
         itemField(3, "item") {}
 
@@ -197,12 +196,16 @@ struct ArrayLayout : public LayoutBase {
     }
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     LayoutBase::print(os, options, level);
-    os << "range of " << dwarfs::thrift_lite::demangle(type.name());
+    os << "range of " << dwarfs::thrift_lite::type_name<T>;
     distanceField.print(os, options, level + 1);
     countField.print(os, options, level + 1);
     itemField.print(os, options, level + 1);

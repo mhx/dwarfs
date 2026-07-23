@@ -32,9 +32,7 @@ struct PackedIntegerLayout : public LayoutBase {
 
   static constexpr bool kMayRequirePerItemInspection = false;
 
-  PackedIntegerLayout() : LayoutBase(typeid(T)) {}
-  explicit PackedIntegerLayout(const std::type_info& _type)
-      : LayoutBase(_type) {}
+  PackedIntegerLayout() = default;
 
   FieldPosition maximize() {
     FieldPosition pos = startFieldPosition();
@@ -68,13 +66,16 @@ struct PackedIntegerLayout : public LayoutBase {
     out = dwarfs::bit_view(self.start).template read<T>({self.bitOffset, bits});
   }
 
+  std::string_view type_name() const override {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     LayoutBase::print(os, options, level);
-    os << "packed " << (std::is_signed_v<T> ? "signed" : "unsigned") << " "
-       << dwarfs::thrift_lite::demangle(type.name());
+    os << "packed " << dwarfs::thrift_lite::type_name<T>;
   }
 
   void validate(LoadRoot& root) const override {

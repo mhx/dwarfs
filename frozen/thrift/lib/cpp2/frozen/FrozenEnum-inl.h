@@ -20,7 +20,8 @@ template <
         std::enable_if_t<std::is_enum_v<T>, std::underlying_type_t<T>>>
 struct EnumLayout : public PackedIntegerLayout<Underlying> {
   using Base = PackedIntegerLayout<Underlying>;
-  EnumLayout() : Base(typeid(T)) {}
+
+  EnumLayout() = default;
 
   FieldPosition maximize() { return Base::maximize(); }
 
@@ -38,12 +39,16 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
     out = T(x);
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     Base::print(os, options, level);
-    os << " as enum " << dwarfs::thrift_lite::demangle(this->type.name());
+    os << " as enum " << dwarfs::thrift_lite::type_name<T>;
   }
 
   using View = T;
