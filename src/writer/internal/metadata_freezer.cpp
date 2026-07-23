@@ -132,9 +132,8 @@ class metadata_freezer_ : public metadata_freezer::impl {
 } // namespace
 
 metadata_freezer::metadata_freezer(logger& lgr)
-    : impl_{
-          make_unique_logging_object<impl, metadata_freezer_, logger_policies>(
-              lgr)} {}
+    : impl_{make_unique_logging_object<impl, metadata_freezer_,
+                                       hot_path_logger_policy>(lgr)} {}
 
 metadata_freezer::~metadata_freezer() = default;
 

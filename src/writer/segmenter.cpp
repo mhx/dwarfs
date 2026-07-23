@@ -1911,8 +1911,8 @@ create_segmenter2(logger& lgr, progress& prog,
         segmenter::impl,
         constant_granularity_segmenter_<SegmentingPolicy,
                                         Granularity>::template type,
-        logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                         std::move(block_ready));
+        hot_path_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
+                                std::move(block_ready));
   };
 
   switch (granularity) {
@@ -1933,8 +1933,8 @@ create_segmenter2(logger& lgr, progress& prog,
   return make_unique_logging_object<
       segmenter::impl,
       variable_granularity_segmenter_<SegmentingPolicy>::template type,
-      logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                       std::move(block_ready), cc.granularity.value());
+      hot_path_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
+                              std::move(block_ready), cc.granularity.value());
 }
 
 std::unique_ptr<segmenter::impl>

@@ -197,7 +197,7 @@ class libmagic_categorizer_factory : public categorizer_factory {
   create(logger& lgr, po::variables_map const& /*vm*/,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     return make_unique_logging_object<categorizer, libmagic_categorizer_,
-                                      logger_policies>(lgr);
+                                      hot_path_logger_policy>(lgr);
   }
 
  private:

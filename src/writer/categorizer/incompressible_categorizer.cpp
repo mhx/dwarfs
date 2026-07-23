@@ -299,7 +299,7 @@ incompressible_categorizer_::job(file_path_info const& path,
 
   return make_unique_logging_object<sequential_categorizer_job,
                                     incompressible_categorizer_job_,
-                                    logger_policies>(
+                                    hot_path_logger_policy>(
       lgr_, config_, ctxmgr_, path.full_path(), total_size, mapper);
 }
 

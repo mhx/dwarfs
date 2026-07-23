@@ -2627,7 +2627,7 @@ metadata_v2::metadata_v2(
     int inode_offset, bool force_consistency_check,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
-                                       logger_policies>(
+                                       hot_path_logger_policy>(
           lgr, schema, data, options, uncompressed_block_size, inode_offset,
           force_consistency_check, perfmon)) {}
 
