@@ -28,9 +28,14 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <memory>
+#include <span>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 namespace dwarfs {
 
@@ -58,6 +63,31 @@ struct shared_ptr_policy {
   }
 };
 
+/**
+ * Index of the first policy whose min_log_level covers the logger's current
+ * threshold. Panics if no policy covers it; callers are expected to have
+ * validated the threshold against max_supported_log_level beforehand.
+ */
+size_t select_logger_policy(logger const& lgr,
+                            std::span<unsigned const> min_log_levels);
+
+/**
+ * A policy list is well-formed if it is non-empty and its min_log_level values
+ * are strictly ascending. Strictness matters: two policies with the same level
+ * would make the second one unreachable.
+ */
+template <typename... Policies>
+consteval bool policies_are_ordered() {
+  if constexpr (sizeof...(Policies) == 0) {
+    return false;
+  } else {
+    constexpr std::array<unsigned, sizeof...(Policies)> levels{
+        Policies::min_log_level...};
+    return std::ranges::is_sorted(levels) &&
+           std::ranges::adjacent_find(levels) == levels.end();
+  }
+}
+
 class logging_class_factory {
  public:
   template <template <class> class T, class CreatePolicy,
@@ -74,27 +104,27 @@ class logging_class_factory {
   static CreatePolicy::return_type
   create_unwrap(logger& lgr, std::type_identity<std::tuple<LoggerPolicies...>>,
                 Args&&... args) {
-    return create_impl<T, CreatePolicy, LoggerPolicies...>(
+    static_assert(sizeof...(LoggerPolicies) > 0,
+                  "logger policy list must not be empty");
+    static_assert(policies_are_ordered<LoggerPolicies...>(),
+                  "logger policies must be sorted by strictly ascending "
+                  "min_log_level");
+
+    using return_type = typename CreatePolicy::return_type;
+    using factory_type = return_type (*)(logger&, Args&&...);
+
+    static constexpr std::array<unsigned, sizeof...(LoggerPolicies)> levels{
+        LoggerPolicies::min_log_level...};
+
+    static constexpr std::array<factory_type, sizeof...(LoggerPolicies)>
+        factories{+[](logger& l, Args&&... a) -> return_type {
+          return CreatePolicy::template create<T<LoggerPolicies>>(
+              l, std::forward<Args>(a)...);
+        }...};
+
+    return factories[select_logger_policy(lgr, levels)](
         lgr, std::forward<Args>(args)...);
   }
-
-  template <template <class> class T, class CreatePolicy, class LoggerPolicy,
-            class... Rest, class... Args>
-  static CreatePolicy::return_type create_impl(logger& lgr, Args&&... args) {
-    if (is_policy_name(lgr, LoggerPolicy::name())) {
-      return CreatePolicy::template create<T<LoggerPolicy>>(
-          lgr, std::forward<Args>(args)...);
-    }
-    if constexpr (sizeof...(Rest) > 0) {
-      return create_impl<T, CreatePolicy, Rest...>(lgr,
-                                                   std::forward<Args>(args)...);
-    } else {
-      on_policy_not_found(lgr);
-    }
-  }
-
-  static bool is_policy_name(logger const& lgr, std::string_view name);
-  [[noreturn]] static void on_policy_not_found(logger const& lgr);
 };
 
 } // namespace detail

@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <iosfwd>
@@ -41,6 +42,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <dwarfs/config.h>
 #include <dwarfs/detail/logging_class_factory.h>
 #include <dwarfs/source_location.h>
 
@@ -69,22 +71,11 @@ class logger {
   write(level_type level, std::string_view output, source_location loc) = 0;
   virtual level_type threshold() const = 0;
 
-  std::string_view policy_name() const { return policy_name_; }
-
   static level_type parse_level(std::string_view level);
   static std::string_view level_name(level_type level);
 
+  // all log levels supported by this build as a comma-separated list
   static std::string all_level_names();
-
- protected:
-  template <class Policy>
-  void set_policy() // TODO: construction time arg?
-  {
-    policy_name_ = Policy::name();
-  }
-
- private:
-  std::string_view policy_name_;
 };
 
 std::ostream& operator<<(std::ostream& os, logger::level_type const& optval);
@@ -108,6 +99,10 @@ class stream_logger : public logger {
              source_location loc) override;
   level_type threshold() const override;
 
+  // NOTE: the logging policy of an object created through
+  // make_{unique,shared}_logging_object() is latched at construction time.
+  // Raising the threshold afterwards does not make a prod-policy object start
+  // emitting DEBUG or TRACE messages.
   void set_threshold(level_type threshold);
   void set_with_context(bool with_context) { with_context_ = with_context; }
 
@@ -134,7 +129,7 @@ class stream_logger : public logger {
 
 class null_logger : public logger {
  public:
-  null_logger();
+  null_logger() = default;
 
   void write(level_type, std::string_view, source_location) override {}
   level_type threshold() const override { return FATAL; }
@@ -218,6 +213,8 @@ using timed_logger_type =
 template <unsigned MinLogLevel>
 class MinimumLogLevelPolicy {
  public:
+  static constexpr unsigned min_log_level = MinLogLevel;
+
   template <unsigned Level>
   using logger_type = detail::logger_type<Level <= MinLogLevel>;
 
@@ -380,17 +377,68 @@ class log_proxy {
 #define LOG_CPU_TIMED_DEBUG log_.cpu_timed_debug(DWARFS_CURRENT_SOURCE_LOCATION)
 #define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(DWARFS_CURRENT_SOURCE_LOCATION)
 
-class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {
- public:
-  static std::string_view name() { return "prod"; }
+class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {};
+class debug_logger_policy : public MinimumLogLevelPolicy<logger::TRACE> {};
+
+namespace detail {
+
+template <typename... Policies>
+struct logger_policy_list_impl {
+  static_assert(policies_are_ordered<Policies...>(),
+                "logger policies must be sorted by strictly ascending "
+                "min_log_level");
+  using type = std::tuple<Policies...>;
 };
 
-class debug_logger_policy : public MinimumLogLevelPolicy<logger::TRACE> {
- public:
-  static std::string_view name() { return "debug"; }
-};
+} // namespace detail
 
-using logger_policies = std::tuple<debug_logger_policy, prod_logger_policy>;
+/**
+ * Policy lists must be ordered by ascending min_log_level: selection picks the
+ * first policy covering the logger's threshold, so the least permissive policy
+ * has to come first.
+ */
+template <typename... Policies>
+using logger_policy_list =
+    typename detail::logger_policy_list_impl<Policies...>::type;
+
+/**
+ * hot_path_logger_policy: for classes that log on hot code paths. Splits into
+ * one instantiation per policy so a production run pays nothing for DEBUG and
+ * TRACE statements, at the cost of duplicated code.
+ *
+ * default_logger_policy: everything else, a single instantiation.
+ */
+using hot_path_logger_policy =
+    logger_policy_list<prod_logger_policy, debug_logger_policy>;
+using default_logger_policy = logger_policy_list<debug_logger_policy>;
+
+// TODO:
+// #ifdef DWARFS_SIZE_OPTIMIZED_BUILD
+// using hot_path_logger_policy = logger_policy_list<prod_logger_policy>;
+// using default_logger_policy = logger_policy_list<prod_logger_policy>;
+// #else
+
+// TODO: remove once every call site names one of the two aliases above
+using logger_policies = hot_path_logger_policy;
+
+/**
+ * The highest level a policy list can emit, i.e. the min_log_level of its last
+ * and most permissive entry.
+ */
+template <typename List>
+constexpr inline logger::level_type max_log_level_v =
+    static_cast<logger::level_type>(
+        std::tuple_element_t<std::tuple_size_v<List> - 1, List>::min_log_level);
+
+/**
+ * The highest level this build can emit from every policy list, and therefore
+ * the highest level a command line option should accept. Aggregated with min:
+ * advertising more would panic as soon as an object using the weaker list gets
+ * constructed.
+ */
+constexpr inline logger::level_type kMaxSupportedLogLevel =
+    std::min(max_log_level_v<default_logger_policy>,
+             max_log_level_v<hot_path_logger_policy>);
 
 template <class Base, template <class> class T, class LoggerPolicyList,
           class... Args>
