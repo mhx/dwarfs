@@ -544,7 +544,7 @@ inode_reader_v2::inode_reader_v2(
     inode_reader_options const& opts,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<inode_reader_v2::impl, inode_reader_,
-                                       logger_policies>(lgr, os, std::move(bc),
-                                                        opts, perfmon)) {}
+                                       hot_path_logger_policy>(
+          lgr, os, std::move(bc), opts, perfmon)) {}
 
 } // namespace dwarfs::reader::internal

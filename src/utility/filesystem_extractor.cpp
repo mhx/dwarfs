@@ -860,8 +860,9 @@ filesystem_extractor::filesystem_extractor(
     logger& lgr, os_access const& os, std::shared_ptr<file_access const> fa)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
                                        internal::filesystem_extractor_,
-                                       logger_policies>(lgr, os,
-                                                        std::move(fa))) {}
+                                       hot_path_logger_policy>(lgr, os,
+                                                               std::move(fa))) {
+}
 
 void filesystem_extractor::add_library_dependencies(
     library_dependencies& deps) {

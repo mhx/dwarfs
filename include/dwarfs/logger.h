@@ -418,9 +418,6 @@ using default_logger_policy = logger_policy_list<debug_logger_policy>;
 // using default_logger_policy = logger_policy_list<prod_logger_policy>;
 // #else
 
-// TODO: remove once every call site names one of the two aliases above
-using logger_policies = hot_path_logger_policy;
-
 /**
  * The highest level a policy list can emit, i.e. the min_log_level of its last
  * and most permissive entry.

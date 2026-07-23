@@ -1341,7 +1341,7 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      std::istream* header)
     : impl_{make_unique_logging_object<internal::filesystem_writer_detail,
                                        internal::filesystem_writer_,
-                                       logger_policies>(
+                                       hot_path_logger_policy>(
           lgr, os, pool.get_worker_group(), prog.get_internal(), options,
           header)} {}
 

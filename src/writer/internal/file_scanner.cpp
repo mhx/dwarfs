@@ -708,7 +708,8 @@ file_scanner::file_scanner(logger& lgr, entry_storage& storage,
                            worker_group& wg, os_access const& os,
                            inode_manager& im, progress& prog,
                            options const& opts)
-    : impl_{make_unique_logging_object<impl, file_scanner_, logger_policies>(
+    : impl_{make_unique_logging_object<impl, file_scanner_,
+                                       hot_path_logger_policy>(
           lgr, storage, wg, os, im, prog, opts)} {}
 
 } // namespace dwarfs::writer::internal

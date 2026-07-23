@@ -285,7 +285,9 @@ filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
 rule_based_entry_filter::rule_based_entry_filter(
     logger& lgr, std::shared_ptr<file_access const> fa)
     : impl_(make_unique_logging_object<impl, internal::rule_based_entry_filter_,
-                                       logger_policies>(lgr, std::move(fa))) {}
+                                       hot_path_logger_policy>(lgr,
+                                                               std::move(fa))) {
+}
 
 rule_based_entry_filter::~rule_based_entry_filter() = default;
 
