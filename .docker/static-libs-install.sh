@@ -7,8 +7,10 @@ set -ex
 
 ARCH="$(uname -m)"
 
+LLVM_MAJOR="22"
+
 GCC="gcc"
-CLANG="clang-22"
+CLANG="clang-$LLVM_MAJOR"
 PKGS="$1"
 TARGET_ARCH="$2"
 COMPILER="$3"
@@ -21,7 +23,11 @@ if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,flac,fmt,fuse,fuse3,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
+    if [[ "$COMPILER" == clang* ]] && [[ "$TARGET_ARCH" != "arm" ]]; then
+      # add llvm to PKGS
+      PKGS="llvm${PKGS:+,$PKGS}"
+    fi
 fi
 
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
@@ -142,6 +148,9 @@ case "$CARCH" in
     *)           MAX_LG_PAGE_SIZE=16 ;;
 esac
 
+LIBCXX_RUNTIMES="libcxx;libcxxabi"
+LIBCXX_UNWIND_ARGS="-DLIBCXXABI_USE_LLVM_UNWINDER=OFF"
+
 export TARGET="${CARCH}-alpine-linux-musl"
 
 case "$CARCH" in
@@ -207,10 +216,11 @@ esac
 
 case "$COMPILER" in
     *-lto)
-        export SIZE_CFLAGS="$SIZE_CFLAGS -flto"
-        export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto"
-        export PERF_CFLAGS="$PERF_CFLAGS -flto"
-        export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
+        COMMON_DEBUG_FLAGS="-g1 -gno-column-info -gz=zstd"
+        export SIZE_CFLAGS="$SIZE_CFLAGS -flto $COMMON_DEBUG_FLAGS"
+        export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto $COMMON_DEBUG_FLAGS"
+        export PERF_CFLAGS="$PERF_CFLAGS -flto $COMMON_DEBUG_FLAGS"
+        export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto $COMMON_DEBUG_FLAGS"
         export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
         ;;
     gcc*)
@@ -244,6 +254,34 @@ NINJA_PARALLEL="ninja -j$CORES -l$CORES"
 
 cd "$WORKROOT"
 mkdir -p "$WORKSUBDIR"
+
+if use_lib llvm; then
+    opt_size
+    cd "$WORKDIR"
+    tar xf ${WORKROOT}/${LLVM_TARBALL}
+    cd llvm-project-${LLVM_VERSION}.src/runtimes
+    mkdir build
+    cd build
+    cmake .. -DLLVM_ENABLE_RUNTIMES="$LIBCXX_RUNTIMES" \
+             $LIBCXX_UNWIND_ARGS \
+             -DLIBCXX_ENABLE_SHARED=OFF \
+             -DLIBCXXABI_ENABLE_SHARED=OFF \
+             -DLIBCXX_ENABLE_STATIC_ABI_LIBRARY=ON \
+             -DLIBCXX_HARDENING_MODE=none \
+             -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+             -DLIBCXX_INCLUDE_TESTS=OFF \
+             -DLIBCXX_HAS_MUSL_LIBC=ON \
+             -DCMAKE_AR=/usr/bin/llvm${LLVM_MAJOR}-ar \
+             -DCMAKE_RANLIB=/usr/bin/llvm${LLVM_MAJOR}-ranlib \
+             -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+    $NINJA_PARALLEL
+    ninja install
+
+    # These affect the remaining libraries
+    LIBCXX_CXXFLAGS="-stdlib=libc++ -nostdinc++ -isystem $INSTALL_DIR/include/c++/v1"
+    export SIZE_CXXFLAGS="$SIZE_CXXFLAGS $LIBCXX_CXXFLAGS"
+    export PERF_CXXFLAGS="$PERF_CXXFLAGS $LIBCXX_CXXFLAGS"
+fi
 
 if use_lib libucontext; then
     opt_size
@@ -281,6 +319,20 @@ if use_lib utfcpp; then
     mkdir build
     cd build
     cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+    $NINJA_PARALLEL
+    ninja install
+fi
+
+if use_lib hhdate; then
+    opt_size
+    cd "$WORKDIR"
+    tar xf ${WORKROOT}/${DATE_TARBALL}
+    cd date-${DATE_VERSION}
+    mkdir build
+    cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+             -DBUILD_TZ_LIB=OFF -DENABLE_DATE_TESTING=OFF \
+             ${CMAKE_ARGS}
     $NINJA_PARALLEL
     ninja install
 fi
