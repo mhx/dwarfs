@@ -276,7 +276,7 @@ make_worker_group_impl(logger& lgr, os_access const& os,
                        worker_group_options const& options,
                        worker_group_impl::state_factory&& sf) {
   return make_unique_logging_object<worker_group_impl, worker_group_impl_,
-                                    hot_path_logger_policy>(
+                                    default_logger_policy>(
       lgr, os, group_name, options, std::move(sf));
 }
 

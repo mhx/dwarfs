@@ -301,8 +301,8 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
 
 inode_ordering::inode_ordering(logger& lgr, progress& prog,
                                inode_options const& opts)
-    : impl_(make_unique_logging_object<impl, internal::inode_ordering_,
-                                       hot_path_logger_policy>(lgr, prog,
-                                                               opts)) {}
+    : impl_(
+          make_unique_logging_object<impl, internal::inode_ordering_,
+                                     default_logger_policy>(lgr, prog, opts)) {}
 
 } // namespace dwarfs::writer::internal

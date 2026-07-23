@@ -1286,14 +1286,14 @@ block_mapping::map_chunk(size_t offset, size_t size) const {
 
 metadata_builder::metadata_builder(logger& lgr, metadata_options const& options)
     : impl_{make_unique_logging_object<impl, metadata_builder_,
-                                       hot_path_logger_policy>(lgr, options)} {}
+                                       default_logger_policy>(lgr, options)} {}
 
 metadata_builder::metadata_builder(
     logger& lgr, thrift::metadata::metadata const& md,
     thrift::metadata::fs_options const* orig_fs_options,
     filesystem_version const& orig_fs_version, metadata_options const& options)
     : impl_{make_unique_logging_object<impl, metadata_builder_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, md, orig_fs_options, orig_fs_version, options)} {}
 
 metadata_builder::metadata_builder(
@@ -1301,7 +1301,7 @@ metadata_builder::metadata_builder(
     thrift::metadata::fs_options const* orig_fs_options,
     filesystem_version const& orig_fs_version, metadata_options const& options)
     : impl_{make_unique_logging_object<impl, metadata_builder_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, std::move(md), orig_fs_options, orig_fs_version, options)} {}
 
 metadata_builder::~metadata_builder() = default;

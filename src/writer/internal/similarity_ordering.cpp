@@ -695,7 +695,7 @@ similarity_ordering::similarity_ordering(
     logger& lgr, progress& prog, internal::worker_group& wg,
     similarity_ordering_options const& opts)
     : impl_(make_unique_logging_object<impl, internal::similarity_ordering_,
-                                       hot_path_logger_policy>(lgr, prog, wg,
-                                                               opts)) {}
+                                       default_logger_policy>(lgr, prog, wg,
+                                                              opts)) {}
 
 } // namespace dwarfs::writer::internal

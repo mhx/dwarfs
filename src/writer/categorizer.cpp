@@ -275,8 +275,8 @@ categorizer_job
 categorizer_manager_<LoggerPolicy>::job(fs::path const& path) const {
   return categorizer_job(
       make_unique_logging_object<categorizer_job::impl, categorizer_job_,
-                                 hot_path_logger_policy>(lgr_, *this,
-                                                         root_path_, path));
+                                 default_logger_policy>(lgr_, *this, root_path_,
+                                                        path));
 }
 
 template <typename LoggerPolicy>
@@ -378,7 +378,7 @@ categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
 
 categorizer_manager::categorizer_manager(logger& lgr, fs::path root)
     : impl_(make_unique_logging_object<impl, internal::categorizer_manager_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, std::move(root))) {}
 
 fragment_category categorizer_manager::default_category() {

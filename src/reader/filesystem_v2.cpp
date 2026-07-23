@@ -1628,8 +1628,9 @@ filesystem_v2_lite::filesystem_v2_lite(
     : filesystem_v2_lite(
           make_unique_logging_object<filesystem_v2_lite::impl_lite,
                                      internal::filesystem_lite_,
-                                     hot_path_logger_policy>(
-              lgr, os, mm, options, perfmon)) {}
+                                     default_logger_policy>(lgr, os, mm,
+                                                            options, perfmon)) {
+}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
@@ -1652,7 +1653,7 @@ filesystem_v2::filesystem_v2(
     std::shared_ptr<performance_monitor const> const& perfmon)
     : filesystem_v2_lite(make_unique_logging_object<filesystem_v2::impl,
                                                     internal::filesystem_full_,
-                                                    hot_path_logger_policy>(
+                                                    default_logger_policy>(
           lgr, os, mm, options, perfmon)) {}
 
 int filesystem_v2::identify(logger& lgr, os_access const& os,
