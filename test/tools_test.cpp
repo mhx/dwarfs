@@ -1410,7 +1410,11 @@ TEST_P(tools_test, end_to_end) {
         "-ocase_insensitive,block_allocator=mmap",
         "-ooffset=auto",
         "-omlock=try",
+#if DWARFS_DEBUG_LOGGING_ENABLED
         "-odebuglevel=debug",
+#else
+        "-odebuglevel=verbose",
+#endif
         "-otidy_strategy=time,cache_files",
         "-otidy_interval=1s,tidy_max_age=2s",
         "-opreload_all",

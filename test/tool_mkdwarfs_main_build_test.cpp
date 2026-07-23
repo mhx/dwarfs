@@ -61,11 +61,17 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   auto opts = GetParam();
   auto options = test::parse_args(opts);
   std::string const image_file = "test.dwarfs";
-  std::vector<std::string> args = {
-      "-i", "/", "-o", image_file, "-C", "zstd:level=9", "--log-level=debug"};
-  args.insert(args.end(), options.begin(), options.end());
 
   auto t = mkdwarfs_tester::create_empty();
+
+  std::vector<std::string> args = {"-i",
+                                   "/",
+                                   "-o",
+                                   image_file,
+                                   "-C",
+                                   "zstd:level=9",
+                                   t.safe_log_level_opt(logger::DEBUG)};
+  args.insert(args.end(), options.begin(), options.end());
 
   t.add_root_dir();
   t.add_random_file_tree();
@@ -886,7 +892,8 @@ TEST_P(fragment_order_test, basic) {
   t.os->add_file("c/d", 16, true);
   t.os->add_file("e", 32, true);
 
-  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--log-level=verbose",
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file,
+                      t.safe_log_level_opt(logger::VERBOSE),
                       "--order=" + std::string{option}, "-B0"}))
       << t.err();
 
@@ -993,7 +1000,8 @@ TEST(mkdwarfs_test, hotness_categorizer) {
   t.fa->set_file("hot", hot_files.str());
 
   ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize=hotness",
-                      "--hotness-list=hot", "-B0", "-l1", "--log-level=debug"}))
+                      "--hotness-list=hot", "-B0", "-l1",
+                      t.safe_log_level_opt(logger::DEBUG)}))
       << t.err();
 
   auto fs = t.fs_from_file(image_file);

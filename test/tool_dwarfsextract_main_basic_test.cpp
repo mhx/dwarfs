@@ -63,7 +63,7 @@ TEST(dwarfsextract_test, filters) {
   auto t = dwarfsextract_tester::create_with_image();
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "gnutar", "--format-filters",
                       "zstd", "--format-options", "zstd:compression-level=3",
-                      "--log-level=debug"}))
+                      t.safe_log_level_opt(logger::DEBUG)}))
       << t.err();
 
   auto out = t.out();
@@ -271,7 +271,7 @@ TEST_P(dwarfsextract_format_test, basic) {
   auto t = dwarfsextract_tester::create_with_image();
   int const expected_exit = fmt.expected_error ? 1 : 0;
   std::vector<std::string> args{"-i", "image.dwarfs", "-f", fmt.name,
-                                "--log-level=debug"};
+                                t.safe_log_level_opt(logger::DEBUG)};
   if (use_matcher) {
     args.push_back("**/b*.pl");
     args.push_back("**/ipsum.*");
@@ -424,7 +424,8 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
 
   auto t = dwarfsextract_tester::create_with_image(image);
 
-  std::vector<std::string> args{"-i", "image.dwarfs", "--log-level=debug",
+  std::vector<std::string> args{"-i", "image.dwarfs",
+                                t.safe_log_level_opt(logger::DEBUG),
                                 "--num-disk-writers=8"};
   std::optional<temporary_directory> temp_dir;
 

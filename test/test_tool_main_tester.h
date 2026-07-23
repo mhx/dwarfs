@@ -64,9 +64,6 @@ extern std::filesystem::path const audio_data_dir;
 extern std::filesystem::path const fits_data_dir;
 extern std::filesystem::path const binary_data_dir;
 
-constexpr std::array<std::string_view, 6> const log_level_strings{
-    "error", "warn", "info", "verbose", "debug", "trace"};
-
 enum class input_mode {
   from_file,
   from_stdin,
@@ -107,6 +104,8 @@ class tester_common {
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<test::test_iolayer> iol;
+
+  std::string safe_log_level_opt(logger::level_type level) const;
 
  private:
   main_ptr_t main_;

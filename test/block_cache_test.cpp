@@ -96,7 +96,7 @@ TEST_P(options_test, cache_stress) {
     mm = test::make_mock_file_view(iol.out());
   }
 
-  test::test_logger lgr(logger::TRACE);
+  test::test_logger lgr(std::min(logger::TRACE, kMaxSupportedLogLevel));
   reader::filesystem_options opts{
       .block_cache = cache_opts,
   };
