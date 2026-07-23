@@ -1074,7 +1074,7 @@ void scanner_<LoggerPolicy>::scan(
 scanner::scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
                  os_access const& os, scanner_options const& options)
     : impl_(make_unique_logging_object<impl, internal::scanner_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, pool.get_worker_group(), sf, os, options)) {}
 
 } // namespace dwarfs::writer

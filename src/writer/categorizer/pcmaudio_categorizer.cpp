@@ -1189,7 +1189,7 @@ class pcmaudio_categorizer_factory : public categorizer_factory {
   create(logger& lgr, po::variables_map const& /*vm*/,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     return make_unique_logging_object<categorizer, pcmaudio_categorizer_,
-                                      hot_path_logger_policy>(lgr);
+                                      default_logger_policy>(lgr);
   }
 
  private:

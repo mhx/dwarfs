@@ -464,7 +464,7 @@ filesystem_parser::filesystem_parser(logger& lgr, file_view const& mm,
                                      file_off_t image_offset,
                                      file_off_t image_size)
     : impl_{make_unique_logging_object<impl, filesystem_parser_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, mm, image_offset, image_size)} {}
 
 } // namespace dwarfs::reader::internal

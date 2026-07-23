@@ -403,7 +403,7 @@ inode_manager::inode_manager(logger& lgr, entry_storage& storage,
                              progress& prog, fs::path const& root_path,
                              inode_options const& opts, bool list_mode)
     : impl_(make_unique_logging_object<impl, internal::inode_manager_,
-                                       hot_path_logger_policy>(
+                                       default_logger_policy>(
           lgr, storage, prog, root_path, opts, list_mode)) {}
 
 } // namespace dwarfs::writer::internal

@@ -823,8 +823,8 @@ block_cache::block_cache(
     logger& lgr, os_access const& os, file_view const& mm,
     block_cache_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : impl_(make_unique_logging_object<impl, block_cache_,
-                                       hot_path_logger_policy>(
-          lgr, os, mm, options, perfmon)) {}
+    : impl_(
+          make_unique_logging_object<impl, block_cache_, default_logger_policy>(
+              lgr, os, mm, options, perfmon)) {}
 
 } // namespace dwarfs::reader::internal
