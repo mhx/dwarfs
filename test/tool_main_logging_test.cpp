@@ -92,7 +92,7 @@ TEST_P(logging_test, end_to_end) {
 }
 
 INSTANTIATE_TEST_SUITE_P(mkdwarfs, logging_test,
-                         ::testing::ValuesIn(log_level_strings));
+                         ::testing::ValuesIn(logger::supported_levels()));
 
 class term_logging_test
     : public testing::TestWithParam<std::tuple<std::string_view, bool>> {};
@@ -107,8 +107,8 @@ TEST_P(term_logging_test, end_to_end) {
       {"debug", {"<dim-yellow>", 'D'}},
       {"trace", {"<gray>", 'T'}},
   };
-  auto const cutoff = std::ranges::find(log_level_strings, level);
-  ASSERT_FALSE(cutoff == log_level_strings.end());
+  auto const cutoff = std::ranges::find(logger::supported_levels(), level);
+  ASSERT_FALSE(cutoff == logger::supported_levels().end());
 
   {
     mkdwarfs_tester t;
@@ -121,7 +121,7 @@ TEST_P(term_logging_test, end_to_end) {
         << t.err();
 
     auto err = t.err();
-    auto it = log_level_strings.begin();
+    auto it = logger::supported_levels().begin();
 
     auto make_contains_regex = [fancy = fancy](auto m) {
       auto const& [color, prefix] = m->second;
@@ -139,7 +139,7 @@ TEST_P(term_logging_test, end_to_end) {
       ++it;
     }
 
-    while (it != log_level_strings.end()) {
+    while (it != logger::supported_levels().end()) {
       auto m = match.find(*it);
       EXPECT_FALSE(m == match.end());
       auto re = make_contains_regex(m);
@@ -151,7 +151,7 @@ TEST_P(term_logging_test, end_to_end) {
 
 INSTANTIATE_TEST_SUITE_P(
     mkdwarfs, term_logging_test,
-    ::testing::Combine(::testing::ValuesIn(log_level_strings),
+    ::testing::Combine(::testing::ValuesIn(logger::supported_levels()),
                        ::testing::Bool()));
 
 TEST(mkdwarfs_test, no_log_context) {
