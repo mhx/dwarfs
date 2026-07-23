@@ -57,14 +57,7 @@ class test_logger : public ::dwarfs::logger {
       : os_{os}
       , threshold_{threshold ? *threshold : default_threshold()}
       , output_threshold_{output_threshold(default_threshold())}
-      , output_{::dwarfs::getenv_is_enabled("DWARFS_TEST_LOGGER_OUTPUT")} {
-    if (threshold_ >= level_type::DEBUG ||
-        (output_ && output_threshold_ >= level_type::DEBUG)) {
-      set_policy<debug_logger_policy>();
-    } else {
-      set_policy<prod_logger_policy>();
-    }
-  }
+      , output_{::dwarfs::getenv_is_enabled("DWARFS_TEST_LOGGER_OUTPUT")} {}
 
   level_type threshold() const override {
     return output_ ? std::max(threshold_, output_threshold_) : threshold_;

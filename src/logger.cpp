@@ -26,10 +26,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstring>
 #include <exception>
 #include <iterator>
+#include <span>
 #include <stdexcept>
 #include <utility>
 
@@ -69,7 +72,22 @@ constexpr std::array<std::pair<std::string_view, logger::level_type>, 6>
         {"trace", logger::TRACE},
     }};
 
+// log_level_map must be sorted ascending by level_type
+static_assert(std::ranges::is_sorted(
+    log_level_map, {},
+    &std::pair<std::string_view, logger::level_type>::second));
+
+std::span<std::pair<std::string_view, logger::level_type> const>
+supported_log_levels() {
+  auto const max_index =
+      std::ranges::find_if(
+          log_level_map,
+          [](auto const& m) { return m.second > kMaxSupportedLogLevel; }) -
+      log_level_map.begin();
+  return std::span(log_level_map).subspan(0, max_index);
 }
+
+} // namespace
 
 char logger::level_char(level_type level) {
   switch (level) {
@@ -104,7 +122,7 @@ std::istream& operator>>(std::istream& is, logger::level_type& optval) {
 
 logger::level_type logger::parse_level(std::string_view level) {
   // don't parse FATAL here, it's a special case
-  for (auto const& [name, lvl] : log_level_map) {
+  for (auto const& [name, lvl] : supported_log_levels()) {
     if (level == name) {
       return lvl;
     }
@@ -113,7 +131,7 @@ logger::level_type logger::parse_level(std::string_view level) {
 }
 
 std::string_view logger::level_name(level_type level) {
-  for (auto const& [name, lvl] : log_level_map) {
+  for (auto const& [name, lvl] : supported_log_levels()) {
     if (level == lvl) {
       return name;
     }
@@ -124,7 +142,10 @@ std::string_view logger::level_name(level_type level) {
 
 std::string logger::all_level_names() {
   std::string result;
-  for (auto const& m : log_level_map) {
+  for (auto const& m : supported_log_levels()) {
+    if (m.second > kMaxSupportedLogLevel) {
+      continue;
+    }
     if (!result.empty()) {
       result += ", ";
     }
@@ -132,8 +153,6 @@ std::string logger::all_level_names() {
   }
   return result;
 }
-
-null_logger::null_logger() { set_policy<prod_logger_policy>(); }
 
 stream_logger::stream_logger(os_access const& acc,
                              logger_options const& options)
@@ -310,12 +329,6 @@ void stream_logger::write(level_type level, std::string_view output,
 
 void stream_logger::set_threshold(level_type threshold) {
   threshold_ = threshold;
-
-  if (threshold >= level_type::DEBUG) {
-    set_policy<debug_logger_policy>();
-  } else {
-    set_policy<prod_logger_policy>();
-  }
 }
 
 class timed_level_log_entry::state {
@@ -380,14 +393,28 @@ timed_level_log_entry::~timed_level_log_entry() {
 
 namespace detail {
 
-bool logging_class_factory::is_policy_name(logger const& lgr,
-                                           std::string_view name) {
-  return lgr.policy_name() == name;
-}
+size_t select_logger_policy(logger const& lgr,
+                            std::span<unsigned const> min_log_levels) {
+  assert(!min_log_levels.empty());
 
-void logging_class_factory::on_policy_not_found(logger const& lgr) {
-  DWARFS_THROW(runtime_error,
-               fmt::format("no such logger policy: {}", lgr.policy_name()));
+  auto const threshold = static_cast<unsigned>(lgr.threshold());
+
+  auto const it =
+      std::ranges::find_if(min_log_levels, [threshold](unsigned level) {
+        return threshold <= level;
+      });
+
+  if (it == min_log_levels.end()) [[unlikely]] {
+    // Not a user error: the command line is expected to have rejected the
+    // level against max_supported_log_level long before we get here.
+    DWARFS_PANIC(fmt::format(
+        "no logger policy covers log level {} (highest available: {})",
+        logger::level_name(static_cast<logger::level_type>(threshold)),
+        logger::level_name(
+            static_cast<logger::level_type>(min_log_levels.back()))));
+  }
+
+  return static_cast<size_t>(std::distance(min_log_levels.begin(), it));
 }
 
 } // namespace detail
