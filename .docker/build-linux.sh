@@ -225,7 +225,7 @@ esac
 case "-$BUILD_TYPE-" in
   *-static-*)
     case "$CROSS_ARCH" in
-      ppc64)
+      ppc64|loongarch64)
          # https://github.com/rui314/mold/issues/1498
          CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
          export LDFLAGS="${LDFLAGS} -fuse-ld=lld"
@@ -247,10 +247,7 @@ case "-$BUILD_TYPE-" in
     export CFLAGS="${CFLAGS} -flto=auto"
     export CXXFLAGS="${CXXFLAGS} -flto=auto"
     export LDFLAGS="${LDFLAGS} -flto=auto"
-    # On loongarch64, ICF currently causes SIGTRAPs, at least under qemu.
-    if [[ "$_MARCH" != "loongarch64" ]]; then
-      export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
-    fi
+    export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
     # GCC uses fat LTO objects
     if [[ "-$BUILD_TYPE-" != *-gcc-* ]]; then
       export COMPILER="${COMPILER}-lto"
