@@ -134,7 +134,7 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
     }
 
     if (auto exe = os.find_executable(p); !exe.empty()) {
-      if (exe.filename() == "less" && args.empty()) {
+      if (exe.stem() == "less" && args.empty()) {
         args.emplace_back("-R");
       }
       return pager_program{exe, args};
