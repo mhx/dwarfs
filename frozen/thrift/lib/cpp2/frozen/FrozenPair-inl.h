@@ -30,10 +30,7 @@ struct PairLayout : public LayoutBase {
   Field<FirstDecayed> firstField;
   Field<SecondDecayed> secondField;
 
-  PairLayout()
-      : LayoutBase(typeid(T)),
-        firstField(1, "first"),
-        secondField(2, "second") {}
+  PairLayout() : firstField(1, "first"), secondField(2, "second") {}
 
   FieldPosition maximize() {
     FieldPosition pos = startFieldPosition();
@@ -75,12 +72,16 @@ struct PairLayout : public LayoutBase {
   FROZEN_VIEW(FROZEN_VIEW_FIELD(first, FirstDecayed)
                   FROZEN_VIEW_FIELD(second, SecondDecayed))
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const final {
     LayoutBase::print(os, options, level);
-    os << dwarfs::thrift_lite::demangle(type.name());
+    os << dwarfs::thrift_lite::type_name<T>;
     firstField.print(os, options, level + 1);
     secondField.print(os, options, level + 1);
   }

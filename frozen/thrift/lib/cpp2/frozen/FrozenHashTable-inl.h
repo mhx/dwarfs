@@ -40,14 +40,14 @@ struct BlockLayout : public LayoutBase {
   Field<uint64_t, TrivialLayout<uint64_t>> maskField;
   Field<uint64_t> offsetField;
 
-  BlockLayout()
-      : LayoutBase(typeid(T)), maskField(1, "mask"), offsetField(2, "offset") {}
+  BlockLayout() : maskField(1, "mask"), offsetField(2, "offset") {}
 
   FieldPosition maximize();
   FieldPosition layout(LayoutRoot& root, const T& x, LayoutPosition self);
   void freeze(FreezeRoot& root, const T& x, FreezePosition self) const;
   void inspectData(
       DataInspectionContext& context, DataPosition self) const final;
+  std::string_view type_name() const final;
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},

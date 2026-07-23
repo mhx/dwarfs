@@ -23,7 +23,7 @@ struct BoolLayout : public LayoutBase {
 
   static constexpr bool kMayRequirePerItemInspection = false;
 
-  BoolLayout() : LayoutBase(typeid(T)) {}
+  BoolLayout() = default;
 
   FieldPosition maximize() {
     FieldPosition pos = startFieldPosition();
@@ -55,6 +55,10 @@ struct BoolLayout : public LayoutBase {
     } else {
       out = false;
     }
+  }
+
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
   }
 
   void print(

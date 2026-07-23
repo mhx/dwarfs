@@ -44,7 +44,7 @@
 
 #include <dwarfs/bit_view.h>
 #include <dwarfs/thrift_lite/assert.h>
-#include <dwarfs/thrift_lite/demangle.h>
+#include <dwarfs/thrift_lite/type_name.h>
 #include <dwarfs/thrift_lite/utility.h>
 
 namespace apache::thrift::frozen {
@@ -213,7 +213,6 @@ struct LayoutBase {
    * Locally computed layouts use kNoSchemaLayoutId.
    */
   int16_t schemaLayoutId = kNoSchemaLayoutId;
-  std::type_index type;
 
   /**
    * Default constructor: Initializes a fully usable zero-byte layout. A view of
@@ -221,7 +220,7 @@ struct LayoutBase {
    * needed for representing fields which were not present in a serialized
    * structure.
    */
-  explicit LayoutBase(std::type_index _type) : type(_type) {}
+  LayoutBase() = default;
 
   /**
    * Internal: Updates the size of this structure according the the result of a
@@ -250,6 +249,11 @@ struct LayoutBase {
    * Clears the layout back to a zero-byte layout, recursively.
    */
   virtual void clear();
+
+  /**
+   * Returns the demangled name of the type for which this layout was created.
+   */
+  virtual std::string_view type_name() const;
 
   /**
    * Prints a description of this layout to the given stream, recursively
@@ -414,7 +418,7 @@ class DataInspectionContext {
       std::span<const byte> data, DataInspectionOptions options = {});
   DataInspectionContext(
       std::span<const byte> data,
-      std::type_index rootType,
+      std::string_view rootType,
       DataInspectionOptions options = {});
 
   const DataInspectionOptions& options() const noexcept { return options_; }
@@ -469,7 +473,7 @@ class DataInspectionContext {
   std::span<const byte> data_;
   DataInspectionOptions options_;
   size_t logicalSize_{0};
-  std::string rootType_;
+  std::string_view rootType_;
   std::vector<PathComponent> path_;
   std::optional<DataPosition> currentPosition_;
   std::map<size_t, OccupiedRegion> occupiedRegions_;
@@ -1075,7 +1079,7 @@ DataInspectionResult inspectFrozenData(
     const Layout<T>& layout,
     std::span<const byte> data,
     DataInspectionOptions options = {}) {
-  DataInspectionContext context(data, typeid(T), options);
+  DataInspectionContext context(data, layout.type_name(), options);
   const auto rootBytes = layout.size != 0
       ? layout.size
       : (layout.bits / 8 + static_cast<size_t>(layout.bits % 8 != 0));

@@ -41,10 +41,7 @@ struct StringLayout : public LayoutBase {
   Field<size_t> distanceField;
   Field<size_t> countField;
 
-  StringLayout()
-      : LayoutBase(typeid(T)),
-        distanceField(1, "distance"),
-        countField(2, "count") {}
+  StringLayout() : distanceField(1, "distance"), countField(2, "count") {}
 
   FieldPosition maximize() {
     FieldPosition pos = startFieldPosition();
@@ -129,12 +126,16 @@ struct StringLayout : public LayoutBase {
     return range;
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     LayoutBase::print(os, options, level);
-    os << "string of " << dwarfs::thrift_lite::demangle(type.name());
+    os << "string of " << dwarfs::thrift_lite::type_name<T>;
     distanceField.print(os, options, level + 1);
     countField.print(os, options, level + 1);
   }
