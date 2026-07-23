@@ -165,10 +165,10 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
           return !hash_cache[i].has_value();
         });
 
-    std::sort(index.begin(), start, size_pred);
+    std::ranges::sort(index.begin(), start, size_pred);
   }
 
-  std::sort(start, index.end(), [&](auto const a, auto const b) {
+  std::ranges::sort(start, index.end(), [&](auto const a, auto const b) {
     assert(hash_cache[a].has_value());
     assert(hash_cache[b].has_value());
 
@@ -199,7 +199,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
     });
 
     if (mid != index.begin()) {
-      std::sort(index.begin(), mid, [&](auto a, auto b) {
+      std::ranges::sort(index.begin(), mid, [&](auto a, auto b) {
         return inode_less_by_size(sp.raw_handle(a), sp.raw_handle(b));
       });
 
