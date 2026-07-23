@@ -34,7 +34,7 @@ struct FixedSizeStringLayout : public LayoutBase {
 
   static constexpr bool kMayRequirePerItemInspection = false;
 
-  FixedSizeStringLayout() : LayoutBase(typeid(T)) {}
+  FixedSizeStringLayout() = default;
 
   FieldPosition maximize() { return FieldPosition(T::kFixedSize, 0); }
 
@@ -62,12 +62,16 @@ struct FixedSizeStringLayout : public LayoutBase {
     }
   }
 
+  std::string_view type_name() const final {
+    return dwarfs::thrift_lite::type_name<T>;
+  }
+
   void print(
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const override {
     LayoutBase::print(os, options, level);
-    os << dwarfs::thrift_lite::demangle(type.name());
+    os << dwarfs::thrift_lite::type_name<T>;
   }
 
   void validate(LoadRoot& root) const override {

@@ -82,7 +82,7 @@
 #define FROZEN_CTOR_FIELD_REQ FROZEN_CTOR_FIELD
 #define FROZEN_CTOR_FIELD_REF FROZEN_CTOR_FIELD
 #define FROZEN_CTOR(TYPE, ...) \
-  Layout<TYPE>::Layout() : LayoutBase(typeid(TYPE)) __VA_ARGS__ {}
+  Layout<TYPE>::Layout() : LayoutBase() __VA_ARGS__ {}
 
 #define FROZEN_MAXIMIZE_FIELD(NAME) pos = maximizeField(pos, this->NAME##Field)
 

@@ -71,6 +71,10 @@ void LayoutBase::clear() {
   schemaLayoutId = kNoSchemaLayoutId;
 }
 
+std::string_view LayoutBase::type_name() const {
+  return "<unknown>";
+}
+
 void LayoutBase::validate(LoadRoot&) const {
   const auto bitBytes = bits / 8 + static_cast<size_t>(bits % 8 != 0);
   if (size > 0 && bitBytes > size) {
@@ -129,11 +133,11 @@ DataInspectionContext::DataInspectionContext(
 
 DataInspectionContext::DataInspectionContext(
     std::span<const byte> data,
-    std::type_index rootType,
+    std::string_view rootType,
     DataInspectionOptions options)
     : data_(data),
       options_(options),
-      rootType_(dwarfs::thrift_lite::demangle(rootType.name())),
+      rootType_(rootType),
       currentPosition_(DataPosition{}) {
   initialize();
 }
@@ -160,7 +164,7 @@ DataInspectionContext::PathScope DataInspectionContext::pushIndex(
 }
 
 std::string DataInspectionContext::path() const {
-  std::string result = rootType_.empty() ? "<unknown>" : rootType_;
+  std::string result = rootType_.empty() ? "<unknown>" : std::string{rootType_};
   for (const auto& component : path_) {
     switch (component.kind) {
       case PathComponent::Kind::Field:
@@ -517,10 +521,14 @@ void BlockLayout::inspectData(
   inspectDataField(context, self, offsetField);
 }
 
+std::string_view BlockLayout::type_name() const {
+  return dwarfs::thrift_lite::type_name<Block>;
+}
+
 void BlockLayout::print(
     std::ostream& os, const LayoutPrintOptions& options, int level) const {
   LayoutBase::print(os, options, level);
-  os << dwarfs::thrift_lite::demangle(type.name());
+  os << dwarfs::thrift_lite::type_name<Block>;
   maskField.print(os, options, level + 1);
   offsetField.print(os, options, level + 1);
 }
