@@ -50,6 +50,9 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
@@ -77,14 +80,28 @@ static_assert(std::ranges::is_sorted(
     log_level_map, {},
     &std::pair<std::string_view, logger::level_type>::second));
 
+constexpr size_t kMaxSupportedLogLevelIndex =
+    std::ranges::find_if(
+        log_level_map,
+        [](auto const& m) { return m.second > kMaxSupportedLogLevel; }) -
+    log_level_map.begin();
+
+consteval auto get_log_level_strings() {
+  std::array<std::string_view, log_level_map.size()> result{};
+  std::ranges::transform(log_level_map, result.begin(),
+                         [](auto const& m) { return m.first; });
+  return result;
+}
+
+constexpr auto log_level_strings = get_log_level_strings();
+
 std::span<std::pair<std::string_view, logger::level_type> const>
 supported_log_levels() {
-  auto const max_index =
-      std::ranges::find_if(
-          log_level_map,
-          [](auto const& m) { return m.second > kMaxSupportedLogLevel; }) -
-      log_level_map.begin();
-  return std::span(log_level_map).subspan(0, max_index);
+  return std::span(log_level_map).subspan(0, kMaxSupportedLogLevelIndex);
+}
+
+std::span<std::string_view const> supported_log_level_strings() {
+  return std::span(log_level_strings).subspan(0, kMaxSupportedLogLevelIndex);
 }
 
 } // namespace
@@ -141,17 +158,11 @@ std::string_view logger::level_name(level_type level) {
 }
 
 std::string logger::all_level_names() {
-  std::string result;
-  for (auto const& m : supported_log_levels()) {
-    if (m.second > kMaxSupportedLogLevel) {
-      continue;
-    }
-    if (!result.empty()) {
-      result += ", ";
-    }
-    result += m.first;
-  }
-  return result;
+  return fmt::format("{}", fmt::join(supported_log_level_strings(), ", "));
+}
+
+std::span<std::string_view const> logger::supported_levels() {
+  return supported_log_level_strings();
 }
 
 stream_logger::stream_logger(os_access const& acc,

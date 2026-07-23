@@ -68,7 +68,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   }
 
   std::vector<std::string> args = {"--input-list", input_file, "-o", image_file,
-                                   "--log-level=trace"};
+                                   t.safe_log_level_opt(logger::TRACE)};
   if (type != path_type::relative) {
     args.push_back("-i");
     args.push_back("/");
@@ -77,7 +77,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   ASSERT_EQ(0, t.run(args)) << t.err();
 
   std::ostringstream oss;
-  t.add_stream_logger(oss, logger::DEBUG);
+  t.add_stream_logger(oss, std::min(logger::DEBUG, kMaxSupportedLogLevel));
 
   auto fs = t.fs_from_file(image_file);
 
@@ -127,7 +127,7 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   }
 
   ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/somedir", "-o",
-                      image_file, "--log-level=trace"}))
+                      image_file, t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
   if (type == path_type::absolute) {
@@ -140,7 +140,7 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   }
 
   std::ostringstream oss;
-  t.add_stream_logger(oss, logger::DEBUG);
+  t.add_stream_logger(oss, std::min(logger::DEBUG, kMaxSupportedLogLevel));
 
   auto fs = t.fs_from_file(image_file);
 
@@ -234,7 +234,7 @@ TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
   t.iol->set_in(input_list);
 
   ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
-                      "--log-level=trace"}))
+                      t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
   EXPECT_THAT(t.err(),
@@ -242,7 +242,7 @@ TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
                   "skipping duplicate entry 'ipsum.py' in input list"));
 
   std::ostringstream oss;
-  t.add_stream_logger(oss, logger::DEBUG);
+  t.add_stream_logger(oss, std::min(logger::DEBUG, kMaxSupportedLogLevel));
 
   auto fs = t.fs_from_file(image_file);
 
@@ -272,7 +272,7 @@ TEST(mkdwarfs_test, input_list_abs_list_path_requires_abs_root_dir) {
   t.iol->set_in(input_list);
 
   EXPECT_NE(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
-                      "--log-level=trace"}))
+                      t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
   EXPECT_THAT(t.err(), ::testing::HasSubstr(
@@ -378,7 +378,7 @@ TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
   t.iol->set_in(input_list);
 
   ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
-                      "--log-level=trace"}))
+                      t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
   EXPECT_THAT(t.err(),
@@ -386,7 +386,7 @@ TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
                   "skipping duplicate entry 'ipsum.py' in input list"));
 
   std::ostringstream oss;
-  t.add_stream_logger(oss, logger::DEBUG);
+  t.add_stream_logger(oss, std::min(logger::DEBUG, kMaxSupportedLogLevel));
 
   auto fs = t.fs_from_file(image_file);
 

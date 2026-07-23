@@ -76,6 +76,7 @@ class logger {
 
   // all log levels supported by this build as a comma-separated list
   static std::string all_level_names();
+  static std::span<std::string_view const> supported_levels();
 };
 
 std::ostream& operator<<(std::ostream& os, logger::level_type const& optval);
@@ -408,15 +409,14 @@ using logger_policy_list =
  *
  * default_logger_policy: everything else, a single instantiation.
  */
+#if DWARFS_DEBUG_LOGGING_ENABLED
 using hot_path_logger_policy =
     logger_policy_list<prod_logger_policy, debug_logger_policy>;
 using default_logger_policy = logger_policy_list<debug_logger_policy>;
-
-// TODO:
-// #ifdef DWARFS_SIZE_OPTIMIZED_BUILD
-// using hot_path_logger_policy = logger_policy_list<prod_logger_policy>;
-// using default_logger_policy = logger_policy_list<prod_logger_policy>;
-// #else
+#else
+using hot_path_logger_policy = logger_policy_list<prod_logger_policy>;
+using default_logger_policy = logger_policy_list<prod_logger_policy>;
+#endif
 
 /**
  * The highest level a policy list can emit, i.e. the min_log_level of its last

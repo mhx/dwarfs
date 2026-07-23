@@ -104,6 +104,11 @@ int tester_common::run(std::string const& args) {
   return run(test::parse_args(args));
 }
 
+std::string tester_common::safe_log_level_opt(logger::level_type level) const {
+  level = std::min(level, kMaxSupportedLogLevel);
+  return "--log-level=" + std::string{logger::level_name(level)};
+}
+
 mkdwarfs_tester::mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
     : tester_common(tool::mkdwarfs_main, "mkdwarfs", std::move(pos)) {}
 

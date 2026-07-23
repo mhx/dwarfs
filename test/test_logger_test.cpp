@@ -138,7 +138,7 @@ TEST(test_logger, logger_output) {
 
 TEST(test_logger, logger_output_level) {
   scoped_env env;
-  env.set("DWARFS_TEST_LOGGER_LEVEL", "debug");
+  env.set("DWARFS_TEST_LOGGER_LEVEL", "verbose");
   env.set("DWARFS_TEST_LOGGER_OUTPUT", "1");
 
   std::ostringstream oss;
@@ -147,10 +147,10 @@ TEST(test_logger, logger_output_level) {
   LOG_PROXY(debug_logger_policy, lgr);
 
   EXPECT_TRUE(lgr.empty());
-  EXPECT_EQ(logger::DEBUG, lgr.threshold());
+  EXPECT_EQ(logger::VERBOSE, lgr.threshold());
 
   LOG_INFO << "info";
-  LOG_DEBUG << "debug";
+  LOG_VERBOSE << "verbose";
 
   auto const& ent = lgr.get_log();
   ASSERT_EQ(1, ent.size());
@@ -160,6 +160,6 @@ TEST(test_logger, logger_output_level) {
   auto const str = oss.str();
   EXPECT_THAT(str, testing::StartsWith("I "));
   EXPECT_THAT(str, testing::HasSubstr(__FILE__));
-  EXPECT_THAT(str, testing::HasSubstr("] info\nD "));
-  EXPECT_THAT(str, testing::EndsWith("] debug\n"));
+  EXPECT_THAT(str, testing::HasSubstr("] info\nV "));
+  EXPECT_THAT(str, testing::EndsWith("] verbose\n"));
 }

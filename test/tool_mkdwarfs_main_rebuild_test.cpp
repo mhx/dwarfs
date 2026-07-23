@@ -704,9 +704,10 @@ TEST(mkdwarfs_test, change_block_size) {
     }
 
     auto t2 = rebuild_tester(t.out());
-    ASSERT_EQ(0, t2.run({"-i", image_file, "-o", "-", "-S18", "-C",
-                         "zstd:level=5", "--change-block-size",
-                         "--keep-all-times", "--log-level=debug"}))
+    ASSERT_EQ(0,
+              t2.run({"-i", image_file, "-o", "-", "-S18", "-C", "zstd:level=5",
+                      "--change-block-size", "--keep-all-times",
+                      t.safe_log_level_opt(logger::DEBUG)}))
         << t2.err();
 
     {
@@ -732,7 +733,8 @@ TEST(mkdwarfs_test, change_block_size) {
       ASSERT_EQ(
           0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=5",
                      "--change-block-size", "--keep-all-times", "--no-check",
-                     "--log-level=debug", "--no-metadata-version-history"}))
+                     t.safe_log_level_opt(logger::DEBUG),
+                     "--no-metadata-version-history"}))
           << t3.err();
 
       {
