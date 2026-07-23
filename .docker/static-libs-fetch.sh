@@ -18,6 +18,7 @@ fetch_lib() {
     fetch.sh "$url" "$tarball"
 }
 
+fetch_lib llvm https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/${LLVM_TARBALL}
 fetch_lib boost https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz ${BOOST_TARBALL}
 fetch_lib libarchive https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/${LIBARCHIVE_TARBALL}
 fetch_lib flac https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/${FLAC_TARBALL}
@@ -39,6 +40,7 @@ fetch_lib jemalloc https://github.com/jemalloc/jemalloc/releases/download/${JEMA
 fetch_lib xz https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/${XZ_TARBALL}
 fetch_lib libdwarf https://github.com/davea42/libdwarf-code/releases/download/v${LIBDWARF_VERSION}/${LIBDWARF_TARBALL}
 fetch_lib nlohmann https://github.com/nlohmann/json/releases/download/v${NLOHMANN_VERSION}/json.hpp
+fetch_lib hhdate https://github.com/HowardHinnant/date/archive/refs/tags/v${DATE_VERSION}.tar.gz ${DATE_TARBALL}
 fetch_lib utfcpp https://github.com/nemtrif/utfcpp/archive/refs/tags/v${UTFCPP_VERSION}.tar.gz ${UTFCPP_TARBALL}
 fetch_lib range-v3 https://github.com/ericniebler/range-v3/archive/refs/tags/${RANGE_V3_VERSION}.tar.gz ${RANGE_V3_TARBALL}
 fetch_lib parallel-hashmap https://github.com/greg7mdp/parallel-hashmap/archive/refs/tags/v${PARALLEL_HASHMAP_VERSION}.tar.gz ${PARALLEL_HASHMAP_TARBALL}

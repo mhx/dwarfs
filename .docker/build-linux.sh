@@ -177,6 +177,10 @@ case "-$BUILD_TYPE-" in
     exit 1
 esac
 
+unset CFLAGS
+unset CXXFLAGS
+unset LDFLAGS
+
 case "-$BUILD_TYPE-" in
   *-debug-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Debug"
@@ -410,6 +414,11 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
   if [[ "$COMPILER" == clang* ]]; then
     export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc"
+
+    if [[ "$_MARCH" != "arm" ]]; then
+      export CXXFLAGS="${CXXFLAGS} -nostdinc++ -isystem $_staticprefix/include/c++/v1"
+      export LDFLAGS="${LDFLAGS} -stdlib=libc++"
+    fi
   fi
 
   export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -L$_sslprefix/lib -static -static-libgcc"

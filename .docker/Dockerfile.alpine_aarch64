@@ -27,6 +27,7 @@ RUN apk add --no-cache \
         gcc \
         g++ \
         clang22 \
+        llvm22 \
         lld \
         git \
         xz \

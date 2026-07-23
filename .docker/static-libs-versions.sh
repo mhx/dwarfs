@@ -4,6 +4,7 @@
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 
+LLVM_VERSION=22.1.8                      # 2026-06-16
 LIBARCHIVE_VERSION=3.8.8                 # 2026-06-23
 FLAC_VERSION=1.5.0                       # 2025-02-11
 LIBUCONTEXT_VERSION=1.5                  # 2025-12-12
@@ -26,9 +27,11 @@ XZ_VERSION=5.8.3                         # 2026-03-31
 LIBDWARF_VERSION=2.3.1                   # 2026-03-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 UTFCPP_VERSION=4.1.1                     # 2026-05-20
+DATE_VERSION=3.0.4                       # 2025-05-28
 RANGE_V3_VERSION=0.12.0                  # 2022-06-21
 PARALLEL_HASHMAP_VERSION=2.0.0           # 2025-01-21
 
+LLVM_TARBALL="llvm-project-${LLVM_VERSION}.src.tar.xz"
 FILE_TARBALL="file-${FILE_VERSION}.tar.gz"
 BOOST_TARBALL="boost-${BOOST_VERSION}.tar.xz"
 LIBARCHIVE_TARBALL="libarchive-${LIBARCHIVE_VERSION}.tar.xz"
@@ -51,5 +54,6 @@ JEMALLOC_TARBALL="jemalloc-${JEMALLOC_VERSION}.tar.bz2"
 XZ_TARBALL="xz-${XZ_VERSION}.tar.xz"
 LIBDWARF_TARBALL="libdwarf-${LIBDWARF_VERSION}.tar.xz"
 UTFCPP_TARBALL="utfcpp-${UTFCPP_VERSION}.tar.gz"
+DATE_TARBALL="date-${DATE_VERSION}.tar.gz"
 RANGE_V3_TARBALL="range-v3-${RANGE_V3_VERSION}.tar.gz"
 PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
