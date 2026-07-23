@@ -28,7 +28,11 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <string>
+#include <system_error>
+#include <vector>
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -37,16 +41,6 @@
 #endif
 
 #include <dwarfs/portability/unistd.h>
-
-#if __has_include(<boost/process/v2/environment.hpp>) && defined(DWARFS_HAVE_CLOSE_RANGE)
-#define BOOST_PROCESS_VERSION 2
-#include <boost/process/v2/environment.hpp>
-#elif __has_include(<boost/process/v1/search_path.hpp>)
-#define BOOST_PROCESS_VERSION 1
-#include <boost/process/v1/search_path.hpp>
-#else
-#include <boost/process/search_path.hpp>
-#endif
 
 #ifdef __FreeBSD__
 #include <pthread_np.h>
@@ -58,6 +52,7 @@
 #endif
 
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/io_ops.h>
@@ -72,6 +67,16 @@ namespace dwarfs {
 namespace fs = std::filesystem;
 
 namespace {
+
+#ifdef _WIN32
+constexpr inline bool kIsWindows = true;
+constexpr inline char kPathListSep = ';';
+constexpr inline int kExecOk = 0;
+#else
+constexpr inline bool kIsWindows = false;
+constexpr inline char kPathListSep = ':';
+constexpr inline int kExecOk = X_OK;
+#endif
 
 #ifdef _WIN32
 
@@ -293,14 +298,79 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
 #endif
 }
 
-std::filesystem::path
-os_access_generic::find_executable(std::filesystem::path const& name) const {
-#if BOOST_PROCESS_VERSION == 2
-  return boost::process::v2::environment::find_executable(name.wstring())
-      .wstring();
-#else
-  return boost::process::search_path(name.wstring()).wstring();
-#endif
+fs::path os_access_generic::find_executable(fs::path const& name) const {
+  DWARFS_PUSH_WARNING
+  DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
+
+  auto is_executable = [this](fs::path const& p) {
+    std::error_code ec;
+    // access() succeeds for directories (X means "searchable" there),
+    // so the file type has to be checked separately.
+    return fs::is_regular_file(p, ec) && access(p, kExecOk) == 0;
+  };
+
+  // on Windows, PATHEXT is a semicolon-separated list of extensions to try
+  // when searching for executables
+  auto const extensions = [this]() -> std::vector<std::string> {
+    if constexpr (kIsWindows) {
+      if (auto pathext = getenv("PATHEXT")) {
+        auto exts = split_to<std::vector<std::string>>(*pathext, kPathListSep);
+        std::erase_if(exts, [](auto const& e) { return e.empty(); });
+        if (!exts.empty()) {
+          return exts;
+        }
+      }
+      return {".COM", ".EXE", ".BAT", ".CMD"};
+    } else {
+      return {};
+    }
+  }();
+
+  auto try_base = [&](fs::path const& base) {
+    // an explicit extension is honoured as given, so e.g. "python3.11" still
+    // resolves even though ".11" is not in PATHEXT
+    if (!kIsWindows || base.has_extension()) {
+      if (is_executable(base)) {
+        return base;
+      }
+    }
+
+    for (auto const& ext : extensions) {
+      auto candidate = base;
+      candidate += ext;
+      if (is_executable(candidate)) {
+        return candidate;
+      }
+    }
+
+    return fs::path{};
+  };
+
+  // name carrying a directory component is used as-is
+  if (name.has_parent_path()) {
+    return try_base(name);
+  }
+
+  auto path_env = getenv("PATH");
+
+  if (!path_env) {
+    return {};
+  }
+
+  for (auto const& dir :
+       split_to<std::vector<std::string>>(*path_env, kPathListSep)) {
+    if (dir.empty()) {
+      continue;
+    }
+
+    if (auto found = try_base(fs::path{dir} / name); !found.empty()) {
+      return found;
+    }
+  }
+
+  return {};
+
+  DWARFS_POP_WARNING
 }
 
 std::chrono::nanoseconds
