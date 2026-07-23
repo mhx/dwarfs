@@ -46,6 +46,37 @@ bool inode_less_by_size(const_inode_handle const& a,
   return sa > sb || (sa == sb && a.first_file().less_revpath(b.first_file()));
 }
 
+using index_t = sortable_inode_span::index_type::value_type;
+
+// Type-erased comparison function for sorting indices.
+// This saves about 120 KiB in the static, stripped, size-optimized LTO binary,
+// or about 25 KiB after compression.
+class idx_less {
+ public:
+  template <typename F>
+  explicit idx_less(F const& f)
+      : ctx_{&f}
+      , fn_{[](void const* c, index_t a, index_t b) {
+        return (*static_cast<F const*>(c))(a, b);
+      }} {}
+
+  bool operator()(index_t a, index_t b) const { return fn_(ctx_, a, b); }
+
+ private:
+  void const* ctx_;
+  bool (*fn_)(void const*, index_t, index_t);
+};
+
+template <typename C, typename F>
+void sort_index(C& idx, F const& f) {
+  std::ranges::sort(idx, idx_less{f});
+}
+
+template <typename It, typename F>
+void sort_index(It begin, It end, F const& f) {
+  std::ranges::sort(begin, end, idx_less{f});
+}
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -84,7 +115,7 @@ class inode_ordering_ final : public inode_ordering::impl {
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_inode_number(
     sortable_inode_span& sp) const {
-  std::ranges::sort(sp.index(), [&sp](auto const a, auto const b) {
+  sort_index(sp.index(), [&sp](auto const a, auto const b) {
     auto const& ha = sp.raw_handle(a);
     auto const& hb = sp.raw_handle(b);
     return ha.num() < hb.num();
@@ -94,7 +125,7 @@ void inode_ordering_<LoggerPolicy>::by_inode_number(
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_input_order(
     sortable_inode_span& sp) const {
-  std::ranges::sort(sp.index(), [&sp](auto const a, auto const b) {
+  sort_index(sp.index(), [&sp](auto const a, auto const b) {
     auto const& ha = sp.raw_handle(a);
     auto const& hb = sp.raw_handle(b);
     return ha.first_file().order_index() < hb.first_file().order_index();
@@ -116,7 +147,7 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
     paths[i] = sp.raw_handle(i).first_file().unix_dpath();
   }
 
-  std::ranges::sort(index, [&paths](auto const a, auto const b) {
+  sort_index(index, [&paths](auto const a, auto const b) {
     return paths[a] < paths[b];
   });
 }
@@ -124,9 +155,7 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_reverse_path(
     sortable_inode_span& sp) const {
-  auto& index = sp.index();
-
-  std::ranges::sort(index, [&sp](auto const a, auto const b) {
+  sort_index(sp.index(), [&sp](auto const a, auto const b) {
     auto const& ha = sp.raw_handle(a);
     auto const& hb = sp.raw_handle(b);
     return ha.first_file().less_revpath(hb.first_file());
@@ -165,10 +194,10 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
           return !hash_cache[i].has_value();
         });
 
-    std::ranges::sort(index.begin(), start, size_pred);
+    sort_index(index.begin(), start, size_pred);
   }
 
-  std::ranges::sort(start, index.end(), [&](auto const a, auto const b) {
+  sort_index(start, index.end(), [&](auto const a, auto const b) {
     assert(hash_cache[a].has_value());
     assert(hash_cache[b].has_value());
 
@@ -199,7 +228,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
     });
 
     if (mid != index.begin()) {
-      std::ranges::sort(index.begin(), mid, [&](auto a, auto b) {
+      sort_index(index.begin(), mid, [&](auto a, auto b) {
         return inode_less_by_size(sp.raw_handle(a), sp.raw_handle(b));
       });
 
@@ -257,7 +286,7 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
     }
   }
 
-  std::ranges::sort(index, [&](auto const a, auto const b) {
+  sort_index(index, [&](auto const a, auto const b) {
     auto const& ai = path_order[a];
     auto const& bi = path_order[b];
     return ai.has_value() && bi.has_value()
