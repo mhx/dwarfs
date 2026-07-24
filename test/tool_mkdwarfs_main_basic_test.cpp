@@ -1221,9 +1221,12 @@ TEST(mkdwarfs_test, block_number_out_of_range) {
   mkdwarfs_tester t;
   EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4"})) << t.err();
   auto fs = t.fs_from_stdout();
-  EXPECT_THAT([&] { fs.read_raw_block_data(4711, 0, 1024).get(); },
-              ::testing::ThrowsMessage<runtime_error>(
-                  ::testing::HasSubstr("block number out of range")));
+  EXPECT_THAT(
+      [&] {
+        auto br [[maybe_unused]] = fs.read_raw_block_data(4711, 0, 1024).get();
+      },
+      ::testing::ThrowsMessage<runtime_error>(
+          ::testing::HasSubstr("block number out of range")));
 }
 
 class mkdwarfs_log_mem_usage_test : public testing::TestWithParam<bool> {};
