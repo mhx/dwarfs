@@ -28,10 +28,10 @@
 
 #include <array>
 #include <cassert>
-#include <deque>
 #include <numeric>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/container/small_fifo.h>
 #include <dwarfs/detail/file_view_impl.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
@@ -110,10 +110,13 @@ class block_range_iterable::state {
   }
 
  private:
+  template <typename T>
+  using fifo_t = container::small_fifo<T, 8>;
+
   filesystem_v2_lite const& fs_;
   uint32_t inode_;
-  std::deque<file_range> ranges_;
-  std::deque<std::future<block_range>> pending_;
+  fifo_t<file_range> ranges_;
+  fifo_t<std::future<block_range>> pending_;
   file_size_t current_bytes_{0};
   file_size_t pending_bytes_{0};
   file_size_t remaining_{0};
