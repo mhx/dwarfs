@@ -178,7 +178,7 @@ TEST_P(options_test, cache_stress) {
         }
         try {
           for (auto& b : ranges) {
-            b.get();
+            auto br [[maybe_unused]] = b.get();
           }
         } catch (std::exception const& e) {
           std::cerr << "read failed: " << e.what() << std::endl;
