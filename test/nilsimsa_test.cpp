@@ -60,17 +60,17 @@ class nilsimsa_tester {
 
 } // namespace
 
-TEST(nilisimsa, empty) {
+TEST(nilsimsa, empty) {
   EXPECT_EQ(nilsimsa_tester::hash(""),
             "0000000000000000000000000000000000000000000000000000000000000000");
 }
 
-TEST(nilisimsa, abcdefgh) {
+TEST(nilsimsa, abcdefgh) {
   EXPECT_EQ(nilsimsa_tester::hash("abcdefgh"),
             "14c8118000000000030800000004042004189020001308014088003280000078");
 }
 
-TEST(nilisimsa, incremental) {
+TEST(nilsimsa, incremental) {
   nilsimsa_tester ns;
 
   ns.update("a");
@@ -85,7 +85,7 @@ TEST(nilisimsa, incremental) {
             "14c811840010000c0328200108040630041890200217582d4098103280000078");
 }
 
-TEST(nilisimsa, moreabc) {
+TEST(nilsimsa, moreabc) {
   constexpr auto input = "abcdefghijklmnopqrstuvwxyz"sv;
   constexpr std::array<std::string_view, input.size()> expected{
       "0000000000000000000000000000000000000000000000000000000000000000",
