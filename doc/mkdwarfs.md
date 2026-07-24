@@ -176,13 +176,24 @@ Most other options are concerned with compression tuning:
   and `mkdwarfs` will be slightly slower and use more memory.
 
 - `--bloom-filter-size`=[*category*`::`]*value*:
-  The segmenting algorithm uses a bloom filter to determine quickly if
-  there is *no* match at a given position. This will filter out more than
-  90% of bad matches quickly with the default bloom filter size. The default
-  is pretty much where the sweet spot lies. If you have copious amounts of
-  RAM and CPU power, feel free to increase this by one or two and you *might*
-  be able to see some improvement. If your system is tight on memory, then
-  decreasing this will potentially save a few MiBs.
+  The segmenting algorithm uses a bloom filter to determine quickly if there
+  is *no* match at a given position. This will usually filter out more than
+  97% of bad matches quickly with the default bloom filter size. The default
+  of 4 is very close to the sweet spot for the default settings. Note that
+  the actual bloom filter memory size is a function of the block size (`-S`),
+  the window step size (`-w`), and the lookback size (`-B`). This option is
+  merely another 2^n multiplier on top of that. With every increase of this
+  option value by 1, the bloom filter memory size doubles, but the number of
+  false positives is reduced by a factor of around 3.5. However, increasing the
+  value also means the bloom filter is less likely to fit into the CPU cache.
+  It's a trade-off and it's hardware-dependent. The impact of the bloom filter
+  is more relevant as you increase the lookback size, as in addition to a
+  "global" bloom filter, each lookback block has its own "local" bloom filter,
+  so more filters need to be checked if a candidate isn't rejected by the
+  global filter. This means that as you increase the lookback size, it may
+  pay off to nudge this value up to 5 (if you have enough RAM to spare).
+  It is usually not recommended to drop this below 4 unless you're under
+  pressure to save memory, as it will noticeably hurt segmenter speed.
 
 - `-L`, `--memory-limit=auto|`*value*:
   Approximately how much memory you want `mkdwarfs` to use during filesystem
