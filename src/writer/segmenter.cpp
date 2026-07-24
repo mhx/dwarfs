@@ -221,20 +221,19 @@ class alignas(64) bloom_filter {
     }
   }
 
-  DWARFS_FORCE_INLINE void add(size_t ix) {
+  DWARFS_FORCE_INLINE void add(size_t const ix) {
     assert(bits_);
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
-    bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
-                                               << (ix & value_mask);
+    bits[(ix >> index_shift) & index_mask_] |= mask(ix);
   }
 
-  DWARFS_FORCE_INLINE bool test(size_t ix) const {
+  DWARFS_FORCE_INLINE bool test(size_t const ix) const {
     assert(bits_);
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
-    return bits[(ix >> index_shift) & index_mask_] &
-           (static_cast<bits_type>(1) << (ix & value_mask));
+    auto const m = mask(ix);
+    return (bits[(ix >> index_shift) & index_mask_] & m) == m;
   }
 
   // size in bits
@@ -258,6 +257,33 @@ class alignas(64) bloom_filter {
   uint64_t memory_usage() const { return size_ / 8; }
 
  private:
+  DWARFS_FORCE_INLINE static constexpr bits_type mask(size_t const ix) {
+    if constexpr (sizeof(bits_type) >= 8) {
+      //
+      // Make this a blocked bloom filter with k=2. This significantly
+      // increases the rejection rate and stat-sig improves performance
+      // of the segmenter:
+      //
+      //   ------------------------------------------------------------
+      //   block size | lookback | rejection rate | true positive rate
+      //              |          | k=1   | k=2    | k=1   | k=2
+      //   ------------------------------------------------------------
+      //     64 MiB   |     1    | 96.6% | 99.1%  | 0.48% | 1.89%
+      //     16 MiB   |     1    | 96.4% | 99.0%  | 0.35% | 1.26%
+      //     64 MiB   |     8    | 94.5% | 98.5%  | 1.05% | 3.88%
+      //   ------------------------------------------------------------
+      //
+      //   64 MiB, lookback=1:
+      //     k=1 -> 15.976s ± 0.021s
+      //     k=2 -> 15.277s ± 0.017s
+      //
+      return (static_cast<bits_type>(1) << (ix & value_mask)) |
+             (static_cast<bits_type>(1) << ((ix >> 26) & value_mask));
+    } else {
+      return static_cast<bits_type>(1) << (ix & value_mask);
+    }
+  }
+
   DWARFS_FORCE_INLINE bits_type const* cbegin() const { return bits_; }
   DWARFS_FORCE_INLINE bits_type const* cend() const {
     return bits_ + (size_ >> index_shift);
