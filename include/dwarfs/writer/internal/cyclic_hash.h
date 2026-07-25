@@ -32,10 +32,17 @@ namespace dwarfs::writer::internal {
 
 class rsync_hash {
  public:
+  using value_type = std::uint32_t;
+
   rsync_hash() = default;
 
-  DWARFS_FORCE_INLINE uint32_t operator()() const {
-    return a_ | (static_cast<uint32_t>(b_) << 16);
+  DWARFS_FORCE_INLINE value_type operator()() const {
+    return a_ | (static_cast<value_type>(b_) << 16);
+  }
+
+  DWARFS_FORCE_INLINE void set(value_type hash) {
+    a_ = static_cast<uint16_t>(hash & 0xFFFF);
+    b_ = static_cast<uint16_t>((hash >> 16) & 0xFFFF);
   }
 
   DWARFS_FORCE_INLINE void update(uint8_t inbyte) {
@@ -56,12 +63,12 @@ class rsync_hash {
     len_ = 0;
   }
 
-  static DWARFS_FORCE_INLINE constexpr uint32_t
+  static DWARFS_FORCE_INLINE constexpr value_type
   repeating_window(uint8_t byte, size_t length) {
     auto v = static_cast<uint16_t>(byte);
     auto a = static_cast<uint16_t>(v * length);
     auto b = static_cast<uint16_t>(v * (length * (length + 1)) / 2);
-    return static_cast<uint32_t>(a) | (static_cast<uint32_t>(b) << 16);
+    return static_cast<value_type>(a) | (static_cast<value_type>(b) << 16);
   }
 
  private:
