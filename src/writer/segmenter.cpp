@@ -98,6 +98,8 @@ struct segmenter_stats {
   uint64_t bloom_lookups{0};
   uint64_t bloom_hits{0};
   uint64_t bloom_true_positives{0};
+  uint64_t total_appends{0};
+  uint64_t total_appends_with_cached_hash{0};
   value_stream_quantile_estimator l2_collision_vec_size{0.5, 0.75, 0.9, 0.95,
                                                         0.99};
 };
@@ -403,7 +405,9 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
     return kGranularity;
   }
 
-  static DWARFS_FORCE_INLINE bool compile_time_granularity() { return true; }
+  static constexpr DWARFS_FORCE_INLINE bool compile_time_granularity() {
+    return true;
+  }
 };
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
@@ -471,7 +475,9 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
     return granularity_;
   }
 
-  static DWARFS_FORCE_INLINE bool compile_time_granularity() { return false; }
+  static constexpr DWARFS_FORCE_INLINE bool compile_time_granularity() {
+    return false;
+  }
 
  private:
   uint_fast32_t const granularity_;
@@ -1183,10 +1189,12 @@ class active_block : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE mutable_byte_buffer data() const { return data_; }
 
+  // returns true if cached_hashval was used to avoid recomputation
   template <bool UseSegmentQueue>
-  DWARFS_FORCE_INLINE void append_bytes(
+  DWARFS_FORCE_INLINE bool append_bytes(
       granular_extent_adapter<GranularityPolicy, UseSegmentQueue>& data,
-      file_off_t offset, file_size_t size, bloom_filter& global_filter);
+      file_off_t offset, file_size_t size, bloom_filter& global_filter,
+      std::optional<rsync_hash::value_type> cached_hashval);
 
   DWARFS_FORCE_INLINE size_t next_hash_distance_in_frames() const {
     return window_step_mask_ + 1 - (size_in_frames() & window_step_mask_);
@@ -1341,10 +1349,13 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   template <bool UseSegmentQueue>
   DWARFS_FORCE_INLINE void
   append_to_block(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-                  file_off_t offset_in_frames, file_size_t size_in_frames);
+                  file_off_t offset_in_frames, file_size_t size_in_frames,
+                  std::optional<rsync_hash::value_type> cached_hashval);
   template <bool UseSegmentQueue>
-  void add_data(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-                file_off_t offset_in_frames, file_size_t size_in_frames);
+  void
+  add_data(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
+           file_off_t offset_in_frames, file_size_t size_in_frames,
+           std::optional<rsync_hash::value_type> cached_hashval = std::nullopt);
   template <bool UseSegmentQueue>
   DWARFS_FORCE_INLINE void
   segment_and_add_data(chunkable& chkable,
@@ -1483,11 +1494,11 @@ active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
 
 template <typename LoggerPolicy, typename GranularityPolicy>
 template <bool UseSegmentQueue>
-DWARFS_FORCE_INLINE void
+DWARFS_FORCE_INLINE bool
 active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
     granular_extent_adapter<GranularityPolicy, UseSegmentQueue>& data,
-    file_off_t data_offset, file_size_t data_size,
-    bloom_filter& global_filter) {
+    file_off_t data_offset, file_size_t data_size, bloom_filter& global_filter,
+    std::optional<rsync_hash::value_type> cached_hashval) {
   auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
       data_.raw_buffer());
 
@@ -1495,15 +1506,62 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
   // auto v = this->template create<
   //     granular_byte_buffer_adapter<GranularityPolicy>>(data_);
 
+  auto const data_frames = bytes_to_frames(data_size);
   auto offset = v.size();
 
-  DWARFS_CHECK(offset + bytes_to_frames(data_size) <= capacity_in_frames_,
+  DWARFS_CHECK(offset + data_frames <= capacity_in_frames_,
                fmt::format("block capacity exceeded: {} + {} > {}", offset,
                            data_size, frames_to_bytes(capacity_in_frames_)));
 
   v.append(data, data_offset, data_size);
 
+  auto insert_hashval = [&](size_t offset) {
+    auto const hashval = hasher_();
+    if (!is_existing_repeating_sequence(hashval, offset - window_size_))
+        [[likely]] {
+      offsets_.insert(hashval, offset - window_size_);
+      if (filter_.size() > 0) {
+        filter_.add(hashval);
+      }
+      global_filter.add(hashval);
+    }
+  };
+
   if (window_size_ > 0) {
+    /*
+     * If a cached hash value is provided *and* we are already at least
+     * window_size_ frames into the block, we can skip the cyclic hash
+     * computation and reuse the cached hash value. `segment_and_add_data`
+     * guarantees that it will only set a cached hash value for a segment
+     * with `window_step` frames and aligned to a `window_step` offset.
+     * However, `add_data` could still split that segment if it would
+     * cross a block boundary, which is why we need additional checks.
+     *
+     * For a granularity that is a power of two, these checks can never
+     * fail, since the block size is always a multiple of the step size
+     * in bytes.
+     */
+
+    auto is_complete_segment = [&] {
+      if constexpr (GranularityPolicy::compile_time_granularity()) {
+        if constexpr (std::has_single_bit(GranularityPolicy::kGranularity)) {
+          assert(std::cmp_equal(data_frames, window_step_mask_ + 1) &&
+                 (offset & window_step_mask_) == 0);
+          return true;
+        }
+      }
+      return std::cmp_equal(data_frames, window_step_mask_ + 1) &&
+             (offset & window_step_mask_) == 0;
+    };
+
+    if (cached_hashval.has_value() && offset >= window_size_ &&
+        is_complete_segment()) {
+      offset += data_frames;
+      hasher_.set(*cached_hashval);
+      insert_hashval(offset);
+      return true;
+    }
+
     while (offset < v.size()) {
       if (offset < window_size_) [[unlikely]] {
         v.update_hash(hasher_, offset);
@@ -1512,19 +1570,13 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
       }
       if (++offset >= window_size_) [[likely]] {
         if ((offset & window_step_mask_) == 0) [[unlikely]] {
-          auto hashval = hasher_();
-          if (!is_existing_repeating_sequence(hashval, offset - window_size_))
-              [[likely]] {
-            offsets_.insert(hashval, offset - window_size_);
-            if (filter_.size() > 0) {
-              filter_.add(hashval);
-            }
-            global_filter.add(hashval);
-          }
+          insert_hashval(offset);
         }
       }
     }
   }
+
+  return false;
 }
 
 template <typename LoggerPolicy, typename GranularityPolicy>
@@ -1655,6 +1707,15 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
                        "avoided {} collisions in 0x{:02x}-byte sequences", v,
                        k);
   }
+
+  if (stats_.total_appends > 0) {
+    LOG_VERBOSE << cfg_.context
+                << fmt::format("appends using cached hashes: {}/{} ({:.3f}%)",
+                               stats_.total_appends_with_cached_hash,
+                               stats_.total_appends,
+                               100.0 * stats_.total_appends_with_cached_hash /
+                                   stats_.total_appends);
+  }
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
@@ -1671,7 +1732,8 @@ template <bool UseSegmentQueue>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
     chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-    file_off_t offset_in_frames, file_size_t size_in_frames) {
+    file_off_t offset_in_frames, file_size_t size_in_frames,
+    std::optional<rsync_hash::value_type> cached_hashval) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
@@ -1702,7 +1764,13 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
             << frames_to_bytes(block.size_in_frames())
             << " from chunkable offset " << offset_in_bytes;
 
-  block.append_bytes(data, offset_in_bytes, size_in_bytes, global_filter_);
+  ++stats_.total_appends;
+
+  if (block.append_bytes(data, offset_in_bytes, size_in_bytes, global_filter_,
+                         cached_hashval)) {
+    ++stats_.total_appends_with_cached_hash;
+  }
+
   chunk_.size_in_frames += size_in_frames;
 
   prog_.filesystem_size += size_in_bytes;
@@ -1718,7 +1786,8 @@ template <typename LoggerPolicy, typename SegmentingPolicy>
 template <bool UseSegmentQueue>
 void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
     chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-    file_off_t offset_in_frames, file_size_t size_in_frames) {
+    file_off_t offset_in_frames, file_size_t size_in_frames,
+    std::optional<rsync_hash::value_type> cached_hashval) {
   while (size_in_frames > 0) {
     file_off_t block_offset_in_frames = 0;
 
@@ -1729,10 +1798,13 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
     auto const chunk_size_in_frames = std::min<file_size_t>(
         size_in_frames, block_size_in_frames_ - block_offset_in_frames);
 
-    append_to_block(chkable, data, offset_in_frames, chunk_size_in_frames);
+    append_to_block(chkable, data, offset_in_frames, chunk_size_in_frames,
+                    cached_hashval);
 
     offset_in_frames += chunk_size_in_frames;
     size_in_frames -= chunk_size_in_frames;
+
+    cached_hashval.reset(); // only use for first append
   }
 }
 
@@ -1763,6 +1835,19 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       lookback_size_in_frames +
       (blocks_.empty() ? window_step_
                        : blocks_.back().next_hash_distance_in_frames());
+  /*
+   * The lagging hashvals vector is used to store the hash values every
+   * window_step_ frames that reach back up to lookback_size_in_frames.
+   * In most cases, the oldest of these lagging hash values can be used
+   * to avoid recomputing the cyclic hash when copying data to the current
+   * block.
+   */
+  std::vector<rsync_hash::value_type> lagging_hashvals(lookback_size_in_frames /
+                                                       window_step_);
+  size_t lagging_hashvals_index = 0;
+  size_t lagging_hashvals_count = 0;
+
+  assert(lookback_size_in_frames % window_step_ == 0);
 
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
@@ -1790,8 +1875,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     last_offset = offset;
   };
 
-  auto add_frames = [&](file_size_t num) {
-    add_data(chkable, data, frames_written, num);
+  auto add_frames = [&](file_size_t num,
+                        std::optional<rsync_hash::value_type> cached_hv =
+                            std::nullopt) {
+    add_data(chkable, data, frames_written, num, cached_hv);
   };
 
   while (offset_in_frames < size_in_frames) {
@@ -1882,6 +1969,9 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
           next_hash_offset_in_frames =
               frames_written + lookback_size_in_frames +
               blocks_.back().next_hash_distance_in_frames();
+
+          // must reset lagging hashvals after a successful match
+          lagging_hashvals_count = 0;
         }
 
         matches.clear();
@@ -1899,11 +1989,26 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         [[unlikely]] {
       auto num_to_write =
           offset_in_frames - lookback_size_in_frames - frames_written;
-      add_frames(num_to_write);
+      std::optional<rsync_hash::value_type> cached_hv;
+
+      // only if we have enough lagging hash values to cover the lookback size
+      // can we use the oldest one as a cached value
+      if (lagging_hashvals_count >= lagging_hashvals.size()) {
+        cached_hv = lagging_hashvals[lagging_hashvals_index];
+      }
+
+      add_frames(num_to_write, cached_hv);
       frames_written += num_to_write;
       next_hash_offset_in_frames += window_step_;
 
       update_progress(offset_in_frames);
+
+      lagging_hashvals[lagging_hashvals_index] = hashval;
+      ++lagging_hashvals_count;
+
+      if (++lagging_hashvals_index == lagging_hashvals.size()) {
+        lagging_hashvals_index = 0;
+      }
     }
 
     offset_in_frames = hashwin.slide(hasher, data, offset_in_frames);
