@@ -594,7 +594,7 @@ class StandaloneConfig(Config):
             check=True,
         )
         self.binaries = {
-            "dwarfs": os.path.join(self.tmpdir, "sbin", "dwarfs"),
+            "dwarfs": os.path.join(self.tmpdir, "bin", "dwarfs"),
             "mkdwarfs": os.path.join(self.tmpdir, "bin", "mkdwarfs"),
             "dwarfsck": os.path.join(self.tmpdir, "bin", "dwarfsck"),
             "dwarfsextract": os.path.join(self.tmpdir, "bin", "dwarfsextract"),
