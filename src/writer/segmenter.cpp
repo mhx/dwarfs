@@ -1790,21 +1790,27 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     last_offset = offset;
   };
 
+  auto add_frames = [&](file_size_t num) {
+    add_data(chkable, data, frames_written, num);
+  };
+
   while (offset_in_frames < size_in_frames) {
     ++stats_.bloom_lookups;
 
-    if (global_filter_.test(hasher())) [[unlikely]] {
+    auto const hashval = hasher();
+
+    if (global_filter_.test(hashval)) [[unlikely]] {
       ++stats_.bloom_hits;
 
       if constexpr (is_multi_block_mode()) {
         for (auto const& block : blocks_) {
-          block.for_each_offset_filter(hasher(), [&, this](auto off) {
+          block.for_each_offset_filter(hashval, [&, this](auto off) {
             this->add_match(matches, &block, off);
           });
         }
       } else {
         auto& block = blocks_.front();
-        block.for_each_offset(hasher(), [&, this](auto off) {
+        block.for_each_offset(hashval, [&, this](auto off) {
           this->add_match(matches, &block, off);
         });
       }
@@ -1817,7 +1823,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
                   << frames_to_bytes(blocks_.back().size_in_frames())
                   << ", chunkable @ " << frames_to_bytes(offset_in_frames)
                   << "] found " << matches.size()
-                  << " matches (hash=" << fmt::format("{:08x}", hasher())
+                  << " matches (hash=" << fmt::format("{:08x}", hashval)
                   << ", window size=" << window_size_ << ")";
 
         for (auto& m : matches) {
@@ -1849,7 +1855,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
           auto num_to_write = best->pos() - frames_written;
 
           // best->block can be invalidated by this call to add_data()!
-          add_data(chkable, data, frames_written, num_to_write);
+          add_frames(num_to_write);
           frames_written += num_to_write;
           finish_chunk(chkable);
 
@@ -1893,7 +1899,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         [[unlikely]] {
       auto num_to_write =
           offset_in_frames - lookback_size_in_frames - frames_written;
-      add_data(chkable, data, frames_written, num_to_write);
+      add_frames(num_to_write);
       frames_written += num_to_write;
       next_hash_offset_in_frames += window_step_;
 
@@ -1905,7 +1911,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
   update_progress(size_in_frames);
 
-  add_data(chkable, data, frames_written, size_in_frames - frames_written);
+  add_frames(size_in_frames - frames_written);
   finish_chunk(chkable);
 }
 
