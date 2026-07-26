@@ -38,6 +38,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <locale>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -884,6 +886,69 @@ bool getenv_is_enabled(os_access const& os, char const* var) {
   return false;
 }
 
+namespace {
+
+#ifdef _WIN32
+
+std::string wchar_to_utf8(wchar_t wc) {
+  std::string out;
+  if (wc != 0) {
+    try {
+      static_assert(sizeof(wchar_t) == 2);
+      auto const cu = static_cast<char16_t>(wc);
+      utf8::utf16to8(&cu, &cu + 1, std::back_inserter(out));
+    } catch (std::exception const&) {
+      out.clear();
+    }
+  }
+  return out;
+}
+
+// `numpunct<char>` replacement that disables grouping for char streams.
+struct safe_numpunct : std::numpunct<char> {
+  std::string do_grouping() const override { return {}; }
+  char do_decimal_point() const override { return '.'; }
+};
+
+void install_number_formatting_facets() {
+  bool needs_wide_chars = true; // safe default
+
+  // Now check if number formatting uses multi-byte UTF-8 characters.
+  // If so, we can provide fmt with a custom facet that uses UTF-8 strings
+  // based on the wide-character locale.
+  try {
+    auto const& np = std::use_facet<std::numpunct<wchar_t>>(std::locale());
+    auto const grouping = np.grouping();
+
+    // Empty grouping means "don't group" -> we're done.
+    if (grouping.empty()) {
+      needs_wide_chars = false;
+    } else {
+      auto const sep = wchar_to_utf8(np.thousands_sep());
+      auto dp = wchar_to_utf8(np.decimal_point());
+
+      needs_wide_chars = sep.size() > 1 || dp.size() > 1;
+
+      if (needs_wide_chars) {
+        std::locale::global(std::locale(
+            std::locale(),
+            new fmt::format_facet<std::locale>(sep, grouping, std::move(dp))));
+      }
+    }
+  } catch (std::exception const&) {
+    // fall back to the safe default
+    needs_wide_chars = true;
+  }
+
+  if (needs_wide_chars) {
+    std::locale::global(std::locale(std::locale(), new safe_numpunct));
+  }
+}
+
+#endif
+
+} // namespace
+
 void setup_default_locale() {
   char const* const candidates[] = {
 #ifdef _WIN32
@@ -919,6 +984,8 @@ void setup_default_locale() {
   }
 
 #ifdef _WIN32
+  install_number_formatting_facets();
+
   SetConsoleOutputCP(CP_UTF8);
 #endif
 }
