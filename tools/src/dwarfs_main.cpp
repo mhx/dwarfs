@@ -1964,6 +1964,20 @@ class safe_fuse_cmdline_opts {
     unsigned int max_threads{10};
 #endif
 #endif
+
+    friend std::ostream&
+    operator<<(std::ostream& os, cmdline_opts_data const& data) {
+      os << "mountpoint: " << (data.mountpoint ? *data.mountpoint : "(null)")
+         << ", mt: " << data.multithread << ", fg: " << data.foreground;
+#ifdef DWARFS_HAS_FUSE3_LOOP_CONFIG
+      os << ", clone_fd: " << data.clone_fd
+         << ", max_idle_threads: " << data.max_idle_threads;
+#if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
+      os << ", max_threads: " << data.max_threads;
+#endif
+#endif
+      return os;
+    }
   };
 
   safe_fuse_cmdline_opts() = default;
@@ -2006,6 +2020,12 @@ class safe_fuse_cmdline_opts {
   unsigned int max_threads() const { return raw_.max_threads; }
 #endif
 #endif
+
+  friend std::ostream&
+  operator<<(std::ostream& os, safe_fuse_cmdline_opts const& opts) {
+    os << opts.raw_;
+    return os;
+  }
 
  private:
   void reset() { raw_ = cmdline_opts_data{}; }
@@ -2551,6 +2571,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   log_startup_banner_and_warnings(userdata);
+
+  LOG_PROXY(debug_logger_policy, userdata.lgr);
+
+  LOG_VERBOSE << fuse_opts;
 
   auto driver = dwarfs_fuse_driver::setup(args, fuse_opts, userdata);
 
