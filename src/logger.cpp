@@ -163,8 +163,11 @@ void stream_logger::write_nolock(std::string_view output) {
   if (&os_ == &std::cerr) {
     try {
       fmt::print(stderr, "{}", output);
+    } catch (std::exception const& e) {
+      fmt::print(stderr, "fmt error writing string: {}\n{}", e.what(),
+                 hexdump(output));
     } catch (...) {
-      fmt::print(stderr, "Unexpected error writing string:\n{}",
+      fmt::print(stderr, "Unexpected fmt error writing string:\n{}",
                  hexdump(output));
     }
   } else {
