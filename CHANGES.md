@@ -1,5 +1,34 @@
 # Change Log
 
+## Version 0.15.6 - 2026-07-26
+
+- (fix) Canonicalizing the mount point path in 0.15.4 fixed a bug on Linux,
+  but introduced a new bug on Windows. With canonicalized paths, WinFsp does
+  no longer allow mounting a DwarFS image unless `MountUseMountmgrFromFSD`
+  is set to `1` in the registry. The fix is to only perform canonicalization
+  on non-Windows platforms. Fixes GitHub issue #375.
+
+- (fix) Ensure UTF-8 safe number formatting on Windows. DwarFS historically
+  uses `char` and UTF-8 for anything internally. That doesn't play nicely
+  when it comes to stream formatting, in particular numbers, on Windows. The
+  Linux world has workarounds for this in `std::numpunct`, but Windows does
+  not and will happily return characters that are invalid UTF-8, which will
+  eventually cause the `fmt` library to fall over. This change checks if the
+  current locale requires number formatting characters that would end up as
+  multi-byte UTF-8 sequences. If so, it will install a "safe" `std::numpunct`
+  facet as well as a custom `fmt::format_facet`. The former will simply turn
+  off fancy number formatting, while the latter will override formatting in
+  the `fmt` library and use UTF-8 strings instead of single byte characters.
+  This was discovered in the log output from GitHub issue #375.
+
+- (other) When logging a `fmt` exception, include the exception message if
+  possible.
+
+- (other) In `dwarfs`, log FUSE command line options after parsing.
+
+- (build) Work around a CMake 4.4 gtest JSON test parsing bug
+  (https://gitlab.kitware.com/cmake/cmake/-/work_items/27939)
+
 ## Version 0.15.5 - 2026-07-11
 
 - (fix) The static release binaries for v0.15.4 were built using a new build
