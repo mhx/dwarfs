@@ -432,7 +432,7 @@ if use_lib fuse3; then
 fi
 
 if use_lib benchmark; then
-    opt_size
+    opt_perf
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${BENCHMARK_TARBALL}
     cd benchmark-${BENCHMARK_VERSION}
