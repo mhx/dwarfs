@@ -94,7 +94,7 @@ opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
     export CPPFLAGS="$TARGET_FLAGS"
-    # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
+    export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
     export CMAKE_ARGS="-GNinja"
     if [[ "$CARCH" != "$ARCH" ]]; then
         export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
@@ -106,7 +106,7 @@ opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
     export CPPFLAGS="$TARGET_FLAGS"
-    # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+    export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
     export CMAKE_ARGS="-GNinja"
     if [[ "$CARCH" != "$ARCH" ]]; then
         export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
