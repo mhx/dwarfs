@@ -492,6 +492,9 @@ if use_lib xz; then
 fi
 
 if use_lib zstd; then
+    # Do NOT use `opt_perf` here without benchmarking. While this has shown to
+    # improve *compression* performance, it did also degrade *decompression*
+    # performance.
     opt_size
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${ZSTD_TARBALL}
