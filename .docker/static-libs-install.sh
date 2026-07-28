@@ -209,8 +209,16 @@ esac
 
 case "-$COMPILER-" in
     *-minsize-*)
+        export PERF_CFLAGS="$PERF_CFLAGS -O2"
+        export PERF_CXXFLAGS="$PERF_CXXFLAGS -O2"
         export SIZE_CFLAGS="$SIZE_CFLAGS -Os"
         export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -Os"
+        ;;
+    *)
+        export PERF_CFLAGS="$PERF_CFLAGS -O3"
+        export PERF_CXXFLAGS="$PERF_CXXFLAGS -O3"
+        export SIZE_CFLAGS="$SIZE_CFLAGS -O2"
+        export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -O2"
         ;;
 esac
 
