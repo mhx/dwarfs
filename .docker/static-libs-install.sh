@@ -507,7 +507,12 @@ if use_lib zstd; then
     mkdir meson-build
     cd meson-build
     meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-    meson configure -D bin_programs=false -D bin_contrib=false -D zlib=disabled -D lzma=disabled -D lz4=disabled
+    meson configure -D bin_programs=false \
+                    -D bin_contrib=false \
+                    -D zlib=disabled \
+                    -D lzma=disabled \
+                    -D lz4=disabled \
+                    -D multi_thread=disabled
     meson setup --reconfigure ../build/meson
     $NINJA_PARALLEL
     ninja install
