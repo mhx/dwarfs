@@ -17,7 +17,6 @@ from packaging.version import Version
 from tinydb import TinyDB
 from tqdm import tqdm
 
-
 TABLE_NAME = "benchmarks"
 
 
@@ -56,7 +55,45 @@ def import_data(db_path, *args):
     print(f"Skipped {skipped} files that were already in the database.")
 
 
-def walltime_chart(db_path, arch, binary_type, version, exclude):
+def resolve_baseline(columns, meta, version, baseline):
+    """
+    Pick the column (a version_object) to normalize against.
+
+    - If 'baseline' is None, use the smallest version (deterministic).
+    - If '--version' was not given, 'baseline' is a version string
+      (optionally "version+commit").
+    - If '--version' was given, 'baseline' is a config string.
+    """
+    cols = list(columns)
+    if baseline is None:
+        # Deterministic default: the smallest version.
+        return min(cols)
+
+    if version is None:
+        # 'baseline' is a version, optionally with a "+commit" suffix.
+        target = Version(baseline)
+        matches = [c for c in cols if c == target]
+        if not matches:
+            # Fall back to matching the release, ignoring any commit suffix.
+            matches = [c for c in cols if c.base_version == target.base_version]
+        if not matches:
+            available = ", ".join(sorted(str(c) for c in cols))
+            raise SystemExit(
+                f"Baseline version '{baseline}' not found. Available: {available}"
+            )
+        return min(matches)
+
+    # 'baseline' is a config (a single version has been selected).
+    matches = [c for c in cols if meta.at[c, "config"] == baseline]
+    if not matches:
+        available = ", ".join(sorted(meta.at[c, "config"] for c in cols))
+        raise SystemExit(
+            f"Baseline config '{baseline}' not found. Available: {available}"
+        )
+    return min(matches)
+
+
+def walltime_chart(db_path, arch, binary_type, version, exclude, normalize, baseline):
     db = TinyDB(db_path)
     table = db.table(TABLE_NAME)
 
@@ -159,6 +196,10 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
         df.at[row.Index, "version_object"] = Version(v)
     # df["version_object"] = df["version"].apply(Version)
 
+    # Lookup used to resolve a --baseline argument (version or config) to the
+    # corresponding version_object column.
+    meta = df.drop_duplicates("version_object").set_index("version_object")
+
     # Pivot the DataFrame so that "name" becomes the row index and different "config"
     # values become separate columns for the "mean" and "stddev" values.
     df_pivot = df.pivot(
@@ -169,11 +210,40 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
     mean_df = df_pivot["mean"]
     stddev_df = df_pivot["stddev"]
 
+    # === Normalization ===
+
+    # Divide every benchmark's times by its value in the baseline column, so the
+    # baseline sits at 1.0 and other bars read directly as relative factors
+    # (e.g. 1.10 == a 10% regression). Each benchmark is normalized against its
+    # own baseline, putting all benchmarks on a comparable linear scale.
+    baseline_col = None
+    if normalize:
+        baseline_col = resolve_baseline(mean_df.columns, meta, version, baseline)
+        base_mean = mean_df[baseline_col].copy()
+
+        missing = base_mean.isna()
+        if missing.any():
+            names = ", ".join(mean_df.index[missing])
+            print(
+                f"Warning: no baseline ({baseline_col}) measurement for: {names}. "
+                "These benchmarks will be blank."
+            )
+
+        # Scale stddevs by the same per-benchmark factor (baseline treated as an
+        # exact reference).
+        stddev_df = stddev_df.div(base_mean, axis=0)
+        mean_df = mean_df.div(base_mean, axis=0)
+
     # === Plotting ===
 
     # Plot the normalized horizontal grouped bar chart.
     ax = mean_df.plot(
-        kind="bar", yerr=stddev_df, capsize=3, figsize=(10, 10), log=True, width=0.8
+        kind="bar",
+        yerr=stddev_df,
+        capsize=3,
+        figsize=(10, 10),
+        log=not normalize,
+        width=0.8,
     )
 
     for container in ax.containers:
@@ -190,13 +260,22 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
     ax.set_title(f"Benchmark results for arch={arch}, type={binary_type}")
     # Rotate x-axis labels for better readability.
     ax.set_xticklabels(ax.get_xticklabels(), rotation=20, ha="right")
-    ax.set_ylabel("Benchmark Time")
+    if normalize:
+        ax.set_ylabel(f"Benchmark Time (normalized to {baseline_col})")
+    else:
+        ax.set_ylabel("Benchmark Time")
     ax.set_xlabel("Benchmark Name")
     # Add grid lines in the background
     ax.set_axisbelow(True)
-    ax.grid(axis="y", linestyle="-", alpha=0.5, which="both")
-    # Set y-axis range (1ms to 100s)
-    ax.set_ylim(0.001, 100.0)
+    if normalize:
+        ax.grid(axis="y", linestyle="-", alpha=0.5, which="major")
+        # Reference line at the baseline (1.0).
+        ax.axhline(1.0, color="black", linewidth=0.8, alpha=0.6)
+        ax.set_ylim(bottom=0.0)
+    else:
+        ax.grid(axis="y", linestyle="-", alpha=0.5, which="both")
+        # Set y-axis range (1ms to 100s)
+        ax.set_ylim(0.001, 100.0)
 
     # Maximize the space for the figure.
     plt.subplots_adjust(left=0.06, right=0.99, top=0.97, bottom=0.12)
@@ -249,13 +328,36 @@ def main():
         default=None,
         help="Regex matching the names of the benchmarks to exclude.",
     )
+    bar_parser.add_argument(
+        "--normalize",
+        action="store_true",
+        help="Normalize each benchmark's times to a baseline and plot on a "
+        "linear scale (so a 10%% regression reads as 1.10).",
+    )
+    bar_parser.add_argument(
+        "--baseline",
+        type=str,
+        default=None,
+        help="Baseline to normalize against: a version (default) or a config "
+        "if --version is given. Defaults to the smallest version.",
+    )
 
     args = parser.parse_args()
 
     if args.command == "import":
         import_data(args.db_path, *args.json_dirs)
     elif args.command == "walltime":
-        walltime_chart(args.db_path, args.arch, args.binary, args.version, args.exclude)
+        if args.baseline is not None and not args.normalize:
+            print("Note: --baseline has no effect without --normalize.")
+        walltime_chart(
+            args.db_path,
+            args.arch,
+            args.binary,
+            args.version,
+            args.exclude,
+            args.normalize,
+            args.baseline,
+        )
 
 
 if __name__ == "__main__":
