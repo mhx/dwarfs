@@ -285,8 +285,8 @@ fi
 
 case "-$BUILD_TYPE-" in
   *-lto-*)
-    export CFLAGS="${CFLAGS} -flto=auto"
-    export CXXFLAGS="${CXXFLAGS} -flto=auto"
+    export CFLAGS="${CFLAGS} -flto=auto -DFMT_HEADER_ONLY=1"
+    export CXXFLAGS="${CXXFLAGS} -flto=auto -DFMT_HEADER_ONLY=1"
     export LDFLAGS="${LDFLAGS} -flto=auto"
     export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
     # GCC uses fat LTO objects
