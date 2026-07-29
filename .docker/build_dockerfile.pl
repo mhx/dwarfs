@@ -240,6 +240,11 @@ print <<ENDFINAL;
 
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
 
+# TODO: move these to the top once we rebuild the image
+RUN apk add --no-cache \\
+        flock \\
+        util-linux
+
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
 RUN adduser -G users -s bash -u 1000 -D mhx
