@@ -8,10 +8,6 @@ set -ex
 export CCACHE_CONFIGPATH=/workspace/.docker/ccache.conf
 
 if [[ -n "$GITHUB_RUN_ID" ]]; then
-    LOCAL_REPO_PATH=/local/repos
-    mkdir -p "$LOCAL_REPO_PATH"
-    LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
-
     WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
     NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
     BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${CROSS_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
@@ -23,35 +19,80 @@ if [[ -n "$GITHUB_RUN_ID" ]]; then
         echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
     }
 
-    if [[ "$BUILD_TYPE" != "*-static-*" ]]; then
-      if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
-          echo "Skipping git repo update because it already ran in the last three hours."
-      else
-          echo "Running git repo update."
+    retry() {
+      local attempt=1 max=5 delay=15
+      while true; do
+        if "$@"; then return 0; fi
+        if [ "$attempt" -ge "$max" ]; then
+          echo "'$*' still failing after $attempt attempts, giving up." >&2
+          return 1
+        fi
+        echo "'$*' failed (attempt $attempt/$max), retrying in ${delay}s..." >&2
+        sleep "$delay"
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+      done
+    }
 
-          log "begin:repo-update"
+    REPO_LIST=(
+      google/googletest
+      greg7mdp/parallel-hashmap
+      fmtlib/fmt
+      # ericniebler/range-v3
+    )
 
-          for repo in "fmtlib/fmt" \
-                      "google/googletest" \
-                      "ericniebler/range-v3" \
-                      "greg7mdp/parallel-hashmap"; do
-            reponame=$(basename "$repo")
-            cd "$LOCAL_REPO_PATH"
-            if [ -d "$reponame" ]; then
-              cd "$reponame"
-              time git fetch
-            else
-              time git clone "https://github.com/$repo.git"
-            fi
-          done
+    LOCAL_REPO_PATH=/local/repos
+    UPDATE_LOCK_FILE="$LOCAL_REPO_PATH/.update.lock"
+    REPO_STAMP_DIR="$LOCAL_REPO_PATH/.last-update"
 
-          log "end:repo-update"
+    mkdir -p "$LOCAL_REPO_PATH" "$REPO_STAMP_DIR"
 
-          touch "$LAST_UPDATE_FILE"
-      fi
+    (
+      flock -w 900 9 || { echo "Timed out waiting for repo lock." >&2; exit 1; }
 
-      export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
-    fi
+      log "begin:repo-update"
+
+      declare -A WANTED=()
+      for repo in "${REPO_LIST[@]}"; do
+        reponame=$(basename "$repo")
+        [ -n "$reponame" ] || { echo "Empty repo name in REPO_LIST." >&2; exit 1; }
+        WANTED[$reponame]=$repo
+      done
+
+      # drop clones that are no longer in the list
+      for dir in "$LOCAL_REPO_PATH"/*/; do
+        [ -d "$dir/.git" ] || continue  # don't touch what we didn't clone
+        reponame=$(basename "$dir")
+        if [ -z "${WANTED[$reponame]+set}" ]; then
+          echo "Removing $reponame: no longer in REPO_LIST."
+          rm -rf "$dir" "$REPO_STAMP_DIR/$reponame"
+        fi
+      done
+
+      for repo in "${REPO_LIST[@]}"; do
+        reponame=$(basename "$repo")
+        repodir="$LOCAL_REPO_PATH/$reponame"
+        stamp="$REPO_STAMP_DIR/$reponame"
+
+        if [ ! -d "$repodir/.git" ]; then
+          echo "Cloning $repo."
+          rm -rf "$repodir.tmp" "$repodir"
+          time retry git clone "https://github.com/$repo.git" "$repodir.tmp"
+          mv "$repodir.tmp" "$repodir"
+          touch "$stamp"
+        elif [ -f "$stamp" ] && [ -n "$(find "$stamp" -mmin -180)" ]; then
+          echo "Skipping $reponame: updated in the last three hours."
+        else
+          echo "Fetching $reponame."
+          time retry git -C "$repodir" fetch --prune
+          touch "$stamp"
+        fi
+      done
+
+      log "end:repo-update"
+    ) 9>"$UPDATE_LOCK_FILE"
+
+    export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
 
     if [[ "-$BUILD_TYPE-" == *-debug-* ]] && [[ "-$BUILD_TYPE-" != *-coverage-* ]] &&
        [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]]; then
