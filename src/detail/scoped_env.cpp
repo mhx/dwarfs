@@ -86,21 +86,36 @@ void scoped_env::set(std::string const& name, std::string const& value) {
   setenv_impl(name, value);
 }
 
+bool scoped_env::set_if_unset(std::string const& name,
+                              std::string const& value) {
+  if (std::getenv(name.c_str())) {
+    return false;
+  }
+
+  set(name, value);
+
+  return true;
+}
+
 void scoped_env::unset(std::string const& name) {
   ensure_saved(name);
   unsetenv_impl(name);
 }
 
 void scoped_env::restore() {
-  for (auto const& [name, value] : original_) {
-    if (value) {
-      setenv_impl(name, *value);
-    } else {
-      unsetenv_impl(name);
-    }
-  }
+  // Erase as we go so that a failure part way through doesn't cause the
+  // already restored variables to be restored again on the next call.
+  while (!original_.empty()) {
+    auto it = original_.begin();
 
-  original_.clear();
+    if (it->second) {
+      setenv_impl(it->first, *it->second);
+    } else {
+      unsetenv_impl(it->first);
+    }
+
+    original_.erase(it);
+  }
 }
 
 void scoped_env::ensure_saved(std::string const& name) {
