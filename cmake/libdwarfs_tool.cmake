@@ -49,6 +49,11 @@ if(WITH_MAN_OPTION)
     tools/src/tool/pager.cpp
     tools/src/tool/render_manpage.cpp
   )
+  if(WIN32)
+    target_sources(dwarfs_tool PRIVATE
+      tools/src/tool/internal/pager_command_line.cpp
+    )
+  endif()
 endif()
 
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common Boost::program_options)

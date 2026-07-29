@@ -173,8 +173,13 @@ void show_manpage(manpage::document doc, iolayer const& iol) {
 
   if (is_tty) {
     if (auto pager = find_pager_program(*iol.os)) {
-      show_in_pager(*pager, content);
-      return;
+      std::error_code ec;
+      show_in_pager(*pager, content, ec);
+      if (!ec) {
+        return;
+      }
+      iol.err << "warning: failed to run pager (" << pager->command
+              << "): " << ec.message() << "\n";
     }
   }
 

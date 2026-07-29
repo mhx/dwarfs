@@ -32,6 +32,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace dwarfs {
@@ -43,10 +44,12 @@ namespace tool {
 struct pager_program {
   std::filesystem::path name;
   std::vector<std::string> args;
+  std::string command;
 };
 
 std::optional<pager_program> find_pager_program(os_access const& os);
-void show_in_pager(pager_program const& pager, std::string_view text);
+void show_in_pager(pager_program const& pager, std::string_view text,
+                   std::error_code& ec);
 
 } // namespace tool
 
