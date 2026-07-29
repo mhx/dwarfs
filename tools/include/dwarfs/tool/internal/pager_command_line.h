@@ -28,29 +28,36 @@
 
 #pragma once
 
-#include <filesystem>
+#ifdef _WIN32
+
 #include <optional>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
-namespace dwarfs {
+namespace dwarfs::tool::internal {
 
-class os_access;
+/**
+ * Append \p arg to \p cmd, quoted per the CommandLineToArgvW rules, so that
+ * the child re-parses exactly what we intended.
+ *
+ * See "Parsing C++ Command-Line Arguments" and Daniel Colascione's "Everyone
+ * quotes command line arguments the wrong way".
+ */
+void append_quoted(std::wstring& cmd, std::wstring const& arg);
 
-namespace tool {
+/**
+ * Split a command line into arguments. Exact inverse of append_quoted():
+ * CommandLineToArgvW implements the very rules we quote for.
+ *
+ * \note The caller must reject empty or blank input. For an empty string
+ *       CommandLineToArgvW returns the path of the current executable rather
+ *       than an empty vector.
+ *
+ * \returns nullopt if the command line could not be parsed.
+ */
+std::optional<std::vector<std::string>> split_command_line(std::string_view sv);
 
-struct pager_program {
-  std::filesystem::path name;
-  std::vector<std::string> args;
-  std::string command;
-};
+} // namespace dwarfs::tool::internal
 
-std::optional<pager_program> find_pager_program(os_access const& os);
-void show_in_pager(pager_program const& pager, std::string_view text,
-                   std::error_code& ec);
-
-} // namespace tool
-
-} // namespace dwarfs
+#endif

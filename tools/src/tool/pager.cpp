@@ -26,6 +26,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -33,6 +37,7 @@
 
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
+#include <dwarfs/tool/internal/pager_command_line.h>
 #else
 #include <cerrno>
 #include <csignal>
@@ -42,8 +47,8 @@
 extern char** environ;
 #endif
 
+#include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/string.h>
 #include <dwarfs/tool/pager.h>
 #include <dwarfs/tool/sys_char.h>
 
@@ -51,114 +56,74 @@ namespace dwarfs::tool {
 
 namespace {
 
-std::span<pager_program const> get_pagers() {
-  static std::vector<pager_program> const pagers{
-      {"less", {"-R"}},
-  };
+constexpr std::array pager_env_vars{"DWARFS_PAGER", "PAGER"};
 
-  return pagers;
-}
+constexpr char const* default_pager{"less"};
+constexpr char const* less_env_name{"LESS"};
+constexpr char const* less_env_value{"FRX"};
 
+/**
+ * Turn a pager command line into something we can spawn.
+ *
+ * POSIX defines PAGER as "any string acceptable as a command string operand
+ * to the sh -c command" (see environ(7)), so that is exactly what we do with
+ * it. Windows has no shell we can rely on, so we parse the command line with
+ * the platform's own rules instead.
+ */
+std::optional<pager_program> make_pager_program(std::string_view cmd) {
 #ifdef _WIN32
+  auto args = internal::split_command_line(cmd);
 
-// Quote a single argument per the CommandLineToArgvW rules, so the child
-// re-parses exactly what we intended. See "Parsing C++ Command-Line
-// Arguments" / Daniel Colascione's "Everyone quotes command line arguments
-// the wrong way".
-void append_quoted(std::wstring& cmd, std::wstring const& arg) {
-  if (!arg.empty() && arg.find_first_of(L" \t\n\v\"") == std::wstring::npos) {
-    cmd += arg;
-    return;
+  if (!args || args->empty()) {
+    return std::nullopt;
   }
 
-  cmd += L'"';
+  std::filesystem::path name{args->front()};
+  args->erase(args->begin());
 
-  for (auto it = arg.begin();;) {
-    size_t backslashes = 0;
-
-    while (it != arg.end() && *it == L'\\') {
-      ++it;
-      ++backslashes;
-    }
-
-    if (it == arg.end()) {
-      // Escape all backslashes, but leave the terminating quote unescaped.
-      cmd.append(2 * backslashes, L'\\');
-      break;
-    }
-
-    if (*it == L'"') {
-      // Escape all backslashes and the following quote.
-      cmd.append(2 * backslashes + 1, L'\\');
-      cmd += L'"';
-    } else {
-      // Backslashes are not special here.
-      cmd.append(backslashes, L'\\');
-      cmd += *it;
-    }
-
-    ++it;
-  }
-
-  cmd += L'"';
-}
-
+  return pager_program{std::move(name), std::move(*args), std::string{cmd}};
+#else
+  return pager_program{"/bin/sh", {"-c", std::string{cmd}}, std::string{cmd}};
 #endif
+}
 
 } // namespace
 
-#ifdef _WIN32
-#define X_OK 0
-#endif
-
 std::optional<pager_program> find_pager_program(os_access const& os) {
-  if (auto pager_env = os.getenv("PAGER")) {
-    std::string_view sv{pager_env.value()};
+  for (auto const* var : pager_env_vars) {
+    auto value = os.getenv(var);
 
-    if (sv == "cat") {
+    if (!value) {
+      continue;
+    }
+
+    std::string_view cmd{value.value()};
+
+    // A blank value or literally "cat" disables paging.
+    if (std::ranges::all_of(cmd, isspace) || cmd == "cat") {
       return std::nullopt;
     }
 
-    if (sv.starts_with('"') && sv.ends_with('"')) {
-      sv.remove_prefix(1);
-      sv.remove_suffix(1);
-    }
-
-    // split into program and arguments
-    auto args = split_to<std::vector<std::string>>(sv, ' ');
-    std::filesystem::path p{args.front()};
-    args.erase(args.begin());
-
-    if (os.access(p, X_OK) == 0) {
-      return pager_program{p, args};
-    }
-
-    if (auto exe = os.find_executable(p); !exe.empty()) {
-      if (exe.stem() == "less" && args.empty()) {
-        args.emplace_back("-R");
-      }
-      return pager_program{exe, args};
-    }
+    return make_pager_program(cmd);
   }
 
-  for (auto const& p : get_pagers()) {
-    if (auto exe = os.find_executable(p.name); !exe.empty()) {
-      return pager_program{exe, p.args};
-    }
-  }
-
-  return std::nullopt;
+  // No preference expressed: try the default pager and let show_in_pager()
+  // report it if it isn't there.
+  return make_pager_program(default_pager);
 }
 
 #ifdef _WIN32
 
-void show_in_pager(pager_program const& pager, std::string_view text) {
+void show_in_pager(pager_program const& pager, std::string_view text,
+                   std::error_code& ec) {
+  ec.clear();
+
   std::wstring cmdline;
-  append_quoted(cmdline, pager.name.wstring());
+  internal::append_quoted(cmdline, pager.name.wstring());
 
   for (auto const& arg : pager.args) {
     cmdline += L' ';
-    append_quoted(cmdline, string_to_sys_string(arg));
+    internal::append_quoted(cmdline, string_to_sys_string(arg));
   }
 
   SECURITY_ATTRIBUTES sa{};
@@ -169,8 +134,8 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
   HANDLE wr{};
 
   if (!::CreatePipe(&rd, &wr, &sa, 0)) {
-    throw std::system_error(static_cast<int>(::GetLastError()),
-                            std::system_category(), "CreatePipe");
+    ec.assign(static_cast<int>(::GetLastError()), std::system_category());
+    return;
   }
 
   // The write end must not leak into the child, or it will never see EOF.
@@ -189,16 +154,26 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
   std::vector<wchar_t> buf(cmdline.begin(), cmdline.end());
   buf.push_back(L'\0');
 
-  BOOL ok = ::CreateProcessW(nullptr, buf.data(), nullptr, nullptr, TRUE, 0,
-                             nullptr, nullptr, &si, &pi);
+  BOOL ok{};
+  DWORD err{};
 
-  auto err = ::GetLastError();
+  {
+    // The child inherits the environment as it is at CreateProcessW() time,
+    // so keep the modification scoped as tightly as possible.
+    detail::scoped_env env;
+    env.set_if_unset(less_env_name, less_env_value);
+
+    ok = ::CreateProcessW(nullptr, buf.data(), nullptr, nullptr, TRUE, 0,
+                          nullptr, nullptr, &si, &pi);
+    err = ::GetLastError();
+  }
+
   ::CloseHandle(rd);
 
   if (!ok) {
     ::CloseHandle(wr);
-    throw std::system_error(static_cast<int>(err), std::system_category(),
-                            "CreateProcessW");
+    ec.assign(static_cast<int>(err), std::system_category());
+    return;
   }
 
   size_t offset = 0;
@@ -208,8 +183,12 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
         static_cast<DWORD>(std::min<size_t>(text.size() - offset, 1u << 20));
     DWORD written = 0;
 
-    if (!::WriteFile(wr, text.data() + offset, chunk, &written, nullptr)) {
-      break; // pager exited early; nothing more we can do
+    if (!::WriteFile(wr, text.data() + offset, chunk, &written, nullptr) ||
+        written == 0) {
+      // The pager exited early. It has been showing our output, so this is
+      // not an error: reporting one would make the caller print everything
+      // a second time.
+      break;
     }
 
     offset += written;
@@ -223,11 +202,15 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
 
 #else
 
-void show_in_pager(pager_program const& pager, std::string_view text) {
+void show_in_pager(pager_program const& pager, std::string_view text,
+                   std::error_code& ec) {
+  ec.clear();
+
   int fds[2];
 
   if (::pipe(fds) != 0) {
-    throw std::system_error(errno, std::generic_category(), "pipe");
+    ec.assign(errno, std::generic_category());
+    return;
   }
 
   posix_spawn_file_actions_t actions;
@@ -256,8 +239,17 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
   argv.push_back(nullptr);
 
   pid_t pid{};
-  int rv = ::posix_spawn(&pid, path.c_str(), &actions, &attr, argv.data(),
-                         ::environ);
+  int rv{};
+
+  {
+    // The child inherits ::environ as it is at posix_spawn() time, so keep
+    // the modification scoped as tightly as possible.
+    detail::scoped_env env;
+    env.set_if_unset(less_env_name, less_env_value);
+
+    rv = ::posix_spawn(&pid, path.c_str(), &actions, &attr, argv.data(),
+                       ::environ);
+  }
 
   ::posix_spawn_file_actions_destroy(&actions);
   ::posix_spawnattr_destroy(&attr);
@@ -265,7 +257,8 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
 
   if (rv != 0) {
     ::close(fds[1]);
-    throw std::system_error(rv, std::generic_category(), "posix_spawn");
+    ec.assign(rv, std::generic_category());
+    return;
   }
 
   // If the user quits the pager early we get EPIPE rather than a signal.
@@ -280,7 +273,10 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
       if (errno == EINTR) {
         continue;
       }
-      break; // EPIPE: pager exited early
+      // EPIPE: the pager exited early. It has been showing our output, so
+      // this is not an error: reporting one would make the caller print
+      // everything a second time.
+      break;
     }
 
     offset += static_cast<size_t>(n);
@@ -292,8 +288,31 @@ void show_in_pager(pager_program const& pager, std::string_view text) {
   ::close(fds[1]);
 
   int status{};
-  while (::waitpid(pid, &status, 0) < 0 && errno == EINTR) {
-    // retry
+
+  while (::waitpid(pid, &status, 0) < 0) {
+    if (errno != EINTR) {
+      ec.assign(errno, std::generic_category());
+      return;
+    }
+  }
+
+  // sh(1) reports 127 for "command not found" and 126 for "found but not
+  // executable". Those are the only exit codes that tell us the text was
+  // never displayed; anything else we have to assume the pager did its job.
+  // (A pager that legitimately exits 127 will be misread here.)
+  if (WIFEXITED(status)) {
+    switch (WEXITSTATUS(status)) {
+    case 126:
+      ec = std::make_error_code(std::errc::permission_denied);
+      break;
+
+    case 127:
+      ec = std::make_error_code(std::errc::no_such_file_or_directory);
+      break;
+
+    default:
+      break;
+    }
   }
 }
 

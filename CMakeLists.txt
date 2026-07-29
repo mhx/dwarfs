@@ -823,9 +823,11 @@ if(WITH_TESTS)
       find_program(DWARFSEXTRACT_EXE NAMES dwarfsextract dwarfsextract.exe)
     endif()
     if(WITH_TOOLS OR (MKDWARFS_EXE AND DWARFSCK_EXE AND DWARFSEXTRACT_EXE))
-      list(APPEND DWARFS_TESTS
-        tools_test
-      )
+      list(APPEND DWARFS_TESTS tools_test)
+      if(WITH_MAN_OPTION)
+        list(APPEND DWARFS_TESTS pager_test)
+        add_executable(pager_test_helper test/pager_test_helper.cpp)
+      endif()
     endif()
   endif()
 
@@ -911,6 +913,12 @@ if(WITH_TESTS)
         $<$<BOOL:${CMAKE_PREFIX_PATH}>:DWARFS_CMAKE_PREFIX_PATH=\"${DWARFS_CMAKE_PREFIX_PATH}\">
       )
     endif()
+  endif()
+
+  if(TARGET pager_test)
+    target_compile_definitions(pager_test PRIVATE
+      $<$<BOOL:${CMAKE_CROSSCOMPILING}>:DWARFS_CROSSCOMPILING_EMULATOR=\"${CMAKE_CROSSCOMPILING_EMULATOR}\">
+    )
   endif()
 
   if(TARGET block_cache_test)
