@@ -691,6 +691,7 @@ if(WITH_TESTS)
       test/packed_ptr_test.cpp
       test/pcm_sample_transformer_test.cpp
       test/pinned_byte_span_store_test.cpp
+      test/scoped_env_test.cpp
       test/scoped_output_capture_test.cpp
       test/small_fifo_test.cpp
       test/sorted_array_map_test.cpp

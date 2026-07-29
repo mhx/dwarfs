@@ -34,14 +34,31 @@
 
 namespace dwarfs::detail {
 
+/**
+ * Temporarily modify the process environment.
+ *
+ * Every variable passed to set()/set_if_unset()/unset() is saved on first
+ * touch and restored when the object is destroyed (or restore() is called).
+ *
+ * \note On Windows there is no way to represent a variable that is set but
+ *       empty: _putenv_s(name, "") removes it. A variable whose original
+ *       value was the empty string is therefore removed rather than restored.
+ */
 class scoped_env {
  public:
   scoped_env();
   scoped_env(std::string const& name, std::string const& value);
 
+  scoped_env(scoped_env const&) = delete;
+  scoped_env& operator=(scoped_env const&) = delete;
+  scoped_env(scoped_env&& other) = delete;
+  scoped_env& operator=(scoped_env&& other) = delete;
+
   ~scoped_env();
 
   void set(std::string const& name, std::string const& value);
+  bool set_if_unset(std::string const& name, std::string const& value);
+
   void unset(std::string const& name);
   void restore();
 
