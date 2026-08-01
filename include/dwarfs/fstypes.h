@@ -131,7 +131,11 @@ struct superblock_v0 {
   uint64le_t fs_size; // in bytes, must be a multiple of fs_size_alignment
   std::array<uint8_t, 16> fs_uuid;
   std::array<char, 64> fs_label; // zero-padded UTF-8 string
+  std::array<uint8_t, 96> reserved1;
 };
+
+// all superblocks must be 256 bytes long (including the section header)
+static_assert(sizeof(section_header_v2) + sizeof(superblock_v0) == 256);
 
 bool is_known_compression_type(compression_type type);
 
