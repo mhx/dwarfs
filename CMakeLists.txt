@@ -711,6 +711,7 @@ if(WITH_TESTS)
       test/speedometer_test.cpp
       test/stable_jagged_vector_test.cpp
       test/string_test.cpp
+      test/superblock_editor_test.cpp
       test/synchronized_test.cpp
       test/terminal_test.cpp
       test/test_iolayer_test.cpp
