@@ -125,17 +125,22 @@ struct filesystem_version {
 constexpr uint8_t SUPERBLOCK_VERSION = 0;
 
 struct superblock_v0 {
+  static constexpr std::size_t kUuidSize = 16;
+  static constexpr std::size_t kSuperblockSize = 256;
+  static constexpr std::size_t kMaxLabelSize = 64;
+
   uint16le_t superblock_version;
   uint16le_t reserved0;
   uint32le_t fs_size_alignment; // in bytes
   uint64le_t fs_size; // in bytes, must be a multiple of fs_size_alignment
-  std::array<uint8_t, 16> fs_uuid;
-  std::array<char, 64> fs_label; // zero-padded UTF-8 string
+  std::array<uint8_t, kUuidSize> fs_uuid;
+  std::array<char, kMaxLabelSize> fs_label; // zero-padded UTF-8 string
   std::array<uint8_t, 96> reserved1;
 };
 
 // all superblocks must be 256 bytes long (including the section header)
-static_assert(sizeof(section_header_v2) + sizeof(superblock_v0) == 256);
+static_assert(sizeof(section_header_v2) + sizeof(superblock_v0) ==
+              superblock_v0::kSuperblockSize);
 
 bool is_known_compression_type(compression_type type);
 
