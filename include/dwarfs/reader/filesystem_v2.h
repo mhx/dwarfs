@@ -331,6 +331,7 @@ class filesystem_v2_lite {
 
   size_t block_size() const { return lite_->block_size(); }
 
+  file_off_t image_offset() const { return lite_->image_offset(); }
   file_size_t image_size() const { return lite_->image_size(); }
 
   bool has_symlinks() const { return lite_->has_symlinks(); }
@@ -464,6 +465,7 @@ class filesystem_v2_lite {
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual size_t block_size() const = 0;
+    virtual file_off_t image_offset() const = 0;
     virtual file_size_t image_size() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual bool has_sparse_files() const = 0;

@@ -545,6 +545,9 @@ void rewrite_filesystem(
     case section_type::SUPERBLOCK:
     case section_type::PADDING:
       // these will be automatically added by the filesystem_writer
+      // NOTE: We deliberately don't copy the superblock or anything
+      //       from it here, since we're writing a completely new
+      //       file system image.
       break;
 
     default:

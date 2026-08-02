@@ -75,6 +75,9 @@ class superblock_editor {
   superblock_editor();
   ~superblock_editor();
 
+  superblock_editor(superblock_editor&&) noexcept;
+  superblock_editor& operator=(superblock_editor&&) noexcept;
+
   /// Size of the superblock section, section header included.
   static constexpr std::size_t superblock_size() { return kSuperblockSize; }
 
