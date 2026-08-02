@@ -59,6 +59,7 @@
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/superblock_editor.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
@@ -79,6 +80,7 @@ class dwarfsck_impl {
     sys_string input;
     std::optional<sys_string> export_metadata;
     std::optional<std::string> checksum_algo;
+    std::optional<sys_string> set_label;
     std::string cache_size_str;
     std::string image_offset;
     std::string detail;
@@ -91,6 +93,7 @@ class dwarfsck_impl {
     bool no_check{false};
     bool print_header{false};
     bool list_files{false};
+    bool init_superblock{false};
   };
 
   // Parses the command line. On success, returns the parsed options.
@@ -117,6 +120,8 @@ class dwarfsck_impl {
   void do_dump_info();
   void do_list_files();
   void do_checksum();
+  void do_edit_superblock(std::filesystem::path const& image_path,
+                          std::uint64_t fs_size);
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -147,6 +152,7 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   // program_options cannot bind to std::optional<>, so these are parsed into
   // raw values and moved into the optionals below if the option was present.
   sys_string export_metadata_raw;
+  sys_string set_label_raw;
   std::string checksum_algo_raw;
 
   // clang-format off
@@ -194,6 +200,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("export-metadata",
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
+    ("init-superblock",
+        po::value<bool>(&o.quiet)->zero_tokens(),
+        "initialize filesystem superblock")
+    ("set-label",
+        po_sys_value<sys_string>(&set_label_raw),
+        "set filesystem label")
     ;
   // clang-format on
 
@@ -240,6 +252,10 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.contains("export-metadata")) {
     o.export_metadata = std::move(export_metadata_raw);
+  }
+
+  if (vm.contains("set-label")) {
+    o.set_label = std::move(set_label_raw);
   }
 
   return o;
@@ -310,11 +326,22 @@ int dwarfsck_impl::run() {
       do_checksum();
     }
 
-    return errors > 0 ? 1 : 0;
+    if (errors > 0) {
+      return 1;
+    }
+
+    if (opts_.init_superblock || opts_.set_label) {
+      auto const fs_size = fs_->image_size();
+      fs_.reset();
+
+      do_edit_superblock(input_path, fs_size);
+    }
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
     return 1;
   }
+
+  return 0;
 }
 
 int dwarfsck_impl::do_print_header(file_view const& mm) {
@@ -494,6 +521,36 @@ void dwarfsck_impl::do_checksum() {
   }
 
   pool.wait();
+}
+
+void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
+                                       std::uint64_t const fs_size) {
+  auto io_stream = iol_.file->open(image_path, std::ios::in | std::ios::out |
+                                                   std::ios::binary);
+  auto& ios = io_stream->ios();
+  auto sbe = superblock_editor{};
+
+  ios.seekg(fsopts_.image_offset);
+  sbe.read(ios);
+
+  if (opts_.init_superblock) {
+    if (!sbe.fs_size()) {
+      sbe.init_fs_size(fs_size);
+    }
+
+    if (!sbe.fs_uuid()) {
+      sbe.init_fs_uuid();
+    }
+  }
+
+  if (opts_.set_label) {
+    sbe.set_fs_label(*opts_.set_label);
+  }
+
+  ios.seekp(fsopts_.image_offset);
+  sbe.update(ios);
+
+  io_stream->close();
 }
 
 } // namespace
