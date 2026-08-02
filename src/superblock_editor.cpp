@@ -386,6 +386,10 @@ superblock_editor::superblock_editor()
 
 superblock_editor::~superblock_editor() = default;
 
+superblock_editor::superblock_editor(superblock_editor&&) noexcept = default;
+superblock_editor&
+superblock_editor::operator=(superblock_editor&&) noexcept = default;
+
 void superblock_editor::read(std::istream& input) { impl_->read(input); }
 
 void superblock_editor::update(std::iostream& io) { impl_->update(io); }

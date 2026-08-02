@@ -41,6 +41,7 @@ namespace dwarfs::reader {
 
 enum class fsinfo_feature {
   version,
+  superblock,
   history,
   metadata_summary,
   metadata_details,

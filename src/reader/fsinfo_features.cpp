@@ -43,8 +43,8 @@ namespace {
 constexpr std::array level_features{
     /* 0 */ fsinfo_features(),
     /* 1 */
-    fsinfo_features(
-        {fsinfo_feature::version, fsinfo_feature::metadata_summary}),
+    fsinfo_features({fsinfo_feature::version, fsinfo_feature::superblock,
+                     fsinfo_feature::metadata_summary}),
     /* 2 */
     fsinfo_features({fsinfo_feature::frozen_analysis, fsinfo_feature::history}),
     /* 3 */
@@ -64,6 +64,7 @@ constexpr std::array<std::pair<fsinfo_feature, std::string_view>,
     fsinfo_feature_names{{
 #define FSINFO_FEATURE_PAIR_(f) {fsinfo_feature::f, #f}
         FSINFO_FEATURE_PAIR_(version),
+        FSINFO_FEATURE_PAIR_(superblock),
         FSINFO_FEATURE_PAIR_(history),
         FSINFO_FEATURE_PAIR_(metadata_summary),
         FSINFO_FEATURE_PAIR_(metadata_details),

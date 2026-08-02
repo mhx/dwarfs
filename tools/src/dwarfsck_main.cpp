@@ -129,7 +129,7 @@ class dwarfsck_impl {
   void do_list_files();
   void do_checksum();
   void do_edit_superblock(std::filesystem::path const& image_path,
-                          std::uint64_t fs_size);
+                          std::uint64_t fs_offset, std::uint64_t fs_size);
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -212,7 +212,7 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
     ("init-superblock",
-        po::value<bool>(&o.quiet)->zero_tokens(),
+        po::value<bool>(&o.init_superblock)->zero_tokens(),
         "initialize filesystem superblock")
     ("set-label",
         po_sys_value<sys_string>(&set_label_raw),
@@ -349,7 +349,8 @@ int dwarfsck_impl::run() {
 
     auto const errors = do_check();
 
-    if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo) {
+    if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
+        !opts_.init_superblock && !opts_.set_label) {
       do_dump_info();
     }
 
@@ -372,10 +373,11 @@ int dwarfsck_impl::run() {
     }
 
     if (opts_.init_superblock || opts_.set_label) {
+      auto const fs_offset = fs_->image_offset();
       auto const fs_size = fs_->image_size();
       fs_.reset();
 
-      do_edit_superblock(input_path, fs_size);
+      do_edit_superblock(input_path, fs_offset, fs_size);
     }
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
@@ -638,13 +640,14 @@ void dwarfsck_impl::do_checksum() {
 }
 
 void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
+                                       std::uint64_t const fs_offset,
                                        std::uint64_t const fs_size) {
   auto io_stream = iol_.file->open(image_path, std::ios::in | std::ios::out |
                                                    std::ios::binary);
   auto& ios = io_stream->ios();
   auto sbe = superblock_editor{};
 
-  ios.seekg(fsopts_.image_offset);
+  ios.seekg(fs_offset);
   sbe.read(ios);
 
   if (opts_.init_superblock) {
@@ -658,10 +661,9 @@ void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
   }
 
   if (opts_.set_label) {
-    sbe.set_fs_label(*opts_.set_label);
+    sbe.set_fs_label(sys_string_to_string(*opts_.set_label));
   }
 
-  ios.seekp(fsopts_.image_offset);
   sbe.update(ios);
 
   io_stream->close();

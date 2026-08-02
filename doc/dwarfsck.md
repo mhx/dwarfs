@@ -98,6 +98,23 @@ with a non-zero exit code.
   Export all filesystem metadata to *file* in JSON format. Write to stdout
   if *file* is `-`.
 
+- `--init-superblock`:
+  Initialize uninitialized superblock fields, e.g. the UUID and/or the size
+  of the filesystem, if they haven't been set by `mkdwarfs`. The UUID can be
+  left uninitialized by `mkdwarfs` to support the creation of bit-identical
+  filesystem images. The size isn't set by `mkdwarfs` if the filesystem image
+  was written to stdout. Once initialized, all superblock fields except for
+  the label are immutable. This option is only supported for filesystem
+  images that actually have a superblock. You can re-write an existing image
+  without a superblock using `mkdwarfs` to add a superblock.
+
+- `--set-label=`*label*:
+  Set the filesystem label to *label*. This will modify the filesystem in
+  place by overwriting the label in the filesystem superblock and updating
+  the checksums. This is only supported for filesystem images that actually
+  have a superblock. You can re-write an existing image without a superblock
+  using `mkdwarfs` to add a superblock.
+
 - `--log-level=`*name*:
   Specify a logging level.
 

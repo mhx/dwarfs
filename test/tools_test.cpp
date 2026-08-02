@@ -662,7 +662,9 @@ class subprocess {
     auto const [out, err, ec] = run(std::forward<Args>(args)...);
 
     if (ec != 0) {
-      std::cerr << "stdout:\n" << out << "\nstderr:\n" << err << "\n";
+      std::cerr << "stdout:\n"
+                << out << "\nstderr:\n"
+                << err << "\nexit code: " << ec << "\n";
       return std::nullopt;
     }
 
