@@ -28,10 +28,14 @@
 
 #include <algorithm>
 #include <cstring>
+#include <expected>
 #include <filesystem>
 #include <iostream>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -69,102 +73,64 @@ namespace po = boost::program_options;
 
 namespace {
 
-void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
-                   bool verbose) {
-  auto max_width = [](auto const& vec) {
-    auto max = std::ranges::max_element(vec);
-    return std::to_string(*max).size();
+class dwarfsck_impl {
+ public:
+  struct options {
+    sys_string input;
+    std::optional<sys_string> export_metadata;
+    std::optional<std::string> checksum_algo;
+    std::string cache_size_str;
+    std::string image_offset;
+    std::string detail;
+    logger_options logopts;
+    size_t num_workers{0};
+    bool quiet{false};
+    bool verbose{false};
+    bool output_json{false};
+    bool check_integrity{false};
+    bool no_check{false};
+    bool print_header{false};
+    bool list_files{false};
   };
 
-  auto const uid_width = max_width(fs.get_all_uids());
-  auto const gid_width = max_width(fs.get_all_gids());
+  // Parses the command line. On success, returns the parsed options.
+  // On failure, or if the command line has already been fully handled
+  // (`--help`, `--man`), returns the exit code for `main`.
+  static std::expected<options, int>
+  parse_cmdline(int argc, sys_char** argv, iolayer const& iol);
 
-  size_t inode_size_width{0};
+  dwarfsck_impl(iolayer const& iol, options const& opts)
+      : iol_{iol}
+      , opts_{opts}
+      , lgr_{iol.term, iol.err, *iol.os, opts.logopts}
+      , LOG_PROXY_INIT(lgr_) {}
 
-  if (verbose) {
-    file_stat::off_type max_inode_size{0};
-    fs.walk([&](auto const& de) {
-      auto st = fs.getattr(de.inode());
-      max_inode_size = std::max(max_inode_size, st.size());
-    });
-    inode_size_width = fmt::format("{:L}", max_inode_size).size();
-  }
+  int run();
 
-  fs.walk([&](auto const& de) {
-    auto name = de.unix_path();
-    utf8_sanitize(name);
+ private:
+  bool validate_options() const;
 
-    if (verbose) {
-      auto iv = de.inode();
+  int do_print_header(file_view const& mm);
 
-      if (iv.is_symlink()) {
-        auto target = fs.readlink(iv);
-        utf8_sanitize(target);
-        name += " -> " + target;
-      }
+  int do_export_metadata();
+  int do_check();
+  void do_dump_info();
+  void do_list_files();
+  void do_checksum();
 
-      auto st = fs.getattr(iv);
+  reader::filesystem_v2& fs() { return fs_.value(); }
 
-      iol.out << fmt::format("{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
-                             uid_width, gid_width, inode_size_width,
-                             iv.mode_string(), iv.getuid(), iv.getgid(),
-                             st.size(), safe_localtime(st.mtime()), name);
-    } else if (!name.empty()) {
-      iol.out << name << "\n";
-    }
-  });
-}
+  iolayer const& iol_;
+  options const opts_;
+  stream_logger lgr_;
+  LOG_PROXY_DECL(debug_logger_policy);
+  reader::filesystem_options fsopts_;
+  std::optional<reader::filesystem_v2> fs_;
+  std::mutex out_mx_;
+};
 
-void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
-                 std::string const& algo, size_t num_workers,
-                 size_t max_queued_bytes) {
-  LOG_PROXY(debug_logger_policy, lgr);
-
-  std::mutex mx;
-  counting_semaphore sem;
-  sem.post(static_cast<int64_t>(max_queued_bytes));
-
-  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
-
-  size_t const max_queued_per_worker = max_queued_bytes / num_workers;
-
-  for (auto const& de : fs.entries_in_data_order()) {
-    auto iv = de.inode();
-
-    if (iv.is_regular_file()) {
-      reader::detail::file_reader fr(fs, iv);
-
-      pool.add_job(
-          [&, de,
-           ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
-            try {
-              checksum cs(algo);
-
-              for (auto const& r : ranges) {
-                cs.update(r.data(), r.size());
-              }
-
-              auto output =
-                  fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
-
-              {
-                std::lock_guard lock(mx);
-                iol.out << output;
-              }
-            } catch (std::exception const& e) {
-              LOG_ERROR << "error processing inode for " << de.unix_path()
-                        << ": " << e.what();
-            }
-          });
-    }
-  }
-
-  pool.wait();
-}
-
-} // namespace
-
-int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
+std::expected<dwarfsck_impl::options, int>
+dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   size_t const num_cpu = std::max(hardware_concurrency(), 1U);
 
   auto algo_list = checksum::available_algorithms();
@@ -176,68 +142,62 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       fmt::join(reader::fsinfo_features::all().to_string_views(), ", "));
   auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
-  sys_string input, export_metadata;
-  std::string cache_size_str, image_offset, checksum_algo;
-  logger_options logopts;
-  size_t num_workers;
-  std::string detail;
-  bool quiet{false};
-  bool verbose{false};
-  bool output_json{false};
-  bool check_integrity{false};
-  bool no_check{false};
-  bool print_header{false};
-  bool list_files{false};
+  options o;
+
+  // program_options cannot bind to std::optional<>, so these are parsed into
+  // raw values and moved into the optionals below if the option was present.
+  sys_string export_metadata_raw;
+  std::string checksum_algo_raw;
 
   // clang-format off
   po::options_description opts("Command line options");
   opts.add_options()
     ("input,i",
-        po_sys_value<sys_string>(&input),
+        po_sys_value<sys_string>(&o.input),
         "input filesystem")
     ("detail,d",
-        po::value<std::string>(&detail)->default_value(detail_default),
+        po::value<std::string>(&o.detail)->default_value(detail_default),
         detail_desc.c_str())
     ("quiet,q",
-        po::value<bool>(&quiet)->zero_tokens(),
+        po::value<bool>(&o.quiet)->zero_tokens(),
         "don't print anything unless an error occurs")
     ("verbose,v",
-        po::value<bool>(&verbose)->zero_tokens(),
+        po::value<bool>(&o.verbose)->zero_tokens(),
         "produce verbose output")
     ("image-offset,O",
-        po::value<std::string>(&image_offset)->default_value("auto"),
+        po::value<std::string>(&o.image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
     ("print-header,H",
-        po::value<bool>(&print_header)->zero_tokens(),
+        po::value<bool>(&o.print_header)->zero_tokens(),
         "print filesystem header to stdout and exit")
     ("list,l",
-        po::value<bool>(&list_files)->zero_tokens(),
+        po::value<bool>(&o.list_files)->zero_tokens(),
         "list all files and exit")
     ("checksum",
-        po::value<std::string>(&checksum_algo),
+        po::value<std::string>(&checksum_algo_raw),
         checksum_desc.c_str())
     ("num-workers,n",
-        po::value<size_t>(&num_workers)->default_value(num_cpu),
+        po::value<size_t>(&o.num_workers)->default_value(num_cpu),
         "number of reader worker threads")
     ("cache-size,s",
-        po::value<std::string>(&cache_size_str)->default_value("512m"),
+        po::value<std::string>(&o.cache_size_str)->default_value("512m"),
         "block cache size")
     ("check-integrity",
-        po::value<bool>(&check_integrity)->zero_tokens(),
+        po::value<bool>(&o.check_integrity)->zero_tokens(),
         "check integrity of each block")
     ("no-check",
-        po::value<bool>(&no_check)->zero_tokens(),
+        po::value<bool>(&o.no_check)->zero_tokens(),
         "don't even verify block checksums")
     ("json,j",
-        po::value<bool>(&output_json)->zero_tokens(),
+        po::value<bool>(&o.output_json)->zero_tokens(),
         "print information in JSON format")
     ("export-metadata",
-        po_sys_value<sys_string>(&export_metadata),
+        po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
     ;
   // clang-format on
 
-  tool::add_common_options(opts, logopts);
+  tool::add_common_options(opts, o.logopts);
 
   po::positional_options_description pos;
   pos.add("input", -1);
@@ -253,13 +213,13 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     po::notify(vm);
   } catch (po::error const& e) {
     iol.err << "error: " << e.what() << "\n";
-    return 1;
+    return std::unexpected(1);
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (vm.contains("man")) {
     tool::show_manpage(tool::manpage::get_dwarfsck_manpage(), iol);
-    return 0;
+    return std::unexpected(0);
   }
 #endif
 
@@ -271,139 +231,281 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     };
     iol.out << tool::tool_header("dwarfsck", extra_deps) << usage << "\n"
             << opts << "\n";
-    return 0;
+    return std::unexpected(0);
   }
 
-  stream_logger lgr(iol.term, iol.err, *iol.os, logopts);
-  LOG_PROXY(debug_logger_policy, lgr);
+  if (vm.contains("checksum")) {
+    o.checksum_algo = std::move(checksum_algo_raw);
+  }
+
+  if (vm.contains("export-metadata")) {
+    o.export_metadata = std::move(export_metadata_raw);
+  }
+
+  return o;
+}
+
+bool dwarfsck_impl::validate_options() const {
+  if (opts_.no_check && opts_.check_integrity) {
+    LOG_WARN << "--no-check and --check-integrity are mutually exclusive";
+    return false;
+  }
+
+  if (opts_.checksum_algo && !checksum::is_available(*opts_.checksum_algo)) {
+    LOG_WARN << "checksum algorithm not available: " << *opts_.checksum_algo;
+    return false;
+  }
+
+  if (opts_.num_workers < 1) {
+    LOG_WARN << "number of worker threads must be at least 1";
+    return false;
+  }
+
+  if (opts_.print_header &&
+      (opts_.output_json || opts_.export_metadata || opts_.check_integrity ||
+       opts_.list_files || opts_.checksum_algo)) {
+    LOG_WARN << "--print-header is mutually exclusive with --json, "
+                "--export-metadata, --check-integrity, --list and --checksum";
+    return false;
+  }
+
+  return true;
+}
+
+int dwarfsck_impl::run() {
+  if (!validate_options()) {
+    return 1;
+  }
 
   try {
-    if (no_check && check_integrity) {
-      LOG_WARN << "--no-check and --check-integrity are mutually exclusive";
-      return 1;
+    fsopts_.metadata.check_consistency = !opts_.no_check;
+    fsopts_.image_offset = reader::parse_image_offset(opts_.image_offset);
+    fsopts_.block_cache.max_bytes = parse_size_with_unit(opts_.cache_size_str);
+    fsopts_.block_cache.num_workers = opts_.num_workers;
+
+    auto input_path = iol_.os->canonical(opts_.input);
+    auto mm = iol_.os->open_file(input_path);
+
+    if (opts_.print_header) {
+      return do_print_header(mm);
     }
 
-    if (vm.contains("checksum") && !checksum::is_available(checksum_algo)) {
-      LOG_WARN << "checksum algorithm not available: " << checksum_algo;
-      return 1;
+    fs_.emplace(lgr_, *iol_.os, mm, fsopts_);
+
+    if (opts_.export_metadata) {
+      return do_export_metadata();
     }
 
-    if (print_header &&
-        (output_json || !export_metadata.empty() || check_integrity ||
-         list_files || !checksum_algo.empty())) {
-      LOG_WARN << "--print-header is mutually exclusive with --json, "
-                  "--export-metadata, --check-integrity, --list and --checksum";
-      return 1;
+    auto const errors = do_check();
+
+    if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo) {
+      do_dump_info();
     }
 
-    reader::filesystem_options fsopts;
-
-    fsopts.metadata.check_consistency = !no_check;
-    fsopts.image_offset = reader::parse_image_offset(image_offset);
-    fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
-    fsopts.block_cache.num_workers = num_workers;
-
-    auto input_path = iol.os->canonical(input);
-
-    auto mm = iol.os->open_file(input_path);
-
-    if (print_header) {
-      if (auto hdr =
-              reader::filesystem_v2::header(lgr, mm, fsopts.image_offset)) {
-        ensure_binary_mode(iol.out);
-        for (auto const& ext : *hdr) {
-          for (auto const& seg : ext.segments()) {
-            auto const data = seg.span<char>();
-            iol.out.write(data.data(), data.size());
-          }
-        }
-        if (iol.out.bad() || iol.out.fail()) {
-          LOG_ERROR << "error writing header";
-          return 1;
-        }
-      } else {
-        LOG_WARN << "filesystem does not contain a header";
-        return 2;
-      }
-    } else {
-      reader::filesystem_v2 fs(lgr, *iol.os, mm, fsopts);
-
-      if (!export_metadata.empty()) {
-        auto const export_path = std::filesystem::path(export_metadata);
-        std::error_code ec;
-        std::unique_ptr<output_stream> of;
-        if (export_path != "-") {
-          of = iol.file->open_output(iol.os->canonical(export_path), ec);
-          if (ec) {
-            LOG_ERROR << "failed to open metadata output file: "
-                      << ec.message();
-            return 1;
-          }
-        }
-        fs.serialize_metadata_as_json(of ? of->os() : iol.out, false);
-        if (of) {
-          of->close(ec);
-          of.reset();
-        }
-        if (ec) {
-          LOG_ERROR << "failed to close metadata output file: " << ec.message();
-          return 1;
-        }
-      } else {
-        auto level = check_integrity ? reader::filesystem_check_level::FULL
-                                     : reader::filesystem_check_level::CHECKSUM;
-        auto errors = no_check ? 0 : fs.check(level, num_workers);
-
-        if (!no_check && check_integrity) {
-          try {
-            fs.walk([&](auto const&) {});
-          } catch (std::exception const& e) {
-            LOG_ERROR << "error: failed to walk filesystem: "
-                      << exception_str(e);
-            return 1;
-          }
-        }
-
-        if (!quiet && !list_files && checksum_algo.empty()) {
-          reader::fsinfo_options opts;
-
-          opts.block_access = no_check
-                                  ? reader::block_access_level::no_verify
-                                  : reader::block_access_level::unrestricted;
-
-          auto numeric_detail = try_to<int>(detail);
-          opts.features =
-              numeric_detail.has_value()
-                  ? reader::fsinfo_features::for_level(*numeric_detail)
-                  : reader::fsinfo_features::parse(detail);
-
-          if (output_json) {
-            iol.out << fs.info_as_json(opts) << "\n";
-          } else {
-            fs.dump(iol.out, opts);
-          }
-        }
-
-        if (list_files) {
-          do_list_files(fs, iol, verbose);
-        }
-
-        if (!checksum_algo.empty()) {
-          do_checksum(lgr, fs, iol, checksum_algo, num_workers,
-                      fsopts.block_cache.max_bytes);
-        }
-
-        if (errors > 0) {
-          return 1;
-        }
-      }
+    if (opts_.list_files) {
+      do_list_files();
     }
+
+    if (opts_.checksum_algo) {
+      do_checksum();
+    }
+
+    return errors > 0 ? 1 : 0;
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
     return 1;
   }
+}
+
+int dwarfsck_impl::do_print_header(file_view const& mm) {
+  auto hdr = reader::filesystem_v2::header(lgr_, mm, fsopts_.image_offset);
+
+  if (!hdr) {
+    LOG_WARN << "filesystem does not contain a header";
+    return 2;
+  }
+
+  ensure_binary_mode(iol_.out);
+
+  for (auto const& ext : *hdr) {
+    for (auto const& seg : ext.segments()) {
+      auto const data = seg.span<char>();
+      iol_.out.write(data.data(), data.size());
+    }
+  }
+
+  if (iol_.out.bad() || iol_.out.fail()) {
+    LOG_ERROR << "error writing header";
+    return 1;
+  }
 
   return 0;
+}
+
+int dwarfsck_impl::do_export_metadata() {
+  auto const export_path = std::filesystem::path(*opts_.export_metadata);
+  std::error_code ec;
+  std::unique_ptr<output_stream> of;
+
+  if (export_path != "-") {
+    of = iol_.file->open_output(iol_.os->canonical(export_path), ec);
+    if (ec) {
+      LOG_ERROR << "failed to open metadata output file: " << ec.message();
+      return 1;
+    }
+  }
+
+  fs().serialize_metadata_as_json(of ? of->os() : iol_.out, false);
+
+  if (of) {
+    of->close(ec);
+    if (ec) {
+      LOG_ERROR << "failed to close metadata output file: " << ec.message();
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+int dwarfsck_impl::do_check() {
+  auto const level = opts_.check_integrity
+                         ? reader::filesystem_check_level::FULL
+                         : reader::filesystem_check_level::CHECKSUM;
+  auto errors = opts_.no_check ? 0 : fs().check(level, opts_.num_workers);
+
+  if (!opts_.no_check && opts_.check_integrity) {
+    try {
+      fs().walk([](auto const&) {});
+    } catch (std::exception const& e) {
+      LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
+      ++errors;
+    }
+  }
+
+  return errors;
+}
+
+void dwarfsck_impl::do_dump_info() {
+  reader::fsinfo_options fsi_opts;
+
+  fsi_opts.block_access = opts_.no_check
+                              ? reader::block_access_level::no_verify
+                              : reader::block_access_level::unrestricted;
+
+  auto numeric_detail = try_to<int>(opts_.detail);
+  fsi_opts.features = numeric_detail.has_value()
+                          ? reader::fsinfo_features::for_level(*numeric_detail)
+                          : reader::fsinfo_features::parse(opts_.detail);
+
+  if (opts_.output_json) {
+    iol_.out << fs().info_as_json(fsi_opts) << "\n";
+  } else {
+    fs().dump(iol_.out, fsi_opts);
+  }
+}
+
+void dwarfsck_impl::do_list_files() {
+  auto max_width = [](auto const& vec, std::string_view what) {
+    DWARFS_CHECK(!vec.empty(), fmt::format("no {} in filesystem", what));
+    auto max = std::ranges::max_element(vec);
+    return std::to_string(*max).size();
+  };
+
+  auto const uid_width = max_width(fs().get_all_uids(), "uids");
+  auto const gid_width = max_width(fs().get_all_gids(), "gids");
+
+  size_t inode_size_width{0};
+
+  if (opts_.verbose) {
+    file_stat::off_type max_inode_size{0};
+    fs().walk([&](auto const& de) {
+      auto st = fs().getattr(de.inode());
+      max_inode_size = std::max(max_inode_size, st.size());
+    });
+    inode_size_width = fmt::format("{:L}", max_inode_size).size();
+  }
+
+  fs().walk([&](auto const& de) {
+    auto name = de.unix_path();
+    utf8_sanitize(name);
+
+    if (opts_.verbose) {
+      auto iv = de.inode();
+
+      if (iv.is_symlink()) {
+        auto target = fs().readlink(iv);
+        utf8_sanitize(target);
+        name += " -> " + target;
+      }
+
+      auto st = fs().getattr(iv);
+
+      iol_.out << fmt::format("{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
+                              uid_width, gid_width, inode_size_width,
+                              iv.mode_string(), iv.getuid(), iv.getgid(),
+                              st.size(), safe_localtime(st.mtime()), name);
+    } else if (!name.empty()) {
+      iol_.out << name << "\n";
+    }
+  });
+}
+
+void dwarfsck_impl::do_checksum() {
+  auto const& algo = *opts_.checksum_algo;
+  auto const max_queued_bytes = fsopts_.block_cache.max_bytes;
+
+  counting_semaphore sem;
+  sem.post(static_cast<int64_t>(max_queued_bytes));
+
+  thread_pool pool{lgr_, *iol_.os, "checksum", opts_.num_workers};
+
+  size_t const max_queued_per_worker = max_queued_bytes / opts_.num_workers;
+
+  for (auto const& de : fs().entries_in_data_order()) {
+    auto iv = de.inode();
+
+    if (iv.is_regular_file()) {
+      reader::detail::file_reader fr(fs(), iv);
+
+      pool.add_job(
+          [this, &algo, de,
+           ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
+            try {
+              checksum cs(algo);
+
+              for (auto const& r : ranges) {
+                cs.update(r.data(), r.size());
+              }
+
+              auto output =
+                  fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+
+              {
+                std::lock_guard lock(out_mx_);
+                iol_.out << output;
+              }
+            } catch (std::exception const& e) {
+              LOG_ERROR << "error processing inode for " << de.unix_path()
+                        << ": " << e.what();
+            }
+          });
+    }
+  }
+
+  pool.wait();
+}
+
+} // namespace
+
+int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
+  auto opts = dwarfsck_impl::parse_cmdline(argc, argv, iol);
+
+  if (!opts) {
+    return opts.error();
+  }
+
+  return dwarfsck_impl{iol, *opts}.run();
 }
 
 } // namespace dwarfs::tool
