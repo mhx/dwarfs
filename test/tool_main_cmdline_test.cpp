@@ -27,98 +27,109 @@
 
 using namespace dwarfs::test;
 
-TEST_F(mkdwarfs_main_test, no_cmdline_args) {
-  auto exit_code = run({});
+TEST(mkdwarfs_main_test, no_cmdline_args) {
+  mkdwarfs_tester t;
+  auto exit_code = t.run({});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("--help"));
 }
 
-TEST_F(dwarfsck_main_test, no_cmdline_args) {
-  auto exit_code = run({});
+TEST(dwarfsck_main_test, no_cmdline_args) {
+  dwarfsck_tester t;
+  auto exit_code = t.run({});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsck"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsck"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("--help"));
 }
 
-TEST_F(dwarfsextract_main_test, no_cmdline_args) {
-  auto exit_code = run({});
+TEST(dwarfsextract_main_test, no_cmdline_args) {
+  dwarfsextract_tester t;
+  auto exit_code = t.run({});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsextract"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("--help"));
 }
 
-TEST_F(mkdwarfs_main_test, invalid_cmdline_args) {
-  auto exit_code = run({"--some-invalid-option"});
+TEST(mkdwarfs_main_test, invalid_cmdline_args) {
+  mkdwarfs_tester t;
+  auto exit_code = t.run({"--some-invalid-option"});
   EXPECT_EQ(exit_code, 1);
-  EXPECT_FALSE(err().empty());
-  EXPECT_TRUE(out().empty());
-  EXPECT_THAT(err(), ::testing::HasSubstr(
-                         "unrecognised option '--some-invalid-option'"));
+  EXPECT_FALSE(t.err().empty());
+  EXPECT_TRUE(t.out().empty());
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "unrecognised option '--some-invalid-option'"));
 }
 
-TEST_F(dwarfsck_main_test, invalid_cmdline_args) {
-  auto exit_code = run({"--some-invalid-option"});
+TEST(dwarfsck_main_test, invalid_cmdline_args) {
+  dwarfsck_tester t;
+  auto exit_code = t.run({"--some-invalid-option"});
   EXPECT_EQ(exit_code, 1);
-  EXPECT_FALSE(err().empty());
-  EXPECT_TRUE(out().empty());
-  EXPECT_THAT(err(), ::testing::HasSubstr(
-                         "unrecognised option '--some-invalid-option'"));
+  EXPECT_FALSE(t.err().empty());
+  EXPECT_TRUE(t.out().empty());
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "unrecognised option '--some-invalid-option'"));
 }
 
-TEST_F(dwarfsextract_main_test, invalid_cmdline_args) {
-  auto exit_code = run({"--some-invalid-option"});
+TEST(dwarfsextract_main_test, invalid_cmdline_args) {
+  dwarfsextract_tester t;
+  auto exit_code = t.run({"--some-invalid-option"});
   EXPECT_EQ(exit_code, 1);
-  EXPECT_FALSE(err().empty());
-  EXPECT_TRUE(out().empty());
-  EXPECT_THAT(err(), ::testing::HasSubstr(
-                         "unrecognised option '--some-invalid-option'"));
+  EXPECT_FALSE(t.err().empty());
+  EXPECT_TRUE(t.out().empty());
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "unrecognised option '--some-invalid-option'"));
 }
 
-TEST_F(mkdwarfs_main_test, cmdline_help_arg) {
-  auto exit_code = run({"--help"});
+TEST(mkdwarfs_main_test, cmdline_help_arg) {
+  mkdwarfs_tester t;
+  auto exit_code = t.run({"--help"});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("--long-help"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("--help"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("--long-help"));
   // check that the detailed help is not shown
-  EXPECT_THAT(out(), ::testing::Not(::testing::HasSubstr("Advanced options:")));
-  EXPECT_THAT(out(),
+  EXPECT_THAT(t.out(),
+              ::testing::Not(::testing::HasSubstr("Advanced options:")));
+  EXPECT_THAT(t.out(),
               ::testing::Not(::testing::HasSubstr("Compression algorithms:")));
 }
 
-TEST_F(mkdwarfs_main_test, cmdline_long_help_arg) {
-  auto exit_code = run({"--long-help"});
+TEST(mkdwarfs_main_test, cmdline_long_help_arg) {
+  mkdwarfs_tester t;
+  auto exit_code = t.run({"--long-help"});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("Advanced options:"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("Compression level defaults:"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("Compression algorithms:"));
-  EXPECT_THAT(out(), ::testing::HasSubstr("Categories:"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Advanced options:"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Compression level defaults:"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Compression algorithms:"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Categories:"));
 }
 
-TEST_F(dwarfsck_main_test, cmdline_help_arg) {
-  auto exit_code = run({"--help"});
+TEST(dwarfsck_main_test, cmdline_help_arg) {
+  dwarfsck_tester t;
+  auto exit_code = t.run({"--help"});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsck"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsck"));
 }
 
-TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
-  auto exit_code = run({"--help"});
+TEST(dwarfsextract_main_test, cmdline_help_arg) {
+  dwarfsextract_tester t;
+  auto exit_code = t.run({"--help"});
   EXPECT_EQ(exit_code, 0);
-  EXPECT_TRUE(err().empty());
-  EXPECT_FALSE(out().empty());
-  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
+  EXPECT_TRUE(t.err().empty());
+  EXPECT_FALSE(t.out().empty());
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsextract"));
 }

@@ -21,6 +21,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#pragma once
+
 #include <array>
 #include <filesystem>
 #include <initializer_list>
@@ -101,6 +103,8 @@ class tester_common {
   std::string out() const { return iol->out(); }
   std::string err() const { return iol->err(); }
 
+  void add_root_dir();
+
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<test::test_iolayer> iol;
@@ -111,6 +115,15 @@ class tester_common {
   main_ptr_t main_;
   std::string toolname_;
 };
+
+std::shared_ptr<test::os_access_mock>
+make_image_os(std::string image, std::string const& image_file);
+
+template <typename Tester>
+Tester
+make_tester_with_image(std::string image, std::string const& image_file) {
+  return Tester{make_image_os(std::move(image), image_file)};
+}
 
 struct random_file_tree_options {
   double avg_size{4096.0};
@@ -135,11 +148,13 @@ class mkdwarfs_tester : public tester_common {
   explicit mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos);
 
   static mkdwarfs_tester create_empty();
+  static mkdwarfs_tester
+  create_with_image(std::string image,
+                    std::string const& image_file = "image.dwarfs");
 
   void add_stream_logger(std::ostream& st,
                          logger::level_type level = logger::VERBOSE);
 
-  void add_root_dir();
   void add_special_files(bool with_regular_files = true);
   void add_test_file_tree(bool with_regular_files = true);
 
@@ -171,7 +186,9 @@ class dwarfsck_tester : public tester_common {
   explicit dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos);
 
   static dwarfsck_tester create_with_image();
-  static dwarfsck_tester create_with_image(std::string image);
+  static dwarfsck_tester
+  create_with_image(std::string image,
+                    std::string const& image_file = "image.dwarfs");
 };
 
 class dwarfsextract_tester : public tester_common {
@@ -180,7 +197,9 @@ class dwarfsextract_tester : public tester_common {
   explicit dwarfsextract_tester(std::shared_ptr<test::os_access_mock> pos);
 
   static dwarfsextract_tester create_with_image();
-  static dwarfsextract_tester create_with_image(std::string image);
+  static dwarfsextract_tester
+  create_with_image(std::string image,
+                    std::string const& image_file = "image.dwarfs");
 };
 
 std::tuple<std::optional<reader::filesystem_v2>, mkdwarfs_tester>
@@ -192,31 +211,5 @@ std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs);
 
 std::unordered_map<std::string, std::string>
 get_md5_checksums(std::string image);
-
-class tool_main_test : public testing::Test {
- public:
-  void SetUp() override;
-  void TearDown() override;
-
-  std::string out() const { return iol->out(); }
-  std::string err() const { return iol->err(); }
-
-  std::unique_ptr<test::test_iolayer> iol;
-};
-
-class mkdwarfs_main_test : public tool_main_test {
- public:
-  int run(std::vector<std::string> args);
-};
-
-class dwarfsck_main_test : public tool_main_test {
- public:
-  int run(std::vector<std::string> args);
-};
-
-class dwarfsextract_main_test : public tool_main_test {
- public:
-  int run(std::vector<std::string> args);
-};
 
 } // namespace dwarfs::test
