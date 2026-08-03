@@ -123,10 +123,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
   }
 
   auto tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   {

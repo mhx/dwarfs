@@ -158,9 +158,7 @@ TEST(mkdwarfs_test, bug_sentinel_self_entry_nonzero) {
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file("bug.dwarfs", bug_image_data);
+    auto t = mkdwarfs_tester::create_with_image(bug_image_data, "bug.dwarfs");
 
     EXPECT_EQ(0, t.run({"-i", "bug.dwarfs", "-o", "-", "--rebuild-metadata"}))
         << t.err();
