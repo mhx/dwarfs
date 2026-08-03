@@ -40,7 +40,19 @@ struct locale_setup_helper {
 
 inline void setup_locale() { static locale_setup_helper helper; }
 
+void add_root_dir_to(test::os_access_mock& os) {
+  os.add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+}
+
 } // namespace
+
+std::shared_ptr<test::os_access_mock>
+make_image_os(std::string image, std::string const& image_file) {
+  auto os = std::make_shared<test::os_access_mock>();
+  add_root_dir_to(*os);
+  os->add_file(image_file, std::move(image));
+  return os;
+}
 
 fs::path const test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 fs::path const audio_data_dir = test_dir / "pcmaudio";
@@ -74,13 +86,6 @@ std::ostream& operator<<(std::ostream& os, path_type m) {
   return os;
 }
 
-void tool_main_test::SetUp() {
-  setup_locale();
-  iol = std::make_unique<test::test_iolayer>();
-}
-
-void tool_main_test::TearDown() { iol.reset(); }
-
 tester_common::tester_common(main_ptr_t mp, std::string toolname,
                              std::shared_ptr<test::os_access_mock> pos)
     : fa{std::make_shared<test::test_file_access>()}
@@ -104,6 +109,8 @@ int tester_common::run(std::string const& args) {
   return run(test::parse_args(args));
 }
 
+void tester_common::add_root_dir() { add_root_dir_to(*os); }
+
 std::string tester_common::safe_log_level_opt(logger::level_type level) const {
   level = std::min(level, kMaxSupportedLogLevel);
   return "--log-level=" + std::string{logger::level_name(level)};
@@ -119,15 +126,18 @@ mkdwarfs_tester mkdwarfs_tester::create_empty() {
   return mkdwarfs_tester(std::make_shared<test::os_access_mock>());
 }
 
+mkdwarfs_tester
+mkdwarfs_tester::create_with_image(std::string image,
+                                   std::string const& image_file) {
+  return make_tester_with_image<mkdwarfs_tester>(std::move(image), image_file);
+}
+
 void mkdwarfs_tester::add_stream_logger(std::ostream& st,
                                         logger::level_type level) {
+  level = std::min(level, kMaxSupportedLogLevel);
   lgr = std::make_unique<stream_logger>(std::make_shared<test::test_terminal>(),
                                         st, *os,
                                         logger_options{.threshold = level});
-}
-
-void mkdwarfs_tester::add_root_dir() {
-  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
 }
 
 void mkdwarfs_tester::add_special_files(bool with_regular_files) {
@@ -278,11 +288,10 @@ dwarfsck_tester::dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos)
 dwarfsck_tester::dwarfsck_tester()
     : dwarfsck_tester(std::make_shared<test::os_access_mock>()) {}
 
-dwarfsck_tester dwarfsck_tester::create_with_image(std::string image) {
-  auto os = std::make_shared<test::os_access_mock>();
-  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  os->add_file("image.dwarfs", std::move(image));
-  return dwarfsck_tester(std::move(os));
+dwarfsck_tester
+dwarfsck_tester::create_with_image(std::string image,
+                                   std::string const& image_file) {
+  return make_tester_with_image<dwarfsck_tester>(std::move(image), image_file);
 }
 
 dwarfsck_tester dwarfsck_tester::create_with_image() {
@@ -298,30 +307,14 @@ dwarfsextract_tester::dwarfsextract_tester()
     : dwarfsextract_tester(std::make_shared<test::os_access_mock>()) {}
 
 dwarfsextract_tester
-dwarfsextract_tester::create_with_image(std::string image) {
-  auto os = std::make_shared<test::os_access_mock>();
-  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  os->add_file("image.dwarfs", std::move(image));
-  return dwarfsextract_tester(std::move(os));
+dwarfsextract_tester::create_with_image(std::string image,
+                                        std::string const& image_file) {
+  return make_tester_with_image<dwarfsextract_tester>(std::move(image),
+                                                      image_file);
 }
 
 dwarfsextract_tester dwarfsextract_tester::create_with_image() {
   return create_with_image(build_test_image());
-}
-
-int mkdwarfs_main_test::run(std::vector<std::string> args) {
-  args.insert(args.begin(), "mkdwarfs");
-  return tool::main_adapter(tool::mkdwarfs_main)(args, iol->get());
-}
-
-int dwarfsck_main_test::run(std::vector<std::string> args) {
-  args.insert(args.begin(), "dwarfsck");
-  return tool::main_adapter(tool::dwarfsck_main)(args, iol->get());
-}
-
-int dwarfsextract_main_test::run(std::vector<std::string> args) {
-  args.insert(args.begin(), "dwarfsextract");
-  return tool::main_adapter(tool::dwarfsextract_main)(args, iol->get());
 }
 
 std::string
@@ -382,10 +375,7 @@ std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs) {
 
 std::unordered_map<std::string, std::string>
 get_md5_checksums(std::string image) {
-  auto os = std::make_shared<test::os_access_mock>();
-  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  os->add_file("image.dwarfs", std::move(image));
-  auto t = dwarfsck_tester(std::move(os));
+  auto t = dwarfsck_tester::create_with_image(std::move(image));
   if (t.run({"image.dwarfs", "--checksum=md5"}) != 0) {
     throw std::runtime_error("Failed to run dwarfsck: " + t.err());
   }
@@ -407,6 +397,6 @@ get_md5_checksums(std::string image) {
   }
 
   return checksums;
-};
+}
 
 } // namespace dwarfs::test
