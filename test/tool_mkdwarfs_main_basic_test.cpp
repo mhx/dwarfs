@@ -795,57 +795,6 @@ TEST(mkdwarfs_test, metadata_access) {
   }
 }
 
-TEST(mkdwarfs_test, chmod_errors) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=invalid"}));
-  EXPECT_THAT(
-      t.err(),
-      ::testing::HasSubstr(
-          "invalid metadata option: missing whom in chmod mode: invalid"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=a+r,"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "invalid metadata option: empty chmod mode"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=,a+r"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "invalid metadata option: empty chmod mode"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=1799"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr(
-                  "invalid metadata option: invalid octal chmod mode: 1799"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=-1799"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("invalid metadata option: invalid octal "
-                                   "chmod mode after operation: -1799"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+777"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("invalid metadata option: cannot combine "
-                                   "whom with octal chmod mode: u+777"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+"}));
-  EXPECT_THAT(
-      t.err(),
-      ::testing::HasSubstr(
-          "invalid metadata option: missing permissions in chmod mode: u+"));
-
-  t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--chmod=u+wpp"}));
-  EXPECT_THAT(
-      t.err(),
-      ::testing::HasSubstr(
-          "invalid metadata option: trailing characters in chmod mode: u+wpp"));
-}
-
 TEST(mkdwarfs_test, chmod_norm) {
   std::string const image_file = "test.dwarfs";
 
@@ -946,12 +895,6 @@ TEST(mkdwarfs_test, set_time_epoch_string) {
                 .count());
 }
 
-TEST(mkdwarfs_test, set_time_error) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--set-time=InVaLiD"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse time point"));
-}
-
 TEST(mkdwarfs_test, set_owner) {
   auto [regfs, regt] = build_with_args();
   ASSERT_TRUE(regfs) << regt.err();
@@ -982,160 +925,178 @@ TEST(mkdwarfs_test, set_group) {
   EXPECT_EQ(*opt.begin(), 444);
 }
 
-TEST(mkdwarfs_test, unrecognized_arguments) {
+namespace {
+
+struct cli_error_case {
+  std::string name;
+  std::vector<std::string> args;
+  std::string expected_error;
+};
+
+std::ostream& operator<<(std::ostream& os, cli_error_case const& c) {
+  return os << c.name;
+}
+
+struct cli_error_name {
+  template <typename ParamType>
+  std::string operator()(testing::TestParamInfo<ParamType> const& info) const {
+    return info.param.name;
+  }
+};
+
+class mkdwarfs_cli_error_test : public testing::TestWithParam<cli_error_case> {
+};
+
+std::vector<cli_error_case> const option_errors{
+    {"unrecognized_arguments", {"grmpf"}, "unrecognized argument"},
+    {"invalid_compression_level",
+     {"-i", "/", "-o", "-", "-l", "10"},
+     "invalid compression level"},
+    {"block_size_too_small",
+     {"-i", "/", "-o", "-", "-S", "1"},
+     "block size must be between"},
+    {"block_size_too_large",
+     {"-i", "/", "-o", "-", "-S", "100"},
+     "block size must be between"},
+    {"set_time_error",
+     {"-i", "/", "-o", "-", "--set-time=InVaLiD"},
+     "cannot parse time point"},
+    {"time_resolution_zero",
+     {"-i", "/", "-o", "-", "--time-resolution=0"},
+     "'--time-resolution' must be nonzero"},
+    {"time_resolution_invalid",
+     {"-i", "/", "-o", "-", "--time-resolution=grmpf"},
+     "'--time-resolution' is invalid"},
+    {"unknown_file_hash",
+     {"-i", "/", "-o", "-", "--file-hash=grmpf"},
+     "unknown file hash function"},
+    {"unknown_categorizer",
+     {"-i", "/", "-o", "-", "--categorize=grmpf"},
+     "unknown categorizer: grmpf"},
+};
+
+std::vector<cli_error_case> const order_errors{
+    {"order_invalid",
+     {"-i", "/", "-o", "-", "--order=grmpf"},
+     "invalid inode order mode"},
+    {"order_does_not_support_options",
+     {"-i", "/", "-o", "-", "--order=path:foo=42"},
+     "inode order mode 'path' does not support options"},
+    {"order_nilsimsa_invalid_option",
+     {"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"},
+     "invalid option(s) for choice 'nilsimsa': grmpf"},
+    {"order_nilsimsa_invalid_max_children_value",
+     {"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"},
+     "invalid max-children value: 0"},
+    {"order_nilsimsa_invalid_max_cluster_size_value_zero",
+     {"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=0"},
+     "invalid max-cluster-size value: 0"},
+    {"order_nilsimsa_invalid_max_cluster_size_value_negative",
+     {"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"},
+     "invalid max-cluster-size value: -1"},
+    {"order_nilsimsa_duplicate_option",
+     {"-i", "/", "-o", "-",
+      "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"},
+     "duplicate option 'max-cluster-size' for choice 'nilsimsa'"},
+};
+
+std::vector<cli_error_case> const chmod_errors{
+    {"missing_whom",
+     {"-i", "/", "-o", "-", "--chmod=invalid"},
+     "invalid metadata option: missing whom in chmod mode: invalid"},
+    {"empty_mode_trailing_comma",
+     {"-i", "/", "-o", "-", "--chmod=a+r,"},
+     "invalid metadata option: empty chmod mode"},
+    {"empty_mode_leading_comma",
+     {"-i", "/", "-o", "-", "--chmod=,a+r"},
+     "invalid metadata option: empty chmod mode"},
+    {"invalid_octal_mode",
+     {"-i", "/", "-o", "-", "--chmod=1799"},
+     "invalid metadata option: invalid octal chmod mode: 1799"},
+    {"invalid_octal_mode_after_operation",
+     {"-i", "/", "-o", "-", "--chmod=-1799"},
+     "invalid metadata option: invalid octal chmod mode after operation: "
+     "-1799"},
+    {"whom_combined_with_octal_mode",
+     {"-i", "/", "-o", "-", "--chmod=u+777"},
+     "invalid metadata option: cannot combine whom with octal chmod mode: "
+     "u+777"},
+    {"missing_permissions",
+     {"-i", "/", "-o", "-", "--chmod=u+"},
+     "invalid metadata option: missing permissions in chmod mode: u+"},
+    {"trailing_characters",
+     {"-i", "/", "-o", "-", "--chmod=u+wpp"},
+     "invalid metadata option: trailing characters in chmod mode: u+wpp"},
+};
+
+std::vector<cli_error_case> const filter_errors{
+    {"cannot_combine_input_list_and_filter",
+     {"--input-list", "-", "-o", "-", "-F", "+ *"},
+     "cannot combine --input-list and --filter"},
+    {"rules_must_start_with_plus_or_minus",
+     {"-i", "/", "-o", "-", "-F", "% *"},
+     "rules must start with + or -"},
+    {"empty_filter_rule",
+     {"-i", "/", "-o", "-", "-F", ""},
+     "empty filter rule"},
+    {"invalid_filter_rule",
+     {"-i", "/", "-o", "-", "-F", "+i"},
+     "invalid filter rule"},
+    {"no_pattern_in_filter_rule",
+     {"-i", "/", "-o", "-", "-F", "+  "},
+     "no pattern in filter rule"},
+    {"no_prefix_in_filter_rule",
+     {"-i", "/", "-o", "-", "-F", " foo"},
+     "no prefix in filter rule"},
+    {"unknown_option_in_filter_rule",
+     {"-i", "/", "-o", "-", "-F", "+x foo"},
+     "unknown option 'x' in filter rule"},
+    {"invalid_filter_debug_mode",
+     {"-i", "/", "-o", "-", "--debug-filter=grmpf"},
+     "invalid filter debug mode"},
+};
+
+#ifdef DWARFS_HAVE_RICEPP
+std::vector<cli_error_case> const compression_errors{
+    {"compression_cannot_be_used_without_category",
+     {"-i", "/", "-o", "-", "-C", "ricepp"},
+     "cannot be used without a category"},
+    {"compression_cannot_be_used_for_category",
+     {"-i", "/", "-o", "-", "--categorize", "-C", "incompressible::ricepp"},
+     "cannot be used for category 'incompressible': "
+     "metadata requirements not met"},
+};
+#endif
+
+} // namespace
+
+TEST_P(mkdwarfs_cli_error_test, fails_with_message) {
+  auto const& c = GetParam();
   auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("unrecognized argument"));
+  EXPECT_NE(0, t.run(c.args));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(c.expected_error));
 }
 
-TEST(mkdwarfs_test, invalid_compression_level) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-l", "10"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid compression level"));
-}
+INSTANTIATE_TEST_SUITE_P(options, mkdwarfs_cli_error_test,
+                         ::testing::ValuesIn(option_errors), cli_error_name{});
 
-TEST(mkdwarfs_test, block_size_too_small) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-S", "1"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("block size must be between"));
-}
+INSTANTIATE_TEST_SUITE_P(order, mkdwarfs_cli_error_test,
+                         ::testing::ValuesIn(order_errors), cli_error_name{});
 
-TEST(mkdwarfs_test, block_size_too_large) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-S", "100"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("block size must be between"));
-}
+INSTANTIATE_TEST_SUITE_P(chmod, mkdwarfs_cli_error_test,
+                         ::testing::ValuesIn(chmod_errors), cli_error_name{});
 
-TEST(mkdwarfs_test, cannot_combine_input_list_and_filter) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"--input-list", "-", "-o", "-", "-F", "+ *"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("cannot combine --input-list and --filter"));
-}
+INSTANTIATE_TEST_SUITE_P(filter, mkdwarfs_cli_error_test,
+                         ::testing::ValuesIn(filter_errors), cli_error_name{});
 
-TEST(mkdwarfs_test, rules_must_start_with_plus_or_minus) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "% *"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("rules must start with + or -"));
-}
+#ifdef DWARFS_HAVE_RICEPP
+INSTANTIATE_TEST_SUITE_P(compression, mkdwarfs_cli_error_test,
+                         ::testing::ValuesIn(compression_errors),
+                         cli_error_name{});
+#endif
 
-TEST(mkdwarfs_test, empty_filter_rule) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", ""}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("empty filter rule"));
-}
-
-TEST(mkdwarfs_test, invalid_filter_rule) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+i"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid filter rule"));
-}
-
-TEST(mkdwarfs_test, no_pattern_in_filter_rule) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+  "}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("no pattern in filter rule"));
-}
-
-TEST(mkdwarfs_test, no_prefix_in_filter_rule) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", " foo"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("no prefix in filter rule"));
-}
-
-TEST(mkdwarfs_test, unknown_option_in_filter_rule) {
-  auto t = mkdwarfs_tester::create_empty();
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+x foo"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("unknown option 'x' in filter rule"));
-}
-
-TEST(mkdwarfs_main_test, cannot_open_input_list_file) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
-}
-
-TEST(mkdwarfs_main_test, order_invalid) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid inode order mode"));
-}
-
-TEST(mkdwarfs_main_test, order_does_not_support_options) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=path:foo=42"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "inode order mode 'path' does not support options"));
-}
-
-TEST(mkdwarfs_main_test, order_explicit_failed_to_open_file) {
-  mkdwarfs_tester t;
-  EXPECT_NE(
-      0, t.run({"-i", "/", "-o", "-", "--order=explicit:file=explicit.txt"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr(
-                  "failed to open explicit order file 'explicit.txt':"));
-}
-
-TEST(mkdwarfs_main_test, order_nilsimsa_invalid_option) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "invalid option(s) for choice 'nilsimsa': grmpf"));
-}
-
-TEST(mkdwarfs_main_test, order_nilsimsa_invalid_max_childre_value) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0,
-            t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid max-children value: 0"));
-}
-
-TEST(mkdwarfs_main_test, order_nilsimsa_invalid_max_cluster_size_value_zero) {
-  mkdwarfs_tester t;
-  EXPECT_NE(
-      0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=0"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("invalid max-cluster-size value: 0"));
-}
-
-TEST(mkdwarfs_main_test,
-     order_nilsimsa_invalid_max_cluster_size_value_negative) {
-  mkdwarfs_tester t;
-  EXPECT_NE(
-      0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("invalid max-cluster-size value: -1"));
-}
-
-TEST(mkdwarfs_main_test, order_nilsimsa_duplicate_option) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0,
-            t.run({"-i", "/", "-o", "-",
-                   "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr(
-                  "duplicate option 'max-cluster-size' for choice 'nilsimsa'"));
-}
-
-TEST(mkdwarfs_main_test, unknown_file_hash) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--file-hash=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown file hash function"));
-}
-
-TEST(mkdwarfs_main_test, unknown_categorizer) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown categorizer: grmpf"));
-}
-
-TEST(mkdwarfs_main_test, invalid_filter_debug_mode) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--debug-filter=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid filter debug mode"));
-}
+// The remaining error cases don't fit the table: they either need extra setup
+// or they exercise a file access failure rather than argument validation.
 
 TEST(mkdwarfs_main_test, invalid_progress_mode) {
   mkdwarfs_tester t;
@@ -1145,17 +1106,19 @@ TEST(mkdwarfs_main_test, invalid_progress_mode) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid progress mode"));
 }
 
-TEST(mkdwarfs_main_test, time_resolution_zero) {
+TEST(mkdwarfs_main_test, cannot_open_input_list_file) {
   mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=0"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("'--time-resolution' must be nonzero"));
+  EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
 }
 
-TEST(mkdwarfs_main_test, time_resolution_invalid) {
+TEST(mkdwarfs_main_test, order_explicit_failed_to_open_file) {
   mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("'--time-resolution' is invalid"));
+  EXPECT_NE(
+      0, t.run({"-i", "/", "-o", "-", "--order=explicit:file=explicit.txt"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "failed to open explicit order file 'explicit.txt':"));
 }
 
 TEST(mkdwarfs_main_test, filesystem_header_error) {
@@ -1203,24 +1166,6 @@ TEST(mkdwarfs_test, output_file_fail_close) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs"})) << t.err();
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
 }
-
-#ifdef DWARFS_HAVE_RICEPP
-TEST(mkdwarfs_main_test, compression_cannot_be_used_without_category) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "ricepp"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("cannot be used without a category"));
-}
-
-TEST(mkdwarfs_main_test, compression_cannot_be_used_for_category) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize", "-C",
-                      "incompressible::ricepp"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "cannot be used for category 'incompressible': "
-                           "metadata requirements not met"));
-}
-#endif
 
 TEST(mkdwarfs_test, low_memory_limit) {
   {
