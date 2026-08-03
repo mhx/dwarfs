@@ -25,6 +25,7 @@
 
 #include <dwarfs/reader/fsinfo_options.h>
 
+#include "test_tool_main_checks.h"
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
@@ -34,15 +35,6 @@ namespace fs = std::filesystem;
 
 using namespace std::literals::string_view_literals;
 using namespace dwarfs::binary_literals;
-using ts = file_stat::timespec_type;
-
-namespace {
-
-constexpr auto make_ts(file_stat::time_type sec, uint32_t nsec) {
-  return file_stat::timespec_type{.sec = sec, .nsec = nsec};
-}
-
-} // namespace
 
 using testing::HasSubstr;
 
@@ -66,27 +58,17 @@ TEST(mkdwarfs_test, time_resolution_default) {
   EXPECT_EQ(1, info["time_resolution"].get<int>());
   EXPECT_EQ(1.0f, info["time_resolution"].get<float>());
 
-  {
-    auto dev = fs.find("/");
-    ASSERT_TRUE(dev);
-    auto iv = dev->inode();
-    EXPECT_TRUE(iv.is_directory());
-    auto stat = fs.getattr(iv);
-    EXPECT_EQ(make_ts(1, 0), stat.atimespec());
-    EXPECT_EQ(make_ts(3, 0), stat.mtimespec());
-    EXPECT_EQ(make_ts(5, 0), stat.ctimespec());
-  }
-
-  {
-    auto dev = fs.find("/bar.pl");
-    ASSERT_TRUE(dev);
-    auto iv = dev->inode();
-    EXPECT_TRUE(iv.is_regular_file());
-    auto stat = fs.getattr(iv);
-    EXPECT_EQ(make_ts(1001001, 0), stat.atimespec());
-    EXPECT_EQ(make_ts(3003003, 0), stat.mtimespec());
-    EXPECT_EQ(make_ts(5005005, 0), stat.ctimespec());
-  }
+  ASSERT_NO_FATAL_FAILURE(
+      expect_attrs(fs, {{"/",
+                         {.type = posix_file_type::directory,
+                          .atimespec = make_ts(1, 0),
+                          .mtimespec = make_ts(3, 0),
+                          .ctimespec = make_ts(5, 0)}},
+                        {"/bar.pl",
+                         {.type = posix_file_type::regular,
+                          .atimespec = make_ts(1001001, 0),
+                          .mtimespec = make_ts(3003003, 0),
+                          .ctimespec = make_ts(5005005, 0)}}}));
 }
 
 TEST(mkdwarfs_test, time_resolution_finer_than_native) {
@@ -138,56 +120,31 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
         fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
     EXPECT_FLOAT_EQ(1e-9f, info["time_resolution"].get<float>());
 
-    {
-      auto dev = fs.find("/");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1, 2), stat.atimespec());
-      EXPECT_EQ(make_ts(3, 4), stat.mtimespec());
-      EXPECT_EQ(make_ts(5, 6), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(10, 20), stat.atimespec());
-      EXPECT_EQ(make_ts(30, 40), stat.mtimespec());
-      EXPECT_EQ(make_ts(50, 60), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/bar.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1001001, 2002002), stat.atimespec());
-      EXPECT_EQ(make_ts(3003003, 4004004), stat.mtimespec());
-      EXPECT_EQ(make_ts(5005005, 6006006), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir/foo.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(2001, 5002), stat.atimespec());
-      EXPECT_EQ(make_ts(4003, 7004), stat.mtimespec());
-      EXPECT_EQ(make_ts(6005, 9006), stat.ctimespec());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(1, 2),
+                            .mtimespec = make_ts(3, 4),
+                            .ctimespec = make_ts(5, 6)}},
+                          {"/dir",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(10, 20),
+                            .mtimespec = make_ts(30, 40),
+                            .ctimespec = make_ts(50, 60)}},
+                          {"/bar.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(1001001, 2002002),
+                            .mtimespec = make_ts(3003003, 4004004),
+                            .ctimespec = make_ts(5005005, 6006006)}},
+                          {"/dir/foo.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(2001, 5002),
+                            .mtimespec = make_ts(4003, 7004),
+                            .ctimespec = make_ts(6005, 9006)}}}));
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   {
@@ -213,49 +170,27 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
         fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
     EXPECT_FLOAT_EQ(25e-9f, info["time_resolution"].get<float>());
 
-    {
-      auto dev = fs.find("/");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(3, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(5, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(30, 25), stat.mtimespec());
-      EXPECT_EQ(make_ts(50, 50), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/bar.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1001001, 2002000), stat.atimespec());
-      EXPECT_EQ(make_ts(3003003, 4004000), stat.mtimespec());
-      EXPECT_EQ(make_ts(5005005, 6006000), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir/foo.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(2001, 5000), stat.atimespec());
-      EXPECT_EQ(make_ts(4003, 7000), stat.mtimespec());
-      EXPECT_EQ(make_ts(6005, 9000), stat.ctimespec());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(1, 0),
+                            .mtimespec = make_ts(3, 0),
+                            .ctimespec = make_ts(5, 0)}},
+                          {"/dir",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(10, 0),
+                            .mtimespec = make_ts(30, 25),
+                            .ctimespec = make_ts(50, 50)}},
+                          {"/bar.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(1001001, 2002000),
+                            .mtimespec = make_ts(3003003, 4004000),
+                            .ctimespec = make_ts(5005005, 6006000)}},
+                          {"/dir/foo.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(2001, 5000),
+                            .mtimespec = make_ts(4003, 7000),
+                            .ctimespec = make_ts(6005, 9000)}}}));
   }
 
   {
@@ -293,27 +228,17 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
         fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
     EXPECT_FLOAT_EQ(25e-9f, info["time_resolution"].get<float>());
 
-    {
-      auto dev = fs.find("/");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(3, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(5, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(30, 25), stat.mtimespec());
-      EXPECT_EQ(make_ts(50, 50), stat.ctimespec());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(1, 0),
+                            .mtimespec = make_ts(3, 0),
+                            .ctimespec = make_ts(5, 0)}},
+                          {"/dir",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(10, 0),
+                            .mtimespec = make_ts(30, 25),
+                            .ctimespec = make_ts(50, 50)}}}));
   }
 
   {
@@ -328,49 +253,27 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
         fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
     EXPECT_FLOAT_EQ(1e-6f, info["time_resolution"].get<float>());
 
-    {
-      auto dev = fs.find("/");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(3, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(5, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(30, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(50, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/bar.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1001001, 2002000), stat.atimespec());
-      EXPECT_EQ(make_ts(3003003, 4004000), stat.mtimespec());
-      EXPECT_EQ(make_ts(5005005, 6006000), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir/foo.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(2001, 5000), stat.atimespec());
-      EXPECT_EQ(make_ts(4003, 7000), stat.mtimespec());
-      EXPECT_EQ(make_ts(6005, 9000), stat.ctimespec());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(1, 0),
+                            .mtimespec = make_ts(3, 0),
+                            .ctimespec = make_ts(5, 0)}},
+                          {"/dir",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(10, 0),
+                            .mtimespec = make_ts(30, 0),
+                            .ctimespec = make_ts(50, 0)}},
+                          {"/bar.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(1001001, 2002000),
+                            .mtimespec = make_ts(3003003, 4004000),
+                            .ctimespec = make_ts(5005005, 6006000)}},
+                          {"/dir/foo.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(2001, 5000),
+                            .mtimespec = make_ts(4003, 7000),
+                            .ctimespec = make_ts(6005, 9000)}}}));
   }
 
   {
@@ -385,48 +288,26 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
         fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
     EXPECT_FLOAT_EQ(2.0f, info["time_resolution"].get<float>());
 
-    {
-      auto dev = fs.find("/");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(0, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(2, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(4, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_directory());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(10, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(30, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(50, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/bar.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(1001000, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(3003002, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(5005004, 0), stat.ctimespec());
-    }
-
-    {
-      auto dev = fs.find("/dir/foo.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(make_ts(2000, 0), stat.atimespec());
-      EXPECT_EQ(make_ts(4002, 0), stat.mtimespec());
-      EXPECT_EQ(make_ts(6004, 0), stat.ctimespec());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(0, 0),
+                            .mtimespec = make_ts(2, 0),
+                            .ctimespec = make_ts(4, 0)}},
+                          {"/dir",
+                           {.type = posix_file_type::directory,
+                            .atimespec = make_ts(10, 0),
+                            .mtimespec = make_ts(30, 0),
+                            .ctimespec = make_ts(50, 0)}},
+                          {"/bar.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(1001000, 0),
+                            .mtimespec = make_ts(3003002, 0),
+                            .ctimespec = make_ts(5005004, 0)}},
+                          {"/dir/foo.pl",
+                           {.type = posix_file_type::regular,
+                            .atimespec = make_ts(2000, 0),
+                            .mtimespec = make_ts(4002, 0),
+                            .ctimespec = make_ts(6004, 0)}}}));
   }
 }

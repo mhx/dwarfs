@@ -22,6 +22,7 @@
  */
 
 #include <algorithm>
+#include <array>
 
 #include <fmt/format.h>
 
@@ -36,6 +37,7 @@
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/vfs_stat.h>
 
+#include "test_tool_main_checks.h"
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
@@ -192,6 +194,46 @@ get_extents(reader::filesystem_v2 const& fs, reader::inode_view iv) {
   return extents;
 }
 
+void verify_sparse_files(reader::filesystem_v2 const& fs) {
+  for (auto const& esf : expected_sparse_files) {
+    SCOPED_TRACE(esf.name);
+
+    auto const file = fs.find(esf.name);
+    ASSERT_TRUE(file);
+    EXPECT_TRUE(file->inode().is_regular_file());
+
+    auto const attr = fs.getattr(file->inode());
+    auto const size = attr.size();
+
+    EXPECT_EQ(esf.extents.back().info.range.end(), size);
+
+    auto extents = get_extents(fs, file->inode());
+
+    EXPECT_THAT(extents, ElementsAreArray(esf.extents));
+  }
+}
+
+void verify_boundary_hole_files(reader::filesystem_v2 const& fs) {
+  for (int bits = 1; bits <= 63; ++bits) {
+    SCOPED_TRACE(fmt::format("bits={}", bits));
+
+    auto const expected_size = (1ULL << bits) - 1;
+    auto const file_name = fmt::format("/{}bits", bits);
+    auto const file = fs.find(file_name);
+    ASSERT_TRUE(file);
+    EXPECT_TRUE(file->inode().is_regular_file());
+
+    auto const attr = fs.getattr(file->inode());
+    auto const size = attr.size();
+
+    EXPECT_EQ(expected_size, size);
+
+    auto extents = get_extents(fs, file->inode());
+
+    EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
+  }
+}
+
 } // namespace
 
 TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
@@ -279,10 +321,7 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   {
@@ -418,10 +457,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   for (int block_size : {20, 25, 13, 10, 17}) {
@@ -492,6 +528,64 @@ TEST(mkdwarfs_test, huge_sparse_file) {
   }
 }
 
+namespace {
+
+struct sparse_hardlink_file {
+  std::string_view path;
+  std::string_view hardlink;
+  expected_attrs attrs;
+};
+
+std::array<sparse_hardlink_file, 4> const sparse_hardlink_files{{
+    {"/sparse1",
+     "/hardlink1a",
+     {.type = posix_file_type::regular,
+      .size = 13_KiB + 5_GiB,
+      .allocated_size = 13_KiB,
+      .blocks = 13_KiB / 512,
+      .nlink = 3}},
+    {"/sparse2",
+     "/hardlink2b",
+     {.type = posix_file_type::regular,
+      .size = 1_TiB,
+      .allocated_size = 0,
+      .blocks = 0,
+      .nlink = 3}},
+    {"/sparse3",
+     "/hardlink3a",
+     {.type = posix_file_type::regular,
+      .size = 7_KiB + 500_GiB,
+      .allocated_size = 7_KiB,
+      .blocks = 7_KiB / 512,
+      .nlink = 3}},
+    {"/sparse4",
+     "/hardlink4b",
+     {.type = posix_file_type::regular,
+      .size = 9_KiB + 30_GiB,
+      .allocated_size = 9_KiB,
+      .blocks = 9_KiB / 512,
+      .nlink = 3}},
+}};
+
+// With sparse file support disabled, holes are indistinguishable from data,
+// so the whole file appears to be allocated.
+expected_attrs as_dense(expected_attrs attrs) {
+  attrs.allocated_size = attrs.size;
+  attrs.blocks = *attrs.size / 512;
+  return attrs;
+}
+
+void expect_sparse_hardlinks(reader::filesystem_v2 const& fs, bool sparse) {
+  for (auto const& f : sparse_hardlink_files) {
+    auto const attrs = sparse ? f.attrs : as_dense(f.attrs);
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{f.path, attrs}, {f.hardlink, attrs}}));
+    EXPECT_NO_FATAL_FAILURE(expect_same_inode(fs, f.path, f.hardlink));
+  }
+}
+
+} // namespace
+
 TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
   std::string const image_file = "test.dwarfs";
   std::string image;
@@ -544,101 +638,7 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
     auto fs =
         t.fs_from_file(image_file, {.metadata = {.enable_sparse_files = true}});
 
-    {
-      auto const dev = fs.find("/sparse1");
-      ASSERT_TRUE(dev);
-      auto const iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto const stat = fs.getattr(iv);
-      EXPECT_EQ(13_KiB + 5_GiB, stat.size());
-      EXPECT_EQ(13_KiB, stat.allocated_size());
-      EXPECT_EQ(3, stat.nlink());
-      EXPECT_EQ(13_KiB / 512, stat.blocks());
-
-      auto const ldev = fs.find("/hardlink1a");
-      ASSERT_TRUE(ldev);
-      auto const liv = ldev->inode();
-      EXPECT_TRUE(liv.is_regular_file());
-      auto const lstat = fs.getattr(liv);
-      EXPECT_EQ(13_KiB + 5_GiB, lstat.size());
-      EXPECT_EQ(13_KiB, lstat.allocated_size());
-      EXPECT_EQ(3, lstat.nlink());
-      EXPECT_EQ(13_KiB / 512, lstat.blocks());
-
-      EXPECT_EQ(stat.ino(), lstat.ino());
-    }
-
-    {
-      auto const dev = fs.find("/sparse2");
-      ASSERT_TRUE(dev);
-      auto const iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto const stat = fs.getattr(iv);
-      EXPECT_EQ(1_TiB, stat.size());
-      EXPECT_EQ(0, stat.allocated_size());
-      EXPECT_EQ(3, stat.nlink());
-      EXPECT_EQ(0, stat.blocks());
-
-      auto const ldev = fs.find("/hardlink2b");
-      ASSERT_TRUE(ldev);
-      auto const liv = ldev->inode();
-      EXPECT_TRUE(liv.is_regular_file());
-      auto const lstat = fs.getattr(liv);
-      EXPECT_EQ(1_TiB, lstat.size());
-      EXPECT_EQ(0, lstat.allocated_size());
-      EXPECT_EQ(3, lstat.nlink());
-      EXPECT_EQ(0, lstat.blocks());
-
-      EXPECT_EQ(stat.ino(), lstat.ino());
-    }
-
-    {
-      auto const dev = fs.find("/sparse3");
-      ASSERT_TRUE(dev);
-      auto const iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto const stat = fs.getattr(iv);
-      EXPECT_EQ(7_KiB + 500_GiB, stat.size());
-      EXPECT_EQ(7_KiB, stat.allocated_size());
-      EXPECT_EQ(3, stat.nlink());
-      EXPECT_EQ(7_KiB / 512, stat.blocks());
-
-      auto const ldev = fs.find("/hardlink3a");
-      ASSERT_TRUE(ldev);
-      auto const liv = ldev->inode();
-      EXPECT_TRUE(liv.is_regular_file());
-      auto const lstat = fs.getattr(liv);
-      EXPECT_EQ(7_KiB + 500_GiB, lstat.size());
-      EXPECT_EQ(7_KiB, lstat.allocated_size());
-      EXPECT_EQ(3, lstat.nlink());
-      EXPECT_EQ(7_KiB / 512, lstat.blocks());
-
-      EXPECT_EQ(stat.ino(), lstat.ino());
-    }
-
-    {
-      auto dev = fs.find("/sparse4");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(9_KiB + 30_GiB, stat.size());
-      EXPECT_EQ(9_KiB, stat.allocated_size());
-      EXPECT_EQ(3, stat.nlink());
-      EXPECT_EQ(9_KiB / 512, stat.blocks());
-
-      auto const ldev = fs.find("/hardlink4b");
-      ASSERT_TRUE(ldev);
-      auto const liv = ldev->inode();
-      EXPECT_TRUE(liv.is_regular_file());
-      auto const lstat = fs.getattr(liv);
-      EXPECT_EQ(9_KiB + 30_GiB, lstat.size());
-      EXPECT_EQ(9_KiB, lstat.allocated_size());
-      EXPECT_EQ(3, lstat.nlink());
-      EXPECT_EQ(9_KiB / 512, lstat.blocks());
-
-      EXPECT_EQ(stat.ino(), lstat.ino());
-    }
+    ASSERT_NO_FATAL_FAILURE(expect_sparse_hardlinks(fs, true));
 
     vfs_stat vfs;
     fs.statvfs(&vfs);
@@ -653,10 +653,7 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   {
@@ -668,30 +665,12 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
       auto fs = t.fs_from_stdout({.metadata = {.enable_sparse_files = true,
                                                .check_consistency = true}});
 
+      ASSERT_NO_FATAL_FAILURE(expect_sparse_hardlinks(fs, true));
+
       {
         auto const dev = fs.find("/sparse1");
         ASSERT_TRUE(dev);
-        auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(13_KiB + 5_GiB, stat.size());
-        EXPECT_EQ(13_KiB, stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(13_KiB / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink1a");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(13_KiB + 5_GiB, lstat.size());
-        EXPECT_EQ(13_KiB, lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(13_KiB / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-
-        auto const info = fs.get_inode_info(iv);
+        auto const info = fs.get_inode_info(dev->inode());
         ASSERT_EQ(3, info["chunks"].size()) << info.dump(2);
         EXPECT_EQ("data", info["chunks"][0]["kind"]) << info.dump(2);
         EXPECT_EQ(10_KiB, info["chunks"][0]["size"].get<uint64_t>())
@@ -702,78 +681,6 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
         EXPECT_EQ("data", info["chunks"][2]["kind"]) << info.dump(2);
         EXPECT_EQ(3_KiB, info["chunks"][2]["size"].get<uint64_t>())
             << info.dump(2);
-      }
-
-      {
-        auto const dev = fs.find("/sparse2");
-        ASSERT_TRUE(dev);
-        auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(1_TiB, stat.size());
-        EXPECT_EQ(0, stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(0, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink2b");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(1_TiB, lstat.size());
-        EXPECT_EQ(0, lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(0, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-      }
-
-      {
-        auto const dev = fs.find("/sparse3");
-        ASSERT_TRUE(dev);
-        auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(7_KiB + 500_GiB, stat.size());
-        EXPECT_EQ(7_KiB, stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(7_KiB / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink3a");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(7_KiB + 500_GiB, lstat.size());
-        EXPECT_EQ(7_KiB, lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(7_KiB / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-      }
-
-      {
-        auto dev = fs.find("/sparse4");
-        ASSERT_TRUE(dev);
-        auto iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto stat = fs.getattr(iv);
-        EXPECT_EQ(9_KiB + 30_GiB, stat.size());
-        EXPECT_EQ(9_KiB, stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(9_KiB / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink4b");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(9_KiB + 30_GiB, lstat.size());
-        EXPECT_EQ(9_KiB, lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(9_KiB / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
       }
 
       vfs_stat vfs;
@@ -787,100 +694,12 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
     {
       auto fs = t.fs_from_stdout({.metadata = {.enable_sparse_files = false}});
 
+      ASSERT_NO_FATAL_FAILURE(expect_sparse_hardlinks(fs, false));
+
       {
-        auto const dev = fs.find("/sparse1");
+        auto const dev = fs.find("/sparse4");
         ASSERT_TRUE(dev);
         auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(13_KiB + 5_GiB, stat.size());
-        EXPECT_EQ(stat.size(), stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(stat.size() / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink1a");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(13_KiB + 5_GiB, lstat.size());
-        EXPECT_EQ(lstat.size(), lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(lstat.size() / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-      }
-
-      {
-        auto const dev = fs.find("/sparse2");
-        ASSERT_TRUE(dev);
-        auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(1_TiB, stat.size());
-        EXPECT_EQ(stat.size(), stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(stat.size() / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink2b");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(1_TiB, lstat.size());
-        EXPECT_EQ(lstat.size(), lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(lstat.size() / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-      }
-
-      {
-        auto const dev = fs.find("/sparse3");
-        ASSERT_TRUE(dev);
-        auto const iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto const stat = fs.getattr(iv);
-        EXPECT_EQ(7_KiB + 500_GiB, stat.size());
-        EXPECT_EQ(stat.size(), stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(stat.size() / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink3a");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(7_KiB + 500_GiB, lstat.size());
-        EXPECT_EQ(lstat.size(), lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(lstat.size() / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
-      }
-
-      {
-        auto dev = fs.find("/sparse4");
-        ASSERT_TRUE(dev);
-        auto iv = dev->inode();
-        EXPECT_TRUE(iv.is_regular_file());
-        auto stat = fs.getattr(iv);
-        EXPECT_EQ(9_KiB + 30_GiB, stat.size());
-        EXPECT_EQ(stat.size(), stat.allocated_size());
-        EXPECT_EQ(3, stat.nlink());
-        EXPECT_EQ(stat.size() / 512, stat.blocks());
-
-        auto const ldev = fs.find("/hardlink4b");
-        ASSERT_TRUE(ldev);
-        auto const liv = ldev->inode();
-        EXPECT_TRUE(liv.is_regular_file());
-        auto const lstat = fs.getattr(liv);
-        EXPECT_EQ(9_KiB + 30_GiB, lstat.size());
-        EXPECT_EQ(lstat.size(), lstat.allocated_size());
-        EXPECT_EQ(3, lstat.nlink());
-        EXPECT_EQ(lstat.size() / 512, lstat.blocks());
-
-        EXPECT_EQ(stat.ino(), lstat.ino());
 
         // seek is only supported with sparse files enabled
         EXPECT_THAT(
@@ -954,28 +773,11 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
 
     EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
 
-    for (auto const& esf : expected_sparse_files) {
-      SCOPED_TRACE(esf.name);
-
-      auto const file = fs.find(esf.name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(esf.extents.back().info.range.end(), size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_sparse_files(fs));
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
+    auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "18", "-C",
                         "zstd:level=5", "--change-block-size"}))
@@ -1006,28 +808,11 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
     EXPECT_THAT(features,
                 UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
 
-    for (auto const& esf : expected_sparse_files) {
-      SCOPED_TRACE(esf.name);
-
-      auto const file = fs.find(esf.name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(esf.extents.back().info.range.end(), size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_sparse_files(fs));
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
+    auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "22", "-C",
                         "zstd:level=5", "--change-block-size"}))
@@ -1057,28 +842,11 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
 
     EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
 
-    for (auto const& esf : expected_sparse_files) {
-      SCOPED_TRACE(esf.name);
-
-      auto const file = fs.find(esf.name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(esf.extents.back().info.range.end(), size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_sparse_files(fs));
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
+    auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5",
                         "--rebuild-metadata"}))
@@ -1111,22 +879,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
     EXPECT_THAT(features,
                 UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
 
-    for (auto const& esf : expected_sparse_files) {
-      SCOPED_TRACE(esf.name);
-
-      auto const file = fs.find(esf.name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(esf.extents.back().info.range.end(), size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAreArray(esf.extents));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_sparse_files(fs));
   }
 }
 
@@ -1170,30 +923,11 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
 
     EXPECT_THAT(features, UnorderedElementsAre("sparsefiles"));
 
-    for (int bits = 1; bits <= 63; ++bits) {
-      SCOPED_TRACE(fmt::format("bits={}", bits));
-
-      auto const expected_size = (1ULL << bits) - 1;
-      auto const file_name = fmt::format("/{}bits", bits);
-      auto const file = fs.find(file_name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(expected_size, size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_boundary_hole_files(fs));
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
+    auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S", "18", "-C",
                         "zstd:level=5", "--change-block-size"}))
@@ -1232,30 +966,11 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
     EXPECT_THAT(features,
                 UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
 
-    for (int bits = 1; bits <= 63; ++bits) {
-      SCOPED_TRACE(fmt::format("bits={}", bits));
-
-      auto const expected_size = (1ULL << bits) - 1;
-      auto const file_name = fmt::format("/{}bits", bits);
-      auto const file = fs.find(file_name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(expected_size, size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_boundary_hole_files(fs));
   }
 
   {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
+    auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-C", "zstd:level=5",
                         "--rebuild-metadata"}))
@@ -1294,23 +1009,6 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
     EXPECT_THAT(features,
                 UnorderedElementsAre("sparsefiles", "sparsefiles_new_lhm"));
 
-    for (int bits = 1; bits <= 63; ++bits) {
-      SCOPED_TRACE(fmt::format("bits={}", bits));
-
-      auto const expected_size = (1ULL << bits) - 1;
-      auto const file_name = fmt::format("/{}bits", bits);
-      auto const file = fs.find(file_name);
-      ASSERT_TRUE(file);
-      EXPECT_TRUE(file->inode().is_regular_file());
-
-      auto const attr = fs.getattr(file->inode());
-      auto const size = attr.size();
-
-      EXPECT_EQ(expected_size, size);
-
-      auto extents = get_extents(fs, file->inode());
-
-      EXPECT_THAT(extents, ElementsAre(extent_data::make_hole(expected_size)));
-    }
+    ASSERT_NO_FATAL_FAILURE(verify_boundary_hole_files(fs));
   }
 }
