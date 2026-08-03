@@ -291,9 +291,7 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
                               });
 
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "-l3"})) << t.err();
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
     auto fs = t.fs_from_file(image_file);
 
     auto dev = fs.find("/sparse");
@@ -388,9 +386,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     ASSERT_EQ(0,
               t.run({"-i", "/", "-o", image_file, "-l3", "-S16", "-C", "null"}))
         << t.err();
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
     auto fs = t.fs_from_file(image_file);
 
     auto dev = fs.find("/sparse");
@@ -617,11 +613,7 @@ TEST(mkdwarfs_test, sparse_files_hardlinks_metadata) {
 
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "-l3"})) << t.err();
 
-    {
-      auto img = t.fa->get_file(image_file);
-      ASSERT_TRUE(img);
-      image = std::move(img.value());
-    }
+    image = t.get_file(image_file);
 
     auto fs =
         t.fs_from_file(image_file, {.metadata = {.enable_sparse_files = true}});
