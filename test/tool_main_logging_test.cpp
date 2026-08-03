@@ -78,8 +78,7 @@ TEST_P(logging_test, end_to_end) {
     std::vector<std::string> infos;
 
     for (int detail = 0; detail <= 4; ++detail) {
-      auto info = fs.info_as_json(
-          {.features = reader::fsinfo_features::for_level(detail)});
+      auto info = fsinfo_json(fs, detail);
       auto i = info.dump();
       if (!infos.empty()) {
         EXPECT_GT(i.size(), infos.back().size()) << detail;
