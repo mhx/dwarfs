@@ -40,6 +40,8 @@
 
 #include <gtest/gtest.h>
 
+#include <nlohmann/json.hpp>
+
 #include <dwarfs/config.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -104,6 +106,13 @@ class tester_common {
   std::string err() const { return iol->err(); }
 
   void add_root_dir();
+
+  // Returns the file contents, throwing if the tool never wrote the file.
+  std::string get_file(std::string const& path) const;
+
+  // Makes `list` available either as a file or on stdin, and returns the
+  // value to pass to `--input-list`.
+  std::string set_input_list(input_mode mode, std::string const& list);
 
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
@@ -205,11 +214,16 @@ class dwarfsextract_tester : public tester_common {
 std::tuple<std::optional<reader::filesystem_v2>, mkdwarfs_tester>
 build_with_args(std::vector<std::string> opt_args = {});
 
+std::set<std::filesystem::path>
+get_all_fs_paths(reader::filesystem_v2 const& fs);
 std::set<uint64_t> get_all_fs_times(reader::filesystem_v2 const& fs);
 std::set<uint64_t> get_all_fs_uids(reader::filesystem_v2 const& fs);
 std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs);
 
 std::unordered_map<std::string, std::string>
 get_md5_checksums(std::string image);
+
+nlohmann::json fsinfo_json(reader::filesystem_v2 const& fs, int level);
+std::string fsinfo_dump(reader::filesystem_v2 const& fs, int level);
 
 } // namespace dwarfs::test

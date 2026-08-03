@@ -147,8 +147,7 @@ TEST(dwarfsck_test, check_fail) {
                       ::testing::HasSubstr(
                           fmt::format("checksum error in section: {}", type)));
         }
-        auto info = fs.info_as_json(
-            {.features = reader::fsinfo_features::for_level(3)});
+        auto info = fsinfo_json(fs, 3);
         ASSERT_EQ(1, info.count("sections"));
         ASSERT_EQ(section_offsets.size(), info["sections"].size());
         for (auto const& [i, section] :
@@ -156,8 +155,7 @@ TEST(dwarfsck_test, check_fail) {
           EXPECT_EQ(section["checksum_ok"].get<bool>(), i != index)
               << type << ", " << index;
         }
-        auto dump =
-            fs.dump({.features = reader::fsinfo_features::for_level(3)});
+        auto dump = fsinfo_dump(fs, 3);
         EXPECT_THAT(dump, ::testing::HasSubstr("CHECKSUM ERROR"));
       }
     }

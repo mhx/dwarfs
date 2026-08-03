@@ -579,8 +579,7 @@ TEST(block_cache, sequential_access_detector) {
           image,
           {.block_cache = {.max_bytes = 256 * 1024,
                            .sequential_access_detector_threshold = thresh}});
-      auto info =
-          fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+      auto info = fsinfo_json(fs, 3);
       for (auto const& s : info["sections"]) {
         if (s["type"] == "BLOCK") {
           ++block_count;
