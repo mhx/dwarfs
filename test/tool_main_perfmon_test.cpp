@@ -25,6 +25,8 @@
 
 #include <gmock/gmock.h>
 
+#include <nlohmann/json.hpp>
+
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
