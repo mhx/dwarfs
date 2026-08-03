@@ -392,7 +392,7 @@ TEST_P(map_file_error_test, delayed) {
 
   static constexpr size_t const kSizeSmall{1 << 10};
   static constexpr size_t const kSizeLarge{1 << 20};
-  auto gen_small = [] { return test::loremipsum(kSizeLarge); };
+  auto gen_small = [] { return test::loremipsum(kSizeSmall); };
   auto gen_large = [] { return test::loremipsum(kSizeLarge); };
   t.os->add("large_link1", {43, 0100755, 2, 1000, 100, kSizeLarge, 42, 0, 0, 0},
             gen_large);
