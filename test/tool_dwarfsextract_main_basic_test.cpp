@@ -171,7 +171,7 @@ TEST(dwarfsextract_test, auto_format_no_filters) {
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
-  ASSERT_EQ(0, mkdt.run({"-i", "/", "-o", "-", "--with-devices"}) != 0)
+  ASSERT_EQ(0, mkdt.run({"-i", "/", "-o", "-", "--with-devices"}))
       << mkdt.err();
   auto t = dwarfsextract_tester::create_with_image(mkdt.out());
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "**/*.enc",
