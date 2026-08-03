@@ -49,10 +49,13 @@ using namespace std::literals::string_view_literals;
 using namespace dwarfs::binary_literals;
 
 using ::testing::AllOf;
+using ::testing::AnyOf;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 
 namespace {
@@ -261,11 +264,8 @@ TEST(mkdwarfs_test, build_with_sparse_files_no_sparse) {
   EXPECT_EQ(40'000, stat.allocated_size());
 
   auto const info = fs.info_as_json({});
-  auto const& features = info["features"];
-  EXPECT_TRUE(std::ranges::find(features, "sparsefiles") == features.end())
-      << info.dump(2);
-  EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
-              features.end())
+  EXPECT_THAT(info["features"],
+              Not(Contains(AnyOf("sparsefiles", "sparsefiles_new_lhm"))))
       << info.dump(2);
 
   vfs_stat vfs;
@@ -306,11 +306,8 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
 
     auto const info = fs.info_as_json({});
     auto const& features = info["features"];
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
-        << info.dump(2);
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
-                features.end())
-        << info.dump(2);
+    EXPECT_THAT(features, Contains("sparsefiles")) << info.dump(2);
+    EXPECT_THAT(features, Not(Contains("sparsefiles_new_lhm"))) << info.dump(2);
 
     vfs_stat vfs;
     fs.statvfs(&vfs);
@@ -344,11 +341,8 @@ TEST(mkdwarfs_test, build_with_sparse_files) {
     auto const& meta = info["full_metadata"];
     auto const& features = info["features"];
     EXPECT_TRUE(meta.find("large_hole_size") == meta.end()) << info.dump(2);
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
-        << info.dump(2);
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") ==
-                features.end())
-        << info.dump(2);
+    EXPECT_THAT(features, Contains("sparsefiles")) << info.dump(2);
+    EXPECT_THAT(features, Not(Contains("sparsefiles_new_lhm"))) << info.dump(2);
 
     vfs_stat vfs;
     fs.statvfs(&vfs);
@@ -410,8 +404,8 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
                       reader::fsinfo_feature::metadata_full_dump}});
-    auto const& features = info["features"];
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
+    EXPECT_THAT(info["features"],
+                AllOf(Contains("sparsefiles"), Contains("sparsefiles_new_lhm")))
         << info.dump(2);
     auto const& meta = info["full_metadata"];
     auto const& size_cache = meta["reg_file_size_cache"];
@@ -422,11 +416,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
     EXPECT_EQ(total_data_size,
               size_cache["allocated_size_lookup"][0][1].get<file_size_t>())
         << info.dump(2);
-
     EXPECT_TRUE(meta.find("large_hole_size") != meta.end()) << info.dump(2);
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles_new_lhm") !=
-                features.end())
-        << info.dump(2);
 
     for (auto const& ext : tfd.extents) {
       if (ext.info.kind == extent_kind::data) {
@@ -494,9 +484,7 @@ TEST(mkdwarfs_test, huge_sparse_file) {
         {.features = {reader::fsinfo_feature::metadata_summary,
                       reader::fsinfo_feature::metadata_full_dump}});
 
-    auto const& features = info["features"];
-    EXPECT_TRUE(std::ranges::find(features, "sparsefiles") != features.end())
-        << info.dump(2);
+    EXPECT_THAT(info["features"], Contains("sparsefiles")) << info.dump(2);
     auto const& size_cache = info["full_metadata"]["reg_file_size_cache"];
     ASSERT_EQ(1, size_cache["size_lookup"].size()) << info.dump(2);
     ASSERT_EQ(1, size_cache["allocated_size_lookup"].size()) << info.dump(2);
