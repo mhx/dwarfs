@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
@@ -110,6 +111,31 @@ int tester_common::run(std::string const& args) {
 }
 
 void tester_common::add_root_dir() { add_root_dir_to(*os); }
+
+std::string tester_common::get_file(std::string const& path) const {
+  auto contents = fa->get_file(path);
+  if (!contents) {
+    throw std::runtime_error("file not found: " + path);
+  }
+  return std::move(contents.value());
+}
+
+std::string
+tester_common::set_input_list(input_mode mode, std::string const& list) {
+  switch (mode) {
+  case input_mode::from_file: {
+    std::string const input_file{"input_list.txt"};
+    fa->set_file(input_file, list);
+    return input_file;
+  }
+
+  case input_mode::from_stdin:
+    iol->set_in(list);
+    return "-";
+  }
+
+  throw std::runtime_error("invalid input mode");
+}
 
 std::string tester_common::safe_log_level_opt(logger::level_type level) const {
   level = std::min(level, kMaxSupportedLogLevel);
@@ -344,6 +370,12 @@ build_with_args(std::vector<std::string> opt_args) {
   return {t.fs_from_file(image_file), std::move(t)};
 }
 
+std::set<fs::path> get_all_fs_paths(reader::filesystem_v2 const& fs) {
+  std::set<fs::path> paths;
+  fs.walk([&](auto const& e) { paths.insert(e.fs_path()); });
+  return paths;
+}
+
 std::set<uint64_t> get_all_fs_times(reader::filesystem_v2 const& fs) {
   std::set<uint64_t> times;
   fs.walk([&](auto const& e) {
@@ -397,6 +429,15 @@ get_md5_checksums(std::string image) {
   }
 
   return checksums;
+}
+
+nlohmann::json fsinfo_json(reader::filesystem_v2 const& fs, int level) {
+  return fs.info_as_json(
+      {.features = reader::fsinfo_features::for_level(level)});
+}
+
+std::string fsinfo_dump(reader::filesystem_v2 const& fs, int level) {
+  return fs.dump({.features = reader::fsinfo_features::for_level(level)});
 }
 
 } // namespace dwarfs::test

@@ -68,15 +68,13 @@ TEST(mkdwarfs_test, pack_modes_random) {
         0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
         << t.err();
     auto fs = t.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto info = fsinfo_json(fs, 2);
     std::set<std::string> ms(modes.begin(), modes.end());
     std::set<std::string> fsopt;
     for (auto const& opt : info["options"]) {
       fsopt.insert(opt.get<std::string>());
     }
-    auto ctx = mode_arg + "\n" +
-               fs.dump({.features = reader::fsinfo_features::for_level(2)});
+    auto ctx = mode_arg + "\n" + fsinfo_dump(fs, 2);
     EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"))
         << ctx;
     EXPECT_EQ(ms.count("directories"), fsopt.count("packed_directories"))
@@ -100,8 +98,7 @@ TEST(mkdwarfs_test, pack_mode_none) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=none"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+  auto info = fsinfo_json(fs, 2);
   std::set<std::string> fsopt;
   for (auto const& opt : info["options"]) {
     fsopt.insert(opt.get<std::string>());
@@ -118,8 +115,7 @@ TEST(mkdwarfs_test, pack_mode_all) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=all"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+  auto info = fsinfo_json(fs, 2);
   std::set<std::string> expected = {
       "packed_chunk_table",   "packed_directories",        "packed_names",
       "packed_names_index",   "packed_shared_files_table", "packed_symlinks",
