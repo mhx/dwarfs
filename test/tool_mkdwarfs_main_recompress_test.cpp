@@ -100,7 +100,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
                         compression}))
         << t.err();
     auto img = t.fa->get_file(image_file);
-    EXPECT_TRUE(img);
+    ASSERT_TRUE(img);
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
     auto info = fs.info_as_json(info_opts);
