@@ -84,9 +84,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--with-devices",
                         "--with-specials", "--keep-all-times", "-l3"}))
         << t.err();
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
     auto fs = t.fs_from_file(image_file);
 
     ASSERT_NO_FATAL_FAILURE(
@@ -104,8 +102,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithTimes));
 
     {
-      auto analysis =
-          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      auto analysis = fsinfo_dump(fs, 2);
       EXPECT_THAT(analysis, ::testing::HasSubstr("nlink_minus_one"));
       EXPECT_THAT(analysis, ::testing::HasSubstr("inodes_have_nlink"));
     }
@@ -150,8 +147,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithTimes));
 
     {
-      auto analysis =
-          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      auto analysis = fsinfo_dump(fs, 2);
 
       EXPECT_THAT(analysis,
                   ::testing::HasSubstr("1 metadata_version_history..."));
@@ -217,8 +213,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithoutTimes));
 
     {
-      auto analysis =
-          fs.dump({.features = reader::fsinfo_features::for_level(2)});
+      auto analysis = fsinfo_dump(fs, 2);
       EXPECT_THAT(analysis, ::testing::HasSubstr("nlink_minus_one"));
       EXPECT_THAT(analysis, ::testing::HasSubstr("inodes_have_nlink"));
     }
@@ -450,9 +445,7 @@ TEST(mkdwarfs_test, change_block_size) {
                         "--with-specials", "--keep-all-times", "--categorize",
                         "-S18", "-B3", "-l4"}))
         << t.err();
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
 
     auto fs = t.fs_from_file(image_file);
 
@@ -506,8 +499,7 @@ TEST(mkdwarfs_test, change_block_size) {
       EXPECT_EQ(ref_checksums, checksums);
 
       auto fs = t.fs_from_stdout();
-      auto info =
-          fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+      auto info = fsinfo_json(fs, 3);
 
       EXPECT_EQ(1 << lg_block_size, info["block_size"].get<int>());
 
@@ -530,8 +522,7 @@ TEST(mkdwarfs_test, change_block_size) {
       EXPECT_EQ(ref_checksums, checksums);
 
       auto fs = t2.fs_from_stdout();
-      auto info =
-          fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+      auto info = fsinfo_json(fs, 3);
 
       EXPECT_EQ(1 << 18, info["block_size"].get<int>());
 
@@ -554,8 +545,7 @@ TEST(mkdwarfs_test, change_block_size) {
 
       {
         auto fs = t3.fs_from_stdout();
-        auto info = fs.info_as_json(
-            {.features = reader::fsinfo_features::for_level(3)});
+        auto info = fsinfo_json(fs, 3);
 
         EXPECT_EQ(1 << 20, info["block_size"].get<int>());
 
@@ -739,8 +729,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
 
   auto t0 = mkdwarfs_tester::create_empty();
   auto fs0 = t0.fs_from_data(image0);
-  auto info0 =
-      fs0.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info0 = fsinfo_json(fs0, 3);
 
   EXPECT_THAT(get_md5_checksums(image0), ::testing::ContainerEq(ref_checksums));
 
@@ -758,8 +747,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
       << t1.err();
   auto image1 = t1.out();
   auto fs1 = t1.fs_from_stdout();
-  auto info1 =
-      fs1.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info1 = fsinfo_json(fs1, 3);
 
   EXPECT_THAT(get_md5_checksums(image1), ::testing::ContainerEq(ref_checksums));
 
@@ -775,8 +763,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
       << t1b.err();
   auto image1b = t1b.out();
   auto fs1b = t1b.fs_from_stdout();
-  auto info1b =
-      fs1b.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info1b = fsinfo_json(fs1b, 3);
 
   EXPECT_THAT(get_md5_checksums(image1b),
               ::testing::ContainerEq(ref_checksums));
@@ -791,8 +778,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
       << t1c.err();
   auto image1c = t1c.out();
   auto fs1c = t1c.fs_from_stdout();
-  auto info1c =
-      fs1c.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info1c = fsinfo_json(fs1c, 3);
 
   EXPECT_THAT(get_md5_checksums(image1c),
               ::testing::ContainerEq(ref_checksums));
@@ -814,8 +800,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
       << t2.err();
   auto image2 = t2.out();
   auto fs2 = t2.fs_from_stdout();
-  auto info2 =
-      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info2 = fsinfo_json(fs2, 3);
 
   EXPECT_THAT(get_md5_checksums(image2), ::testing::ContainerEq(ref_checksums));
 
@@ -832,8 +817,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
       << t2b.err();
   auto image2b = t2b.out();
   auto fs2b = t2b.fs_from_stdout();
-  auto info2b =
-      fs2b.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info2b = fsinfo_json(fs2b, 3);
 
   EXPECT_THAT(get_md5_checksums(image2b),
               ::testing::ContainerEq(ref_checksums));
@@ -873,8 +857,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   auto const ref_checksums = get_md5_checksums(image);
 
   auto fs = t.fs_from_stdout();
-  auto info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info = fsinfo_json(fs, 3);
 
   std::set<std::string> const expected_compressors{
       "NONE",
@@ -916,8 +899,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
 
   auto image2 = t2.out();
   auto fs2 = t2.fs_from_stdout();
-  auto info2 =
-      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info2 = fsinfo_json(fs2, 3);
 
   compressors.clear();
 
@@ -970,8 +952,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
 
   auto image3 = t3.out();
   auto fs3 = t3.fs_from_stdout();
-  auto info3 =
-      fs3.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info3 = fsinfo_json(fs3, 3);
 
   compressors.clear();
 
@@ -991,8 +972,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
 
   auto fs4 = t4.fs_from_stdout();
 
-  auto info4 =
-      fs4.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info4 = fsinfo_json(fs4, 3);
 
   for (auto const& sec : info4["sections"]) {
     EXPECT_FALSE(sec.contains("category"));
@@ -1007,8 +987,7 @@ TEST(mkdwarfs_test, no_timestamps) {
         0, t.run("-i / -o - -l2 --no-create-timestamp --no-history-timestamps"))
         << t.err();
     auto fs = t.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto info = fsinfo_json(fs, 2);
     EXPECT_FALSE(info.contains("created_on"));
     ASSERT_EQ(1, info["history"].size());
     EXPECT_FALSE(info["history"][0].contains("timestamp"));
@@ -1018,8 +997,7 @@ TEST(mkdwarfs_test, no_timestamps) {
     mkdwarfs_tester t;
     EXPECT_EQ(0, t.run("-i / -o - -l2")) << t.err();
     auto fs = t.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto info = fsinfo_json(fs, 2);
     EXPECT_TRUE(info.contains("created_on"));
     ASSERT_EQ(1, info["history"].size());
     EXPECT_TRUE(info["history"][0].contains("timestamp"));
@@ -1031,8 +1009,7 @@ TEST(mkdwarfs_test, no_timestamps) {
                    "--no-create-timestamp", "--no-history-timestamps"}))
         << t2.err();
     auto fs2 = t2.fs_from_stdout();
-    auto info2 =
-        fs2.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto info2 = fsinfo_json(fs2, 2);
     EXPECT_FALSE(info2.contains("created_on"));
     ASSERT_EQ(2, info2["history"].size());
     EXPECT_FALSE(info2["history"][0].contains("timestamp"));
@@ -1045,8 +1022,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   t.add_root_dir();
   EXPECT_EQ(0, t.run("-i / -o -")) << t.err();
   auto fs = t.fs_from_stdout();
-  auto info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info = fsinfo_json(fs, 3);
   EXPECT_EQ(0, info["original_filesystem_size"].get<int>());
   EXPECT_EQ(0, info["block_count"].get<int>());
   EXPECT_EQ(16_MiB, info["block_size"].get<int>());
@@ -1057,8 +1033,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata"}))
       << t2.err();
   auto fs2 = t2.fs_from_stdout();
-  auto info2 =
-      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info2 = fsinfo_json(fs2, 3);
   EXPECT_EQ(0, info2["original_filesystem_size"].get<int>());
   EXPECT_EQ(0, info2["block_count"].get<int>());
   EXPECT_EQ(16_MiB, info2["block_size"].get<int>());
@@ -1070,8 +1045,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
                        "-S10", "--change-block-size"}))
       << t3.err();
   auto fs3 = t3.fs_from_stdout();
-  auto info3 =
-      fs3.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info3 = fsinfo_json(fs3, 3);
   EXPECT_EQ(0, info3["original_filesystem_size"].get<int>());
   EXPECT_EQ(0, info3["block_count"].get<int>());
   EXPECT_EQ(1_KiB, info3["block_size"].get<int>());
@@ -1087,8 +1061,7 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
       t.run("-i / -o - --no-create-timestamp --no-history --no-section-index"))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info = fsinfo_json(fs, 3);
   EXPECT_EQ(0, info["original_filesystem_size"].get<int>());
   EXPECT_EQ(0, info["block_count"].get<int>());
   EXPECT_EQ(1, info["inode_count"].get<int>());
@@ -1100,8 +1073,7 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
                        "--no-section-index"}))
       << t2.err();
   auto fs2 = t2.fs_from_stdout();
-  auto info2 =
-      fs2.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+  auto info2 = fsinfo_json(fs2, 3);
   EXPECT_EQ(0, info2["original_filesystem_size"].get<int>());
   EXPECT_EQ(0, info2["block_count"].get<int>());
   EXPECT_EQ(1, info2["inode_count"].get<int>());
@@ -1119,8 +1091,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
   {
     EXPECT_EQ(0, t.run("-i / -o - --with-devices --with-specials")) << t.err();
     auto fs = t.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+    auto info = fsinfo_json(fs, 3);
     EXPECT_EQ(kTotalSymlinkSize, info["original_filesystem_size"].get<int>());
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(16_MiB, info["block_size"].get<int>());
@@ -1133,8 +1104,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
       << t2.err();
   {
     auto fs = t2.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+    auto info = fsinfo_json(fs, 3);
     EXPECT_EQ(kTotalSymlinkSize, info["original_filesystem_size"].get<int>());
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(16_MiB, info["block_size"].get<int>());
@@ -1148,8 +1118,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
       << t3.err();
   {
     auto fs = t3.fs_from_stdout();
-    auto info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(3)});
+    auto info = fsinfo_json(fs, 3);
     EXPECT_EQ(kTotalSymlinkSize, info["original_filesystem_size"].get<int>());
     EXPECT_EQ(0, info["block_count"].get<int>());
     EXPECT_EQ(1_KiB, info["block_size"].get<int>());

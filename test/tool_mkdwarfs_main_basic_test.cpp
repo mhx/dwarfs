@@ -57,15 +57,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   std::string const image_file = "test.dwarfs";
   std::string const input_list{input_lists.at(type)};
   mkdwarfs_tester t;
-  std::string input_file;
-
-  if (mode == input_mode::from_file) {
-    input_file = "input_list.txt";
-    t.fa->set_file(input_file, input_list);
-  } else {
-    input_file = "-";
-    t.iol->set_in(input_list);
-  }
+  auto const input_file = t.set_input_list(mode, input_list);
 
   std::vector<std::string> args = {"--input-list", input_file, "-o", image_file,
                                    t.safe_log_level_opt(logger::TRACE)};
@@ -97,8 +89,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
 
   std::set<fs::path> const expected = {"", "somelink", "foo.pl", "somedir",
                                        fs::path("somedir") / "ipsum.py"};
-  std::set<fs::path> actual;
-  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+  auto const actual = get_all_fs_paths(fs);
 
   EXPECT_EQ(expected, actual);
 }
@@ -116,15 +107,7 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   std::string const image_file = "test.dwarfs";
   std::string const input_list{input_lists.at(type)};
   mkdwarfs_tester t;
-  std::string input_file;
-
-  if (mode == input_mode::from_file) {
-    input_file = "input_list.txt";
-    t.fa->set_file(input_file, input_list);
-  } else {
-    input_file = "-";
-    t.iol->set_in(input_list);
-  }
+  auto const input_file = t.set_input_list(mode, input_list);
 
   ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/somedir", "-o",
                       image_file, t.safe_log_level_opt(logger::TRACE)}))
@@ -156,8 +139,7 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   EXPECT_TRUE(empty->inode().is_regular_file());
 
   std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
-  std::set<fs::path> actual;
-  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+  auto const actual = get_all_fs_paths(fs);
 
   EXPECT_EQ(expected, actual);
 }
@@ -177,15 +159,7 @@ TEST_P(mkdwarfs_input_list_test, trailing_dir_slash_gh370) {
   std::string const image_file = "test.dwarfs";
   std::string const input_list{input_lists.at(type)};
   mkdwarfs_tester t;
-  std::string input_file;
-
-  if (mode == input_mode::from_file) {
-    input_file = "input_list.txt";
-    t.fa->set_file(input_file, input_list);
-  } else {
-    input_file = "-";
-    t.iol->set_in(input_list);
-  }
+  auto const input_file = t.set_input_list(mode, input_list);
 
   ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/", "-o", image_file,
                       "-P", "plain"}))
@@ -210,8 +184,7 @@ TEST_P(mkdwarfs_input_list_test, trailing_dir_slash_gh370) {
       "somedir/ipsum.py",
       "somedir/empty",
   };
-  std::set<fs::path> actual;
-  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+  auto const actual = get_all_fs_paths(fs);
 
   EXPECT_EQ(expected, actual);
 
@@ -258,8 +231,7 @@ TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
   EXPECT_TRUE(empty->inode().is_regular_file());
 
   std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
-  std::set<fs::path> actual;
-  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+  auto const actual = get_all_fs_paths(fs);
 
   EXPECT_EQ(expected, actual);
 }
@@ -402,8 +374,7 @@ TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
   EXPECT_TRUE(empty->inode().is_regular_file());
 
   std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
-  std::set<fs::path> actual;
-  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+  auto const actual = get_all_fs_paths(fs);
 
   EXPECT_EQ(expected, actual);
 }

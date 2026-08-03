@@ -53,8 +53,7 @@ TEST(mkdwarfs_test, time_resolution_default) {
   auto fs = t.fs_from_stdout();
 
   // ensure that by default, times are stored with second resolution
-  auto const info =
-      fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+  auto const info = fsinfo_json(fs, 2);
   EXPECT_EQ(1, info["time_resolution"].get<int>());
   EXPECT_EQ(1.0f, info["time_resolution"].get<float>());
 
@@ -111,13 +110,10 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--keep-all-times",
                         "--time-resolution=ns"}))
         << t.err();
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
     auto fs = t.fs_from_file(image_file);
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto const info = fsinfo_json(fs, 2);
     EXPECT_FLOAT_EQ(1e-9f, info["time_resolution"].get<float>());
 
     ASSERT_NO_FATAL_FAILURE(
@@ -166,8 +162,7 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
     auto fs = t.fs_from_stdout();
     image = t.out();
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto const info = fsinfo_json(fs, 2);
     EXPECT_FLOAT_EQ(25e-9f, info["time_resolution"].get<float>());
 
     ASSERT_NO_FATAL_FAILURE(
@@ -224,8 +219,7 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
     auto fs = t.fs_from_stdout();
     image = t.out();
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto const info = fsinfo_json(fs, 2);
     EXPECT_FLOAT_EQ(25e-9f, info["time_resolution"].get<float>());
 
     ASSERT_NO_FATAL_FAILURE(
@@ -249,8 +243,7 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
     auto fs = t.fs_from_stdout();
     image = t.out();
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto const info = fsinfo_json(fs, 2);
     EXPECT_FLOAT_EQ(1e-6f, info["time_resolution"].get<float>());
 
     ASSERT_NO_FATAL_FAILURE(
@@ -284,8 +277,7 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
     auto fs = t.fs_from_stdout();
     image = t.out();
 
-    auto const info =
-        fs.info_as_json({.features = reader::fsinfo_features::for_level(2)});
+    auto const info = fsinfo_json(fs, 2);
     EXPECT_FLOAT_EQ(2.0f, info["time_resolution"].get<float>());
 
     ASSERT_NO_FATAL_FAILURE(

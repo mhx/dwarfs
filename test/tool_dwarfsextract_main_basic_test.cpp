@@ -21,7 +21,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <filesystem>
+#include <set>
+#include <string>
+#include <string_view>
 
 #include <gmock/gmock.h>
 
@@ -45,6 +49,44 @@ using namespace dwarfs::test;
 using namespace dwarfs::binary_literals;
 using namespace dwarfs;
 namespace fs = std::filesystem;
+
+namespace {
+
+// Reads all entry paths from an in-memory archive, normalising them the way
+// the extraction tests expect ("." dropped, no trailing slash, no leading
+// "./", forward slashes).
+void read_archive_paths(std::string_view data, std::set<std::string>& paths) {
+  auto ar = ::archive_read_new();
+  ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
+      << ::archive_error_string(ar);
+  ASSERT_EQ(ARCHIVE_OK,
+            ::archive_read_open_memory(ar, data.data(), data.size()))
+      << ::archive_error_string(ar);
+
+  for (;;) {
+    struct archive_entry* entry;
+    int ret = ::archive_read_next_header(ar, &entry);
+    if (ret == ARCHIVE_EOF) {
+      break;
+    }
+    ASSERT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
+    std::string path{::archive_entry_pathname(entry)};
+    if (path != ".") {
+      if (path.back() == '/') {
+        path.pop_back();
+      }
+      if (path.starts_with("./")) {
+        path.erase(0, 2);
+      }
+      std::ranges::replace(path, '\\', '/');
+      EXPECT_TRUE(paths.insert(path).second) << path;
+    }
+  }
+
+  EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar)) << ::archive_error_string(ar);
+}
+
+} // namespace
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 TEST(dwarfsextract_test, mtree) {
@@ -295,36 +337,7 @@ TEST_P(dwarfsextract_format_test, basic) {
     }
 
     std::set<std::string> paths;
-
-    auto ar = ::archive_read_new();
-    ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
-        << ::archive_error_string(ar);
-    ASSERT_EQ(ARCHIVE_OK,
-              ::archive_read_open_memory(ar, out.data(), out.size()))
-        << ::archive_error_string(ar);
-
-    for (;;) {
-      struct archive_entry* entry;
-      int ret = ::archive_read_next_header(ar, &entry);
-      if (ret == ARCHIVE_EOF) {
-        break;
-      }
-      ASSERT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
-      std::string path{::archive_entry_pathname(entry)};
-      if (path != ".") {
-        if (path.back() == '/') {
-          path.pop_back();
-        }
-        if (path.starts_with("./")) {
-          path.erase(0, 2);
-        }
-        std::ranges::replace(path, '\\', '/');
-        EXPECT_TRUE(paths.insert(path).second) << path;
-      }
-    }
-
-    EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar))
-        << ::archive_error_string(ar);
+    ASSERT_NO_FATAL_FAILURE(read_archive_paths(out, paths));
 
     if (use_matcher) {
       std::set<std::string> expected_paths_with_matcher{
@@ -403,9 +416,7 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
 
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "-l3"})) << t.err();
 
-    auto img = t.fa->get_file(image_file);
-    ASSERT_TRUE(img);
-    image = std::move(img.value());
+    image = t.get_file(image_file);
 
     auto fs =
         t.fs_from_file(image_file, {.metadata = {.enable_sparse_files = true}});
@@ -471,35 +482,7 @@ TEST_P(dwarfsextract_sparse_test, extract_sparse_files) {
         }
       }
     } else {
-      auto ar = ::archive_read_new();
-      ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
-          << ::archive_error_string(ar);
-      ASSERT_EQ(ARCHIVE_OK,
-                ::archive_read_open_memory(ar, out.data(), out.size()))
-          << ::archive_error_string(ar);
-
-      for (;;) {
-        struct archive_entry* entry;
-        int ret = ::archive_read_next_header(ar, &entry);
-        if (ret == ARCHIVE_EOF) {
-          break;
-        }
-        ASSERT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
-        std::string path{::archive_entry_pathname(entry)};
-        if (path != ".") {
-          if (path.back() == '/') {
-            path.pop_back();
-          }
-          if (path.starts_with("./")) {
-            path.erase(0, 2);
-          }
-          std::ranges::replace(path, '\\', '/');
-          EXPECT_TRUE(paths.insert(path).second) << path;
-        }
-      }
-
-      EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar))
-          << ::archive_error_string(ar);
+      ASSERT_NO_FATAL_FAILURE(read_archive_paths(out, paths));
     }
 
     if (use_matcher) {
