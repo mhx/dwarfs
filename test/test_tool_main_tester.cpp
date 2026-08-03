@@ -226,10 +226,10 @@ mkdwarfs_tester::add_random_file_tree(random_file_tree_options const& opt) {
         case 1:
           data = test::loremipsum(size);
           break;
-        case 3:
+        case 2:
           data = text_gen.generate(size);
           break;
-        case 4:
+        case 3:
           data = binary_gen.generate(size);
           break;
         }
