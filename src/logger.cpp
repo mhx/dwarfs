@@ -31,6 +31,7 @@
 #include <chrono>
 #include <cstring>
 #include <exception>
+#include <iostream>
 #include <iterator>
 #include <span>
 #include <stdexcept>
