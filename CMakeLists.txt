@@ -621,7 +621,10 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
 endif()
 
 if(WITH_TESTS AND WITH_TOOLS)
-  add_library(dwarfs_tool_main_tester test/test_tool_main_tester.cpp)
+  add_library(dwarfs_tool_main_tester
+    test/test_tool_main_checks.cpp
+    test/test_tool_main_tester.cpp
+  )
   target_link_libraries(dwarfs_tool_main_tester PUBLIC dwarfs_test_helpers GTest::gtest)
   target_link_libraries(dwarfs_tool_main_tester PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
   if(USE_JEMALLOC AND JEMALLOC_FOUND)
