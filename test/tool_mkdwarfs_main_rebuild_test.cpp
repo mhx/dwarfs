@@ -34,6 +34,7 @@
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/vfs_stat.h>
 
+#include "test_tool_main_checks.h"
 #include "test_tool_main_tester.h"
 
 using namespace dwarfs::test;
@@ -43,6 +44,36 @@ namespace fs = std::filesystem;
 
 using namespace std::literals::string_view_literals;
 using namespace dwarfs::binary_literals;
+
+namespace {
+
+// attributes of the hardlinked pair /foo.pl and /bar.pl, which are identical
+// in every variant that checks their timestamps
+constexpr expected_attrs kFooBarWithTimes{.type = posix_file_type::regular,
+                                          .size = 23'456,
+                                          .atime = 4001,
+                                          .mtime = 4002,
+                                          .ctime = 4003,
+                                          .uid = 1337,
+                                          .gid = 0,
+                                          .permissions = 0600,
+                                          .nlink = 2};
+
+constexpr expected_attrs kFooBarWithoutTimes{.type = posix_file_type::regular,
+                                             .size = 23'456,
+                                             .uid = 1337,
+                                             .gid = 0,
+                                             .permissions = 0600,
+                                             .nlink = 2};
+
+void expect_foo_bar(reader::filesystem_v2 const& fs,
+                    expected_attrs const& attrs) {
+  ASSERT_NO_FATAL_FAILURE(
+      expect_attrs(fs, {{"/foo.pl", attrs}, {"/bar.pl", attrs}}));
+  EXPECT_NO_FATAL_FAILURE(expect_same_inode(fs, "/foo.pl", "/bar.pl"));
+}
+
+} // namespace
 
 TEST(mkdwarfs_test, rebuild_metadata) {
   std::string const image_file = "test.dwarfs";
@@ -58,51 +89,19 @@ TEST(mkdwarfs_test, rebuild_metadata) {
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6001, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6003, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-      EXPECT_EQ(1, stat.nlink());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6001,
+                            .mtime = 6002,
+                            .ctime = 6003,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644,
+                            .nlink = 1}}}));
 
-    {
-      auto foo_dev = fs.find("/foo.pl");
-      auto bar_dev = fs.find("/bar.pl");
-      ASSERT_TRUE(foo_dev);
-      ASSERT_TRUE(bar_dev);
-      auto foo_iv = foo_dev->inode();
-      auto bar_iv = bar_dev->inode();
-      EXPECT_TRUE(foo_iv.is_regular_file());
-      EXPECT_TRUE(bar_iv.is_regular_file());
-      auto foo_stat = fs.getattr(foo_iv);
-      auto bar_stat = fs.getattr(bar_iv);
-      EXPECT_EQ(23'456, foo_stat.size());
-      EXPECT_EQ(4001, foo_stat.atime());
-      EXPECT_EQ(4002, foo_stat.mtime());
-      EXPECT_EQ(4003, foo_stat.ctime());
-      EXPECT_EQ(1337, foo_stat.uid());
-      EXPECT_EQ(0, foo_stat.gid());
-      EXPECT_EQ(0600, foo_stat.permissions());
-      EXPECT_EQ(2, foo_stat.nlink());
-      EXPECT_EQ(23'456, bar_stat.size());
-      EXPECT_EQ(4001, bar_stat.atime());
-      EXPECT_EQ(4002, bar_stat.mtime());
-      EXPECT_EQ(4003, bar_stat.ctime());
-      EXPECT_EQ(1337, bar_stat.uid());
-      EXPECT_EQ(0, bar_stat.gid());
-      EXPECT_EQ(0600, bar_stat.permissions());
-      EXPECT_EQ(2, bar_stat.nlink());
-      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
-    }
+    ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithTimes));
 
     {
       auto analysis =
@@ -113,10 +112,7 @@ TEST(mkdwarfs_test, rebuild_metadata) {
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   {
@@ -126,76 +122,32 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6001, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6003, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6001,
+                            .mtime = 6002,
+                            .ctime = 6003,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000010001,
+                            .mtime = 4000020002,
+                            .ctime = 4000030003,
+                            .uid = 0,
+                            .gid = 0,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 8001,
+                            .mtime = 8002,
+                            .ctime = 8003,
+                            .uid = 1337,
+                            .gid = 0,
+                            .permissions = 0600}}}));
 
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000010001, stat.atime());
-      EXPECT_EQ(4000020002, stat.mtime());
-      EXPECT_EQ(4000030003, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(8001, stat.atime());
-      EXPECT_EQ(8002, stat.mtime());
-      EXPECT_EQ(8003, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
-
-    {
-      auto foo_dev = fs.find("/foo.pl");
-      auto bar_dev = fs.find("/bar.pl");
-      ASSERT_TRUE(foo_dev);
-      ASSERT_TRUE(bar_dev);
-      auto foo_iv = foo_dev->inode();
-      auto bar_iv = bar_dev->inode();
-      EXPECT_TRUE(foo_iv.is_regular_file());
-      EXPECT_TRUE(bar_iv.is_regular_file());
-      auto foo_stat = fs.getattr(foo_iv);
-      auto bar_stat = fs.getattr(bar_iv);
-      EXPECT_EQ(23'456, foo_stat.size());
-      EXPECT_EQ(4001, foo_stat.atime());
-      EXPECT_EQ(4002, foo_stat.mtime());
-      EXPECT_EQ(4003, foo_stat.ctime());
-      EXPECT_EQ(1337, foo_stat.uid());
-      EXPECT_EQ(0, foo_stat.gid());
-      EXPECT_EQ(0600, foo_stat.permissions());
-      EXPECT_EQ(2, foo_stat.nlink());
-      EXPECT_EQ(23'456, bar_stat.size());
-      EXPECT_EQ(4001, bar_stat.atime());
-      EXPECT_EQ(4002, bar_stat.mtime());
-      EXPECT_EQ(4003, bar_stat.ctime());
-      EXPECT_EQ(1337, bar_stat.uid());
-      EXPECT_EQ(0, bar_stat.gid());
-      EXPECT_EQ(0600, bar_stat.permissions());
-      EXPECT_EQ(2, bar_stat.nlink());
-      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
-    }
+    ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithTimes));
 
     {
       auto analysis =
@@ -237,70 +189,32 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6002, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6002, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6002,
+                            .mtime = 6002,
+                            .ctime = 6002,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000020002,
+                            .mtime = 4000020002,
+                            .ctime = 4000020002,
+                            .uid = 0,
+                            .gid = 0,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 8002,
+                            .mtime = 8002,
+                            .ctime = 8002,
+                            .uid = 1337,
+                            .gid = 0,
+                            .permissions = 0600}}}));
 
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000020002, stat.atime());
-      EXPECT_EQ(4000020002, stat.mtime());
-      EXPECT_EQ(4000020002, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(8002, stat.atime());
-      EXPECT_EQ(8002, stat.mtime());
-      EXPECT_EQ(8002, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
-
-    {
-      auto foo_dev = fs.find("/foo.pl");
-      auto bar_dev = fs.find("/bar.pl");
-      ASSERT_TRUE(foo_dev);
-      ASSERT_TRUE(bar_dev);
-      auto foo_iv = foo_dev->inode();
-      auto bar_iv = bar_dev->inode();
-      EXPECT_TRUE(foo_iv.is_regular_file());
-      EXPECT_TRUE(bar_iv.is_regular_file());
-      auto foo_stat = fs.getattr(foo_iv);
-      auto bar_stat = fs.getattr(bar_iv);
-      EXPECT_EQ(23'456, foo_stat.size());
-      EXPECT_EQ(1337, foo_stat.uid());
-      EXPECT_EQ(0, foo_stat.gid());
-      EXPECT_EQ(0600, foo_stat.permissions());
-      EXPECT_EQ(2, foo_stat.nlink());
-      EXPECT_EQ(23'456, bar_stat.size());
-      EXPECT_EQ(1337, bar_stat.uid());
-      EXPECT_EQ(0, bar_stat.gid());
-      EXPECT_EQ(0600, bar_stat.permissions());
-      EXPECT_EQ(2, bar_stat.nlink());
-      EXPECT_EQ(foo_stat.ino(), bar_stat.ino());
-    }
+    ASSERT_NO_FATAL_FAILURE(expect_foo_bar(fs, kFooBarWithoutTimes));
 
     {
       auto analysis =
@@ -317,46 +231,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6000, stat.atime());
-      EXPECT_EQ(6000, stat.mtime());
-      EXPECT_EQ(6000, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000020000, stat.atime());
-      EXPECT_EQ(4000020000, stat.mtime());
-      EXPECT_EQ(4000020000, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(7980, stat.atime());
-      EXPECT_EQ(7980, stat.mtime());
-      EXPECT_EQ(7980, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6000,
+                            .mtime = 6000,
+                            .ctime = 6000,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000020000,
+                            .mtime = 4000020000,
+                            .ctime = 4000020000,
+                            .uid = 0,
+                            .gid = 0,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 7980,
+                            .mtime = 7980,
+                            .ctime = 7980,
+                            .uid = 1337,
+                            .gid = 0,
+                            .permissions = 0600}}}));
 
     auto t2 = rebuild_tester(t.out());
     EXPECT_EQ(1, t2.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
@@ -374,46 +272,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(98765, stat.atime());
-      EXPECT_EQ(98765, stat.mtime());
-      EXPECT_EQ(98765, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(98765, stat.atime());
-      EXPECT_EQ(98765, stat.mtime());
-      EXPECT_EQ(98765, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(98765, stat.atime());
-      EXPECT_EQ(98765, stat.mtime());
-      EXPECT_EQ(98765, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 98765,
+                            .mtime = 98765,
+                            .ctime = 98765,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 98765,
+                            .mtime = 98765,
+                            .ctime = 98765,
+                            .uid = 0,
+                            .gid = 0,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 98765,
+                            .mtime = 98765,
+                            .ctime = 98765,
+                            .uid = 1337,
+                            .gid = 0,
+                            .permissions = 0600}}}));
   }
 
   {
@@ -423,46 +305,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6002, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6002, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000020002, stat.atime());
-      EXPECT_EQ(4000020002, stat.mtime());
-      EXPECT_EQ(4000020002, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(8002, stat.atime());
-      EXPECT_EQ(8002, stat.mtime());
-      EXPECT_EQ(8002, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6002,
+                            .mtime = 6002,
+                            .ctime = 6002,
+                            .uid = 123,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000020002,
+                            .mtime = 4000020002,
+                            .ctime = 4000020002,
+                            .uid = 123,
+                            .gid = 0,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 8002,
+                            .mtime = 8002,
+                            .ctime = 8002,
+                            .uid = 123,
+                            .gid = 0,
+                            .permissions = 0600}}}));
   }
 
   {
@@ -472,46 +338,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6002, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6002, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000020002, stat.atime());
-      EXPECT_EQ(4000020002, stat.mtime());
-      EXPECT_EQ(4000020002, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(8002, stat.atime());
-      EXPECT_EQ(8002, stat.mtime());
-      EXPECT_EQ(8002, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6002,
+                            .mtime = 6002,
+                            .ctime = 6002,
+                            .uid = 1000,
+                            .gid = 456,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000020002,
+                            .mtime = 4000020002,
+                            .ctime = 4000020002,
+                            .uid = 0,
+                            .gid = 456,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 8002,
+                            .mtime = 8002,
+                            .ctime = 8002,
+                            .uid = 1337,
+                            .gid = 456,
+                            .permissions = 0600}}}));
   }
 
   {
@@ -522,46 +372,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6000, stat.atime());
-      EXPECT_EQ(6000, stat.mtime());
-      EXPECT_EQ(6000, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000009980, stat.atime());
-      EXPECT_EQ(4000020000, stat.mtime());
-      EXPECT_EQ(4000029960, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0666, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(7980, stat.atime());
-      EXPECT_EQ(7980, stat.mtime());
-      EXPECT_EQ(7980, stat.ctime());
-      EXPECT_EQ(123, stat.uid());
-      EXPECT_EQ(456, stat.gid());
-      EXPECT_EQ(0600, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6000,
+                            .mtime = 6000,
+                            .ctime = 6000,
+                            .uid = 123,
+                            .gid = 456,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000009980,
+                            .mtime = 4000020000,
+                            .ctime = 4000029960,
+                            .uid = 123,
+                            .gid = 456,
+                            .permissions = 0666}},
+                          {"/baz.pl",
+                           {.atime = 7980,
+                            .mtime = 7980,
+                            .ctime = 7980,
+                            .uid = 123,
+                            .gid = 456,
+                            .permissions = 0600}}}));
   }
 
   {
@@ -571,46 +405,30 @@ TEST(mkdwarfs_test, rebuild_metadata) {
         << t.err();
     auto fs = t.fs_from_stdout();
 
-    {
-      auto dev = fs.find("/somedir/ipsum.py");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      EXPECT_TRUE(iv.is_regular_file());
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(10'000, stat.size());
-      EXPECT_EQ(6001, stat.atime());
-      EXPECT_EQ(6002, stat.mtime());
-      EXPECT_EQ(6003, stat.ctime());
-      EXPECT_EQ(1000, stat.uid());
-      EXPECT_EQ(100, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/somedir/zero");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(4000010001, stat.atime());
-      EXPECT_EQ(4000020002, stat.mtime());
-      EXPECT_EQ(4000030003, stat.ctime());
-      EXPECT_EQ(0, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
-
-    {
-      auto dev = fs.find("/baz.pl");
-      ASSERT_TRUE(dev);
-      auto iv = dev->inode();
-      auto stat = fs.getattr(iv);
-      EXPECT_EQ(8001, stat.atime());
-      EXPECT_EQ(8002, stat.mtime());
-      EXPECT_EQ(8003, stat.ctime());
-      EXPECT_EQ(1337, stat.uid());
-      EXPECT_EQ(0, stat.gid());
-      EXPECT_EQ(0644, stat.permissions());
-    }
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/somedir/ipsum.py",
+                           {.type = posix_file_type::regular,
+                            .size = 10'000,
+                            .atime = 6001,
+                            .mtime = 6002,
+                            .ctime = 6003,
+                            .uid = 1000,
+                            .gid = 100,
+                            .permissions = 0644}},
+                          {"/somedir/zero",
+                           {.atime = 4000010001,
+                            .mtime = 4000020002,
+                            .ctime = 4000030003,
+                            .uid = 0,
+                            .gid = 0,
+                            .permissions = 0644}},
+                          {"/baz.pl",
+                           {.atime = 8001,
+                            .mtime = 8002,
+                            .ctime = 8003,
+                            .uid = 1337,
+                            .gid = 0,
+                            .permissions = 0644}}}));
   }
 }
 
@@ -664,10 +482,7 @@ TEST(mkdwarfs_test, change_block_size) {
   }
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
 #ifdef DWARFS_TEST_CROSS_COMPILE
@@ -933,10 +748,7 @@ TEST(mkdwarfs_test, change_block_size_catdata) {
   EXPECT_EQ(55, info0["sections"].size());
 
   auto rebuild_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   auto t1 = rebuild_tester(std::move(image0));
@@ -1085,10 +897,7 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   std::string const image_file = "image.dwarfs";
 
   auto recompress_tester = [&image_file](std::string const& image_data) {
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_root_dir();
-    t.os->add_file(image_file, image_data);
-    return t;
+    return mkdwarfs_tester::create_with_image(image_data, image_file);
   };
 
   std::vector<std::string> args{"-i",           image_file, "-o",           "-",
@@ -1215,9 +1024,7 @@ TEST(mkdwarfs_test, no_timestamps) {
     ASSERT_EQ(1, info["history"].size());
     EXPECT_TRUE(info["history"][0].contains("timestamp"));
 
-    auto t2 = mkdwarfs_tester::create_empty();
-    t2.add_root_dir();
-    t2.os->add_file("test.dwarfs", t.out());
+    auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
 
     EXPECT_EQ(
         0, t2.run({"-i", "test.dwarfs", "-o", "-", "-l2", "--rebuild-metadata",
@@ -1246,9 +1053,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(1, info["inode_count"].get<int>());
   EXPECT_EQ(4, info["sections"].size());
 
-  auto t2 = mkdwarfs_tester::create_empty();
-  t2.add_root_dir();
-  t2.os->add_file("test.dwarfs", t.out());
+  auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
   EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata"}))
       << t2.err();
   auto fs2 = t2.fs_from_stdout();
@@ -1260,9 +1065,7 @@ TEST(mkdwarfs_test, empty_filesystem) {
   EXPECT_EQ(1, info2["inode_count"].get<int>());
   EXPECT_EQ(4, info2["sections"].size());
 
-  auto t3 = mkdwarfs_tester::create_empty();
-  t3.add_root_dir();
-  t3.os->add_file("test.dwarfs", t2.out());
+  auto t3 = mkdwarfs_tester::create_with_image(t2.out(), "test.dwarfs");
   EXPECT_EQ(0, t3.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
                        "-S10", "--change-block-size"}))
       << t3.err();
@@ -1291,9 +1094,7 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
   EXPECT_EQ(1, info["inode_count"].get<int>());
   EXPECT_EQ(2, info["sections"].size());
 
-  auto t2 = mkdwarfs_tester::create_empty();
-  t2.add_root_dir();
-  t2.os->add_file("test.dwarfs", t.out());
+  auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
   EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
                        "--no-create-timestamp", "--no-history",
                        "--no-section-index"}))
@@ -1327,9 +1128,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(4, info["sections"].size());
   }
 
-  auto t2 = mkdwarfs_tester::create_empty();
-  t2.add_root_dir();
-  t2.os->add_file("test.dwarfs", t.out());
+  auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
   EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata"}))
       << t2.err();
   {
@@ -1343,9 +1142,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(4, info["sections"].size());
   }
 
-  auto t3 = mkdwarfs_tester::create_empty();
-  t3.add_root_dir();
-  t3.os->add_file("test.dwarfs", t2.out());
+  auto t3 = mkdwarfs_tester::create_with_image(t2.out(), "test.dwarfs");
   EXPECT_EQ(0, t3.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
                        "-S10", "--change-block-size"}))
       << t3.err();
@@ -1376,9 +1173,7 @@ TEST(mkdwarfs_test, metadata_repair_allocated_gh307) {
   auto const catdata_image = test_dir / "bugs" / image_file;
   auto const image_data = read_file(catdata_image);
 
-  auto t = mkdwarfs_tester::create_empty();
-  t.add_root_dir();
-  t.os->add_file(image_file, image_data);
+  auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
 
   ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
       << t.err();

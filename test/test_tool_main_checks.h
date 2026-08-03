@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <initializer_list>
 #include <optional>
 #include <string_view>
@@ -32,6 +33,11 @@
 #include <dwarfs/types.h>
 
 namespace dwarfs::test {
+
+constexpr file_stat::timespec_type
+make_ts(file_stat::time_type sec, uint32_t nsec) {
+  return file_stat::timespec_type{.sec = sec, .nsec = nsec};
+}
 
 /**
  * Expected attributes of a single file system entry.
