@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
