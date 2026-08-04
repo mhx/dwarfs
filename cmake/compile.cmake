@@ -51,7 +51,7 @@ if(NOT DISABLE_CCACHE)
 endif()
 
 if(DEFINED ENV{CCACHE_PREFIX})
-  add_compile_options(-Wno-gnu-line-marker)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-Wno-gnu-line-marker>")
 endif()
 
 if(NOT WIN32)
@@ -81,17 +81,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  add_compile_options(-fdiagnostics-color=always)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-fdiagnostics-color=always>")
   # For gcc, -O3 is *much* worse than -O2
   # Update: This is still true for gcc-12
   # set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
   # set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-fcolor-diagnostics>")
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/Zc:__cplusplus;/utf-8;/wd4267;/wd4244;/wd5219>")
 
   # Apply /MT or /MTd  (multithread, static version of the run-time library)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -110,7 +110,7 @@ if(ENABLE_STACKTRACE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
        "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       # enable line numbers in stack traces
-      add_compile_options(-g1)
+      add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-g1>")
     endif()
   endif()
 endif()
