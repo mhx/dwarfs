@@ -1,3 +1,30 @@
+- CHECKSUMS section? -> decide on hash function to use
+- remove `--init-superblock` from `mkdwarfs`?
+- refactor superblock stuff:
+  - add checksums (tree / attr)
+  - make variable size
+  - remove `reserved1`
+  - use `--uuid=[<uuid>|nil|keep|random]`
+    - defaults to `keep` when re-writing;
+      warning + fallback to `random` if source has no UUID
+    - otherwise, defaults to `random`
+  - make sure label is correctly truncated (not UTF-8 code splits)
+  - force \0-termination of label string (limit to 63 bytes?)
+- introduce `mkdwarfs --reproducible`, which bundles
+  - `--uuid=nil`
+  - `--no-create-timestamp`
+  - `--no-history-timestamps`
+- add "old" UUIDs (+ attr checksums?) to history?
+- check `SOURCE_DATE_EPOCH`; should that imply `--reproducible`?
+- `dwarfsck --compare`?
+- refactor code that uses `checksum` to make use of `.reset()`?
+
+- deprecate/ignore/warn about `--file-hash`
+- introduce `--no-dedupe` as replacement for `--file-hash=none`
+- de-dupe will use BLAKE3-256 unconditionally
+- BLAKE3-256 will also be used for CHECKSUM sections and tree/attr digests
+
+
 ==================
 
 - test `file_stat` and its various methods
@@ -26,8 +53,6 @@
 ==================
 
 - More "real" benchmarks
-
-- Entry v2 - more memory efficient implementation
 
 - Support xattrs
 
