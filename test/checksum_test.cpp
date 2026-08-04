@@ -78,6 +78,14 @@ std::unordered_map<std::string, std::string> ref_digests_str{
      "288A86A79F20A3D6DCCDCA7713BEAED178798296BDFA7913FA2A62D9727BF8F8"},
 };
 
+std::vector<uint8_t> digest_of(std::string const& alg, std::string_view data) {
+  checksum cs(alg);
+  cs.update(data.data(), data.size());
+  std::vector<uint8_t> digest(cs.digest_size());
+  EXPECT_TRUE(cs.finalize(digest.data()));
+  return digest;
+}
+
 } // namespace
 
 class checksum_test_str : public ::testing::TestWithParam<std::string> {};
@@ -120,6 +128,77 @@ TEST_P(checksum_test_str, end_to_end) {
   if (auto it = ref_digests_str.find(alg); it != ref_digests_str.end()) {
     EXPECT_EQ(it->second, hexdigest_upper) << alg;
   }
+}
+
+TEST_P(checksum_test_str, reuse_after_reset) {
+  auto alg = GetParam();
+  auto const reference = digest_of(alg, payload);
+
+  checksum cs(alg);
+  std::vector<uint8_t> digest(cs.digest_size());
+
+  for (int round = 0; round < 3; ++round) {
+    cs.update(payload.data(), payload.size());
+    ASSERT_TRUE(cs.finalize(digest.data()));
+    EXPECT_EQ(reference, digest) << alg << ", round " << round;
+
+    std::vector<uint8_t> tmp(digest.size());
+    EXPECT_FALSE(cs.finalize(tmp.data()));
+
+    cs.reset();
+  }
+
+  // an incremental digest after reset must match the single-shot one
+  cs.update(payload.data(), 5);
+  cs.update(payload.data() + 5, payload.size() - 5);
+  ASSERT_TRUE(cs.finalize(digest.data()));
+  EXPECT_EQ(reference, digest) << alg;
+}
+
+TEST_P(checksum_test_str, reset_discards_pending_data) {
+  auto alg = GetParam();
+  auto const reference = digest_of(alg, payload);
+
+  // reset() in the middle of an unfinished digest must drop what came before
+  checksum cs(alg);
+  cs.update("this should be discarded", 24);
+  cs.reset();
+  cs.update(payload.data(), payload.size());
+
+  std::vector<uint8_t> digest(cs.digest_size());
+  ASSERT_TRUE(cs.finalize(digest.data()));
+  EXPECT_EQ(reference, digest) << alg;
+}
+
+TEST_P(checksum_test_str, reset_after_hexdigest) {
+  auto alg = GetParam();
+
+  checksum cs(alg);
+  cs.update(payload.data(), payload.size());
+  auto const first = cs.hexdigest();
+
+  cs.reset();
+  cs.update(payload.data(), payload.size());
+
+  EXPECT_EQ(first, cs.hexdigest()) << alg;
+}
+
+TEST_P(checksum_test_str, instances_are_independent) {
+  auto alg = GetParam();
+  auto const reference = digest_of(alg, payload);
+
+  // two live instances of the same algorithm must not share any state
+  checksum a(alg);
+  checksum b(alg);
+
+  a.update(payload.data(), 5);
+  b.update("interleaved", 11);
+  a.update(payload.data() + 5, payload.size() - 5);
+  b.update("interleaved", 11);
+
+  std::vector<uint8_t> digest(a.digest_size());
+  ASSERT_TRUE(a.finalize(digest.data()));
+  EXPECT_EQ(reference, digest) << alg;
 }
 
 INSTANTIATE_TEST_SUITE_P(checksum_test, checksum_test_str,
@@ -191,4 +270,22 @@ TEST(checksum_test, blake3_256) {
 
   EXPECT_EQ("288A86A79F20A3D6DCCDCA7713BEAED178798296BDFA7913FA2A62D9727BF8F8",
             hexdigest);
+}
+
+TEST(checksum_test, tagged_reset) {
+  auto check = [](auto tag, std::string_view expected) {
+    checksum cs(tag);
+    cs.update(payload.data(), payload.size());
+    EXPECT_EQ(expected, cs.hexdigest());
+
+    cs.reset();
+    cs.update(payload.data(), payload.size());
+    EXPECT_EQ(expected, cs.hexdigest());
+  };
+
+  check(checksum::xxh3_64, "aa0266615f5d4160");
+  check(checksum::sha2_512_256,
+        "0686f0a605973dc1bf035d1e2b9bad1985a0bff712ddd88abd8d2593e5f99030");
+  check(checksum::blake3_256,
+        "288a86a79f20a3d6dccdca7713beaed178798296bdfa7913fa2a62d9727bf8f8");
 }
