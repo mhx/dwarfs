@@ -47,19 +47,24 @@ class checksum {
 
   struct xxh3_64_tag {};
   struct sha2_512_256_tag {};
+  struct blake3_256_tag {};
 
   static constexpr xxh3_64_tag xxh3_64{};
   static constexpr sha2_512_256_tag sha2_512_256{};
+  static constexpr blake3_256_tag blake3_256{};
 
   static bool verify(xxh3_64_tag, void const* data, size_t size,
                      void const* digest, size_t digest_size);
   static bool verify(sha2_512_256_tag, void const* data, size_t size,
+                     void const* digest, size_t digest_size);
+  static bool verify(blake3_256_tag, void const* data, size_t size,
                      void const* digest, size_t digest_size);
   static bool verify(std::string const& alg, void const* data, size_t size,
                      void const* digest, size_t digest_size);
 
   checksum(xxh3_64_tag);
   checksum(sha2_512_256_tag);
+  checksum(blake3_256_tag);
   checksum(std::string const& alg);
 
   checksum& update(void const* data, size_t size) {
