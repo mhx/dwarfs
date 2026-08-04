@@ -84,20 +84,23 @@ std::string make_hexdigest(checksum::impl& cs) {
 class checksum_evp : public checksum::impl {
  public:
   explicit checksum_evp(::EVP_MD const* evp)
-      : context_{::EVP_MD_CTX_new(), &::EVP_MD_CTX_free}
+      : evp_{evp}
+      , context_{::EVP_MD_CTX_new(), &::EVP_MD_CTX_free}
       , dig_size_(::EVP_MD_size(evp)) {
-    DWARFS_CHECK(::EVP_DigestInit(context_.get(), evp),
-                 "EVP_DigestInit() failed");
+    DWARFS_CHECK(context_, "EVP_MD_CTX_new() failed");
+    init();
   }
 
   void update(void const* data, size_t size) override {
-    assert(context_);
+    assert(!finalized_);
     DWARFS_CHECK(::EVP_DigestUpdate(context_.get(), data, size),
                  "EVP_DigestUpdate() failed");
   }
 
+  void reset() override { init(); }
+
   bool finalize(void* digest) override {
-    if (!context_) {
+    if (finalized_) {
       return false;
     }
 
@@ -105,7 +108,9 @@ class checksum_evp : public checksum::impl {
     bool rv = ::EVP_DigestFinal_ex(
         context_.get(), reinterpret_cast<unsigned char*>(digest), &dig_size);
 
-    context_.reset();
+    // EVP_DigestFinal_ex() leaves the context reusable, but it must be
+    // re-initialized via EVP_DigestInit_ex() before any further update().
+    finalized_ = true;
 
     if (rv) {
       DWARFS_CHECK(
@@ -150,8 +155,16 @@ class checksum_evp : public checksum::impl {
   size_t digest_size() override { return dig_size_; }
 
  private:
+  void init() {
+    DWARFS_CHECK(::EVP_DigestInit_ex(context_.get(), evp_, nullptr),
+                 "EVP_DigestInit_ex() failed");
+    finalized_ = false;
+  }
+
+  ::EVP_MD const* const evp_;
   std::unique_ptr<::EVP_MD_CTX, decltype(&::EVP_MD_CTX_free)> context_;
   size_t const dig_size_;
+  bool finalized_{false};
 };
 
 struct xxh3_64_policy {
@@ -176,24 +189,27 @@ template <typename Policy>
 class checksum_xxh3 : public checksum::impl {
  public:
   checksum_xxh3()
-      : state_{get_state()} {
-    DWARFS_CHECK(Policy::reset(state_) == XXH_OK, "XXH3 reset failed");
+      : state_{XXH3_createState(), &XXH3_freeState} {
+    DWARFS_CHECK(state_, "XXH3_createState() failed");
+    init();
   }
 
   void update(void const* data, size_t size) override {
-    assert(state_);
-    auto err = Policy::update(state_, data, size);
+    assert(!finalized_);
+    auto err = Policy::update(state_.get(), data, size);
     DWARFS_CHECK(err == XXH_OK,
                  fmt::format("XXH3 update failed: {}", static_cast<int>(err)));
   }
 
+  void reset() override { init(); }
+
   bool finalize(void* digest) override {
-    if (!state_) {
+    if (finalized_) {
       return false;
     }
     typename Policy::canonical_type canonical;
-    Policy::canonical(&canonical, Policy::digest(state_));
-    state_ = nullptr;
+    Policy::canonical(&canonical, Policy::digest(state_.get()));
+    finalized_ = true;
     // compat: we always store the digest in little-endian order :/
     std::ranges::reverse(canonical.digest);
     ::memcpy(digest, &canonical, sizeof(canonical));
@@ -210,13 +226,13 @@ class checksum_xxh3 : public checksum::impl {
   }
 
  private:
-  static XXH3_state_t* get_state() {
-    thread_local std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state{
-        XXH3_createState(), &XXH3_freeState};
-    return state.get();
+  void init() {
+    DWARFS_CHECK(Policy::reset(state_.get()) == XXH_OK, "XXH3 reset failed");
+    finalized_ = false;
   }
 
-  XXH3_state_t* state_;
+  std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state_;
+  bool finalized_{false};
 };
 
 using checksum_xxh3_64 = checksum_xxh3<xxh3_64_policy>;
@@ -234,6 +250,11 @@ class checksum_blake3 : public checksum::impl {
   void update(void const* data, size_t size) override {
     assert(!finalized_);
     ::blake3_hasher_update(&hasher_, data, size);
+  }
+
+  void reset() override {
+    ::blake3_hasher_reset(&hasher_);
+    finalized_ = false;
   }
 
   bool finalize(void* digest) override {
