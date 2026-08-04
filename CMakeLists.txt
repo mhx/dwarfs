@@ -1014,6 +1014,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       add_executable(frozen_serialization_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenSerializationBench.cpp)
       target_link_libraries(frozen_serialization_benchmark PRIVATE benchmark::benchmark frozen_example_thrift)
       list(APPEND BENCHMARK_TARGETS frozen_serialization_benchmark)
+
+      add_executable(checksum_benchmark test/checksum_benchmark.cpp)
+      target_link_libraries(checksum_benchmark PRIVATE dwarfs_common benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS checksum_benchmark)
     endif()
 
     list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
