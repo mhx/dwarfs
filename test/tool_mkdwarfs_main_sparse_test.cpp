@@ -32,6 +32,7 @@
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/checksum.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/fsinfo_options.h>
