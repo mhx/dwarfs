@@ -29,6 +29,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/checksum.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/filesystem_options.h>

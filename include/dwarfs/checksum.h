@@ -36,8 +36,6 @@
 #include <string>
 #include <vector>
 
-#include <dwarfs/error.h>
-
 namespace dwarfs {
 
 class checksum {
