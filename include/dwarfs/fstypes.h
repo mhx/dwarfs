@@ -38,7 +38,6 @@
 #include <vector>
 
 #include <dwarfs/block_compressor.h> // TODO: or the other way round?
-#include <dwarfs/checksum.h>
 #include <dwarfs/endian.h>
 
 namespace dwarfs {
