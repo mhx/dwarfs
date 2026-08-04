@@ -61,6 +61,7 @@ option(DISABLE_CXA_DEMANGLE "disable cxa_demangle support" OFF)
 option(BUILD_FSST_MAIN "build fsst_main application (dev-only)" OFF)
 option(USE_SUBDIR_LIBARCHIVE "use local libarchive subdir (dev-only)" OFF)
 option(ENABLE_BUILD_TIME_TRACE "enable Clang -ftime-trace" OFF)
+option(FORCE_BUNDLED_BLAKE3 "always use the bundled BLAKE3 copy" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -115,6 +116,8 @@ else()
 endif()
 
 set(LIBFMT_PREFERRED_VERSION 12.1.0)
+
+set(BLAKE3_REQUIRED_VERSION 1.5.1)
 
 set(GOOGLETEST_REQUIRED_VERSION 1.13.0)
 set(GOOGLETEST_PREFERRED_VERSION 1.17.0)
@@ -233,6 +236,7 @@ if(WITH_TESTS)
   include(${CMAKE_SOURCE_DIR}/cmake/need_gtest.cmake)
 endif()
 
+include(${CMAKE_SOURCE_DIR}/cmake/need_blake3.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 

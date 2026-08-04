@@ -35,6 +35,7 @@
 
 #include <fmt/format.h>
 
+#include <blake3.h>
 #include <boost/version.hpp>
 #include <openssl/crypto.h>
 #include <parallel_hashmap/phmap_config.h>
@@ -115,6 +116,7 @@ void library_dependencies::add_common_libraries() {
   add_library("libxxhash", ::XXH_versionNumber(),
               version_format::maj_min_patch_dec_100);
   add_library("libfmt", FMT_VERSION, version_format::maj_min_patch_dec_100);
+  add_library(fmt::format("blake3-{}", blake3_version()));
   add_library(fmt::format("crypto-{}", get_crypto_version()));
   add_library("libboost", BOOST_VERSION, version_format::boost);
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
