@@ -77,6 +77,8 @@ class checksum {
     return *this;
   }
 
+  void reset() { impl_->reset(); }
+
   bool finalize(void* digest) const { return impl_->finalize(digest); }
 
   size_t digest_size() const { return impl_->digest_size(); }
@@ -88,6 +90,7 @@ class checksum {
     virtual ~impl() = default;
 
     virtual void update(void const* data, size_t size) = 0;
+    virtual void reset() = 0;
     virtual bool finalize(void* digest) = 0;
     virtual size_t digest_size() = 0;
     virtual std::string hexdigest() = 0;
