@@ -631,7 +631,7 @@ void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
     }
     first = false;
     os << "    {\n"
-       << R"(      "index": )" << ino.id().index() << ",\n"
+       << R"(      "index": )" << std::to_string(ino.id().index()) << ",\n"
        << R"(      "files": )";
     dump_value(os, ino.all_file_ids());
     os << "\n    }";
