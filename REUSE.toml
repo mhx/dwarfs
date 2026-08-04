@@ -18,6 +18,13 @@ SPDX-FileCopyrightText = "Meta Platforms, Inc."
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = ["BLAKE3/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception"
+comment = "Vendored copy of the BLAKE3 C implementation; see BLAKE3/README.dwarfs.md. Upstream ships no copyright notices in these files."
+
+[[annotations]]
 path = ["fsst/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "CWI, TU Munich, FSU Jena"

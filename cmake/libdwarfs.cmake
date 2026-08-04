@@ -282,6 +282,9 @@ target_link_libraries(dwarfs_writer PRIVATE zstd::preferred)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
+target_link_libraries(dwarfs_common PRIVATE dwarfs_blake3)
+target_sources(dwarfs_common PRIVATE ${DWARFS_BLAKE3_OBJECTS})
+
 if(ZSTD_SUPPORTS_ESTIMATE_SIZE_BY_CCTX_PARAMS)
   set_source_files_properties(
     src/compression/zstd.cpp
@@ -413,6 +416,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
 
             # other
             ${RICEPP_OBJECT_TARGETS}
+            dwarfs_blake3
     EXPORT dwarfs-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
