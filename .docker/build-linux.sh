@@ -244,7 +244,7 @@ case "-$BUILD_TYPE-" in
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
     if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
       # CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
-      if [[ "-$BUILD_TYPE-" != *-lto-* ]]; then
+      if [[ "-$BUILD_TYPE-" != *-small-* ]] && [[ "-$BUILD_TYPE-" != *-noub-* ]]; then
         CMAKE_ARGS="${CMAKE_ARGS} -DWITH_ALL_BENCHMARKS=1"
       fi
     fi
