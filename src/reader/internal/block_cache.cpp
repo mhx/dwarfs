@@ -43,6 +43,7 @@
 
 #include <parallel_hashmap/phmap.h>
 
+#include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/performance_monitor.h>
