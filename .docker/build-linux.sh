@@ -370,7 +370,7 @@ if [[ "-$BUILD_TYPE-" == *-source-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_LEGACY_FUSE=1"
+  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_LEGACY_FUSE=1 -DFORCE_BUNDLED_BLAKE3=1"
 fi
 
 if [[ "-$BUILD_TYPE-" == *-notest-* ]]; then
