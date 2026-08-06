@@ -30,27 +30,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include <dwarfs/config.h>
-
-#ifdef DWARFS_STACKTRACE_ENABLED
-#include <cpptrace/from_current.hpp>
-#if __has_include(<cpptrace/formatting.hpp>)
-#include <cpptrace/formatting.hpp>
-#define DWARFS_CPPTRACE_HAS_FORMATTING
-#endif
-#include <cpptrace/version.hpp>
-#if CPPTRACE_VERSION < 10000
-#define DWARFS_TRY CPPTRACE_TRYZ
-#define DWARFS_CATCH CPPTRACE_CATCHZ
-#else
-#define DWARFS_TRY CPPTRACE_TRY
-#define DWARFS_CATCH CPPTRACE_CATCH
-#endif
-#else
-#define DWARFS_TRY try
-#define DWARFS_CATCH catch
-#endif
-
+#include <dwarfs/detail/exception_tracing.h>
 #include <dwarfs/error.h>
 #include <dwarfs/tool/safe_main.h>
 #include <dwarfs/util.h>
