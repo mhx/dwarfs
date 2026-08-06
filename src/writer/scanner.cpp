@@ -725,9 +725,9 @@ void scanner_<LoggerPolicy>::scan(
     wg_.wait();
   }
 
-  tree->drop_file_hashes();
+  tree->drop_file_digests();
 
-  LOG_VERBOSE << "entry storage (after dropping file hashes):\n"
+  LOG_VERBOSE << "entry storage (after dropping file digests):\n"
               << tree->dump_entries();
 
   LOG_VERBOSE << "inode storage (before freezing):\n" << tree->dump_inodes();
