@@ -269,7 +269,7 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
 
   file_id id() const { return file_id{this->base_id()}; }
 
-  std::string_view hash() const;
+  std::string_view digest() const;
 
   void create_data()
     requires is_mutable;

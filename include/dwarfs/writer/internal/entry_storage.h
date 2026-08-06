@@ -208,8 +208,8 @@ class entry_storage {
     return entry_impl_->get_file_hash_buffer(id, buffer_size);
   }
 
-  std::string_view get_file_hash(file_id id) const {
-    return entry_impl_->get_file_hash(id);
+  std::string_view get_file_digest(file_id id) const {
+    return entry_impl_->get_file_digest(id);
   }
 
   file_size_t get_entry_size(entry_id id) const {
@@ -250,7 +250,7 @@ class entry_storage {
     entry_impl_->sort_file_id_vector(fv);
   }
 
-  void drop_file_hashes() { entry_impl_->drop_file_hashes(); }
+  void drop_file_digests() { entry_impl_->drop_file_digests(); }
 
   inode_handle create_inode();
 
@@ -416,7 +416,7 @@ class entry_storage {
 
     virtual std::span<std::byte>
     get_file_hash_buffer(file_id id, std::size_t buffer_size) = 0;
-    virtual std::string_view get_file_hash(file_id id) const = 0;
+    virtual std::string_view get_file_digest(file_id id) const = 0;
 
     virtual file_size_t get_entry_size(entry_id id) const = 0;
     virtual file_size_info get_entry_size_info(entry_id id) const = 0;
@@ -434,7 +434,7 @@ class entry_storage {
 
     virtual void sort_file_id_vector(file_id_vector& fv) const = 0;
 
-    virtual void drop_file_hashes() = 0;
+    virtual void drop_file_digests() = 0;
 
     virtual std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) = 0;
   };
