@@ -34,6 +34,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -42,6 +43,7 @@
 
 #include <dwarfs/portability/windows.h>
 
+#include <dwarfs/detail/exception_tracing.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
@@ -232,12 +234,29 @@ class worker_group_impl_ final : public worker_group_impl {
 
       queue_space_available_.notify_one();
 
-      try {
+      DWARFS_TRY {
         auto bg = th.background_scope(is_background);
         (*job)(state);
-      } catch (...) {
+      }
+      DWARFS_CATCH(...) {
+#ifdef DWARFS_STACKTRACE_ENABLED
+        std::ostringstream oss;
+        auto const& stacktrace = cpptrace::from_current_exception();
+#ifdef DWARFS_CPPTRACE_HAS_FORMATTING
+        auto formatter = cpptrace::formatter{}.addresses(
+            cpptrace::formatter::address_mode::object);
+        formatter.print(oss, stacktrace, true);
+#else
+        stacktrace.print(oss, true);
+#endif
+#endif
         LOG_FATAL << "exception thrown in worker thread: "
-                  << exception_str(std::current_exception());
+                  << exception_str(std::current_exception())
+#ifdef DWARFS_STACKTRACE_ENABLED
+                  << "\n"
+                  << oss.str()
+#endif
+            ;
       }
 
       job.reset();
