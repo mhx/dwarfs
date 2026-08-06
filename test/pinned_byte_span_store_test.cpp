@@ -21,9 +21,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <array>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -37,6 +42,8 @@ namespace {
 
 using namespace dwarfs::container;
 using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::testing::Optional;
 
 template <typename Container>
 using mutable_at_result_t =
@@ -45,6 +52,14 @@ using mutable_at_result_t =
 template <typename Container>
 using const_at_result_t =
     decltype(std::declval<Container const&>().at(std::declval<std::size_t>()));
+
+template <typename Container>
+using mutable_subscript_result_t =
+    decltype(std::declval<Container&>()[std::declval<std::size_t>()]);
+
+template <typename Container>
+using const_subscript_result_t =
+    decltype(std::declval<Container const&>()[std::declval<std::size_t>()]);
 
 using test_container = pinned_byte_span_store<4>;
 
@@ -60,6 +75,18 @@ static_assert(
     std::same_as<mutable_at_result_t<test_container>, std::span<std::byte>>);
 static_assert(std::same_as<const_at_result_t<test_container>,
                            std::span<std::byte const>>);
+static_assert(std::same_as<mutable_subscript_result_t<test_container>,
+                           std::span<std::byte>>);
+static_assert(std::same_as<const_subscript_result_t<test_container>,
+                           std::span<std::byte const>>);
+
+static_assert(detail::byte_range<std::span<std::byte const>>);
+static_assert(detail::byte_range<std::vector<std::byte>>);
+static_assert(detail::byte_range<std::vector<unsigned char>>);
+static_assert(detail::byte_range<std::string_view>);
+static_assert(detail::byte_range<std::array<std::byte, 4>>);
+static_assert(!detail::byte_range<std::vector<unsigned>>);
+static_assert(!detail::byte_range<std::vector<bool>>);
 
 std::vector<unsigned> to_uints(std::span<std::byte const> s) {
   std::vector<unsigned> out;
@@ -88,6 +115,11 @@ TEST(pinned_byte_span_store_test,
 
   EXPECT_EQ(v.span_size(), 7);
   EXPECT_EQ(v.size(), 0);
+}
+
+TEST(pinned_byte_span_store_test, construction_rejects_zero_span_size) {
+  EXPECT_THROW(test_container{0}, std::invalid_argument);
+  EXPECT_NO_THROW(test_container{1});
 }
 
 TEST(pinned_byte_span_store_test,
@@ -267,4 +299,165 @@ TEST(pinned_byte_span_store_test, returned_span_points_at_same_storage_as_at) {
 
   EXPECT_EQ(v.at(0).data(), p);
   EXPECT_THAT(to_uints(v.at(0)), ElementsAre(42u, 43u, 44u, 45u));
+}
+
+TEST(pinned_byte_span_store_test, empty_reflects_size) {
+  test_container v{4};
+
+  EXPECT_TRUE(v.empty());
+
+  set_bytes(v.emplace_back(), {1, 2, 3, 4});
+  EXPECT_FALSE(v.empty());
+
+  v.pop_back();
+  EXPECT_TRUE(v.empty());
+}
+
+TEST(pinned_byte_span_store_test, subscript_gives_unchecked_access) {
+  test_container v{3};
+  set_bytes(v.emplace_back(), {1, 2, 3});
+  set_bytes(v.emplace_back(), {4, 5, 6});
+
+  EXPECT_EQ(v[0].data(), v.at(0).data());
+  EXPECT_EQ(v[1].data(), v.at(1).data());
+
+  v[1][0] = std::byte{99};
+  EXPECT_THAT(to_uints(v.at(1)), ElementsAre(99u, 5u, 6u));
+
+  test_container const& cv = v;
+  EXPECT_THAT(to_uints(cv[0]), ElementsAre(1u, 2u, 3u));
+}
+
+TEST(pinned_byte_span_store_test, reserve_preallocates_without_changing_size) {
+  using small_chunk_container = pinned_byte_span_store<2>;
+
+  small_chunk_container v{4};
+
+  EXPECT_EQ(v.capacity(), 0);
+
+  v.reserve(5);
+
+  EXPECT_EQ(v.size(), 0);
+  EXPECT_TRUE(v.empty());
+  EXPECT_GE(v.capacity(), 5);
+  EXPECT_EQ(v.capacity() % 2, 0);
+
+  auto const previous_capacity = v.capacity();
+
+  for (unsigned i = 0; i < 5; ++i) {
+    set_bytes(v.emplace_back(), {static_cast<unsigned char>(i), 0, 0, 0});
+  }
+
+  EXPECT_EQ(v.size(), 5);
+  EXPECT_EQ(v.capacity(), previous_capacity);
+  EXPECT_THAT(to_uints(v.at(4)), ElementsAre(4u, 0u, 0u, 0u));
+
+  v.reserve(1);
+  EXPECT_EQ(v.capacity(), previous_capacity);
+}
+
+TEST(pinned_byte_span_store_test, emplace_back_copies_byte_range_contents) {
+  test_container v{4};
+
+  std::vector<std::byte> const source{std::byte{1}, std::byte{2}, std::byte{3},
+                                      std::byte{4}};
+
+  auto const stored = v.emplace_back(source);
+
+  ASSERT_EQ(v.size(), 1);
+  EXPECT_EQ(stored.data(), v.at(0).data());
+  EXPECT_THAT(to_uints(v.at(0)), ElementsAre(1u, 2u, 3u, 4u));
+
+  // the store owns a copy; mutating it must not affect the source
+  v[0][0] = std::byte{9};
+  EXPECT_THAT(to_uints(v.at(0)), ElementsAre(9u, 2u, 3u, 4u));
+  EXPECT_EQ(std::to_integer<unsigned>(source[0]), 1u);
+}
+
+TEST(pinned_byte_span_store_test, emplace_back_accepts_any_byte_range) {
+  test_container v{4};
+
+  std::vector<unsigned char> const uchars{1, 2, 3, 4};
+  std::array<std::byte, 4> const arr{std::byte{5}, std::byte{6}, std::byte{7},
+                                     std::byte{8}};
+  std::string_view const sv{"WXYZ"};
+
+  v.emplace_back(uchars);
+  v.emplace_back(arr);
+  v.emplace_back(sv);
+  v.emplace_back(v.at(0)); // std::span<std::byte const>
+
+  ASSERT_EQ(v.size(), 4);
+  EXPECT_THAT(to_uints(v.at(0)), ElementsAre(1u, 2u, 3u, 4u));
+  EXPECT_THAT(to_uints(v.at(1)), ElementsAre(5u, 6u, 7u, 8u));
+  EXPECT_THAT(to_uints(v.at(2)), ElementsAre('W', 'X', 'Y', 'Z'));
+  EXPECT_THAT(to_uints(v.at(3)), ElementsAre(1u, 2u, 3u, 4u));
+}
+
+TEST(pinned_byte_span_store_test, emplace_back_rejects_size_mismatch) {
+  test_container v{4};
+
+  set_bytes(v.emplace_back(), {1, 2, 3, 4});
+
+  EXPECT_THROW(v.emplace_back(std::string_view{"abc"}), std::invalid_argument);
+  EXPECT_THROW(v.emplace_back(std::string_view{"abcde"}),
+               std::invalid_argument);
+  EXPECT_THROW(v.emplace_back(std::string_view{}), std::invalid_argument);
+
+  // strong guarantee: the store is unchanged and still usable
+  EXPECT_EQ(v.size(), 1);
+  EXPECT_THAT(to_uints(v.at(0)), ElementsAre(1u, 2u, 3u, 4u));
+  EXPECT_NO_THROW(v.emplace_back(std::string_view{"abcd"}));
+  EXPECT_EQ(v.size(), 2);
+}
+
+TEST(pinned_byte_span_store_test, pop_back_shrinks_and_reuses_storage) {
+  using small_chunk_container = pinned_byte_span_store<2>;
+
+  small_chunk_container v{4};
+
+  v.emplace_back(std::string_view{"aaaa"});
+  v.emplace_back(std::string_view{"bbbb"});
+
+  auto const* second_ptr = v.at(1).data();
+  auto const capacity_before = v.capacity();
+
+  v.pop_back();
+
+  EXPECT_EQ(v.size(), 1);
+  EXPECT_THROW(static_cast<void>(v.at(1)), std::out_of_range);
+  EXPECT_EQ(v.capacity(), capacity_before);
+
+  // the slot is reused rather than reallocated
+  v.emplace_back(std::string_view{"cccc"});
+
+  EXPECT_EQ(v.size(), 2);
+  EXPECT_EQ(v.at(1).data(), second_ptr);
+  EXPECT_THAT(to_uints(v.at(1)), ElementsAre('c', 'c', 'c', 'c'));
+}
+
+TEST(pinned_byte_span_store_test, byte_span_hash_and_equal_are_content_based) {
+  test_container v{4};
+
+  v.emplace_back(std::string_view{"abcd"});
+  v.emplace_back(std::string_view{"abcd"}); // deliberate duplicate content
+  v.emplace_back(std::string_view{"abce"});
+
+  byte_span_hash const hash;
+  byte_span_equal const equal;
+
+  EXPECT_NE(v.at(0).data(), v.at(1).data());
+  EXPECT_EQ(hash(v.at(0)), hash(v.at(1)));
+  EXPECT_TRUE(equal(v.at(0), v.at(1)));
+  EXPECT_FALSE(equal(v.at(0), v.at(2)));
+
+  // ... and consistent across byte range types
+  std::vector<unsigned char> const uchars{'a', 'b', 'c', 'd'};
+  EXPECT_EQ(hash(std::string_view{"abcd"}), hash(v.at(0)));
+  EXPECT_EQ(hash(uchars), hash(v.at(0)));
+  EXPECT_TRUE(equal(uchars, v.at(0)));
+
+  // differing lengths must never compare equal
+  EXPECT_FALSE(equal(std::string_view{"abc"}, v.at(0)));
+  EXPECT_FALSE(equal(std::string_view{"abcde"}, v.at(0)));
 }
