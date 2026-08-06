@@ -707,11 +707,17 @@ TEST_F(entry_test, storage_file_hash_size_must_be_consistent) {
   tree.create_packed_file_data(foo.id());
   tree.create_packed_file_data(bar.id());
 
-  auto foo_hash = tree.get_file_hash_buffer(foo.id(), 16);
-  EXPECT_EQ(16, foo_hash.size());
+  std::array<std::byte, 16> foo_digest{};
+  std::array<std::byte, 32> bar_digest{};
 
-  EXPECT_DEATH(tree.get_file_hash_buffer(bar.id(), 32),
+  tree.set_file_digest(foo.id(), foo_digest);
+
+  EXPECT_DEATH(tree.set_file_digest(bar.id(), bar_digest),
                "digest buffer size mismatch: expected 16, got 32");
+
+  auto foo_hash = tree.get_file_digest(foo.id());
+
+  EXPECT_EQ(16, foo_hash.size());
 }
 
 TEST_F(entry_test, frozen_panic) {
@@ -732,7 +738,7 @@ TEST_F(entry_test, frozen_panic) {
                "entry_storage is frozen");
   EXPECT_DEATH(tree.find_in_dir(root.as_dir().id(), "foo.pl"),
                "entry_storage is frozen");
-  EXPECT_DEATH(tree.get_file_hash_buffer(file.id(), 16),
+  EXPECT_DEATH(tree.set_file_digest(file.id(), std::array<std::byte, 32>{}),
                "entry_storage is frozen");
   EXPECT_DEATH(tree.set_entry_empty(root.id()), "entry_storage is frozen");
 

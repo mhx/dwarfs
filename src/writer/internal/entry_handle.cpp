@@ -25,6 +25,7 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/entry_handle.h>
@@ -274,10 +275,11 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
       }
     }
 
-    auto buffer =
-        this->storage().get_file_hash_buffer(this->id(), cs.digest_size());
+    small_vector<std::byte, 64> buffer(cs.digest_size());
 
     DWARFS_CHECK(cs.finalize(buffer.data()), "checksum computation failed");
+
+    this->storage().set_file_digest(this->id(), buffer);
   }
 }
 
