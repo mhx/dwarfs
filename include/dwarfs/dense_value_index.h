@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <functional>
@@ -74,6 +75,8 @@ class basic_dense_value_index {
   using store_type = typename policy_type::store_type;
   using hash_type = typename policy_type::hash_type;
   using equal_type = typename policy_type::equal_type;
+  using const_reference =
+      decltype(std::as_const(std::declval<store_type&>())[size_type{}]);
 
   struct insert_result {
     size_type index;
@@ -195,12 +198,12 @@ class basic_dense_value_index {
     index_.reserve(n);
   }
 
-  [[nodiscard]] value_type const& operator[](size_type index) const noexcept {
-    return (*store_)[index];
+  [[nodiscard]] decltype(auto) operator[](size_type index) const noexcept {
+    return std::as_const(*store_)[index];
   }
 
-  [[nodiscard]] value_type const& at(size_type index) const {
-    return (*store_).at(index);
+  [[nodiscard]] decltype(auto) at(size_type index) const {
+    return std::as_const(*store_).at(index);
   }
 
   [[nodiscard]] store_type const& values() const noexcept { return *store_; }
