@@ -716,21 +716,22 @@ class packed_entry_data {
     return *fdi;
   }
 
-  std::span<std::byte>
-  get_file_hash_buffer(file_id id, std::size_t buffer_size) {
+  void set_file_digest(file_id id, std::span<std::byte const> digest) {
+    auto const digest_size = digest.size();
+
     if (!file_digests_.has_value()) {
-      file_digests_.emplace(buffer_size);
-    } else if (file_digests_->span_size() != buffer_size) {
+      file_digests_.emplace(digest_size);
+    } else if (file_digests_->span_size() != digest_size) {
       DWARFS_PANIC(
           fmt::format("digest buffer size mismatch: expected {}, got {}",
-                      file_digests_->span_size(), buffer_size));
+                      file_digests_->span_size(), digest_size));
     }
 
-    auto& digests = *file_digests_;
-    auto const index = digests.size();
+    auto& fd = *file_digests_;
+    auto const index = fd.size();
     set_file_hash_index(id, index);
 
-    return digests.emplace_back();
+    fd.emplace_back(digest);
   }
 
   std::string_view get_file_digest(file_id id) const {
@@ -2000,11 +2001,10 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return files_.is_file_invalid(id);
   }
 
-  std::span<std::byte>
-  get_file_hash_buffer(file_id id, std::size_t buffer_size) override {
+  void set_file_digest(file_id id, std::span<std::byte const> digest) override {
     TRACE_CALL;
     if constexpr (is_mutable) {
-      return files_.get_file_hash_buffer(id, buffer_size);
+      files_.set_file_digest(id, digest);
     } else {
       frozen_panic();
     }
@@ -3112,9 +3112,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->is_file_invalid(id);
   }
 
-  std::span<std::byte>
-  get_file_hash_buffer(file_id id, std::size_t buffer_size) override {
-    return impl_.lock()->get_file_hash_buffer(id, buffer_size);
+  void set_file_digest(file_id id, std::span<std::byte const> digest) override {
+    impl_.lock()->set_file_digest(id, digest);
   }
 
   std::string_view get_file_digest(file_id id) const override {
