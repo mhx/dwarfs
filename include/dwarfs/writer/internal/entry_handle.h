@@ -28,8 +28,8 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
-#include <string_view>
 
 #include <boost/container_hash/hash.hpp>
 
@@ -269,7 +269,9 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
 
   file_id id() const { return file_id{this->base_id()}; }
 
-  std::string_view digest() const;
+  std::span<std::byte const> digest() const;
+
+  std::optional<std::size_t> digest_index() const;
 
   void create_data()
     requires is_mutable;

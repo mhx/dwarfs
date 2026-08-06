@@ -228,8 +228,13 @@ template class entry_handle_base<mutability::mutable_>;
 // ---------- file_handle ----------
 
 template <detail::mutability Mut>
-std::string_view basic_file_handle<Mut>::digest() const {
+std::span<std::byte const> basic_file_handle<Mut>::digest() const {
   return this->storage().get_file_digest(this->id());
+}
+
+template <detail::mutability Mut>
+std::optional<std::size_t> basic_file_handle<Mut>::digest_index() const {
+  return this->storage().get_file_digest_index(this->id());
 }
 
 template <detail::mutability Mut>

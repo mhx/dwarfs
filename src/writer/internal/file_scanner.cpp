@@ -90,9 +90,26 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
                       uint32_t& inode_num, uint32_t& obj_num);
 
+  void finalize_files(std::vector<file_id_vector>& fmap, uint32_t& inode_num,
+                      uint32_t& obj_num);
+
+  template <bool UniqueOnly, typename KeyType>
+  void finalize_files(std::vector<std::pair<KeyType, file_id_vector>>& ent,
+                      uint32_t& inode_num, uint32_t& obj_num);
+
   template <bool Unique, typename KeyType>
   void finalize_inodes(std::vector<std::pair<KeyType, file_id_vector>>& ent,
                        uint32_t& inode_num, uint32_t& obj_num);
+
+  file_id_vector& get_by_digest_autovivify(file_handle p) {
+    auto const index = p.digest_index().value();
+
+    if (index >= by_digest_.size()) {
+      by_digest_.resize(index + 1);
+    }
+
+    return by_digest_.at(index);
+  }
 
   template <typename T>
   std::string format_key(T const& key) const {
@@ -108,7 +125,7 @@ class file_scanner_ final : public file_scanner::impl {
     return std::to_string(key.id().index());
   }
 
-  std::string format_key(std::string_view key) const {
+  std::string format_key(std::span<std::byte const> key) const {
     return fmt::format("{}", hexlify(key));
   }
 
@@ -128,6 +145,9 @@ class file_scanner_ final : public file_scanner::impl {
 
   template <typename T>
   void dump_map(std::ostream& os, std::string_view name, T const& map) const;
+
+  void dump_map(std::ostream& os, std::string_view name,
+                std::vector<file_id_vector> const& map) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   entry_storage& storage_;
@@ -149,7 +169,7 @@ class file_scanner_ final : public file_scanner::impl {
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
   fast_map_type<unique_inode_id, file_id_vector> by_inode_id_;
-  fast_map_type<std::string_view, file_id_vector> by_digest_;
+  std::vector<file_id_vector> by_digest_;
 
   struct inode_create_info {
     inode_id i;
@@ -249,12 +269,12 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   assert(first_file_hashed_.empty());
 
-  auto table_stats = [](auto const& map) {
+  auto table_stats = [](auto const& tbl) {
     constexpr auto entry_size =
-        sizeof(typename std::decay_t<decltype(map)>::value_type);
+        sizeof(typename std::decay_t<decltype(tbl)>::value_type);
     return fmt::format("{} ({}/{} entries, {} bytes per entry)",
-                       size_with_unit(entry_size * map.capacity()), map.size(),
-                       map.capacity(), entry_size);
+                       size_with_unit(entry_size * tbl.capacity()), tbl.size(),
+                       tbl.capacity(), entry_size);
   };
 
   LOG_VERBOSE << "file scanner table stats:"
@@ -267,8 +287,8 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   if (opts_.hash_algo) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      if (auto it = by_digest_.find(p.digest()); it != by_digest_.end()) {
-        return it->second;
+      if (auto ix = p.digest_index()) {
+        return by_digest_.at(*ix);
       }
       auto const size = p.size();
       uint64_t digest{0};
@@ -376,9 +396,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
           if (p.is_invalid()) [[unlikely]] {
             by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
           } else {
-            auto& ref = by_digest_[p.digest()];
-            DWARFS_CHECK(ref.empty(),
-                         "internal error: unexpected existing digest");
+            auto& ref = get_by_digest_autovivify(p);
             ref.push_back(p.id());
           }
 
@@ -411,7 +429,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
           add_inode(p, __LINE__);
           by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
         } else {
-          auto& ref = by_digest_[p.digest()];
+          auto& ref = get_by_digest_autovivify(p);
 
           if (ref.empty()) {
             // This is *not* a duplicate. We must allocate a new inode.
@@ -526,17 +544,48 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   }
   fmap.clear();
 
+  finalize_files<UniqueOnly>(ent, inode_num, obj_num);
+
+  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::finalize_files(
+    std::vector<file_id_vector>& fmap, uint32_t& inode_num, uint32_t& obj_num) {
+  std::vector<std::pair<std::string_view, file_id_vector>> ent;
+
+  auto tv = LOG_TIMED_VERBOSE;
+
+  ent.reserve(fmap.size());
+  for (auto&& fv : fmap) {
+    if (!fv.empty()) {
+      auto const digest = storage_.handle(fv.front()).digest();
+      ent.emplace_back(
+          std::string_view{reinterpret_cast<char const*>(digest.data()),
+                           digest.size()},
+          std::move(fv));
+    }
+  }
+  fmap.clear();
+
+  finalize_files<false>(ent, inode_num, obj_num);
+
+  tv << "finalized " << ent.size() << " files";
+}
+
+template <typename LoggerPolicy>
+template <bool UniqueOnly, typename KeyType>
+void file_scanner_<LoggerPolicy>::finalize_files(
+    std::vector<std::pair<KeyType, file_id_vector>>& ent, uint32_t& inode_num,
+    uint32_t& obj_num) {
   std::ranges::sort(
       ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  DWARFS_CHECK(fmap.empty(), "expected file map to be empty");
-
   finalize_inodes<true>(ent, inode_num, obj_num);
+
   if constexpr (!UniqueOnly) {
     finalize_inodes<false>(ent, inode_num, obj_num);
   }
-
-  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
 }
 
 template <typename LoggerPolicy>
@@ -691,6 +740,27 @@ void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
     }
     first = false;
     os << "    \"" << format_key(k) << "\": ";
+    dump_value(os, v);
+  }
+
+  os << "\n  }";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_map(
+    std::ostream& os, std::string_view name,
+    std::vector<file_id_vector> const& map) const {
+  os << "  \"" << name << "\": {\n";
+
+  bool first = true;
+
+  for (auto const& v : map) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    auto fh = storage_.handle(v.front());
+    os << "    \"" << format_key(fh.digest()) << "\": ";
     dump_value(os, v);
   }
 

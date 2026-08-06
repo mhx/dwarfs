@@ -207,8 +207,12 @@ class entry_storage {
     entry_impl_->set_file_digest(id, digest);
   }
 
-  std::string_view get_file_digest(file_id id) const {
+  std::span<std::byte const> get_file_digest(file_id id) const {
     return entry_impl_->get_file_digest(id);
+  }
+
+  std::optional<std::size_t> get_file_digest_index(file_id id) const {
+    return entry_impl_->get_file_digest_index(id);
   }
 
   file_size_t get_entry_size(entry_id id) const {
@@ -415,7 +419,9 @@ class entry_storage {
 
     virtual void
     set_file_digest(file_id id, std::span<std::byte const> digest) = 0;
-    virtual std::string_view get_file_digest(file_id id) const = 0;
+    virtual std::span<std::byte const> get_file_digest(file_id id) const = 0;
+    virtual std::optional<std::size_t>
+    get_file_digest_index(file_id id) const = 0;
 
     virtual file_size_t get_entry_size(entry_id id) const = 0;
     virtual file_size_info get_entry_size_info(entry_id id) const = 0;
