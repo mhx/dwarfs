@@ -187,7 +187,7 @@ struct flat_cao_dense_value_index_policy {
   using hash_type = default_value_hash<T>;
   using equal_type = std::equal_to<>;
   template <typename Hash, typename Equal>
-  using index_type = phmap::flat_hash_set<std::size_t, Hash, Equal>;
+  using index_type = phmap::flat_hash_set<std::uint32_t, Hash, Equal>;
 };
 
 template <typename T>
@@ -205,7 +205,7 @@ struct pinned_byte_span_index_policy_holder {
     using equal_type = dwarfs::container::byte_span_equal;
 
     template <typename Hash, typename Equal>
-    using index_type = phmap::flat_hash_set<std::size_t, Hash, Equal>;
+    using index_type = phmap::flat_hash_set<std::uint32_t, Hash, Equal>;
   };
 };
 
