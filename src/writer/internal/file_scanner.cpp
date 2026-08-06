@@ -249,6 +249,22 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   assert(first_file_hashed_.empty());
 
+  auto table_stats = [](auto const& map) {
+    constexpr auto entry_size =
+        sizeof(typename std::decay_t<decltype(map)>::value_type);
+    return fmt::format("{} ({}/{} entries, {} bytes per entry)",
+                       size_with_unit(entry_size * map.capacity()), map.size(),
+                       map.capacity(), entry_size);
+  };
+
+  LOG_VERBOSE << "file scanner table stats:"
+              << "\n  hardlinks: " << table_stats(hardlinks_)
+              << "\n  unique-size: " << table_stats(unique_size_)
+              << "\n  file-start-hash: " << table_stats(file_start_hash_)
+              << "\n  first-file-hashed: " << table_stats(first_file_hashed_)
+              << "\n  by-inode-id: " << table_stats(by_inode_id_)
+              << "\n  by-digest: " << table_stats(by_digest_);
+
   if (opts_.hash_algo) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       if (auto it = by_digest_.find(p.digest()); it != by_digest_.end()) {
