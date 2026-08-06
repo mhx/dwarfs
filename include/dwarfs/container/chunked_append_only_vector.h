@@ -228,7 +228,7 @@ class basic_chunked_append_only_vector {
       chunks_.resize(needed_chunks);
     } else if (new_size > size_) {
       while (new_size > chunks_.size() * chunk_elements) {
-        chunks_.push_back(std::make_unique<chunk>());
+        chunks_.push_back(std::make_unique_for_overwrite<chunk>());
       }
 
       size_type const old_size = size_;
@@ -276,7 +276,7 @@ class basic_chunked_append_only_vector {
 
   void ensure_capacity_for_one_more() {
     if (size_ == chunks_.size() * chunk_elements) {
-      chunks_.push_back(std::make_unique<chunk>());
+      chunks_.push_back(std::make_unique_for_overwrite<chunk>());
     }
   }
 
