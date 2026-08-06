@@ -24,6 +24,7 @@
 #include <cctype>
 #include <concepts>
 #include <cstddef>
+#include <deque>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -254,6 +255,45 @@ struct append_only_store_policy {
   using store_type = append_only_store<T>;
   using hash_type = default_value_hash<T>;
   using equal_type = std::equal_to<>;
+  template <typename Hash, typename Equal>
+  using index_type = std::unordered_set<std::size_t, Hash, Equal>;
+};
+
+// A store whose subscript operator uses view/proxy rather than reference.
+class view_store {
+ public:
+  using value_type = std::string_view;
+
+  [[nodiscard]] std::size_t size() const noexcept { return values_.size(); }
+  [[nodiscard]] bool empty() const noexcept { return values_.empty(); }
+
+  template <class... Args>
+  void emplace_back(Args&&... args) {
+    values_.emplace_back(std::forward<Args>(args)...);
+  }
+
+  void pop_back() { values_.pop_back(); }
+
+  [[nodiscard]] std::string_view operator[](std::size_t index) const noexcept {
+    return values_[index];
+  }
+
+  [[nodiscard]] std::string_view at(std::size_t index) const {
+    return values_.at(index);
+  }
+
+ private:
+  std::deque<std::string> values_;
+};
+
+template <typename T>
+struct view_store_policy {
+  static_assert(std::same_as<T, std::string_view>);
+
+  using store_type = view_store;
+  using hash_type = default_value_hash<T>;
+  using equal_type = std::equal_to<>;
+
   template <typename Hash, typename Equal>
   using index_type = std::unordered_set<std::size_t, Hash, Equal>;
 };
@@ -644,4 +684,81 @@ TEST(dense_value_index_append_only_test,
   EXPECT_EQ(index.size(), 1);
   EXPECT_EQ(store.size(), 1);
   EXPECT_THAT(store[0].value, Eq("alpha"));
+}
+
+class view_store_index_test : public ::testing::Test {
+ protected:
+  using index_type =
+      basic_dense_value_index<std::string_view, view_store_policy>;
+
+  view_store store;
+  index_type index{store};
+};
+
+TEST_F(view_store_index_test, supports_stores_returning_values_by_value) {
+  EXPECT_THAT(index.add("alpha"), Eq(0));
+  EXPECT_THAT(index.add("beta"), Eq(1));
+  EXPECT_THAT(index.add("alpha"), Eq(0));
+
+  EXPECT_EQ(index.size(), 2);
+  EXPECT_EQ(store.size(), 2);
+  EXPECT_FALSE(index.empty());
+
+  // These would dangle if the accessors returned `value_type const&`.
+  EXPECT_THAT(index[0], Eq("alpha"));
+  EXPECT_THAT(index[1], Eq("beta"));
+  EXPECT_THAT(index.at(0), Eq("alpha"));
+
+  EXPECT_TRUE(index.contains(std::string_view{"beta"}));
+  EXPECT_THAT(index.index_of(std::string_view{"alpha"}), Optional(Eq(0)));
+  EXPECT_THAT(index.index_of(std::string_view{"gamma"}), Eq(std::nullopt));
+  EXPECT_THROW(static_cast<void>(index.at(2)), std::out_of_range);
+}
+
+TEST_F(view_store_index_test, duplicate_insert_rolls_the_store_back) {
+  EXPECT_TRUE(index.emplace("alpha").inserted);
+  EXPECT_EQ(store.size(), 1);
+
+  auto const duplicate = index.emplace("alpha");
+
+  EXPECT_FALSE(duplicate.inserted);
+  EXPECT_THAT(duplicate.index, Eq(0));
+  EXPECT_EQ(store.size(), 1);
+  EXPECT_EQ(index.size(), 1);
+}
+
+TEST(dense_value_index_accessor_type_test,
+     accessors_never_expose_mutable_values) {
+  using vector_index =
+      basic_dense_value_index<std::string, std_dense_value_index_policy>;
+
+  // A store holding values by reference keeps reference semantics, but must
+  // never hand out a mutable reference, even from a non-const index.
+  static_assert(
+      std::same_as<vector_index::const_reference, std::string const&>);
+  static_assert(std::same_as<decltype(std::declval<vector_index&>()[0]),
+                             std::string const&>);
+  static_assert(std::same_as<decltype(std::declval<vector_index const&>()[0]),
+                             std::string const&>);
+  static_assert(std::same_as<decltype(std::declval<vector_index&>().at(0)),
+                             std::string const&>);
+
+  // A store returning views by value must propagate the value category.
+  using view_index =
+      basic_dense_value_index<std::string_view, view_store_policy>;
+
+  static_assert(std::same_as<view_index::const_reference, std::string_view>);
+  static_assert(
+      std::same_as<decltype(std::declval<view_index&>()[0]), std::string_view>);
+  static_assert(std::same_as<decltype(std::declval<view_index const&>().at(0)),
+                             std::string_view>);
+}
+
+TEST(dense_value_index_accessor_type_test, subscript_aliases_the_store) {
+  std::vector<std::string> store{"alpha", "beta"};
+  basic_dense_value_index<std::string, std_dense_value_index_policy> index{
+      store};
+
+  EXPECT_EQ(&index[0], &store[0]);
+  EXPECT_EQ(&index.at(1), &store[1]);
 }
