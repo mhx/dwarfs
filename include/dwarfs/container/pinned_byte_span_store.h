@@ -30,14 +30,68 @@
 
 #include <bit>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <cstring>
+#include <functional>
 #include <memory>
+#include <ranges>
 #include <span>
 #include <stdexcept>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include <dwarfs/container/detail/concepts.h>
+
 namespace dwarfs::container {
+
+namespace detail {
+
+template <byte_range R>
+[[nodiscard]] inline std::span<std::byte const>
+to_byte_span(R const& r) noexcept {
+  return {reinterpret_cast<std::byte const*>(std::ranges::data(r)),
+          std::ranges::size(r)};
+}
+
+} // namespace detail
+
+/**
+ * Content-based hash for byte ranges.
+ *
+ * Transparent, so an index over std::span<std::byte const> can be probed
+ * with any byte_range without materializing a value first.
+ */
+struct byte_span_hash {
+  using is_transparent = void;
+
+  template <detail::byte_range R>
+  [[nodiscard]] std::size_t operator()(R const& r) const noexcept {
+    auto const s = detail::to_byte_span(r);
+    if (s.empty()) {
+      return 0;
+    }
+    return std::hash<std::string_view>{}(
+        std::string_view{reinterpret_cast<char const*>(s.data()), s.size()});
+  }
+};
+
+/**
+ * Content-based equality for byte ranges.
+ */
+struct byte_span_equal {
+  using is_transparent = void;
+
+  template <detail::byte_range A, detail::byte_range B>
+  [[nodiscard]] bool operator()(A const& a, B const& b) const noexcept {
+    auto const x = detail::to_byte_span(a);
+    auto const y = detail::to_byte_span(b);
+    return x.size() == y.size() &&
+           (x.empty() || std::memcmp(x.data(), y.data(), x.size()) == 0);
+  }
+};
 
 template <std::size_t ChunkSize>
 class pinned_byte_span_store {
@@ -51,7 +105,10 @@ class pinned_byte_span_store {
 
   explicit pinned_byte_span_store(size_type span_size)
       : span_size_{span_size} {
-    assert(span_size_ > 0);
+    if (span_size_ == 0) {
+      throw std::invalid_argument(
+          "pinned_byte_span_store: span_size must not be zero");
+    }
   }
 
   pinned_byte_span_store(pinned_byte_span_store const&) = delete;
@@ -82,11 +139,65 @@ class pinned_byte_span_store {
     return size_ * span_size_;
   }
 
+  [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
+
+  [[nodiscard]] size_type capacity() const noexcept {
+    return chunks_.size() * ChunkSize;
+  }
+
+  void reserve(size_type n) {
+    auto const needed = (n + ChunkSize - 1) / ChunkSize;
+    chunks_.reserve(needed);
+    while (chunks_.size() < needed) {
+      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+      chunks_.push_back(
+          std::make_unique_for_overwrite<std::byte[]>(bytes_per_chunk()));
+    }
+  }
+
   [[nodiscard]] std::span<std::byte> emplace_back() {
     ensure_capacity_for_one_more();
     std::byte* p = ptr_at(size_);
     ++size_;
     return {p, span_size_};
+  }
+
+  /**
+   * Append a copy of `data`, which must be exactly span_size() bytes.
+   *
+   * Strong exception guarantee: on failure the store is unchanged.
+   */
+  template <detail::byte_range R>
+  std::span<std::byte const> emplace_back(R const& data) {
+    auto const src = detail::to_byte_span(data);
+
+    if (src.size() != span_size_) {
+      throw std::invalid_argument(
+          "pinned_byte_span_store::emplace_back: size mismatch");
+    }
+
+    ensure_capacity_for_one_more();
+    std::byte* p = ptr_at(size_);
+    std::memcpy(p, src.data(), span_size_);
+    ++size_;
+
+    return {p, span_size_};
+  }
+
+  void pop_back() noexcept {
+    assert(size_ > 0);
+    --size_;
+  }
+
+  [[nodiscard]] std::span<std::byte> operator[](size_type index) noexcept {
+    assert(index < size_);
+    return {ptr_at(index), span_size_};
+  }
+
+  [[nodiscard]] std::span<std::byte const>
+  operator[](size_type index) const noexcept {
+    assert(index < size_);
+    return {ptr_at(index), span_size_};
   }
 
   [[nodiscard]] std::span<std::byte> at(size_type index) {
@@ -133,7 +244,8 @@ class pinned_byte_span_store {
   void ensure_capacity_for_one_more() {
     if (size_ == chunks_.size() * ChunkSize) {
       // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
-      chunks_.push_back(std::make_unique<std::byte[]>(bytes_per_chunk()));
+      chunks_.push_back(
+          std::make_unique_for_overwrite<std::byte[]>(bytes_per_chunk()));
     }
   }
 
