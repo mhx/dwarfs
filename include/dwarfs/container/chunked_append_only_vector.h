@@ -145,6 +145,9 @@ class basic_chunked_append_only_vector {
 
   [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
   [[nodiscard]] size_type size() const noexcept { return size_; }
+  [[nodiscard]] size_type capacity() const noexcept {
+    return chunks_.size() * chunk_elements;
+  }
 
   void swap(basic_chunked_append_only_vector& other) noexcept {
     std::swap(chunks_, other.chunks_);
