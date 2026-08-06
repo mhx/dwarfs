@@ -780,14 +780,13 @@ class packed_entry_data {
       file_digests_ = std::make_unique<file_digests_data>(digest_size);
     }
 
-    set_file_hash_index(id, file_digests_->add(digest));
+    set_file_digest_index(id, file_digests_->add(digest));
   }
 
-  std::string_view get_file_digest(file_id id) const {
+  std::span<std::byte const> get_file_digest(file_id id) const {
     if (file_digests_) {
-      if (auto const index = get_file_hash_index(id); index.has_value()) {
-        auto const span = file_digests_->get(*index);
-        return {reinterpret_cast<char const*>(span.data()), span.size()};
+      if (auto const index = get_file_digest_index(id); index.has_value()) {
+        return file_digests_->get(*index);
       }
     }
 
@@ -829,7 +828,7 @@ class packed_entry_data {
     return file_order_index_.at(id.index());
   }
 
-  void set_file_hash_index(file_id id, std::size_t index) {
+  void set_file_digest_index(file_id id, std::size_t index) {
     auto const fdi = get_file_data_index(id.index());
     auto hash_index = get<kFileHashIndexField>(file_data_vec_.at(fdi));
     DWARFS_CHECK(!hash_index.has_value(),
@@ -837,7 +836,7 @@ class packed_entry_data {
     hash_index = index;
   }
 
-  std::optional<std::size_t> get_file_hash_index(file_id id) const {
+  std::optional<std::size_t> get_file_digest_index(file_id id) const {
     auto const fdi = get_file_data_index(id.index());
     return get<kFileHashIndexField>(file_data_vec_.at(fdi));
   }
@@ -2057,9 +2056,14 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  std::string_view get_file_digest(file_id id) const override {
+  std::span<std::byte const> get_file_digest(file_id id) const override {
     TRACE_CALL;
     return files_.get_file_digest(id);
+  }
+
+  std::optional<std::size_t> get_file_digest_index(file_id id) const override {
+    TRACE_CALL;
+    return files_.get_file_digest_index(id);
   }
 
   file_size_t get_entry_size(entry_id id) const override {
@@ -3163,8 +3167,12 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->set_file_digest(id, digest);
   }
 
-  std::string_view get_file_digest(file_id id) const override {
+  std::span<std::byte const> get_file_digest(file_id id) const override {
     return impl_.lock()->get_file_digest(id);
+  }
+
+  std::optional<std::size_t> get_file_digest_index(file_id id) const override {
+    return impl_.lock()->get_file_digest_index(id);
   }
 
   file_size_t get_entry_size(entry_id id) const override {

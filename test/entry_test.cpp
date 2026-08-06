@@ -26,6 +26,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/util.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/inode_options.h>
 
@@ -619,7 +620,7 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
   auto mm = os->open_file(sep / "foo.pl");
   foo.scan(mm, prog, "sha512-256");
 
-  EXPECT_EQ(foo.digest(), bar.digest());
+  EXPECT_EQ(hexlify(foo.digest()), hexlify(bar.digest()));
   EXPECT_FALSE(foo.digest().empty());
 }
 
