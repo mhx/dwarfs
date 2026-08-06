@@ -29,9 +29,24 @@
 #pragma once
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace dwarfs::container::detail {
+
+/**
+ * A contiguous, sized range of byte-sized trivially copyable elements.
+ *
+ * Deliberately accepts std::byte, char, unsigned char, ... so that callers
+ * can insert and look up using whatever byte container they already have
+ * (std::span, std::vector<std::uint8_t>, std::string_view, std::array).
+ */
+template <typename R>
+concept byte_range =
+    std::ranges::contiguous_range<R> && std::ranges::sized_range<R> &&
+    sizeof(std::ranges::range_value_t<R>) == 1 &&
+    std::is_trivially_copyable_v<std::ranges::range_value_t<R>> &&
+    !std::same_as<std::remove_cvref_t<std::ranges::range_value_t<R>>, bool>;
 
 template <typename Op, typename Lhs, typename Rhs>
 concept closed_under = requires(Op op) {
