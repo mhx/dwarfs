@@ -36,6 +36,7 @@
 #include <range/v3/view/drop.hpp>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
@@ -79,6 +80,8 @@ class file_scanner_ final : public file_scanner::impl {
   template <typename Key, typename Value>
   using fast_map_type = phmap::flat_hash_map<Key, Value>;
 
+  using by_digest_vec = container::chunked_append_only_vector<file_id_vector>;
+
   void scan_dedupe(file_handle p, file_size_info size_info);
   void hash_file(file_handle p, file_size_t size);
   void add_inode(file_handle p, int lineno);
@@ -90,8 +93,8 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
                       uint32_t& inode_num, uint32_t& obj_num);
 
-  void finalize_files(std::vector<file_id_vector>& fmap, uint32_t& inode_num,
-                      uint32_t& obj_num);
+  void
+  finalize_files(by_digest_vec& fmap, uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool UniqueOnly, typename KeyType>
   void finalize_files(std::vector<std::pair<KeyType, file_id_vector>>& ent,
@@ -147,7 +150,7 @@ class file_scanner_ final : public file_scanner::impl {
   void dump_map(std::ostream& os, std::string_view name, T const& map) const;
 
   void dump_map(std::ostream& os, std::string_view name,
-                std::vector<file_id_vector> const& map) const;
+                by_digest_vec const& map) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   entry_storage& storage_;
@@ -169,7 +172,7 @@ class file_scanner_ final : public file_scanner::impl {
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
   fast_map_type<unique_inode_id, file_id_vector> by_inode_id_;
-  std::vector<file_id_vector> by_digest_;
+  by_digest_vec by_digest_;
 
   struct inode_create_info {
     inode_id i;
@@ -550,8 +553,9 @@ void file_scanner_<LoggerPolicy>::finalize_files(
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::finalize_files(
-    std::vector<file_id_vector>& fmap, uint32_t& inode_num, uint32_t& obj_num) {
+void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec& fmap,
+                                                 uint32_t& inode_num,
+                                                 uint32_t& obj_num) {
   std::vector<std::pair<std::string_view, file_id_vector>> ent;
 
   auto tv = LOG_TIMED_VERBOSE;
@@ -747,9 +751,9 @@ void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::dump_map(
-    std::ostream& os, std::string_view name,
-    std::vector<file_id_vector> const& map) const {
+void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
+                                           std::string_view name,
+                                           by_digest_vec const& map) const {
   os << "  \"" << name << "\": {\n";
 
   bool first = true;
