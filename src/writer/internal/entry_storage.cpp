@@ -718,23 +718,24 @@ class packed_entry_data {
 
   std::span<std::byte>
   get_file_hash_buffer(file_id id, std::size_t buffer_size) {
-    if (!file_hashes_.has_value()) {
-      file_hashes_.emplace(buffer_size);
-    } else if (file_hashes_->span_size() != buffer_size) {
-      DWARFS_PANIC(fmt::format("hash buffer size mismatch: expected {}, got {}",
-                               file_hashes_->span_size(), buffer_size));
+    if (!file_digests_.has_value()) {
+      file_digests_.emplace(buffer_size);
+    } else if (file_digests_->span_size() != buffer_size) {
+      DWARFS_PANIC(
+          fmt::format("digest buffer size mismatch: expected {}, got {}",
+                      file_digests_->span_size(), buffer_size));
     }
 
-    auto& hashes = *file_hashes_;
-    auto const index = hashes.size();
+    auto& digests = *file_digests_;
+    auto const index = digests.size();
     set_file_hash_index(id, index);
 
-    return hashes.emplace_back();
+    return digests.emplace_back();
   }
 
-  std::string_view get_file_hash(file_id id) const {
-    if (file_hashes_.has_value()) {
-      auto const& hashes = *file_hashes_;
+  std::string_view get_file_digest(file_id id) const {
+    if (file_digests_.has_value()) {
+      auto const& hashes = *file_digests_;
       auto const index = get_file_hash_index(id);
 
       if (index.has_value()) {
@@ -863,9 +864,9 @@ class packed_entry_data {
     return represented_device_.at(id.index());
   }
 
-  void drop_hash_buffers() {
-    if (file_hashes_.has_value()) {
-      file_hashes_.reset();
+  void drop_digest_buffers() {
+    if (file_digests_.has_value()) {
+      file_digests_.reset();
       for (auto&& fd : file_data_vec_) {
         get<kFileHashIndexField>(fd) = std::nullopt;
       }
@@ -919,7 +920,7 @@ class packed_entry_data {
   segtor<size_t> file_order_index_;
   segtor<inode_id> file_inode_id_;
   segtor<std::optional<size_t>> file_data_index_; // index into `file_data_vec_`
-  std::optional<dwarfs::container::pinned_byte_span_store<512>> file_hashes_;
+  std::optional<dwarfs::container::pinned_byte_span_store<512>> file_digests_;
 
   static constexpr std::size_t kFileHashIndexField{0};
   static constexpr std::size_t kHardlinkCountMinusOneField{1};
@@ -1416,8 +1417,8 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
   d.add("file invalid vec",
         file_invalid_vec_.size() * sizeof(file_invalid_vec_[0]),
         file_invalid_vec_.size());
-  d.add("file hashes", file_hashes_ ? file_hashes_->size_in_bytes() : 0,
-        file_hashes_ ? file_hashes_->size() : 0);
+  d.add("file digests", file_digests_ ? file_digests_->size_in_bytes() : 0,
+        file_digests_ ? file_digests_->size() : 0);
   d.add("file inode id", file_inode_id_.size_in_bytes());
   d.add("file data index", file_data_index_.size_in_bytes());
   d.add("file order index", file_order_index_.size_in_bytes());
@@ -2009,9 +2010,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  std::string_view get_file_hash(file_id id) const override {
+  std::string_view get_file_digest(file_id id) const override {
     TRACE_CALL;
-    return files_.get_file_hash(id);
+    return files_.get_file_digest(id);
   }
 
   file_size_t get_entry_size(entry_id id) const override {
@@ -2065,12 +2066,12 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  void drop_file_hashes() override {
+  void drop_file_digests() override {
     TRACE_CALL;
     if constexpr (is_mutable) {
       mutable_panic();
     } else {
-      files_.drop_hash_buffers();
+      files_.drop_digest_buffers();
     }
   }
 
@@ -3116,8 +3117,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->get_file_hash_buffer(id, buffer_size);
   }
 
-  std::string_view get_file_hash(file_id id) const override {
-    return impl_.lock()->get_file_hash(id);
+  std::string_view get_file_digest(file_id id) const override {
+    return impl_.lock()->get_file_digest(id);
   }
 
   file_size_t get_entry_size(entry_id id) const override {
@@ -3156,7 +3157,7 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->sort_file_id_vector(fv);
   }
 
-  void drop_file_hashes() override { impl_.lock()->drop_file_hashes(); }
+  void drop_file_digests() override { impl_.lock()->drop_file_digests(); }
 
   std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) override {
     return impl_.lock()->freeze(lgr, prog);
