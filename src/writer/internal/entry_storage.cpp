@@ -194,6 +194,26 @@ template <typename T>
 using flat_cao_index =
     dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
 
+template <std::size_t ChunkSize>
+struct pinned_byte_span_index_policy_holder {
+  template <typename T>
+  struct policy {
+    static_assert(std::same_as<T, std::span<std::byte const>>);
+
+    using store_type = dwarfs::container::pinned_byte_span_store<ChunkSize>;
+    using hash_type = dwarfs::container::byte_span_hash;
+    using equal_type = dwarfs::container::byte_span_equal;
+
+    template <typename Hash, typename Equal>
+    using index_type = phmap::flat_hash_set<std::size_t, Hash, Equal>;
+  };
+};
+
+template <std::size_t ChunkSize>
+using flat_pinned_byte_span_index = dwarfs::basic_dense_value_index<
+    std::span<std::byte const>,
+    pinned_byte_span_index_policy_holder<ChunkSize>::template policy>;
+
 template <typename T>
 std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
   return std::accumulate(vec.begin(), vec.end(), 0ULL,
@@ -561,6 +581,43 @@ struct shared_entry_data {
   cao_vector<entry_id_vector> dir_entries_;
 };
 
+class file_digests_data {
+ public:
+  explicit file_digests_data(std::size_t digest_size)
+      : store_{digest_size} {}
+
+  file_digests_data(file_digests_data const&) = delete;
+  file_digests_data& operator=(file_digests_data const&) = delete;
+  file_digests_data(file_digests_data&&) = delete;
+  file_digests_data& operator=(file_digests_data&&) = delete;
+
+  std::size_t digest_size() const { return store_.span_size(); }
+
+  std::size_t size() const { return store_.size(); }
+
+  std::size_t size_in_bytes() const {
+    return store_.size_in_bytes() + index_.index_size_in_bytes();
+  }
+
+  std::size_t add(std::span<std::byte const> digest) {
+    if (digest.size() != digest_size()) [[unlikely]] {
+      DWARFS_PANIC(
+          fmt::format("digest buffer size mismatch: expected {}, got {}",
+                      digest_size(), digest.size()));
+    }
+    return index_.add(digest);
+  }
+
+  std::span<std::byte const> get(std::size_t index) const {
+    return index_.at(index);
+  }
+
+ private:
+  static constexpr std::size_t kFileDigestsChunkSize{512};
+  dwarfs::container::pinned_byte_span_store<kFileDigestsChunkSize> store_;
+  flat_pinned_byte_span_index<kFileDigestsChunkSize> index_{store_};
+};
+
 class packed_entry_data {
  public:
   struct add_entry_result {
@@ -719,28 +776,17 @@ class packed_entry_data {
   void set_file_digest(file_id id, std::span<std::byte const> digest) {
     auto const digest_size = digest.size();
 
-    if (!file_digests_.has_value()) {
-      file_digests_.emplace(digest_size);
-    } else if (file_digests_->span_size() != digest_size) {
-      DWARFS_PANIC(
-          fmt::format("digest buffer size mismatch: expected {}, got {}",
-                      file_digests_->span_size(), digest_size));
+    if (!file_digests_) {
+      file_digests_ = std::make_unique<file_digests_data>(digest_size);
     }
 
-    auto& fd = *file_digests_;
-    auto const index = fd.size();
-    set_file_hash_index(id, index);
-
-    fd.emplace_back(digest);
+    set_file_hash_index(id, file_digests_->add(digest));
   }
 
   std::string_view get_file_digest(file_id id) const {
-    if (file_digests_.has_value()) {
-      auto const& hashes = *file_digests_;
-      auto const index = get_file_hash_index(id);
-
-      if (index.has_value()) {
-        auto const span = hashes.at(*index);
+    if (file_digests_) {
+      if (auto const index = get_file_hash_index(id); index.has_value()) {
+        auto const span = file_digests_->get(*index);
         return {reinterpret_cast<char const*>(span.data()), span.size()};
       }
     }
@@ -866,7 +912,7 @@ class packed_entry_data {
   }
 
   void drop_digest_buffers() {
-    if (file_digests_.has_value()) {
+    if (file_digests_) {
       file_digests_.reset();
       for (auto&& fd : file_data_vec_) {
         get<kFileHashIndexField>(fd) = std::nullopt;
@@ -921,7 +967,8 @@ class packed_entry_data {
   segtor<size_t> file_order_index_;
   segtor<inode_id> file_inode_id_;
   segtor<std::optional<size_t>> file_data_index_; // index into `file_data_vec_`
-  std::optional<dwarfs::container::pinned_byte_span_store<512>> file_digests_;
+
+  std::unique_ptr<file_digests_data> file_digests_;
 
   static constexpr std::size_t kFileHashIndexField{0};
   static constexpr std::size_t kHardlinkCountMinusOneField{1};
