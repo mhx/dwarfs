@@ -25,11 +25,14 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <map>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -37,6 +40,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/container/pinned_byte_span_store.h>
+#include <dwarfs/dense_value_index.h>
 
 namespace {
 
@@ -105,6 +109,45 @@ void set_bytes(std::span<std::byte> s,
   for (std::size_t i = 0; i < s.size(); ++i, ++it) {
     s[i] = static_cast<std::byte>(*it);
   }
+}
+
+template <std::size_t ChunkSize>
+struct pinned_byte_span_index_policy_holder {
+  template <typename T>
+  struct policy {
+    static_assert(std::same_as<T, std::span<std::byte const>>);
+
+    using store_type = pinned_byte_span_store<ChunkSize>;
+    using hash_type = byte_span_hash;
+    using equal_type = byte_span_equal;
+
+    template <typename Hash, typename Equal>
+    using index_type = std::unordered_set<std::size_t, Hash, Equal>;
+  };
+};
+
+template <std::size_t ChunkSize>
+using pinned_byte_span_index = dwarfs::basic_dense_value_index<
+    std::span<std::byte const>,
+    pinned_byte_span_index_policy_holder<ChunkSize>::template policy>;
+
+using pbsi2_type = pinned_byte_span_index<2>;
+
+static_assert(
+    std::same_as<pbsi2_type::const_reference, std::span<std::byte const>>);
+static_assert(std::same_as<const_subscript_result_t<pbsi2_type>,
+                           std::span<std::byte const>>);
+static_assert(std::same_as<mutable_subscript_result_t<pbsi2_type>,
+                           std::span<std::byte const>>);
+static_assert(
+    std::same_as<const_at_result_t<pbsi2_type>, std::span<std::byte const>>);
+
+std::string span_to_string(std::span<std::byte const> s) {
+  std::string out(s.size(), '\0');
+  for (std::size_t i = 0; i < s.size(); ++i) {
+    out[i] = static_cast<char>(s[i]);
+  }
+  return out;
 }
 
 } // namespace
@@ -460,4 +503,206 @@ TEST(pinned_byte_span_store_test, byte_span_hash_and_equal_are_content_based) {
   // differing lengths must never compare equal
   EXPECT_FALSE(equal(std::string_view{"abc"}, v.at(0)));
   EXPECT_FALSE(equal(std::string_view{"abcde"}, v.at(0)));
+}
+
+class pinned_byte_span_index_test : public ::testing::Test {
+ protected:
+  static constexpr std::size_t kSpanSize = 4;
+
+  using store_type = pinned_byte_span_store<2>;
+  using index_type = pinned_byte_span_index<2>;
+
+  store_type store{kSpanSize};
+  index_type index{store};
+};
+
+TEST_F(pinned_byte_span_index_test, starts_empty) {
+  EXPECT_TRUE(index.empty());
+  EXPECT_EQ(index.size(), 0);
+  EXPECT_FALSE(index.contains(std::string_view{"abcd"}));
+  EXPECT_THAT(index.index_of(std::string_view{"abcd"}), Eq(std::nullopt));
+}
+
+TEST_F(pinned_byte_span_index_test, assigns_dense_indices_to_unique_spans) {
+  EXPECT_THAT(index.add(std::string_view{"aaaa"}), Eq(0));
+  EXPECT_THAT(index.add(std::string_view{"bbbb"}), Eq(1));
+  EXPECT_THAT(index.add(std::string_view{"cccc"}), Eq(2));
+
+  EXPECT_EQ(index.size(), 3);
+  EXPECT_EQ(store.size(), 3);
+  EXPECT_EQ(index.values().size_in_bytes(), 3 * kSpanSize);
+
+  EXPECT_EQ(span_to_string(index[0]), "aaaa");
+  EXPECT_EQ(span_to_string(index[1]), "bbbb");
+  EXPECT_EQ(span_to_string(index.at(2)), "cccc");
+}
+
+TEST_F(pinned_byte_span_index_test,
+       duplicate_span_is_stored_only_once_and_rolls_the_store_back) {
+  auto const first = index.emplace(std::string_view{"abcd"});
+
+  EXPECT_THAT(first.index, Eq(0));
+  EXPECT_TRUE(first.inserted);
+  EXPECT_EQ(store.size(), 1);
+
+  auto const duplicate = index.emplace(std::string_view{"abcd"});
+
+  EXPECT_THAT(duplicate.index, Eq(0));
+  EXPECT_FALSE(duplicate.inserted);
+
+  // the rolled back append must not leave a stale span behind
+  EXPECT_EQ(store.size(), 1);
+  EXPECT_EQ(index.size(), 1);
+  EXPECT_EQ(store.size_in_bytes(), kSpanSize);
+}
+
+TEST_F(pinned_byte_span_index_test,
+       deduplication_is_content_based_not_address_based) {
+  std::vector<std::byte> const a{std::byte{1}, std::byte{2}, std::byte{3},
+                                 std::byte{4}};
+  std::vector<std::byte> const b = a; // equal content, distinct storage
+
+  EXPECT_THAT(index.add(a), Eq(0));
+  EXPECT_THAT(index.add(b), Eq(0));
+  EXPECT_EQ(index.size(), 1);
+
+  // and a span already owned by the store must map back onto itself
+  EXPECT_THAT(index.add(index[0]), Eq(0));
+  EXPECT_EQ(index.size(), 1);
+}
+
+TEST_F(pinned_byte_span_index_test, supports_heterogeneous_lookup) {
+  index.add(std::string_view{"0123"});
+  index.add(std::string_view{"4567"});
+
+  std::vector<unsigned char> const uchars{'0', '1', '2', '3'};
+  std::array<std::byte, 4> const arr{std::byte{'4'}, std::byte{'5'},
+                                     std::byte{'6'}, std::byte{'7'}};
+
+  EXPECT_THAT(index.index_of(std::string_view{"0123"}), Optional(Eq(0)));
+  EXPECT_THAT(index.index_of(uchars), Optional(Eq(0)));
+  EXPECT_THAT(index.index_of(arr), Optional(Eq(1)));
+  EXPECT_THAT(index.index_of(index[1]), Optional(Eq(1)));
+  EXPECT_THAT(index.index_of(std::string_view{"89ab"}), Eq(std::nullopt));
+
+  EXPECT_TRUE(index.contains(uchars));
+  EXPECT_FALSE(index.contains(std::string_view{"89ab"}));
+
+  // a differently sized probe must never match a prefix or suffix
+  EXPECT_FALSE(index.contains(std::string_view{"012"}));
+  EXPECT_FALSE(index.contains(std::string_view{"01234"}));
+}
+
+TEST_F(pinned_byte_span_index_test,
+       indexed_spans_stay_pinned_while_the_index_grows) {
+  constexpr std::size_t kCount = 11; // spans several chunks of 2
+
+  std::vector<std::byte const*> pointers;
+
+  for (std::size_t i = 0; i < kCount; ++i) {
+    auto value = std::string(kSpanSize, '\0');
+    for (std::size_t k = 0; k < kSpanSize; ++k) {
+      value[k] = static_cast<char>('a' + ((i >> (2 * k)) & 0x03));
+    }
+
+    auto const ix = index.add(value);
+    ASSERT_THAT(ix, Eq(i));
+    pointers.push_back(index[ix].data());
+  }
+
+  ASSERT_EQ(index.size(), kCount);
+
+  for (std::size_t i = 0; i < kCount; ++i) {
+    EXPECT_EQ(index[i].data(), pointers[i]) << "i=" << i;
+    EXPECT_THAT(index.index_of(index[i]), Optional(Eq(i))) << "i=" << i;
+  }
+}
+
+TEST_F(pinned_byte_span_index_test,
+       size_mismatch_throws_and_leaves_both_containers_intact) {
+  index.add(std::string_view{"aaaa"});
+
+  EXPECT_THROW(index.add(std::string_view{"bbb"}), std::invalid_argument);
+  EXPECT_THROW(index.add(std::string_view{"bbbbb"}), std::invalid_argument);
+
+  EXPECT_EQ(index.size(), 1);
+  EXPECT_EQ(store.size(), 1);
+  EXPECT_THAT(index.index_of(std::string_view{"aaaa"}), Optional(Eq(0)));
+
+  // still usable afterwards
+  EXPECT_THAT(index.add(std::string_view{"bbbb"}), Eq(1));
+}
+
+TEST_F(pinned_byte_span_index_test, reserve_forwards_to_the_store) {
+  index.reserve(9);
+
+  EXPECT_EQ(index.size(), 0);
+  EXPECT_EQ(store.size(), 0);
+  EXPECT_GE(store.capacity(), 9);
+
+  auto const capacity_before = store.capacity();
+
+  EXPECT_THAT(index.add(std::string_view{"aaaa"}), Eq(0));
+  EXPECT_THAT(index.add(std::string_view{"aaaa"}), Eq(0));
+
+  EXPECT_EQ(index.size(), 1);
+  EXPECT_EQ(store.capacity(), capacity_before);
+}
+
+TEST(pinned_byte_span_index_adoption_test, adopts_prepopulated_unique_store) {
+  pinned_byte_span_store<2> store{4};
+
+  set_bytes(store.emplace_back(), {'a', 'l', 'p', 'h'});
+  set_bytes(store.emplace_back(), {'b', 'e', 't', 'a'});
+
+  pinned_byte_span_index<2> index{store};
+
+  EXPECT_EQ(index.size(), 2);
+  EXPECT_THAT(index.index_of(std::string_view{"beta"}), Optional(Eq(1)));
+  EXPECT_THAT(index.add(std::string_view{"beta"}), Eq(1));
+  EXPECT_EQ(store.size(), 2);
+  EXPECT_THAT(index.add(std::string_view{"gamm"}), Eq(2));
+}
+
+TEST(pinned_byte_span_index_adoption_test,
+     rejects_prepopulated_store_with_duplicates) {
+  pinned_byte_span_store<2> store{4};
+
+  set_bytes(store.emplace_back(), {'a', 'l', 'p', 'h'});
+  set_bytes(store.emplace_back(), {'a', 'l', 'p', 'h'});
+
+  EXPECT_THROW((pinned_byte_span_index<2>{store}), std::invalid_argument);
+}
+
+TEST(pinned_byte_span_index_stress_test, matches_a_reference_implementation) {
+  constexpr std::size_t kSpanSize = 4;
+  constexpr std::size_t kIterations = 4000;
+
+  pinned_byte_span_store<8> store{kSpanSize};
+  pinned_byte_span_index<8> index{store};
+
+  std::map<std::string, std::size_t> reference;
+  std::mt19937_64 rng{0x5eed5eed5eed5eedULL};
+  std::uniform_int_distribution<unsigned> dist{0, 5};
+
+  for (std::size_t i = 0; i < kIterations; ++i) {
+    std::string key(kSpanSize, '\0');
+    for (auto& c : key) {
+      c = static_cast<char>('a' + dist(rng));
+    }
+
+    auto const [ref_it, ref_inserted] =
+        reference.emplace(key, reference.size());
+    auto const result = index.emplace(key);
+
+    ASSERT_EQ(ref_inserted, result.inserted) << "i=" << i;
+    ASSERT_EQ(ref_it->second, result.index) << "i=" << i;
+    ASSERT_EQ(reference.size(), index.size()) << "i=" << i;
+    ASSERT_EQ(reference.size(), store.size()) << "i=" << i;
+  }
+
+  for (auto const& [key, ix] : reference) {
+    ASSERT_THAT(index.index_of(key), Optional(Eq(ix)));
+    ASSERT_EQ(span_to_string(index[ix]), key);
+  }
 }
