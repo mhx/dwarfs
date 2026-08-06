@@ -302,6 +302,6 @@ class basic_chunked_append_only_vector {
 };
 
 template <typename T>
-using chunked_append_only_vector = basic_chunked_append_only_vector<T, 4096>;
+using chunked_append_only_vector = basic_chunked_append_only_vector<T, 65536>;
 
 } // namespace dwarfs::container
