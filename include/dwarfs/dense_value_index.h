@@ -191,6 +191,10 @@ class basic_dense_value_index {
 
   [[nodiscard]] bool empty() const noexcept { return store_->empty(); }
 
+  size_type index_size_in_bytes() const noexcept {
+    return index_.capacity() * sizeof(typename index_set_type::value_type);
+  }
+
   void reserve(size_type n) {
     if constexpr (requires(store_type& s) { s.reserve(n); }) {
       store_->reserve(n);
