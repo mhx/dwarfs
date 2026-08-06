@@ -497,7 +497,7 @@ TEST_F(entry_test, file_create_data_initializes_file_state) {
   EXPECT_FALSE(f.is_invalid());
   EXPECT_EQ(1, f.hardlink_count());
   EXPECT_FALSE(f.inode_num().has_value());
-  EXPECT_TRUE(f.hash().empty());
+  EXPECT_TRUE(f.digest().empty());
 }
 
 TEST_F(entry_test, file_hardlink_shares_invalid_state) {
@@ -619,8 +619,8 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
   auto mm = os->open_file(sep / "foo.pl");
   foo.scan(mm, prog, "sha512-256");
 
-  EXPECT_EQ(foo.hash(), bar.hash());
-  EXPECT_FALSE(foo.hash().empty());
+  EXPECT_EQ(foo.digest(), bar.digest());
+  EXPECT_FALSE(foo.digest().empty());
 }
 
 TEST_F(entry_test, file_inode_num_requires_data) {
@@ -711,7 +711,7 @@ TEST_F(entry_test, storage_file_hash_size_must_be_consistent) {
   EXPECT_EQ(16, foo_hash.size());
 
   EXPECT_DEATH(tree.get_file_hash_buffer(bar.id(), 32),
-               "hash buffer size mismatch: expected 16, got 32");
+               "digest buffer size mismatch: expected 16, got 32");
 }
 
 TEST_F(entry_test, frozen_panic) {
@@ -796,7 +796,7 @@ TEST_F(entry_test, synchronized_storage_operations) {
   EXPECT_DEATH(tree.steal_bulk_compressed_path_components(),
                "entry_storage is not frozen");
 
-  EXPECT_DEATH(tree.drop_file_hashes(), "entry_storage is not frozen");
+  EXPECT_DEATH(tree.drop_file_digests(), "entry_storage is not frozen");
 
   {
     wi::file_id_vector vec;

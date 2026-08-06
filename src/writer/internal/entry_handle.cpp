@@ -227,8 +227,8 @@ template class entry_handle_base<mutability::mutable_>;
 // ---------- file_handle ----------
 
 template <detail::mutability Mut>
-std::string_view basic_file_handle<Mut>::hash() const {
-  return this->storage().get_file_hash(this->id());
+std::string_view basic_file_handle<Mut>::digest() const {
+  return this->storage().get_file_digest(this->id());
 }
 
 template <detail::mutability Mut>

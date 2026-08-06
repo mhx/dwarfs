@@ -149,7 +149,7 @@ class file_scanner_ final : public file_scanner::impl {
   fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
   fast_map_type<unique_inode_id, file_id_vector> by_inode_id_;
-  fast_map_type<std::string_view, file_id_vector> by_hash_;
+  fast_map_type<std::string_view, file_id_vector> by_digest_;
 
   struct inode_create_info {
     inode_id i;
@@ -177,7 +177,7 @@ class file_scanner_ final : public file_scanner::impl {
 // - Exactly the same applies for subsequent files.
 //
 // - We must ensure that the presence of a hash is checked in
-//   `by_hash_` for subsequent files only if the first file's
+//   `by_digest_` for subsequent files only if the first file's
 //   hash has been computed and stored. Otherwise, if a subsequent
 //   file's hash computation finishes before the first file, we
 //   assume (potentially wrongly) that the subsequent file is not
@@ -251,22 +251,22 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   if (opts_.hash_algo) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      if (auto it = by_hash_.find(p.hash()); it != by_hash_.end()) {
+      if (auto it = by_digest_.find(p.digest()); it != by_digest_.end()) {
         return it->second;
       }
       auto const size = p.size();
-      uint64_t hash{0};
+      uint64_t digest{0};
       if (size >= kLargeFileThreshold) [[unlikely]] {
         auto it = file_start_hash_.find(p);
         DWARFS_CHECK(it != file_start_hash_.end(),
-                     "internal error: missing start hash for large file");
-        hash = it->second;
+                     "internal error: missing start digest for large file");
+        digest = it->second;
       }
-      return unique_size_.at({size, hash});
+      return unique_size_.at({size, digest});
     });
     finalize_files<true>(unique_size_, inode_num, obj_num);
     finalize_files(by_inode_id_, inode_num, obj_num);
-    finalize_files(by_hash_, inode_num, obj_num);
+    finalize_files(by_digest_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       return by_inode_id_.at(p.get_unique_inode_id());
@@ -336,8 +336,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
     } else {
       // This is the second file of this (size, start_hash). We now need to
       // hash both the first and second file and ensure that the first file's
-      // hash is stored to `by_hash_` first. We set up a latch to synchronize
-      // insertion into `by_hash_`.
+      // digest is stored to `by_digest_` first. We set up a latch to
+      // synchronize insertion into `by_digest_`.
 
       latch = std::make_shared<std::latch>(1);
 
@@ -360,9 +360,9 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
           if (p.is_invalid()) [[unlikely]] {
             by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
           } else {
-            auto& ref = by_hash_[p.hash()];
+            auto& ref = by_digest_[p.digest()];
             DWARFS_CHECK(ref.empty(),
-                         "internal error: unexpected existing hash");
+                         "internal error: unexpected existing digest");
             ref.push_back(p.id());
           }
 
@@ -384,7 +384,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
 
       if (latch) {
         // Wait until the first file of this (size, start_hash) has been added
-        // to `by_hash_`.
+        // to `by_digest_`.
         latch->wait();
       }
 
@@ -395,7 +395,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
           add_inode(p, __LINE__);
           by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
         } else {
-          auto& ref = by_hash_[p.hash()];
+          auto& ref = by_digest_[p.digest()];
 
           if (ref.empty()) {
             // This is *not* a duplicate. We must allocate a new inode.
@@ -595,7 +595,7 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
      << ",\n"
      << R"(        "size": )" << std::to_string(p.size()) << ",\n"
      << R"(        "nlink": )" << std::to_string(p.hardlink_count()) << ",\n"
-     << R"(        "hash": ")" << hexlify(p.hash()) << "\",\n"
+     << R"(        "digest": ")" << hexlify(p.digest()) << "\",\n"
      << R"(        "invalid": )" << (p.is_invalid() ? "true" : "false") << ",\n"
      << R"(        "inode_num": )"
      << (ino_num ? std::to_string(*ino_num) : "null") << ",\n"
@@ -696,7 +696,7 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << ",\n";
   dump_map(os, "by_inode_id", by_inode_id_);
   os << ",\n";
-  dump_map(os, "by_hash", by_hash_);
+  dump_map(os, "by_digest", by_digest_);
   os << ",\n";
   dump_inode_create_info(os);
   os << ",\n";
