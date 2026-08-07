@@ -80,14 +80,28 @@ class file_scanner_ final : public file_scanner::impl {
   template <typename Key, typename Value>
   using fast_map_type = phmap::flat_hash_map<Key, Value>;
 
+  using start_hash_key = std::pair<uint64_t, uint64_t>;
+
   using by_digest_vec = container::chunked_append_only_vector<file_id_vector>;
 
   void scan_dedupe(file_handle p, file_size_info size_info);
+  void scan_dedupe_after_start_hash(file_handle p, file_size_info size_info,
+                                    uint64_t start_hash);
+  uint64_t compute_start_hash(file_handle p);
   void hash_file(file_handle p, file_size_t size);
   void add_inode(file_handle p, int lineno);
 
+  template <typename KeyType>
+  std::vector<std::pair<KeyType, file_id_vector>>
+  take_sorted_entries(fast_map_type<KeyType, file_id_vector>& fmap);
+
+  std::vector<std::pair<std::string_view, file_id_vector>>
+  take_sorted_entries(by_digest_vec& fmap);
+
   template <typename Lookup>
   void finalize_hardlinks(Lookup const& lookup);
+
+  file_id_vector& hardlink_group(const_file_handle p);
 
   template <bool UniqueOnly = false, typename KeyType>
   void finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
@@ -95,10 +109,6 @@ class file_scanner_ final : public file_scanner::impl {
 
   void
   finalize_files(by_digest_vec& fmap, uint32_t& inode_num, uint32_t& obj_num);
-
-  template <bool UniqueOnly, typename KeyType>
-  void finalize_files(std::vector<std::pair<KeyType, file_id_vector>>& ent,
-                      uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool Unique, typename KeyType>
   void finalize_inodes(std::vector<std::pair<KeyType, file_id_vector>>& ent,
@@ -124,8 +134,8 @@ class file_scanner_ final : public file_scanner::impl {
     return fmt::format("{}", reinterpret_cast<void const*>(key));
   }
 
-  std::string format_key(const_file_handle key) const {
-    return std::to_string(key.id().index());
+  std::string format_key(file_id key) const {
+    return std::to_string(key.index());
   }
 
   std::string format_key(std::span<std::byte const> key) const {
@@ -162,15 +172,26 @@ class file_scanner_ final : public file_scanner::impl {
   uint32_t num_unique_{0};
   fast_map_type<unique_inode_id, file_id_vector> hardlinks_;
   std::mutex mutable mx_;
-  // The pair stores the file size and optionally a hash of the first
-  // 4 KiB of the file. If there's a collision, the worst that can
-  // happen is that we unnecessary hash a file that is not a duplicate.
-  fast_map_type<std::pair<uint64_t, uint64_t>, file_id_vector> unique_size_;
-  // We need this lookup table to later find the unique_size_ entry
-  // given just a file pointer.
-  fast_map_type<const_file_handle, uint64_t> file_start_hash_;
-  fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
-      first_file_hashed_;
+
+  // Large files that have been seen exactly once by size only.
+  //
+  // For these files we have not computed a start hash yet. If another file with
+  // the same size appears, this entry is promoted into start_hash_buckets_.
+  fast_map_type<uint64_t, file_id_vector> size_buckets_;
+
+  // Files classified by size and, for large files with a size collision, by the
+  // hash of the first kLargeFileStartHashSize bytes.
+  //
+  // Small files use start_hash == 0.
+  fast_map_type<start_hash_key, file_id_vector> start_hash_buckets_;
+
+  // For large files whose start hash was actually computed.
+  //
+  // A large file that remained unique by size will not appear here.
+  fast_map_type<file_id, uint64_t> file_start_hash_;
+
+  fast_map_type<start_hash_key, std::shared_ptr<std::latch>> first_file_hashed_;
+
   fast_map_type<unique_inode_id, file_id_vector> by_inode_id_;
   by_digest_vec by_digest_;
 
@@ -182,44 +203,73 @@ class file_scanner_ final : public file_scanner::impl {
   std::vector<inode_create_info> debug_inode_create_;
 };
 
-// The `unique_size_` table holds an entry for each file size we
-// discover, and optionally - for large files - an XXH3 hash of the
-// first 4 KiB of the file.
+// Files are classified in stages, so that we read as little file content as
+// possible before we know that a file can be a duplicate at all.
 //
-// - When we first discover a new file size (+hash), we know for
-//   sure that this file is *not* a duplicate of a file we've seen
-//   before. Thus, we can immediately create a new inode, and we can
-//   immediately start similarity scanning for this inode.
+// Stage 1: `size_buckets_`, keyed by file size (large files only)
 //
-// - When we discover the second file of particular size (+hash), we
-//   must fully hash both files (using the user-provided algorithm)
-//   to see if they're identical. We already have an inode for the
-//   first file, so we must delay the creation of a new inode until
-//   we know that the second file is not a duplicate.
+//   Holds large files that we have seen exactly once, and of which we have not
+//   read a single byte. The first large file of a given size cannot be a
+//   duplicate of anything seen so far, so we can immediately create an inode
+//   and immediately start similarity scanning for that inode.
 //
-// - Exactly the same applies for subsequent files.
+//   Small files skip this stage: reading their first few KiB is not worth the
+//   saving, so they enter stage 2 directly with a start hash of 0.
 //
-// - We must ensure that the presence of a hash is checked in
-//   `by_digest_` for subsequent files only if the first file's
-//   hash has been computed and stored. Otherwise, if a subsequent
-//   file's hash computation finishes before the first file, we
-//   assume (potentially wrongly) that the subsequent file is not
-//   a duplicate.
+// Stage 2: `start_hash_buckets_`, keyed by (size, start hash)
 //
-// - So subsequent files must wait for the first file unless we
-//   know up front that the first file's hash has already been
-//   stored. As long as the first file's hash has not been stored,
-//   it is still present in `unique_size_`. It will be removed
-//   from `unique_size_` after its hash has been stored.
+//   As soon as a second large file of the same size shows up, size alone is no
+//   longer a useful discriminator. Both the file parked in stage 1 and the new
+//   one are start-hashed - an XXH3-64 over the first kLargeFileStartHashSize
+//   bytes - and enter stage 2. Every file that gets start-hashed is recorded
+//   in `file_start_hash_`, which is how `finalize_hardlinks` can later tell
+//   which bucket a file ended up in.
 //
-// - The optional hash value of the first 4 KiB of a large file is
-//   useful if there are a lot of large files with the same size.
-//   One potential scenario is uncompressed images which are very
-//   likely to have the same size, but very unlikely to have the
-//   same contents. The choice of 4 KiB is arbitrary, as is the
-//   threshold of 1 MiB for "large files". The 4 KiB hash is computed
-//   synchronously, so this could be a potential bottleneck; however,
-//   it should happen rarely enough to not be a problem.
+//   The start hash is useful if there are a lot of large files with the same
+//   size. One potential scenario is uncompressed images, which are very likely
+//   to have the same size, but very unlikely to have the same contents. The
+//   choice of 4 KiB is arbitrary, as is the threshold of 1 MiB for "large
+//   files". The start hash is computed synchronously, so this could be a
+//   potential bottleneck; however, it is only computed on a size collision. A
+//   collision on (size, start hash) is harmless: the worst that can happen is
+//   that we unnecessarily hash a file that is not a duplicate.
+//
+//   Again, the first file of a bucket cannot be a duplicate, so it gets an
+//   inode right away - unless it already got one back in stage 1.
+//
+// Stage 3: `by_digest_`, keyed by the digest of the full file contents
+//
+//   When a second file lands in the same stage 2 bucket, both files must be
+//   fully hashed, using the user-provided algorithm, to see if they are
+//   identical. We already have an inode for the first file, so we must delay
+//   the creation of a new inode for the second file until we know that it is
+//   not a duplicate. Exactly the same applies to subsequent files.
+//
+// Ordering between the first file of a bucket and the rest
+//
+//   We must ensure that the presence of a digest is checked in `by_digest_`
+//   for subsequent files only if the first file's digest has been computed and
+//   stored. Otherwise, if a subsequent file's hash computation finishes before
+//   the first file, we assume (potentially wrongly) that the subsequent file is
+//   not a duplicate.
+//
+//   `first_file_hashed_` holds a latch per (size, start hash) for exactly as
+//   long as that window is open: it is inserted when the second file of a
+//   bucket arrives, and erased once the first file's digest has been stored.
+//   A file that finds no latch for its bucket knows that the first file is
+//   already in `by_digest_` and does not have to wait.
+//
+//   A bucket whose file vector has been cleared, but whose key is still
+//   present, means "files of this key must be fully hashed". This is how the
+//   scanning thread tells the second file of a bucket from all later ones.
+//
+// Files that are not deduplicated
+//
+//   A file that is already invalid, or that becomes invalid while being read,
+//   never takes part in deduplication. It is collected in `by_inode_id_` and
+//   always gets an inode of its own. The same is true for every file if no
+//   hash algorithm is configured, in which case deduplication is disabled and
+//   `by_inode_id_` is the only table that is populated.
 
 template <typename LoggerPolicy>
 file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
@@ -267,6 +317,31 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
 }
 
 template <typename LoggerPolicy>
+uint64_t file_scanner_<LoggerPolicy>::compute_start_hash(file_handle p) {
+  uint64_t start_hash{0};
+
+  if (!p.is_invalid()) {
+    try {
+      auto seg =
+          os_.open_file(p.fs_path()).segment_at(0, kLargeFileStartHashSize);
+
+      checksum cs(checksum::xxh3_64);
+      cs.update(seg.span());
+      cs.finalize(&start_hash);
+    } catch (...) {
+      LOG_ERROR << "failed to map file " << p.path_as_string() << ": "
+                << exception_str(std::current_exception())
+                << ", creating empty file";
+
+      ++prog_.errors;
+      p.set_invalid();
+    }
+  }
+
+  return start_hash;
+}
+
+template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   uint32_t obj_num = 0;
 
@@ -282,7 +357,8 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   LOG_VERBOSE << "file scanner table stats:"
               << "\n  hardlinks: " << table_stats(hardlinks_)
-              << "\n  unique-size: " << table_stats(unique_size_)
+              << "\n  size-buckets: " << table_stats(size_buckets_)
+              << "\n  start-hash-buckets: " << table_stats(start_hash_buckets_)
               << "\n  file-start-hash: " << table_stats(file_start_hash_)
               << "\n  first-file-hashed: " << table_stats(first_file_hashed_)
               << "\n  by-inode-id: " << table_stats(by_inode_id_)
@@ -290,174 +366,225 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   if (opts_.hash_algo) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      if (p.is_invalid()) {
-        if (auto it = by_inode_id_.find(p.get_unique_inode_id());
-            it != by_inode_id_.end()) {
-          return it->second;
-        }
-      }
-      if (auto ix = p.digest_index()) {
-        return by_digest_.at(*ix);
-      }
-      auto const size = p.size();
-      uint64_t digest{0};
-      if (size >= kLargeFileThreshold) [[unlikely]] {
-        auto it = file_start_hash_.find(p);
-        DWARFS_CHECK(it != file_start_hash_.end(),
-                     "internal error: missing start digest for large file");
-        digest = it->second;
-      }
-      return unique_size_.at({size, digest});
+      return hardlink_group(p);
     });
-    finalize_files<true>(unique_size_, inode_num, obj_num);
-    finalize_files(by_inode_id_, inode_num, obj_num);
+
+    // `file_start_hash_` is only needed to resolve hardlink groups above.
+    file_start_hash_.clear();
+
+    // Only `by_digest_` can hold groups of more than one distinct file; every
+    // group in the other maps is a single file plus its own hardlinks.
+    finalize_files<true>(size_buckets_, inode_num, obj_num);
+    finalize_files<true>(start_hash_buckets_, inode_num, obj_num);
+    finalize_files<true>(by_inode_id_, inode_num, obj_num);
     finalize_files(by_digest_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       return by_inode_id_.at(p.get_unique_inode_id());
     });
-    finalize_files(by_inode_id_, inode_num, obj_num);
+
+    finalize_files<true>(by_inode_id_, inode_num, obj_num);
   }
+}
+
+template <typename LoggerPolicy>
+file_id_vector&
+file_scanner_<LoggerPolicy>::hardlink_group(const_file_handle p) {
+  // Invalid files never take part in deduplication.
+  if (p.is_invalid()) {
+    if (auto it = by_inode_id_.find(p.get_unique_inode_id());
+        it != by_inode_id_.end()) {
+      return it->second;
+    }
+  }
+
+  // Files that were fully hashed are in `by_digest_`.
+  if (auto ix = p.digest_index()) {
+    return by_digest_.at(*ix);
+  }
+
+  auto const size = p.size();
+
+  // Large files that were never fully hashed are still in one of the bucket
+  // maps; which one depends on whether they were start-hashed.
+  if (size >= kLargeFileThreshold) [[unlikely]] {
+    if (auto it = file_start_hash_.find(p.id()); it != file_start_hash_.end()) {
+      return start_hash_buckets_.at({size, it->second});
+    }
+
+    return size_buckets_.at(size);
+  }
+
+  return start_hash_buckets_.at({size, 0});
 }
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
                                               file_size_info const size_info) {
-  // We need no lock yet, as `unique_size_` is only manipulated from
-  // this thread.
   uint64_t const size = size_info.total;
-  uint64_t start_hash{0};
 
   LOG_TRACE << "scanning file " << p.path_as_string() << " [size=" << size
             << "]";
 
-  if (size >= kLargeFileThreshold) {
-    if (!p.is_invalid()) {
-      try {
-        auto seg =
-            os_.open_file(p.fs_path()).segment_at(0, kLargeFileStartHashSize);
-        checksum cs(checksum::xxh3_64);
-        cs.update(seg.span());
-        cs.finalize(&start_hash);
-      } catch (...) {
-        LOG_ERROR << "failed to map file " << p.path_as_string() << ": "
-                  << exception_str(std::current_exception())
-                  << ", creating empty file";
-        ++prog_.errors;
-        p.set_invalid();
-      }
-    }
-
-    file_start_hash_.emplace(p, start_hash);
+  // Small files are classified directly by size. We do not compute a start hash
+  // for them.
+  if (size < kLargeFileThreshold || p.is_invalid()) {
+    scan_dedupe_after_start_hash(p, size_info, 0);
+    return;
   }
 
-  auto const unique_key = std::make_pair(size, start_hash);
-
-  auto [it, is_new] = unique_size_.emplace(unique_key, file_id_vector());
+  auto [it, is_new] = size_buckets_.emplace(size, file_id_vector());
 
   if (is_new) {
-    // A file (size, start_hash) that has never been seen before. We can safely
-    // create a new inode and we'll keep track of the file.
+    // First large file of this size. It is unique with respect to all files
+    // seen so far, so create an inode now and do not read file contents.
     it->second.push_back(p.id());
 
     {
       std::lock_guard lock(mx_);
       add_inode(p, __LINE__);
     }
-  } else {
-    // This file (size, start_hash) has been seen before, so this is potentially
-    // a duplicate.
 
-    std::shared_ptr<std::latch> latch;
+    return;
+  }
 
-    if (it->second.empty()) {
-      // This is any file of this (size, start_hash) after the second file
+  if (!it->second.empty()) {
+    // This is the second large file of this size. Promote the previously
+    // unique-by-size file into the size+start-hash stage.
+    auto first = storage_.handle(it->second.front());
+
+    // Clear but keep the size entry. An empty vector means: this size is no
+    // longer unique-by-size; future files of this size must be start-hashed.
+    it->second.clear();
+
+    auto const first_start_hash = compute_start_hash(first);
+    file_start_hash_.emplace(first.id(), first_start_hash);
+
+    scan_dedupe_after_start_hash(first, first.size_info(), first_start_hash);
+  }
+
+  // This is either the second file of this size, or a later one. From now on,
+  // all files of this large size need the start-hash discriminator.
+  auto const start_hash = compute_start_hash(p);
+  file_start_hash_.emplace(p.id(), start_hash);
+
+  scan_dedupe_after_start_hash(p, size_info, start_hash);
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
+    file_handle p, file_size_info const size_info, uint64_t const start_hash) {
+  uint64_t const size = size_info.total;
+  auto const unique_key = std::make_pair(size, start_hash);
+
+  auto [it, is_new] = start_hash_buckets_.emplace(unique_key, file_id_vector());
+
+  if (is_new) {
+    // A file (size, start_hash) that has never been seen before. We can safely
+    // create a new inode, unless this file already got one when it was first
+    // classified as unique-by-size.
+    it->second.push_back(p.id());
+
+    if (!p.get_inode()) {
       std::lock_guard lock(mx_);
+      add_inode(p, __LINE__);
+    }
 
-      if (auto ffi = first_file_hashed_.find(unique_key);
-          ffi != first_file_hashed_.end()) {
-        latch = ffi->second;
-      }
-    } else {
-      // This is the second file of this (size, start_hash). We now need to
-      // hash both the first and second file and ensure that the first file's
-      // digest is stored to `by_digest_` first. We set up a latch to
-      // synchronize insertion into `by_digest_`.
+    return;
+  }
 
-      latch = std::make_shared<std::latch>(1);
+  // This file (size, start_hash) has been seen before, so this is potentially
+  // a duplicate.
+
+  std::shared_ptr<std::latch> latch;
+
+  if (it->second.empty()) {
+    // This is any file of this (size, start_hash) after the second file.
+    std::lock_guard lock(mx_);
+
+    if (auto ffi = first_file_hashed_.find(unique_key);
+        ffi != first_file_hashed_.end()) {
+      latch = ffi->second;
+    }
+  } else {
+    // This is the second file of this (size, start_hash). We now need to hash
+    // both files and ensure that the first file's digest is stored to
+    // by_digest_ before later files test for it.
+
+    latch = std::make_shared<std::latch>(1);
+
+    {
+      std::lock_guard lock(mx_);
+      DWARFS_CHECK(first_file_hashed_.emplace(unique_key, latch).second,
+                   "internal error: first file hashed latch already exists");
+    }
+
+    // Add a job for the first file.
+    wg_.add_job([this, p = storage_.handle(it->second.front()), latch,
+                 unique_key, size] {
+      hash_file(p, size);
 
       {
         std::lock_guard lock(mx_);
-        DWARFS_CHECK(first_file_hashed_.emplace(unique_key, latch).second,
-                     "internal error: first file hashed latch already exists");
-      }
 
-      // Add a job for the first file
-      wg_.add_job([this, p = storage_.handle(it->second.front()), latch,
-                   unique_key, size] {
-        hash_file(p, size);
-
-        {
-          std::lock_guard lock(mx_);
-
-          assert(p.get_inode());
-
-          if (p.is_invalid()) [[unlikely]] {
-            by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
-          } else {
-            auto& ref = get_by_digest_autovivify(p);
-            ref.push_back(p.id());
-          }
-
-          latch->count_down();
-
-          DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
-                       "internal error: missing first file hashed latch");
-        }
-      });
-
-      // Clear files vector, but don't delete the hash table entry, to indicate
-      // that files of this (size, start_hash) *must* be hashed.
-      it->second.clear();
-    }
-
-    // Add a job for any subsequent files
-    wg_.add_job([this, p, latch, size_info] mutable {
-      hash_file(p, size_info.total);
-
-      if (latch) {
-        // Wait until the first file of this (size, start_hash) has been added
-        // to `by_digest_`.
-        latch->wait();
-      }
-
-      {
-        std::unique_lock lock(mx_);
+        assert(p.get_inode());
 
         if (p.is_invalid()) [[unlikely]] {
-          add_inode(p, __LINE__);
           by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
         } else {
           auto& ref = get_by_digest_autovivify(p);
-
-          if (ref.empty()) {
-            // This is *not* a duplicate. We must allocate a new inode.
-            add_inode(p, __LINE__);
-          } else {
-            auto inode = storage_.handle(ref.front()).get_inode();
-            assert(inode);
-            p.set_inode(inode);
-            ++prog_.files_scanned;
-            ++prog_.duplicate_files;
-            prog_.saved_by_deduplication += size_info.total;
-            prog_.allocated_saved_by_deduplication += size_info.allocated;
-          }
-
           ref.push_back(p.id());
         }
+
+        latch->count_down();
+
+        DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
+                     "internal error: missing first file hashed latch");
       }
     });
+
+    // Clear files vector, but keep the hash table entry to indicate that files
+    // of this (size, start_hash) must be fully hashed.
+    it->second.clear();
   }
+
+  // Add a job for the current file.
+  wg_.add_job([this, p, latch, size_info] mutable {
+    hash_file(p, size_info.total);
+
+    if (latch) {
+      // Wait until the first file of this (size, start_hash) has been added to
+      // by_digest_.
+      latch->wait();
+    }
+
+    {
+      std::unique_lock lock(mx_);
+
+      if (p.is_invalid()) [[unlikely]] {
+        add_inode(p, __LINE__);
+        by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
+      } else {
+        auto& ref = get_by_digest_autovivify(p);
+
+        if (ref.empty()) {
+          // This is not a duplicate. We must allocate a new inode.
+          add_inode(p, __LINE__);
+        } else {
+          auto inode = storage_.handle(ref.front()).get_inode();
+          assert(inode);
+
+          p.set_inode(inode);
+          ++prog_.files_scanned;
+          ++prog_.duplicate_files;
+          prog_.saved_by_deduplication += size_info.total;
+          prog_.allocated_saved_by_deduplication += size_info.allocated;
+        }
+
+        ref.push_back(p.id());
+      }
+    }
+  });
 }
 
 template <typename LoggerPolicy>
@@ -515,58 +642,63 @@ template <typename Lookup>
 void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
   auto tv = LOG_TIMED_VERBOSE;
 
+  size_t groups_finalized = 0;
+  size_t links_finalized = 0;
+
   for (auto& kv : hardlinks_) {
     auto& hlv = kv.second;
+
     if (hlv.size() > 1) {
       auto& fv = lookup(storage_.handle(hlv.front()));
+
       for (auto p : ranges::views::drop(hlv, 1)) {
         auto handle = storage_.handle(p);
         handle.set_inode(storage_.handle(fv.front()).get_inode());
         fv.push_back(p);
+
+        ++links_finalized;
       }
+
+      ++groups_finalized;
     }
   }
 
   hardlinks_.clear();
 
-  tv << "finalized " << hardlinks_.size() << " hardlinks";
+  tv << "finalized " << links_finalized << " hardlinks in " << groups_finalized
+     << " groups";
 }
 
 template <typename LoggerPolicy>
-template <bool UniqueOnly, typename KeyType>
-void file_scanner_<LoggerPolicy>::finalize_files(
-    fast_map_type<KeyType, file_id_vector>& fmap, uint32_t& inode_num,
-    uint32_t& obj_num) {
+template <typename KeyType>
+std::vector<std::pair<KeyType, file_id_vector>>
+file_scanner_<LoggerPolicy>::take_sorted_entries(
+    fast_map_type<KeyType, file_id_vector>& fmap) {
   std::vector<std::pair<KeyType, file_id_vector>> ent;
 
-  auto tv = LOG_TIMED_VERBOSE;
-
   ent.reserve(fmap.size());
+
   for (auto& [k, fv] : fmap) {
     if (!fv.empty()) {
-      if constexpr (UniqueOnly) {
-        DWARFS_CHECK(fv.size() == storage_.handle(fv.front()).hardlink_count(),
-                     "internal error");
-      }
       ent.emplace_back(std::move(k), std::move(fv));
     }
   }
+
   fmap.clear();
 
-  finalize_files<UniqueOnly>(ent, inode_num, obj_num);
+  std::ranges::sort(
+      ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
+  return ent;
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec& fmap,
-                                                 uint32_t& inode_num,
-                                                 uint32_t& obj_num) {
+std::vector<std::pair<std::string_view, file_id_vector>>
+file_scanner_<LoggerPolicy>::take_sorted_entries(by_digest_vec& fmap) {
   std::vector<std::pair<std::string_view, file_id_vector>> ent;
 
-  auto tv = LOG_TIMED_VERBOSE;
-
   ent.reserve(fmap.size());
+
   for (auto&& fv : fmap) {
     if (!fv.empty()) {
       auto const digest = storage_.handle(fv.front()).digest();
@@ -576,26 +708,53 @@ void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec& fmap,
           std::move(fv));
     }
   }
+
   fmap.clear();
 
-  finalize_files<false>(ent, inode_num, obj_num);
+  std::ranges::sort(
+      ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  tv << "finalized " << ent.size() << " files";
+  return ent;
 }
 
 template <typename LoggerPolicy>
 template <bool UniqueOnly, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_files(
-    std::vector<std::pair<KeyType, file_id_vector>>& ent, uint32_t& inode_num,
+    fast_map_type<KeyType, file_id_vector>& fmap, uint32_t& inode_num,
     uint32_t& obj_num) {
-  std::ranges::sort(
-      ent, [](auto& left, auto& right) { return left.first < right.first; });
+  auto tv = LOG_TIMED_VERBOSE;
+
+  auto ent = take_sorted_entries(fmap);
+
+  if constexpr (UniqueOnly) {
+    for (auto const& [k, fv] : ent) {
+      DWARFS_CHECK(!fv.empty(), "internal error");
+      DWARFS_CHECK(fv.size() == storage_.handle(fv.front()).hardlink_count(),
+                   "internal error");
+    }
+  }
 
   finalize_inodes<true>(ent, inode_num, obj_num);
 
   if constexpr (!UniqueOnly) {
     finalize_inodes<false>(ent, inode_num, obj_num);
   }
+
+  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec& fmap,
+                                                 uint32_t& inode_num,
+                                                 uint32_t& obj_num) {
+  auto tv = LOG_TIMED_VERBOSE;
+
+  auto ent = take_sorted_entries(fmap);
+
+  finalize_inodes<true>(ent, inode_num, obj_num);
+  finalize_inodes<false>(ent, inode_num, obj_num);
+
+  tv << "finalized " << ent.size() << " files";
 }
 
 template <typename LoggerPolicy>
@@ -784,7 +943,9 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << "{\n";
   dump_map(os, "hardlinks", hardlinks_);
   os << ",\n";
-  dump_map(os, "unique_size", unique_size_);
+  dump_map(os, "size_buckets", size_buckets_);
+  os << ",\n";
+  dump_map(os, "start_hash_buckets", start_hash_buckets_);
   os << ",\n";
   dump_map(os, "file_start_hash", file_start_hash_);
   os << ",\n";
