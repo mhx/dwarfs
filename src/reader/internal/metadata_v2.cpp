@@ -436,6 +436,10 @@ class metadata_v2_data {
     return getattr_impl(LOG_PROXY_ARG_ iv, opts);
   }
 
+  template <typename LoggerPolicy>
+  duplication_info
+  get_duplication_info(logger& lgr, inode_view iv, std::error_code& ec) const;
+
   void access(inode_view const& iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const;
 
@@ -562,6 +566,9 @@ class metadata_v2_data {
 
   template <typename LoggerPolicy>
   packed_int_vector<uint32_t> unpack_shared_files(logger& lgr) const;
+
+  template <typename LoggerPolicy>
+  packed_int_vector<uint32_t> build_shared_start_positions(logger& lgr) const;
 
   void analyze_chunks(std::ostream& os) const;
 
@@ -744,6 +751,8 @@ class metadata_v2_data {
   int const inode_count_;
   packed_int_vector<uint32_t> const chunk_table_;
   packed_int_vector<uint32_t> const shared_files_;
+  packed_int_vector<uint32_t> mutable shared_start_pos_;
+  std::once_flag mutable shared_start_pos_init_;
   int const unique_files_;
   std::optional<nlink_info> const nlinks_;
   metadata_options const options_;
@@ -756,6 +765,7 @@ class metadata_v2_data {
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(getattr)
   PERFMON_CLS_TIMER_DECL(getattr_opts)
+  PERFMON_CLS_TIMER_DECL(get_duplication_info)
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(reg_file_size)
   PERFMON_CLS_TIMER_DECL(unpack_metadata)
@@ -810,6 +820,7 @@ metadata_v2_data::metadata_v2_data(
       PERFMON_CLS_TIMER_INIT(find_path)
       PERFMON_CLS_TIMER_INIT(getattr)
       PERFMON_CLS_TIMER_INIT(getattr_opts)
+      PERFMON_CLS_TIMER_INIT(get_duplication_info)
       PERFMON_CLS_TIMER_INIT(readdir)
       PERFMON_CLS_TIMER_INIT(reg_file_size)
       PERFMON_CLS_TIMER_INIT(unpack_metadata) // clang-format on
@@ -1209,6 +1220,89 @@ metadata_v2_data::unpack_shared_files(logger& lgr) const {
   return unpacked;
 }
 
+template <typename LoggerPolicy>
+packed_int_vector<uint32_t>
+metadata_v2_data::build_shared_start_positions(logger& lgr) const {
+  packed_int_vector<uint32_t> startpos;
+
+  if (auto opts = meta_.options()) {
+    if (auto sfp = meta_.shared_files_table(); sfp and !sfp->empty()) {
+      LOG_PROXY(LoggerPolicy, lgr);
+      auto td = LOG_TIMED_DEBUG;
+
+      auto get_nlink_minus_one = [&](size_t index) -> uint32_t {
+        if (!nlinks_.has_value()) {
+          return meta_.inodes()
+              .at(file_inode_offset_ + unique_files_ + index)
+              .nlink_minus_one();
+        }
+        if (auto const& nlm1 = nlinks_->nlink_minus_one; !nlm1.empty()) {
+          return nlm1.at(unique_files_ + index);
+        }
+        return 0;
+      };
+
+      bool const is_packed = opts->packed_shared_files_table();
+      size_t const shared_files_count =
+          is_packed ? shared_files_.size() : sfp->size();
+      size_t const shared_content_count =
+          is_packed ? sfp->size() : sfp->back() + 1;
+      size_t const shared_hardlink_count = [&] {
+        size_t count = 0;
+        for (size_t i = 0; i < shared_files_count; ++i) {
+          count += get_nlink_minus_one(i);
+        }
+        return count;
+      }();
+
+      startpos.reset(
+          std::bit_width(shared_files_count + shared_hardlink_count));
+      startpos.reserve(shared_content_count + 1);
+
+      startpos.push_back(0);
+
+      if (is_packed) {
+        size_t last = 0;
+        size_t hardlinks = 0;
+        for (auto const& c : *sfp) {
+          for (size_t i = 0; i < c + 2; ++i) {
+            hardlinks += get_nlink_minus_one(last + i);
+          }
+          startpos.push_back(last + c + 2 + hardlinks);
+          last += c + 2;
+        }
+        assert(hardlinks == shared_hardlink_count);
+      } else {
+        size_t hardlinks = get_nlink_minus_one(0);
+        for (std::size_t i = 1; i < sfp->size(); ++i) {
+          if (sfp->at(i) != sfp->at(i - 1)) {
+            startpos.push_back(i + hardlinks);
+          }
+          hardlinks += get_nlink_minus_one(i);
+        }
+        assert(hardlinks == shared_hardlink_count);
+        startpos.push_back(sfp->size() + hardlinks);
+      }
+
+      DWARFS_CHECK(
+          startpos.size() == shared_content_count + 1,
+          fmt::format("unexpected shared file start position count: {} != {}",
+                      startpos.size(), shared_content_count + 1));
+      DWARFS_CHECK(
+          startpos.back() == shared_files_count + shared_hardlink_count,
+          fmt::format(
+              "unexpected last shared file start position value: {} != {} + {}",
+              startpos.back().load(), shared_files_count,
+              shared_hardlink_count));
+
+      td << "built shared file start position table with " << startpos.size()
+         << " entries (" << size_with_unit(startpos.size_in_bytes()) << ")";
+    }
+  }
+
+  return startpos;
+}
+
 void metadata_v2_data::analyze_chunks(std::ostream& os) const {
   static constexpr std::array quantiles{0.5, 0.75, 0.9, 0.95, 0.99, 0.999};
   value_stream_quantile_estimator block_refs{quantiles};
@@ -1365,10 +1459,12 @@ int metadata_v2_data::file_inode_to_chunk_index(int inode) const {
     inode -= unique_files_;
 
     if (!shared_files_.empty()) {
+      // TODO: shouldn't this be an assertion?
       if (std::cmp_less(inode, shared_files_.size())) {
         inode = shared_files_[inode] + unique_files_;
       }
     } else if (auto sfp = meta_.shared_files_table()) {
+      // TODO: shouldn't this be an assertion?
       if (std::cmp_less(inode, sfp->size())) {
         inode = (*sfp)[inode] + unique_files_;
       }
@@ -2267,6 +2363,35 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
   return std::nullopt;
 }
 
+template <typename LoggerPolicy>
+duplication_info
+metadata_v2_data::get_duplication_info(logger& lgr, inode_view iv,
+                                       std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(get_duplication_info)
+
+  duplication_info info;
+
+  if (iv.is_regular_file()) {
+    ec.clear();
+    auto const content_id = file_inode_to_chunk_index(iv.inode_num());
+    info.unique_content_id = content_id;
+    if (content_id < unique_files_) {
+      info.duplication_count = 1;
+    } else {
+      std::call_once(shared_start_pos_init_, [this, &lgr]() {
+        shared_start_pos_ = build_shared_start_positions<LoggerPolicy>(lgr);
+      });
+      auto const shared_index = content_id - unique_files_;
+      info.duplication_count = shared_start_pos_.at(shared_index + 1) -
+                               shared_start_pos_.at(shared_index);
+    }
+  } else {
+    ec = std::make_error_code(std::errc::invalid_argument);
+  }
+
+  return info;
+}
+
 void metadata_v2_data::access(inode_view const& iv, int mode,
                               file_stat::uid_type uid, file_stat::gid_type gid,
                               std::error_code& ec) const {
@@ -2478,6 +2603,11 @@ class metadata_ final : public metadata_v2::impl {
   file_stat getattr(inode_view iv, getattr_options const& opts,
                     std::error_code& /*ec*/) const override {
     return data_.getattr(LOG_PROXY_ARG_ iv, opts);
+  }
+
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const override {
+    return data_.get_duplication_info<LoggerPolicy>(LOG_GET_LOGGER, iv, ec);
   }
 
   std::optional<directory_view> opendir(inode_view iv) const override {
