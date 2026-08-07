@@ -169,6 +169,10 @@ class dir_entry_view_impl {
                        global_metadata const& g,
                        entry_name_type name_type = entry_name_type::other);
 
+  static dir_entry_view_impl
+  from_dir_entry_index(uint32_t self_index, global_metadata const& g,
+                       entry_name_type name_type = entry_name_type::other);
+
   static std::string name(uint32_t index, global_metadata const& g);
 
   std::string name() const;
@@ -185,6 +189,7 @@ class dir_entry_view_impl {
   std::wstring wpath() const;
 
   void append_to(std::filesystem::path& p) const;
+  void append_to(std::string& p) const;
 
   uint32_t self_index() const { return self_index_; }
   uint32_t parent_index() const { return parent_index_; }
