@@ -469,15 +469,12 @@ void dwarfsck_impl::do_list_files() {
 
   fs().walk([&](auto const& de) {
     auto name = de.unix_path();
-    utf8_sanitize(name);
 
     if (opts_.verbose) {
       auto iv = de.inode();
 
       if (iv.is_symlink()) {
-        auto target = fs().readlink(iv);
-        utf8_sanitize(target);
-        name += " -> " + target;
+        name += " -> " + fs().readlink(iv);
       }
 
       auto st = fs().getattr(iv);
