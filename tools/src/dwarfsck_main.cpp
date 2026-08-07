@@ -35,6 +35,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -56,10 +57,12 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/string.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
@@ -83,6 +86,10 @@ class dwarfsck_impl {
     std::string cache_size_str;
     std::string image_offset;
     std::string detail;
+#if DWARFS_PERFMON_ENABLED
+    std::unordered_set<std::string> perfmon_enabled;
+    std::optional<std::filesystem::path> perfmon_trace_file;
+#endif
     logger_options logopts;
     size_t num_workers{0};
     bool quiet{false};
@@ -148,6 +155,10 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   // raw values and moved into the optionals below if the option was present.
   sys_string export_metadata_raw;
   std::string checksum_algo_raw;
+#if DWARFS_PERFMON_ENABLED
+  std::string perfmon_enabled_raw;
+  sys_string perfmon_trace_file_raw;
+#endif
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -194,6 +205,14 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("export-metadata",
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
+#if DWARFS_PERFMON_ENABLED
+    ("perfmon",
+        po::value<std::string>(&perfmon_enabled_raw),
+        "enable performance monitor")
+    ("perfmon-trace",
+        po_sys_value<sys_string>(&perfmon_trace_file_raw),
+        "write performance monitor trace file")
+#endif
     ;
   // clang-format on
 
@@ -220,6 +239,16 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("man")) {
     tool::show_manpage(tool::manpage::get_dwarfsck_manpage(), iol);
     return std::unexpected(0);
+  }
+#endif
+
+#if DWARFS_PERFMON_ENABLED
+  if (vm.contains("perfmon")) {
+    split_to(perfmon_enabled_raw, ',', o.perfmon_enabled);
+  }
+
+  if (vm.contains("perfmon-trace")) {
+    o.perfmon_trace_file = iol.os->canonical(perfmon_trace_file_raw);
   }
 #endif
 
@@ -285,12 +314,18 @@ int dwarfsck_impl::run() {
 
     auto input_path = iol_.os->canonical(opts_.input);
     auto mm = iol_.os->open_file(input_path);
+    std::shared_ptr<performance_monitor> perfmon;
+
+#if DWARFS_PERFMON_ENABLED
+    perfmon = performance_monitor::create(opts_.perfmon_enabled, iol_.file,
+                                          opts_.perfmon_trace_file);
+#endif
 
     if (opts_.print_header) {
       return do_print_header(mm);
     }
 
-    fs_.emplace(lgr_, *iol_.os, mm, fsopts_);
+    fs_.emplace(lgr_, *iol_.os, mm, fsopts_, perfmon);
 
     if (opts_.export_metadata) {
       return do_export_metadata();
@@ -309,6 +344,12 @@ int dwarfsck_impl::run() {
     if (opts_.checksum_algo) {
       do_checksum();
     }
+
+#if DWARFS_PERFMON_ENABLED
+    if (perfmon) {
+      perfmon->summarize(iol_.err);
+    }
+#endif
 
     return errors > 0 ? 1 : 0;
   } catch (std::exception const& e) {
