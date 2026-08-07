@@ -49,6 +49,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
+#include <dwarfs/reader/duplication_info.h>
 #include <dwarfs/reader/fsinfo_features.h>
 #include <dwarfs/reader/metadata_types.h>
 #include <dwarfs/types.h>
@@ -151,6 +152,15 @@ class filesystem_v2_lite {
 
   file_stat getattr(inode_view entry, getattr_options const& opts) const {
     return lite_->getattr(std::move(entry), opts);
+  }
+
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const {
+    return lite_->get_duplication_info(std::move(iv), ec);
+  }
+
+  duplication_info get_duplication_info(inode_view iv) const {
+    return lite_->get_duplication_info(std::move(iv));
   }
 
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -387,6 +397,9 @@ class filesystem_v2_lite {
     virtual file_stat getattr(inode_view entry) const = 0;
     virtual file_stat
     getattr(inode_view entry, getattr_options const& opts) const = 0;
+    virtual duplication_info
+    get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
+    virtual duplication_info get_duplication_info(inode_view iv) const = 0;
     virtual bool access(inode_view entry, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid) const = 0;
     virtual void access(inode_view entry, int mode, file_stat::uid_type uid,
