@@ -1402,6 +1402,13 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
                                          name_type);
 }
 
+dir_entry_view_impl
+dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
+                                          global_metadata const& g,
+                                          entry_name_type name_type) {
+  return make_dir_entry_view<stack_ctor>(self_index, g, name_type);
+}
+
 std::shared_ptr<dir_entry_view_impl> dir_entry_view_impl::parent() const {
   if (is_root()) {
     return nullptr;
@@ -1429,12 +1436,8 @@ std::string dir_entry_view_impl::path() const {
 }
 
 std::string dir_entry_view_impl::unix_path() const {
-  static constexpr char preferred =
-      static_cast<char>(std::filesystem::path::preferred_separator);
-  auto p = path();
-  if constexpr (preferred != '/') {
-    std::ranges::replace(p, preferred, '/');
-  }
+  std::string p;
+  append_to(p);
   return p;
 }
 
@@ -1447,13 +1450,23 @@ std::filesystem::path dir_entry_view_impl::fs_path() const {
 }
 
 void dir_entry_view_impl::append_to(std::filesystem::path& p) const {
-  if (auto ev = parent()) {
-    if (!ev->is_root()) {
-      ev->append_to(p);
-    }
-  }
   if (!is_root()) {
+    auto ev = from_dir_entry_index(parent_index_, *g_);
+    if (!ev.is_root()) {
+      ev.append_to(p);
+    }
     p /= string_to_u8string(name());
+  }
+}
+
+void dir_entry_view_impl::append_to(std::string& p) const {
+  if (!is_root()) {
+    auto ev = from_dir_entry_index(parent_index_, *g_);
+    if (!ev.is_root()) {
+      ev.append_to(p);
+      p += '/';
+    }
+    p += name();
   }
 }
 
