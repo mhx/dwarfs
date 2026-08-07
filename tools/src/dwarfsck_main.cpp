@@ -38,6 +38,7 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
@@ -120,36 +121,104 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
                  size_t max_queued_bytes) {
   LOG_PROXY(debug_logger_policy, lgr);
 
+  struct cache_entry {
+    explicit cache_entry(reader::duplication_info const& dup_info)
+        : remaining{dup_info.duplication_count} {}
+
+    std::size_t remaining;
+    std::optional<std::string> checksum;
+    std::vector<std::string> paths;
+  };
+
   std::mutex mx;
   counting_semaphore sem;
   sem.post(static_cast<int64_t>(max_queued_bytes));
+  std::unordered_map<uint32_t, cache_entry> checksum_cache;
+
+  auto output_nolock = [&](std::string const& hexdigest,
+                           std::string const& path) {
+    fmt::print(iol.out, "{}  {}\n", hexdigest, path);
+  };
 
   thread_pool pool{lgr, *iol.os, "checksum", num_workers};
 
   size_t const max_queued_per_worker = max_queued_bytes / num_workers;
 
+  auto build_hexdigest = [&algo](auto const& ranges) {
+    thread_local checksum cs(algo);
+
+    cs.reset();
+
+    for (auto const& r : ranges) {
+      cs.update(r.data(), r.size());
+    }
+
+    return cs.hexdigest();
+  };
+
   for (auto const& de : fs.entries_in_data_order()) {
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
+      auto const dup_info = fs.get_duplication_info(iv);
+
+      if (dup_info.duplication_count > 1) {
+        std::lock_guard lock(mx);
+
+        auto it = checksum_cache.find(dup_info.unique_content_id);
+
+        if (it != checksum_cache.end()) {
+          if (it->second.checksum) {
+            output_nolock(*it->second.checksum, de.unix_path());
+            assert(it->second.paths.empty());
+            if (--it->second.remaining == 0) {
+              checksum_cache.erase(it);
+            }
+          } else {
+            it->second.paths.push_back(de.unix_path());
+          }
+          continue;
+        } else {
+          auto const r [[maybe_unused]] = checksum_cache.emplace(
+              dup_info.unique_content_id, cache_entry{dup_info});
+          assert(r.second);
+        }
+      }
+
       reader::detail::file_reader fr(fs, iv);
 
       pool.add_job(
-          [&, de,
+          [&, de, dup_info,
            ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
             try {
-              checksum cs(algo);
-
-              for (auto const& r : ranges) {
-                cs.update(r.data(), r.size());
-              }
-
-              auto output =
-                  fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+              auto const path = de.unix_path();
+              auto hexdigest = build_hexdigest(ranges);
 
               {
                 std::lock_guard lock(mx);
-                iol.out << output;
+                output_nolock(hexdigest, path);
+
+                if (dup_info.duplication_count > 1) {
+                  auto it = checksum_cache.find(dup_info.unique_content_id);
+
+                  assert(it != checksum_cache.end());
+
+                  for (auto const& p : it->second.paths) {
+                    output_nolock(hexdigest, p);
+                  }
+
+                  assert(std::cmp_greater(it->second.remaining,
+                                          it->second.paths.size()));
+
+                  it->second.remaining -= it->second.paths.size();
+                  it->second.paths.clear();
+
+                  if (--it->second.remaining == 0) {
+                    checksum_cache.erase(it);
+                  } else {
+                    it->second.checksum = std::move(hexdigest);
+                  }
+                }
               }
             } catch (std::exception const& e) {
               LOG_ERROR << "error processing inode for " << de.unix_path()
@@ -160,6 +229,11 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
   }
 
   pool.wait();
+
+  {
+    std::lock_guard lock(mx);
+    assert(checksum_cache.empty());
+  }
 }
 
 } // namespace
