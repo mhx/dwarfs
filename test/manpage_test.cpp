@@ -219,18 +219,19 @@ TEST_P(manpage_coverage_test, options) {
     man_opts.erase("format-filters");
     man_opts.erase("format-options");
 #endif
-#ifndef DWARFS_PERFMON_ENABLED
-    man_opts.erase("perfmon");
-    man_opts.erase("perfmon-trace");
-#endif
     man_opts.erase("pattern");
   }
 
+#ifndef DWARFS_PERFMON_ENABLED
+  if (tool_name == "dwarfsextract" || tool_name == "dwarfsck") {
+    man_opts.erase("perfmon");
+    man_opts.erase("perfmon-trace");
+  }
+#endif
+
   for (auto const& [opt, short_opt] : man_opts) {
-    auto it = help_opts.find(opt);
-    if (it == help_opts.end()) {
-      FAIL() << "option " << opt << " is obsolete for " << tool_name;
-    }
+    EXPECT_TRUE(help_opts.contains(opt))
+        << "option " << opt << " is obsolete for " << tool_name;
   }
 }
 
