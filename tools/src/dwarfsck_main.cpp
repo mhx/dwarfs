@@ -482,12 +482,12 @@ void dwarfsck_impl::do_list_files() {
 
       auto st = fs().getattr(iv);
 
-      iol_.out << fmt::format("{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
-                              uid_width, gid_width, inode_size_width,
-                              iv.mode_string(), iv.getuid(), iv.getgid(),
-                              st.size(), safe_localtime(st.mtime()), name);
+      fmt::print(iol_.out, "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
+                 uid_width, gid_width, inode_size_width, iv.mode_string(),
+                 iv.getuid(), iv.getgid(), st.size(),
+                 safe_localtime(st.mtime()), name);
     } else if (!name.empty()) {
-      iol_.out << name << "\n";
+      fmt::print(iol_.out, "{}\n", name);
     }
   });
 }
