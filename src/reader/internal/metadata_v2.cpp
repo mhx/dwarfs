@@ -766,6 +766,7 @@ class metadata_v2_data {
   PERFMON_CLS_TIMER_DECL(getattr)
   PERFMON_CLS_TIMER_DECL(getattr_opts)
   PERFMON_CLS_TIMER_DECL(get_duplication_info)
+  PERFMON_CLS_TIMER_DECL(link_value)
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(reg_file_size)
   PERFMON_CLS_TIMER_DECL(unpack_metadata)
@@ -821,6 +822,7 @@ metadata_v2_data::metadata_v2_data(
       PERFMON_CLS_TIMER_INIT(getattr)
       PERFMON_CLS_TIMER_INIT(getattr_opts)
       PERFMON_CLS_TIMER_INIT(get_duplication_info)
+      PERFMON_CLS_TIMER_INIT(link_value)
       PERFMON_CLS_TIMER_INIT(readdir)
       PERFMON_CLS_TIMER_INIT(reg_file_size)
       PERFMON_CLS_TIMER_INIT(unpack_metadata) // clang-format on
@@ -1364,6 +1366,8 @@ void metadata_v2_data::analyze_chunks(std::ostream& os) const {
 
 std::string metadata_v2_data::link_value(inode_view_impl const& iv,
                                          readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(link_value)
+
   std::string rv =
       symlinks_[meta_.symlink_table()[iv.inode_num() - symlink_inode_offset_]];
 
