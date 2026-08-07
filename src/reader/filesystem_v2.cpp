@@ -296,6 +296,9 @@ class filesystem_ final {
                     std::error_code& ec) const;
   file_stat getattr(inode_view entry) const;
   file_stat getattr(inode_view entry, getattr_options const& opts) const;
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const;
+  duplication_info get_duplication_info(inode_view iv) const;
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -471,6 +474,8 @@ class filesystem_ final {
   PERFMON_CLS_TIMER_DECL(getattr_ec)
   PERFMON_CLS_TIMER_DECL(getattr_opts)
   PERFMON_CLS_TIMER_DECL(getattr_opts_ec)
+  PERFMON_CLS_TIMER_DECL(get_duplication_info)
+  PERFMON_CLS_TIMER_DECL(get_duplication_info_ec)
   PERFMON_CLS_TIMER_DECL(access)
   PERFMON_CLS_TIMER_DECL(access_ec)
   PERFMON_CLS_TIMER_DECL(opendir)
@@ -573,6 +578,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(getattr_ec)
     PERFMON_CLS_TIMER_INIT(getattr_opts)
     PERFMON_CLS_TIMER_INIT(getattr_opts_ec)
+    PERFMON_CLS_TIMER_INIT(get_duplication_info)
+    PERFMON_CLS_TIMER_INIT(get_duplication_info_ec)
     PERFMON_CLS_TIMER_INIT(access)
     PERFMON_CLS_TIMER_INIT(access_ec)
     PERFMON_CLS_TIMER_INIT(opendir)
@@ -1040,6 +1047,23 @@ filesystem_<LoggerPolicy>::getattr(inode_view entry,
 }
 
 template <typename LoggerPolicy>
+duplication_info
+filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry,
+                                                std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(get_duplication_info_ec)
+  return meta_.get_duplication_info(std::move(entry), ec);
+}
+
+template <typename LoggerPolicy>
+duplication_info
+filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(get_duplication_info)
+  return call_ec_throw([&](std::error_code& ec) {
+    return meta_.get_duplication_info(std::move(entry), ec);
+  });
+}
+
+template <typename LoggerPolicy>
 bool filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
                                        file_stat::uid_type uid,
                                        file_stat::gid_type gid) const {
@@ -1387,6 +1411,13 @@ class filesystem_common_ : public Base {
   file_stat
   getattr(inode_view entry, getattr_options const& opts) const override {
     return fs_.getattr(entry, opts);
+  }
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const override {
+    return fs_.get_duplication_info(iv, ec);
+  }
+  duplication_info get_duplication_info(inode_view iv) const override {
+    return fs_.get_duplication_info(iv);
   }
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const override {
