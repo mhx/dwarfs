@@ -129,7 +129,8 @@ struct inode_data {
    // subsecond part of btime
   13: UInt64 btime_subsec
 
-   // number of hard links; these are only valid
+   // number of hard links; these are only valid if `inodes_have_nlink`
+   // is true in `fs_options`, otherwise they're always 0
   14: UInt32 nlink_minus_one
 
    /**
