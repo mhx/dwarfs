@@ -156,8 +156,13 @@ class os_access_mock : public os_access {
   void set_open_fail(std::filesystem::path const& path);
   bool is_open_fail(std::filesystem::path const& path) const;
 
-  void set_map_file_error(std::filesystem::path const& path,
+  void set_map_file_error(std::span<std::filesystem::path const> paths,
                           std::exception_ptr ep, int after_n_attempts = 0);
+  void set_map_file_error(std::filesystem::path const& path,
+                          std::exception_ptr ep, int after_n_attempts = 0) {
+    set_map_file_error(std::span<std::filesystem::path const>{&path, 1}, ep,
+                       after_n_attempts);
+  }
   void set_map_file_delay(std::filesystem::path const& path,
                           std::chrono::nanoseconds delay);
 
@@ -238,7 +243,7 @@ class os_access_mock : public os_access {
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
-  std::map<std::filesystem::path, error_info> map_file_errors_;
+  std::map<std::filesystem::path, std::shared_ptr<error_info>> map_file_errors_;
   std::map<std::string, std::string> env_;
   std::shared_ptr<os_access> real_os_;
   executable_resolver_type executable_resolver_;

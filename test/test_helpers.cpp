@@ -398,15 +398,20 @@ void os_access_mock::set_open_fail(fs::path const& path) {
 bool os_access_mock::is_open_fail(std::filesystem::path const& path) const {
   auto it = map_file_errors_.find(path);
   return it != map_file_errors_.end() &&
-         it->second.remaining_successful_attempts.load() < 0;
+         it->second->remaining_successful_attempts.load() < 0;
 }
 
-void os_access_mock::set_map_file_error(std::filesystem::path const& path,
-                                        std::exception_ptr ep,
-                                        int after_n_attempts) {
-  auto& e = map_file_errors_[path];
-  e.ep = std::move(ep);
-  e.remaining_successful_attempts = after_n_attempts;
+void os_access_mock::set_map_file_error(
+    std::span<std::filesystem::path const> paths, std::exception_ptr ep,
+    int after_n_attempts) {
+  auto e = std::make_shared<error_info>();
+
+  e->ep = std::move(ep);
+  e->remaining_successful_attempts = after_n_attempts;
+
+  for (auto const& path : paths) {
+    map_file_errors_[path] = e;
+  }
 }
 
 void os_access_mock::set_map_file_delay(std::filesystem::path const& path,
@@ -511,12 +516,12 @@ file_view os_access_mock::open_file(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
-      int remaining = it->second.remaining_successful_attempts.load();
-      while (!it->second.remaining_successful_attempts.compare_exchange_weak(
+      int remaining = it->second->remaining_successful_attempts.load();
+      while (!it->second->remaining_successful_attempts.compare_exchange_weak(
           remaining, remaining - 1)) {
       }
       if (remaining <= 0) {
-        std::rethrow_exception(it->second.ep);
+        std::rethrow_exception(it->second->ep);
       }
     }
 
@@ -555,7 +560,7 @@ memory_mapping os_access_mock::map_empty(size_t size) const {
 std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
   std::set<std::filesystem::path> rv = access_fail_set_;
   for (auto const& [path, error] : map_file_errors_) {
-    if (error.remaining_successful_attempts.load() < 0) {
+    if (error->remaining_successful_attempts.load() < 0) {
       rv.emplace(path);
     }
   }
