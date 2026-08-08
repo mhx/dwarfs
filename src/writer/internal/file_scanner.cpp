@@ -290,6 +290,12 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   if (opts_.hash_algo) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
+      if (p.is_invalid()) {
+        if (auto it = by_inode_id_.find(p.get_unique_inode_id());
+            it != by_inode_id_.end()) {
+          return it->second;
+        }
+      }
       if (auto ix = p.digest_index()) {
         return by_digest_.at(*ix);
       }
