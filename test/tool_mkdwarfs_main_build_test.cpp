@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <initializer_list>
 #include <ranges>
 #include <regex>
 
@@ -390,27 +391,61 @@ TEST_P(map_file_error_test, delayed) {
                                        .max_name_len = 8,
                                        .with_errors = true});
 
-  static constexpr size_t const kSizeSmall{1 << 10};
-  static constexpr size_t const kSizeLarge{1 << 20};
-  auto gen_small = [] { return test::loremipsum(kSizeSmall); };
-  auto gen_large = [] { return test::loremipsum(kSizeLarge); };
-  t.os->add("large_link1", {43, 0100755, 2, 1000, 100, kSizeLarge, 42, 0, 0, 0},
-            gen_large);
-  t.os->add("large_link2", {43, 0100755, 2, 1000, 100, kSizeLarge, 42, 0, 0, 0},
-            gen_large);
-  t.os->add("small_link1", {44, 0100755, 2, 1000, 100, kSizeSmall, 42, 0, 0, 0},
-            gen_small);
-  t.os->add("small_link2", {44, 0100755, 2, 1000, 100, kSizeSmall, 42, 0, 0, 0},
-            gen_small);
-  for (auto const& link :
-       {"large_link1", "large_link2", "small_link1", "small_link2"}) {
-    t.os->set_map_file_error(
-        fs::path{"/"} / link,
-        std::make_exception_ptr(std::runtime_error("map_file_error")), 0);
-  }
-
   {
-    std::mt19937_64 rng{42};
+    auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+    SCOPED_TRACE(fmt::format("seed={}", seed));
+    std::mt19937_64 rng{static_cast<uint64_t>(seed)};
+
+    static constexpr size_t const kSizeSmall{1 << 10};
+    static constexpr size_t const kSizeLarge{1 << 20};
+    test::lz_synthetic_generator gen({.text_mode = true, .seed = rng()});
+    auto content_small1 = gen.generate(kSizeSmall);
+    auto content_small2 = gen.generate(kSizeSmall);
+    auto content_large1 = gen.generate(kSizeLarge);
+    auto content_large2 = gen.generate(kSizeLarge);
+
+    auto st_large1 =
+        t.os->add_file("large_link1", content_large1, {.nlink = 2});
+    files.emplace_back("large_link1", content_large1);
+
+    t.os->add_file("large_link2", content_large1,
+                   {.ino = st_large1.ino, .nlink = 2});
+    files.emplace_back("large_link2", content_large1);
+
+    t.os->add_file("large_copy1", content_large2);
+    files.emplace_back("large_copy1", content_large2);
+
+    auto st_small = t.os->add_file("small_link1", content_small1, {.nlink = 2});
+    files.emplace_back("small_link1", content_small1);
+
+    t.os->add_file("small_link2", content_small1,
+                   {.ino = st_small.ino, .nlink = 2});
+    files.emplace_back("small_link2", content_small1);
+
+    t.os->add_file("small_copy1", content_small2);
+    files.emplace_back("small_copy1", content_small2);
+
+    auto set_map_file_error = [&](std::initializer_list<std::string> names,
+                                  int after_n_attempts = 0) {
+      std::vector<fs::path> paths;
+      for (auto const& name : names) {
+        paths.push_back(fs::path{"/"} / name);
+      }
+      t.os->set_map_file_error(
+          paths, std::make_exception_ptr(std::runtime_error("map_file_error")),
+          after_n_attempts);
+    };
+
+    if (rng() % 4 == 0) {
+      set_map_file_error({"large_link1", "large_link2"}, rng() % 4);
+    }
+
+    if (rng() % 4 == 0) {
+      set_map_file_error({"large_copy1"}, rng() % 4);
+    }
+
+    set_map_file_error({"small_link1", "small_link2"}, 1);
+    set_map_file_error({"small_copy1"}, 1);
 
     for (auto const& p : fs::recursive_directory_iterator(audio_data_dir)) {
       if (p.is_regular_file()) {
@@ -418,10 +453,7 @@ TEST_P(map_file_error_test, delayed) {
         files.emplace_back(fp, read_file(p.path()));
 
         if (rng() % 2 == 0) {
-          t.os->set_map_file_error(
-              fs::path{"/"} / fp,
-              std::make_exception_ptr(std::runtime_error("map_file_error")),
-              rng() % 4);
+          set_map_file_error({fp.string()}, rng() % 4);
         }
       }
     }
@@ -443,19 +475,24 @@ TEST_P(map_file_error_test, delayed) {
   {
     auto large_link1 = fs.find("/large_link1");
     auto large_link2 = fs.find("/large_link2");
+    auto large_copy1 = fs.find("/large_copy1");
     auto small_link1 = fs.find("/small_link1");
     auto small_link2 = fs.find("/small_link2");
+    auto small_copy1 = fs.find("/small_copy1");
 
     ASSERT_TRUE(large_link1);
     ASSERT_TRUE(large_link2);
+    ASSERT_TRUE(large_copy1);
     ASSERT_TRUE(small_link1);
     ASSERT_TRUE(small_link2);
     EXPECT_EQ(large_link1->inode().inode_num(),
               large_link2->inode().inode_num());
+    EXPECT_NE(large_link1->inode().inode_num(),
+              large_copy1->inode().inode_num());
     EXPECT_EQ(small_link1->inode().inode_num(),
               small_link2->inode().inode_num());
-    EXPECT_EQ(0, fs.getattr(large_link1->inode()).size());
-    EXPECT_EQ(0, fs.getattr(small_link1->inode()).size());
+    EXPECT_NE(small_link1->inode().inode_num(),
+              small_copy1->inode().inode_num());
   }
 
   std::unordered_map<fs::path, std::string, fs_path_hash> actual_files;
@@ -481,7 +518,7 @@ TEST_P(map_file_error_test, delayed) {
 
   for (auto const& [path, data] : files) {
     auto it = actual_files.find(path);
-    ASSERT_NE(actual_files.end(), it);
+    ASSERT_NE(actual_files.end(), it) << path;
     if (!it->second.empty()) {
       EXPECT_EQ(data, it->second);
       ++num_non_empty;
@@ -515,7 +552,7 @@ TEST_P(map_file_error_test, delayed) {
     auto it = original_files.find(path.relative_path());
     ASSERT_NE(original_files.end(), it);
     std::cout << "--- original (" << it->second.size() << " bytes) ---\n";
-    std::cout << hexdump(it->second) << "\n";
+    // std::cout << hexdump(it->second) << "\n";
   }
 
   auto dump = t.fa->get_file("inodes.dump");
