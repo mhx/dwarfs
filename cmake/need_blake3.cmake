@@ -62,6 +62,11 @@ else()
       C_VISIBILITY_PRESET hidden
     )
 
+    target_compile_options(blake3 PRIVATE
+      "$<$<COMPILE_LANGUAGE:ASM_MASM>:/nologo>"
+      "$<$<COMPILE_LANGUAGE:ASM_MASM>:/quiet>"
+    )
+
     set(DWARFS_BLAKE3_OBJECTS $<TARGET_OBJECTS:blake3>)
 
     target_include_directories(dwarfs_blake3 SYSTEM INTERFACE
