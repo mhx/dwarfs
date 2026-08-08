@@ -104,15 +104,17 @@ class file_scanner_ final : public file_scanner::impl {
   file_id_vector& hardlink_group(const_file_handle p);
 
   template <bool UniqueOnly = false, typename KeyType>
-  void finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
-                      uint32_t& inode_num, uint32_t& obj_num);
+  void
+  finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
+                 uint32_t& inode_num, uint32_t& obj_num, std::string_view key);
 
   void
   finalize_files(by_digest_vec& fmap, uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool Unique, typename KeyType>
-  void finalize_inodes(std::vector<std::pair<KeyType, file_id_vector>>& ent,
-                       uint32_t& inode_num, uint32_t& obj_num);
+  void
+  finalize_inodes(std::vector<std::pair<KeyType, file_id_vector>>& ent,
+                  uint32_t& inode_num, uint32_t& obj_num, std::string_view key);
 
   file_id_vector& get_by_digest_autovivify(file_handle p) {
     auto const index = p.digest_index().value();
@@ -374,16 +376,16 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
     // Only `by_digest_` can hold groups of more than one distinct file; every
     // group in the other maps is a single file plus its own hardlinks.
-    finalize_files<true>(size_buckets_, inode_num, obj_num);
-    finalize_files<true>(start_hash_buckets_, inode_num, obj_num);
-    finalize_files<true>(by_inode_id_, inode_num, obj_num);
+    finalize_files<true>(size_buckets_, inode_num, obj_num, "size");
+    finalize_files<true>(start_hash_buckets_, inode_num, obj_num, "start hash");
+    finalize_files<true>(by_inode_id_, inode_num, obj_num, "inode");
     finalize_files(by_digest_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       return by_inode_id_.at(p.get_unique_inode_id());
     });
 
-    finalize_files<true>(by_inode_id_, inode_num, obj_num);
+    finalize_files<true>(by_inode_id_, inode_num, obj_num, "inode");
   }
 }
 
@@ -721,26 +723,29 @@ template <typename LoggerPolicy>
 template <bool UniqueOnly, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_files(
     fast_map_type<KeyType, file_id_vector>& fmap, uint32_t& inode_num,
-    uint32_t& obj_num) {
+    uint32_t& obj_num, std::string_view name) {
   auto tv = LOG_TIMED_VERBOSE;
 
   auto ent = take_sorted_entries(fmap);
 
   if constexpr (UniqueOnly) {
     for (auto const& [k, fv] : ent) {
-      DWARFS_CHECK(!fv.empty(), "internal error");
-      DWARFS_CHECK(fv.size() == storage_.handle(fv.front()).hardlink_count(),
-                   "internal error");
+      auto const expected = storage_.handle(fv.front()).hardlink_count();
+      DWARFS_CHECK(fv.size() == expected,
+                   fmt::format("internal error while finalizing {} files: "
+                               "hardlink count mismatch ({} != {})",
+                               name, fv.size(), expected));
     }
   }
 
-  finalize_inodes<true>(ent, inode_num, obj_num);
+  finalize_inodes<true>(ent, inode_num, obj_num, name);
 
   if constexpr (!UniqueOnly) {
-    finalize_inodes<false>(ent, inode_num, obj_num);
+    finalize_inodes<false>(ent, inode_num, obj_num, name);
   }
 
-  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
+  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "")
+     << " files (by " << name << ")";
 }
 
 template <typename LoggerPolicy>
@@ -751,17 +756,17 @@ void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec& fmap,
 
   auto ent = take_sorted_entries(fmap);
 
-  finalize_inodes<true>(ent, inode_num, obj_num);
-  finalize_inodes<false>(ent, inode_num, obj_num);
+  finalize_inodes<true>(ent, inode_num, obj_num, "digest");
+  finalize_inodes<false>(ent, inode_num, obj_num, "digest");
 
-  tv << "finalized " << ent.size() << " files";
+  tv << "finalized " << ent.size() << " files (by digest)";
 }
 
 template <typename LoggerPolicy>
 template <bool Unique, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_inodes(
     std::vector<std::pair<KeyType, file_id_vector>>& ent, uint32_t& inode_num,
-    uint32_t& obj_num) {
+    uint32_t& obj_num, std::string_view key) {
   int const obj_num_before = obj_num;
 
   auto tv = LOG_TIMED_VERBOSE;
@@ -771,9 +776,9 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
 
     if constexpr (Unique) {
       DWARFS_CHECK(!files.empty(),
-                   fmt::format("internal error in finalize_inodes: empty files "
-                               "vector for key {}",
-                               p.first));
+                   fmt::format("internal error while finalizing {} inodes: "
+                               "empty files vector for key {}",
+                               key, p.first));
 
       // this is true regardless of how the files are ordered
       if (files.size() > storage_.handle(files.front()).hardlink_count()) {
@@ -814,7 +819,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
   }
 
   tv << "finalized " << (obj_num - obj_num_before) << (Unique ? " " : " non-")
-     << "unique inodes";
+     << "unique inodes (by " << key << ")";
 }
 
 template <typename LoggerPolicy>
