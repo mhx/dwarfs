@@ -41,7 +41,7 @@
 #include <boost/uuid/uuid_io.hpp>
 
 #include <dwarfs/checksum.h>
-#include <dwarfs/fstypes.h>
+#include <dwarfs/superblock.h>
 #include <dwarfs/superblock_editor.h>
 
 namespace dwarfs {

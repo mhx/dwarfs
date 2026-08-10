@@ -23,6 +23,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cassert>
 #include <condition_variable>
 #include <cstdint>
@@ -42,6 +43,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/superblock.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
@@ -1292,9 +1294,13 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_superblock() {
   DWARFS_CHECK(section_number_ == 0, "superblock must be the first section");
 
-  superblock_v0 data{};
-  data.superblock_version = SUPERBLOCK_VERSION;
-  data.fs_size_alignment = options_.image_size_alignment;
+  DWARFS_CHECK(std::has_single_bit(options_.image_size_alignment),
+               "image_size_alignment must be a power of two");
+
+  superblock_v1 data{};
+  data.major_version = SUPERBLOCK_MAJOR_VERSION;
+  data.minor_version = SUPERBLOCK_MINOR_VERSION;
+  data.fs_size_align_log2 = std::countr_zero(options_.image_size_alignment);
 
   if (!options_.empty_uuid) {
     auto const uuid = boost::uuids::random_generator()();
