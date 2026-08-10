@@ -43,6 +43,11 @@ namespace {
 
 using namespace std::string_view_literals;
 
+struct digest_algo_info {
+  std::string_view name;
+  std::size_t bytes;
+};
+
 // clang-format off
 constexpr container::sorted_array_map sections{
 #define SECTION_TYPE_(x) std::pair{section_type::x, #x ## sv}
@@ -57,9 +62,9 @@ constexpr container::sorted_array_map sections{
 };
 
 constexpr container::sorted_array_map digest_algorithms{
-#define DIGEST_ALGO_(x) std::pair{digest_algorithm::x, #x ## sv}
-    DIGEST_ALGO_(UNINITIALIZED),
-    DIGEST_ALGO_(BLAKE3_256),
+#define DIGEST_ALGO_(x, bits) std::pair{digest_algorithm::x, digest_algo_info{#x ## sv, bits / 8}}
+    DIGEST_ALGO_(UNINITIALIZED, 0),
+    DIGEST_ALGO_(BLAKE3_256, 256),
 #undef DIGEST_ALGO_
 };
 
@@ -102,7 +107,17 @@ std::string get_section_name(section_type type) {
 }
 
 std::string get_digest_algorithm_name(digest_algorithm algo) {
-  return get_default(digest_algorithms, algo);
+  if (auto value = digest_algorithms.get(algo)) {
+    return std::string{value->name};
+  }
+  return fmt::format("unknown ({})", static_cast<int>(algo));
+}
+
+std::size_t get_digest_algorithm_size(digest_algorithm algo) {
+  if (auto value = digest_algorithms.get(algo)) {
+    return value->bytes;
+  }
+  return 0;
 }
 
 void section_header::dump(std::ostream& os) const {

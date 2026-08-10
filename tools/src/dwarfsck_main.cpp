@@ -656,7 +656,7 @@ void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
     }
 
     if (!sbe.fs_uuid()) {
-      sbe.init_fs_uuid();
+      sbe.set_fs_uuid(superblock_editor::kUuidRandom);
     }
   }
 

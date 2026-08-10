@@ -30,6 +30,7 @@
 #include <istream>
 #include <ostream>
 #include <random>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -41,6 +42,7 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/superblock.h>
 #include <dwarfs/superblock_editor.h>
 
 using namespace dwarfs;
@@ -53,13 +55,17 @@ using testing::Return;
 namespace {
 
 // The tests deliberately build superblocks byte by byte instead of reusing
-// the structs from fstypes.h. That way they also pin down the on-disk
-// layout and are independent of both the host's endianness and of any
-// future change to those structs.
+// superblock_v1. That way they also pin down the on-disk layout and are
+// independent of both the host's endianness and of any future change to
+// the struct.
 
-constexpr std::size_t kSbSize{superblock_editor::superblock_size()};
 constexpr std::size_t kHdrSize{64};
+constexpr std::size_t kPayloadSize{192};
+constexpr std::size_t kSbSize{kHdrSize + kPayloadSize};
 
+static_assert(kSbSize == superblock_editor::min_section_size());
+
+// section header
 constexpr std::size_t kOffMagic{0};
 constexpr std::size_t kOffMajor{6};
 constexpr std::size_t kOffMinor{7};
@@ -69,22 +75,73 @@ constexpr std::size_t kOffNumber{48};
 constexpr std::size_t kOffType{52};
 constexpr std::size_t kOffCompression{54};
 constexpr std::size_t kOffLength{56};
-constexpr std::size_t kOffSbVersion{64};
-constexpr std::size_t kOffReserved0{66};
-constexpr std::size_t kOffAlignment{68};
+
+// superblock payload
+constexpr std::size_t kOffSbMajor{64};
+constexpr std::size_t kOffSbMinor{65};
+constexpr std::size_t kOffDigestAlgo{66};
+constexpr std::size_t kOffDigestScheme{67};
+constexpr std::size_t kOffAlignLog2{68};
+constexpr std::size_t kOffReserved1{69};
 constexpr std::size_t kOffFsSize{72};
 constexpr std::size_t kOffUuid{80};
 constexpr std::size_t kOffLabel{96};
-constexpr std::size_t kOffReserved1{160};
+constexpr std::size_t kOffAttrDigest{160};
+constexpr std::size_t kOffTreeDigest{192};
+constexpr std::size_t kOffReserved2{224};
 
 constexpr std::size_t kUuidSize{16};
 constexpr std::size_t kLabelSize{64};
-constexpr std::size_t kReserved1Size{96};
+constexpr std::size_t kMaxLabelLength{63};
+constexpr std::size_t kDigestSize{32};
+constexpr std::size_t kReserved1Size{3};
+constexpr std::size_t kReserved2Size{32};
 
-constexpr std::uint32_t kAlignment{4096};
+constexpr std::uint8_t kAlignLog2{12};
+constexpr std::uint64_t kAlignment{std::uint64_t{1} << kAlignLog2};
+
+constexpr std::uint8_t kScheme{1};
+constexpr auto kAlgo{digest_algorithm::BLAKE3_256};
+constexpr auto kUnknownAlgo{static_cast<digest_algorithm>(0xfe)};
 
 constexpr auto kBinIn{std::ios::in | std::ios::binary};
 constexpr auto kBinInOut{std::ios::in | std::ios::out | std::ios::binary};
+
+using uuid_bytes = std::array<std::uint8_t, kUuidSize>;
+using digest_bytes = std::array<std::uint8_t, kDigestSize>;
+
+// version 4, RFC 9562 variant
+constexpr uuid_bytes kUuid{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0x4c, 0xde,
+                           0x8f, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10};
+constexpr std::string_view kUuidStr{"01234567-89ab-4cde-8fdc-ba9876543210"};
+
+// same, but byte 8 puts it in the "future" variant, i.e. what a byte-swapped
+// GUID typically looks like
+constexpr std::string_view kBadVariantUuidStr{
+    "01234567-89ab-4cde-ffdc-ba9876543210"};
+
+constexpr std::string_view kNilUuidStr{"00000000-0000-0000-0000-000000000000"};
+
+digest_bytes make_digest(std::uint8_t seed) {
+  digest_bytes d{};
+  for (std::size_t i = 0; i < d.size(); ++i) {
+    d[i] = static_cast<std::uint8_t>(seed + i + 1);
+  }
+  return d;
+}
+
+std::string as_chars(std::span<std::uint8_t const> bytes) {
+  return std::string(reinterpret_cast<char const*>(bytes.data()), bytes.size());
+}
+
+testing::AssertionResult
+digest_eq(std::span<std::uint8_t const> actual, digest_bytes const& expected) {
+  if (std::ranges::equal(actual, expected)) {
+    return testing::AssertionSuccess();
+  }
+  return testing::AssertionFailure()
+         << "digest mismatch (" << actual.size() << " bytes)";
+}
 
 template <typename T>
 void put_le(std::string& buf, std::size_t offset, T value) {
@@ -137,23 +194,29 @@ class superblock_builder {
                           std::to_underlying(section_type::SUPERBLOCK));
     put_le<std::uint16_t>(sb_, kOffCompression,
                           std::to_underlying(compression_type::NONE));
-    put_le<std::uint64_t>(sb_, kOffLength, kSbSize - kHdrSize);
-    put_le<std::uint16_t>(sb_, kOffSbVersion, SUPERBLOCK_VERSION);
-    put_le<std::uint32_t>(sb_, kOffAlignment, kAlignment);
+    put_le<std::uint64_t>(sb_, kOffLength, kPayloadSize);
+    sb_[kOffSbMajor] = static_cast<char>(SUPERBLOCK_MAJOR_VERSION);
+    sb_[kOffSbMinor] = static_cast<char>(SUPERBLOCK_MINOR_VERSION);
+    sb_[kOffAlignLog2] = static_cast<char>(kAlignLog2);
   }
 
-  superblock_builder& minor_version(std::uint8_t v) {
+  superblock_builder& section_minor_version(std::uint8_t v) {
     sb_[kOffMinor] = static_cast<char>(v);
     return *this;
   }
 
-  superblock_builder& superblock_version(std::uint16_t v) {
-    put_le<std::uint16_t>(sb_, kOffSbVersion, v);
+  superblock_builder& sb_major_version(std::uint8_t v) {
+    sb_[kOffSbMajor] = static_cast<char>(v);
     return *this;
   }
 
-  superblock_builder& alignment(std::uint32_t v) {
-    put_le<std::uint32_t>(sb_, kOffAlignment, v);
+  superblock_builder& sb_minor_version(std::uint8_t v) {
+    sb_[kOffSbMinor] = static_cast<char>(v);
+    return *this;
+  }
+
+  superblock_builder& align_log2(std::uint8_t v) {
+    sb_[kOffAlignLog2] = static_cast<char>(v);
     return *this;
   }
 
@@ -162,7 +225,7 @@ class superblock_builder {
     return *this;
   }
 
-  superblock_builder& uuid(std::array<std::uint8_t, kUuidSize> const& u) {
+  superblock_builder& uuid(uuid_bytes const& u) {
     std::memcpy(sb_.data() + kOffUuid, u.data(), u.size());
     return *this;
   }
@@ -173,8 +236,19 @@ class superblock_builder {
     return *this;
   }
 
-  superblock_builder& reserved0(std::uint16_t v) {
-    put_le<std::uint16_t>(sb_, kOffReserved0, v);
+  superblock_builder& digests(digest_algorithm algo, std::uint8_t scheme) {
+    sb_[kOffDigestAlgo] = static_cast<char>(std::to_underlying(algo));
+    sb_[kOffDigestScheme] = static_cast<char>(scheme);
+    return *this;
+  }
+
+  superblock_builder& attr_digest(digest_bytes const& d) {
+    std::memcpy(sb_.data() + kOffAttrDigest, d.data(), d.size());
+    return *this;
+  }
+
+  superblock_builder& tree_digest(digest_bytes const& d) {
+    std::memcpy(sb_.data() + kOffTreeDigest, d.data(), d.size());
     return *this;
   }
 
@@ -182,6 +256,26 @@ class superblock_builder {
     EXPECT_LE(data.size(), kReserved1Size);
     put_bytes(sb_, kOffReserved1, data);
     return *this;
+  }
+
+  superblock_builder& reserved2(std::string_view data) {
+    EXPECT_LE(data.size(), kReserved2Size);
+    put_bytes(sb_, kOffReserved2, data);
+    return *this;
+  }
+
+  /// Payload bytes beyond sizeof(superblock_v1), i.e. what a future minor
+  /// version that grew the structure would produce.
+  superblock_builder& extra(std::string_view data) {
+    sb_.resize(kSbSize);
+    sb_.append(data);
+    put_le<std::uint64_t>(sb_, kOffLength, kPayloadSize + data.size());
+    return *this;
+  }
+
+  /// Fully initialized digests, so that check_superblock() is satisfied.
+  superblock_builder& with_digests(std::uint8_t attr_seed = 1) {
+    return digests(kAlgo, kScheme).attr_digest(make_digest(attr_seed));
   }
 
   std::string& raw() { return sb_; }
@@ -240,7 +334,9 @@ class test_image {
 
   std::string current() { return io_.str(); }
 
-  std::string superblock() { return current().substr(offset_, kSbSize); }
+  std::string superblock() {
+    return current().substr(offset_, ed_.section_size());
+  }
 
   void update() { ed_.update(io_); }
 
@@ -312,40 +408,70 @@ class put_tracking_stringbuf : public std::stringbuf {
 
 } // namespace
 
+//
+// Reading
+//
+
 TEST(superblock_editor_test, read_accepts_a_valid_superblock) {
-  test_image img{
-      superblock_builder{}
-          .fs_size(16 * kAlignment)
-          .label("my-label")
-          .uuid({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
-          .build()};
+  auto const attr = make_digest(1);
+  auto const tree = make_digest(100);
+
+  test_image img{superblock_builder{}
+                     .fs_size(16 * kAlignment)
+                     .label("my-label")
+                     .uuid(kUuid)
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(attr)
+                     .tree_digest(tree)
+                     .build()};
   auto& ed = img.editor();
 
   EXPECT_EQ(0, ed.image_offset());
+  EXPECT_EQ(kSbSize, ed.section_size());
+  EXPECT_EQ(SUPERBLOCK_MAJOR_VERSION, ed.major_version());
+  EXPECT_EQ(SUPERBLOCK_MINOR_VERSION, ed.minor_version());
   EXPECT_EQ(kAlignment, ed.fs_size_alignment());
   ASSERT_TRUE(ed.fs_size().has_value());
   EXPECT_EQ(16 * kAlignment, ed.fs_size().value());
   EXPECT_EQ("my-label", ed.fs_label());
   ASSERT_TRUE(ed.fs_uuid().has_value());
-  EXPECT_EQ("01020304-0506-0708-090a-0b0c0d0e0f10", ed.fs_uuid().value());
+  EXPECT_EQ(kUuidStr, ed.fs_uuid().value());
+  EXPECT_EQ(kAlgo, ed.digest_algo());
+  EXPECT_EQ(kScheme, ed.digest_scheme_version());
+  EXPECT_TRUE(digest_eq(ed.attr_digest(), attr));
+  EXPECT_TRUE(digest_eq(ed.tree_digest(), tree));
 }
 
-TEST(superblock_editor_test, read_accepts_accepted_minor_versions) {
+TEST(superblock_editor_test, uninitialized_fields_read_as_absent) {
+  test_image img{superblock_builder{}.build()};
+  auto& ed = img.editor();
+
+  EXPECT_FALSE(ed.fs_size().has_value());
+  EXPECT_FALSE(ed.fs_uuid().has_value());
+  EXPECT_TRUE(ed.fs_label().empty());
+  EXPECT_EQ(digest_algorithm::UNINITIALIZED, ed.digest_algo());
+  EXPECT_EQ(0, ed.digest_scheme_version());
+  EXPECT_TRUE(ed.attr_digest().empty());
+  EXPECT_TRUE(ed.tree_digest().empty());
+}
+
+TEST(superblock_editor_test, attribute_digest_without_a_tree_digest) {
+  auto const attr = make_digest(7);
+  test_image img{
+      superblock_builder{}.digests(kAlgo, kScheme).attr_digest(attr).build()};
+
+  EXPECT_TRUE(digest_eq(img.editor().attr_digest(), attr));
+  EXPECT_TRUE(img.editor().tree_digest().empty());
+}
+
+TEST(superblock_editor_test, read_accepts_accepted_section_minor_versions) {
   for (std::uint8_t minor = MINOR_VERSION; minor <= MINOR_VERSION_ACCEPTED;
        ++minor) {
-    auto const sb = superblock_builder{}.minor_version(minor).build();
+    auto const sb = superblock_builder{}.section_minor_version(minor).build();
     std::istringstream is{sb, kBinIn};
     superblock_editor ed;
-    EXPECT_NO_THROW(ed.read(is)) << "minor version " << int(minor);
+    EXPECT_NO_THROW(ed.read(is)) << "section minor version " << int(minor);
   }
-}
-
-TEST(superblock_editor_test, uninitialized_size_and_uuid_read_as_nullopt) {
-  test_image img{superblock_builder{}.build()};
-
-  EXPECT_FALSE(img.editor().fs_size().has_value());
-  EXPECT_FALSE(img.editor().fs_uuid().has_value());
-  EXPECT_TRUE(img.editor().fs_label().empty());
 }
 
 TEST(superblock_editor_test, read_reports_the_image_offset) {
@@ -380,9 +506,9 @@ TEST(superblock_editor_test, read_rejects_an_invalid_section_header) {
          b.raw()[kOffMajor] = static_cast<char>(MAJOR_VERSION + 1);
        }},
       {"minor version too small",
-       [](auto& b) { b.minor_version(MINOR_VERSION - 1); }},
+       [](auto& b) { b.section_minor_version(MINOR_VERSION - 1); }},
       {"minor version too large",
-       [](auto& b) { b.minor_version(MINOR_VERSION_ACCEPTED + 1); }},
+       [](auto& b) { b.section_minor_version(MINOR_VERSION_ACCEPTED + 1); }},
       {"section number",
        [](auto& b) { put_le<std::uint32_t>(b.raw(), kOffNumber, 1); }},
       {"section type",
@@ -392,12 +518,15 @@ TEST(superblock_editor_test, read_rejects_an_invalid_section_header) {
        }},
       {"compression",
        [](auto& b) {
-         // anything but NONE
          put_le<std::uint16_t>(b.raw(), kOffCompression,
                                std::to_underlying(compression_type::NONE) + 1);
        }},
-      {"section length",
-       [](auto& b) { put_le<std::uint64_t>(b.raw(), kOffLength, 128); }},
+      {"length too small",
+       [](auto& b) {
+         put_le<std::uint64_t>(b.raw(), kOffLength, kPayloadSize - 1);
+       }},
+      {"length absurdly large",
+       [](auto& b) { put_le<std::uint64_t>(b.raw(), kOffLength, 1ULL << 40); }},
   };
 
   for (auto const& tc : cases) {
@@ -411,6 +540,49 @@ TEST(superblock_editor_test, read_rejects_an_invalid_section_header) {
   }
 }
 
+TEST(superblock_editor_test, read_rejects_an_invalid_superblock) {
+  struct testcase {
+    char const* what;
+    std::function<void(superblock_builder&)> corrupt;
+  };
+
+  std::vector<testcase> const cases{
+      // major version 0 is the obsolete draft of this structure
+      {"obsolete major version", [](auto& b) { b.sb_major_version(0); }},
+      {"unknown major version",
+       [](auto& b) { b.sb_major_version(SUPERBLOCK_MAJOR_VERSION + 1); }},
+      {"zero minor version", [](auto& b) { b.sb_minor_version(0); }},
+      {"alignment out of range", [](auto& b) { b.align_log2(64); }},
+      {"unterminated label",
+       [](auto& b) { b.label(std::string(kLabelSize, 'x')); }},
+      {"digests without an algorithm",
+       [](auto& b) { b.attr_digest(make_digest(1)); }},
+      {"scheme without an algorithm",
+       [](auto& b) { b.raw()[kOffDigestScheme] = 1; }},
+      {"algorithm without a scheme",
+       [](auto& b) { b.digests(kAlgo, 0).attr_digest(make_digest(1)); }},
+      {"algorithm without an attribute digest",
+       [](auto& b) { b.digests(kAlgo, kScheme); }},
+      {"tree digest without an attribute digest",
+       [](auto& b) { b.digests(kAlgo, kScheme).tree_digest(make_digest(1)); }},
+  };
+
+  for (auto const& tc : cases) {
+    superblock_builder builder;
+    tc.corrupt(builder);
+    std::istringstream is{builder.build(), kBinIn};
+    superblock_editor ed;
+    EXPECT_THROW(ed.read(is), std::runtime_error) << "case: " << tc.what;
+  }
+}
+
+TEST(superblock_editor_test, read_accepts_a_label_filling_the_field) {
+  std::string const label(kMaxLabelLength, 'x');
+  test_image img{superblock_builder{}.label(label).build()};
+
+  EXPECT_EQ(label, img.editor().fs_label());
+}
+
 TEST(superblock_editor_test, read_rejects_broken_hashes) {
   for (std::size_t offset : {kOffXxh3, kOffSha2}) {
     auto sb = superblock_builder{}.build();
@@ -421,11 +593,17 @@ TEST(superblock_editor_test, read_rejects_broken_hashes) {
   }
 }
 
+// The magic and the section header version are the only bytes not covered
+// by the hashes, and both are checked exactly, so nothing can slip through.
 TEST(superblock_editor_test, read_detects_every_single_bit_flip) {
-  auto const sb =
-      superblock_builder{}.fs_size(1234 * kAlignment).label("label").build();
+  auto const sb = superblock_builder{}
+                      .fs_size(1234 * kAlignment)
+                      .label("label")
+                      .uuid(kUuid)
+                      .with_digests()
+                      .build();
 
-  for (std::size_t byte = 0; byte < kSbSize; ++byte) {
+  for (std::size_t byte = 0; byte < sb.size(); ++byte) {
     for (int bit = 0; bit < 8; ++bit) {
       auto corrupted = sb;
       corrupted[byte] = static_cast<char>(corrupted[byte] ^ (1 << bit));
@@ -458,15 +636,26 @@ TEST(superblock_editor_test, read_reports_a_failing_stream) {
 
 TEST(superblock_editor_test, accessors_throw_before_read) {
   superblock_editor ed;
+  auto const digest = make_digest(1);
 
   EXPECT_THROW(ed.image_offset(), std::runtime_error);
+  EXPECT_THROW(ed.section_size(), std::runtime_error);
+  EXPECT_THROW(ed.major_version(), std::runtime_error);
+  EXPECT_THROW(ed.minor_version(), std::runtime_error);
+  EXPECT_THROW(ed.digest_algo(), std::runtime_error);
+  EXPECT_THROW(ed.digest_scheme_version(), std::runtime_error);
   EXPECT_THROW(ed.fs_size_alignment(), std::runtime_error);
   EXPECT_THROW(ed.fs_size(), std::runtime_error);
   EXPECT_THROW(ed.fs_uuid(), std::runtime_error);
   EXPECT_THROW(ed.fs_label(), std::runtime_error);
+  EXPECT_THROW(ed.attr_digest(), std::runtime_error);
+  EXPECT_THROW(ed.tree_digest(), std::runtime_error);
   EXPECT_THROW(ed.init_fs_size(kAlignment), std::runtime_error);
-  EXPECT_THROW(ed.init_fs_uuid(), std::runtime_error);
+  EXPECT_THROW(ed.set_fs_uuid("random"), std::runtime_error);
   EXPECT_THROW(ed.set_fs_label("nope"), std::runtime_error);
+  EXPECT_THROW(ed.set_digests(kAlgo, kScheme, digest), std::runtime_error);
+  EXPECT_THROW(ed.set_tree_digest(digest), std::runtime_error);
+  EXPECT_THROW(ed.clear_digests(), std::runtime_error);
 }
 
 // A superblock that did not pass validation must never be retained, so that
@@ -513,46 +702,45 @@ TEST(superblock_editor_test,
   EXPECT_NO_THROW(ed.read(is));
 }
 
-// Forward Compatibility
 //
-// The editor only interprets fields whose meaning is fixed for all
-// superblock versions. Everything else must be accepted as-is and
-// preserved verbatim.
-TEST(superblock_editor_test, read_accepts_an_unknown_superblock_version) {
+// Forward compatibility
+//
+// The editor only interprets fields whose meaning is fixed for all minor
+// versions. Everything else must be accepted as-is and preserved verbatim.
+//
+
+TEST(superblock_editor_test, read_accepts_a_newer_superblock_minor_version) {
   test_image img{superblock_builder{}
-                     .superblock_version(SUPERBLOCK_VERSION + 1)
+                     .sb_minor_version(SUPERBLOCK_MINOR_VERSION + 4)
                      .label("future")
                      .build()};
 
+  EXPECT_EQ(SUPERBLOCK_MINOR_VERSION + 4, img.editor().minor_version());
   EXPECT_EQ("future", img.editor().fs_label());
 }
 
-TEST(superblock_editor_test, read_accepts_used_reserved_fields) {
+TEST(superblock_editor_test, read_accepts_a_longer_superblock) {
+  auto const extra = filler(64, 21);
   test_image img{superblock_builder{}
-                     .superblock_version(SUPERBLOCK_VERSION + 1)
-                     .reserved0(0xbeef)
-                     .reserved1(filler(kReserved1Size, 3))
+                     .sb_minor_version(SUPERBLOCK_MINOR_VERSION + 1)
+                     .label("grown")
+                     .extra(extra)
                      .build()};
 
-  EXPECT_NO_THROW(img.editor().set_fs_label("still works"));
-}
-
-TEST(superblock_editor_test, read_does_not_interpret_the_size) {
-  // no alignment checks on read: whatever is in the image is what we report
-  test_image img{superblock_builder{}
-                     .alignment(kAlignment)
-                     .fs_size(kAlignment + 1)
-                     .build()};
-
-  EXPECT_EQ(kAlignment + 1, img.editor().fs_size().value());
+  EXPECT_EQ(kSbSize + extra.size(), img.editor().section_size());
+  EXPECT_EQ("grown", img.editor().fs_label());
 }
 
 TEST(superblock_editor_test, update_preserves_unknown_fields) {
-  auto const reserved = filler(kReserved1Size, 42);
+  auto const res1 = filler(kReserved1Size, 41);
+  auto const res2 = filler(kReserved2Size, 42);
+  auto const extra = filler(48, 43);
+
   test_image img{superblock_builder{}
-                     .superblock_version(SUPERBLOCK_VERSION + 1)
-                     .reserved0(0xbeef)
-                     .reserved1(reserved)
+                     .sb_minor_version(SUPERBLOCK_MINOR_VERSION + 1)
+                     .reserved1(res1)
+                     .reserved2(res2)
+                     .extra(extra)
                      .build()};
 
   img.editor().set_fs_label("whatever");
@@ -560,20 +748,72 @@ TEST(superblock_editor_test, update_preserves_unknown_fields) {
 
   auto const updated = img.superblock();
 
-  EXPECT_EQ(img.original().substr(kOffSbVersion, 2),
-            updated.substr(kOffSbVersion, 2));
-  EXPECT_EQ(img.original().substr(kOffReserved0, 2),
-            updated.substr(kOffReserved0, 2));
-  EXPECT_EQ(reserved, updated.substr(kOffReserved1, kReserved1Size));
+  EXPECT_EQ(res1, updated.substr(kOffReserved1, kReserved1Size));
+  EXPECT_EQ(res2, updated.substr(kOffReserved2, kReserved2Size));
+  EXPECT_EQ(extra, updated.substr(kSbSize, extra.size()));
+  // an edit must never lower the minor version ...
+  EXPECT_EQ(SUPERBLOCK_MINOR_VERSION + 1, img.editor().minor_version());
+  EXPECT_EQ(static_cast<char>(SUPERBLOCK_MINOR_VERSION + 1),
+            updated[kOffSbMinor]);
 }
 
+// ... and must not raise it either, unless a field introduced by a later
+// minor version was actually written.
+TEST(superblock_editor_test, update_does_not_bump_the_minor_version) {
+  test_image img{superblock_builder{}.label("before").build()};
+
+  img.editor().set_fs_label("after");
+  img.update();
+
+  EXPECT_EQ(SUPERBLOCK_MINOR_VERSION, img.editor().minor_version());
+  EXPECT_EQ(static_cast<char>(SUPERBLOCK_MINOR_VERSION),
+            img.superblock()[kOffSbMinor]);
+}
+
+// An unknown algorithm means the digests are present but uninterpretable:
+// how many of the stored bytes are significant follows from the algorithm.
+// They must read as empty, but survive an unrelated edit untouched.
+TEST(superblock_editor_test, an_unknown_digest_algorithm_is_preserved) {
+  auto const attr = make_digest(8);
+  test_image img{superblock_builder{}
+                     .digests(kUnknownAlgo, kScheme)
+                     .attr_digest(attr)
+                     .build()};
+
+  EXPECT_EQ(kUnknownAlgo, img.editor().digest_algo());
+  EXPECT_FALSE(is_known_digest_algorithm(img.editor().digest_algo()));
+  EXPECT_TRUE(img.editor().attr_digest().empty());
+  EXPECT_TRUE(img.editor().tree_digest().empty());
+
+  img.editor().set_fs_label("unrelated edit");
+  img.update();
+
+  EXPECT_EQ(as_chars(attr),
+            img.superblock().substr(kOffAttrDigest, kDigestSize));
+}
+
+TEST(superblock_editor_test,
+     a_tree_digest_cannot_be_added_under_an_unknown_algorithm) {
+  test_image img{superblock_builder{}
+                     .digests(kUnknownAlgo, kScheme)
+                     .attr_digest(make_digest(8))
+                     .build()};
+
+  EXPECT_THROW(img.editor().set_tree_digest(make_digest(9)),
+               std::runtime_error);
+}
+
+//
+// Updating
+//
+
 TEST(superblock_editor_test, update_without_modification_is_byte_identical) {
-  test_image img{
-      superblock_builder{}
-          .fs_size(42 * kAlignment)
-          .label("some label")
-          .uuid({0xde, 0xad, 0xbe, 0xef, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
-          .build()};
+  test_image img{superblock_builder{}
+                     .fs_size(42 * kAlignment)
+                     .label("some label")
+                     .uuid(kUuid)
+                     .with_digests()
+                     .build()};
 
   img.update();
 
@@ -584,8 +824,9 @@ TEST(superblock_editor_test, update_is_idempotent) {
   test_image img{superblock_builder{}.build()};
 
   img.editor().init_fs_size(7 * kAlignment);
-  img.editor().init_fs_uuid();
+  img.editor().set_fs_uuid(superblock_editor::kUuidRandom);
   img.editor().set_fs_label("label");
+  img.editor().set_digests(kAlgo, kScheme, make_digest(3), make_digest(9));
 
   ASSERT_NO_THROW(img.update());
   auto const first = img.current();
@@ -607,9 +848,13 @@ TEST(superblock_editor_test, update_throws_before_read) {
 TEST(superblock_editor_test, updated_superblock_can_be_read_back) {
   test_image img{superblock_builder{}.build()};
 
+  auto const attr = make_digest(11);
+  auto const tree = make_digest(77);
+
   img.editor().init_fs_size(123 * kAlignment);
-  img.editor().init_fs_uuid();
+  img.editor().set_fs_uuid(kUuidStr);
   img.editor().set_fs_label("round trip");
+  img.editor().set_digests(kAlgo, kScheme, attr, tree);
 
   img.update();
 
@@ -622,25 +867,32 @@ TEST(superblock_editor_test, updated_superblock_can_be_read_back) {
   superblock_editor reread;
   ASSERT_NO_THROW(reread.read(is));
   EXPECT_EQ(123 * kAlignment, reread.fs_size().value());
-  EXPECT_EQ(img.editor().fs_uuid(), reread.fs_uuid());
+  EXPECT_EQ(kUuidStr, reread.fs_uuid().value());
   EXPECT_EQ("round trip", reread.fs_label());
+  EXPECT_EQ(kAlgo, reread.digest_algo());
+  EXPECT_EQ(kScheme, reread.digest_scheme_version());
+  EXPECT_TRUE(digest_eq(reread.attr_digest(), attr));
+  EXPECT_TRUE(digest_eq(reread.tree_digest(), tree));
 }
 
 TEST(superblock_editor_test, update_only_modifies_the_expected_fields) {
   test_image img{superblock_builder{}.label("aaaa").build()};
 
   img.editor().init_fs_size(2 * kAlignment);
-  img.editor().init_fs_uuid();
+  img.editor().set_fs_uuid(kUuidStr);
   img.editor().set_fs_label("bbbbbb");
+  img.editor().set_digests(kAlgo, kScheme, make_digest(5));
 
   img.update();
 
   for (auto offset : diff_offsets(img.original(), img.current())) {
     EXPECT_TRUE(in_any_range(offset, {{kOffSha2, 32},
                                       {kOffXxh3, 8},
+                                      {kOffDigestAlgo, 2},
                                       {kOffFsSize, 8},
                                       {kOffUuid, kUuidSize},
-                                      {kOffLabel, kLabelSize}}))
+                                      {kOffLabel, kLabelSize},
+                                      {kOffAttrDigest, kDigestSize}}))
         << "unexpected modification at offset " << offset;
   }
 }
@@ -655,7 +907,7 @@ TEST(superblock_editor_test, update_does_not_touch_the_rest_of_the_image) {
   test_image img{header + sections, header.size()};
 
   img.editor().init_fs_size(kImageSize);
-  img.editor().init_fs_uuid();
+  img.editor().set_fs_uuid(superblock_editor::kUuidRandom);
   img.editor().set_fs_label("after");
 
   ASSERT_NO_THROW(img.update());
@@ -765,8 +1017,8 @@ TEST(superblock_editor_test, update_puts_exactly_one_superblock) {
 
   NiceMock<put_tracking_stringbuf> buf{sb};
 
-  // exactly one put of exactly 256 bytes, and no character-wise writes
-  // anything else is an unexpected call and fails the test
+  // exactly one put of exactly the section size, and no character-wise
+  // writes; anything else is an unexpected call and fails the test
   EXPECT_CALL(buf, on_put(static_cast<std::streamsize>(kSbSize)))
       .Times(1)
       .WillOnce(Return(true));
@@ -810,6 +1062,10 @@ TEST(superblock_editor_test, update_reports_a_stream_that_is_already_bad) {
   EXPECT_EQ(sb, io.str());
 }
 
+//
+// fs_size (write-once)
+//
+
 TEST(superblock_editor_test, init_fs_size_sets_the_size) {
   test_image img{superblock_builder{}.build()};
 
@@ -835,8 +1091,7 @@ TEST(superblock_editor_test, init_fs_size_throws_if_already_set_in_the_image) {
 
 TEST(superblock_editor_test, init_fs_size_rejects_invalid_sizes) {
   for (std::uint64_t size :
-       {std::uint64_t{0}, std::uint64_t{128}, std::uint64_t{kAlignment + 1},
-        std::uint64_t{kAlignment - 1}}) {
+       {std::uint64_t{0}, std::uint64_t{128}, kAlignment + 1, kAlignment - 1}) {
     test_image img{superblock_builder{}.build()};
     EXPECT_THROW(img.editor().init_fs_size(size), std::runtime_error)
         << "size " << size;
@@ -847,95 +1102,113 @@ TEST(superblock_editor_test, init_fs_size_rejects_invalid_sizes) {
   }
 }
 
-TEST(superblock_editor_test, init_fs_size_rejects_an_invalid_alignment) {
-  // an alignment of 0 is not legal, "no alignment" is expressed as 1
-  test_image img{superblock_builder{}.alignment(0).build()};
-
-  EXPECT_THROW(img.editor().init_fs_size(1000000), std::runtime_error);
-}
-
 TEST(superblock_editor_test, init_fs_size_with_an_alignment_of_one) {
-  test_image img{superblock_builder{}.alignment(1).build()};
+  // a log2 alignment of zero means no alignment at all
+  test_image img{superblock_builder{}.align_log2(0).build()};
 
+  EXPECT_EQ(1, img.editor().fs_size_alignment());
   ASSERT_NO_THROW(img.editor().init_fs_size(1000003));
   EXPECT_EQ(1000003, img.editor().fs_size().value());
   EXPECT_NO_THROW(img.update());
 }
 
-TEST(superblock_editor_test, init_fs_uuid_generates_a_non_nil_uuid) {
+TEST(superblock_editor_test, init_fs_size_accounts_for_a_longer_superblock) {
+  auto const extra = filler(4096, 31);
+  test_image img{superblock_builder{}.align_log2(0).extra(extra).build()};
+
+  // anything smaller than the section itself cannot be a valid image size
+  EXPECT_THROW(img.editor().init_fs_size(kSbSize), std::runtime_error);
+  EXPECT_NO_THROW(img.editor().init_fs_size(kSbSize + extra.size()));
+}
+
+//
+// UUID
+//
+
+TEST(superblock_editor_test, set_fs_uuid_generates_a_random_uuid) {
   test_image img{superblock_builder{}.build()};
 
   ASSERT_FALSE(img.editor().fs_uuid().has_value());
-  img.editor().init_fs_uuid();
+  img.editor().set_fs_uuid(superblock_editor::kUuidRandom);
   ASSERT_TRUE(img.editor().fs_uuid().has_value());
   EXPECT_EQ(36, img.editor().fs_uuid().value().size());
-  EXPECT_NE("00000000-0000-0000-0000-000000000000",
-            img.editor().fs_uuid().value());
+  EXPECT_NE(kNilUuidStr, img.editor().fs_uuid().value());
+  // boost's random generator produces version 4 UUIDs
+  EXPECT_EQ('4', img.editor().fs_uuid().value()[14]);
 }
 
-TEST(superblock_editor_test, init_fs_uuid_generates_distinct_uuids) {
+TEST(superblock_editor_test, random_uuids_are_distinct) {
   auto const sb = superblock_builder{}.build();
 
   test_image a{sb};
   test_image b{sb};
 
-  a.editor().init_fs_uuid();
-  b.editor().init_fs_uuid();
+  a.editor().set_fs_uuid(superblock_editor::kUuidRandom);
+  b.editor().set_fs_uuid(superblock_editor::kUuidRandom);
 
   EXPECT_NE(a.editor().fs_uuid().value(), b.editor().fs_uuid().value());
 }
 
-TEST(superblock_editor_test, init_fs_uuid_twice_throws) {
+TEST(superblock_editor_test, set_fs_uuid_roundtrips_through_the_image) {
   test_image img{superblock_builder{}.build()};
 
-  ASSERT_NO_THROW(img.editor().init_fs_uuid());
-  auto const uuid = img.editor().fs_uuid();
-  EXPECT_THROW(img.editor().init_fs_uuid(), std::runtime_error);
-  EXPECT_EQ(uuid, img.editor().fs_uuid());
-}
-
-TEST(superblock_editor_test, init_fs_uuid_throws_if_already_set_in_the_image) {
-  test_image img{
-      superblock_builder{}
-          .uuid({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
-          .build()};
-
-  EXPECT_THROW(img.editor().init_fs_uuid(), std::runtime_error);
-}
-
-TEST(superblock_editor_test, init_fs_uuid_with_explicit_value) {
-  std::array<std::uint8_t, kUuidSize> const uuid{
-      0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
-      0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10};
-
-  test_image img{superblock_builder{}.build()};
-  img.editor().init_fs_uuid(uuid);
-
-  EXPECT_EQ("01234567-89ab-cdef-fedc-ba9876543210",
-            img.editor().fs_uuid().value());
+  img.editor().set_fs_uuid(kUuidStr);
+  EXPECT_EQ(kUuidStr, img.editor().fs_uuid().value());
 
   img.update();
 
-  EXPECT_EQ(
-      std::string(reinterpret_cast<char const*>(uuid.data()), uuid.size()),
-      img.superblock().substr(kOffUuid, kUuidSize));
+  EXPECT_EQ(as_chars(kUuid), img.superblock().substr(kOffUuid, kUuidSize));
 }
 
-TEST(superblock_editor_test, init_fs_uuid_rejects_a_nil_uuid) {
-  std::array<std::uint8_t, kUuidSize> const nil{};
+TEST(superblock_editor_test, set_fs_uuid_replaces_an_existing_uuid) {
+  constexpr std::string_view other{"aabbccdd-eeff-4a0b-b102-030405060708"};
 
-  test_image img{superblock_builder{}.build()};
+  test_image img{superblock_builder{}.uuid(kUuid).build()};
 
-  EXPECT_THROW(img.editor().init_fs_uuid(nil), std::runtime_error);
-  EXPECT_FALSE(img.editor().fs_uuid().has_value());
+  ASSERT_NO_THROW(img.editor().set_fs_uuid(other));
+  EXPECT_EQ(other, img.editor().fs_uuid().value());
 }
+
+TEST(superblock_editor_test, nil_removes_the_uuid) {
+  for (auto const nil : {superblock_editor::kUuidNil, kNilUuidStr}) {
+    test_image img{superblock_builder{}.uuid(kUuid).build()};
+
+    ASSERT_NO_THROW(img.editor().set_fs_uuid(nil)) << "spelling: " << nil;
+    EXPECT_FALSE(img.editor().fs_uuid().has_value()) << "spelling: " << nil;
+
+    img.update();
+
+    EXPECT_EQ(std::string(kUuidSize, '\0'),
+              img.superblock().substr(kOffUuid, kUuidSize));
+  }
+}
+
+TEST(superblock_editor_test, set_fs_uuid_rejects_invalid_input) {
+  for (auto const uuid :
+       {""sv, "not-a-uuid"sv, "RANDOM"sv, "Nil"sv,
+        "01234567-89ab-4cde-8fdc-ba98765432"sv, kBadVariantUuidStr}) {
+    test_image img{superblock_builder{}.uuid(kUuid).build()};
+
+    EXPECT_THROW(img.editor().set_fs_uuid(uuid), std::runtime_error)
+        << "uuid: " << uuid;
+    // a rejected UUID must leave the previous one intact
+    EXPECT_EQ(kUuidStr, img.editor().fs_uuid().value()) << "uuid: " << uuid;
+
+    img.update();
+    EXPECT_EQ(img.original(), img.current()) << "uuid: " << uuid;
+  }
+}
+
+//
+// Label
+//
 
 TEST(superblock_editor_test, set_fs_label_roundtrip) {
   for (auto label :
-       {""sv, "x"sv, "a slightly longer label"sv,
-        "0123456789012345678901234567890123456789012345678901234567890123"sv}) {
+       {""sv, "x"sv, "a slightly longer label"sv, "ümlaut and 日本語"sv,
+        "012345678901234567890123456789012345678901234567890123456789012"sv}) {
     test_image img{superblock_builder{}.build()};
-    ASSERT_NO_THROW(img.editor().set_fs_label(label));
+    ASSERT_NO_THROW(img.editor().set_fs_label(label)) << "label " << label;
     EXPECT_EQ(label, img.editor().fs_label());
 
     img.update();
@@ -955,30 +1228,212 @@ TEST(superblock_editor_test, set_fs_label_zero_pads_the_remainder) {
             img.superblock().substr(kOffLabel, kLabelSize));
 }
 
-TEST(superblock_editor_test, set_fs_label_rejects_a_too_long_label) {
-  test_image img{superblock_builder{}.label("keep me").build()};
+TEST(superblock_editor_test, an_empty_label_removes_it) {
+  test_image img{superblock_builder{}.label("goodbye").build()};
 
-  EXPECT_THROW(img.editor().set_fs_label(std::string(kLabelSize + 1, 'x')),
+  img.editor().set_fs_label("");
+  EXPECT_TRUE(img.editor().fs_label().empty());
+
+  img.update();
+
+  EXPECT_EQ(std::string(kLabelSize, '\0'),
+            img.superblock().substr(kOffLabel, kLabelSize));
+}
+
+TEST(superblock_editor_test, set_fs_label_rejects_invalid_labels) {
+  struct testcase {
+    char const* what;
+    std::string label;
+  };
+
+  std::vector<testcase> const cases{
+      {"too long", std::string(kMaxLabelLength + 1, 'x')},
+      {"embedded null", std::string{"foo\0bar"sv}},
+      {"truncated utf-8", "caf\xc3"},
+      {"invalid utf-8", "\xff\xfe"},
+      {"overlong encoding", "\xc0\xaf"},
+      {"surrogate", "\xed\xa0\x80"},
+  };
+
+  for (auto const& tc : cases) {
+    test_image img{superblock_builder{}.label("keep me").build()};
+
+    EXPECT_THROW(img.editor().set_fs_label(tc.label), std::runtime_error)
+        << "case: " << tc.what;
+    EXPECT_EQ("keep me", img.editor().fs_label()) << "case: " << tc.what;
+
+    img.update();
+    EXPECT_EQ(img.original(), img.current()) << "case: " << tc.what;
+  }
+}
+
+//
+// Digests
+//
+
+TEST(superblock_editor_test, set_digests_with_attributes_only) {
+  auto const attr = make_digest(2);
+  test_image img{superblock_builder{}.build()};
+
+  img.editor().set_digests(kAlgo, kScheme, attr);
+
+  EXPECT_EQ(kAlgo, img.editor().digest_algo());
+  EXPECT_EQ(kScheme, img.editor().digest_scheme_version());
+  EXPECT_TRUE(digest_eq(img.editor().attr_digest(), attr));
+  EXPECT_TRUE(img.editor().tree_digest().empty());
+
+  img.update();
+
+  EXPECT_EQ(as_chars(attr),
+            img.superblock().substr(kOffAttrDigest, kDigestSize));
+  EXPECT_EQ(std::string(kDigestSize, '\0'),
+            img.superblock().substr(kOffTreeDigest, kDigestSize));
+}
+
+TEST(superblock_editor_test, set_digests_with_both_digests) {
+  auto const attr = make_digest(2);
+  auto const tree = make_digest(200);
+  test_image img{superblock_builder{}.build()};
+
+  img.editor().set_digests(kAlgo, kScheme, attr, tree);
+
+  EXPECT_TRUE(digest_eq(img.editor().attr_digest(), attr));
+  EXPECT_TRUE(digest_eq(img.editor().tree_digest(), tree));
+}
+
+TEST(superblock_editor_test, set_digests_replaces_an_existing_pair) {
+  test_image img{superblock_builder{}
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(make_digest(4))
+                     .tree_digest(make_digest(44))
+                     .build()};
+
+  auto const attr = make_digest(6);
+  auto const tree = make_digest(66);
+
+  img.editor().set_digests(kAlgo, kScheme + 1, attr, tree);
+
+  EXPECT_EQ(kScheme + 1, img.editor().digest_scheme_version());
+  EXPECT_TRUE(digest_eq(img.editor().attr_digest(), attr));
+  EXPECT_TRUE(digest_eq(img.editor().tree_digest(), tree));
+}
+
+// A tree digest computed under a different scheme is meaningless, so
+// replacing the pair without one must clear it rather than leave it behind.
+TEST(superblock_editor_test, set_digests_without_a_tree_digest_clears_it) {
+  test_image img{superblock_builder{}
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(make_digest(4))
+                     .tree_digest(make_digest(44))
+                     .build()};
+
+  img.editor().set_digests(kAlgo, kScheme + 1, make_digest(6));
+
+  EXPECT_TRUE(img.editor().tree_digest().empty());
+
+  img.update();
+
+  EXPECT_EQ(std::string(kDigestSize, '\0'),
+            img.superblock().substr(kOffTreeDigest, kDigestSize));
+}
+
+TEST(superblock_editor_test, set_digests_rejects_invalid_arguments) {
+  auto const attr = make_digest(2);
+  digest_bytes const zero{};
+  std::array<std::uint8_t, kDigestSize / 2> const too_short{1, 2, 3, 4};
+
+  struct testcase {
+    char const* what;
+    std::function<void(superblock_editor&)> apply;
+  };
+
+  std::vector<testcase> const cases{
+      {"uninitialized algorithm",
+       [&](auto& ed) {
+         ed.set_digests(digest_algorithm::UNINITIALIZED, kScheme, attr);
+       }},
+      {"unknown algorithm",
+       [&](auto& ed) { ed.set_digests(kUnknownAlgo, kScheme, attr); }},
+      {"zero scheme version",
+       [&](auto& ed) { ed.set_digests(kAlgo, 0, attr); }},
+      {"all-zero attribute digest",
+       [&](auto& ed) { ed.set_digests(kAlgo, kScheme, zero); }},
+      {"all-zero tree digest",
+       [&](auto& ed) { ed.set_digests(kAlgo, kScheme, attr, zero); }},
+      {"short attribute digest",
+       [&](auto& ed) { ed.set_digests(kAlgo, kScheme, too_short); }},
+      {"short tree digest",
+       [&](auto& ed) { ed.set_digests(kAlgo, kScheme, attr, too_short); }},
+  };
+
+  for (auto const& tc : cases) {
+    test_image img{superblock_builder{}.build()};
+    EXPECT_THROW(tc.apply(img.editor()), std::runtime_error)
+        << "case: " << tc.what;
+    EXPECT_EQ(digest_algorithm::UNINITIALIZED, img.editor().digest_algo())
+        << "case: " << tc.what;
+
+    img.update();
+    EXPECT_EQ(img.original(), img.current()) << "case: " << tc.what;
+  }
+}
+
+TEST(superblock_editor_test, set_tree_digest_completes_an_existing_pair) {
+  auto const attr = make_digest(4);
+  auto const tree = make_digest(44);
+
+  test_image img{
+      superblock_builder{}.digests(kAlgo, kScheme).attr_digest(attr).build()};
+
+  ASSERT_TRUE(img.editor().tree_digest().empty());
+  img.editor().set_tree_digest(tree);
+  EXPECT_TRUE(digest_eq(img.editor().tree_digest(), tree));
+  EXPECT_TRUE(digest_eq(img.editor().attr_digest(), attr));
+
+  img.update();
+
+  EXPECT_EQ(as_chars(tree),
+            img.superblock().substr(kOffTreeDigest, kDigestSize));
+}
+
+TEST(superblock_editor_test, set_tree_digest_replaces_an_existing_one) {
+  test_image img{superblock_builder{}
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(make_digest(4))
+                     .tree_digest(make_digest(44))
+                     .build()};
+
+  auto const tree = make_digest(55);
+  img.editor().set_tree_digest(tree);
+  EXPECT_TRUE(digest_eq(img.editor().tree_digest(), tree));
+}
+
+TEST(superblock_editor_test, set_tree_digest_without_attributes_throws) {
+  test_image img{superblock_builder{}.build()};
+
+  EXPECT_THROW(img.editor().set_tree_digest(make_digest(1)),
                std::runtime_error);
-  EXPECT_EQ("keep me", img.editor().fs_label());
-
-  img.update();
-  EXPECT_EQ(img.original(), img.current());
+  EXPECT_TRUE(img.editor().tree_digest().empty());
 }
 
-TEST(superblock_editor_test, set_fs_label_rejects_embedded_null_characters) {
-  test_image img{superblock_builder{}.label("keep me").build()};
+TEST(superblock_editor_test, clear_digests) {
+  test_image img{superblock_builder{}
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(make_digest(4))
+                     .tree_digest(make_digest(44))
+                     .build()};
 
-  EXPECT_THROW(img.editor().set_fs_label("foo\0bar"sv), std::runtime_error);
-  EXPECT_EQ("keep me", img.editor().fs_label());
+  img.editor().clear_digests();
+
+  EXPECT_EQ(digest_algorithm::UNINITIALIZED, img.editor().digest_algo());
+  EXPECT_EQ(0, img.editor().digest_scheme_version());
+  EXPECT_TRUE(img.editor().attr_digest().empty());
+  EXPECT_TRUE(img.editor().tree_digest().empty());
 
   img.update();
-  EXPECT_EQ(img.original(), img.current());
-}
 
-TEST(superblock_editor_test, label_filling_the_whole_field_is_not_truncated) {
-  std::string const label(kLabelSize, 'x');
-  test_image img{superblock_builder{}.label(label).build()};
-
-  EXPECT_EQ(label, img.editor().fs_label());
+  auto const sb = img.superblock();
+  EXPECT_EQ(std::string(2, '\0'), sb.substr(kOffDigestAlgo, 2));
+  EXPECT_EQ(std::string(2 * kDigestSize, '\0'),
+            sb.substr(kOffAttrDigest, 2 * kDigestSize));
 }
