@@ -35,6 +35,7 @@
 #include <dwarfs/compression.h>
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/superblock.h>
 
 namespace dwarfs {
 
@@ -53,6 +54,13 @@ constexpr container::sorted_array_map sections{
     SECTION_TYPE_(SUPERBLOCK),
     SECTION_TYPE_(PADDING),
 #undef SECTION_TYPE_
+};
+
+constexpr container::sorted_array_map digest_algorithms{
+#define DIGEST_ALGO_(x) std::pair{digest_algorithm::x, #x ## sv}
+    DIGEST_ALGO_(UNINITIALIZED),
+    DIGEST_ALGO_(BLAKE3_256),
+#undef DIGEST_ALGO_
 };
 
 constexpr container::sorted_array_map compressions {
@@ -81,12 +89,20 @@ bool is_known_section_type(section_type type) {
   return sections.contains(type);
 }
 
+bool is_known_digest_algorithm(digest_algorithm algo) {
+  return digest_algorithms.contains(algo);
+}
+
 std::string get_compression_name(compression_type type) {
   return get_default(compressions, type);
 }
 
 std::string get_section_name(section_type type) {
   return get_default(sections, type);
+}
+
+std::string get_digest_algorithm_name(digest_algorithm algo) {
+  return get_default(digest_algorithms, algo);
 }
 
 void section_header::dump(std::ostream& os) const {
