@@ -92,18 +92,158 @@ bool wstr_equals_nocase(std::wstring_view a, std::wstring_view b) {
                                 static_cast<int>(b.size()), TRUE) == CSTR_EQUAL;
 }
 
-bool is_executable(fs::path const& path) {
+bool is_executable_image(HANDLE h) {
+  HANDLE const mapping = ::CreateFileMappingW(
+      h, nullptr, PAGE_READONLY | SEC_IMAGE_NO_EXECUTE, 0, 0, nullptr);
+
+  if (!mapping) {
+    return false;
+  }
+
+  void const* const view = ::MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+
+  ::CloseHandle(mapping);
+
+  if (!view) {
+    return false;
+  }
+
+  auto const* const base = static_cast<std::byte const*>(view);
+  auto const* const dos = reinterpret_cast<IMAGE_DOS_HEADER const*>(base);
+
+  bool executable = false;
+
+  if (dos->e_magic == IMAGE_DOS_SIGNATURE && dos->e_lfanew > 0) {
+    auto const* const nt = reinterpret_cast<DWORD const*>(base + dos->e_lfanew);
+
+    if (*nt == IMAGE_NT_SIGNATURE) {
+      auto const* const file_header =
+          reinterpret_cast<IMAGE_FILE_HEADER const*>(
+              reinterpret_cast<std::byte const*>(nt) + sizeof(DWORD));
+
+      executable =
+          (file_header->Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE) != 0;
+    }
+  }
+
+  ::UnmapViewOfFile(view);
+
+  return executable;
+}
+
+bool is_executable(HANDLE h, fs::path const& path,
+                   file_stat_options const& opts) {
+  using namespace std::string_view_literals;
+
   static constexpr std::array executable_exts{
-      std::wstring_view{L".exe"},
-      std::wstring_view{L".com"},
-      std::wstring_view{L".bat"},
-      std::wstring_view{L".cmd"},
+      // These are most certainly executable
+      L".bat"sv, L".cmd"sv, L".com"sv, L".dll"sv, L".exe"sv,
   };
 
-  return std::ranges::any_of(executable_exts,
-                             [ext = path.extension().wstring()](auto const& e) {
-                               return wstr_equals_nocase(ext, e);
-                             });
+  static constexpr std::array non_executable_exts{
+      // Text / structured data
+      L".txt"sv,
+      L".md"sv,
+      L".rst"sv,
+      L".log"sv,
+      L".csv"sv,
+      L".tsv"sv,
+      L".json"sv,
+      L".xml"sv,
+      L".yaml"sv,
+      L".yml"sv,
+      L".toml"sv,
+      L".ini"sv,
+      L".cfg"sv,
+      L".conf"sv,
+
+      // Documents
+      L".pdf"sv,
+      L".rtf"sv,
+      L".doc"sv,
+      L".docx"sv,
+      L".xls"sv,
+      L".xlsx"sv,
+      L".ppt"sv,
+      L".pptx"sv,
+      L".odt"sv,
+      L".ods"sv,
+      L".odp"sv,
+
+      // Images
+      L".jpg"sv,
+      L".jpeg"sv,
+      L".png"sv,
+      L".gif"sv,
+      L".bmp"sv,
+      L".tif"sv,
+      L".tiff"sv,
+      L".webp"sv,
+      L".svg"sv,
+
+      // Audio
+      L".mp3"sv,
+      L".wav"sv,
+      L".flac"sv,
+      L".ogg"sv,
+      L".opus"sv,
+      L".aac"sv,
+      L".m4a"sv,
+
+      // Video
+      L".mp4"sv,
+      L".mkv"sv,
+      L".avi"sv,
+      L".mov"sv,
+      L".wmv"sv,
+      L".webm"sv,
+
+      // Archives / compressed data
+      L".zip"sv,
+      L".7z"sv,
+      L".rar"sv,
+      L".tar"sv,
+      L".gz"sv,
+      L".bz2"sv,
+      L".xz"sv,
+      L".zst"sv,
+
+      // Fonts
+      L".ttf"sv,
+      L".otf"sv,
+      L".woff"sv,
+      L".woff2"sv,
+
+      // Development artifacts
+      L".c"sv,
+      L".cc"sv,
+      L".cpp"sv,
+      L".cxx"sv,
+      L".h"sv,
+      L".hpp"sv,
+      L".obj"sv,
+      L".lib"sv,
+  };
+
+  auto const ext = path.extension().wstring();
+  auto ext_is_any_of = [&ext](auto const& candidates) {
+    return std::ranges::any_of(
+        candidates, [&](auto const& e) { return wstr_equals_nocase(ext, e); });
+  };
+
+  if (ext_is_any_of(executable_exts)) {
+    return true;
+  }
+
+  if (ext_is_any_of(non_executable_exts)) {
+    return false;
+  }
+
+  if (opts.intrusive) {
+    return is_executable_image(h);
+  }
+
+  return false;
 }
 
 file_stat::off_type
@@ -283,7 +423,7 @@ file_stat::file_stat() = default;
 
 #ifdef _WIN32
 
-file_stat::file_stat(fs::path const& path) {
+file_stat::file_stat(fs::path const& path, file_stat_options const& opts) {
   auto set_exception = [this, &path](std::string const& what) {
     exception_ = std::make_exception_ptr(std::system_error(
         ::GetLastError(), std::system_category(),
@@ -347,7 +487,7 @@ file_stat::file_stat(fs::path const& path) {
   } else {
     mode_ = posix_file_type::regular;
     mode_ |= is_readonly ? 0444 : 0644;
-    if (is_executable(path)) {
+    if (is_executable(h, path, opts)) {
       mode_ |= 0111;
     }
   }
@@ -455,7 +595,7 @@ file_stat::file_stat(fs::path const& path) {
 
 #else
 
-file_stat::file_stat(fs::path const& path) {
+file_stat::file_stat(fs::path const& path, file_stat_options const&) {
   struct ::stat st;
 
   if (::lstat(path.c_str(), &st) != 0) {
