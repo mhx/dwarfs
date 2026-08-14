@@ -39,6 +39,14 @@
 
 namespace dwarfs {
 
+struct file_stat_options {
+  // If true, `file_stat` construction can potentially perform operations that
+  // modify file metadata. Currently, this only affects Windows, where regular
+  // files are mapped to check if they're executable, which will update the
+  // file's last access time.
+  bool intrusive{false};
+};
+
 class file_stat {
  public:
   using valid_fields_type = uint32_t;
@@ -81,7 +89,8 @@ class file_stat {
   static std::chrono::nanoseconds native_time_resolution();
 
   file_stat();
-  explicit file_stat(std::filesystem::path const& path);
+  explicit file_stat(std::filesystem::path const& path,
+                     file_stat_options const& opts = {});
 
   void ensure_valid(valid_fields_type fields) const;
 
