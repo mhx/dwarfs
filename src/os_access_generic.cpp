@@ -161,7 +161,7 @@ os_access_generic::opendir(fs::path const& path) const {
 }
 
 file_stat os_access_generic::symlink_info(fs::path const& path) const {
-  return file_stat(path);
+  return file_stat(path, {.intrusive = true});
 }
 
 fs::path os_access_generic::read_symlink(fs::path const& path) const {
