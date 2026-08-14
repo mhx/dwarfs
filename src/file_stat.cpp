@@ -87,6 +87,11 @@ int utf8_len_of_print_name(WCHAR const* wstr, int wlen_chars) {
   return std::max(0, need);
 };
 
+bool wstr_equals_nocase(std::wstring_view a, std::wstring_view b) {
+  return ::CompareStringOrdinal(a.data(), static_cast<int>(a.size()), b.data(),
+                                static_cast<int>(b.size()), TRUE) == CSTR_EQUAL;
+}
+
 bool is_executable(fs::path const& path) {
   static constexpr std::array executable_exts{
       std::wstring_view{L".exe"},
@@ -95,9 +100,10 @@ bool is_executable(fs::path const& path) {
       std::wstring_view{L".cmd"},
   };
 
-  return std::ranges::any_of(
-      executable_exts,
-      [ext = path.extension().wstring()](auto const& e) { return ext == e; });
+  return std::ranges::any_of(executable_exts,
+                             [ext = path.extension().wstring()](auto const& e) {
+                               return wstr_equals_nocase(ext, e);
+                             });
 }
 
 file_stat::off_type
