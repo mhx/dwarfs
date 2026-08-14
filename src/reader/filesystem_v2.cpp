@@ -840,6 +840,15 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
       if (auto const label = sbe->fs_label(); !label.empty()) {
         os << "filesystem label: " << label << "\n";
       }
+      if (auto const algo = sbe->digest_algo();
+          algo != digest_algorithm::UNINITIALIZED) {
+        os << "digests: " << get_digest_algorithm_name(algo)
+           << " (scheme version " << sbe->digest_scheme_version() << ")\n";
+        os << "  attribute digest: "
+           << hexlify(std::as_bytes(sbe->attr_digest())) << "\n";
+        os << "  tree digest     : "
+           << hexlify(std::as_bytes(sbe->tree_digest())) << "\n";
+      }
     } else {
       os << "no superblock found\n";
     }
