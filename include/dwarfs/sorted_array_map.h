@@ -35,6 +35,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include <dwarfs/detail/compile_time_sort.h>
+
 namespace dwarfs {
 
 template <typename Key, typename Value, std::size_t N>
@@ -130,8 +132,13 @@ class sorted_array_map {
  private:
   static constexpr std::array<value_type, N>
   sort(std::array<value_type, N> arr) {
-    if (!std::ranges::is_sorted(arr, std::ranges::less{}, &value_type::first)) {
-      std::ranges::sort(arr, std::ranges::less{}, &value_type::first);
+    if consteval {
+      detail::compile_time_sort(arr, std::ranges::less{}, &value_type::first);
+    } else {
+      if (!std::ranges::is_sorted(arr, std::ranges::less{},
+                                  &value_type::first)) {
+        std::ranges::sort(arr, std::ranges::less{}, &value_type::first);
+      }
     }
     return arr;
   }
