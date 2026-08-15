@@ -50,6 +50,7 @@
 
 #include <dwarfs/internal/fsst.h>
 #include <dwarfs/internal/synchronized.h>
+#include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
@@ -635,8 +636,10 @@ class packed_entry_data {
       , keep_mtime_{!options.timestamp.has_value()}
       , keep_atime_{options.keep_all_times}
       , keep_ctime_{options.keep_all_times}
-      , keep_subsecond_{options.time_resolution.value_or(std::chrono::seconds(
-                            1)) < std::chrono::seconds(1)} {}
+      , keep_subsecond_{options.time_resolution.value_or(
+                            std::chrono::seconds(1)) < std::chrono::seconds(1)}
+      , chmod_xfm_{chmod_transformer::build_chain(options.chmod_specifiers,
+                                                  options.umask)} {}
 
   static constexpr std::size_t kNlinkMinusOneField = 0;
   static constexpr std::size_t kModeIndexField = 1;
@@ -944,6 +947,8 @@ class packed_entry_data {
   bool const keep_atime_{false};
   bool const keep_ctime_{false};
   bool const keep_subsecond_{false};
+
+  std::vector<chmod_transformer> chmod_xfm_;
 
   // index into `shared_entry_data::path_components_`
   segtor<path_name_storage_tuple> path_storage_index_;
@@ -1527,7 +1532,30 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 
   stat_common_tuple tmp{};
   std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
-  std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
+
+  auto add_mode_from = [&tmp, &shared](file_stat const& src) {
+    std::get<kModeIndexField>(tmp) = shared.add_mode(src.mode_unchecked());
+  };
+
+  if (chmod_xfm_.empty()) {
+    add_mode_from(st);
+  } else {
+    file_stat st2;
+
+    st2.set_mode(st.mode_unchecked());
+
+    auto perms = st2.permissions();
+
+    for (auto& c : chmod_xfm_) {
+      if (auto new_perm = c.transform(perms, st.is_directory())) {
+        perms = *new_perm;
+      }
+    }
+
+    st2.set_permissions(perms);
+
+    add_mode_from(st2);
+  }
 
   if (keep_uid_) {
     std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
