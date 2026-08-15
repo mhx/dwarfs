@@ -630,6 +630,8 @@ class packed_entry_data {
 
   packed_entry_data(entry_type t, metadata_options const& options)
       : this_type_{t}
+      , keep_uid_{!options.uid.has_value()}
+      , keep_gid_{!options.gid.has_value()}
       , keep_mtime_{!options.timestamp.has_value()}
       , keep_atime_{options.keep_all_times}
       , keep_ctime_{options.keep_all_times}
@@ -936,6 +938,8 @@ class packed_entry_data {
 
   entry_type this_type_;
 
+  bool const keep_uid_{true};
+  bool const keep_gid_{true};
   bool const keep_mtime_{true};
   bool const keep_atime_{false};
   bool const keep_ctime_{false};
@@ -1524,8 +1528,14 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   stat_common_tuple tmp{};
   std::get<kNlinkMinusOneField>(tmp) = nlink - 1;
   std::get<kModeIndexField>(tmp) = shared.add_mode(st.mode_unchecked());
-  std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
-  std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
+
+  if (keep_uid_) {
+    std::get<kUidIndexField>(tmp) = shared.add_uid(st.uid_unchecked());
+  }
+
+  if (keep_gid_) {
+    std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
+  }
 
   for_all_times([&]<typename time>() {
     if (this->*time::keep) {
@@ -1567,8 +1577,14 @@ void packed_entry_data::update_global_entry_data(
   auto const& stat = stat_common_.at(index);
 
   data.add_mode(shared.get_mode(get<kModeIndexField>(stat)));
-  data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
-  data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
+
+  if (keep_uid_) {
+    data.add_uid(shared.get_uid(get<kUidIndexField>(stat)));
+  }
+
+  if (keep_gid_) {
+    data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
+  }
 
   for_all_times([&]<typename time>() {
     if (this->*time::keep) {
@@ -1586,8 +1602,18 @@ void packed_entry_data::pack_entry(
   file_stat out{};
 
   out.set_mode(shared.get_mode(get<kModeIndexField>(stat)));
-  out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
-  out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
+
+  if (keep_uid_) {
+    out.set_uid(shared.get_uid(get<kUidIndexField>(stat)));
+  } else {
+    out.set_uid(0);
+  }
+
+  if (keep_gid_) {
+    out.set_gid(shared.get_gid(get<kGidIndexField>(stat)));
+  } else {
+    out.set_gid(0);
+  }
 
   for_all_times([&]<typename time>() {
     if (this->*time::keep) {
