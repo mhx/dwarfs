@@ -391,8 +391,6 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
   md_.modes() = ge_data.get_modes();
 
   md_.timestamp_base() = timeres_.convert_offset(ge_data.get_timestamp_base());
-
-  apply_chmod();
 }
 
 template <typename LoggerPolicy>
