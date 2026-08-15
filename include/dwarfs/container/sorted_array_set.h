@@ -31,9 +31,9 @@
 #include <array>
 #include <cstddef>
 
-#include <dwarfs/detail/sorted_array_container.h>
+#include <dwarfs/container/detail/sorted_array_container.h>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 namespace detail {
 
@@ -66,4 +66,4 @@ template <typename Key, typename... U>
   requires(sizeof...(U) > 0 || !detail::is_std_array_v<Key>)
 sorted_array_set(Key, U...) -> sorted_array_set<Key, 1 + sizeof...(U)>;
 
-} // namespace dwarfs
+} // namespace dwarfs::container
