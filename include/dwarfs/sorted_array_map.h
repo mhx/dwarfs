@@ -42,6 +42,27 @@
 
 namespace dwarfs {
 
+namespace detail {
+
+/**
+ * A type that can be compared against `Key` directly.
+ */
+template <typename K, typename Key>
+concept comparable_key = requires(K const& k, Key const& key) {
+  { key == k } -> std::convertible_to<bool>;
+  { key < k } -> std::convertible_to<bool>;
+};
+
+/**
+ * A type usable to look up `Key`, either by converting to it once or by
+ * being compared against it directly.
+ */
+template <typename K, typename Key>
+concept lookup_key =
+    std::convertible_to<K const&, Key> || comparable_key<K, Key>;
+
+} // namespace detail
+
 template <typename Key, typename Value, std::size_t N>
 class sorted_array_map {
  public:
@@ -66,11 +87,13 @@ class sorted_array_map {
 
   constexpr std::size_t size() const noexcept { return N; }
 
-  constexpr mapped_type const& operator[](key_type const& k) const {
+  template <detail::lookup_key<key_type> K>
+  constexpr mapped_type const& operator[](K const& k) const {
     return at(k);
   }
 
-  constexpr mapped_type const& at(key_type const& k) const {
+  template <detail::lookup_key<key_type> K>
+  constexpr mapped_type const& at(K const& k) const {
     if (auto it = find(k); it != data_.end()) {
       return it->second;
     }
@@ -78,7 +101,8 @@ class sorted_array_map {
     throw std::out_of_range("Key not found");
   }
 
-  constexpr std::optional<mapped_type> get(key_type const& k) const {
+  template <detail::lookup_key<key_type> K>
+  constexpr std::optional<mapped_type> get(K const& k) const {
     std::optional<mapped_type> result;
 
     if (auto it = find(k); it != data_.end()) {
@@ -88,22 +112,26 @@ class sorted_array_map {
     return result;
   }
 
-  constexpr bool contains(key_type const& k) const {
+  template <detail::lookup_key<key_type> K>
+  constexpr bool contains(K const& k) const {
     return find(k) != data_.end();
   }
 
-  constexpr std::size_t count(key_type const& k) const {
+  template <detail::lookup_key<key_type> K>
+  constexpr std::size_t count(K const& k) const {
     return contains(k) ? 1 : 0;
   }
 
   constexpr bool empty() const noexcept { return N == 0; }
 
-  constexpr const_iterator find(key_type const& k) const {
-    if constexpr (N <= 32) {
-      return std::ranges::find(data_, k, &value_type::first);
+  template <detail::lookup_key<key_type> K>
+  constexpr const_iterator find(K const& k) const {
+    // Prevent abiguity in `v.first == k` when `K` is convertible to `key_type`
+    // and also heterogeneously comparable with it.
+    if constexpr (std::convertible_to<K const&, key_type>) {
+      return find_impl(static_cast<key_type const&>(k));
     } else {
-      auto it = std::ranges::lower_bound(data_, k, {}, &value_type::first);
-      return it != data_.end() && it->first == k ? it : data_.end();
+      return find_impl(k);
     }
   }
 
@@ -126,6 +154,19 @@ class sorted_array_map {
   }
 
  private:
+  template <typename K>
+  constexpr const_iterator find_impl(K const& k) const {
+    if constexpr (N <= 32) {
+      return std::ranges::find_if(
+          data_, [&k](value_type const& v) { return v.first == k; });
+    } else {
+      auto it = std::lower_bound(
+          data_.begin(), data_.end(), k,
+          [](value_type const& v, K const& key) { return v.first < key; });
+      return it != data_.end() && it->first == k ? it : data_.end();
+    }
+  }
+
   static constexpr std::array<value_type, N>
   sort(std::array<value_type, N> arr) {
     if consteval {

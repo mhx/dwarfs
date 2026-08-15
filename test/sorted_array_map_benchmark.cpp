@@ -282,7 +282,7 @@ void lookup_unordered_string(::benchmark::State& state) {
 #define SAM_BENCH_MATRIX(N, Len)                                               \
   SAM_BENCH_ARGS(lookup_view_key_constexpr, N, Len);                           \
   SAM_BENCH_ARGS(lookup_view_key_runtime, N, Len);                             \
-  /*SAM_BENCH_ARGS(lookup_string_key, N, Len);*/                               \
+  SAM_BENCH_ARGS(lookup_string_key, N, Len);                                   \
   SAM_BENCH_ARGS(lookup_unordered_string, N, Len);
 
 BENCHMARK(lookup_constexpr<2>);
