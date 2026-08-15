@@ -22,9 +22,13 @@
  */
 
 #include <array>
+#include <concepts>
 #include <numeric>
 #include <random>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -99,7 +103,187 @@ void lookup_unordered_map(::benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * LookupCount);
 }
 
+constexpr inline std::size_t KeyDigits = 6;
+
+template <std::size_t N, std::size_t Len>
+struct key_storage {
+  static_assert(Len > KeyDigits);
+
+  std::array<char, N * Len> chars{};
+
+  constexpr key_storage() {
+    for (std::size_t i = 0; i < N; ++i) {
+      auto* p = chars.data() + i * Len;
+      auto v = i;
+
+      for (std::size_t j = KeyDigits; j-- > 0;) {
+        p[j] = static_cast<char>('0' + v % 10);
+        v /= 10;
+      }
+
+      for (std::size_t j = KeyDigits; j + 1 < Len; ++j) {
+        p[j] = 'x';
+      }
+
+      p[Len - 1] = '\0';
+    }
+  }
+};
+
+template <std::size_t N, std::size_t Len>
+constexpr inline key_storage<N, Len> keys{};
+
+template <std::size_t N, std::size_t Len>
+constexpr char const* key_cstr(std::size_t i) {
+  return keys<N, Len>.chars.data() + i * Len;
+}
+
+template <std::size_t N, std::size_t Len>
+constexpr std::string_view key_view(std::size_t i) {
+  return std::string_view{key_cstr<N, Len>(i), Len - 1};
+}
+
+template <std::size_t N, std::size_t Len>
+constexpr auto make_view_pairs() {
+  std::array<std::pair<std::string_view, int>, N> pairs{};
+  for (std::size_t i = 0; i < N; ++i) {
+    pairs[i] = {key_view<N, Len>(i), static_cast<int>(i)};
+  }
+  return pairs;
+}
+
+template <std::size_t N, std::size_t Len>
+constexpr auto make_cstr_pairs() {
+  std::array<std::pair<char const*, int>, N> pairs{};
+  for (std::size_t i = 0; i < N; ++i) {
+    pairs[i] = {key_cstr<N, Len>(i), static_cast<int>(i)};
+  }
+  return pairs;
+}
+
+template <std::size_t N, std::size_t Len>
+auto make_string_map() {
+  std::array<std::pair<std::string, int>, N> pairs;
+  for (std::size_t i = 0; i < N; ++i) {
+    pairs[i] = {std::string{key_view<N, Len>(i)}, static_cast<int>(i)};
+  }
+  return sorted_array_map<std::string, int, N>{std::move(pairs)};
+}
+
+template <std::size_t N, std::size_t Len>
+constexpr auto view_map = sorted_array_map{make_view_pairs<N, Len>()};
+
+struct transparent_string_hash {
+  using is_transparent = void;
+
+  std::size_t operator()(char const* s) const {
+    return std::hash<std::string_view>{}(s);
+  }
+  std::size_t operator()(std::string_view s) const {
+    return std::hash<std::string_view>{}(s);
+  }
+  std::size_t operator()(std::string const& s) const {
+    return std::hash<std::string_view>{}(s);
+  }
+};
+
+using transparent_umap =
+    std::unordered_map<std::string, int, transparent_string_hash,
+                       std::equal_to<>>;
+
+template <std::size_t N, std::size_t Len>
+auto make_unordered_map() {
+  transparent_umap map;
+  map.reserve(N);
+  for (std::size_t i = 0; i < N; ++i) {
+    map.emplace(std::string{key_view<N, Len>(i)}, static_cast<int>(i));
+  }
+  return map;
+}
+
+template <typename Arg, std::size_t N, std::size_t Len>
+std::vector<Arg> make_args(std::vector<int> const& indices) {
+  std::vector<Arg> args;
+  args.reserve(indices.size());
+
+  for (int i : indices) {
+    if constexpr (std::same_as<Arg, char const*>) {
+      args.push_back(key_cstr<N, Len>(static_cast<std::size_t>(i)));
+    } else {
+      args.emplace_back(key_view<N, Len>(static_cast<std::size_t>(i)));
+    }
+  }
+
+  return args;
+}
+
+template <typename Map, typename Arg>
+void run_lookups(::benchmark::State& state, Map const& map,
+                 std::vector<Arg> const& args) {
+  for (auto _ : state) {
+    for (auto const& k : args) {
+      auto v = map.at(k);
+      benchmark::DoNotOptimize(v);
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * args.size());
+}
+
+template <typename Arg>
+void run_lookups(::benchmark::State& state, transparent_umap const& map,
+                 std::vector<Arg> const& args) {
+  for (auto _ : state) {
+    for (auto const& k : args) {
+      auto v = map.find(k)->second;
+      benchmark::DoNotOptimize(v);
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * args.size());
+}
+
+template <std::size_t N, std::size_t Len, typename Arg>
+void lookup_view_key_constexpr(::benchmark::State& state) {
+  auto const args =
+      make_args<Arg, N, Len>(random_vector(0, N - 1, LookupCount));
+  run_lookups(state, view_map<N, Len>, args);
+}
+
+template <std::size_t N, std::size_t Len, typename Arg>
+void lookup_view_key_runtime(::benchmark::State& state) {
+  auto const args =
+      make_args<Arg, N, Len>(random_vector(0, N - 1, LookupCount));
+  sorted_array_map<std::string_view, int, N> map{make_view_pairs<N, Len>()};
+  run_lookups(state, map, args);
+}
+
+template <std::size_t N, std::size_t Len, typename Arg>
+void lookup_string_key(::benchmark::State& state) {
+  auto const args =
+      make_args<Arg, N, Len>(random_vector(0, N - 1, LookupCount));
+  auto const map = make_string_map<N, Len>();
+  run_lookups(state, map, args);
+}
+
+template <std::size_t N, std::size_t Len, typename Arg>
+void lookup_unordered_string(::benchmark::State& state) {
+  auto const args =
+      make_args<Arg, N, Len>(random_vector(0, N - 1, LookupCount));
+  auto const map = make_unordered_map<N, Len>();
+  run_lookups(state, map, args);
+}
+
 } // namespace
+
+#define SAM_BENCH_ARGS(fn, N, Len)                                             \
+  BENCHMARK_TEMPLATE(fn, N, Len, char const*);                                 \
+  BENCHMARK_TEMPLATE(fn, N, Len, std::string_view);                            \
+  BENCHMARK_TEMPLATE(fn, N, Len, std::string)
+
+#define SAM_BENCH_MATRIX(N, Len)                                               \
+  SAM_BENCH_ARGS(lookup_view_key_constexpr, N, Len);                           \
+  SAM_BENCH_ARGS(lookup_view_key_runtime, N, Len);                             \
+  /*SAM_BENCH_ARGS(lookup_string_key, N, Len);*/                               \
+  SAM_BENCH_ARGS(lookup_unordered_string, N, Len);
 
 BENCHMARK(lookup_constexpr<2>);
 BENCHMARK(lookup_constexpr<4>);
@@ -142,5 +326,16 @@ BENCHMARK(lookup_unordered_map<1024>);
 BENCHMARK(lookup_unordered_map<2048>);
 BENCHMARK(lookup_unordered_map<4096>);
 BENCHMARK(lookup_unordered_map<8192>);
+
+SAM_BENCH_MATRIX(8, 16);
+SAM_BENCH_MATRIX(32, 16);
+SAM_BENCH_MATRIX(64, 16);
+SAM_BENCH_MATRIX(256, 16);
+SAM_BENCH_MATRIX(1024, 16);
+
+SAM_BENCH_MATRIX(256, 8);
+SAM_BENCH_MATRIX(256, 32);
+SAM_BENCH_MATRIX(256, 64);
+SAM_BENCH_MATRIX(256, 128);
 
 BENCHMARK_MAIN();
