@@ -41,10 +41,10 @@
 #include <range/v3/view/chunk.hpp>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
@@ -69,7 +69,7 @@ constexpr std::string_view const IMAGE_CATEGORY{"fits/image"};
 constexpr file_size_t const FITS_SIZE_GRANULARITY{2880};
 
 std::optional<std::endian> parse_endian(std::string_view e) {
-  static constexpr sorted_array_map lookup{
+  static constexpr container::sorted_array_map lookup{
       std::pair{"big"sv, std::endian::big},
       std::pair{"little"sv, std::endian::little},
   };
