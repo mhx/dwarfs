@@ -667,6 +667,7 @@ if(WITH_TESTS)
       test/chmod_transformer_test.cpp
       test/chunked_append_only_vector_test.cpp
       test/compare_directories_test.cpp
+      test/compile_time_sort_test.cpp
       test/conv_test.cpp
       test/dense_value_index_test.cpp
       test/endian_test.cpp
