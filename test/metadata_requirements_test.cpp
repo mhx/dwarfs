@@ -32,7 +32,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/sorted_array_map.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
 using namespace dwarfs;
@@ -279,7 +279,7 @@ struct test_metadata {
 };
 
 std::optional<test_enum> parse_enum(nlohmann::json const& value) {
-  static constexpr sorted_array_map enum_map{
+  static constexpr container::sorted_array_map enum_map{
       std::pair{"foo"sv, test_enum::foo},
       std::pair{"bar"sv, test_enum::bar},
       std::pair{"baz"sv, test_enum::baz},

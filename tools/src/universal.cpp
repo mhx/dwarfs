@@ -39,7 +39,7 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-#include <dwarfs/sorted_array_map.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs_tool_main.h>
@@ -49,7 +49,7 @@ namespace {
 using namespace dwarfs::tool;
 using namespace std::string_view_literals;
 
-constexpr dwarfs::sorted_array_map functions{
+constexpr dwarfs::container::sorted_array_map functions{
 #ifdef DWARFS_UNIVERSAL_FUSE_DRIVER
     std::pair{"dwarfs"sv, &dwarfs_main},
 #endif

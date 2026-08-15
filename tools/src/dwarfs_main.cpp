@@ -98,6 +98,7 @@
 #endif
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
@@ -114,7 +115,6 @@
 #include <dwarfs/reader/mlock_mode.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/scoped_output_capture.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
@@ -366,13 +366,13 @@ constexpr std::array dwarfs_opts{
     ::fuse_opt(FUSE_OPT_END),
 };
 
-constexpr sorted_array_map cache_tidy_strategy_map{
+constexpr container::sorted_array_map cache_tidy_strategy_map{
     std::pair{"none"sv, reader::cache_tidy_strategy::NONE},
     std::pair{"time"sv, reader::cache_tidy_strategy::EXPIRY_TIME},
     std::pair{"swap"sv, reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT},
 };
 
-constexpr sorted_array_map block_allocator_map{
+constexpr container::sorted_array_map block_allocator_map{
     std::pair{"malloc"sv, reader::block_cache_allocation_mode::MALLOC},
     std::pair{"mmap"sv, reader::block_cache_allocation_mode::MMAP},
 };

@@ -38,9 +38,9 @@
 #include <type_traits>
 #include <utility>
 
-#include <dwarfs/detail/compile_time_sort.h>
+#include <dwarfs/container/detail/compile_time_sort.h>
 
-namespace dwarfs::detail {
+namespace dwarfs::container::detail {
 
 /**
  * Extract the key from an element using the projection `Proj`.
@@ -202,4 +202,4 @@ class sorted_array_container {
   std::array<value_type, N> data_;
 };
 
-} // namespace dwarfs::detail
+} // namespace dwarfs::container::detail

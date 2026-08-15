@@ -65,6 +65,7 @@
 #include <dwarfs/compiler.h>
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/config.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
@@ -75,7 +76,6 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
@@ -117,14 +117,14 @@ constexpr auto kProgressModeSimple = "simple"sv;
 constexpr auto kProgressModeAscii = "ascii"sv;
 constexpr auto kProgressModeUnicode = "unicode"sv;
 
-constexpr sorted_array_map progress_modes{
+constexpr container::sorted_array_map progress_modes{
     std::pair{kProgressModeNone, writer::console_writer::NONE},
     std::pair{kProgressModeSimple, writer::console_writer::SIMPLE},
     std::pair{kProgressModeAscii, writer::console_writer::ASCII},
     std::pair{kProgressModeUnicode, writer::console_writer::UNICODE},
 };
 
-constexpr sorted_array_map debug_filter_modes{
+constexpr container::sorted_array_map debug_filter_modes{
     std::pair{"included"sv, writer::debug_filter_mode::INCLUDED},
     std::pair{"included-files"sv, writer::debug_filter_mode::INCLUDED_FILES},
     std::pair{"excluded"sv, writer::debug_filter_mode::EXCLUDED},
