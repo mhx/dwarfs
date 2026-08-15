@@ -35,9 +35,9 @@
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/reverse.hpp>
 
-#include <dwarfs/sorted_array_map.h>
+#include <dwarfs/container/sorted_array_map.h>
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 using namespace std::string_view_literals;
 
 namespace {
@@ -216,7 +216,7 @@ struct code {
 };
 
 static_assert(!std::convertible_to<int, code>);
-static_assert(dwarfs::detail::comparable_key<int, code>);
+static_assert(detail::comparable_key<int, code>);
 
 constexpr sorted_array_map code_map{
     std::pair{code{3}, "three"sv},
@@ -269,7 +269,7 @@ static_assert(sv_map.at("one") == 1);
 
 // a `std::string` key does *not* accept a `std::string_view` implicitly
 static_assert(!std::convertible_to<std::string_view const&, std::string>);
-static_assert(dwarfs::detail::comparable_key<std::string_view, std::string>);
+static_assert(detail::comparable_key<std::string_view, std::string>);
 
 // keys that make no sense are rejected by the constraints rather than by a
 // deep instantiation error

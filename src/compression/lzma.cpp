@@ -40,12 +40,12 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/compressor_registry.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/types.h>
 
 #include "base.h"
@@ -56,7 +56,7 @@ namespace {
 
 using namespace std::string_view_literals;
 
-constexpr sorted_array_map lzma_error_desc{
+constexpr container::sorted_array_map lzma_error_desc{
     std::pair{LZMA_NO_CHECK, "input stream has no integrity check"},
     std::pair{LZMA_UNSUPPORTED_CHECK, "cannot calculate the integrity check"},
     std::pair{LZMA_GET_CHECK, "integrity check type is now available"},
@@ -71,7 +71,7 @@ constexpr sorted_array_map lzma_error_desc{
     // {LZMA_SEEK_NEEDED, "request to change the input file position"},
 };
 
-constexpr sorted_array_map kBinaryModes{
+constexpr container::sorted_array_map kBinaryModes{
     std::pair{"x86"sv, LZMA_FILTER_X86},
     std::pair{"powerpc"sv, LZMA_FILTER_POWERPC},
     std::pair{"ia64"sv, LZMA_FILTER_IA64},
@@ -80,20 +80,21 @@ constexpr sorted_array_map kBinaryModes{
     std::pair{"sparc"sv, LZMA_FILTER_SPARC},
 };
 
-constexpr sorted_array_map kCompressionModes{
+constexpr container::sorted_array_map kCompressionModes{
     std::pair{"fast"sv, LZMA_MODE_FAST},
     std::pair{"normal"sv, LZMA_MODE_NORMAL},
 };
 
-constexpr sorted_array_map kMatchFinders{
+constexpr container::sorted_array_map kMatchFinders{
     std::pair{"hc3"sv, LZMA_MF_HC3}, std::pair{"hc4"sv, LZMA_MF_HC4},
     std::pair{"bt2"sv, LZMA_MF_BT2}, std::pair{"bt3"sv, LZMA_MF_BT3},
     std::pair{"bt4"sv, LZMA_MF_BT4},
 };
 
 template <typename T, size_t N>
-T find_option(sorted_array_map<std::string_view, T, N> const& options,
-              std::string_view name, std::string_view what) {
+T find_option(
+    container::sorted_array_map<std::string_view, T, N> const& options,
+    std::string_view name, std::string_view what) {
   if (auto value = options.get(name)) {
     return *value;
   }
@@ -101,8 +102,8 @@ T find_option(sorted_array_map<std::string_view, T, N> const& options,
 }
 
 template <typename T, size_t N>
-std::string
-option_names(sorted_array_map<std::string_view, T, N> const& options) {
+std::string option_names(
+    container::sorted_array_map<std::string_view, T, N> const& options) {
   return options | ranges::views::keys | ranges::views::join(", "sv) |
          ranges::to<std::string>;
 }

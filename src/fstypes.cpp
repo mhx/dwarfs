@@ -33,8 +33,8 @@
 #include <fmt/format.h>
 
 #include <dwarfs/compression.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/sorted_array_map.h>
 
 namespace dwarfs {
 
@@ -43,7 +43,7 @@ namespace {
 using namespace std::string_view_literals;
 
 // clang-format off
-constexpr sorted_array_map sections{
+constexpr container::sorted_array_map sections{
 #define SECTION_TYPE_(x) std::pair{section_type::x, #x ## sv}
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
@@ -53,7 +53,7 @@ constexpr sorted_array_map sections{
 #undef SECTION_TYPE_
 };
 
-constexpr sorted_array_map compressions {
+constexpr container::sorted_array_map compressions {
 #define DWARFS_COMPRESSION_TYPE_(name, _) std::pair{compression_type::name, #name ## sv}
 #define DWARFS_COMMA_ ,
   DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_, DWARFS_COMMA_)

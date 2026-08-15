@@ -29,9 +29,9 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_checks.h"
@@ -558,7 +558,7 @@ TEST(mkdwarfs_test, change_block_size) {
 
 namespace {
 
-constexpr sorted_array_map catdata_md5{
+constexpr container::sorted_array_map catdata_md5{
     std::pair{"audio/test16-1.wav"sv, "f9c2148b3e0f2bb9527cc1ebc7ff18da"sv},
     std::pair{"audio/test16-2.aiff"sv, "330d63fc43b29d7b381b5ef2a0ae9339"sv},
     std::pair{"audio/test16-2.caf"sv, "3f54aa0f2536b7afcc960e05d36e304b"sv},

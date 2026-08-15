@@ -34,9 +34,9 @@
 #include <stdexcept>
 #include <utility>
 
-#include <dwarfs/detail/sorted_array_container.h>
+#include <dwarfs/container/detail/sorted_array_container.h>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 namespace detail {
 
@@ -95,4 +95,4 @@ template <typename K, typename V, typename... U>
 sorted_array_map(std::pair<K, V>, U...)
     -> sorted_array_map<K, V, 1 + sizeof...(U)>;
 
-} // namespace dwarfs
+} // namespace dwarfs::container

@@ -34,7 +34,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace dwarfs::detail {
+namespace dwarfs::container::detail {
 
 template <typename Compare>
 constexpr inline bool is_builtin_less_v = false;
@@ -129,4 +129,4 @@ compile_time_sort(std::array<T, N>& arr, Compare comp = {}, Proj proj = {}) {
   }
 }
 
-} // namespace dwarfs::detail
+} // namespace dwarfs::container::detail
