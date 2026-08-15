@@ -29,9 +29,9 @@
 #include <string_view>
 #include <utility>
 
-#include <dwarfs/detail/compile_time_sort.h>
+#include <dwarfs/container/detail/compile_time_sort.h>
 
-using namespace dwarfs::detail;
+using namespace dwarfs::container::detail;
 using namespace std::string_view_literals;
 
 namespace {

@@ -35,9 +35,9 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/reverse.hpp>
 
-#include <dwarfs/sorted_array_set.h>
+#include <dwarfs/container/sorted_array_set.h>
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 using namespace std::string_view_literals;
 
 namespace {
@@ -173,7 +173,7 @@ struct code {
 };
 
 static_assert(!std::convertible_to<int, code>);
-static_assert(dwarfs::detail::comparable_key<int, code>);
+static_assert(detail::comparable_key<int, code>);
 
 constexpr sorted_array_set code_set{code{3}, code{1}, code{2}};
 

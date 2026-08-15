@@ -32,11 +32,11 @@
 
 #include <benchmark/benchmark.h>
 
-#include <dwarfs/sorted_array_map.h>
+#include <dwarfs/container/sorted_array_map.h>
 
 namespace {
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 
 constexpr size_t LookupCount = 4096;
 
