@@ -50,6 +50,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/container/sorted_array_set.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/scope_exit.h>
@@ -87,9 +88,13 @@ int utf8_len_of_print_name(WCHAR const* wstr, int wlen_chars) {
   return std::max(0, need);
 };
 
-bool wstr_equals_nocase(std::wstring_view a, std::wstring_view b) {
-  return ::CompareStringOrdinal(a.data(), static_cast<int>(a.size()), b.data(),
-                                static_cast<int>(b.size()), TRUE) == CSTR_EQUAL;
+std::wstring ascii_tolower(std::wstring str) {
+  for (auto& ch : str) {
+    if (ch >= L'A' && ch <= L'Z') {
+      ch += L'a' - L'A';
+    }
+  }
+  return str;
 }
 
 bool is_executable_image(HANDLE h) {
@@ -135,12 +140,12 @@ bool is_executable(HANDLE h, fs::path const& path,
                    file_stat_options const& opts) {
   using namespace std::string_view_literals;
 
-  static constexpr std::array executable_exts{
+  static constexpr container::sorted_array_set executable_exts{
       // These are most certainly executable
       L".bat"sv, L".cmd"sv, L".com"sv, L".dll"sv, L".exe"sv,
   };
 
-  static constexpr std::array non_executable_exts{
+  static constexpr container::sorted_array_set non_executable_exts{
       // Text / structured data
       L".txt"sv,
       L".md"sv,
@@ -225,25 +230,17 @@ bool is_executable(HANDLE h, fs::path const& path,
       L".lib"sv,
   };
 
-  auto const ext = path.extension().wstring();
-  auto ext_is_any_of = [&ext](auto const& candidates) {
-    return std::ranges::any_of(
-        candidates, [&](auto const& e) { return wstr_equals_nocase(ext, e); });
-  };
+  auto const ext = ascii_tolower(path.extension().wstring());
 
-  if (ext_is_any_of(executable_exts)) {
+  if (executable_exts.contains(ext)) {
     return true;
   }
 
-  if (ext_is_any_of(non_executable_exts)) {
+  if (!opts.intrusive || non_executable_exts.contains(ext)) {
     return false;
   }
 
-  if (opts.intrusive) {
-    return is_executable_image(h);
-  }
-
-  return false;
+  return is_executable_image(h);
 }
 
 file_stat::off_type
