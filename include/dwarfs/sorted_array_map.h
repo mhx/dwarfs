@@ -30,6 +30,9 @@
 
 #include <algorithm>
 #include <array>
+#include <concepts>
+#include <cstddef>
+#include <functional>
 #include <optional>
 #include <ranges>
 #include <stdexcept>
@@ -55,6 +58,8 @@ class sorted_array_map {
   }
 
   template <typename... Pairs>
+    requires(sizeof...(Pairs) == N) &&
+            (std::constructible_from<value_type, Pairs &&> && ...)
   constexpr explicit sorted_array_map(Pairs&&... pairs)
       : sorted_array_map{std::array<value_type, sizeof...(Pairs)>{
             {std::forward<Pairs>(pairs)...}}} {}
@@ -106,6 +111,7 @@ class sorted_array_map {
   constexpr const_iterator end() const noexcept { return data_.end(); }
   constexpr const_iterator cbegin() const noexcept { return data_.cbegin(); }
   constexpr const_iterator cend() const noexcept { return data_.cend(); }
+
   constexpr const_reverse_iterator rbegin() const noexcept {
     return data_.rbegin();
   }
