@@ -703,6 +703,7 @@ if(WITH_TESTS)
       test/scoped_output_capture_test.cpp
       test/small_fifo_test.cpp
       test/sorted_array_map_test.cpp
+      test/sorted_array_set_test.cpp
       test/sparse_chunk_codec_test.cpp
       test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
