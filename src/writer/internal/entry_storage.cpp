@@ -1432,6 +1432,12 @@ void shared_entry_data::dump(std::ostream& os) const {
 
   d.add("utf8 path components", total_utf8_path_bytes,
         utf8_path_components_.size());
+  if (auto const& cpc = compressed_utf8_path_components_; cpc.has_value()) {
+    d.add("compressed utf8 path components",
+          cpc->dictionary.size() + cpc->buffer.size() +
+              cpc->positions.size_in_bytes(),
+          cpc->positions.size());
+  }
 #ifdef DWARFS_HANDLE_NATIVE_PATHS
   d.add("native path components", total_native_path_bytes,
         native_path_components_.size());
