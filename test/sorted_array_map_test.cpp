@@ -318,6 +318,43 @@ struct counted_key {
   }
 };
 
+constexpr sorted_array_map ctad_from_pairs{
+    std::pair{1, "one"sv},
+    std::pair{3, "three"sv},
+    std::pair{2, "two"sv},
+};
+static_assert(std::same_as<decltype(ctad_from_pairs) const,
+                           sorted_array_map<int, std::string_view, 3> const>);
+
+constexpr sorted_array_map ctad_from_array{std::array{
+    std::pair{1, "one"sv},
+    std::pair{3, "three"sv},
+    std::pair{2, "two"sv},
+}};
+static_assert(std::same_as<decltype(ctad_from_array) const,
+                           sorted_array_map<int, std::string_view, 3> const>);
+
+constexpr sorted_array_map ctad_from_empty_array{
+    std::array<std::pair<int, std::string_view>, 0>{}};
+static_assert(std::same_as<decltype(ctad_from_empty_array) const,
+                           sorted_array_map<int, std::string_view, 0> const>);
+
+constexpr sorted_array_map ctad_single{std::pair{1, "one"sv}};
+static_assert(std::same_as<decltype(ctad_single) const,
+                           sorted_array_map<int, std::string_view, 1> const>);
+
+static_assert(ctad_from_array.at(2) == "two"sv);
+static_assert(ctad_from_pairs.at(2) == "two"sv);
+static_assert(ctad_from_empty_array.empty());
+
+// copying a non-const lvalue must not be hijacked by the variadic constructor
+static_assert([] {
+  sorted_array_map m{std::pair{1, 10}, std::pair{2, 20}};
+  auto copy = m;
+  auto moved = std::move(copy);
+  return moved.at(1) == 10;
+}());
+
 } // namespace
 
 TEST(sorted_array_map, constexpr_runtime) {
