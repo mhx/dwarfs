@@ -95,21 +95,11 @@ class sorted_array_map {
 
   constexpr const_iterator find(key_type const& k) const {
     if constexpr (N <= 32) {
-      if (auto it = std::ranges::find_if(
-              data_, [&k](value_type const& v) { return v.first == k; });
-          it != data_.end()) {
-        return it;
-      }
+      return std::ranges::find(data_, k, &value_type::first);
     } else {
-      if (auto it = std::lower_bound(
-              data_.begin(), data_.end(), k,
-              [](auto const& v, auto const& k) { return v.first < k; });
-          it != data_.end() && it->first == k) {
-        return it;
-      }
+      auto it = std::ranges::lower_bound(data_, k, {}, &value_type::first);
+      return it != data_.end() && it->first == k ? it : data_.end();
     }
-
-    return data_.end();
   }
 
   constexpr const_iterator begin() const noexcept { return data_.begin(); }
