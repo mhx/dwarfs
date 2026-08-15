@@ -27,10 +27,10 @@
 #include <system_error>
 #include <unordered_set>
 
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_range_utils.h>
 #include <dwarfs/os_access_generic.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/util.h>
 
 #include "compare_directories.h"
@@ -42,7 +42,7 @@ namespace {
 namespace fs = std::filesystem;
 using namespace std::string_view_literals;
 
-constexpr sorted_array_map file_type_name{
+constexpr container::sorted_array_map file_type_name{
     std::pair{fs::file_type::none, "none"sv},
     std::pair{fs::file_type::not_found, "not_found"sv},
     std::pair{fs::file_type::regular, "regular"sv},

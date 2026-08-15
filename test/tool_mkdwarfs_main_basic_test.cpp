@@ -29,9 +29,9 @@
 #include <jemalloc/jemalloc.h>
 #endif
 
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/reader/fsinfo_options.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 
 #include "test_tool_main_tester.h"
@@ -46,7 +46,7 @@ class mkdwarfs_input_list_test
 
 TEST_P(mkdwarfs_input_list_test, basic) {
   using namespace std::string_view_literals;
-  static constexpr sorted_array_map input_lists{
+  static constexpr container::sorted_array_map input_lists{
       std::pair{path_type::absolute,
                 "/somelink\n/foo.pl\n/somedir/ipsum.py\n"sv},
       std::pair{path_type::relative, "somelink\nfoo.pl\nsomedir/ipsum.py\n"sv},
@@ -96,7 +96,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
 
 TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   using namespace std::string_view_literals;
-  static constexpr sorted_array_map input_lists{
+  static constexpr container::sorted_array_map input_lists{
       std::pair{path_type::absolute,
                 "/somedir/ipsum.py\n/somedir/empty\n/foo/bar\n"sv},
       std::pair{path_type::relative, "ipsum.py\nempty\n"sv},
@@ -146,7 +146,7 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
 
 TEST_P(mkdwarfs_input_list_test, trailing_dir_slash_gh370) {
   using namespace std::string_view_literals;
-  static constexpr sorted_array_map input_lists{
+  static constexpr container::sorted_array_map input_lists{
       std::pair{path_type::absolute,
                 "/somedir/\n/somedir/ipsum.py\n/somedir/empty\n"sv},
       std::pair{path_type::relative,

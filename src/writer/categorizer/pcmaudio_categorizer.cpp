@@ -41,10 +41,10 @@
 #include <fmt/ostream.h>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
@@ -78,7 +78,7 @@ enum class padding : uint8_t {
 };
 
 std::optional<std::endian> parse_endianness(std::string_view e) {
-  static constexpr sorted_array_map lookup{
+  static constexpr container::sorted_array_map lookup{
       std::pair{"big"sv, std::endian::big},
       std::pair{"little"sv, std::endian::little},
   };
@@ -104,7 +104,7 @@ std::ostream& operator<<(std::ostream& os, signedness e) {
 }
 
 std::optional<signedness> parse_signedness(std::string_view s) {
-  static constexpr sorted_array_map lookup{
+  static constexpr container::sorted_array_map lookup{
       std::pair{"signed"sv, signedness::SIGNED},
       std::pair{"unsigned"sv, signedness::UNSIGNED},
   };
@@ -130,7 +130,7 @@ std::ostream& operator<<(std::ostream& os, padding e) {
 }
 
 std::optional<padding> parse_padding(std::string_view p) {
-  static constexpr sorted_array_map lookup{
+  static constexpr container::sorted_array_map lookup{
       std::pair{"lsb"sv, padding::LSB},
       std::pair{"msb"sv, padding::MSB},
   };
