@@ -21,8 +21,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <concepts>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <version>
 
 #include <gmock/gmock.h>
@@ -200,6 +202,122 @@ static_assert(std::distance(empty_map.begin(), empty_map.end()) == 0);
 static_assert(sort_test.size() == 250);
 static_assert(std::ranges::is_sorted(sort_test));
 
+struct code {
+  int value;
+
+  constexpr explicit code(int v)
+      : value{v} {}
+
+  constexpr bool operator==(code const&) const = default;
+  constexpr auto operator<=>(code const&) const = default;
+
+  constexpr bool operator==(int v) const { return value == v; }
+  constexpr auto operator<=>(int v) const { return value <=> v; }
+};
+
+static_assert(!std::convertible_to<int, code>);
+static_assert(dwarfs::detail::comparable_key<int, code>);
+
+constexpr sorted_array_map code_map{
+    std::pair{code{3}, "three"sv},
+    std::pair{code{1}, "one"sv},
+    std::pair{code{2}, "two"sv},
+};
+
+// linear search path (N <= 32)
+static_assert(code_map.at(1) == "one"sv);
+static_assert(code_map[2] == "two"sv);
+static_assert(code_map.at(3) == "three"sv);
+static_assert(code_map.get(2).has_value());
+static_assert(!code_map.get(0).has_value());
+static_assert(code_map.contains(1));
+static_assert(!code_map.contains(4));
+static_assert(code_map.count(1) == 1);
+static_assert(code_map.count(4) == 0);
+static_assert(code_map.find(2) != code_map.end());
+static_assert(code_map.find(4) == code_map.end());
+
+// homogeneous lookup still works on the very same map
+static_assert(code_map.at(code{1}) == "one"sv);
+static_assert(!code_map.contains(code{4}));
+
+// binary search path (N > 32), still heterogeneous
+template <std::size_t N>
+constexpr auto make_code_map() {
+  return []<std::size_t... I>(std::index_sequence<I...>) {
+    return sorted_array_map{std::pair{code{static_cast<int>(sizeof...(I) - I)},
+                                      static_cast<int>(I)}...};
+  }(std::make_index_sequence<N>{});
+}
+
+constexpr auto big_code_map = make_code_map<40>();
+
+static_assert(big_code_map.size() == 40);
+static_assert(big_code_map.at(40) == 0);
+static_assert(big_code_map.at(1) == 39);
+static_assert(big_code_map.at(20) == 20);
+static_assert(big_code_map.get(7).value() == 33);
+static_assert(!big_code_map.contains(0));
+static_assert(!big_code_map.contains(41));
+static_assert(big_code_map.find(41) == big_code_map.end());
+
+// a `std::string_view` key converts implicitly, so these all take the
+// converting path and pay for the conversion exactly once
+static_assert(std::convertible_to<char const (&)[4], std::string_view>);
+static_assert(sv_map.at("one"sv) == 1);
+static_assert(sv_map.at("one") == 1);
+
+// a `std::string` key does *not* accept a `std::string_view` implicitly
+static_assert(!std::convertible_to<std::string_view const&, std::string>);
+static_assert(dwarfs::detail::comparable_key<std::string_view, std::string>);
+
+// keys that make no sense are rejected by the constraints rather than by a
+// deep instantiation error
+template <typename Map, typename K>
+concept has_lookup = requires(Map const& m, K const& k) { m.contains(k); };
+
+static_assert(has_lookup<decltype(map), int>);
+static_assert(!has_lookup<decltype(map), char const*>);
+static_assert(!has_lookup<decltype(map), std::pair<int, int>>);
+static_assert(has_lookup<decltype(sv_map), char const*>);
+static_assert(has_lookup<decltype(code_map), int>);
+static_assert(!has_lookup<decltype(code_map), char const*>);
+
+// A key type that counts how often it is materialized, to pin down that
+// heterogeneous lookup really does avoid constructing one.
+struct counted_key {
+  std::string value;
+
+  static inline int conversions{0};
+
+  counted_key(std::string v)
+      : value{std::move(v)} {
+    ++conversions;
+  }
+
+  counted_key(char const* v)
+      : value{v} {
+    ++conversions;
+  }
+
+  counted_key(counted_key const&) = default;
+  counted_key(counted_key&&) = default;
+  counted_key& operator=(counted_key const&) = default;
+  counted_key& operator=(counted_key&&) = default;
+
+  bool operator==(counted_key const& other) const {
+    return value == other.value;
+  }
+  auto operator<=>(counted_key const& other) const {
+    return value <=> other.value;
+  }
+
+  bool operator==(std::string_view sv) const { return value == sv; }
+  auto operator<=>(std::string_view sv) const {
+    return std::string_view{value} <=> sv;
+  }
+};
+
 } // namespace
 
 TEST(sorted_array_map, constexpr_runtime) {
@@ -283,4 +401,51 @@ TEST(sorted_array_map, const_runtime) {
   EXPECT_EQ(std::distance(m.cbegin(), m.cend()), 3);
   EXPECT_EQ(std::distance(m.rbegin(), m.rend()), 3);
   EXPECT_EQ(std::distance(m.crbegin(), m.crend()), 3);
+}
+
+TEST(sorted_array_map, heterogeneous_lookup_runtime) {
+  sorted_array_map m{
+      std::pair{std::string{"one"}, 1},
+      std::pair{std::string{"three"}, 3},
+      std::pair{std::string{"two"}, 2},
+  };
+
+  static_assert(std::same_as<decltype(m)::key_type, std::string>);
+
+  EXPECT_EQ(m.at("one"sv), 1);
+  EXPECT_EQ(m["two"sv], 2);
+  EXPECT_EQ(m.at("three"sv), 3);
+  EXPECT_EQ(m.get("one"sv).value(), 1);
+  EXPECT_FALSE(m.get("four"sv).has_value());
+  EXPECT_TRUE(m.contains("three"sv));
+  EXPECT_FALSE(m.contains("four"sv));
+  EXPECT_NE(m.find("two"sv), m.end());
+  EXPECT_EQ(m.find("four"sv), m.end());
+  EXPECT_THAT([&m] { m.at("four"sv); }, testing::Throws<std::out_of_range>());
+
+  // other spellings keep working
+  EXPECT_EQ(m.at("one"), 1);
+  EXPECT_EQ(m.at(std::string{"one"}), 1);
+}
+
+TEST(sorted_array_map, heterogeneous_lookup_avoids_conversion) {
+  sorted_array_map m{
+      std::pair{counted_key{"one"}, 1},
+      std::pair{counted_key{"two"}, 2},
+  };
+
+  auto const before = counted_key::conversions;
+
+  EXPECT_EQ(m.at("one"sv), 1);
+  EXPECT_TRUE(m.contains("two"sv));
+  EXPECT_FALSE(m.contains("zzz"sv));
+
+  // a string_view is not implicitly convertible to counted_key, so not a
+  // single key was materialized for those three lookups
+  EXPECT_EQ(counted_key::conversions, before);
+
+  // a `char const*` on the other hand *is* convertible, so it is converted
+  // once up front rather than on every comparison
+  EXPECT_EQ(m.at("one"), 1);
+  EXPECT_EQ(counted_key::conversions, before + 1);
 }
