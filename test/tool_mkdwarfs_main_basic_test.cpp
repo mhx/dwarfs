@@ -1226,3 +1226,29 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_log_mem_usage_test,
                          ::testing::Bool());
+
+TEST(mkdwarfs_test, estimate_compression_memory) {
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    ASSERT_EQ(0, t.run({"--estimate-compression-memory"})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::IsEmpty());
+    EXPECT_THAT(
+        t.out(),
+        ::testing::AllOf(::testing::HasSubstr("will use up to"),
+                         ::testing::HasSubstr(
+                             "per worker thread to compress 16 MiB blocks")));
+  }
+
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    ASSERT_EQ(0, t.run({"--estimate-compression-memory", "-S", "30", "-C",
+                        "zstd:level=20"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::IsEmpty());
+    EXPECT_THAT(
+        t.out(),
+        ::testing::AllOf(::testing::HasSubstr("zstd [level=20] will use up to"),
+                         ::testing::HasSubstr(
+                             "per worker thread to compress 1 GiB blocks")));
+  }
+}

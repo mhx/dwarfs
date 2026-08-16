@@ -464,7 +464,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
-       rebuild_metadata = false, change_block_size = false, no_check = false;
+       rebuild_metadata = false, change_block_size = false, no_check = false,
+       estimate_compression_memory = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -687,6 +688,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<std::string>(&history_compression)
           ->value_name(lvl_def_val(&level_defaults::schema_history_compression)),
         "history compression algorithm")
+    ("estimate-compression-memory",
+        po::value<bool>(&estimate_compression_memory)->zero_tokens(),
+        "estimate compression algorithm per-thread memory usage")
     ;
 
   po::options_description filter_opts("Filter options");
@@ -860,9 +864,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 0;
   }
 
-  if (vm.contains("help") or
-      !(vm.contains("input") or vm.contains("input-list")) or
-      (!vm.contains("output") and !vm.contains("debug-filter"))) {
+  if (!estimate_compression_memory and
+      (vm.contains("help") or
+       !(vm.contains("input") or vm.contains("input-list")) or
+       (!vm.contains("output") and !vm.contains("debug-filter")))) {
     iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n"
             << basic_opts << "\n";
     return 0;
@@ -1269,7 +1274,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   writer::writer_progress::update_function_type updater;
 
-  if (options.debug_filter_function) {
+  if (options.debug_filter_function || estimate_compression_memory) {
     updater = [](writer::writer_progress&, bool) {};
   } else {
     updater = [&](writer::writer_progress& p, bool last) {
@@ -1288,7 +1293,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                std::ostringstream>
       os;
 
-  if (!options.debug_filter_function) {
+  if (!options.debug_filter_function && !estimate_compression_memory) {
     if (output != "-") {
       if (iol.file->exists(output) && !force_overwrite) {
         LOG_ERROR << "output file already exists, use --force to overwrite";
@@ -1387,7 +1392,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   size_t mem_limit = 0;
 
-  {
+  if (!estimate_compression_memory) {
     auto const output_block_size = recompress && !change_block_size
                                        ? input_filesystem->block_size()
                                        : UINT64_C(1)
@@ -1497,6 +1502,24 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::optional<writer::filesystem_writer> fsw;
 
   try {
+    writer::categorized_option<block_compressor> compression_opt;
+    writer::contextual_option_parser cop("--compression", compression_opt, cp,
+                                         compressor_parser);
+    compression_opt.set_default(
+        block_compressor(std::string(defaults.data_compression)));
+    cop.parse(compression);
+    categorizer_list.add_implicit_defaults(cop);
+    LOG_VERBOSE << cop.as_string();
+
+    if (estimate_compression_memory) {
+      auto bc = compression_opt.get();
+      auto mem_req = bc.estimate_memory_usage(fswopts.worst_case_block_size);
+      iol.out << bc.describe() << " will use up to " << size_with_unit(mem_req)
+              << " per worker thread to compress "
+              << size_with_unit(fswopts.worst_case_block_size) << " blocks\n";
+      return 0;
+    }
+
     std::ostream& fsw_os =
         os |
         match{[&](std::monostate) -> std::ostream& { return iol.out; },
@@ -1511,15 +1534,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     fsw->add_section_compressor(section_type::METADATA_V2_SCHEMA, schema_bc);
     fsw->add_section_compressor(section_type::METADATA_V2, metadata_bc);
     fsw->add_section_compressor(section_type::HISTORY, history_bc);
-
-    writer::categorized_option<block_compressor> compression_opt;
-    writer::contextual_option_parser cop("--compression", compression_opt, cp,
-                                         compressor_parser);
-    compression_opt.set_default(
-        block_compressor(std::string(defaults.data_compression)));
-    cop.parse(compression);
-    categorizer_list.add_implicit_defaults(cop);
-    LOG_VERBOSE << cop.as_string();
 
     {
       auto bc = compression_opt.get();

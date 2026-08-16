@@ -106,6 +106,11 @@ Most other options are concerned with compression tuning:
   mapped to "below normal" priority, 6 to 10 are mapped to "lowest" priority
   and values greater than 10 are mapped to "background" priority.
 
+- `--estimate-compression-memory`:
+  This option will show an estimate of the per-thread memory requirements of
+  the currently configured compressor, at the configured block size. It will
+  immediately exit after printing the estimate.
+
 - `--num-walk-workers=`*value*:
   Number of worker threads used for walking the input file system. By default,
   `mkdwarfs` uses a single-threaded implementation that avoids synchronization
