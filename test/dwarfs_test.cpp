@@ -76,8 +76,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-std::string const default_file_hash_algo{"xxh3-128"};
-
 // TODO: jeeeez, this is ugly :/
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
@@ -131,15 +129,17 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   return oss.str();
 }
 
-void basic_end_to_end_test(
-    std::string const& compressor, unsigned block_size_bits,
-    writer::fragment_order_mode file_order, bool with_devices,
-    bool with_specials, bool set_uid, bool set_gid, bool set_time,
-    bool keep_all_times, bool pack_chunk_table, bool pack_directories,
-    bool pack_shared_files_table, bool pack_names, bool pack_names_index,
-    bool pack_symlinks, bool pack_symlinks_index, bool plain_names_table,
-    bool plain_symlinks_table, bool open_fail, size_t readahead,
-    std::optional<std::string> file_hash_algo) {
+void basic_end_to_end_test(std::string const& compressor,
+                           unsigned block_size_bits,
+                           writer::fragment_order_mode file_order,
+                           bool with_devices, bool with_specials, bool set_uid,
+                           bool set_gid, bool set_time, bool keep_all_times,
+                           bool pack_chunk_table, bool pack_directories,
+                           bool pack_shared_files_table, bool pack_names,
+                           bool pack_names_index, bool pack_symlinks,
+                           bool pack_symlinks_index, bool plain_names_table,
+                           bool plain_symlinks_table, bool open_fail,
+                           size_t readahead, bool hash_files) {
   writer::segmenter::config cfg;
   writer::scanner_options options;
 
@@ -149,7 +149,7 @@ void basic_end_to_end_test(
   writer::fragment_order_options order_opts;
   order_opts.mode = file_order;
 
-  options.file_hash_algorithm = file_hash_algo;
+  options.hash_files = hash_files;
   options.with_devices = with_devices;
   options.with_specials = with_specials;
   options.inode.fragment_order.set_default(order_opts);
@@ -212,19 +212,19 @@ void basic_end_to_end_test(
   EXPECT_EQ(2, prog.symlinks_found);
   EXPECT_EQ(2, prog.symlinks_scanned);
   EXPECT_EQ(2 * with_devices + with_specials, prog.specials_found);
-  EXPECT_EQ(file_hash_algo ? 3 : 0, prog.duplicate_files);
+  EXPECT_EQ(hash_files ? 3 : 0, prog.duplicate_files);
   EXPECT_EQ(1, prog.hardlinks);
   EXPECT_GE(prog.block_count, 1);
   EXPECT_GE(prog.chunk_count, 100);
   EXPECT_EQ(7 - prog.duplicate_files, prog.inodes_scanned);
-  EXPECT_EQ(file_hash_algo ? 4 : 7, prog.inodes_written);
+  EXPECT_EQ(hash_files ? 4 : 7, prog.inodes_written);
   EXPECT_EQ(prog.files_found - prog.duplicate_files - prog.hardlinks,
             prog.inodes_written);
   EXPECT_EQ(prog.block_count, prog.blocks_written);
   EXPECT_EQ(num_fail_empty, prog.errors);
   EXPECT_EQ(2056934, prog.original_size);
   EXPECT_EQ(23456, prog.hardlink_size);
-  EXPECT_EQ(file_hash_algo ? 23456 : 0, prog.saved_by_deduplication);
+  EXPECT_EQ(hash_files ? 23456 : 0, prog.saved_by_deduplication);
   EXPECT_GE(prog.saved_by_segmentation, block_size_bits == 12 ? 0 : 1000000);
   EXPECT_EQ(prog.original_size -
                 (prog.saved_by_deduplication + prog.saved_by_segmentation +
@@ -237,8 +237,8 @@ void basic_end_to_end_test(
             similarity ? prog.original_size -
                              (prog.saved_by_deduplication + prog.symlink_size)
                        : 0);
-  EXPECT_EQ(prog.hash.scans, file_hash_algo ? 5 : 0);
-  EXPECT_EQ(prog.hash.bytes, file_hash_algo ? 46912 : 0);
+  EXPECT_EQ(prog.hash.scans, hash_files ? 5 : 0);
+  EXPECT_EQ(prog.hash.bytes, hash_files ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
   reader::filesystem_options opts;
@@ -607,11 +607,9 @@ class compression_test
   DWARFS_SLOW_FIXTURE
 };
 
-class scanner_test : public testing::TestWithParam<
-                         std::tuple<bool, bool, bool, bool, bool, bool, bool,
-                                    std::optional<std::string>>> {};
-
-class hashing_test : public testing::TestWithParam<std::string> {};
+class scanner_test
+    : public testing::TestWithParam<
+          std::tuple<bool, bool, bool, bool, bool, bool, bool, bool>> {};
 
 class packing_test : public testing::TestWithParam<
                          std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
@@ -631,25 +629,17 @@ TEST_P(compression_test, end_to_end) {
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, true, true, true, true,
-                        true, true, true, false, false, false, readahead,
-                        "xxh3-128");
+                        true, true, true, false, false, false, readahead, true);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        open_fail, file_hash_algo] = GetParam();
+        open_fail, hash_files] = GetParam();
 
   basic_end_to_end_test(
       kCompressionOpts[0], 15, writer::fragment_order_mode::NONE, with_devices,
       with_specials, set_uid, set_gid, set_time, keep_all_times, true, true,
-      true, true, true, true, true, false, false, open_fail, 0, file_hash_algo);
-}
-
-TEST_P(hashing_test, end_to_end) {
-  basic_end_to_end_test(kCompressionOpts[0], 15,
-                        writer::fragment_order_mode::NONE, true, true, true,
-                        true, true, true, true, true, true, true, true, true,
-                        true, false, false, false, 0, GetParam());
+      true, true, true, true, true, false, false, open_fail, 0, hash_files);
 }
 
 TEST_P(packing_test, end_to_end) {
@@ -660,17 +650,16 @@ TEST_P(packing_test, end_to_end) {
       kCompressionOpts[0], 15, writer::fragment_order_mode::NONE, true, true,
       false, false, false, false, pack_chunk_table, pack_directories,
       pack_shared_files_table, pack_names, pack_names_index, pack_symlinks,
-      pack_symlinks_index, false, false, false, 0, default_file_hash_algo);
+      pack_symlinks_index, false, false, false, 0, true);
 }
 
 TEST_P(plain_tables_test, end_to_end) {
   auto [plain_names_table, plain_symlinks_table] = GetParam();
 
-  basic_end_to_end_test(kCompressionOpts[0], 15,
-                        writer::fragment_order_mode::NONE, true, true, false,
-                        false, false, false, false, false, false, false, false,
-                        false, false, plain_names_table, plain_symlinks_table,
-                        false, 0, default_file_hash_algo);
+  basic_end_to_end_test(
+      kCompressionOpts[0], 15, writer::fragment_order_mode::NONE, true, true,
+      false, false, false, false, false, false, false, false, false, false,
+      false, plain_names_table, plain_symlinks_table, false, 0, true);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -738,11 +727,7 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
-                       ::testing::Bool(),
-                       ::testing::Values(std::nullopt, "xxh3-128", "sha512")));
-
-INSTANTIATE_TEST_SUITE_P(dwarfs, hashing_test,
-                         ::testing::ValuesIn(checksum::available_algorithms()));
+                       ::testing::Bool(), ::testing::Bool()));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, packing_test,
@@ -883,14 +868,13 @@ TEST_P(compression_regression, github45) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
                          ::testing::ValuesIn(kCompressionOpts));
 
-class file_scanner
-    : public testing::TestWithParam<
-          std::tuple<writer::fragment_order_mode, std::optional<std::string>>> {
+class file_scanner : public testing::TestWithParam<
+                         std::tuple<writer::fragment_order_mode, bool>> {
   DWARFS_SLOW_FIXTURE
 };
 
 TEST_P(file_scanner, inode_ordering) {
-  auto [order_mode, file_hash_algo] = GetParam();
+  auto [order_mode, hash_files] = GetParam();
 
   test::test_logger lgr;
 
@@ -900,7 +884,7 @@ TEST_P(file_scanner, inode_ordering) {
   writer::fragment_order_options order_opts;
   order_opts.mode = order_mode;
 
-  opts.file_hash_algorithm = file_hash_algo;
+  opts.hash_files = hash_files;
   opts.inode.fragment_order.set_default(order_opts);
   opts.metadata.no_create_timestamp = true;
 
@@ -949,7 +933,7 @@ INSTANTIATE_TEST_SUITE_P(
                           writer::fragment_order_mode::REVPATH,
                           writer::fragment_order_mode::SIMILARITY,
                           writer::fragment_order_mode::NILSIMSA),
-        ::testing::Values(std::nullopt, "xxh3-128")));
+        ::testing::Bool()));
 
 class filter_test
     : public testing::TestWithParam<dwarfs::test::filter_test_data> {

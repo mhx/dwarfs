@@ -239,14 +239,14 @@ void basic_file_handle<Mut>::create_data()
 
 template <detail::mutability Mut>
 void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
-                                  std::optional<std::string> const& hash_alg)
+                                  bool hash_files)
   requires is_mutable
 {
   auto const s = this->size();
 
-  if (hash_alg) {
+  if (hash_files) {
     progress::scan_updater supd(prog.hash, s);
-    checksum cs(*hash_alg);
+    checksum cs(checksum::blake3_256);
 
     if (s > 0) {
       std::shared_ptr<scanner_progress> pctx;
