@@ -274,8 +274,7 @@ class basic_file_handle final : public detail::entry_handle_base<Mut> {
   void create_data()
     requires is_mutable;
 
-  void scan(file_view const& mm, internal::progress& prog,
-            std::optional<std::string> const& hash_alg)
+  void scan(file_view const& mm, internal::progress& prog, bool hash_files)
     requires is_mutable;
 
   void set_invalid()
