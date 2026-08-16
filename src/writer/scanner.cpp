@@ -705,7 +705,7 @@ void scanner_<LoggerPolicy>::scan(
   auto fs = std::make_optional<file_scanner>(
       LOG_GET_LOGGER, *tree, wg_, os_, im, prog,
       file_scanner::options{
-          .hash_algo = options_.file_hash_algorithm,
+          .hash_files = options_.hash_files,
           .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
                                 os_.getenv(kEnvVarDumpFilesFinal),
       });

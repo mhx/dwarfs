@@ -90,9 +90,9 @@ TEST_P(mkdwarfs_build_options_test, basic) {
 namespace {
 
 constexpr std::array<std::string_view, 8> const build_options = {
-    "--categorize --order=none --file-hash=none",
+    "--categorize --order=none --no-dedupe",
     "--categorize=pcmaudio --order=path",
-    "--categorize --order=revpath --file-hash=sha512",
+    "--categorize --order=revpath",
     "--categorize=pcmaudio,incompressible --order=similarity",
     "--categorize --order=nilsimsa --time-resolution=30",
     "--categorize --order=nilsimsa:max-children=1k --time-resolution=hour",
@@ -560,7 +560,7 @@ TEST_P(map_file_error_test, delayed) {
 
   auto dump = t.fa->get_file("inodes.dump");
   ASSERT_TRUE(dump);
-  if (extra_args.find("--file-hash=none") == std::string::npos) {
+  if (extra_args.find("--no-dedupe") == std::string::npos) {
     EXPECT_THAT(dump.value(), ::testing::HasSubstr("(invalid)"))
         << dump.value();
   }
@@ -584,10 +584,10 @@ std::array const map_file_error_args{
     "--categorize",
     "--order=revpath",
     "--order=revpath --categorize",
-    "--file-hash=none --num-walk-workers=8",
-    "--file-hash=none --categorize",
-    "--file-hash=none --order=revpath",
-    "--file-hash=none --order=revpath --categorize",
+    "--no-dedupe --num-walk-workers=8",
+    "--no-dedupe --categorize",
+    "--no-dedupe --order=revpath",
+    "--no-dedupe --order=revpath --categorize",
 };
 
 } // namespace
@@ -599,7 +599,7 @@ TEST(block_cache, sequential_access_detector) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   auto paths = t.add_random_file_tree({.avg_size = 4096.0, .dimension = 10});
-  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "-S14", "--file-hash=none"}))
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "-S14", "--no-dedupe"}))
       << t.err();
   auto image = t.out();
 
@@ -982,7 +982,6 @@ TEST_P(mkdwarfs_progress_test, basic) {
                                 "-o",
                                 image_file,
                                 "-l1",
-                                "--file-hash=sha512",
                                 "--categorize",
                                 "--incompressible-zstd-level=19",
                                 "--order=nilsimsa",
@@ -1240,4 +1239,4 @@ TEST_P(mkdwarfs_multi_device_test, inodes_from_different_devices_are_distinct) {
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_multi_device_test,
-                         ::testing::Values("none"sv, "xxh3-128"sv));
+                         ::testing::Values("none"sv, "blake3-256"sv));

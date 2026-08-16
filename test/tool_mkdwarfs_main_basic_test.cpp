@@ -938,9 +938,6 @@ std::vector<cli_error_case> const option_errors{
     {"time_resolution_invalid",
      {"-i", "/", "-o", "-", "--time-resolution=grmpf"},
      "'--time-resolution' is invalid"},
-    {"unknown_file_hash",
-     {"-i", "/", "-o", "-", "--file-hash=grmpf"},
-     "unknown file hash function"},
     {"unknown_categorizer",
      {"-i", "/", "-o", "-", "--categorize=grmpf"},
      "unknown categorizer: grmpf"},
@@ -1250,5 +1247,29 @@ TEST(mkdwarfs_test, estimate_compression_memory) {
         ::testing::AllOf(::testing::HasSubstr("zstd [level=20] will use up to"),
                          ::testing::HasSubstr(
                              "per worker thread to compress 1 GiB blocks")));
+  }
+}
+
+TEST(mkdwarfs_test, deprecated_file_hash_option) {
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4", "--file-hash=grmpf"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                             "the '--file-hash' option is deprecated and will "
+                             "be removed in a future version"));
+    EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("--no-dedupe")));
+  }
+
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4", "--file-hash=none"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                             "the '--file-hash' option is deprecated and will "
+                             "be removed in a future version"));
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr(
+                    "use '--no-dedupe' instead of '--file-hash=none'"));
   }
 }
