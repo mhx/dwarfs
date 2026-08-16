@@ -90,9 +90,9 @@ class inode_manager {
   }
 
   // TODO: inode_handle -> inode_id ?
-  void scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                       inode_handle ino, file_handle p) const {
-    impl_->scan_background(wg, os, ino, p);
+  void scan(os_access const& os, inode_handle ino, file_handle p,
+            dwarfs::internal::worker_group* wg = nullptr) const {
+    impl_->scan(os, ino, p, wg);
   }
 
   bool has_invalid_inodes() const { return impl_->has_invalid_inodes(); }
@@ -122,9 +122,8 @@ class inode_manager {
     virtual size_t count() const = 0;
     virtual void for_each_inode_in_order(inode_cb const& fn) const = 0;
     virtual fragment_infos fragment_category_info() const = 0;
-    virtual void
-    scan_background(dwarfs::internal::worker_group& wg, os_access const& os,
-                    inode_handle ino, file_handle p) const = 0;
+    virtual void scan(os_access const& os, inode_handle ino, file_handle p,
+                      dwarfs::internal::worker_group* wg) const = 0;
     virtual bool has_invalid_inodes() const = 0;
     virtual void try_scan_invalid(dwarfs::internal::worker_group& wg,
                                   os_access const& os) = 0;
