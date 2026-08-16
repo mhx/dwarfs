@@ -49,7 +49,7 @@ class progress;
 class file_scanner {
  public:
   struct options {
-    std::optional<std::string> hash_algo{};
+    bool hash_files{true};
     bool debug_inode_create{false};
   };
 
