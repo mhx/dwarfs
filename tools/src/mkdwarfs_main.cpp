@@ -1589,7 +1589,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
                                    sf_config);
 
-      thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
+      thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers,
+                               4096);
 
       writer::scanner s(lgr, scanner_pool, sf, *iol.os, options);
 
