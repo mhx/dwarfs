@@ -138,8 +138,8 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void scan_background(worker_group& wg, os_access const& os, inode_handle ino,
-                       file_handle p) const override;
+  void scan(os_access const& os, inode_handle ino, file_handle p,
+            dwarfs::internal::worker_group* wg) const override;
 
   bool has_invalid_inodes() const override;
 
@@ -203,17 +203,16 @@ class inode_manager_ final : public inode_manager::impl {
 };
 
 template <typename LoggerPolicy>
-void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
-                                                   os_access const& os,
-                                                   inode_handle ino,
-                                                   file_handle p) const {
+void inode_manager_<LoggerPolicy>::scan(
+    os_access const& os, inode_handle ino, file_handle p,
+    dwarfs::internal::worker_group* wg) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
   //       that ensures `fragments_` is updated. Also, there
   //       should only ever be one empty inode, so the check
   //       doesn't actually make much of a difference.
   if (inodes_need_scanning_ /* && p->size() > 0 */) {
-    wg.add_job([this, &os, p, ino] mutable {
+    auto scan_job = [this, &os, ino, p] mutable {
       auto const size = p.size();
       file_view mm;
 
@@ -243,7 +242,13 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
       ino.scan(mm, opts_, prog_);
       update_prog(ino, p);
-    });
+    };
+
+    if (wg) {
+      wg->add_job(std::move(scan_job));
+    } else {
+      scan_job();
+    }
   } else {
     ino.populate(p.size());
     update_prog(ino, p);
