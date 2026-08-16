@@ -89,7 +89,9 @@ class file_scanner_ final : public file_scanner::impl {
                                     uint64_t start_hash);
   uint64_t compute_start_hash(file_handle p);
   void hash_file(file_handle p, file_size_t size);
-  void add_inode(file_handle p, int lineno);
+  inode_handle add_inode(file_handle p, int lineno);
+  void
+  scan_inode(file_handle p, inode_handle ino, bool background = false) const;
 
   template <typename KeyType>
   std::vector<std::pair<KeyType, file_id_vector>>
@@ -314,7 +316,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   } else {
     prog_.current.store(p);
     by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
-    add_inode(p, __LINE__);
+    scan_inode(p, add_inode(p, __LINE__), true);
   }
 }
 
@@ -442,10 +444,14 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
     // seen so far, so create an inode now and do not read file contents.
     it->second.push_back(p.id());
 
+    inode_handle inode;
+
     {
       std::lock_guard lock(mx_);
-      add_inode(p, __LINE__);
+      inode = add_inode(p, __LINE__);
     }
+
+    scan_inode(p, inode, true);
 
     return;
   }
@@ -488,8 +494,14 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
     it->second.push_back(p.id());
 
     if (!p.get_inode()) {
-      std::lock_guard lock(mx_);
-      add_inode(p, __LINE__);
+      inode_handle inode;
+
+      {
+        std::lock_guard lock(mx_);
+        inode = add_inode(p, __LINE__);
+      }
+
+      scan_inode(p, inode, true);
     }
 
     return;
@@ -560,18 +572,20 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
       latch->wait();
     }
 
+    std::optional<inode_handle> inode_to_scan;
+
     {
       std::unique_lock lock(mx_);
 
       if (p.is_invalid()) [[unlikely]] {
-        add_inode(p, __LINE__);
+        inode_to_scan = add_inode(p, __LINE__);
         by_inode_id_[p.get_unique_inode_id()].push_back(p.id());
       } else {
         auto& ref = get_by_digest_autovivify(p);
 
         if (ref.empty()) {
           // This is not a duplicate. We must allocate a new inode.
-          add_inode(p, __LINE__);
+          inode_to_scan = add_inode(p, __LINE__);
         } else {
           auto inode = storage_.handle(ref.front()).get_inode();
           assert(inode);
@@ -585,6 +599,10 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
         ref.push_back(p.id());
       }
+    }
+
+    if (inode_to_scan) {
+      scan_inode(p, *inode_to_scan);
     }
   });
 }
@@ -625,7 +643,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::add_inode(file_handle p, int lineno) {
+inode_handle file_scanner_<LoggerPolicy>::add_inode(file_handle p, int lineno) {
   assert(!p.get_inode());
 
   auto inode = storage_.create_inode();
@@ -636,7 +654,13 @@ void file_scanner_<LoggerPolicy>::add_inode(file_handle p, int lineno) {
     debug_inode_create_.push_back({inode.id(), p.id(), lineno});
   }
 
-  im_.scan_background(wg_, os_, inode, p);
+  return inode;
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::scan_inode(file_handle p, inode_handle inode,
+                                             bool background) const {
+  im_.scan(os_, inode, p, background ? &wg_ : nullptr);
 }
 
 template <typename LoggerPolicy>
