@@ -436,7 +436,7 @@ Most other options are concerned with compression tuning:
   the data will be read as zeros. This can be useful if you want a somewhat
   realistic representation of a file system, but you don't actually care
   about the file contents. This does not work with `--no-sparse-files`.
-  You may want to set `--file-hash=none` and `--order=none` when using this
+  You may want to set `--no-dedupe` and `--order=none` when using this
   option to speed up the build process.
 
 - `--with-devices`:
@@ -510,13 +510,16 @@ Most other options are concerned with compression tuning:
   both time and memory, although this will usually only be noticeable for
   file system images with millions of files.
 
-- `--file-hash=none`|*name*:
-  Select the hashing function to be used for file deduplication. If `none`
-  is chosen, file deduplication is disabled. By default, the built-in
-  `XXH3-128` hash is used. This is not a secure hash function, but it is
-  significantly faster. The full list of supported hash function depends
-  on the version of OpenSSL that the binary is linked against and is shown
-  in the output of `mkdwarfs -h`.
+- `--no-dedupe`:
+  Turn off file-level deduplication. By default, a BLAKE3/256 hash will be
+  computed for each deduplication candidate file, and files with the same
+  hash will be deduplicated without further checks (i.e. the file contents
+  will *not* be compared).
+
+- `--file-hash=none`:
+  This option is deprecated and will be removed in a future release. For
+  compatibility, `--file-hash=none` is equivalent to `--no-dedupe`. Any
+  other value passed to this option will be ignored.
 
 - `--log-level=`*name*:
   Specify a logging level.
@@ -1000,8 +1003,7 @@ if greater than one, its inode is looked up in a hardlink cache. Another
 lookup is performed to see if this is the first file/inode of a particular
 size. If it's the first file, we just keep track of the file. If it's not
 the first file, we add a job to a pool of `--num-scanner-workers` worker
-threads to compute a hash (which hash function is used is determined by
-the the `--file-hash` option) of the file. We also add a hash-computing
+threads to compute a hash of the file. We also add a hash-computing
 job for the first file we found with this size earlier. These hashes will
 then be used for de-duplicating files. If `--order` is set to one of the
 similarity order modes, for each unique file, a further job is added to
@@ -1013,7 +1015,7 @@ tricky).
 Once all file contents have been scanned by the worker threads, all
 unique files will be assigned an internal inode number.
 
-This behaviour can be customized. When using `--file-hash=none`,
+This behaviour can be customized. When using `--no-dedupe`,
 de-duplication is completely disabled. Using `--max-similarity-size`,
 it is possible to prevent computation of similarity hashes for huge
 files. These huge files will then be stored separately before all other

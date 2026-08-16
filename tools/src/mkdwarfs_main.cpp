@@ -465,7 +465,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
-       estimate_compression_memory = false;
+       estimate_compression_memory = false, no_dedupe = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -491,11 +491,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto debug_filter_desc =
       fmt::format("show effect of filter rules without producing an image ({})",
                   fmt::join(ranges::views::keys(debug_filter_modes), ", "));
-
-  auto hash_list = checksum::available_algorithms();
-
-  auto file_hash_desc = fmt::format(
-      "choice of file hashing function (none, {})", fmt::join(hash_list, ", "));
 
   writer::categorizer_registry catreg;
 
@@ -596,9 +591,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
         "maximum file size to compute similarity")
+    ("no-dedupe",
+        po::value<bool>(&no_dedupe)->zero_tokens(),
+        "turn off file-level deduplication")
     ("file-hash",
-        po::value<std::string>(&file_hash_algo)->default_value("xxh3-128"),
-        file_hash_desc.c_str())
+        po::value<std::string>(&file_hash_algo),
+        "deprecated; passing 'none' is equivalent to --no-dedupe")
     ("progress",
         po::value<std::string>(&progress_mode)->default_value(default_progress_mode),
         progress_desc.c_str())
@@ -1007,15 +1005,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     rw_opts.no_check = no_check;
   }
 
-  if (file_hash_algo == "none") {
-    options.file_hash_algorithm.reset();
-  } else if (checksum::is_available(file_hash_algo)) {
-    options.file_hash_algorithm = file_hash_algo;
-  } else {
-    iol.err << "error: unknown file hash function '" << file_hash_algo << "'\n";
-    return 1;
-  }
-
   if (vm.contains("max-similarity-size")) {
     auto size = parse_size_with_unit(max_similarity_size);
     if (size > 0) {
@@ -1250,6 +1239,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   LOG_PROXY(debug_logger_policy, lgr);
+
+  options.hash_files = !no_dedupe;
+
+  if (vm.contains("file-hash")) {
+    LOG_WARN << "the '--file-hash' option is deprecated and will be removed in "
+                "a future version";
+    if (file_hash_algo == "none") {
+      LOG_WARN << "use '--no-dedupe' instead of '--file-hash=none'";
+      options.hash_files = false;
+    }
+  }
 
   if (options.hollow_filesystem) {
     LOG_WARN
