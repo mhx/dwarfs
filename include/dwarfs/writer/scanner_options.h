@@ -39,7 +39,7 @@
 namespace dwarfs::writer {
 
 struct scanner_options {
-  std::optional<std::string> file_hash_algorithm{"xxh3-128"};
+  bool hash_files{true};
   bool remove_empty_dirs{false};
   bool with_devices{false};
   bool with_specials{false};

@@ -309,7 +309,7 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   prog_.original_size += size_info.total;
   prog_.allocated_original_size += size_info.allocated;
 
-  if (opts_.hash_algo) {
+  if (opts_.hash_files) {
     scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
@@ -366,7 +366,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
               << "\n  by-inode-id: " << table_stats(by_inode_id_)
               << "\n  by-digest: " << table_stats(by_digest_);
 
-  if (opts_.hash_algo) {
+  if (opts_.hash_files) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
       return hardlink_group(p);
     });
@@ -621,7 +621,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
   }
 
   prog_.current.store(p);
-  p.scan(mm, prog_, opts_.hash_algo);
+  p.scan(mm, prog_, opts_.hash_files);
 }
 
 template <typename LoggerPolicy>

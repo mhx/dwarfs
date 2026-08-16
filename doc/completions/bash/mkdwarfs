@@ -40,7 +40,6 @@ _mkdwarfs_completion()
         --chmod
         --compress-niceness
         --debug-filter
-        --file-hash
         --header
         --history-compression
         --hotness-list
@@ -59,6 +58,7 @@ _mkdwarfs_completion()
         --no-category-metadata
         --no-category-names
         --no-create-timestamp
+        --no-dedupe
         --no-history
         --no-history-command-line
         --no-history-timestamps
@@ -112,7 +112,7 @@ _mkdwarfs_completion()
     # catch option with known arguments first
     case $prev in
         --log-level | --compress-level | --recompress | \
-        --categorize | --file-hash | --progress | --pack-metadata)
+        --categorize | --progress | --pack-metadata)
             prevoption=${prev//-/_}
             _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
             return 0
