@@ -34,6 +34,8 @@
 #include <cstdint>
 #include <memory>
 #include <new>
+#include <optional>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -70,6 +72,112 @@ class basic_chunked_append_only_vector {
       PowerOfTwoElementsPerChunk ? std::bit_floor(chunk_elements_raw)
                                  : chunk_elements_raw;
   static constexpr std::size_t chunk_bytes = chunk_elements * sizeof(T);
+
+ private:
+  struct chunk_deleter {
+    void operator()(T* p) const noexcept {
+      std::allocator<T>{}.deallocate(p, chunk_elements);
+    }
+  };
+
+  using chunk_ptr = std::unique_ptr<T, chunk_deleter>;
+
+  [[nodiscard]] static chunk_ptr allocate_chunk() {
+    return chunk_ptr{std::allocator<T>{}.allocate(chunk_elements)};
+  }
+
+ public:
+  class drain_type {
+   public:
+    drain_type(drain_type const&) = delete;
+    drain_type& operator=(drain_type const&) = delete;
+
+    drain_type(drain_type&& other) noexcept
+        : chunks_{std::move(other.chunks_)}
+        , size_{std::exchange(other.size_, 0)}
+        , next_chunk_index_{std::exchange(other.next_chunk_index_, 0)}
+        , current_chunk_index_{std::exchange(other.current_chunk_index_, 0)}
+        , current_chunk_size_{std::exchange(other.current_chunk_size_, 0)} {}
+
+    drain_type& operator=(drain_type&& other) noexcept {
+      if (this != &other) {
+        clear();
+        chunks_ = std::move(other.chunks_);
+        size_ = std::exchange(other.size_, 0);
+        next_chunk_index_ = std::exchange(other.next_chunk_index_, 0);
+        current_chunk_index_ = std::exchange(other.current_chunk_index_, 0);
+        current_chunk_size_ = std::exchange(other.current_chunk_size_, 0);
+      }
+      return *this;
+    }
+
+    ~drain_type() { clear(); }
+
+    // The returned span remains valid until the next call to next_chunk(),
+    // or until this drain object is moved from or destroyed.
+    [[nodiscard]] std::optional<std::span<T>> next_chunk() noexcept {
+      release_current_chunk();
+
+      if (next_chunk_index_ >= chunks_.size()) {
+        return std::nullopt;
+      }
+
+      size_type const remaining = size_ - next_chunk_index_ * chunk_elements;
+      size_type const n =
+          remaining < chunk_elements ? remaining : chunk_elements;
+
+      current_chunk_index_ = next_chunk_index_++;
+      current_chunk_size_ = n;
+
+      return std::span<T>{chunks_[current_chunk_index_].get(), n};
+    }
+
+   private:
+    friend class basic_chunked_append_only_vector;
+
+    drain_type(std::vector<chunk_ptr>&& chunks, size_type size) noexcept
+        : chunks_{std::move(chunks)}
+        , size_{size} {}
+
+    void release_current_chunk() noexcept {
+      if (current_chunk_size_ == 0) {
+        return;
+      }
+
+      auto& current = chunks_[current_chunk_index_];
+      for (size_type offset = 0; offset < current_chunk_size_; ++offset) {
+        std::destroy_at(current.get() + offset);
+      }
+      current.reset();
+      current_chunk_size_ = 0;
+    }
+
+    void clear() noexcept {
+      release_current_chunk();
+
+      for (size_type chunk_index = next_chunk_index_;
+           chunk_index < chunks_.size(); ++chunk_index) {
+        size_type const remaining = size_ - chunk_index * chunk_elements;
+        size_type const n =
+            remaining < chunk_elements ? remaining : chunk_elements;
+        auto& current = chunks_[chunk_index];
+        for (size_type offset = 0; offset < n; ++offset) {
+          std::destroy_at(current.get() + offset);
+        }
+        current.reset();
+      }
+
+      chunks_.clear();
+      size_ = 0;
+      next_chunk_index_ = 0;
+    }
+
+    std::vector<chunk_ptr> chunks_;
+    size_type size_{0};
+    size_type next_chunk_index_{0};
+    size_type current_chunk_index_{0};
+    size_type current_chunk_size_{0};
+  };
 
   basic_chunked_append_only_vector() = default;
   ~basic_chunked_append_only_vector() { clear(); }
@@ -210,6 +318,13 @@ class basic_chunked_append_only_vector {
     return *p;
   }
 
+  // Transfer ownership of all chunks to a destructive chunk iterator.
+  [[nodiscard]] drain_type drain() && noexcept {
+    return drain_type{std::move(chunks_), std::exchange(size_, 0)};
+  }
+
+  [[nodiscard]] drain_type drain() & = delete;
+
   void clear() noexcept {
     destroy_constructed_elements();
     chunks_.clear();
@@ -231,7 +346,7 @@ class basic_chunked_append_only_vector {
       chunks_.resize(needed_chunks);
     } else if (new_size > size_) {
       while (new_size > chunks_.size() * chunk_elements) {
-        chunks_.push_back(std::make_unique_for_overwrite<chunk>());
+        chunks_.push_back(allocate_chunk());
       }
 
       size_type const old_size = size_;
@@ -254,32 +369,23 @@ class basic_chunked_append_only_vector {
   }
 
  private:
-  struct chunk {
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
-    alignas(T) std::byte storage[chunk_elements][sizeof(T)];
-  };
-
   [[nodiscard]] static constexpr std::pair<size_type, size_type>
   locate(size_type i) noexcept {
     return {i / chunk_elements, i % chunk_elements};
   }
 
   [[nodiscard]] T* ptr_at(size_type chunk_index, size_type offset) noexcept {
-    void* raw = &chunks_[chunk_index]->storage[offset];
-    assert(reinterpret_cast<std::uintptr_t>(raw) % alignof(T) == 0);
-    return std::launder(reinterpret_cast<T*>(raw));
+    return chunks_[chunk_index].get() + offset;
   }
 
   [[nodiscard]] T const*
   ptr_at(size_type chunk_index, size_type offset) const noexcept {
-    void const* raw = &chunks_[chunk_index]->storage[offset];
-    assert(reinterpret_cast<std::uintptr_t>(raw) % alignof(T) == 0);
-    return std::launder(reinterpret_cast<T const*>(raw));
+    return chunks_[chunk_index].get() + offset;
   }
 
   void ensure_capacity_for_one_more() {
     if (size_ == chunks_.size() * chunk_elements) {
-      chunks_.push_back(std::make_unique_for_overwrite<chunk>());
+      chunks_.push_back(allocate_chunk());
     }
   }
 
@@ -297,7 +403,7 @@ class basic_chunked_append_only_vector {
     }
   }
 
-  std::vector<std::unique_ptr<chunk>> chunks_;
+  std::vector<chunk_ptr> chunks_;
   size_type size_{0};
 };
 
