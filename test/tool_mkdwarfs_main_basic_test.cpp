@@ -1164,10 +1164,11 @@ TEST(mkdwarfs_test, block_number_out_of_range) {
           ::testing::HasSubstr("block number out of range")));
 }
 
-class mkdwarfs_log_mem_usage_test : public testing::TestWithParam<bool> {};
+class mkdwarfs_log_mem_usage_test
+    : public testing::TestWithParam<std::tuple<bool, std::string>> {};
 
 TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
-  auto const kAccurate = GetParam();
+  auto const [kAccurate, kProgress] = GetParam();
 
   std::string const mem_usage_file{"memusage.log"};
   mkdwarfs_tester t;
@@ -1175,7 +1176,8 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
   if (kAccurate) {
     t.os->setenv("DWARFS_ACCURATE_MEMORY_USAGE", "1");
   }
-  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4"})) << t.err();
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l4", "--progress", kProgress}))
+      << t.err();
   auto log = t.fa->get_file(mem_usage_file);
   ASSERT_TRUE(log);
 
@@ -1222,7 +1224,10 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_log_mem_usage_test,
-                         ::testing::Bool());
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Values("none", "simple",
+                                                              "ascii",
+                                                              "unicode")));
 
 TEST(mkdwarfs_test, estimate_compression_memory) {
   {
