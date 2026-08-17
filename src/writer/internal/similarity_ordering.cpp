@@ -233,6 +233,15 @@ class centroid_accumulator {
     return {make_span(bitcounts_, slot * Bits, Bits), veccounts_[slot]};
   }
 
+  std::string memory_usage() const {
+    std::ostringstream oss;
+    oss << "centroid accumulator: bitcounts=" << bitcounts_.size() << " ("
+        << bitcounts_.size_in_bytes() << " bytes)"
+        << ", veccounts=" << veccounts_.size() << " ("
+        << veccounts_.size_in_bytes() << " bytes)";
+    return oss.str();
+  }
+
  private:
   container::auto_packed_int_vector<counts_type> bitcounts_;
   container::auto_packed_int_vector<counts_type> veccounts_;
@@ -625,7 +634,7 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
   }
 
   td << opts_.context << "cluster_by_distance: " << index.size() << " -> "
-     << children.size();
+     << children.size() << " (" << counts.memory_usage() << ")";
 
   node.v = std::move(children);
 }
