@@ -27,8 +27,10 @@
 #include <limits>
 #include <mutex>
 #include <numeric>
+#include <span>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -188,27 +190,76 @@ void order_by_shortest_path(size_t count, GetI const& geti, GetK const& getk,
   cpu_dispatch<order_by_shortest_path_cpu>(count, geti, getk, swapper);
 }
 
-template <size_t Bits, typename BitsType = uint64_t,
-          typename CountsType = uint32_t>
+/**
+ * Scratch storage for cluster centroid bit counts.
+ *
+ * While a centroid is being built, it needs one counter per bit plus a
+ * vector count. For 256-bit hashes, that's 1028 bytes of state to maintain
+ * a 32-byte centroid. The counters are no longer needed once the centroid
+ * has been built.
+ */
+template <size_t Bits, typename CountsType = uint32_t>
+class centroid_accumulator {
+ public:
+  using counts_type = CountsType;
+  using bitcounts_type = std::span<CountsType, Bits>;
+
+  class slot_ref {
+   public:
+    slot_ref(bitcounts_type bitcounts, CountsType& veccount)
+        : bitcounts_{bitcounts}
+        , veccount_{veccount} {}
+
+    bitcounts_type bitcounts() const { return bitcounts_; }
+    CountsType increment_veccount() const { return ++veccount_; }
+
+   private:
+    bitcounts_type bitcounts_;
+    CountsType& veccount_;
+  };
+
+  size_t emplace_back() {
+    bitcounts_.resize(bitcounts_.size() + Bits, 0);
+    veccounts_.push_back(0);
+    return veccounts_.size() - 1;
+  }
+
+  slot_ref operator[](size_t slot) {
+    assert(slot < veccounts_.size());
+    return {bitcounts_type{bitcounts_.data() + slot * Bits, Bits},
+            veccounts_[slot]};
+  }
+
+ private:
+  std::vector<CountsType> bitcounts_;
+  std::vector<CountsType> veccounts_;
+};
+
+template <size_t Bits, typename BitsType = uint64_t>
 class basic_centroid {
  public:
   static_assert(Bits % (8 * sizeof(BitsType)) == 0);
   static constexpr size_t const array_size = Bits / (8 * sizeof(BitsType));
   using value_type = std::array<BitsType, array_size>;
 
-  basic_centroid() {
-    std::ranges::fill(centroid_, 0);
-    std::ranges::fill(bitcounts_, 0);
-  }
+  basic_centroid() { std::ranges::fill(centroid_, 0); }
 
   value_type const& value() const { return centroid_; };
 
-  void add(value_type const& vec) {
-    ++veccount_;
+  // Add `vec` to this centroid, using `slot` to track the bit counts.
+  // The same slot must be passed for every call on the same centroid.
+  template <typename SlotRef>
+  void add(value_type const& vec, SlotRef slot) {
+    auto bitcounts = slot.bitcounts();
+    auto const veccount = slot.increment_veccount();
+    auto centroid_bits = bit_view(centroid_.data());
+    auto const vec_bits = bit_view(vec.data());
+
     for (size_t bit = 0; bit < Bits; ++bit) {
-      bitcounts_[bit] += bit_view(vec.data()).test(bit) ? 1 : 0;
-      auto centroid_bits = bit_view(centroid_.data());
-      if (bitcounts_[bit] > veccount_ / 2) {
+      if (vec_bits.test(bit)) {
+        ++bitcounts[bit];
+      }
+      if (bitcounts[bit] > veccount / 2) {
         centroid_bits.set(bit);
       } else {
         centroid_bits.clear(bit);
@@ -222,14 +273,13 @@ class basic_centroid {
 
  private:
   value_type centroid_;
-  std::array<CountsType, Bits> bitcounts_;
-  CountsType veccount_;
 };
 
 template <size_t Bits, typename BitsType, typename CountsType,
           typename IndexValueType>
 struct basic_cluster {
-  using centroid_type = basic_centroid<Bits, BitsType, CountsType>;
+  using centroid_type = basic_centroid<Bits, BitsType>;
+  using counts_type = CountsType;
   using index_value_type = IndexValueType;
   using index_type = sortable_inode_span::index_type;
 
@@ -525,45 +575,58 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
     int max_distance) const {
   using node_type = std::decay_t<decltype(node)>;
   using cluster_type = node_type::cluster_type;
+  static constexpr size_t const no_match = std::numeric_limits<size_t>::max();
+
+  auto const& index = node.cluster().index;
   typename node_type::children_vector children;
+
+  // Bit counts for the centroids of `children`, indexed in lockstep. These
+  // are released when this function returns; only the centroids themselves
+  // stay alive as part of the cluster tree. Deliberately *not* reserved up
+  // front: most nodes create far fewer than `max_children` children.
+  centroid_accumulator<Bits, typename cluster_type::counts_type> counts;
+
+  children.reserve(std::min<size_t>(index.size(), opts_.max_children));
 
   auto td = LOG_TIMED_DEBUG;
 
-  for (auto i : node.cluster().index) {
+  for (auto i : index) {
     auto const& vec = ev.get_bits(i);
-    cluster_type* match = nullptr;
+    size_t match = no_match;
     int best_distance = std::numeric_limits<int>::max();
-    cluster_type* best_match = nullptr;
+    size_t best_match = no_match;
 
-    for (auto& c : children) {
-      auto& cluster = c.cluster();
-      auto d = cluster.centroid.distance_to(vec);
+    for (size_t c = 0; c < children.size(); ++c) {
+      auto d = children[c].cluster().centroid.distance_to(vec);
 
       if (d <= max_distance) {
-        match = &cluster;
+        match = c;
         break;
       }
       if (d < best_distance) {
         best_distance = d;
-        best_match = &cluster;
+        best_match = c;
       }
     }
 
-    if (!match) {
+    if (match == no_match) {
       if (children.size() < opts_.max_children) {
-        auto& nn = children.emplace_back();
-        match = &nn.cluster();
+        children.emplace_back();
+        match = counts.emplace_back();
+        assert(match + 1 == children.size());
       } else {
+        assert(best_match != no_match);
         match = best_match;
       }
     }
 
-    match->centroid.add(vec);
-    match->index.push_back(i);
+    auto& cluster = children[match].cluster();
+    cluster.centroid.add(vec, counts[match]);
+    cluster.index.push_back(i);
   }
 
-  td << opts_.context << "cluster_by_distance: " << node.cluster().index.size()
-     << " -> " << children.size();
+  td << opts_.context << "cluster_by_distance: " << index.size() << " -> "
+     << children.size();
 
   node.v = std::move(children);
 }
