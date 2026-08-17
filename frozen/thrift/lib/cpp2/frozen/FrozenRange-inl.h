@@ -320,8 +320,10 @@ struct ArrayLayout : public LayoutBase {
       static_assert(
           !std::is_floating_point_v<Item> ||
           std::endian::native == std::endian::little);
+      // NOLINTBEGIN(bugprone-casting-through-void)
       auto data =
           reinterpret_cast<const Item*>(static_cast<void const*>(data_));
+      // NOLINTEND(bugprone-casting-through-void)
       return {data, data + count_};
     }
 

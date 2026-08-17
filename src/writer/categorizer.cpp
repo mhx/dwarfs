@@ -202,10 +202,10 @@ bool categorizer_job_<LoggerPolicy>::best_result_found() const {
 template <typename LoggerPolicy>
 class categorizer_manager_ final : public categorizer_manager_private {
  public:
-  explicit categorizer_manager_(logger& lgr, fs::path root)
+  explicit categorizer_manager_(logger& lgr, fs::path const& root)
       : lgr_{lgr}
       , LOG_PROXY_INIT(lgr)
-      , root_path_{std::move(root)} {
+      , root_path_{root} {
     add_category(categorizer::DEFAULT_CATEGORY,
                  std::numeric_limits<size_t>::max());
   }
@@ -376,10 +376,9 @@ categorizer_job::categorizer_job() = default;
 categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
     : impl_{std::move(impl)} {}
 
-categorizer_manager::categorizer_manager(logger& lgr, fs::path root)
+categorizer_manager::categorizer_manager(logger& lgr, fs::path const& root)
     : impl_(make_unique_logging_object<impl, internal::categorizer_manager_,
-                                       default_logger_policy>(
-          lgr, std::move(root))) {}
+                                       default_logger_policy>(lgr, root)) {}
 
 fragment_category categorizer_manager::default_category() {
   return fragment_category(0);
