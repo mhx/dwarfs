@@ -455,40 +455,64 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const
 
 #define FSST_SAMPLELINE ((size_t) 512)
 
+// byte-length of input string `index`; reads the contiguous length array
+// directly when the caller provided one, so that the array-based fsst_create()
+// path is not slowed down by an indirect call per string
+static inline size_t inputLength(const fsst_input_t *input, size_t index) {
+   return input->lengths ? input->lengths[index]
+                         : input->length(input->context, index);
+}
+
 // quickly select a uniformly random set of lines such that we have between [FSST_SAMPLETARGET,FSST_SAMPLEMAXSZ) string bytes
-vector<const u8*> makeSample(u8* sampleBuf, const u8* strIn[], const size_t **lenRef, size_t nlines) {
+vector<const u8*> makeSample(u8* sampleBuf, const fsst_input_t *input, const size_t **lenRef, size_t nlines) {
    size_t totSize = 0;
-   const size_t *lenIn = *lenRef;
    vector<const u8*> sample;
 
    for(size_t i=0; i<nlines; i++) 
-      totSize += lenIn[i];
+      totSize += inputLength(input, i);
 
    if (totSize < FSST_SAMPLETARGET) { 
       for(size_t i=0; i<nlines; i++) 
-         sample.push_back(strIn[i]);
+         sample.push_back(input->data(input->context, i));
+      if (!input->lengths) {
+         // buildSymbolTable() needs the lengths as an array, build unless
+         // provided by the caller
+         size_t *sampleLen = new size_t[nlines];
+         for(size_t i=0; i<nlines; i++)
+            sampleLen[i] = input->length(input->context, i);
+         *lenRef = sampleLen;
+      }
    } else {
       u64 sampleRnd = FSST_HASH(4637947);
       const u8* sampleLim = sampleBuf + FSST_SAMPLETARGET;
-      size_t *sampleLen =  new size_t[nlines + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE];
+      // Each iteration below writes one length and advances sampleBuf by at
+      // least one byte, until sampleBuf reaches sampleBuf+FSST_SAMPLETARGET,
+      // so no more than FSST_SAMPLETARGET lengths can ever be written. Capping
+      // the allocation there keeps it independent of the input size: for a large
+      // batch of strings, "nlines" entries would be orders of magnitude more
+      // than can be used.
+      size_t sampleLenSize = (nlines < FSST_SAMPLETARGET ? nlines : FSST_SAMPLETARGET)
+                             + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE;
+      size_t *sampleLen =  new size_t[sampleLenSize];
       *lenRef = sampleLen;
-      size_t* sampleLenLim = sampleLen + nlines + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE;
+      size_t* sampleLenLim = sampleLen + sampleLenSize;
 
       while(sampleBuf < sampleLim && sampleLen < sampleLenLim) {
          // choose a non-empty line
          sampleRnd = FSST_HASH(sampleRnd);
          size_t linenr = sampleRnd % nlines;
-         while (lenIn[linenr] == 0) 
+         while (inputLength(input, linenr) == 0)
             if (++linenr == nlines) linenr = 0;
 
          // choose a chunk
-         size_t chunks = 1 + ((lenIn[linenr]-1) / FSST_SAMPLELINE);
+         size_t lineLen = inputLength(input, linenr);
+         size_t chunks = 1 + ((lineLen-1) / FSST_SAMPLELINE);
          sampleRnd = FSST_HASH(sampleRnd);
          size_t chunk = FSST_SAMPLELINE*(sampleRnd % chunks);
 
          // add the chunk to the sample
-         size_t len = min(lenIn[linenr]-chunk,FSST_SAMPLELINE);
-         memcpy(sampleBuf, strIn[linenr]+chunk, len);
+         size_t len = min(lineLen-chunk,FSST_SAMPLELINE);
+         memcpy(sampleBuf, input->data(input->context, linenr)+chunk, len);
          sample.push_back(sampleBuf);
          sampleBuf += *sampleLen++ = len;
       }
@@ -496,15 +520,41 @@ vector<const u8*> makeSample(u8* sampleBuf, const u8* strIn[], const size_t **le
    return sample;
 }
 
-extern "C" fsst_encoder_t* fsst_create(size_t n, const size_t lenIn[], const u8 *strIn[], int zeroTerminated) {
+// accessor over the contiguous pointer/length arrays taken by fsst_create()
+namespace {
+   struct ArrayInput {
+      const size_t *lenIn;
+      const u8 **strIn;
+   };
+
+   size_t arrayInputLength(void *context, size_t index) {
+      return ((const ArrayInput*) context)->lenIn[index];
+   }
+
+   const u8 *arrayInputData(void *context, size_t index) {
+      return ((const ArrayInput*) context)->strIn[index];
+   }
+}
+
+extern "C" fsst_encoder_t* fsst_create_indexed(size_t n, const fsst_input_t *input, int zeroTerminated) {
    u8* sampleBuf = new u8[FSST_SAMPLEMAXSZ];
-   const size_t *sampleLen = lenIn;
-   vector<const u8*> sample = makeSample(sampleBuf, strIn, &sampleLen, n?n:1); // careful handling of input to get a right-size and representative sample
+   const size_t *sampleLen = input->lengths;
+   vector<const u8*> sample = makeSample(sampleBuf, input, &sampleLen, n?n:1); // careful handling of input to get a right-size and representative sample
    Encoder *encoder = new Encoder();
    encoder->symbolTable = shared_ptr<SymbolTable>(buildSymbolTable(encoder->counters, sample, sampleLen, zeroTerminated));
-   if (sampleLen != lenIn) delete[] sampleLen; 
+   if (sampleLen != input->lengths) delete[] sampleLen;
    delete[] sampleBuf; 
    return (fsst_encoder_t*) encoder;
+}
+
+extern "C" fsst_encoder_t* fsst_create(size_t n, const size_t lenIn[], const u8 *strIn[], int zeroTerminated) {
+   ArrayInput ctx = { lenIn, strIn };
+   fsst_input_t input;
+   input.context = &ctx;
+   input.length = arrayInputLength;
+   input.data = arrayInputData;
+   input.lengths = lenIn; // lengths are contiguous here, so nothing is materialized
+   return fsst_create_indexed(n, &input, zeroTerminated);
 }
 
 /* create another encoder instance, necessary to do multi-threaded encoding using the same symbol table */
