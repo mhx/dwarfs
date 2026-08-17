@@ -53,4 +53,36 @@ concept closed_under = requires(Op op) {
   { op(std::declval<Lhs>(), std::declval<Rhs>()) } -> std::convertible_to<Lhs>;
 };
 
+/**
+ * A sized, random-access container addressed by index rather than by pointer.
+ *
+ * This is the interface required by `index_based_span_impl`. It is deliberately
+ * limited to what a span actually needs: the nested types, the size, indexed
+ * read/write access, and the ability to synthesize iterators for an index.
+ *
+ * Mutable access is part of the concept, so a hypothetical read-only container
+ * would not satisfy it. Should that become relevant, this concept can be split
+ * into a read-only base concept and a mutable refinement, with the span
+ * requiring the latter only for `IsConst == false`.
+ */
+template <typename C>
+concept index_based_container = requires(
+    C& c, C const& cc, typename C::size_type i, typename C::value_type v) {
+  typename C::size_type;
+  typename C::value_type;
+  typename C::reference;
+  typename C::const_reference;
+  typename C::iterator;
+  typename C::const_iterator;
+  { cc.size() } -> std::same_as<typename C::size_type>;
+  { cc[i] } -> std::convertible_to<typename C::const_reference>;
+  { c[i] } -> std::same_as<typename C::reference>;
+  { cc.get(i) } -> std::convertible_to<typename C::const_reference>;
+  c.set(i, v);
+  { C::iterator::from_index(c, i) } -> std::same_as<typename C::iterator>;
+  {
+    C::const_iterator::from_index(cc, i)
+  } -> std::same_as<typename C::const_iterator>;
+};
+
 } // namespace dwarfs::container::detail

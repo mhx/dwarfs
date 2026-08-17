@@ -83,6 +83,11 @@ class index_based_iterator_impl {
 
   bool belongs_to(container_reference vec) const { return vec_ == &vec; }
 
+  container_reference container() const {
+    assert(vec_);
+    return *vec_;
+  }
+
   reference operator*() const { return (*vec_)[get_index()]; }
 
   auto operator->() const -> pointer
