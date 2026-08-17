@@ -93,6 +93,7 @@ class array_string_source {
 encoder_handle create_encoder(fsst_string_source const& source) {
   ::fsst_input_t input;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   input.context = const_cast<fsst_string_source*>(&source);
   input.length = [](void* ctx, std::size_t i) -> std::size_t {
     return static_cast<fsst_string_source const*>(ctx)->length(i);
@@ -280,8 +281,9 @@ class fsst_incremental_compressor_impl {
    */
   template <typename Fn>
   static void for_each_batch(std::size_t size, Fn&& fn) {
+    auto&& func = std::forward<Fn>(fn);
     for (std::size_t offset = 0; offset < size; offset += max_batch_size) {
-      fn(offset, std::min(max_batch_size, size - offset));
+      func(offset, std::min(max_batch_size, size - offset));
     }
   }
 

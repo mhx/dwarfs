@@ -247,7 +247,7 @@ class chunk_range {
     class arrow_proxy {
      public:
       explicit arrow_proxy(value_type value)
-          : value_{std::move(value)} {}
+          : value_{value} {}
 
       value_type const* operator->() const noexcept {
         return std::addressof(value_);
