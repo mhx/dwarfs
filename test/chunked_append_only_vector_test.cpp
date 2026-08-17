@@ -198,6 +198,9 @@ static_assert(
     std::is_same_v<std::iter_reference_t<int_vec_16::iterator>, int&>);
 static_assert(std::is_same_v<std::iter_reference_t<int_vec_16::const_iterator>,
                              int const&>);
+static_assert(
+    std::is_same_v<decltype(std::declval<int_vec_16&&>().drain().next_chunk()),
+                   std::optional<std::span<int>>>);
 
 TEST(chunked_append_only_vector_test, default_constructed_container_is_empty) {
   int_vec_16 v;
@@ -917,4 +920,152 @@ TEST(chunked_append_only_vector_test,
   }
 
   EXPECT_EQ(value_type::live_count, 0);
+}
+
+TEST(chunked_append_only_vector_test, drain_empty_container_returns_no_chunks) {
+  int_vec_16 v;
+
+  auto drain = std::move(v).drain();
+
+  EXPECT_TRUE(v.empty());
+  EXPECT_FALSE(drain.next_chunk().has_value());
+  EXPECT_FALSE(drain.next_chunk().has_value());
+}
+
+TEST(chunked_append_only_vector_test,
+     drain_returns_full_chunks_followed_by_partial_chunk) {
+  int_vec_16 v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(i);
+  }
+
+  int* p0 = &v[0];
+  int* p4 = &v[4];
+  int* p8 = &v[8];
+
+  auto drain = std::move(v).drain();
+
+  EXPECT_TRUE(v.empty());
+
+  auto chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(p0, chunk->data());
+  EXPECT_THAT(*chunk, ElementsAre(0, 1, 2, 3));
+
+  chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(p4, chunk->data());
+  EXPECT_THAT(*chunk, ElementsAre(4, 5, 6, 7));
+
+  chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(p8, chunk->data());
+  EXPECT_THAT(*chunk, ElementsAre(8, 9));
+
+  EXPECT_FALSE(drain.next_chunk().has_value());
+}
+
+TEST(chunked_append_only_vector_test,
+     drain_releases_previous_chunk_on_next_call) {
+  tracked::reset();
+
+  constexpr auto chunk_size = tracked_vec::chunk_elements;
+  constexpr auto element_count = 2 * chunk_size + 2;
+
+  tracked_vec v;
+  for (std::size_t i = 0; i < element_count; ++i) {
+    v.emplace_back(static_cast<int>(i));
+  }
+
+  auto drain = std::move(v).drain();
+
+  auto chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(chunk_size, chunk->size());
+  EXPECT_EQ(element_count, tracked::alive);
+  EXPECT_EQ(0, tracked::dtor_count);
+
+  chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(chunk_size, chunk->size());
+  EXPECT_EQ(element_count - chunk_size, tracked::alive);
+  EXPECT_EQ(chunk_size, tracked::dtor_count);
+
+  chunk = drain.next_chunk();
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(2, chunk->size());
+  EXPECT_EQ(2, tracked::alive);
+  EXPECT_EQ(2 * chunk_size, tracked::dtor_count);
+
+  EXPECT_FALSE(drain.next_chunk().has_value());
+  EXPECT_EQ(0, tracked::alive);
+  EXPECT_EQ(element_count, tracked::dtor_count);
+}
+
+TEST(chunked_append_only_vector_test,
+     drain_destructor_destroys_current_and_unvisited_chunks) {
+  tracked::reset();
+
+  constexpr auto element_count = 2 * tracked_vec::chunk_elements + 2;
+
+  tracked_vec v;
+  for (std::size_t i = 0; i < element_count; ++i) {
+    v.emplace_back(static_cast<int>(i));
+  }
+
+  {
+    auto drain = std::move(v).drain();
+    auto chunk = drain.next_chunk();
+    ASSERT_TRUE(chunk.has_value());
+    EXPECT_EQ(element_count, tracked::alive);
+  }
+
+  EXPECT_EQ(0, tracked::alive);
+  EXPECT_EQ(element_count, tracked::dtor_count);
+}
+
+TEST(chunked_append_only_vector_test, drain_supports_move_only_elements) {
+  move_only_vec v;
+  for (int i = 0; i < 10; ++i) {
+    v.emplace_back(100 + i);
+  }
+
+  auto drain = std::move(v).drain();
+  std::vector<int> values;
+
+  while (auto chunk = drain.next_chunk()) {
+    for (auto const& element : *chunk) {
+      values.push_back(element.value);
+    }
+  }
+
+  EXPECT_THAT(values,
+              ElementsAre(100, 101, 102, 103, 104, 105, 106, 107, 108, 109));
+}
+
+TEST(chunked_append_only_vector_test,
+     moving_drain_preserves_iteration_and_destruction_state) {
+  tracked::reset();
+
+  constexpr auto element_count = tracked_vec::chunk_elements + 2;
+
+  tracked_vec v;
+  for (std::size_t i = 0; i < element_count; ++i) {
+    v.emplace_back(static_cast<int>(i));
+  }
+
+  auto first_drain = std::move(v).drain();
+  auto first_chunk = first_drain.next_chunk();
+  ASSERT_TRUE(first_chunk.has_value());
+  EXPECT_EQ(element_count, tracked::alive);
+
+  auto drain = std::move(first_drain);
+  auto second_chunk = drain.next_chunk();
+  ASSERT_TRUE(second_chunk.has_value());
+  EXPECT_EQ(2, second_chunk->size());
+  EXPECT_EQ(2, tracked::alive);
+
+  EXPECT_FALSE(drain.next_chunk().has_value());
+  EXPECT_EQ(0, tracked::alive);
+  EXPECT_EQ(element_count, tracked::dtor_count);
 }
