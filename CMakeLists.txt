@@ -681,6 +681,7 @@ if(WITH_TESTS)
       test/filesystem_test.cpp
       test/filesystem_writer_test.cpp
       test/fragment_category_test.cpp
+      test/fsst_library_test.cpp
       test/fsst_test.cpp
       test/glob_matcher_test.cpp
       test/global_metadata_test.cpp
@@ -721,6 +722,8 @@ if(WITH_TESTS)
       test/xattr_test.cpp
       test/zstd_compressor_test.cpp
     )
+
+    target_include_directories(dwarfs_unit_tests SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
 
     add_executable(dwarfs_packed_int_vector_tests
       test/index_based_span_test.cpp
