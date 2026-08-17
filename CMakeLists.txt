@@ -723,6 +723,7 @@ if(WITH_TESTS)
     )
 
     add_executable(dwarfs_packed_int_vector_tests
+      test/index_based_span_test.cpp
       test/packed_int_vec_auto_typed_test.cpp
       test/packed_int_vec_core_typed_test.cpp
       test/packed_int_vec_tmpl_typed_test.cpp
