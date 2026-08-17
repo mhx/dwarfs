@@ -58,6 +58,8 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/portability/jthread.h>
+
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
@@ -1059,6 +1061,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   };
 
   writer::console_writer lgr(iol.term, iol.err, *iol.os, cwopts, logopts);
+  std::optional<compat::jthread> mem_logger_thread;
 
   if (auto usage = get_self_memory_usage(); usage.total.has_value()) {
     std::shared_ptr<time_value_tsv_logger> mem_logger;
@@ -1079,15 +1082,31 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
             ? memory_usage_mode::accurate
             : memory_usage_mode::fast;
 
-    lgr.set_memory_usage_function([mem_logger, mem_usage_mode] {
-      auto const mem = get_self_memory_usage(mem_usage_mode);
+    if (cwopts.progress == writer::console_writer::NONE ||
+        cwopts.progress == writer::console_writer::SIMPLE) {
       if (mem_logger) {
-        mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
-                        mem.file.value_or(0),
-                        get_allocated_memory().value_or(0));
+        mem_logger_thread.emplace(
+            [mem_logger](compat::stop_token const& stoken) {
+              while (!stoken.stop_requested()) {
+                std::this_thread::sleep_for(200ms);
+                auto const mem = get_self_memory_usage();
+                mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
+                                mem.file.value_or(0),
+                                get_allocated_memory().value_or(0));
+              }
+            });
       }
-      return mem.total.value_or(0);
-    });
+    } else {
+      lgr.set_memory_usage_function([mem_logger, mem_usage_mode] {
+        auto const mem = get_self_memory_usage(mem_usage_mode);
+        if (mem_logger) {
+          mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
+                          mem.file.value_or(0),
+                          get_allocated_memory().value_or(0));
+        }
+        return mem.total.value_or(0);
+      });
+    }
   }
 
   std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
