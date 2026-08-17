@@ -70,7 +70,7 @@ class filesystem_extractor {
   };
 
   filesystem_extractor(logger& lgr, os_access const& os,
-                       std::shared_ptr<file_access const> fa = nullptr);
+                       std::shared_ptr<file_access const> const& fa = nullptr);
 
   static void add_library_dependencies(library_dependencies& deps);
 

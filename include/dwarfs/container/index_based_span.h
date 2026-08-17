@@ -141,6 +141,7 @@ template <typename C, bool IsConst>
 
 } // namespace dwarfs::container
 
+// NOLINTNEXTLINE(cert-dcl58-cpp)
 namespace std::ranges {
 
 template <typename Container, bool IsConst>

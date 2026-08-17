@@ -70,8 +70,10 @@ struct StringLayout : public LayoutBase {
     root.appendBytes(self.start, n * sizeof(Item), range, dist, alignof(Item));
     root.freezeField(self, distanceField, dist);
     root.freezeField(self, countField, n);
+    // NOLINTBEGIN(bugprone-casting-through-void)
     std::span<Item> target(
         reinterpret_cast<Item*>(static_cast<void*>(range.data())), n);
+    // NOLINTEND(bugprone-casting-through-void)
     Helper::copyTo(o, target);
   }
 

@@ -128,8 +128,10 @@ struct packed_vector_heap_storage {
     std::construct_at(static_cast<heap_prefix*>(raw),
                       heap_prefix{size, capacity_blocks});
 
+    // NOLINTBEGIN(bugprone-casting-through-void)
     auto* payload = static_cast<T*>(
         static_cast<void*>(static_cast<std::byte*>(raw) + payload_offset));
+    // NOLINTEND(bugprone-casting-through-void)
 
     if (capacity_blocks > 0) {
       if (init == initialization::zero_init) {
