@@ -93,6 +93,38 @@ fsst_create(
    int zeroTerminated       /* IN: whether input strings are zero-terminated. If so, encoded strings are as well (i.e. symbol[0]=""). */
 );
 
+/* Accessor for a batch of strings that is not stored as contiguous pointer and
+   length arrays. Lets fsst_create_indexed() build a symbol table directly from
+   e.g. a chunked or otherwise segmented container, without forcing the caller
+   to first materialize one pointer and one length per string.
+
+   The accessor is only used while building the symbol table; it does not need
+   to stay valid after fsst_create_indexed() returns. The strings it refers to
+   must stay valid for the duration of the call. */
+typedef struct {
+   void *context;            /* IN: passed through to the callbacks below. */
+   /* IN: byte-length of string `index`, for index in [0,n). */
+   size_t (*length)(void *context, size_t index);
+   /* IN: start pointer of string `index`, for index in [0,n). */
+   const unsigned char *(*data)(void *context, size_t index);
+   /* IN, OPTIONAL: if the byte-lengths do happen to be stored contiguously,
+      a pointer to them, otherwise NULL. This is purely an optimization: when
+      it is set, no length array needs to be materialized for small inputs,
+      and lengths are read directly rather than through length(). If set, it
+      must agree with length() for every index in [0,n). */
+   const size_t *lengths;
+} fsst_input_t;
+
+/* Calibrate a FSST symboltable from a batch of strings accessed through an
+   fsst_input_t. Equivalent to fsst_create(), which is implemented in terms of
+   this function, and produces an identical symbol table for identical input. */
+fsst_encoder_t*
+fsst_create_indexed(
+   size_t n,                    /* IN: number of strings in batch to sample from. */
+   const fsst_input_t *input,   /* IN: accessor for the input strings. */
+   int zeroTerminated           /* IN: whether input strings are zero-terminated. */
+);
+
 /* Create another encoder instance, necessary to do multi-threaded encoding using the same symbol table. */ 
 fsst_encoder_t*    
 fsst_duplicate(
