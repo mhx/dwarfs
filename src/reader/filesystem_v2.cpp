@@ -297,8 +297,8 @@ class filesystem_ final {
   file_stat getattr(inode_view entry) const;
   file_stat getattr(inode_view entry, getattr_options const& opts) const;
   duplication_info
-  get_duplication_info(inode_view iv, std::error_code& ec) const;
-  duplication_info get_duplication_info(inode_view iv) const;
+  get_duplication_info(inode_view entry, std::error_code& ec) const;
+  duplication_info get_duplication_info(inode_view entry) const;
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const;
   void access(inode_view entry, int mode, file_stat::uid_type uid,

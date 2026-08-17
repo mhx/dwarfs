@@ -80,7 +80,8 @@ struct filter_rule {
 template <typename LoggerPolicy>
 class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
  public:
-  rule_based_entry_filter_(logger& lgr, std::shared_ptr<file_access const> fa);
+  rule_based_entry_filter_(logger& lgr,
+                           std::shared_ptr<file_access const> const& fa);
 
   void set_root_path(fs::path const& path) override;
   void add_rule(std::string_view rule) override;
@@ -173,9 +174,9 @@ auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
 
 template <typename LoggerPolicy>
 rule_based_entry_filter_<LoggerPolicy>::rule_based_entry_filter_(
-    logger& lgr, std::shared_ptr<file_access const> fa)
+    logger& lgr, std::shared_ptr<file_access const> const& fa)
     : log_{lgr}
-    , fa_{std::move(fa)} {}
+    , fa_{fa} {}
 
 template <typename LoggerPolicy>
 void rule_based_entry_filter_<LoggerPolicy>::set_root_path(
@@ -283,10 +284,9 @@ filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
 } // namespace internal
 
 rule_based_entry_filter::rule_based_entry_filter(
-    logger& lgr, std::shared_ptr<file_access const> fa)
+    logger& lgr, std::shared_ptr<file_access const> const& fa)
     : impl_(make_unique_logging_object<impl, internal::rule_based_entry_filter_,
-                                       default_logger_policy>(lgr,
-                                                              std::move(fa))) {}
+                                       default_logger_policy>(lgr, fa)) {}
 
 rule_based_entry_filter::~rule_based_entry_filter() = default;
 

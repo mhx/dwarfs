@@ -427,7 +427,7 @@ class DataInspectionContext {
   [[nodiscard]] PathScope pushField(std::string_view name);
   [[nodiscard]] PathScope pushIndex(size_t index);
 
-  [[noreturn]] void fail(std::string message) const;
+  [[noreturn]] void fail(std::string_view message) const;
 
   size_t checkedAdd(size_t lhs, size_t rhs, std::string_view what) const;
   size_t checkedMultiply(size_t lhs, size_t rhs, std::string_view what) const;

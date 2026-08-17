@@ -549,11 +549,11 @@ void dwarfsck_impl::do_checksum() {
             it->second.paths.push_back(de.unix_path());
           }
           continue;
-        } else {
-          auto const r [[maybe_unused]] = checksum_cache.emplace(
-              dup_info.unique_content_id, cache_entry{dup_info});
-          assert(r.second);
         }
+
+        auto const r [[maybe_unused]] = checksum_cache.emplace(
+            dup_info.unique_content_id, cache_entry{dup_info});
+        assert(r.second);
       }
 
       reader::detail::file_reader fr(fs(), iv);

@@ -19,6 +19,7 @@ Checks:
   - -cppcoreguidelines-avoid-const-or-ref-data-members
   - -cppcoreguidelines-avoid-do-while
   - -cppcoreguidelines-avoid-magic-numbers
+  - -cppcoreguidelines-macro-to-enum
   - -cppcoreguidelines-macro-usage
   - -cppcoreguidelines-narrowing-conversions
   - -cppcoreguidelines-pro-bounds-constant-array-index
@@ -41,6 +42,7 @@ Checks:
   - -portability-avoid-pragma-once
   - -portability-template-virtual-member-function
   - readability-*
+  - -readability-ambiguous-smartptr-reset-call
   - -readability-magic-numbers
   - -readability-identifier-length
   - -readability-implicit-bool-conversion
