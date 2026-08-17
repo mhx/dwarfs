@@ -253,6 +253,8 @@ class entry_storage {
 
   void drop_file_digests() { entry_impl_->drop_file_digests(); }
 
+  void drop_similarity_data() { inode_impl_->drop_similarity_data(); }
+
   inode_handle create_inode();
 
   [[nodiscard]] std::size_t inode_count() const noexcept {
@@ -491,6 +493,8 @@ class entry_storage {
 
     virtual void dump(std::ostream& os) const = 0;
     virtual void dump_events(std::ostream& os) const = 0;
+
+    virtual void drop_similarity_data() = 0;
 
     virtual std::unique_ptr<inode_impl> freeze() = 0;
   };
