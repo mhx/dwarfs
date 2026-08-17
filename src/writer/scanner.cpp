@@ -469,6 +469,7 @@ void scanner_<LoggerPolicy>::scan_directory(Lockable& mx_scanner,
                                             file_scanner& fs, bool debug_filter,
                                             OnSubdir&& on_subdir) {
   auto parent = tree.handle(dir_id).as_dir();
+  auto&& on_subdir_fn = std::forward<OnSubdir>(on_subdir);
 
   DWARFS_CHECK(parent, "expected directory");
 
@@ -481,7 +482,7 @@ void scanner_<LoggerPolicy>::scan_directory(Lockable& mx_scanner,
       if (auto pe = add_entry(mx_scanner, tree, name, parent, prog, fs,
                               debug_filter)) {
         if (pe.is_dir()) {
-          on_subdir(pe.id());
+          on_subdir_fn(pe.id());
         }
       }
     }

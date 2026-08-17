@@ -139,8 +139,10 @@ uint16_t merge_sample_bits<uint16_t>(std::span<uint8_t const> imagedata) {
     imagedata = imagedata.subspan(preamble_size);
   }
 
+  // NOLINTBEGIN(bugprone-casting-through-void)
   auto p = std::assume_aligned<kAlignment>(reinterpret_cast<uint64_t const*>(
       static_cast<void const*>(imagedata.data())));
+  // NOLINTEND(bugprone-casting-through-void)
   size_t size = imagedata.size_bytes() / kAlignment;
 
   alignas(kAlignment) std::array<uint64_t, kAlignment / sizeof(uint64_t)> b512;

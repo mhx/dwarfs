@@ -96,7 +96,7 @@ class small_fifo {
     if (empty()) {
       clear();
     }
-    for (auto&& e : r) {
+    for (auto&& e : std::forward<Range>(r)) {
       v_.push_back(std::move(e));
     }
   }

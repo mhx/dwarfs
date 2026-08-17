@@ -106,7 +106,7 @@ class file_scanner_ final : public file_scanner::impl {
   template <bool UniqueOnly = false, typename KeyType>
   void
   finalize_files(fast_map_type<KeyType, file_id_vector>& fmap,
-                 uint32_t& inode_num, uint32_t& obj_num, std::string_view key);
+                 uint32_t& inode_num, uint32_t& obj_num, std::string_view name);
 
   void
   finalize_files(by_digest_vec& fmap, uint32_t& inode_num, uint32_t& obj_num);

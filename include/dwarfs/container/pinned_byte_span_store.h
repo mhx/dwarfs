@@ -151,9 +151,10 @@ class pinned_byte_span_store {
     auto const needed = (n + ChunkSize - 1) / ChunkSize;
     chunks_.reserve(needed);
     while (chunks_.size() < needed) {
-      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+      // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
       chunks_.push_back(
           std::make_unique_for_overwrite<std::byte[]>(bytes_per_chunk()));
+      // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
     }
   }
 
@@ -244,9 +245,10 @@ class pinned_byte_span_store {
 
   void ensure_capacity_for_one_more() {
     if (size_ == chunks_.size() * ChunkSize) {
-      // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+      // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
       chunks_.push_back(
           std::make_unique_for_overwrite<std::byte[]>(bytes_per_chunk()));
+      // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
     }
   }
 
