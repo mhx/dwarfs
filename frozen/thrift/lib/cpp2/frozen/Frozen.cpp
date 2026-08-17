@@ -181,7 +181,7 @@ std::string DataInspectionContext::path() const {
   return result;
 }
 
-[[noreturn]] void DataInspectionContext::fail(std::string message) const {
+[[noreturn]] void DataInspectionContext::fail(std::string_view message) const {
   std::string result = "at " + path();
   if (currentPosition_) {
     result += " (byte offset=" + std::to_string(currentPosition_->byteOffset) +
@@ -189,7 +189,7 @@ std::string DataInspectionContext::path() const {
   }
   result += ": ";
   result += message;
-  throw DataInspectionException(std::move(result));
+  throw DataInspectionException(result);
 }
 
 size_t DataInspectionContext::checkedAdd(
@@ -320,7 +320,7 @@ void DataInspectionContext::registerRegion(
 
   if (region.size == 0) {
     requirePhysicalBytes(region.offset, 0, what);
-    regions_.push_back(std::move(region));
+    regions_.push_back(region);
     return;
   }
 
@@ -350,7 +350,7 @@ void DataInspectionContext::registerRegion(
 
   occupiedRegions_.emplace(
       region.offset, OccupiedRegion{end, std::string(what), path()});
-  regions_.push_back(std::move(region));
+  regions_.push_back(region);
 }
 
 DataInspectionResult DataInspectionContext::takeResult() && noexcept {
@@ -388,7 +388,7 @@ void LoadRoot::registerField(
             "empty field '" + std::string(field.name) +
             "' has a bit offset outside its parent layout");
       }
-    } else if (static_cast<size_t>(encodedOffset) > parent.size) {
+    } else if (std::cmp_greater(encodedOffset, parent.size)) {
       throw schema::SchemaValidationException(
           "empty field '" + std::string(field.name) +
           "' has a byte offset outside its parent layout");

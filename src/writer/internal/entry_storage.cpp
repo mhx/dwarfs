@@ -477,6 +477,7 @@ struct shared_entry_data {
           dwarfs::internal::fsst_incremental_compressor<std::u8string>::create(
               utf8_path_components_);
 
+      // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp)
       std::mt19937_64 rng(42);
       std::vector<std::u8string_view> sample(
           std::min<std::size_t>(utf8_path_components_.size(), 1024));

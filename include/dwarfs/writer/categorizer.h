@@ -159,7 +159,7 @@ class categorizer_job {
 
 class categorizer_manager : public category_resolver {
  public:
-  categorizer_manager(logger& lgr, std::filesystem::path root);
+  categorizer_manager(logger& lgr, std::filesystem::path const& root);
 
   static fragment_category default_category();
 

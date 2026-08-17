@@ -1004,7 +1004,7 @@ void install_number_formatting_facets() {
 } // namespace
 
 void setup_default_locale() {
-  char const* const candidates[] = {
+  auto const candidates = std::array{
 #ifdef _WIN32
       ".UTF-8",
 #else
@@ -1015,6 +1015,8 @@ void setup_default_locale() {
   };
 
   std::vector<std::string> errors;
+
+  // NOLINTBEGIN(cert-err33-c)
 
   for (auto const name : candidates) {
     try {
@@ -1036,6 +1038,8 @@ void setup_default_locale() {
     std::locale::global(std::locale::classic());
     std::setlocale(LC_ALL, "C");
   }
+
+  // NOLINTEND(cert-err33-c)
 
 #ifdef _WIN32
   install_number_formatting_facets();

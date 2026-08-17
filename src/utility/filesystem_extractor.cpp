@@ -147,10 +147,10 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   using archive_ptr = std::shared_ptr<struct ::archive>;
 
   explicit filesystem_extractor_(logger& lgr, os_access const& os,
-                                 std::shared_ptr<file_access const> fa)
+                                 std::shared_ptr<file_access const> const& fa)
       : LOG_PROXY_INIT(lgr)
       , os_{os}
-      , fa_{std::move(fa)} {}
+      , fa_{fa} {}
 
   ~filesystem_extractor_() override {
     try {
@@ -857,11 +857,11 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 } // namespace internal
 
 filesystem_extractor::filesystem_extractor(
-    logger& lgr, os_access const& os, std::shared_ptr<file_access const> fa)
+    logger& lgr, os_access const& os,
+    std::shared_ptr<file_access const> const& fa)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
                                        internal::filesystem_extractor_,
-                                       default_logger_policy>(lgr, os,
-                                                              std::move(fa))) {}
+                                       default_logger_policy>(lgr, os, fa)) {}
 
 void filesystem_extractor::add_library_dependencies(
     library_dependencies& deps) {

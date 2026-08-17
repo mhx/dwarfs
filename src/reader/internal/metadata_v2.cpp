@@ -437,8 +437,8 @@ class metadata_v2_data {
   }
 
   template <typename LoggerPolicy>
-  duplication_info
-  get_duplication_info(logger& lgr, inode_view iv, std::error_code& ec) const;
+  duplication_info get_duplication_info(logger& lgr, inode_view const& iv,
+                                        std::error_code& ec) const;
 
   void access(inode_view const& iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const;
@@ -2369,7 +2369,7 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
 
 template <typename LoggerPolicy>
 duplication_info
-metadata_v2_data::get_duplication_info(logger& lgr, inode_view iv,
+metadata_v2_data::get_duplication_info(logger& lgr, inode_view const& iv,
                                        std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(get_duplication_info)
 

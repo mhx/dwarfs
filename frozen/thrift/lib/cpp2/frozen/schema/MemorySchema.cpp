@@ -27,8 +27,8 @@ namespace apache::thrift::frozen::schema {
 
 namespace {
 
-[[noreturn]] void invalidSchema(std::string message) {
-  throw SchemaValidationException(std::move(message));
+[[noreturn]] void invalidSchema(std::string const& message) {
+  throw SchemaValidationException(message);
 }
 
 std::string layoutPrefix(size_t layoutId) {
@@ -64,7 +64,7 @@ void MemorySchema::initFromSchema(Schema&& schema) {
     const auto id = layoutKvp.first;
     const auto& layout = layoutKvp.second;
 
-    if (id < 0 || static_cast<size_t>(id) != expectedId) {
+    if (id < 0 || std::cmp_not_equal(id, expectedId)) {
       invalidSchema("layout ids must form the dense range [0, layout_count)");
     }
 

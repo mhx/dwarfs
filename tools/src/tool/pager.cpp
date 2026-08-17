@@ -44,6 +44,8 @@
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
+// Not every platform declares this in unistd.h.
+// NOLINTNEXTLINE(readability-redundant-declaration,cppcoreguidelines-avoid-non-const-global-variables)
 extern char** environ;
 #endif
 
@@ -206,9 +208,9 @@ void show_in_pager(pager_program const& pager, std::string_view text,
                    std::error_code& ec) {
   ec.clear();
 
-  int fds[2];
+  std::array<int, 2> fds;
 
-  if (::pipe(fds) != 0) {
+  if (::pipe(fds.data()) != 0) {
     ec.assign(errno, std::generic_category());
     return;
   }
@@ -234,6 +236,7 @@ void show_in_pager(pager_program const& pager, std::string_view text,
   argv.reserve(pager.args.size() + 2);
   argv.push_back(path.data());
   for (auto const& arg : pager.args) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     argv.push_back(const_cast<char*>(arg.c_str()));
   }
   argv.push_back(nullptr);
@@ -282,6 +285,7 @@ void show_in_pager(pager_program const& pager, std::string_view text,
     offset += static_cast<size_t>(n);
   }
 
+  // NOLINTNEXTLINE(cert-err33-c)
   ::signal(SIGPIPE, prev_sigpipe);
 
   // Closing the write end is what tells the pager it has the whole input.

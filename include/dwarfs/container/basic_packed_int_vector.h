@@ -765,8 +765,9 @@ class basic_packed_int_vector {
 
   template <typename F>
   static constexpr void for_each_field(F&& f) {
-    [&]<size_type... I>(std::index_sequence<I...>) {
-      (f.template operator()<I>(), ...);
+    auto&& fn = std::forward<F>(f);
+    [&fn]<size_type... I>(std::index_sequence<I...>) {
+      (fn.template operator()<I>(), ...);
     }(std::make_index_sequence<field_count>{});
   }
 
@@ -1149,7 +1150,8 @@ class basic_packed_int_vector {
     auto const old_widths = widths();
 
     if constexpr (auto_bit_width && has_needed_widths) {
-      auto const new_widths = widened_widths(needed_widths(), old_widths);
+      auto const new_widths = widened_widths(
+          std::forward<NeededWidthsFn>(needed_widths)(), old_widths);
       bool const must_grow = reserve_size > layout_.usable_capacity(new_widths);
 
       if (must_grow || new_widths != old_widths) {
