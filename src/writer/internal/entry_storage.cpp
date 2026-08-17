@@ -24,6 +24,8 @@
 #include <cassert>
 #include <numeric>
 #include <ostream>
+#include <random>
+#include <ranges>
 #include <sstream>
 #include <utility>
 
@@ -470,13 +472,33 @@ struct shared_entry_data {
     }
 #endif
 
-    compressed_utf8_path_components_ =
-        dwarfs::internal::fsst_encoder::compress(utf8_path_components_);
+    {
+      auto enc =
+          dwarfs::internal::fsst_incremental_compressor<std::u8string>::create(
+              utf8_path_components_);
 
-    if (!compressed_utf8_path_components_) {
-      utf8_path_components_.resize(*utf8_path_component_count_);
-      utf8_path_component_count_.reset();
-      return;
+      std::mt19937_64 rng(42);
+      std::vector<std::u8string_view> sample(
+          std::min<std::size_t>(utf8_path_components_.size(), 1024));
+      std::ranges::sample(utf8_path_components_, sample.begin(), sample.size(),
+                          rng);
+
+      dwarfs::internal::fsst_string_source source(sample);
+
+      if (enc.dictionary_size() + enc.estimated_compressed_size(source) >=
+          source.total_length()) {
+        utf8_path_components_.resize(*utf8_path_component_count_);
+        utf8_path_component_count_.reset();
+        return;
+      }
+
+      auto drain = std::move(utf8_path_components_).drain();
+
+      while (auto chunk = drain.next_chunk()) {
+        enc.add(*chunk);
+      }
+
+      compressed_utf8_path_components_ = std::move(enc).finish();
     }
 
     utf8_path_decoder_.emplace(compressed_utf8_path_components_->dictionary);
