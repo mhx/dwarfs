@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/portability/jthread.h>
 #include <dwarfs/portability/unistd.h>
 
 #include <fmt/format.h>
@@ -61,6 +62,7 @@
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/file_scanner.h>
@@ -81,6 +83,32 @@ using namespace dwarfs::internal;
 using namespace std::chrono_literals;
 
 namespace {
+
+// This exists purely as a workaround for a false positive in ThreadSanitizer
+// when using libstdc++-16's std::latch.
+// TODO: Remove and replace with std::latch once this is resolved.
+class tsan_visible_latch {
+ public:
+  explicit tsan_visible_latch(std::ptrdiff_t n)
+      : count_{n} {}
+
+  void count_down() {
+    std::lock_guard lock(mx_);
+    if (--count_ == 0) {
+      cv_.notify_all();
+    }
+  }
+
+  void wait() {
+    std::unique_lock lock(mx_);
+    cv_.wait(lock, [this] { return count_ == 0; });
+  }
+
+ private:
+  std::mutex mx_;
+  std::condition_variable cv_;
+  std::ptrdiff_t count_;
+};
 
 constexpr std::string_view kEnvVarDumpFilesRaw{"DWARFS_DUMP_FILES_RAW"};
 constexpr std::string_view kEnvVarDumpFilesFinal{"DWARFS_DUMP_FILES_FINAL"};
@@ -880,6 +908,15 @@ void scanner_<LoggerPolicy>::scan(
 
     fsw.configure(frag_info.categories, num_threads);
 
+    tsan_visible_latch similarity_latch(frag_info.categories.size());
+
+    compat::jthread drop_sim_thread([this, &similarity_latch, &tree] {
+      set_thread_name("drop-sim-data");
+      similarity_latch.wait();
+      tree->drop_similarity_data();
+      LOG_VERBOSE << "dropped similarity data from inode storage";
+    });
+
     for (auto category : frag_info.categories) {
       auto cat_size = frag_info.category_size.at(category);
       auto catmgr = options_.inode.categorizer_mgr.get();
@@ -901,8 +938,11 @@ void scanner_<LoggerPolicy>::scan(
                          category, cc));
 
       wg_blockify.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
-                           &prog, &fsw, &im, &wg_ordering] {
+                           &prog, &fsw, &im, &wg_ordering, &similarity_latch] {
         auto span = im.ordered_span(category, wg_ordering);
+
+        similarity_latch.count_down();
+
         auto tv = LOG_CPU_TIMED_VERBOSE;
 
         auto seg = segmenter_factory_.create(
