@@ -38,6 +38,8 @@
 
 #include <dwarfs/bit_view.h>
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/index_based_span.h>
+#include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/logger.h>
 
 #include <dwarfs/internal/move_only_function.h>
@@ -198,24 +200,26 @@ void order_by_shortest_path(size_t count, GetI const& geti, GetK const& getk,
  * a 32-byte centroid. The counters are no longer needed once the centroid
  * has been built.
  */
-template <size_t Bits, typename CountsType = uint32_t>
+template <size_t Bits>
 class centroid_accumulator {
  public:
-  using counts_type = CountsType;
-  using bitcounts_type = std::span<CountsType, Bits>;
+  using counts_type = std::size_t;
+  using vector_type = container::auto_packed_int_vector<counts_type>;
+  using bitcounts_type = container::index_based_span<vector_type>;
+  using veccount_type = vector_type::reference;
 
   class slot_ref {
    public:
-    slot_ref(bitcounts_type bitcounts, CountsType& veccount)
+    slot_ref(bitcounts_type bitcounts, veccount_type veccount)
         : bitcounts_{bitcounts}
         , veccount_{veccount} {}
 
     bitcounts_type bitcounts() const { return bitcounts_; }
-    CountsType increment_veccount() const { return ++veccount_; }
+    veccount_type increment_veccount() const { return ++veccount_; }
 
    private:
     bitcounts_type bitcounts_;
-    CountsType& veccount_;
+    veccount_type mutable veccount_;
   };
 
   size_t emplace_back() {
@@ -226,13 +230,12 @@ class centroid_accumulator {
 
   slot_ref operator[](size_t slot) {
     assert(slot < veccounts_.size());
-    return {bitcounts_type{bitcounts_.data() + slot * Bits, Bits},
-            veccounts_[slot]};
+    return {make_span(bitcounts_, slot * Bits, Bits), veccounts_[slot]};
   }
 
  private:
-  std::vector<CountsType> bitcounts_;
-  std::vector<CountsType> veccounts_;
+  container::auto_packed_int_vector<counts_type> bitcounts_;
+  container::auto_packed_int_vector<counts_type> veccounts_;
 };
 
 template <size_t Bits, typename BitsType = uint64_t>
@@ -275,11 +278,9 @@ class basic_centroid {
   value_type centroid_;
 };
 
-template <size_t Bits, typename BitsType, typename CountsType,
-          typename IndexValueType>
+template <size_t Bits, typename BitsType, typename IndexValueType>
 struct basic_cluster {
   using centroid_type = basic_centroid<Bits, BitsType>;
-  using counts_type = CountsType;
   using index_value_type = IndexValueType;
   using index_type = sortable_inode_span::index_type;
 
@@ -348,8 +349,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
   using duplicates_map = std::unordered_map<index_value_type, index_type>;
   using nilsimsa_element_view =
       basic_array_similarity_element_view<256, uint64_t>;
-  using nilsimsa_cluster =
-      basic_cluster<256, uint64_t, uint32_t, index_value_type>;
+  using nilsimsa_cluster = basic_cluster<256, uint64_t, index_value_type>;
   using nilsimsa_cluster_tree_node = basic_cluster_tree_node<nilsimsa_cluster>;
 
   similarity_ordering_(logger& lgr, progress& prog, worker_group& wg,
@@ -376,36 +376,36 @@ class similarity_ordering_ final : public similarity_ordering::impl {
   order_cluster(basic_array_similarity_element_view<Bits, BitsType> const& ev,
                 index_type& index) const;
 
-  template <size_t Bits, typename BitsType, typename CountsType>
+  template <size_t Bits, typename BitsType>
   size_t order_tree_rec(
-      basic_cluster_tree_node<
-          basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+          node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
 
-  template <size_t Bits, typename BitsType, typename CountsType>
+  template <size_t Bits, typename BitsType>
   void cluster_by_distance(
-      basic_cluster_tree_node<
-          basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+          node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev,
       int max_distance) const;
 
-  template <size_t Bits, typename BitsType, typename CountsType>
+  template <size_t Bits, typename BitsType>
   void cluster_rec(
-      basic_cluster_tree_node<
-          basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+          node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev,
       std::shared_ptr<job_tracker> const& jt, int max_distance) const;
 
-  template <size_t Bits, typename BitsType, typename CountsType>
-  void cluster(basic_cluster_tree_node<basic_cluster<Bits, BitsType, CountsType,
-                                                     index_value_type>>& root,
+  template <size_t Bits, typename BitsType>
+  void cluster(basic_cluster_tree_node<
+                   basic_cluster<Bits, BitsType, index_value_type>>& root,
                basic_array_similarity_element_view<Bits, BitsType> const& ev,
                std::shared_ptr<job_tracker> const& jt) const;
 
-  template <size_t Bits, typename BitsType, typename CountsType>
+  template <size_t Bits, typename BitsType>
   void collect_rec(
-      basic_cluster_tree_node<
-          basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+          node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev,
       duplicates_map& dup, index_type& ordered,
       std::string const& indent) const;
@@ -513,10 +513,10 @@ void similarity_ordering_<LoggerPolicy>::order_cluster(
 }
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType, typename CountsType>
+template <size_t Bits, typename BitsType>
 size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
-    basic_cluster_tree_node<
-        basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+        node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
   using node_type = std::decay_t<decltype(node)>;
   using bitvec_type =
@@ -567,14 +567,13 @@ size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
 }
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType, typename CountsType>
+template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
-    basic_cluster_tree_node<
-        basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+        node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     int max_distance) const {
   using node_type = std::decay_t<decltype(node)>;
-  using cluster_type = node_type::cluster_type;
   static constexpr size_t const no_match = std::numeric_limits<size_t>::max();
 
   auto const& index = node.cluster().index;
@@ -584,7 +583,7 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
   // are released when this function returns; only the centroids themselves
   // stay alive as part of the cluster tree. Deliberately *not* reserved up
   // front: most nodes create far fewer than `max_children` children.
-  centroid_accumulator<Bits, typename cluster_type::counts_type> counts;
+  centroid_accumulator<Bits> counts;
 
   children.reserve(std::min<size_t>(index.size(), opts_.max_children));
 
@@ -632,10 +631,10 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
 }
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType, typename CountsType>
+template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::cluster_rec(
-    basic_cluster_tree_node<
-        basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+        node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     std::shared_ptr<job_tracker> const& jt, int max_distance) const {
   cluster_by_distance(node, ev, max_distance);
@@ -659,10 +658,10 @@ void similarity_ordering_<LoggerPolicy>::cluster_rec(
 }
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType, typename CountsType>
+template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::cluster(
-    basic_cluster_tree_node<
-        basic_cluster<Bits, BitsType, CountsType, index_value_type>>& root,
+    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+        root,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     std::shared_ptr<job_tracker> const& jt) const {
   jt->start_job();
@@ -673,10 +672,10 @@ void similarity_ordering_<LoggerPolicy>::cluster(
 }
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType, typename CountsType>
+template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::collect_rec(
-    basic_cluster_tree_node<
-        basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
+    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
+        node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     duplicates_map& dup, index_type& ordered, std::string const& indent) const {
   if (node.is_leaf()) {
