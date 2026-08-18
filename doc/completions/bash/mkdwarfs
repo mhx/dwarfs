@@ -21,6 +21,93 @@ __mkdwarfs_list_comp_algos()
             -ne 'p;/null/!s/$/:/p'
 }
 
+__mkdwarfs_list_categorizers()
+{
+    # names of the categorizers, i.e. the bracketed entries of the
+    # categories block
+    mkdwarfs -H | \
+        sed -ne '/^Categories:/,$ s/^  \[\(.*\)\]$/\1/p'
+}
+
+__mkdwarfs_list_categories()
+{
+    # names of the individual categories, i.e. the non-bracketed entries
+    # of the categories block; if categorizer names are passed as arguments,
+    # only the categories of those categorizers are listed
+    local want=" $* "
+    mkdwarfs -H | awk -v want="$want" '
+        /^Categories:/ { incat = 1; next }
+        !incat { next }
+        /^  \[.*\]$/ { c = $0; sub(/^  \[/, "", c); sub(/\]$/, "", c); next }
+        /^    / { sub(/^    /, ""); if (want == "  " || index(want, " " c " ")) print }
+    '
+}
+
+__mkdwarfs_default_categorizers()
+{
+    # the categorizers enabled by a bare `--categorize`
+    mkdwarfs -H | \
+        sed -ne 's/^ *--categorize \[=arg(=\(.*\))\].*/\1/p' | \
+        tr ',' ' '
+}
+
+__mkdwarfs_enabled_categorizers()
+{
+    # the categorizers enabled on the current command line, if any
+    local i cats=
+    for (( i=1; i < ${cword}; i++ )); do
+        case ${words[i]} in
+            --categorize)
+                cats+=" $(__mkdwarfs_default_categorizers)"
+                ;;
+            --categorize=*)
+                cats+=" ${words[i]#--categorize=}"
+                ;;
+        esac
+    done
+    echo "${cats//,/ }"
+}
+
+__mkdwarfs_used_categories()
+{
+    # categories that have already been given for the option passed in $@,
+    # e.g. `-B pcmaudio/waveform::8`; as the last value for a particular
+    # category wins, there's no point in offering it again
+    local i opt w val
+    for (( i=1; i < ${cword}; i++ )); do
+        w=${words[i]}
+        val=
+        for opt; do
+            if [[ $w == "$opt" ]]; then
+                (( i+1 < cword )) && val=${words[i+1]}
+            elif [[ $opt == --* && $w == "$opt="* ]]; then
+                val=${w#*=}
+            elif [[ $opt != --* && $w == "$opt"?* ]]; then
+                val=${w#"$opt"}
+            fi
+        done
+        [[ $val == *::* ]] && echo "${val%::*}"
+    done
+}
+
+__mkdwarfs_category_prefixes()
+{
+    # `category::` prefixes for the per-category option passed in $@; only
+    # useful (and only offered) if categorizers have been enabled on the
+    # command line
+    local cats used c
+    cats=$(__mkdwarfs_enabled_categorizers)
+    [[ -n ${cats// /} ]] || return 0
+    used=" $(__mkdwarfs_used_categories "$@" | tr '\n' ' ')"
+    # print each category twice, with and without the `::` separator, so
+    # that the common prefix is inserted without a trailing space
+    while read -r c; do
+        [[ -n $c && $used != *" $c "* ]] || continue
+        echo "$c"
+        echo "$c::"
+    done < <(__mkdwarfs_list_categories $cats)
+}
+
 __mkdwarfs_additional_options()
 {
     if mkdwarfs -h | grep -qe ' *--man'; then
@@ -30,8 +117,10 @@ __mkdwarfs_additional_options()
 
 _mkdwarfs_completion()
 {
-    local cur prev words cword
-    _comp_initialize || return
+    local cur prev words cword split
+    # `:` must not be a word break character, otherwise we cannot see the
+    # `category::` prefix of the per-category options
+    _comp_initialize -n : -s || return
 
     local OPTIONS_GENERAL=(
         --bloom-filter-size
@@ -40,8 +129,11 @@ _mkdwarfs_completion()
         --chmod
         --compress-niceness
         --debug-filter
+        --estimate-compression-memory
+        --file-hash
         --header
         --history-compression
+        --hollow
         --hotness-list
         --incompressible-block-size
         --incompressible-fragments
@@ -52,21 +144,24 @@ _mkdwarfs_completion()
         --keep-all-times
         --log-level
         --log-with-context
-        --man
         --max-similarity-size
         --metadata-compression
         --no-category-metadata
         --no-category-names
+        --no-check
         --no-create-timestamp
         --no-dedupe
+        --no-hardlink-table
         --no-history
         --no-history-command-line
         --no-history-timestamps
         --no-metadata-version-history
         --no-progress
         --no-section-index
+        --no-sparse-files
         --num-scanner-workers
         --num-segmenter-workers
+        --num-walk-workers
         --order
         --progress
         --rebuild-metadata
@@ -102,17 +197,34 @@ _mkdwarfs_completion()
     local OPTION_ARG__log_level=( error warn info verbose debug trace )
     local OPTION_ARG__compress_level=( 0 1 2 3 4 5 6 7 8 9 )
     local OPTION_ARG__recompress=( none block metadata all )
-    local OPTION_ARG__categorize=( fits pcmaudio incompressible )
-    # TODO: find a better way to extract these at runtime
-    local OPTION_ARG__file_hash=( )
+    local OPTION_ARG__debug_filter=( all excluded excluded-files files included
+        included-files )
+    local OPTION_ARG__file_hash=( none )
+    local OPTION_ARG__memory_limit=( auto )
+    local OPTION_ARG__order=( none path revpath similarity nilsimsa explicit )
     local OPTION_ARG__progress=( ascii none simple unicode )
+    local OPTION_ARG__set_time=( now )
+    local OPTION_ARG__time_resolution=( sec min hour day )
     local OPTION_ARG__pack_metadata=( auto all none chunk_table directories
         shared_files names names_index symlinks symlinks_index force plain )
+    # silent, no completion
+    local OPTION_ARG_NONE=( --block-size-bits --chmod --compress-niceness
+        --filter --incompressible-block-size --incompressible-min-input-size
+        --incompressible-ratio --incompressible-zstd-level
+        --max-similarity-size --num-scanner-workers --num-segmenter-workers
+        --num-walk-workers --num-workers -F -N -S )
+
+    local prevoption
+
+    # the per-category options take an optional `category::` prefix
+    local catprefix=
+    [[ $cur == *::* ]] && catprefix="${cur%::*}::"
 
     # catch option with known arguments first
     case $prev in
-        --log-level | --compress-level | --recompress | \
-        --categorize | --progress | --pack-metadata)
+        --log-level | --compress-level | --recompress | --debug-filter | \
+        --file-hash | --memory-limit | --progress | --set-time | \
+        --time-resolution | --pack-metadata)
             prevoption=${prev//-/_}
             _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
             return 0
@@ -125,6 +237,18 @@ _mkdwarfs_completion()
             _comp_compgen -- -W '"${OPTION_ARG__compress_level[@]}"'
             return 0
             ;;
+        -L)
+            _comp_compgen -- -W '"${OPTION_ARG__memory_limit[@]}"'
+            return 0
+            ;;
+        --categorize)
+            _comp_compgen -- -W '$(__mkdwarfs_list_categorizers)'
+            return 0
+            ;;
+        --recompress-categories)
+            _comp_compgen -- -W '$(__mkdwarfs_list_categories)'
+            return 0
+            ;;
         --set-owner)
             _comp_compgen -- uids
             return 0
@@ -134,22 +258,73 @@ _mkdwarfs_completion()
             return 0
             ;;
         -i | --input)
-            _comp_compgen -a filedir -d
-            return 0
-            ;;
-        --input-list | -o | --output)
+            # a directory, or a source filesystem image with --recompress
             _comp_compgen -a filedir
             return 0
             ;;
-        --compression | --schema-compression | \
-        --metadata-compression | --history-compression)
+        --header | --hotness-list | --input-list | -o | --output)
+            _comp_compgen -a filedir
+            return 0
+            ;;
+        --schema-compression | --metadata-compression | --history-compression)
             # TODO: complete algo args based $prev and ':' or ','
             # --prev <algo>:<arg1>=<_>,<arg2>=<_>
             _comp_compgen -- -W '$(__mkdwarfs_list_comp_algos)'
             return 0
             ;;
+        -C | --compression)
+            # same as above, but with an optional `category::` prefix
+            _comp_compgen -c "${cur##*::}" -- \
+                -W '$(__mkdwarfs_list_comp_algos)' -P "$catprefix"
+            [[ -n $catprefix ]] ||
+                _comp_compgen -a -- \
+                    -W '$(__mkdwarfs_category_prefixes -C --compression)'
+            return 0
+            ;;
+        --order)
+            _comp_compgen -c "${cur##*::}" -- \
+                -W '"${OPTION_ARG__order[@]}"' -P "$catprefix"
+            [[ -n $catprefix ]] ||
+                _comp_compgen -a -- \
+                    -W '$(__mkdwarfs_category_prefixes --order)'
+            return 0
+            ;;
+        -B | --max-lookback-blocks)
+            # numeric value, but it can carry a `category::` prefix
+            [[ -n $catprefix ]] ||
+                _comp_compgen -- \
+                    -W '$(__mkdwarfs_category_prefixes -B --max-lookback-blocks)'
+            return 0
+            ;;
+        -W | --window-size)
+            [[ -n $catprefix ]] ||
+                _comp_compgen -- \
+                    -W '$(__mkdwarfs_category_prefixes -W --window-size)'
+            return 0
+            ;;
+        -w | --window-step)
+            [[ -n $catprefix ]] ||
+                _comp_compgen -- \
+                    -W '$(__mkdwarfs_category_prefixes -w --window-step)'
+            return 0
+            ;;
+        --bloom-filter-size)
+            [[ -n $catprefix ]] ||
+                _comp_compgen -- \
+                    -W '$(__mkdwarfs_category_prefixes --bloom-filter-size)'
+            return 0
+            ;;
     esac
 
+    # check if previous option is silent
+    if [[ $prev == -* ]]; then
+        for f in ${OPTION_ARG_NONE[@]}; do
+            [[ "$prev" = "$f" ]] && return 0
+        done
+    fi
+
+    # `--option=<TAB>` for an option we don't know how to complete
+    [[ $split == true ]] && return 0
 
     if [[ $cur == -* ]]; then
         # cursor on an option, show options only
