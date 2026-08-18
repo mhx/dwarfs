@@ -4,7 +4,8 @@
 # bash completion for dwarfsextract
 #
 # synopsis
-#   dwarfsextract [OPTIONS...]
+#   dwarfsextract -i <image> [-o <dir>] [OPTIONS...] [<pattern>...]
+#   dwarfsextract -i <image> -f <format> [-o <file>] [OPTIONS...] [<pattern>...]
 #
 
 __dwarfsextract_additional_options()
@@ -14,10 +15,23 @@ __dwarfsextract_additional_options()
     fi
 }
 
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfsextract_image_files()
+{
+    local i n=${#COMPREPLY[@]}
+    _comp_compgen -a filedir dwarfs
+    for (( i=n; i < ${#COMPREPLY[@]}; i++ )); do
+        # anything that isn't a directory is an actual image file
+        [[ -d ${COMPREPLY[i]} ]] || return 0
+    done
+    _comp_compgen -a filedir
+}
+
 _dwarfsextract_completion()
 {
-    local cur prev words cword
-    _comp_initialize || return
+    local cur prev words cword split
+    _comp_initialize -s || return
 
     local OPTIONS_GENERAL=(
         --continue-on-error
@@ -26,9 +40,12 @@ _dwarfsextract_completion()
         --format-options
         --log-level
         --log-with-context
+        --num-disk-writers
         --pattern
         --perfmon
         --perfmon-trace
+        --skip-devices
+        --skip-specials
         --stdout-progress
         -f --format
         -h --help
@@ -41,20 +58,42 @@ _dwarfsextract_completion()
     )
 
     local OPTION_ARG__log_level=( error warn info verbose debug trace )
+    local OPTION_ARG__perfmon=( filesystem_v2 metadata inode_reader_v2 block_cache )
+    # libarchive write formats, see libarchive-formats(5)
+    local OPTION_ARG__format=( auto 7zip ar arbsd argnu arsvr4 bsdtar cd9660
+        cpio gnutar iso9660 mtree mtree-classic newc odc oldgnutar oldtar pax
+        paxr posix raw rpax shar shardump ustar v7tar warc xar zip )
+    # libarchive filters, see libarchive-formats(5)
+    local OPTION_ARG__format_filters=( b64encode bzip2 compress grzip gzip
+        lrzip lz4 lzip lzma lzop uuencode xz zstd )
     # silent, no completion
-    local OPTION_ARG_NONE=( --cache-size -f --format --format-filters \
-        --format-options --image-offset --pattern --perfmon -n --num-workers \
-        -O -s  )
+    local OPTION_ARG_NONE=( --cache-size --format-options --image-offset
+        --num-disk-writers --num-workers --pattern -n -O -s )
 
-    # catch option with known arguments first
+    # catch options with known arguments first
     case $prev in
         --log-level)
-            prevoption=${prev//-/_}
-            _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
+            _comp_compgen -- -W '"${OPTION_ARG__log_level[@]}"'
+            return 0
+            ;;
+        --perfmon)
+            _comp_compgen -- -W '"${OPTION_ARG__perfmon[@]}"'
+            return 0
+            ;;
+        -f | --format)
+            _comp_compgen -- -W '"${OPTION_ARG__format[@]}"'
+            return 0
+            ;;
+        --format-filters)
+            _comp_compgen -- -W '"${OPTION_ARG__format_filters[@]}"'
+            return 0
+            ;;
+        -O | --image-offset)
+            _comp_compgen -- -W 'auto'
             return 0
             ;;
         -i | --input)
-            _comp_compgen -a filedir dwarfs
+            __dwarfsextract_image_files
             return 0
             ;;
         --perfmon-trace | -o | --output)
@@ -70,7 +109,11 @@ _dwarfsextract_completion()
         done
     fi
 
-    # show all options
+    # `--option=<TAB>` for an option we don't know how to complete
+    [[ $split == true ]] && return 0
+
+    # show all options; positional arguments are glob patterns matching paths
+    # *inside* the image, so there's nothing sensible to complete for them
     _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
 
     return 0
