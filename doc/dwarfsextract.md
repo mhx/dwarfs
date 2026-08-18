@@ -139,7 +139,7 @@ to disk:
 - `--perfmon=`*name*[`,`*name*...]:
   Enable performance monitoring for the list of comma-separated components.
   This option is only available if the project was built with performance
-  monitoring enabled. Available components include `fuse`, `filesystem_v2`,
+  monitoring enabled. Available components include `filesystem_v2`,
   `metadata`, `inode_reader_v2`, and `block_cache`.
 
 - `--perfmon-trace=`*file*:
