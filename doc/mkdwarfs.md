@@ -85,7 +85,11 @@ Most other options are concerned with compression tuning:
   overall compression ratios, but will be slower and consume more memory
   when actually using the filesystem, as blocks will have to be fully or at
   least partially decompressed into memory. Values between 20 and 26, i.e.
-  between 1MiB and 64MiB, usually work quite well.
+  between 1MiB and 64MiB, usually work quite well. The block size also
+  determines how much memory the segmenter and the compressors need while
+  building the image. See
+  [Segmenting and Compression Memory](#segmenting-and-compression-memory)
+  for details.
 
 - `-N`, `--num-workers=`*value*:
   Number of worker threads used for building the filesystem. This defaults
@@ -109,18 +113,26 @@ Most other options are concerned with compression tuning:
 - `--estimate-compression-memory`:
   This option will show an estimate of the per-thread memory requirements of
   the currently configured compressor, at the configured block size. It will
-  immediately exit after printing the estimate.
+  immediately exit after printing the estimate. Combine it with the `-S` and
+  `-C` options you intend to use. Since the estimate is *per worker thread*,
+  the total has to be multiplied by `-N`. With a large block size and an
+  aggressive algorithm, this can easily reach double-digit gigabytes per
+  thread. See
+  [Segmenting and Compression Memory](#segmenting-and-compression-memory)
+  for details.
 
 - `--num-walk-workers=`*value*:
   Number of worker threads used for walking the input file system. By default,
   `mkdwarfs` uses a single-threaded implementation that avoids synchronization
   overhead and keeps memory usage to a minimum. But this is not ideal for
   cases where the input file system is slow to access, e.g. for remote file
-  systems. In cases like this, it's worth enabling multiple walk workers; it
-  can even be worth enabling more workers than the number of CPU cores, as
-  the workers will mostly be idle waiting for I/O operations to complete.
-  However, especially with rotating disks, the single-threaded implementation
-  is usually faster than the multi-threaded one.
+  systems, or, incidentally, mounted DwarFS images, where a file access can
+  potentially require large blocks to be decompressed. In cases like this,
+  it's worth enabling multiple walk workers; it can even be worth enabling
+  more workers than the number of CPU cores, as the workers will mostly be
+  idle waiting for I/O operations to complete. However, especially with
+  rotating disks, the single-threaded implementation is usually faster than
+  the multi-threaded one.
 
 - `--num-scanner-workers=`*value*:
   Number of worker threads used for scanning files. Use this option if you
@@ -159,7 +171,10 @@ Most other options are concerned with compression tuning:
   that in the worst case, to read a single file of less than 1 MiB in size,
   the file system may have to decompress 2 GiB of data. You have been warned.
   See [Virtual Block Size](#virtual-block-size) for more details. Passing
-  `-B0` will completely disable duplicate segment search.
+  `-B0` will completely disable duplicate segment search. This option also
+  has a significant impact on memory usage while building the image. See
+  [Segmenting and Compression Memory](#segmenting-and-compression-memory)
+  for details.
 
 - `-W`, `--window-size=[*category*`::`]`*value*:
   Window size of cyclic hash used for segmenting. This is an exponent
@@ -213,16 +228,23 @@ Most other options are concerned with compression tuning:
 
 - `-L`, `--memory-limit=auto|`*value*:
   Approximately how much memory you want `mkdwarfs` to use during filesystem
-  creation. Note that currently this will only affect the block manager
-  component, i.e. the number of filesystem blocks that are in flight but
-  haven't been compressed and written to the output file yet. So the memory
-  used by `mkdwarfs` can certainly be larger than this limit, but it's a
-  good option when building large filesystems with expensive compression
-  algorithms. Also note that most memory is likely used by the compression
-  algorithms, so if you're short on memory it might be worth tweaking the
-  compression options. The default `auto` mode will take into account the
-  number of workers, the block size, and the amount of system memory to try
-  to compute a reasonable limit.
+  creation. What this actually limits depends on what `mkdwarfs` is doing.
+  *When building a file system from input files*, it only affects the block
+  manager component, i.e. the total size of filesystem blocks that have been
+  produced by the segmenter but haven't been compressed and written to the
+  output file yet. It does *not* cover the memory used by the compression
+  algorithms, by the segmenter, or by the per-entry data structures. *When
+  rewriting an existing image* (`--recompress`), it additionally takes the
+  estimated memory usage of the compressor into account before a section is
+  queued, so it is a much more meaningful limit in this case. This means
+  that when building a new image, the memory used by `mkdwarfs` is very
+  likely to be much larger than this limit. Also note that most memory is
+  likely used by the compression algorithms, so if you're short on memory
+  it can be worth tweaking the compression options. See
+  `--estimate-compression-memory` and [MEMORY USAGE](#memory-usage) for
+  details. The default `auto` mode will take into account the number of
+  workers, the block size, and the amount of system memory to try to compute
+  a reasonable limit.
 
 - `-C`, `--compression=`[*category*`::`]*algorithm*[`:`*algopt*[`=`*value*][`:`...]]:
   The compression algorithm and configuration used for file system data.
@@ -400,9 +422,11 @@ Most other options are concerned with compression tuning:
   Unlike the old implementation, `nilsimsa` ordering is now completely
   deterministic. See [Nilsimsa Ordering](#nilsimsa-ordering) for a detailed
   description of the algorithm.
-  `explicit` ordering allows you to specify a file that contains the paths in
-  the desired order. The paths must be relative to the `--input` path, but
-  may start with a leading `/`.
+  `explicit` ordering allows you to specify a file that contains the paths
+  in the desired order. The paths must be relative to the `--input` path,
+  but may start with a leading `/`. The choice of ordering algorithm has
+  significant impact on memory usage, see
+  [De-duplication and Ordering](#de-duplication-and-ordering) for details.
 
 - `--max-similarity-size=`*value*:
   Don't perform similarity ordering for fragments (or files if they are not split
@@ -511,10 +535,12 @@ Most other options are concerned with compression tuning:
   file system images with millions of files.
 
 - `--no-dedupe`:
-  Turn off file-level deduplication. By default, a BLAKE3/256 hash will be
-  computed for each deduplication candidate file, and files with the same
+  Turn off file-level de-duplication. By default, a BLAKE3/256 hash will be
+  computed for each de-duplication candidate file, and files with the same
   hash will be deduplicated without further checks (i.e. the file contents
-  will *not* be compared).
+  will *not* be compared). Note that turning off de-duplication is unlikely
+  to save memory, and can easily *increase* memory usage. See
+  [De-duplication and Ordering](#de-duplication-and-ordering).
 
 - `--file-hash=none`:
   This option is deprecated and will be removed in a future release. For
@@ -914,6 +940,65 @@ to data in all of the 16 blocks that the original 16 MiB block was
 split into. The resulting file system will be very similar to one that
 was built with a block size of 1 MiB and 16 blocks of lookback.
 
+### Building Images with Millions of Files
+
+There are two things worth checking before starting an image build over a very
+large number of input files.
+
+First, run `--estimate-compression-memory` with the options you intend to use.
+With a large block size and an aggressive compression algorithm this can be
+gigabytes *per worker thread*, which can easily dominate everything else:
+
+    $ mkdwarfs --estimate-compression-memory -S30 \
+               -C lzma:level=9:extreme:dict_size=30
+    lzma [level=9, dict_size=30, extreme] will use up to 11.5 GiB per worker
+    thread to compress 1 GiB blocks
+
+Second, per-entry memory, which `mkdwarfs` mostly builds during the scanning
+phase of the build, and most of which is retained until the end of the build.
+This depends heavily on the input: measured over three very different data
+sets, it ranged from 42 to 206 bytes per file after scanning, and 35 to 84
+bytes per file of steady-state storage during segmentation. Highly redundant
+inputs are much cheaper than mostly unique ones, because duplicate files
+occupy extremely little extra memory.
+
+The things that help reduce memory usage are:
+
+- Reduce the number of compression worker threads (`-N`) or pick a cheaper
+  compression algorithm. Or build in two passes, using a cheap algorithm
+  first and `--recompress` with a more expensive one afterwards.
+  See [Two-Pass Builds](#two-pass-builds) for details.
+
+- Use `--order=similarity` instead of the default `nilsimsa` ordering. This
+  saves 28 bytes per unique file, which can be significant. It also generally
+  faster, uses less memory for sorting, and usually costs relatively little
+  in terms of compression ratio.
+
+- Normalize your input. `--set-time` (or not using `--keep-all-times`) can
+  save a significant amount of memory. `--chmod=norm`, `--set-owner`, and
+  `--set-group` can also help, but to a lesser extent.
+
+- Keep the [virtual block size](#virtual-block-size) moderate. `-S26 -B16`
+  needs a gigabyte of uncompressed block data in the segmenter, regardless
+  of how that gigabyte is split between block size and lookback.
+
+- Be aware that with `--categorize`, a separate segmenter runs per category,
+  each holding its own state and blocks. These segmenters can use different
+  configurations, but by default the virtual block size can easily multiply
+  by up to `--num-segmenter-workers`.
+
+- If it's resident memory you need to bring down rather than allocated
+  memory, tuning the allocator to release pages eagerly is worth a try.
+  See [Returning Memory to the System](#returning-memory-to-the-system)
+  for details.
+
+What will most likely *not* help is `--no-dedupe`. Deduplication usually pays
+for itself, and turning it off means every duplicate file has to be tracked
+individually instead. Even on an input with almost no duplicates, `--no-dedupe`
+saved less than 4% of peak memory.
+
+See [MEMORY USAGE](#memory-usage) for more details.
+
 ## FILTER RULES
 
 The filter rules have been inspired by the `rsync` utility. These
@@ -1087,6 +1172,354 @@ O(n^2), this does not scale well for `max-cluster-size` beyond a few
 100,000. Also, since the algorithm does not minimize the global distance
 between all nodes, there's no guarantee that the result will be better
 if you use only a single cluster.
+
+## MEMORY USAGE
+
+Building a DwarFS image needs memory in two fundamentally different ways,
+and it helps to keep them apart when trying to work out why `mkdwarfs` is
+using more memory than expected.
+
+- **Per-entry memory** scales with the *number of entries* in the input.
+  It is built up while scanning, and most of it stays allocated until the
+  image has been written. There is no option to bound it — it is what it
+  is for a given input and set of features.
+
+- **Segmenting and compression memory** scales with the *configuration*:
+  block size, lookback, number of worker threads and, above all, the
+  compression algorithm. It is essentially independent of how many files
+  there are, but it can easily reach tens of gigabytes with aggressive
+  compression settings.
+
+The `-L` option only bounds part of the second category, which is why you
+will routinely see `mkdwarfs` use far more memory than the value passed to
+that option. Which of the two dominates depends entirely on your input and
+your options: for a few hundred thousand files with expensive compression,
+the compressors will dominate; for tens of millions of files, the per-entry
+data will eventually take over.
+
+### Per-Entry Memory
+
+All file system data collected while scanning is kept in tightly bit-packed
+vectors since the 0.16.0 release. Each field is stored in its own array,
+packed to the minimum number of bits needed for the values it actually holds.
+A field that is never set, or that always holds a zero value, occupies no
+space at all. Names are stored once, globally, as individual path components,
+and each entry only stores an index into that table. That table itself is
+compressed once scanning has finished, and will typically use far less memory
+than the `ls -R` output of the input directory.
+
+Modes, owners, groups, devices and symlink targets are pooled in the same way,
+so, for example, with 8 owners across the input, only 3 bits are needed per
+entry to store the owner.
+
+How much this ends up costing per file depends mostly on your input. Here are
+three examples, all built with `-l9`, but with compression itself disabled:
+
+    -----------|------------|------------|----------|----------|----------
+     Data Set  |      Files |     Inodes |  Storage | Per File | Peak RSS
+    -----------|------------|------------|----------|----------|----------
+     perl      |  1,927,501 |    144,675 |   77 MiB |     42 B |  262 MiB
+     debian    |    244,236 |    219,699 |   39 MiB |    168 B |  195 MiB
+     wiki      | 14,257,665 | 12,431,814 | 2802 MiB |    206 B |  3.4 GiB
+    -----------|------------|------------|----------|----------|----------
+
+A note on the terminology: an "inode" in the DwarFS sense is a unique file.
+Identical files share the same "inode" in storage. This does not mean the
+files are actually hardlinked together, but they share everything about
+their content (e.g. content hashes, similarity data, and fragments).
+
+The `perl` data set is a collection of more than 1000 Perl installations,
+and is extremely redundant. The `debian` data set is a Debian live root file
+system, with multiple owners, groups and modes, and a large number of symlinks.
+The `wiki` data set is a Wikipedia dump in which almost every file is unique
+and has a long, distinct name.
+
+"Storage" is all the collected entry data at the end of scanning. Part of
+this storage will be compressed (e.g. path components) or even disposed of
+(e.g. hashes, similarity info) before segmenting starts. So the steady-state
+entry storage at the start of segmenting is typically smaller. It grows
+during segmenting as the segmenter finds chunks of duplicate data and needs
+to store these chunks in memory.
+
+    -----------|----------|----------|----------|----------
+     Data Set  | Start of segmenting |  End of Segmenting
+               |  Storage | Per File |  Storage | Per File
+    -----------|----------|----------|----------|----------
+     perl      |   65 MiB |     35 B |   75 MiB |     41 B
+     debian    |   16 MiB |     69 B |   18 MiB |     77 B
+     wiki      | 1136 MiB |     84 B | 1226 MiB |     90 B
+    -----------|----------|----------|----------|----------
+
+The three-fold spread between the `perl` and `wiki` data sets comes almost
+entirely from redundancy and names: the `perl` tree de-duplicates 1.93 million
+files down to 144,675 inodes, so the amount of per-inode data is an order of
+magnitude smaller than it would be without de-duplication. Also, the 1.93
+million input files share just 10,827 distinct path components. The `wiki`
+tree, at the other extreme, has almost no duplicates, and 14.26 million
+distinct names.
+
+As mentioned above, all three runs above were made with compression disabled,
+so that the figures represent a baseline on top of which compression memory
+usage will have to be added. See
+[Segmenting and Compression Memory](#segmenting-and-compression-memory) for
+details.
+
+### Where the Peak Is
+
+Memory does not grow monotonically over a build. It rises throughout
+scanning, reaches its maximum around the point where inodes are finalized,
+and declines from there: data that is only needed for one phase is released
+as soon as that phase is done. On the `wiki` data set, the peak allocated
+memory was used when storage was frozen (during path storage compression,
+to be exact).
+
+    ---------------------|------------
+     Phase               |  Allocated
+    ---------------------|------------
+     scanning            |   3.26 GiB
+     freezing storage    |   3.55 GiB
+     finalizing inodes   |   3.07 GiB
+     ordering            |   2.44 GiB
+     segmenting          |   1.79 GiB
+     building metadata   |   2.49 GiB
+    ---------------------|------------
+
+Three things are alive only temporarily and are worth knowing about:
+
+- **File digests and the tables used to find duplicates**, which are alive
+  at the same time as the full entry storage and are released once inodes
+  have been finalized. On `wiki` these were about 680 MiB.
+
+- **Similarity hashes**, which are built during scanning and released as
+  soon as ordering is done, along with the working memory the `nilsimsa`
+  clustering needs. On `wiki` the hashes were 379 MiB and the clustering
+  added a further 810 MiB on top, about 70 bytes per inode.
+
+- **Metadata**, which is built at the very end before being frozen and
+  written out. Some of the data can be taken directly from the entry storage,
+  but other parts need to be built from scratch. On `wiki` that was 272 MiB
+  of intermediate structures plus the final 582 MiB frozen metadata block,
+  around 63 bytes per file.
+
+### De-duplication and Ordering
+
+Deduplication is very often a net *saving*, and turning it off with
+`--no-dedupe` can cost you a lot of memory at least some of the input is
+redundant. Files are only hashed when another file of the same size has
+been seen, and the lookup tables are keyed by size, by (size, start hash)
+and by digest index rather than by file, so they typically stay smaller
+than one entry per file. More importantly, duplicate files never become
+inodes, and it is the per-inode data (similarity hashes, fragments, chunks)
+that often dominates.
+
+Turning de-duplication off does not simply remove that cost of storing
+digests, because every file then has to be tracked individually instead.
+On the `wiki` data set, which is close to the worst case for de-duplication
+in that only about 13% of the files are duplicates, `--no-dedupe` still
+required 512 MiB for its own per-file table, against roughly 680 MiB for
+full de-duplication — a saving of well under 4% of peak memory, in exchange
+for giving up the 1.8 million duplicate files that were found otherwise.
+
+On a redundant input, that trade off is much worse. Turning de-duplication
+off for `perl` takes it from 144,675 inodes to 1,925,061, and as a result
+the per-inode data went from 15 MiB to 73 MiB, with the per-file tracking
+table growing from 2 MiB to 128 MiB. Peak memory rose from 262 MiB to
+359 MiB even in a run using `--hollow` and `--order=none`, so it never read
+a single byte of file data and never ordered anything. So, use `--no-dedupe`
+because you *know* there are no duplicates and want the speed, not to save
+memory.
+
+Similarity ordering is the larger and more predictable lever. The default
+`nilsimsa` ordering stores 32 bytes per inode and needs substantial working
+memory for clustering. `similarity` stores 4 bytes per inode and needs no
+clustering step at all. On the `wiki` data set that is 379 MiB against
+47 MiB, plus a further 810 MiB of clustering working memory against almost
+no memory needed for `similarity` ordering. `--order=none`, `--order=path`,
+or `--order=revpath` save a bit more, but may cost even more in compression
+ratio.
+
+The similarity hashes released as soon as ordering has finished, so they
+are not carried through the rest of the build.
+
+Switching from `nilsimsa` to `similarity` can cost compression ratio, but
+how much depends on the input. On the `wiki` data set, `nilsimsa` ordering
+saved 16.91 GiB by segmenting, where `similarity` saved 13.73 GiB. In terms
+of compressed image size, the two versions may actually be very close, but
+segmentation savings are usually worthwhile since they reduce the amount of
+memory that needs to be decompressed when reading data from the image.
+
+### Segmenting and Compression Memory
+
+Each segmenter keeps a table of cyclic hash offsets and a bloom filter for
+each of the `-B` blocks it can look back into, plus a global bloom filter
+if `-B` is greater than 1. `mkdwarfs` logs an estimate for the amount of
+memory used by a segmenter at `--log-level=verbose`, e.g.:
+
+    segmenter will use up to 671.9 KiB
+
+These tables are typically small compared to the block data itself. The
+segmenter has to hold on to `--max-lookback-blocks` blocks of *uncompressed*
+data, so the dominant term is the block size times the lookback, i.e. the
+[virtual block size](#virtual-block-size) of the image. That makes virtual
+block size the more useful parameter to reason about rather than `-S` and `-B`
+individually.
+
+    ---------------|--------------|---------------|------------
+     Options       | Virtual Size | Lookup Tables | Block Data
+    ---------------|--------------|---------------|------------
+     -S24 -B1      |       16 MiB |       672 KiB |     16 MiB
+     -S22 -B4      |       16 MiB |       927 KiB |     16 MiB
+     -S26 -B1      |       64 MiB |       2.6 MiB |     64 MiB
+     -S24 -B4      |       64 MiB |       3.6 MiB |     64 MiB
+     -S30 -B1      |     1024 MiB |        42 MiB |   1024 MiB
+     -S26 -B16     |     1024 MiB |       106 MiB |   1024 MiB
+     -S24 -B64     |     1024 MiB |       298 MiB |   1024 MiB
+    ---------------|--------------|---------------|------------
+
+At a constant virtual block size, segmenter memory is roughly constant, and
+it is the block data that dominates. The lookup tables do grow as `-B`
+increases, because each lookback block gets its own local bloom filter in
+addition to the global one. Up to around `-B16` this is a few per cent of
+the total and can probably be ignored.
+
+The lookup table figures assume a `--window-size` of 12 and `--window-step`
+of 3; each decrement of `--window-size` and each increment of `--window-step`
+double the size of the lookup tables.
+
+Categorization multiplies all of this. There is one segmenter per category,
+each with its own blocks, and up to `--num-segmenter-workers` segmenters can
+be live at once. Adding `--categorize` took the `debian` data set from one
+segmenter to 17 segmenters and its peak memory from 195 MiB to 1.27 GiB.
+
+Compression is where memory usage can get genuinely extreme. Use
+`--estimate-compression-memory` with the `-S` and `-C` options you
+intend to use:
+
+    $ mkdwarfs --estimate-compression-memory -S28 -C lzma:level=9
+    lzma [level=9] will use up to 929.1 MiB per worker thread to compress
+    256 MiB blocks
+
+    $ mkdwarfs --estimate-compression-memory -S30 \
+               -C lzma:level=9:extreme:dict_size=30
+    lzma [level=9, dict_size=30, extreme] will use up to 11.5 GiB per worker
+    thread to compress 1 GiB blocks
+
+    $ mkdwarfs --estimate-compression-memory -S30 \
+               -C brotli:quality=11:lgwin=30
+    brotli [quality=11, lgwin=30] will use up to 11.26 GiB per worker thread
+    to compress 1 GiB blocks
+
+That figure is *per worker thread*, so with the default number of workers
+on a large machine it is easily hundreds of gigabytes. If compression memory
+is your bottleneck, reducing `-N` or choosing a cheaper algorithm will help,
+as will a smaller block size. The [two-pass build](#two-pass-builds) described
+below is a way to sidestep that problem.
+
+### Measuring Memory Usage
+
+Per-entry memory is mostly linear in the number of entries, so one possible
+way to find out what your data set needs is to run `mkdwarfs` over a
+representative subset, e.g. a subtree, and scale the result up. Bit widths
+grow logarithmically with the number of entries and with the number of
+distinct values per field, so extrapolating this way will slightly
+underestimate the real figure, but probably not by much. Be aware that a
+subset may not be representative in terms of duplicate files, which as shown
+above can make a large difference.
+
+A dry run that skips reading file data altogether is much faster, and still
+gives a good estimate of the per-entry cost:
+
+    mkdwarfs -i /path/dir -o /dev/null --hollow --no-dedupe \
+             --order=none -C null --log-level=verbose
+
+Because it never reads any file data, such a run can neither de-duplicate
+nor compute similarity hashes, so it measures the entry storage but not the
+digests or the hashes. Add roughly 32 bytes per inode for `nilsimsa`
+ordering and, from the `wiki` measurements, around 50 bytes per file for
+de-duplication. On `wiki` the dry run peaked at 3.20 GiB against 3.45 GiB
+for the proper run.
+
+Running with `--log-level=verbose` prints a breakdown of where the per-entry
+memory goes at several points during the build, which is worth a look if you
+want to understand which of your options actually make a difference. See also
+[dwarfs-env(7)](dwarfs-env.md) for the `DWARFS_LOG_MEMORY_USAGE` environment
+variable, which enables process memory usage logging.
+
+### Returning Memory to the System
+
+`mkdwarfs` frees large amounts of memory at several points during the build,
+but that memory isn't necessarily returned to the operating system immediately.
+
+Builds using `jemalloc`, e.g. the static release binaries, can be configured
+to release memory eagerly, at the expense of a slight performance hit, by
+setting `MALLOC_CONF` in the environment:
+
+    MALLOC_CONF="background_thread:true,dirty_decay_ms:0,muzzy_decay_ms:0"
+
+On the `wiki` dataset, this reduced peak resident memory from 3.37 GiB to
+2.61 GiB, a saving of 22%, and average resident memory over the whole build
+from 1.67 GiB to 1.37 GiB. Returning memory eagerly is not free in terms of
+CPU time, but `mkdwarfs` is usually I/O-bound, so the performance hit is
+often negligible.
+
+### Reducing Memory Usage
+
+Check `--estimate-compression-memory` first. It can easily be the single most
+expensive part of the build in terms of memory, and no amount of tuning other
+options will make a difference in comparison.
+
+After that, check the [virtual block size](#virtual-block-size), i.e. `-S`
+times `-B`, since each segmenter has to hold that much uncompressed block
+data in memory.
+
+For per-entry memory, in rough order of how much they save:
+
+- `--order=similarity` instead of the default `nilsimsa` ordering saves 28
+  bytes per inode and avoids the extra memory for clustering, usually at a
+  moderate cost in compression ratio. `--order=none` or `--order=path` save
+  a little more, though at a much larger cost.
+
+- `--set-time` removes the timestamp column, which was between 3% and 12% of
+  per-entry storage across the data sets measured above.
+
+- `--set-owner`, `--set-group` and `--chmod=norm` remove or narrow the
+  owner, group and mode columns. These are worth very little in practice,
+  though. Even on a full Debian root with 15 distinct owners and 25 distinct
+  groups, all three columns together used less than 20 KiB.
+
+### Two-Pass Builds
+
+Since compression can easily be the largest single consumer of memory, and
+since `-L` doesn't bound it while building an image from input files, it can
+be worth splitting the build into two passes:
+
+    mkdwarfs -i /path/dir -o tmp.dwarfs -l9 -C zstd:level=11
+    mkdwarfs -i tmp.dwarfs -o final.dwarfs --recompress -C lzma:level=9 -L 8g
+
+The first pass uses a cheap, fast compression algorithm, which keeps
+compression memory small and leaves as much memory as possible for the
+per-entry data and the segmenter. The second pass then recompresses the
+image with the algorithm you actually want, and because `-L` *does* account
+for compressor memory when recompressing, you can bound it properly.
+
+There are two other benefits: the first pass is likely considerably faster,
+and you can inspect the intermediate image before spending a lot of CPU time
+on compression. The obvious downside is that it needs a lot more disk space.
+
+### Limitations
+
+Most of the features that distinguish DwarFS from other read-only file
+systems — global file de-duplication, similarity ordering, segmentation
+and de-duplication within file content — need a global view of the input,
+and so does building the metadata. There is currently no streaming or
+constant-memory mode, and the full metadata has to be built in memory
+before it can be frozen and written out. This puts a hard floor under
+the memory needed to build an image, mostly proportional to the number
+of entries.
+
+If your input is large enough that this floor becomes a problem, the only
+workaround at the moment is to split the input across several images and
+mount them separately.
 
 ## AUTHOR
 
