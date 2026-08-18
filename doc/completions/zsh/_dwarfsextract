@@ -6,7 +6,8 @@
 # zsh completion for dwarfsextract
 #
 # synopsis
-#   dwarfsextract [OPTIONS...]
+#   dwarfsextract -i <image> [-o <dir>] [OPTIONS...] [<pattern>...]
+#   dwarfsextract -i <image> -f <format> [-o <file>] [OPTIONS...] [<pattern>...]
 #
 
 local context state line ret=1
@@ -18,24 +19,48 @@ __dwarfsextract_disable_man()
     fi
 }
 
+# libarchive write formats, see libarchive-formats(5)
+local -a __dwarfsextract_formats=( auto 7zip ar arbsd argnu arsvr4 bsdtar
+    cd9660 cpio gnutar iso9660 mtree mtree-classic newc odc oldgnutar oldtar
+    pax paxr posix raw rpax shar shardump ustar v7tar warc xar zip )
+
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfsextract_image_files()
+{
+    local dir=.
+    [[ $PREFIX == */* ]] && dir=${PREFIX%/*}
+    local -a images
+    images=( ${~dir}/*.dwarfs(N) )
+    if (( ${#images} )); then
+        _files -g '*.dwarfs'
+    else
+        _files
+    fi
+}
+
 _arguments -S \
 	"--continue-on-error[continue if errors are encountered]" \
 	"--disable-integrity-check[disable file system image block integrity check (dangerous)]" \
-	"--format-filters[comma-separated libarchive format filters]:filters:" \
-	"--format-options[options for the specific libarchive format/filters]:options:" \
-	"--log-level[log level]:level:(error warn info verbose debug trace)" \
+	"--format-filters=[comma-separated libarchive format filters]:filters:_values -s , filter b64encode bzip2 compress grzip gzip lrzip lz4 lzip lzma lzop uuencode xz zstd" \
+	"--format-options=[options for the specific libarchive format/filters]:options:" \
+	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
 	"--log-with-context[enable context logging regardless of level]" \
-	"--pattern[only extract files matching these patterns]:pattern:" \
-	"--perfmon[enable performance monitor]" \
-	"--perfmon-trace[write performance monitor trace file]:filename:_files" \
+	"--num-disk-writers=[number of disk data writers]:num:" \
+	"*--pattern=[only extract files matching these patterns]:glob pattern:" \
+	"--perfmon=[enable performance monitor]:component:_values -s , component filesystem_v2 metadata inode_reader_v2 block_cache" \
+	"--perfmon-trace=[write performance monitor trace file]:filename:_files" \
+	"--skip-devices[do not extract device files]" \
+	"--skip-specials[do not extract special files (sockets, fifos, etc.)]" \
 	"--stdout-progress[write percentage progress to stdout]" \
-	{-f,--format}"[output format]:format:" \
-	{-h,--help}"[output help message and exit]" \
-	{-i,--input}"[input filesystem]:filename:_files -g '*.dwarfs'" \
-	{-n,--num-workers=-}"[number of reader worker threads]:num:" \
-	{-O,--image-offset=-}"[filesystem image offset in bytes]:num:" \
-	{-o,--output}"[output file or directory]:filename:_files" \
-	{-s,--cache-size}"[block cache size]:size:" \
-	"$(__dwarfsextract_disable_man)--man[show manual page and exit]" && ret=0
+	{-f,--format=}"[output format]:format:(${__dwarfsextract_formats})" \
+	"(- *)"{-h,--help}"[output help message and exit]" \
+	{-i,--input=}"[input filesystem]:image file:__dwarfsextract_image_files" \
+	{-n,--num-workers=}"[number of worker threads]:num:" \
+	{-O,--image-offset=}"[filesystem image offset in bytes]:offset:(auto)" \
+	{-o,--output=}"[output file or directory]:output:_files" \
+	{-s,--cache-size=}"[block cache size]:size:" \
+	"$(__dwarfsextract_disable_man)--man[show manual page and exit]" \
+	"*:glob pattern:" && ret=0
 
 return ret

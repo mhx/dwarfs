@@ -4,7 +4,7 @@
 # bash completion for dwarfsck
 #
 # synopsis
-#   dwarfsck [OPTIONS...]
+#   dwarfsck [-i] <image> [OPTIONS...]
 #
 
 __dwarfsck_additional_options()
@@ -14,10 +14,39 @@ __dwarfsck_additional_options()
     fi
 }
 
+# extract the list of supported checksum algorithms from the help output
+__dwarfsck_list_checksums()
+{
+    dwarfsck -h | tr '\n' ' ' | \
+        sed -e 's/.*print checksums for all files *(//' -e 's/).*//' | \
+        tr -s ', ' '  '
+}
+
+# extract the list of --detail feature names from the help output
+__dwarfsck_list_detail_features()
+{
+    dwarfsck -h | tr '\n' ' ' | \
+        sed -e 's/.*feature list: *//' -e 's/).*//' | \
+        tr -s ', ' '  '
+}
+
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfsck_image_files()
+{
+    local i n=${#COMPREPLY[@]}
+    _comp_compgen -a filedir dwarfs
+    for (( i=n; i < ${#COMPREPLY[@]}; i++ )); do
+        # anything that isn't a directory is an actual image file
+        [[ -d ${COMPREPLY[i]} ]] || return 0
+    done
+    _comp_compgen -a filedir
+}
+
 _dwarfsck_completion()
 {
-    local cur prev words cword
-    _comp_initialize || return
+    local cur prev words cword split
+    _comp_initialize -s || return
 
     local OPTIONS_GENERAL=(
         --check-integrity
@@ -26,6 +55,8 @@ _dwarfsck_completion()
         --log-level
         --log-with-context
         --no-check
+        --perfmon
+        --perfmon-trace
         -d --detail
         -h --help
         -H --print-header
@@ -35,46 +66,92 @@ _dwarfsck_completion()
         -n --num-workers
         -O --image-offset
         -q --quiet
+        -s --cache-size
         -v --verbose
         $(__dwarfsck_additional_options)
     )
 
-    local OPTION_ARG__detail=( frozen_analysis history metadata_summary version )
-    local OPTION_ARG__log_level=( error warn info verbose debug trace )
-    local OPTION_ARG_d=( ${OPTION_ARG__detail[@]} )
-    # silent, no completion
-    local OPTION_ARG_NONE=( --checksum --image-offset --num-workers -n -O )
+    # all options that expect an argument; used both to suppress completion
+    # after options we cannot complete, and to find the positional argument
+    local OPTIONS_WITH_ARG=(
+        --cache-size --checksum --detail --export-metadata --image-offset
+        --input --log-level --num-workers --perfmon --perfmon-trace
+        -d -i -n -O -s
+    )
 
-    # catch option with known arguments first
+    local OPTION_ARG__log_level=( error warn info verbose debug trace )
+    local OPTION_ARG__perfmon=( filesystem_v2 metadata inode_reader_v2 block_cache )
+
+    # catch options with known arguments first
     case $prev in
-        --checksum | --detail | --log-level | --image-offset | --num-workers | \
-        -d | -n | -O )
-            prevoption=${prev//-/_}
-            _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
+        -d | --detail)
+            _comp_compgen -- -W '0 1 2 3 4 5 6 7 $(__dwarfsck_list_detail_features)'
+            return 0
+            ;;
+        --checksum)
+            _comp_compgen -- -W '$(__dwarfsck_list_checksums)'
+            return 0
+            ;;
+        --log-level)
+            _comp_compgen -- -W '"${OPTION_ARG__log_level[@]}"'
+            return 0
+            ;;
+        --perfmon)
+            _comp_compgen -- -W '"${OPTION_ARG__perfmon[@]}"'
+            return 0
+            ;;
+        -O | --image-offset)
+            _comp_compgen -- -W 'auto'
             return 0
             ;;
         -i | --input)
-            _comp_compgen -a filedir dwarfs
+            __dwarfsck_image_files
             return 0
             ;;
-        --export-metadata)
+        --export-metadata | --perfmon-trace)
             _comp_compgen -a filedir
+            return 0
+            ;;
+        -n | --num-workers | -s | --cache-size)
+            # silent, no completion
             return 0
             ;;
     esac
 
-    # check if previous option is silent
-    if [[ $prev == -* ]]; then
-        for f in ${OPTION_ARG_NONE[@]}; do
-            [[ "$prev" = "$f" ]] && return 0
-        done
-    fi
+    # `--option=<TAB>` for an option we don't know how to complete
+    [[ $split == true ]] && return 0
 
-    # complete options, or the positional input filesystem
+    # the image can be passed either via -i/--input or as a positional
+    # argument; find out whether we've already seen one
+    local i skipnext=0 have_input=0
+    for (( i=1; i < ${cword}; i++ )); do
+        if [[ $skipnext == 1 ]]; then
+            skipnext=0
+            continue
+        fi
+        case ${words[i]} in
+            -i | --input)
+                have_input=1
+                skipnext=1
+                ;;
+            --input=*)
+                have_input=1
+                ;;
+            -*)
+                if [[ " ${OPTIONS_WITH_ARG[*]} " == *" ${words[i]} "* ]]; then
+                    skipnext=1
+                fi
+                ;;
+            *)
+                have_input=1
+                ;;
+        esac
+    done
+
     if [[ $cur == -* ]]; then
         _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
-    else
-        _comp_compgen -a filedir dwarfs
+    elif [[ $have_input == 0 ]]; then
+        __dwarfsck_image_files
     fi
 
     return 0

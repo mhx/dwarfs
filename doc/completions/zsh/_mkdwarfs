@@ -17,12 +17,142 @@ __mkdwarfs_list_comp_algos()
     # extract algorithms block
     # trim algo leading space, delete algo args, remove empty line
     # delete algo descriptions
-    # double print with trailing '\:' except 'null'
     mkdwarfs -H | \
         sed -e '1,/Compression algorithms/d;/Categories:/,$d' \
             -e 's/^[ ]\{1,2\}//;/^ /d;/^$/d' \
-            -e 's/ .*$//' \
-            -ne 'p;/null/!s/$/\\:/p'
+            -e 's/ .*$//'
+}
+
+__mkdwarfs_list_categorizers()
+{
+    # names of the categorizers, i.e. the bracketed entries of the
+    # categories block
+    mkdwarfs -H | sed -ne '/^Categories:/,$ s/^  \[\(.*\)\]$/\1/p'
+}
+
+__mkdwarfs_list_categories()
+{
+    # names of the individual categories, i.e. the non-bracketed entries
+    # of the categories block; if categorizer names are passed as arguments,
+    # only the categories of those categorizers are listed
+    local want=" $* "
+    mkdwarfs -H | awk -v want="$want" '
+        /^Categories:/ { incat = 1; next }
+        !incat { next }
+        /^  \[.*\]$/ { c = $0; sub(/^  \[/, "", c); sub(/\]$/, "", c); next }
+        /^    / { sub(/^    /, ""); if (want == "  " || index(want, " " c " ")) print }
+    '
+}
+
+__mkdwarfs_default_categorizers()
+{
+    # the categorizers enabled by a bare `--categorize`
+    mkdwarfs -H | \
+        sed -ne 's/^ *--categorize \[=arg(=\(.*\))\].*/\1/p' | \
+        tr ',' '\n'
+}
+
+__mkdwarfs_enabled_categorizers()
+{
+    # the categorizers enabled on the current command line, if any
+    local w
+    local -a cats
+    for w in ${words[1,CURRENT-1]}; do
+        case $w in
+            --categorize)
+                cats+=( ${(f)"$(__mkdwarfs_default_categorizers)"} )
+                ;;
+            --categorize=*)
+                cats+=( ${(s:,:)${w#--categorize=}} )
+                ;;
+        esac
+    done
+    print -l -- ${cats}
+}
+
+__mkdwarfs_categorizers()
+{
+    local -a cats
+    cats=( ${(f)"$(__mkdwarfs_list_categorizers)"} )
+    _values -s , categorizer ${cats}
+}
+
+__mkdwarfs_categories()
+{
+    local -a cats
+    cats=( ${(f)"$(__mkdwarfs_list_categories)"} )
+    _values -s , category ${cats}
+}
+
+__mkdwarfs_used_categories()
+{
+    # categories that have already been given for the option passed in $@,
+    # e.g. `-B pcmaudio/waveform::8`; as the last value for a particular
+    # category wins, there's no point in offering it again
+    local i opt w val
+    local -a used
+    for (( i=1; i < CURRENT; i++ )); do
+        w=$words[i]
+        val=
+        for opt in "$@"; do
+            if [[ $w == $opt ]]; then
+                (( i+1 < CURRENT )) && val=$words[i+1]
+            elif [[ $opt == --* && $w == ${opt}=* ]]; then
+                val=${w#*=}
+            elif [[ $opt != --* && $w == ${opt}?* ]]; then
+                val=${w#$opt}
+            fi
+        done
+        [[ $val == *::* ]] && used+=( ${val%::*} )
+    done
+    print -l -- ${used}
+}
+
+__mkdwarfs_category_prefixes()
+{
+    # `category::` prefixes for the per-category option passed in $@; only
+    # useful (and only offered) if categorizers have been enabled on the
+    # command line
+    local -a enabled cats used
+    local expl
+    enabled=( ${${(f)"$(__mkdwarfs_enabled_categorizers)"}:#} )
+    (( ${#enabled} )) || return 1
+    cats=( ${${(f)"$(__mkdwarfs_list_categories ${enabled})"}:#} )
+    used=( ${${(f)"$(__mkdwarfs_used_categories "$@")"}:#} )
+    (( ${#used} )) && cats=( ${cats:|used} )
+    (( ${#cats} )) || return 1
+    _wanted categories expl category compadd -S '::' -- ${cats}
+}
+
+__mkdwarfs_category_value()
+{
+    # a plain value, optionally prefixed with `category::`
+    compset -P '*::' || __mkdwarfs_category_prefixes "$@"
+}
+
+__mkdwarfs_compression_algos()
+{
+    local -a algos
+    local expl
+    algos=( ${(f)"$(__mkdwarfs_list_comp_algos)"} )
+    # offer the algorithm names both plain and with a trailing `:`, so that
+    # algorithm options can be appended
+    algos+=( ${${algos:#null}/%/:} )
+    _wanted algos expl 'compression algorithm' compadd -a algos
+}
+
+__mkdwarfs_compression()
+{
+    compset -P '*::' || __mkdwarfs_category_prefixes -C --compression
+    __mkdwarfs_compression_algos
+}
+
+__mkdwarfs_order()
+{
+    local expl
+    compset -P '*::' || __mkdwarfs_category_prefixes --order
+    _wanted orders expl 'inode order' \
+        compadd none path revpath similarity nilsimsa explicit
 }
 
 __mkdwarfs_disable_man()
@@ -33,69 +163,74 @@ __mkdwarfs_disable_man()
 }
 
 _arguments -S \
-	"--bloom-filter-size" \
-	"--categorize=-:cattype:_values -s , cattype fits pcmaudio incompressible" \
-	"--change-block-size" \
-	"--chmod" \
-	"--compress-niceness" \
-	"--debug-filter" \
-	"--header" \
-	"--history-compression:algos:($(__mkdwarfs_list_comp_algos))" \
-	"--hotness-list" \
-	"--incompressible-block-size" \
-	"--incompressible-fragments" \
-	"--incompressible-min-input-size" \
-	"--incompressible-ratio" \
-	"--incompressible-zstd-level" \
-	"--input-list[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
+	"*--bloom-filter-size=[bloom filter size (2^N*values bits)]:[category\:\:]size: __mkdwarfs_category_value --bloom-filter-size" \
+	"--categorize=-[enable categorizers in the given order]:categorizer:__mkdwarfs_categorizers" \
+	"--change-block-size[change block size when recompressing]" \
+	"--chmod=[recursively apply permission changes]:mode:(norm)" \
+	"--compress-niceness=[compression worker threads niceness]:niceness:" \
+	"--debug-filter=-[show effect of filter rules without producing an image]:mode:(all excluded excluded-files files included included-files)" \
+	"--estimate-compression-memory[estimate compression algorithm per-thread memory usage]" \
+	"--file-hash=[deprecated; passing 'none' is equivalent to --no-dedupe]:hash:(none)" \
+	"--header=[prepend output filesystem with contents of this file]:filename:_files" \
+	"--history-compression=[history compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--hollow[create hollow filesystem (only zero-filled files)]" \
+	"--hotness-list=[file with list of hot file paths]:filename:_files" \
+	"--incompressible-block-size=[block size to use for zstd compression]:size:" \
+	"--incompressible-fragments[generate individual incompressible fragments]" \
+	"--incompressible-min-input-size=[minimum file size to check for incompressibility]:size:" \
+	"--incompressible-ratio=[compression ratio above which files or fragments are considered incompressible]:ratio:" \
+	"--incompressible-zstd-level=[ZSTD compression level]:level:" \
+	"--input-list=[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
 	"--keep-all-times[save atime and ctime in addition to mtime]" \
-	"--log-level:level:(error warn info verbose debug trace)" \
-	"--log-with-context" \
-	"--max-similarity-size" \
-	"--metadata-compression:algos:($(__mkdwarfs_list_comp_algos))" \
-	"--no-category-metadata" \
-	"--no-category-names" \
-	"--no-create-timestamp" \
-	"--no-dedupe" \
-	"--no-history" \
-	"--no-history-command-line" \
-	"--no-history-timestamps" \
-	"--no-metadata-version-history" \
-	"--no-progress" \
-	"--no-section-index" \
-	"--num-scanner-workers" \
-	"--num-segmenter-workers" \
-	"--order" \
-	"--progress:progress:(ascii none simple unicode)" \
-	"--rebuild-metadata" \
-	"--recompress:level:(none block metadata all)" \
-	"--recompress-categories" \
-	"--remove-empty-dirs" \
-	"--remove-header" \
-	"--schema-compression:algos:($(__mkdwarfs_list_comp_algos))" \
-	"--set-group[group (gid) for whole file system]" \
-	"--set-owner[owner (uid) for whole file system]" \
-	"--set-time[timestamp for whole file system (unixtime or 'now')]" \
-	"--time-resolution" \
-	"--with-devices" \
-	"--with-specials" \
-	{-B,--max-lookback-blocks} \
-	{-C,--compression=-}"[block compression algorithm]:algos:($(__mkdwarfs_list_comp_algos))" \
-	{-F,--filter} \
+	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
+	"--log-with-context[enable context logging regardless of level]" \
+	"--max-similarity-size=[maximum file size to compute similarity]:size:" \
+	"--metadata-compression=[metadata compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--no-category-metadata[don't add category metadata to file system]" \
+	"--no-category-names[don't add category names to file system]" \
+	"--no-check[don't check input filesystem when recompressing]" \
+	"--no-create-timestamp[don't add create timestamp to file system]" \
+	"--no-dedupe[turn off file-level deduplication]" \
+	"--no-hardlink-table[don't add hardlink count table to file system]" \
+	"--no-history[don't add history to file system]" \
+	"--no-history-command-line[don't add command line to file system history]" \
+	"--no-history-timestamps[don't add timestamps to file system history]" \
+	"--no-metadata-version-history[remove metadata version history]" \
+	"--no-progress[don't show progress]" \
+	"--no-section-index[don't add section index to file system]" \
+	"--no-sparse-files[don't store sparse files as sparse]" \
+	"--num-scanner-workers=[number of scanner (hasher/categorizer) worker threads]:num:" \
+	"--num-segmenter-workers=[number of segmenter worker threads]:num:" \
+	"--num-walk-workers=[number of directory walking worker threads]:num:" \
+	"*--order=[inode fragments order]:[category\:\:]order:__mkdwarfs_order" \
+	"--progress=[progress mode]:progress:(ascii none simple unicode)" \
+	"--rebuild-metadata[fully rebuild metadata]" \
+	"--recompress=-[recompress an existing filesystem]:mode:(none block metadata all)" \
+	"--recompress-categories=[only recompress blocks of these categories]:categories:__mkdwarfs_categories" \
+	"--remove-empty-dirs[remove empty directories in file system]" \
+	"--remove-header[remove any header present before filesystem data]" \
+	"--schema-compression=[metadata schema compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--set-group=[set group (gid) for whole file system]:gid:_groups" \
+	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \
+	"--set-time=[set timestamp for whole file system (unixtime or 'now')]:time:(now)" \
+	"--time-resolution=[resolution of inode timestamps]:resolution:(sec min hour day)" \
+	"--with-devices[include block and character devices]" \
+	"--with-specials[include named fifo and sockets]" \
+	"*"{-B,--max-lookback-blocks=}"[how many blocks to scan for segments]:[category\:\:]blocks: __mkdwarfs_category_value -B --max-lookback-blocks" \
+	"*"{-C,--compression=}"[block compression algorithm]:[category\:\:]algos:__mkdwarfs_compression" \
+	"*"{-F,--filter=}"[add filter rule]:rule:" \
 	{-f,--force}"[force overwrite of existing output image]" \
-	{-h,--help}"[help message]" \
-	{-H,--long-help}"[full help message]" \
-	{-i,--input}"[path to root directory or source filesystem]:directory:_files -/" \
-	{-l,--compress-level}"[compression level (0=fast, 9=best)]:level:(0 1 2 3 4 5 6 7 8 9)" \
-	{-L,--memory-limit} \
-	{-N,--num-workers}"[number of writer (compression) worker threads]" \
-	{-o,--output}"[filesystem output name or - for stdout]:filename:_files" \
-	{-P,--pack-metadata}":packtype:_values packtype auto all none \
-		chunk_table directories shared_files names names_index symlinks \
-		symlinks_index force plain" \
-	{-S,--block-size-bits} \
-	{-W,--window-size} \
-	{-w,--window-step} \
+	"(- *)"{-h,--help}"[output help message and exit]" \
+	"(- *)"{-H,--long-help}"[output full help message and exit]" \
+	{-i,--input=}"[path to root directory or source filesystem]:path:_files" \
+	{-l,--compress-level=}"[compression level (0=fast, 9=best)]:level:(0 1 2 3 4 5 6 7 8 9)" \
+	{-L,--memory-limit=}"[block manager memory limit]:limit:(auto)" \
+	{-N,--num-workers=}"[number of writer (compression) worker threads]:num:" \
+	{-o,--output=}"[filesystem output name or - for stdout]:filename:_files" \
+	{-P,--pack-metadata=}"[pack certain metadata elements]:packtype:_values -s , packtype auto all none chunk_table directories shared_files names names_index symlinks symlinks_index force plain" \
+	{-S,--block-size-bits=}"[block size bits (size = 2^arg bits)]:bits:" \
+	"*"{-W,--window-size=}"[window sizes for block hashing]:[category\:\:]bits: __mkdwarfs_category_value -W --window-size" \
+	"*"{-w,--window-step=}"[window step (as right shift of size)]:[category\:\:]step: __mkdwarfs_category_value -w --window-step" \
 	"$(__mkdwarfs_disable_man)--man[show manual page and exit]" && ret=0
 
 return ret
