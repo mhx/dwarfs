@@ -36,6 +36,14 @@ boolean options). The following options are supported:
   should prevent such crashes and deliver proper I/O error messages that
   can be useful for finding the root cause of the problem.
 
+### DWARFS\_LOG\_MEMORY\_USAGE
+
+The `DWARFS_LOG_MEMORY_USAGE` environment variable can be set to a
+file path to enable logging of memory usage statistics in TSV format.
+It will log `total` (i.e. `anon` + `file`), `anon`, `file`, and
+`allocated` memory usage in bytes over time. The `allocated` column
+is only present if DwarFS was build against `jemalloc`.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
