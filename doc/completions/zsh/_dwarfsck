@@ -6,7 +6,7 @@
 # zsh completion for dwarfsck
 #
 # synopsis
-#   dwarfsck [OPTIONS...]
+#   dwarfsck [-i] <image> [OPTIONS...]
 #
 
 local context state line ret=1
@@ -18,24 +18,66 @@ __dwarfsck_disable_man()
     fi
 }
 
+# extract the list of supported checksum algorithms from the help output
+__dwarfsck_checksums()
+{
+    local -a algos
+    local expl
+    algos=( ${(f)"$(dwarfsck -h | tr '\n' ' ' |
+        sed -e 's/.*print checksums for all files *(//' -e 's/).*//' |
+        tr -s ', ' '\n')"} )
+    _wanted checksums expl 'checksum algorithm' compadd -a algos
+}
+
+# a detail level (0-7) or a comma-separated list of features, extracted
+# from the help output
+__dwarfsck_detail()
+{
+    local -a features
+    features=( ${(f)"$(dwarfsck -h | tr '\n' ' ' |
+        sed -e 's/.*feature list: *//' -e 's/).*//' |
+        tr -s ', ' '\n')"} )
+    _alternative \
+        'levels:detail level:(0 1 2 3 4 5 6 7)' \
+        "features:detail feature:_values -s , feature ${features}"
+}
+
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfsck_image_files()
+{
+    local dir=.
+    [[ $PREFIX == */* ]] && dir=${PREFIX%/*}
+    local -a images
+    images=( ${~dir}/*.dwarfs(N) )
+    if (( ${#images} )); then
+        _files -g '*.dwarfs'
+    else
+        _files
+    fi
+}
+
 _arguments -S \
 	"--check-integrity[check integrity of each block]" \
-	"--checksum[print checksums for all files]:hashfnc:" \
-	"--export-metadata[export raw metadata as JSON to file]:filename:_files" \
-	"--log-level[log level]:level:(error warn info verbose debug trace)" \
+	"--checksum=[print checksums for all files]:algorithm:__dwarfsck_checksums" \
+	"--export-metadata=[export raw metadata as JSON to file]:filename:_files" \
+	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
 	"--log-with-context[enable context logging regardless of level]" \
 	"--no-check[don't even verify block checksums]" \
-	{-d,--detail}"[detail level or feature list]:level:(frozen_analysis history metadata_summary version)" \
-	{-h,--help}"[output help message and exit]" \
+	"--perfmon=[enable performance monitor]:component:_values -s , component filesystem_v2 metadata inode_reader_v2 block_cache" \
+	"--perfmon-trace=[write performance monitor trace file]:filename:_files" \
+	{-d,--detail=}"[detail level or feature list]:detail:__dwarfsck_detail" \
+	"(- *)"{-h,--help}"[output help message and exit]" \
 	{-H,--print-header}"[print filesystem header to stdout and exit]" \
-	{-i,--input}"[input filesystem]:filename:_files -g '*.dwarfs'" \
+	"(-i --input 1)"{-i,--input=}"[input filesystem]:image file:__dwarfsck_image_files" \
 	{-j,--json}"[print information in JSON format]" \
 	{-l,--list}"[list all files and exit]" \
-	{-n,--num-workers=-}"[number of reader worker threads]:num:" \
-	{-O,--image-offset=-}"[filesystem image offset in bytes]:num:" \
+	{-n,--num-workers=}"[number of reader worker threads]:num:" \
+	{-O,--image-offset=}"[filesystem image offset in bytes]:offset:(auto)" \
 	{-q,--quiet}"[don't print anything unless an error occurs]" \
+	{-s,--cache-size=}"[block cache size]:size:" \
 	{-v,--verbose}"[produce verbose output]" \
 	"$(__dwarfsck_disable_man)--man[show manual page and exit]" \
-	"1:filename:_files -g '*.dwarfs'" && ret=0
+	"(-i --input)1:image file:__dwarfsck_image_files" && ret=0
 
 return ret
