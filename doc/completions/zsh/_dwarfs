@@ -26,13 +26,28 @@ __dwarfs_mount_point()
     compadd "$@" -- "--auto-mountpoint"
 }
 
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfs_image_files()
+{
+    local dir=.
+    [[ $PREFIX == */* ]] && dir=${PREFIX%/*}
+    local -a images
+    images=( ${~dir}/*.dwarfs(N) )
+    if (( ${#images} )); then
+        _files -g '*.dwarfs'
+    else
+        _files
+    fi
+}
+
 _arguments -S \
     + "mainoptions" \
     "(oneonly)-d[enable debug output (implies -f)]" \
     "(oneonly)-f[foreground operation]" \
     "(oneonly)*-o[dwarfs or fuse mount options]:option:->mount_options" \
     "(oneonly)-s[disable multi-threaded operation]" \
-    "(oneonly)1:dwarfs image:_files -g '*.dwarfs'" \
+    "(oneonly)1:dwarfs image:__dwarfs_image_files" \
     "(oneonly)2:mount point:__dwarfs_mount_point" \
     + "(oneonly)" \
     "(mainoptions)"{-h,--help}"[output help message and exit]" \
@@ -41,24 +56,30 @@ _arguments -S \
 case "$state" in
     mount_options)
         _values "mount options" \
+            "allow_other[allow access by all users]" \
+            "allow_root[allow access by root]" \
             "analysis_file[write accessed files to this file]:filename:_files" \
-            "block_allocator[(malloc) | mmap]:" \
+            "auto_unmount[auto unmount on process termination]" \
+            "block_allocator[block allocator]:allocator:(malloc mmap)" \
             "blocksize[set file I/O block size (512K)]:" \
             "cache_files[keep files in kernel cache]" \
-            "cache_image[keep image in kernel cache]" \
+            "cache_sparse[keep sparse files in kernel cache]" \
             "cachesize[set size of block cache (512M)]:" \
             "case_insensitive[perform case-insensitive lookups]" \
             "clone_fd[use separate fuse device fd for each thread]" \
             "debug[enable debug output (implies -f)]" \
             "debuglevel[debug level]:level:(error warn info verbose debug trace)" \
             "decratio[ratio for full decompression (0.8)]:" \
-            "enable_nlink[show correct hardlink numbers]" \
             "gid[override group ID for file system]:" \
             "imagesize[filesystem image size in bytes]:" \
-            "mlock[mlock mode]:" \
+            "io_uring[enable io-uring]" \
+            "io_uring_q_depth[io-uring queue depth]:" \
+            "max_idle_threads[maximum number of idle worker threads (deprecated)]:" \
+            "max_threads[maximum number of worker threads (10)]:" \
+            "mlock[mlock mode]:mode:(none try must)" \
             "no_cache_files[do not keep files in kernel cache]" \
-            "no_cache_image[do not keep image in kernel cache]" \
-            "offset[filesystem image offset in bytes (0)]:" \
+            "no_cache_sparse[do not keep sparse files in kernel cache]" \
+            "offset[filesystem image offset in bytes (0)]:offset:(auto)" \
             "perfmon_trace[write performance monitor trace file]:filename:_files" \
             "perfmon[enable performance monitor]:" \
             "preload_all[preload all file system blocks]" \
@@ -68,7 +89,7 @@ case "$state" in
             "seq_detector[sequential access detector threshold (4)]:" \
             "tidy_interval[interval for cache tidying (5m)]:" \
             "tidy_max_age[tidy blocks after this time (10m)]:" \
-            "tidy_strategy[tidy strategy (none)|time|swap]:" \
+            "tidy_strategy[tidy strategy]:strategy:(none time swap)" \
             "uid[override user ID for file system]:" \
             "workers[number of worker threads (2)]:"
         ;;
