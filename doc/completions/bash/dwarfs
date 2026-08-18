@@ -15,10 +15,25 @@ __dwarfs_additional_options()
     fi
 }
 
+# complete DwarFS images; if the directory being completed doesn't contain
+# any *.dwarfs files, fall back to completing all files
+__dwarfs_image_files()
+{
+    local i n=${#COMPREPLY[@]}
+    _comp_compgen -a filedir dwarfs
+    for (( i=n; i < ${#COMPREPLY[@]}; i++ )); do
+        # anything that isn't a directory is an actual image file
+        [[ -d ${COMPREPLY[i]} ]] || return 0
+    done
+    _comp_compgen -a filedir
+}
+
 _dwarfs_completion()
 {
     local cur prev words cword
-    _comp_initialize || return
+    # `=` must not be a word break character, otherwise we cannot tell which
+    # suboption a `-o name=value` argument belongs to
+    _comp_initialize -n = || return
 
     # options that show up at any position
     local OPTIONS_GENERAL=(
@@ -29,16 +44,38 @@ _dwarfs_completion()
         -h --help $(__dwarfs_additional_options)
     )
 
-    local OPTION_ARG__owitharg=( analysis_file block_allocator blocksize cachesize
-        cache_files debuglevel decratio gid imagesize mlock offset perfmon_trace
-        perfmon preload_category readahead seq_detector tidy_interval
-        tidy_max_age tidy_strategy uid workers max_idle_threads max_threads )
-    local OPTION_ARG__onoarg=( debug clone_fd enable_nlink readonly cache_image
-        case_insensitive preload_all no_cache_files no_cache_image )
+    local OPTION_ARG__owitharg=( analysis_file block_allocator blocksize
+        cachesize debuglevel decratio gid imagesize io_uring_q_depth
+        max_idle_threads max_threads mlock offset perfmon perfmon_trace
+        preload_category readahead seq_detector tidy_interval tidy_max_age
+        tidy_strategy uid workers )
+    local OPTION_ARG__onoarg=( allow_other allow_root auto_unmount cache_files
+        cache_sparse case_insensitive clone_fd debug io_uring no_cache_files
+        no_cache_sparse preload_all readonly )
+
+    # values for the -o suboptions that have a fixed set of arguments
+    local OPTION_ARG__block_allocator=( malloc mmap )
+    local OPTION_ARG__debuglevel=( error warn info verbose debug trace )
+    local OPTION_ARG__mlock=( none try must )
+    local OPTION_ARG__offset=( auto )
+    local OPTION_ARG__tidy_strategy=( none time swap )
 
     # catch option with known arguments first
     case $prev in
         -o )
+            # `-o name=<TAB>`: complete the suboption value if we know it
+            if [[ $cur == *=* ]]; then
+                local subopt=${cur%%=*}
+                local subval=${cur#*=}
+                case $subopt in
+                    block_allocator | debuglevel | mlock | offset | \
+                    tidy_strategy )
+                        _comp_compgen -c "$subval" -- \
+                            -W '"${OPTION_ARG__'$subopt'[@]}"' -P "$subopt="
+                        ;;
+                esac
+                return 0
+            fi
             _comp_compgen -- -W '"${OPTION_ARG__owitharg[@]}"' -S "="
             _comp_compgen -a -- -W '"${OPTION_ARG__onoarg[@]}"'
             return 0
@@ -72,7 +109,7 @@ _dwarfs_completion()
         # show all options and dwarfs files to start
         _comp_compgen -- -W '"${OPTIONS_GENERAL[@]}"'
         _comp_compgen -a -- -W '"${OPTIONS_GENERAL_FIRST[@]}"'
-        _comp_compgen -a filedir dwarfs
+        __dwarfs_image_files
     fi
 
     return 0
