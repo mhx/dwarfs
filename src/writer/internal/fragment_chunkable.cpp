@@ -46,6 +46,14 @@ const_file_handle fragment_chunkable::get_file() const { return ino_.any(); }
 
 file_size_t fragment_chunkable::size() const { return frag_.size(); }
 
+bool fragment_chunkable::supports_raw_bytes() const noexcept {
+  return mm_.supports_raw_bytes();
+}
+
+std::span<std::byte const> fragment_chunkable::raw_bytes() const {
+  return mm_.raw_bytes().subspan(offset_, frag_.size());
+}
+
 std::string fragment_chunkable::description() const {
   return fmt::format("{}fragment at offset {} of inode {} [{}] - size: {}",
                      category_prefix(catmgr_, frag_.category()), offset_,
@@ -58,6 +66,11 @@ file_extents_iterable fragment_chunkable::extents() const {
 
 file_segments_iterable fragment_chunkable::segments() const {
   return mm_.segments({offset_, frag_.size()});
+}
+
+void fragment_chunkable::release_until(file_off_t offset,
+                                       std::error_code& ec) const {
+  mm_.release_until(offset_ + offset, ec);
 }
 
 void fragment_chunkable::add_chunk(size_t block, size_t offset, size_t size) {
