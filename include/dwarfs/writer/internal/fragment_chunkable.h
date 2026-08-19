@@ -49,8 +49,11 @@ class fragment_chunkable : public chunkable {
   const_file_handle get_file() const override;
   file_size_t size() const override;
   std::string description() const override;
+  bool supports_raw_bytes() const noexcept override;
+  std::span<std::byte const> raw_bytes() const override;
   file_extents_iterable extents() const override;
   file_segments_iterable segments() const override;
+  void release_until(file_off_t offset, std::error_code& ec) const override;
   void add_chunk(size_t block, size_t offset, size_t size) override;
   void add_hole(file_size_t size) override;
 
