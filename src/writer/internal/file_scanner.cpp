@@ -78,7 +78,7 @@ class file_scanner_ final : public file_scanner::impl {
 
  private:
   template <typename Key, typename Value>
-  using fast_map_type = phmap::flat_hash_map<Key, Value>;
+  using fast_map_type = phmap::parallel_flat_hash_map<Key, Value>;
 
   using start_hash_key = std::pair<uint64_t, uint64_t>;
 
