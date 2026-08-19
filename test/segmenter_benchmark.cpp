@@ -61,6 +61,19 @@ class bench_chunkable : public dwarfs::writer::internal::chunkable {
     return mm_.segments(mm_.range());
   }
 
+  bool supports_raw_bytes() const noexcept override {
+    return mm_.supports_raw_bytes();
+  }
+
+  std::span<std::byte const> raw_bytes() const override {
+    return mm_.raw_bytes();
+  }
+
+  void
+  release_until(dwarfs::file_off_t offset, std::error_code& ec) const override {
+    mm_.release_until(offset, ec);
+  }
+
   void
   add_chunk(size_t /*block*/, size_t /*offset*/, size_t /*size*/) override {}
 
