@@ -750,6 +750,19 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
           cache.allocated_size_lookup()->emplace(chunk_table_index,
                                                  info.allocated_size);
         }
+      } else if (auto const it = cache.size_lookup()->find(chunk_table_index);
+                 it != cache.size_lookup()->end()) {
+        LOG_DEBUG << "removing cached size for chunk table index "
+                  << chunk_table_index;
+        cache.size_lookup()->erase(it);
+
+        if (auto const ait =
+                cache.allocated_size_lookup()->find(chunk_table_index);
+            ait != cache.allocated_size_lookup()->end()) {
+          LOG_DEBUG << "removing cached allocated size for chunk table index "
+                    << chunk_table_index;
+          cache.allocated_size_lookup()->erase(ait);
+        }
       }
 
       size_t shared_count{1};
