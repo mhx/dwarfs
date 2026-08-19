@@ -1,5 +1,26 @@
 # Change Log
 
+## Version 0.15.7 - 2026-08-19
+
+- (fix) For fragments that are compressed with an algorithm that requires
+  a granularity greater than 1 byte, sparse files with holes could trigger
+  an error and cause the file to be empty in the output file system if the
+  hole boundaries were not aligned to the granularity. This can easily be
+  the case for 24-bit PCM audio files with long periods of silence, where
+  the source file system has punched holes into the file to save space.
+  The fix is to only treat holes specially if the compression algorithm
+  has a granularity of 1 byte. For other granularities, holes are simply
+  treated as "regular" runs of zeros. This is justifiable since PCM audio
+  files are unlikely to contain gigabytes worth of silence, and even then
+  this it would still be de-duplicated away by the segmenter. Fixes GitHub
+  issue #378.
+
+- (fix) When changing the block size of a DwarFS image, the inode size cache
+  update would only ever *add* new entries, but never remove inodes that no
+  longer had the minimum number of chunks to qualify for being cached. This
+  could eventually trigger the consistency check in `dwarfsck` and cause it
+  to fail. The fix is to remove any unqualifying inodes from the cache.
+
 ## Version 0.15.6 - 2026-07-26
 
 - (fix) Canonicalizing the mount point path in 0.15.4 fixed a bug on Linux,
