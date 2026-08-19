@@ -185,17 +185,34 @@ template <typename T>
 using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
 
 template <typename T>
-struct flat_cao_dense_value_index_policy {
+struct flat_cao_dense_value_index_policy_base {
   using store_type = cao_vector<T>;
   using hash_type = default_value_hash<T>;
   using equal_type = std::equal_to<>;
+};
+
+template <typename T>
+struct flat_cao_dense_value_index_policy
+    : flat_cao_dense_value_index_policy_base<T> {
   template <typename Hash, typename Equal>
   using index_type = phmap::flat_hash_set<std::uint32_t, Hash, Equal>;
 };
 
 template <typename T>
+struct parallel_flat_cao_dense_value_index_policy
+    : flat_cao_dense_value_index_policy_base<T> {
+  template <typename Hash, typename Equal>
+  using index_type = phmap::parallel_flat_hash_set<std::uint32_t, Hash, Equal>;
+};
+
+template <typename T>
 using flat_cao_index =
     dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
+
+template <typename T>
+using parallel_flat_cao_index =
+    dwarfs::basic_dense_value_index<T,
+                                    parallel_flat_cao_dense_value_index_policy>;
 
 template <std::size_t ChunkSize>
 struct pinned_byte_span_index_policy_holder {
@@ -573,7 +590,7 @@ struct shared_entry_data {
   std::optional<fs::path::string_type> native_root_path_component_;
 
   cao_vector<std::u8string> utf8_path_components_;
-  std::optional<flat_cao_index<std::u8string>> utf8_path_index_{
+  std::optional<parallel_flat_cao_index<std::u8string>> utf8_path_index_{
       utf8_path_components_};
   std::optional<std::size_t> utf8_path_component_count_;
   std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
@@ -582,8 +599,8 @@ struct shared_entry_data {
 
 #ifdef DWARFS_HANDLE_NATIVE_PATHS
   cao_vector<fs::path::string_type> native_path_components_;
-  std::optional<flat_cao_index<fs::path::string_type>> native_path_index_{
-      native_path_components_};
+  std::optional<parallel_flat_cao_index<fs::path::string_type>>
+      native_path_index_{native_path_components_};
 #endif
 
   cao_vector<file_stat::dev_type> devices_;
@@ -599,7 +616,8 @@ struct shared_entry_data {
   std::optional<flat_cao_index<file_stat::gid_type>> gid_index_{gids_};
 
   cao_vector<std::string> link_targets_;
-  std::optional<flat_cao_index<std::string>> link_target_index_{link_targets_};
+  std::optional<parallel_flat_cao_index<std::string>> link_target_index_{
+      link_targets_};
 
   // indexed by dir index, contains all entry ids of the directory
   cao_vector<entry_id_vector> dir_entries_;
