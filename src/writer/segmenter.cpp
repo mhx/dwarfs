@@ -408,6 +408,10 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   static constexpr DWARFS_FORCE_INLINE bool compile_time_granularity() {
     return true;
   }
+
+  static constexpr DWARFS_FORCE_INLINE bool can_use_sparse_extents() {
+    return kGranularity == 1;
+  }
 };
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
@@ -476,6 +480,10 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   }
 
   static constexpr DWARFS_FORCE_INLINE bool compile_time_granularity() {
+    return false;
+  }
+
+  static constexpr DWARFS_FORCE_INLINE bool can_use_sparse_extents() {
     return false;
   }
 
@@ -849,19 +857,29 @@ class granular_extent_adapter<GranularityPolicy, true>
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
   granular_extent_adapter(file_extent const& extent, PolicyArgs&&... args)
+      : granular_extent_adapter(extent.segments(), extent.range(),
+                                std::forward<PolicyArgs>(args)...) {}
+
+  template <typename... PolicyArgs>
+  DWARFS_FORCE_INLINE
+  granular_extent_adapter(file_segments_iterable segments, file_range range,
+                          PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , ext_{extent}
-      , queue_{ext_.segments()} {}
+      , range_{range}
+      , queue_{std::move(segments)} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
-    return this->bytes_to_frames(ext_.size());
+    return this->bytes_to_frames(range_.size());
   }
 
-  DWARFS_FORCE_INLINE file_size_t size_in_bytes() const { return ext_.size(); }
+  DWARFS_FORCE_INLINE file_size_t size_in_bytes() const {
+    return range_.size();
+  }
 
   segment_queue::byte_range_iterable byte_range(file_off_t offset) const {
     offset = this->frames_to_bytes(offset);
-    return queue_.byte_range({ext_.offset() + offset, ext_.size() - offset});
+    return queue_.byte_range(
+        {range_.offset() + offset, range_.size() - offset});
   }
 
   template <typename H, typename It>
@@ -915,7 +933,7 @@ class granular_extent_adapter<GranularityPolicy, true>
   }
 
   void release_until(file_off_t offset_in_bytes) {
-    queue_.release_until(ext_.offset() + offset_in_bytes);
+    queue_.release_until(range_.offset() + offset_in_bytes);
   }
 
  private:
@@ -970,12 +988,13 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   DWARFS_FORCE_INLINE auto
   get_span_range(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
-    assert(offset_in_bytes + size_in_bytes <= ext_.size());
+    assert(offset_in_bytes + size_in_bytes <= range_.size());
 
-    return queue_.span_range({ext_.offset() + offset_in_bytes, size_in_bytes});
+    return queue_.span_range(
+        {range_.offset() + offset_in_bytes, size_in_bytes});
   }
 
-  file_extent const& ext_;
+  file_range const range_;
   segment_queue mutable queue_;
 };
 
@@ -1622,7 +1641,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
 
     pctx_->current_file.store(chkable.get_file());
 
-    auto process_extent = [&](auto& data) {
+    auto process_data = [&](auto& data) {
       auto const size_in_frames = data.size();
 
       if (!is_segmentation_enabled() or
@@ -1638,16 +1657,41 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
       }
     };
 
-    for (auto const& ext : chkable.extents()) {
-      if (cfg_.enable_sparse_files && ext.kind() == extent_kind::hole) {
-        chkable.add_hole(ext.size());
-      } else if (ext.supports_raw_bytes()) {
+    if constexpr (GranularityPolicyT::can_use_sparse_extents()) {
+      if (cfg_.enable_sparse_files) {
+        for (auto const& ext : chkable.extents()) {
+          if (ext.kind() == extent_kind::hole) {
+            chkable.add_hole(ext.size());
+          } else if (ext.supports_raw_bytes()) {
+            auto data = this->template create<extent_adapter_t<false>>(ext);
+            process_data(data);
+          } else {
+            auto data = this->template create<extent_adapter_t<true>>(ext);
+            process_data(data);
+          }
+        }
+        return;
+      }
+    }
+
+    auto extents = chkable.extents();
+    auto it = extents.begin();
+    assert(it != extents.end());
+    auto const ext = *it;
+    ++it;
+
+    if (it == extents.end() && ext.size() == chkable.size()) {
+      if (ext.supports_raw_bytes()) {
         auto data = this->template create<extent_adapter_t<false>>(ext);
-        process_extent(data);
+        process_data(data);
       } else {
         auto data = this->template create<extent_adapter_t<true>>(ext);
-        process_extent(data);
+        process_data(data);
       }
+    } else {
+      auto data = this->template create<extent_adapter_t<true>>(
+          chkable.segments(), file_range{ext.offset(), chkable.size()});
+      process_data(data);
     }
   }
 }
