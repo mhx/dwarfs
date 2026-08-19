@@ -3091,6 +3091,23 @@ void entry_storage_<Frozen>::dump(std::ostream& os) const {
   links_.dump(os, "link");
   devices_.dump(os, "device");
   others_.dump(os, "other");
+
+  if (!dir_entry_lookup_.empty()) {
+    auto const total_size =
+        dir_entry_lookup_.capacity() *
+            sizeof(typename decltype(dir_entry_lookup_)::value_type) +
+        std::accumulate(
+            dir_entry_lookup_.begin(), dir_entry_lookup_.end(), std::size_t{0},
+            [](std::size_t const total, auto const& value) {
+              return total +
+                     value.second.capacity() *
+                         sizeof(typename decltype(value.second)::value_type);
+            });
+    os << dir_entry_lookup_.size()
+       << " dir entry lookup entries: " << size_with_unit(total_size) << "\n";
+  } else {
+    os << "no dir entry lookup entries\n";
+  }
 }
 
 template <bool Frozen>
