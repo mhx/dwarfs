@@ -58,6 +58,10 @@ file_extents_iterable fragment_chunkable::extents() const {
   return mm_.extents({offset_, frag_.size()});
 }
 
+file_segments_iterable fragment_chunkable::segments() const {
+  return mm_.segments({offset_, frag_.size()});
+}
+
 void fragment_chunkable::add_chunk(size_t block, size_t offset, size_t size) {
   frag_.add_chunk(block, offset, size);
 }

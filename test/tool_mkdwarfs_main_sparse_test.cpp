@@ -29,6 +29,7 @@
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/vfs_stat.h>
@@ -754,4 +755,43 @@ TEST(mkdwarfs_test, hollow_filesystem) {
   EXPECT_TRUE(empty->inode().is_regular_file());
   EXPECT_EQ(0, fs.getattr(empty->inode()).size());
   EXPECT_TRUE(fs.read_string(fs.open(empty->inode())).empty());
+}
+
+TEST(mkdwarfs_test, sparse_file_with_non_byte_granularity) {
+#ifndef DWARFS_HAVE_FLAC
+  SKIP_TEST() << "FLAC support is required for this test";
+#else
+  std::string const image_file = "test.dwarfs";
+  std::mt19937_64 rng{42};
+
+  auto const wav_file = test_dir / "pcmaudio" / "silence24bit.wav";
+  auto wav_data = read_file(wav_file);
+  test_file_data tfd;
+  tfd.add_data(wav_data.substr(0, 1024));
+  tfd.add_hole(65536);
+  tfd.add_data(wav_data.substr(1024 + 65536));
+
+  EXPECT_EQ(wav_data.size(), tfd.size());
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_file("/sparse.wav", tfd);
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize"})) << t.err();
+  std::cerr << t.err();
+  auto fs = t.fs_from_file(image_file);
+
+  auto dev = fs.find("/sparse.wav");
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
+  EXPECT_TRUE(iv.is_regular_file());
+  auto stat = fs.getattr(iv);
+  EXPECT_EQ(wav_data.size(), stat.size());
+  EXPECT_EQ(wav_data.size(), stat.allocated_size());
+
+  auto const info = fs.info_as_json({});
+  EXPECT_THAT(info["features"], testing::Not(testing::Contains(testing::AnyOf(
+                                    "sparsefiles", "sparsefiles_new_lhm"))))
+      << info.dump(2);
+#endif
 }
