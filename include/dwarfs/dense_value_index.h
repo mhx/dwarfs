@@ -99,12 +99,19 @@ class basic_dense_value_index {
    public:
     using is_transparent = void;
 
+    // phmap::parallel_flat_hash_set default-constructs its inner sets
+    // before assigning the real ones...
+    indirect_hash()
+      requires(std::default_initializable<hash_type>)
+    = default;
+
     indirect_hash(hash_type hash, store_type const* store)
         : hash_{std::move(hash)}
         , store_{store} {}
 
     std::size_t operator()(size_type index) const
         noexcept(noexcept(std::invoke(hash_, (*store_)[index]))) {
+      assert(store_);
       return std::invoke(hash_, (*store_)[index]);
     }
 
@@ -116,13 +123,19 @@ class basic_dense_value_index {
     }
 
    private:
-    [[no_unique_address]] hash_type hash_;
-    store_type const* store_;
+    [[no_unique_address]] hash_type hash_{};
+    store_type const* store_{nullptr};
   };
 
   class indirect_equal {
    public:
     using is_transparent = void;
+
+    // phmap::parallel_flat_hash_set default-constructs its inner sets
+    // before assigning the real ones...
+    indirect_equal()
+      requires(std::default_initializable<equal_type>)
+    = default;
 
     indirect_equal(equal_type equal, store_type const* store)
         : equal_{std::move(equal)}
@@ -131,6 +144,7 @@ class basic_dense_value_index {
     bool operator()(size_type lhs, size_type rhs) const
         noexcept(noexcept(std::invoke(equal_, (*store_)[lhs],
                                       (*store_)[rhs]))) {
+      assert(store_);
       return lhs == rhs || std::invoke(equal_, (*store_)[lhs], (*store_)[rhs]);
     }
 
@@ -138,6 +152,7 @@ class basic_dense_value_index {
       requires(is_compatible_probe<U>)
     bool operator()(size_type lhs, probe_key<U> rhs) const
         noexcept(noexcept(std::invoke(equal_, (*store_)[lhs], *rhs.value))) {
+      assert(store_);
       return std::invoke(equal_, (*store_)[lhs], *rhs.value);
     }
 
@@ -145,12 +160,13 @@ class basic_dense_value_index {
       requires(is_compatible_probe<U>)
     bool operator()(probe_key<U> lhs, size_type rhs) const
         noexcept(noexcept(std::invoke(equal_, *lhs.value, (*store_)[rhs]))) {
+      assert(store_);
       return std::invoke(equal_, *lhs.value, (*store_)[rhs]);
     }
 
    private:
-    [[no_unique_address]] equal_type equal_;
-    store_type const* store_;
+    [[no_unique_address]] equal_type equal_{};
+    store_type const* store_{nullptr};
   };
 
   using index_set_type =
