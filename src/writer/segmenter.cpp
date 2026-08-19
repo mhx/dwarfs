@@ -497,7 +497,13 @@ class segment_queue {
    public:
     explicit queue_data(file_segments_iterable segments)
         : segments_{std::move(segments)}
-        , seg_it_{segments_.begin()} {}
+        , seg_it_{segments_.begin()} {
+      if (seg_it_ != segments_.end()) {
+        offset_ = seg_it_->offset();
+      }
+    }
+
+    file_off_t offset() const noexcept { return offset_; }
 
     struct queued_segment {
       explicit queued_segment(file_segment seg)
@@ -578,6 +584,7 @@ class segment_queue {
     std::deque<queued_segment> queue_;
     file_segments_iterable segments_;
     file_segments_iterable::iterator seg_it_;
+    file_off_t offset_{0};
     size_t queue_version_{0};
   };
 
@@ -724,25 +731,25 @@ class segment_queue {
       : data_{std::make_unique<queue_data>(std::move(segments))} {}
 
   byte_range_iterable byte_range(file_range range) {
-    return byte_range_iterable{data_.get(), range};
+    return byte_range_iterable{
+        data_.get(), {data_->offset() + range.offset(), range.size()}};
   }
 
   span_range_iterable span_range(file_range range) {
-    return span_range_iterable{data_.get(), range};
+    return span_range_iterable{
+        data_.get(), {data_->offset() + range.offset(), range.size()}};
   }
 
-  void release_until(file_off_t offset) { data_->release_until(offset); }
+  void release_until(file_off_t offset) {
+    data_->release_until(data_->offset() + offset);
+  }
 
  private:
   std::unique_ptr<queue_data> data_;
 };
 
-template <typename GranularityPolicy, bool UseSegmentQueue>
-class granular_extent_adapter;
-
-template <typename GranularityPolicy>
-class granular_extent_adapter<GranularityPolicy, false>
-    : private GranularityPolicy {
+template <typename GranularityPolicy, typename Source>
+class granular_span_adapter : private GranularityPolicy {
  public:
   static constexpr bool kUseSegmentQueue{false};
 
@@ -750,10 +757,10 @@ class granular_extent_adapter<GranularityPolicy, false>
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
-  granular_extent_adapter(file_extent const& extent, PolicyArgs&&... args)
+  granular_span_adapter(Source const& source, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , raw_bytes_{get_raw_bytes(extent)}
-      , ext_{extent} {}
+      , source_{source}
+      , raw_bytes_{get_raw_bytes(source)} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
     return this->bytes_to_frames(raw_bytes_.size());
@@ -786,24 +793,25 @@ class granular_extent_adapter<GranularityPolicy, false>
   DWARFS_FORCE_INLINE int
   compare(file_off_t offset, std::span<value_type const> rhs) const {
     auto const offset_in_bytes = this->frames_to_bytes(offset);
-    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
+    assert(
+        std::cmp_less_equal(offset_in_bytes + rhs.size(), raw_bytes_.size()));
     return std::memcmp(raw_bytes_.data() + offset_in_bytes, rhs.data(),
                        rhs.size());
   }
 
   DWARFS_FORCE_INLINE size_t
   match_backward(file_off_t offset, std::span<value_type const> rhs) const {
-    return this->match_impl<false>(offset, rhs);
+    return this->template match_impl<false>(offset, rhs);
   }
 
   DWARFS_FORCE_INLINE size_t
   match_forward(file_off_t offset, std::span<value_type const> rhs) const {
-    return this->match_impl<true>(offset, rhs);
+    return this->template match_impl<true>(offset, rhs);
   }
 
   void release_until(file_off_t offset_in_bytes) {
     std::error_code ec;
-    ext_.release_until(offset_in_bytes, ec);
+    source_.release_until(offset_in_bytes, ec);
   }
 
  private:
@@ -811,7 +819,8 @@ class granular_extent_adapter<GranularityPolicy, false>
   DWARFS_FORCE_INLINE size_t match_impl(file_off_t offset,
                                         std::span<value_type const> rhs) const {
     auto const offset_in_bytes = this->frames_to_bytes(offset);
-    assert(std::cmp_less_equal(offset_in_bytes + rhs.size(), ext_.size()));
+    assert(
+        std::cmp_less_equal(offset_in_bytes + rhs.size(), raw_bytes_.size()));
 
     std::span<value_type const> lhs{raw_bytes_.data() + offset_in_bytes,
                                     rhs.size()};
@@ -836,19 +845,18 @@ class granular_extent_adapter<GranularityPolicy, false>
     return this->bytes_to_frames(match_length);
   }
 
-  static std::span<value_type const> get_raw_bytes(file_extent const& ext) {
-    assert(ext.supports_raw_bytes());
-    auto const span = ext.raw_bytes();
+  static std::span<value_type const> get_raw_bytes(Source const& source) {
+    assert(source.supports_raw_bytes());
+    auto const span = source.raw_bytes();
     return {reinterpret_cast<value_type const*>(span.data()), span.size()};
   }
 
+  Source const& source_;
   std::span<value_type const> raw_bytes_;
-  file_extent const& ext_;
 };
 
 template <typename GranularityPolicy>
-class granular_extent_adapter<GranularityPolicy, true>
-    : private GranularityPolicy {
+class granular_segments_adapter : private GranularityPolicy {
  public:
   static constexpr bool kUseSegmentQueue{true};
 
@@ -856,30 +864,21 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
-  granular_extent_adapter(file_extent const& extent, PolicyArgs&&... args)
-      : granular_extent_adapter(extent.segments(), extent.range(),
-                                std::forward<PolicyArgs>(args)...) {}
-
-  template <typename... PolicyArgs>
-  DWARFS_FORCE_INLINE
-  granular_extent_adapter(file_segments_iterable segments, file_range range,
-                          PolicyArgs&&... args)
+  granular_segments_adapter(file_segments_iterable segments, file_size_t size,
+                            PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , range_{range}
+      , size_{size}
       , queue_{std::move(segments)} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
-    return this->bytes_to_frames(range_.size());
+    return this->bytes_to_frames(size_);
   }
 
-  DWARFS_FORCE_INLINE file_size_t size_in_bytes() const {
-    return range_.size();
-  }
+  DWARFS_FORCE_INLINE file_size_t size_in_bytes() const { return size_; }
 
   segment_queue::byte_range_iterable byte_range(file_off_t offset) const {
     offset = this->frames_to_bytes(offset);
-    return queue_.byte_range(
-        {range_.offset() + offset, range_.size() - offset});
+    return queue_.byte_range({offset, size_ - offset});
   }
 
   template <typename H, typename It>
@@ -921,19 +920,18 @@ class granular_extent_adapter<GranularityPolicy, true>
     return 0;
   }
 
-  DWARFS_FORCE_INLINE
-  size_t
+  DWARFS_FORCE_INLINE size_t
   match_backward(file_off_t offset, std::span<value_type const> rhs) const {
-    return this->match_impl<false>(offset, rhs);
+    return this->template match_impl<false>(offset, rhs);
   }
 
   DWARFS_FORCE_INLINE size_t
   match_forward(file_off_t offset, std::span<value_type const> rhs) const {
-    return this->match_impl<true>(offset, rhs);
+    return this->template match_impl<true>(offset, rhs);
   }
 
   void release_until(file_off_t offset_in_bytes) {
-    queue_.release_until(range_.offset() + offset_in_bytes);
+    queue_.release_until(offset_in_bytes);
   }
 
  private:
@@ -988,13 +986,11 @@ class granular_extent_adapter<GranularityPolicy, true>
 
   DWARFS_FORCE_INLINE auto
   get_span_range(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
-    assert(offset_in_bytes + size_in_bytes <= range_.size());
-
-    return queue_.span_range(
-        {range_.offset() + offset_in_bytes, size_in_bytes});
+    assert(offset_in_bytes + size_in_bytes <= size_);
+    return queue_.span_range({offset_in_bytes, size_in_bytes});
   }
 
-  file_range const range_;
+  file_size_t const size_;
   segment_queue mutable queue_;
 };
 
@@ -1115,11 +1111,10 @@ class basic_granular_container_adapter : private GranularityPolicy {
     return this->bytes_to_frames(v_.size());
   }
 
-  template <bool UseSegmentQueue>
+  template <typename Data>
   DWARFS_FORCE_INLINE void
-  append(granular_extent_adapter<GranularityPolicy, UseSegmentQueue> const& ext,
-         file_off_t offset, file_size_t size) {
-    ext.append_to(v_, offset, size);
+  append(Data const& data, file_off_t offset, file_size_t size) {
+    data.append_to(v_, offset, size);
   }
 
   DWARFS_FORCE_INLINE std::span<value_type const>
@@ -1209,11 +1204,11 @@ class active_block : private GranularityPolicy {
   DWARFS_FORCE_INLINE mutable_byte_buffer data() const { return data_; }
 
   // returns true if cached_hashval was used to avoid recomputation
-  template <bool UseSegmentQueue>
-  DWARFS_FORCE_INLINE bool append_bytes(
-      granular_extent_adapter<GranularityPolicy, UseSegmentQueue>& data,
-      file_off_t offset, file_size_t size, bloom_filter& global_filter,
-      std::optional<rsync_hash::value_type> cached_hashval);
+  template <typename Data>
+  DWARFS_FORCE_INLINE bool
+  append_bytes(Data& data, file_off_t offset, file_size_t size,
+               bloom_filter& global_filter,
+               std::optional<rsync_hash::value_type> cached_hashval);
 
   DWARFS_FORCE_INLINE size_t next_hash_distance_in_frames() const {
     return window_step_mask_ + 1 - (size_in_frames() & window_step_mask_);
@@ -1313,9 +1308,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   using GranularityPolicyT::granularity_bytes;
   using SegmentingPolicy::is_multi_block_mode;
   using SegmentingPolicy::is_segmentation_enabled;
-  template <bool UseSegmentQueue>
-  using extent_adapter_t =
-      granular_extent_adapter<GranularityPolicyT, UseSegmentQueue>;
 
  public:
   template <typename... PolicyArgs>
@@ -1365,21 +1357,19 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   DWARFS_FORCE_INLINE void block_ready();
   void finish_chunk(chunkable& chkable);
-  template <bool UseSegmentQueue>
+  template <typename Data>
   DWARFS_FORCE_INLINE void
-  append_to_block(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-                  file_off_t offset_in_frames, file_size_t size_in_frames,
+  append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_frames,
+                  file_size_t size_in_frames,
                   std::optional<rsync_hash::value_type> cached_hashval);
-  template <bool UseSegmentQueue>
+  template <typename Data>
   void
-  add_data(chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-           file_off_t offset_in_frames, file_size_t size_in_frames,
+  add_data(chunkable& chkable, Data& data, file_off_t offset_in_frames,
+           file_size_t size_in_frames,
            std::optional<rsync_hash::value_type> cached_hashval = std::nullopt);
-  template <bool UseSegmentQueue>
-  DWARFS_FORCE_INLINE void
-  segment_and_add_data(chunkable& chkable,
-                       extent_adapter_t<UseSegmentQueue>& data,
-                       file_size_t size_in_frames);
+  template <typename Data>
+  DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
+                                                file_size_t size_in_frames);
 
   DWARFS_FORCE_INLINE size_t
   bloom_filter_size(segmenter::config const& cfg) const {
@@ -1442,10 +1432,9 @@ class segment_match : private GranularityPolicy {
       , block_{blk}
       , offset_{off} {}
 
-  template <bool UseSegmentQueue>
-  void verify_and_extend(
-      granular_extent_adapter<GranularityPolicy, UseSegmentQueue> const& data,
-      size_t pos, size_t len, size_t begin, size_t end);
+  template <typename Data>
+  void verify_and_extend(Data const& data, size_t pos, size_t len, size_t begin,
+                         size_t end);
 
   DWARFS_FORCE_INLINE friend bool
   operator<(segment_match const& a, segment_match const& b) {
@@ -1512,11 +1501,11 @@ active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
 }
 
 template <typename LoggerPolicy, typename GranularityPolicy>
-template <bool UseSegmentQueue>
+template <typename Data>
 DWARFS_FORCE_INLINE bool
 active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
-    granular_extent_adapter<GranularityPolicy, UseSegmentQueue>& data,
-    file_off_t data_offset, file_size_t data_size, bloom_filter& global_filter,
+    Data& data, file_off_t data_offset, file_size_t data_size,
+    bloom_filter& global_filter,
     std::optional<rsync_hash::value_type> cached_hashval) {
   auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
       data_.raw_buffer());
@@ -1599,10 +1588,9 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
 }
 
 template <typename LoggerPolicy, typename GranularityPolicy>
-template <bool UseSegmentQueue>
+template <typename Data>
 void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
-    granular_extent_adapter<GranularityPolicy, UseSegmentQueue> const& data,
-    size_t pos, size_t len, size_t begin, size_t end) {
+    Data const& data, size_t pos, size_t len, size_t begin, size_t end) {
   auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
       block_->data().raw_buffer());
 
@@ -1657,42 +1645,34 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
       }
     };
 
+    auto process_source = [&](auto const& source) {
+      if (source.supports_raw_bytes()) {
+        using source_type = std::remove_cvref_t<decltype(source)>;
+        auto data = this->template create<
+            granular_span_adapter<GranularityPolicyT, source_type>>(source);
+        process_data(data);
+      } else {
+        auto data = this->template create<
+            granular_segments_adapter<GranularityPolicyT>>(source.segments(),
+                                                           source.size());
+        process_data(data);
+      }
+    };
+
     if constexpr (GranularityPolicyT::can_use_sparse_extents()) {
       if (cfg_.enable_sparse_files) {
         for (auto const& ext : chkable.extents()) {
           if (ext.kind() == extent_kind::hole) {
             chkable.add_hole(ext.size());
-          } else if (ext.supports_raw_bytes()) {
-            auto data = this->template create<extent_adapter_t<false>>(ext);
-            process_data(data);
           } else {
-            auto data = this->template create<extent_adapter_t<true>>(ext);
-            process_data(data);
+            process_source(ext);
           }
         }
         return;
       }
     }
 
-    auto extents = chkable.extents();
-    auto it = extents.begin();
-    assert(it != extents.end());
-    auto const ext = *it;
-    ++it;
-
-    if (it == extents.end() && ext.size() == chkable.size()) {
-      if (ext.supports_raw_bytes()) {
-        auto data = this->template create<extent_adapter_t<false>>(ext);
-        process_data(data);
-      } else {
-        auto data = this->template create<extent_adapter_t<true>>(ext);
-        process_data(data);
-      }
-    } else {
-      auto data = this->template create<extent_adapter_t<true>>(
-          chkable.segments(), file_range{ext.offset(), chkable.size()});
-      process_data(data);
-    }
+    process_source(chkable);
   }
 }
 
@@ -1772,11 +1752,11 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-template <bool UseSegmentQueue>
+template <typename Data>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
-    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-    file_off_t offset_in_frames, file_size_t size_in_frames,
+    chunkable& chkable, Data& data, file_off_t offset_in_frames,
+    file_size_t size_in_frames,
     std::optional<rsync_hash::value_type> cached_hashval) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
@@ -1827,10 +1807,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-template <bool UseSegmentQueue>
+template <typename Data>
 void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
-    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-    file_off_t offset_in_frames, file_size_t size_in_frames,
+    chunkable& chkable, Data& data, file_off_t offset_in_frames,
+    file_size_t size_in_frames,
     std::optional<rsync_hash::value_type> cached_hashval) {
   while (size_in_frames > 0) {
     file_off_t block_offset_in_frames = 0;
@@ -1866,11 +1846,10 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-template <bool UseSegmentQueue>
+template <typename Data>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
-    chunkable& chkable, extent_adapter_t<UseSegmentQueue>& data,
-    file_size_t size_in_frames) {
+    chunkable& chkable, Data& data, file_size_t size_in_frames) {
   rsync_hash hasher;
   file_off_t offset_in_frames = 0;
   file_size_t frames_written = 0;
@@ -1896,7 +1875,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   DWARFS_CHECK(std::cmp_greater_equal(size_in_frames, window_size_),
                "unexpected call to segment_and_add_data");
 
-  hash_window<UseSegmentQueue> hashwin(window_size_);
+  hash_window<Data::kUseSegmentQueue> hashwin(window_size_);
 
   offset_in_frames = hashwin.seek(hasher, data, 0);
 
