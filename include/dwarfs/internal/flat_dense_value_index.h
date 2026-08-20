@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/dense_value_index.h>
