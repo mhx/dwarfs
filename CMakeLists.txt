@@ -669,6 +669,7 @@ if(WITH_TESTS)
       test/compare_directories_test.cpp
       test/compile_time_sort_test.cpp
       test/conv_test.cpp
+      test/dense_map_index_test.cpp
       test/dense_value_index_test.cpp
       test/endian_test.cpp
       test/entry_test.cpp
@@ -999,6 +1000,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       add_executable(converter_benchmark test/converter_benchmark.cpp)
       target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
       list(APPEND BENCHMARK_TARGETS converter_benchmark)
+
+      add_executable(dense_map_index_benchmark test/dense_map_index_benchmark.cpp)
+      target_link_libraries(dense_map_index_benchmark PRIVATE dwarfs_common benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS dense_map_index_benchmark)
 
       add_executable(dense_value_index_benchmark test/dense_value_index_benchmark.cpp)
       target_link_libraries(dense_value_index_benchmark PRIVATE dwarfs_common benchmark::benchmark)
