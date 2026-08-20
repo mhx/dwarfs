@@ -308,7 +308,7 @@ class basic_chunked_append_only_vector {
     return (*this)[size_ - 1];
   }
 
-  template <class... Args>
+  template <typename... Args>
   reference emplace_back(Args&&... args) {
     ensure_capacity_for_one_more();
     auto [c, o] = locate(size_);
