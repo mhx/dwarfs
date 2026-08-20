@@ -1000,6 +1000,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
       list(APPEND BENCHMARK_TARGETS converter_benchmark)
 
+      add_executable(dense_value_index_benchmark test/dense_value_index_benchmark.cpp)
+      target_link_libraries(dense_value_index_benchmark PRIVATE dwarfs_common benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS dense_value_index_benchmark)
+
       add_executable(packed_int_vector_benchmark test/packed_int_vector_benchmark.cpp)
       target_link_libraries(packed_int_vector_benchmark PRIVATE dwarfs_common benchmark::benchmark)
       list(APPEND BENCHMARK_TARGETS packed_int_vector_benchmark)
