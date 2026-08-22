@@ -50,7 +50,10 @@ class segmented_packed_int_vector {
  public:
   using value_type = T;
   using size_type = std::size_t;
-  using segment_type = auto_packed_int_vector<value_type>;
+  using segment_type = basic_packed_int_vector<
+      value_type, packed_vector_bit_width_strategy::automatic,
+      detail::heap_only_packed_vector_policy,
+      detail::element_bounded_block_growth_policy<SegmentElements>>;
   using reference =
       detail::index_based_value_proxy<segmented_packed_int_vector>;
   using const_reference = value_type;
