@@ -494,6 +494,10 @@ class basic_packed_int_vector {
     return used_blocks() * sizeof(underlying_type);
   }
 
+  [[nodiscard]] auto capacity_in_bytes() const noexcept -> size_type {
+    return layout_.capacity_blocks() * sizeof(underlying_type);
+  }
+
   [[nodiscard]] auto empty() const noexcept -> bool { return size() == 0; }
 
   auto operator[](size_type i) const -> const_reference { return get_value(i); }
