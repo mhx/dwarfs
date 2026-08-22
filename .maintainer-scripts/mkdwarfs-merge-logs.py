@@ -15,7 +15,12 @@ See --help for all options.
 import argparse
 import re
 import sys
-from bisect import bisect_left
+
+try:  # don't traceback when piped into head/less
+    import signal
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+except (ImportError, AttributeError, ValueError):
+    pass
 
 # --------------------------------------------------------------------------
 # parsing
@@ -32,9 +37,14 @@ RE_HEADER = re.compile(
 RE_CONT = re.compile(r"^(?P<level>[A-Z]) (?P<dots>\.{3,})")
 
 # "shared entry data: 5.276 MiB" / "hardlinks: 15.97 KiB (265/511 entries, ...)"
+# / "shared entry data: 142.8 MiB (capacity: 157.9 MiB)"
 RE_SIZE_ITEM = re.compile(
     r"^(?P<indent>\s*)(?P<label>.+?):\s+"
     r"(?P<num>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>[KMGTPE]?i?B)(?![\w.])"
+)
+
+RE_CAPACITY = re.compile(
+    r"\(capacity:\s*(?P<num>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>[KMGTPE]?i?B)\s*\)"
 )
 
 UNIT_FACTOR = {"B": 1}
@@ -46,6 +56,7 @@ for _i, _u in enumerate(["KB", "MB", "GB", "TB", "PB", "EB"], start=1):
 # console sections that get an aggregate figure appended to their header line
 DEFAULT_AGGREGATE_SECTIONS = [
     "entry storage (before freezing):",
+    "inode storage (before freezing):",
     "file scanner table stats:",
     "entry storage (after dropping file digests):",
     "entry/inode storage:",
@@ -289,18 +300,29 @@ def analyze_columns(rows, cols, prominence_pct):
 def aggregate_block(blk):
     """Sum the size figures at the shallowest indent level of a block.
 
-    Returns (total_bytes, count) or None if the block has no size items.
+    Returns (total, capacity_total, count, n_with_capacity) or None if the
+    block has no size items.  A missing capacity means the capacity equals the
+    size, so such items contribute their size to the capacity total.  The
+    capacity total is only meaningful if at least one item reported one, hence
+    n_with_capacity.
     """
     items = []
     for indent, text in blk.cont:
         m = RE_SIZE_ITEM.match(text)
-        if m:
-            items.append((indent, parse_size(m.group("num"), m.group("unit"))))
+        if not m:
+            continue
+        size = parse_size(m.group("num"), m.group("unit"))
+        c = RE_CAPACITY.search(text, m.end())
+        cap = parse_size(c.group("num"), c.group("unit")) if c else None
+        items.append((indent, size, cap))
     if not items:
         return None
-    top = min(i for i, _ in items)
-    vals = [v for i, v in items if i == top]
-    return sum(vals), len(vals)
+    top = min(i for i, _, _ in items)
+    sel = [(s, c) for i, s, c in items if i == top]
+    total = sum(s for s, _ in sel)
+    cap_total = sum(c if c is not None else s for s, c in sel)
+    n_cap = sum(1 for _, c in sel if c is not None)
+    return total, cap_total, len(sel), n_cap
 
 
 def wants_aggregate(blk, patterns, aggregate_all):
@@ -322,13 +344,21 @@ def emit_console_block(out, blk, t, args, ts_width, dots):
     if wants_aggregate(blk, args.aggregate, args.aggregate_all):
         agg = aggregate_block(blk)
         if agg:
-            total, count = agg
-            if args.agg_unit == "auto":
-                txt = fmt_size_auto(total)
-            else:
-                txt = fmt_size_fixed(total, args.agg_unit, args.decimals)
-            label = f" [total of {count}: {txt}]" if args.agg_count else f" [total: {txt}]"
-            msg = msg + label
+            total, cap_total, count, n_cap = agg
+
+            def render(n):
+                if args.agg_unit == "auto":
+                    return fmt_size_auto(n)
+                return fmt_size_fixed(n, args.agg_unit, args.decimals)
+
+            parts = [f"total: {render(total)}"]
+            if args.capacity and n_cap:
+                parts.append(f"capacity: {render(cap_total)}")
+                if args.capacity_percent and cap_total:
+                    parts[-1] += f", used: {total / cap_total * 100:.1f}%"
+            if args.agg_count:
+                parts[0] += f" of {count}"
+            msg = msg + " [" + ", ".join(parts) + "]"
 
     out.write(f"{blk.level} {ts} {blk.tag} {msg}\n")
 
@@ -445,6 +475,11 @@ def main():
                    help="unit for the aggregate figures ('auto' = mkdwarfs style)")
     g.add_argument("--agg-count", action="store_true",
                    help="also show how many figures went into the total")
+    g.add_argument("--no-capacity", dest="capacity", action="store_false",
+                   help="do not total the '(capacity: ...)' figures")
+    g.add_argument("--no-capacity-percent", dest="capacity_percent",
+                   action="store_false",
+                   help="do not show the total as a percentage of the capacity")
 
     args = p.parse_args()
 
