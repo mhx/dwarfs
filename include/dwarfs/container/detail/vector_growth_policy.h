@@ -52,4 +52,20 @@ struct default_block_growth_policy {
   }
 };
 
+template <std::size_t MaxGrowthElements,
+          typename InnerPolicy = default_block_growth_policy>
+struct element_bounded_block_growth_policy {
+  static_assert(MaxGrowthElements > 0);
+
+  static constexpr std::size_t max_growth_elements = MaxGrowthElements;
+
+  [[nodiscard]] constexpr auto
+  operator()(std::size_t current_capacity, std::size_t min_capacity) const
+      noexcept(noexcept(InnerPolicy{}(current_capacity, min_capacity)))
+          -> std::size_t {
+    return static_cast<std::size_t>(
+        InnerPolicy{}(current_capacity, min_capacity));
+  }
+};
+
 } // namespace dwarfs::container::detail

@@ -1107,12 +1107,24 @@ class basic_packed_int_vector {
   }
 
   [[nodiscard]] static auto
-  select_heap_capacity_blocks(size_type current, size_type minimum)
+  select_heap_capacity_blocks(size_type current, size_type minimum,
+                              widths_type const& widths [[maybe_unused]])
       -> size_type {
     assert(minimum <= layout_type::max_capacity_blocks_value);
 
-    auto const blocks = std::min(grown_capacity_blocks(current, minimum),
-                                 layout_type::max_capacity_blocks_value);
+    auto max_capacity = layout_type::max_capacity_blocks_value;
+
+    if constexpr (requires { growth_policy_type::max_growth_elements; }) {
+      auto const growth_limit = exact_capacity_blocks(
+          static_cast<size_type>(growth_policy_type::max_growth_elements),
+          widths);
+
+      max_capacity =
+          std::min(max_capacity, std::max({growth_limit, minimum, current}));
+    }
+
+    auto const blocks =
+        std::min(grown_capacity_blocks(current, minimum), max_capacity);
 
     assert(blocks >= minimum);
     return blocks;
@@ -1159,7 +1171,8 @@ class basic_packed_int_vector {
 
         if (must_grow) {
           target_blocks = select_heap_capacity_blocks(
-              target_blocks, exact_capacity_blocks(reserve_size, new_widths));
+              target_blocks, exact_capacity_blocks(reserve_size, new_widths),
+              new_widths);
         }
 
         rebuild_storage(new_widths, cur_size, reserve_size, target_blocks);
@@ -1168,7 +1181,8 @@ class basic_packed_int_vector {
       rebuild_storage(old_widths, cur_size, reserve_size,
                       select_heap_capacity_blocks(
                           layout_.capacity_blocks(),
-                          exact_capacity_blocks(reserve_size, old_widths)));
+                          exact_capacity_blocks(reserve_size, old_widths),
+                          old_widths));
     }
   }
 
