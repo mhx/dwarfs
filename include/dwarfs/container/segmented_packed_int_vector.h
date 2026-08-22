@@ -164,6 +164,14 @@ class segmented_packed_int_vector {
     return total;
   }
 
+  [[nodiscard]] size_type capacity_in_bytes() const {
+    size_type total = 0;
+    for (auto const& seg : segments_) {
+      total += seg.capacity_in_bytes();
+    }
+    return total;
+  }
+
   [[nodiscard]] auto
   field_sizes_in_bytes() const -> std::array<size_type, field_count>
     requires(field_count > 1)
