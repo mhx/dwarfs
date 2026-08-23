@@ -1187,7 +1187,7 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
   auto const title =
       split_to<std::vector<std::string_view>>(lines.front(), '\t');
   EXPECT_THAT(title, ::testing::ElementsAre("time", "total", "anon", "file",
-                                            "allocated"));
+                                            "swap", "allocated"));
 
   auto const row = split_to<std::vector<std::string_view>>(lines.at(1), '\t');
   EXPECT_EQ(row.size(), title.size());
@@ -1196,7 +1196,7 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
   auto const total = to<uint64_t>(row[1]);
   auto const anon = to<uint64_t>(row[2]);
   auto const file = to<uint64_t>(row[3]);
-  auto const allocated = to<uint64_t>(row[4]);
+  auto const allocated = to<uint64_t>(row[5]);
 
   EXPECT_GT(time, 0.0);
   EXPECT_GT(total, 0);
