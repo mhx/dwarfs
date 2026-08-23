@@ -199,7 +199,7 @@ class segmented_packed_int_vector {
     return hist;
   }
 
-  void clear() {
+  void clear() noexcept {
     segments_.clear();
     size_ = 0;
   }
