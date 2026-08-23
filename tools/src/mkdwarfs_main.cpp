@@ -435,7 +435,7 @@ class time_value_tsv_logger {
 
 void log_mem_usage(time_value_tsv_logger const& lgr, memory_usage const& mem) {
   lgr.log(mem.total.value_or(0), mem.anon.value_or(0), mem.file.value_or(0),
-          get_allocated_memory().value_or(0));
+          mem.swap.value_or(0), get_allocated_memory().value_or(0));
 };
 
 } // namespace
@@ -1073,10 +1073,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     if (auto file = iol.os->getenv("DWARFS_LOG_MEMORY_USAGE")) {
       constexpr std::array header = {
-          "total"sv,
-          "anon"sv,
-          "file"sv,
-          "allocated"sv,
+          "total"sv, "anon"sv, "file"sv, "swap"sv, "allocated"sv,
       };
       mem_logger = std::make_shared<time_value_tsv_logger>(
           iol.file->open_output(*file), header);
