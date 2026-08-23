@@ -29,6 +29,8 @@
 #include <string_view>
 #include <utility>
 
+#include <gtest/gtest.h>
+
 #include <dwarfs/container/detail/compile_time_sort.h>
 
 using namespace dwarfs::container::detail;
@@ -152,7 +154,7 @@ static_assert(sorted(std::array{no_default{3}, no_default{1}, no_default{2}}) ==
 // Sorting a shuffled 0..N-1 sequence must yield the identity, which verifies
 // both ordering and that the result is a permutation of the input.
 template <std::size_t N>
-consteval std::array<int, N> shuffled(std::uint32_t seed) {
+constexpr std::array<int, N> shuffled(std::uint32_t seed) {
   std::array<int, N> arr{};
 
   for (std::size_t i = 0; i < N; ++i) {
@@ -192,7 +194,7 @@ static_assert(sorts_shuffled<1025>(3));
 // Cross-check against the standard library on input with many duplicates,
 // and verify stability by checking that equal keys keep their input order.
 template <std::size_t N>
-consteval bool matches_std_sort(std::uint32_t seed) {
+constexpr bool matches_std_sort(std::uint32_t seed) {
   std::array<kv, N> input{};
 
   for (std::size_t i = 0; i < N; ++i) {
@@ -227,3 +229,15 @@ consteval bool matches_std_sort(std::uint32_t seed) {
 static_assert(matches_std_sort<200>(0xdeadbeef));
 
 } // namespace
+
+// AppleClang complains when `compile_time_sort` is declared `consteval`, so
+// we do a run-time test to make sure the implementation shows up as covered
+// in the coverage report.
+TEST(compile_time_sort, run_time_test) {
+  auto tmp = shuffled<100>(0x12345678);
+  std::ranges::sort(tmp);
+  compile_time_sort(tmp);
+  EXPECT_TRUE(std::ranges::is_sorted(tmp));
+  EXPECT_TRUE(matches_std_sort<500>(0xdeadbeef));
+  EXPECT_TRUE(matches_std_sort<1000>(0x12345678));
+}
