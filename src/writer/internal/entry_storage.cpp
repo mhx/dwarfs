@@ -95,16 +95,21 @@ template <dwarfs::container::packed_vector_value T,
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
 
 template <typename T>
+struct is_basic_string : std::false_type {};
+
+template <typename CharT, typename Traits, typename Alloc>
+struct is_basic_string<std::basic_string<CharT, Traits, Alloc>>
+    : std::true_type {};
+
+template <typename T>
+concept any_string_type = is_basic_string<std::remove_cvref_t<T>>::value;
+
+template <typename T>
 bool uses_inline_buffer(T const& s) {
   auto const p = reinterpret_cast<std::uintptr_t>(s.data());
   auto const b = reinterpret_cast<std::uintptr_t>(&s);
   auto const e = b + sizeof(s);
   return b <= p && p < e;
-}
-
-template <typename T>
-std::size_t string_memory_usage(T const& s) {
-  return sizeof(s) + (uses_inline_buffer(s) ? 0 : s.capacity());
 }
 
 class memory_usage_dumper {
@@ -113,12 +118,98 @@ class memory_usage_dumper {
     std::string_view label;
     std::size_t bytes;
     std::optional<std::size_t> count;
+    std::optional<std::size_t> capacity;
     bool is_tuple_field;
   };
 
   void add(std::string_view label, std::size_t bytes,
-           std::optional<std::size_t> count = std::nullopt) {
-    sizes_.push_back({label, bytes, count, false});
+           std::optional<std::size_t> count = std::nullopt,
+           std::optional<std::size_t> capacity = std::nullopt) {
+    sizes_.push_back({label, bytes, count, capacity, false});
+  }
+
+  template <typename T>
+  void add(std::string_view label, T const& vec) {
+    std::size_t const count = vec.size();
+    std::size_t size_in_bytes = 0;
+    std::optional<std::size_t> capacity_in_bytes;
+
+    if constexpr (requires { vec.size_in_bytes(); }) {
+      size_in_bytes = vec.size_in_bytes();
+    } else if constexpr (requires { vec.index_size_in_bytes(); }) {
+      size_in_bytes = vec.index_size_in_bytes();
+    } else {
+      size_in_bytes = count * sizeof(typename T::value_type);
+    }
+
+    if constexpr (requires { vec.capacity_in_bytes(); }) {
+      if (auto const cap = vec.capacity_in_bytes(); cap != size_in_bytes) {
+        capacity_in_bytes = cap;
+      }
+    } else if constexpr (requires { vec.index_capacity_in_bytes(); }) {
+      if (auto const cap = vec.index_capacity_in_bytes();
+          cap != size_in_bytes) {
+        capacity_in_bytes = cap;
+      }
+    } else if constexpr (requires { vec.capacity(); }) {
+      if (vec.size() != vec.capacity()) {
+        capacity_in_bytes = vec.capacity() * sizeof(typename T::value_type);
+      }
+    }
+
+    add(label, size_in_bytes, count, capacity_in_bytes);
+  }
+
+  template <typename T>
+  void add(std::string_view label, std::optional<T> const& vec) {
+    if (vec.has_value()) {
+      add(label, *vec);
+    }
+  }
+
+  template <typename T>
+  void add(std::string_view label,
+           container::chunked_append_only_vector<T> const& vec) {
+    static constexpr bool kIsStringType = any_string_type<T>;
+    static constexpr bool kIsInlineType = requires { vec[0].is_inline(); };
+
+    auto size_in_bytes = sizeof(vec[0]) * vec.size();
+    auto capacity_in_bytes = sizeof(vec[0]) * vec.capacity();
+
+    if constexpr (kIsStringType || kIsInlineType) {
+      auto is_inline = [](auto const& e) {
+        if constexpr (kIsStringType) {
+          return uses_inline_buffer(e);
+        } else {
+          return e.is_inline();
+        }
+      };
+
+      auto element_size = [](auto const& e) {
+        if constexpr (kIsStringType) {
+          return sizeof(e[0]) * e.size();
+        } else {
+          return e.size_in_bytes();
+        }
+      };
+
+      auto element_capacity = [](auto const& e) {
+        if constexpr (kIsStringType) {
+          return sizeof(e[0]) * e.capacity();
+        } else {
+          return e.capacity_in_bytes();
+        }
+      };
+
+      for (auto const& e : vec) {
+        if (!is_inline(e)) {
+          size_in_bytes += element_size(e);
+          capacity_in_bytes += element_capacity(e);
+        }
+      }
+    }
+
+    add(label, size_in_bytes, vec.size(), capacity_in_bytes);
   }
 
   template <typename TupleType>
@@ -129,7 +220,8 @@ class memory_usage_dumper {
     auto const field_bytes = data.field_sizes_in_bytes();
     for (std::size_t i = 0; i < field_labels.size(); ++i) {
       if (field_bytes[i] > 0) {
-        sizes_.push_back({field_labels[i], field_bytes[i], std::nullopt, true});
+        sizes_.push_back({field_labels[i], field_bytes[i], std::nullopt,
+                          std::nullopt, true});
       }
     }
   }
@@ -142,19 +234,36 @@ class memory_usage_dumper {
                           return acc + (si.is_tuple_field ? 0 : si.bytes);
                         });
 
+    auto const total_capacity_bytes = std::accumulate(
+        sizes_.begin(), sizes_.end(), 0ULL,
+        [](std::size_t acc, auto const& si) {
+          return acc +
+                 (si.is_tuple_field ? 0 : (si.capacity.value_or(si.bytes)));
+        });
+
     if (count.has_value()) {
       os << *count << " ";
     }
 
-    os << name << ": " << size_with_unit(total_bytes) << "\n";
+    os << name << ": " << size_with_unit(total_bytes);
 
-    for (auto const& [label, bytes, num, is_tuple_field] : sizes_) {
+    if (total_capacity_bytes != total_bytes) {
+      os << " (capacity: " << size_with_unit(total_capacity_bytes) << ")";
+    }
+
+    os << "\n";
+
+    for (auto const& [label, bytes, num, cap, is_tuple_field] : sizes_) {
       if (bytes > 0) {
         os << (is_tuple_field ? "    " : "  ");
-        if (num.has_value()) {
+        if (num.has_value() && num != count) {
           os << *num << " ";
         }
-        os << label << ": " << size_with_unit(bytes) << "\n";
+        os << label << ": " << size_with_unit(bytes);
+        if (cap.has_value() && *cap != bytes) {
+          os << " (capacity: " << size_with_unit(*cap) << ")";
+        }
+        os << "\n";
       }
     }
   }
@@ -233,16 +342,6 @@ template <std::size_t ChunkSize>
 using flat_pinned_byte_span_index = dwarfs::basic_dense_value_index<
     std::span<std::byte const>,
     pinned_byte_span_index_policy_holder<ChunkSize>::template policy>;
-
-template <typename T>
-std::uint64_t total_cao_id_vec_bytes(cao_vector<T> const& vec) {
-  return std::accumulate(vec.begin(), vec.end(), 0ULL,
-                         [](std::size_t acc, auto const& de) {
-                           return acc +
-                                  (de.is_inline() ? 0 : de.size_in_bytes());
-                         }) +
-         sizeof(vec[0]) * vec.size();
-}
 
 struct shared_entry_data {
  public:
@@ -1458,28 +1557,10 @@ void shared_entry_data::add_dir_entry(dir_id parent, entry_type type,
 }
 
 void shared_entry_data::dump(std::ostream& os) const {
-  auto const total_utf8_path_bytes = std::accumulate(
-      utf8_path_components_.begin(), utf8_path_components_.end(), 0ULL,
-      [](std::size_t acc, auto const& pc) {
-        return acc + string_memory_usage(pc);
-      });
-#ifdef DWARFS_HANDLE_NATIVE_PATHS
-  auto const total_native_path_bytes = std::accumulate(
-      native_path_components_.begin(), native_path_components_.end(), 0ULL,
-      [](std::size_t acc, auto const& pc) {
-        return acc + string_memory_usage(pc);
-      });
-#endif
-  auto const total_link_bytes =
-      std::accumulate(link_targets_.begin(), link_targets_.end(), 0ULL,
-                      [](std::size_t acc, std::string const& link) {
-                        return acc + sizeof(std::string) + link.size();
-                      });
-
   memory_usage_dumper d;
 
-  d.add("utf8 path components", total_utf8_path_bytes,
-        utf8_path_components_.size());
+  d.add("utf8 path components", utf8_path_components_);
+  d.add("utf8 path index entries", utf8_path_index_);
   if (auto const& cpc = compressed_utf8_path_components_; cpc.has_value()) {
     d.add("compressed utf8 path components",
           cpc->dictionary.size() + cpc->buffer.size() +
@@ -1487,16 +1568,20 @@ void shared_entry_data::dump(std::ostream& os) const {
           cpc->positions.size());
   }
 #ifdef DWARFS_HANDLE_NATIVE_PATHS
-  d.add("native path components", total_native_path_bytes,
-        native_path_components_.size());
+  d.add("native path components", native_path_components_);
+  d.add("native path index entries", native_path_index_);
 #endif
-  d.add("devices", devices_.size() * sizeof(devices_[0]), devices_.size());
-  d.add("modes", modes_.size() * sizeof(modes_[0]), modes_.size());
-  d.add("uids", uids_.size() * sizeof(uids_[0]), uids_.size());
-  d.add("gids", gids_.size() * sizeof(gids_[0]), gids_.size());
-  d.add("link targets", total_link_bytes, link_targets_.size());
-  d.add("dir entries", total_cao_id_vec_bytes(dir_entries_),
-        dir_entries_.size());
+  d.add("devices", devices_);
+  d.add("device index entries", device_index_);
+  d.add("modes", modes_);
+  d.add("mode index entries", mode_index_);
+  d.add("uids", uids_);
+  d.add("uid index entries", uid_index_);
+  d.add("gids", gids_);
+  d.add("gid index entries", gid_index_);
+  d.add("link targets", link_targets_);
+  d.add("link target index entries", link_target_index_);
+  d.add("dir entries", dir_entries_);
 
   d.dump(os, "shared entry data");
 }
@@ -1509,29 +1594,26 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
 
   memory_usage_dumper d;
 
-  d.add("path storage index", path_storage_index_.size_in_bytes());
+  d.add("path storage index", path_storage_index_);
   d.add_tuple_field_sizes(path_storage_index_, kPathNameStorageFieldNames);
-  d.add("stat common", stat_common_.size_in_bytes());
+  d.add("stat common", stat_common_);
   d.add_tuple_field_sizes(stat_common_, kStatCommonFieldNames);
-  d.add("size", entry_size_.size_in_bytes());
-  d.add("allocated size",
-        entry_allocated_size_.capacity() *
-            sizeof(decltype(entry_allocated_size_)::value_type));
-  d.add("parent dir index", parent_dir_id_.size_in_bytes());
-  d.add("link target index", link_target_index_.size_in_bytes());
-  d.add("represented device", represented_device_.size_in_bytes());
-  d.add("inode number", inode_num_.size_in_bytes());
-  d.add("final entry index", final_entry_index_.size_in_bytes());
-  d.add("file data vec", file_data_vec_.size_in_bytes(), file_data_vec_.size());
+  d.add("size", entry_size_);
+  d.add("allocated size", entry_allocated_size_);
+  d.add("parent dir index", parent_dir_id_);
+  d.add("link target index", link_target_index_);
+  d.add("represented device", represented_device_);
+  d.add("inode number", inode_num_);
+  d.add("final entry index", final_entry_index_);
+  d.add("file data vec", file_data_vec_);
   d.add_tuple_field_sizes(file_data_vec_, kFileDataFieldNames);
-  d.add("file invalid vec",
-        file_invalid_vec_.size() * sizeof(file_invalid_vec_[0]),
-        file_invalid_vec_.size());
-  d.add("file digests", file_digests_ ? file_digests_->size_in_bytes() : 0,
-        file_digests_ ? file_digests_->size() : 0);
-  d.add("file inode id", file_inode_id_.size_in_bytes());
-  d.add("file data index", file_data_index_.size_in_bytes());
-  d.add("file order index", file_order_index_.size_in_bytes());
+  d.add("file invalid vec", file_invalid_vec_);
+  if (file_digests_) {
+    d.add("file digests", *file_digests_);
+  }
+  d.add("file inode id", file_inode_id_);
+  d.add("file data index", file_data_index_);
+  d.add("file order index", file_order_index_);
 
   d.dump(os, std::string{name} + " entries", path_storage_index_.size());
 }
@@ -1541,23 +1623,20 @@ void packed_inode_data::dump(std::ostream& os) const {
 
   memory_usage_dumper d;
 
-  d.add("hardlinks", total_cao_id_vec_bytes(files_for_inode_));
-  d.add("inode numbers", inode_num_.size_in_bytes());
-  d.add("scan errors",
-        inode_scan_errors_.capacity() * sizeof(inode_scan_error));
-  d.add("fragment info", fragment_info_.size_in_bytes());
+  d.add("hardlinks", files_for_inode_);
+  d.add("inode numbers", inode_num_);
+  d.add("scan errors", inode_scan_errors_);
+  d.add("fragment info", fragment_info_);
   d.add_tuple_field_sizes(fragment_info_, kInodeFragmentInfoFieldNames);
-  d.add("fragment data", fragment_data_.size_in_bytes());
+  d.add("fragment data", fragment_data_);
   d.add_tuple_field_sizes(fragment_data_, kInodeFragmentFieldNames);
-  d.add("fragment chunks", total_cao_id_vec_bytes(fragment_chunks_));
-  d.add("similarity info", similarity_info_.size_in_bytes());
+  d.add("fragment chunks", fragment_chunks_);
+  d.add("similarity info", similarity_info_);
   d.add_tuple_field_sizes(similarity_info_, kInodeSimilarityInfoFieldNames);
-  d.add("similarity hashes", similarity_hash_.size_in_bytes());
+  d.add("similarity hashes", similarity_hash_);
   d.add_tuple_field_sizes(similarity_hash_, kInodeSimilarityHashFieldNames);
-  d.add("similarity hash data",
-        similarity_hash_data_.size() * sizeof(similarity_hash_data_[0]));
-  d.add("nilsimsa hash data",
-        nilsimsa_hash_data_.size() * sizeof(nilsimsa_hash_data_[0]));
+  d.add("similarity hash data", similarity_hash_data_);
+  d.add("nilsimsa hash data", nilsimsa_hash_data_);
 
   d.dump(os, "inodes", inode_num_.size());
 }
