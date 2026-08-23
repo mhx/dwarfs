@@ -5,7 +5,7 @@
 
 set -e
 
-OUTPUT=mem_results
+OUTPUT=${1:-"mem_results"}
 
 mkdir -p $OUTPUT
 
@@ -35,7 +35,7 @@ for config in hollow_nodedupe similarity_b8 default_l9 categorize; do
           MKDWARFS=mkdwarfs.su
           ;;
         "wiki")
-          dwarfs wiki-zstd.dwarfs mnt -o cachesize=8g,workers=32,max_threads=32
+          dwarfs wiki-zstd.dwarfs mnt -o cachesize=8g,workers=32,max_threads=32,clone_fd
           DATASET_PATH="mnt"
           ;;
       esac
