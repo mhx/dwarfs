@@ -570,12 +570,13 @@ TEST(dense_value_index_alias_test, convenience_alias_uses_the_std_policy) {
   EXPECT_EQ(index.size(), 1);
 }
 
-TEST(dense_value_index_size_test, index_size_in_bytes_tracks_index_capacity) {
+TEST(dense_value_index_capacity_test,
+     index_capacity_in_bytes_tracks_index_capacity) {
   std::vector<std::string> store;
   internal::flat_dense_value_index<std::string> index{store};
 
   index.reserve(1024);
-  auto const reserved = index.index_size_in_bytes();
+  auto const reserved = index.index_capacity_in_bytes();
 
   EXPECT_GT(reserved, 1024 * sizeof(std::size_t) / 2);
 
@@ -585,6 +586,6 @@ TEST(dense_value_index_size_test, index_size_in_bytes_tracks_index_capacity) {
 
   // The store is unaffected by how much memory the index uses.
   EXPECT_EQ(index.size(), 100);
-  EXPECT_GT(index.index_size_in_bytes(),
+  EXPECT_GT(index.index_capacity_in_bytes(),
             index.size() * sizeof(std::size_t) / 2);
 }
