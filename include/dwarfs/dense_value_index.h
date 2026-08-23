@@ -81,6 +81,7 @@ class basic_dense_value_index
 
   using core_type::contains;
   using core_type::empty;
+  using core_type::index_capacity_in_bytes;
   using core_type::index_of;
   using core_type::index_size_in_bytes;
   using core_type::reserve;

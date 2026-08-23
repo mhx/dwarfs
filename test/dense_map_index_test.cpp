@@ -534,13 +534,14 @@ TEST(dense_map_index_alias_test, convenience_alias_uses_the_std_policy) {
   EXPECT_EQ(index.size(), 1);
 }
 
-TEST(dense_map_index_size_test, index_size_in_bytes_tracks_index_capacity) {
+TEST(dense_map_index_capacity_test,
+     index_capacity_in_bytes_tracks_index_capacity) {
   std::vector<std::pair<std::string, int>> store;
   internal::flat_dense_map_index<std::string, int> index{store};
 
   index.reserve(1024);
 
-  EXPECT_GT(index.index_size_in_bytes(), 1024 * sizeof(std::size_t) / 2);
+  EXPECT_GT(index.index_capacity_in_bytes(), 1024 * sizeof(std::size_t) / 2);
 }
 
 class throwing_mapped_index_test : public ::testing::Test {
