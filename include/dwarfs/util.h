@@ -160,6 +160,7 @@ struct memory_usage {
   std::optional<size_t> anon;
   std::optional<size_t> file;
   std::optional<size_t> shmem;
+  std::optional<size_t> swap;
 };
 
 enum class memory_usage_mode {
