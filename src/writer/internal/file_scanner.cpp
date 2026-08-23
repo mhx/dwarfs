@@ -424,7 +424,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   };
 
   auto index_stats = [](auto const& idx) {
-    return fmt::format("{}", size_with_unit(idx.index_size_in_bytes()));
+    return fmt::format("{}", size_with_unit(idx.index_capacity_in_bytes()));
   };
 
   LOG_VERBOSE << "file scanner table stats:"
