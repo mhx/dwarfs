@@ -323,6 +323,20 @@ using parallel_flat_cao_index =
     dwarfs::basic_dense_value_index<T,
                                     parallel_flat_cao_dense_value_index_policy>;
 
+template <typename T>
+struct flat_std_dense_value_index_policy {
+  using store_type = std::vector<T>;
+  using hash_type = default_value_hash<T>;
+  using equal_type = std::equal_to<>;
+
+  template <typename Hash, typename Equal>
+  using index_type = phmap::flat_hash_set<std::uint32_t, Hash, Equal>;
+};
+
+template <typename T>
+using flat_std_index =
+    dwarfs::basic_dense_value_index<T, flat_std_dense_value_index_policy>;
+
 template <std::size_t ChunkSize>
 struct pinned_byte_span_index_policy_holder {
   template <typename T>
@@ -355,6 +369,12 @@ struct shared_entry_data {
     uid_index_.reset();
     gid_index_.reset();
     link_target_index_.reset();
+
+    // these will no longer be modified
+    devices_.shrink_to_fit();
+    modes_.shrink_to_fit();
+    uids_.shrink_to_fit();
+    gids_.shrink_to_fit();
   }
 
   auto set_root_path_component(fs::path const& component)
@@ -483,6 +503,12 @@ struct shared_entry_data {
   void sort_all_dir_entries(Predicate const& pred) {
     for (auto& de : dir_entries_) {
       std::ranges::sort(de, pred);
+    }
+  }
+
+  void shrink_all_dir_entries() {
+    for (auto& de : dir_entries_) {
+      de.shrink_to_fit();
     }
   }
 
@@ -702,17 +728,17 @@ struct shared_entry_data {
       native_path_index_{native_path_components_};
 #endif
 
-  cao_vector<file_stat::dev_type> devices_;
-  std::optional<flat_cao_index<file_stat::dev_type>> device_index_{devices_};
+  std::vector<file_stat::dev_type> devices_;
+  std::optional<flat_std_index<file_stat::dev_type>> device_index_{devices_};
 
-  cao_vector<file_stat::mode_type> modes_;
-  std::optional<flat_cao_index<file_stat::mode_type>> mode_index_{modes_};
+  std::vector<file_stat::mode_type> modes_;
+  std::optional<flat_std_index<file_stat::mode_type>> mode_index_{modes_};
 
-  cao_vector<file_stat::uid_type> uids_;
-  std::optional<flat_cao_index<file_stat::uid_type>> uid_index_{uids_};
+  std::vector<file_stat::uid_type> uids_;
+  std::optional<flat_std_index<file_stat::uid_type>> uid_index_{uids_};
 
-  cao_vector<file_stat::gid_type> gids_;
-  std::optional<flat_cao_index<file_stat::gid_type>> gid_index_{gids_};
+  std::vector<file_stat::gid_type> gids_;
+  std::optional<flat_std_index<file_stat::gid_type>> gid_index_{gids_};
 
   cao_vector<std::string> link_targets_;
   std::optional<parallel_flat_cao_index<std::string>> link_target_index_{
@@ -1851,6 +1877,13 @@ class entry_storage_ final : public entry_storage::entry_impl {
         auto tv = LOG_CPU_TIMED_VERBOSE;
         sort_all_directory_entries();
         tv << "sorted directory entries";
+      }
+
+      set_status("shrinking directory entries");
+      {
+        auto tv = LOG_CPU_TIMED_VERBOSE;
+        shared_.shrink_all_dir_entries();
+        tv << "shrunk directory entries";
       }
 
       set_status("compressing path storage");
