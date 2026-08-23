@@ -39,6 +39,25 @@
 
 namespace dwarfs::container::detail {
 
+namespace proxy_swap {
+
+void swap() = delete;
+
+template <typename P>
+concept has_own_swap = requires(P a, P b) { swap(a, b); };
+
+template <has_own_swap P>
+constexpr inline bool is_nothrow_swappable =
+    noexcept(swap(std::declval<P&>(), std::declval<P&>())) &&
+    std::is_nothrow_copy_constructible_v<P>;
+
+template <has_own_swap P>
+void do_swap(P a, P b) {
+  swap(a, b);
+}
+
+} // namespace proxy_swap
+
 template <typename Container, bool IsConst>
 class index_based_iterator_impl {
  public:
@@ -60,6 +79,11 @@ class index_based_iterator_impl {
                          std::add_pointer_t<std::remove_reference_t<reference>>,
                          void>;
 
+ private:
+  static constexpr bool proxy_has_own_swap =
+      proxy_swap::has_own_swap<reference>;
+
+ public:
   index_based_iterator_impl() = default;
 
   template <bool IsConstSrc>
@@ -196,9 +220,18 @@ class index_based_iterator_impl {
 
   friend void iter_swap(index_based_iterator_impl const& a,
                         index_based_iterator_impl const& b)
+      noexcept(proxy_swap::is_nothrow_swappable<reference>)
+    requires(!std::is_reference_v<reference> && !IsConst && proxy_has_own_swap)
+  {
+    assert(a.vec_ == b.vec_);
+    proxy_swap::do_swap((*a.vec_)[a.get_index()], (*b.vec_)[b.get_index()]);
+  }
+
+  friend void iter_swap(index_based_iterator_impl const& a,
+                        index_based_iterator_impl const& b)
       noexcept(std::is_nothrow_constructible_v<value_type, reference> &&
                std::is_nothrow_assignable_v<reference, value_type>)
-    requires(!std::is_reference_v<reference> && !IsConst)
+    requires(!std::is_reference_v<reference> && !IsConst && !proxy_has_own_swap)
   {
     assert(a.vec_ == b.vec_);
     auto tmp = static_cast<value_type>((*a.vec_)[a.get_index()]);
