@@ -95,98 +95,54 @@ class stable_jagged_vector {
   using descriptor_type = std::tuple<size_type, size_type, size_type>;
   using descriptor_vector_type = segmented_packed_int_vector<descriptor_type>;
 
-  struct block_deleter {
-    size_type capacity{0};
-
-    void operator()(T* p) const noexcept {
-      if (p != nullptr) {
-        std::allocator<T>{}.deallocate(p, capacity);
-      }
-    }
-  };
-
-  using block_ptr = std::unique_ptr<T, block_deleter>;
+  static constexpr size_type no_block = std::numeric_limits<size_type>::max();
 
   struct block {
-    block_ptr data;
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+    std::unique_ptr<T[]> data;
     size_type size{0};
+    size_type capacity{0};
 
-    [[nodiscard]] size_type capacity() const noexcept {
-      return data.get_deleter().capacity;
+    [[nodiscard]] size_type available() const noexcept {
+      return capacity - size;
     }
   };
 
  public:
-  static constexpr size_type block_elements_raw = BlockBytes / sizeof(T) > 0
-                                                      ? BlockBytes / sizeof(T)
-                                                      : 1;
-  static constexpr size_type block_elements = block_elements_raw;
+  static constexpr size_type block_elements =
+      std::max<size_type>(BlockBytes / sizeof(T), 1);
   static constexpr size_type block_bytes = block_elements * sizeof(T);
+  static constexpr size_type max_element_size =
+      std::numeric_limits<size_type>::max() / sizeof(T);
 
   class reference {
    public:
     reference(reference const&) noexcept = default;
     reference(reference&&) noexcept = default;
 
-    operator value_type() const noexcept { return load(); }
+    operator value_type() const { return load(); }
 
-    [[nodiscard]] value_type load() const noexcept {
-      return owner_->get(index_);
-    }
-    [[nodiscard]] auto data() const noexcept { return load().data(); }
-    [[nodiscard]] auto size() const noexcept { return load().size(); }
-    [[nodiscard]] bool empty() const noexcept { return load().empty(); }
-    [[nodiscard]] auto begin() const noexcept { return load().begin(); }
-    [[nodiscard]] auto end() const noexcept { return load().end(); }
+    [[nodiscard]] value_type load() const { return owner_->get(index_); }
+    [[nodiscard]] auto data() const { return load().data(); }
+    [[nodiscard]] auto size() const { return load().size(); }
+    [[nodiscard]] bool empty() const { return load().empty(); }
+    [[nodiscard]] auto begin() const { return load().begin(); }
+    [[nodiscard]] auto end() const { return load().end(); }
 
-    [[nodiscard]] decltype(auto) operator[](size_type i) const noexcept {
+    [[nodiscard]] decltype(auto) operator[](size_type i) const {
       return load()[i];
     }
 
-    reference& operator=(reference const& other) {
-      assign_from_proxy(other);
-      return *this;
-    }
-
-    reference const& operator=(reference const& other) const {
-      assign_from_proxy(other);
-      return *this;
-    }
-
-    reference& operator=(value_type value) {
-      owner_->set(index_, value);
-      return *this;
-    }
-
-    reference const& operator=(value_type value) const {
-      owner_->set(index_, value);
-      return *this;
-    }
+    reference& operator=(reference const& other) = delete;
+    reference& operator=(value_type) = delete;
 
     friend void swap(reference a, reference b) {
-      if (a.owner_ == b.owner_) {
-        a.owner_->swap_elements(a.index_, b.index_);
-        return;
+      if (a.owner_ != b.owner_) {
+        throw std::invalid_argument(
+            "cross-container swap is not supported for stable_jagged_vector");
       }
 
-      // Cross-container swap cannot exchange descriptors because descriptors
-      // refer to different block arrays. Copy each immutable payload instead.
-      auto const av = a.load();
-      auto const bv = b.load();
-      a.owner_->set(a.index_, bv);
-      b.owner_->set(b.index_, av);
-    }
-
-    friend bool operator==(reference const& lhs, value_type rhs)
-      requires requires(value_type a, value_type b) { a == b; }
-    {
-      return lhs.load() == rhs;
-    }
-
-    friend bool operator==(value_type lhs, reference const& rhs)
-      requires requires(value_type a, value_type b) { a == b; }
-    {
-      return lhs == rhs.load();
+      a.owner_->swap_elements(a.index_, b.index_);
     }
 
    private:
@@ -195,15 +151,6 @@ class stable_jagged_vector {
     reference(stable_jagged_vector& owner, size_type index) noexcept
         : owner_{&owner}
         , index_{index} {}
-
-    void assign_from_proxy(reference const& other) const {
-      if (owner_ == other.owner_) {
-        owner_->descriptors_.set(index_,
-                                 other.owner_->descriptors_.get(other.index_));
-      } else {
-        owner_->set(index_, other.load());
-      }
-    }
 
     stable_jagged_vector* owner_;
     size_type index_;
@@ -229,51 +176,43 @@ class stable_jagged_vector {
     return *this;
   }
 
-  [[nodiscard]] iterator begin() noexcept {
-    return iterator::from_index(*this, 0);
-  }
+  [[nodiscard]] iterator begin() { return iterator::from_index(*this, 0); }
 
-  [[nodiscard]] iterator end() noexcept {
-    return iterator::from_index(*this, size());
-  }
+  [[nodiscard]] iterator end() { return iterator::from_index(*this, size()); }
 
-  [[nodiscard]] const_iterator begin() const noexcept {
+  [[nodiscard]] const_iterator begin() const {
     return const_iterator::from_index(*this, 0);
   }
 
-  [[nodiscard]] const_iterator end() const noexcept {
+  [[nodiscard]] const_iterator end() const {
     return const_iterator::from_index(*this, size());
   }
 
-  [[nodiscard]] const_iterator cbegin() const noexcept {
+  [[nodiscard]] const_iterator cbegin() const {
     return const_iterator::from_index(*this, 0);
   }
 
-  [[nodiscard]] const_iterator cend() const noexcept {
+  [[nodiscard]] const_iterator cend() const {
     return const_iterator::from_index(*this, size());
   }
 
-  [[nodiscard]] auto rbegin() noexcept {
-    return std::reverse_iterator<iterator>{end()};
-  }
+  [[nodiscard]] auto rbegin() { return std::reverse_iterator<iterator>{end()}; }
 
-  [[nodiscard]] auto rend() noexcept {
-    return std::reverse_iterator<iterator>{begin()};
-  }
+  [[nodiscard]] auto rend() { return std::reverse_iterator<iterator>{begin()}; }
 
-  [[nodiscard]] auto rbegin() const noexcept {
+  [[nodiscard]] auto rbegin() const {
     return std::reverse_iterator<const_iterator>{end()};
   }
 
-  [[nodiscard]] auto rend() const noexcept {
+  [[nodiscard]] auto rend() const {
     return std::reverse_iterator<const_iterator>{begin()};
   }
 
-  [[nodiscard]] auto crbegin() const noexcept {
+  [[nodiscard]] auto crbegin() const {
     return std::reverse_iterator<const_iterator>{cend()};
   }
 
-  [[nodiscard]] auto crend() const noexcept {
+  [[nodiscard]] auto crend() const {
     return std::reverse_iterator<const_iterator>{cbegin()};
   }
 
@@ -283,29 +222,29 @@ class stable_jagged_vector {
     return blocks_.size();
   }
 
-  [[nodiscard]] size_type size_in_bytes() const noexcept {
+  [[nodiscard]] size_type size_in_bytes() const {
     return descriptors_.size_in_bytes() + payload_size_in_bytes() +
            blocks_.size() * sizeof(block);
   }
 
-  [[nodiscard]] size_type capacity_in_bytes() const noexcept {
+  [[nodiscard]] size_type capacity_in_bytes() const {
     return descriptors_.capacity_in_bytes() + payload_capacity_in_bytes() +
            blocks_.capacity() * sizeof(block);
   }
 
   [[nodiscard]] size_type payload_size_in_bytes() const noexcept {
-    return total_payload_size_ * sizeof(T);
+    return live_payload_size_ * sizeof(T);
   }
 
   [[nodiscard]] size_type payload_capacity_in_bytes() const noexcept {
     size_type result = 0;
     for (auto const& b : blocks_) {
-      result += b.capacity() * sizeof(T);
+      result += b.capacity * sizeof(T);
     }
     return result;
   }
 
-  [[nodiscard]] const_reference operator[](size_type i) const noexcept {
+  [[nodiscard]] const_reference operator[](size_type i) const {
     assert(i < size());
     return get(i);
   }
@@ -329,7 +268,7 @@ class stable_jagged_vector {
     return reference{*this, i};
   }
 
-  [[nodiscard]] const_reference front() const noexcept {
+  [[nodiscard]] const_reference front() const {
     assert(!empty());
     return get(0);
   }
@@ -339,7 +278,7 @@ class stable_jagged_vector {
     return reference{*this, 0};
   }
 
-  [[nodiscard]] const_reference back() const noexcept {
+  [[nodiscard]] const_reference back() const {
     assert(!empty());
     return get(size() - 1);
   }
@@ -349,7 +288,7 @@ class stable_jagged_vector {
     return reference{*this, size() - 1};
   }
 
-  [[nodiscard]] const_reference get(size_type i) const noexcept {
+  [[nodiscard]] const_reference get(size_type i) const {
     assert(i < size());
     auto const [block_index, offset, length] = descriptors_.get(i);
 
@@ -362,21 +301,16 @@ class stable_jagged_vector {
     assert(offset <= b.size);
     assert(length <= b.size - offset);
 
-    return make_view(b.data.get() + offset, length);
-  }
-
-  void set(size_type i, value_type value) {
-    assert(i < size());
-    descriptors_.set(i, append_payload(as_span(value)));
+    return value_type{b.data.get() + offset, length};
   }
 
   template <typename R>
     requires detail::compatible_contiguous_range<R, T>
   reference emplace_back(R&& range) {
-    auto const view =
-        std::span<T const>{std::ranges::data(range), std::ranges::size(range)};
-    descriptors_.push_back(append_payload(view));
-    return reference{*this, size() - 1};
+    auto&& r = std::forward<R>(range);
+    auto const length = static_cast<size_type>(std::ranges::size(r));
+    check_length(length);
+    return append(std::span<T const>{std::ranges::data(r), length});
   }
 
   reference emplace_back(T const* data, size_type length) {
@@ -384,28 +318,28 @@ class stable_jagged_vector {
       throw std::invalid_argument(
           "stable_jagged_vector::emplace_back null data");
     }
-    descriptors_.push_back(append_payload(std::span<T const>{data, length}));
-    return reference{*this, size() - 1};
+    check_length(length);
+    return append(std::span<T const>{data, length});
   }
 
   template <size_type N>
     requires detail::is_character_type_v<T>
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   reference emplace_back(T const (&literal)[N]) {
     static_assert(N > 0);
-    size_type const length = literal[N - 1] == T{} ? N - 1 : N;
-    return emplace_back(literal, length);
+    return emplace_back(literal, literal[N - 1] == T{} ? N - 1 : N);
   }
 
   void push_back(value_type value) {
-    descriptors_.push_back(append_payload(as_span(value)));
+    check_length(value.size());
+    append(as_span(value));
   }
 
   void resize(size_type new_size) {
-    if (new_size <= size()) {
-      descriptors_.resize(new_size);
-    } else {
-      descriptors_.resize(new_size, descriptor_type{});
+    for (auto i = new_size; i < size(); ++i) {
+      live_payload_size_ -= element_length(i);
     }
+    descriptors_.resize(new_size);
   }
 
   void reserve(size_type n) { descriptors_.reserve(n); }
@@ -423,14 +357,16 @@ class stable_jagged_vector {
   void clear() noexcept {
     descriptors_.clear();
     blocks_.clear();
-    total_payload_size_ = 0;
+    live_payload_size_ = 0;
+    fill_block_ = no_block;
   }
 
   void swap(stable_jagged_vector& other) noexcept {
     using std::swap;
     swap(descriptors_, other.descriptors_);
     swap(blocks_, other.blocks_);
-    swap(total_payload_size_, other.total_payload_size_);
+    swap(live_payload_size_, other.live_payload_size_);
+    swap(fill_block_, other.fill_block_);
   }
 
   friend void
@@ -450,12 +386,9 @@ class stable_jagged_vector {
   }
 
  private:
-  [[nodiscard]] static value_type
-  make_view(T const* data, size_type size) noexcept {
-    if constexpr (detail::is_character_type_v<T>) {
-      return std::basic_string_view<T>{data, size};
-    } else {
-      return std::span<T const>{data, size};
+  static void check_length(size_type length) {
+    if (length > max_element_size) [[unlikely]] {
+      throw std::length_error("stable_jagged_vector element too large");
     }
   }
 
@@ -464,27 +397,47 @@ class stable_jagged_vector {
   }
 
   [[nodiscard]] static block make_block(size_type capacity) {
-    auto* p = std::allocator<T>{}.allocate(capacity);
-    return block{block_ptr{p, block_deleter{capacity}}, 0};
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+    return block{std::make_unique_for_overwrite<T[]>(capacity), 0, capacity};
+  }
+
+  [[nodiscard]] size_type element_length(size_type i) const {
+    return descriptors_.template get_field<2>(i);
+  }
+
+  void set_descriptor(size_type i, descriptor_type d) {
+    live_payload_size_ += std::get<2>(d);
+    live_payload_size_ -= element_length(i);
+    descriptors_.set(i, d);
+  }
+
+  reference append(std::span<T const> value) {
+    descriptors_.push_back(append_payload(value));
+    live_payload_size_ += value.size();
+    return reference{*this, size() - 1};
   }
 
   [[nodiscard]] descriptor_type append_payload(std::span<T const> value) {
+    assert(value.size() <= max_element_size);
+
     if (value.empty()) {
       return descriptor_type{};
     }
 
-    if (value.size() > std::numeric_limits<size_type>::max() / sizeof(T) ||
-        total_payload_size_ >
-            std::numeric_limits<size_type>::max() - value.size()) [[unlikely]] {
-      throw std::length_error("stable_jagged_vector element too large");
-    }
+    size_type block_index;
 
-    if (blocks_.empty() ||
-        value.size() > blocks_.back().capacity() - blocks_.back().size) {
-      blocks_.push_back(make_block(std::max(value.size(), block_elements)));
+    if (value.size() >= block_elements) {
+      // add oversized values to their own block
+      blocks_.push_back(make_block(value.size()));
+      block_index = blocks_.size() - 1;
+    } else {
+      if (fill_block_ == no_block ||
+          value.size() > blocks_[fill_block_].available()) {
+        blocks_.push_back(make_block(block_elements));
+        fill_block_ = blocks_.size() - 1;
+      }
+      block_index = fill_block_;
     }
-
-    size_type const block_index = blocks_.size() - 1;
 
     auto& b = blocks_[block_index];
     auto const offset = b.size;
@@ -493,14 +446,14 @@ class stable_jagged_vector {
     std::memcpy(b.data.get() + offset, value.data(), value.size_bytes());
 
     b.size += value.size();
-    total_payload_size_ += value.size();
 
     return {block_index, offset, value.size()};
   }
 
   descriptor_vector_type descriptors_;
   std::vector<block> blocks_;
-  size_type total_payload_size_{0};
+  size_type live_payload_size_{0};
+  size_type fill_block_{no_block};
 };
 
 } // namespace dwarfs::container
