@@ -433,6 +433,11 @@ class time_value_tsv_logger {
   std::chrono::steady_clock::time_point start_time_;
 };
 
+void log_mem_usage(time_value_tsv_logger const& lgr, memory_usage const& mem) {
+  lgr.log(mem.total.value_or(0), mem.anon.value_or(0), mem.file.value_or(0),
+          get_allocated_memory().value_or(0));
+};
+
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
@@ -1086,13 +1091,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         cwopts.progress == writer::console_writer::SIMPLE) {
       if (mem_logger) {
         mem_logger_thread.emplace(
-            [mem_logger](compat::stop_token const& stoken) {
+            [mem_logger, mem_usage_mode](compat::stop_token const& stoken) {
               while (!stoken.stop_requested()) {
                 std::this_thread::sleep_for(200ms);
-                auto const mem = get_self_memory_usage();
-                mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
-                                mem.file.value_or(0),
-                                get_allocated_memory().value_or(0));
+                auto const mem = get_self_memory_usage(mem_usage_mode);
+                log_mem_usage(*mem_logger, mem);
               }
             });
       }
@@ -1100,9 +1103,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       lgr.set_memory_usage_function([mem_logger, mem_usage_mode] {
         auto const mem = get_self_memory_usage(mem_usage_mode);
         if (mem_logger) {
-          mem_logger->log(mem.total.value_or(0), mem.anon.value_or(0),
-                          mem.file.value_or(0),
-                          get_allocated_memory().value_or(0));
+          log_mem_usage(*mem_logger, mem);
         }
         return mem.total.value_or(0);
       });
