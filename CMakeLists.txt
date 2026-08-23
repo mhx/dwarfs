@@ -709,6 +709,7 @@ if(WITH_TESTS)
       test/sparse_chunk_codec_test.cpp
       test/sparse_file_seeker_test.cpp
       test/speedometer_test.cpp
+      test/stable_jagged_vector_test.cpp
       test/string_test.cpp
       test/synchronized_test.cpp
       test/terminal_test.cpp
