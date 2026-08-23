@@ -437,7 +437,7 @@ def main():
                         "several threads log concurrently")
 
     g = p.add_argument_group("memory columns")
-    g.add_argument("-c", "--columns", default="anon,allocated",
+    g.add_argument("-c", "--columns", default="anon,swap,allocated",
                    help="comma separated list of memory columns to keep "
                         "('all' for every column)")
     g.add_argument("-u", "--unit", choices=["MiB", "GiB"], default="GiB",
