@@ -401,7 +401,7 @@ void basic_dir_handle<Mut>::for_each_child(
 // ---------- link_handle ----------
 
 template <detail::mutability Mut>
-std::string basic_link_handle<Mut>::linkname() const {
+std::string_view basic_link_handle<Mut>::linkname() const {
   return this->storage().get_link_target(this->id());
 }
 
