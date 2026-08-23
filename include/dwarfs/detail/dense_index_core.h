@@ -270,6 +270,10 @@ class dense_index_core {
   [[nodiscard]] bool empty() const noexcept { return store_->empty(); }
 
   [[nodiscard]] size_type index_size_in_bytes() const noexcept {
+    return index_.size() * sizeof(typename index_set_type::value_type);
+  }
+
+  [[nodiscard]] size_type index_capacity_in_bytes() const noexcept {
     return index_.capacity() * sizeof(typename index_set_type::value_type);
   }
 
