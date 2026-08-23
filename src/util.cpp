@@ -154,6 +154,7 @@ void get_self_memory_usage_linux(memory_usage_mode const mode,
   std::string_view const kAnonPrefix = kAccurate ? "Pss_Anon:" : "RssAnon:";
   std::string_view const kFilePrefix = kAccurate ? "Pss_File:" : "RssFile:";
   std::string_view const kShmemPrefix = kAccurate ? "Pss_Shmem:" : "RssShmem:";
+  std::string_view const kSwapPrefix = kAccurate ? "Swap:" : "VmSwap:";
 
   struct fclose_deleter {
     // NOLINTNEXTLINE(cert-err33-c,cppcoreguidelines-owning-memory)
@@ -199,8 +200,10 @@ void get_self_memory_usage_linux(memory_usage_mode const mode,
       try_parse_line(line, kAnonPrefix, usage.anon);
       try_parse_line(line, kFilePrefix, usage.file);
       try_parse_line(line, kShmemPrefix, usage.shmem);
+      try_parse_line(line, kSwapPrefix, usage.swap);
 
-      if (usage.total && usage.anon && usage.file && usage.shmem) {
+      if (usage.total && usage.anon && usage.file && usage.shmem &&
+          usage.swap) {
         break;
       }
     }
