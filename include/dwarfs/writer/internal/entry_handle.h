@@ -343,7 +343,7 @@ class basic_link_handle final : public detail::entry_handle_base<Mut> {
 
   link_id id() const { return link_id{this->base_id()}; }
 
-  std::string linkname() const;
+  std::string_view linkname() const;
 };
 
 template <detail::mutability Mut>
