@@ -62,7 +62,7 @@ DEFAULT_AGGREGATE_SECTIONS = [
     "entry storage (before freezing):",
     "inode storage (before freezing):",
     "file scanner table stats:",
-    "entry storage (after dropping file digests):",
+    "entry storage (after dropping file digests and compressing path components):",
     "entry/inode storage:",
 ]
 
