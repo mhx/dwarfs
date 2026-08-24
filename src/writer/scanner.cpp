@@ -809,7 +809,12 @@ void scanner_<LoggerPolicy>::scan(
 
   tree->drop_file_digests();
 
-  LOG_VERBOSE << "entry storage (after dropping file digests):\n"
+  // this step uses quite a bit of memory, so we do it only after having freed
+  // up memory used by the file scanner and dropping digests
+  tree->compress_path_components(LOG_GET_LOGGER, prog);
+
+  LOG_VERBOSE << "entry storage (after dropping file digests and compressing "
+                 "path components):\n"
               << tree->dump_entries();
 
   LOG_VERBOSE << "inode storage (before freezing):\n" << tree->dump_inodes();
