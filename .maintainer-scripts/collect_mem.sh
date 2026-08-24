@@ -9,7 +9,7 @@ OUTPUT=${1:-"mem_results"}
 
 mkdir -p $OUTPUT
 
-for config in hollow_nodedupe similarity_b8 default_l9 categorize; do
+for config in hollow_nodedupe similarity_b8 similarity_l9 default_l9 categorize; do
   for jemalloc in default decay; do
     for dataset in perl debian wiki; do
       if [ "$dataset" == "wiki" ] && [ "$config" == "categorize" ]; then
@@ -48,6 +48,9 @@ for config in hollow_nodedupe similarity_b8 default_l9 categorize; do
           ;;
         "similarity_b8")
           OPTIONS="$OPTIONS --order=similarity -B8"
+          ;;
+        "similarity_l9")
+          OPTIONS="$OPTIONS --order=similarity -l9"
           ;;
         "categorize")
           OPTIONS="$OPTIONS --categorize"
