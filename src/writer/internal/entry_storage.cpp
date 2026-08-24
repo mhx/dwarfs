@@ -1883,13 +1883,6 @@ class entry_storage_ final : public entry_storage::entry_impl {
         tv << "shrunk directory entries";
       }
 
-      set_status("compressing path storage");
-      {
-        auto tv = LOG_CPU_TIMED_VERBOSE;
-        shared_.freeze_path_storage();
-        tv << "compressed path storage";
-      }
-
       return std::make_unique<entry_storage_<true>>(*this);
     } else {
       frozen_panic();
@@ -2322,6 +2315,20 @@ class entry_storage_ final : public entry_storage::entry_impl {
           return get_path_storage_impl(id);
         });
       });
+    }
+  }
+
+  void compress_path_components(logger& lgr, progress& prog) override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      mutable_panic();
+    } else {
+      LOG_PROXY(debug_logger_policy, lgr);
+      prog.set_status_function(
+          [](progress const&, size_t) { return "compressing path storage"; });
+      auto tv = LOG_CPU_TIMED_VERBOSE;
+      shared_.freeze_path_storage();
+      tv << "compressed path storage";
     }
   }
 
@@ -3439,6 +3446,10 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   void sort_file_id_vector(file_id_vector& fv) const override {
     impl_.lock()->sort_file_id_vector(fv);
+  }
+
+  void compress_path_components(logger& lgr, progress& prog) override {
+    impl_.lock()->compress_path_components(lgr, prog);
   }
 
   void drop_file_digests() override { impl_.lock()->drop_file_digests(); }
