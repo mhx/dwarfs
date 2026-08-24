@@ -251,6 +251,10 @@ class entry_storage {
     entry_impl_->sort_file_id_vector(fv);
   }
 
+  void compress_path_components(logger& lgr, progress& prog) {
+    entry_impl_->compress_path_components(lgr, prog);
+  }
+
   void drop_file_digests() { entry_impl_->drop_file_digests(); }
 
   void drop_similarity_data() { inode_impl_->drop_similarity_data(); }
@@ -438,6 +442,7 @@ class entry_storage {
 
     virtual void sort_file_id_vector(file_id_vector& fv) const = 0;
 
+    virtual void compress_path_components(logger& lgr, progress& prog) = 0;
     virtual void drop_file_digests() = 0;
 
     virtual std::unique_ptr<entry_impl> freeze(logger& lgr, progress& prog) = 0;
