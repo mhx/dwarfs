@@ -7,6 +7,15 @@ set -e
 
 OUTPUT=${1:-"mem_results"}
 
+if diff mkdwarfs mkdwarfs.su >/dev/null; then
+  echo "mkdwarfs and mkdwarfs.su are identical"
+else
+  echo "mkdwarfs and mkdwarfs.su differ, updating mkdwarfs.su..."
+  sudo cp mkdwarfs mkdwarfs.su
+  sudo chown root mkdwarfs.su
+  sudo chmod u+s mkdwarfs.su
+fi
+
 mkdir -p $OUTPUT
 
 for config in hollow_nodedupe similarity_b8 similarity_l9 default_l9 categorize; do
