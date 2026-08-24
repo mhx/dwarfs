@@ -957,7 +957,7 @@ gigabytes *per worker thread*, which can easily dominate everything else:
 Second, per-entry memory, which `mkdwarfs` mostly builds during the scanning
 phase of the build, and most of which is retained until the end of the build.
 This depends heavily on the input: measured over three very different data
-sets, it ranged from 42 to 206 bytes per file after scanning, and 35 to 84
+sets, it ranged from 42 to 182 bytes per file after scanning, and 35 to 84
 bytes per file of steady-state storage during segmentation. Highly redundant
 inputs are much cheaper than mostly unique ones, because duplicate files
 occupy extremely little extra memory.
@@ -972,7 +972,8 @@ The things that help reduce memory usage are:
 - Use `--order=similarity` instead of the default `nilsimsa` ordering. This
   saves 28 bytes per unique file, which can be significant. It also generally
   faster, uses less memory for sorting, and usually costs relatively little
-  in terms of compression ratio.
+  in terms of compression ratio. On the `wiki` data set, for example, it
+  reduced peak memory by 12% while only making the image about 1% larger.
 
 - Normalize your input. `--set-time` (or not using `--keep-all-times`) can
   save a significant amount of memory. `--chmod=norm`, `--set-owner`, and
@@ -1216,12 +1217,18 @@ How much this ends up costing per file depends mostly on your input. Here are
 three examples, all built with `-l9`, but with compression itself disabled:
 
     -----------|------------|------------|----------|----------|----------
-     Data Set  |      Files |     Inodes |  Storage | Per File | Peak RSS
+     Data Set  |      Files |     Inodes |  Storage | Per File | Peak Mem
     -----------|------------|------------|----------|----------|----------
-     perl      |  1,927,501 |    144,675 |   77 MiB |     42 B |  262 MiB
-     debian    |    244,236 |    219,699 |   39 MiB |    168 B |  195 MiB
-     wiki      | 14,257,665 | 12,431,814 | 2802 MiB |    206 B |  3.4 GiB
+     perl      |  1,927,501 |    144,675 |   77 MiB |     42 B |  220 MiB
+     debian    |    244,236 |    219,699 |   36 MiB |    156 B |  165 MiB
+     wiki      | 14,257,665 | 12,431,814 | 2471 MiB |    182 B |  2.7 GiB
     -----------|------------|------------|----------|----------|----------
+
+"Peak Mem" is the largest amount of memory allocated by `mkdwarfs` at any
+point in the build. Resident memory can differ from this, depending on how
+eagerly the allocator returns pages and on how much the kernel decides to
+swap out allocated pages. See
+[Returning Memory to the System](#returning-memory-to-the-system) for details.
 
 A note on the terminology: an "inode" in the DwarFS sense is a unique file.
 Identical files share the same "inode" in storage. This does not mean the
@@ -1267,33 +1274,35 @@ details.
 ### Where the Peak Is
 
 Memory does not grow monotonically over a build. It rises throughout
-scanning, reaches its maximum around the point where inodes are finalized,
-and declines from there: data that is only needed for one phase is released
-as soon as that phase is done. On the `wiki` data set, the peak allocated
-memory was used when storage was frozen (during path storage compression,
-to be exact).
+scanning, typically reaches its maximum when inodes are finalized, then
+declines to reach a steady state during segmenting, where memory usage
+is often dominated by the compression algorithm. Data that is only needed
+for one phase is released as soon as possible. Here's an example for the
+`wiki` dataset:
 
-    ---------------------|------------
-     Phase               |  Allocated
-    ---------------------|------------
-     scanning            |   3.26 GiB
-     freezing storage    |   3.55 GiB
-     finalizing inodes   |   3.07 GiB
-     ordering            |   2.44 GiB
-     segmenting          |   1.79 GiB
-     building metadata   |   2.49 GiB
-    ---------------------|------------
+    ------------------------------|------------
+     Phase                        |  Allocated
+    ------------------------------|------------
+     scanning                     |   2.58 GiB
+     freezing entries             |   2.53 GiB
+     finalizing inodes            |   2.72 GiB
+     compressing path components  |   2.28 GiB
+     freezing inodes              |   1.71 GiB
+     ordering                     |   2.18 GiB
+     segmenting                   |   1.57 GiB
+     building metadata            |   2.02 GiB
+    ------------------------------|------------
 
 Three things are alive only temporarily and are worth knowing about:
 
 - **File digests and the tables used to find duplicates**, which are alive
   at the same time as the full entry storage and are released once inodes
-  have been finalized. On `wiki` these were about 680 MiB.
+  have been finalized. On `wiki` these were about 660 MiB.
 
 - **Similarity hashes**, which are built during scanning and released as
   soon as ordering is done, along with the working memory the `nilsimsa`
   clustering needs. On `wiki` the hashes were 379 MiB and the clustering
-  added a further 810 MiB on top, about 70 bytes per inode.
+  added a further 481 MiB on top, about 40 bytes per inode.
 
 - **Metadata**, which is built at the very end before being frozen and
   written out. Some of the data can be taken directly from the entry storage,
@@ -1304,7 +1313,7 @@ Three things are alive only temporarily and are worth knowing about:
 ### De-duplication and Ordering
 
 Deduplication is very often a net *saving*, and turning it off with
-`--no-dedupe` can cost you a lot of memory at least some of the input is
+`--no-dedupe` can cost you a lot of memory if at least some of the input is
 redundant. Files are only hashed when another file of the same size has
 been seen, and the lookup tables are keyed by size, by (size, start hash)
 and by digest index rather than by file, so they typically stay smaller
@@ -1312,41 +1321,51 @@ than one entry per file. More importantly, duplicate files never become
 inodes, and it is the per-inode data (similarity hashes, fragments, chunks)
 that often dominates.
 
-Turning de-duplication off does not simply remove that cost of storing
+Turning de-duplication off does not simply remove the cost of storing
 digests, because every file then has to be tracked individually instead.
 On the `wiki` data set, which is close to the worst case for de-duplication
 in that only about 13% of the files are duplicates, `--no-dedupe` still
-required 512 MiB for its own per-file table, against roughly 680 MiB for
-full de-duplication — a saving of well under 4% of peak memory, in exchange
-for giving up the 1.8 million duplicate files that were found otherwise.
+required 499 MiB for its own per-file table, against roughly 660 MiB for
+the digests and lookup tables needed for full de-duplication. That's a
+saving of less than 6% of peak memory, in exchange for giving up 1.8
+million duplicate files that were found otherwise.
 
 On a redundant input, that trade off is much worse. Turning de-duplication
 off for `perl` takes it from 144,675 inodes to 1,925,061, and as a result
-the per-inode data went from 15 MiB to 73 MiB, with the per-file tracking
-table growing from 2 MiB to 128 MiB. Peak memory rose from 262 MiB to
-359 MiB even in a run using `--hollow` and `--order=none`, so it never read
-a single byte of file data and never ordered anything. So, use `--no-dedupe`
-because you *know* there are no duplicates and want the speed, not to save
-memory.
+the total storage used at the end of scanning rises from 77 MiB to 199 MiB.
+So, use `--no-dedupe` because you *know* there are no duplicates and want
+the speed, not to save memory.
 
 Similarity ordering is the larger and more predictable lever. The default
 `nilsimsa` ordering stores 32 bytes per inode and needs substantial working
 memory for clustering. `similarity` stores 4 bytes per inode and needs no
 clustering step at all. On the `wiki` data set that is 379 MiB against
-47 MiB, plus a further 810 MiB of clustering working memory against almost
+47 MiB, plus a further 481 MiB of clustering working memory against almost
 no memory needed for `similarity` ordering. `--order=none`, `--order=path`,
 or `--order=revpath` save a bit more, but may cost even more in compression
 ratio.
 
-The similarity hashes released as soon as ordering has finished, so they
+The similarity hashes are released as soon as ordering has finished, so they
 are not carried through the rest of the build.
 
 Switching from `nilsimsa` to `similarity` can cost compression ratio, but
-how much depends on the input. On the `wiki` data set, `nilsimsa` ordering
-saved 16.91 GiB by segmenting, where `similarity` saved 13.73 GiB. In terms
-of compressed image size, the two versions may actually be very close, but
-segmentation savings are usually worthwhile since they reduce the amount of
-memory that needs to be decompressed when reading data from the image.
+how much exactly depends on the input.
+
+    ---------|----------|----------|----------|----------|--------|-------
+     Dataset |      nilsimsa       |     similarity      |  Peak  | Image
+             | End Scan |   Peak   | End Scan |   Peak   | Memory | Size
+    ---------|----------|----------|----------|----------|--------|-------
+     perl    |   77 MiB |  220 MiB |   73 MiB |  212 MiB |  -3.7% | +1.2%
+     debian  |   36 MiB |  165 MiB |   30 MiB |  154 MiB |  -6.7% | +0.6%
+     wiki    | 2471 MiB | 2788 MiB | 2137 MiB | 2454 MiB | -12.0% | +0.9%
+    ---------|----------|----------|----------|----------|--------|-------
+
+So on `wiki`, `similarity` ordering cuts peak memory by 12% and costs less
+than 1% in image size. Segmentation savings drop quite a bit: on `wiki`,
+for example, from 17.98 GiB to 16.33 GiB. While most of that is recovered
+by block compression, segmentation savings are still worth having, as they
+reduce the amount of data that needs to be decompressed and held in memory
+when reading from the image.
 
 ### Segmenting and Compression Memory
 
@@ -1389,7 +1408,7 @@ double the size of the lookup tables.
 Categorization multiplies all of this. There is one segmenter per category,
 each with its own blocks, and up to `--num-segmenter-workers` segmenters can
 be live at once. Adding `--categorize` took the `debian` data set from one
-segmenter to 17 segmenters and its peak memory from 195 MiB to 1.27 GiB.
+segmenter to 17 and its peak memory usage from 165 MiB to 1.21 GiB.
 
 Compression is where memory usage can get genuinely extreme. Use
 `--estimate-compression-memory` with the `-S` and `-C` options you
@@ -1436,7 +1455,7 @@ Because it never reads any file data, such a run can neither de-duplicate
 nor compute similarity hashes, so it measures the entry storage but not the
 digests or the hashes. Add roughly 32 bytes per inode for `nilsimsa`
 ordering and, from the `wiki` measurements, around 50 bytes per file for
-de-duplication. On `wiki` the dry run peaked at 3.20 GiB against 3.45 GiB
+de-duplication. On `wiki` the dry run peaked at 2.00 GiB against 2.72 GiB
 for the proper run.
 
 Running with `--log-level=verbose` prints a breakdown of where the per-entry
@@ -1456,11 +1475,19 @@ setting `MALLOC_CONF` in the environment:
 
     MALLOC_CONF="background_thread:true,dirty_decay_ms:0,muzzy_decay_ms:0"
 
-On the `wiki` dataset, this reduced peak resident memory from 3.37 GiB to
-2.61 GiB, a saving of 22%, and average resident memory over the whole build
-from 1.67 GiB to 1.37 GiB. Returning memory eagerly is not free in terms of
-CPU time, but `mkdwarfs` is usually I/O-bound, so the performance hit is
-often negligible.
+On the `wiki` dataset, this reduced peak resident memory from 3.19 GiB to
+2.28 GiB, a saving of 29%, and average resident memory over the whole build
+from 1.71 GiB to 1.22 GiB. Peak *allocated* memory was 2.72 GiB either way.
+This does not make `mkdwarfs` use less memory, it just hands unused memory
+back sooner. Returning memory eagerly is not free in terms of CPU time, but
+`mkdwarfs` is usually I/O-bound, so the performance hit is often negligible.
+
+Resident memory can also be lower than allocated memory, because much of the
+data `mkdwarfs` collects during a run is stored in append-only containers that
+allocate memory in chunks that are large enough for the kernel to consider
+swapping them out if they're unused for a long time. This can happen both
+during scanning and segmenting. On the `wiki` data set, more than 1.5 GiB was
+swapped out at times. Even with eager release, this only dropped to 1.25 GiB.
 
 ### Reducing Memory Usage
 
@@ -1479,8 +1506,8 @@ For per-entry memory, in rough order of how much they save:
   moderate cost in compression ratio. `--order=none` or `--order=path` save
   a little more, though at a much larger cost.
 
-- `--set-time` removes the timestamp column, which was between 3% and 12% of
-  per-entry storage across the data sets measured above.
+- `--set-time` removes the timestamp column, which was between 2% and 11% of
+  the storage at the end of scanning across the data sets measured above.
 
 - `--set-owner`, `--set-group` and `--chmod=norm` remove or narrow the
   owner, group and mode columns. These are worth very little in practice,
