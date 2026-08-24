@@ -525,6 +525,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
   auto& files = size_buckets_store_[ix].second;
 
   if (is_new) {
+    assert(files.empty());
+
     // First large file of this size. It is unique with respect to all files
     // seen so far, so create an inode now and do not read file contents.
     files.push_back(p.id());
@@ -540,6 +542,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
 
     return;
   }
+
+  assert(files.size() <= 1);
 
   if (!files.empty()) {
     // This is the second large file of this size. Promote the previously
@@ -575,6 +579,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
   auto& files = start_hash_buckets_store_[ix].second;
 
   if (is_new) {
+    assert(files.empty());
+
     // A file (size, start_hash) that has never been seen before. We can safely
     // create a new inode, unless this file already got one when it was first
     // classified as unique-by-size.
@@ -593,6 +599,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
     return;
   }
+
+  assert(files.size() <= 1);
 
   // This file (size, start_hash) has been seen before, so this is potentially
   // a duplicate.
@@ -797,12 +805,13 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   std::ranges::sort(
       ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  for (auto const& [k, fv] : ent) {
+  for (auto&& [k, fv] : ent) {
     auto const expected = storage_.handle(fv.front()).hardlink_count();
     DWARFS_CHECK(fv.size() == expected,
                  fmt::format("internal error while finalizing {} files: "
                              "hardlink count mismatch ({} != {})",
                              name, fv.size(), expected));
+    fv.shrink_to_fit();
   }
 
   finalize_inodes<true>(ent, pair_inode_accessor{}, inode_num, obj_num, name);
@@ -816,28 +825,56 @@ void file_scanner_<LoggerPolicy>::finalize_files(by_digest_vec fmap,
                                                  uint32_t& obj_num) {
   auto tv = LOG_TIMED_VERBOSE;
 
-  std::vector<std::pair<char const*, file_id_vector*>> ent;
-  ent.reserve(fmap.size());
-  size_t digest_size{0};
+  // trim empty file_id_vectors from fmap
+  {
+    auto const tail = std::ranges::partition(
+        fmap, [](auto const& fv) { return !fv.empty(); });
+    fmap.resize(std::distance(fmap.begin(), tail.begin()));
+  }
 
-  for (auto&& fv : fmap) {
-    if (!fv.empty()) {
-      auto const digest = storage_.handle(fv.front()).digest();
-      ent.emplace_back(reinterpret_cast<char const*>(digest.data()), &fv);
-      digest_size = digest.size();
+  size_t const total_files = fmap.size();
+
+  if (total_files > 0) {
+    size_t const digest_size =
+        storage_.handle(fmap.front().front()).digest().size();
+    pair_ptr_inode_accessor accessor{digest_size};
+
+    // partition non-unique files before unique files
+    auto const unique = std::ranges::partition(fmap, [this](auto const& fv) {
+      return fv.size() > storage_.handle(fv.front()).hardlink_count();
+    });
+
+    auto sort_partition = [&](auto begin, auto end) {
+      std::vector<std::pair<char const*, file_id_vector*>> ent;
+      ent.reserve(std::distance(begin, end));
+
+      for (auto&& fv : std::ranges::subrange(begin, end)) {
+        auto const digest = storage_.handle(fv.front()).digest();
+        fv.shrink_to_fit();
+        ent.emplace_back(reinterpret_cast<char const*>(digest.data()), &fv);
+      }
+
+      std::ranges::sort(ent, [digest_size](auto& left, auto& right) {
+        return std::memcmp(left.first, right.first, digest_size) < 0;
+      });
+
+      return ent;
+    };
+
+    {
+      auto ent = sort_partition(unique.begin(), unique.end());
+      finalize_inodes<true>(ent, accessor, inode_num, obj_num, "digest");
+    }
+
+    fmap.resize(std::distance(fmap.begin(), unique.begin()));
+
+    {
+      auto ent = sort_partition(fmap.begin(), fmap.end());
+      finalize_inodes<false>(ent, accessor, inode_num, obj_num, "digest");
     }
   }
 
-  std::ranges::sort(ent, [digest_size](auto& left, auto& right) {
-    return std::memcmp(left.first, right.first, digest_size) < 0;
-  });
-
-  pair_ptr_inode_accessor accessor{digest_size};
-
-  finalize_inodes<true>(ent, accessor, inode_num, obj_num, "digest");
-  finalize_inodes<false>(ent, accessor, inode_num, obj_num, "digest");
-
-  tv << "finalized " << ent.size() << " files (by digest)";
+  tv << "finalized " << total_files << " files (by digest)";
 }
 
 template <typename LoggerPolicy>
@@ -851,35 +888,34 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
 
   auto tv = LOG_TIMED_VERBOSE;
 
-  for (auto& p : ent) {
+  for (auto&& p : ent) {
     auto& files = access.files(p);
 
-    if constexpr (Unique) {
-      DWARFS_CHECK(!files.empty(),
-                   fmt::format("internal error while finalizing {} inodes: "
-                               "empty files vector for key {}",
-                               key, access.key(p)));
+    DWARFS_CHECK(!files.empty(),
+                 fmt::format("internal error while finalizing {} inodes: "
+                             "empty files vector for key {}",
+                             key, access.key(p)));
 
-      // this is true regardless of how the files are ordered
-      if (files.size() > storage_.handle(files.front()).hardlink_count()) {
-        continue;
-      }
+    auto const nlink = storage_.handle(files.front()).hardlink_count();
+
+    if constexpr (Unique) {
+      DWARFS_CHECK(files.size() == nlink,
+                   fmt::format("internal error while finalizing {} inodes: "
+                               "non-unique files vector for key {}",
+                               key, access.key(p)));
 
       ++num_unique_;
     } else {
-      if (files.empty()) {
-        // This is fine: the !Unique version is *always* called after the Unique
-        // version, which will have moved the unique file vectors.
-        continue;
-      }
-
-      DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
+      DWARFS_CHECK(files.size() > nlink,
+                   fmt::format("internal error while finalizing {} inodes: "
+                               "unique files vector for key {}",
+                               key, access.key(p)));
 
       // needed for reproducibility
       storage_.sort_file_id_vector(files);
     }
 
-    for (auto fp : files) {
+    for (auto&& fp : files) {
       auto fh = storage_.handle(fp);
       // need to check because hardlinks share the same number
       if (!fh.inode_num()) {
@@ -890,10 +926,11 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
 
     auto fh = storage_.handle(files.front());
     auto inode = storage_.handle(fh.get_inode());
+
     assert(inode);
+
     inode.set_num(obj_num);
-    inode.set_files(files);
-    files.clear();
+    inode.set_files(std::move(files));
 
     ++obj_num;
   }
