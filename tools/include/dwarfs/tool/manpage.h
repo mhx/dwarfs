@@ -46,6 +46,7 @@ struct line {
   uint32_t indent_first;
   uint32_t indent_next;
   std::span<element const> elements;
+  bool no_wrap{false};
 };
 
 using document = std::span<line const>;

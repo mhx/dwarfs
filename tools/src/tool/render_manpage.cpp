@@ -26,12 +26,37 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
 #include <iterator>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+
+#if __has_include(<utf8cpp/utf8.h>)
+#include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
 
 #include <dwarfs/tool/render_manpage.h>
 
 namespace dwarfs::tool {
+
+namespace {
+
+size_t utf8_length(std::string_view sv) {
+  return static_cast<size_t>(utf8::distance(sv.begin(), sv.end()));
+}
+
+size_t utf8_offset(std::string_view sv, size_t n) {
+  auto it = sv.begin();
+  for (size_t i = 0; i < n && it != sv.end(); ++i) {
+    utf8::next(it, sv.end());
+  }
+  return static_cast<size_t>(std::distance(sv.begin(), it));
+}
+
+} // namespace
 
 std::string render_manpage(manpage::document const doc, size_t const width,
                            bool const color) {
@@ -47,54 +72,91 @@ std::string render_manpage(manpage::document const doc, size_t const width,
   std::string out;
   auto out_it = std::back_inserter(out);
 
-  for (auto const& l : doc) {
-    uint32_t indent = l.indent_first;
-    uint32_t column = indent;
-
+  auto const indent_line = [&out_it](uint32_t indent) {
     fmt::format_to(out_it, "{}", std::string(indent, ' '));
+  };
+
+  auto const break_line = [&out_it, &indent_line](uint32_t indent) {
+    fmt::format_to(out_it, "\n");
+    indent_line(indent);
+  };
+
+  static constexpr size_t min_text_width = 8;
+  size_t const max_indent =
+      effective_width - std::min(effective_width, min_text_width);
+  auto const clamp_indent = [max_indent](uint32_t i) {
+    return static_cast<uint32_t>(std::min<size_t>(i, max_indent));
+  };
+
+  for (auto const& l : doc) {
+    auto const indent_first = clamp_indent(l.indent_first);
+    auto const indent_next = clamp_indent(l.indent_next);
+
+    indent_line(indent_first);
+
+    if (l.no_wrap) {
+      for (auto const& e : l.elements) {
+        fmt::format_to(out_it, color ? e.style : fmt::text_style{}, "{}",
+                       e.text);
+      }
+      fmt::format_to(out_it, "\n");
+      continue;
+    }
+
+    uint32_t indent = indent_first;
+    size_t column = indent;
 
     for (size_t i = 0; i < l.elements.size(); ++i) {
-      auto e = l.elements[i];
-      auto* next = (i + 1 < l.elements.size()) ? &l.elements[i + 1] : nullptr;
+      auto const& e = l.elements[i];
+      auto const* next =
+          (i + 1 < l.elements.size()) ? &l.elements[i + 1] : nullptr;
       auto t = e.text;
       auto style = color ? e.style : fmt::text_style{};
+      auto len = utf8_length(t);
 
-      while (!t.empty() && column + t.size() > effective_width) {
-        auto wp = t.rfind(' ', effective_width - column);
-        auto const space_offset = wp == std::string_view::npos ? 0 : 1;
+      while (!t.empty() && column + len > effective_width) {
+        size_t const avail =
+            column < effective_width ? effective_width - column : 0;
+        size_t const limit = utf8_offset(t, avail);
+        auto wp = t.rfind(' ', limit);
+        size_t skip = 1;
 
-        if (wp == std::string_view::npos && column == indent) {
-          if (column < effective_width) {
-            wp = effective_width - column;
-          } else {
-            wp = 1;
+        if (wp == std::string_view::npos) {
+          if (column > indent) {
+            indent = indent_next;
+            break_line(indent);
+            column = indent;
+            continue;
           }
+
+          wp = limit > 0 ? limit : utf8_offset(t, 1);
+          skip = 0;
         }
 
-        if (wp != std::string_view::npos) {
-          fmt::format_to(out_it, style, "{}", t.substr(0, wp));
-          t = t.substr(wp + space_offset);
-        }
+        fmt::format_to(out_it, style, "{}", t.substr(0, wp));
+        t = t.substr(wp + skip);
+        len = utf8_length(t);
 
-        indent = l.indent_next;
-        fmt::format_to(out_it, "\n{}", std::string(indent, ' '));
+        indent = indent_next;
+        break_line(indent);
         column = indent;
       }
 
-      if (column + t.size() > effective_width) {
+      if (column + len > effective_width) {
         throw std::logic_error("line too long");
       }
 
-      if (column + t.size() == effective_width && next &&
+      if (column + len == effective_width && next != nullptr &&
           next->text.size() == 1 && punct.contains(next->text[0])) {
-        indent = l.indent_next;
-        fmt::format_to(out_it, "\n{}", std::string(indent, ' '));
+        indent = indent_next;
+        break_line(indent);
         column = indent;
       }
 
       fmt::format_to(out_it, style, "{}", t);
-      column += t.size();
+      column += len;
     }
+
     fmt::format_to(out_it, "\n");
   }
 
