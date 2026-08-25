@@ -22,8 +22,8 @@ RUN pacman -S --noconfirm --needed \
         make \
         bison \
         flex \
-        ruby-ronn \
-        python-mistletoe \
+        mandoc \
+        python-markdown-it-py \
         fuse \
         fuse3 \
         pkg-config \

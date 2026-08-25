@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM archlinux:latest@sha256:d0adc0bcc3bdfeacf9f30abd853c8d4d1dd40b6363e17cc158312a40423e063b
+FROM archlinux:latest@sha256:b860afd5823683f7ea389ba5f00d812f4fe55f6f286dea329d2abeefa535e309
 RUN pacman -Syu --noconfirm
 RUN pacman -S --noconfirm --needed \
         bash-completion \
@@ -13,7 +13,6 @@ RUN pacman -S --noconfirm --needed \
 RUN pacman -S --noconfirm --needed \
         gcc \
         clang \
-        man \
         git \
         zstd \
         ccache \
@@ -21,10 +20,10 @@ RUN pacman -S --noconfirm --needed \
         cmake \
         make \
         bison \
+        mandoc \
         bubblewrap \
         flex \
-        ruby-ronn \
-        python-mistletoe \
+        python-markdown-it-py \
         fuse \
         fuse3 \
         pkg-config \
