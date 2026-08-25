@@ -36,11 +36,11 @@ function(add_manpage_source markdown)
     set(_PYTHON_EXE "${Python3_EXECUTABLE}")
   endif()
 
-  set(_MANPAGE_GENERATOR "${CMAKE_SOURCE_DIR}/cmake/render_manpage.py")
+  set(_MANPAGE_GENERATOR "${CMAKE_SOURCE_DIR}/cmake/render_manpage_v2.py")
 
   add_custom_command(
     OUTPUT "${_MANPAGE_OUTPUT}"
-    COMMAND "${_PYTHON_EXE}" "${_MANPAGE_GENERATOR}"
+    COMMAND "${_PYTHON_EXE}" "${_MANPAGE_GENERATOR}" --strict --cpp --name
             "${_MANPAGE_NAME}" "${CMAKE_CURRENT_SOURCE_DIR}/${markdown}" "${_MANPAGE_OUTPUT}"
     DEPENDS "${markdown}" "${_MANPAGE_GENERATOR}"
   )
