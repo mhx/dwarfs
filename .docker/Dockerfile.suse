@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM opensuse/tumbleweed@sha256:fccacb3960b5e560ac8bdf096d1371ef412219aea7be2688dcc1fdc857788de7
+FROM opensuse/tumbleweed@sha256:7b1f198d8369fd18fd65f443ce05d65c4174146f02b4d9cbf1328a4475f0729b
 
 # Refresh & update the base. For Tumbleweed, a normal update is fine in a fresh image.
 RUN zypper -n refresh && zypper -n update
@@ -20,15 +20,14 @@ RUN zypper -n in --no-recommends \
     gcc \
     gcc-c++ \
     clang \
-    man \
     git \
     zstd \
     ccache \
     ninja \
     cmake \
     make \
-    ruby4.0-rubygem-ronn-ng \
-    python313-mistletoe \
+    python3-markdown-it-py \
+    mandoc \
     bubblewrap \
     fuse \
     fuse3 \
