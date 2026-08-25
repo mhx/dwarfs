@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM debian:latest@sha256:3352c2e13876c8a5c5873ef20870e1939e73cb9a3c1aeba5e3e72172a85ce9ed
+FROM debian:latest@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1
 RUN apt update && apt upgrade -y
 RUN apt install -y \
         bash-completion \
@@ -29,8 +29,9 @@ RUN apt install -y \
         ninja-build \
         cmake \
         make \
+        mandoc \
         bubblewrap \
-        ronn \
+        python3-markdown-it \
         fuse3 \
         pkg-config \
         binutils-dev \
@@ -63,8 +64,7 @@ RUN apt install -y \
         libutfcpp-dev \
         libflac++-dev \
         nlohmann-json3-dev \
-        xz-utils \
-        python3-mistletoe
+        xz-utils
 RUN useradd -g users -u 1000 -m mhx
 USER mhx
 ENTRYPOINT /workspace/.docker/build-linux.sh

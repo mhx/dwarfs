@@ -46,7 +46,7 @@ BLOATY
 }
 
 my $BASE_IMAGE = <<'BASEIMAGE';
-FROM alpine:edge@sha256:9a341ff2287c54b86425cbee0141114d811ae69d88a36019087be6d896cef241 AS base
+FROM alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000 AS base
 BASEIMAGE
 
 print <<ENDHEADER;
@@ -91,9 +91,11 @@ RUN apk add --no-cache \\
         make \\
         bison \\
         flex \\
-        ronn \\
+        flock \\
+        mandoc \\
         perf \\
         hyperfine \\
+        py3-markdown-it-py \\
         py3-pip \\
         py3-xxhash \\
         py3-zstd \\
@@ -106,6 +108,7 @@ RUN apk add --no-cache \\
         strace \\
         gdb \\
         gmp-dev \\
+        util-linux \\
         zlib-static \\
         zstd-static \\
         zlib-dev \\
@@ -237,13 +240,6 @@ ENDUPX
 }
 
 print <<ENDFINAL;
-
-RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
-
-# TODO: move these to the top once we rebuild the image
-RUN apk add --no-cache \\
-        flock \\
-        util-linux
 
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
