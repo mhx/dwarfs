@@ -551,8 +551,12 @@ def render_cpp(doc, name):
     out.append(f"constexpr std::array<line, {len(lines)}> const document_array{{{{\n")
     for line, (offset, count) in zip(lines, spans):
         span = f"{{elements.data() + {offset}, {count}}}" if count else "{}"
-        flag = ", true" if line.no_wrap else ""
-        out.append(f"    {{{line.indent_first}, {line.indent_next}, {span}{flag}}},\n")
+        extra = ""
+        if line.indent_first or line.indent_next or line.no_wrap:
+            extra += f", {line.indent_first}, {line.indent_next}"
+        if line.no_wrap:
+            extra += ", true"
+        out.append(f"    {{{span}{extra}}},\n")
     out.append("}};\n\n")
 
     out.append("} // namespace\n")
