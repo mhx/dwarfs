@@ -969,6 +969,16 @@ The things that help reduce memory usage are:
   first and `--recompress` with a more expensive one afterwards.
   See [Two-Pass Builds](#two-pass-builds) for details.
 
+- Don't compress metadata at all (`--metadata-compression=null`). The metadata
+  block can get quite large, up to several gigabytes when the input contains
+  100 million files or more. Not only does this use a lot of memory during
+  compression, it also prevents the metadata from simply being mapped into
+  memory when the file system is mounted. Instead, it has to be decompressed
+  and stored in memory, which is bad for both performance and memory usage.
+  Even uncompressed metadata is already packed quite well, so the savings
+  from compressing it are often not worth the cost in memory and performance,
+  especially with large numbers of files.
+
 - Use `--order=similarity` instead of the default `nilsimsa` ordering. This
   saves 28 bytes per unique file, which can be significant. It also generally
   faster, uses less memory for sorting, and usually costs relatively little
