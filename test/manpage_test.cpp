@@ -111,8 +111,9 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, manpage_render_test,
 namespace {
 
 std::regex const boost_po_option{R"(\n\s+(-(\w)\s+\[\s+)?--(\w[\w-]*\w))"};
-std::regex const manpage_option{R"(\n\s+(-(\w),\s+)?--(\w[\w-]*\w))"};
+std::regex const manpage_option{R"(\n\s{8}(-(\w),\s+)?--(\w[\w-]*\w))"};
 std::regex const fuse_option{R"(\n\s+-o\s+([\w()]+))"};
+std::regex const fuse_man_option{R"(\n\s{8}-o\s+([\w()]+))"};
 
 std::map<std::string, std::string>
 parse_options(std::string const& text, std::regex const& re, bool is_fuse) {
@@ -181,7 +182,7 @@ TEST_P(manpage_coverage_test, options) {
   auto help_opts = parse_options(
       help, tool.is_fuse ? fuse_option : boost_po_option, tool.is_fuse);
   auto man_opts = parse_options(
-      man, tool.is_fuse ? fuse_option : manpage_option, tool.is_fuse);
+      man, tool.is_fuse ? fuse_man_option : manpage_option, tool.is_fuse);
 
   if (tool.is_fuse) {
     man_opts.erase("allow_root");
