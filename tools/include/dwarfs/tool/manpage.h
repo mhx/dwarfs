@@ -43,9 +43,9 @@ struct element {
 };
 
 struct line {
-  uint32_t indent_first;
-  uint32_t indent_next;
-  std::span<element const> elements;
+  std::span<element const> elements{};
+  uint8_t indent_first{0};
+  uint8_t indent_next{0};
   bool no_wrap{false};
 };
 
