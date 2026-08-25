@@ -26,7 +26,13 @@
 
 function(add_manpage MANPAGE)
   if(DWARFS_GIT_BUILD)
-    find_program(RONN_EXE NAMES ronn DOC "ronn man page generator" REQUIRED)
+    find_program(_PYTHON_EXE NAMES python3 python)
+    if(NOT _PYTHON_EXE)
+      find_package(Python3 REQUIRED)
+      set(_PYTHON_EXE "${Python3_EXECUTABLE}")
+    endif()
+
+    find_program(_MANDOC_EXE NAMES mandoc)
   endif()
 
   if(NOT TARGET manpages)
@@ -40,29 +46,25 @@ function(add_manpage MANPAGE)
   set(_man_dir "")
 
   if(DWARFS_GIT_BUILD)
+    set(_man_generator "${CMAKE_SOURCE_DIR}/cmake/render_manpage_v2.py")
     set(_man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${_docname}.md")
-
-    execute_process(
-      COMMAND ${RONN_EXE}
-      INPUT_FILE "${_man_input}"
-      RESULT_VARIABLE _ronn_result
-      OUTPUT_VARIABLE _ronn_output
-      ERROR_VARIABLE _ronn_error)
-
-    if(${_ronn_result} EQUAL 0)
-      set(_man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${_section}")
-      set(_man_output "${_man_dir}/${MANPAGE}")
-      add_custom_command(
-        OUTPUT "${_man_output}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${_man_dir}"
-        COMMAND ${RONN_EXE} <"${_man_input}" >"${_man_output}"
-        DEPENDS "${_man_input}")
-      add_custom_target("_manpage_${_docname}_${_section}" DEPENDS "${_man_output}")
-      add_dependencies(manpages "_manpage_${_docname}_${_section}")
+    set(_man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${_section}")
+    set(_man_output "${_man_dir}/${MANPAGE}")
+    set(_mandoc_lint)
+    if(_MANDOC_EXE)
+      message(STATUS "mandoc linting enabled for ${MANPAGE}")
+      list(APPEND _mandoc_lint COMMAND "${_MANDOC_EXE}" -T lint -W all "${_man_output}")
     else()
-      message(WARNING "${RONN_EXE} failed to process ${_man_input} -> ${MANPAGE}")
-      message(WARNING "error: ${_ronn_error}")
+      message(WARNING "mandoc not found, skipping manpage linting for ${MANPAGE}")
     endif()
+    add_custom_command(
+      OUTPUT "${_man_output}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_man_dir}"
+      COMMAND "${_PYTHON_EXE}" "${_man_generator}" --strict --man "${_man_input}" "${_man_output}"
+      ${_mandoc_lint}
+      DEPENDS "${_man_generator}" "${_man_input}")
+    add_custom_target("_manpage_${_docname}_${_section}" DEPENDS "${_man_output}")
+    add_dependencies(manpages "_manpage_${_docname}_${_section}")
   else()
     set(_man_dir "${CMAKE_CURRENT_SOURCE_DIR}/doc/man${_section}")
   endif()

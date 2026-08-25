@@ -54,9 +54,9 @@ with a non-zero exit code.
   the file system image. This can be used to easily verify the file system
   image against local files, e.g.:
 
-```
-dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
-```
+  ```
+  dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
+  ```
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
@@ -86,13 +86,13 @@ dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
   `jq` tool to extract file system information, for example generate a
   list of all categories in a file system image:
 
-```
-$ dwarfsck image.dwarfs --no-check -j | jq -r '.categories | keys .[]'
-<default>
-incompressible
-pcmaudio/metadata
-pcmaudio/waveform
-```
+  ```
+  $ dwarfsck image.dwarfs --no-check -j | jq -r '.categories | keys .[]'
+  <default>
+  incompressible
+  pcmaudio/metadata
+  pcmaudio/waveform
+  ```
 
 - `--export-metadata=`*file*:
   Export all filesystem metadata to *file* in JSON format. Write to stdout
