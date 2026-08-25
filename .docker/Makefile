@@ -128,5 +128,4 @@ _update_base_images:
 		Dockerfile.fedora \
 		Dockerfile.suse \
 		Dockerfile.ubuntu \
-		Dockerfile.ubuntu-2204 \
 		Dockerfile.ubuntu-2404
