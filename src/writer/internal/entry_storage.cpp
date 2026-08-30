@@ -39,12 +39,12 @@
 #include <dwarfs/container/packed_value_traits_optional.h>
 #include <dwarfs/container/pinned_byte_span_store.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/container/stable_jagged_vector.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/inode_fragments.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -2032,7 +2032,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
   fs::path get_path(entry_id id) const override {
     TRACE_CALL;
 
-    small_vector<entry_id, 64> components;
+    container::small_vector<entry_id, 64> components;
 
     fill_path_components(id, components);
 
@@ -2049,7 +2049,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     bool const is_dir = id.is_dir();
     std::string p;
 
-    small_vector<entry_id, 64> components;
+    container::small_vector<entry_id, 64> components;
 
     fill_path_components(id, components);
 

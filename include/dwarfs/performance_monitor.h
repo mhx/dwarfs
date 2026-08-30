@@ -41,7 +41,7 @@
 #include <unordered_set>
 
 #include <dwarfs/config.h>
-#include <dwarfs/small_vector.h>
+#include <dwarfs/container/small_vector.h>
 
 namespace dwarfs {
 
@@ -111,8 +111,8 @@ class performance_monitor_proxy {
     performance_monitor const* mon_{nullptr};
     performance_monitor::timer_id id_{performance_monitor::kInvalidTimerId};
     performance_monitor::time_type start_;
-    std::optional<
-        small_vector<uint64_t, performance_monitor::kNumInlineContext>>
+    std::optional<container::small_vector<
+        uint64_t, performance_monitor::kNumInlineContext>>
         context_;
   };
 

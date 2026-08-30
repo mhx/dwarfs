@@ -24,8 +24,8 @@
 #include <fmt/format.h>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/writer/internal/entry_handle.h>
@@ -273,7 +273,7 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
       }
     }
 
-    small_vector<std::byte, 64> buffer(cs.digest_size());
+    container::small_vector<std::byte, 64> buffer(cs.digest_size());
 
     DWARFS_CHECK(cs.finalize(buffer.data()), "checksum computation failed");
 
