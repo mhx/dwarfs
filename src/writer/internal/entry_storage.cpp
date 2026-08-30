@@ -34,13 +34,13 @@
 #include <dwarfs/config.h>
 #include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/container/compact_packed_int_vector.h>
+#include <dwarfs/container/dense_value_index.h>
 #include <dwarfs/container/map_utils.h>
 #include <dwarfs/container/packed_value_traits_optional.h>
 #include <dwarfs/container/pinned_byte_span_store.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
 #include <dwarfs/container/stable_jagged_vector.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/dense_value_index.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
@@ -295,7 +295,7 @@ using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
 template <typename T>
 struct flat_cao_dense_value_index_policy_base {
   using store_type = cao_vector<T>;
-  using hash_type = default_value_hash<T>;
+  using hash_type = container::default_value_hash<T>;
   using equal_type = std::equal_to<>;
 };
 
@@ -315,17 +315,16 @@ struct parallel_flat_cao_dense_value_index_policy
 
 template <typename T>
 using flat_cao_index =
-    dwarfs::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
+    container::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
 
 template <typename T>
-using parallel_flat_cao_index =
-    dwarfs::basic_dense_value_index<T,
-                                    parallel_flat_cao_dense_value_index_policy>;
+using parallel_flat_cao_index = container::basic_dense_value_index<
+    T, parallel_flat_cao_dense_value_index_policy>;
 
 template <typename T>
 struct flat_std_dense_value_index_policy {
   using store_type = std::vector<T>;
-  using hash_type = default_value_hash<T>;
+  using hash_type = container::default_value_hash<T>;
   using equal_type = std::equal_to<>;
 
   template <typename Hash, typename Equal>
@@ -334,7 +333,7 @@ struct flat_std_dense_value_index_policy {
 
 template <typename T>
 using flat_std_index =
-    dwarfs::basic_dense_value_index<T, flat_std_dense_value_index_policy>;
+    container::basic_dense_value_index<T, flat_std_dense_value_index_policy>;
 
 template <typename T>
 using stable_string_vector =
@@ -343,7 +342,7 @@ using stable_string_vector =
 template <typename T>
 struct parallel_flat_string_dense_value_index_policy {
   using store_type = stable_string_vector<T>;
-  using hash_type = default_value_hash<T>;
+  using hash_type = container::default_value_hash<T>;
   using equal_type = std::equal_to<>;
 
   template <typename Hash, typename Equal>
@@ -351,7 +350,7 @@ struct parallel_flat_string_dense_value_index_policy {
 };
 
 template <typename T>
-using parallel_flat_string_index = dwarfs::basic_dense_value_index<
+using parallel_flat_string_index = container::basic_dense_value_index<
     T, parallel_flat_string_dense_value_index_policy>;
 
 template <std::size_t ChunkSize>
@@ -370,7 +369,7 @@ struct pinned_byte_span_index_policy_holder {
 };
 
 template <std::size_t ChunkSize>
-using flat_pinned_byte_span_index = dwarfs::basic_dense_value_index<
+using flat_pinned_byte_span_index = container::basic_dense_value_index<
     std::span<std::byte const>,
     pinned_byte_span_index_policy_holder<ChunkSize>::template policy>;
 

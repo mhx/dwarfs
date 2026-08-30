@@ -38,10 +38,10 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/dense_index_hash.h>
-#include <dwarfs/detail/dense_index_core.h>
+#include <dwarfs/container/dense_index_hash.h>
+#include <dwarfs/container/detail/dense_index_core.h>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 template <typename T>
 struct dense_map_index_policy_base {
@@ -194,4 +194,4 @@ template <typename Key, typename Value>
 using dense_map_index =
     basic_dense_map_index<Key, Value, std_dense_map_index_policy>;
 
-} // namespace dwarfs
+} // namespace dwarfs::container
