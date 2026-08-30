@@ -57,7 +57,7 @@ using seg_packed_vec = segmented_packed_int_vector<value_type>;
 // - tup16: large tuple, shared underlying type (uint16_t); this is where
 //   the per-access field-offset cost is most visible
 // - tupmix: mixed field types, forcing the storage selector onto the
-//   uint8_t underlying-type fallback (different bit_view path)
+//   uint8_t underlying-type fallback (different container::bit_view path)
 using tup2 = std::tuple<uint32_t, uint32_t>;
 using tup16 =
     std::tuple<uint16_t, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t,
