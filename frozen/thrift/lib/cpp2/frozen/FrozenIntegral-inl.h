@@ -55,7 +55,7 @@ struct PackedIntegerLayout : public LayoutBase {
     if (!bits) {
       return;
     }
-    dwarfs::bit_view(self.start).write({self.bitOffset, bits}, x);
+    dwarfs::container::bit_view(self.start).write({self.bitOffset, bits}, x);
   }
 
   void thaw(ViewPosition self, T& out) const {
@@ -63,7 +63,8 @@ struct PackedIntegerLayout : public LayoutBase {
       out = 0;
       return;
     }
-    out = dwarfs::bit_view(self.start).template read<T>({self.bitOffset, bits});
+    out = dwarfs::container::bit_view(self.start)
+              .template read<T>({self.bitOffset, bits});
   }
 
   std::string_view type_name() const override {

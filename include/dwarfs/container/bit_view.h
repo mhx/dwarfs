@@ -38,9 +38,9 @@
 #include <type_traits>
 #include <utility>
 
-#include <dwarfs/endian.h>
+#include <dwarfs/container/endian.h>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 struct bit_range {
   std::size_t bit_offset{};
@@ -309,4 +309,4 @@ const_bit_view(Storage const* p) noexcept -> bit_view<Storage const> {
   return bit_view<Storage const>(p);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::container

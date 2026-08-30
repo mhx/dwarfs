@@ -41,8 +41,8 @@
 #include <fmt/ostream.h>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/endian.h>
 #include <dwarfs/container/sorted_array_map.h>
-#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/categorizer.h>
@@ -347,7 +347,7 @@ class iff_parser final {
       c.emplace();
 
       DWARFS_CHECK(read(c->header, pos_), "iff_parser::read failed");
-      c->header.size = convert<ChunkPolicy::endian>(c->header.size);
+      c->header.size = container::convert<ChunkPolicy::endian>(c->header.size);
       c->pos = pos_;
 
       ChunkPolicy::preprocess(*c, mm_);
@@ -625,7 +625,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
     return false;
   }
 
-  file_header.size = convert<std::endian::big>(file_header.size);
+  file_header.size = container::convert<std::endian::big>(file_header.size);
 
   parser.check_size("file", file_header.size,
                     mm.size() - offsetof(file_hdr_t, form));
@@ -653,10 +653,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       meta.sample_endianness = std::endian::big;
       meta.sample_signedness = signedness::SIGNED;
       meta.sample_padding = padding::LSB;
-      meta.bits_per_sample = convert<std::endian::big>(comm.sample_size);
+      meta.bits_per_sample =
+          container::convert<std::endian::big>(comm.sample_size);
       meta.bytes_per_sample = (meta.bits_per_sample + 7) / 8;
-      meta.number_of_channels = convert<std::endian::big>(comm.num_chan);
-      num_sample_frames = convert<std::endian::big>(comm.num_sample_frames);
+      meta.number_of_channels =
+          container::convert<std::endian::big>(comm.num_chan);
+      num_sample_frames =
+          container::convert<std::endian::big>(comm.num_sample_frames);
 
       meta_valid = check_metadata(meta, "AIFF", path);
 
@@ -675,8 +678,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
-      ssnd.offset = convert<std::endian::big>(ssnd.offset);
-      ssnd.block_size = convert<std::endian::big>(ssnd.block_size);
+      ssnd.offset = container::convert<std::endian::big>(ssnd.offset);
+      ssnd.block_size = container::convert<std::endian::big>(ssnd.block_size);
 
       file_off_t pcm_start =
           chunk->pos + sizeof(chunk_hdr_t) + sizeof(ssnd) + ssnd.offset;
@@ -766,8 +769,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     return false;
   }
 
-  caff_hdr.version = convert<std::endian::big>(caff_hdr.version);
-  caff_hdr.flags = convert<std::endian::big>(caff_hdr.flags);
+  caff_hdr.version = container::convert<std::endian::big>(caff_hdr.version);
+  caff_hdr.flags = container::convert<std::endian::big>(caff_hdr.flags);
 
   if (caff_hdr.version != 1 || caff_hdr.flags != 0) {
     LOG_WARN << "[CAF] " << path
@@ -802,7 +805,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.format_flags = convert<std::endian::big>(fmt.format_flags);
+      fmt.format_flags = container::convert<std::endian::big>(fmt.format_flags);
 
       if (fmt.format_flags & kCAFLinearPCMFormatFlagIsFloat) {
         LOG_VERBOSE << "[CAF] " << path
@@ -810,7 +813,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.frames_per_packet = convert<std::endian::big>(fmt.frames_per_packet);
+      fmt.frames_per_packet =
+          container::convert<std::endian::big>(fmt.frames_per_packet);
 
       if (fmt.frames_per_packet != 1) {
         LOG_WARN << "[CAF] " << path << ": unsupported frames per packet: "
@@ -818,7 +822,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      fmt.bytes_per_packet = convert<std::endian::big>(fmt.bytes_per_packet);
+      fmt.bytes_per_packet =
+          container::convert<std::endian::big>(fmt.bytes_per_packet);
 
       meta.sample_endianness =
           (fmt.format_flags & kCAFLinearPCMFormatFlagIsLittleEndian)
@@ -826,9 +831,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
               : std::endian::big;
       meta.sample_signedness = signedness::SIGNED;
       meta.sample_padding = padding::LSB;
-      meta.bits_per_sample = convert<std::endian::big>(fmt.bits_per_channel);
+      meta.bits_per_sample =
+          container::convert<std::endian::big>(fmt.bits_per_channel);
       meta.number_of_channels =
-          convert<std::endian::big>(fmt.channels_per_frame);
+          container::convert<std::endian::big>(fmt.channels_per_frame);
 
       if (fmt.bytes_per_packet == 0) {
         LOG_WARN << "[CAF] " << path << ": bytes per packet must not be zero";
@@ -952,7 +958,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     return false;
   }
 
-  file_header.size = convert<std::endian::little>(file_header.size);
+  file_header.size = container::convert<std::endian::little>(file_header.size);
 
   if (file_header.form_sv() != FormatPolicy::wave_id) {
     return false;
@@ -995,13 +1001,18 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         return false;
       }
 
-      fmt.format_code = convert<std::endian::little>(fmt.format_code);
-      fmt.num_channels = convert<std::endian::little>(fmt.num_channels);
-      fmt.samples_per_sec = convert<std::endian::little>(fmt.samples_per_sec);
+      fmt.format_code =
+          container::convert<std::endian::little>(fmt.format_code);
+      fmt.num_channels =
+          container::convert<std::endian::little>(fmt.num_channels);
+      fmt.samples_per_sec =
+          container::convert<std::endian::little>(fmt.samples_per_sec);
       fmt.avg_bytes_per_sec =
-          convert<std::endian::little>(fmt.avg_bytes_per_sec);
-      fmt.block_align = convert<std::endian::little>(fmt.block_align);
-      fmt.bits_per_sample = convert<std::endian::little>(fmt.bits_per_sample);
+          container::convert<std::endian::little>(fmt.avg_bytes_per_sec);
+      fmt.block_align =
+          container::convert<std::endian::little>(fmt.block_align);
+      fmt.bits_per_sample =
+          container::convert<std::endian::little>(fmt.bits_per_sample);
 
       bool const is_extensible =
           chunk->size() == 40 &&
@@ -1009,8 +1020,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
 
       if (is_extensible) {
         fmt.valid_bits_per_sample =
-            convert<std::endian::little>(fmt.valid_bits_per_sample);
-        fmt.sub_format_code = convert<std::endian::little>(fmt.sub_format_code);
+            container::convert<std::endian::little>(fmt.valid_bits_per_sample);
+        fmt.sub_format_code =
+            container::convert<std::endian::little>(fmt.sub_format_code);
       } else {
         fmt.sub_format_code = 0;
       }
