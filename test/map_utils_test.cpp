@@ -37,13 +37,13 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/container/map_utils.h>
-#include <dwarfs/detail/string_like_hash.h>
+#include <dwarfs/container/string_like_hash.h>
 
 namespace {
 
 using namespace dwarfs::container;
 using namespace std::string_view_literals;
-using dwarfs::detail::string_like_hash;
+using dwarfs::container::string_like_hash;
 using ::testing::Eq;
 using ::testing::Optional;
 

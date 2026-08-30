@@ -37,7 +37,7 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/container/chunked_append_only_vector.h>
-#include <dwarfs/dense_map_index.h>
+#include <dwarfs/container/dense_map_index.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
@@ -65,7 +65,7 @@ template <typename T>
 struct flat_cao_map_index_policy {
   using key_type = typename T::first_type;
   using store_type = container::chunked_append_only_vector<T>;
-  using hash_type = default_value_hash<key_type>;
+  using hash_type = container::default_value_hash<key_type>;
   using equal_type = std::equal_to<>;
   template <typename Hash, typename Equal>
   using index_type = phmap::parallel_flat_hash_set<std::uint32_t, Hash, Equal>;
@@ -129,7 +129,8 @@ class file_scanner_ final : public file_scanner::impl {
 
   template <typename Key>
   using dense_cao_map_index =
-      basic_dense_map_index<Key, file_id_vector, flat_cao_map_index_policy>;
+      container::basic_dense_map_index<Key, file_id_vector,
+                                       flat_cao_map_index_policy>;
 
   void scan_dedupe(file_handle p, file_size_info size_info);
   void scan_dedupe_after_start_hash(file_handle p, file_size_info size_info,

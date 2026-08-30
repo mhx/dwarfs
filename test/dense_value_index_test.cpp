@@ -37,12 +37,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/dense_value_index.h>
+#include <dwarfs/container/dense_value_index.h>
 #include <dwarfs/internal/flat_dense_value_index.h>
 
 #include "dense_index_test_helpers.h"
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 using namespace dwarfs::test;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -107,9 +107,9 @@ struct view_store_policy {
 
 } // namespace
 
-using tested_policy_wrappers =
-    ::testing::Types<policy_wrapper<std_dense_value_index_policy>,
-                     policy_wrapper<internal::flat_dense_value_index_policy>>;
+using tested_policy_wrappers = ::testing::Types<
+    policy_wrapper<std_dense_value_index_policy>,
+    policy_wrapper<dwarfs::internal::flat_dense_value_index_policy>>;
 
 template <typename PolicyWrapper>
 class dense_value_index_string_policy_test : public ::testing::Test {
@@ -573,7 +573,7 @@ TEST(dense_value_index_alias_test, convenience_alias_uses_the_std_policy) {
 TEST(dense_value_index_capacity_test,
      index_capacity_in_bytes_tracks_index_capacity) {
   std::vector<std::string> store;
-  internal::flat_dense_value_index<std::string> index{store};
+  dwarfs::internal::flat_dense_value_index<std::string> index{store};
 
   index.reserve(1024);
   auto const reserved = index.index_capacity_in_bytes();

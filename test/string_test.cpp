@@ -30,7 +30,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <dwarfs/detail/string_like_hash.h>
+#include <dwarfs/container/string_like_hash.h>
 #include <dwarfs/string.h>
 
 using namespace dwarfs;
@@ -59,7 +59,8 @@ TEST(string, split_to) {
 }
 
 TEST(string, string_like_hash) {
-  std::unordered_set<std::string, detail::string_like_hash, std::equal_to<>> s;
+  std::unordered_set<std::string, container::string_like_hash, std::equal_to<>>
+      s;
 
   s.emplace("abc");
   s.emplace("def"s);

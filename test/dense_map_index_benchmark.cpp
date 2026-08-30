@@ -41,13 +41,13 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/container/chunked_append_only_vector.h>
-#include <dwarfs/dense_map_index.h>
+#include <dwarfs/container/dense_map_index.h>
 
 namespace {
 
-using dwarfs::basic_dense_map_index;
-using dwarfs::default_value_hash;
+using dwarfs::container::basic_dense_map_index;
 using dwarfs::container::chunked_append_only_vector;
+using dwarfs::container::default_value_hash;
 
 // Store / index policy matrix
 
