@@ -35,12 +35,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/dense_map_index.h>
+#include <dwarfs/container/dense_map_index.h>
 #include <dwarfs/internal/flat_dense_map_index.h>
 
 #include "dense_index_test_helpers.h"
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 using namespace dwarfs::test;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -147,9 +147,9 @@ struct key_probe_policy : dense_map_index_policy_base<T> {
 
 } // namespace
 
-using tested_policy_wrappers =
-    ::testing::Types<policy_wrapper<std_dense_map_index_policy>,
-                     policy_wrapper<internal::flat_dense_map_index_policy>>;
+using tested_policy_wrappers = ::testing::Types<
+    policy_wrapper<std_dense_map_index_policy>,
+    policy_wrapper<dwarfs::internal::flat_dense_map_index_policy>>;
 
 template <typename PolicyWrapper>
 class dense_map_index_test : public ::testing::Test {
@@ -537,7 +537,7 @@ TEST(dense_map_index_alias_test, convenience_alias_uses_the_std_policy) {
 TEST(dense_map_index_capacity_test,
      index_capacity_in_bytes_tracks_index_capacity) {
   std::vector<std::pair<std::string, int>> store;
-  internal::flat_dense_map_index<std::string, int> index{store};
+  dwarfs::internal::flat_dense_map_index<std::string, int> index{store};
 
   index.reserve(1024);
 
