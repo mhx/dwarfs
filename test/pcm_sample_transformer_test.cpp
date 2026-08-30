@@ -25,10 +25,11 @@
 
 #include <vector>
 
-#include <dwarfs/endian.h>
+#include <dwarfs/container/endian.h>
 #include <dwarfs/pcm_sample_transformer.h>
 
 using namespace dwarfs;
+using namespace dwarfs::container;
 
 TEST(pcm_sample_transformer, uint8_8bit) {
   std::vector<uint8_t> packed{0, 1, 42, 254, 255};

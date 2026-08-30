@@ -28,7 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <dwarfs/endian.h>
+#include <dwarfs/boxed_endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/small_vector.h>
@@ -118,8 +118,8 @@ struct minimal_elf_header {
   uint64_t key() const {
     auto const byte_order =
         e_ident[MINELF_EI_DATA] == 2 ? std::endian::big : std::endian::little;
-    auto const type = convert_endian(byte_order, e_type);
-    auto const machine = convert_endian(byte_order, e_machine);
+    auto const type = container::convert_endian(byte_order, e_type);
+    auto const machine = container::convert_endian(byte_order, e_machine);
 
     return static_cast<uint64_t>(e_ident[MINELF_EI_CLASS]) << 56 |
            static_cast<uint64_t>(e_ident[MINELF_EI_DATA]) << 48 |
@@ -235,9 +235,9 @@ struct minimal_macho_thin_header {
                                 ? std::endian::big
                                 : std::endian::little;
     bool const kIs64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64;
-    auto const cputype = convert_endian(byte_order, cpu_type);
-    auto const subtype = convert_endian(byte_order, cpu_subtype);
-    auto const filetype = convert_endian(byte_order, file_type);
+    auto const cputype = container::convert_endian(byte_order, cpu_type);
+    auto const subtype = container::convert_endian(byte_order, cpu_subtype);
+    auto const filetype = container::convert_endian(byte_order, file_type);
     return (byte_order == std::endian::big ? 1ULL << 63 : 0ULL) |
            (kIs64Bit ? 1ULL << 62 : 0ULL) |
            ((static_cast<uint64_t>(filetype) & ((1ULL << 20) - 1)) << 40) |

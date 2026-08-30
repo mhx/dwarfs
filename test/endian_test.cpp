@@ -30,11 +30,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/endian.h>
+#include <dwarfs/boxed_endian.h>
+#include <dwarfs/container/endian.h>
 
 namespace {
 
 using namespace dwarfs;
+using namespace dwarfs::container;
 
 template <class T>
 consteval auto sample_u() -> std::make_unsigned_t<T> {
@@ -105,56 +107,48 @@ constexpr auto bit_cast_array(T x) {
 
 } // namespace
 
-static_assert(noexcept(dwarfs::convert<std::endian::little>(std::uint32_t{0})));
-static_assert(noexcept(dwarfs::convert_endian(std::endian::little,
-                                              std::uint32_t{0})));
+static_assert(noexcept(convert<std::endian::little>(std::uint32_t{0})));
+static_assert(noexcept(convert_endian(std::endian::little, std::uint32_t{0})));
 
-static_assert(dwarfs::convert<std::endian::little>(std::uint32_t{1}) ==
+static_assert(convert<std::endian::little>(std::uint32_t{1}) ==
               std::bit_cast<std::uint32_t>(std::array<std::uint8_t, 4>{
                   0x01, 0x00, 0x00, 0x00}));
 
-static_assert(dwarfs::convert_endian(std::endian::little, std::uint32_t{1}) ==
+static_assert(convert_endian(std::endian::little, std::uint32_t{1}) ==
               std::bit_cast<std::uint32_t>(std::array<std::uint8_t, 4>{
                   0x01, 0x00, 0x00, 0x00}));
 
-static_assert(dwarfs::convert<std::endian::big>(std::uint32_t{1}) ==
+static_assert(convert<std::endian::big>(std::uint32_t{1}) ==
               std::bit_cast<std::uint32_t>(std::array<std::uint8_t, 4>{
                   0x00, 0x00, 0x00, 0x01}));
 
-static_assert(dwarfs::convert_endian(std::endian::big, std::uint32_t{1}) ==
+static_assert(convert_endian(std::endian::big, std::uint32_t{1}) ==
               std::bit_cast<std::uint32_t>(std::array<std::uint8_t, 4>{
                   0x00, 0x00, 0x00, 0x01}));
 
-static_assert(
-    dwarfs::convert<std::endian::little>(sample_value<std::uint16_t>()) ==
-    expected_converted_value<std::endian::little, std::uint16_t>());
-static_assert(
-    dwarfs::convert<std::endian::big>(sample_value<std::uint16_t>()) ==
-    expected_converted_value<std::endian::big, std::uint16_t>());
+static_assert(convert<std::endian::little>(sample_value<std::uint16_t>()) ==
+              expected_converted_value<std::endian::little, std::uint16_t>());
+static_assert(convert<std::endian::big>(sample_value<std::uint16_t>()) ==
+              expected_converted_value<std::endian::big, std::uint16_t>());
 
-static_assert(
-    dwarfs::convert<std::endian::little>(sample_value<std::uint32_t>()) ==
-    expected_converted_value<std::endian::little, std::uint32_t>());
-static_assert(
-    dwarfs::convert<std::endian::big>(sample_value<std::uint32_t>()) ==
-    expected_converted_value<std::endian::big, std::uint32_t>());
+static_assert(convert<std::endian::little>(sample_value<std::uint32_t>()) ==
+              expected_converted_value<std::endian::little, std::uint32_t>());
+static_assert(convert<std::endian::big>(sample_value<std::uint32_t>()) ==
+              expected_converted_value<std::endian::big, std::uint32_t>());
 
-static_assert(
-    dwarfs::convert<std::endian::little>(sample_value<std::uint64_t>()) ==
-    expected_converted_value<std::endian::little, std::uint64_t>());
-static_assert(
-    dwarfs::convert<std::endian::big>(sample_value<std::uint64_t>()) ==
-    expected_converted_value<std::endian::big, std::uint64_t>());
+static_assert(convert<std::endian::little>(sample_value<std::uint64_t>()) ==
+              expected_converted_value<std::endian::little, std::uint64_t>());
+static_assert(convert<std::endian::big>(sample_value<std::uint64_t>()) ==
+              expected_converted_value<std::endian::big, std::uint64_t>());
 
-static_assert(
-    dwarfs::convert<std::endian::little>(sample_value<std::int32_t>()) ==
-    expected_converted_value<std::endian::little, std::int32_t>());
-static_assert(dwarfs::convert<std::endian::big>(sample_value<std::int32_t>()) ==
+static_assert(convert<std::endian::little>(sample_value<std::int32_t>()) ==
+              expected_converted_value<std::endian::little, std::int32_t>());
+static_assert(convert<std::endian::big>(sample_value<std::int32_t>()) ==
               expected_converted_value<std::endian::big, std::int32_t>());
 
 static_assert([] {
   constexpr std::uint32_t v = 0x11223344u;
-  constexpr dwarfs::uint32be_t x{v};
+  constexpr uint32be_t x{v};
 
   static_assert(sizeof(x) == sizeof(std::uint32_t));
   static_assert(std::is_trivially_copyable_v<decltype(x)>);
@@ -168,8 +162,8 @@ static_assert([] {
   static_assert(x.load() == v);
 
   // assignment + comparisons
-  dwarfs::uint32be_t a{1};
-  dwarfs::uint32be_t b{2};
+  uint32be_t a{1};
+  uint32be_t b{2};
   a = 3;
 
   return static_cast<std::uint32_t>(a) == 3 && (b < a) &&
@@ -210,8 +204,8 @@ TYPED_TEST(convert_test, converts_to_expected_bit_pattern_value) {
   constexpr auto endian = TypeParam::endian;
 
   TT const v = sample_value<TT>();
-  TT const actual = dwarfs::convert<endian>(v);
-  TT const actual2 = dwarfs::convert_endian(endian, v);
+  TT const actual = convert<endian>(v);
+  TT const actual2 = convert_endian(endian, v);
 
   TT const expected = expected_converted_value<endian, TT>();
   EXPECT_EQ(actual, expected);
@@ -226,7 +220,7 @@ template <class T, std::endian Endian>
 struct boxed_param {
   using value_type = T;
   static constexpr std::endian endian = Endian;
-  using boxed_type = dwarfs::boxed_endian<T, Endian>;
+  using boxed_type = boxed_endian<T, Endian>;
 };
 
 template <class Param>

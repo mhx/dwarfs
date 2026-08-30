@@ -38,7 +38,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_decompressor.h>
-#include <dwarfs/endian.h>
+#include <dwarfs/container/endian.h>
 #include <dwarfs/malloc_byte_buffer.h>
 
 using namespace dwarfs;
@@ -58,7 +58,7 @@ generate_random_data(std::mt19937_64& rng, size_t count,
                                           << unused_lsb_count);
   std::ranges::generate(data, [&]() {
     auto v = dist(rng) == 0 ? full(rng) : noise(rng);
-    return convert<std::endian::big, ValueType>(v & mask);
+    return container::convert<std::endian::big, ValueType>(v & mask);
   });
   return data;
 }
@@ -71,7 +71,8 @@ shared_byte_buffer make_test_data(int components, int pixels, int unused_lsb) {
   std::vector<std::vector<ValueType>> data(components);
 
   auto random_value = [&]() {
-    return convert<std::endian::big, ValueType>(any_value(rng) << unused_lsb);
+    return container::convert<std::endian::big, ValueType>(any_value(rng)
+                                                           << unused_lsb);
   };
 
   for (auto& d : data) {
