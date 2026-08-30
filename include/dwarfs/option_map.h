@@ -35,8 +35,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <dwarfs/container/string_like_hash.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/detail/string_like_hash.h>
 
 namespace dwarfs {
 
@@ -180,9 +180,9 @@ class option_map {
   void check_consumed(std::string_view key);
 
   std::unordered_map<std::string, std::optional<std::string>,
-                     detail::string_like_hash, std::equal_to<>>
+                     container::string_like_hash, std::equal_to<>>
       opt_;
-  std::unordered_set<std::string, detail::string_like_hash, std::equal_to<>>
+  std::unordered_set<std::string, container::string_like_hash, std::equal_to<>>
       consumed_keys_;
   std::string choice_;
 };

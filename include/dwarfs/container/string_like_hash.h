@@ -28,30 +28,26 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <string>
+#include <string_view>
 
-#include <boost/container_hash/hash.hpp>
-
-#include <dwarfs/detail/string_like_hash.h>
-
-namespace dwarfs {
+namespace dwarfs::container {
 
 template <typename T>
-struct default_value_hash : std::hash<T> {};
+struct basic_string_like_hash;
 
 template <typename Char, typename Traits, typename Alloc>
-struct default_value_hash<std::basic_string<Char, Traits, Alloc>>
-    : detail::basic_string_like_hash<std::basic_string<Char, Traits, Alloc>> {};
+struct basic_string_like_hash<std::basic_string<Char, Traits, Alloc>> {
+  using string_view_type = std::basic_string_view<Char, Traits>;
+  using is_transparent = void;
 
-template <typename A, typename B>
-struct default_value_hash<std::pair<A, B>> {
-  std::size_t operator()(std::pair<A, B> const& p) const {
-    std::size_t seed = 0;
-    boost::hash_combine(seed, default_value_hash<A>()(p.first));
-    boost::hash_combine(seed, default_value_hash<B>()(p.second));
-    return seed;
+  [[nodiscard]] size_t operator()(string_view_type txt) const noexcept {
+    return std::hash<string_view_type>{}(txt);
   }
 };
 
-} // namespace dwarfs
+using string_like_hash = basic_string_like_hash<std::string>;
+
+} // namespace dwarfs::container

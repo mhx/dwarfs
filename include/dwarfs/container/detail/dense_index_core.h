@@ -40,7 +40,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace dwarfs::detail {
+namespace dwarfs::container::detail {
 
 struct identity_key_projection {
   template <typename U>
@@ -406,4 +406,4 @@ class dense_index_core {
   index_set_type index_;
 };
 
-} // namespace dwarfs::detail
+} // namespace dwarfs::container::detail

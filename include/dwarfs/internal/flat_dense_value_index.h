@@ -32,18 +32,19 @@
 
 #include <parallel_hashmap/phmap.h>
 
-#include <dwarfs/dense_value_index.h>
+#include <dwarfs/container/dense_value_index.h>
 
 namespace dwarfs::internal {
 
 template <typename T>
-struct flat_dense_value_index_policy : dense_value_index_policy_base<T> {
+struct flat_dense_value_index_policy
+    : container::dense_value_index_policy_base<T> {
   template <typename Hash, typename Equal>
   using index_type = phmap::flat_hash_set<std::size_t, Hash, Equal>;
 };
 
 template <typename T>
 using flat_dense_value_index =
-    basic_dense_value_index<T, flat_dense_value_index_policy>;
+    container::basic_dense_value_index<T, flat_dense_value_index_policy>;
 
 } // namespace dwarfs::internal
