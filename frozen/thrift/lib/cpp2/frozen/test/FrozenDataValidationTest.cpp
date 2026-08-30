@@ -204,7 +204,7 @@ void writeField(
       (parent.byteOffset + static_cast<size_t>(field.pos.offset)) * 8 +
       parent.bitOffset + static_cast<size_t>(field.pos.bitOffset);
   const auto bits = field.layout.size != 0 ? sizeof(T) * 8 : field.layout.bits;
-  dwarfs::bit_view(reinterpret_cast<byte*>(data.data()))
+  dwarfs::container::bit_view(reinterpret_cast<byte*>(data.data()))
       .write({bitOffset, bits}, value);
 }
 

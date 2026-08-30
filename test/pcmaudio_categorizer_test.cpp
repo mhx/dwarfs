@@ -30,7 +30,7 @@
 #include <boost/program_options.hpp>
 
 #include <dwarfs/compiler.h>
-#include <dwarfs/endian.h>
+#include <dwarfs/container/endian.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -39,6 +39,7 @@
 #include "test_logger.h"
 
 using namespace dwarfs;
+using namespace dwarfs::container;
 using testing::MatchesRegex;
 
 namespace fs = std::filesystem;

@@ -38,7 +38,7 @@
 #include <vector>
 
 #include <dwarfs/block_compressor.h> // TODO: or the other way round?
-#include <dwarfs/endian.h>
+#include <dwarfs/boxed_endian.h>
 
 namespace dwarfs {
 

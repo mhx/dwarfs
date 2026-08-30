@@ -42,7 +42,7 @@
 #include <thrift/lib/cpp2/frozen/schema/MemorySchema.h>
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
-#include <dwarfs/bit_view.h>
+#include <dwarfs/container/bit_view.h>
 #include <dwarfs/thrift_lite/assert.h>
 #include <dwarfs/thrift_lite/type_name.h>
 #include <dwarfs/thrift_lite/utility.h>

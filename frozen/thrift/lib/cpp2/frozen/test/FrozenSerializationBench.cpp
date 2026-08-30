@@ -170,7 +170,7 @@ Old results using folly-benchmark:
 
 clang version 21.1.8, i9-13900K
 
-                               [folly::Bits]        [dwarfs::bit_view]
+                               [folly::Bits]        [dwarfs::container::bit_view]
 =======================================================================
 FrozenSerializationBench.cpp   time/iter  iters/s    time/iter  iters/s
 =======================================================================

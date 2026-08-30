@@ -41,8 +41,8 @@
 #include <range/v3/view/chunk.hpp>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/endian.h>
 #include <dwarfs/container/sorted_array_map.h>
-#include <dwarfs/endian.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/categorizer.h>
@@ -162,7 +162,7 @@ uint16_t merge_sample_bits<uint16_t>(std::span<uint8_t const> imagedata) {
   b16 |= fold_left_bit_or<uint16_t>(imagedata.subspan(
       size * kAlignment, imagedata.size_bytes() % kAlignment));
 
-  return convert<std::endian::big>(b16);
+  return container::convert<std::endian::big>(b16);
 }
 
 template <>
