@@ -31,7 +31,7 @@
 #include <ranges>
 #include <version>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 #if defined(__cpp_lib_containers_ranges) &&                                    \
     __cpp_lib_containers_ranges >= 202202L
@@ -49,4 +49,4 @@ constexpr inline from_range_t from_range{};
 
 #endif
 
-} // namespace dwarfs
+} // namespace dwarfs::container
