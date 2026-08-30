@@ -45,8 +45,6 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/ranges.h>
-
 #include <dwarfs/container/detail/index_based_iterator.h>
 #include <dwarfs/container/detail/index_based_value_proxy.h>
 #include <dwarfs/container/detail/packed_field_descriptor.h>
@@ -56,6 +54,7 @@
 #include <dwarfs/container/detail/packed_vector_layout.h>
 #include <dwarfs/container/detail/vector_growth_policy.h>
 #include <dwarfs/container/packed_value_traits.h>
+#include <dwarfs/container/ranges.h>
 
 namespace dwarfs::container {
 

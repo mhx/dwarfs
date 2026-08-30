@@ -1024,7 +1024,7 @@ TYPED_TEST(packed_int_vec_tmpl_test, custom_type_range_apis_work) {
       packable_struct{.a = 4, .b = 5, .c = 6},
   };
 
-  vec_type vec(dwarfs::from_range, src);
+  vec_type vec(dwarfs::container::from_range, src);
   EXPECT_THAT(vec, ElementsAre(src[0], src[1]));
 
   vec.append_range(std::array{

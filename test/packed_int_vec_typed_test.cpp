@@ -29,7 +29,7 @@
 
 using namespace dwarfs::test;
 using namespace dwarfs::container;
-using dwarfs::from_range;
+using dwarfs::container::from_range;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 
