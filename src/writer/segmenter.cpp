@@ -40,10 +40,10 @@
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
@@ -107,7 +107,7 @@ struct segmenter_stats {
 template <typename KeyT, typename ValT, size_t MaxCollInline = 2>
 class fast_multimap {
  private:
-  using collision_vector = small_vector<ValT, MaxCollInline>;
+  using collision_vector = container::small_vector<ValT, MaxCollInline>;
   using blockhash_t = phmap::flat_hash_map<KeyT, ValT>;
   using collision_t = phmap::flat_hash_map<KeyT, collision_vector>;
 
@@ -974,7 +974,7 @@ class granular_segments_adapter : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE auto
   collect_spans(file_off_t offset_in_bytes, file_size_t size_in_bytes) const {
-    small_vector<std::span<value_type const>, 8> spans;
+    container::small_vector<std::span<value_type const>, 8> spans;
 
     for (auto const& span : get_span_range(offset_in_bytes, size_in_bytes)) {
       spans.emplace_back(reinterpret_cast<value_type const*>(span.data()),
@@ -1879,7 +1879,8 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
   offset_in_frames = hashwin.seek(hasher, data, 0);
 
-  small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1> matches;
+  container::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
+      matches;
 
   // // TODO: we have multiple segmenter threads, so this doesn't fly anymore
   // auto total_bytes_read_before = prog_.total_bytes_read.load();

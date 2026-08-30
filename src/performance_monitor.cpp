@@ -155,7 +155,7 @@ class performance_monitor_impl final : public performance_monitor {
     timer_id id;
     time_type start;
     time_type end;
-    small_vector<uint64_t, kNumInlineContext> context;
+    container::small_vector<uint64_t, kNumInlineContext> context;
   };
 
   explicit performance_monitor_impl(

@@ -31,7 +31,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <dwarfs/small_vector.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/types.h>
 #include <dwarfs/writer/fragment_category.h>
 #include <dwarfs/writer/single_inode_fragment.h>
@@ -97,7 +97,7 @@ class inode_fragments {
   to_string(mapper_function_type const& mapper = mapper_function_type()) const;
 
  private:
-  small_vector<single_inode_fragment, 1> fragments_;
+  container::small_vector<single_inode_fragment, 1> fragments_;
 };
 
 } // namespace dwarfs::writer
