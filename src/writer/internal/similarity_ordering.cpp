@@ -36,8 +36,8 @@
 
 #include <range/v3/view/enumerate.hpp>
 
-#include <dwarfs/bit_view.h>
 #include <dwarfs/compiler.h>
+#include <dwarfs/container/bit_view.h>
 #include <dwarfs/container/index_based_span.h>
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/logger.h>
@@ -264,8 +264,8 @@ class basic_centroid {
   void add(value_type const& vec, SlotRef slot) {
     auto bitcounts = slot.bitcounts();
     auto const veccount = slot.increment_veccount();
-    auto centroid_bits = bit_view(centroid_.data());
-    auto const vec_bits = bit_view(vec.data());
+    auto centroid_bits = container::bit_view(centroid_.data());
+    auto const vec_bits = container::bit_view(vec.data());
 
     for (size_t bit = 0; bit < Bits; ++bit) {
       if (vec_bits.test(bit)) {

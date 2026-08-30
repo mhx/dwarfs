@@ -38,11 +38,11 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/bit_view.h>
+#include <dwarfs/container/bit_view.h>
 
 namespace {
 
-using namespace dwarfs;
+using namespace dwarfs::container;
 
 using ::testing::ElementsAreArray;
 

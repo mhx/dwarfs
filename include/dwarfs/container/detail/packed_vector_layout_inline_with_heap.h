@@ -40,8 +40,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <dwarfs/bit_view.h>
-
+#include <dwarfs/container/bit_view.h>
 #include <dwarfs/container/detail/packed_field_descriptor.h>
 #include <dwarfs/container/detail/packed_vector_heap_storage.h>
 #include <dwarfs/container/detail/packed_vector_helpers.h>
