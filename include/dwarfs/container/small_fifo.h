@@ -32,7 +32,7 @@
 #include <iterator>
 #include <utility>
 
-#include <dwarfs/small_vector.h>
+#include <dwarfs/container/small_vector.h>
 
 namespace dwarfs::container {
 
@@ -107,7 +107,7 @@ class small_fifo {
   }
 
  private:
-  small_vector<T, N> v_;
+  container::small_vector<T, N> v_;
   std::size_t head_{0};
 };
 
