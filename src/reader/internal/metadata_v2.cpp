@@ -54,6 +54,7 @@
 #include <range/v3/view/transform.hpp>
 
 #include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
@@ -63,7 +64,6 @@
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/metadata_options.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
@@ -1027,7 +1027,8 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       });
 
       // Check and report any collisions in the directory
-      phmap::flat_hash_map<std::string_view, small_vector<uint32_t, 1>>
+      phmap::flat_hash_map<std::string_view,
+                           container::small_vector<uint32_t, 1>>
           collisions;
       collisions.reserve(range.size());
       for (size_t i = 0; i < names.size(); ++i) {

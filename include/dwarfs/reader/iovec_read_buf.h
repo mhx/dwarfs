@@ -32,8 +32,8 @@
 #include <sys/uio.h>
 #endif
 
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/reader/block_range.h>
-#include <dwarfs/small_vector.h>
 
 namespace dwarfs::reader {
 
@@ -55,8 +55,8 @@ struct iovec_read_buf {
     ranges.clear();
   }
 
-  small_vector<dwarfs_iovec, inline_storage> buf;
-  small_vector<block_range, inline_storage> ranges;
+  container::small_vector<dwarfs_iovec, inline_storage> buf;
+  container::small_vector<block_range, inline_storage> ranges;
 };
 
 } // namespace dwarfs::reader

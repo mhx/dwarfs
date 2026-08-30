@@ -32,7 +32,7 @@
 #include <iterator>
 #include <utility>
 
-#include <dwarfs/small_vector.h>
+#include <dwarfs/container/small_vector.h>
 
 namespace dwarfs::container {
 

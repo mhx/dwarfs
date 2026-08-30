@@ -30,7 +30,7 @@
 
 #include <boost/container/small_vector.hpp>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 /*
 Turns out boost's small_vector is faster on average than folly's.
@@ -67,4 +67,4 @@ pushBack(1024000)       18.77ns     6.00ns   100.87ns    88.54ns
 template <typename T, size_t N>
 using small_vector = boost::container::small_vector<T, N>;
 
-} // namespace dwarfs
+} // namespace dwarfs::container
