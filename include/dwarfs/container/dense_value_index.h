@@ -35,10 +35,10 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/dense_index_hash.h>
-#include <dwarfs/detail/dense_index_core.h>
+#include <dwarfs/container/dense_index_hash.h>
+#include <dwarfs/container/detail/dense_index_core.h>
 
-namespace dwarfs {
+namespace dwarfs::container {
 
 template <typename T>
 struct dense_value_index_policy_base {
@@ -111,4 +111,4 @@ template <typename T>
 using dense_value_index =
     basic_dense_value_index<T, std_dense_value_index_policy>;
 
-} // namespace dwarfs
+} // namespace dwarfs::container

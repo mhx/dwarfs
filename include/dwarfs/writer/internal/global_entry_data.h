@@ -32,7 +32,7 @@
 
 #include <parallel_hashmap/phmap.h>
 
-#include <dwarfs/detail/string_like_hash.h>
+#include <dwarfs/container/string_like_hash.h>
 #include <dwarfs/file_stat.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
@@ -88,7 +88,7 @@ class global_entry_data {
   std::string to_string() const;
 
  private:
-  using string_like_hash = dwarfs::detail::string_like_hash;
+  using string_like_hash = dwarfs::container::string_like_hash;
 
   template <typename... Args>
   using map_type = phmap::flat_hash_map<Args...>;

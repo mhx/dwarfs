@@ -39,8 +39,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/container/dense_value_index.h>
 #include <dwarfs/container/pinned_byte_span_store.h>
-#include <dwarfs/dense_value_index.h>
 
 namespace {
 
@@ -127,7 +127,7 @@ struct pinned_byte_span_index_policy_holder {
 };
 
 template <std::size_t ChunkSize>
-using pinned_byte_span_index = dwarfs::basic_dense_value_index<
+using pinned_byte_span_index = basic_dense_value_index<
     std::span<std::byte const>,
     pinned_byte_span_index_policy_holder<ChunkSize>::template policy>;
 
