@@ -55,9 +55,9 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal_ansi.h>
 #include <dwarfs/util.h>
@@ -287,7 +287,7 @@ void stream_logger::write(level_type level, std::string_view output,
     }
 
     std::string tmp;
-    small_vector<std::string_view, 2> lines;
+    container::small_vector<std::string_view, 2> lines;
 
     if (output.contains('\r')) {
       tmp.reserve(output.size());

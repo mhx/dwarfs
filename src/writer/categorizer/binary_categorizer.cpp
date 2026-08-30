@@ -29,9 +29,9 @@
 #include <vector>
 
 #include <dwarfs/boxed_endian.h>
+#include <dwarfs/container/small_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/small_vector.h>
 #include <dwarfs/type_list.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -303,7 +303,7 @@ struct minimal_macho_fat_header {
                           sync_subcat_map& subcats) {
     fragment_category const header{mapper(MACHO_HEADER_CATEGORY)};
 
-    small_vector<T, 8> archs;
+    container::small_vector<T, 8> archs;
     archs.resize(arch_count);
 
     std::error_code ec;
