@@ -49,6 +49,8 @@ namespace {
 constexpr size_t kMinBlockSize = static_cast<size_t>(1) << 12;
 constexpr size_t kMaxBlockSize = static_cast<size_t>(1) << 19;
 
+constexpr int kDefaultLevel = ZXC_LEVEL_COMPACT;
+
 constexpr size_t pick_block_size(size_t data_size) {
   return std::clamp<size_t>(std::bit_ceil(std::max<size_t>(data_size, 1)),
                             kMinBlockSize, kMaxBlockSize);
@@ -56,7 +58,7 @@ constexpr size_t pick_block_size(size_t data_size) {
 
 class zxc_block_compressor final : public block_compressor::impl {
  public:
-  explicit zxc_block_compressor(int level = ::zxc_default_level())
+  explicit zxc_block_compressor(int level = kDefaultLevel)
       : level_{level} {}
 
   zxc_block_compressor(zxc_block_compressor const&) = default;
@@ -192,7 +194,7 @@ class zxc_compressor_factory final
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {
     return std::make_unique<zxc_block_compressor>(
-        om.get<int>("level", ::zxc_default_level()));
+        om.get<int>("level", kDefaultLevel));
   }
 
  private:
