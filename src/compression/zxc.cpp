@@ -90,6 +90,8 @@ class zxc_block_compressor final : public block_compressor::impl {
       throw bad_compression_ratio_error();
     }
 
+    compressed.shrink_to_fit();
+
     return compressed.share();
   }
 
