@@ -39,7 +39,8 @@
   DWARFS_COMPRESSION_TYPE(LZ4HC,  4) SEPARATOR                           \
   DWARFS_COMPRESSION_TYPE(BROTLI, 5) SEPARATOR                           \
   DWARFS_COMPRESSION_TYPE(FLAC,   6) SEPARATOR                           \
-  DWARFS_COMPRESSION_TYPE(RICEPP, 7)
+  DWARFS_COMPRESSION_TYPE(RICEPP, 7) SEPARATOR                           \
+  DWARFS_COMPRESSION_TYPE(ZXC,    8)
 // clang-format on
 
 namespace dwarfs {
