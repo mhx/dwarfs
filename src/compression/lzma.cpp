@@ -78,6 +78,12 @@ constexpr container::sorted_array_map kBinaryModes{
     std::pair{"arm"sv, LZMA_FILTER_ARM},
     std::pair{"armthumb"sv, LZMA_FILTER_ARMTHUMB},
     std::pair{"sparc"sv, LZMA_FILTER_SPARC},
+#ifdef LZMA_FILTER_ARM64
+    std::pair{"arm64"sv, LZMA_FILTER_ARM64},
+#endif
+#ifdef LZMA_FILTER_RISCV
+    std::pair{"riscv"sv, LZMA_FILTER_RISCV},
+#endif
 };
 
 constexpr container::sorted_array_map kCompressionModes{
