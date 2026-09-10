@@ -577,11 +577,6 @@ class subprocess {
   subprocess(std::filesystem::path const& prog, Args&&... args)
       : subprocess(nullptr, prog, std::forward<Args>(args)...) {}
 
-  template <subprocess_arg... Args>
-  subprocess(boost::asio::io_context& ios, std::filesystem::path const& prog,
-             Args&&... args)
-      : subprocess(&ios, prog, std::forward<Args>(args)...) {}
-
   ~subprocess() {
     if (pt_) {
       std::cerr << "subprocess still running in destructor: " << cmdline()
