@@ -121,11 +121,6 @@ std::vector<std::byte> encode_to_vector(T v) {
   return buf;
 }
 
-template <class It, class End, class T>
-T decode_with_ec(It& it, End end, std::error_code& ec) {
-  return tl::varint_decode<T>(it, end, ec);
-}
-
 std::vector<std::byte> make_bytes(std::initializer_list<std::uint8_t> init) {
   std::vector<std::byte> out(init.size());
   std::ranges::transform(init, out.begin(),
