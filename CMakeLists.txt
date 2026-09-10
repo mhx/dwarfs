@@ -49,6 +49,7 @@ option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(TRY_ENABLE_BROTLI "build with BROTLI compression support" ON)
 option(TRY_ENABLE_LZ4 "build with LZ4 compression support" ON)
 option(TRY_ENABLE_LZMA "build with LZMA compression support" ON)
+option(TRY_ENABLE_LIBMAGIC "build with libmagic support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_FUSE_EXTRACT_BINARY "build with fuse-extract binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
@@ -318,7 +319,9 @@ if(WITH_LIBDWARFS)
     pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=${LIBBROTLI_REQUIRED_VERSION})
     pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=${LIBBROTLI_REQUIRED_VERSION})
   endif()
-  # pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=${LIBMAGIC_REQUIRED_VERSION})
+  if(TRY_ENABLE_LIBMAGIC)
+    pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=${LIBMAGIC_REQUIRED_VERSION})
+  endif()
   if(TRY_ENABLE_FLAC)
     pkg_check_modules(FLAC IMPORTED_TARGET flac++>=${FLAC_REQUIRED_VERSION})
   endif()
@@ -742,6 +745,7 @@ if(WITH_TESTS)
       test/fits_categorizer_test.cpp
       test/incompressible_categorizer_test.cpp
       test/pcmaudio_categorizer_test.cpp
+      $<$<BOOL:${LIBMAGIC_FOUND}>:test/libmagic_categorizer_test.cpp>
     )
 
     add_executable(dwarfs_expensive_tests
