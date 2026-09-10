@@ -93,24 +93,6 @@ template <dwarfs::container::packed_vector_value T,
           std::size_t SegmentSize = 4096>
 using segtor = dwarfs::container::segmented_packed_int_vector<T, SegmentSize>;
 
-template <typename T>
-struct is_basic_string : std::false_type {};
-
-template <typename CharT, typename Traits, typename Alloc>
-struct is_basic_string<std::basic_string<CharT, Traits, Alloc>>
-    : std::true_type {};
-
-template <typename T>
-concept any_string_type = is_basic_string<std::remove_cvref_t<T>>::value;
-
-template <typename T>
-bool uses_inline_buffer(T const& s) {
-  auto const p = reinterpret_cast<std::uintptr_t>(s.data());
-  auto const b = reinterpret_cast<std::uintptr_t>(&s);
-  auto const e = b + sizeof(s);
-  return b <= p && p < e;
-}
-
 class memory_usage_dumper {
  public:
   struct size_info {
@@ -169,41 +151,16 @@ class memory_usage_dumper {
   template <typename T>
   void add(std::string_view label,
            container::chunked_append_only_vector<T> const& vec) {
-    static constexpr bool kIsStringType = any_string_type<T>;
     static constexpr bool kIsInlineType = requires { vec[0].is_inline(); };
 
     auto size_in_bytes = sizeof(vec[0]) * vec.size();
     auto capacity_in_bytes = sizeof(vec[0]) * vec.capacity();
 
-    if constexpr (kIsStringType || kIsInlineType) {
-      auto is_inline = [](auto const& e) {
-        if constexpr (kIsStringType) {
-          return uses_inline_buffer(e);
-        } else {
-          return e.is_inline();
-        }
-      };
-
-      auto element_size = [](auto const& e) {
-        if constexpr (kIsStringType) {
-          return sizeof(e[0]) * e.size();
-        } else {
-          return e.size_in_bytes();
-        }
-      };
-
-      auto element_capacity = [](auto const& e) {
-        if constexpr (kIsStringType) {
-          return sizeof(e[0]) * e.capacity();
-        } else {
-          return e.capacity_in_bytes();
-        }
-      };
-
+    if constexpr (kIsInlineType) {
       for (auto const& e : vec) {
-        if (!is_inline(e)) {
-          size_in_bytes += element_size(e);
-          capacity_in_bytes += element_capacity(e);
+        if (!e.is_inline()) {
+          size_in_bytes += e.size_in_bytes();
+          capacity_in_bytes += e.capacity_in_bytes();
         }
       }
     }
@@ -291,35 +248,6 @@ using inode_scan_error = std::pair<file_id, std::exception_ptr>;
 
 template <typename T>
 using cao_vector = dwarfs::container::chunked_append_only_vector<T>;
-
-template <typename T>
-struct flat_cao_dense_value_index_policy_base {
-  using store_type = cao_vector<T>;
-  using hash_type = container::default_value_hash<T>;
-  using equal_type = std::equal_to<>;
-};
-
-template <typename T>
-struct flat_cao_dense_value_index_policy
-    : flat_cao_dense_value_index_policy_base<T> {
-  template <typename Hash, typename Equal>
-  using index_type = phmap::flat_hash_set<std::uint32_t, Hash, Equal>;
-};
-
-template <typename T>
-struct parallel_flat_cao_dense_value_index_policy
-    : flat_cao_dense_value_index_policy_base<T> {
-  template <typename Hash, typename Equal>
-  using index_type = phmap::parallel_flat_hash_set<std::uint32_t, Hash, Equal>;
-};
-
-template <typename T>
-using flat_cao_index =
-    container::basic_dense_value_index<T, flat_cao_dense_value_index_policy>;
-
-template <typename T>
-using parallel_flat_cao_index = container::basic_dense_value_index<
-    T, parallel_flat_cao_dense_value_index_policy>;
 
 template <typename T>
 struct flat_std_dense_value_index_policy {
