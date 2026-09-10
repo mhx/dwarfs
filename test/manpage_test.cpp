@@ -214,6 +214,14 @@ TEST_P(manpage_coverage_test, options) {
     }
   }
 
+#ifndef DWARFS_HAVE_LIBMAGIC
+  if (tool_name == "mkdwarfs") {
+    man_opts.erase("libmagic-category");
+    man_opts.erase("libmagic-database");
+    man_opts.erase("libmagic-max-bytes");
+  }
+#endif
+
   if (tool_name == "dwarfsextract") {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     man_opts.erase("format");
