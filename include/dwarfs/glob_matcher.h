@@ -48,6 +48,8 @@ class glob_matcher {
   glob_matcher(std::initializer_list<std::string const> patterns,
                options const& opts);
   glob_matcher(std::span<std::string const> patterns, options const& opts);
+  glob_matcher(glob_matcher&&) noexcept = default;
+  glob_matcher& operator=(glob_matcher&&) noexcept = default;
   ~glob_matcher();
 
   void add_pattern(std::string_view pattern) { impl_->add_pattern(pattern); }
