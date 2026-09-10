@@ -328,17 +328,8 @@ class alignas(64) bloom_filter {
  * down to much more efficient code as it avoids a lot of run-time checks.
  */
 
-class GranularityPolicyBase {
- public:
-  static std::string chunkable_size_fail_message(auto size, auto granularity) {
-    return fmt::format(
-        "unexpected size {} for given granularity {} (modulus: {})", size,
-        granularity, size % granularity);
-  }
-};
-
 template <size_t N>
-class ConstantGranularityPolicy : private GranularityPolicyBase {
+class ConstantGranularityPolicy {
  public:
   static constexpr size_t const kGranularity{N};
 
@@ -356,21 +347,6 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   static DWARFS_FORCE_INLINE void
   add_match(T& matches, U const* block, uint32_t off) {
     matches.emplace_back(block, off);
-  }
-
-  static DWARFS_FORCE_INLINE bool is_valid_granularity_size(auto size) {
-    if constexpr (kGranularity > 1) {
-      return size % kGranularity == 0;
-    } else {
-      return true;
-    }
-  }
-
-  static DWARFS_FORCE_INLINE void check_chunkable_size(auto size) {
-    if constexpr (kGranularity > 1) {
-      DWARFS_CHECK(is_valid_granularity_size(size),
-                   chunkable_size_fail_message(size, kGranularity));
-    }
   }
 
   static DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) {
@@ -414,7 +390,7 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   }
 };
 
-class VariableGranularityPolicy : private GranularityPolicyBase {
+class VariableGranularityPolicy {
  public:
   explicit DWARFS_FORCE_INLINE
   VariableGranularityPolicy(uint32_t granularity) noexcept
@@ -434,17 +410,6 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   DWARFS_FORCE_INLINE void
   add_match(T& matches, U const* block, uint32_t off) const {
     matches.emplace_back(block, off, granularity_);
-  }
-
-  DWARFS_FORCE_INLINE bool is_valid_granularity_size(auto size) const {
-    return size % granularity_ == 0;
-  }
-
-  DWARFS_FORCE_INLINE void check_chunkable_size(auto size) const {
-    if (granularity_ > 1) {
-      DWARFS_CHECK(is_valid_granularity_size(size),
-                   chunkable_size_fail_message(size, granularity_));
-    }
   }
 
   DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) const {
