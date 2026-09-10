@@ -423,7 +423,9 @@ categorizer_registry::categorizer_registry() {
   fits_categorizer_factory_registrar(*this);
   hotness_categorizer_factory_registrar(*this);
   incompressible_categorizer_factory_registrar(*this);
-  // libmagic_categorizer_factory_registrar(*this);
+#ifdef DWARFS_HAVE_LIBMAGIC
+  libmagic_categorizer_factory_registrar(*this);
+#endif
   pcmaudio_categorizer_factory_registrar(*this);
 }
 

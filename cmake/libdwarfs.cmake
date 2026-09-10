@@ -192,7 +192,7 @@ add_library(
   src/writer/categorizer/incompressible_categorizer.cpp
   src/writer/categorizer/pcmaudio_categorizer.cpp
 
-  # $<$<BOOL:${LIBMAGIC_FOUND}>:src/writer/categorizer/libmagic_categorizer.cpp>
+  $<$<BOOL:${LIBMAGIC_FOUND}>:src/writer/categorizer/libmagic_categorizer.cpp>
 )
 
 add_library(
@@ -330,6 +330,10 @@ endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+endif()
+
+if(LIBMAGIC_FOUND)
+  target_link_libraries(dwarfs_writer PRIVATE PkgConfig::LIBMAGIC)
 endif()
 
 if(ENABLE_STACKTRACE)
