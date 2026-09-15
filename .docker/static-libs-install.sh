@@ -30,6 +30,11 @@ elif [[ "$PKGS" == ":all" ]]; then
     fi
 fi
 
+TARGET_EMULATOR=""
+if [[ "$TARGET_ARCH" != "$ARCH" ]]; then
+    TARGET_EMULATOR="qemu-$TARGET_ARCH"
+fi
+
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
 export COMMON_CXXFLAGS="$COMMON_CFLAGS"
 export COMMON_LDFLAGS="-static-libgcc"
@@ -605,8 +610,10 @@ if use_lib file; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${FILE_TARBALL}
     cd file-${FILE_VERSION}
-    ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no
-    $MAKE_PARALLEL
+    ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
+                LDFLAGS="-fuse-ld=lld -static -static-libgcc"
+    $MAKE_PARALLEL FILE_COMPILE="${TARGET_EMULATOR} $WORKDIR/file-${FILE_VERSION}/src/file" \
+                   LDFLAGS="-fuse-ld=lld -all-static -static-libgcc"
     make install
 fi
 
