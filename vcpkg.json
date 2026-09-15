@@ -18,6 +18,7 @@
     {"name": "libarchive", "version>=": "3.8.5", "default-features": false, "features": []},
     {"name": "libflac", "version>=": "1.5.0"},
     {"name": "liblzma", "version>=": "5.8.2"},
+    {"name": "libmagic", "version>=": "5.46"},
     {"name": "lz4", "version>=": "1.10.0"},
     {"name": "nlohmann-json", "version>=": "3.12.0"},
     {"name": "libressl", "version>=": "4.2.1"},
