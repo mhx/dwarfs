@@ -37,6 +37,7 @@
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/glob_matcher.h>
+#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
@@ -315,6 +316,11 @@ class libmagic_categorizer_factory : public categorizer_factory {
 
   std::shared_ptr<po::options_description const> options() const override {
     return opts_;
+  }
+
+  void add_library_dependencies(library_dependencies& deps) const override {
+    auto const ver = ::magic_version();
+    deps.add_library(fmt::format("libmagic-{}.{}", ver / 100, ver % 100));
   }
 
   std::unique_ptr<categorizer>
