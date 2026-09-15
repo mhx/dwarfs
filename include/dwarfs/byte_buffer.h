@@ -94,6 +94,8 @@ class shared_byte_buffer {
   explicit shared_byte_buffer(std::shared_ptr<byte_buffer_interface const> bb)
       : bb_{std::move(bb)} {}
 
+  explicit operator bool() const noexcept { return static_cast<bool>(bb_); }
+
   uint8_t const* data() const { return bb_->data(); }
 
   size_t size() const { return bb_->size(); }
