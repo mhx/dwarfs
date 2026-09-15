@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FILE_VERSION=5.46
-FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
+FILE_VERSION=5.48
+FILE_SHA512=9672504f9473e41ed047bb019f1a003965b3f12e16b77d090e819e094805e42d66d07582402eb9df6be98932161ee6a014a549dbcca9cef10c236b0a3a71a642
 
 LLVM_VERSION=22.1.8                      # 2026-06-16
 LIBARCHIVE_VERSION=3.8.9                 # 2026-07-28
@@ -11,7 +11,7 @@ LIBUCONTEXT_VERSION=1.5                  # 2025-12-12
 LIBUNWIND_VERSION=1.8.3                  # 2026-01-21
 BENCHMARK_VERSION=1.9.5                  # 2025-05-19
 BOOST_VERSION=1.92.0                     # 2026-08-12
-OPENSSL_VERSION=4.0.1                    # 2026-06-09
+OPENSSL_VERSION=4.0.2                    # 2026-08-25
 LIBRESSL_VERSION=4.3.1                   # 2026-04-19
 CPPTRACE_VERSION=1.0.4                   # 2025-07-25
 FMT_VERSION=12.2.0                       # 2026-06-10
@@ -20,10 +20,10 @@ LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.2.0                     # 2025-10-27
 ZSTD_VERSION=1.5.7                       # 2025-02-19
 LIBFUSE_VERSION=2.9.9                    # 2019-01-04
-LIBFUSE3_VERSION=3.18.2                  # 2026-03-18
+LIBFUSE3_VERSION=3.18.3                  # 2026-09-08
 MIMALLOC_VERSION=3.2.8                   # 2026-02-03
 JEMALLOC_VERSION=5.3.1                   # 2026-04-13
-XZ_VERSION=5.8.3                         # 2026-03-31
+XZ_VERSION=5.8.4                         # 2026-09-09
 LIBDWARF_VERSION=2.3.1                   # 2026-03-05
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 UTFCPP_VERSION=4.2.0                     # 2026-08-23
