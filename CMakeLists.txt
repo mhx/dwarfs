@@ -1228,7 +1228,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
   endif()
 
   if(WIN32)
-    target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib psapi.lib)
+    target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib psapi.lib shlwapi.lib)
   endif()
 endforeach()
 
