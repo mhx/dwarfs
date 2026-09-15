@@ -296,6 +296,7 @@ class libmagic_categorizer_factory : public categorizer_factory {
     opts_->add_options()
       ("libmagic-category",
           po::value<std::vector<std::string>>(&categories_)
+            ->value_name("category=mime-type[:mime-type...]")
             ->multitoken()->composing(),
           "define category based on mime types "
           "(accepts globs, can be specified multiple times)")
