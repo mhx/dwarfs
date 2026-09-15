@@ -34,6 +34,7 @@
 #include <magic.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/glob_matcher.h>
 #include <dwarfs/logger.h>
@@ -42,6 +43,7 @@
 #include <dwarfs/writer/categorizer.h>
 
 #include <dwarfs/internal/synchronized.h>
+#include <dwarfs/writer/internal/magic_database.h>
 
 namespace dwarfs::writer {
 
@@ -57,7 +59,7 @@ class magic_wrapper {
       : max_bytes_{max_bytes}
       , magic_file_{magic_file} {}
 
-  size_t cookie_count() const { return cookies_.rlock()->size(); }
+  size_t cookie_count() const { return state_.rlock()->cookies.size(); }
 
   std::string identify(file_view const& mm) const {
     auto segment =
@@ -74,25 +76,58 @@ class magic_wrapper {
   using magic_cookie_t =
       std::unique_ptr<struct ::magic_set, decltype(&::magic_close)>;
 
-  magic_cookie_t new_cookie() const {
+  struct magic_state {
+    shared_byte_buffer database;
+    std::stack<magic_cookie_t> cookies;
+  };
+
+  [[noreturn]] static void
+  throw_magic_error(magic_cookie_t const& m, std::string_view context) {
+    auto const* errstr = ::magic_error(m.get());
+    if (!errstr) {
+      errstr = "unknown error";
+    }
+    throw std::runtime_error(fmt::format("(magic) {}: {}", context, errstr));
+  }
+
+  magic_cookie_t new_cookie(magic_state& state [[maybe_unused]]) const {
     magic_cookie_t m(::magic_open(MAGIC_MIME_TYPE | MAGIC_PRESERVE_ATIME |
                                   MAGIC_NO_CHECK_COMPRESS),
                      &::magic_close);
     if (!m) {
       throw std::runtime_error("could not create magic cookie");
     }
-    char const* path = magic_file_ ? magic_file_->c_str() : NULL;
-    if (::magic_load(m.get(), path) != 0) {
-      auto const* errstr = ::magic_error(m.get());
-      if (!errstr) {
-        errstr = "unknown error";
+
+#ifdef DWARFS_HAS_MAGIC_DATABASE
+    if (!magic_file_) {
+      if (!state.database) {
+        auto const db = internal::compressed_magic_database();
+        state.database = block_decompressor::decompress(
+            compression_type::LZMA,
+            {reinterpret_cast<std::uint8_t const*>(db.data()), db.size()});
       }
+
+      std::array<void*, 1> buffers{const_cast<void*>(
+          reinterpret_cast<void const*>(state.database.data()))};
+      std::array<size_t, 1> sizes{state.database.size()};
+
+      if (::magic_load_buffers(m.get(), buffers.data(), sizes.data(), 1) != 0) {
+        throw_magic_error(m, "magic_load_buffers");
+      }
+
+      return m;
+    }
+#endif
+
+    char const* path = magic_file_ ? magic_file_->c_str() : NULL;
+
+    if (::magic_load(m.get(), path) != 0) {
       if (!path) {
         path = "NULL";
       }
-      throw std::runtime_error(
-          fmt::format("(magic) magic_load({}): {}", path, errstr));
+      throw_magic_error(m, fmt::format("magic_load({})", path));
     }
+
     return m;
   }
 
@@ -102,18 +137,18 @@ class magic_wrapper {
         : cookie_{get_scoped_cookie(w)}
         , w_{w} {}
 
-    ~scoped_cookie() { w_.cookies_.wlock()->push(std::move(cookie_)); }
+    ~scoped_cookie() { w_.state_.wlock()->cookies.push(std::move(cookie_)); }
 
     ::magic_t get() const { return cookie_.get(); }
 
    private:
     static magic_cookie_t get_scoped_cookie(magic_wrapper const& w) {
-      return w.cookies_.with_wlock([&](auto& cookies) {
-        if (cookies.empty()) [[unlikely]] {
-          return w.new_cookie();
+      return w.state_.with_wlock([&](auto& state) {
+        if (state.cookies.empty()) [[unlikely]] {
+          return w.new_cookie(state);
         }
-        auto cookie = std::move(cookies.top());
-        cookies.pop();
+        auto cookie = std::move(state.cookies.top());
+        state.cookies.pop();
         return cookie;
       });
     }
@@ -122,9 +157,7 @@ class magic_wrapper {
     magic_wrapper const& w_;
   };
 
-  mutable dwarfs::internal::synchronized<std::stack<magic_cookie_t>,
-                                         std::shared_mutex>
-      cookies_;
+  mutable dwarfs::internal::synchronized<magic_state, std::shared_mutex> state_;
   std::size_t const max_bytes_{64_KiB};
   std::optional<std::string> const magic_file_;
 };
