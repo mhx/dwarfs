@@ -45,6 +45,7 @@ class variables_map;
 namespace dwarfs {
 
 class file_access;
+class library_dependencies;
 class logger;
 
 namespace writer {
@@ -225,6 +226,7 @@ class categorizer_info {
   virtual std::string_view name() const = 0;
   virtual std::shared_ptr<boost::program_options::options_description const>
   options() const = 0;
+  virtual void add_library_dependencies(library_dependencies& deps) const;
 };
 
 class categorizer_factory : public categorizer_info {
@@ -249,6 +251,8 @@ class categorizer_registry {
   std::vector<std::string> categorizer_names() const;
 
   void register_factory(std::unique_ptr<categorizer_factory const>&& factory);
+
+  void add_library_dependencies(library_dependencies& deps) const;
 
  private:
   std::map<std::string, std::unique_ptr<categorizer_factory const>> factories_;

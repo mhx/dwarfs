@@ -598,6 +598,24 @@ Most other options are concerned with compression tuning:
 - `--incompressible-zstd-level=`*value*:
   The ZSTD compression level used for incompressible categorization.
 
+- `--libmagic-category=`*category*`=`*glob*[`:`*glob*...]:
+  Create a new category that selects whole files based on their MIME type as
+  determined by libmagic. Types can be specified as globs, e.g. `image/*` or
+  `text/*`. Multiple globs can be specified, separated by colons. Multiple
+  `--libmagic-category` options can be specified to define more than one
+  category. The newly defined categories can be used just like any other
+  category with any option that accepts a category name.
+
+- `--libmagic-max-bytes=`*value*:
+  The maximum number of bytes read from a file to determine its libmagic type.
+  The default is 64 KiB. The value can be specified with a size suffix.
+
+- `--libmagic-database=`*file*:
+  Use a custom libmagic database file (`magic.mgc`) instead of the default or
+  built-in database. Static release builds contain a built-in, compressed
+  database matching the libmagic version used to build the binary. All other
+  builds will use the system database file by default.
+
 - `-h`, `--help`:
   Show usage and the most common basic options.
 
