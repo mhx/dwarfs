@@ -799,9 +799,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
 
   constexpr auto usage = "Usage: mkdwarfs [OPTIONS...]\n";
-  auto extra_deps = [](library_dependencies& deps) {
+  auto extra_deps = [&catreg](library_dependencies& deps) {
     compressor_registry::instance().add_library_dependencies(deps);
     decompressor_registry::instance().add_library_dependencies(deps);
+    catreg.add_library_dependencies(deps);
   };
 
   if (vm.contains("long-help")) {

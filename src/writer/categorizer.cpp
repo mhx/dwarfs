@@ -392,6 +392,15 @@ void categorizer_registry::register_factory(
                fmt::format("categorizer factory name conflict: {}", name));
 }
 
+void categorizer_info::add_library_dependencies(library_dependencies&) const {}
+
+void categorizer_registry::add_library_dependencies(
+    library_dependencies& deps) const {
+  for (auto const& f : factories_) {
+    f.second->add_library_dependencies(deps);
+  }
+}
+
 std::unique_ptr<categorizer> categorizer_registry::create(
     logger& lgr, std::string const& name, po::variables_map const& vm,
     std::shared_ptr<file_access const> const& fa) const {
@@ -423,7 +432,9 @@ categorizer_registry::categorizer_registry() {
   fits_categorizer_factory_registrar(*this);
   hotness_categorizer_factory_registrar(*this);
   incompressible_categorizer_factory_registrar(*this);
-  // libmagic_categorizer_factory_registrar(*this);
+#ifdef DWARFS_HAVE_LIBMAGIC
+  libmagic_categorizer_factory_registrar(*this);
+#endif
   pcmaudio_categorizer_factory_registrar(*this);
 }
 
