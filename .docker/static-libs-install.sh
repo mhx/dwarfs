@@ -5,17 +5,17 @@
 
 set -ex
 
+source "$(dirname "$0")/static-libs-versions.sh"
+
 ARCH="$(uname -m)"
 
-LLVM_MAJOR="22"
+LLVM_MAJOR=${LLVM_VERSION%%.*}
 
 GCC="gcc"
 CLANG="clang-$LLVM_MAJOR"
 PKGS="$1"
 TARGET_ARCH="$2"
 COMPILER="$3"
-
-source "$(dirname "$0")/static-libs-versions.sh"
 
 echo "Using $GCC and $CLANG"
 
