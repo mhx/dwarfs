@@ -13,9 +13,9 @@
 
 FROM alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000 AS base
 
-RUN apk update
-RUN apk upgrade
-RUN apk add --no-cache \
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
         bash-completion \
         build-base \
         wget \
@@ -26,8 +26,8 @@ RUN apk add --no-cache \
         less \
         gcc \
         g++ \
-        clang22 \
-        llvm22 \
+        clang23 \
+        llvm23 \
         lld \
         git \
         xz \
@@ -689,7 +689,7 @@ COPY --link --from=staticlibs_i386_clang-minsize-lto /opt/static-libs/ /opt/stat
 
 # Install UPX
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-amd64_linux.tar.xz - \
+    /usr/local/bin/fetch.sh https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-amd64_linux.tar.xz - \
         | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
 
 # Set up git & user
