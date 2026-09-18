@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <array>
 #include <map>
 #include <stack>
@@ -65,12 +66,15 @@ class magic_wrapper {
   std::string identify(file_view const& mm) const {
     auto segment =
         mm.segment_at(0, std::min<file_size_t>(mm.size(), max_bytes_));
-    auto data = segment.span();
+    std::span<std::byte const> data;
+    if (segment.valid()) {
+      data = segment.span();
+    }
     scoped_cookie m(*this);
     if (auto id = ::magic_buffer(m.get(), data.data(), data.size())) {
       return std::string{id};
     }
-    throw std::runtime_error(fmt::format("(magic) {}", ::magic_error(m.get())));
+    throw_magic_error(m.get(), "identify");
   }
 
  private:
@@ -84,7 +88,12 @@ class magic_wrapper {
 
   [[noreturn]] static void
   throw_magic_error(magic_cookie_t const& m, std::string_view context) {
-    auto const* errstr = ::magic_error(m.get());
+    throw_magic_error(m.get(), context);
+  }
+
+  [[noreturn]] static void
+  throw_magic_error(magic_t m, std::string_view context) {
+    auto const* errstr = ::magic_error(m);
     if (!errstr) {
       errstr = "unknown error";
     }
@@ -212,16 +221,22 @@ class libmagic_categorizer_ final : public random_access_categorizer {
       auto const cat = def.substr(0, eq_pos);
 
       if (cat.empty()) {
-        throw std::runtime_error(
-            fmt::format("invalid libmagic category definition: {}", def));
+        throw std::runtime_error(fmt::format(
+            "empty category name in libmagic category definition: {}", def));
+      }
+
+      if (eq_pos + 1 >= def.size()) {
+        throw std::runtime_error(fmt::format(
+            "no patterns specified in libmagic category definition: {}", def));
       }
 
       auto const patterns =
           split_to<std::vector<std::string>>(def.substr(eq_pos + 1), ':');
 
-      if (patterns.empty()) {
-        throw std::runtime_error(
-            fmt::format("invalid libmagic category definition: {}", def));
+      if (std::ranges::any_of(patterns,
+                              [](auto const& p) { return p.empty(); })) {
+        throw std::runtime_error(fmt::format(
+            "empty pattern in libmagic category definition: {}", def));
       }
 
       glob_matcher* matcher = nullptr;

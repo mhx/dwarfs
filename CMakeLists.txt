@@ -760,6 +760,7 @@ if(WITH_TESTS)
       test/fits_categorizer_test.cpp
       test/incompressible_categorizer_test.cpp
       test/pcmaudio_categorizer_test.cpp
+      $<$<BOOL:${LIBMAGIC_FOUND}>:test/libmagic_categorizer_test.cpp>
     )
 
     add_executable(dwarfs_expensive_tests
