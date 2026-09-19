@@ -4,13 +4,11 @@
 # SPDX-License-Identifier: MIT
 
 FROM archlinux:latest@sha256:b860afd5823683f7ea389ba5f00d812f4fe55f6f286dea329d2abeefa535e309
-RUN pacman -Syu --noconfirm
-RUN pacman -S --noconfirm --needed \
+RUN pacman -Syu --noconfirm && pacman -S --noconfirm --needed \
         bash-completion \
         vim \
         devtools \
-        less
-RUN pacman -S --noconfirm --needed \
+        less \
         gcc \
         clang \
         git \
@@ -43,6 +41,7 @@ RUN pacman -S --noconfirm --needed \
         xxhash \
         libunwind \
         libdwarf \
+        file \
         flac \
         utf8cpp
 RUN useradd -g users -u 1000 -m mhx
