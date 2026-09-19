@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <concepts>
 #include <ranges>
 #include <system_error>
