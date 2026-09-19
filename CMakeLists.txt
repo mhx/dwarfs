@@ -347,6 +347,7 @@ if(WITH_LIBDWARFS)
       message(FATAL_ERROR "xz executable not found, required to embed magic.mgc")
     endif()
     pkg_get_variable(LIBMAGIC_PREFIX libmagic prefix)
+    message(STATUS "libmagic prefix: ${LIBMAGIC_PREFIX}")
     find_file(DWARFS_MAGIC_MGC magic.mgc
       PATHS "${LIBMAGIC_PREFIX}"
       PATH_SUFFIXES share/misc share/file/misc share/libmagic/misc lib/file misc
