@@ -350,7 +350,12 @@ if(WITH_LIBDWARFS)
     message(STATUS "libmagic prefix: ${LIBMAGIC_PREFIX}")
     find_file(DWARFS_MAGIC_MGC magic.mgc
       PATHS "${LIBMAGIC_PREFIX}"
-      PATH_SUFFIXES share/misc share/file/misc share/libmagic/misc lib/file misc
+      PATH_SUFFIXES share/misc
+                    share/file/misc
+                    share/libmagic/misc
+                    ../share/libmagic/misc
+                    lib/file
+                    misc
       NO_DEFAULT_PATH
       REQUIRED)
     message(STATUS "Found magic.mgc: ${DWARFS_MAGIC_MGC}")
