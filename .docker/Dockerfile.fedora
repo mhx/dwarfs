@@ -4,12 +4,10 @@
 # SPDX-License-Identifier: MIT
 
 FROM fedora:rawhide@sha256:0c1f63ed8fb818fad16cf6ae091598c410a21d2e1a9adf183beb93189299bfba
-RUN dnf update -y
-RUN dnf install -y \
+RUN dnf update -y && dnf install -y \
         bash-completion \
         vim \
-        less
-RUN dnf install -y \
+        less \
         gcc \
         g++ \
         clang \
@@ -43,6 +41,7 @@ RUN dnf install -y \
         xxhash-devel \
         libunwind-devel \
         libdwarf-devel \
+        file-devel \
         flac-devel \
         utf8cpp-devel \
         json-devel \
