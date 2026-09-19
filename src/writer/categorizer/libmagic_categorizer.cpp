@@ -45,6 +45,7 @@
 #include <dwarfs/writer/categorizer.h>
 
 #include <dwarfs/internal/synchronized.h>
+#include <dwarfs/writer/internal/magic_database.h>
 
 namespace dwarfs::writer {
 
@@ -106,6 +107,27 @@ class magic_wrapper {
     if (!m) {
       throw std::runtime_error("could not create magic cookie");
     }
+
+#ifdef DWARFS_HAS_MAGIC_DATABASE
+    if (!magic_file_) {
+      if (!state.database) {
+        auto const db = internal::compressed_magic_database();
+        state.database = block_decompressor::decompress(
+            compression_type::LZMA,
+            {reinterpret_cast<std::uint8_t const*>(db.data()), db.size()});
+      }
+
+      std::array<void*, 1> buffers{const_cast<void*>(
+          reinterpret_cast<void const*>(state.database.data()))};
+      std::array<size_t, 1> sizes{state.database.size()};
+
+      if (::magic_load_buffers(m.get(), buffers.data(), sizes.data(), 1) != 0) {
+        throw_magic_error(m, "magic_load_buffers");
+      }
+
+      return m;
+    }
+#endif
 
     char const* path = magic_file_ ? magic_file_->c_str() : NULL;
 

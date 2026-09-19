@@ -139,6 +139,37 @@ add_library(
   src/reader/internal/time_resolution_handler.cpp
 )
 
+if(EMBED_MAGIC_MGC)
+  find_program(_PYTHON_EXE NAMES python3 python)
+
+  if(NOT _PYTHON_EXE)
+    find_package(Python3 REQUIRED)
+    set(_PYTHON_EXE "${Python3_EXECUTABLE}")
+  endif()
+
+  set(_magic_database_cpp "${CMAKE_CURRENT_BINARY_DIR}/magic_database.cpp")
+
+  add_custom_command(
+    OUTPUT "${_magic_database_cpp}"
+
+    COMMAND
+      "${CMAKE_COMMAND}"
+        "-DXZ_EXECUTABLE=${XZ_EXECUTABLE}"
+        "-DPYTHON_EXECUTABLE=${_PYTHON_EXE}"
+        "-DDWARFS_MAGIC_MGC=${DWARFS_MAGIC_MGC}"
+        "-DEMBED_BLOB=${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_blob.py"
+        "-DOUTPUT_FILE=${_magic_database_cpp}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_magic_database.cmake"
+
+    DEPENDS
+      "${DWARFS_MAGIC_MGC}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_blob.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_magic_database.cmake"
+
+    VERBATIM
+  )
+endif()
+
 add_library(
   dwarfs_writer
 
@@ -193,6 +224,7 @@ add_library(
   src/writer/categorizer/pcmaudio_categorizer.cpp
 
   $<$<BOOL:${LIBMAGIC_FOUND}>:src/writer/categorizer/libmagic_categorizer.cpp>
+  $<$<BOOL:${EMBED_MAGIC_MGC}>:${CMAKE_CURRENT_BINARY_DIR}/magic_database.cpp>
 )
 
 add_library(
@@ -301,6 +333,10 @@ target_compile_definitions(
   DWARFS_SYSTEM_ID="${CMAKE_SYSTEM_NAME} [${CMAKE_SYSTEM_PROCESSOR}]"
   DWARFS_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
+
+if(EMBED_MAGIC_MGC)
+  target_compile_definitions(dwarfs_writer PRIVATE DWARFS_HAS_MAGIC_DATABASE=1)
+endif()
 
 if(WITH_FUZZ)
   target_compile_definitions(dwarfs_common PRIVATE DWARFS_WITH_FUZZ)

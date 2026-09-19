@@ -341,6 +341,27 @@ if(WITH_LIBDWARFS)
     add_subdirectory(ricepp)
   endif()
 
+  if(LIBMAGIC_FOUND AND (STATIC_BUILD_DO_NOT_USE OR WIN32))
+    find_program(XZ_EXECUTABLE NAMES xz)
+    if(NOT XZ_EXECUTABLE)
+      message(FATAL_ERROR "xz executable not found, required to embed magic.mgc")
+    endif()
+    pkg_get_variable(LIBMAGIC_PREFIX libmagic prefix)
+    message(STATUS "libmagic prefix: ${LIBMAGIC_PREFIX}")
+    find_file(DWARFS_MAGIC_MGC magic.mgc
+      PATHS "${LIBMAGIC_PREFIX}"
+      PATH_SUFFIXES share/misc
+                    share/file/misc
+                    share/libmagic/misc
+                    ../share/libmagic/misc
+                    lib/file
+                    misc
+      NO_DEFAULT_PATH
+      REQUIRED)
+    message(STATUS "Found magic.mgc: ${DWARFS_MAGIC_MGC}")
+    set(EMBED_MAGIC_MGC ON)
+  endif()
+
   include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
 
   set(DWARFS_HAVE_CPPTRACE ${cpptrace_FOUND})
