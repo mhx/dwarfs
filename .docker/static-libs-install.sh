@@ -607,7 +607,7 @@ if use_lib file; then
     cd file-${FILE_VERSION}
     ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
                 LDFLAGS="-fuse-ld=lld -static -static-libgcc"
-    $MAKE_PARALLEL FILE_COMPILE="$WORKDIR/file-${FILE_VERSION}/src/file" \
+    $MAKE_PARALLEL FILE_COMPILE="qemu-${TARGET_ARCH} $WORKDIR/file-${FILE_VERSION}/src/file" \
                    LDFLAGS="-fuse-ld=lld -all-static -static-libgcc"
     make install
 fi
