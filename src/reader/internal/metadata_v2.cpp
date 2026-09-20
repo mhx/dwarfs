@@ -353,6 +353,7 @@ class directories_dir_entry_range
 struct nlink_info {
   packed_int_vector<uint32_t> nlink_minus_one;
   std::optional<file_size_t> total_hardlink_size;
+  std::optional<file_size_t> total_allocated_hardlink_size;
 };
 
 template <typename Dest, typename Src>
@@ -1080,6 +1081,17 @@ template <typename LoggerPolicy>
 std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
   std::optional<nlink_info> packed_nlinks;
 
+  // TODO: we need to build this if
+  //       - we have an old file system
+  //       - the new file system doesn't contain hardlink totals
+  //         (both apparent and allocated)
+  //       we have to decide on the semantics of total_allocated_fs_size
+  //       and total_allocated_hardlink_size being present in the metadata;
+  //       I think we should set those fields if we can, so a missing optional
+  //       indicates that we don't have this information
+  //       => update metadata_builder accordingly
+  // TODO: we need proper forward/backward compat testing for this
+
   if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
     // Inode nlink values are stored directly in the inode table
     return packed_nlinks;
@@ -1145,18 +1157,21 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
         auto tt = LOG_TIMED_TRACE;
 
         file_size_t total_size{0};
+        file_size_t total_allocated_size{0};
 
         for (int ino = file_inode_offset_; ino < dev_inode_offset_; ++ino) {
           if (auto const num = nlinks[ino - file_inode_offset_]; num > 1) {
             auto const iv = make_inode_view_impl(ino);
             auto const sz = reg_file_size_impl_noperfmon(iv, true, [](int) {});
             total_size += sz.size * (num - 1);
+            total_allocated_size += sz.allocated_size * (num - 1);
           }
         }
 
         packed_nlinks->total_hardlink_size.emplace(total_size);
+        packed_nlinks->total_allocated_hardlink_size.emplace(total_allocated_size);
 
-        tt << "calculated total hardlink size as " << total_size << " bytes";
+        tt << "calculated total hardlink size as " << total_size << " bytes (" << total_allocated_size << " bytes allocated)";
       }
     }
 
@@ -1418,6 +1433,15 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
 
   stbuf->total_allocated_fs_size =
       meta_.total_allocated_fs_size().value_or(stbuf->total_fs_size);
+
+  if (auto const thls = meta_.total_allocated_hardlink_size(); thls.has_value()) {
+    stbuf->total_allocated_hardlink_size = *thls;
+  } else if (nlinks_.has_value()) {
+    stbuf->total_allocated_hardlink_size = nlinks_->total_allocated_hardlink_size.value_or(0);
+    stbuf->total_allocated_fs_size -= stbuf->total_allocated_hardlink_size;
+  } else {
+    stbuf->total_allocated_hardlink_size = 0;
+  }
 }
 
 file_off_t

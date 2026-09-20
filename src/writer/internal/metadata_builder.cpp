@@ -672,6 +672,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
   uint64_t total_fs_size{0};
   uint64_t total_allocated_fs_size{0};
   uint64_t total_hardlink_size{0};
+  uint64_t total_allocated_hardlink_size{0};
 
   auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
   auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
@@ -719,7 +720,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
 
     inode_size_provider isp(md_, features_);
 
-    for (auto inode_num = reg_offset; inode_num < dev_offset;) {
+    for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
       auto const reg_inode_num = inode_num - reg_offset;
       auto const nlink =
           options_.no_hardlink_table
@@ -765,21 +766,10 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
         }
       }
 
-      size_t shared_count{1};
-      ++inode_num;
-
-      if (shared_index.has_value()) {
-        while (inode_num < dev_offset &&
-               shared->at(inode_num - reg_offset - num_unique_files) ==
-                   *shared_index) {
-          ++shared_count;
-          ++inode_num;
-        }
-      }
-
-      total_fs_size += shared_count * info.size;
-      total_allocated_fs_size += shared_count * info.allocated_size;
-      total_hardlink_size += shared_count * info.size * (nlink - 1);
+      total_fs_size += info.size;
+      total_allocated_fs_size += info.allocated_size;
+      total_hardlink_size += (nlink - 1) * info.size;
+      total_allocated_hardlink_size += (nlink - 1) * info.allocated_size;
     }
   }
 
@@ -832,6 +822,22 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
   } else if (total_hardlink_size != 0) {
     LOG_DEBUG << "setting total hardlink size to " << total_hardlink_size;
     md_.total_hardlink_size() = total_hardlink_size;
+  }
+
+  if (md_.total_allocated_hardlink_size().has_value() &&
+      md_.total_allocated_hardlink_size().value() != total_allocated_hardlink_size) {
+    if (total_allocated_hardlink_size == 0) {
+      LOG_WARN << "clearing total allocated hardlink size";
+      md_.total_allocated_hardlink_size().reset();
+    } else {
+      LOG_WARN << "correcting total allocated hardlink size: was "
+               << md_.total_allocated_hardlink_size().value() << ", now "
+               << total_allocated_hardlink_size;
+      md_.total_allocated_hardlink_size() = total_allocated_hardlink_size;
+    }
+  } else if (total_allocated_hardlink_size != 0) {
+    LOG_DEBUG << "setting total allocated hardlink size to " << total_allocated_hardlink_size;
+    md_.total_allocated_hardlink_size() = total_allocated_hardlink_size;
   }
 
   tv << "updating total sizes and inode size cache...";
@@ -1056,8 +1062,11 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   } else {
     md_.create_timestamp() = std::time(nullptr);
   }
-  md_.preferred_path_separator() =
-      static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+
+  if (!md_.preferred_path_separator().has_value()) {
+    md_.preferred_path_separator() =
+        static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+  }
 
   return md_;
 }

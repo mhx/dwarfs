@@ -57,7 +57,6 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
-#include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/filesystem_extractor_archive_format.h>
@@ -424,22 +423,31 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto sparse_mode = sparse_mode_;
-  bool supports_hardlinks{true};
+  bool supports_hardlinks{!opts.disable_hardlinks};
+  auto const format = ::archive_format(a_.get());
 
-  auto lr = ::archive_entry_linkresolver_new();
-
-  scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
-
-  if (auto fmt = ::archive_format(a_.get())) {
-    LOG_DEBUG << "setting link resolver strategy for format " << fmt;
-
-    ::archive_entry_linkresolver_set_strategy(lr, fmt);
-
-    if (sparse_mode == sparse_file_mode::auto_detect) {
-      sparse_mode = get_sparse_file_mode_for_format(fmt);
+  if (format) {
+    if (!format_supports_hardlinks(format)) {
+      supports_hardlinks = false;
     }
 
-    supports_hardlinks = format_supports_hardlinks(fmt);
+    if (sparse_mode == sparse_file_mode::auto_detect) {
+      sparse_mode = get_sparse_file_mode_for_format(format);
+    }
+  }
+
+  std::unique_ptr<::archive_entry_linkresolver,
+                  decltype(&::archive_entry_linkresolver_free)>
+      lr{nullptr, &::archive_entry_linkresolver_free};
+
+  if (supports_hardlinks) {
+    lr.reset(::archive_entry_linkresolver_new());
+
+    if (format) {
+      LOG_DEBUG << "setting link resolver strategy for format "
+                << archive_format_name(a_.get());
+      ::archive_entry_linkresolver_set_strategy(lr.get(), format);
+    }
   }
 
   ::archive_entry* spare = nullptr;
@@ -649,14 +657,14 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     vfs_stat vfs;
     fs.statvfs(&vfs);
 
-    uint64_t data_size;
+    uint64_t data_size = sparse_mode == sparse_file_mode::sparse_disk
+                             ? vfs.total_allocated_fs_size
+                             : vfs.total_fs_size;
 
-    if (sparse_mode == sparse_file_mode::sparse_disk) {
-      data_size = vfs.total_allocated_fs_size;
-    } else if (supports_hardlinks) {
-      data_size = vfs.total_fs_size;
-    } else {
-      data_size = vfs.total_fs_size + vfs.total_hardlink_size;
+    if (!supports_hardlinks) {
+      data_size += sparse_mode == sparse_file_mode::sparse_disk
+                       ? vfs.total_allocated_hardlink_size
+                       : vfs.total_hardlink_size;
     }
 
     std::lock_guard lock(bytes_total_mx_);
@@ -740,8 +748,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     ::archive_entry_set_dev(ae, stat.dev_unchecked());
     ::archive_entry_set_gid(ae, stat.gid_unchecked());
     ::archive_entry_set_uid(ae, stat.uid_unchecked());
-    ::archive_entry_set_ino(ae, stat.ino_unchecked());
-    ::archive_entry_set_nlink(ae, stat.nlink_unchecked());
+    if (supports_hardlinks) {
+      ::archive_entry_set_ino(ae, stat.ino_unchecked());
+      ::archive_entry_set_nlink(ae, stat.nlink_unchecked());
+    }
     ::archive_entry_set_rdev(ae, stat.rdev_unchecked());
     ::archive_entry_set_size(ae, stat.size_unchecked());
     ::archive_entry_set_mode(ae, stat.mode_unchecked());
@@ -764,7 +774,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 #endif
     }
 
-    ::archive_entry_linkify(lr, &ae, &spare);
+    if (supports_hardlinks) {
+      ::archive_entry_linkify(lr.get(), &ae, &spare);
+    }
 
     if (ae) {
       do_archive(inode.is_regular_file() && stat.nlink_unchecked() == 1
@@ -812,9 +824,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   }
 
   // process any deferred hard link entries
-  {
+  if (supports_hardlinks) {
     ::archive_entry* ae = nullptr;
-    ::archive_entry_linkify(lr, &ae, &spare);
+    ::archive_entry_linkify(lr.get(), &ae, &spare);
 
     if (ae) {
       do {
@@ -828,7 +840,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         do_archive(archiver, shared_entry_ptr(ae), *ev);
 
         ae = nullptr;
-        ::archive_entry_linkify(lr, &ae, &spare);
+        ::archive_entry_linkify(lr.get(), &ae, &spare);
       } while (ae);
 
       archiver->wait();

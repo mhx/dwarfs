@@ -125,7 +125,8 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
   size_t num_workers, num_disk_writers;
   bool continue_on_error{false}, disable_integrity_check{false},
-      stdout_progress{false}, skip_devices{false}, skip_specials{false};
+      stdout_progress{false}, skip_devices{false}, skip_specials{false},
+      no_hardlinks{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -145,6 +146,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("skip-specials",
         po::value<bool>(&skip_specials)->zero_tokens(),
         "do not extract special files (sockets, fifos, etc.)")
+    ("no-hardlinks",
+        po::value<bool>(&no_hardlinks)->zero_tokens(),
+        "do not create hardlinks, extract each file separately")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
@@ -311,6 +315,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     fsx_opts.enable_progress = stdout_progress;
     fsx_opts.skip_devices = skip_devices;
     fsx_opts.skip_specials = skip_specials;
+    fsx_opts.disable_hardlinks = no_hardlinks;
 
     std::optional<progress_thread> prog;
 

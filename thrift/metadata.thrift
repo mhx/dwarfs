@@ -511,14 +511,12 @@ struct metadata {
   // stored efficiently in the chunk table, in bytes.
   35: optional list<UInt64>     large_hole_size
 
-   // Total allocated file system size in bytes.
+   // Total allocated file system size in bytes. Only set for
+   // file system images that contain sparse files.
   36: optional UInt64           total_allocated_fs_size
 
-  //-------------------------------------------------------------
-  // This field was never released, but someone may have built
-  // an image from a pre-release version, so we keep this here
-  // as a reminder not to reuse this field number.
-  //
-  // 37: optional UInt64           total_allocated_hardlink_size
-  //-------------------------------------------------------------
+   // Total allocated size of hardlinked files beyond the first
+   // link, in bytes. Only set for file system images that
+   // contain hardlinked sparse files.
+  37: optional UInt64           total_allocated_hardlink_size
 }
