@@ -289,6 +289,8 @@ endif()
 
 target_include_directories(dwarfs_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 
 target_compile_definitions(
@@ -337,6 +339,8 @@ target_link_libraries(
   Boost::boost
   Boost::chrono
   Boost::filesystem
+  fmt::fmt
+  PRIVATE
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
@@ -399,14 +403,15 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     COMPATIBILITY AnyNewerVersion
   )
 
+  set(LIBDWARFS_INSTALL_TARGETS ${LIBDWARFS_TARGETS})
+  if(NOT BUILD_SHARED_LIBS)
+    list(APPEND LIBDWARFS_INSTALL_TARGETS
+      ${LIBDWARFS_OBJECT_TARGETS}
+      ${RICEPP_OBJECT_TARGETS})
+  endif()
+
   install(
-    TARGETS ${LIBDWARFS_TARGETS}
-
-            # object libs
-            ${LIBDWARFS_OBJECT_TARGETS}
-
-            # other
-            ${RICEPP_OBJECT_TARGETS}
+    TARGETS ${LIBDWARFS_INSTALL_TARGETS}
     EXPORT dwarfs-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
