@@ -2150,12 +2150,22 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
         auto td = LOG_TIMED_DEBUG;
 
         for (auto& fcb : first_chunk_block) {
-          int ino = fcb;
+          int const ino = fcb;
+
+          fcb = 0;
+
           if (ino >= file_inode_offset_) {
-            ino = file_inode_to_chunk_index(ino);
-            if (auto beg = chunk_table_lookup(ino);
-                beg != chunk_table_lookup(ino + 1)) {
-              fcb = meta_.chunks()[beg].block();
+            std::error_code ec;
+            auto cr = get_chunk_range(ino, ec);
+
+            DWARFS_CHECK(
+                !ec, fmt::format("get_chunk_range({}): {}", ino, ec.message()));
+
+            for (auto const& chunk : cr) {
+              if (chunk.is_data()) {
+                fcb = chunk.block();
+                break;
+              }
             }
           }
         }
