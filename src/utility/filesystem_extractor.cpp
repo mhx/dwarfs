@@ -568,6 +568,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
               }
 
               assert(extents.empty());
+
+              check_result(a, ::archive_write_finish_entry(a));
             } catch (archive_error const& e) {
               LOG_ERROR << exception_str(e);
               ++hard_error;
@@ -585,6 +587,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       aptr->add_job([this, ae = std::move(ae), &hard_error](struct archive* a) {
         try {
           check_result(a, ::archive_write_header(a, ae.get()));
+          check_result(a, ::archive_write_finish_entry(a));
         } catch (...) {
           LOG_ERROR << exception_str(std::current_exception());
           ++hard_error;
