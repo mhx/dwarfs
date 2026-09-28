@@ -71,6 +71,12 @@ to disk:
   when extracting to a filesystem or archive format that does not support
   special files.
 
+- `--no-hardlinks`:
+  Do not extract hardlinks. This can be useful when extracting to a filesystem
+  that does not support hardlinks. When writing to an archive format, hardlink
+  support is determined automatically, but this option can be used to disable
+  hardlinks even if the archive format supports them.
+
 - `-O`, `--image-offset=`*value*|`auto`:
   Specify the byte offset at which the filesystem is located in the image.
   Use `auto` to detect the offset automatically. This is also the default.
