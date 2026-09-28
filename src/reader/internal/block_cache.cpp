@@ -222,7 +222,9 @@ class block_request_set {
 
 // multi-threaded block cache
 template <typename LoggerPolicy>
-class block_cache_ final : public block_cache::impl {
+class block_cache_ final
+    : public block_cache::impl,
+      public std::enable_shared_from_this<block_cache_<LoggerPolicy>> {
  public:
   block_cache_(logger& lgr, os_access const& os, file_view const& mm,
                block_cache_options const& options,
@@ -276,6 +278,17 @@ class block_cache_ final : public block_cache::impl {
       update_block_stats(*cb.second);
     }
 
+    LOG_DEBUG << "evicted blocks:";
+
+    for (auto const& cb : evicted_blocks_) {
+      if (auto block = cb.second.lock()) {
+        LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
+                  << static_cast<double>(block->range_end()) /
+                         static_cast<double>(block->uncompressed_size());
+        update_block_stats(*block);
+      }
+    }
+
     double fast_hit_rate =
         100.0 * (active_hits_fast_ + cache_hits_fast_) / range_requests_;
     double slow_hit_rate =
@@ -290,6 +303,7 @@ class block_cache_ final : public block_cache::impl {
     // number of evicted blocks outgrow the number of created blocks.
     LOG_VERBOSE << "blocks created: " << blocks_created_.load();
     LOG_VERBOSE << "blocks evicted: " << blocks_evicted_.load();
+    LOG_VERBOSE << "blocks reinserted: " << blocks_reinserted_.load();
     LOG_VERBOSE << "blocks tidied: " << blocks_tidied_.load();
     LOG_VERBOSE << "request sets merged: " << sets_merged_.load();
     LOG_VERBOSE << "total requests: " << range_requests_.load();
@@ -379,6 +393,8 @@ class block_cache_ final : public block_cache::impl {
     scope_exit do_prefetch{[&] {
       if (auto next = seq_access_detector_->prefetch()) {
         std::lock_guard lock(mx_);
+
+        try_reinsert_evicted_block(*next);
 
         if (cache_.find(*next, false) == cache_.end() &&
             active_.find(*next) == active_.end()) {
@@ -504,6 +520,10 @@ class block_cache_ final : public block_cache::impl {
       LOG_TRACE << "block " << block_no << " not found in active set";
     }
 
+    // If this block was previously evicted, but isn't yet expired,
+    // we can just reinsert it into the cache.
+    try_reinsert_evicted_block(block_no);
+
     // See if it's cached (fully or partially decompressed)
     auto ic = cache_.find(block_no);
 
@@ -539,6 +559,8 @@ class block_cache_ final : public block_cache::impl {
 
     LOG_TRACE << "block " << block_no << " not found";
 
+    cleanup_evicted_blocks();
+
     create_cached_block(block_no, std::move(promise), offset, range_end);
 
     return future;
@@ -553,7 +575,38 @@ class block_cache_ final : public block_cache::impl {
               << " from cache, decompression ratio = "
               << static_cast<double>(block->range_end()) /
                      static_cast<double>(block->uncompressed_size());
-    update_block_stats(*block);
+    std::weak_ptr<cached_block> weak_block(block);
+    block.reset();
+    if (!weak_block.expired()) {
+      LOG_TRACE << "block " << block_no << " still has "
+                << weak_block.use_count()
+                << " references, keeping weak pointer";
+      evicted_blocks_.emplace(block_no, std::move(weak_block));
+    }
+  }
+
+  void cleanup_evicted_blocks() const {
+    auto const before = evicted_blocks_.size();
+    erase_if(evicted_blocks_, [](auto const& p) { return p.second.expired(); });
+    auto const after = evicted_blocks_.size();
+    if (before != after) {
+      LOG_TRACE << "cleaned up " << (before - after)
+                << " expired evicted blocks";
+    }
+  }
+
+  void try_reinsert_evicted_block(size_t block_no) const {
+    if (auto it = evicted_blocks_.find(block_no); it != evicted_blocks_.end()) {
+      if (auto block = it->second.lock()) {
+        LOG_TRACE << "re-inserting previously evicted block " << block_no
+                  << " into cache";
+        // Erase before re-adding, since the cache will likely evict another
+        // block, invalidating the iterator.
+        evicted_blocks_.erase(it);
+        cache_.set(block_no, std::move(block));
+        blocks_reinserted_.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
   }
 
   static std::unique_ptr<sequential_access_detector>
@@ -570,9 +623,20 @@ class block_cache_ final : public block_cache::impl {
     try {
       auto const& section = DWARFS_NOTHROW(block_.at(block_no));
 
-      std::shared_ptr<cached_block> block = cached_block::create(
+      auto unique = cached_block::create(
           LOG_GET_LOGGER, section, section.segment(mm_), buffer_factory_,
           options_.disable_block_integrity_check);
+
+      std::shared_ptr<cached_block> block{
+          unique.release(),
+          [wself = this->weak_from_this(),
+           deleter = std::move(unique.get_deleter())](auto* p) {
+            if (auto self = wself.lock()) {
+              self->update_block_stats(*p);
+            }
+            deleter(p);
+          }};
+
       blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
@@ -591,7 +655,7 @@ class block_cache_ final : public block_cache::impl {
     }
   }
 
-  void update_block_stats(cached_block const& cb) {
+  void update_block_stats(cached_block const& cb) const {
     if (cb.range_end() < cb.uncompressed_size()) {
       partially_decompressed_.fetch_add(1, std::memory_order_relaxed);
     }
@@ -776,6 +840,7 @@ class block_cache_ final : public block_cache::impl {
 
   mutable std::mutex mx_;
   mutable lru_type cache_;
+  mutable fast_map_type<size_t, std::weak_ptr<cached_block>> evicted_blocks_;
   mutable fast_map_type<size_t, std::vector<std::weak_ptr<block_request_set>>>
       active_;
   periodic_executor tidy_runner_;
@@ -786,6 +851,7 @@ class block_cache_ final : public block_cache::impl {
 
   mutable std::atomic<size_t> blocks_created_{0};
   mutable std::atomic<size_t> blocks_evicted_{0};
+  mutable std::atomic<size_t> blocks_reinserted_{0};
   mutable std::atomic<size_t> sets_merged_{0};
   mutable std::atomic<size_t> range_requests_{0};
   mutable std::atomic<size_t> active_hits_fast_{0};
@@ -824,8 +890,8 @@ block_cache::block_cache(
     logger& lgr, os_access const& os, file_view const& mm,
     block_cache_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : impl_(
-          make_unique_logging_object<impl, block_cache_, default_logger_policy>(
-              lgr, os, mm, options, perfmon)) {}
+    : impl_{
+          make_shared_logging_object<impl, block_cache_, default_logger_policy>(
+              lgr, os, mm, options, perfmon)} {}
 
 } // namespace dwarfs::reader::internal
