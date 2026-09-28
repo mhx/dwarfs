@@ -672,6 +672,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
   uint64_t total_fs_size{0};
   uint64_t total_allocated_fs_size{0};
   uint64_t total_hardlink_size{0};
+  uint64_t total_allocated_hardlink_size{0};
 
   auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
   auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
@@ -781,6 +782,7 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
         total_fs_size += info.size;
         total_allocated_fs_size += info.allocated_size;
         total_hardlink_size += info.size * (nlink - 1);
+        total_allocated_hardlink_size += info.allocated_size * (nlink - 1);
 
         ++inode_num;
       }
@@ -836,6 +838,24 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
   } else if (total_hardlink_size != 0) {
     LOG_DEBUG << "setting total hardlink size to " << total_hardlink_size;
     md_.total_hardlink_size() = total_hardlink_size;
+  }
+
+  if (md_.total_allocated_hardlink_size().has_value() &&
+      md_.total_allocated_hardlink_size().value() !=
+          total_allocated_hardlink_size) {
+    if (total_allocated_hardlink_size == 0) {
+      LOG_WARN << "clearing total allocated hardlink size";
+      md_.total_allocated_hardlink_size().reset();
+    } else {
+      LOG_WARN << "correcting total allocated hardlink size: was "
+               << md_.total_allocated_hardlink_size().value() << ", now "
+               << total_allocated_hardlink_size;
+      md_.total_allocated_hardlink_size() = total_allocated_hardlink_size;
+    }
+  } else if (total_allocated_hardlink_size != 0) {
+    LOG_DEBUG << "setting total allocated hardlink size to "
+              << total_allocated_hardlink_size;
+    md_.total_allocated_hardlink_size() = total_allocated_hardlink_size;
   }
 
   tv << "updating total sizes and inode size cache...";
