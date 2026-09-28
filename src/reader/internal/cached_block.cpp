@@ -68,7 +68,8 @@ class cached_block_ final : public cached_block {
     }
     std::atomic_fetch_add(&instance_count_, 1U);
     LOG_TRACE << "create cached block " << section_.section_number().value()
-              << " [" << instance_count_ << "]";
+              << " [" << instance_count_ << "] (" << uncompressed_size_
+              << " bytes)";
   }
 
   ~cached_block_() override {
