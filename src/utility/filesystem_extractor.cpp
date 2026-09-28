@@ -450,10 +450,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
 
+  static constexpr std::size_t kMaxRegQueueLen = 1024;
   using worker_ptr = std::shared_ptr<basic_worker_group<archive*>>;
 
   worker_ptr archiver = std::make_shared<basic_worker_group<archive*>>(
-      LOG_GET_LOGGER, os_, "archiver", a_.get());
+      LOG_GET_LOGGER, os_, "archiver",
+      worker_group_options{.max_queue_len = kMaxRegQueueLen}, a_.get());
   worker_ptr reg_archiver;
 
   if (a_reg_.empty()) {
@@ -461,7 +463,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   } else {
     reg_archiver = std::make_shared<basic_worker_group<archive*>>(
         LOG_GET_LOGGER, os_, "arch-reg",
-        worker_group_options{.num_workers = a_reg_.size()},
+        worker_group_options{.num_workers = a_reg_.size(),
+                             .max_queue_len = kMaxRegQueueLen},
         [this](size_t idx) { return a_reg_[idx].get(); });
   }
 
