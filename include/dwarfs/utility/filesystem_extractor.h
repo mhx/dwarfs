@@ -60,6 +60,7 @@ struct filesystem_extractor_options {
   bool enable_progress{false};
   bool skip_devices{false};
   bool skip_specials{false};
+  bool disable_hardlinks{false};
 };
 
 class filesystem_extractor {
