@@ -353,6 +353,7 @@ class directories_dir_entry_range
 struct nlink_info {
   packed_int_vector<uint32_t> nlink_minus_one;
   std::optional<file_size_t> total_hardlink_size;
+  std::optional<file_size_t> total_allocated_hardlink_size;
 };
 
 template <typename Dest, typename Src>
@@ -739,6 +740,7 @@ class metadata_v2_data {
   std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
+  metadata_options const options_;
   global_metadata const global_;
   sparse_chunk_codec const chunk_codec_;
   chunk_range_context const chunk_range_ctx_{meta_, chunk_codec_};
@@ -755,7 +757,6 @@ class metadata_v2_data {
   std::once_flag mutable shared_start_pos_init_;
   int const unique_files_;
   std::optional<nlink_info> const nlinks_;
-  metadata_options const options_;
   string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
   synchronized<lru_cache<
@@ -787,6 +788,7 @@ metadata_v2_data::metadata_v2_data(
     , data_{data}
     , meta_{check_frozen(
           map_frozen<thrift::metadata::metadata>(lgr, schema, data_))}
+    , options_{options}
     , global_{lgr, check_metadata_consistency(
                        lgr, meta_, uncompressed_block_size,
                        options.check_consistency || force_consistency_check)}
@@ -809,7 +811,6 @@ metadata_v2_data::metadata_v2_data(
                                : 0
                          : shared_files_.size()))
     , nlinks_{build_nlinks<LoggerPolicy>(lgr)}
-    , options_{options}
     , symlinks_{meta_.compact_symlinks()
                     ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                     : string_table(meta_.symlinks())}
@@ -1080,7 +1081,20 @@ template <typename LoggerPolicy>
 std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
   std::optional<nlink_info> packed_nlinks;
 
-  if (meta_.options().has_value() && meta_.options()->inodes_have_nlink()) {
+  bool const inodes_have_nlink =
+      meta_.options().has_value() && meta_.options()->inodes_have_nlink();
+
+  bool const must_build_allocated_hardlink_size = [&]() {
+    if (!has_sparse_files()) {
+      return false;
+    }
+    if (!meta_.total_hardlink_size().has_value()) {
+      return false;
+    }
+    return !meta_.total_allocated_hardlink_size().has_value();
+  }();
+
+  if (inodes_have_nlink && !must_build_allocated_hardlink_size) {
     // Inode nlink values are stored directly in the inode table
     return packed_nlinks;
   }
@@ -1138,25 +1152,36 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
            << size_with_unit(nlm1.size_in_bytes());
       }
 
-      if (!meta_.total_hardlink_size().has_value()) {
+      if (!meta_.total_hardlink_size().has_value() ||
+          must_build_allocated_hardlink_size) {
         // This is an old (v2.2) filesystem (pre-0.5.0) that doesn't yet have
         // the total hardlink size stored; we need to calculate it now.
 
         auto tt = LOG_TIMED_TRACE;
 
         file_size_t total_size{0};
+        file_size_t total_allocated_size{0};
 
         for (int ino = file_inode_offset_; ino < dev_inode_offset_; ++ino) {
           if (auto const num = nlinks[ino - file_inode_offset_]; num > 1) {
             auto const iv = make_inode_view_impl(ino);
             auto const sz = reg_file_size_impl_noperfmon(iv, true, [](int) {});
             total_size += sz.size * (num - 1);
+            total_allocated_size += sz.allocated_size * (num - 1);
           }
         }
 
-        packed_nlinks->total_hardlink_size.emplace(total_size);
+        if (!meta_.total_hardlink_size().has_value()) {
+          packed_nlinks->total_hardlink_size.emplace(total_size);
+        }
 
-        tt << "calculated total hardlink size as " << total_size << " bytes";
+        if (must_build_allocated_hardlink_size) {
+          packed_nlinks->total_allocated_hardlink_size.emplace(
+              total_allocated_size);
+        }
+
+        tt << "calculated total hardlink size as " << total_size << " bytes ("
+           << total_allocated_size << " bytes allocated)";
       }
     }
 
@@ -1418,6 +1443,16 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
 
   stbuf->total_allocated_fs_size =
       meta_.total_allocated_fs_size().value_or(stbuf->total_fs_size);
+
+  if (auto const thls = meta_.total_allocated_hardlink_size();
+      thls.has_value()) {
+    stbuf->total_allocated_hardlink_size = *thls;
+  } else if (nlinks_.has_value()) {
+    stbuf->total_allocated_hardlink_size =
+        nlinks_->total_allocated_hardlink_size.value_or(0);
+  } else {
+    stbuf->total_allocated_hardlink_size = stbuf->total_hardlink_size;
+  }
 }
 
 file_off_t
@@ -1962,6 +1997,15 @@ void metadata_v2_data::dump(
         os << "shared_files_table: " << sfp->size() << "\n";
       }
       os << "unique files: " << unique_files_ << "\n";
+    }
+    if (auto tafs = meta_.total_allocated_fs_size()) {
+      os << "total_allocated_fs_size: " << size_with_unit(*tafs) << "\n";
+    }
+    if (auto ths = meta_.total_hardlink_size()) {
+      os << "total_hardlink_size: " << size_with_unit(*ths) << "\n";
+    }
+    if (auto tahs = meta_.total_allocated_hardlink_size()) {
+      os << "total_allocated_hardlink_size: " << size_with_unit(*tahs) << "\n";
     }
     analyze_chunks(os);
   }
