@@ -697,10 +697,6 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
 
     for (auto inode_num = reg_offset; inode_num < dev_offset;) {
       auto const reg_inode_num = inode_num - reg_offset;
-      auto const nlink =
-          options_.no_hardlink_table
-              ? nlink_table[reg_inode_num]
-              : md_.inodes()->at(inode_num).nlink_minus_one().value() + 1;
       std::optional<uint32_t> const shared_index =
           reg_inode_num >= num_unique_files
               ? std::optional<uint32_t>{shared->at(reg_inode_num -
@@ -741,21 +737,29 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
         }
       }
 
-      size_t shared_count{1};
-      ++inode_num;
+      uint32_t shared_count = 1;
 
       if (shared_index.has_value()) {
-        while (inode_num < dev_offset &&
-               shared->at(inode_num - reg_offset - num_unique_files) ==
-                   *shared_index) {
-          ++shared_count;
-          ++inode_num;
+        for (auto i = reg_inode_num - num_unique_files + 1; i < shared->size();
+             ++i) {
+          if (shared->at(i) == *shared_index) {
+            ++shared_count;
+          }
         }
       }
 
-      total_fs_size += shared_count * info.size;
-      total_allocated_fs_size += shared_count * info.allocated_size;
-      total_hardlink_size += shared_count * info.size * (nlink - 1);
+      for (uint32_t i = 0; i < shared_count; ++i) {
+        auto const nlink =
+            options_.no_hardlink_table
+                ? nlink_table[inode_num - reg_offset]
+                : md_.inodes()->at(inode_num).nlink_minus_one().value() + 1;
+
+        total_fs_size += info.size;
+        total_allocated_fs_size += info.allocated_size;
+        total_hardlink_size += info.size * (nlink - 1);
+
+        ++inode_num;
+      }
     }
   }
 
