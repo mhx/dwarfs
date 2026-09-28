@@ -1403,4 +1403,12 @@ TEST(mkdwarfs_test, metadata_repair_allocated_gh307) {
   EXPECT_EQ(7481, newstat.total_fs_size);
   EXPECT_EQ(7481, newstat.total_allocated_fs_size);
   EXPECT_EQ(3222, newstat.total_hardlink_size);
+
+  auto originfo =
+      origfs.info_as_json({.features = reader::fsinfo_features::for_level(1)});
+  auto newinfo =
+      newfs.info_as_json({.features = reader::fsinfo_features::for_level(1)});
+
+  EXPECT_EQ("\\", originfo["preferred_path_separator"]);
+  EXPECT_EQ("\\", newinfo["preferred_path_separator"]);
 }
