@@ -9,7 +9,17 @@
 #include <stdlib.h>
 #include <zstd.h>
 
-static void checkSetParameter(ZSTD_CCtx_params* p, ZSTD_cParameter param, int value) {
+#ifndef _WIN32
+#include <signal.h>
+
+void sigfpe_handler(int sig) {
+  fprintf(stderr, "floating point exception (signal %d)\n", sig);
+  exit(3);
+}
+#endif
+
+static void
+checkSetParameter(ZSTD_CCtx_params* p, ZSTD_cParameter param, int value) {
   size_t r = ZSTD_CCtxParams_setParameter(p, param, value);
   if (ZSTD_isError(r)) {
     fprintf(stderr, "ZSTD_CCtxParams_setParameter: %s\n", ZSTD_getErrorName(r));
@@ -18,13 +28,20 @@ static void checkSetParameter(ZSTD_CCtx_params* p, ZSTD_cParameter param, int va
 }
 
 int main(void) {
+#ifndef _WIN32
+  if (signal(SIGFPE, sigfpe_handler) == SIG_ERR) {
+    fprintf(stderr, "failed to install signal handler for SIGFPE\n");
+    return 2;
+  }
+#endif
   ZSTD_CCtx_params* p = ZSTD_createCCtxParams();
   checkSetParameter(p, ZSTD_c_srcSizeHint, 512u << 20);
   checkSetParameter(p, ZSTD_c_compressionLevel, 22);
   checkSetParameter(p, ZSTD_c_enableLongDistanceMatching, 1);
   size_t r = ZSTD_estimateCCtxSize_usingCCtxParams(p);
   if (ZSTD_isError(r)) {
-    fprintf(stderr, "ZSTD_estimateCCtxSize_usingCCtxParams: %s\n", ZSTD_getErrorName(r));
+    fprintf(stderr, "ZSTD_estimateCCtxSize_usingCCtxParams: %s\n",
+            ZSTD_getErrorName(r));
     return 1;
   }
   fprintf(stdout, "estimated CCtx size: %zu\n", r);
