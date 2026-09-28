@@ -1060,8 +1060,11 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   } else {
     md_.create_timestamp() = std::time(nullptr);
   }
-  md_.preferred_path_separator() =
-      static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+
+  if (!md_.preferred_path_separator().has_value()) {
+    md_.preferred_path_separator() =
+        static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+  }
 
   return md_;
 }
