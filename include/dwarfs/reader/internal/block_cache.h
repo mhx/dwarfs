@@ -64,6 +64,12 @@ class block_cache {
               block_cache_options const& options,
               std::shared_ptr<performance_monitor const> const& perfmon);
 
+  block_cache(block_cache const&) = delete;
+  block_cache& operator=(block_cache const&) = delete;
+
+  block_cache(block_cache&&) = default;
+  block_cache& operator=(block_cache&&) = default;
+
   size_t block_count() const { return impl_->block_count(); }
 
   void insert(dwarfs::internal::fs_section const& section) {
@@ -97,7 +103,7 @@ class block_cache {
   };
 
  private:
-  std::unique_ptr<impl> impl_;
+  std::shared_ptr<impl> impl_;
 };
 
 } // namespace internal
