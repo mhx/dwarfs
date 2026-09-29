@@ -788,7 +788,7 @@ int op_open(char const* path, struct fuse_file_info* fi) {
 template <typename LogProxy>
 off_t op_lseek_common(LogProxy& log_, dwarfs_userdata& userdata,
                       uint32_t const inode, off_t const off, int const whence) {
-  return checked_call(log_, [&]() -> off_t {
+  return checked_call(log_, [&] -> off_t {
     reader::seek_whence rwhence;
 
     switch (whence) {
@@ -876,7 +876,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
             << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino, size)
 
-  checked_reply_err(log_, req, [&]() -> ssize_t {
+  checked_reply_err(log_, req, [&] -> ssize_t {
     if (FUSE_ROOT_ID + fi->fh != ino) {
       return EIO;
     }

@@ -190,7 +190,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
                     size_t size, file_off_t it_offset) const;
 
   readonly_memory_mapping const& get_hole_data() const {
-    std::call_once(hole_data_init_flag_, [this]() {
+    std::call_once(hole_data_init_flag_, [this] {
       hole_data_ = os_.map_empty_readonly(opts_.hole_data_size);
       if (!hole_data_) {
         LOG_ERROR << "failed to allocate zero block: "

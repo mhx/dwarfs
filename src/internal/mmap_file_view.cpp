@@ -245,7 +245,7 @@ bool mmap_file_view::range_is_all_zero(file_range range) const noexcept {
 }
 
 file_segment mmap_file_view::make_zero_filled_segment(file_range range) const {
-  std::call_once(zero_filled_mapping_init_, [this]() {
+  std::call_once(zero_filled_mapping_init_, [this] {
     zero_filled_mapping_ = std::make_unique<zero_filled_mapping>();
   });
 

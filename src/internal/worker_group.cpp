@@ -81,7 +81,7 @@ class worker_group_impl_ final : public worker_group_impl {
 
     for (size_t i = 0; i < num_workers; ++i) {
       workers_.emplace_back([this, niceness = options.niceness,
-                             thread_name_prefix, i, state = sf(i)]() mutable {
+                             thread_name_prefix, i, state = sf(i)] mutable {
         set_thread_name(fmt::format("{}{}", thread_name_prefix, i + 1));
         set_thread_niceness(niceness);
         do_work(*state, niceness > 10);
