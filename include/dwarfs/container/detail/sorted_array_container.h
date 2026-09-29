@@ -106,7 +106,7 @@ class sorted_array_container {
 
   template <typename... Elements>
     requires(sizeof...(Elements) == N) &&
-            (std::constructible_from<value_type, Elements &&> && ...)
+            (std::constructible_from<value_type, Elements&&> && ...)
   constexpr explicit sorted_array_container(Elements&&... elements)
       : sorted_array_container{std::array<value_type, sizeof...(Elements)>{
             {std::forward<Elements>(elements)...}}} {}
