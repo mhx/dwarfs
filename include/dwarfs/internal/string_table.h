@@ -52,8 +52,8 @@ class string_table {
       ::apache::thrift::frozen::View<thrift::metadata::string_table>;
 
   struct pack_options {
-    pack_options(bool pack_data = true, bool pack_index = true,
-                 bool force_pack_data = false)
+    explicit pack_options(bool pack_data = true, bool pack_index = true,
+                          bool force_pack_data = false)
         : pack_data{pack_data}
         , pack_index{pack_index}
         , force_pack_data{force_pack_data} {}
@@ -64,7 +64,7 @@ class string_table {
   };
 
   string_table(logger& lgr, std::string_view name, PackedTableView v);
-  string_table(LegacyTableView v);
+  explicit string_table(LegacyTableView v);
 
   std::string operator[](size_t index) const { return impl_->lookup(index); }
 

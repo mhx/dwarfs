@@ -287,7 +287,7 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
 
 class lzma_block_decompressor final : public block_decompressor_base {
  public:
-  lzma_block_decompressor(std::span<uint8_t const> data)
+  explicit lzma_block_decompressor(std::span<uint8_t const> data)
       : stream_(LZMA_STREAM_INIT)
       , uncompressed_size_(get_uncompressed_size(data.data(), data.size())) {
     stream_.next_in = data.data();

@@ -34,7 +34,7 @@ class basic_speedometer {
   using clock_type = ClockT;
   using value_type = ValueT;
 
-  basic_speedometer(std::chrono::milliseconds window_length)
+  explicit basic_speedometer(std::chrono::milliseconds window_length)
       : window_length_{window_length} {}
 
   void put(value_type s) {
