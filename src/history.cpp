@@ -101,6 +101,8 @@ void history::append(
 
 size_t history::size() const { return history_->entries()->size(); }
 
+thrift::history::history const& history::raw() const { return *history_; }
+
 shared_byte_buffer history::serialize() const {
   std::vector<std::byte> buf;
   thrift_lite::compact_writer w(buf);
