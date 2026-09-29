@@ -73,7 +73,7 @@ class worker_context_model final : public worker_context {
 
   template <typename... Ts>
     requires(sizeof...(Ts) == sizeof...(Args) &&
-             (std::constructible_from<Args, Ts &&> && ...))
+             (std::constructible_from<Args, Ts&&> && ...))
   explicit worker_context_model(Ts&&... args)
       : args_(std::forward<Ts>(args)...) {}
 
@@ -162,7 +162,7 @@ class basic_worker_group {
    */
   template <typename... Ts>
     requires(sizeof...(Args) > 0 && sizeof...(Ts) == sizeof...(Args) &&
-             (std::constructible_from<Args, Ts &&> && ...) &&
+             (std::constructible_from<Args, Ts&&> && ...) &&
              (std::copy_constructible<Args> && ...))
   basic_worker_group(logger& lgr, os_access const& os,
                      std::string_view group_name, Ts&&... args)
@@ -171,7 +171,7 @@ class basic_worker_group {
 
   template <typename... Ts>
     requires(sizeof...(Args) > 0 && sizeof...(Ts) == sizeof...(Args) &&
-             (std::constructible_from<Args, Ts &&> && ...) &&
+             (std::constructible_from<Args, Ts&&> && ...) &&
              (std::copy_constructible<Args> && ...))
   basic_worker_group(logger& lgr, os_access const& os,
                      std::string_view group_name, options_type options,
