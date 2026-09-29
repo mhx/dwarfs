@@ -131,7 +131,7 @@ class segment_byte_buffer : public byte_buffer_interface {
 
 class compression_progress : public progress::context {
  public:
-  using status = progress::context::status;
+  using progress::context::status;
 
   compression_progress() = default;
 
@@ -654,8 +654,7 @@ void fsblock::build_section_header(section_header_v2& sh,
 template <typename LoggerPolicy>
 class filesystem_writer_ final : public filesystem_writer_detail {
  public:
-  using physical_block_cb_type =
-      filesystem_writer_detail::physical_block_cb_type;
+  using filesystem_writer_detail::physical_block_cb_type;
 
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
                      progress& prog, filesystem_writer_options const& options,
@@ -1017,7 +1016,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
 
   if (info) {
     info->uncompressed_size = bd.uncompressed_size();
-    info->metadata = cat_metadata;
+    info->metadata = std::move(cat_metadata);
     if (info->metadata) {
       info->constraints = bc->get_compression_constraints(*info->metadata);
     }
