@@ -2077,7 +2077,7 @@ class safe_fuse_cmdline_opts {
 #if FUSE_USE_VERSION >= 30
 class safe_fuse_loop_config {
  public:
-  safe_fuse_loop_config(safe_fuse_cmdline_opts const& opts)
+  explicit safe_fuse_loop_config(safe_fuse_cmdline_opts const& opts)
 #if defined(DWARFS_HAS_FUSE312_LOOP_CONFIG)
       : config_{fuse_loop_cfg_create(), fuse_loop_cfg_destroy} {
     fuse_loop_cfg_set_clone_fd(config_.get(), opts.clone_fd());

@@ -56,7 +56,7 @@ constexpr int RICEPP_VERSION{1};
 
 class ricepp_block_compressor final : public block_compressor::impl {
  public:
-  ricepp_block_compressor(size_t block_size)
+  explicit ricepp_block_compressor(size_t block_size)
       : block_size_{block_size} {}
 
   ricepp_block_compressor(ricepp_block_compressor const& rhs) = default;
@@ -186,7 +186,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
   using pixel_type = uint16_t;
   static constexpr auto kPixelBits = std::numeric_limits<pixel_type>::digits;
 
-  ricepp_block_decompressor(std::span<uint8_t const> data)
+  explicit ricepp_block_decompressor(std::span<uint8_t const> data)
       : uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , data_{data}

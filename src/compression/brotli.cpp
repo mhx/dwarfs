@@ -607,7 +607,7 @@ class brotli_block_compressor final : public block_compressor::impl {
 
 class brotli_block_decompressor final : public block_decompressor_base {
  public:
-  brotli_block_decompressor(std::span<uint8_t const> data)
+  explicit brotli_block_decompressor(std::span<uint8_t const> data)
       : uncompressed_size_{varint::decode(data)}
       , brotli_data_{data.data()}
       , brotli_size_{data.size()}

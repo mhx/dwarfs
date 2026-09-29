@@ -404,7 +404,7 @@ class flac_block_compressor final : public block_compressor::impl {
 
 class flac_block_decompressor final : public block_decompressor_base {
  public:
-  flac_block_decompressor(std::span<uint8_t const> data)
+  explicit flac_block_decompressor(std::span<uint8_t const> data)
       : uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , decoder_{std::make_unique<dwarfs_flac_stream_decoder>(data, header_)} {

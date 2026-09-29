@@ -37,7 +37,7 @@ class terminal_ansi : public terminal {
   enum class init_mode { AUTO, NOINIT, FORCE };
 
   terminal_ansi();
-  terminal_ansi(init_mode mode);
+  explicit terminal_ansi(init_mode mode);
 
   static std::string_view
   color_impl(termcolor color, termstyle style = termstyle::NORMAL);
