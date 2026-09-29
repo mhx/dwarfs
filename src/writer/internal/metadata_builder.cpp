@@ -33,7 +33,9 @@
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/semver.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -51,6 +53,7 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/time_resolution_converter.h>
 
+#include <dwarfs/gen-cpp-lite/history_types.h>
 #include <thrift/lib/thrift/gen-cpp-lite/frozen_types.h>
 
 namespace dwarfs::writer::internal {
@@ -142,10 +145,11 @@ class metadata_builder_ final : public metadata_builder::impl {
   metadata_builder_(logger& lgr, T&& md,
                     thrift::metadata::fs_options const* orig_fs_options,
                     filesystem_version const& orig_fs_version,
-                    metadata_options const& options)
+                    history const& hist, metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{std::forward<T>(md)}
       , options_{options}
+      , history_{&hist}
       , old_block_size_{md_.block_size().value()}
       , timeres_{options.time_resolution,
                  get_conversion_factors(orig_fs_options)} {
@@ -242,6 +246,8 @@ class metadata_builder_ final : public metadata_builder::impl {
                    size_t max_data_chunk_size, size_t old_hole_index);
   void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
                         filesystem_version const& orig_fs_version);
+  void try_repair_metadata();
+  void try_repair_path_separator();
   void upgrade_from_pre_v2_2();
 
   uint32_t get_time_resolution() const {
@@ -281,6 +287,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   thrift::metadata::metadata md_;
   feature_set features_;
   metadata_options const& options_;
+  history const* history_{nullptr};
   std::optional<size_t> old_block_size_;
   time_resolution_converter timeres_;
   std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
@@ -682,6 +689,8 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
          reg_offset - find_inode_rank_offset(md_, inode_rank::INO_LNK));
 
   if (!symlink_table.empty()) {
+    // The metadata builder *always* works on thawed metadata, so we don't
+    // need to consider packed symlinks here.
     auto const& symlinks = md_.symlinks().value();
 
     for (auto const ix : symlink_table) {
@@ -1297,11 +1306,120 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
 
   tv << "upgrading metadata...";
 
+  // Do this *before* potentially erasing the version history,
+  // but *after* upgrading from pre-v2.2 metadata.
+  try_repair_metadata();
+
   if (options_.no_metadata_version_history) {
     md_.metadata_version_history().reset();
   } else {
     md_.metadata_version_history().ensure();
     md_.metadata_version_history()->push_back(std::move(histent));
+  }
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::try_repair_metadata() {
+  try_repair_path_separator();
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::try_repair_path_separator() {
+  // Check if the preferred path separator has been altered during
+  // a previous metadata rebuild.
+
+  if (!md_.preferred_path_separator().has_value()) {
+    // This is an old image that *must* originate from Linux.
+    LOG_INFO << "setting preferred path separator to '/' for legacy image";
+    md_.preferred_path_separator() = static_cast<uint32_t>('/');
+    return;
+  }
+
+  auto const ver = semver::parse(md_.dwarfs_version().value());
+
+  if (ver && *ver >= semver{0, 16, 0}) {
+    // This was written by a version that already repairs the preferred path
+    // separator if possible.
+    return;
+  }
+
+  if (!md_.metadata_version_history().has_value() ||
+      md_.metadata_version_history()->empty()) {
+    // Presumably this file system has never been rebuilt, so we assume that
+    // the preferred path separator is correct.
+    return;
+  }
+
+  if (md_.symlink_table().value().empty()) {
+    // There are no symlinks, so the preferred path separator is irrelevant.
+    return;
+  }
+
+  std::optional<uint32_t> determined_sep;
+
+  if (history_) {
+    auto const& hent = history_->raw().entries().value();
+
+    if (!hent.empty()) {
+      auto const& first = hent.front();
+      auto const& fv = first.version().value();
+      semver const first_ver(*fv.major(), *fv.minor(), *fv.patch());
+      bool first_is_initial = false;
+
+      if (first_ver < semver{0, 13, 0}) {
+        // Versions before 0.13.0 could not rebuild metadata
+        first_is_initial = true;
+      } else if (first.arguments().has_value() && !first.arguments()->empty()) {
+        // If this is *not* a metadata rebuild
+        first_is_initial =
+            std::ranges::any_of(*first.arguments(), [](auto const& arg) {
+              return arg == "--rebuild-metadata" ||
+                     arg == "--change-block-size";
+            });
+      }
+
+      if (first_is_initial) {
+        determined_sep = first.system_id()->starts_with("Windows") ? '\\' : '/';
+      }
+    }
+  }
+
+  if (!determined_sep.has_value()) {
+    std::size_t num_posix_sep{0};
+    std::size_t num_win_sep{0};
+
+    // The metadata builder *always* works on thawed metadata, so we don't
+    // need to consider packed symlinks here.
+    for (auto const& path : md_.symlinks().value()) {
+      for (auto const c : path) {
+        if (c == '/') {
+          ++num_posix_sep;
+        } else if (c == '\\') {
+          ++num_win_sep;
+        }
+      }
+    }
+
+    LOG_DEBUG << "found " << num_posix_sep << " POSIX separators and "
+              << num_win_sep << " Windows separators in symlinks";
+
+    if ((num_posix_sep == 0) != (num_win_sep == 0)) {
+      determined_sep = num_win_sep > 0 ? '\\' : '/';
+    }
+  }
+
+  if (!determined_sep.has_value()) {
+    LOG_WARN << "unable to determine preferred path separator, keeping "
+                "existing value";
+    return;
+  }
+
+  if (md_.preferred_path_separator().value() != *determined_sep) {
+    LOG_WARN << "preferred path separator is inconsistent with symlink table, "
+             << "changing from '"
+             << static_cast<char>(md_.preferred_path_separator().value())
+             << "' to '" << static_cast<char>(*determined_sep) << "'";
+    md_.preferred_path_separator() = *determined_sep;
   }
 }
 
@@ -1341,18 +1459,21 @@ metadata_builder::metadata_builder(logger& lgr, metadata_options const& options)
 metadata_builder::metadata_builder(
     logger& lgr, thrift::metadata::metadata const& md,
     thrift::metadata::fs_options const* orig_fs_options,
-    filesystem_version const& orig_fs_version, metadata_options const& options)
+    filesystem_version const& orig_fs_version, history const& hist,
+    metadata_options const& options)
     : impl_{make_unique_logging_object<impl, metadata_builder_,
                                        default_logger_policy>(
-          lgr, md, orig_fs_options, orig_fs_version, options)} {}
+          lgr, md, orig_fs_options, orig_fs_version, hist, options)} {}
 
 metadata_builder::metadata_builder(
     logger& lgr, thrift::metadata::metadata&& md,
     thrift::metadata::fs_options const* orig_fs_options,
-    filesystem_version const& orig_fs_version, metadata_options const& options)
+    filesystem_version const& orig_fs_version, history const& hist,
+    metadata_options const& options)
     : impl_{make_unique_logging_object<impl, metadata_builder_,
                                        default_logger_policy>(
-          lgr, std::move(md), orig_fs_options, orig_fs_version, options)} {}
+          lgr, std::move(md), orig_fs_options, orig_fs_version, hist,
+          options)} {}
 
 metadata_builder::~metadata_builder() = default;
 
