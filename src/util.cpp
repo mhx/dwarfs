@@ -711,7 +711,8 @@ std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
   case 'm':
     if (ptr[1] == '\0' || suffix == "min") {
       return std::chrono::minutes(value);
-    } else if (suffix == "ms" || suffix == "msec") {
+    }
+    if (suffix == "ms" || suffix == "msec") {
       return std::chrono::milliseconds(value);
     }
     break;

@@ -114,7 +114,7 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
   for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
     if (auto p = dynamic_cast<random_access_categorizer*>(cat.get())) {
       if (auto c = p->categorize(path_info, mm, cat_mapper_)) {
-        best_ = c;
+        best_ = std::move(c);
         index_ = index;
         is_global_best_ = global_best;
         break;
@@ -178,7 +178,7 @@ inode_fragments categorizer_job_<LoggerPolicy>::result() {
     for (auto&& [index, job] : seq_jobs_) {
       if (auto c = job->result()) {
         assert(index_ < 0 || index < index_);
-        best_ = c;
+        best_ = std::move(c);
         break;
       }
     }

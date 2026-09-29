@@ -54,6 +54,7 @@ struct lz4_compression_policy {
                                            to<int>(size), to<int>(destsize)));
   }
 
+  // NOLINTNEXTLINE(modernize-use-string-view)
   static std::string describe(int /*level*/) { return "lz4"; }
 
   static size_t state_size(size_t /*data_size*/) { return LZ4_sizeofState(); }

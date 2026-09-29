@@ -129,7 +129,7 @@ class magic_wrapper {
     }
 #endif
 
-    char const* path = magic_file_ ? magic_file_->c_str() : NULL;
+    char const* path = magic_file_ ? magic_file_->c_str() : nullptr;
 
     if (::magic_load(m.get(), path) != 0) {
       if (!path) {
@@ -183,7 +183,7 @@ class libmagic_categorizer_ final : public random_access_categorizer {
       , matchers_{build_matchers(categories)}
       , categories_{build_categories(matchers_)} {}
 
-  ~libmagic_categorizer_() {
+  ~libmagic_categorizer_() override {
     LOG_VERBOSE << m_.cookie_count() << " magic cookies were used";
     mimetypes_.with_rlock([&](auto& m) {
       for (auto const& [k, v] : m) {
@@ -342,7 +342,7 @@ class libmagic_categorizer_factory : public categorizer_factory {
   create(logger& lgr, po::variables_map const& vm,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     std::optional<std::string> magic_file;
-    if (vm.count("libmagic-database")) {
+    if (vm.contains("libmagic-database")) {
       magic_file = magic_db_path_;
     }
     return make_unique_logging_object<categorizer, libmagic_categorizer_,

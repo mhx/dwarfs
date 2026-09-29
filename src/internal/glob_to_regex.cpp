@@ -60,7 +60,7 @@ handle_char_set(std::string_view sv, size_t pos) {
     pos += 2;
     ++firstchar;
   } else if (subpat.starts_with("[!")) {
-    char_class += R"(^)";
+    char_class += '^';
     pos += 1;
     ++firstchar;
   } else if (subpat.starts_with("[]")) {
@@ -177,7 +177,7 @@ std::string glob_to_regex_string(std::string_view pattern) {
                                  std::string(pattern));
       }
       --brace_depth;
-      regex += ")";
+      regex += ')';
       ++pos;
       break;
 
