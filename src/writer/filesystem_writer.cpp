@@ -256,35 +256,34 @@ class raw_fsblock : public fsblock::impl {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job(
-        [this, prom = std::move(prom), meta = std::move(meta)]() mutable {
-          try {
-            shared_byte_buffer tmp;
-            auto const start = boost::chrono::thread_clock::now();
+    wg.add_job([this, prom = std::move(prom), meta = std::move(meta)] mutable {
+      try {
+        shared_byte_buffer tmp;
+        auto const start = boost::chrono::thread_clock::now();
 
-            if (meta) {
-              tmp = bc_.compress(data_, *meta);
-            } else {
-              tmp = bc_.compress(data_);
-            }
+        if (meta) {
+          tmp = bc_.compress(data_, *meta);
+        } else {
+          tmp = bc_.compress(data_);
+        }
 
-            boost::chrono::duration<double> const duration =
-                boost::chrono::thread_clock::now() - start;
+        boost::chrono::duration<double> const duration =
+            boost::chrono::thread_clock::now() - start;
 
-            pctx_->bytes_in += data_.size();
-            pctx_->bytes_out += tmp.size();
+        pctx_->bytes_in += data_.size();
+        pctx_->bytes_out += tmp.size();
 
-            {
-              std::lock_guard lock(mx_);
-              data_.swap(tmp);
-              compression_time_ = duration.count();
-            }
-          } catch (bad_compression_ratio_error const&) {
-            comp_type_ = compression_type::NONE;
-          }
+        {
+          std::lock_guard lock(mx_);
+          data_.swap(tmp);
+          compression_time_ = duration.count();
+        }
+      } catch (bad_compression_ratio_error const&) {
+        comp_type_ = compression_type::NONE;
+      }
 
-          prom.set_value();
-        });
+      prom.set_value();
+    });
   }
 
   void wait_until_compressed() override { future_.wait(); }
@@ -388,7 +387,7 @@ class compressed_fsblock : public fsblock::impl {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job([this, prom = std::move(prom)]() mutable {
+    wg.add_job([this, prom = std::move(prom)] mutable {
       fsblock::build_section_header(header_, *this, sec_);
       if (pctx_) {
         pctx_->bytes_in += size();
@@ -457,7 +456,7 @@ class rewritten_fsblock : public fsblock::impl {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job([this, prom = std::move(prom)]() mutable {
+    wg.add_job([this, prom = std::move(prom)] mutable {
       compress_job(std::move(prom));
     });
   }
@@ -1099,7 +1098,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section(
   rewrite_section_delayed_data(
       type,
       [data, bd = std::move(bd), meta = std::move(cat_metadata),
-       segment = std::move(segment)]() mutable {
+       segment = std::move(segment)] mutable {
         shared_byte_buffer block;
         if (bd.has_value()) {
           block = bd->start_decompression(malloc_byte_buffer::create());

@@ -43,7 +43,7 @@ writer_progress::writer_progress(update_function_type func,
                                  std::chrono::microseconds interval)
     : prog_{std::make_unique<internal::progress>()}
     , running_(true)
-    , thread_([this, interval, func = std::move(func)]() mutable {
+    , thread_([this, interval, func = std::move(func)] mutable {
       set_thread_name("progress");
 #ifdef _WIN32
       ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);

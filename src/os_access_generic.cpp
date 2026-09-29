@@ -311,7 +311,7 @@ fs::path os_access_generic::find_executable(fs::path const& name) const {
 
   // on Windows, PATHEXT is a semicolon-separated list of extensions to try
   // when searching for executables
-  auto const extensions = [this]() -> std::vector<std::string> {
+  auto const extensions = [this] -> std::vector<std::string> {
     if constexpr (kIsWindows) {
       if (auto pathext = getenv("PATHEXT")) {
         auto exts = split_to<std::vector<std::string>>(*pathext, kPathListSep);

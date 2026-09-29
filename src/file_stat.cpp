@@ -321,7 +321,7 @@ get_sparse_file_allocated_size_posix(fs::path const& path [[maybe_unused]],
     return logical_size; // fallback
   }
 
-  scope_exit close_fd([fd]() { ::close(fd); });
+  scope_exit close_fd([fd] { ::close(fd); });
 
   if (::lseek(fd, 0, SEEK_SET) == -1) {
     return logical_size; // fallback

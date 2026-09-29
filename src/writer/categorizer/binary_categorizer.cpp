@@ -435,7 +435,7 @@ inode_fragments binary_categorizer_<LoggerPolicy>::categorize(
           type_list<minimal_elf_header, minimal_dos_stub,
                     minimal_macho_thin_header, minimal_macho_fat_header>;
 
-      for_each_type_until_true(header_types{}, [&]<typename T>() {
+      for_each_type_until_true(header_types{}, [&]<typename T> {
         return T::check(fragments, header_buf, mm, mapper, subcats_);
       });
     }

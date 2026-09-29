@@ -561,7 +561,7 @@ void dwarfsck_impl::do_checksum() {
       pool.add_job(
           [this, &build_hexdigest, &checksum_cache, &mx, &print_cs, de,
            dup_info,
-           ranges = fr.read_sequential(sem, max_queued_per_worker)]() mutable {
+           ranges = fr.read_sequential(sem, max_queued_per_worker)] mutable {
             try {
               auto const path = de.unix_path();
               auto hexdigest = build_hexdigest(ranges);
