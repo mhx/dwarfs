@@ -85,11 +85,13 @@ std::string make_fragmented_file(size_t fragment_size, size_t fragment_count) {
 
 auto rebuild_metadata(logger& lgr, thrift::metadata::metadata const& md,
                       thrift::metadata::fs_options const* fs_options,
-                      filesystem_version const& fs_version,
+                      reader::filesystem_v2 const& fs,
                       writer::metadata_options const& options) {
   using namespace writer::internal;
   return metadata_freezer(lgr).freeze(
-      metadata_builder(lgr, md, fs_options, fs_version, options).build());
+      metadata_builder(lgr, md, fs_options, fs.version(), fs.get_history(),
+                       options)
+          .build());
 }
 
 template <typename T>
@@ -165,7 +167,7 @@ TEST_F(metadata_test, basic) {
   {
     auto fsopts = fs.thawed_fs_options();
     auto [schema, data] = rebuild_metadata(
-        lgr, unpacked1, fsopts.get(), fs.version(),
+        lgr, unpacked1, fsopts.get(), fs,
         {.plain_names_table = true, .no_create_timestamp = true});
     reader::internal::metadata_v2 mv2(lgr, schema.span(), data.span(), {});
     using utils = reader::internal::metadata_v2_utils;
