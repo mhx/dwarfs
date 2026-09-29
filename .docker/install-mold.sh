@@ -10,7 +10,7 @@ mkdir pkgs
 cd pkgs
 
 # v2.41.0 has an issue with mixing LTO and non-LTO objects: #1613
-MOLD_VERSION=2.40.4
+MOLD_VERSION=2.42.1
 
 fetch.sh https://github.com/rui314/mold/archive/refs/tags/v${MOLD_VERSION}.tar.gz mold-${MOLD_VERSION}.tar.gz
 tar xf mold-${MOLD_VERSION}.tar.gz
