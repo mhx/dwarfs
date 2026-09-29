@@ -497,7 +497,7 @@ void rewrite_filesystem(
           auto fsopts = fs.thawed_fs_options();
           auto builder =
               metadata_builder(lgr, std::move(*md), fsopts.get(), fs.version(),
-                               opts.rebuild_metadata.value());
+                               fs.get_history(), opts.rebuild_metadata.value());
 
           if (opts.change_block_size) {
             builder.set_block_size(opts.change_block_size.value());
