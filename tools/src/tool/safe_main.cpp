@@ -37,7 +37,7 @@
 
 namespace dwarfs::tool {
 
-int safe_main(std::function<int(void)> const& fn) {
+int safe_main(std::function<int()> const& fn) {
   int retval{1};
   DWARFS_TRY {
     install_signal_handlers();

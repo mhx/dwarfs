@@ -36,7 +36,7 @@ namespace dwarfs::writer::internal {
 
 class scanner_progress final : public progress::context, public byte_progress {
  public:
-  using status = progress::context::status;
+  using progress::context::status;
 
   scanner_progress(std::string_view context, std::string file,
                    file_size_t size);

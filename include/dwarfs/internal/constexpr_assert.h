@@ -34,6 +34,7 @@
   do {                                                                         \
     if consteval {                                                             \
       if (!(expr)) {                                                           \
+        /* NOLINTNEXTLINE(bugprone-std-exception-baseclass) */                 \
         throw "constexpr assertion failed: " #expr;                            \
       }                                                                        \
     } else {                                                                   \
