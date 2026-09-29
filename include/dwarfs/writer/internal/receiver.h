@@ -35,7 +35,7 @@ class receiver {
 
   class impl;
 
-  receiver(std::unique_ptr<impl> i)
+  explicit receiver(std::unique_ptr<impl> i)
       : impl_{std::move(i)} {}
 
   void set_value(value_type value) { impl_->set_value(std::move(value)); }

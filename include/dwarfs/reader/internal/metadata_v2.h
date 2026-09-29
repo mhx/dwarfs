@@ -289,7 +289,7 @@ class metadata_v2 {
 
 class metadata_v2_utils {
  public:
-  metadata_v2_utils(metadata_v2 const& meta);
+  explicit metadata_v2_utils(metadata_v2 const& meta);
 
   void dump(std::ostream& os, fsinfo_options const& opts,
             filesystem_info const* fsinfo,

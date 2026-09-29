@@ -53,7 +53,7 @@ class error : public std::exception {
 #endif
 
  protected:
-  error(source_location loc) noexcept;
+  explicit error(source_location loc) noexcept;
 
  private:
   source_location loc_;

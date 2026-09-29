@@ -230,7 +230,7 @@ class MinimumLogLevelPolicy {
 template <typename LogPolicy>
 class log_proxy {
  public:
-  log_proxy(logger& lgr)
+  explicit log_proxy(logger& lgr)
       : lgr_(lgr)
       , threshold_(lgr.threshold()) {}
 
