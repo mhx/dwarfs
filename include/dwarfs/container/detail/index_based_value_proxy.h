@@ -100,7 +100,9 @@ class basic_index_based_proxy {
   basic_index_based_proxy(basic_index_based_proxy const&) noexcept = default;
   basic_index_based_proxy(basic_index_based_proxy&&) noexcept = default;
 
-  operator value_type() const { return AccessorPolicy::load(vec_, i_); }
+  explicit(false) operator value_type() const {
+    return AccessorPolicy::load(vec_, i_);
+  }
   [[nodiscard]] auto load() const -> value_type {
     return AccessorPolicy::load(vec_, i_);
   }

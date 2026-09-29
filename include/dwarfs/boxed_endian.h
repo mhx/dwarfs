@@ -47,7 +47,7 @@ class boxed_endian {
   constexpr explicit boxed_endian(T v) noexcept
       : raw_{swap(v)} {}
 
-  constexpr operator T() const noexcept { return swap(raw_); }
+  constexpr explicit(false) operator T() const noexcept { return swap(raw_); }
 
   template <typename E>
     requires std::is_enum_v<E>

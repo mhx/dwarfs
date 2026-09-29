@@ -442,7 +442,7 @@ zstd_block_compressor::compress(shared_byte_buffer const& data,
 
 class zstd_block_decompressor final : public block_decompressor_base {
  public:
-  zstd_block_decompressor(std::span<uint8_t const> data)
+  explicit zstd_block_decompressor(std::span<uint8_t const> data)
       : data_(data)
       , uncompressed_size_(ZSTD_getFrameContentSize(data.data(), data.size())) {
     switch (uncompressed_size_) {

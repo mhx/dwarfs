@@ -166,7 +166,7 @@ class metadata_requirement_base {
  public:
   virtual ~metadata_requirement_base() = default;
 
-  metadata_requirement_base(std::string const& name)
+  explicit metadata_requirement_base(std::string const& name)
       : name_{name} {}
 
   virtual void parse(nlohmann::json& req) = 0;
@@ -189,7 +189,7 @@ class dynamic_metadata_requirement_base {
  public:
   virtual ~dynamic_metadata_requirement_base() = default;
 
-  dynamic_metadata_requirement_base(std::string const& name)
+  explicit dynamic_metadata_requirement_base(std::string const& name)
       : name_{name} {}
 
   virtual void check(nlohmann::json const& m) const = 0;
@@ -359,8 +359,8 @@ class compression_metadata_requirements<void> {
 template <>
 class compression_metadata_requirements<nlohmann::json> {
  public:
-  compression_metadata_requirements(std::string const& req);
-  compression_metadata_requirements(nlohmann::json const& req);
+  explicit compression_metadata_requirements(std::string const& req);
+  explicit compression_metadata_requirements(nlohmann::json const& req);
 
   void check(std::optional<std::string> const& meta) const;
   void check(std::string const& meta) const;

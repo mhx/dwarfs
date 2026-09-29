@@ -38,7 +38,7 @@ class lazy_value {
  public:
   using function_type = std::function<T()>;
 
-  lazy_value(function_type f)
+  explicit lazy_value(function_type f)
       : v_{f} {}
 
   T const& get() {

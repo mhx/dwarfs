@@ -100,7 +100,7 @@ class sparse_file_seeker {
    */
   template <std::ranges::input_range ChunkRange>
     requires chunk_like<std::ranges::range_value_t<ChunkRange>>
-  sparse_file_seeker(ChunkRange const& chunks) {
+  explicit sparse_file_seeker(ChunkRange const& chunks) {
     file_off_t pos{0};
 
     for (auto const& chk : chunks) {

@@ -1764,7 +1764,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
       , devices_{entry_type::E_DEVICE, options}
       , others_{entry_type::E_OTHER, options} {}
 
-  entry_storage_(entry_storage_<false>& other) noexcept
+  explicit entry_storage_(entry_storage_<false>& other) noexcept
     requires Frozen
       : shared_{std::move(other.shared_)}
       , files_{std::move(other.files_)}
@@ -2572,7 +2572,7 @@ class inode_storage_ final : public entry_storage::inode_impl {
     requires is_mutable
   = default;
 
-  inode_storage_(inode_storage_<false>& other) noexcept
+  explicit inode_storage_(inode_storage_<false>& other) noexcept
     requires Frozen
       : inodes_{std::move(other.inodes_)} {}
 
