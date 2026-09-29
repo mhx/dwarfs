@@ -64,6 +64,7 @@ class history {
   append(std::optional<std::vector<std::string>> args,
          std::function<void(library_dependencies&)> const& extra_deps = {});
   size_t size() const;
+  thrift::history::history const& raw() const;
   shared_byte_buffer serialize() const;
   void dump(std::ostream& os) const;
   nlohmann::json as_json() const;
