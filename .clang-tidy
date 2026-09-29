@@ -3,6 +3,7 @@ Checks:
   - -bugprone-easily-swappable-parameters
   - -bugprone-narrowing-conversions
   - -bugprone-implicit-widening-of-multiplication-result
+  - -bugprone-signed-bitwise
   - -bugprone-unchecked-optional-access
   # TODO: definitely revisit this one
   - -bugprone-exception-escape
@@ -19,6 +20,8 @@ Checks:
   - -cppcoreguidelines-avoid-const-or-ref-data-members
   - -cppcoreguidelines-avoid-do-while
   - -cppcoreguidelines-avoid-magic-numbers
+  # TODO: enable once this works reliably (doesn't recognize explicit(false))
+  - -cppcoreguidelines-explicit-constructor
   - -cppcoreguidelines-macro-to-enum
   - -cppcoreguidelines-macro-usage
   - -cppcoreguidelines-narrowing-conversions
@@ -48,9 +51,11 @@ Checks:
   - -readability-implicit-bool-conversion
   - -readability-named-parameter
   - -readability-redundant-member-init
+  - -readability-redundant-nested-if
   - -readability-math-missing-parentheses
   - -readability-isolate-declaration
   - -readability-qualified-auto
+  - -readability-trailing-comma
   - -readability-use-concise-preprocessor-directives
   # TODO: revisit once we drop support for gcc-12, which still chokes on some cases of this
   - -readability-redundant-typename
@@ -66,6 +71,7 @@ Checks:
   - -readability-convert-member-functions-to-static
   - -readability-function-cognitive-complexity
   - -readability-function-size
+  - -readability-trivial-switch
 WarningsAsErrors: 'bugprone-use-after-move'
 UseColor: true
 ExtraArgsBefore: ['-Wno-unknown-warning-option']

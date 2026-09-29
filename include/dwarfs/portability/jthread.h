@@ -36,8 +36,8 @@
 
 namespace dwarfs::compat {
 
-using jthread = std::jthread;
-using stop_token = std::stop_token;
+using std::jthread;
+using std::stop_token;
 
 } // namespace dwarfs::compat
 

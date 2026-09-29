@@ -136,8 +136,8 @@ class single_timer {
 
 class performance_monitor_impl final : public performance_monitor {
  public:
-  using timer_id = performance_monitor::timer_id;
-  using time_type = performance_monitor::time_type;
+  using performance_monitor::time_type;
+  using performance_monitor::timer_id;
 
   struct trace_event {
     trace_event(timer_id id, time_type start, time_type end,
