@@ -168,7 +168,7 @@ export LIBUCONTEXT_MAKE_ARGS="ARCH=$CARCH"
 
 endian="little"
 case "$CARCH" in
-    s390x|powerpc|powerpc64)
+    s390x|ppc|ppc64)
         endian="big"
         ;;
 esac
