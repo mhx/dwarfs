@@ -1221,7 +1221,7 @@ class active_block : private GranularityPolicy {
 
 class segmenter_progress : public progress::context {
  public:
-  using status = progress::context::status;
+  using progress::context::status;
 
   segmenter_progress(std::string context, uint64_t total_size)
       : context_{std::move(context)}

@@ -423,7 +423,7 @@ class time_value_tsv_logger {
             .count();
     auto& os = output_->os();
     fmt::print(os, "{}", elapsed);
-    ((fmt::print(os, "\t{}", std::forward<Args>(args))), ...);
+    (fmt::print(os, "\t{}", std::forward<Args>(args)), ...);
     fmt::print(os, "\n");
     os.flush();
   }

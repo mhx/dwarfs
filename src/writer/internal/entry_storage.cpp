@@ -193,8 +193,7 @@ class memory_usage_dumper {
     auto const total_capacity_bytes = std::accumulate(
         sizes_.begin(), sizes_.end(), 0ULL,
         [](std::size_t acc, auto const& si) {
-          return acc +
-                 (si.is_tuple_field ? 0 : (si.capacity.value_or(si.bytes)));
+          return acc + (si.is_tuple_field ? 0 : si.capacity.value_or(si.bytes));
         });
 
     if (count.has_value()) {

@@ -62,11 +62,9 @@ auto activity_barrier::enter_activity() -> std::uint64_t {
 void activity_barrier::leave_activity(std::uint64_t epoch) {
   std::lock_guard lock(mx_);
 
-  if (auto it = active_.find(epoch); it != active_.end()) {
-    if (--it->second == 0) {
-      active_.erase(it);
-      cv_.notify_all();
-    }
+  if (auto it = active_.find(epoch); it != active_.end() && --it->second == 0) {
+    active_.erase(it);
+    cv_.notify_all();
   }
 }
 
