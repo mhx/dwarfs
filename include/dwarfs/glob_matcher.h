@@ -43,7 +43,7 @@ class glob_matcher {
   };
 
   glob_matcher();
-  explicit glob_matcher(std::initializer_list<std::string const> patterns);
+  glob_matcher(std::initializer_list<std::string const> patterns);
   explicit glob_matcher(std::span<std::string const> patterns);
   glob_matcher(std::initializer_list<std::string const> patterns,
                options const& opts);

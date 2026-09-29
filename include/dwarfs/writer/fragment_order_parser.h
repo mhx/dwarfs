@@ -38,7 +38,7 @@ struct fragment_order_parser {
  public:
   static std::string choices();
 
-  fragment_order_parser(std::shared_ptr<file_access const> const& fa)
+  explicit fragment_order_parser(std::shared_ptr<file_access const> const& fa)
       : fa_{fa} {}
 
   fragment_order_options parse(std::string_view arg) const;

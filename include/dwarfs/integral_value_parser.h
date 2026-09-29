@@ -53,7 +53,7 @@ class integral_value_parser {
       : valid_{std::in_place_type<std::pair<T, T>>, min, max} {}
   integral_value_parser(std::initializer_list<T> choices)
       : valid_{std::in_place_type<std::set<T>>, choices} {}
-  integral_value_parser(std::function<bool(T)> check)
+  explicit integral_value_parser(std::function<bool(T)> check)
       : valid_{std::in_place_type<std::function<bool(T)>>, check} {}
 
   T parse(std::string_view arg) const {

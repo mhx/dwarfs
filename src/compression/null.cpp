@@ -75,7 +75,7 @@ class null_block_compressor final : public block_compressor::impl {
 
 class null_block_decompressor final : public block_decompressor_base {
  public:
-  null_block_decompressor(std::span<uint8_t const> data)
+  explicit null_block_decompressor(std::span<uint8_t const> data)
       : data_(data) {}
 
   compression_type type() const override { return compression_type::NONE; }
