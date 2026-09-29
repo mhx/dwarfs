@@ -39,6 +39,7 @@ namespace dwarfs {
 
 struct filesystem_version;
 
+class history;
 class logger;
 
 namespace writer {
@@ -77,11 +78,11 @@ class metadata_builder {
   metadata_builder(logger& lgr, thrift::metadata::metadata const& md,
                    thrift::metadata::fs_options const* orig_fs_options,
                    filesystem_version const& orig_fs_version,
-                   metadata_options const& options);
+                   history const& hist, metadata_options const& options);
   metadata_builder(logger& lgr, thrift::metadata::metadata&& md,
                    thrift::metadata::fs_options const* orig_fs_options,
                    filesystem_version const& orig_fs_version,
-                   metadata_options const& options);
+                   history const& hist, metadata_options const& options);
 
   ~metadata_builder();
 
