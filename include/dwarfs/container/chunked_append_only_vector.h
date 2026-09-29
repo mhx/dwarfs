@@ -64,10 +64,8 @@ class basic_chunked_append_only_vector {
   using const_iterator =
       detail::index_based_const_iterator<basic_chunked_append_only_vector>;
 
-  static constexpr std::size_t
-      chunk_elements_raw = MaxChunkBytes / sizeof(T) > 0
-                               ? MaxChunkBytes / sizeof(T)
-                               : 1;
+  static constexpr std::size_t chunk_elements_raw =
+      MaxChunkBytes / sizeof(T) > 0 ? MaxChunkBytes / sizeof(T) : 1;
   static constexpr std::size_t chunk_elements =
       PowerOfTwoElementsPerChunk ? std::bit_floor(chunk_elements_raw)
                                  : chunk_elements_raw;

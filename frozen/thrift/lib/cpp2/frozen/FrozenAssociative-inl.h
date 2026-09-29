@@ -36,9 +36,8 @@ struct KeyExtractor {
   // previous two overloads in the cases where they're redundant.
   template <typename K2 = K, typename V2 = V>
   static const K& getKey(rvalue_reference)
-    requires(!std::is_same_v<rvalue_reference, const std::pair<K2, V2> &&> &&
-             !std::
-                 is_same_v<rvalue_reference, const std::pair<const K2, V2> &&>)
+    requires(!std::is_same_v<rvalue_reference, const std::pair<K2, V2>&&> &&
+             !std::is_same_v<rvalue_reference, const std::pair<const K2, V2>&&>)
   = delete;
   template <typename K2 = K, typename V2 = V>
   static const K& getKey(const_reference pair)
