@@ -1648,7 +1648,7 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
     std::get<kGidIndexField>(tmp) = shared.add_gid(st.gid_unchecked());
   }
 
-  for_all_times([&]<typename time>() {
+  for_all_times([&]<typename time> {
     if (this->*time::keep) {
       std::get<time::sec_field>(tmp) = time::sec(st);
 
@@ -1697,7 +1697,7 @@ void packed_entry_data::update_global_entry_data(
     data.add_gid(shared.get_gid(get<kGidIndexField>(stat)));
   }
 
-  for_all_times([&]<typename time>() {
+  for_all_times([&]<typename time> {
     if (this->*time::keep) {
       time::add(data, std::get<time::sec_field>(stat));
     }
@@ -1726,7 +1726,7 @@ void packed_entry_data::pack_entry(
     out.set_gid(0);
   }
 
-  for_all_times([&]<typename time>() {
+  for_all_times([&]<typename time> {
     if (this->*time::keep) {
       time::set_spec(out, std::get<time::sec_field>(stat),
                      std::get<time::nsec_field>(stat));

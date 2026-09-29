@@ -185,7 +185,7 @@ void get_self_memory_usage_linux(memory_usage_mode const mode,
     size_t linebuf_size{0};
 
     // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
-    scope_exit free_linebuf([&linebuf]() { std::free(linebuf); });
+    scope_exit free_linebuf([&linebuf] { std::free(linebuf); });
 
     for (;;) {
       auto const read = getline(&linebuf, &linebuf_size, fh.get());
