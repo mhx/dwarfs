@@ -659,11 +659,11 @@ void file_stat::ensure_valid(valid_fields_type fields) const {
   if ((valid_fields_ & fields) != fields) {
     if (exception_) {
       std::rethrow_exception(exception_);
-    } else {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("missing stat fields: {:#x} (have: {:#x})",
-                               fields, valid_fields_));
     }
+
+    DWARFS_THROW(runtime_error,
+                 fmt::format("missing stat fields: {:#x} (have: {:#x})", fields,
+                             valid_fields_));
   }
 }
 
