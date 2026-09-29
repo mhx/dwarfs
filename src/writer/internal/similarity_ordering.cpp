@@ -735,7 +735,7 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
 
   auto jt = std::make_shared<job_tracker>(
       [this, size_hint, &ev, rec = std::move(rec), root,
-       dup = std::move(duplicates)]() mutable {
+       dup = std::move(duplicates)] mutable {
         {
           auto tv = LOG_TIMED_VERBOSE;
           order_tree_rec(*root, ev);
@@ -757,7 +757,7 @@ void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
     nilsimsa_element_view const& ev, receiver<index_type> rec,
     index_type index) const {
   wg_.add_job(
-      [this, rec = std::move(rec), idx = std::move(index), &ev]() mutable {
+      [this, rec = std::move(rec), idx = std::move(index), &ev] mutable {
         order_impl(std::move(rec), std::move(idx), ev);
       });
 }

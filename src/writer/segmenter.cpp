@@ -2032,7 +2032,7 @@ create_segmenter2(logger& lgr, progress& prog,
                   segmenter::block_ready_cb block_ready) {
   uint32_t granularity = cc.granularity ? cc.granularity.value() : 1;
 
-  auto make_const_granularity_segmenter = [&]<uint32_t Granularity>() {
+  auto make_const_granularity_segmenter = [&]<uint32_t Granularity> {
     return make_unique_logging_object<
         segmenter::impl,
         constant_granularity_segmenter_<SegmentingPolicy,
