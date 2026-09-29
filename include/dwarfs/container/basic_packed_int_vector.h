@@ -390,7 +390,7 @@ class basic_packed_int_vector {
     auto result = width_ops::zero_widths();
 
     for (size_type i = 0; i < cur_size; ++i) {
-      for_each_field([&]<size_type I>() {
+      for_each_field([&]<size_type I> {
         result[I] = std::max<std::uint8_t>(
             result[I], static_cast<std::uint8_t>(required_bits_encoded<I>(
                            layout_.template read_field<I>(i))));
@@ -631,7 +631,7 @@ class basic_packed_int_vector {
 
     return insert_known_n(
         index, count, [&] { return required_widths(value); },
-        [value]() { return value; });
+        [value] { return value; });
   }
 
   iterator insert(const_iterator pos, value_type value) {
@@ -659,7 +659,7 @@ class basic_packed_int_vector {
 
       return insert_known_n(
           index, count, [&] { return req_widths; },
-          [first]() mutable { return *first++; });
+          [first] mutable { return *first++; });
     } else {
       return insert_single_pass(index, first, last);
     }
@@ -777,7 +777,7 @@ class basic_packed_int_vector {
   template <typename DstLayout, typename SrcLayout>
   static void copy_encoded_fields(DstLayout& dst, size_type di,
                                   SrcLayout const& src, size_type si) {
-    for_each_field([&]<size_type I>() {
+    for_each_field([&]<size_type I> {
       dst.template write_field<I>(di, src.template read_field<I>(si));
     });
   }
@@ -834,7 +834,7 @@ class basic_packed_int_vector {
   [[nodiscard]] auto get_value(size_type i) const -> value_type {
     assert(i < size());
     return field_descriptor::decode_with(
-        [&]<size_type I>() { return get_encoded_field<I>(i); });
+        [&]<size_type I> { return get_encoded_field<I>(i); });
   }
 
   template <size_type I>

@@ -1086,7 +1086,7 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
   bool const inodes_have_nlink =
       meta_.options().has_value() && meta_.options()->inodes_have_nlink();
 
-  bool const must_build_allocated_hardlink_size = [&]() {
+  bool const must_build_allocated_hardlink_size = [&] {
     if (!has_sparse_files()) {
       return false;
     }
@@ -2446,7 +2446,7 @@ metadata_v2_data::get_duplication_info(logger& lgr, inode_view const& iv,
     if (content_id < unique_files_) {
       info.duplication_count = reg_file_link_count(iv.raw());
     } else {
-      std::call_once(shared_start_pos_init_, [this, &lgr]() {
+      std::call_once(shared_start_pos_init_, [this, &lgr] {
         shared_start_pos_ = build_shared_start_positions<LoggerPolicy>(lgr);
       });
       auto const shared_index = content_id - unique_files_;
@@ -2471,7 +2471,7 @@ void metadata_v2_data::access(inode_view const& iv, int mode,
 
   int access_mode = 0;
 
-  auto set_xok = [&access_mode]() {
+  auto set_xok = [&access_mode] {
 #ifdef _WIN32
     access_mode |= 1; // Windows has no notion of X_OK
 #else
