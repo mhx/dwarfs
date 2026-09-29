@@ -32,7 +32,7 @@ namespace dwarfs::writer::internal {
 template <typename T>
 class promise_receiver : public receiver<T>::impl {
  public:
-  promise_receiver(std::promise<T>&& p)
+  explicit promise_receiver(std::promise<T>&& p)
       : p_{std::move(p)} {}
 
   static receiver<T> create(std::promise<T>&& p) {

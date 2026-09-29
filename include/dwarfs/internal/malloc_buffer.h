@@ -39,9 +39,9 @@ class malloc_buffer {
   using value_type = uint8_t;
 
   malloc_buffer() = default;
-  malloc_buffer(size_t size);
+  explicit malloc_buffer(size_t size);
   malloc_buffer(void const* data, size_t size);
-  malloc_buffer(std::span<value_type const> data);
+  explicit malloc_buffer(std::span<value_type const> data);
 
   ~malloc_buffer();
 

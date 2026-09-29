@@ -120,7 +120,7 @@ class stable_jagged_vector {
     reference(reference const&) noexcept = default;
     reference(reference&&) noexcept = default;
 
-    operator value_type() const { return load(); }
+    explicit(false) operator value_type() const { return load(); }
 
     [[nodiscard]] value_type load() const { return owner_->get(index_); }
     [[nodiscard]] auto data() const { return load().data(); }

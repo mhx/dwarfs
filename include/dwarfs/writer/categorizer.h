@@ -120,7 +120,7 @@ class categorizer_job {
   class impl;
 
   categorizer_job();
-  categorizer_job(std::unique_ptr<impl> impl);
+  explicit categorizer_job(std::unique_ptr<impl> impl);
 
   void set_total_size(file_size_t total_size) {
     impl_->set_total_size(total_size);

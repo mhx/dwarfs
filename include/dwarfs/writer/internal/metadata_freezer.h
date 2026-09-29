@@ -41,7 +41,7 @@ namespace writer::internal {
 
 class metadata_freezer {
  public:
-  metadata_freezer(logger& lgr);
+  explicit metadata_freezer(logger& lgr);
   ~metadata_freezer();
 
   std::pair<shared_byte_buffer, shared_byte_buffer>

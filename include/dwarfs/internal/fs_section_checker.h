@@ -42,7 +42,7 @@ namespace internal {
 
 class fs_section_checker {
  public:
-  fs_section_checker(file_segment const& seg)
+  explicit fs_section_checker(file_segment const& seg)
       : seg_{seg} {}
 
   bool check(fs_section const& section) const;

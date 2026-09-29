@@ -721,8 +721,8 @@ class granular_span_adapter : private GranularityPolicy {
   using value_type = uint8_t;
 
   template <typename... PolicyArgs>
-  DWARFS_FORCE_INLINE
-  granular_span_adapter(Source const& source, PolicyArgs&&... args)
+  DWARFS_FORCE_INLINE explicit granular_span_adapter(Source const& source,
+                                                     PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , source_{source}
       , raw_bytes_{get_raw_bytes(source)} {}
@@ -1035,7 +1035,7 @@ class BasicSegmentationPolicy : public GranularityPolicy {
   using GranularityPolicyT = GranularityPolicy;
 
   template <typename... PolicyArgs>
-  DWARFS_FORCE_INLINE BasicSegmentationPolicy(PolicyArgs&&... args)
+  DWARFS_FORCE_INLINE explicit BasicSegmentationPolicy(PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...) {}
 
   static DWARFS_FORCE_INLINE constexpr bool is_segmentation_enabled() {
@@ -1067,8 +1067,8 @@ class basic_granular_container_adapter : private GranularityPolicy {
                 "value_type must be a byte type (for now)");
 
   template <typename... PolicyArgs>
-  DWARFS_FORCE_INLINE
-  basic_granular_container_adapter(T& v, PolicyArgs&&... args)
+  DWARFS_FORCE_INLINE explicit basic_granular_container_adapter(
+      T& v, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , v_{v} {}
 

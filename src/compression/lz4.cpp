@@ -127,7 +127,7 @@ class lz4_block_compressor final : public block_compressor::impl {
 
 class lz4_block_decompressor final : public block_decompressor_base {
  public:
-  lz4_block_decompressor(std::span<uint8_t const> data)
+  explicit lz4_block_decompressor(std::span<uint8_t const> data)
       : data_(data.subspan(sizeof(uint32_t)))
       , uncompressed_size_(get_uncompressed_size(data.data())) {}
 
