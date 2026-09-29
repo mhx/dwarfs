@@ -192,6 +192,10 @@ export PERF_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/inclu
 export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
 
 case "$CARCH" in
+    ppc64)
+        # https://github.com/rui314/mold/issues/1699
+        export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
+        ;;
     *)
         export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
         ;;
