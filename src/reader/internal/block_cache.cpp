@@ -684,9 +684,8 @@ class block_cache_ final
     std::shared_lock lock(mx_wg_);
 
     // Lambda needs to be mutable so we can actually move out of it
-    wg_.add_job([this, brs = std::move(brs)]() mutable {
-      process_job(std::move(brs));
-    });
+    wg_.add_job(
+        [this, brs = std::move(brs)] mutable { process_job(std::move(brs)); });
   }
 
   void process_job(std::shared_ptr<block_request_set> brs) const {

@@ -220,7 +220,7 @@ class basic_worker_group {
   template <typename T>
     requires(sizeof...(Args) == 0)
   bool add_job(std::packaged_task<T()>&& task) {
-    return add_job([task = std::move(task)]() mutable { task(); });
+    return add_job([task = std::move(task)] mutable { task(); });
   }
 
   size_t size() const { return impl_->size(); }
