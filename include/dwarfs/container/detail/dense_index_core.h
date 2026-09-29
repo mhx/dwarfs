@@ -52,6 +52,7 @@ struct identity_key_projection {
 struct pair_first_projection {
   template <typename U>
   [[nodiscard]] constexpr decltype(auto) operator()(U&& value) const noexcept {
+    // NOLINTNEXTLINE(readability-redundant-parentheses)
     return (std::forward<U>(value).first);
   }
 };
@@ -59,6 +60,7 @@ struct pair_first_projection {
 struct pair_second_projection {
   template <typename U>
   [[nodiscard]] constexpr decltype(auto) operator()(U&& value) const noexcept {
+    // NOLINTNEXTLINE(readability-redundant-parentheses)
     return (std::forward<U>(value).second);
   }
 };

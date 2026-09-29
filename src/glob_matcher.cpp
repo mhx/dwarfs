@@ -79,7 +79,7 @@ class glob_matcher_ final : public glob_matcher::impl {
     if (pattern.starts_with("i:")) {
       opts.ignorecase = true;
       pattern.remove_prefix(2);
-    } else if (pattern.starts_with(":")) {
+    } else if (pattern.starts_with(':')) {
       pattern.remove_prefix(1);
     }
 
