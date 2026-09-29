@@ -90,7 +90,8 @@ class inode_view {
 class dir_entry_view {
  public:
   dir_entry_view() = default;
-  dir_entry_view(std::shared_ptr<internal::dir_entry_view_impl const> impl)
+  explicit dir_entry_view(
+      std::shared_ptr<internal::dir_entry_view_impl const> impl)
       : impl_{std::move(impl)} {}
 
   std::string name() const;
@@ -196,7 +197,7 @@ class dir_entry_view_iterable {
     using pointer = value_type const*;
 
     iterator() = default;
-    iterator(dir_entry_range& range);
+    explicit iterator(dir_entry_range& range);
 
     reference operator*() const noexcept { return cur_; }
     pointer operator->() const noexcept { return &cur_; }
@@ -229,7 +230,7 @@ class dir_entry_view_iterable {
   size_t size() const noexcept;
 
  private:
-  dir_entry_view_iterable(std::unique_ptr<dir_entry_range> range)
+  explicit dir_entry_view_iterable(std::unique_ptr<dir_entry_range> range)
       : range_{std::move(range)} {}
 
   std::unique_ptr<dir_entry_range> range_;

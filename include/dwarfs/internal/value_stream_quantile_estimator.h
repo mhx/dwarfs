@@ -37,8 +37,7 @@ namespace dwarfs::internal {
 class value_stream_quantile_estimator {
  public:
   value_stream_quantile_estimator() = default;
-  explicit value_stream_quantile_estimator(
-      std::initializer_list<double> quantiles);
+  value_stream_quantile_estimator(std::initializer_list<double> quantiles);
   explicit value_stream_quantile_estimator(std::span<double const> quantiles);
 
   void add(double value) { impl_->add(value); }

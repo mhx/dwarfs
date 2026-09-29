@@ -56,7 +56,7 @@ class basic_offset_cache {
 
   class chunk_offsets {
    public:
-    chunk_offsets(chunk_index_type total_chunks) {
+    explicit chunk_offsets(chunk_index_type total_chunks) {
       offsets_.reserve(total_chunks / chunk_index_interval - 1);
     }
 
@@ -167,7 +167,7 @@ class basic_offset_cache {
     chunk_index_type first_index_{0};
   };
 
-  basic_offset_cache(size_t cache_size)
+  explicit basic_offset_cache(size_t cache_size)
       : cache_{cache_size} {}
 
   value_type find(inode_type inode, chunk_index_type num_chunks) const {

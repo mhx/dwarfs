@@ -60,10 +60,10 @@ class checksum {
   static bool verify(std::string const& alg, void const* data, size_t size,
                      void const* digest, size_t digest_size);
 
-  checksum(xxh3_64_tag);
-  checksum(sha2_512_256_tag);
-  checksum(blake3_256_tag);
-  checksum(std::string const& alg);
+  explicit checksum(xxh3_64_tag);
+  explicit checksum(sha2_512_256_tag);
+  explicit checksum(blake3_256_tag);
+  explicit checksum(std::string const& alg);
 
   checksum& update(void const* data, size_t size) {
     impl_->update(data, size);
