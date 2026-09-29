@@ -1175,3 +1175,58 @@ TEST(mkdwarfs_test, metadata_repair_allocated_gh307) {
   EXPECT_EQ("\\", originfo["preferred_path_separator"]);
   EXPECT_EQ("\\", newinfo["preferred_path_separator"]);
 }
+
+namespace {
+
+class mkdwarfs_repair_test : public ::testing::TestWithParam<std::string_view> {
+};
+
+constexpr std::array kGh307Images{
+    "gh307-v0.15.dwarfs"sv,
+    "gh307-v0.15-2.dwarfs"sv,
+};
+
+} // namespace
+
+TEST_P(mkdwarfs_repair_test, repair_gh307_v0_15) {
+  std::string const image_file(GetParam());
+  auto const catdata_image = test_dir / "bugs" / image_file;
+  auto const image_data = read_file(catdata_image);
+
+  auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
+
+  ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("correcting total hardlink size"));
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "preferred path separator is inconsistent with "
+                           "symlink table, changing from '/' to '\\'"));
+
+  auto origfs = t.fs_from_data(image_data);
+  auto newfs = t.fs_from_stdout();
+
+  vfs_stat origstat;
+  vfs_stat newstat;
+
+  origfs.statvfs(&origstat);
+  newfs.statvfs(&newstat);
+
+  EXPECT_EQ(7481, origstat.total_fs_size);
+  EXPECT_EQ(7481, origstat.total_allocated_fs_size);
+  EXPECT_EQ(12136, origstat.total_hardlink_size);
+
+  EXPECT_EQ(7481, newstat.total_fs_size);
+  EXPECT_EQ(7481, newstat.total_allocated_fs_size);
+  EXPECT_EQ(3222, newstat.total_hardlink_size);
+
+  auto originfo = fsinfo_json(origfs, 1);
+  auto newinfo = fsinfo_json(newfs, 1);
+
+  EXPECT_EQ("/", originfo["preferred_path_separator"]);
+  EXPECT_EQ("\\", newinfo["preferred_path_separator"]);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_repair_test,
+                         ::testing::ValuesIn(kGh307Images));
