@@ -34,6 +34,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dwarfs {
@@ -81,6 +82,7 @@ class checksum {
 
   size_t digest_size() const { return impl_->digest_size(); }
 
+  std::string digest() const { return impl_->digest(); }
   std::string hexdigest() const { return impl_->hexdigest(); }
 
   class impl {
@@ -91,6 +93,7 @@ class checksum {
     virtual void reset() = 0;
     virtual bool finalize(void* digest) = 0;
     virtual size_t digest_size() = 0;
+    virtual std::string digest() = 0;
     virtual std::string hexdigest() = 0;
   };
 

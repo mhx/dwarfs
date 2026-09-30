@@ -122,6 +122,7 @@ add_library(
 
   src/reader/block_cache_options.cpp
   src/reader/block_range.cpp
+  src/reader/compute_file_hashes.cpp
   src/reader/detail/file_reader.cpp
   src/reader/filesystem_options.cpp
   src/reader/filesystem_v2.cpp
