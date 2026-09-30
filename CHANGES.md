@@ -1,5 +1,95 @@
 # Change Log
 
+## Version 0.15.8 - 2026-09-30
+
+- (fix) Correctly handle sparse files when querying entries in "data order".
+  This is primarily used by `dwarfsextract` to speed up extraction and avoid
+  repeatedly decompressing the same blocks. All regular files are sorted by
+  the block referenced by the first chunk. While subsequent chunks may also
+  reference earlier blocks, these blocks are typically still in the cache.
+  However, a sparse file starting with a hole will reference a special "hole
+  marker" block in its first chunk, causing all sparse files that start with
+  a hole to be clustered at the end of the list, without considering any of
+  the subsequent data chunks. This is likely an academic edge case, but in
+  an image containing tens of thousands of such sparse files, this can quite
+  dramatically slow down extraction. Furthermore, this also triggers other
+  bugs that can quite easily cause `dwarfsextract` to run out of memory.
+  This has been fixed by ignoring the holes and only considering the first
+  data chunk when sorting.
+
+- (fix) Limit size of worker group queues in filesystem extractor. During
+  extraction, the filesystem extractor used by `dwarfsextract` uses a worker
+  pool for writing regular files. This pool has a job queue that by default
+  can grow unbounded. Each job, before being added to the queue, will already
+  trigger an asynchronous read of the file data. This is actually bounded
+  based on the size of the queued regular files, but *not* considering the
+  amount of memory used by the decompressed blocks in order to actually read
+  the queued file data. This usually isn't a problem, since the files are
+  added in "data order", but in combination with the bug described earlier
+  where sparse files starting with holes end up not actually being sorted,
+  this can cause requests for pretty much all blocks in the image to be
+  decompressed simultaneously. Even worse: if the decompressed blocks are
+  larger than the configured cache size, blocks that are still referenced
+  by eariler requests can be evicted from the cache, causing *multiple*
+  simultaneous decompression requests for the same block. So even though
+  the decompressed image *might* actually fit in memory, the actual memory
+  consumption can very easily reach tens of gigabytes. Limiting the queue
+  size is a workaround for this issue, but it's a good idea to bound the
+  queue size anyway. There are two real fixes: one is the sorting issue
+  described earlier, the order one is for the block cache to keep track
+  of blocks that are evicted, but still in use, and re-insert these blocks
+  into the cache rather than decompressing them again. The latter is a more
+  involved change, so it is not included in this release, and it's really
+  not necessary for the `dwarfsextract` use case with the former fix in place.
+
+- (fix) Correctly compute total hardlink size. The algorithm used to compute
+  the total hardlink size (i.e. the total size of all hardlinks beyond the
+  first one) was not correctly accounting for non-hardlinked duplicates. The
+  total hardlink size is currently really only used for progress reporting
+  in `dwarfsextract`. However, v0.15.0 introduced a strict check that would
+  abort the process if there was a mismatch between the total computed size
+  and the total written size if `--stdout-progress` was used. This strict
+  check would fail if the total hardlink size value was actually used, which
+  is only the case for extracting to formats that do *not* support hardlinks,
+  e.g. ZIP or 7z. A workaround would be to simply drop `--stdout-progress`,
+  or to make the strict check just report an error rather than aborting (this
+  is also done in this release). The real fix is to correctly compute the
+  total hardlink size, and *fix* a wrong value when re-writing an image and
+  using `--rebuild-metadata`.
+
+- (fix) Don't abort extraction in release builds when discovering a progress
+  mismatch with `--stdout-progress`. The mismatch is still reported as an
+  error, but the process will continue in a release build and abort in a
+  debug build.
+
+- (fix) Preserve preferred path separator when rebuilding metadata. When
+  rebuilding metadata, the preferred path separator should *never* be changed,
+  but it was erroneously *always* set to the platform default of the binary
+  used for the rebuild. So an image created on Windows with `\` as the
+  preferred path separator and later rebuilt on Linux would end up with `/`
+  as the preferred path separator (and vice versa). This would only cause
+  problems if the image contained symbolic links with target paths that used
+  a path separator. Those symbolic links would now be broken. A workaround
+  would be to rebuild the image on the same platform it was created on, with
+  a version of DwarFS that still contains the bug (i.e. v0.15.7). This is
+  now fixed and the preferred path separator is preserved when rebuilding
+  metadata.
+
+- (fix) Call `archive_write_finish_entry()` to ensure that warnings are
+  reported for *all* entries in `dwarfsextract`. Before this fix, all
+  warnings except for the last were silently ignored.
+
+- (fix) Handle sparse files when using readahead. The readahead implementation
+  did not handle hole chunks in sparse files and would actually crash in debug
+  builds. This has been fixed.
+
+- (fix) Default `max_eager_map_size` to 1 TiB on 64-bit architectures. This
+  defaulted to `unlimited` on 64-bit architectures before, which could cause
+  errors when attempting to map extremely large (sparse) files.
+
+- (build) Add several missing includes to avoid compilation errors on newer
+  compiler versions.
+
 ## Version 0.15.7 - 2026-08-19
 
 - (fix) For fragments that are compressed with an algorithm that requires
