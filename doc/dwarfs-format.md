@@ -475,11 +475,10 @@ to the reserved marker value `BLOCK_SIZE - 1`.
 
 The marker value is reserved exclusively for `large_hole_size`
 references: the writer must never encode a hole directly if its size
-remainder would equal `BLOCK_SIZE - 1`, and instead store such holes in
-`large_hole_size` regardless of the threshold (but see the next paragraph
-for why this is actually unlikely in practice). Conversely, a reader must
-treat any hole chunk whose `offset` equals the marker as a `large_hole_size`
-reference.
+remainder would equal `BLOCK_SIZE - 1`, and instead store such holes
+in `large_hole_size` regardless of the threshold. Conversely, a reader
+must treat any hole chunk whose `offset` equals the marker as a
+`large_hole_size` reference.
 
 Note that while the above was the design goal, the initial implementation
 in v0.14.x and v0.15.x actually had a bug and used `UINT32_MAX` as the
