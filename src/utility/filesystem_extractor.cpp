@@ -855,12 +855,16 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   }
 
   if (opts.enable_progress) {
-    DWARFS_CHECK(bytes_written_.load() == bytes_total_.value(),
-                 fmt::format("progress mismatch: {} (written) != {} (total)",
-                             bytes_written_.load(), bytes_total_.value()));
-
     LOG_DEBUG << "progress: " << bytes_written_.load() << "/"
               << bytes_total_.value() << " bytes written";
+
+    if (bytes_written_.load() != bytes_total_.value()) {
+      LOG_ERROR << "progress mismatch: " << bytes_written_.load()
+                << " (written) != " << bytes_total_.value() << " (total)";
+      // We *absolutely* want to catch this in debug builds,
+      // but keep it non-fatal in release builds.
+      assert(false);
+    }
   }
 
   if (soft_error > 0) {
