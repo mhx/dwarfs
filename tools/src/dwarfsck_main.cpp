@@ -51,19 +51,17 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/counting_semaphore.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
-#include <dwarfs/reader/detail/file_reader.h>
+#include <dwarfs/reader/compute_file_hashes.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
-#include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
@@ -490,124 +488,19 @@ void dwarfsck_impl::do_list_files() {
 }
 
 void dwarfsck_impl::do_checksum() {
-  auto const& algo = *opts_.checksum_algo;
-  auto const max_queued_bytes = fsopts_.block_cache.max_bytes;
-
-  struct cache_entry {
-    explicit cache_entry(reader::duplication_info const& dup_info)
-        : remaining{dup_info.duplication_count} {}
-
-    std::size_t remaining;
-    std::optional<std::string> checksum;
-    std::vector<std::string> paths;
+  reader::compute_hash_config cfg{
+      .hash_algorithm = *opts_.checksum_algo,
+      .max_queued_bytes = fsopts_.block_cache.max_bytes,
+      .num_worker_threads = opts_.num_workers,
+      .result_key = reader::compute_hash_result_key::unix_path,
+      .digest_format = reader::compute_hash_digest_format::hex,
   };
 
-  std::mutex mx;
-  std::unordered_map<uint32_t, cache_entry> checksum_cache;
-  counting_semaphore sem;
-  sem.post(static_cast<int64_t>(max_queued_bytes));
-
-  thread_pool pool{lgr_, *iol_.os, "checksum", opts_.num_workers};
-
-  size_t const max_queued_per_worker = max_queued_bytes / opts_.num_workers;
-
-  auto build_hexdigest = [&algo](auto const& ranges) {
-    thread_local checksum cs(algo);
-
-    cs.reset();
-
-    for (auto const& r : ranges) {
-      cs.update(r.data(), r.size());
-    }
-
-    return cs.hexdigest();
-  };
-
-  auto print_cs = [&](std::string const& hexdigest, std::string const& path) {
-    fmt::print(iol_.out, "{}  {}\n", hexdigest, path);
-  };
-
-  for (auto const& de : fs().entries_in_data_order()) {
-    auto iv = de.inode();
-
-    if (iv.is_regular_file()) {
-      auto const dup_info = fs().get_duplication_info(iv);
-
-      if (dup_info.duplication_count > 1) {
-        std::lock_guard lock(mx);
-
-        auto it = checksum_cache.find(dup_info.unique_content_id);
-
-        if (it != checksum_cache.end()) {
-          if (it->second.checksum) {
-            print_cs(*it->second.checksum, de.unix_path());
-            assert(it->second.paths.empty());
-            if (--it->second.remaining == 0) {
-              checksum_cache.erase(it);
-            }
-          } else {
-            it->second.paths.push_back(de.unix_path());
-          }
-          continue;
-        }
-
-        auto const r [[maybe_unused]] = checksum_cache.emplace(
-            dup_info.unique_content_id, cache_entry{dup_info});
-        assert(r.second);
-      }
-
-      reader::detail::file_reader fr(fs(), iv);
-
-      pool.add_job(
-          [this, &build_hexdigest, &checksum_cache, &mx, &print_cs, de,
-           dup_info,
-           ranges = fr.read_sequential(sem, max_queued_per_worker)] mutable {
-            try {
-              auto const path = de.unix_path();
-              auto hexdigest = build_hexdigest(ranges);
-
-              {
-                std::lock_guard lock(mx);
-                print_cs(hexdigest, path);
-
-                if (dup_info.duplication_count > 1) {
-                  auto it = checksum_cache.find(dup_info.unique_content_id);
-
-                  assert(it != checksum_cache.end());
-
-                  for (auto const& p : it->second.paths) {
-                    print_cs(hexdigest, p);
-                  }
-
-                  assert(std::cmp_greater(it->second.remaining,
-                                          it->second.paths.size()));
-
-                  it->second.remaining -= it->second.paths.size();
-                  it->second.paths.clear();
-
-                  if (--it->second.remaining == 0) {
-                    checksum_cache.erase(it);
-                  } else {
-                    it->second.checksum = std::move(hexdigest);
-                  }
-                }
-              }
-            } catch (std::exception const& e) {
-              LOG_ERROR << "error processing inode for " << de.unix_path()
-                        << ": " << e.what();
-            }
-          });
-    }
-  }
-
-  pool.wait();
-
-#ifdef NDEBUG
-  {
-    std::lock_guard lock(mx);
-    assert(checksum_cache.empty());
-  }
-#endif
+  reader::compute_file_hashes(lgr_, *iol_.os, fs(), cfg,
+                              [this](reader::compute_hash_result const& r) {
+                                fmt::print(iol_.out, "{}  {}\n", r.digest,
+                                           std::get<std::string_view>(r.key));
+                              });
 }
 
 } // namespace
