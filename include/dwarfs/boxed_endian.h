@@ -38,7 +38,7 @@
 
 namespace dwarfs {
 
-template <std::unsigned_integral T, std::endian Endian>
+template <std::integral T, std::endian Endian>
 class boxed_endian {
  public:
   static_assert(Endian == std::endian::little || Endian == std::endian::big);
@@ -84,16 +84,32 @@ using uint16le_t = boxed_endian<std::uint16_t, std::endian::little>;
 using uint32le_t = boxed_endian<std::uint32_t, std::endian::little>;
 using uint64le_t = boxed_endian<std::uint64_t, std::endian::little>;
 
+using int16le_t = boxed_endian<std::uint16_t, std::endian::little>;
+using int32le_t = boxed_endian<std::uint32_t, std::endian::little>;
+using int64le_t = boxed_endian<std::uint64_t, std::endian::little>;
+
 using uint16be_t = boxed_endian<std::uint16_t, std::endian::big>;
 using uint32be_t = boxed_endian<std::uint32_t, std::endian::big>;
 using uint64be_t = boxed_endian<std::uint64_t, std::endian::big>;
+
+using int16be_t = boxed_endian<std::uint16_t, std::endian::big>;
+using int32be_t = boxed_endian<std::uint32_t, std::endian::big>;
+using int64be_t = boxed_endian<std::uint64_t, std::endian::big>;
 
 static_assert(sizeof(uint16le_t) == 2);
 static_assert(sizeof(uint32le_t) == 4);
 static_assert(sizeof(uint64le_t) == 8);
 
+static_assert(sizeof(int16le_t) == 2);
+static_assert(sizeof(int32le_t) == 4);
+static_assert(sizeof(int64le_t) == 8);
+
 static_assert(sizeof(uint16be_t) == 2);
 static_assert(sizeof(uint32be_t) == 4);
 static_assert(sizeof(uint64be_t) == 8);
+
+static_assert(sizeof(int16be_t) == 2);
+static_assert(sizeof(int32be_t) == 4);
+static_assert(sizeof(int64be_t) == 8);
 
 } // namespace dwarfs
