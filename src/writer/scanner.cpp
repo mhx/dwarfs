@@ -123,6 +123,41 @@ class visitor_base : public entry_handle_visitor {
   void visit(other_handle) override {}
 };
 
+class hardlink_handler {
+ public:
+  explicit hardlink_handler(uint32_t& inode_num)
+      : inode_num_{inode_num} {}
+
+  uint32_t get_inode_num(entry_handle p, bool* is_new = nullptr) {
+    if (is_new) {
+      *is_new = true;
+    }
+
+    if (p.num_hard_links() <= 1) {
+      return inode_num_++;
+    }
+
+    auto const id = p.get_unique_inode_id();
+
+    if (auto it = hardlink_map_.find(id); it != hardlink_map_.end()) {
+      if (is_new) {
+        *is_new = false;
+      }
+      return it->second;
+    }
+
+    uint32_t const inode_num = inode_num_++;
+
+    hardlink_map_[id] = inode_num;
+
+    return inode_num;
+  }
+
+ private:
+  uint32_t& inode_num_;
+  std::unordered_map<unique_inode_id, uint32_t> hardlink_map_;
+};
+
 class dir_set_inode_visitor : public visitor_base {
  public:
   explicit dir_set_inode_visitor(uint32_t& inode_num)
@@ -137,40 +172,43 @@ class dir_set_inode_visitor : public visitor_base {
 class link_set_inode_visitor : public visitor_base {
  public:
   explicit link_set_inode_visitor(uint32_t& inode_num)
-      : inode_num_(inode_num) {}
+      : hh_{inode_num} {}
 
-  void visit(link_handle p) override { p.set_inode_num(inode_num_++); }
+  void visit(link_handle p) override { p.set_inode_num(hh_.get_inode_num(p)); }
 
  private:
-  uint32_t& inode_num_;
+  hardlink_handler hh_;
 };
 
 class device_set_inode_visitor : public visitor_base {
  public:
   explicit device_set_inode_visitor(uint32_t& inode_num)
-      : inode_num_(inode_num) {}
+      : hh_{inode_num} {}
 
   void visit(device_handle p) override {
-    p.set_inode_num(inode_num_++);
-    dev_ids_.push_back(p.posix_device_id());
+    bool is_new{false};
+    p.set_inode_num(hh_.get_inode_num(p, &is_new));
+    if (is_new) {
+      dev_ids_.push_back(p.posix_device_id());
+    }
   }
 
   std::vector<uint64_t>& device_ids() { return dev_ids_; }
 
  private:
   std::vector<uint64_t> dev_ids_;
-  uint32_t& inode_num_;
+  hardlink_handler hh_;
 };
 
 class pipe_set_inode_visitor : public visitor_base {
  public:
   explicit pipe_set_inode_visitor(uint32_t& inode_num)
-      : inode_num_(inode_num) {}
+      : hh_{inode_num} {}
 
-  void visit(other_handle p) override { p.set_inode_num(inode_num_++); }
+  void visit(other_handle p) override { p.set_inode_num(hh_.get_inode_num(p)); }
 
  private:
-  uint32_t& inode_num_;
+  hardlink_handler hh_;
 };
 
 class save_symlinks_visitor : public visitor_base {
