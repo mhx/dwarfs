@@ -550,7 +550,7 @@ class metadata_v2_data {
     return find_inode_rank_offset(meta_, rank);
   }
 
-  file_stat::nlink_type reg_file_link_count(inode_view_impl const& ivr) const;
+  file_stat::nlink_type hardlink_count(inode_view_impl const& ivr) const;
 
   thrift::metadata::metadata unpack_metadata() const;
 
@@ -1094,95 +1094,99 @@ std::optional<nlink_info> metadata_v2_data::build_nlinks(logger& lgr) const {
     return packed_nlinks;
   }
 
-  if (dev_inode_offset_ > file_inode_offset_) {
-    LOG_PROXY(LoggerPolicy, lgr);
-    auto td = LOG_TIMED_DEBUG;
+  LOG_PROXY(LoggerPolicy, lgr);
+  auto td = LOG_TIMED_DEBUG;
 
-    std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
-    size_t total_links{0};
+  std::vector<uint32_t> nlinks(meta_.inodes().size());
+  size_t total_reg_file_hardlinks{0};
+  size_t total_hardlinks{0};
 
-    auto add_link = [&](int index) {
-      if (index >= 0 && std::cmp_less(index, nlinks.size())) {
-        if (++nlinks[index] > 1) {
-          ++total_links;
-        }
-      }
-    };
-
-    if (auto de = meta_.dir_entries()) {
-      for (auto e : *de) {
-        add_link(static_cast<int>(e.inode_num()) - file_inode_offset_);
-      }
-    } else {
-      // NOTE: Technically, this isn't correct. In the 2.2 format and earlier,
-      //       shared files would be represented as hardlinks, so there was no
-      //       way to distinguish "real" hardlinks from shared files. However,
-      //       we can't really fix this on the fly as it would require all
-      //       inodes to be reassigned. This can be done explicitly by
-      //       rebuilding the metadata.
-      for (auto e : meta_.inodes()) {
-        add_link(static_cast<int>(e.inode_v2_2()) - file_inode_offset_);
+  auto add_link = [&](auto const inode) {
+    assert(inode < nlinks.size());
+    if (++nlinks[inode] > 1) {
+      ++total_hardlinks;
+      if (std::cmp_greater_equal(inode, file_inode_offset_) &&
+          std::cmp_less(inode, dev_inode_offset_)) {
+        ++total_reg_file_hardlinks;
       }
     }
+  };
 
-    LOG_DEBUG << "found " << total_links << " hardlinks in " << nlinks.size()
-              << " files";
-
-    packed_nlinks.emplace();
-    auto& nlm1 = packed_nlinks->nlink_minus_one;
-
-    if (total_links > 0) {
-      {
-        auto tt = LOG_TIMED_TRACE;
-
-        uint32_t max = *std::ranges::max_element(nlinks);
-        nlm1.reset(std::bit_width(max - 1), nlinks.size());
-
-        for (size_t i = 0; i < nlinks.size(); ++i) {
-          nlm1.set(i, nlinks[i] - 1);
-        }
-
-        tt << "packed hardlink table from "
-           << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
-           << size_with_unit(nlm1.size_in_bytes());
-      }
-
-      if (!meta_.total_hardlink_size().has_value() ||
-          must_build_allocated_hardlink_size) {
-        // This is an old (v2.2) filesystem (pre-0.5.0) that doesn't yet have
-        // the total hardlink size stored; we need to calculate it now.
-
-        auto tt = LOG_TIMED_TRACE;
-
-        file_size_t total_size{0};
-        file_size_t total_allocated_size{0};
-
-        for (int ino = file_inode_offset_; ino < dev_inode_offset_; ++ino) {
-          if (auto const num = nlinks[ino - file_inode_offset_]; num > 1) {
-            auto const iv = make_inode_view_impl(ino);
-            auto const sz = reg_file_size_impl_noperfmon(iv, true, [](int) {});
-            total_size += sz.size * (num - 1);
-            total_allocated_size += sz.allocated_size * (num - 1);
-          }
-        }
-
-        if (!meta_.total_hardlink_size().has_value()) {
-          packed_nlinks->total_hardlink_size.emplace(total_size);
-        }
-
-        if (must_build_allocated_hardlink_size) {
-          packed_nlinks->total_allocated_hardlink_size.emplace(
-              total_allocated_size);
-        }
-
-        tt << "calculated total hardlink size as " << total_size << " bytes ("
-           << total_allocated_size << " bytes allocated)";
-      }
+  if (auto de = meta_.dir_entries()) {
+    for (auto e : *de) {
+      add_link(e.inode_num());
     }
-
-    td << "built hardlink table (" << nlm1.size() << " entries, "
-       << size_with_unit(nlm1.size_in_bytes()) << ")";
+  } else {
+    // NOTE: Technically, this isn't correct. In the 2.2 format and earlier,
+    //       shared files would be represented as hardlinks, so there was no
+    //       way to distinguish "real" hardlinks from shared files. However,
+    //       we can't really fix this on the fly as it would require all
+    //       inodes to be reassigned. This can be done explicitly by
+    //       rebuilding the metadata.
+    for (auto e : meta_.inodes()) {
+      add_link(e.inode_v2_2());
+    }
   }
+
+  LOG_DEBUG << "found " << total_hardlinks << " hardlinks ("
+            << total_reg_file_hardlinks << " for regular files) in "
+            << nlinks.size() << " inodes";
+
+  packed_nlinks.emplace();
+  auto& nlm1 = packed_nlinks->nlink_minus_one;
+
+  if (total_hardlinks > 0) {
+    {
+      auto tt = LOG_TIMED_TRACE;
+
+      uint32_t max = *std::ranges::max_element(nlinks);
+      nlm1.reset(std::bit_width(max - 1), nlinks.size());
+
+      for (size_t i = 0; i < nlinks.size(); ++i) {
+        nlm1.set(i, nlinks[i] - 1);
+      }
+
+      tt << "packed hardlink table from "
+         << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
+         << size_with_unit(nlm1.size_in_bytes());
+    }
+
+    if (total_reg_file_hardlinks > 0 &&
+        (!meta_.total_hardlink_size().has_value() ||
+         must_build_allocated_hardlink_size)) {
+      // This is an old (v2.2) filesystem (pre-0.5.0) that doesn't yet have
+      // the total hardlink size stored; we need to calculate it now.
+
+      auto tt = LOG_TIMED_TRACE;
+
+      file_size_t total_size{0};
+      file_size_t total_allocated_size{0};
+
+      for (int ino = file_inode_offset_; ino < dev_inode_offset_; ++ino) {
+        if (auto const num = nlinks[ino]; num > 1) {
+          auto const iv = make_inode_view_impl(ino);
+          auto const sz = reg_file_size_impl_noperfmon(iv, true, [](int) {});
+          total_size += sz.size * (num - 1);
+          total_allocated_size += sz.allocated_size * (num - 1);
+        }
+      }
+
+      if (!meta_.total_hardlink_size().has_value()) {
+        packed_nlinks->total_hardlink_size.emplace(total_size);
+      }
+
+      if (must_build_allocated_hardlink_size) {
+        packed_nlinks->total_allocated_hardlink_size.emplace(
+            total_allocated_size);
+      }
+
+      tt << "calculated total hardlink size as " << total_size << " bytes ("
+         << total_allocated_size << " bytes allocated)";
+    }
+  }
+
+  td << "built hardlink table (" << nlm1.size() << " entries, "
+     << size_with_unit(nlm1.size_in_bytes()) << ")";
 
   return packed_nlinks;
 }
@@ -1260,7 +1264,7 @@ metadata_v2_data::build_shared_start_positions(logger& lgr) const {
               .nlink_minus_one();
         }
         if (auto const& nlm1 = nlinks_->nlink_minus_one; !nlm1.empty()) {
-          return nlm1.at(unique_files_ + index);
+          return nlm1.at(file_inode_offset_ + unique_files_ + index);
         }
         return 0;
       };
@@ -2333,7 +2337,7 @@ metadata_v2_data::find_impl(directory_view dir, auto const& range,
 }
 
 file_stat::nlink_type
-metadata_v2_data::reg_file_link_count(inode_view_impl const& ivr) const {
+metadata_v2_data::hardlink_count(inode_view_impl const& ivr) const {
   if (!nlinks_.has_value()) {
     // nlink values are stored directly in the inode metadata
     return ivr.nlink_minus_one() + 1;
@@ -2341,7 +2345,7 @@ metadata_v2_data::reg_file_link_count(inode_view_impl const& ivr) const {
 
   if (auto const& nlm1 = nlinks_->nlink_minus_one; !nlm1.empty()) {
     // nlink values are stored in a separate table
-    return DWARFS_NOTHROW(nlm1.at(ivr.inode_num() - file_inode_offset_)) + 1;
+    return DWARFS_NOTHROW(nlm1.at(ivr.inode_num())) + 1;
   }
 
   return 1;
@@ -2383,12 +2387,7 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
 
   timeres_handler_.fill_stat_timevals(stbuf, ivr);
 
-  if (stbuf.is_regular_file()) {
-    stbuf.set_nlink(reg_file_link_count(ivr));
-  } else {
-    stbuf.set_nlink(1);
-  }
-
+  stbuf.set_nlink(hardlink_count(ivr));
   stbuf.set_rdev(stbuf.is_device() ? get_device_id(inode).value() : 0);
 
   return stbuf;
@@ -2436,7 +2435,7 @@ metadata_v2_data::get_duplication_info(logger& lgr, inode_view const& iv,
     auto const content_id = file_inode_to_chunk_index(iv.inode_num());
     info.unique_content_id = content_id;
     if (content_id < unique_files_) {
-      info.duplication_count = reg_file_link_count(iv.raw());
+      info.duplication_count = hardlink_count(iv.raw());
     } else {
       std::call_once(shared_start_pos_init_, [this, &lgr] {
         shared_start_pos_ = build_shared_start_positions<LoggerPolicy>(lgr);
