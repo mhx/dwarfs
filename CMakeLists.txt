@@ -775,6 +775,7 @@ if(WITH_TESTS)
 
     add_executable(dwarfs_expensive_tests
       test/compat_test.cpp
+      test/compute_fs_digests_test.cpp
       test/dwarfs_test.cpp
     )
 
