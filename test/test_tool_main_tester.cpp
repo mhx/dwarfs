@@ -427,6 +427,17 @@ nlohmann::json fsinfo_json(reader::filesystem_v2 const& fs, int level) {
       {.features = reader::fsinfo_features::for_level(level)});
 }
 
+nlohmann::json fsinfo_json_features(reader::filesystem_v2 const& fs) {
+  return fs.info_as_json(
+      {.features = {reader::fsinfo_feature::metadata_summary}})["features"];
+}
+
+nlohmann::json fsinfo_json_metadata(reader::filesystem_v2 const& fs) {
+  return fs.info_as_json(
+      {.features = {
+           reader::fsinfo_feature::metadata_full_dump}})["full_metadata"];
+}
+
 std::string fsinfo_dump(reader::filesystem_v2 const& fs, int level) {
   return fs.dump({.features = reader::fsinfo_features::for_level(level)});
 }

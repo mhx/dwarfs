@@ -224,6 +224,8 @@ std::unordered_map<std::string, std::string>
 get_md5_checksums(std::string image);
 
 nlohmann::json fsinfo_json(reader::filesystem_v2 const& fs, int level);
+nlohmann::json fsinfo_json_features(reader::filesystem_v2 const& fs);
+nlohmann::json fsinfo_json_metadata(reader::filesystem_v2 const& fs);
 std::string fsinfo_dump(reader::filesystem_v2 const& fs, int level);
 
 } // namespace dwarfs::test

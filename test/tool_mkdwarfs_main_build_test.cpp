@@ -1236,7 +1236,216 @@ TEST_P(mkdwarfs_multi_device_test, inodes_from_different_devices_are_distinct) {
   };
 
   EXPECT_EQ(expected_hardlink_groups, hardlink_groups);
+
+  auto const features = fsinfo_json_features(fs);
+  EXPECT_THAT(features, ::testing::IsEmpty());
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_multi_device_test,
                          ::testing::Values("none"sv, "blake3-256"sv));
+
+class mkdwarfs_hardlink_test : public testing::TestWithParam<bool> {};
+
+TEST_P(mkdwarfs_hardlink_test, non_file_hardlinks_are_preserved) {
+  bool const no_hardlink_table = GetParam();
+
+  auto const data0 = test::create_random_string(128);
+  auto const data1 = test::create_random_string(128);
+  auto const data2 = test::create_random_string(128);
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+
+  t.os->add_dir("dev1", {.ino = 1, .dev = 0});
+  t.os->add_dir("dev2", {.ino = 2, .dev = 0});
+
+  // regular files
+  t.os->add_file("file-a", data0, {.ino = 10, .nlink = 2, .dev = 0});
+  t.os->add_file("file-b", data0, {.ino = 10, .nlink = 2, .dev = 0});
+  t.os->add_file("dev1/file", data1, {.ino = 10, .dev = 1});
+  t.os->add_file("dev2/file-a", data2, {.ino = 10, .nlink = 2, .dev = 2});
+  t.os->add_file("dev2/file-b", data2, {.ino = 10, .nlink = 2, .dev = 2});
+
+  // symlinks
+  t.os->add("link-a",
+            {.ino = 20, .mode = 0120777, .nlink = 2, .size = 7, .dev = 0},
+            "target0");
+  t.os->add("link-b",
+            {.ino = 20, .mode = 0120777, .nlink = 2, .size = 7, .dev = 0},
+            "target0");
+  t.os->add("dev1/link", {.ino = 20, .mode = 0120777, .size = 7, .dev = 1},
+            "target1");
+  t.os->add("dev2/link-a",
+            {.ino = 20, .mode = 0120777, .nlink = 2, .size = 7, .dev = 2},
+            "target2");
+  t.os->add("dev2/link-b",
+            {.ino = 20, .mode = 0120777, .nlink = 2, .size = 7, .dev = 2},
+            "target2");
+
+  // char devices
+  t.os->add("char-a",
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1001, .dev = 0});
+  t.os->add("char-b",
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1001, .dev = 0});
+  t.os->add("dev1/char",
+            {.ino = 30, .mode = 0020600, .rdev = 0x1002, .dev = 1});
+  t.os->add("dev2/char-a",
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1003, .dev = 2});
+  t.os->add("dev2/char-b",
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1003, .dev = 2});
+
+  // block devices
+  t.os->add("block-a",
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2001, .dev = 0});
+  t.os->add("block-b",
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2001, .dev = 0});
+  t.os->add("dev1/block",
+            {.ino = 40, .mode = 0060600, .rdev = 0x2002, .dev = 1});
+  t.os->add("dev2/block-a",
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2003, .dev = 2});
+  t.os->add("dev2/block-b",
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2003, .dev = 2});
+
+  // FIFOs
+  t.os->add("fifo-a", {.ino = 50, .mode = 0010644, .nlink = 2, .dev = 0});
+  t.os->add("fifo-b", {.ino = 50, .mode = 0010644, .nlink = 2, .dev = 0});
+  t.os->add("dev1/fifo", {.ino = 50, .mode = 0010644, .dev = 1});
+  t.os->add("dev2/fifo-a", {.ino = 50, .mode = 0010644, .nlink = 2, .dev = 2});
+  t.os->add("dev2/fifo-b", {.ino = 50, .mode = 0010644, .nlink = 2, .dev = 2});
+
+  // sockets
+  t.os->add("socket-a", {.ino = 60, .mode = 0140644, .nlink = 2, .dev = 0});
+  t.os->add("socket-b", {.ino = 60, .mode = 0140644, .nlink = 2, .dev = 0});
+  t.os->add("dev1/socket", {.ino = 60, .mode = 0140644, .dev = 1});
+  t.os->add("dev2/socket-a",
+            {.ino = 60, .mode = 0140644, .nlink = 2, .dev = 2});
+  t.os->add("dev2/socket-b",
+            {.ino = 60, .mode = 0140644, .nlink = 2, .dev = 2});
+
+  std::vector<std::string> args{
+      "-i", "/", "-o", "-", "--with-devices", "--with-specials"};
+
+  if (no_hardlink_table) {
+    args.push_back("--no-hardlink-table");
+  }
+
+  ASSERT_EQ(0, t.run(args)) << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  auto inode_of = [&](std::string_view path) {
+    return fs.find(path).value().inode().inode_num();
+  };
+
+  auto contents_of = [&](std::string_view path) {
+    return fs.read_string(inode_of(path));
+  };
+
+  EXPECT_EQ(data0, contents_of("file-a"));
+  EXPECT_EQ(data0, contents_of("file-b"));
+  EXPECT_EQ(data1, contents_of("dev1/file"));
+  EXPECT_EQ(data2, contents_of("dev2/file-a"));
+  EXPECT_EQ(data2, contents_of("dev2/file-b"));
+
+  std::set<std::string> const expected_paths{
+      // regular files
+      "file-a",
+      "file-b",
+      "dev1/file",
+      "dev2/file-a",
+      "dev2/file-b",
+
+      // symlinks
+      "link-a",
+      "link-b",
+      "dev1/link",
+      "dev2/link-a",
+      "dev2/link-b",
+
+      // char devices
+      "char-a",
+      "char-b",
+      "dev1/char",
+      "dev2/char-a",
+      "dev2/char-b",
+
+      // block devices
+      "block-a",
+      "block-b",
+      "dev1/block",
+      "dev2/block-a",
+      "dev2/block-b",
+
+      // FIFOs
+      "fifo-a",
+      "fifo-b",
+      "dev1/fifo",
+      "dev2/fifo-a",
+      "dev2/fifo-b",
+
+      // sockets
+      "socket-a",
+      "socket-b",
+      "dev1/socket",
+      "dev2/socket-a",
+      "dev2/socket-b",
+  };
+
+  std::map<uint64_t, std::set<std::string>> inodes;
+  std::set<std::string> seen_paths;
+
+  fs.walk([&](auto const& dev) {
+    auto const path = dev.unix_path();
+
+    if (expected_paths.contains(path)) {
+      seen_paths.insert(path);
+      inodes[dev.inode().inode_num()].insert(path);
+    }
+  });
+
+  EXPECT_EQ(expected_paths, seen_paths);
+
+  EXPECT_EQ(18, inodes.size());
+
+  std::set<std::set<std::string>> hardlink_groups;
+
+  for (auto const& [inode_num, paths] : inodes) {
+    if (paths.size() > 1) {
+      hardlink_groups.insert(paths);
+    }
+  }
+
+  std::set<std::set<std::string>> const expected_hardlink_groups{
+      // regular files
+      {"file-a", "file-b"},
+      {"dev2/file-a", "dev2/file-b"},
+
+      // symlinks
+      {"link-a", "link-b"},
+      {"dev2/link-a", "dev2/link-b"},
+
+      // char devices
+      {"char-a", "char-b"},
+      {"dev2/char-a", "dev2/char-b"},
+
+      // block devices
+      {"block-a", "block-b"},
+      {"dev2/block-a", "dev2/block-b"},
+
+      // FIFOs
+      {"fifo-a", "fifo-b"},
+      {"dev2/fifo-a", "dev2/fifo-b"},
+
+      // sockets
+      {"socket-a", "socket-b"},
+      {"dev2/socket-a", "dev2/socket-b"},
+  };
+
+  EXPECT_EQ(expected_hardlink_groups, hardlink_groups);
+
+  auto const features = fsinfo_json_features(fs);
+  EXPECT_THAT(features, ::testing::UnorderedElementsAre(
+                            "device_major_minor", "non_regfile_hardlinks"));
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_hardlink_test, ::testing::Bool());
