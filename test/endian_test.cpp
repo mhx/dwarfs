@@ -38,54 +38,54 @@ namespace {
 using namespace dwarfs;
 using namespace dwarfs::container;
 
-template <class T>
+template <typename T>
 consteval auto sample_u() -> std::make_unsigned_t<T> {
   if constexpr (sizeof(T) == 1) {
-    return UINT8_C(0x5A);
+    return UINT8_C(0xCA);
   } else if constexpr (sizeof(T) == 2) {
-    return UINT16_C(0x1234);
+    return UINT16_C(0xA234);
   } else if constexpr (sizeof(T) == 4) {
-    return UINT32_C(0x11223344);
+    return UINT32_C(0xDD223344);
   } else {
     static_assert(sizeof(T) == 8);
-    return UINT64_C(0x0102030405060708);
+    return UINT64_C(0x8102030405060708);
   }
 }
 
-template <class T>
+template <typename T>
 consteval auto sample_value() -> T {
   return static_cast<T>(sample_u<T>());
 }
 
-template <class T>
+template <typename T>
 consteval auto sample_bytes_le() -> std::array<std::uint8_t, sizeof(T)> {
   if constexpr (sizeof(T) == 1) {
-    return {0x5A};
+    return {0xCA};
   } else if constexpr (sizeof(T) == 2) {
-    return {0x34, 0x12};
+    return {0x34, 0xA2};
   } else if constexpr (sizeof(T) == 4) {
-    return {0x44, 0x33, 0x22, 0x11};
+    return {0x44, 0x33, 0x22, 0xDD};
   } else {
     static_assert(sizeof(T) == 8);
-    return {0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01};
+    return {0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x81};
   }
 }
 
-template <class T>
+template <typename T>
 consteval auto sample_bytes_be() -> std::array<std::uint8_t, sizeof(T)> {
   if constexpr (sizeof(T) == 1) {
-    return {0x5A};
+    return {0xCA};
   } else if constexpr (sizeof(T) == 2) {
-    return {0x12, 0x34};
+    return {0xA2, 0x34};
   } else if constexpr (sizeof(T) == 4) {
-    return {0x11, 0x22, 0x33, 0x44};
+    return {0xDD, 0x22, 0x33, 0x44};
   } else {
     static_assert(sizeof(T) == 8);
-    return {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    return {0x81, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
   }
 }
 
-template <std::endian Endian, class T>
+template <std::endian Endian, typename T>
 consteval auto sample_bytes() -> std::array<std::uint8_t, sizeof(T)> {
   if constexpr (Endian == std::endian::little) {
     return sample_bytes_le<T>();
@@ -95,7 +95,7 @@ consteval auto sample_bytes() -> std::array<std::uint8_t, sizeof(T)> {
   }
 }
 
-template <std::endian Endian, class T>
+template <std::endian Endian, typename T>
 consteval auto expected_converted_value() -> T {
   return std::bit_cast<T>(sample_bytes<Endian, T>());
 }
@@ -126,6 +126,22 @@ static_assert(convert_endian(std::endian::big, std::uint32_t{1}) ==
               std::bit_cast<std::uint32_t>(std::array<std::uint8_t, 4>{
                   0x00, 0x00, 0x00, 0x01}));
 
+static_assert(convert<std::endian::little>(std::int32_t{-2}) ==
+              std::bit_cast<std::int32_t>(std::array<std::uint8_t, 4>{
+                  0xFE, 0xFF, 0xFF, 0xFF}));
+
+static_assert(convert_endian(std::endian::little, std::int32_t{-2}) ==
+              std::bit_cast<std::int32_t>(std::array<std::uint8_t, 4>{
+                  0xFE, 0xFF, 0xFF, 0xFF}));
+
+static_assert(convert<std::endian::big>(std::int32_t{-2}) ==
+              std::bit_cast<std::int32_t>(std::array<std::uint8_t, 4>{
+                  0xFF, 0xFF, 0xFF, 0xFE}));
+
+static_assert(convert_endian(std::endian::big, std::int32_t{-2}) ==
+              std::bit_cast<std::int32_t>(std::array<std::uint8_t, 4>{
+                  0xFF, 0xFF, 0xFF, 0xFE}));
+
 static_assert(convert<std::endian::little>(sample_value<std::uint16_t>()) ==
               expected_converted_value<std::endian::little, std::uint16_t>());
 static_assert(convert<std::endian::big>(sample_value<std::uint16_t>()) ==
@@ -147,7 +163,7 @@ static_assert(convert<std::endian::big>(sample_value<std::int32_t>()) ==
               expected_converted_value<std::endian::big, std::int32_t>());
 
 static_assert([] {
-  constexpr std::uint32_t v = 0x11223344u;
+  constexpr std::uint32_t v = 0xDD223344u;
   constexpr uint32be_t x{v};
 
   static_assert(sizeof(x) == sizeof(std::uint32_t));
@@ -155,7 +171,7 @@ static_assert([] {
 
   // stored bytes must be big-endian representation of v
   constexpr auto stored = bit_cast_array(x);
-  static_assert(stored == std::array<std::uint8_t, 4>{0x11, 0x22, 0x33, 0x44});
+  static_assert(stored == std::array<std::uint8_t, 4>{0xDD, 0x22, 0x33, 0x44});
 
   // public value must roundtrip
   static_assert(static_cast<std::uint32_t>(x) == v);
@@ -170,13 +186,13 @@ static_assert([] {
          ((b <=> a) == std::strong_ordering::less);
 }());
 
-template <class T, std::endian Endian>
+template <typename T, std::endian Endian>
 struct convert_param {
   using type = T;
   static constexpr std::endian endian = Endian;
 };
 
-template <class Param>
+template <typename Param>
 class convert_test : public ::testing::Test {};
 
 using convert_params =
@@ -216,14 +232,14 @@ TYPED_TEST(convert_test, converts_to_expected_bit_pattern_value) {
   EXPECT_THAT(actual_bytes, ::testing::ElementsAreArray(expected_bytes));
 }
 
-template <class T, std::endian Endian>
+template <typename T, std::endian Endian>
 struct boxed_param {
   using value_type = T;
   static constexpr std::endian endian = Endian;
   using boxed_type = boxed_endian<T, Endian>;
 };
 
-template <class Param>
+template <typename Param>
 class boxed_endian_test : public ::testing::Test {};
 
 using boxed_params =
@@ -232,7 +248,13 @@ using boxed_params =
                      boxed_param<std::uint32_t, std::endian::little>,
                      boxed_param<std::uint32_t, std::endian::big>,
                      boxed_param<std::uint64_t, std::endian::little>,
-                     boxed_param<std::uint64_t, std::endian::big>>;
+                     boxed_param<std::uint64_t, std::endian::big>,
+                     boxed_param<std::int16_t, std::endian::little>,
+                     boxed_param<std::int16_t, std::endian::big>,
+                     boxed_param<std::int32_t, std::endian::little>,
+                     boxed_param<std::int32_t, std::endian::big>,
+                     boxed_param<std::int64_t, std::endian::little>,
+                     boxed_param<std::int64_t, std::endian::big>>;
 
 TYPED_TEST_SUITE(boxed_endian_test, boxed_params);
 
