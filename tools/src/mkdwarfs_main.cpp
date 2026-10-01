@@ -1372,10 +1372,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::shared_ptr<writer::category_resolver> cat_resolver;
 
   if (recompress) {
-    input_filesystem.emplace(
-        lgr, *iol.os, path,
-        reader::filesystem_options{
-            .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+    try {
+      input_filesystem.emplace(
+          lgr, *iol.os, path,
+          reader::filesystem_options{
+              .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+    } catch (std::exception const& e) {
+      LOG_ERROR << "could not open input filesystem: " << e.what();
+      return 1;
+    }
 
     if (!no_check) {
       LOG_INFO << "checking input filesystem...";
