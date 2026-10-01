@@ -1455,6 +1455,8 @@ void metadata_v2_data::statvfs(vfs_stat* stbuf) const {
   } else {
     stbuf->total_allocated_hardlink_size = stbuf->total_hardlink_size;
   }
+
+  stbuf->unique_content_count = meta_.chunk_table().size() - 1;
 }
 
 file_off_t
