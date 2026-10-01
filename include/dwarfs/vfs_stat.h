@@ -46,6 +46,7 @@ struct vfs_stat {
   uint64_t total_allocated_fs_size;
   uint64_t total_hardlink_size;
   uint64_t total_allocated_hardlink_size;
+  uint64_t unique_content_count;
 };
 
 template <typename T>
