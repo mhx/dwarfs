@@ -278,6 +278,8 @@ class metadata_builder_ final : public metadata_builder::impl {
     return std::chrono::seconds{get_time_resolution()};
   }
 
+  bool is_rebuild() const { return history_ != nullptr; }
+
   void update_inodes();
   void update_nlink();
   void update_totals_and_size_cache();
@@ -884,43 +886,74 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
     return;
   }
 
+  auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
+  auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
+  bool has_non_regular_file_hardlinks = false;
+
   auto td = LOG_TIMED_DEBUG;
 
   if (options_.no_hardlink_table) {
     LOG_DEBUG << "hardlink table disabled, clearing nlink fields";
 
-    // simply set nlink_minus_one to 0 for all inodes
-    for (auto&& inode : md_.inodes().value()) {
-      inode.nlink_minus_one() = 0;
+    if (is_rebuild()) {
+      // simply set nlink_minus_one to 0 for all inodes
+      for (auto&& inode : md_.inodes().value()) {
+        inode.nlink_minus_one() = 0;
+      }
+    } else {
+      auto const end_offset = md_.inodes()->size();
+      auto const num_reg = dev_offset - reg_offset;
+
+      dwarfs::container::auto_packed_int_vector<std::size_t> nlinks(
+          1, end_offset - num_reg);
+
+      for (auto const& de : md_.dir_entries().value()) {
+        auto const inode_num = de.inode_num().value();
+        assert(inode_num < md_.inodes()->size());
+
+        if (reg_offset <= inode_num && inode_num < dev_offset) {
+          continue; // skip regular files
+        }
+
+        auto const index =
+            inode_num >= dev_offset ? inode_num - num_reg : inode_num;
+
+        if (++nlinks[index] > 1) {
+          has_non_regular_file_hardlinks = true;
+          break;
+        }
+      }
     }
   } else {
-    auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
-    auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
-
     assert(std::ranges::all_of(md_.inodes().value(), [](auto const& inode) {
       return inode.nlink_minus_one().value() == 0;
     }));
 
-    if (dev_offset > reg_offset) {
-      for (auto&& de : md_.dir_entries().value()) {
-        auto const inode_num = de.inode_num().value();
-        assert(inode_num < md_.inodes()->size());
-        // only need to update regular files
-        if (reg_offset <= inode_num && inode_num < dev_offset) {
-          auto&& inode = md_.inodes()->at(inode_num);
-          ++inode.nlink_minus_one();
-        }
-      }
+    for (auto&& de : md_.dir_entries().value()) {
+      auto const inode_num = de.inode_num().value();
+      assert(inode_num < md_.inodes()->size());
+      auto&& inode = md_.inodes()->at(inode_num);
+      ++inode.nlink_minus_one();
 
-      for (auto inode_num = reg_offset; inode_num < dev_offset; ++inode_num) {
-        auto&& inode = md_.inodes()->at(inode_num);
-        assert(inode.nlink_minus_one().value() >= 1);
-        --inode.nlink_minus_one();
+      if (!has_non_regular_file_hardlinks &&
+          (inode_num < reg_offset || inode_num >= dev_offset) &&
+          inode.nlink_minus_one().value() > 1) {
+        has_non_regular_file_hardlinks = true;
       }
+    }
+
+    for (auto&& inode : md_.inodes().value()) {
+      assert(inode.nlink_minus_one().value() >= 1);
+      --inode.nlink_minus_one();
     }
   }
 
   td << "updating inode nlink fields...";
+
+  if (!is_rebuild() && has_non_regular_file_hardlinks) {
+    LOG_VERBOSE << "file system has non-regular file hardlinks";
+    features_.add(feature::non_regfile_hardlinks);
+  }
 }
 
 template <typename LoggerPolicy>

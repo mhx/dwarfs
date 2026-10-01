@@ -42,4 +42,6 @@ enum feature {
   sparsefiles_new_lhm = 1,       // bugfix for large hole markers, added
                                  // in v0.16.0, only set on demand; see
                                  // dwarfs-format.md for full details
+
+  non_regfile_hardlinks = 2,     // non-regular file hardlinks (v0.16.0)
 }
