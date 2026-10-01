@@ -173,9 +173,9 @@ class pipe_set_inode_visitor : public visitor_base {
   uint32_t& inode_num_;
 };
 
-class names_and_symlinks_visitor : public visitor_base {
+class save_symlinks_visitor : public visitor_base {
  public:
-  explicit names_and_symlinks_visitor(global_entry_data& data)
+  explicit save_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
 
   void visit(link_handle p) override { data_.add_link(p.linkname()); }
@@ -869,9 +869,9 @@ void scanner_<LoggerPolicy>::scan(
   mdb.set_symlink_table_size(first_file_inode - first_link_inode);
 
   wg_.add_job([&] {
-    LOG_INFO << "saving names and symlinks...";
-    names_and_symlinks_visitor nlv(*ge_data);
-    root.accept(nlv);
+    LOG_INFO << "saving symlinks...";
+    save_symlinks_visitor ssv(*ge_data);
+    root.accept(ssv);
 
     {
       auto tv = LOG_TIMED_VERBOSE;
