@@ -67,6 +67,15 @@ constexpr std::array unsupported_algorithms{
     "shake256"sv,
 };
 
+std::string make_digest(checksum::impl& cs) {
+  auto dig_size = cs.digest_size();
+  std::string result(dig_size, '\0');
+  if (!cs.finalize(result.data())) {
+    throw std::runtime_error("failed to finalize digest");
+  }
+  return result;
+}
+
 std::string make_hexdigest(checksum::impl& cs) {
   std::array<char, EVP_MAX_MD_SIZE> tmp;
   auto dig_size = cs.digest_size();
@@ -121,6 +130,7 @@ class checksum_evp : public checksum::impl {
     return rv;
   }
 
+  std::string digest() override { return make_digest(*this); }
   std::string hexdigest() override { return make_hexdigest(*this); }
 
   static std::vector<std::string> available_algorithms() {
@@ -216,6 +226,7 @@ class checksum_xxh3 : public checksum::impl {
     return true;
   }
 
+  std::string digest() override { return make_digest(*this); }
   std::string hexdigest() override { return make_hexdigest(*this); }
 
   size_t digest_size() override {
@@ -269,6 +280,7 @@ class checksum_blake3 : public checksum::impl {
     return true;
   }
 
+  std::string digest() override { return make_digest(*this); }
   std::string hexdigest() override { return make_hexdigest(*this); }
 
   size_t digest_size() override { return BLAKE3_OUT_LEN; }
