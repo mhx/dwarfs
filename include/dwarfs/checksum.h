@@ -76,6 +76,11 @@ class checksum {
     return *this;
   }
 
+  checksum& update(std::string_view data) {
+    impl_->update(data.data(), data.size());
+    return *this;
+  }
+
   void reset() { impl_->reset(); }
 
   bool finalize(void* digest) const { return impl_->finalize(digest); }
