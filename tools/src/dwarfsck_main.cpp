@@ -58,6 +58,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/compute_file_hashes.h>
+#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -419,6 +420,26 @@ int dwarfsck_impl::do_check() {
     } catch (std::exception const& e) {
       LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
       ++errors;
+    }
+
+    if (errors == 0) {
+      try {
+        reader::filesystem_digests_config cfg{
+            .compute_tree_digest = true,
+            .max_queued_bytes = fsopts_.block_cache.max_bytes,
+            .num_worker_threads = opts_.num_workers,
+        };
+        auto const digests =
+            reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
+        iol_.out << "filesystem digests:\n"
+                 << "  attr: " << digests.attr_digest << "\n";
+        if (digests.tree_digest) {
+          iol_.out << "  tree: " << *digests.tree_digest << "\n";
+        }
+      } catch (std::exception const& e) {
+        LOG_ERROR << "error: failed to verify metadata: " << exception_str(e);
+        ++errors;
+      }
     }
   }
 
