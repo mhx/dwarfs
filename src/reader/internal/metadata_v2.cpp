@@ -732,13 +732,6 @@ class metadata_v2_data {
     return std::nullopt;
   }
 
-  size_t total_file_entries() const {
-    return (dev_inode_offset_ - file_inode_offset_) +
-           (meta_.dir_entries()
-                ? meta_.dir_entries()->size() - meta_.inodes().size()
-                : 0);
-  }
-
   std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
@@ -2151,17 +2144,15 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
       // 1. collect and partition non-files / files
       entries.resize(dep->size());
 
-      auto const num_files = total_file_entries();
-      auto mid = entries.end() - num_files;
-
       // we use this first to build a mapping from self_index to inode number
       std::vector<uint32_t> first_chunk_block(dep->size());
+      auto mid = entries.begin();
 
       {
         auto td = LOG_TIMED_DEBUG;
 
         size_t other_ix = 0;
-        size_t file_ix = entries.size() - num_files;
+        size_t file_ix = entries.size();
 
         walk_tree(LOG_PROXY_ARG_[&, de = *dep, beg = file_inode_offset_,
                                  end = dev_inode_offset_](
@@ -2170,7 +2161,7 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
           size_t index;
 
           if (beg <= ino && ino < end) {
-            index = file_ix++;
+            index = --file_ix;
             first_chunk_block[self_index] = ino;
           } else {
             index = other_ix++;
@@ -2179,12 +2170,11 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
           entries[index] = {self_index, parent_index};
         });
 
-        DWARFS_CHECK(file_ix == entries.size(),
-                     fmt::format("unexpected file index: {} != {}", file_ix,
-                                 entries.size()));
-        DWARFS_CHECK(other_ix == entries.size() - num_files,
-                     fmt::format("unexpected other index: {} != {}", other_ix,
-                                 entries.size() - num_files));
+        DWARFS_CHECK(file_ix == other_ix,
+                     fmt::format("unexpected file/other index: {} != {}",
+                                 file_ix, other_ix));
+
+        mid += file_ix;
 
         td << "collected " << entries.size() << " entries ("
            << std::distance(entries.begin(), mid) << " non-files and "
