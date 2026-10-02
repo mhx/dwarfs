@@ -26,6 +26,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#define DWARFS_SFX_STUB_ENABLE_PERROR 0
+
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -33,9 +35,9 @@
 #include <linux/memfd.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -43,6 +45,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#if DWARFS_SFX_STUB_ENABLE_PERROR
+#include <stdio.h>
+#endif
 
 #ifdef DWARFS_SFX_STUB_USE_LZ4
 #include <lz4.h>
@@ -73,16 +79,33 @@ struct trailer_info {
   off_t c_off;
 };
 
+static void msgerr(char const* msg, size_t len) {
+  (void)write(STDERR_FILENO, msg, len);
+}
+
+#define MSGERR(msg) msgerr(msg, sizeof(msg) - 1)
+
 static void fmterr(char const* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   char buf[1024];
-  npf_vsnprintf(buf, sizeof(buf), fmt, ap);
-  fputs(buf, stderr);
+  int len = npf_vsnprintf(buf, sizeof(buf), fmt, ap);
+  if (len > 0) {
+    msgerr(buf, len);
+  }
   va_end(ap);
 }
 
-static void msgerr(char const* msg) { fputs(msg, stderr); }
+#if DWARFS_SFX_STUB_ENABLE_PERROR
+#define STUB_PERROR(msg) perror(msg)
+#else
+#define STUB_PERROR(msg) stub_perror(msg)
+
+static void stub_perror(char const* msg) {
+  int err = errno;
+  fmterr("%s: errno=%s\n", msg, err);
+}
+#endif
 
 static int open_self_ro(void) {
   int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
@@ -98,21 +121,21 @@ static int open_self_ro(void) {
     }
   }
 
-  msgerr("cannot determine own path\n");
+  MSGERR("cannot determine own path\n");
   return -1;
 }
 
 static int
 read_trailer(uint8_t const* addr, uint64_t size, struct trailer_info* ti) {
   if (size < TRAILER_SIZE) {
-    msgerr("wrapped: file too small\n");
+    MSGERR("wrapped: file too small\n");
     return -1;
   }
 
   uint8_t const* buf = addr + size - TRAILER_SIZE;
 
   if (memcmp(buf, trailer_magic, 8) != 0) {
-    msgerr("wrapped: bad magic\n");
+    MSGERR("wrapped: bad magic\n");
     return -1;
   }
 
@@ -121,7 +144,7 @@ read_trailer(uint8_t const* addr, uint64_t size, struct trailer_info* ti) {
   ti->u_xxh64 = read_le64(buf + 24);
 
   if (size < TRAILER_SIZE + ti->c_size) {
-    msgerr("wrapped: inconsistent sizes\n");
+    MSGERR("wrapped: inconsistent sizes\n");
     return -1;
   }
 
@@ -230,7 +253,7 @@ static int memfd_add_seals_immutable_exec(int fd) {
       // likely an old kernel without F_ADD_SEALS support
       return 0;
     }
-    perror("F_ADD_SEALS");
+    STUB_PERROR("F_ADD_SEALS");
     return -1;
   }
   return 0;
@@ -242,7 +265,7 @@ static int decompress_wrapped(void const* src, size_t src_size, void* dst,
   int rv = LZ4_decompress_safe(src, dst, src_size, dst_size);
 
   if (rv < 0) {
-    msgerr("wrapped: lz4 error\n");
+    MSGERR("wrapped: lz4 error\n");
     return -1;
   }
 
@@ -289,12 +312,12 @@ static int extract_to_path_verified(char const* path, uint8_t const* addr,
                                     const struct trailer_info* ti) {
   int out = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0755);
   if (out < 0) {
-    perror("open(output)");
+    STUB_PERROR("open(output)");
     return -1;
   }
 
   if (ftruncate(out, ti->u_size) != 0) {
-    perror("ftruncate(output)");
+    STUB_PERROR("ftruncate(output)");
     close(out);
     return -1;
   }
@@ -303,7 +326,7 @@ static int extract_to_path_verified(char const* path, uint8_t const* addr,
       mmap(NULL, ti->u_size, PROT_READ | PROT_WRITE, MAP_SHARED, out, 0);
 
   if (out_addr == MAP_FAILED) {
-    perror("mmap(output)");
+    STUB_PERROR("mmap(output)");
     close(out);
     return -1;
   }
@@ -318,7 +341,7 @@ static int extract_to_path_verified(char const* path, uint8_t const* addr,
   }
 
   if (munmap(out_addr, ti->u_size) != 0) {
-    perror("munmap(output)");
+    STUB_PERROR("munmap(output)");
     rc = -1;
   }
 
@@ -396,7 +419,7 @@ int main(int argc, char** argv, char** envp) {
 
   struct stat self_st;
   if (fstat(self_fd, &self_st) != 0) {
-    perror("fstat /proc/self/exe");
+    STUB_PERROR("fstat /proc/self/exe");
     close(self_fd);
     return 1;
   }
@@ -407,7 +430,7 @@ int main(int argc, char** argv, char** envp) {
   close(self_fd); // safe to close now
 
   if (self_addr == MAP_FAILED) {
-    perror("mmap /proc/self/exe");
+    STUB_PERROR("mmap /proc/self/exe");
     return 1;
   }
 
@@ -439,7 +462,7 @@ int main(int argc, char** argv, char** envp) {
 
   if (app_fd < 0) {
     munmap((void*)self_addr, self_st.st_size);
-    msgerr("could not create temporary executable file\n");
+    MSGERR("could not create temporary executable file\n");
     print_extract_hint(argv[0]);
     return 1;
   }
@@ -448,7 +471,7 @@ int main(int argc, char** argv, char** envp) {
       mmap(NULL, ti.u_size, PROT_READ | PROT_WRITE, MAP_SHARED, app_fd, 0);
 
   if (app_addr == MAP_FAILED) {
-    perror("mmap");
+    STUB_PERROR("mmap");
     munmap((void*)self_addr, self_st.st_size);
     goto on_error_hint;
   }
@@ -457,11 +480,11 @@ int main(int argc, char** argv, char** envp) {
       decompress_wrapped(self_addr + ti.c_off, ti.c_size, app_addr, ti.u_size);
 
   if (munmap((void*)self_addr, self_st.st_size) != 0) {
-    perror("munmap /proc/self/exe");
+    STUB_PERROR("munmap /proc/self/exe");
   }
 
   if (munmap(app_addr, ti.u_size) != 0) {
-    perror("munmap");
+    STUB_PERROR("munmap");
   }
 
   if (decompress_rv != 0) {
@@ -469,7 +492,7 @@ int main(int argc, char** argv, char** envp) {
   }
 
   if (fchmod(app_fd, 0755) != 0) {
-    perror("fchmod");
+    STUB_PERROR("fchmod");
     // We'll still try to execute the file, but it may fail.
   }
 
@@ -480,14 +503,14 @@ int main(int argc, char** argv, char** envp) {
   app_addr = mmap(NULL, ti.u_size, PROT_READ, MAP_PRIVATE, app_fd, 0);
 
   if (app_addr == MAP_FAILED) {
-    perror("mmap (read-only)");
+    STUB_PERROR("mmap (read-only)");
     goto on_error_hint;
   }
 
   int verify_rv = xxh64_verify(app_addr, ti.u_xxh64, ti.u_size);
 
   if (munmap(app_addr, ti.u_size) != 0) {
-    perror("munmap");
+    STUB_PERROR("munmap");
   }
 
   if (verify_rv != 0) {
@@ -498,7 +521,7 @@ int main(int argc, char** argv, char** envp) {
     app_fd = reopen_readonly(app_fd);
 
     if (app_fd < 0) {
-      perror("open(readonly)");
+      STUB_PERROR("open(readonly)");
       goto on_error_hint;
     }
 
@@ -507,7 +530,7 @@ int main(int argc, char** argv, char** envp) {
 
     // we only get here if fexecve failed
 
-    perror("fexecve");
+    STUB_PERROR("fexecve");
 
     goto on_error_hint;
   }
@@ -526,7 +549,7 @@ int main(int argc, char** argv, char** envp) {
   pid_t pid = fork();
 
   if (pid < 0) {
-    perror("fork");
+    STUB_PERROR("fork");
     goto on_error_hint;
   }
 
@@ -558,7 +581,7 @@ int main(int argc, char** argv, char** envp) {
   waitpid(pid, &st, 0);
 
   if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) {
-    msgerr("could not fork janitor process\n");
+    MSGERR("could not fork janitor process\n");
     goto on_error_hint;
   }
 
@@ -568,7 +591,7 @@ int main(int argc, char** argv, char** envp) {
 
   // we only get here if execve failed
 
-  perror("execve(temp)");
+  STUB_PERROR("execve(temp)");
 
   close(px[1]);   // close write end explicitly to trigger janitor cleanup
   tmpfile = NULL; // no need to unlink since that's handled by janitor
