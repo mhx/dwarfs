@@ -86,10 +86,20 @@ static void msgerr(char const* msg) { fputs(msg, stderr); }
 
 static int open_self_ro(void) {
   int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
-  if (fd < 0) {
-    perror("open /proc/self/exe");
+  if (fd >= 0) {
+    return fd;
   }
-  return fd;
+
+  char const* self = (char const*)getauxval(AT_EXECFN);
+  if (self) {
+    fd = open(self, O_RDONLY | O_CLOEXEC);
+    if (fd >= 0) {
+      return fd;
+    }
+  }
+
+  msgerr("cannot determine own path\n");
+  return -1;
 }
 
 static int
