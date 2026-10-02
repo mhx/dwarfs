@@ -34,6 +34,7 @@ add_library(
   src/conv.cpp
   src/detail/file_extent_info.cpp
   src/detail/scoped_env.cpp
+  src/device_number.cpp
   src/error.cpp
   src/extent_kind.cpp
   src/file_access_generic.cpp
