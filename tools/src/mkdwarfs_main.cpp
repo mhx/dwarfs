@@ -1300,11 +1300,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     };
   }
 
-  writer::writer_progress prog(std::move(updater), interval);
-
-  // No more streaming to iol.err after this point as this would
-  // cause a race with the progress thread.
-
   std::filesystem::path output(output_str);
 
   std::variant<std::monostate, std::unique_ptr<output_stream>,
@@ -1515,6 +1510,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   thread_pool compress_pool(lgr, *iol.os, "compress", num_workers,
                             std::numeric_limits<size_t>::max(),
                             compress_niceness);
+
+  writer::writer_progress prog(std::move(updater), interval);
+
+  // No more streaming to iol.err after this point as this would
+  // cause a race with the progress thread.
 
   writer::filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
