@@ -1308,9 +1308,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!options.debug_filter_function && !estimate_compression_memory) {
     if (output != "-") {
-      if (iol.file->exists(output) && !force_overwrite) {
-        LOG_ERROR << "output file already exists, use --force to overwrite";
-        return 1;
+      if (iol.file->exists(output)) {
+        std::error_code ec;
+
+        if (recompress && iol.file->equivalent(output, path, ec)) {
+          LOG_ERROR << "refusing to overwrite input file system";
+          return 1;
+        }
+
+        if (ec) {
+          LOG_DEBUG << "file equivalence check failed: " << ec.message();
+        }
+
+        if (!force_overwrite) {
+          LOG_ERROR << "output file already exists, use --force to overwrite";
+          return 1;
+        }
       }
 
       std::error_code ec;

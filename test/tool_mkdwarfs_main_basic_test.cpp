@@ -31,6 +31,7 @@
 
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 
@@ -1277,4 +1278,16 @@ TEST(mkdwarfs_test, deprecated_file_hash_option) {
                 ::testing::HasSubstr(
                     "use '--no-dedupe' instead of '--file-hash=none'"));
   }
+}
+
+TEST(mkdwarfs_test, recompress_refuses_to_overwrite_input) {
+  mkdwarfs_tester t;
+  auto const image = read_file(test_dir / "data.dwarfs");
+  t.os->add_file("foo.dwarfs", image);
+  t.fa->set_file("foo.dwarfs", image);
+  EXPECT_NE(0, t.run({"-i", "foo.dwarfs", "-o", "foo.dwarfs", "--recompress",
+                      "--force"}))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("refusing to overwrite input file system"));
 }
