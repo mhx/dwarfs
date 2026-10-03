@@ -311,6 +311,22 @@ bool test_file_access::exists(std::filesystem::path const& path) const {
   return files_.find(path) != files_.end();
 }
 
+bool test_file_access::equivalent(std::filesystem::path const& p1,
+                                  std::filesystem::path const& p2,
+                                  std::error_code& ec) const {
+  ec.clear();
+  auto it1 = files_.find(p1);
+  auto it2 = files_.find(p2);
+
+  if (it1 == files_.end() || it2 == files_.end()) {
+    ec = std::make_error_code(std::errc::no_such_file_or_directory);
+    return false;
+  }
+
+  // this is good enough for testing
+  return p1 == p2;
+}
+
 std::unique_ptr<input_stream>
 test_file_access::open_input(std::filesystem::path const& path,
                              std::error_code& ec) const {

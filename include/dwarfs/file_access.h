@@ -67,6 +67,9 @@ class file_access {
   virtual ~file_access() = default;
 
   virtual bool exists(std::filesystem::path const& path) const = 0;
+  virtual bool
+  equivalent(std::filesystem::path const& p1, std::filesystem::path const& p2,
+             std::error_code& ec) const = 0;
 
   virtual std::unique_ptr<input_stream>
   open_input(std::filesystem::path const& path) const = 0;
