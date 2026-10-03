@@ -308,6 +308,9 @@ class test_terminal : public terminal {
 class test_file_access : public file_access {
  public:
   bool exists(std::filesystem::path const& path) const override;
+  bool
+  equivalent(std::filesystem::path const& p1, std::filesystem::path const& p2,
+             std::error_code& ec) const override;
 
   std::unique_ptr<input_stream> open_input(std::filesystem::path const& path,
                                            std::error_code& ec) const override;
