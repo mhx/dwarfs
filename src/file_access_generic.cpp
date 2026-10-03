@@ -110,6 +110,12 @@ class file_access_generic : public file_access {
     return std::filesystem::exists(path);
   }
 
+  bool
+  equivalent(std::filesystem::path const& p1, std::filesystem::path const& p2,
+             std::error_code& ec) const override {
+    return std::filesystem::equivalent(p1, p2, ec);
+  }
+
   std::unique_ptr<input_stream> open_input(std::filesystem::path const& path,
                                            std::error_code& ec) const override {
     ec.clear();
