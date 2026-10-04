@@ -232,8 +232,9 @@ add_library(
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
 )
 
-target_include_directories(dwarfs_frozen PRIVATE
+target_include_directories(dwarfs_frozen PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>/thrift
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 target_include_directories(dwarfs_frozen SYSTEM PUBLIC
@@ -255,10 +256,6 @@ add_library(
 )
 
 target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_frozen)
-target_include_directories(dwarfs_frozen PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
-  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
-)
 
 add_thrift_lite_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
@@ -290,6 +287,7 @@ endif()
 target_include_directories(dwarfs_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>/thrift
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 

@@ -943,7 +943,7 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
   if(benchmark_FOUND)
     add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
-    target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
+    target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer dwarfs_frozen)
     list(APPEND BENCHMARK_TARGETS dwarfs_benchmark)
 
     add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
@@ -975,7 +975,7 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
 
       add_executable(frozen_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenBench.cpp)
-      target_link_libraries(frozen_benchmark PRIVATE benchmark::benchmark)
+      target_link_libraries(frozen_benchmark PRIVATE benchmark::benchmark dwarfs_frozen)
       list(APPEND BENCHMARK_TARGETS frozen_benchmark)
 
       add_executable(frozen_serialization_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenSerializationBench.cpp)
