@@ -232,14 +232,18 @@ add_library(
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp-lite/frozen_types.cpp
 )
 
-target_include_directories(dwarfs_frozen PRIVATE
+add_library(dwarfs_internal INTERFACE)
+
+target_include_directories(dwarfs_internal INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>/thrift
   $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
-target_include_directories(dwarfs_frozen SYSTEM PUBLIC
+target_include_directories(dwarfs_internal SYSTEM INTERFACE
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
 )
-target_link_libraries(dwarfs_frozen PUBLIC PkgConfig::XXHASH)
+
+target_link_libraries(dwarfs_frozen PUBLIC PkgConfig::XXHASH dwarfs_internal)
 
 add_library(
   dwarfs_thrift_lite_v2 OBJECT
@@ -255,10 +259,6 @@ add_library(
 )
 
 target_link_libraries(dwarfs_thrift_lite_v2 PUBLIC dwarfs_frozen)
-target_include_directories(dwarfs_frozen PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
-  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
-)
 
 add_thrift_lite_library(thrift/metadata.thrift FROZEN
                         TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
@@ -289,8 +289,6 @@ endif()
 
 target_include_directories(dwarfs_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/frozen>
-  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 
 target_compile_definitions(
@@ -302,8 +300,6 @@ target_compile_definitions(
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
 endif()
-
-target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite_v2 dwarfs_frozen)
 
 if(WIN32)
   target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
@@ -339,8 +335,9 @@ target_link_libraries(
   Boost::boost
   Boost::chrono
   Boost::filesystem
-  fmt::fmt
   PRIVATE
+  dwarfs_thrift_lite_v2
+  dwarfs_frozen
   dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
@@ -378,6 +375,10 @@ list(APPEND LIBDWARFS_OBJECT_TARGETS
   dwarfs_fsst
 )
 
+foreach(tgt ${LIBDWARFS_TARGETS})
+  target_link_libraries(${tgt} PRIVATE dwarfs_internal)
+endforeach()
+
 if(NOT STATIC_BUILD_DO_NOT_USE)
   foreach(tgt ${LIBDWARFS_TARGETS})
     set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
@@ -406,6 +407,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   set(LIBDWARFS_INSTALL_TARGETS ${LIBDWARFS_TARGETS})
   if(NOT BUILD_SHARED_LIBS)
     list(APPEND LIBDWARFS_INSTALL_TARGETS
+      dwarfs_internal
       ${LIBDWARFS_OBJECT_TARGETS}
       ${RICEPP_OBJECT_TARGETS})
   endif()
