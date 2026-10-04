@@ -74,6 +74,8 @@ std::unordered_map<std::string, std::string> ref_digests_str{
     {"sm3", "7ED26CBF0BEE4CA7D55C1E64714C4AA7D1F163089EF5CEB603CD102C81FBCBC5"},
     {"xxh3-128", "9553D72C8403DB7750DD474484F21D53"},
     {"xxh3-64", "AA0266615F5D4160"},
+    {"blake3-256",
+     "288A86A79F20A3D6DCCDCA7713BEAED178798296BDFA7913FA2A62D9727BF8F8"},
 };
 
 } // namespace
@@ -165,5 +167,28 @@ TEST(checksum_test, sha2_512_256) {
                                payload.size(), digest.data(), digest.size()));
 
   EXPECT_EQ("0686F0A605973DC1BF035D1E2B9BAD1985A0BFF712DDD88ABD8D2593E5F99030",
+            hexdigest);
+}
+
+TEST(checksum_test, blake3_256) {
+  std::vector<uint8_t> digest;
+
+  {
+    checksum cs(checksum::blake3_256);
+    cs.update(payload.data(), payload.size());
+    digest.resize(cs.digest_size());
+    ASSERT_TRUE(cs.finalize(digest.data()));
+    std::vector<uint8_t> tmp(digest.size());
+    EXPECT_FALSE(cs.finalize(tmp.data()));
+  }
+
+  std::string hexdigest;
+  boost::algorithm::hex(digest.begin(), digest.end(),
+                        std::back_inserter(hexdigest));
+
+  EXPECT_TRUE(checksum::verify(checksum::blake3_256, payload.data(),
+                               payload.size(), digest.data(), digest.size()));
+
+  EXPECT_EQ("288A86A79F20A3D6DCCDCA7713BEAED178798296BDFA7913FA2A62D9727BF8F8",
             hexdigest);
 }
