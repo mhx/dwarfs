@@ -228,14 +228,7 @@ endif()
 include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 
-if(WITH_LIBDWARFS)
-  include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
-
-  find_package(Threads REQUIRED)
-  find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
-               COMPONENTS chrono filesystem program_options
-               OPTIONAL_COMPONENTS process)
-
+if(WITH_LIBDWARFS OR WITH_TESTS)
   if(APPLE)
     if(USE_HOMEBREW_LIBARCHIVE)
       find_program(HOMEBREW_EXE NAMES brew)
@@ -247,11 +240,6 @@ if(WITH_LIBDWARFS)
     endif()
   endif()
 
-  if(ENABLE_STACKTRACE)
-    find_package(cpptrace REQUIRED CONFIG)
-  endif()
-
-  pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
   if(USE_SUBDIR_LIBARCHIVE)
     add_compile_definitions(LIBARCHIVE_STATIC)
     add_subdirectory(libarchive EXCLUDE_FROM_ALL)
@@ -259,7 +247,23 @@ if(WITH_LIBDWARFS)
   else()
     pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
   endif()
+
   pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
+endif()
+
+if(WITH_LIBDWARFS)
+  include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
+
+  find_package(Threads REQUIRED)
+  find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
+               COMPONENTS chrono filesystem program_options
+               OPTIONAL_COMPONENTS process)
+
+  if(ENABLE_STACKTRACE)
+    find_package(cpptrace REQUIRED CONFIG)
+  endif()
+
+  pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
 
   include(cmake/check_zstd_estimate_size_by_params.cmake)
   pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
@@ -858,7 +862,11 @@ if(WITH_TESTS)
   endif()
 
   if(TARGET dwarfs_unit_tests)
-    target_link_libraries(dwarfs_unit_tests PRIVATE phmap)
+    target_link_libraries(dwarfs_unit_tests PRIVATE phmap dwarfs_internal)
+  endif()
+
+  if(TARGET dwarfs_expensive_tests)
+    target_link_libraries(dwarfs_expensive_tests PRIVATE phmap dwarfs_internal)
   endif()
 
   if(TARGET manpage_test)
@@ -946,12 +954,12 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
   if(benchmark_FOUND)
     add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
-    target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
+    target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer dwarfs_frozen)
     list(APPEND BENCHMARK_TARGETS dwarfs_benchmark)
 
     add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
     target_link_libraries(segmenter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
-    target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
+    target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer dwarfs_internal)
     list(APPEND BENCHMARK_TARGETS segmenter_benchmark)
 
     if(WITH_ALL_BENCHMARKS)
@@ -978,7 +986,7 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
       list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
 
       add_executable(frozen_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenBench.cpp)
-      target_link_libraries(frozen_benchmark PRIVATE benchmark::benchmark)
+      target_link_libraries(frozen_benchmark PRIVATE benchmark::benchmark dwarfs_frozen)
       list(APPEND BENCHMARK_TARGETS frozen_benchmark)
 
       add_executable(frozen_serialization_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenSerializationBench.cpp)
