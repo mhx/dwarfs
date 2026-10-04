@@ -48,6 +48,10 @@ endif()
 if(NOT "@BUILD_SHARED_LIBS@")
   find_package(PkgConfig)
 
+  # How BLAKE3 was provided at build time. Both are FALSE for a vendored build.
+  set(LIBDWARFS_WITH_CMAKE_CFG_BLAKE3 @DWARFS_BLAKE3_SYSTEM_CMAKE_CONFIG@)
+  set(LIBDWARFS_WITH_PKGCONFIG_BLAKE3 @DWARFS_BLAKE3_SYSTEM_PKGCONFIG@)
+
   if(@APPLE@ AND @USE_HOMEBREW_LIBARCHIVE@) # APPLE AND USE_HOMEBREW_LIBARCHIVE
     find_program(HOMEBREW_EXE NAMES brew)
     execute_process(
@@ -90,6 +94,14 @@ if(NOT "@BUILD_SHARED_LIBS@")
 
   if(LIBDWARFS_WITH_JEMALLOC)
     pkg_check_modules(JEMALLOC REQUIRED IMPORTED_TARGET jemalloc>=@JEMALLOC_REQUIRED_VERSION@)
+  endif()
+
+  if(LIBDWARFS_WITH_CMAKE_CFG_BLAKE3)
+    find_dependency(blake3 @BLAKE3_REQUIRED_VERSION@ CONFIG REQUIRED)
+  endif()
+
+  if(LIBDWARFS_WITH_PKGCONFIG_BLAKE3)
+    pkg_check_modules(BLAKE3 REQUIRED IMPORTED_TARGET libblake3>=@BLAKE3_REQUIRED_VERSION@)
   endif()
 endif()
 
