@@ -335,6 +335,7 @@ target_link_libraries(
   Boost::boost
   Boost::chrono
   Boost::filesystem
+  fmt::fmt
   PRIVATE
   dwarfs_thrift_lite_v2
   dwarfs_frozen
