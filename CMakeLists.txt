@@ -105,15 +105,6 @@ set(DWARFS_CXX_STANDARD 23)
 # We only use these libraries for building the binary targets, we won't
 # install them.
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
-   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "20")
-  set(LIBFMT_REQUIRED_VERSION 11.2)
-else()
-  set(LIBFMT_REQUIRED_VERSION 10.0)
-endif()
-
-set(LIBFMT_PREFERRED_VERSION 12.1.0)
-
 set(GOOGLETEST_REQUIRED_VERSION 1.13.0)
 set(GOOGLETEST_PREFERRED_VERSION 1.17.0)
 
@@ -137,12 +128,10 @@ set(JEMALLOC_REQUIRED_VERSION 5.2.1)
 set(MIMALLOC_REQUIRED_VERSION 3.2)
 
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
-  set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
   set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
 else()
-  set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
   set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
@@ -225,8 +214,17 @@ if(WITH_TESTS)
   include(${CMAKE_SOURCE_DIR}/cmake/need_gtest.cmake)
 endif()
 
-include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
+
+find_package(fmt 9.1 REQUIRED CONFIG)
+
+# Work around https://github.com/fmtlib/fmt/issues/4807
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
+   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 20
+   AND fmt_VERSION VERSION_LESS 11.1.0)
+  message(WARNING "working around fmt issue #4807")
+  add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-DFMT_CONSTEVAL=>")
+endif()
 
 if(WITH_LIBDWARFS OR WITH_TESTS)
   if(APPLE)
@@ -1179,10 +1177,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
       endif()
     endif()
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
-  endif()
-
-  if(DWARFS_FMT_LIB)
-    target_link_libraries(${tgt} PRIVATE ${DWARFS_FMT_LIB})
   endif()
 
   if(WIN32)
