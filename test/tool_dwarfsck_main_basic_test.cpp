@@ -379,7 +379,11 @@ TEST(dwarfsck_test, list_files_verbose) {
       fmt::format("-rw-------\\s+1337/  0\\s+{:L}\\s+{}\\s+baz.pl\n", 23456,
                   format_time(8002)),
       fmt::format("lrwxrwxrwx\\s+1000/100\\s+16\\s+{}\\s+somelink -> "
+#ifdef _WIN32
+                  "somedir\\\\ipsum.py\n",
+#else
                   "somedir/ipsum.py\n",
+#endif
                   format_time(2002)),
   };
 
