@@ -462,7 +462,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string memory_limit, schema_compression, metadata_compression, timestamp,
       time_resolution, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
-      history_compression, recompress_categories;
+      history_compression, recompress_categories,
+      rebuild_metadata_source_os_hint;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -504,6 +505,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto categorize_desc =
       fmt::format("enable categorizers in the given order ({})",
                   fmt::join(catreg.categorizer_names(), ", "));
+
+  auto const source_os_hint_desc =
+      fmt::format("hint for source OS when rebuilding metadata ({})",
+                  fmt::join(get_fs_source_os_names(), ", "));
 
   auto lvl_def_val = [](auto opt) {
     return fmt::format("arg (={})", levels[default_level].*opt);
@@ -577,6 +582,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("rebuild-metadata",
         po::value<bool>(&rebuild_metadata)->zero_tokens(),
         "fully rebuild metadata")
+    ("rebuild-metadata-source-os-hint",
+        po::value<std::string>(&rebuild_metadata_source_os_hint),
+        source_os_hint_desc.c_str())
     ("change-block-size",
         po::value<bool>(&change_block_size)->zero_tokens(),
         "change block size when recompressing")
@@ -966,6 +974,19 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   path = iol.os->canonical(path);
+
+  std::optional<fs_source_os> source_os_hint;
+
+  if ((rebuild_metadata || change_block_size) &&
+      vm.contains("rebuild-metadata-source-os-hint")) {
+    auto os = parse_fs_source_os(rebuild_metadata_source_os_hint);
+    if (!os) {
+      iol.err << "error: invalid source OS hint: "
+              << rebuild_metadata_source_os_hint << "\n";
+      return 1;
+    }
+    source_os_hint = *os;
+  }
 
   bool recompress =
       vm.contains("recompress") || rebuild_metadata || change_block_size;
@@ -1615,6 +1636,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     if (recompress) {
       if (rebuild_metadata || change_block_size) {
         rw_opts.rebuild_metadata = options.metadata;
+        rw_opts.rebuild_metadata->source_os_hint = source_os_hint;
       }
       if (change_block_size) {
         rw_opts.change_block_size = UINT64_C(1) << sf_config.block_size_bits;

@@ -460,14 +460,14 @@ TEST_F(entry_test, link_scan_reads_link_target_and_updates_counters) {
 
   progress prog1{};
   somelink.scan(*os, prog1);
-  EXPECT_EQ("somedir/ipsum.py", somelink.linkname());
+  EXPECT_EQ(fs::path{"somedir"} / "ipsum.py", fs::path{somelink.linkname()});
   EXPECT_EQ(somelink.size(), prog1.original_size);
   EXPECT_EQ(somelink.size_info().allocated, prog1.allocated_original_size);
   EXPECT_EQ(somelink.size(), prog1.symlink_size);
 
   progress prog2{};
   bad.scan(*os, prog2);
-  EXPECT_EQ("../foo", bad.linkname());
+  EXPECT_EQ(fs::path{".."} / "foo", fs::path{bad.linkname()});
   EXPECT_EQ(bad.size(), prog2.original_size);
   EXPECT_EQ(bad.size_info().allocated, prog2.allocated_original_size);
   EXPECT_EQ(bad.size(), prog2.symlink_size);
@@ -920,7 +920,7 @@ TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
   EXPECT_EQ("/somedir/", cdir.unix_dpath());
 
   EXPECT_EQ(link.name(), clink.name());
-  EXPECT_EQ("somedir/ipsum.py", clink.linkname());
+  EXPECT_EQ(fs::path{"somedir"} / "ipsum.py", fs::path{clink.linkname()});
 
   EXPECT_EQ(dev.posix_device_id(), cdev.posix_device_id());
 }
