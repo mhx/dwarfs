@@ -352,6 +352,9 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 8001 : 8002);
     EXPECT_EQ(st.mtime(), set_time ? 4711 : 8002);
     EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 8003 : 8002);
+    std::error_code ec;
+    auto di [[maybe_unused]] = fs.get_device(dev->inode(), ec);
+    EXPECT_EQ(ec, std::errc::invalid_argument);
   } else {
     EXPECT_FALSE(dev);
   }
@@ -366,6 +369,10 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
     EXPECT_EQ(st.rdev(), 259);
+    std::error_code ec;
+    auto di = fs.get_device(dev->inode(), ec);
+    ASSERT_FALSE(ec);
+    EXPECT_EQ(di, device_number(1, 3));
   } else {
     EXPECT_FALSE(dev);
   }

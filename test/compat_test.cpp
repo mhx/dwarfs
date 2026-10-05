@@ -493,7 +493,7 @@ char const* reference_v0_4 = R"(
         "inode": 1,
         "inodes": [
           {
-            "device_id": 259,
+            "device_id": "1:3",
             "inode": 33,
             "mode": 8630,
             "modestring": "---crw-rw-rw-",
@@ -501,7 +501,7 @@ char const* reference_v0_4 = R"(
             "type": "chardev"
           },
           {
-            "device_id": 261,
+            "device_id": "1:5",
             "inode": 34,
             "mode": 8630,
             "modestring": "---crw-rw-rw-",
@@ -1482,7 +1482,9 @@ TEST_P(compat_metadata, backwards_compat) {
   auto filename = get_image_path(version);
   test::test_logger lgr;
   test::os_access_mock os;
-  reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename));
+  reader::filesystem_options opts;
+  opts.metadata.source_os_hint = fs_source_os::os_linux;
+  reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(filename), opts);
   check_dynamic(version, fs);
 }
 
@@ -1564,6 +1566,11 @@ TEST_P(rewrite, filesystem_rewrite) {
     utility::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
   };
 
+  reader::filesystem_options fsopts_base;
+  if (!rebuild_metadata) {
+    fsopts_base.metadata.source_os_hint = fs_source_os::os_linux;
+  }
+
   auto origmm = test::make_real_file_view(filename);
 
   {
@@ -1578,7 +1585,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto mm = test::make_mock_file_view(rewritten.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm));
-    reader::filesystem_v2 fs(lgr, os, mm);
+    reader::filesystem_v2 fs(lgr, os, mm, fsopts_base);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
     check_extract(rng, lgr, os, fs);
@@ -1605,7 +1612,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto hdr = reader::filesystem_v2::header(lgr, mm);
     ASSERT_TRUE(hdr) << hexdump(rewritten.str());
     EXPECT_EQ(format_sh, hdr->as_string());
-    reader::filesystem_options fsopts;
+    reader::filesystem_options fsopts = fsopts_base;
     fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
@@ -1661,7 +1668,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
         << hexdump(rewritten4.str());
-    reader::filesystem_v2 fs(lgr, os, mm);
+    reader::filesystem_v2 fs(lgr, os, mm, fsopts_base);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
     check_extract(rng, lgr, os, fs);
@@ -1683,7 +1690,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(lgr, mm))
         << hexdump(rewritten5.str());
-    reader::filesystem_v2 fs(lgr, os, mm);
+    reader::filesystem_v2 fs(lgr, os, mm, fsopts_base);
     check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
     check_extract(rng, lgr, os, fs);

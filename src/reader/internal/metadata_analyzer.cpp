@@ -398,6 +398,7 @@ void frozen_analyzer::print(std::ostream& os) const {
   META_LIST_SIZE(gids);
   META_LIST_SIZE(modes);
 
+  META_OPT_LIST_SIZE(devices_v1);
   META_OPT_LIST_SIZE(devices);
   META_OPT_LIST_SIZE(shared_files_table);
 

@@ -32,6 +32,7 @@
 #include <optional>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/fs_source_os.h>
 
 namespace dwarfs::reader {
 
@@ -43,6 +44,7 @@ struct metadata_options {
   size_t block_size{512};
   std::optional<file_stat::uid_type> fs_uid{};
   std::optional<file_stat::gid_type> fs_gid{};
+  std::optional<fs_source_os> source_os_hint{};
 };
 
 } // namespace dwarfs::reader

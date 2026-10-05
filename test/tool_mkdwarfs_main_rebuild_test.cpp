@@ -30,6 +30,7 @@
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/container/sorted_array_map.h>
+#include <dwarfs/device_number.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/vfs_stat.h>
@@ -1230,3 +1231,135 @@ TEST_P(mkdwarfs_repair_test, repair_gh307_v0_15) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_repair_test,
                          ::testing::ValuesIn(kGh307Images));
+
+namespace {
+
+using legacy_image_param =
+    std::tuple<std::string_view, std::optional<std::string_view>>;
+
+class mkdwarfs_rebuild_devices_test
+    : public ::testing::TestWithParam<legacy_image_param> {};
+
+constexpr std::array kImagesWithLegacyDevices{
+    legacy_image_param{"dev-freebsd-0.13.0.dwarfs"sv, std::nullopt},
+    legacy_image_param{
+        "dev-freebsd-0.13.0-win-0.13.0-no-history-no-meta-history.dwarfs"sv,
+        "freebsd"sv},
+    legacy_image_param{"dev-linux-0.12.3.dwarfs"sv, std::nullopt},
+    legacy_image_param{"dev-linux-0.3.1.dwarfs"sv, std::nullopt},
+    legacy_image_param{
+        "dev-linux-0.5.6-win-0.13.0-no-history-no-meta-history.dwarfs"sv,
+        "linux"sv},
+    legacy_image_param{"dev-linux-0.5.6-win-0.13.0-no-history.dwarfs"sv,
+                       std::nullopt},
+    legacy_image_param{"dev-linux-0.5.6-win-0.13.0.dwarfs"sv, std::nullopt},
+    legacy_image_param{"dev-linux-0.5.6.dwarfs"sv, std::nullopt},
+    legacy_image_param{"dev-macos-0.12.4.dwarfs"sv, std::nullopt},
+    legacy_image_param{"dev-macos-0.13.0.dwarfs"sv, std::nullopt},
+};
+
+} // namespace
+
+TEST_P(mkdwarfs_rebuild_devices_test, rebuild_legacy_devices) {
+  auto const [image_file_sv, os_hint] = GetParam();
+  std::string const image_file(image_file_sv);
+  auto const catdata_image = test_dir / "compat" / image_file;
+  auto const image_data = read_file(catdata_image);
+
+  auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
+
+  ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
+      << t.err();
+
+  if (os_hint) {
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr(
+                    "detected source OS is unknown, cannot upgrade devices"));
+
+    t = mkdwarfs_tester::create_with_image(image_data, image_file);
+    ASSERT_EQ(
+        0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                  "--rebuild-metadata-source-os-hint", std::string{*os_hint}}))
+        << t.err();
+
+    EXPECT_THAT(t.err(),
+                ::testing::Not(::testing::HasSubstr(
+                    "detected source OS is unknown, cannot upgrade devices")));
+  }
+
+  auto fs = t.fs_from_stdout();
+
+  auto const chardev = fs.find("/char");
+  ASSERT_TRUE(chardev);
+
+  auto const iv = chardev->inode();
+
+  auto const st = fs.getattr(iv);
+  EXPECT_TRUE(st.is_device());
+
+  bool const is_macos_image = image_file.contains("macos");
+  auto const expected_major = is_macos_image ? 234 : 2345;
+
+  auto const info = fs.info_as_json(
+      {.features = {reader::fsinfo_feature::metadata_full_dump}});
+  auto const& md = info["full_metadata"];
+
+  ASSERT_TRUE(md.contains("devices"));
+  ASSERT_EQ(3, md["devices"].size());
+  ASSERT_GE(iv.inode_num(), 1);
+  ASSERT_LE(iv.inode_num(), md["devices"].size());
+
+  auto const dev_info = md["devices"][iv.inode_num() - 1];
+
+  EXPECT_EQ(expected_major, dev_info["major_id"].get<int>());
+  EXPECT_EQ(123456, dev_info["minor_id"].get<int>());
+
+  {
+    std::error_code ec;
+    auto const dev = fs.get_device(iv, ec);
+
+    EXPECT_FALSE(ec);
+
+    EXPECT_EQ(expected_major, dev.major_id());
+    EXPECT_EQ(123456, dev.minor_id());
+  }
+
+  {
+    std::error_code ec;
+    device_number const dev(st.rdev(), ec);
+
+    EXPECT_FALSE(ec);
+
+#ifdef __APPLE__
+    if (is_macos_image) {
+      EXPECT_EQ(234, dev.major_id());
+      EXPECT_EQ(123456, dev.minor_id());
+    } else {
+      EXPECT_EQ(0, dev.major_id());
+      EXPECT_EQ(0, dev.minor_id());
+    }
+#else
+    EXPECT_EQ(expected_major, dev.major_id());
+    EXPECT_EQ(123456, dev.minor_id());
+#endif
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_rebuild_devices_test,
+                         ::testing::ValuesIn(kImagesWithLegacyDevices));
+
+TEST(mkdwarfs_test, rebuild_legacy_devices_error) {
+  std::string const image_file("image.dwarfs");
+  auto const catdata_image =
+      test_dir / "compat" /
+      "dev-freebsd-0.13.0-win-0.13.0-no-history-no-meta-history.dwarfs";
+  auto const image_data = read_file(catdata_image);
+
+  auto t = mkdwarfs_tester::create_with_image(image_data, image_file);
+
+  EXPECT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                      "--rebuild-metadata-source-os-hint=macos"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to convert device number"));
+}
