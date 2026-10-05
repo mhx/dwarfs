@@ -31,6 +31,7 @@
 #include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/device_number.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fs_source_os.h>
 #include <dwarfs/fstypes.h>
@@ -290,7 +291,25 @@ class metadata_builder_ final : public metadata_builder::impl {
   }
 
   void set_devices(std::vector<uint64_t> devices) override {
-    md_.devices() = std::move(devices);
+    if (devices.empty()) {
+      md_.devices().reset();
+      return;
+    }
+
+    std::vector<thrift::metadata::device_id> tmp;
+    tmp.reserve(devices.size());
+
+    for (auto const& raw : devices) {
+      std::error_code ec;
+      device_number id(raw, ec);
+      DWARFS_CHECK(!ec, fmt::format("invalid device number: {} ({})", raw,
+                                    ec.message()));
+      auto& dev = tmp.emplace_back();
+      dev.major_id() = id.major_id();
+      dev.minor_id() = id.minor_id();
+    }
+
+    md_.devices() = std::move(tmp);
   }
 
   void set_symlink_table_size(size_t size) override {
@@ -367,6 +386,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   void try_repair_metadata();
   void try_repair_path_separator();
   void upgrade_from_pre_v2_2();
+  void upgrade_devices();
 
   uint32_t get_time_resolution() const {
     uint32_t resolution = 1;
@@ -1124,6 +1144,10 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     }
   }
 
+  if (md_.devices()) {
+    features_.add(feature::device_major_minor);
+  }
+
   update_nlink();
   update_totals_and_size_cache();
 
@@ -1428,10 +1452,58 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
   newmd.timestamp_base().copy_from(md_.timestamp_base());
   newmd.block_size().copy_from(md_.block_size());
   newmd.total_fs_size().copy_from(md_.total_fs_size());
+  newmd.devices_v1().copy_from(md_.devices_v1());
   newmd.devices().copy_from(md_.devices());
   newmd.options().copy_from(md_.options());
 
   md_ = std::move(newmd);
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::upgrade_devices() {
+  device_number_layout layout = device_number_layout::unknown;
+
+  switch (detected_source_os_.value()) {
+  case fs_source_os::os_linux:
+    layout = device_number_layout::linux_dev_t;
+    break;
+  case fs_source_os::os_macos:
+    layout = device_number_layout::macos_dev_t;
+    break;
+  case fs_source_os::os_freebsd:
+    layout = device_number_layout::freebsd_dev_t;
+    break;
+  default:
+    LOG_WARN << "unsupported source OS for device number upgrade ("
+             << std::to_underlying(detected_source_os_.value()) << ")";
+    return;
+  }
+
+  std::vector<thrift::metadata::device_id> tmp;
+  tmp.reserve(md_.devices_v1()->size());
+
+  for (auto const& old : md_.devices_v1().value()) {
+    std::error_code ec;
+    device_number id(layout, old, ec);
+
+    if (ec) {
+      LOG_ERROR << "failed to convert device number " << old << ": "
+                << ec.message() << " (layout: " << std::to_underlying(layout)
+                << ")";
+      return;
+    }
+
+    LOG_DEBUG << "upgrading device number " << old << " -> " << id.major_id()
+              << ":" << id.minor_id()
+              << " (layout: " << std::to_underlying(layout) << ")";
+
+    auto& dev = tmp.emplace_back();
+    dev.major_id() = id.major_id();
+    dev.minor_id() = id.minor_id();
+  }
+
+  md_.devices() = std::move(tmp);
+  md_.devices_v1().reset();
 }
 
 template <typename LoggerPolicy>
@@ -1454,6 +1526,18 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
 
   if (!md_.dir_entries()) {
     upgrade_from_pre_v2_2();
+  }
+
+  if (md_.devices_v1()) {
+    if (md_.devices_v1()->empty()) {
+      md_.devices_v1().reset();
+    } else if (!md_.devices()) {
+      if (detected_source_os_) {
+        upgrade_devices();
+      } else {
+        LOG_WARN << "detected source OS is unknown, cannot upgrade devices";
+      }
+    }
   }
 
   tv << "upgrading metadata...";

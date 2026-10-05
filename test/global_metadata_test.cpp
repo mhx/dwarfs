@@ -555,7 +555,16 @@ TEST_F(global_metadata_test, check_metadata) {
   raw.chunk_table()->push_back(2);
   raw.chunks()->emplace_back().size() = 1;
 
+  raw.devices_v1().emplace();
+  raw.devices_v1()->resize(1);
+  EXPECT_THAT([&] { check(raw); }, throws_error("wrong number of devices"));
+
   raw.devices().emplace();
+  EXPECT_THAT([&] { check(raw); },
+              throws_error(
+                  "devices_v1 and devices cannot be present at the same time"));
+
+  raw.devices_v1().reset();
   raw.devices()->resize(1);
   EXPECT_THAT([&] { check(raw); }, throws_error("wrong number of devices"));
   raw.devices().reset();

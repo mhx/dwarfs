@@ -44,6 +44,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/device_number.h>
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
@@ -161,6 +162,10 @@ class filesystem_v2_lite {
 
   duplication_info get_duplication_info(inode_view iv) const {
     return lite_->get_duplication_info(std::move(iv));
+  }
+
+  device_number get_device(inode_view iv, std::error_code& ec) const {
+    return lite_->get_device(std::move(iv), ec);
   }
 
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -400,6 +405,8 @@ class filesystem_v2_lite {
     virtual duplication_info
     get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
     virtual duplication_info get_duplication_info(inode_view iv) const = 0;
+    virtual device_number
+    get_device(inode_view entry, std::error_code& ec) const = 0;
     virtual bool access(inode_view entry, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid) const = 0;
     virtual void access(inode_view entry, int mode, file_stat::uid_type uid,

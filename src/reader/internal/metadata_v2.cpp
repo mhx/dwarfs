@@ -55,6 +55,7 @@
 
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/container/small_vector.h>
+#include <dwarfs/device_number.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
@@ -441,6 +442,8 @@ class metadata_v2_data {
   duplication_info get_duplication_info(logger& lgr, inode_view const& iv,
                                         std::error_code& ec) const;
 
+  device_number get_device(inode_view const& iv, std::error_code& ec) const;
+
   void access(inode_view const& iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const;
 
@@ -725,11 +728,62 @@ class metadata_v2_data {
   std::string link_value(inode_view_impl const& iv,
                          readlink_mode mode = readlink_mode::raw) const;
 
-  std::optional<uint64_t> get_device_id(int inode) const {
-    if (auto devs = meta_.devices()) {
-      return (*devs)[inode - dev_inode_offset_];
+  device_number_layout get_device_number_layout() const {
+    if (auto const os = options_.source_os_hint) {
+      switch (*os) {
+      case fs_source_os::unknown:
+        break;
+      case fs_source_os::os_linux:
+        return device_number_layout::linux_dev_t;
+      case fs_source_os::os_windows:
+        return device_number_layout::unsupported;
+      case fs_source_os::os_macos:
+        return device_number_layout::macos_dev_t;
+      case fs_source_os::os_freebsd:
+        return device_number_layout::freebsd_dev_t;
+      }
     }
+
+    return device_number::native_layout();
+  }
+
+  std::optional<device_number>
+  get_device_id(int inode, std::error_code& ec) const {
+    if (dev_inode_offset_ <= inode && inode < inode_count_) {
+      auto const index = inode - dev_inode_offset_;
+
+      if (auto devs = meta_.devices()) {
+        return device_number(devs->at(index));
+      }
+
+      if (auto devs = meta_.devices_v1()) {
+        return device_number(get_device_number_layout(), devs->at(index), ec);
+      }
+    }
+
     return std::nullopt;
+  }
+
+  std::optional<device_number> get_device_id(int inode) const {
+    std::error_code ec;
+    return get_device_id(inode, ec);
+  }
+
+  template <typename LoggerPolicy>
+  std::uint64_t
+  get_native_device_id(LOG_PROXY_REF_(LoggerPolicy) int inode) const {
+    std::error_code ec;
+
+    if (auto const dev = get_device_id(inode, ec); dev && !ec) {
+      if (auto const id = dev->native(ec); !ec) {
+        return id;
+      }
+    }
+
+    LOG_WARN << "failed to get native device id for inode " << inode << ": "
+             << ec.message();
+
+    return 0;
   }
 
   std::vector<uint8_t> schema_;
@@ -762,6 +816,7 @@ class metadata_v2_data {
   PERFMON_CLS_TIMER_DECL(getattr)
   PERFMON_CLS_TIMER_DECL(getattr_opts)
   PERFMON_CLS_TIMER_DECL(get_duplication_info)
+  PERFMON_CLS_TIMER_DECL(get_device)
   PERFMON_CLS_TIMER_DECL(link_value)
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(reg_file_size)
@@ -818,6 +873,7 @@ metadata_v2_data::metadata_v2_data(
       PERFMON_CLS_TIMER_INIT(getattr)
       PERFMON_CLS_TIMER_INIT(getattr_opts)
       PERFMON_CLS_TIMER_INIT(get_duplication_info)
+      PERFMON_CLS_TIMER_INIT(get_device)
       PERFMON_CLS_TIMER_INIT(link_value)
       PERFMON_CLS_TIMER_INIT(readdir)
       PERFMON_CLS_TIMER_INIT(reg_file_size)
@@ -856,16 +912,24 @@ metadata_v2_data::metadata_v2_data(
     }
   }
 
-  if (auto devs = meta_.devices()) {
-    int other_offset = find_inode_offset(inode_rank::INO_OTH);
+  if (meta_.devices_v1() || meta_.devices()) {
+    if (meta_.devices_v1() && meta_.devices()) {
+      DWARFS_THROW(runtime_error, "metadata inconsistency: both devices_v1 and "
+                                  "devices are present");
+    }
 
-    if (static_cast<int>(devs->size()) != (other_offset - dev_inode_offset_)) {
+    auto const device_count =
+        meta_.devices() ? meta_.devices()->size() : meta_.devices_v1()->size();
+    int const other_offset = find_inode_offset(inode_rank::INO_OTH);
+    auto const expected_count = other_offset - dev_inode_offset_;
+
+    if (std::cmp_not_equal(device_count, expected_count)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format("metadata inconsistency: number of devices ({}) does "
                       "not match other/device index delta ({} - {} = {})",
-                      devs->size(), other_offset, dev_inode_offset_,
-                      other_offset - dev_inode_offset_));
+                      device_count, other_offset, dev_inode_offset_,
+                      expected_count));
     }
   }
 
@@ -1626,12 +1690,12 @@ nlohmann::json metadata_v2_data::as_json(dir_entry_view const& entry) const {
 
   case posix_file_type::block:
     obj["type"] = "blockdev";
-    obj["device_id"] = get_device_id(inode).value_or(-1);
+    obj["device_id"] = get_device_id(inode).value().to_string();
     break;
 
   case posix_file_type::character:
     obj["type"] = "chardev";
-    obj["device_id"] = get_device_id(inode).value_or(-1);
+    obj["device_id"] = get_device_id(inode).value().to_string();
     break;
 
   case posix_file_type::fifo:
@@ -1754,6 +1818,8 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
     meta["symlinks"] = meta_.symlinks().size();
 
     if (auto dev = meta_.devices()) {
+      meta["devices"] = dev->size();
+    } else if (auto dev = meta_.devices_v1()) {
       meta["devices"] = dev->size();
     }
 
@@ -1986,6 +2052,8 @@ void metadata_v2_data::dump(
     os << "symlinks: " << meta_.symlinks().size() << "\n";
     if (auto dev = meta_.devices()) {
       os << "devices: " << dev->size() << "\n";
+    } else if (auto dev = meta_.devices_v1()) {
+      os << "devices: " << dev->size() << "\n";
     }
     if (auto de = meta_.dir_entries()) {
       os << "dir_entries: " << de->size() << "\n";
@@ -2062,11 +2130,11 @@ void metadata_v2_data::dump(
     break;
 
   case posix_file_type::block:
-    os << " (block device: " << get_device_id(inode).value_or(-1) << ")\n";
+    os << " (block device: " << get_device_id(inode).value() << ")\n";
     break;
 
   case posix_file_type::character:
-    os << " (char device: " << get_device_id(inode).value_or(-1) << ")\n";
+    os << " (char device: " << get_device_id(inode).value() << ")\n";
     break;
 
   case posix_file_type::fifo:
@@ -2388,7 +2456,8 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   timeres_handler_.fill_stat_timevals(stbuf, ivr);
 
   stbuf.set_nlink(hardlink_count(ivr));
-  stbuf.set_rdev(stbuf.is_device() ? get_device_id(inode).value() : 0);
+  stbuf.set_rdev(stbuf.is_device() ? get_native_device_id(LOG_PROXY_ARG_ inode)
+                                   : 0);
 
   return stbuf;
 }
@@ -2449,6 +2518,23 @@ metadata_v2_data::get_duplication_info(logger& lgr, inode_view const& iv,
   }
 
   return info;
+}
+
+device_number
+metadata_v2_data::get_device(inode_view const& iv, std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(get_device)
+
+  auto dev = get_device_id(iv.inode_num(), ec);
+
+  if (dev) {
+    return *dev;
+  }
+
+  if (!ec) {
+    ec = std::make_error_code(std::errc::invalid_argument);
+  }
+
+  return device_number{};
 }
 
 void metadata_v2_data::access(inode_view const& iv, int mode,
@@ -2667,6 +2753,10 @@ class metadata_ final : public metadata_v2::impl {
   duplication_info
   get_duplication_info(inode_view iv, std::error_code& ec) const override {
     return data_.get_duplication_info<LoggerPolicy>(LOG_GET_LOGGER, iv, ec);
+  }
+
+  device_number get_device(inode_view iv, std::error_code& ec) const override {
+    return data_.get_device(iv, ec);
   }
 
   std::optional<directory_view> opendir(inode_view iv) const override {
