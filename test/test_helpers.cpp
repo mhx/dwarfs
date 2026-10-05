@@ -112,8 +112,13 @@ constexpr std::array<std::pair<std::string_view, test::simplestat>, 15>
     }};
 
 std::unordered_map<std::string_view, std::string_view> const kTestLinks{
+#ifdef _WIN32
+    {"somelink", "somedir\\ipsum.py"},
+    {"somedir/bad", "..\\foo"},
+#else
     {"somelink", "somedir/ipsum.py"},
     {"somedir/bad", "../foo"},
+#endif
 };
 
 } // namespace

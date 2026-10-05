@@ -32,6 +32,7 @@
 
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/fs_source_os.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
@@ -62,6 +63,9 @@ namespace {
 
 using namespace dwarfs::internal;
 
+constexpr std::string_view kLibdwarfsPrefix = "libdwarfs ";
+constexpr std::string_view kLibdwarfsPrefixV = "libdwarfs v";
+
 time_conversion_factors
 get_conversion_factors(thrift::metadata::fs_options const* fs_options) {
   time_conversion_factors rv;
@@ -84,6 +88,119 @@ get_large_hole_sizes(thrift::metadata::metadata const& md) {
     return large_hole_size_view::by_ref(md.large_hole_size().value());
   }
   return {};
+}
+
+std::optional<fs_source_os>
+try_detect_source_os(logger& lgr, thrift::metadata::metadata const& md,
+                     history const& hist, metadata_options const& opts) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
+  // If we have a filesystem history, try to go back to the first entry
+
+  auto const& hent = hist.raw().entries().value();
+
+  if (!hent.empty()) {
+    auto const& first = hent.front();
+    auto const& fv = first.version().value();
+    semver const first_ver(*fv.major(), *fv.minor(), *fv.patch());
+    bool first_is_initial = false;
+
+    if (first_ver < semver{0, 13, 0}) {
+      // Versions before 0.13.0 could not rebuild metadata
+      first_is_initial = true;
+    } else if (first.arguments().has_value() && !first.arguments()->empty()) {
+      // If this is *not* a metadata rebuild
+      first_is_initial =
+          std::ranges::none_of(*first.arguments(), [](auto const& arg) {
+            return arg == "--rebuild-metadata" || arg == "--change-block-size";
+          });
+    }
+
+    if (first_is_initial) {
+      auto const& system_id = *first.system_id();
+
+      if (system_id.starts_with("Windows")) {
+        return fs_source_os::os_windows;
+      }
+
+      if (system_id.starts_with("Linux")) {
+        return fs_source_os::os_linux;
+      }
+
+      if (system_id.starts_with("Darwin")) {
+        return fs_source_os::os_macos;
+      }
+
+      if (system_id.starts_with("FreeBSD")) {
+        return fs_source_os::os_freebsd;
+      }
+
+      LOG_WARN << "could not determine source OS from system_id: " << system_id;
+    }
+  }
+
+  // The version is unconditionally written since v0.5.0.
+  // If it's missing, the filesystem was written on Linux.
+
+  if (!md.dwarfs_version().has_value()) {
+    return fs_source_os::os_linux;
+  }
+
+  // Windows support: v0.7.0
+  // macOS support: v0.9.0
+  // FreeBSD support: v0.13.0
+
+  auto const kMinRebuildVersion = semver{0, 13, 0};
+
+  auto const current_version =
+      semver::parse(*md.dwarfs_version(), kLibdwarfsPrefixV);
+  bool const was_never_rebuilt =
+      current_version && *current_version < kMinRebuildVersion;
+  std::optional<semver> initial_version;
+
+  if (was_never_rebuilt) {
+    initial_version = *current_version;
+  } else if (auto mvh = md.metadata_version_history();
+             mvh.has_value() && !mvh->empty() &&
+             mvh->front().dwarfs_version().has_value()) {
+    if (auto const ver =
+            semver::parse(*mvh->front().dwarfs_version(), kLibdwarfsPrefixV);
+        ver && *ver < kMinRebuildVersion) {
+      initial_version = *ver;
+    }
+  }
+
+  if (initial_version.has_value()) {
+    if (*initial_version < semver{0, 7, 0}) {
+      return fs_source_os::os_linux;
+    }
+
+    if (was_never_rebuilt && md.preferred_path_separator().has_value()) {
+      switch (*md.preferred_path_separator()) {
+      case '/':
+        // After v0.9.0, this could also be macOS or FreeBSD
+        if (*initial_version < semver{0, 9, 0}) {
+          return fs_source_os::os_linux;
+        }
+        break;
+
+      case '\\':
+        return fs_source_os::os_windows;
+
+      default:
+        LOG_WARN << "unexpected preferred path separator: "
+                 << *md.preferred_path_separator();
+        break;
+      }
+    }
+  }
+
+  if (opts.source_os_hint) {
+    LOG_INFO << "using source OS hint: " << *opts.source_os_hint;
+    return *opts.source_os_hint;
+  }
+
+  return std::nullopt;
 }
 
 class inode_size_provider {
@@ -152,7 +269,8 @@ class metadata_builder_ final : public metadata_builder::impl {
       , history_{&hist}
       , old_block_size_{md_.block_size().value()}
       , timeres_{options.time_resolution,
-                 get_conversion_factors(orig_fs_options)} {
+                 get_conversion_factors(orig_fs_options)}
+      , detected_source_os_{try_detect_source_os(lgr, md_, hist, options)} {
     if (auto const feat = md_.features()) {
       features_.set(*feat);
       bool const non_sparse_image = !features_.has(feature::sparsefiles);
@@ -295,6 +413,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   std::optional<dwarfs::internal::fsst_encoder::bulk_compression_result>
       compressed_names_;
   bool holes_need_remapping_{false};
+  std::optional<fs_source_os> const detected_source_os_;
 };
 
 template <typename LoggerPolicy>
@@ -1116,7 +1235,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   md_.options() = fsopts;
   md_.features() = features_.get();
 
-  md_.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
+  md_.dwarfs_version() = std::string(kLibdwarfsPrefix) + DWARFS_GIT_ID;
   if (options_.no_create_timestamp) {
     md_.create_timestamp().reset();
   } else {
@@ -1368,18 +1487,12 @@ void metadata_builder_<LoggerPolicy>::try_repair_path_separator() {
     return;
   }
 
-  auto const ver = semver::parse(md_.dwarfs_version().value());
+  auto const ver =
+      semver::parse(md_.dwarfs_version().value(), kLibdwarfsPrefixV);
 
   if (ver && *ver >= semver{0, 16, 0}) {
     // This was written by a version that already repairs the preferred path
     // separator if possible.
-    return;
-  }
-
-  if (!md_.metadata_version_history().has_value() ||
-      md_.metadata_version_history()->empty()) {
-    // Presumably this file system has never been rebuilt, so we assume that
-    // the preferred path separator is correct.
     return;
   }
 
@@ -1390,34 +1503,10 @@ void metadata_builder_<LoggerPolicy>::try_repair_path_separator() {
 
   std::optional<uint32_t> determined_sep;
 
-  if (history_) {
-    auto const& hent = history_->raw().entries().value();
-
-    if (!hent.empty()) {
-      auto const& first = hent.front();
-      auto const& fv = first.version().value();
-      semver const first_ver(*fv.major(), *fv.minor(), *fv.patch());
-      bool first_is_initial = false;
-
-      if (first_ver < semver{0, 13, 0}) {
-        // Versions before 0.13.0 could not rebuild metadata
-        first_is_initial = true;
-      } else if (first.arguments().has_value() && !first.arguments()->empty()) {
-        // If this is *not* a metadata rebuild
-        first_is_initial =
-            std::ranges::any_of(*first.arguments(), [](auto const& arg) {
-              return arg == "--rebuild-metadata" ||
-                     arg == "--change-block-size";
-            });
-      }
-
-      if (first_is_initial) {
-        determined_sep = first.system_id()->starts_with("Windows") ? '\\' : '/';
-      }
-    }
-  }
-
-  if (!determined_sep.has_value()) {
+  if (detected_source_os_) {
+    determined_sep = static_cast<uint32_t>(
+        *detected_source_os_ == fs_source_os::os_windows ? '\\' : '/');
+  } else {
     std::size_t num_posix_sep{0};
     std::size_t num_win_sep{0};
 
