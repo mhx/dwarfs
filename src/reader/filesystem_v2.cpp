@@ -299,6 +299,7 @@ class filesystem_ final {
   duplication_info
   get_duplication_info(inode_view entry, std::error_code& ec) const;
   duplication_info get_duplication_info(inode_view entry) const;
+  device_number get_device(inode_view entry, std::error_code& ec) const;
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -476,6 +477,7 @@ class filesystem_ final {
   PERFMON_CLS_TIMER_DECL(getattr_opts_ec)
   PERFMON_CLS_TIMER_DECL(get_duplication_info)
   PERFMON_CLS_TIMER_DECL(get_duplication_info_ec)
+  PERFMON_CLS_TIMER_DECL(get_device_ec)
   PERFMON_CLS_TIMER_DECL(access)
   PERFMON_CLS_TIMER_DECL(access_ec)
   PERFMON_CLS_TIMER_DECL(opendir)
@@ -580,6 +582,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(getattr_opts_ec)
     PERFMON_CLS_TIMER_INIT(get_duplication_info)
     PERFMON_CLS_TIMER_INIT(get_duplication_info_ec)
+    PERFMON_CLS_TIMER_INIT(get_device_ec)
     PERFMON_CLS_TIMER_INIT(access)
     PERFMON_CLS_TIMER_INIT(access_ec)
     PERFMON_CLS_TIMER_INIT(opendir)
@@ -1064,6 +1067,13 @@ filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
+device_number filesystem_<LoggerPolicy>::get_device(inode_view entry,
+                                                    std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(get_device_ec)
+  return meta_.get_device(std::move(entry), ec);
+}
+
+template <typename LoggerPolicy>
 bool filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
                                        file_stat::uid_type uid,
                                        file_stat::gid_type gid) const {
@@ -1418,6 +1428,9 @@ class filesystem_common_ : public Base {
   }
   duplication_info get_duplication_info(inode_view iv) const override {
     return fs_.get_duplication_info(iv);
+  }
+  device_number get_device(inode_view iv, std::error_code& ec) const override {
+    return fs_.get_device(iv, ec);
   }
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const override {
