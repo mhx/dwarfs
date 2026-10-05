@@ -44,6 +44,7 @@ add_library(
   src/file_segments_iterable.cpp
   src/file_stat.cpp
   src/file_util.cpp
+  src/fs_source_os.cpp
   src/fstypes.cpp
   src/glob_matcher.cpp
   src/history.cpp

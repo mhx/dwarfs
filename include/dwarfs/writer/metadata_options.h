@@ -32,6 +32,7 @@
 #include <string_view>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/fs_source_os.h>
 #include <dwarfs/history_config.h>
 #include <dwarfs/writer/inode_options.h>
 
@@ -62,6 +63,7 @@ struct metadata_options {
   bool enable_sparse_files{false};
   bool no_hardlink_table{false};
   size_t inode_size_cache_min_chunk_count{128};
+  std::optional<fs_source_os> source_os_hint{};
 
   static void validate(metadata_options const& opts);
 };

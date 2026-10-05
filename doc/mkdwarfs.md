@@ -316,6 +316,11 @@ Most other options are concerned with compression tuning:
   reversible, e.g. if you set a global owner or group, you cannot get back
   the original owners and groups.
 
+- `--rebuild-metadata-source-os-hint=`*osname*:
+  With `--rebuild-metadata`, provide a hint about the source operating system
+  that was used to create the original file system. This will only be used if
+  the operating system cannot be determined from the original file system.
+
 - `--change-block-size`:
   Change the block size while recompressing. This will change the block size
   according to the size given in `--block-size-bits`. Even if the block size
