@@ -986,6 +986,23 @@ void check_history(auto const& history) {
   }
 }
 
+std::size_t get_device_count(global_metadata::Meta const& meta) {
+  if (meta.devices() && meta.devices_v1()) {
+    DWARFS_THROW(runtime_error,
+                 "devices_v1 and devices cannot be present at the same time");
+  }
+
+  if (meta.devices()) {
+    return meta.devices()->size();
+  }
+
+  if (meta.devices_v1()) {
+    return meta.devices_v1()->size();
+  }
+
+  return 0;
+}
+
 global_metadata::Meta const& check_metadata(
     logger& lgr, global_metadata::Meta const& meta,
     std::span<std::optional<std::size_t> const> uncompressed_block_size) {
@@ -1057,8 +1074,6 @@ global_metadata::Meta const& check_metadata(
     }
   }
 
-  size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
-
   // check_partitioning() only determines partition points for the known
   // inode ranks; make sure no entry has a rank beyond the last one.
   auto const num_partitioned = meta.dir_entries()
@@ -1088,6 +1103,8 @@ global_metadata::Meta const& check_metadata(
                              num_reg_unique, num_reg_shared,
                              offsets[3] - offsets[2]));
   }
+
+  size_t const num_dev = get_device_count(meta);
 
   if (num_dev != offsets[4] - offsets[3]) {
     DWARFS_THROW(runtime_error, fmt::format("wrong number of devices: {} != {}",

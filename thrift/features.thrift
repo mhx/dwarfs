@@ -44,4 +44,6 @@ enum feature {
                                  // dwarfs-format.md for full details
 
   non_regfile_hardlinks = 2,     // non-regular file hardlinks (v0.16.0)
+
+  device_major_minor = 3,        // device major/minor numbers (v0.16.0)
 }
