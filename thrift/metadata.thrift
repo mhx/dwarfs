@@ -166,6 +166,14 @@ struct dir_entry {
 }
 
 /**
+ * Device ID, split into major and minor parts for portability
+ */
+struct device_id {
+   1: UInt32 major_id
+   2: UInt32 minor_id
+}
+
+/**
  * File system options
  */
 struct fs_options {
@@ -376,8 +384,14 @@ struct metadata {
   // fields added with dwarfs-0.3.0, file system version 2.1 //
   //=========================================================//
 
-   // device ids, for lookup by `inode - device_inode_offset`
-  17: optional list<UInt64>     devices
+  /************************ DEPRECATED **********************/
+   // This field stores the *native* device ids in legacy file
+   // system images. As of dwarfs-0.16.0, this field is superseded
+   // by the `devices` field (38) and is only used for reading
+   // legacy file system images.
+   // Lookup by `inode - device_inode_offset`.
+  17: optional list<UInt64>     devices_v1
+  /**********************************************************/
 
    // file system options
   18: optional fs_options       options
@@ -519,4 +533,18 @@ struct metadata {
    // link, in bytes. Only set for file system images that
    // contain hardlinked sparse files.
   37: optional UInt64           total_allocated_hardlink_size
+
+  //==========================================================//
+  // fields added with dwarfs-0.16.0, file system version 2.5 //
+  //==========================================================//
+
+   // Device major/minor numbers, this supersedes the `devices`
+   // field (17), which used to store non-portable native device
+   // ids. Major/minor numbers are still not guaranteed to be
+   // portable, but at least major/minor will now be preserved.
+   // If this field is used (i.e. there are devices in the file
+   // system image), the `device_major_minor` feature flag will
+   // be set to prevent older binaries from reading the image.
+   // Lookup by `inode - device_inode_offset`.
+  38: optional list<device_id>  devices
 }
