@@ -58,6 +58,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/compute_file_hashes.h>
+#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -97,6 +98,8 @@ class dwarfsck_impl {
     bool no_check{false};
     bool print_header{false};
     bool list_files{false};
+    bool attr_digest{false};
+    bool fs_digests{false};
   };
 
   // Parses the command line. On success, returns the parsed options.
@@ -123,6 +126,7 @@ class dwarfsck_impl {
   void do_dump_info();
   void do_list_files();
   void do_checksum();
+  void do_fs_digests();
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -185,6 +189,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("checksum",
         po::value<std::string>(&checksum_algo_raw),
         checksum_desc.c_str())
+    ("attr-digest",
+        po::value<bool>(&o.attr_digest)->zero_tokens(),
+        "compute and print filesystem attribute digest")
+    ("fs-digests",
+        po::value<bool>(&o.fs_digests)->zero_tokens(),
+        "compute and print filesystem digests")
     ("num-workers,n",
         po::value<size_t>(&o.num_workers)->default_value(num_cpu),
         "number of reader worker threads")
@@ -333,6 +343,10 @@ int dwarfsck_impl::run() {
 
     if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo) {
       do_dump_info();
+    }
+
+    if (opts_.attr_digest || opts_.fs_digests) {
+      do_fs_digests();
     }
 
     if (opts_.list_files) {
@@ -524,6 +538,24 @@ void dwarfsck_impl::do_checksum() {
                                 fmt::print(iol_.out, "{}  {}\n", r.digest,
                                            std::get<std::string_view>(r.key));
                               });
+}
+
+void dwarfsck_impl::do_fs_digests() {
+  reader::filesystem_digests_config cfg{
+      .compute_tree_digest = opts_.fs_digests,
+      .max_queued_bytes = fsopts_.block_cache.max_bytes,
+      .num_worker_threads = opts_.num_workers,
+  };
+
+  auto const digests =
+      reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
+
+  iol_.out << "filesystem digests:\n"
+           << "  attr: " << digests.attr_digest.hex() << "\n";
+
+  if (digests.tree_digest) {
+    iol_.out << "  tree: " << digests.tree_digest.hex() << "\n";
+  }
 }
 
 } // namespace

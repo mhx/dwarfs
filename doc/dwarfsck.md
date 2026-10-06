@@ -58,6 +58,12 @@ with a non-zero exit code.
   dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
   ```
 
+- `--attr-digest`:
+  Compute and print the file system attribute digest.
+
+- `--fs-digests`:
+  Compute and print the file system attribute and tree digests.
+
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
 
