@@ -63,6 +63,11 @@ bool inode_view::is_symlink() const {
   return iv_->type() == posix_file_type::symlink;
 }
 
+bool inode_view::is_device() const {
+  auto const type = iv_->type();
+  return type == posix_file_type::block || type == posix_file_type::character;
+}
+
 inode_view::uid_type inode_view::getuid() const { return iv_->getuid(); }
 
 inode_view::gid_type inode_view::getgid() const { return iv_->getgid(); }
