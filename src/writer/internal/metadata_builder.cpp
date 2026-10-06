@@ -388,34 +388,6 @@ class metadata_builder_ final : public metadata_builder::impl {
   void upgrade_from_pre_v2_2();
   void upgrade_devices();
 
-  uint32_t get_time_resolution() const {
-    uint32_t resolution = 1;
-    if (md_.options()) {
-      if (auto res = md_.options()->time_resolution_sec()) {
-        resolution = *res;
-      }
-    }
-    return resolution;
-  }
-
-  uint32_t get_subsec_mult() const {
-    uint32_t mult = 0;
-    if (md_.options()) {
-      if (auto res = md_.options()->subsecond_resolution_nsec_multiplier()) {
-        mult = *res;
-      }
-    }
-    return mult;
-  }
-
-  std::chrono::nanoseconds get_chrono_time_resolution() const {
-    if (auto subsec = get_subsec_mult(); subsec > 0) {
-      assert(subsec < 1'000'000'000);
-      return std::chrono::nanoseconds{subsec};
-    }
-    return std::chrono::seconds{get_time_resolution()};
-  }
-
   bool is_rebuild() const { return history_ != nullptr; }
 
   void update_inodes();
