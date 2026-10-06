@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
+# SPDX-License-Identifier: MIT
+
+__lc_self=
+
+if [ -n "${ZSH_VERSION:-}" ]; then
+    case "${ZSH_EVAL_CONTEXT:-}" in
+        *:file*) eval '__lc_self=${(%):-%x}' ;;
+    esac
+elif [ -n "${BASH_VERSION:-}" ]; then
+    eval '__lc_self=${BASH_SOURCE[0]}'
+    [ "$__lc_self" = "$0" ] && __lc_self=
+fi
+
+if [ -z "$__lc_self" ]; then
+    echo "install-completions: source this file from bash or zsh" >&2
+else
+    __lc_dir="$(cd -- "$(dirname -- "$__lc_self")/.." 2>/dev/null && pwd)"
+    __lc_dir="$__lc_dir/doc/completions"
+fi
+
+if [ -n "$__lc_self" ] && [ ! -d "$__lc_dir" ]; then
+    echo "install-completions: $__lc_dir not found" >&2
+    __lc_self=
+fi
+
+if [ -n "$__lc_self" ] && [ -n "${BASH_VERSION:-}" ]; then
+    for __lc_f in "$__lc_dir"/bash/*; do
+        complete -r "${__lc_f##*/}" 2>/dev/null
+        . "$__lc_f"
+    done
+    echo "loaded bash completions from $__lc_dir/bash"
+fi
+
+if [ -n "$__lc_self" ] && [ -n "${ZSH_VERSION:-}" ]; then
+    eval '
+        __lc_dir=$__lc_dir/zsh
+        fpath=( $__lc_dir ${fpath:#$__lc_dir} )
+        for __lc_f in $__lc_dir/_*(N); do
+            __lc_name=${__lc_f:t}
+            (( ${+functions[$__lc_name]} )) && unfunction $__lc_name
+            autoload -Uz $__lc_name
+            compdef $__lc_name ${__lc_name#_}
+        done
+        echo "loaded zsh completions from $__lc_dir"
+    '
+fi
+
+unset __lc_self __lc_dir __lc_f __lc_name
