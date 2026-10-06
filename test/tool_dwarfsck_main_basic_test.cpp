@@ -1745,3 +1745,26 @@ INSTANTIATE_TEST_SUITE_P(dwarfsck, dwarfsck_checksum_test,
                                            "random-packed-0.12.3",
                                            "random-packed-nonlink",
                                            "random-packed", "random"));
+
+TEST(dwarfsck_test, attribute_digest) {
+  auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
+  auto t = dwarfsck_tester::create_with_image(read_file(file));
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--attr-digest", "-q"})) << t.err();
+  EXPECT_EQ(
+      R"(filesystem digests:
+  attr: 2418e0be16f0f43f25b2189c31555959e32624e5a22be637f2755541f23962f4
+)",
+      t.out());
+}
+
+TEST(dwarfsck_test, filesystem_digests) {
+  auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
+  auto t = dwarfsck_tester::create_with_image(read_file(file));
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--fs-digests", "-q"})) << t.err();
+  EXPECT_EQ(
+      R"(filesystem digests:
+  attr: 2418e0be16f0f43f25b2189c31555959e32624e5a22be637f2755541f23962f4
+  tree: 4f38eed7ab43ece7b959ade41afbe3203676afac75177186fae5ba4b6fa65b90
+)",
+      t.out());
+}
