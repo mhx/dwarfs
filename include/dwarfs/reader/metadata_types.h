@@ -77,6 +77,7 @@ class inode_view {
   bool is_regular_file() const;
   bool is_directory() const;
   bool is_symlink() const;
+  bool is_device() const;
   uid_type getuid() const;
   gid_type getgid() const;
   uint32_t inode_num() const;
