@@ -454,15 +454,31 @@ void dwarfsck_impl::do_list_files() {
   auto const uid_width = max_width(fs().get_all_uids(), "uids");
   auto const gid_width = max_width(fs().get_all_gids(), "gids");
 
-  size_t inode_size_width{0};
+  size_t size_dev_width{0};
+  auto format_device = [this](auto const& iv, std::size_t width = 0) {
+    assert(iv.is_device());
+    std::error_code ec;
+    auto id = fs().get_device(iv, ec);
+    DWARFS_CHECK(!ec, fmt::format("failed to get device for inode {}: {}",
+                                  iv.inode_num(), ec.message()));
+    return fmt::format(
+        "{:>{}}", fmt::format("{},{}", id.major_id(), id.minor_id()), width);
+  };
 
   if (opts_.verbose) {
+    std::size_t max_device_width{0};
     file_stat::off_type max_inode_size{0};
     fs().walk([&](auto const& de) {
-      auto st = fs().getattr(de.inode());
-      max_inode_size = std::max(max_inode_size, st.size());
+      auto iv = de.inode();
+      if (iv.is_device()) {
+        max_device_width = std::max(max_device_width, format_device(iv).size());
+      } else {
+        auto st = fs().getattr(iv);
+        max_inode_size = std::max(max_inode_size, st.size());
+      }
     });
-    inode_size_width = fmt::format("{:L}", max_inode_size).size();
+    size_dev_width =
+        std::max(fmt::format("{:L}", max_inode_size).size(), max_device_width);
   }
 
   fs().walk([&](auto const& de) {
@@ -477,10 +493,17 @@ void dwarfsck_impl::do_list_files() {
 
       auto st = fs().getattr(iv);
 
-      fmt::print(iol_.out, "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
-                 uid_width, gid_width, inode_size_width, iv.mode_string(),
-                 iv.getuid(), iv.getgid(), st.size(),
-                 safe_localtime(st.mtime()), name);
+      std::string size_dev_str;
+
+      if (iv.is_device()) {
+        size_dev_str = format_device(iv, size_dev_width);
+      } else {
+        size_dev_str = fmt::format("{1:{0}L}", size_dev_width, st.size());
+      }
+
+      fmt::print(iol_.out, "{2} {3:{0}}/{4:{1}} {5} {6:%F %H:%M} {7}\n",
+                 uid_width, gid_width, iv.mode_string(), iv.getuid(),
+                 iv.getgid(), size_dev_str, safe_localtime(st.mtime()), name);
     } else if (!name.empty()) {
       fmt::print(iol_.out, "{}\n", name);
     }
