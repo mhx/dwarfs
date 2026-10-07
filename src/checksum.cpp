@@ -378,4 +378,29 @@ checksum::checksum(std::string const& alg) {
   }
 }
 
+static_assert(checksum::digest_data::kMaxSize >= EVP_MAX_MD_SIZE);
+
+checksum::digest_data::digest_data(std::span<std::uint8_t const> data) {
+  DWARFS_CHECK(data.size() <= kMaxSize, "digest too large");
+  size_ = data.size();
+  std::copy(data.begin(), data.end(), data_.begin());
+}
+
+std::string checksum::digest_data::hex() const {
+  assert(size_ <= kMaxSize);
+  std::string result;
+  result.resize(size_ * 2);
+  boost::algorithm::hex_lower(data_.begin(), data_.begin() + size_,
+                              result.begin());
+  return result;
+}
+
+checksum::digest_data checksum::finalize() const {
+  digest_data d;
+  if (impl_->finalize(d.data_.data())) {
+    d.size_ = impl_->digest_size();
+  }
+  return d;
+}
+
 } // namespace dwarfs
