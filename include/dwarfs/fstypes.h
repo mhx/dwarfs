@@ -43,7 +43,16 @@
 namespace dwarfs {
 
 constexpr uint8_t MAJOR_VERSION = 2;
-constexpr uint8_t MINOR_VERSION = 5;
+constexpr uint8_t MINOR_VERSION = 6;
+
+// The minimum version accepted by the reader. This *can* be higher than
+// the current version if any backward-incompatible changes are planned.
+// In such a case, the accepted version is incremented first, and the
+// current version is incremented after two *release* minor version
+// increments, e.g. if 0.14.0 increments the accepted version to 2.6,
+// then 0.16.0 increments the current version to 2.6. This process must
+// ensure that e.g. 0.14.0 *already supports* the new features that will
+// become the default in 0.16.0.
 constexpr uint8_t MINOR_VERSION_ACCEPTED = 6;
 
 enum class section_type : uint16_t {
