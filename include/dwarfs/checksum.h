@@ -28,7 +28,10 @@
 
 #pragma once
 
+#include <array>
+#include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <iosfwd>
 #include <memory>
 #include <span>
@@ -41,6 +44,37 @@ namespace dwarfs {
 
 class checksum {
  public:
+  class digest_data {
+   public:
+    static constexpr inline std::size_t kMaxSize = 64;
+
+    digest_data() = default;
+    explicit digest_data(std::span<std::uint8_t const> data);
+
+    bool has_value() const { return size_ > 0; }
+    explicit operator bool() const { return has_value(); }
+
+    std::size_t size() const { return size_; }
+
+    std::string hex() const;
+
+    std::string_view view() const {
+      assert(size_ <= kMaxSize);
+      return {data_.data(), size_};
+    }
+
+    std::span<std::uint8_t const> span() const {
+      assert(size_ <= kMaxSize);
+      return {reinterpret_cast<std::uint8_t const*>(data_.data()), size_};
+    }
+
+   private:
+    friend class checksum;
+
+    std::array<char, kMaxSize> data_;
+    std::size_t size_{0};
+  };
+
   static bool is_available(std::string const& algo);
   static std::vector<std::string> available_algorithms();
 
@@ -84,6 +118,7 @@ class checksum {
   void reset() { impl_->reset(); }
 
   bool finalize(void* digest) const { return impl_->finalize(digest); }
+  digest_data finalize() const;
 
   size_t digest_size() const { return impl_->digest_size(); }
 
