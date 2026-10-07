@@ -128,6 +128,22 @@ TEST_P(checksum_test_str, end_to_end) {
   if (auto it = ref_digests_str.find(alg); it != ref_digests_str.end()) {
     EXPECT_EQ(it->second, hexdigest_upper) << alg;
   }
+
+  checksum::digest_data dd;
+
+  {
+    checksum cs(alg);
+    cs.update(payload.data(), payload.size());
+    dd = cs.finalize();
+  }
+
+  auto const binary = dd.span();
+  auto const bdata = reinterpret_cast<uint8_t const*>(binary.data());
+  EXPECT_EQ(std::vector<uint8_t>(bdata, bdata + binary.size()), digest);
+  EXPECT_EQ(std::string_view(reinterpret_cast<char const*>(digest.data()),
+                             digest.size()),
+            dd.view());
+  EXPECT_EQ(hexdigest_lower, dd.hex());
 }
 
 TEST_P(checksum_test_str, reuse_after_reset) {
