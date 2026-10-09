@@ -84,6 +84,7 @@ class dwarfsck_impl {
     std::optional<sys_string> export_metadata;
     std::optional<std::string> checksum_algo;
     std::optional<sys_string> set_label;
+    std::optional<std::string> set_uuid;
     std::string cache_size_str;
     std::string image_offset;
     std::string detail;
@@ -103,6 +104,9 @@ class dwarfsck_impl {
     bool attr_digest{false};
     bool fs_digests{false};
     bool init_superblock{false};
+    bool init_uuid{false};
+    bool init_attr_digest{false};
+    bool init_tree_digest{false};
   };
 
   // Parses the command line. On success, returns the parsed options.
@@ -130,8 +134,7 @@ class dwarfsck_impl {
   void do_list_files();
   void do_checksum();
   void do_fs_digests();
-  void do_edit_superblock(std::filesystem::path const& image_path,
-                          std::uint64_t fs_offset, std::uint64_t fs_size);
+  void do_edit_superblock(std::filesystem::path const& image_path);
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -154,6 +157,9 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
       "detail level (0-{}, or feature list: {})",
       reader::fsinfo_features::max_level(),
       fmt::join(reader::fsinfo_features::all().to_string_views(), ", "));
+  auto const uuid_desc =
+      fmt::format("set UUID in superblock ({}, {}, or RFC 9562 string)",
+                  superblock_editor::kUuidRandom, superblock_editor::kUuidNil);
   auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
   options o;
@@ -162,7 +168,9 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   // raw values and moved into the optionals below if the option was present.
   sys_string export_metadata_raw;
   sys_string set_label_raw;
+  std::string uuid_str_raw;
   std::string checksum_algo_raw;
+  std::string init_superblock_raw;
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_enabled_raw;
   sys_string perfmon_trace_file_raw;
@@ -220,11 +228,14 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
     ("init-superblock",
-        po::value<bool>(&o.init_superblock)->zero_tokens(),
-        "initialize filesystem superblock")
+        po::value<std::string>(&init_superblock_raw)->implicit_value("all"),
+        "initialize superblock fields (all, uuid, digests, attr_digest)")
     ("set-label",
         po_sys_value<sys_string>(&set_label_raw),
-        "set filesystem label")
+        "set filesystem label in superblock")
+    ("set-uuid",
+        po::value<std::string>(&uuid_str_raw),
+        uuid_desc.c_str())
 #if DWARFS_PERFMON_ENABLED
     ("perfmon",
         po::value<std::string>(&perfmon_enabled_raw),
@@ -291,8 +302,40 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     o.export_metadata = std::move(export_metadata_raw);
   }
 
+  if (vm.contains("init-superblock")) {
+    o.init_superblock = true;
+
+    std::vector<std::string_view> fields;
+
+    split_to(init_superblock_raw, ',', fields);
+
+    for (auto const& field : fields) {
+      if (field == "all") {
+        o.init_attr_digest = true;
+        o.init_tree_digest = true;
+        o.init_uuid = true;
+      } else if (field == "uuid") {
+        o.init_uuid = true;
+      } else if (field == "digests") {
+        o.init_attr_digest = true;
+        o.init_tree_digest = true;
+      } else if (field == "attr_digest") {
+        o.init_attr_digest = true;
+      } else {
+        iol.err << "error: invalid --init-superblock field: " << field << "\n";
+        return std::unexpected(1);
+      }
+    }
+  }
+
   if (vm.contains("set-label")) {
+    o.init_superblock = true;
     o.set_label = std::move(set_label_raw);
+  }
+
+  if (vm.contains("set-uuid")) {
+    o.init_superblock = true;
+    o.set_uuid = uuid_str_raw;
   }
 
   return o;
@@ -358,7 +401,7 @@ int dwarfsck_impl::run() {
     auto const errors = do_check();
 
     if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
-        !opts_.init_superblock && !opts_.set_label) {
+        !opts_.init_superblock) {
       do_dump_info();
     }
 
@@ -384,12 +427,8 @@ int dwarfsck_impl::run() {
       return 1;
     }
 
-    if (opts_.init_superblock || opts_.set_label) {
-      auto const fs_offset = fs_->image_offset();
-      auto const fs_size = fs_->image_size();
-      fs_.reset();
-
-      do_edit_superblock(input_path, fs_offset, fs_size);
+    if (opts_.init_superblock) {
+      do_edit_superblock(input_path);
     }
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
@@ -587,29 +626,68 @@ void dwarfsck_impl::do_fs_digests() {
   }
 }
 
-void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
-                                       std::uint64_t const fs_offset,
-                                       std::uint64_t const fs_size) {
+void dwarfsck_impl::do_edit_superblock(
+    std::filesystem::path const& image_path) {
   auto io_stream = iol_.file->open(image_path, std::ios::in | std::ios::out |
                                                    std::ios::binary);
   auto& ios = io_stream->ios();
   auto sbe = superblock_editor{};
 
-  ios.seekg(fs_offset);
+  ios.seekg(fs().image_offset());
   sbe.read(ios);
 
-  if (opts_.init_superblock) {
-    if (!sbe.fs_size()) {
-      sbe.init_fs_size(fs_size);
-    }
+  if (!sbe.fs_size()) {
+    sbe.init_fs_size(fs().image_size());
+  }
 
-    if (!sbe.fs_uuid()) {
-      sbe.set_fs_uuid(superblock_editor::kUuidRandom);
-    }
+  if (opts_.set_uuid) {
+    sbe.set_fs_uuid(*opts_.set_uuid);
+  } else if (opts_.init_uuid && !sbe.fs_uuid()) {
+    sbe.set_fs_uuid(superblock_editor::kUuidRandom);
   }
 
   if (opts_.set_label) {
     sbe.set_fs_label(sys_string_to_string(*opts_.set_label));
+  }
+
+  bool const init_attr_digest = opts_.init_attr_digest && !sbe.attr_digest();
+  bool const init_tree_digest = opts_.init_tree_digest && !sbe.tree_digest();
+
+  if (init_attr_digest || init_tree_digest) {
+    reader::filesystem_digests_config cfg{
+        .compute_tree_digest = init_tree_digest,
+        .max_queued_bytes = fsopts_.block_cache.max_bytes,
+        .num_worker_threads = opts_.num_workers,
+    };
+
+    auto const digests =
+        reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
+
+    if (sbe.digest_algo() == digest_algorithm::UNINITIALIZED) {
+      sbe.set_digests(digests);
+    } else {
+      if (sbe.digest_algo() != digests.algorithm) {
+        throw std::runtime_error(
+            fmt::format("digest algorithm mismatch: superblock has {}, "
+                        "but computed {}",
+                        get_digest_algorithm_name(sbe.digest_algo()),
+                        get_digest_algorithm_name(digests.algorithm)));
+      }
+
+      if (sbe.digest_scheme_version() != digests.scheme_version) {
+        throw std::runtime_error(
+            fmt::format("digest scheme version mismatch: superblock has {}, "
+                        "but computed {}",
+                        sbe.digest_scheme_version(), digests.scheme_version));
+      }
+
+      if (init_attr_digest) {
+        sbe.set_attr_digest(digests.attr_digest.span());
+      }
+      if (init_tree_digest) {
+        sbe.set_tree_digest(digests.tree_digest.span());
+      }
+    }
   }
 
   sbe.update(ios);

@@ -880,7 +880,8 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
       if (auto const algo = sbe->digest_algo();
           algo != digest_algorithm::UNINITIALIZED) {
         os << "digests: " << get_digest_algorithm_name(algo)
-           << " (scheme version " << sbe->digest_scheme_version() << ")\n";
+           << " (scheme version "
+           << static_cast<int>(sbe->digest_scheme_version()) << ")\n";
         if (auto const& attr_digest = sbe->attr_digest()) {
           os << "  attribute digest: " << attr_digest.hex() << "\n";
         }
