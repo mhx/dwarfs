@@ -439,6 +439,10 @@ test_file_access::open(std::filesystem::path const& path,
 
 void test_file_access::set_file(std::filesystem::path const& path,
                                 std::string content) const {
+  if (sync_os_) {
+    sync_os_->add_file_sync(path, content);
+  }
+
   files_[path] = std::move(content);
 }
 
@@ -467,6 +471,8 @@ test_file_access::get_close_error(std::filesystem::path const& path) const {
   }
   return std::nullopt;
 }
+
+void test_file_access::sync_files_to(os_access_mock& os) { sync_os_ = &os; }
 
 std::optional<std::string>
 test_file_access::get_file(std::filesystem::path const& path) const {
