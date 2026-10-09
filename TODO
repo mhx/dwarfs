@@ -1,3 +1,92 @@
+- move filesystem_digests to `dwarfs::` and add algo + scheme version
+
+- reference `dwarfs-format.md` from documentation for superblock
+  digests
+
+- test image size aligment > 1 produces backwards-compatible
+  image
+
+- make sure superblock re-writing is implemented properly
+  - UUID / Label need to be migrated / cleared / filled
+  - Size needs to be cleared and recomputed
+  - Tree digests needs to be preserved if present
+  - Attribute digest needs to be preserved or cleared if
+    any metadata related changes are part of the rewrite
+
+- interaction between header / padding / size alignment??
+  => document!
+  => headers should *NOT* be considered for alignment/padding
+
+- introduce superblocks only with --no-backwards-compat flag
+  set; make them the default in v0.18.0. Otherwise there are
+  too many issues with pre-v0.16.0 rewriting but not updating
+  superblocks properly
+
+- make sure rewriting superblocks works correctly:
+  - must be written with a zero size
+  - attr digest *must* be reset if there are any rebuild options
+    that affect metadata (chmod, chown, touch, ...)
+  - tree digest should *never* change: this means in theory we
+    could have a rewritten filesystem with a tree digest, but no
+    attr digest, which contradicts the current documentation
+
+- rebuilding metadata with chmod / chown / timestamp will
+  require rebuilding the attr digest!
+
+- make sure we keep the FS minor version of blocks we don't
+  know when rewriting?
+
+- add an OS flag to the metadata for future use?
+- add a flag for hollow file systems?
+
+- tests for filesystem digests
+
+  - attr_digest should be *identical* for hollow fs
+
+- update completions for all tools
+
+- increment accepted/written minor versions!!!
+
+- implement section headers using BLAKE3 for FS version v2.7
+  => no, we're not going to do that; document somewhere why
+  => it's just not really worth it unless we plan to fully
+     abandon SHA2-512/256
+
+- add mkdwarfs --no-backwards-compat switch to enable latest
+  minor version; this should also reset the feature flags
+  baseline?
+
+- properly document attribute / tree digests for dwarfsck
+
+- add superblock / digests documentation to dwarfs-format
+
+- CHECKSUMS section? -> decide on hash function to use
+- remove `--init-superblock` from `mkdwarfs`?
+- refactor superblock stuff:
+  - add checksums (tree / attr)
+  - make variable size
+  - remove `reserved1`????
+  - use `--uuid=[<uuid>|nil|keep|random]` <<<<<<<!!!!!
+    - defaults to `keep` when re-writing;
+      warning + fallback to `random` if source has no UUID
+    - otherwise, defaults to `random`
+  - make sure label is correctly truncated (not UTF-8 code splits)
+  - force \0-termination of label string (limit to 63 bytes?)
+- introduce `mkdwarfs --reproducible`, which bundles
+  - `--uuid=nil`
+  - `--no-create-timestamp`
+  - `--no-history-timestamps`
+- add "old" UUIDs (+ attr checksums?) to history?
+- check `SOURCE_DATE_EPOCH`; should that imply `--reproducible`?
+- `dwarfsck --compare`?
+- refactor code that uses `checksum` to make use of `.reset()`?
+
+- deprecate/ignore/warn about `--file-hash`
+- introduce `--no-dedupe` as replacement for `--file-hash=none`
+- de-dupe will use BLAKE3-256 unconditionally
+- BLAKE3-256 will also be used for CHECKSUM sections and tree/attr digests
+
+
 ==================
 
 - test `file_stat` and its various methods
@@ -26,8 +115,6 @@
 ==================
 
 - More "real" benchmarks
-
-- Entry v2 - more memory efficient implementation
 
 - Support xattrs
 
