@@ -1,5 +1,3 @@
-- move filesystem_digests to `dwarfs::` and add algo + scheme version
-
 - reference `dwarfs-format.md` from documentation for superblock
   digests
 

@@ -42,6 +42,9 @@ using namespace dwarfs;
 
 namespace {
 
+constexpr inline filesystem_version FS_VERSION_ACCEPTED{MAJOR_VERSION,
+                                                        MINOR_VERSION_ACCEPTED};
+
 struct build_step {
   std::vector<std::string> args;
   bool legacy_image{false};
@@ -321,6 +324,8 @@ TEST_P(write_superblock_test, write_superblock) {
         "test.dwarfs",
         {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
 
+    EXPECT_EQ(fs.version(),
+              build.legacy_image ? FS_VERSION_CURRENT : FS_VERSION_ACCEPTED);
     EXPECT_EQ(fs.image_offset(), build_has_header ? header.size() : 0);
     EXPECT_EQ(fs.has_superblock(), build.has_superblock);
 
@@ -445,6 +450,8 @@ TEST_P(write_superblock_test, write_superblock) {
         "test.dwarfs",
         {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
 
+    EXPECT_EQ(fs.version(),
+              rebuild.legacy_image ? FS_VERSION_CURRENT : FS_VERSION_ACCEPTED);
     EXPECT_EQ(fs.image_offset(), rebuild_has_header ? header.size() : 0);
     EXPECT_EQ(fs.has_superblock(), rebuild.has_superblock);
 
