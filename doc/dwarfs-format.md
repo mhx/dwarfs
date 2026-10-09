@@ -244,6 +244,20 @@ Currently, the following different section types are defined:
   sections are supported. This section type is purely informational
   and not needed to read the DwarFS image.
 
+- `SUPERBLOCK` (11):
+  The superblock contains some basic information about the file system,
+  such as the file system size and alignment, a UUID, and the file
+  system label. This *must* be the first section in the file system
+  image, and it *must* be uncompressed. The structure of the superblock
+  is simple enough so it can easily be read by third-party tools. See
+  [Superblock Format](#superblock-format) for details.
+
+- `PADDING` (12):
+  A padding section is just an uncompressed, zero-filled section. While
+  it could occur anywhere in the image, it is usually used at the end
+  of the image (if no section index is present) or right before the
+  section index.
+
 ### Compression Algorithms
 
 DwarFS supports a wide range of section compression algorithms, some of
@@ -254,6 +268,108 @@ For compression algorithms with metadata, the metadata is defined in
 [`thrift/compression.thrift`](../thrift/compression.thrift). The metadata
 is stored in "compact" thrift encoding at the beginning of the section,
 just after the header.
+
+### Superblock Format
+
+The superblock is just a regular DwarFS section. However, it must always
+be the very first section in the file system image, and it must always be
+uncompressed. This helps tools to quickly identify a DwarFS image without
+having to implement a full DwarFS parser.
+
+The superblock payload contains its own version. The payload layout is
+fixed for each major version. New minor versions may add new fields at
+the end of the payload, define semantics of previously reserved fields,
+or change the value range of existing fields (e.g. define a new digest
+algorithm). They must never change existing semantics.
+
+The current version of the superblock payload is 1.1.
+
+         ┌───┬───┬───┬───┬───┬───┬───┬───┐
+    0x40 │MAJ│MIN│DAL│DSV│ALI│ 0 │ 0 │ 0 │  MAJ=0x01, MIN=0x01
+         ├───┴───┴───┴───┴───┴───┴───┴───┤
+    0x48 │ Total File System Image Size  │  Little Endian, in bytes
+         ├───────────────────────────────┤
+    0x50 │                               │
+         ├─ File System UUID (RFC 9662) ─┤
+    0x58 │                               │
+         ├───────────────────────────────┤
+    0x60 │                               │
+         ├─                             ─┤
+    0x68 │   File System Label (UTF-8)   │
+         ├─                             ─┤
+    0x70 │       (null-terminated,       │
+         ├─         null-padded)        ─┤
+    0x78 │                               │
+         ├─                             ─┤
+    0x80 │                               │
+         ├─                             ─┤
+    0x88 │                               │
+         ├─                             ─┤
+    0x90 │                               │
+         ├─                          ┌───┤
+    0x98 │                           │ 0 │
+         ├───────────────────────────┴───┤
+    0xA0 │                               │
+         ├─       Attribute Digest      ─┤
+    0xA8 │                               │
+         ├─        (left-aligned)       ─┤
+    0xB0 │                               │
+         ├─                             ─┤
+    0xB8 │                               │
+         ├───────────────────────────┴───┤
+    0xC0 │                               │
+         ├─         Tree Digest         ─┤
+    0xC8 │                               │
+         ├─        (left-aligned)       ─┤
+    0xD0 │                               │
+         ├─                             ─┤
+    0xD8 │                               │
+         └───────────────────────────────┘
+
+The `DAL` byte defines the algorithm used to compute the attribute and
+tree digests. A value of `0` means uninitialized, `1` means BLAKE3-256.
+The `DSV` byte defines the digest scheme version used to compute the
+digests. Again, `0` means uninitialized, `1` is the current version.
+
+The `ALI` byte defines the size alignment of the file system image.
+This is defined as the base-2 logarithm of the alignment in bytes. For
+example, a value of `0` means 1-byte alignment, a value of `9` means
+512-byte alignment.
+
+The attribute and tree digest fields, if initialized, allow for both
+integrity checking as well as file system comparison. Both digests use
+the same algorithm and scheme version. The scheme version defines both
+the "spine" (i.e. the traveral order) as well as the properties of each
+entry that are included in the digest. Digests are only comparable between
+images that agree on the same algorithm and scheme version.
+
+The attribute digest includes all attributes (e.g. type, permissions,
+ownership, timestamps, hardlink groups) of all inodes in the file system,
+but does explicitly *not* cover the contents of regular files. So two file
+systems with the same attribute digest are indistinguishable *except* for
+regular file contents. In particular, this means that a "hollow" file system
+image (i.e. one with all regular file contents replaced by sparse holes) will
+have the same attribute digest as a regular image built from the exact same
+source.
+
+The tree digest includes only the most relevant attributes (i.e. only the
+type), but it does cover the contents of regular files. So two file systems
+with the same tree digest will contain the same data, but they may differ
+in e.g. ownership, permissions, or timestamps.
+
+File systems can be considered "identical" if they have the same attribute
+and tree digests. They will be indistinguishable when mounted, except for
+inode numbers and block counts (sparse vs. non-sparse representation).
+
+The attribute digest is faster to compute as it only requires file system
+metadata. The tree digest requires that *all* file contents are read, which
+can be substantially slower.
+
+When re-writing a file system image, even when rebuilding metadata, the
+tree digests (currently) never changes as the file contents and overall
+structure of the file system remain the same. This means it is possible
+for a re-written image to have a tree digest, but no attribute digest,
+if the new attribute digest was not computed during the re-write.
 
 ## METADATA FORMAT
 

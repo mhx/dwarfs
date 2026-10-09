@@ -881,6 +881,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   auto bmcfg = writer::segmenter::config();
   auto opts = writer::scanner_options();
+  auto fsw_opts = writer::filesystem_writer_options();
 
   writer::fragment_order_options order_opts;
   order_opts.mode = order_mode;
@@ -915,10 +916,10 @@ TEST_P(file_scanner, inode_ordering) {
     }
   }
 
-  auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts);
+  auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts, fsw_opts);
 
   for (int i = 0; i < repetitions; ++i) {
-    auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts);
+    auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts, fsw_opts);
     EXPECT_EQ(ref, fs);
     // if (ref != fs) {
     //   dwarfs::write_file(ref, "ref.dwarfs");

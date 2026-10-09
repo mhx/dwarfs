@@ -63,6 +63,7 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
+#include <dwarfs/superblock_editor.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
@@ -82,6 +83,7 @@ class dwarfsck_impl {
     sys_string input;
     std::optional<sys_string> export_metadata;
     std::optional<std::string> checksum_algo;
+    std::optional<sys_string> set_label;
     std::string cache_size_str;
     std::string image_offset;
     std::string detail;
@@ -100,6 +102,7 @@ class dwarfsck_impl {
     bool list_files{false};
     bool attr_digest{false};
     bool fs_digests{false};
+    bool init_superblock{false};
   };
 
   // Parses the command line. On success, returns the parsed options.
@@ -127,6 +130,8 @@ class dwarfsck_impl {
   void do_list_files();
   void do_checksum();
   void do_fs_digests();
+  void do_edit_superblock(std::filesystem::path const& image_path,
+                          std::uint64_t fs_offset, std::uint64_t fs_size);
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -156,6 +161,7 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   // program_options cannot bind to std::optional<>, so these are parsed into
   // raw values and moved into the optionals below if the option was present.
   sys_string export_metadata_raw;
+  sys_string set_label_raw;
   std::string checksum_algo_raw;
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_enabled_raw;
@@ -213,6 +219,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("export-metadata",
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
+    ("init-superblock",
+        po::value<bool>(&o.init_superblock)->zero_tokens(),
+        "initialize filesystem superblock")
+    ("set-label",
+        po_sys_value<sys_string>(&set_label_raw),
+        "set filesystem label")
 #if DWARFS_PERFMON_ENABLED
     ("perfmon",
         po::value<std::string>(&perfmon_enabled_raw),
@@ -279,6 +291,10 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     o.export_metadata = std::move(export_metadata_raw);
   }
 
+  if (vm.contains("set-label")) {
+    o.set_label = std::move(set_label_raw);
+  }
+
   return o;
 }
 
@@ -341,7 +357,8 @@ int dwarfsck_impl::run() {
 
     auto const errors = do_check();
 
-    if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo) {
+    if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
+        !opts_.init_superblock && !opts_.set_label) {
       do_dump_info();
     }
 
@@ -363,11 +380,23 @@ int dwarfsck_impl::run() {
     }
 #endif
 
-    return errors > 0 ? 1 : 0;
+    if (errors > 0) {
+      return 1;
+    }
+
+    if (opts_.init_superblock || opts_.set_label) {
+      auto const fs_offset = fs_->image_offset();
+      auto const fs_size = fs_->image_size();
+      fs_.reset();
+
+      do_edit_superblock(input_path, fs_offset, fs_size);
+    }
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
     return 1;
   }
+
+  return 0;
 }
 
 int dwarfsck_impl::do_print_header(file_view const& mm) {
@@ -556,6 +585,36 @@ void dwarfsck_impl::do_fs_digests() {
   if (digests.tree_digest) {
     iol_.out << "  tree: " << digests.tree_digest.hex() << "\n";
   }
+}
+
+void dwarfsck_impl::do_edit_superblock(std::filesystem::path const& image_path,
+                                       std::uint64_t const fs_offset,
+                                       std::uint64_t const fs_size) {
+  auto io_stream = iol_.file->open(image_path, std::ios::in | std::ios::out |
+                                                   std::ios::binary);
+  auto& ios = io_stream->ios();
+  auto sbe = superblock_editor{};
+
+  ios.seekg(fs_offset);
+  sbe.read(ios);
+
+  if (opts_.init_superblock) {
+    if (!sbe.fs_size()) {
+      sbe.init_fs_size(fs_size);
+    }
+
+    if (!sbe.fs_uuid()) {
+      sbe.set_fs_uuid(superblock_editor::kUuidRandom);
+    }
+  }
+
+  if (opts_.set_label) {
+    sbe.set_fs_label(sys_string_to_string(*opts_.set_label));
+  }
+
+  sbe.update(ios);
+
+  io_stream->close();
 }
 
 } // namespace
