@@ -132,7 +132,8 @@ struct os_access_mock::mock_dirent {
 
   mock_dirent* find(std::string const& n);
 
-  void add(std::string const& n, simplestat const& st, value_variant_type var);
+  void add(std::string const& n, simplestat const& st, value_variant_type var,
+           bool sync);
 };
 
 struct os_access_mock::mock_directory {
@@ -143,8 +144,8 @@ struct os_access_mock::mock_directory {
 
   mock_dirent* find(std::string const& name);
 
-  void
-  add(std::string const& name, simplestat const& st, value_variant_type var);
+  void add(std::string const& name, simplestat const& st,
+           value_variant_type var, bool sync);
 };
 
 size_t os_access_mock::mock_dirent::size() const {
@@ -161,9 +162,9 @@ auto os_access_mock::mock_dirent::find(std::string const& n) -> mock_dirent* {
 
 void os_access_mock::mock_dirent::add(std::string const& n,
                                       simplestat const& st,
-                                      value_variant_type var) {
-  return std::get<std::unique_ptr<mock_directory>>(v)->add(n, st,
-                                                           std::move(var));
+                                      value_variant_type var, bool sync) {
+  return std::get<std::unique_ptr<mock_directory>>(v)->add(
+      n, st, std::move(var), sync);
 }
 
 size_t os_access_mock::mock_directory::size() const {
@@ -182,8 +183,10 @@ auto os_access_mock::mock_directory::find(std::string const& name)
 
 void os_access_mock::mock_directory::add(std::string const& name,
                                          simplestat const& st,
-                                         value_variant_type var) {
-  assert(!find(name));
+                                         value_variant_type var, bool sync) {
+  if (!sync) {
+    assert(!find(name));
+  }
 
   if (st.type() == posix_file_type::directory) {
     assert(std::holds_alternative<std::unique_ptr<mock_directory>>(var));
@@ -366,6 +369,13 @@ os_access_mock::add_file(fs::path const& path, test_file_data const& data,
   return st;
 }
 
+void os_access_mock::add_file_sync(std::filesystem::path const& path,
+                                   std::string const& contents) {
+  auto st = make_reg_simplestat({});
+  st.size = contents.size();
+  add_internal(path, st, contents, true);
+}
+
 void os_access_mock::add_local_files(fs::path const& base_path) {
   for (auto const& p : fs::recursive_directory_iterator(base_path)) {
     if (p.is_directory()) {
@@ -460,7 +470,7 @@ auto os_access_mock::find(std::vector<std::string> parts) const
 }
 
 void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
-                                  value_variant_type var) {
+                                  value_variant_type var, bool sync) {
   auto parts = splitpath(path);
 
   if (st.type() == posix_file_type::directory &&
@@ -480,7 +490,7 @@ void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
     parts.pop_back();
     auto* de = find(std::move(parts));
     assert(de);
-    de->add(name, st, std::move(var));
+    de->add(name, st, std::move(var), sync);
   }
 }
 

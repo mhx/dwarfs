@@ -149,6 +149,8 @@ class os_access_mock : public os_access {
   simplestat
   add_file(std::filesystem::path const& path, test_file_data const& data,
            add_file_options const& opts = {});
+  void
+  add_file_sync(std::filesystem::path const& path, std::string const& contents);
 
   void add_local_files(std::filesystem::path const& path);
 
@@ -237,7 +239,7 @@ class os_access_mock : public os_access {
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
   void add_internal(std::filesystem::path const& path, simplestat const& st,
-                    value_variant_type var);
+                    value_variant_type var, bool sync = false);
 
   std::mutex mutable mx_;
   std::unique_ptr<mock_dirent> root_;
@@ -355,10 +357,15 @@ class test_file_access : public file_access {
   std::optional<std::error_code>
   get_close_error(std::filesystem::path const& path) const;
 
+  // TODO: this is a hack; os_access_mock and test_file_access should ideally
+  //       be merged into a single class
+  void sync_files_to(os_access_mock& os);
+
  private:
   std::map<std::filesystem::path, std::string> mutable files_;
   std::map<std::filesystem::path, std::error_code> mutable open_errors_;
   std::map<std::filesystem::path, std::error_code> mutable close_errors_;
+  os_access_mock* sync_os_{nullptr};
 };
 
 class test_iolayer {
