@@ -48,9 +48,9 @@
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
+#include <dwarfs/filesystem_digests.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
-#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/reader/duplication_info.h>
 #include <dwarfs/reader/fsinfo_features.h>
 #include <dwarfs/reader/metadata_types.h>

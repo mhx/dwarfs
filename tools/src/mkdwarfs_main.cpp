@@ -1703,19 +1703,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (input_filesystem.has_value() && input_filesystem->has_superblock()) {
-    auto const digests = input_filesystem->digests();
-    bool const keep_attr_digest = digests.attr_digest && !rebuild_metadata;
+    auto digests = input_filesystem->digests();
 
-    if (keep_attr_digest || digests.tree_digest) {
-      // TODO: don't hardcode these
-      fswopts.digest_algo = digest_algorithm::BLAKE3_256;
-      fswopts.digest_scheme_version = 1;
-      if (keep_attr_digest) {
-        fswopts.attr_digest = digests.attr_digest;
-      }
-      if (digests.tree_digest) {
-        fswopts.tree_digest = digests.tree_digest;
-      }
+    if (rebuild_metadata) {
+      // Rebuilding can change the attribute digest
+      digests.attr_digest.reset();
+    }
+
+    if (digests.attr_digest || digests.tree_digest) {
+      assert(digests.scheme_version != 0);
+      fswopts.digests = digests;
     }
   }
 
@@ -1907,19 +1904,21 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         auto const digests =
             reader::compute_filesystem_digests(lgr, *iol.os, fs, cfg);
 
-        // TODO: define constant for current digest scheme version
         if (ed.digest_algo() == digest_algorithm::UNINITIALIZED &&
             ed.digest_scheme_version() == 0) {
-          ed.set_digests(digest_algorithm::BLAKE3_256, 1,
+          ed.set_digests(digests.algorithm, digests.scheme_version,
                          digests.attr_digest.span());
         } else {
-          DWARFS_CHECK(ed.digest_algo() == digest_algorithm::BLAKE3_256 &&
-                           ed.digest_scheme_version() == 1,
+          DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
+                           ed.digest_scheme_version() == digests.scheme_version,
                        "unsupported digest algorithm or scheme version");
           ed.set_attr_digest(digests.attr_digest.span());
         }
 
         if (digests.tree_digest) {
+          DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
+                           ed.digest_scheme_version() == digests.scheme_version,
+                       "unsupported digest algorithm or scheme version");
           ed.set_tree_digest(digests.tree_digest.span());
         }
       }

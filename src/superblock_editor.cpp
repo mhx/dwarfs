@@ -811,6 +811,15 @@ checksum::digest_data superblock_editor::tree_digest() const {
   return checksum::digest_data{impl_->tree_digest()};
 }
 
+filesystem_digests superblock_editor::digests() const {
+  filesystem_digests d;
+  d.algorithm = digest_algo();
+  d.scheme_version = digest_scheme_version();
+  d.attr_digest = attr_digest();
+  d.tree_digest = tree_digest();
+  return d;
+}
+
 void superblock_editor::init_fs_size(std::uint64_t fs_size) {
   impl_->init_fs_size(fs_size);
 }
@@ -828,6 +837,22 @@ void superblock_editor::set_digests(digest_algorithm algo,
                                     std::optional<digest_span> attr_digest,
                                     std::optional<digest_span> tree_digest) {
   impl_->set_digests(algo, scheme_version, attr_digest, tree_digest);
+}
+
+void superblock_editor::set_digests(filesystem_digests const& digests) {
+  std::optional<digest_span> attr_digest;
+  std::optional<digest_span> tree_digest;
+
+  if (digests.attr_digest.has_value()) {
+    attr_digest = digests.attr_digest.span();
+  }
+
+  if (digests.tree_digest.has_value()) {
+    tree_digest = digests.tree_digest.span();
+  }
+
+  set_digests(digests.algorithm, digests.scheme_version, attr_digest,
+              tree_digest);
 }
 
 void superblock_editor::set_attr_digest(digest_span attr_digest) {

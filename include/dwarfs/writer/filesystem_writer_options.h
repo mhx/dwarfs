@@ -28,8 +28,7 @@
 #include <optional>
 #include <string>
 
-#include <dwarfs/checksum.h>
-#include <dwarfs/superblock.h>
+#include <dwarfs/filesystem_digests.h>
 
 namespace dwarfs::writer {
 
@@ -43,10 +42,7 @@ struct filesystem_writer_options {
   size_t image_size_alignment{1};
   std::optional<std::string> uuid{};
   std::string fs_label{};
-  digest_algorithm digest_algo{digest_algorithm::UNINITIALIZED};
-  std::uint8_t digest_scheme_version{0};
-  std::optional<checksum::digest_data> attr_digest{};
-  std::optional<checksum::digest_data> tree_digest{};
+  std::optional<filesystem_digests> digests{};
 };
 
 } // namespace dwarfs::writer

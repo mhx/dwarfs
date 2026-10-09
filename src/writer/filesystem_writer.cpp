@@ -1325,16 +1325,8 @@ void filesystem_writer_<LoggerPolicy>::write_superblock() {
     ed.set_fs_label(options_.fs_label);
   }
 
-  if (options_.attr_digest || options_.tree_digest) {
-    std::optional<superblock_editor::digest_span> attr, tree;
-    if (options_.attr_digest) {
-      attr = options_.attr_digest->span();
-    }
-    if (options_.tree_digest) {
-      tree = options_.tree_digest->span();
-    }
-    ed.set_digests(options_.digest_algo, options_.digest_scheme_version, attr,
-                   tree);
+  if (options_.digests) {
+    ed.set_digests(*options_.digests);
   }
 
   auto buffer = ed.get_payload();

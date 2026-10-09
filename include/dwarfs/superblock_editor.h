@@ -38,6 +38,7 @@
 #include <string_view>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/filesystem_digests.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/superblock.h>
 
@@ -139,6 +140,9 @@ class superblock_editor {
   /// digest algorithm is not known.
   checksum::digest_data tree_digest() const;
 
+  /// All relevant digest information, if present.
+  filesystem_digests digests() const;
+
   /// Sets the filesystem size if it was not set before.
   void init_fs_size(std::uint64_t fs_size);
 
@@ -156,6 +160,7 @@ class superblock_editor {
   void set_digests(digest_algorithm algo, std::uint8_t scheme_version,
                    std::optional<digest_span> attr_digest,
                    std::optional<digest_span> tree_digest = std::nullopt);
+  void set_digests(filesystem_digests const& digests);
   void set_attr_digest(digest_span attr_digest);
   void set_tree_digest(digest_span tree_digest);
 

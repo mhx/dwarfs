@@ -28,29 +28,18 @@
 
 #pragma once
 
-#include <optional>
+#include <cstdint>
 
-#include <dwarfs/filesystem_digests.h>
+#include <dwarfs/checksum.h>
+#include <dwarfs/superblock.h>
 
 namespace dwarfs {
 
-class logger;
-class os_access;
-
-namespace reader {
-
-class filesystem_v2;
-
-struct filesystem_digests_config {
-  bool compute_tree_digest{false};
-  std::size_t max_queued_bytes{64 * 1024 * 1024}; // 64 MiB
-  std::size_t num_worker_threads{4};
+struct filesystem_digests {
+  digest_algorithm algorithm{digest_algorithm::UNINITIALIZED};
+  std::uint8_t scheme_version{0};
+  checksum::digest_data attr_digest;
+  checksum::digest_data tree_digest;
 };
 
-filesystem_digests
-compute_filesystem_digests(logger& lgr, os_access const& os,
-                           filesystem_v2 const& fs,
-                           filesystem_digests_config const& config);
-
-} // namespace reader
 } // namespace dwarfs

@@ -444,6 +444,8 @@ class filesystem_ final {
   filesystem_digests digests() const {
     filesystem_digests r;
     if (auto sbe = get_superblock_editor()) {
+      r.algorithm = sbe->digest_algo();
+      r.scheme_version = sbe->digest_scheme_version();
       r.attr_digest = sbe->attr_digest();
       r.tree_digest = sbe->tree_digest();
     }
