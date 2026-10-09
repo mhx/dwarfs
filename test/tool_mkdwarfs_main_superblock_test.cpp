@@ -32,6 +32,7 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/superblock_editor.h>
 
 #include "filter_test_data.h"
@@ -229,6 +230,13 @@ std::vector<rebuild_step> rebuild_steps{
     },
 };
 
+filesystem_digests
+compute_digests(mkdwarfs_tester const& t, reader::filesystem_v2 const& fs,
+                bool with_tree_digest) {
+  return reader::compute_filesystem_digests(
+      *t.lgr, *t.os, fs, {.compute_tree_digest = with_tree_digest});
+}
+
 class write_superblock_test
     : public ::testing::TestWithParam<
           std::tuple<build_step, bool, rebuild_step, bool>> {};
@@ -270,6 +278,8 @@ TEST_P(write_superblock_test, write_superblock) {
       iss.seekg(header.size(), std::ios::beg);
     }
 
+    bool const has_any_digest = build.has_attr_digest || build.has_tree_digest;
+
     if (build.has_superblock) {
       ASSERT_NO_THROW(ed.read(iss));
 
@@ -290,8 +300,6 @@ TEST_P(write_superblock_test, write_superblock) {
 
       EXPECT_EQ(ed.fs_label(), build.label);
 
-      bool const has_any_digest =
-          build.has_attr_digest || build.has_tree_digest;
       auto const expected_algo = has_any_digest
                                      ? digest_algorithm::BLAKE3_256
                                      : digest_algorithm::UNINITIALIZED;
@@ -341,13 +349,20 @@ TEST_P(write_superblock_test, write_superblock) {
     }
 
     auto const digests = fs.digests();
+    std::optional<filesystem_digests> computed_digests;
+
+    if (build.has_superblock && has_any_digest) {
+      computed_digests = compute_digests(t, fs, build.has_tree_digest);
+    }
 
     if (build.has_superblock && build.has_attr_digest) {
       EXPECT_EQ(digests.attr_digest.hex(), kAttrDigest);
+      EXPECT_EQ(computed_digests->attr_digest.hex(), kAttrDigest);
     }
 
     if (build.has_superblock && build.has_tree_digest) {
       EXPECT_EQ(digests.tree_digest.hex(), kTreeDigest);
+      EXPECT_EQ(computed_digests->tree_digest.hex(), kTreeDigest);
     }
   }
 
@@ -390,6 +405,10 @@ TEST_P(write_superblock_test, write_superblock) {
       iss.seekg(header.size(), std::ios::beg);
     }
 
+    bool const has_any_digest =
+        rebuild.has_attr_digest.value_or(build.has_attr_digest) ||
+        rebuild.has_tree_digest.value_or(build.has_tree_digest);
+
     auto const expected_alignment = rebuild.size_alignment.value_or(
         build.has_superblock ? build.size_alignment : 1);
 
@@ -413,9 +432,6 @@ TEST_P(write_superblock_test, write_superblock) {
 
       EXPECT_EQ(ed.fs_label(), rebuild.label.value_or(build.label));
 
-      bool const has_any_digest =
-          rebuild.has_attr_digest.value_or(build.has_attr_digest) ||
-          rebuild.has_tree_digest.value_or(build.has_tree_digest);
       auto const expected_algo = has_any_digest
                                      ? digest_algorithm::BLAKE3_256
                                      : digest_algorithm::UNINITIALIZED;
@@ -468,16 +484,25 @@ TEST_P(write_superblock_test, write_superblock) {
     }
 
     auto const digests = fs.digests();
+    std::optional<filesystem_digests> computed_digests;
+
+    if (rebuild.has_superblock && has_any_digest) {
+      computed_digests = compute_digests(
+          t, fs, rebuild.has_tree_digest.value_or(build.has_tree_digest));
+    }
 
     if (rebuild.has_superblock &&
         rebuild.has_attr_digest.value_or(build.has_attr_digest)) {
       EXPECT_EQ(digests.attr_digest.hex(),
+                rebuild.attr_digest.value_or(kAttrDigest));
+      EXPECT_EQ(computed_digests->attr_digest.hex(),
                 rebuild.attr_digest.value_or(kAttrDigest));
     }
 
     if (rebuild.has_superblock &&
         rebuild.has_tree_digest.value_or(build.has_tree_digest)) {
       EXPECT_EQ(digests.tree_digest.hex(), kTreeDigest);
+      EXPECT_EQ(computed_digests->tree_digest.hex(), kTreeDigest);
     }
   }
 }
