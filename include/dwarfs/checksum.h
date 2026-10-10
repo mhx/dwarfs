@@ -54,6 +54,8 @@ class checksum {
     bool has_value() const { return size_ > 0; }
     explicit operator bool() const { return has_value(); }
 
+    void reset() { size_ = 0; }
+
     std::size_t size() const { return size_; }
 
     std::string hex() const;
