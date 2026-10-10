@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cerrno>
 #include <cstdio>
 #include <ctime>
@@ -58,6 +59,12 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/map.hpp>
 
+#if __has_include(<utf8cpp/utf8.h>)
+#include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
+
 #include <dwarfs/portability/jthread.h>
 
 #include <dwarfs/binary_literals.h>
@@ -76,9 +83,11 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/string.h>
+#include <dwarfs/superblock_editor.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
@@ -458,12 +467,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }()};
 
   writer::segmenter_factory::config sf_config;
-  sys_string path_str, input_list_str, output_str, header_str;
+  sys_string path_str, input_list_str, output_str, header_str, fs_label;
   std::string memory_limit, schema_compression, metadata_compression, timestamp,
       time_resolution, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
-      history_compression, recompress_categories,
-      rebuild_metadata_source_os_hint;
+      history_compression, recompress_categories, image_size_alignment_str,
+      rebuild_metadata_source_os_hint, uuid_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -473,7 +482,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        force_overwrite = false, no_history = false, no_sparse_files = false,
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
-       estimate_compression_memory = false, no_dedupe = false;
+       estimate_compression_memory = false, no_dedupe = false,
+       no_superblock = false, no_superblock_init = false,
+       no_superblock_digests = false, no_superblock_tree_digest = false,
+       no_backwards_compat = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -499,6 +511,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto debug_filter_desc =
       fmt::format("show effect of filter rules without producing an image ({})",
                   fmt::join(ranges::views::keys(debug_filter_modes), ", "));
+
+  auto const uuid_desc =
+      fmt::format("set UUID in superblock ({}, {}, keep, or RFC 9562 string)",
+                  superblock_editor::kUuidRandom, superblock_editor::kUuidNil);
 
   writer::categorizer_registry catreg;
 
@@ -641,6 +657,27 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&remove_header)->zero_tokens(),
         "remove any header present before filesystem data"
         " (use with --recompress)")
+    ("no-superblock",
+        po::value<bool>(&no_superblock)->zero_tokens(),
+        "don't add superblock to filesystem")
+    ("no-superblock-init",
+        po::value<bool>(&no_superblock_init)->zero_tokens(),
+        "don't initialize superblock fields after writing filesystem")
+    ("no-superblock-digests",
+        po::value<bool>(&no_superblock_digests)->zero_tokens(),
+        "don't initialize superblock digests after writing filesystem")
+    ("no-superblock-tree-digest",
+        po::value<bool>(&no_superblock_tree_digest)->zero_tokens(),
+        "don't initialize superblock tree digest after writing filesystem")
+    ("label",
+        po_sys_value<sys_string>(&fs_label),
+        "set filesystem label to this string")
+    ("uuid",
+        po::value<std::string>(&uuid_str),
+        uuid_desc.c_str())
+    ("image-size-alignment",
+        po::value<std::string>(&image_size_alignment_str),
+        "make output image size a multiple of this value (must be a power of 2)")
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
@@ -656,6 +693,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("hollow",
         po::value<bool>(&options.hollow_filesystem)->zero_tokens(),
         "create hollow filesystem (only zero-filled files)")
+    ("no-backwards-compat",
+        po::value<bool>(&no_backwards_compat)->zero_tokens(),
+        "don't try to produce a backwards compatible filesystem")
     ;
 
   po::options_description segmenter_opts("Segmenter options");
@@ -988,7 +1028,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     source_os_hint = *os;
   }
 
-  bool recompress =
+  bool const recompress =
       vm.contains("recompress") || rebuild_metadata || change_block_size;
   utility::rewrite_options rw_opts;
   if (recompress) {
@@ -1265,6 +1305,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                       : kProgressRefreshInterval;
 
   std::unique_ptr<input_stream> header_ifs;
+  std::optional<file_size_t> image_offset;
 
   if (!header_str.empty()) {
     std::filesystem::path header(header_str);
@@ -1275,6 +1316,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               << "': " << ec.message() << "\n";
       return 1;
     }
+    auto& is = header_ifs->is();
+    is.seekg(0, std::ios::end);
+    image_offset = is.tellg();
+    is.seekg(0, std::ios::beg);
   }
 
   LOG_PROXY(debug_logger_policy, lgr);
@@ -1360,6 +1405,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       os.emplace<std::unique_ptr<output_stream>>(std::move(stream));
     } else {
+      no_superblock_init = true;
       ensure_binary_mode(iol.out);
     }
   } else {
@@ -1438,6 +1484,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         return 1;
       }
     }
+
+    if (input_filesystem->version() > FS_VERSION_CURRENT) {
+      if (!no_backwards_compat) {
+        LOG_WARN
+            << "disabling backwards compatibility for input filesystem version "
+            << input_filesystem->version();
+        no_backwards_compat = true;
+      }
+    }
+
+    if (!remove_header) {
+      auto const offset = input_filesystem->image_offset();
+      if (offset > 0) {
+        image_offset = offset;
+      }
+    }
   } else {
     cat_resolver = options.inode.categorizer_mgr;
   }
@@ -1465,6 +1527,70 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                << " to efficiently compress "
                << size_with_unit(output_block_size) << " blocks with "
                << num_workers << " threads";
+    }
+  }
+
+  uint64_t const image_size_alignment =
+      vm.contains("image-size-alignment")
+          ? parse_size_with_unit(image_size_alignment_str)
+          : 1;
+
+  if (!std::has_single_bit(image_size_alignment)) {
+    LOG_ERROR
+        << "the argument to '--image-size-alignment' must be a power of 2";
+    return 1;
+  }
+
+  if (!no_backwards_compat) {
+    if (vm.contains("label")) {
+      LOG_ERROR << "the '--label' option requires '--no-backwards-compat'";
+      return 1;
+    }
+
+    if (vm.contains("uuid")) {
+      LOG_ERROR << "the '--uuid' option requires '--no-backwards-compat'";
+      return 1;
+    }
+
+    no_superblock = true;
+  }
+
+  if (no_superblock) {
+    if (vm.contains("label")) {
+      LOG_ERROR << "the '--label' option cannot be used with '--no-superblock'";
+      return 1;
+    }
+
+    if (vm.contains("uuid")) {
+      LOG_ERROR << "the '--uuid' option cannot be used with '--no-superblock'";
+      return 1;
+    }
+  } else {
+    try {
+      if (!vm.contains("uuid")) {
+        if (recompress && input_filesystem->has_superblock()) {
+          uuid_str = "keep";
+        } else {
+          uuid_str = superblock_editor::kUuidRandom;
+        }
+      }
+
+      if (uuid_str == "keep") {
+        if (!recompress) {
+          LOG_ERROR << "'--uuid=keep' can only be used when recompressing an "
+                       "existing filesystem";
+          return 1;
+        }
+
+        if (auto existing_uuid = input_filesystem->filesystem_uuid()) {
+          uuid_str = *existing_uuid;
+        } else {
+          uuid_str = superblock_editor::kUuidNil;
+        }
+      }
+    } catch (std::exception const& e) {
+      LOG_ERROR << "invalid UUID: " << e.what();
+      return 1;
     }
   }
 
@@ -1555,6 +1681,40 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
+  fswopts.no_superblock = no_superblock;
+  fswopts.no_backwards_compat = no_backwards_compat;
+
+  if (vm.count("image-size-alignment")) {
+    fswopts.image_size_alignment = image_size_alignment;
+  } else if (input_filesystem.has_value()) {
+    fswopts.image_size_alignment = input_filesystem->image_size_alignment();
+  }
+
+  fswopts.uuid = uuid_str;
+
+  if (vm.count("label")) {
+    fswopts.fs_label = sys_string_to_string(fs_label);
+    if (!utf8::is_valid(fswopts.fs_label)) {
+      LOG_ERROR << "invalid UTF-8 in filesystem label";
+      return 1;
+    }
+  } else if (input_filesystem.has_value()) {
+    fswopts.fs_label = input_filesystem->filesystem_label();
+  }
+
+  if (input_filesystem.has_value() && input_filesystem->has_superblock()) {
+    auto digests = input_filesystem->digests();
+
+    if (rebuild_metadata) {
+      // Rebuilding can change the attribute digest
+      digests.attr_digest.reset();
+    }
+
+    if (digests.attr_digest || digests.tree_digest) {
+      assert(digests.scheme_version != 0);
+      fswopts.digests = digests;
+    }
+  }
 
   std::optional<writer::filesystem_writer> fsw;
 
@@ -1707,6 +1867,68 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     if (ec != 0) {
       return ec;
+    }
+  }
+
+  if (!no_superblock && !no_superblock_init) {
+    try {
+      superblock_editor ed;
+      auto ios = iol.file->open(output, std::ios::in | std::ios::out |
+                                            std::ios::binary);
+      auto& stream = ios->ios();
+
+      if (image_offset) {
+        stream.seekg(*image_offset, std::ios::beg);
+      }
+
+      ed.read(stream);
+
+      stream.seekg(0, std::ios::end);
+
+      ed.init_fs_size(stream.tellg() - ed.image_offset());
+
+      if (!no_superblock_digests) {
+        reader::filesystem_v2 fs(
+            lgr, *iol.os, output,
+            reader::filesystem_options{
+                .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+
+        bool const has_tree_digest = ed.tree_digest().has_value();
+
+        reader::filesystem_digests_config const cfg{
+            .compute_tree_digest =
+                !no_superblock_tree_digest && !has_tree_digest,
+            .num_worker_threads = num_workers,
+        };
+
+        auto const digests =
+            reader::compute_filesystem_digests(lgr, *iol.os, fs, cfg);
+
+        if (ed.digest_algo() == digest_algorithm::UNINITIALIZED &&
+            ed.digest_scheme_version() == 0) {
+          ed.set_digests(digests.algorithm, digests.scheme_version,
+                         digests.attr_digest.span());
+        } else {
+          DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
+                           ed.digest_scheme_version() == digests.scheme_version,
+                       "unsupported digest algorithm or scheme version");
+          ed.set_attr_digest(digests.attr_digest.span());
+        }
+
+        if (digests.tree_digest) {
+          DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
+                           ed.digest_scheme_version() == digests.scheme_version,
+                       "unsupported digest algorithm or scheme version");
+          ed.set_tree_digest(digests.tree_digest.span());
+        }
+      }
+
+      ed.update(stream);
+
+      ios->close();
+    } catch (std::exception const& e) {
+      LOG_ERROR << "failed to update superblock: " << e.what();
+      return 1;
     }
   }
 

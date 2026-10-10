@@ -104,6 +104,39 @@ with a non-zero exit code.
   Export all filesystem metadata to *file* in JSON format. Write to stdout
   if *file* is `-`.
 
+- `--init-superblock`[=`all`|`size`|`uuid`|`digests`|`attr_digest`[`,`...]]:
+  Initialize uninitialized superblock fields, e.g. the UUID and/or the size
+  of the filesystem, if they haven't been set by `mkdwarfs`. The UUID can be
+  left uninitialized by `mkdwarfs` to support the creation of bit-identical
+  filesystem images. The size isn't set by `mkdwarfs` if the filesystem image
+  was written to stdout. Once initialized, all superblock fields except for
+  the label and UUID are immutable. This option is only supported for
+  filesystem images that actually have a superblock. You can re-write an
+  existing image without a superblock using `mkdwarfs` to add a superblock.
+  Unless specified by `--set-uuid`, the UUID will be initialized to a random
+  RFC 9562 v4 UUID. The size field will *always* be initialized, even if it
+  is not explicitly requested, when using this option.
+
+- `--set-uuid=random`|`nil`|*UUID*:
+  Set the filesystem UUID to a random RFC 9562 v4 UUID, an all-zero UUID, or
+  to an explicit RFC 9562 UUID. This is only supported for filesystem images
+  that actually have a superblock. You can re-write an existing image without
+  a superblock using `mkdwarfs` to add a superblock.
+
+- `--set-label=`*label*:
+  Set the filesystem label to *label*. This will modify the filesystem in
+  place by overwriting the label in the filesystem superblock and updating
+  the checksums. This is only supported for filesystem images that actually
+  have a superblock. You can re-write an existing image without a superblock
+  using `mkdwarfs` to add a superblock.
+
+- `--clear-label`:
+  Clear the filesystem label. This is mostly a workaround for not being able
+  to set an empty label with `--set-label=` due to a Boost.ProgramOptions
+  limitation. Note that `--set-label` will always take precedence over
+  `--clear-label` if both are specified, regardless of the order in which
+  they appear on the command line.
+
 - `--log-level=`*name*:
   Specify a logging level.
 

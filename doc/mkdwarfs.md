@@ -468,6 +468,16 @@ Most other options are concerned with compression tuning:
   You may want to set `--no-dedupe` and `--order=none` when using this
   option to speed up the build process.
 
+- `--no-backwards-compat`:
+  Don't attempt to write a backwards-compatible file system. This will write
+  the latest version of the file system format, which *can* make the output
+  unreadable by older versions of the DwarFS tools. Usually, the output of
+  `mkdwarfs` is backwards-compatible for at least two minor versions, e.g.
+  an image produced by v0.16 can still be read by v0.14, unless it uses any
+  new features that are not supported by the older version. This will be
+  enabled automatically when re-writing an existing file system image that
+  already uses a newer supported version of the file system format.
+
 - `--with-devices`:
   Include character and block devices in the output file system. These are
   not included by default, and due to security measures in FUSE, they will
@@ -491,6 +501,53 @@ Most other options are concerned with compression tuning:
 
 - `--remove-header`:
   Remove header from a filesystem image. Only useful with `--recompress`.
+
+- `--no-superblock`:
+  Don't add a superblock to the file system. The superblock stores information
+  such as the file system size, UUID, and file system label. If you don't need
+  these features and want to save 160 bytes, you can disable the superblock.
+
+- `--no-superblock-init`:
+  Don't initialize superblock fields after writing a file system image. This
+  only affects fields that are unknown at the time of writing the superblock,
+  for example the file system size and the file system digests. This option
+  is enabled automatically when the image is written to standard output. In
+  this case, the superblock can be initialized later using `dwarfsck`.
+
+- `--no-superblock-digests`:
+  Disable the computation and storage of file system digests in the superblock.
+  Digests are useful for verifying the integrity of the file system, as well
+  as for comparing file system images for equality. Disabling digests when they
+  are not needed can save some time during file system creation. The digests
+  can also be computed later using `dwarfsck`.
+
+- `--no-superblock-tree-digest`:
+  Disable the computation and storage of the file system tree digest in the
+  superblock. The tree digests takes into account the actual file contents and
+  is more expensive to compute than the attribute digest. Especially for file
+  systems with large sparse files, the tree digest can take a significant
+  amount of time to compute. The tree digest can also be computed later using
+  `dwarfsck`.
+
+- `--label=`*label*:
+  Set the file system label. This can be used during initial file system
+  creation, when recompressing an existing file system, or whenever a file
+  system was created with a superblock. Unlike other superblock fields, the
+  label can be changed at any time.
+
+- `--uuid=random`|`nil`|`keep`|*UUID*:
+  Set the file system UUID to a random RFC 9562 v4 UUID (default for newly
+  created file systems with a superblock), leave it empty (e.g. for
+  bit-identical file system images), keep it (default when re-writing an
+  image) or explicitly set an RFC 9562 UUID. The UUID can be initialized
+  later using `dwarfsck`.
+
+- `--image-size-alignment`=*value*:
+  Align the file system image size to a multiple of this value. This can be
+  useful e.g. when the file system image is going to be attached to a loop
+  device which has a sector size requirement. This is 1 by default, meaning
+  no extra padding is added. Setting this to a value larger than 1 will
+  insert a padding section if necessary.
 
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny
@@ -905,7 +962,8 @@ to the file system image.
 
 In order to produce bit-identical images, you need to pass
 `--no-create-timestamp` and either `--no-history-timestamps` or
-`--no-history`.
+`--no-history`. You also need to pass `--uuid=nil` if your image
+should contain a superblock.
 
 Another more subtle requirement for bit-identical images is that if
 you're using `--categorize`, the `--num-segmenter-workers` is kept

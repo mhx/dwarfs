@@ -48,6 +48,7 @@
 #include <dwarfs/file_extents_iterable.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
+#include <dwarfs/filesystem_digests.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/duplication_info.h>
@@ -336,6 +337,9 @@ class filesystem_v2_lite {
 
   size_t block_size() const { return lite_->block_size(); }
 
+  file_off_t image_offset() const { return lite_->image_offset(); }
+  file_size_t image_size() const { return lite_->image_size(); }
+
   bool has_symlinks() const { return lite_->has_symlinks(); }
 
   bool has_sparse_files() const { return lite_->has_sparse_files(); }
@@ -469,6 +473,8 @@ class filesystem_v2_lite {
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual size_t block_size() const = 0;
+    virtual file_off_t image_offset() const = 0;
+    virtual file_size_t image_size() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual bool has_sparse_files() const = 0;
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
@@ -551,6 +557,12 @@ class filesystem_v2 final : public filesystem_v2_lite {
   std::future<block_range>
   read_raw_block_data(size_t block_no, size_t offset, size_t size) const;
 
+  bool has_superblock() const;
+  std::uint64_t image_size_alignment() const;
+  filesystem_digests digests() const;
+  std::string filesystem_label() const;
+  std::optional<std::string> filesystem_uuid() const;
+
   class impl : public impl_lite {
    public:
     virtual int
@@ -571,6 +583,11 @@ class filesystem_v2 final : public filesystem_v2_lite {
     thawed_fs_options() const = 0;
     virtual std::future<block_range>
     read_raw_block_data(size_t block, size_t offset, size_t size) const = 0;
+    virtual bool has_superblock() const = 0;
+    virtual std::uint64_t image_size_alignment() const = 0;
+    virtual filesystem_digests digests() const = 0;
+    virtual std::string filesystem_label() const = 0;
+    virtual std::optional<std::string> filesystem_uuid() const = 0;
   };
 
  private:
