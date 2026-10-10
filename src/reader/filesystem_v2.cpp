@@ -54,6 +54,7 @@
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/superblock_editor.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>
@@ -355,6 +356,8 @@ class filesystem_ final {
   }
   size_t num_blocks() const { return ir_.num_blocks(); }
   size_t block_size() const { return meta_.block_size(); }
+  file_off_t image_offset() const { return make_fs_parser().image_offset(); }
+  file_size_t image_size() const { return make_fs_parser().image_size(); }
   bool has_symlinks() const { return meta_.has_symlinks(); }
   bool has_sparse_files() const { return meta_.has_sparse_files(); }
   history get_history() const;
@@ -429,11 +432,47 @@ class filesystem_ final {
     return ir_.read_raw_block_data(block_no, offset, size);
   }
 
+  bool has_superblock() const { return superblock_section_.has_value(); }
+
+  std::uint64_t image_size_alignment() const {
+    if (auto sbe = get_superblock_editor()) {
+      return sbe->fs_size_alignment();
+    }
+    return 1;
+  }
+
+  filesystem_digests digests() const {
+    filesystem_digests r;
+    if (auto sbe = get_superblock_editor()) {
+      r.algorithm = sbe->digest_algo();
+      r.scheme_version = sbe->digest_scheme_version();
+      r.attr_digest = sbe->attr_digest();
+      r.tree_digest = sbe->tree_digest();
+    }
+    return r;
+  }
+
+  std::string filesystem_label() const {
+    if (auto sbe = get_superblock_editor()) {
+      return std::string{sbe->fs_label()};
+    }
+    return {};
+  }
+
+  std::optional<std::string> filesystem_uuid() const {
+    if (auto sbe = get_superblock_editor()) {
+      return sbe->fs_uuid();
+    }
+    return std::nullopt;
+  }
+
  private:
   filesystem_parser make_fs_parser() const {
     return filesystem_parser(LOG_GET_LOGGER, mm_, image_offset_,
                              options_.image_size);
   }
+
+  std::optional<superblock_editor> get_superblock_editor() const;
 
   size_t get_max_cache_blocks() const {
     return options_.block_cache.max_bytes / meta_.block_size();
@@ -467,6 +506,7 @@ class filesystem_ final {
   filesystem_options const options_;
   filesystem_version version_;
   bool has_valid_section_index_{false};
+  std::optional<fs_section> superblock_section_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -685,6 +725,15 @@ filesystem_<LoggerPolicy>::filesystem_(
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     history_sections_ = std::move(it->second);
   }
+
+  if (auto it = sections.find(section_type::SUPERBLOCK); it != sections.end()) {
+    auto const& sv = it->second;
+    assert(sv.size() == 1);
+    auto const& sb = sv.front();
+    if (sb.check_fast_mm(mm_)) {
+      superblock_section_.emplace(sb);
+    }
+  }
 }
 
 template <typename LoggerPolicy>
@@ -783,6 +832,25 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 }
 
 template <typename LoggerPolicy>
+std::optional<superblock_editor>
+filesystem_<LoggerPolicy>::get_superblock_editor() const {
+  std::optional<superblock_editor> sbe;
+
+  if (superblock_section_) {
+    // Need to keep the segment alive while we read the span.
+    auto seg = superblock_section_->segment(mm_);
+    auto sb_data = seg.span();
+    std::istringstream iss(std::string(
+        reinterpret_cast<char const*>(sb_data.data()), sb_data.size()));
+
+    sbe.emplace();
+    sbe->read(iss);
+  }
+
+  return sbe;
+}
+
+template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os,
                                      fsinfo_options const& opts,
                                      history const& hist) const {
@@ -794,6 +862,36 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
       os << " at offset " << off;
     }
     os << "\n";
+  }
+
+  if (opts.features.has(fsinfo_feature::superblock)) {
+    if (auto sbe = get_superblock_editor()) {
+      os << "filesystem size alignment: "
+         << size_with_unit(sbe->fs_size_alignment()) << "\n";
+      if (auto const size = sbe->fs_size()) {
+        os << "filesystem size: " << size_with_unit(*size) << "\n";
+      }
+      if (auto const uuid = sbe->fs_uuid()) {
+        os << "filesystem UUID: " << *uuid << "\n";
+      }
+      if (auto const label = sbe->fs_label(); !label.empty()) {
+        os << "filesystem label: " << label << "\n";
+      }
+      if (auto const algo = sbe->digest_algo();
+          algo != digest_algorithm::UNINITIALIZED) {
+        os << "digests: " << get_digest_algorithm_name(algo)
+           << " (scheme version "
+           << static_cast<int>(sbe->digest_scheme_version()) << ")\n";
+        if (auto const& attr_digest = sbe->attr_digest()) {
+          os << "  attribute digest: " << attr_digest.hex() << "\n";
+        }
+        if (auto const& tree_digest = sbe->tree_digest()) {
+          os << "  tree digest     : " << tree_digest.hex() << "\n";
+        }
+      }
+    } else {
+      os << "no superblock found\n";
+    }
   }
 
   size_t block_no{0};
@@ -1546,6 +1644,8 @@ class filesystem_common_ : public Base {
   }
   size_t num_blocks() const override { return fs_.num_blocks(); }
   size_t block_size() const override { return fs_.block_size(); }
+  file_off_t image_offset() const override { return fs_.image_offset(); }
+  file_size_t image_size() const override { return fs_.image_size(); }
   bool has_symlinks() const override { return fs_.has_symlinks(); }
   bool has_sparse_files() const override { return fs_.has_sparse_files(); }
   nlohmann::json get_inode_info(inode_view entry) const override {
@@ -1642,6 +1742,17 @@ class filesystem_full_
   std::future<block_range> read_raw_block_data(size_t block_no, size_t offset,
                                                size_t size) const override {
     return fs().read_raw_block_data(block_no, offset, size);
+  }
+  bool has_superblock() const override { return fs().has_superblock(); }
+  std::uint64_t image_size_alignment() const override {
+    return fs().image_size_alignment();
+  }
+  filesystem_digests digests() const override { return fs().digests(); }
+  std::string filesystem_label() const override {
+    return fs().filesystem_label();
+  }
+  std::optional<std::string> filesystem_uuid() const override {
+    return fs().filesystem_uuid();
   }
 
  private:
@@ -1782,6 +1893,22 @@ std::future<block_range>
 filesystem_v2::read_raw_block_data(size_t block_no, size_t offset,
                                    size_t size) const {
   return full_().read_raw_block_data(block_no, offset, size);
+}
+
+bool filesystem_v2::has_superblock() const { return full_().has_superblock(); }
+
+std::uint64_t filesystem_v2::image_size_alignment() const {
+  return full_().image_size_alignment();
+}
+
+filesystem_digests filesystem_v2::digests() const { return full_().digests(); }
+
+std::string filesystem_v2::filesystem_label() const {
+  return full_().filesystem_label();
+}
+
+std::optional<std::string> filesystem_v2::filesystem_uuid() const {
+  return full_().filesystem_uuid();
 }
 
 auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }
