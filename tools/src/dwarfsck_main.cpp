@@ -229,7 +229,7 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         "export raw metadata as JSON to file")
     ("init-superblock",
         po::value<std::string>(&init_superblock_raw)->implicit_value("all"),
-        "initialize superblock fields (all, uuid, digests, attr_digest)")
+        "initialize superblock fields (all, size, uuid, digests, attr_digest)")
     ("set-label",
         po_sys_value<sys_string>(&set_label_raw),
         "set filesystem label in superblock")
@@ -314,6 +314,8 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         o.init_attr_digest = true;
         o.init_tree_digest = true;
         o.init_uuid = true;
+      } else if (field == "size") {
+        // nothing to do, size is always initialized
       } else if (field == "uuid") {
         o.init_uuid = true;
       } else if (field == "digests") {
@@ -373,6 +375,8 @@ int dwarfsck_impl::run() {
     return 1;
   }
 
+  bool warnings{false};
+
   try {
     fsopts_.metadata.check_consistency = !opts_.no_check;
     fsopts_.image_offset = reader::parse_image_offset(opts_.image_offset);
@@ -428,14 +432,19 @@ int dwarfsck_impl::run() {
     }
 
     if (opts_.init_superblock) {
-      do_edit_superblock(input_path);
+      if (fs().has_superblock()) {
+        do_edit_superblock(input_path);
+      } else {
+        LOG_WARN << "no superblock found";
+        warnings = true;
+      }
     }
   } catch (std::exception const& e) {
     LOG_ERROR << "error: " << e.what();
     return 1;
   }
 
-  return 0;
+  return warnings ? 2 : 0;
 }
 
 int dwarfsck_impl::do_print_header(file_view const& mm) {

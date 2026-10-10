@@ -34,6 +34,8 @@
 #include <fmt/ranges.h>
 #endif
 
+#include <range/v3/view/cartesian_product.hpp>
+
 #include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/superblock_editor.h>
 
@@ -45,6 +47,8 @@ using namespace dwarfs;
 
 namespace {
 
+constexpr auto kBoolean = std::array{true, false};
+
 constexpr inline filesystem_version FS_VERSION_ACCEPTED{MAJOR_VERSION,
                                                         MINOR_VERSION_ACCEPTED};
 
@@ -55,7 +59,8 @@ struct build_step {
   bool has_uuid{true};
   bool has_size{true};
   std::uint64_t size_alignment{1};
-  std::string_view label{};
+  std::string label{};
+  std::optional<std::string> uuid{};
   bool has_attr_digest{true};
   bool has_tree_digest{true};
 
@@ -73,9 +78,11 @@ struct rebuild_step {
   bool legacy_image{false};
   bool has_superblock{true};
   std::optional<bool> has_uuid{};
+  bool keep_uuid{true};
   bool has_size{true};
   std::optional<std::uint64_t> size_alignment{};
-  std::optional<std::string_view> label{};
+  std::optional<std::string> label{};
+  std::optional<std::string> uuid{};
   std::optional<bool> has_attr_digest{};
   std::optional<bool> has_tree_digest{};
   std::optional<std::string_view> attr_digest{};
@@ -89,6 +96,21 @@ struct rebuild_step {
   }
 };
 
+struct check_step {
+  std::vector<std::string> args;
+  bool read_only{false};
+  std::optional<bool> has_uuid{};
+  std::optional<bool> has_size{};
+  std::optional<std::string> label{};
+  std::optional<std::string> uuid{};
+  std::optional<bool> has_attr_digest{};
+  std::optional<bool> has_tree_digest{};
+
+  friend std::ostream& operator<<(std::ostream& os, check_step const& test) {
+    return os << fmt::format("args={}", fmt::join(test.args, ","));
+  }
+};
+
 constexpr std::string_view kUnicodeLabel{"我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️"};
 
 constexpr std::string_view kAttrDigest{
@@ -97,6 +119,8 @@ constexpr std::string_view kAttrDigestNorm{
     "46bc5c8f5e9b4ece7a26bcaca1aa52327cd14abf1bc3d4920697a4d8340b3bc2"};
 constexpr std::string_view kTreeDigest{
     "01786e7be69d7460976bb7d721a3a170019691865bdba2a8e5954287025567ea"};
+
+constexpr std::string_view kTestUuid{"1fe2720a-2a81-446b-afc4-28cae43edade"};
 
 std::vector<build_step> build_steps{
     {
@@ -134,6 +158,14 @@ std::vector<build_step> build_steps{
         .has_tree_digest = false,
     },
     {
+        .args = {"--no-superblock-init", "--uuid", std::string{kTestUuid}},
+        .has_uuid = true,
+        .has_size = false,
+        .uuid = std::string{kTestUuid},
+        .has_attr_digest = false,
+        .has_tree_digest = false,
+    },
+    {
         .args = {"--no-superblock-init", "--image-size-alignment=512"},
         .has_size = false,
         .size_alignment = 512,
@@ -157,6 +189,19 @@ std::vector<build_step> build_steps{
             },
         .has_uuid = false,
         .has_size = false,
+        .has_attr_digest = false,
+        .has_tree_digest = false,
+    },
+    {
+        .args =
+            {
+                "--no-superblock-init",
+                "--uuid",
+                std::string{kTestUuid},
+            },
+        .has_uuid = true,
+        .has_size = false,
+        .uuid = std::string{kTestUuid},
         .has_attr_digest = false,
         .has_tree_digest = false,
     },
@@ -190,8 +235,16 @@ std::vector<rebuild_step> rebuild_steps{
         .has_tree_digest = true,
     },
     {
+        .args = {"--rebuild-metadata", "--uuid", std::string{kTestUuid}},
+        .has_uuid = true,
+        .keep_uuid = false,
+        .uuid = std::string{kTestUuid},
+        .has_attr_digest = true,
+        .has_tree_digest = true,
+    },
+    {
         .args = {"--rebuild-metadata", "--label", std::string{kUnicodeLabel}},
-        .label = kUnicodeLabel,
+        .label = std::string{kUnicodeLabel},
         .has_attr_digest = true,
         .has_tree_digest = true,
     },
@@ -203,6 +256,12 @@ std::vector<rebuild_step> rebuild_steps{
     },
     {
         .args = {"--recompress=none", "--no-superblock-init"},
+        .has_size = false,
+    },
+    {
+        .args = {"--recompress=none", "--no-superblock-init", "--uuid=random"},
+        .has_uuid = true,
+        .keep_uuid = false,
         .has_size = false,
     },
     {
@@ -229,6 +288,50 @@ std::vector<rebuild_step> rebuild_steps{
         .args = {"--rebuild-metadata", "--chmod=norm",
                  "--no-superblock-digests"},
         .has_attr_digest = false,
+    },
+};
+
+std::vector<check_step> check_steps{
+    {
+        .args = {},
+        .read_only = true,
+    },
+    {
+        .args = {"--check-integrity"},
+        .read_only = true,
+    },
+    {
+        .args = {"--init-superblock"},
+        .has_uuid = true,
+        .has_size = true,
+        .has_attr_digest = true,
+        .has_tree_digest = true,
+    },
+    {
+        .args = {"--init-superblock=size"},
+        .has_size = true,
+    },
+    {
+        .args = {"--init-superblock=uuid"},
+        .has_uuid = true,
+        .has_size = true,
+    },
+    {
+        .args = {"--init-superblock=digests"},
+        .has_size = true,
+        .has_attr_digest = true,
+        .has_tree_digest = true,
+    },
+    {
+        .args = {"--init-superblock=attr_digest"},
+        .has_size = true,
+        .has_attr_digest = true,
+    },
+    {
+        .args = {"--init-superblock=uuid,attr_digest"},
+        .has_uuid = true,
+        .has_size = true,
+        .has_attr_digest = true,
     },
 };
 
@@ -269,6 +372,8 @@ TEST_P(write_superblock_test, write_superblock) {
   auto image = t.fa->get_file("test.dwarfs");
   ASSERT_TRUE(image) << "test.dwarfs not created";
 
+  std::optional<std::string> original_uuid;
+
   {
     superblock_editor ed;
     std::istringstream iss(*image);
@@ -297,6 +402,14 @@ TEST_P(write_superblock_test, write_superblock) {
 
       auto const uuid = ed.fs_uuid();
       EXPECT_EQ(uuid.has_value(), build.has_uuid);
+
+      if (build.uuid) {
+        EXPECT_EQ(uuid.value(), build.uuid.value());
+      }
+
+      if (build.has_uuid) {
+        original_uuid = uuid.value();
+      }
 
       EXPECT_EQ(ed.fs_label(), build.label);
 
@@ -366,10 +479,156 @@ TEST_P(write_superblock_test, write_superblock) {
     }
   }
 
-  // rebuild
+  // check
 
+  for (auto const& check : check_steps) {
+    SCOPED_TRACE(fmt::format("check: {}", fmt::streamed(check)));
+
+    auto ct = dwarfsck_tester::create_with_image(*image, "test.dwarfs");
+
+    if (!check.read_only) {
+      ct.fa->set_file("test.dwarfs", *image);
+    }
+
+    std::vector<std::string> cargs = {"-i", "test.dwarfs"};
+    cargs.insert(cargs.end(), check.args.begin(), check.args.end());
+
+    auto const exit_code = ct.run(cargs);
+
+    if (check.read_only || build.has_superblock) {
+      ASSERT_EQ(0, exit_code) << ct.err();
+    } else {
+      ASSERT_EQ(2, exit_code) << ct.err();
+      if (!build.has_superblock) {
+        EXPECT_THAT(ct.err(), testing::HasSubstr("no superblock found"));
+      }
+    }
+
+    if (check.read_only) {
+      continue;
+    }
+
+    auto outimg = ct.fa->get_file("test.dwarfs");
+    ASSERT_TRUE(outimg) << "test.dwarfs not created";
+
+    EXPECT_EQ(image->size(), outimg->size())
+        << "image size changed after check";
+
+    superblock_editor ed;
+    std::istringstream iss(*outimg);
+
+    if (build_has_header) {
+      EXPECT_THAT(*outimg, testing::StartsWith(header));
+      iss.seekg(header.size(), std::ios::beg);
+    }
+
+    bool const has_attr_digest =
+        check.has_attr_digest.value_or(build.has_attr_digest);
+    bool const has_tree_digest =
+        check.has_tree_digest.value_or(build.has_tree_digest);
+    bool const has_any_digest = has_attr_digest || has_tree_digest;
+
+    if (build.has_superblock) {
+      ASSERT_NO_THROW(ed.read(iss));
+
+      EXPECT_EQ(ed.major_version(), 1);
+      EXPECT_EQ(ed.minor_version(), 1);
+
+      EXPECT_EQ(ed.fs_size_alignment(), build.size_alignment);
+
+      bool const has_size = check.has_size.value_or(build.has_size);
+      auto const fs_size = ed.fs_size();
+      EXPECT_EQ(fs_size.has_value(), has_size);
+
+      if (has_size) {
+        EXPECT_EQ(fs_size.value(), outimg->size() - ed.image_offset());
+      }
+
+      bool const has_uuid = check.has_uuid.value_or(build.has_uuid);
+      auto const uuid = ed.fs_uuid();
+      EXPECT_EQ(uuid.has_value(), has_uuid);
+
+      auto const expected_uuid =
+          check.uuid.or_else([&] { return build.uuid; }).or_else([&] {
+            return original_uuid;
+          });
+
+      if (expected_uuid.has_value()) {
+        EXPECT_EQ(uuid.value(), expected_uuid.value());
+      }
+
+      EXPECT_EQ(ed.fs_label(), check.label.value_or(build.label));
+
+      auto const expected_algo = has_any_digest
+                                     ? digest_algorithm::BLAKE3_256
+                                     : digest_algorithm::UNINITIALIZED;
+      EXPECT_EQ(ed.digest_algo(), expected_algo);
+      EXPECT_EQ(ed.digest_scheme_version(), has_any_digest ? 1 : 0);
+
+      auto const attr_dig = ed.attr_digest();
+      auto const tree_dig = ed.tree_digest();
+
+      EXPECT_EQ(attr_dig.has_value(), has_attr_digest);
+      EXPECT_EQ(tree_dig.has_value(), has_tree_digest);
+
+      if (has_attr_digest) {
+        EXPECT_EQ(attr_dig.hex(), kAttrDigest);
+      }
+
+      if (has_tree_digest) {
+        EXPECT_EQ(tree_dig.hex(), kTreeDigest);
+      }
+    } else {
+      auto const kExpectedError = build.legacy_image
+                                      ? "invalid superblock version"
+                                      : "invalid superblock section type";
+      EXPECT_THAT([&] { ed.read(iss); },
+                  testing::ThrowsMessage<std::runtime_error>(
+                      testing::HasSubstr(kExpectedError)));
+    }
+
+    auto fs = ct.fs_from_file(
+        "test.dwarfs",
+        {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+
+    EXPECT_EQ(fs.version(),
+              build.legacy_image ? FS_VERSION_CURRENT : FS_VERSION_ACCEPTED);
+    EXPECT_EQ(fs.image_offset(), build_has_header ? header.size() : 0);
+    EXPECT_EQ(fs.has_superblock(), build.has_superblock);
+
+    if (build.has_superblock) {
+      EXPECT_EQ(fs.image_size_alignment(), build.size_alignment);
+    } else {
+      auto const image_size = fs.image_size();
+      EXPECT_EQ(image_size,
+                outimg->size() - (build_has_header ? header.size() : 0));
+      EXPECT_TRUE(image_size % build.size_alignment == 0)
+          << "outimg size << " << image_size << " << is not aligned to "
+          << build.size_alignment;
+    }
+
+    auto const digests = fs.digests();
+    std::optional<filesystem_digests> computed_digests;
+
+    if (build.has_superblock && has_any_digest) {
+      computed_digests = compute_digests(
+          t, fs, check.has_tree_digest.value_or(build.has_tree_digest));
+    }
+
+    if (build.has_superblock && has_attr_digest) {
+      EXPECT_EQ(digests.attr_digest.hex(), kAttrDigest);
+      EXPECT_EQ(computed_digests->attr_digest.hex(), kAttrDigest);
+    }
+
+    if (build.has_superblock && has_tree_digest) {
+      EXPECT_EQ(digests.tree_digest.hex(), kTreeDigest);
+      EXPECT_EQ(computed_digests->tree_digest.hex(), kTreeDigest);
+    }
+  }
+
+  // rebuild
   for (auto const& [rebuild, rebuild_has_header] :
-       std::views::cartesian_product(rebuild_steps, std::array{true, false})) {
+       ranges::views::cartesian_product(rebuild_steps, kBoolean)) {
     SCOPED_TRACE(fmt::format("rebuild: {} header: {}", fmt::streamed(rebuild),
                              rebuild_has_header));
 
@@ -384,7 +643,7 @@ TEST_P(write_superblock_test, write_superblock) {
     }
 
     if (!build.legacy_image && rebuild.legacy_image) {
-      return; // cannot rebuild a non-legacy image into a legacy image
+      continue; // cannot rebuild a non-legacy image into a legacy image
     }
 
     if (build_has_header && !rebuild_has_header) {
@@ -434,6 +693,19 @@ TEST_P(write_superblock_test, write_superblock) {
 
         auto const uuid = ed.fs_uuid();
         EXPECT_EQ(uuid.has_value(), rebuild.has_uuid.value_or(build.has_uuid));
+
+        if (original_uuid.has_value()) {
+          if (rebuild.keep_uuid) {
+            EXPECT_EQ(uuid.value(), original_uuid.value());
+          } else {
+            if (build.uuid != original_uuid) {
+              EXPECT_NE(uuid.value(), original_uuid.value());
+            }
+            if (rebuild.uuid.has_value()) {
+              EXPECT_EQ(uuid.value(), rebuild.uuid.value());
+            }
+          }
+        }
 
         EXPECT_EQ(ed.fs_label(), rebuild.label.value_or(build.label));
 

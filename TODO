@@ -1,3 +1,5 @@
+- should `keep` really be the default for UUIDs when re-writing?
+
 - reference `dwarfs-format.md` from documentation for superblock
   digests
 

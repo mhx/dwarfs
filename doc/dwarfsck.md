@@ -104,7 +104,7 @@ with a non-zero exit code.
   Export all filesystem metadata to *file* in JSON format. Write to stdout
   if *file* is `-`.
 
-- `--init-superblock`[=`all`|`uuid`|`digests`|`attr_digest`[`,`...]]:
+- `--init-superblock`[=`all`|`size`|`uuid`|`digests`|`attr_digest`[`,`...]]:
   Initialize uninitialized superblock fields, e.g. the UUID and/or the size
   of the filesystem, if they haven't been set by `mkdwarfs`. The UUID can be
   left uninitialized by `mkdwarfs` to support the creation of bit-identical
@@ -114,7 +114,8 @@ with a non-zero exit code.
   filesystem images that actually have a superblock. You can re-write an
   existing image without a superblock using `mkdwarfs` to add a superblock.
   Unless specified by `--set-uuid`, the UUID will be initialized to a random
-  RFC 9562 v4 UUID.
+  RFC 9562 v4 UUID. The size field will *always* be initialized, even if it
+  is not explicitly requested, when using this option.
 
 - `--set-uuid=random`|`nil`|*UUID*:
   Set the filesystem UUID to a random RFC 9562 v4 UUID, an all-zero UUID, or
