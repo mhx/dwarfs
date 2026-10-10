@@ -76,6 +76,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
+using test::kNoRdev;
+
 // TODO: jeeeez, this is ugly :/
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
@@ -371,10 +373,11 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.uid(), 0);
     EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
-    EXPECT_EQ(st.rdev(), 259);
     std::error_code ec;
+    EXPECT_EQ(device_number(st.rdev(), ec), device_number(1, 3));
+    EXPECT_FALSE(ec);
     auto di = fs.get_device(dev->inode(), ec);
-    ASSERT_FALSE(ec);
+    EXPECT_FALSE(ec);
     EXPECT_EQ(di, device_number(1, 3));
   } else {
     EXPECT_FALSE(dev);
@@ -389,7 +392,9 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.uid(), 0);
     EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
-    EXPECT_EQ(st.rdev(), 261);
+    std::error_code ec;
+    EXPECT_EQ(device_number(st.rdev(), ec), device_number(1, 5));
+    EXPECT_FALSE(ec);
     EXPECT_EQ(st.atime(), set_time         ? 4711
                           : keep_all_times ? 4000010001
                                            : 4000020002);
@@ -1158,11 +1163,11 @@ TEST(filesystem, uid_gid_32bit) {
 
   auto input = std::make_shared<test::os_access_mock>();
 
-  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0},
+  input->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, kNoRdev, 0, 0, 0},
              "hello");
-  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0},
-             "world");
+  input->add("foo32.txt",
+             {3, 0100755, 1, 65536, 4294967295, 5, kNoRdev, 0, 0, 0}, "world");
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
@@ -1190,11 +1195,11 @@ TEST(filesystem, uid_gid_count) {
 
   auto input = std::make_shared<test::os_access_mock>();
 
-  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  input->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
 
   for (uint32_t i = 0; i < 100000; ++i) {
     input->add(fmt::format("foo{:05d}.txt", i),
-               {2 + i, 0100644, 1, 50000 + i, 250000 + i, 10, 42, 0, 0, 0},
+               {2 + i, 0100644, 1, 50000 + i, 250000 + i, 10, kNoRdev, 0, 0, 0},
                fmt::format("hello{:05d}", i));
   }
 
@@ -1229,11 +1234,11 @@ TEST(filesystem, uid_gid_override) {
 
   auto input = std::make_shared<test::os_access_mock>();
 
-  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0},
+  input->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, kNoRdev, 0, 0, 0},
              "hello");
-  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0},
-             "world");
+  input->add("foo32.txt",
+             {3, 0100755, 1, 65536, 4294967295, 5, kNoRdev, 0, 0, 0}, "world");
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
@@ -1409,10 +1414,10 @@ TEST(file_scanner, file_start_hash) {
   static constexpr size_t const kSize{1 << 20};
   auto generator = [] { return test::loremipsum(kSize); };
 
-  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add("hardlink1", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
+  input->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
+  input->add("hardlink1", {42, 0100755, 2, 1000, 100, kSize, kNoRdev, 0, 0, 0},
              generator);
-  input->add("hardlink2", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
+  input->add("hardlink2", {42, 0100755, 2, 1000, 100, kSize, kNoRdev, 0, 0, 0},
              generator);
 
   auto fsimage = build_dwarfs(lgr, input, "null");
@@ -1439,13 +1444,16 @@ TEST(filesystem, root_access_github204) {
   test::test_logger lgr;
 
   auto input = std::make_shared<test::os_access_mock>();
-  input->add("", {1, 040755, 1, 1000, 100, 10, 42, 0, 0, 0});
-  input->add("other", {2, 040755, 1, 1000, 100, 10, 42, 0, 0, 0});
-  input->add("group", {3, 040750, 1, 1000, 100, 10, 42, 0, 0, 0});
-  input->add("user", {4, 040700, 1, 1000, 100, 10, 42, 0, 0, 0});
-  input->add("other/file", {5, 0100644, 1, 1000, 100, 5, 42, 0, 0, 0}, "other");
-  input->add("group/file", {6, 0100640, 1, 1000, 100, 5, 42, 0, 0, 0}, "group");
-  input->add("user/file", {7, 0100600, 1, 1000, 100, 4, 42, 0, 0, 0}, "user");
+  input->add("", {1, 040755, 1, 1000, 100, 10, kNoRdev, 0, 0, 0});
+  input->add("other", {2, 040755, 1, 1000, 100, 10, kNoRdev, 0, 0, 0});
+  input->add("group", {3, 040750, 1, 1000, 100, 10, kNoRdev, 0, 0, 0});
+  input->add("user", {4, 040700, 1, 1000, 100, 10, kNoRdev, 0, 0, 0});
+  input->add("other/file", {5, 0100644, 1, 1000, 100, 5, kNoRdev, 0, 0, 0},
+             "other");
+  input->add("group/file", {6, 0100640, 1, 1000, 100, 5, kNoRdev, 0, 0, 0},
+             "group");
+  input->add("user/file", {7, 0100600, 1, 1000, 100, 4, kNoRdev, 0, 0, 0},
+             "user");
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 

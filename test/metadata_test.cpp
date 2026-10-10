@@ -67,6 +67,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
+using test::kNoRdev;
+
 auto const test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 
 std::string make_fragmented_file(size_t fragment_size, size_t fragment_count) {
@@ -113,12 +115,13 @@ class metadata_test : public ::testing::Test {
  protected:
   void SetUp() override {
     os = test::os_access_mock::create_test_instance();
-    os->add("lib", {333, posix_file_type::directory | 0755, 1, 1000, 100, 0, 0,
-                    100, 200, 300});
+    os->add("lib", {333, posix_file_type::directory | 0755, 1, 1000, 100, 0,
+                    kNoRdev, 100, 200, 300});
     auto libc = make_fragmented_file(1024, 130);
     os->add("lib/libc.so",
             {334, posix_file_type::regular | 0755, 1, 1000, 100,
-             static_cast<file_stat::off_type>(libc.size()), 0, 100, 200, 300},
+             static_cast<file_stat::off_type>(libc.size()), kNoRdev, 100, 200,
+             300},
             libc);
 
     writer::writer_progress prog;

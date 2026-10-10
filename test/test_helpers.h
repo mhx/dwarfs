@@ -41,6 +41,7 @@
 #include <variant>
 #include <vector>
 
+#include <dwarfs/device_number.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
@@ -65,6 +66,8 @@ namespace dwarfs::test {
 
 extern std::error_code const kMlockQuotaError;
 
+static constexpr device_number kNoRdev{0, 0};
+
 struct simplestat {
   struct timespec_wrapper {
     constexpr timespec_wrapper() = default;
@@ -82,7 +85,7 @@ struct simplestat {
   file_stat::uid_type uid{0};
   file_stat::gid_type gid{0};
   file_stat::off_type size{0};
-  file_stat::dev_type rdev{0};
+  device_number rdev{0, 0};
   timespec_wrapper atim{};
   timespec_wrapper mtim{};
   timespec_wrapper ctim{};
