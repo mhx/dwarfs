@@ -158,8 +158,8 @@ mkdwarfs_tester::create_with_image(std::string image,
   return make_tester_with_image<mkdwarfs_tester>(std::move(image), image_file);
 }
 
-void mkdwarfs_tester::add_stream_logger(std::ostream& st,
-                                        logger::level_type level) {
+void tester_common::add_stream_logger(std::ostream& st,
+                                      logger::level_type level) {
   level = std::min(level, kMaxSupportedLogLevel);
   lgr = std::make_unique<stream_logger>(std::make_shared<test::test_terminal>(),
                                         st, *os,
@@ -275,8 +275,8 @@ void mkdwarfs_tester::add_test_file_tree(bool with_regular_files) {
 }
 
 reader::filesystem_v2
-mkdwarfs_tester::fs_from_data(std::string data,
-                              reader::filesystem_options const& opt) {
+tester_common::fs_from_data(std::string data,
+                            reader::filesystem_options const& opt) {
   if (!lgr) {
     lgr = std::make_unique<test::test_logger>();
   }
@@ -285,8 +285,8 @@ mkdwarfs_tester::fs_from_data(std::string data,
 }
 
 reader::filesystem_v2
-mkdwarfs_tester::fs_from_file(std::string path,
-                              reader::filesystem_options const& opt) {
+tester_common::fs_from_file(std::string path,
+                            reader::filesystem_options const& opt) {
   auto fsimage = fa->get_file(path);
   if (!fsimage) {
     throw std::runtime_error("file not found: " + path);
@@ -295,7 +295,7 @@ mkdwarfs_tester::fs_from_file(std::string path,
 }
 
 reader::filesystem_v2
-mkdwarfs_tester::fs_from_stdout(reader::filesystem_options const& opt) {
+tester_common::fs_from_stdout(reader::filesystem_options const& opt) {
   return fs_from_data(out(), opt);
 }
 
