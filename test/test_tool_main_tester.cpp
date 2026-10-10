@@ -347,7 +347,7 @@ build_test_image(std::vector<std::string> extra_args,
   for (auto const& [name, contents] : extra_files) {
     t.fa->set_file(name, contents);
   }
-  std::vector<std::string> args = {"-i", "/", "-o", "-"};
+  std::vector<std::string> args = {"-i", "/", "-o", "-", "-l1"};
   args.insert(args.end(), extra_args.begin(), extra_args.end());
   if (t.run(args) != 0) {
     throw std::runtime_error("failed to build test image:\n" + t.err());
