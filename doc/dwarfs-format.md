@@ -3,11 +3,11 @@ SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 SPDX-License-Identifier: MIT
 -->
 
-# dwarfs-format(5) -- DwarFS File System Format v2.5
+# dwarfs-format(5) -- DwarFS File System Format v2.7
 
 ## DESCRIPTION
 
-This document describes the DwarFS file system format, version 2.5.
+This document describes the DwarFS file system format, version 2.7.
 
 ## TERMINOLOGY
 
@@ -106,7 +106,7 @@ or other executable that intends to use the "bundled" DwarFS image.
 Each section in the DwarFS image has the following format:
 
          ┌───┬───┬───┬───┬───┬───┬───┬───┐
-    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x05 for v2.5
+    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x07 for v2.7
          ├───┴───┴───┴───┴───┴───┴───┴───┤
     0x08 │                               │  Used for full (slow) integrity
          ├─ SHA-512/256 integrity hash  ─┤  check with `dwarfsck`.
@@ -245,6 +245,7 @@ Currently, the following different section types are defined:
   and not needed to read the DwarFS image.
 
 - `SUPERBLOCK` (11):
+  *Requires minor version 7.*
   The superblock contains some basic information about the file system,
   such as the file system size and alignment, a UUID, and the file
   system label. This *must* be the first section in the file system
@@ -253,6 +254,7 @@ Currently, the following different section types are defined:
   [Superblock Format](#superblock-format) for details.
 
 - `PADDING` (12):
+  *Requires minor version 6.*
   A padding section is just an uncompressed, zero-filled section. While
   it could occur anywhere in the image, it is usually used at the end
   of the image (if no section index is present) or right before the
@@ -290,7 +292,7 @@ The current version of the superblock payload is 1.1.
     0x48 │ Total File System Image Size  │  Little Endian, in bytes
          ├───────────────────────────────┤
     0x50 │                               │
-         ├─ File System UUID (RFC 9662) ─┤
+         ├─ File System UUID (RFC 9562) ─┤
     0x58 │                               │
          ├───────────────────────────────┤
     0x60 │                               │
@@ -316,7 +318,7 @@ The current version of the superblock payload is 1.1.
     0xB0 │                               │
          ├─                             ─┤
     0xB8 │                               │
-         ├───────────────────────────┴───┤
+         ├───────────────────────────────┤
     0xC0 │                               │
          ├─         Tree Digest         ─┤
     0xC8 │                               │
@@ -366,7 +368,7 @@ metadata. The tree digest requires that *all* file contents are read, which
 can be substantially slower.
 
 When re-writing a file system image, even when rebuilding metadata, the
-tree digests (currently) never changes as the file contents and overall
+tree digest (currently) never changes as the file contents and overall
 structure of the file system remain the same. This means it is possible
 for a re-written image to have a tree digest, but no attribute digest,
 if the new attribute digest was not computed during the re-write.
