@@ -355,6 +355,9 @@ void basic_end_to_end_test(std::string const& compressor,
     std::error_code ec;
     auto di [[maybe_unused]] = fs.get_device(dev->inode(), ec);
     EXPECT_EQ(ec, std::errc::invalid_argument);
+    ec.clear();
+    auto dup [[maybe_unused]] = fs.get_duplication_info(dev->inode(), ec);
+    EXPECT_EQ(ec, std::errc::invalid_argument);
   } else {
     EXPECT_FALSE(dev);
   }
