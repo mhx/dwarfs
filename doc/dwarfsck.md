@@ -163,6 +163,22 @@ with a non-zero exit code.
   suitable pager (e.g. `less`) is found, the manual page is displayed
   in the pager.
 
+## EXIT CODES
+
+- `0`:
+  The operation completed successfully. If any checks were performed,
+  these have all passed.
+
+- `1`:
+  An unrecoverable error occurred, e.g. the image could not be opened
+  or read, or it failed the requested checks.
+
+- `2`:
+  The image itself is fine, but a requested operation could not be
+  performed. This happens for example when `--print-header` is used on
+  an image that has no header, or when any of the superblock options
+  are used on an image that has no superblock.
+
 ## ENVIRONMENT VARIABLES
 
 See [dwarfs-env(7)](dwarfs-env.md) for environment variables that
