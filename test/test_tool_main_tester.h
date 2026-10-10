@@ -148,15 +148,6 @@ class tester_common {
   std::string toolname_;
 };
 
-std::shared_ptr<test::os_access_mock>
-make_image_os(std::string image, std::string const& image_file);
-
-template <typename Tester>
-Tester
-make_tester_with_image(std::string image, std::string const& image_file) {
-  return Tester{make_image_os(std::move(image), image_file)};
-}
-
 struct random_file_tree_options {
   double avg_size{4096.0};
   size_t min_size{0};
