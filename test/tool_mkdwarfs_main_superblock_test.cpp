@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -28,6 +29,7 @@
 #include <gmock/gmock.h>
 
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
@@ -238,14 +240,12 @@ compute_digests(mkdwarfs_tester const& t, reader::filesystem_v2 const& fs,
 }
 
 class write_superblock_test
-    : public ::testing::TestWithParam<
-          std::tuple<build_step, bool, rebuild_step, bool>> {};
+    : public ::testing::TestWithParam<std::tuple<build_step, bool>> {};
 
 } // namespace
 
 TEST_P(write_superblock_test, write_superblock) {
-  auto const [build, build_has_header, rebuild, rebuild_has_header] =
-      GetParam();
+  auto const [build, build_has_header] = GetParam();
   auto const header = loremipsum(321);
 
   mkdwarfs_tester t;
@@ -368,147 +368,151 @@ TEST_P(write_superblock_test, write_superblock) {
 
   // rebuild
 
-  auto t2 = mkdwarfs_tester::create_with_image(*image, "input.dwarfs");
+  for (auto const& [rebuild, rebuild_has_header] :
+       std::views::cartesian_product(rebuild_steps, std::array{true, false})) {
+    SCOPED_TRACE(fmt::format("rebuild: {} header: {}", fmt::streamed(rebuild),
+                             rebuild_has_header));
 
-  std::vector<std::string> args2 = {"-i", "input.dwarfs", "-o", "test.dwarfs",
-                                    "-l1"};
-  args2.insert(args2.end(), rebuild.args.begin(), rebuild.args.end());
+    auto t2 = mkdwarfs_tester::create_with_image(*image, "input.dwarfs");
 
-  if (build.legacy_image && !rebuild.legacy_image) {
-    args2.push_back("--no-backwards-compat");
-  }
+    std::vector<std::string> args2 = {"-i", "input.dwarfs", "-o", "test.dwarfs",
+                                      "-l1"};
+    args2.insert(args2.end(), rebuild.args.begin(), rebuild.args.end());
 
-  if (!build.legacy_image && rebuild.legacy_image) {
-    return; // cannot rebuild a non-legacy image into a legacy image
-  }
-
-  if (build_has_header && !rebuild_has_header) {
-    args2.push_back("--remove-header");
-  } else if (!build_has_header && rebuild_has_header) {
-    t2.fa->set_file("lorem", header);
-    args2.push_back("--header=lorem");
-  }
-
-  t2.fa->sync_files_to(*t2.os);
-
-  ASSERT_EQ(0, t2.run(args2)) << t2.err();
-
-  auto image2 = t2.fa->get_file("test.dwarfs");
-  ASSERT_TRUE(image2) << "test.dwarfs not created";
-
-  {
-    superblock_editor ed;
-    std::istringstream iss(*image2);
-
-    if (rebuild_has_header) {
-      EXPECT_THAT(*image2, testing::StartsWith(header));
-      iss.seekg(header.size(), std::ios::beg);
+    if (build.legacy_image && !rebuild.legacy_image) {
+      args2.push_back("--no-backwards-compat");
     }
 
-    bool const has_any_digest =
-        rebuild.has_attr_digest.value_or(build.has_attr_digest) ||
-        rebuild.has_tree_digest.value_or(build.has_tree_digest);
+    if (!build.legacy_image && rebuild.legacy_image) {
+      return; // cannot rebuild a non-legacy image into a legacy image
+    }
 
-    auto const expected_alignment = rebuild.size_alignment.value_or(
-        build.has_superblock ? build.size_alignment : 1);
+    if (build_has_header && !rebuild_has_header) {
+      args2.push_back("--remove-header");
+    } else if (!build_has_header && rebuild_has_header) {
+      t2.fa->set_file("lorem", header);
+      args2.push_back("--header=lorem");
+    }
 
-    if (rebuild.has_superblock) {
-      ASSERT_NO_THROW(ed.read(iss));
+    t2.fa->sync_files_to(*t2.os);
 
-      EXPECT_EQ(ed.major_version(), 1);
-      EXPECT_EQ(ed.minor_version(), 1);
+    ASSERT_EQ(0, t2.run(args2)) << t2.err();
 
-      EXPECT_EQ(ed.fs_size_alignment(), expected_alignment);
+    auto image2 = t2.fa->get_file("test.dwarfs");
+    ASSERT_TRUE(image2) << "test.dwarfs not created";
 
-      auto const fs_size = ed.fs_size();
-      EXPECT_EQ(fs_size.has_value(), rebuild.has_size);
+    {
+      superblock_editor ed;
+      std::istringstream iss(*image2);
 
-      if (rebuild.has_size) {
-        EXPECT_EQ(fs_size.value(), image2->size() - ed.image_offset());
+      if (rebuild_has_header) {
+        EXPECT_THAT(*image2, testing::StartsWith(header));
+        iss.seekg(header.size(), std::ios::beg);
       }
 
-      auto const uuid = ed.fs_uuid();
-      EXPECT_EQ(uuid.has_value(), rebuild.has_uuid.value_or(build.has_uuid));
+      bool const has_any_digest =
+          rebuild.has_attr_digest.value_or(build.has_attr_digest) ||
+          rebuild.has_tree_digest.value_or(build.has_tree_digest);
 
-      EXPECT_EQ(ed.fs_label(), rebuild.label.value_or(build.label));
+      auto const expected_alignment = rebuild.size_alignment.value_or(
+          build.has_superblock ? build.size_alignment : 1);
 
-      auto const expected_algo = has_any_digest
-                                     ? digest_algorithm::BLAKE3_256
-                                     : digest_algorithm::UNINITIALIZED;
-      EXPECT_EQ(ed.digest_algo(), expected_algo);
-      EXPECT_EQ(ed.digest_scheme_version(), has_any_digest ? 1 : 0);
+      if (rebuild.has_superblock) {
+        ASSERT_NO_THROW(ed.read(iss));
 
-      auto const attr_dig = ed.attr_digest();
-      auto const tree_dig = ed.tree_digest();
+        EXPECT_EQ(ed.major_version(), 1);
+        EXPECT_EQ(ed.minor_version(), 1);
 
-      EXPECT_EQ(attr_dig.has_value(),
-                rebuild.has_attr_digest.value_or(build.has_attr_digest));
-      EXPECT_EQ(tree_dig.has_value(),
-                rebuild.has_tree_digest.value_or(build.has_tree_digest));
+        EXPECT_EQ(ed.fs_size_alignment(), expected_alignment);
 
-      if (rebuild.has_attr_digest.value_or(build.has_attr_digest)) {
-        EXPECT_EQ(attr_dig.hex(), rebuild.attr_digest.value_or(kAttrDigest));
+        auto const fs_size = ed.fs_size();
+        EXPECT_EQ(fs_size.has_value(), rebuild.has_size);
+
+        if (rebuild.has_size) {
+          EXPECT_EQ(fs_size.value(), image2->size() - ed.image_offset());
+        }
+
+        auto const uuid = ed.fs_uuid();
+        EXPECT_EQ(uuid.has_value(), rebuild.has_uuid.value_or(build.has_uuid));
+
+        EXPECT_EQ(ed.fs_label(), rebuild.label.value_or(build.label));
+
+        auto const expected_algo = has_any_digest
+                                       ? digest_algorithm::BLAKE3_256
+                                       : digest_algorithm::UNINITIALIZED;
+        EXPECT_EQ(ed.digest_algo(), expected_algo);
+        EXPECT_EQ(ed.digest_scheme_version(), has_any_digest ? 1 : 0);
+
+        auto const attr_dig = ed.attr_digest();
+        auto const tree_dig = ed.tree_digest();
+
+        EXPECT_EQ(attr_dig.has_value(),
+                  rebuild.has_attr_digest.value_or(build.has_attr_digest));
+        EXPECT_EQ(tree_dig.has_value(),
+                  rebuild.has_tree_digest.value_or(build.has_tree_digest));
+
+        if (rebuild.has_attr_digest.value_or(build.has_attr_digest)) {
+          EXPECT_EQ(attr_dig.hex(), rebuild.attr_digest.value_or(kAttrDigest));
+        }
+
+        if (rebuild.has_tree_digest.value_or(build.has_tree_digest)) {
+          EXPECT_EQ(tree_dig.hex(), kTreeDigest);
+        }
+      } else {
+        auto const kExpectedError = rebuild.legacy_image
+                                        ? "invalid superblock version"
+                                        : "invalid superblock section type";
+        EXPECT_THAT([&] { ed.read(iss); },
+                    testing::ThrowsMessage<std::runtime_error>(
+                        testing::HasSubstr(kExpectedError)));
       }
 
-      if (rebuild.has_tree_digest.value_or(build.has_tree_digest)) {
-        EXPECT_EQ(tree_dig.hex(), kTreeDigest);
+      auto fs = t2.fs_from_file(
+          "test.dwarfs",
+          {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+
+      EXPECT_EQ(fs.version(), rebuild.legacy_image ? FS_VERSION_CURRENT
+                                                   : FS_VERSION_ACCEPTED);
+      EXPECT_EQ(fs.image_offset(), rebuild_has_header ? header.size() : 0);
+      EXPECT_EQ(fs.has_superblock(), rebuild.has_superblock);
+
+      if (rebuild.has_superblock) {
+        EXPECT_EQ(fs.image_size_alignment(), expected_alignment);
+      } else {
+        auto const image_size = fs.image_size();
+
+        EXPECT_EQ(image_size,
+                  image2->size() - (rebuild_has_header ? header.size() : 0));
+        EXPECT_TRUE(image_size % expected_alignment == 0)
+            << "image size << " << image_size << " << is not aligned to "
+            << expected_alignment;
       }
-    } else {
-      auto const kExpectedError = rebuild.legacy_image
-                                      ? "invalid superblock version"
-                                      : "invalid superblock section type";
-      EXPECT_THAT([&] { ed.read(iss); },
-                  testing::ThrowsMessage<std::runtime_error>(
-                      testing::HasSubstr(kExpectedError)));
-    }
 
-    auto fs = t2.fs_from_file(
-        "test.dwarfs",
-        {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+      auto const digests = fs.digests();
+      std::optional<filesystem_digests> computed_digests;
 
-    EXPECT_EQ(fs.version(),
-              rebuild.legacy_image ? FS_VERSION_CURRENT : FS_VERSION_ACCEPTED);
-    EXPECT_EQ(fs.image_offset(), rebuild_has_header ? header.size() : 0);
-    EXPECT_EQ(fs.has_superblock(), rebuild.has_superblock);
+      if (rebuild.has_superblock && has_any_digest) {
+        computed_digests = compute_digests(
+            t, fs, rebuild.has_tree_digest.value_or(build.has_tree_digest));
+      }
 
-    if (rebuild.has_superblock) {
-      EXPECT_EQ(fs.image_size_alignment(), expected_alignment);
-    } else {
-      auto const image_size = fs.image_size();
+      if (rebuild.has_superblock &&
+          rebuild.has_attr_digest.value_or(build.has_attr_digest)) {
+        EXPECT_EQ(digests.attr_digest.hex(),
+                  rebuild.attr_digest.value_or(kAttrDigest));
+        EXPECT_EQ(computed_digests->attr_digest.hex(),
+                  rebuild.attr_digest.value_or(kAttrDigest));
+      }
 
-      EXPECT_EQ(image_size,
-                image2->size() - (rebuild_has_header ? header.size() : 0));
-      EXPECT_TRUE(image_size % expected_alignment == 0)
-          << "image size << " << image_size << " << is not aligned to "
-          << expected_alignment;
-    }
-
-    auto const digests = fs.digests();
-    std::optional<filesystem_digests> computed_digests;
-
-    if (rebuild.has_superblock && has_any_digest) {
-      computed_digests = compute_digests(
-          t, fs, rebuild.has_tree_digest.value_or(build.has_tree_digest));
-    }
-
-    if (rebuild.has_superblock &&
-        rebuild.has_attr_digest.value_or(build.has_attr_digest)) {
-      EXPECT_EQ(digests.attr_digest.hex(),
-                rebuild.attr_digest.value_or(kAttrDigest));
-      EXPECT_EQ(computed_digests->attr_digest.hex(),
-                rebuild.attr_digest.value_or(kAttrDigest));
-    }
-
-    if (rebuild.has_superblock &&
-        rebuild.has_tree_digest.value_or(build.has_tree_digest)) {
-      EXPECT_EQ(digests.tree_digest.hex(), kTreeDigest);
-      EXPECT_EQ(computed_digests->tree_digest.hex(), kTreeDigest);
+      if (rebuild.has_superblock &&
+          rebuild.has_tree_digest.value_or(build.has_tree_digest)) {
+        EXPECT_EQ(digests.tree_digest.hex(), kTreeDigest);
+        EXPECT_EQ(computed_digests->tree_digest.hex(), kTreeDigest);
+      }
     }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(mkdwarfs_test, write_superblock_test,
                          ::testing::Combine(::testing::ValuesIn(build_steps),
-                                            ::testing::Bool(),
-                                            ::testing::ValuesIn(rebuild_steps),
                                             ::testing::Bool()));
