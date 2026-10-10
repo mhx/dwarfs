@@ -53,7 +53,7 @@ constexpr uint8_t MINOR_VERSION = 6;
 // then 0.16.0 increments the current version to 2.6. This process must
 // ensure that e.g. 0.14.0 *already supports* the new features that will
 // become the default in 0.16.0.
-constexpr uint8_t MINOR_VERSION_ACCEPTED = 6;
+constexpr uint8_t MINOR_VERSION_ACCEPTED = 7;
 
 enum class section_type : uint16_t {
   BLOCK = 0,
@@ -66,10 +66,18 @@ enum class section_type : uint16_t {
   // Frozen metadata.
 
   SECTION_INDEX = 9,
-  // Section index.
+  // Section index, *must* be the last section in the file.
 
   HISTORY = 10,
   // History of file system changes.
+
+  SUPERBLOCK = 11,
+  // Superblock section, *must* be the first section in the file.
+  // Contains file system size, UUID, and label.
+
+  PADDING = 12,
+  // Padding section, used to align total file system size to a
+  // multiple of the sector size.
 };
 
 struct file_header {
@@ -121,7 +129,19 @@ struct filesystem_info {
 struct filesystem_version {
   uint8_t major{0};
   uint8_t minor{0};
+
+  std::string to_string() const;
+  friend std::ostream&
+  operator<<(std::ostream& os, filesystem_version const& version);
+  friend bool operator==(filesystem_version const& lhs,
+                         filesystem_version const& rhs) = default;
+  friend std::strong_ordering
+  operator<=>(filesystem_version const& lhs,
+              filesystem_version const& rhs) = default;
 };
+
+constexpr inline filesystem_version FS_VERSION_CURRENT{MAJOR_VERSION,
+                                                       MINOR_VERSION};
 
 bool is_known_compression_type(compression_type type);
 

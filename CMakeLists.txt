@@ -739,6 +739,7 @@ if(WITH_TESTS)
       test/speedometer_test.cpp
       test/stable_jagged_vector_test.cpp
       test/string_test.cpp
+      test/superblock_editor_test.cpp
       test/synchronized_test.cpp
       test/terminal_test.cpp
       test/test_iolayer_test.cpp
@@ -850,6 +851,7 @@ if(WITH_TESTS)
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp
       test/tool_mkdwarfs_main_sparse_test.cpp
+      test/tool_mkdwarfs_main_superblock_test.cpp
       test/tool_mkdwarfs_main_time_resolution_test.cpp
     )
 
