@@ -72,6 +72,7 @@ class filesystem_parser {
   int minor_version() const { return impl_->fs_version().minor; }
 
   file_off_t image_offset() const { return impl_->image_offset(); }
+  file_size_t image_size() const { return impl_->image_size(); }
 
   bool has_checksums() const { return impl_->has_checksums(); }
   bool has_index() const { return impl_->has_index(); }
@@ -97,6 +98,7 @@ class filesystem_parser {
     virtual filesystem_version const& fs_version() const = 0;
 
     virtual file_off_t image_offset() const = 0;
+    virtual file_size_t image_size() const = 0;
 
     virtual bool has_checksums() const = 0;
     virtual bool has_index() const = 0;
