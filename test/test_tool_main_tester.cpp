@@ -42,7 +42,7 @@ struct locale_setup_helper {
 inline void setup_locale() { static locale_setup_helper helper; }
 
 void add_root_dir_to(test::os_access_mock& os) {
-  os.add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  os.add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
 }
 
 std::shared_ptr<test::os_access_mock>
@@ -176,12 +176,13 @@ void mkdwarfs_tester::add_special_files(bool with_regular_files) {
   if (with_regular_files) {
     static constexpr file_stat::off_type const size = 10;
     std::string data(size, 'x');
-    os->add("suid", {1001, 0104755, 1, 0, 0, size, 0, 3333, 2222, 1111}, data);
-    os->add("sgid", {1002, 0102755, 1, 0, 0, size, 0, 0, 0, 0}, data);
-    os->add("sticky", {1003, 0101755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+    os->add("suid", {1001, 0104755, 1, 0, 0, size, kNoRdev, 3333, 2222, 1111},
+            data);
+    os->add("sgid", {1002, 0102755, 1, 0, 0, size, kNoRdev, 0, 0, 0}, data);
+    os->add("sticky", {1003, 0101755, 1, 0, 0, size, kNoRdev, 0, 0, 0}, data);
   }
-  os->add("block", {1004, 060666, 1, 0, 0, 0, 77, 0, 0, 0}, std::string{});
-  os->add("sock", {1005, 0140666, 1, 0, 0, 0, 0, 0, 0, 0}, std::string{});
+  os->add("block", {1004, 060666, 1, 0, 0, 0, {0, 77}, 0, 0, 0}, std::string{});
+  os->add("sock", {1005, 0140666, 1, 0, 0, 0, kNoRdev, 0, 0, 0}, std::string{});
 }
 
 std::vector<std::pair<fs::path, std::string>>

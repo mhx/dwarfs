@@ -66,7 +66,7 @@ TEST_P(options_test, cache_stress) {
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1.0 / avg_size};
 
-    os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+    os->add("", {1, 040755, 1, 0, 0, 10, {}, 0, 0, 0});
 
     for (size_t x = 0; x < num_files; ++x) {
       auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));

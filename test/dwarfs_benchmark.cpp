@@ -68,6 +68,8 @@ using benchmark_type =
 
 using namespace dwarfs;
 
+using test::kNoRdev;
+
 void PackParams(benchmark_type* b) {
   for (auto pack_directories : {false, true}) {
     for (auto plain_tables : {false, true}) {
@@ -424,7 +426,7 @@ class filesystem_walk : public ::benchmark::Fixture {
 
   static std::string build_image() {
     auto os = std::make_shared<test::os_access_mock>();
-    os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+    os->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
     add_random_file_tree(*os);
     writer::segmenter_factory::config cfg;
     cfg.blockhash_window_size.set_default(4);
