@@ -45,8 +45,6 @@ void add_root_dir_to(test::os_access_mock& os) {
   os.add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
 }
 
-} // namespace
-
 std::shared_ptr<test::os_access_mock>
 make_image_os(std::string image, std::string const& image_file) {
   auto os = std::make_shared<test::os_access_mock>();
@@ -54,6 +52,14 @@ make_image_os(std::string image, std::string const& image_file) {
   os->add_file(image_file, std::move(image));
   return os;
 }
+
+template <typename Tester>
+Tester
+make_tester_with_image(std::string image, std::string const& image_file) {
+  return Tester{make_image_os(std::move(image), image_file)};
+}
+
+} // namespace
 
 fs::path const test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 fs::path const audio_data_dir = test_dir / "pcmaudio";
