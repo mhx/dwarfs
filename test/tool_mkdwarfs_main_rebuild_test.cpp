@@ -1094,6 +1094,7 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
   EXPECT_EQ(0, info["block_count"].get<int>());
   EXPECT_EQ(1, info["inode_count"].get<int>());
   EXPECT_EQ(2, info["sections"].size());
+  EXPECT_FALSE(fs.has_symlinks());
 
   auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
   EXPECT_EQ(0, t2.run({"-i", "test.dwarfs", "-o", "-", "--rebuild-metadata",
@@ -1106,6 +1107,7 @@ TEST(mkdwarfs_test, minimal_empty_filesystem) {
   EXPECT_EQ(0, info2["block_count"].get<int>());
   EXPECT_EQ(1, info2["inode_count"].get<int>());
   EXPECT_EQ(2, info2["sections"].size());
+  EXPECT_FALSE(fs2.has_symlinks());
 }
 
 TEST(mkdwarfs_test, metadata_only_filesystem) {
@@ -1128,6 +1130,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
     EXPECT_EQ(5, info["sections"].size());
     EXPECT_EQ(fs.version(), FS_VERSION_ACCEPTED);
+    EXPECT_TRUE(fs.has_symlinks());
   }
 
   auto t2 = mkdwarfs_tester::create_with_image(t.out(), "test.dwarfs");
@@ -1144,6 +1147,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
     EXPECT_EQ(5, info["sections"].size());
     EXPECT_EQ(fs.version(), FS_VERSION_ACCEPTED);
+    EXPECT_TRUE(fs.has_symlinks());
   }
 
   auto t3 = mkdwarfs_tester::create_with_image(t2.out(), "test.dwarfs");
@@ -1159,6 +1163,7 @@ TEST(mkdwarfs_test, metadata_only_filesystem) {
     EXPECT_EQ(kTotalInodeCount, info["inode_count"].get<int>());
     EXPECT_EQ(5, info["sections"].size());
     EXPECT_EQ(fs.version(), FS_VERSION_ACCEPTED);
+    EXPECT_TRUE(fs.has_symlinks());
 
     size_t symlink_size{0};
     fs.walk([&](reader::dir_entry_view const& e) {
