@@ -69,7 +69,9 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_mode(ss.mode);
   rv.set_uid(ss.uid);
   rv.set_gid(ss.gid);
-  rv.set_rdev(ss.rdev);
+  std::error_code ec;
+  rv.set_rdev(ss.rdev.native(ec));
+  DWARFS_CHECK(!ec, fmt::format("failed to set rdev: {}", ec.message()));
   rv.set_size(ss.size);
   auto const allocated = ss.allocated_size.value_or(ss.size);
   rv.set_allocated_size(allocated);
@@ -86,9 +88,9 @@ constexpr file_stat::uid_type kUid2{1337};
 constexpr file_stat::uid_type kUid3{0};
 constexpr file_stat::gid_type kGid1{100};
 constexpr file_stat::gid_type kGid2{0};
-constexpr file_stat::dev_type kDev1{0};
-constexpr file_stat::dev_type kDev2{259};
-constexpr file_stat::dev_type kDev3{261};
+constexpr device_number kDev1{0, 0};
+constexpr device_number kDev2{1, 3};
+constexpr device_number kDev3{1, 5};
 
 constexpr std::array<std::pair<std::string_view, test::simplestat>, 15>
     kTestEntries{{
