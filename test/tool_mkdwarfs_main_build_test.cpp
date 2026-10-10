@@ -53,6 +53,8 @@ using namespace std::literals::string_view_literals;
 
 namespace fs = std::filesystem;
 
+using test::kNoRdev;
+
 class mkdwarfs_build_options_test
     : public testing::TestWithParam<std::string_view> {
   DWARFS_SLOW_FIXTURE
@@ -187,7 +189,7 @@ TEST(mkdwarfs_test, filesystem_header) {
   EXPECT_EQ(header, hdr->as_string());
 
   auto os = std::make_shared<test::os_access_mock>();
-  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  os->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
   os->add_file("image.dwarfs", image);
 
   {
@@ -1284,27 +1286,27 @@ TEST_P(mkdwarfs_hardlink_test, non_file_hardlinks_are_preserved) {
 
   // char devices
   t.os->add("char-a",
-            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1001, .dev = 0});
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = {1, 1}, .dev = 0});
   t.os->add("char-b",
-            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1001, .dev = 0});
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = {1, 1}, .dev = 0});
   t.os->add("dev1/char",
-            {.ino = 30, .mode = 0020600, .rdev = 0x1002, .dev = 1});
+            {.ino = 30, .mode = 0020600, .rdev = {1, 2}, .dev = 1});
   t.os->add("dev2/char-a",
-            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1003, .dev = 2});
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = {1, 3}, .dev = 2});
   t.os->add("dev2/char-b",
-            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = 0x1003, .dev = 2});
+            {.ino = 30, .mode = 0020600, .nlink = 2, .rdev = {1, 3}, .dev = 2});
 
   // block devices
   t.os->add("block-a",
-            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2001, .dev = 0});
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = {2, 1}, .dev = 0});
   t.os->add("block-b",
-            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2001, .dev = 0});
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = {2, 1}, .dev = 0});
   t.os->add("dev1/block",
-            {.ino = 40, .mode = 0060600, .rdev = 0x2002, .dev = 1});
+            {.ino = 40, .mode = 0060600, .rdev = {2, 2}, .dev = 1});
   t.os->add("dev2/block-a",
-            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2003, .dev = 2});
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = {2, 3}, .dev = 2});
   t.os->add("dev2/block-b",
-            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = 0x2003, .dev = 2});
+            {.ino = 40, .mode = 0060600, .nlink = 2, .rdev = {2, 3}, .dev = 2});
 
   // FIFOs
   t.os->add("fifo-a", {.ino = 50, .mode = 0010644, .nlink = 2, .dev = 0});
