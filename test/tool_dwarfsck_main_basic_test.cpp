@@ -347,32 +347,34 @@ TEST(dwarfsck_test, checksum_algorithm_not_available) {
 }
 
 TEST(dwarfsck_test, list_files) {
-  auto t = dwarfsck_tester::create_with_image();
+  auto t = dwarfsck_tester::create_with_image(
+      build_test_image({"--with-devices", "--with-specials"}));
   EXPECT_EQ(0, t.run({"image.dwarfs", "--list"})) << t.err();
   auto out = t.out();
 
   auto files = split_to<std::set<std::string>>(out, '\n');
   files.erase("");
 
-  std::set<std::string> const expected{
-      "test.pl",     "somelink",      "somedir",   "foo.pl",
-      "bar.pl",      "baz.pl",        "ipsum.txt", "somedir/ipsum.py",
-      "somedir/bad", "somedir/empty", "empty",
-  };
-
-  EXPECT_EQ(expected, files);
+  EXPECT_THAT(files, ::testing::UnorderedElementsAre(
+                         "bar.pl", "baz.pl", "empty", "foo.pl", "ipsum.txt",
+                         "somedir", "somedir/bad", "somedir/empty",
+                         "somedir/ipsum.py", "somedir/null", "somedir/pipe",
+                         "somedir/zero", "somelink", "test.pl"));
 }
 
 TEST(dwarfsck_test, list_files_verbose) {
-  auto t = dwarfsck_tester::create_with_image();
+  auto t = dwarfsck_tester::create_with_image(
+      build_test_image({"--with-devices", "--with-specials"}));
   EXPECT_EQ(0, t.run({"image.dwarfs", "--list", "--verbose"})) << t.err();
   auto out = t.out();
 
   auto num_lines = std::ranges::count(out, '\n');
-  EXPECT_EQ(12, num_lines);
+  EXPECT_EQ(15, num_lines);
   auto format_time = [](time_t t) {
     return fmt::format("{:%F %H:%M}", safe_localtime(t));
   };
+
+  std::cout << out << "\n";
 
   std::vector<std::string> expected_re{
       fmt::format("drwxrwxrwx\\s+1000/100\\s+8\\s+{}\\s*\n", format_time(2)),
@@ -385,6 +387,10 @@ TEST(dwarfsck_test, list_files_verbose) {
                   "somedir/ipsum.py\n",
 #endif
                   format_time(2002)),
+      fmt::format("prw-r--r--\\s+1000/100\\s+0\\s+{}\\s+somedir/pipe\n",
+                  format_time(8002)),
+      fmt::format("crw-rw-rw-\\s+0/  0\\s+1,5\\s+{}\\s+somedir/zero\n",
+                  format_time(4000020002)),
   };
 
   for (auto const& str : expected_re) {
