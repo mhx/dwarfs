@@ -78,6 +78,7 @@ class filesystem_parser_ final : public filesystem_parser::impl {
   filesystem_version const& fs_version() const override { return fs_version_; }
 
   file_off_t image_offset() const override { return image_offset_; }
+  file_size_t image_size() const override { return image_size_; }
 
   bool has_checksums() const override { return header_version_ >= 2; }
 
@@ -101,7 +102,7 @@ class filesystem_parser_ final : public filesystem_parser::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   file_view mm_;
   file_off_t const image_offset_{0};
-  file_off_t const image_size_{0};
+  file_size_t const image_size_{0};
   file_off_t offset_{0};
   int header_version_{0};
   filesystem_version fs_version_{};

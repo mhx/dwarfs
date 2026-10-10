@@ -30,7 +30,7 @@
 
 #include <optional>
 
-#include <dwarfs/checksum.h>
+#include <dwarfs/filesystem_digests.h>
 
 namespace dwarfs {
 
@@ -45,11 +45,6 @@ struct filesystem_digests_config {
   bool compute_tree_digest{false};
   std::size_t max_queued_bytes{64 * 1024 * 1024}; // 64 MiB
   std::size_t num_worker_threads{4};
-};
-
-struct filesystem_digests {
-  checksum::digest_data attr_digest;
-  checksum::digest_data tree_digest;
 };
 
 filesystem_digests

@@ -48,6 +48,8 @@ namespace dwarfs::reader {
 
 namespace {
 
+constexpr std::uint8_t kCurrentDigestSchemeVersion{1};
+
 class entry_hasher {
  public:
   entry_hasher(filesystem_digests_config const& config, std::string_view id) {
@@ -433,7 +435,10 @@ filesystem_digests
 compute_filesystem_digests(logger& lgr, os_access const& os,
                            filesystem_v2 const& fs,
                            filesystem_digests_config const& config) {
-  return fs_digest_computer{lgr, os, fs, config}.compute();
+  auto d = fs_digest_computer{lgr, os, fs, config}.compute();
+  d.algorithm = digest_algorithm::BLAKE3_256;
+  d.scheme_version = kCurrentDigestSchemeVersion;
+  return d;
 }
 
 } // namespace dwarfs::reader

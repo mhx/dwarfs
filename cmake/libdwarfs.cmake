@@ -58,6 +58,7 @@ add_library(
   $<IF:$<BOOL:${ENABLE_PERFMON}>,src/performance_monitor.cpp,>
   src/scoped_output_capture.cpp
   src/semver.cpp
+  src/superblock_editor.cpp
   src/terminal_ansi.cpp
   src/thread_pool.cpp
   src/util.cpp

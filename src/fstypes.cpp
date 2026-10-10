@@ -35,12 +35,18 @@
 #include <dwarfs/compression.h>
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/superblock.h>
 
 namespace dwarfs {
 
 namespace {
 
 using namespace std::string_view_literals;
+
+struct digest_algo_info {
+  std::string_view name;
+  std::size_t bytes;
+};
 
 // clang-format off
 constexpr container::sorted_array_map sections{
@@ -50,7 +56,16 @@ constexpr container::sorted_array_map sections{
     SECTION_TYPE_(METADATA_V2),
     SECTION_TYPE_(SECTION_INDEX),
     SECTION_TYPE_(HISTORY),
+    SECTION_TYPE_(SUPERBLOCK),
+    SECTION_TYPE_(PADDING),
 #undef SECTION_TYPE_
+};
+
+constexpr container::sorted_array_map digest_algorithms{
+#define DIGEST_ALGO_(x, bits) std::pair{digest_algorithm::x, digest_algo_info{#x ## sv, bits / 8}}
+    DIGEST_ALGO_(UNINITIALIZED, 0),
+    DIGEST_ALGO_(BLAKE3_256, 256),
+#undef DIGEST_ALGO_
 };
 
 constexpr container::sorted_array_map compressions {
@@ -79,12 +94,30 @@ bool is_known_section_type(section_type type) {
   return sections.contains(type);
 }
 
+bool is_known_digest_algorithm(digest_algorithm algo) {
+  return digest_algorithms.contains(algo);
+}
+
 std::string get_compression_name(compression_type type) {
   return get_default(compressions, type);
 }
 
 std::string get_section_name(section_type type) {
   return get_default(sections, type);
+}
+
+std::string get_digest_algorithm_name(digest_algorithm algo) {
+  if (auto value = digest_algorithms.get(algo)) {
+    return std::string{value->name};
+  }
+  return fmt::format("unknown ({})", static_cast<int>(algo));
+}
+
+std::size_t get_digest_algorithm_size(digest_algorithm algo) {
+  if (auto value = digest_algorithms.get(algo)) {
+    return value->bytes;
+  }
+  return 0;
 }
 
 void section_header::dump(std::ostream& os) const {
@@ -114,6 +147,14 @@ std::string section_header_v2::to_string() const {
   std::ostringstream oss;
   dump(oss);
   return oss.str();
+}
+
+std::string filesystem_version::to_string() const {
+  return fmt::format("{}.{}", static_cast<int>(major), static_cast<int>(minor));
+}
+
+std::ostream& operator<<(std::ostream& os, filesystem_version const& version) {
+  return os << version.to_string();
 }
 
 } // namespace dwarfs

@@ -360,6 +360,8 @@ void rewrite_filesystem(
     writer.copy_header(std::move(*header));
   }
 
+  writer.start_write_filesystem();
+
   size_t block_no{0};
   bool seen_history{false};
 
@@ -540,7 +542,12 @@ void rewrite_filesystem(
       break;
 
     case section_type::SECTION_INDEX:
-      // this will be automatically added by the filesystem_writer
+    case section_type::SUPERBLOCK:
+    case section_type::PADDING:
+      // these will be automatically added by the filesystem_writer
+      // NOTE: We deliberately don't copy the superblock or anything
+      //       from it here, since we're writing a completely new
+      //       file system image.
       break;
 
     default:
