@@ -91,6 +91,13 @@ enum class path_type {
 
 std::ostream& operator<<(std::ostream& os, path_type m);
 
+constexpr auto default_fs_opts = reader::filesystem_options{
+    .block_cache = {.max_bytes = 256 * 1024,
+                    .sequential_access_detector_threshold = 4},
+    .metadata = {.check_consistency = true},
+    .inode_reader = {.readahead = 4},
+};
+
 class tester_common {
  public:
   using main_ptr_t = tool::main_adapter::main_fn_type;
@@ -114,9 +121,25 @@ class tester_common {
   // value to pass to `--input-list`.
   std::string set_input_list(input_mode mode, std::string const& list);
 
+  void add_stream_logger(std::ostream& st,
+                         logger::level_type level = logger::VERBOSE);
+
+  reader::filesystem_v2
+  fs_from_data(std::string data,
+               reader::filesystem_options const& opt = default_fs_opts);
+
+  reader::filesystem_v2
+  fs_from_file(std::string path,
+               reader::filesystem_options const& opt = default_fs_opts);
+
+  reader::filesystem_v2
+  fs_from_stdout(reader::filesystem_options const& opt = default_fs_opts);
+
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<test::test_iolayer> iol;
+
+  std::unique_ptr<logger> lgr;
 
   std::string safe_log_level_opt(logger::level_type level) const;
 
@@ -144,13 +167,6 @@ struct random_file_tree_options {
   bool only_random_contents{false};
 };
 
-constexpr auto default_fs_opts = reader::filesystem_options{
-    .block_cache = {.max_bytes = 256 * 1024,
-                    .sequential_access_detector_threshold = 4},
-    .metadata = {.check_consistency = true},
-    .inode_reader = {.readahead = 4},
-};
-
 class mkdwarfs_tester : public tester_common {
  public:
   mkdwarfs_tester();
@@ -161,28 +177,12 @@ class mkdwarfs_tester : public tester_common {
   create_with_image(std::string image,
                     std::string const& image_file = "image.dwarfs");
 
-  void add_stream_logger(std::ostream& st,
-                         logger::level_type level = logger::VERBOSE);
-
   void add_special_files(bool with_regular_files = true);
   void add_test_file_tree(bool with_regular_files = true);
 
   std::vector<std::pair<std::filesystem::path, std::string>>
   add_random_file_tree(
       random_file_tree_options const& opt = random_file_tree_options{});
-
-  reader::filesystem_v2
-  fs_from_data(std::string data,
-               reader::filesystem_options const& opt = default_fs_opts);
-
-  reader::filesystem_v2
-  fs_from_file(std::string path,
-               reader::filesystem_options const& opt = default_fs_opts);
-
-  reader::filesystem_v2
-  fs_from_stdout(reader::filesystem_options const& opt = default_fs_opts);
-
-  std::unique_ptr<logger> lgr;
 };
 
 std::string
