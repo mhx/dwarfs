@@ -274,7 +274,8 @@ class filesystem_ final {
               filesystem_options const& options,
               std::shared_ptr<performance_monitor const> const& perfmon);
 
-  int check(filesystem_check_level level, size_t num_threads) const;
+  filesystem_check_result
+  check(filesystem_check_level level, size_t num_threads) const;
   void
   dump(std::ostream& os, fsinfo_options const& opts, history const& hist) const;
   std::string dump(fsinfo_options const& opts, history const& hist) const;
@@ -751,50 +752,82 @@ history filesystem_<LoggerPolicy>::get_history() const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
-                                     size_t num_threads) const {
+filesystem_check_result
+filesystem_<LoggerPolicy>::check(filesystem_check_level level,
+                                 size_t num_threads) const {
   auto parser = make_fs_parser();
 
+  struct parse_result {
+    fs_section section;
+    filesystem_check_result::result_type result{};
+  };
+
   worker_group wg(LOG_GET_LOGGER, os_, "fscheck", {.num_workers = num_threads});
-  std::vector<std::future<fs_section>> sections;
+  std::vector<std::future<parse_result>> sections;
 
   while (auto sp = parser.next_section()) {
     check_section(*sp);
 
-    std::packaged_task<fs_section()> task{[this, level, s = std::move(*sp)] {
+    std::packaged_task<parse_result()> task{[this, level,
+                                             sec = std::move(*sp)] {
+      parse_result res{
+          .section = std::move(sec),
+          .result = filesystem_check_result::result_type::passed,
+      };
+
+      auto const& s = res.section;
       auto seg = s.segment(mm_);
+
       if (level == filesystem_check_level::INTEGRITY ||
           level == filesystem_check_level::FULL) {
         fs_section_checker checker(seg);
         if (!checker.verify(s)) {
-          DWARFS_THROW(runtime_error,
-                       "integrity check error in section: " + s.name());
+          res.result = filesystem_check_result::result_type::integrity_failed;
         }
       } else {
         if (!s.check_fast(seg)) {
-          DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
+          res.result = filesystem_check_result::result_type::checksum_failed;
         }
       }
 
-      return s;
+      return res;
     }};
 
     sections.emplace_back(task.get_future());
     wg.add_job(std::move(task));
   }
 
+  filesystem_check_result result;
   std::vector<std::optional<std::size_t>> uncompressed_block_size;
   std::unordered_set<section_type> seen;
-  int errors = 0;
 
-  for (auto& sf : sections) {
+  for (auto&& sf : sections) {
+    auto& sinfo = result.section_results.emplace_back();
+
     try {
-      auto s = sf.get();
+      auto&& pr = sf.get();
+      auto const& s = pr.section;
+
+      sinfo.offset = s.start();
+      sinfo.length = s.length();
+      sinfo.number = s.section_number();
+      sinfo.type = s.type();
+      sinfo.compression = s.compression();
+      sinfo.check_result = pr.result;
+
+      if (pr.result != filesystem_check_result::result_type::passed) {
+        LOG_ERROR << to_string(pr.result) << " in section: " << s.name();
+        ++result.error_count;
+        continue;
+      }
 
       if (s.type() != section_type::BLOCK &&
           s.type() != section_type::HISTORY) {
         if (!seen.emplace(s.type()).second) {
-          DWARFS_THROW(runtime_error, "duplicate section: " + s.name());
+          LOG_ERROR << "duplicate section: " << s.name();
+          pr.result = filesystem_check_result::result_type::duplicate_section;
+          ++result.error_count;
+          continue;
         }
       }
 
@@ -806,7 +839,9 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
           uncompressed_size = section.get_uncompressed_size();
         } catch (std::exception const& e) {
           LOG_ERROR << exception_str(e) << " in section " << s.description();
-          ++errors;
+          pr.result =
+              filesystem_check_result::result_type::decompression_failed;
+          ++result.error_count;
         }
 
         if (s.type() == section_type::BLOCK) {
@@ -815,7 +850,21 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
       }
     } catch (std::exception const& e) {
       LOG_ERROR << exception_str(e);
-      ++errors;
+      sinfo.check_result =
+          filesystem_check_result::result_type::unexpected_error;
+      ++result.error_count;
+    }
+  }
+
+  {
+    std::unordered_set<filesystem_check_result::result_type> seen;
+
+    for (auto& sinfo : result.section_results) {
+      if (sinfo.check_result != filesystem_check_result::result_type::passed) {
+        if (seen.emplace(sinfo.check_result).second) {
+          result.failure_types.emplace_back(sinfo.check_result);
+        }
+      }
     }
   }
 
@@ -824,11 +873,13 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
       meta_.check_consistency(uncompressed_block_size);
     } catch (std::exception const& e) {
       LOG_ERROR << exception_str(e);
-      ++errors;
+      result.failure_types.emplace_back(
+          filesystem_check_result::result_type::metadata_consistency_failed);
+      ++result.error_count;
     }
   }
 
-  return errors;
+  return result;
 }
 
 template <typename LoggerPolicy>
@@ -1706,7 +1757,8 @@ class filesystem_full_
             lgr, os, std::move(mm), options, perfmon)
       , history_{fs().get_history()} {}
 
-  int check(filesystem_check_level level, size_t num_threads) const override {
+  filesystem_check_result
+  check(filesystem_check_level level, size_t num_threads) const override {
     return fs().check(level, num_threads);
   }
   void dump(std::ostream& os, fsinfo_options const& opts) const override {
@@ -1820,13 +1872,13 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
   fsopts.metadata.check_consistency = true;
   filesystem_v2 fs(lgr, os, mm, fsopts);
 
-  auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
+  auto result = fs.check(check_integrity ? filesystem_check_level::FULL
                                          : filesystem_check_level::CHECKSUM,
                          num_readers);
 
   fs.dump(output, {.features = fsinfo_features::for_level(detail_level)});
 
-  return errors;
+  return result.error_count;
 }
 
 std::optional<file_extents_iterable>
@@ -1840,8 +1892,8 @@ filesystem_v2::header(logger& lgr, file_view const& mm,
   return internal::filesystem_parser(lgr, mm, image_offset).header();
 }
 
-int filesystem_v2::check(filesystem_check_level level,
-                         size_t num_threads) const {
+filesystem_check_result
+filesystem_v2::check(filesystem_check_level level, size_t num_threads) const {
   return full_().check(level, num_threads);
 }
 
@@ -1912,5 +1964,36 @@ std::optional<std::string> filesystem_v2::filesystem_uuid() const {
 }
 
 auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }
+
+bool filesystem_check_result::passed() const {
+  return error_count == 0 && failure_types.empty() &&
+         std::ranges::all_of(section_results, [](auto const& r) {
+           return r.check_result ==
+                  filesystem_check_result::result_type::passed;
+         });
+}
+
+std::string to_string(filesystem_check_result::result_type value) {
+  switch (value) {
+    using enum filesystem_check_result::result_type;
+  case unknown:
+    return "unknown";
+  case passed:
+    return "passed";
+  case checksum_failed:
+    return "checksum error";
+  case integrity_failed:
+    return "integrity check error";
+  case decompression_failed:
+    return "decompression failed";
+  case duplicate_section:
+    return "duplicate section";
+  case metadata_consistency_failed:
+    return "metadata consistency error";
+  case unexpected_error:
+    return "unexpected error";
+  }
+  DWARFS_PANIC("unhandled filesystem_check_result::result_type value");
+}
 
 } // namespace dwarfs::reader

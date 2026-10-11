@@ -80,6 +80,36 @@ struct iovec_read_buf;
 
 enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
 
+struct filesystem_check_result {
+  enum class result_type {
+    unknown,
+    passed,
+    checksum_failed,
+    integrity_failed,
+    decompression_failed,
+    duplicate_section,
+    metadata_consistency_failed,
+    unexpected_error,
+  };
+
+  friend std::string to_string(result_type value);
+
+  struct section_info {
+    std::uint64_t offset{0};
+    std::uint64_t length{0};
+    std::optional<std::uint32_t> number{};
+    section_type type{};
+    compression_type compression{};
+    result_type check_result{result_type::unknown};
+  };
+
+  bool passed() const;
+
+  std::vector<section_info> section_results;
+  std::vector<result_type> failure_types;
+  int error_count{0};
+};
+
 namespace internal {
 
 class filesystem_parser;
@@ -536,7 +566,8 @@ class filesystem_v2 final : public filesystem_v2_lite {
   static std::optional<file_extents_iterable>
   header(logger& lgr, file_view const& mm, file_off_t image_offset);
 
-  int check(filesystem_check_level level, size_t num_threads = 0) const;
+  filesystem_check_result
+  check(filesystem_check_level level, size_t num_threads = 0) const;
 
   void dump(std::ostream& os, fsinfo_options const& opts) const;
   std::string dump(fsinfo_options const& opts) const;
@@ -565,7 +596,7 @@ class filesystem_v2 final : public filesystem_v2_lite {
 
   class impl : public impl_lite {
    public:
-    virtual int
+    virtual filesystem_check_result
     check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
     virtual std::string dump(fsinfo_options const& opts) const = 0;
