@@ -201,8 +201,6 @@ void check_section_header(section_header_v2 const& hdr) {
 /// a label with bad encoding is exactly the kind of thing someone would
 /// reach for this editor to fix.
 void check_superblock(superblock_v1 const& sb) {
-  // Major version 0 was used by an early draft of this structure, which is
-  // deliberately not supported.
   if (sb.major_version != SUPERBLOCK_MAJOR_VERSION) {
     throw std::runtime_error("unsupported superblock major version");
   }
@@ -306,7 +304,7 @@ void read_exactly(std::istream& input, std::byte* dest, std::size_t size,
 /// when initially reading the superblock and when re-checking the section
 /// an update is about to overwrite. Returns both the parsed section and the
 /// exact bytes it was parsed from.
-parsed_superblock parse(std::istream& input) {
+parsed_superblock parse(std::istream& input, bool accept_corrupted) {
   parsed_superblock p;
 
   p.raw.resize(kHeaderSize);
@@ -323,11 +321,15 @@ parsed_superblock parse(std::istream& input) {
   p.raw.resize(kHeaderSize + payload_size);
   read_exactly(input, p.raw.data() + kHeaderSize, payload_size, "superblock");
 
-  verify_checksums(p.raw);
+  if (!accept_corrupted) {
+    verify_checksums(p.raw);
+  }
 
   std::memcpy(&p.section.sb, p.raw.data() + kHeaderSize, kKnownPayloadSize);
 
-  check_superblock(p.section.sb);
+  if (!accept_corrupted) {
+    check_superblock(p.section.sb);
+  }
 
   p.section.tail.assign(p.raw.begin() + kHeaderSize + kKnownPayloadSize,
                         p.raw.end());
@@ -385,7 +387,7 @@ class superblock_editor::impl {
     }
   }
 
-  void read(std::istream& input);
+  void read(std::istream& input, bool accept_corrupted);
   void update(std::iostream& io);
 
   std::vector<std::uint8_t> get_payload() const {
@@ -567,6 +569,14 @@ class superblock_editor::impl {
     require_minor(kMinorDigests);
   }
 
+  void clear_all_mutable_fields() {
+    auto& sblk = sb();
+    sblk.fs_size = 0;
+    sblk.fs_uuid.fill(0);
+    sblk.fs_label.fill(0);
+    clear_digests();
+  }
+
  private:
   digest_span digest_view(superblock_v1::digest_t const& digest) const {
     auto const size = get_digest_algorithm_size(sb().digest_algo);
@@ -651,7 +661,7 @@ class superblock_editor::impl {
   editor_mode const mode_;
 };
 
-void superblock_editor::impl::read(std::istream& input) {
+void superblock_editor::impl::read(std::istream& input, bool accept_corrupted) {
   DWARFS_CHECK(mode_ == editor_mode::update,
                "superblock_editor::read() can only be called in update mode");
 
@@ -664,7 +674,7 @@ void superblock_editor::impl::read(std::istream& input) {
   // Only commit once everything has been validated. Otherwise a failed
   // read would leave unvalidated data in the editor, which a subsequent
   // update() could push into an image.
-  auto p = parse(input);
+  auto p = parse(input, accept_corrupted);
 
   s_ = std::move(p.section);
   image_raw_ = std::move(p.raw);
@@ -714,7 +724,7 @@ void superblock_editor::impl::update(std::iostream& io) {
     throw std::runtime_error("failed to seek to superblock offset");
   }
 
-  if (parse(io).raw != image_raw_) {
+  if (parse(io, true).raw != image_raw_) {
     throw std::runtime_error(
         "superblock in the image has changed since it was read");
   }
@@ -759,7 +769,11 @@ superblock_editor superblock_editor::builder() {
   return superblock_editor{std::make_unique<impl>(editor_mode::create)};
 }
 
-void superblock_editor::read(std::istream& input) { impl_->read(input); }
+void superblock_editor::read(std::istream& input) { impl_->read(input, false); }
+
+void superblock_editor::read_corrupted(std::istream& input) {
+  impl_->read(input, true);
+}
 
 void superblock_editor::update(std::iostream& io) { impl_->update(io); }
 
@@ -864,6 +878,10 @@ void superblock_editor::set_tree_digest(digest_span tree_digest) {
 }
 
 void superblock_editor::clear_digests() { impl_->clear_digests(); }
+
+void superblock_editor::clear_all_mutable_fields() {
+  impl_->clear_all_mutable_fields();
+}
 
 void superblock_editor::set_uuid(std::span<std::uint8_t> buffer,
                                  std::string_view uuid) {
