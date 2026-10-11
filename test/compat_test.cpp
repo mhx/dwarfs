@@ -955,7 +955,7 @@ void check_compat(test::test_logger& lgr [[maybe_unused]],
   bool const has_section_index = compare_versions(version, "0.6.0") >= 0;
   auto const expected_blocks = nlink_affects_blocks ? 2747 : 10614;
 
-  ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+  ASSERT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -1711,7 +1711,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
   test::os_access_mock os;
   reader::filesystem_v2 fs(lgr, os, test::make_real_file_view(image));
 
-  ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+  ASSERT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
   for (auto path : {"/dwarfs", "/dwarfs/version.h"}) {
     auto v = fs.find(path);

@@ -508,21 +508,27 @@ int dwarfsck_impl::do_export_metadata() {
 }
 
 int dwarfsck_impl::do_check() {
+  if (opts_.no_check) {
+    return 0;
+  }
+
   auto const level = opts_.check_integrity
                          ? reader::filesystem_check_level::FULL
                          : reader::filesystem_check_level::CHECKSUM;
-  auto errors = opts_.no_check ? 0 : fs().check(level, opts_.num_workers);
+  auto res = fs().check(level, opts_.num_workers);
 
-  if (!opts_.no_check && opts_.check_integrity) {
-    try {
-      fs().walk([](auto const&) {});
-    } catch (std::exception const& e) {
-      LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
-      ++errors;
+  if (res.passed()) {
+    if (opts_.check_integrity) {
+      try {
+        fs().walk([](auto const&) {});
+      } catch (std::exception const& e) {
+        LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
+        return 1;
+      }
     }
   }
 
-  return errors;
+  return res.error_count;
 }
 
 void dwarfsck_impl::do_dump_info() {
