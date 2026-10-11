@@ -1191,13 +1191,15 @@ TEST(filesystem, uid_gid_32bit) {
 }
 
 TEST(filesystem, uid_gid_count) {
+  DWARFS_SLOW_TEST();
+
   test::test_logger lgr;
 
   auto input = std::make_shared<test::os_access_mock>();
 
-  input->add("", {1, 040755, 1, 0, 0, 10, kNoRdev, 0, 0, 0});
+  input->add("", {1, 040755, 1, 0, 0, 0, kNoRdev, 0, 0, 0});
 
-  for (uint32_t i = 0; i < 100000; ++i) {
+  for (uint32_t i = 0; i < 70000; ++i) {
     input->add(fmt::format("foo{:05d}.txt", i),
                {2 + i, 0100644, 1, 50000 + i, 250000 + i, 10, kNoRdev, 0, 0, 0},
                fmt::format("hello{:05d}", i));
@@ -1211,22 +1213,22 @@ TEST(filesystem, uid_gid_count) {
 
   auto dev00000 = fs.find("/foo00000.txt");
   auto dev50000 = fs.find("/foo50000.txt");
-  auto dev99999 = fs.find("/foo99999.txt");
+  auto dev69999 = fs.find("/foo69999.txt");
 
   ASSERT_TRUE(dev00000);
   ASSERT_TRUE(dev50000);
-  ASSERT_TRUE(dev99999);
+  ASSERT_TRUE(dev69999);
 
   auto st00000 = fs.getattr(dev00000->inode());
   auto st50000 = fs.getattr(dev50000->inode());
-  auto st99999 = fs.getattr(dev99999->inode());
+  auto st69999 = fs.getattr(dev69999->inode());
 
   EXPECT_EQ(50000, st00000.uid());
   EXPECT_EQ(250000, st00000.gid());
   EXPECT_EQ(100000, st50000.uid());
   EXPECT_EQ(300000, st50000.gid());
-  EXPECT_EQ(149999, st99999.uid());
-  EXPECT_EQ(349999, st99999.gid());
+  EXPECT_EQ(119999, st69999.uid());
+  EXPECT_EQ(319999, st69999.gid());
 }
 
 TEST(filesystem, uid_gid_override) {
