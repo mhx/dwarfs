@@ -490,11 +490,18 @@ TEST(mkdwarfs_test, change_block_size) {
   static constexpr int kMaxBlockSize = 26;
 #endif
 
+  auto get_info = [](reader::filesystem_v2 const& fs) {
+    return fs.info_as_json({.features = {
+                                reader::fsinfo_feature::metadata_summary,
+                                reader::fsinfo_feature::metadata_details,
+                            }});
+  };
+
   for (int lg_block_size = kMinBlockSize; lg_block_size <= kMaxBlockSize;
        ++lg_block_size) {
     auto t = rebuild_tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "-S",
-                        std::to_string(lg_block_size), "-C", "zstd:level=5",
+                        std::to_string(lg_block_size), "-C", "zstd:level=-1",
                         "--change-block-size", "--keep-all-times"}))
         << t.err();
 
@@ -503,7 +510,7 @@ TEST(mkdwarfs_test, change_block_size) {
       EXPECT_EQ(ref_checksums, checksums);
 
       auto fs = t.fs_from_stdout();
-      auto info = fsinfo_json(fs, 3);
+      auto info = get_info(fs);
 
       EXPECT_EQ(1 << lg_block_size, info["block_size"].get<int>());
 
@@ -515,10 +522,12 @@ TEST(mkdwarfs_test, change_block_size) {
     }
 
     auto t2 = rebuild_tester(t.out());
-    ASSERT_EQ(0,
-              t2.run({"-i", image_file, "-o", "-", "-S18", "-C", "zstd:level=5",
-                      "--change-block-size", "--keep-all-times",
-                      t.safe_log_level_opt(logger::DEBUG)}))
+    ASSERT_EQ(
+        0, t2.run({"-i", image_file, "-o", "-", "-S18", "-C", "zstd:level=-1",
+                   "--change-block-size", "--keep-all-times",
+                   t.safe_log_level_opt(lg_block_size == kMaxBlockSize
+                                            ? logger::DEBUG
+                                            : logger::INFO)}))
         << t2.err();
 
     {
@@ -526,7 +535,7 @@ TEST(mkdwarfs_test, change_block_size) {
       EXPECT_EQ(ref_checksums, checksums);
 
       auto fs = t2.fs_from_stdout();
-      auto info = fsinfo_json(fs, 3);
+      auto info = get_info(fs);
 
       EXPECT_EQ(1 << 18, info["block_size"].get<int>());
 
@@ -541,15 +550,14 @@ TEST(mkdwarfs_test, change_block_size) {
     if (lg_block_size == kMinBlockSize) {
       auto t3 = rebuild_tester(t2.out());
       ASSERT_EQ(
-          0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=5",
+          0, t3.run({"-i", image_file, "-o", "-", "-S20", "-C", "zstd:level=-1",
                      "--change-block-size", "--keep-all-times", "--no-check",
-                     t.safe_log_level_opt(logger::DEBUG),
                      "--no-metadata-version-history"}))
           << t3.err();
 
       {
         auto fs = t3.fs_from_stdout();
-        auto info = fsinfo_json(fs, 3);
+        auto info = get_info(fs);
 
         EXPECT_EQ(1 << 20, info["block_size"].get<int>());
 
