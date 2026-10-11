@@ -117,6 +117,14 @@ with a non-zero exit code.
   RFC 9562 v4 UUID. The size field will *always* be initialized, even if it
   is not explicitly requested, when using this option.
 
+- `--repair-superblock`:
+  Attempt to repair a corrupted superblock. In the rare event that modifying
+  the superblock (e.g. a label change) has left the superblock in a corrupted
+  state (e.g. power loss or crash during write), this option will attempt to
+  repair the superblock. This is *only* done if the rest of the filesystem
+  passes the integrity check and the superblock is the only section that is
+  corrupted. This does nothing if the superblock is not corrupted.
+
 - `--set-uuid=random`|`nil`|*UUID*:
   Set the filesystem UUID to a random RFC 9562 v4 UUID, an all-zero UUID, or
   to an explicit RFC 9562 UUID. This is only supported for filesystem images
