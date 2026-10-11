@@ -1463,11 +1463,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       {
         auto tv = LOG_TIMED_VERBOSE;
 
-        if (auto num_errors = input_filesystem->check(
+        if (auto res = input_filesystem->check(
                 reader::filesystem_check_level::CHECKSUM);
-            num_errors != 0) {
-          LOG_ERROR << "input filesystem is corrupt: detected " << num_errors
-                    << " error(s)";
+            !res.passed()) {
+          LOG_ERROR << "input filesystem is corrupt: detected "
+                    << res.error_count << " error(s)";
           return 1;
         }
 

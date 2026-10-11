@@ -146,7 +146,7 @@ TEST(mkdwarfs_test, bug_sentinel_self_entry_nonzero) {
     auto t = mkdwarfs_tester::create_empty();
     t.add_stream_logger(oss, logger::INFO);
     auto fs = t.fs_from_data(bug_image_data);
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::INTEGRITY));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::INTEGRITY).passed());
     EXPECT_THAT(
         oss.str(),
         ::testing::HasSubstr(
@@ -167,7 +167,7 @@ TEST(mkdwarfs_test, bug_sentinel_self_entry_nonzero) {
     t.add_stream_logger(oss, logger::INFO);
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::INTEGRITY));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::INTEGRITY).passed());
     EXPECT_THAT(oss.str(), ::testing::IsEmpty())
         << "no warnings should be emitted when checking the rebuilt image";
   }
