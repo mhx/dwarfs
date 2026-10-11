@@ -43,54 +43,58 @@ constexpr std::array<std::string_view, 9> const pack_mode_names = {
     "symlinks",    "symlinks_index", "force",        "plain",
 };
 
-}
+class pack_modes_test : public ::testing::TestWithParam<int> {};
 
-TEST(mkdwarfs_test, pack_modes_random) {
+} // namespace
+
+TEST_P(pack_modes_test, pack_modes_random) {
   DWARFS_SLOW_TEST();
 
-  std::mt19937_64 rng{42};
+  auto const seed = GetParam();
+
+  std::mt19937_64 rng(seed);
   std::uniform_int_distribution<> dist{1, pack_mode_names.size()};
 
-  for (int i = 0; i < 50; ++i) {
-    std::vector<std::string_view> modes(pack_mode_names.begin(),
-                                        pack_mode_names.end());
-    std::shuffle(modes.begin(), modes.end(), rng);
-    modes.resize(dist(rng));
-    auto mode_arg = fmt::format("{}", fmt::join(modes, ","));
-    auto t = mkdwarfs_tester::create_empty();
-    t.add_test_file_tree();
+  std::vector<std::string_view> modes(pack_mode_names.begin(),
+                                      pack_mode_names.end());
+  std::shuffle(modes.begin(), modes.end(), rng);
+  modes.resize(dist(rng));
+  auto mode_arg = fmt::format("{}", fmt::join(modes, ","));
+
+  SCOPED_TRACE(mode_arg);
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
 #ifdef DWARFS_TEST_CROSS_COMPILE
-    t.add_random_file_tree({.avg_size = 128.0, .dimension = 10});
+  t.add_random_file_tree({.avg_size = 128.0, .dimension = 10});
 #else
-    t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
+  t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
 #endif
-    ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1",
-                        "--num-walk-workers=" + std::to_string(1 + i % 7),
-                        "--pack-metadata=" + mode_arg}))
-        << t.err();
-    auto fs = t.fs_from_stdout();
-    auto info = fsinfo_json(fs, 2);
-    std::set<std::string> ms(modes.begin(), modes.end());
-    std::set<std::string> fsopt;
-    for (auto const& opt : info["options"]) {
-      fsopt.insert(opt.get<std::string>());
-    }
-    auto ctx = mode_arg + "\n" + fsinfo_dump(fs, 2);
-    EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"))
-        << ctx;
-    EXPECT_EQ(ms.count("directories"), fsopt.count("packed_directories"))
-        << ctx;
-    EXPECT_EQ(ms.count("shared_files"),
-              fsopt.count("packed_shared_files_table"))
-        << ctx;
-    if (ms.count("plain")) {
-      EXPECT_EQ(0, fsopt.count("packed_names")) << ctx;
-      EXPECT_EQ(0, fsopt.count("packed_names_index")) << ctx;
-      EXPECT_EQ(0, fsopt.count("packed_symlinks")) << ctx;
-      EXPECT_EQ(0, fsopt.count("packed_symlinks_index")) << ctx;
-    }
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1",
+                      "--num-walk-workers=" + std::to_string(1 + seed % 7),
+                      "--pack-metadata=" + mode_arg}))
+      << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info =
+      fs.info_as_json({.features = {reader::fsinfo_feature::metadata_summary}});
+  std::set<std::string> ms(modes.begin(), modes.end());
+  std::set<std::string> fsopt;
+  for (auto const& opt : info["options"]) {
+    fsopt.insert(opt.get<std::string>());
+  }
+  EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"));
+  EXPECT_EQ(ms.count("directories"), fsopt.count("packed_directories"));
+  EXPECT_EQ(ms.count("shared_files"), fsopt.count("packed_shared_files_table"));
+  if (ms.count("plain")) {
+    EXPECT_EQ(0, fsopt.count("packed_names"));
+    EXPECT_EQ(0, fsopt.count("packed_names_index"));
+    EXPECT_EQ(0, fsopt.count("packed_symlinks"));
+    EXPECT_EQ(0, fsopt.count("packed_symlinks_index"));
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(mkdwarfs_test, pack_modes_test,
+                         ::testing::Range(0, 50));
 
 TEST(mkdwarfs_test, pack_mode_none) {
   auto t = mkdwarfs_tester::create_empty();
