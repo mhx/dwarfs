@@ -732,7 +732,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
     auto t = mkdwarfs_tester::create_empty();
     auto fs = t.fs_from_data(image_data);
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -766,7 +766,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
 
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -801,7 +801,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
 
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -835,7 +835,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker) {
 
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -873,7 +873,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
     auto t = mkdwarfs_tester::create_empty();
     auto fs = t.fs_from_data(image_data);
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -916,7 +916,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
 
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
@@ -959,7 +959,7 @@ TEST(mkdwarfs_test, rebuild_with_new_large_hole_marker_boundary_holes) {
 
     auto fs = t.fs_from_stdout();
 
-    EXPECT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
+    EXPECT_TRUE(fs.check(reader::filesystem_check_level::FULL).passed());
 
     auto const info = fs.info_as_json(
         {.features = {reader::fsinfo_feature::metadata_summary,
