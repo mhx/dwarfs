@@ -98,6 +98,10 @@ class superblock_editor {
   /// Throws if the data is not a valid superblock section.
   void read(std::istream& input);
 
+  /// Read a superblock from the current position of `input` with limited
+  /// validation. Throws if the data is unrecoverably corrupted.
+  void read_corrupted(std::istream& input);
+
   /// Overwrite the superblock in place, at the offset it was read from.
   /// `io` must refer to the same image `read()` was called on and must be
   /// open for both reading and writing.
@@ -165,6 +169,7 @@ class superblock_editor {
   void set_tree_digest(digest_span tree_digest);
 
   void clear_digests();
+  void clear_all_mutable_fields();
 
   static void set_uuid(std::span<std::uint8_t> buffer, std::string_view uuid);
 

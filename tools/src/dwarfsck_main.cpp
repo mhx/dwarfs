@@ -107,6 +107,7 @@ class dwarfsck_impl {
     bool init_uuid{false};
     bool init_attr_digest{false};
     bool init_tree_digest{false};
+    bool repair_superblock{false};
   };
 
   // Parses the command line. On success, returns the parsed options.
@@ -129,12 +130,13 @@ class dwarfsck_impl {
   int do_print_header(file_view const& mm);
 
   int do_export_metadata();
-  int do_check();
+  int do_check_and_repair(std::filesystem::path const& image_path);
   void do_dump_info();
   void do_list_files();
   void do_checksum();
   void do_fs_digests();
   void do_edit_superblock(std::filesystem::path const& image_path);
+  int do_repair_superblock(std::filesystem::path const& image_path);
 
   reader::filesystem_v2& fs() { return fs_.value(); }
 
@@ -231,6 +233,9 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("init-superblock",
         po::value<std::string>(&init_superblock_raw)->implicit_value("all"),
         "initialize superblock fields (all, size, uuid, digests, attr_digest)")
+    ("repair-superblock",
+        po::value<bool>(&o.repair_superblock)->zero_tokens(),
+        "repair a corrupted superblock (will clear UUID, label, and digests)")
     ("set-label",
         po_sys_value<sys_string>(&set_label_raw),
         "set filesystem label in superblock")
@@ -411,10 +416,10 @@ int dwarfsck_impl::run() {
       return do_export_metadata();
     }
 
-    auto const errors = do_check();
+    auto const errors = do_check_and_repair(input_path);
 
     if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
-        !opts_.init_superblock) {
+        !opts_.init_superblock && !opts_.repair_superblock) {
       do_dump_info();
     }
 
@@ -444,7 +449,7 @@ int dwarfsck_impl::run() {
       if (fs().has_superblock()) {
         do_edit_superblock(input_path);
       } else {
-        LOG_WARN << "no superblock found";
+        LOG_WARN << "no valid superblock found";
         warnings = true;
       }
     }
@@ -507,12 +512,13 @@ int dwarfsck_impl::do_export_metadata() {
   return 0;
 }
 
-int dwarfsck_impl::do_check() {
-  if (opts_.no_check) {
+int dwarfsck_impl::do_check_and_repair(
+    std::filesystem::path const& image_path) {
+  if (opts_.no_check && !opts_.repair_superblock) {
     return 0;
   }
 
-  auto const level = opts_.check_integrity
+  auto const level = opts_.check_integrity || opts_.repair_superblock
                          ? reader::filesystem_check_level::FULL
                          : reader::filesystem_check_level::CHECKSUM;
   auto res = fs().check(level, opts_.num_workers);
@@ -526,6 +532,41 @@ int dwarfsck_impl::do_check() {
         return 1;
       }
     }
+  }
+
+  if (opts_.repair_superblock) {
+    DWARFS_CHECK(res.section_results.size() > 1,
+                 "expected at least 2 section results");
+    auto const& sb = res.section_results.front();
+    bool const has_superblock = sb.type == section_type::SUPERBLOCK &&
+                                sb.number.has_value() && *sb.number == 0 &&
+                                sb.compression == compression_type::NONE;
+    bool const is_bad_superblock =
+        sb.check_result != reader::filesystem_check_result::result_type::passed;
+    bool const is_repairable = std::all_of(
+        res.section_results.begin() + 1, res.section_results.end(),
+        [](auto const& si) {
+          return si.check_result ==
+                 reader::filesystem_check_result::result_type::passed;
+        });
+
+    if (!has_superblock) {
+      LOG_WARN << "no superblock found, cannot repair";
+      return 1;
+    }
+
+    if (!is_bad_superblock) {
+      LOG_WARN << "superblock is not corrupt, repair not needed";
+      return 1;
+    }
+
+    if (!is_repairable) {
+      LOG_ERROR << "superblock is corrupt, but other sections are also "
+                   "corrupt, cannot repair";
+      return 1;
+    }
+
+    return do_repair_superblock(image_path);
   }
 
   return res.error_count;
@@ -717,6 +758,61 @@ void dwarfsck_impl::do_edit_superblock(
   sbe.update(ios);
 
   io_stream->close();
+}
+
+int dwarfsck_impl::do_repair_superblock(
+    std::filesystem::path const& image_path) {
+  auto io_stream = iol_.file->open(image_path, std::ios::in | std::ios::out |
+                                                   std::ios::binary);
+  auto& ios = io_stream->ios();
+  auto sbe = superblock_editor{};
+
+  ios.seekg(fs().image_offset());
+  sbe.read_corrupted(ios);
+
+  if (auto const label = sbe.fs_label(); !label.empty()) {
+    LOG_INFO << "potentially corrupt label: " << label;
+  }
+
+  if (auto const uuid = sbe.fs_uuid()) {
+    LOG_INFO << "potentially corrupt UUID: " << *uuid;
+  }
+
+  if (auto const attr = sbe.attr_digest()) {
+    LOG_INFO << "potentially corrupt attribute digest: " << attr.hex();
+  }
+
+  if (auto const tree = sbe.tree_digest()) {
+    LOG_INFO << "potentially corrupt tree digest: " << tree.hex();
+  }
+
+  auto const orig_size = sbe.fs_size();
+  auto const actual_size = fs().image_size();
+
+  auto const orig_align = sbe.fs_size_alignment();
+
+  sbe.clear_all_mutable_fields();
+
+  if (orig_size && std::cmp_not_equal(*orig_size, actual_size)) {
+    LOG_WARN << "repairing superblock image size: " << *orig_size << " -> "
+             << actual_size;
+  }
+
+  sbe.init_fs_size(actual_size);
+
+  if (actual_size % orig_align != 0) {
+    LOG_WARN << "invalid image size alignment (" << size_with_unit(orig_align)
+             << ") in corrupted superblock, resetting to byte alignment";
+    sbe.set_fs_size_alignment(1);
+  }
+
+  sbe.update(ios);
+
+  io_stream->close();
+
+  LOG_INFO << "superblock repair complete";
+
+  return 0;
 }
 
 } // namespace
