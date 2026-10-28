@@ -8,7 +8,10 @@
  * Marcus Holland-Moritz for use in dwarfs.
  */
 
+#include <array>
 #include <numeric>
+#include <tuple>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -122,6 +125,43 @@ TEST(FrozenRangeLayoutReuse, OncePerArrayAndPerLayoutInvocation) {
   EXPECT_EQ(
       freezeDataToString(values, layout),
       freezeDataToString(fallback, fallbackLayout));
+}
+
+TEST(FrozenRangeBulkThaw, PackedIntegersAcrossBoundaries) {
+  using Vector = dwarfs::container::segmented_packed_int_vector<uint32_t, 4>;
+  Vector input;
+  for (uint32_t v : {0, 0, 0, 0, 1, 0, 1023, 0, 0, 65535}) {
+    input.push_back(v);
+  }
+
+  auto frozen = freeze(input);
+  auto output = frozen.thaw();
+  EXPECT_EQ(output, input);
+  EXPECT_EQ(output.segment_count(), 3);
+
+  Vector empty;
+  EXPECT_EQ(freeze(empty).thaw(), empty);
+
+  Vector zeros(12, 0);
+  EXPECT_EQ(freeze(zeros).thaw(), zeros);
+}
+
+TEST(FrozenRangeBulkThaw, PackedSignedIntegers) {
+  using Vector = dwarfs::container::segmented_packed_int_vector<int64_t, 4>;
+  Vector input;
+  for (int64_t v :
+       std::array<int64_t, 9>{0, -1, 0, int64_t{1} << 42, 0, -65536, 0, 7, 0}) {
+    input.push_back(v);
+  }
+  EXPECT_EQ(freeze(input).thaw(), input);
+}
+
+TEST(FrozenRangeBulkThaw, BasicAutoPackedVector) {
+  dwarfs::container::auto_packed_int_vector<uint32_t> input;
+  for (uint32_t v : {0, 1, 0, 255, 0, 65535}) {
+    input.push_back(v);
+  }
+  EXPECT_EQ(freeze(input).thaw(), input);
 }
 
 template <class T>
