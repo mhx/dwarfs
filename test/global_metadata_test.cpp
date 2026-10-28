@@ -161,6 +161,55 @@ pack_compressed_names(std::vector<std::string> const& names,
 
 } // namespace
 
+TEST(generated_metadata_packed_vectors, frozen_bulk_thaw_round_trip) {
+  static_assert(apache::thrift::frozen::detail::is_bulk_thaw_packed_vector_v<
+                inode_data_segmented_packed_vector>);
+  static_assert(apache::thrift::frozen::detail::is_bulk_thaw_packed_vector_v<
+                dir_entry_segmented_packed_vector>);
+  static_assert(apache::thrift::frozen::detail::is_bulk_thaw_packed_vector_v<
+                directory_segmented_packed_vector>);
+  static_assert(apache::thrift::frozen::detail::is_bulk_thaw_packed_vector_v<
+                chunk_segmented_packed_vector>);
+
+  inode_data_segmented_packed_vector inodes;
+  dir_entry_segmented_packed_vector entries;
+  directory_segmented_packed_vector directories;
+  chunk_segmented_packed_vector chunks;
+
+  for (uint32_t i = 0; i < 2051; ++i) {
+    inode_data inode;
+    inode.mode_index() = i == 1023 ? 0x80000000 : i % 3;
+    inode.atime_offset() = i == 1025 ? (uint64_t{1} << 45) : i;
+    inode.inode_v2_2() = i;
+    inodes.push_back(inode);
+
+    dir_entry entry;
+    entry.name_index() = i;
+    entry.inode_num() = i == 2048 ? 0x40000000 : i % 31;
+    entries.push_back(entry);
+
+    directory dir;
+    dir.parent_entry() = i;
+    dir.first_entry() = i * 7;
+    directories.push_back(dir);
+
+    chunk ch;
+    ch.block() = i % 47;
+    ch.offset() = i == 2000 ? 0x80000000 : i;
+    chunks.push_back(ch);
+  }
+
+  auto const round_trip = [](auto const& original) {
+    auto frozen = freeze(original);
+    EXPECT_EQ(frozen.thaw(), original);
+  };
+
+  round_trip(inodes);
+  round_trip(entries);
+  round_trip(directories);
+  round_trip(chunks);
+}
+
 class global_metadata_test : public ::testing::Test {
  public:
   void

@@ -9,6 +9,7 @@
  */
 
 #include <deque>
+#include <ranges>
 
 #include <dwarfs/container/basic_packed_int_vector.h>
 #include <dwarfs/container/segmented_packed_int_vector.h>
@@ -16,6 +17,25 @@
 namespace apache::thrift::frozen {
 
 namespace detail {
+
+// Only packed vectors opt in to bulk thawing via append_range().
+template <class T>
+inline constexpr bool is_bulk_thaw_packed_vector_v =
+    requires { typename T::frozen_bulk_thaw_tag; };
+
+template <
+    ::dwarfs::container::packed_vector_value T,
+    ::dwarfs::container::packed_vector_bit_width_strategy Strategy,
+    typename Policy,
+    typename GrowthPolicy>
+inline constexpr bool is_bulk_thaw_packed_vector_v<
+    ::dwarfs::container::
+        basic_packed_int_vector<T, Strategy, Policy, GrowthPolicy>> = true;
+
+template <::dwarfs::container::packed_vector_value T, size_t SegmentElements>
+inline constexpr bool is_bulk_thaw_packed_vector_v<
+    ::dwarfs::container::segmented_packed_int_vector<T, SegmentElements>> =
+    true;
 
 /**
  * Layout specialization for range types, excluding those covered by 'string'
@@ -132,10 +152,20 @@ struct ArrayLayout : public LayoutBase {
 
   void thaw(ViewPosition self, T& out) const {
     out.clear();
-    auto outIt = std::back_inserter(out);
     auto v = view(self);
-    for (auto it = v.begin(); it != v.end(); ++it) {
-      *outIt++ = it.thaw();
+
+    if constexpr (is_bulk_thaw_packed_vector_v<T>) {
+      auto values = std::views::iota(size_t{0}, v.size()) |
+          std::views::transform([&v](auto const i) -> Item {
+                      auto it = v.begin() + static_cast<ptrdiff_t>(i);
+                      return it.thaw();
+                    });
+      out.append_range(values);
+    } else {
+      auto outIt = std::back_inserter(out);
+      for (auto it = v.begin(); it != v.end(); ++it) {
+        *outIt++ = it.thaw();
+      }
     }
   }
 
