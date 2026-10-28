@@ -99,6 +99,7 @@ struct BoolLayout : public LayoutBase {
 
 template <>
 struct Layout<bool, void> : public apache::thrift::frozen::detail::BoolLayout {
+  static constexpr bool kCanReuseItemLayoutAfterFirstPass = true;
 };
 
 } // namespace apache::thrift::frozen
