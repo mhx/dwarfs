@@ -14,8 +14,115 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
+namespace {
+
+struct CountedInline {
+  uint32_t value = 0;
+  ~CountedInline() {}
+};
+
+struct CountedFallback {
+  uint32_t value = 0;
+  ~CountedFallback() {}
+};
+
+template <class T>
+struct CountingLayout
+    : apache::thrift::frozen::detail::PackedIntegerLayout<uint32_t> {
+  using Base = apache::thrift::frozen::detail::PackedIntegerLayout<uint32_t>;
+  using View = uint32_t;
+
+  // https://github.com/llvm/llvm-project/issues/231652
+  [[maybe_unused]] inline static size_t calls = 0;
+
+  apache::thrift::frozen::FieldPosition layout(
+      apache::thrift::frozen::LayoutRoot& root,
+      const T& x,
+      apache::thrift::frozen::LayoutPosition self) {
+    ++calls;
+    return Base::layout(root, x.value, self);
+  }
+
+  void freeze(
+      apache::thrift::frozen::FreezeRoot& root,
+      const T& x,
+      apache::thrift::frozen::FreezePosition self) const {
+    Base::freeze(root, x.value, self);
+  }
+
+  void thaw(apache::thrift::frozen::ViewPosition self, T& out) const {
+    Base::thaw(self, out.value);
+  }
+
+  View view(apache::thrift::frozen::ViewPosition self) const {
+    View out{};
+    Base::thaw(self, out);
+    return out;
+  }
+};
+
+} // namespace
+
+namespace apache::thrift::frozen {
+
+template <>
+struct Layout<CountedInline> : CountingLayout<CountedInline> {
+  static constexpr bool kCanReuseItemLayoutAfterFirstPass = true;
+};
+
+template <>
+struct Layout<CountedFallback> : CountingLayout<CountedFallback> {};
+
+} // namespace apache::thrift::frozen
+
 namespace apache::thrift {
 using namespace frozen;
+
+TEST(FrozenRangeLayoutReuse, OnlyExplicitlySafeLayoutsQualify) {
+  using detail::can_reuse_item_layout_v;
+  static_assert(can_reuse_item_layout_v<Layout<int32_t>>);
+  static_assert(can_reuse_item_layout_v<Layout<bool>>);
+  static_assert(can_reuse_item_layout_v<Layout<CountedInline>>);
+  static_assert(!can_reuse_item_layout_v<Layout<CountedFallback>>);
+  static_assert(!can_reuse_item_layout_v<Layout<std::optional<int32_t>>>);
+  static_assert(!can_reuse_item_layout_v<Layout<std::vector<int32_t>>>);
+  static_assert(!can_reuse_item_layout_v<Layout<std::string>>);
+}
+
+TEST(FrozenRangeLayoutReuse, OncePerArrayAndPerLayoutInvocation) {
+  std::vector<CountedInline> values(129);
+  for (size_t i = 0; i < values.size(); ++i) {
+    values[i].value = i == 127 ? (1 << 27) : static_cast<uint32_t>(i);
+  }
+
+  Layout<std::vector<CountedInline>> layout;
+  Layout<CountedInline>::calls = 0;
+  const auto size = LayoutRoot::layout(values, layout);
+  EXPECT_EQ(values.size(), Layout<CountedInline>::calls);
+  EXPECT_EQ(28, layout.itemField.layout.bits);
+
+  // Both calls must scan their input on the first pass.
+  values.back().value = 0x80000000;
+  Layout<CountedInline>::calls = 0;
+  const auto largerSize = LayoutRoot::layout(values, layout);
+  EXPECT_EQ(values.size(), Layout<CountedInline>::calls);
+  EXPECT_EQ(32, layout.itemField.layout.bits);
+  EXPECT_GE(largerSize, size);
+
+  // Non-opted-in layouts inspect each element on every pass.
+  std::vector<CountedFallback> fallback(values.size());
+  for (size_t i = 0; i < values.size(); ++i) {
+    fallback[i].value = values[i].value;
+  }
+  Layout<CountedFallback>::calls = 0;
+  Layout<std::vector<CountedFallback>> fallbackLayout;
+  EXPECT_EQ(largerSize, LayoutRoot::layout(fallback, fallbackLayout));
+  EXPECT_GT(Layout<CountedFallback>::calls, fallback.size());
+  EXPECT_EQ(layout.itemField.layout.bits, fallbackLayout.itemField.layout.bits);
+  EXPECT_EQ(
+      freezeDataToString(values, layout),
+      freezeDataToString(fallback, fallbackLayout));
+}
 
 template <class T>
 class FrozenRange : public ::testing::Test {};

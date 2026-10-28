@@ -113,5 +113,7 @@ struct PackedIntegerLayout : public LayoutBase {
 
 template <class T>
 struct Layout<T, std::enable_if_t<std::is_integral_v<T>>>
-    : apache::thrift::frozen::detail::PackedIntegerLayout<T> {};
+    : apache::thrift::frozen::detail::PackedIntegerLayout<T> {
+  static constexpr bool kCanReuseItemLayoutAfterFirstPass = true;
+};
 } // namespace apache::thrift::frozen

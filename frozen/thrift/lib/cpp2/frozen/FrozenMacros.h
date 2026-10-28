@@ -154,6 +154,13 @@
 #define FROZEN_MAY_REQUIRE_PER_ITEM_INSPECTION(...) \
   static constexpr bool kMayRequirePerItemInspection = false __VA_ARGS__;
 
+#define FROZEN_CAN_REUSE_ITEM_LAYOUT_FIELD(NAME)               \
+  &&::apache::thrift::frozen::detail::can_reuse_item_layout_v< \
+      decltype(NAME##Field.layout)>
+
+#define FROZEN_CAN_REUSE_ITEM_LAYOUT(...) \
+  static constexpr bool kCanReuseItemLayoutAfterFirstPass = true __VA_ARGS__;
+
 #define FROZEN_INSPECT_DATA_FIELD(NAME) \
   inspectDataField(context, self, this->NAME##Field);
 
