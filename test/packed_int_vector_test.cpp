@@ -21,6 +21,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <array>
+#include <ranges>
+#include <tuple>
 #include <utility>
 
 #include <dwarfs/container/packed_value_traits_optional.h>
@@ -52,6 +55,107 @@ static_assert(sizeof(compact_packed_int_vector<uint32_t>) ==
 using segmented_vec = segmented_packed_int_vector<uint32_t, 4>;
 
 } // namespace
+
+TEST(segmented_packed_int_vector, append_range_across_segment_boundaries) {
+  segmented_vec bulk;
+  segmented_vec reference;
+
+  for (uint32_t value : {1, 2}) {
+    bulk.push_back(value);
+    reference.push_back(value);
+  }
+
+  std::vector<uint32_t> values{0, 0, 0, 0, 3, 0, 1023, 0, 0, 1, 65535};
+  auto range = std::views::iota(std::size_t{0}, values.size()) |
+               std::views::transform([&](std::size_t i) { return values[i]; });
+
+  static_assert(std::ranges::forward_range<decltype(range)>);
+
+  bulk.append_range(range);
+
+  for (auto value : values) {
+    reference.push_back(value);
+  }
+
+  EXPECT_EQ(bulk, reference);
+  EXPECT_EQ(bulk.size(), 13);
+  EXPECT_EQ(bulk.segment_count(), 4);
+  EXPECT_THAT(bulk, ElementsAreArray(reference.unpack()));
+
+  bulk.append_range(std::views::empty<uint32_t>);
+  EXPECT_EQ(bulk, reference);
+
+  bulk.append_range(std::array<uint32_t, 3>{0, 1 << 20, 0});
+
+  for (auto value : {0, 1 << 20, 0}) {
+    reference.push_back(value);
+  }
+
+  EXPECT_EQ(bulk, reference);
+}
+
+TEST(segmented_packed_int_vector, append_range_exception_keeps_segments_valid) {
+  segmented_vec vec;
+  auto values =
+      std::views::iota(0, 9) | std::views::transform([](int i) -> uint32_t {
+        if (i == 5) {
+          throw std::runtime_error("test decode failure");
+        }
+        return i;
+      });
+
+  EXPECT_THROW(vec.append_range(values), std::runtime_error);
+  EXPECT_EQ(vec.size(), 4);
+  EXPECT_EQ(vec.segment_count(), 1);
+  EXPECT_THAT(vec, ElementsAre(0, 1, 2, 3));
+  vec.push_back(17);
+  EXPECT_THAT(vec, ElementsAre(0, 1, 2, 3, 17));
+}
+
+TEST(segmented_packed_int_vector, append_range_exception_in_partial_segment) {
+  segmented_vec vec;
+
+  vec.push_back(1);
+  vec.push_back(2);
+
+  std::array<unsigned, 2> reads{};
+  auto values =
+      std::views::iota(0, 2) | std::views::transform([&](int i) -> uint32_t {
+        if (++reads[i] == 2 && i == 1) {
+          throw std::runtime_error("test write failure");
+        }
+        return i == 1 ? (1 << 20) : 3;
+      });
+
+  EXPECT_THROW(vec.append_range(values), std::runtime_error);
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_EQ(vec.segment_count(), 1);
+  EXPECT_THAT(vec, ElementsAre(1, 2));
+
+  vec.push_back(7);
+
+  EXPECT_THAT(vec, ElementsAre(1, 2, 7));
+}
+
+TEST(segmented_packed_int_vector, append_range_tuple_fields) {
+  using value_type = std::tuple<uint32_t, uint64_t, uint32_t>;
+  using vector_type = segmented_packed_int_vector<value_type, 4>;
+
+  std::vector<value_type> values{{0, 0, 0}, {1, 0, 0}, {0, 1ull << 42, 0},
+                                 {0, 0, 7}, {0, 0, 0}, {1u << 25, 0, 0},
+                                 {0, 0, 0}, {2, 3, 4}, {0, 0, 0}};
+  vector_type bulk;
+  vector_type reference;
+  bulk.append_range(values);
+
+  for (auto const& value : values) {
+    reference.push_back(value);
+  }
+
+  EXPECT_EQ(bulk, reference);
+  EXPECT_EQ(bulk.segment_count(), 3);
+  EXPECT_THAT(bulk, ElementsAreArray(values));
+}
 
 TEST(segmented_packed_int_vector, basic_push_back_and_indexing) {
   segmented_vec vec;
