@@ -740,11 +740,9 @@ void metadata_builder_<LoggerPolicy>::update_totals_and_size_cache() {
       uint32_t shared_count = 1;
 
       if (shared_index.has_value()) {
-        for (auto i = reg_inode_num - num_unique_files + 1; i < shared->size();
-             ++i) {
-          if (shared->at(i) == *shared_index) {
-            ++shared_count;
-          }
+        for (auto i = reg_inode_num - num_unique_files + 1;
+             i < shared->size() && shared->at(i) == *shared_index; ++i) {
+          ++shared_count;
         }
       }
 
