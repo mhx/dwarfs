@@ -1150,6 +1150,7 @@ def emit_packed_struct_support(
           using const_reference = {const_ref};
           using iterator = ::dwarfs::container::detail::index_based_iterator<{vector}>;
           using const_iterator = ::dwarfs::container::detail::index_based_const_iterator<{vector}>;
+          using frozen_bulk_thaw_tag = void;
 
           {vector}() = default;
           {vector}({vector} const&) = default;
@@ -1166,8 +1167,8 @@ def emit_packed_struct_support(
           [[nodiscard]] auto size() const noexcept -> size_type {{ return data_.size(); }}
           [[nodiscard]] auto empty() const noexcept -> bool {{ return data_.empty(); }}
 
-          void push_back(value_type const& v) {{
-            data_.push_back({storage_type}{{
+          static auto to_storage(value_type const& v) -> {storage_type} {{
+            return {storage_type}{{
         """,
     )
 
@@ -1175,11 +1176,27 @@ def emit_packed_struct_support(
 
     h.emit(
         """
-            });
+            };
+          }
+
+          void push_back(value_type const& v) {
+            data_.push_back(to_storage(v));
           }
 
           void push_back(value_type&& v) {
             push_back(v);
+          }
+
+          template <std::ranges::forward_range R>
+            requires std::ranges::viewable_range<R> &&
+                     std::convertible_to<std::ranges::range_reference_t<R>, value_type>
+          void append_range(R&& source) {
+            auto packed = std::views::all(std::forward<R>(source)) |
+                          std::views::transform([](auto&& input) {
+                            value_type const& value = input;
+                            return to_storage(value);
+                          });
+            data_.append_range(packed);
           }
 
           template <typename... Args>
@@ -1393,9 +1410,11 @@ def get_types(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         #pragma once
 
         #include <bitset>
+        #include <concepts>
         #include <cstddef>
         #include <cstdint>
         #include <map>
+        #include <ranges>
         #include <set>
         #include <span>
         #include <stdexcept>
