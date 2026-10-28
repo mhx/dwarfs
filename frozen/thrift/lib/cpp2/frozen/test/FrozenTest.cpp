@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <unordered_set>
 
@@ -527,6 +528,32 @@ REGISTER_TYPED_TEST_SUITE_P(FrozenLayout, PrintAndClear);
 using TypesToLayout =
     ::testing::Types<EveryLayout, Person1, TestFixedSizeString>;
 INSTANTIATE_TYPED_TEST_SUITE_P(Frozen, FrozenLayout, TypesToLayout);
+
+TEST(Frozen, ReusedLayoutForInlineScalarStructArrays) {
+  static_assert(detail::can_reuse_item_layout_v<Layout<Ratio>>);
+  static_assert(detail::can_reuse_item_layout_v<Layout<Nesting>>);
+  static_assert(!detail::can_reuse_item_layout_v<Layout<Person1>>);
+
+  std::vector<Nesting> input(513);
+  for (int32_t i = 0; std::cmp_less(i, input.size()); ++i) {
+    *input[i].a()->num() = i % 3 ? i : 0;
+    *input[i].a()->denom() = i % 5 ? -i : 0;
+    *input[i].b()->num() = i == 512 ? std::numeric_limits<int32_t>::min() : i;
+    *input[i].b()->denom() = i == 511 ? std::numeric_limits<int32_t>::max() : 1;
+  }
+
+  auto frozen = freeze(input);
+  EXPECT_EQ(input.size(), frozen.size());
+  EXPECT_EQ(input, frozen.thaw());
+
+  Layout<std::vector<Nesting>> reusable;
+  std::vector<Nesting> small(8);
+  LayoutRoot::layout(small, reusable);
+  LayoutRoot::layout(input, reusable);
+  Layout<std::vector<Nesting>> expected;
+  LayoutRoot::layout(input, expected);
+  EXPECT_EQ(reusable.itemField.layout.bits, expected.itemField.layout.bits);
+}
 
 TEST(Frozen, SparseSchema) {
   {

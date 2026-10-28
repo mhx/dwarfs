@@ -327,6 +327,21 @@ template <class LayoutType>
 inline constexpr bool may_require_per_item_inspection_v =
     LayoutType::kMayRequirePerItemInspection;
 
+// Layouts with this property are guaranteed not to change across multiple
+// passes to find the fixed point in `doLayout()`.
+template <class LayoutType, class = void>
+struct CanReuseItemLayout : std::false_type {};
+
+template <class LayoutType>
+struct CanReuseItemLayout<
+    LayoutType,
+    std::void_t<decltype(LayoutType::kCanReuseItemLayoutAfterFirstPass)>>
+    : std::bool_constant<LayoutType::kCanReuseItemLayoutAfterFirstPass> {};
+
+template <class LayoutType>
+inline constexpr bool can_reuse_item_layout_v =
+    CanReuseItemLayout<LayoutType>::value;
+
 } // namespace detail
 
 std::ostream& operator<<(std::ostream& os, const LayoutBase& layout);
@@ -817,6 +832,7 @@ class LayoutRoot {
   template <class T>
   size_t doLayout(const T& root, Layout<T>& _layout, size_t& resizes) {
     for (resizes = 0; resizes < 1000; ++resizes) {
+      pass_ = resizes;
       resized_ = false;
       cursor_ = _layout.size;
       auto after = _layout.layout(*this, root, {0, 0});
@@ -838,6 +854,11 @@ class LayoutRoot {
    */
   static constexpr size_t kPaddingBytes = 8;
   static constexpr size_t kMaxAlignment = 8;
+
+  /**
+   * The number of the current layout pass in `doLayout`.
+   */
+  size_t pass() const noexcept { return pass_; }
 
   /**
    * Adjust 'layout' so it is sufficient for freezing root, and return the total
@@ -937,6 +958,7 @@ class LayoutRoot {
  private:
   bool resized_;
   size_t cursor_;
+  size_t pass_ = 0;
 };
 
 /**

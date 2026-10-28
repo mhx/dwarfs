@@ -1955,6 +1955,7 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
                 False,
                 None,
             ),
+            ("CAN_REUSE_ITEM_LAYOUT", "CAN_REUSE_ITEM_LAYOUT", False, None),
             ("INSPECT_DATA_INLINE", "INSPECT_DATA", False, None),
         ):
             if first:

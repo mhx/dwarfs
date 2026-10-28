@@ -75,6 +75,15 @@ struct ArrayLayout : public LayoutBase {
       FieldPosition pos,
       LayoutPosition write,
       FieldPosition writeStep) {
+    // If the item layout is guaranteed to not change between passes, we can
+    // skip the potentially expensive field layout step and reuse the layout
+    // from the first pass.
+    if constexpr (can_reuse_item_layout_v<Layout<Item>>) {
+      if (root.pass() > 0 && itemField.layout.size == 0) {
+        return pos;
+      }
+    }
+
     FieldPosition noField; // not really used
     for (const auto& it : coll) {
       root.layoutField(write, noField, this->itemField, it);

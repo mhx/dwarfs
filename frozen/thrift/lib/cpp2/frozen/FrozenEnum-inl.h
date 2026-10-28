@@ -65,5 +65,7 @@ struct EnumLayout : public PackedIntegerLayout<Underlying> {
 
 template <class T>
 struct Layout<T, std::enable_if_t<std::is_enum_v<T>>>
-    : public apache::thrift::frozen::detail::EnumLayout<T> {};
+    : public apache::thrift::frozen::detail::EnumLayout<T> {
+  static constexpr bool kCanReuseItemLayoutAfterFirstPass = true;
+};
 } // namespace apache::thrift::frozen
