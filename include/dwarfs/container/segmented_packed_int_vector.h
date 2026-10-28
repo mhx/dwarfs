@@ -33,7 +33,9 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <iterator>
 #include <limits>
+#include <ranges>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -265,6 +267,42 @@ class segmented_packed_int_vector {
 
     segments_.back().push_back(value);
     ++size_;
+  }
+
+  template <std::ranges::forward_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
+  void append_range(R&& range) {
+    auto first = std::ranges::begin(range);
+    auto const last = std::ranges::end(range);
+
+    while (first != last) {
+      auto const new_segment =
+          segments_.empty() || segments_.back().size() == segment_elements;
+      auto const available = new_segment
+                                 ? segment_elements
+                                 : segment_elements - segments_.back().size();
+      auto next = std::ranges::next(
+          first,
+          static_cast<std::iter_difference_t<decltype(first)>>(available),
+          last);
+      auto const count =
+          static_cast<size_type>(std::ranges::distance(first, next));
+
+      if (count > max_size() - size_) {
+        throw std::length_error("segmented_packed_int_vector::append_range");
+      }
+
+      if (new_segment) {
+        // exception safety: construct the new segment first, then commit
+        auto seg = make_empty_segment();
+        seg.insert(seg.end(), first, next);
+        segments_.push_back(std::move(seg));
+      } else {
+        segments_.back().insert(segments_.back().end(), first, next);
+      }
+      size_ += count;
+      first = next;
+    }
   }
 
   void pop_back() {

@@ -654,7 +654,7 @@ class basic_packed_int_vector {
           ++count;
         }
       } else {
-        count = std::distance(first, last);
+        count = std::ranges::distance(first, last);
       }
 
       return insert_known_n(
