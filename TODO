@@ -1,4 +1,6 @@
-- should `keep` really be the default for UUIDs when re-writing?
+- should `keep` really be the default for UUIDs when re-writing? => YES
+
+- disallow both `--clear-label` and `--set-label` in `dwarfsck`
 
 - reference `dwarfs-format.md` from documentation for superblock
   digests
