@@ -23,6 +23,7 @@
 
 #include <concepts>
 #include <latch>
+#include <memory>
 #include <mutex>
 #include <string_view>
 #include <vector>
@@ -79,8 +80,12 @@ class pair_inode_accessor {
   }
 
   template <typename T>
-  file_id_vector& files(T& p) const {
-    return p.second;
+  decltype(auto) files(T& p) const {
+    if constexpr (requires { p.second.files; }) {
+      return (p.second.files);
+    } else {
+      return (p.second);
+    }
   }
 };
 
@@ -127,10 +132,16 @@ class file_scanner_ final : public file_scanner::impl {
 
   using by_digest_vec = container::chunked_append_only_vector<file_id_vector>;
 
-  template <typename Key>
+  template <typename Key, typename Value = file_id_vector>
   using dense_cao_map_index =
-      container::basic_dense_map_index<Key, file_id_vector,
-                                       flat_cao_map_index_policy>;
+      container::basic_dense_map_index<Key, Value, flat_cao_map_index_policy>;
+
+  struct start_hash_bucket {
+    file_id_vector files;
+    // Only the scanner thread accesses this pointer. Hash workers own copies
+    // of the latch and only count it down after publishing the first digest.
+    std::shared_ptr<std::latch> first_file_hashed;
+  };
 
   void scan_dedupe(file_handle p, file_size_info size_info);
   void scan_dedupe_after_start_hash(file_handle p, file_size_info size_info,
@@ -146,10 +157,9 @@ class file_scanner_ final : public file_scanner::impl {
 
   file_id_vector& hardlink_group(const_file_handle p);
 
-  template <typename KeyType>
+  template <typename KeyType, typename ValueType>
   void finalize_files(
-      container::chunked_append_only_vector<std::pair<KeyType, file_id_vector>>
-          ent,
+      container::chunked_append_only_vector<std::pair<KeyType, ValueType>> ent,
       uint32_t& inode_num, uint32_t& obj_num, std::string_view name);
 
   void
@@ -192,8 +202,8 @@ class file_scanner_ final : public file_scanner::impl {
     os << std::to_string(val);
   }
 
-  void dump_value(std::ostream& os, std::shared_ptr<std::latch> const&) const {
-    os << "null";
+  void dump_value(std::ostream& os, start_hash_bucket const& bucket) const {
+    dump_value(os, bucket.files);
   }
 
   void dump_value(std::ostream& os, const_file_handle p) const;
@@ -239,17 +249,15 @@ class file_scanner_ final : public file_scanner::impl {
   //
   // Small files use start_hash == 0.
   container::chunked_append_only_vector<
-      std::pair<start_hash_key, file_id_vector>>
+      std::pair<start_hash_key, start_hash_bucket>>
       start_hash_buckets_store_;
-  std::optional<dense_cao_map_index<start_hash_key>> start_hash_buckets_{
-      start_hash_buckets_store_};
+  std::optional<dense_cao_map_index<start_hash_key, start_hash_bucket>>
+      start_hash_buckets_{start_hash_buckets_store_};
 
   // For large files whose start hash was actually computed.
   //
   // A large file that remained unique by size will not appear here.
   fast_map_type<file_id, uint64_t> file_start_hash_;
-
-  fast_map_type<start_hash_key, std::shared_ptr<std::latch>> first_file_hashed_;
 
   container::chunked_append_only_vector<
       std::pair<unique_inode_id, file_id_vector>>
@@ -322,11 +330,12 @@ class file_scanner_ final : public file_scanner::impl {
 //   the first file, we assume (potentially wrongly) that the subsequent file is
 //   not a duplicate.
 //
-//   `first_file_hashed_` holds a latch per (size, start hash) for exactly as
-//   long as that window is open: it is inserted when the second file of a
-//   bucket arrives, and erased once the first file's digest has been stored.
-//   A file that finds no latch for its bucket knows that the first file is
-//   already in `by_digest_` and does not have to wait.
+//   Each start-hash bucket owns a latch when its second file arrives. Only the
+//   scanner thread reads or writes that latch pointer. Workers only count down
+//   their own copies of the shared latch pointer. The scanner can discard a
+//   completed latch when it next visits that bucket. A file that finds no
+//   latch knows that the first file is already in `by_digest_` and does not
+//   have to wait.
 //
 //   A bucket whose file vector has been cleared, but whose key is still
 //   present, means "files of this key must be fully hashed". This is how the
@@ -416,8 +425,6 @@ template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   uint32_t obj_num = 0;
 
-  assert(first_file_hashed_.empty());
-
   auto table_stats = [](auto const& tbl) {
     constexpr auto entry_size =
         sizeof(typename std::decay_t<decltype(tbl)>::value_type);
@@ -441,7 +448,6 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
               << "\n  start-hash-buckets index: "
               << index_stats(start_hash_buckets_.value())
               << "\n  file-start-hash: " << table_stats(file_start_hash_)
-              << "\n  first-file-hashed: " << table_stats(first_file_hashed_)
               << "\n  by-inode-id store: " << table_stats(by_inode_id_store_)
               << "\n  by-inode-id index: " << index_stats(by_inode_id_.value())
               << "\n  by-digest: " << table_stats(by_digest_);
@@ -500,13 +506,14 @@ file_scanner_<LoggerPolicy>::hardlink_group(const_file_handle p) {
   // maps; which one depends on whether they were start-hashed.
   if (size >= kLargeFileThreshold) [[unlikely]] {
     if (auto it = file_start_hash_.find(p.id()); it != file_start_hash_.end()) {
-      return start_hash_buckets_->mapped_at(start_hash_key{size, it->second});
+      return start_hash_buckets_->mapped_at(start_hash_key{size, it->second})
+          .files;
     }
 
     return size_buckets_->mapped_at(size);
   }
 
-  return start_hash_buckets_->mapped_at(start_hash_key{size, 0});
+  return start_hash_buckets_->mapped_at(start_hash_key{size, 0}).files;
 }
 
 template <typename LoggerPolicy>
@@ -578,8 +585,9 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
   auto const unique_key = std::make_pair(size, start_hash);
 
   auto [ix, is_new] =
-      start_hash_buckets_->emplace(unique_key, file_id_vector());
-  auto& files = start_hash_buckets_store_[ix].second;
+      start_hash_buckets_->emplace(unique_key, start_hash_bucket{});
+  auto& bucket = start_hash_buckets_store_[ix].second;
+  auto& files = bucket.files;
 
   if (is_new) {
     assert(files.empty());
@@ -612,48 +620,42 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
   if (files.empty()) {
     // This is any file of this (size, start_hash) after the second file.
-    std::lock_guard lock(mx_);
-
-    if (auto ffi = first_file_hashed_.find(unique_key);
-        ffi != first_file_hashed_.end()) {
-      latch = ffi->second;
+    // Only the scanner thread uses bucket.first_file_hashed, so no extra
+    // synchronization is needed here.
+    latch = bucket.first_file_hashed;
+    if (latch && latch->try_wait()) {
+      bucket.first_file_hashed.reset();
+      latch.reset();
     }
   } else {
     // This is the second file of this (size, start_hash). We now need to hash
     // both files and ensure that the first file's digest is stored to
     // by_digest_ before later files test for it.
 
+    assert(!bucket.first_file_hashed);
     latch = std::make_shared<std::latch>(1);
-
-    {
-      std::lock_guard lock(mx_);
-      DWARFS_CHECK(first_file_hashed_.emplace(unique_key, latch).second,
-                   "internal error: first file hashed latch already exists");
-    }
+    bucket.first_file_hashed = latch;
 
     // Add a job for the first file.
-    wg_.add_job(
-        [this, p = storage_.handle(files.front()), latch, unique_key, size] {
-          hash_file(p, size);
+    wg_.add_job([this, p = storage_.handle(files.front()), latch, size] {
+      hash_file(p, size);
 
-          {
-            std::lock_guard lock(mx_);
+      {
+        std::lock_guard lock(mx_);
 
-            assert(p.get_inode());
+        assert(p.get_inode());
 
-            if (p.is_invalid()) [[unlikely]] {
-              by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
-            } else {
-              auto& ref = get_by_digest_autovivify(p);
-              ref.push_back(p.id());
-            }
+        if (p.is_invalid()) [[unlikely]] {
+          by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+        } else {
+          auto& ref = get_by_digest_autovivify(p);
+          ref.push_back(p.id());
+        }
 
-            latch->count_down();
-
-            DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
-                         "internal error: missing first file hashed latch");
-          }
-        });
+        // Publish the digest before releasing any later hashing jobs.
+        latch->count_down();
+      }
+    });
 
     // Clear files vector, but keep the hash table entry to indicate that files
     // of this (size, start_hash) must be fully hashed.
@@ -795,21 +797,22 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
 }
 
 template <typename LoggerPolicy>
-template <typename KeyType>
+template <typename KeyType, typename ValueType>
 void file_scanner_<LoggerPolicy>::finalize_files(
-    container::chunked_append_only_vector<std::pair<KeyType, file_id_vector>>
-        ent,
+    container::chunked_append_only_vector<std::pair<KeyType, ValueType>> ent,
     uint32_t& inode_num, uint32_t& obj_num, std::string_view name) {
   auto tv = LOG_TIMED_VERBOSE;
+  pair_inode_accessor access;
 
   auto const tail = std::ranges::partition(
-      ent, [](auto const& pair) { return !pair.second.empty(); });
+      ent, [&](auto const& pair) { return !access.files(pair).empty(); });
   ent.resize(std::distance(ent.begin(), tail.begin()));
 
   std::ranges::sort(
       ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  for (auto&& [k, fv] : ent) {
+  for (auto& kv : ent) {
+    auto& fv = access.files(kv);
     auto const expected = storage_.handle(fv.front()).hardlink_count();
     DWARFS_CHECK(fv.size() == expected,
                  fmt::format("internal error while finalizing {} files: "
@@ -818,7 +821,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
     fv.shrink_to_fit();
   }
 
-  finalize_inodes<true>(ent, pair_inode_accessor{}, inode_num, obj_num, name);
+  finalize_inodes<true>(ent, access, inode_num, obj_num, name);
 
   tv << "finalized " << ent.size() << " unique files (by " << name << ")";
 }
@@ -1076,8 +1079,6 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   dump_map(os, "start_hash_buckets", start_hash_buckets_store_);
   os << ",\n";
   dump_map(os, "file_start_hash", file_start_hash_);
-  os << ",\n";
-  dump_map(os, "first_file_hashed", first_file_hashed_);
   os << ",\n";
   dump_map(os, "by_inode_id", by_inode_id_store_);
   os << ",\n";
