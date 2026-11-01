@@ -392,7 +392,9 @@ uint64_t file_scanner_<LoggerPolicy>::compute_start_hash(file_handle p) {
   if (!p.is_invalid()) {
     try {
       auto seg =
-          os_.open_file(p.fs_path()).segment_at(0, kLargeFileStartHashSize);
+          os_.open_file_opts(p.fs_path(),
+                             {.extents = file_extent_mode::treat_as_data})
+              .segment_at(0, kLargeFileStartHashSize);
 
       checksum cs(checksum::xxh3_64);
       cs.update(seg.span());
@@ -715,7 +717,8 @@ void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
   if (size > 0) {
     // TODO: use exception-less variant once provided
     try {
-      mm = os_.open_file(p.fs_path());
+      mm = os_.open_file_opts(p.fs_path(),
+                              {.extents = file_extent_mode::treat_as_data});
     } catch (...) {
       LOG_ERROR << "failed to map file " << p.path_as_string() << ": "
                 << exception_str(std::current_exception())

@@ -1131,3 +1131,57 @@ TEST(mmap_file_view, sparse_file) {
               testing::ElementsAre(false, false, false, false, true, true,
                                    false, false));
 }
+
+TEST(mmap_file_view, treat_as_data_skips_extent_discovery) {
+  static constexpr file_size_t kSize{1_MiB};
+  fake_mm_ops_lowlevel fake(4096);
+  StrictMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, kSize);
+
+  EXPECT_CALL(mock_ops, open(path, _)).Times(1);
+  EXPECT_CALL(mock_ops, size(handle, _)).Times(1);
+  EXPECT_CALL(mock_ops, get_extents(_, _)).Times(0);
+  EXPECT_CALL(mock_ops, close(handle, _)).Times(1);
+
+  auto view = internal::create_mmap_file_view(
+      ops, path, {.max_eager_map_size = 0}, file_extent_mode::treat_as_data);
+
+  EXPECT_EQ(kSize, view.size());
+  auto exts = view.extents();
+  ASSERT_EQ(1, exts.size());
+  for (auto const& ext : exts) {
+    EXPECT_EQ(extent_kind::data, ext.kind());
+    EXPECT_EQ(file_range(0, kSize), ext.range());
+  }
+}
+
+TEST(read_file_view, treat_as_data_skips_extent_discovery) {
+  static constexpr file_size_t kSize{1_MiB};
+  fake_mm_ops_lowlevel fake(4096);
+  StrictMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, kSize);
+
+  EXPECT_CALL(mock_ops, open(path, _)).Times(1);
+  EXPECT_CALL(mock_ops, size(handle, _)).Times(1);
+  EXPECT_CALL(mock_ops, get_extents(_, _)).Times(0);
+  EXPECT_CALL(mock_ops, close(handle, _)).Times(1);
+
+  auto view = internal::create_read_file_view(ops, path,
+                                              file_extent_mode::treat_as_data);
+
+  EXPECT_EQ(kSize, view.size());
+  auto exts = view.extents();
+  ASSERT_EQ(1, exts.size());
+  for (auto const& ext : exts) {
+    EXPECT_EQ(extent_kind::data, ext.kind());
+    EXPECT_EQ(file_range(0, kSize), ext.range());
+  }
+}

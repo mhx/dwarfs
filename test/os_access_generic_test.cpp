@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <latch>
 #include <random>
 #include <sstream>
@@ -586,6 +587,50 @@ TEST_P(open_file_test, open_regular_file) {
   EXPECT_EQ(1, extents.size());
   EXPECT_THAT(extents, ElementsAre(Property(&dwarfs::file_extent::kind,
                                             dwarfs::extent_kind::data)));
+}
+
+TEST_P(open_file_test, extent_free_view_preserves_logical_bytes) {
+  using namespace dwarfs;
+
+  auto const path = td->path() / "sparse";
+
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write("start", 5);
+    out.seekp(64 * 1024);
+    out.write("end", 3);
+  }
+
+  auto const original = os->open_file(path);
+  auto const logical =
+      os->open_file_opts(path, {.extents = file_extent_mode::treat_as_data});
+
+  ASSERT_EQ(original.size(), logical.size());
+
+  auto logical_bytes = [](file_view const& view) {
+    std::string bytes;
+
+    for (auto const& extent : view.extents()) {
+      for (auto const& segment : extent.segments(4096)) {
+        auto const data = segment.span();
+        bytes.append(reinterpret_cast<char const*>(data.data()), data.size());
+      }
+    }
+
+    return bytes;
+  };
+
+  EXPECT_EQ(logical_bytes(original), logical_bytes(logical));
+  EXPECT_EQ(original.read_string(0, original.size()), logical_bytes(logical));
+
+  auto const extents = logical.extents();
+
+  ASSERT_EQ(1, extents.size());
+
+  for (auto const& ext : extents) {
+    EXPECT_EQ(extent_kind::data, ext.kind());
+    EXPECT_EQ(file_range(0, logical.size()), ext.range());
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(iolayer_modes, open_file_test,

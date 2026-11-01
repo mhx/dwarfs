@@ -71,7 +71,10 @@ class mmap_mock final : public detail::file_view_impl,
             mock_file_view_options const& opts)
       : data_{std::move(data)}
       , path_{path}
-      , extents_{extents_from_data(std::get<test_file_data>(data_))}
+      , extents_{opts.extents == file_extent_mode::discover
+                     ? extents_from_data(std::get<test_file_data>(data_))
+                     : default_extent({},
+                                      std::get<test_file_data>(data_).size())}
       , opts_{opts}
       , supports_raw_bytes_{false} {
     DWARFS_CHECK(check_data(std::get<test_file_data>(data_)), "invalid data");

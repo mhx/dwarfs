@@ -25,6 +25,7 @@
 #include <optional>
 #include <string>
 
+#include <dwarfs/file_extent_mode.h>
 #include <dwarfs/file_view.h>
 
 #include "test_file_data.h"
@@ -35,6 +36,7 @@ namespace dwarfs::test {
 
 struct mock_file_view_options {
   std::optional<bool> support_raw_bytes{};
+  file_extent_mode extents{file_extent_mode::discover};
 };
 
 file_view
