@@ -149,6 +149,7 @@ class file_scanner_ final : public file_scanner::impl {
   uint64_t compute_start_hash(file_handle p);
   void hash_file(file_handle p, file_size_t size);
   inode_handle add_inode(file_handle p, int lineno);
+  inode_handle add_inode_scanner(file_handle p, int lineno);
   void
   scan_inode(file_handle p, inode_handle ino, bool background = false) const;
 
@@ -541,14 +542,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file_handle p,
     // seen so far, so create an inode now and do not read file contents.
     files.push_back(p.id());
 
-    inode_handle inode;
-
-    {
-      std::lock_guard lock(mx_);
-      inode = add_inode(p, __LINE__);
-    }
-
-    scan_inode(p, inode, true);
+    scan_inode(p, add_inode_scanner(p, __LINE__), true);
 
     return;
   }
@@ -598,14 +592,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
     files.push_back(p.id());
 
     if (!p.get_inode()) {
-      inode_handle inode;
-
-      {
-        std::lock_guard lock(mx_);
-        inode = add_inode(p, __LINE__);
-      }
-
-      scan_inode(p, inode, true);
+      scan_inode(p, add_inode_scanner(p, __LINE__), true);
     }
 
     return;
@@ -741,6 +728,20 @@ void file_scanner_<LoggerPolicy>::hash_file(file_handle p,
 
   prog_.current.store(p);
   p.scan(mm, prog_, opts_.hash_files);
+}
+
+template <typename LoggerPolicy>
+inode_handle
+file_scanner_<LoggerPolicy>::add_inode_scanner(file_handle p, int lineno) {
+  // The scanner is the only thread that creates inodes in this path, and
+  // entry_storage synchronizes inode creation and assignment internally.
+  // Only the debug record shared with hashing workers needs the scanner mutex.
+  if (opts_.debug_inode_create) {
+    std::lock_guard lock(mx_);
+    return add_inode(p, lineno);
+  }
+
+  return add_inode(p, lineno);
 }
 
 template <typename LoggerPolicy>
