@@ -365,6 +365,61 @@ TEST(os_access_generic, getenv) {
   }
 }
 
+#ifndef _WIN32
+TEST(os_access_generic, dir_reader_prefetched_metadata) {
+  using namespace dwarfs;
+  temporary_directory td;
+  auto const dir = td.path() / "dir";
+  fs::create_directory(dir);
+  write_file(dir / "regular", "hello");
+  fs::create_symlink("regular", dir / "symlink");
+
+  os_access_generic os;
+  auto reader = os.opendir(dir);
+  size_t count = 0;
+
+  for (;;) {
+    auto entry = reader->read(directory_metadata::full);
+    ASSERT_TRUE(entry.has_value()) << entry.error().message();
+    if (!*entry) {
+      break;
+    }
+    ASSERT_TRUE((*entry)->metadata.has_value());
+    ASSERT_TRUE((*entry)->metadata->has_value());
+    auto const& metadata = (*entry)->metadata->value();
+    auto const expected = os.symlink_info((*entry)->path);
+    EXPECT_EQ(expected.type(), metadata.type());
+    EXPECT_EQ(expected.mode(), metadata.mode());
+    EXPECT_EQ(expected.size(), metadata.size());
+    EXPECT_EQ(expected.ino(), metadata.ino());
+    EXPECT_EQ(expected.nlink(), metadata.nlink());
+#if defined(__s390x__) && defined(DWARFS_CROSSCOMPILING_EMULATOR)
+    // S390x qemu user emulation does not support nanosecond timestamps.
+    // See https://github.com/bytecodealliance/rustix/pull/282/files
+    EXPECT_EQ(expected.mtime(), metadata.mtime());
+#else
+    EXPECT_EQ(expected.mtimespec(), metadata.mtimespec());
+#endif
+    ++count;
+  }
+
+  EXPECT_EQ(2, count);
+}
+#endif
+
+TEST(os_access_generic, symlink_info_deferred_error) {
+  using namespace dwarfs;
+  temporary_directory td;
+  os_access_generic os;
+
+  auto good = os.symlink_info(td.path());
+  EXPECT_FALSE(good.error());
+
+  auto missing = os.symlink_info(td.path() / "no_such_entry");
+  EXPECT_TRUE(missing.error());
+  EXPECT_THROW(missing.type(), std::system_error);
+}
+
 TEST(os_access_generic, symlink_info) {
   using namespace dwarfs;
 

@@ -62,6 +62,7 @@
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/directory_walker.h>
 #include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/block_manager.h>
@@ -319,12 +320,6 @@ class scanner_ final : public scanner::impl {
        std::function<void(library_dependencies&)> const& extra_deps) override;
 
  private:
-  template <typename Lockable, typename OnSubdir>
-  void
-  scan_directory(Lockable& mx_scanner, std::filesystem::path& name,
-                 entry_storage& tree, entry_id dir_id, progress& prog,
-                 file_scanner& fs, bool debug_filter, OnSubdir&& on_subdir);
-
   entry_handle scan_tree(entry_storage& tree, std::filesystem::path const& path,
                          progress& prog, file_scanner& fs);
 
@@ -337,7 +332,8 @@ class scanner_ final : public scanner::impl {
   entry_handle
   add_entry(Lockable& mx_walk, entry_storage& tree,
             std::filesystem::path const& path, dir_handle parent,
-            progress& prog, file_scanner& fs, bool debug_filter = false);
+            progress& prog, file_scanner& fs, bool debug_filter = false,
+            file_stat const* metadata = nullptr);
 
   entry_handle add_entry(entry_storage& tree, std::filesystem::path const& path,
                          dir_handle parent, progress& prog, file_scanner& fs,
@@ -384,9 +380,11 @@ entry_handle
 scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
                                   std::filesystem::path const& path,
                                   dir_handle parent, progress& prog,
-                                  file_scanner& fs, bool debug_filter) {
+                                  file_scanner& fs, bool debug_filter,
+                                  file_stat const* metadata) {
   try {
-    auto ent = internal::provisional_entry(os_, path, parent);
+    internal::provisional_entry ent(
+        path, metadata ? *metadata : os_.symlink_info(path), parent);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       try {
@@ -527,42 +525,6 @@ void scanner_<LoggerPolicy>::dump_state(
 }
 
 template <typename LoggerPolicy>
-template <typename Lockable, typename OnSubdir>
-void scanner_<LoggerPolicy>::scan_directory(Lockable& mx_scanner,
-                                            std::filesystem::path& name,
-                                            entry_storage& tree,
-                                            entry_id dir_id, progress& prog,
-                                            file_scanner& fs, bool debug_filter,
-                                            OnSubdir&& on_subdir) {
-  auto parent = tree.handle(dir_id).as_dir();
-  auto&& on_subdir_fn = std::forward<OnSubdir>(on_subdir);
-
-  DWARFS_CHECK(parent, "expected directory");
-
-  auto ppath = parent.fs_path();
-
-  try {
-    auto d = os_.opendir(ppath);
-
-    while (d->read(name)) {
-      if (auto pe = add_entry(mx_scanner, tree, name, parent, prog, fs,
-                              debug_filter)) {
-        if (pe.is_dir()) {
-          on_subdir_fn(pe.id());
-        }
-      }
-    }
-
-    prog.dirs_scanned++;
-  } catch (std::system_error const& e) {
-    LOG_ERROR << "cannot read directory '"
-              << path_to_utf8_string_sanitized(ppath)
-              << "': " << exception_str(e);
-    prog.errors++;
-  }
-}
-
-template <typename LoggerPolicy>
 entry_handle
 scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                   std::filesystem::path const& path,
@@ -571,45 +533,44 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   bool const debug_filter = options_.debug_filter_function.has_value();
   prog.dirs_found++;
 
-  if (options_.num_walk_workers > 1) {
-    std::mutex mx_scanner;
+  directory_walker<entry_id> walker(os_,
+                                    {.num_workers = options_.num_walk_workers,
+                                     .max_pending_entries = 4096,
+                                     .batch_size = 64,
+                                     .collect_metadata = true});
 
-    worker_group wg_walk(LOG_GET_LOGGER, os_, "walk",
-                         {.num_workers = options_.num_walk_workers});
-
-    std::function<void(entry_id)> enqueue_dir;
-
-    enqueue_dir = [&](entry_id id) {
-      wg_walk.add_job([&, id] {
-        std::filesystem::path namebuf;
-
-        scan_directory(mx_scanner, namebuf, tree, id, prog, fs, debug_filter,
-                       [&](entry_id const child_id) { enqueue_dir(child_id); });
+  no_mutex mx_scanner;
+  walker.run(
+      path, root.id(),
+      [&](walk_entry const& entry,
+          entry_id parent_id) -> std::optional<entry_id> {
+        if (entry.metadata && !entry.metadata->has_value()) {
+          LOG_ERROR << fmt::format("error reading entry (path={}): {}",
+                                   path_to_utf8_string_sanitized(entry.path),
+                                   entry.metadata->error().message());
+          prog.errors++;
+          return std::nullopt;
+        }
+        auto parent = tree.handle(parent_id).as_dir();
+        if (auto pe = add_entry(
+                mx_scanner, tree, entry.path, parent, prog, fs, debug_filter,
+                entry.metadata ? &entry.metadata->value() : nullptr)) {
+          if (pe.is_dir()) {
+            return pe.id();
+          }
+        }
+        return std::nullopt;
+      },
+      [&](std::filesystem::path const& dir, entry_id, std::error_code error) {
+        if (error) {
+          LOG_ERROR << "cannot read directory '"
+                    << path_to_utf8_string_sanitized(dir)
+                    << "': " << error.message();
+          prog.errors++;
+        } else {
+          prog.dirs_scanned++;
+        }
       });
-    };
-
-    enqueue_dir(root.id());
-    wg_walk.wait();
-  } else {
-    no_mutex mx_scanner;
-    std::vector<entry_id> stack({root.id()});
-    std::vector<entry_id> subdirs;
-    std::filesystem::path namebuf;
-
-    while (!stack.empty()) {
-      auto const id = stack.back();
-      stack.pop_back();
-
-      subdirs.clear();
-
-      scan_directory(
-          mx_scanner, namebuf, tree, id, prog, fs, debug_filter,
-          [&](entry_id const child_id) { subdirs.push_back(child_id); });
-
-      stack.insert(stack.end(), subdirs.rbegin(), subdirs.rend());
-    }
-  }
-
   return root;
 }
 
