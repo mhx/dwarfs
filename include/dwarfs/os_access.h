@@ -29,6 +29,7 @@
 #pragma once
 
 #include <chrono>
+#include <expected>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -44,11 +45,31 @@
 
 namespace dwarfs {
 
+enum class directory_metadata { none, full };
+
+struct directory_entry {
+  std::filesystem::path path;
+
+  // Metadata is only available if the reader was asked to provide it.
+  std::optional<std::expected<file_stat, std::error_code>> metadata;
+};
+
+/**
+ * The result of a directory read operation. This can be:
+ *
+ * - unexpected, in case of an error
+ * - expected, but `std::nullopt`, in case of end-of-directory
+ * - a valid directory entry
+ */
+using directory_read_result =
+    std::expected<std::optional<directory_entry>, std::error_code>;
+
 class dir_reader {
  public:
   virtual ~dir_reader() = default;
 
   virtual bool read(std::filesystem::path& name) = 0;
+  virtual directory_read_result read(directory_metadata);
 };
 
 // TODO: refactor this so we avoid all the smart pointers everywhere

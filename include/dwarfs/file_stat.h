@@ -32,10 +32,15 @@
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
+#include <system_error>
 #include <type_traits>
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
+
+#ifndef _WIN32
+struct stat;
+#endif
 
 namespace dwarfs {
 
@@ -91,6 +96,13 @@ class file_stat {
   file_stat();
   explicit file_stat(std::filesystem::path const& path,
                      file_stat_options const& opts = {});
+#ifndef _WIN32
+  file_stat(std::filesystem::path const& path, struct ::stat const& native);
+#endif
+
+  // If any OS error was encountered during construction, this will return the
+  // error code. If any non-OS error was encountered, this will throw.
+  std::error_code error() const;
 
   void ensure_valid(valid_fields_type fields) const;
 

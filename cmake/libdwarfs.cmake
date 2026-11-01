@@ -53,6 +53,7 @@ add_library(
   src/malloc_byte_buffer.cpp
   src/mapped_byte_buffer.cpp
   src/option_map.cpp
+  src/os_access.cpp
   src/os_access_generic.cpp
   src/pcm_sample_transformer.cpp
   $<IF:$<BOOL:${ENABLE_PERFMON}>,src/performance_monitor.cpp,>
