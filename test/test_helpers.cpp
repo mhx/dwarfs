@@ -565,7 +565,9 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
   DWARFS_PANIC(fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-file_view os_access_mock::open_file(fs::path const& path) const {
+file_view
+os_access_mock::open_file_opts(fs::path const& path,
+                               open_file_options const& options) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
@@ -584,7 +586,8 @@ file_view os_access_mock::open_file(fs::path const& path) const {
     auto const& contents = it->second;
 
     if (std::holds_alternative<test_file_data>(contents)) {
-      return make_mock_file_view(std::get<test_file_data>(contents), path);
+      return make_mock_file_view(std::get<test_file_data>(contents), path,
+                                 {.extents = options.extents});
     }
 
     auto data =
@@ -601,7 +604,8 @@ file_view os_access_mock::open_file(fs::path const& path) const {
       }
     }
 
-    return make_mock_file_view(std::move(data), path);
+    return make_mock_file_view(std::move(data), path,
+                               {.extents = options.extents});
   }
 
   DWARFS_PANIC(fmt::format("oops in open_file: {}", path.string()));

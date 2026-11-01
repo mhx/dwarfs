@@ -41,6 +41,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/memory_mapping.h>
+#include <dwarfs/open_file_options.h>
 #include <dwarfs/types.h>
 
 namespace dwarfs {
@@ -82,7 +83,11 @@ class os_access {
   virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
-  virtual file_view open_file(std::filesystem::path const& path) const = 0;
+  file_view open_file(std::filesystem::path const& path) const {
+    return open_file_opts(path, {});
+  }
+  virtual file_view open_file_opts(std::filesystem::path const& path,
+                                   open_file_options const& options) const = 0;
   virtual readonly_memory_mapping map_empty_readonly(size_t size) const = 0;
   virtual memory_mapping map_empty(size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;

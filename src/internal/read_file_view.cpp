@@ -53,14 +53,31 @@ std::any open_file(io_ops const& ops, std::filesystem::path const& path) {
   return hdl;
 }
 
+std::vector<detail::file_extent_info>
+file_extents(io_ops const& ops, std::any const& handle, file_extent_mode mode) {
+  if (mode == file_extent_mode::discover) {
+    return get_file_extents_noexcept(ops, handle);
+  }
+
+  std::error_code ec;
+  auto const size = ops.size(handle, ec);
+
+  if (!ec && size > 0) {
+    return {{extent_kind::data, file_range{0, size}}};
+  }
+
+  return {};
+}
+
 class read_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<read_file_view> {
  public:
-  read_file_view(io_ops const& ops, std::filesystem::path const& path)
+  read_file_view(io_ops const& ops, std::filesystem::path const& path,
+                 file_extent_mode extents)
       : handle_{open_file(ops, path)}
       , path_{path}
-      , extents_{get_file_extents_noexcept(ops, handle_)}
+      , extents_{file_extents(ops, handle_, extents)}
       , ops_{ops} {}
 
   ~read_file_view() override {
@@ -193,8 +210,9 @@ void read_file_view::copy_bytes(void* dest, file_range range,
 } // namespace
 
 file_view
-create_read_file_view(io_ops const& ops, std::filesystem::path const& path) {
-  return file_view(std::make_shared<read_file_view>(ops, path));
+create_read_file_view(io_ops const& ops, std::filesystem::path const& path,
+                      file_extent_mode extents) {
+  return file_view(std::make_shared<read_file_view>(ops, path, extents));
 }
 
 } // namespace dwarfs::internal

@@ -202,13 +202,16 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
   return fs::read_symlink(path);
 }
 
-file_view os_access_generic::open_file(fs::path const& path) const {
+file_view
+os_access_generic::open_file_opts(fs::path const& path,
+                                  open_file_options const& options) const {
   if (data_->open_mode() == internal::open_file_mode::mmap) {
     return internal::create_mmap_file_view(data_->mm_ops(), path,
-                                           data_->fv_opts());
+                                           data_->fv_opts(), options.extents);
   }
 
-  return internal::create_read_file_view(data_->mm_ops(), path);
+  return internal::create_read_file_view(data_->mm_ops(), path,
+                                         options.extents);
 }
 
 readonly_memory_mapping

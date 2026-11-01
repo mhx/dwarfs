@@ -30,13 +30,16 @@
 
 #include <filesystem>
 
+#include <dwarfs/file_extent_mode.h>
 #include <dwarfs/file_view.h>
 
 namespace dwarfs::internal {
 
 class io_ops;
 
-file_view create_read_file_view(internal::io_ops const& ops,
-                                std::filesystem::path const& path);
+file_view
+create_read_file_view(internal::io_ops const& ops,
+                      std::filesystem::path const& path,
+                      file_extent_mode extents = file_extent_mode::discover);
 
 } // namespace dwarfs::internal
