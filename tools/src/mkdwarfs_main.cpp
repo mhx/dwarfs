@@ -440,7 +440,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   static constexpr size_t const kDefaultBloomFilterSize{4};
 
   std::string const default_progress_mode{[&iol] {
-    if (!iol.term->is_tty(iol.err)) {
+    if (!iol.term->is_tty(iol.err) || iol.term->width() < 9) {
       return kProgressModeNone;
     }
     if (iol.is_utf8_locale) {
