@@ -533,11 +533,10 @@ scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
   bool const debug_filter = options_.debug_filter_function.has_value();
   prog.dirs_found++;
 
-  directory_walker<entry_id> walker(os_,
-                                    {.num_workers = options_.num_walk_workers,
-                                     .max_pending_entries = 4096,
-                                     .batch_size = 64,
-                                     .collect_metadata = true});
+  directory_walker walker(os_, {.num_workers = options_.num_walk_workers,
+                                .max_pending_entries = 4096,
+                                .batch_size = 64,
+                                .collect_metadata = true});
 
   no_mutex mx_scanner;
   walker.run(
