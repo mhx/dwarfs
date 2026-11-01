@@ -61,15 +61,24 @@ class zero_filled_mapping {
   std::shared_ptr<readonly_memory_mapping const> mapping_;
 };
 
+std::vector<detail::file_extent_info> logical_data_extents(file_size_t size) {
+  if (size > 0) {
+    return {{extent_kind::data, file_range{0, size}}};
+  }
+  return {};
+}
+
 class mmap_file_view final
     : public detail::file_view_impl,
       public std::enable_shared_from_this<mmap_file_view> {
  public:
   mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
-                 mmap_file_view_options const& opts)
+                 mmap_file_view_options const& opts, file_extent_mode extents)
       : file_{mappable_file::create(ops, path)}
       , path_{path}
-      , extents_{file_.get_extents_noexcept()}
+      , extents_{extents == file_extent_mode::discover
+                     ? file_.get_extents_noexcept()
+                     : logical_data_extents(file_.size())}
       , ops_{ops} {
     if (!opts.max_eager_map_size.has_value() ||
         file_.size() <= opts.max_eager_map_size.value()) {
@@ -307,8 +316,9 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
 
 file_view
 create_mmap_file_view(io_ops const& ops, std::filesystem::path const& path,
-                      mmap_file_view_options const& opts) {
-  return file_view(std::make_shared<mmap_file_view>(ops, path, opts));
+                      mmap_file_view_options const& opts,
+                      file_extent_mode extents) {
+  return file_view(std::make_shared<mmap_file_view>(ops, path, opts, extents));
 }
 
 file_view

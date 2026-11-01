@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <optional>
 
+#include <dwarfs/file_extent_mode.h>
 #include <dwarfs/file_view.h>
 
 namespace dwarfs::internal {
@@ -43,8 +44,10 @@ struct mmap_file_view_options {
 
 file_view create_mmap_file_view(internal::io_ops const& ops,
                                 std::filesystem::path const& path);
-file_view create_mmap_file_view(internal::io_ops const& ops,
-                                std::filesystem::path const& path,
-                                mmap_file_view_options const& opts);
+file_view
+create_mmap_file_view(internal::io_ops const& ops,
+                      std::filesystem::path const& path,
+                      mmap_file_view_options const& opts,
+                      file_extent_mode extents = file_extent_mode::discover);
 
 } // namespace dwarfs::internal
