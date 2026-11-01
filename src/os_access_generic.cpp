@@ -36,7 +36,9 @@
 
 #ifndef _WIN32
 #include <dirent.h>
+#include <fcntl.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #endif
 
@@ -132,6 +134,38 @@ class posix_dir_reader final : public dir_reader {
     }
 
     return false;
+  }
+
+  directory_read_result read(directory_metadata mode) override {
+    fs::path name;
+
+    try {
+      if (!read(name)) {
+        return std::optional<directory_entry>{};
+      }
+    } catch (std::system_error const& e) {
+      return std::unexpected(e.code());
+    }
+
+    directory_entry dent{std::move(name), std::nullopt};
+
+    if (mode == directory_metadata::full) {
+      struct ::stat st;
+
+      if (::fstatat(::dirfd(dir_.get()), dent.path.filename().c_str(), &st,
+                    AT_SYMLINK_NOFOLLOW) != 0) {
+        dent.metadata =
+            std::unexpected(std::error_code(errno, std::generic_category()));
+      } else {
+        try {
+          dent.metadata.emplace(file_stat(dent.path, st));
+        } catch (std::system_error const& e) {
+          dent.metadata = std::unexpected(e.code());
+        }
+      }
+    }
+
+    return std::optional<directory_entry>{std::move(dent)};
   }
 
  private:

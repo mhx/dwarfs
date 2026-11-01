@@ -42,6 +42,8 @@ class provisional_entry : public entry_interface {
   // TODO: no need to use optional here...
   provisional_entry(os_access const& os, std::filesystem::path const& path,
                     std::optional<dir_handle> parent = std::nullopt);
+  provisional_entry(std::filesystem::path const& path, file_stat stat,
+                    std::optional<dir_handle> parent = std::nullopt);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;

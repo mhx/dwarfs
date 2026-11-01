@@ -38,8 +38,13 @@ namespace dwarfs::writer::internal {
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
                                      std::optional<dir_handle> parent)
+    : provisional_entry(path, os.symlink_info(path), parent) {}
+
+provisional_entry::provisional_entry(std::filesystem::path const& path,
+                                     file_stat stat,
+                                     std::optional<dir_handle> parent)
     : path_{path}
-    , stat_{os.symlink_info(path)}
+    , stat_{std::move(stat)}
     , parent_{parent} {
   if (!parent_ && stat_.type() != posix_file_type::directory) {
     DWARFS_THROW(

@@ -602,6 +602,10 @@ file_stat::file_stat(fs::path const& path, file_stat_options const&) {
     return;
   }
 
+  *this = file_stat(path, st);
+}
+
+file_stat::file_stat(fs::path const& path, struct ::stat const& st) {
   valid_fields_ = file_stat::all_valid;
   dev_ = st.st_dev;
   ino_ = st.st_ino;
@@ -653,6 +657,18 @@ std::string file_stat::perm_string(mode_type mode) {
   std::ostringstream oss;
   perms_to_stream(oss, mode);
   return oss.str();
+}
+
+std::error_code file_stat::error() const {
+  if (exception_) {
+    try {
+      std::rethrow_exception(exception_);
+    } catch (std::system_error const& e) {
+      return e.code();
+    }
+  }
+
+  return {};
 }
 
 void file_stat::ensure_valid(valid_fields_type fields) const {

@@ -698,6 +698,7 @@ if(WITH_TESTS)
       test/dense_map_index_test.cpp
       test/dense_value_index_test.cpp
       test/device_number_test.cpp
+      test/directory_walker_test.cpp
       test/endian_test.cpp
       test/entry_test.cpp
       test/error_test.cpp
@@ -913,6 +914,10 @@ if(WITH_TESTS)
     if(WIN32)
       target_compile_options(${test} PRIVATE /bigobj)
     endif()
+
+    target_compile_definitions(${test} PRIVATE
+      $<$<BOOL:${CMAKE_CROSSCOMPILING}>:DWARFS_CROSSCOMPILING_EMULATOR=\"${CMAKE_CROSSCOMPILING_EMULATOR}\">
+    )
 
     list(APPEND TEST_TARGETS ${test})
   endforeach()
