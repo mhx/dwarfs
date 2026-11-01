@@ -207,13 +207,20 @@ class basic_worker_group {
 
   template <detail::forwards_to_job<job_type> F>
   bool add_job(F&& job) {
-    auto wrapped = job_type(std::forward<F>(job));
-
     return impl_->add_job(
-        [wrapped = std::move(wrapped)](detail::worker_context& ctx) mutable {
-          auto& typed_ctx =
-              static_cast<detail::worker_context_model<Args...>&>(ctx);
-          std::apply(wrapped, typed_ctx.args());
+        [job = std::forward<F>(job)](
+            [[maybe_unused]] detail::worker_context& ctx) mutable {
+          if constexpr (sizeof...(Args) == 0) {
+            std::invoke(job);
+          } else {
+            auto& typed_ctx =
+                static_cast<detail::worker_context_model<Args...>&>(ctx);
+            std::apply(
+                [&](Args... args) {
+                  std::invoke(job, std::forward<Args>(args)...);
+                },
+                typed_ctx.args());
+          }
         });
   }
 
