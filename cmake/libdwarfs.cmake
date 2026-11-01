@@ -67,6 +67,7 @@ add_library(
   src/xattr.cpp
 
   src/internal/activity_barrier.cpp
+  src/internal/directory_walker.cpp
   $<$<BOOL:${ENABLE_STACKTRACE}>:src/internal/event_tracer.cpp>
   src/internal/features.cpp
   src/internal/file_status_conv.cpp

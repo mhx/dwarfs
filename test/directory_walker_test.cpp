@@ -24,6 +24,7 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -110,11 +111,10 @@ TEST(directory_walker_test, parent_context_and_metadata) {
   for (size_t workers : {1, 2, 4}) {
     test::os_access_mock os;
     populate(os);
-    internal::directory_walker<fs::path> walker(
-        os, {.num_workers = workers,
-             .max_pending_entries = 2,
-             .batch_size = 2,
-             .max_inflight_directories = 2});
+    internal::directory_walker walker(os, {.num_workers = workers,
+                                           .max_pending_entries = 2,
+                                           .batch_size = 2,
+                                           .max_inflight_directories = 2});
 
     std::set<fs::path> visited, completed;
 
@@ -152,10 +152,10 @@ TEST(directory_walker_test, prune_subtrees) {
   test::os_access_mock os;
   populate(os);
 
-  internal::directory_walker<int> walker(os, {.num_workers = 4,
-                                              .max_pending_entries = 1,
-                                              .batch_size = 1,
-                                              .max_inflight_directories = 1});
+  internal::directory_walker walker(os, {.num_workers = 4,
+                                         .max_pending_entries = 1,
+                                         .batch_size = 1,
+                                         .max_inflight_directories = 1});
   std::set<fs::path> seen;
 
   walker.run(
@@ -181,9 +181,9 @@ TEST(directory_walker_test, prune_subtrees) {
 
 TEST(directory_walker_test, reject_zero_limits) {
   test::os_access_mock os;
-  EXPECT_THROW((internal::directory_walker<int>(os, {.num_workers = 0})),
+  EXPECT_THROW((internal::directory_walker(os, {.num_workers = 0})),
                std::invalid_argument);
-  EXPECT_THROW((internal::directory_walker<int>(
+  EXPECT_THROW((internal::directory_walker(
                    os, {.num_workers = 2, .max_pending_entries = 0})),
                std::invalid_argument);
 }
@@ -191,7 +191,7 @@ TEST(directory_walker_test, reject_zero_limits) {
 TEST(directory_walker_test, visitor_exception_joins_workers) {
   test::os_access_mock os;
   populate(os);
-  internal::directory_walker<int> walker(
+  internal::directory_walker walker(
       os, {.num_workers = 3, .max_pending_entries = 2});
   EXPECT_THROW(
       walker.run("root", 0,
@@ -204,7 +204,7 @@ TEST(directory_walker_test, visitor_exception_joins_workers) {
 TEST(directory_walker_test, optional_metadata) {
   test::os_access_mock os;
   populate(os);
-  internal::directory_walker<int> walker(
+  internal::directory_walker walker(
       os, {.num_workers = 2, .collect_metadata = false});
   size_t count = 0;
 
@@ -225,7 +225,7 @@ TEST(directory_walker_test, metadata_failure_preserves_entry_and_continues) {
   for (size_t workers : {1, 3}) {
     failing_os_access os(injected_failure::metadata);
     populate(os);
-    internal::directory_walker<fs::path> walker(
+    internal::directory_walker walker(
         os,
         {.num_workers = workers, .max_pending_entries = 1, .batch_size = 1});
     std::set<fs::path> seen;
@@ -266,7 +266,7 @@ TEST(directory_walker_test, enumeration_failure_delivered_on_completion) {
   for (size_t workers : {1, 3}) {
     failing_os_access os(injected_failure::enumeration);
     populate(os);
-    internal::directory_walker<int> walker(os, {.num_workers = workers});
+    internal::directory_walker walker(os, {.num_workers = workers});
     size_t seen = 0;
     bool got_error = false;
 
@@ -291,7 +291,7 @@ TEST(directory_walker_test, unexpected_worker_exception_propagates) {
   for (size_t workers : {1, 3}) {
     failing_os_access os(injected_failure::unexpected);
     populate(os);
-    internal::directory_walker<int> walker(
+    internal::directory_walker walker(
         os, {.num_workers = workers, .max_pending_entries = 1});
     EXPECT_THROW(
         walker.run("root", 0,
@@ -300,4 +300,68 @@ TEST(directory_walker_test, unexpected_worker_exception_propagates) {
                    }),
         std::logic_error);
   }
+}
+
+TEST(directory_walker_test, same_walker_different_context_types) {
+  test::os_access_mock os;
+  populate(os);
+  internal::directory_walker walker(os, {.num_workers = 3});
+  std::size_t count_int = 0;
+  std::size_t count_path = 0;
+
+  walker.run(
+      "root", 0,
+      [&](internal::walk_entry const& e, int depth) -> std::optional<int> {
+        ++count_int;
+        if (e.metadata && e.metadata->has_value() &&
+            e.metadata->value().is_directory()) {
+          return depth + 1;
+        }
+        return std::nullopt;
+      });
+
+  walker.run("root", fs::path("root"),
+             [&](internal::walk_entry const& e,
+                 fs::path const& parent) -> std::optional<fs::path> {
+               ++count_path;
+               EXPECT_EQ(parent, e.path.parent_path());
+               if (e.metadata && e.metadata->has_value() &&
+                   e.metadata->value().is_directory()) {
+                 return e.path;
+               }
+               return std::nullopt;
+             });
+
+  EXPECT_EQ(7, count_int);
+  EXPECT_EQ(count_int, count_path);
+}
+
+TEST(directory_walker_test, move_only_callbacks) {
+  test::os_access_mock os;
+  populate(os);
+  internal::directory_walker walker(os, {.num_workers = 3});
+  int visited = 0;
+  int completed = 0;
+
+  walker.run(
+      "root", 0,
+      [owned = std::make_unique<int>(42), &visited](
+          internal::walk_entry const& e, int depth) -> std::optional<int> {
+        EXPECT_EQ(42, *owned);
+        ++visited;
+        if (e.metadata && e.metadata->has_value() &&
+            e.metadata->value().is_directory()) {
+          return depth + 1;
+        }
+        return std::nullopt;
+      },
+      [owned = std::make_unique<int>(17), &completed](fs::path const&, int,
+                                                      std::error_code ec) {
+        EXPECT_EQ(17, *owned);
+        EXPECT_FALSE(ec);
+        ++completed;
+      });
+
+  EXPECT_EQ(7, visited);
+  EXPECT_EQ(4, completed);
 }
