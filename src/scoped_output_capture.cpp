@@ -144,7 +144,8 @@ void flush_stream(stream which) {
 }
 
 [[noreturn]] void throw_errno(char const* what) {
-  throw std::system_error(errno, std::generic_category(), what);
+  auto const err = errno;
+  throw std::system_error(err, std::generic_category(), what);
 }
 
 #ifdef _WIN32
