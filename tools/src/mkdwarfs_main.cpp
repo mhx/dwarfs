@@ -579,7 +579,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<int>(&compress_niceness)->default_value(5),
         "compression worker threads niceness")
     ("num-walk-workers",
-        po::value<size_t>(&num_walk_workers)->default_value(1),
+        po::value<size_t>(&num_walk_workers)->default_value(4),
         "number of directory walking worker threads")
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers)
