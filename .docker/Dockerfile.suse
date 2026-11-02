@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM opensuse/tumbleweed@sha256:7b1f198d8369fd18fd65f443ce05d65c4174146f02b4d9cbf1328a4475f0729b
+FROM opensuse/tumbleweed@sha256:2278db404d1b6ebb1643a40dd8fcebb9b86c0baf6de5dead8bbdd4bb0bafb89a
 
 RUN zypper -n refresh && zypper -n update && zypper -n in --no-recommends \
     bash-completion \
