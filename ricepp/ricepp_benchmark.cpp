@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
 #include <iostream>
 #include <random>
 #include <type_traits>
