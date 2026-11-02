@@ -266,7 +266,7 @@ esac
 case "-$BUILD_TYPE-" in
   *-static-*)
     case "$CROSS_ARCH" in
-      ppc64|loongarch64)
+      ppc64)
          # https://github.com/rui314/mold/issues/1498
          # https://github.com/rui314/mold/issues/1699
          CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
