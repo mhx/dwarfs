@@ -168,8 +168,8 @@ _arguments -S \
 	"--change-block-size[change block size when recompressing]" \
 	"--chmod=[recursively apply permission changes]:mode:(norm)" \
 	"--compress-niceness=[compression worker threads niceness]:niceness:" \
-	"--debug-filter=-[show effect of filter rules without producing an image]:mode:(all excluded excluded-files files included included-files)" \
 	"--clear-label[clear inherited filesystem label]" \
+	"--debug-filter=-[show effect of filter rules without producing an image]:mode:(all excluded excluded-files files included included-files)" \
 	"--estimate-compression-memory[estimate compression algorithm per-thread memory usage]" \
 	"--file-hash=[deprecated; passing 'none' is equivalent to --no-dedupe]:hash:(none)" \
 	"--header=[prepend output filesystem with contents of this file]:filename:_files" \
@@ -189,6 +189,7 @@ _arguments -S \
 	"--log-with-context[enable context logging regardless of level]" \
 	"--max-similarity-size=[maximum file size to compute similarity]:size:" \
 	"--metadata-compression=[metadata compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--no-backwards-compat[write the latest file system format]" \
 	"--no-category-metadata[don't add category metadata to file system]" \
 	"--no-category-names[don't add category names to file system]" \
 	"--no-check[don't check input filesystem when recompressing]" \
@@ -212,6 +213,7 @@ _arguments -S \
 	"*--order=[inode fragments order]:[category\:\:]order:__mkdwarfs_order" \
 	"--progress=[progress mode]:progress:(ascii none simple unicode)" \
 	"--rebuild-metadata[fully rebuild metadata]" \
+	"--rebuild-metadata-source-os-hint=[source OS for metadata rebuild]:os:(linux windows macos freebsd)" \
 	"--recompress=-[recompress an existing filesystem]:mode:(none block metadata all)" \
 	"--recompress-categories=[only recompress blocks of these categories]:categories:__mkdwarfs_categories" \
 	"--remove-empty-dirs[remove empty directories in file system]" \
@@ -222,6 +224,7 @@ _arguments -S \
 	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \
 	"--set-time=[set timestamp for whole file system (unixtime or 'now')]:time:(now)" \
 	"--time-resolution=[resolution of inode timestamps]:resolution:(sec min hour day)" \
+	"--uuid=[set filesystem UUID]:uuid:(random nil keep)" \
 	"--with-devices[include block and character devices]" \
 	"--with-specials[include named fifo and sockets]" \
 	"*"{-B,--max-lookback-blocks=}"[how many blocks to scan for segments]:[category\:\:]blocks: __mkdwarfs_category_value -B --max-lookback-blocks" \

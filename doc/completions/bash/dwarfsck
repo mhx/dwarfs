@@ -95,7 +95,12 @@ _dwarfsck_completion()
     # catch options with known arguments first
     case $prev in
         -d | --detail)
-            _comp_compgen -- -W '0 1 2 3 4 5 6 7 $(__dwarfsck_list_detail_features)'
+            if [[ $cur == *,* ]]; then
+                _comp_compgen -c "${cur##*,}" -- \
+                    -W '$(__dwarfsck_list_detail_features)' -P "${cur%,*},"
+            else
+                _comp_compgen -- -W '0 1 2 3 4 5 6 7 $(__dwarfsck_list_detail_features)'
+            fi
             return 0
             ;;
         --checksum)
@@ -103,7 +108,12 @@ _dwarfsck_completion()
             return 0
             ;;
         --init-superblock)
-            _comp_compgen -- -W '"${OPTION_ARG__init_superblock[@]}"'
+            if [[ $cur == *,* ]]; then
+                _comp_compgen -c "${cur##*,}" -- \
+                    -W '"${OPTION_ARG__init_superblock[@]}"' -P "${cur%,*},"
+            else
+                _comp_compgen -- -W '"${OPTION_ARG__init_superblock[@]}"'
+            fi
             return 0
             ;;
         --set-uuid)
@@ -118,7 +128,12 @@ _dwarfsck_completion()
             return 0
             ;;
         --perfmon)
-            _comp_compgen -- -W '"${OPTION_ARG__perfmon[@]}"'
+            if [[ $cur == *,* ]]; then
+                _comp_compgen -c "${cur##*,}" -- \
+                    -W '"${OPTION_ARG__perfmon[@]}"' -P "${cur%,*},"
+            else
+                _comp_compgen -- -W '"${OPTION_ARG__perfmon[@]}"'
+            fi
             return 0
             ;;
         -O | --image-offset)

@@ -128,8 +128,8 @@ _mkdwarfs_completion()
         --change-block-size
         --chmod
         --compress-niceness
-        --debug-filter
         --clear-label
+        --debug-filter
         --estimate-compression-memory
         --file-hash
         --header
@@ -149,6 +149,7 @@ _mkdwarfs_completion()
         --log-with-context
         --max-similarity-size
         --metadata-compression
+        --no-backwards-compat
         --no-category-metadata
         --no-category-names
         --no-check
@@ -172,6 +173,7 @@ _mkdwarfs_completion()
         --order
         --progress
         --rebuild-metadata
+        --rebuild-metadata-source-os-hint
         --recompress
         --recompress-categories
         --remove-empty-dirs
@@ -182,6 +184,7 @@ _mkdwarfs_completion()
         --set-owner
         --set-time
         --time-resolution
+        --uuid
         --with-devices
         --with-specials
         -B --max-lookback-blocks
@@ -208,6 +211,8 @@ _mkdwarfs_completion()
     local OPTION_ARG__debug_filter=( all excluded excluded-files files included
         included-files )
     local OPTION_ARG__file_hash=( none )
+    local OPTION_ARG__uuid=( random nil keep )
+    local OPTION_ARG__rebuild_metadata_source_os_hint=( linux windows macos freebsd )
     local OPTION_ARG__superblock_digests=( auto none attr tree both )
     local OPTION_ARG__memory_limit=( auto )
     local OPTION_ARG__order=( none path revpath similarity nilsimsa explicit )
@@ -218,7 +223,8 @@ _mkdwarfs_completion()
         shared_files names names_index symlinks symlinks_index force plain )
     # silent, no completion
     local OPTION_ARG_NONE=( --block-size-bits --chmod --compress-niceness
-        --filter --incompressible-block-size --incompressible-min-input-size
+        --filter --image-size-alignment --label
+        --incompressible-block-size --incompressible-min-input-size
         --incompressible-ratio --incompressible-zstd-level
         --max-similarity-size --num-file-prep-workers --file-prep-queue-size
         --num-scanner-workers --num-segmenter-workers
@@ -234,7 +240,8 @@ _mkdwarfs_completion()
     case $prev in
         --log-level | --compress-level | --recompress | --debug-filter | \
         --file-hash | --memory-limit | --progress | --set-time | \
-        --time-resolution | --pack-metadata | --superblock-digests)
+        --time-resolution | --pack-metadata | --superblock-digests | \
+        --uuid | --rebuild-metadata-source-os-hint)
             prevoption=${prev//-/_}
             _comp_compgen -- -W '"${OPTION_ARG'$prevoption'[@]}"'
             return 0
@@ -252,11 +259,21 @@ _mkdwarfs_completion()
             return 0
             ;;
         --categorize)
-            _comp_compgen -- -W '$(__mkdwarfs_list_categorizers)'
+            if [[ $cur == *,* ]]; then
+                _comp_compgen -c "${cur##*,}" -- \
+                    -W '$(__mkdwarfs_list_categorizers)' -P "${cur%,*},"
+            else
+                _comp_compgen -- -W '$(__mkdwarfs_list_categorizers)'
+            fi
             return 0
             ;;
         --recompress-categories)
-            _comp_compgen -- -W '$(__mkdwarfs_list_categories)'
+            if [[ $cur == *,* ]]; then
+                _comp_compgen -c "${cur##*,}" -- \
+                    -W '$(__mkdwarfs_list_categories)' -P "${cur%,*},"
+            else
+                _comp_compgen -- -W '$(__mkdwarfs_list_categories)'
+            fi
             return 0
             ;;
         --set-owner)
