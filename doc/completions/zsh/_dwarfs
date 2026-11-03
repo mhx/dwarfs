@@ -62,6 +62,7 @@ case "$state" in
             "auto_unmount[auto unmount on process termination]" \
             "block_allocator[block allocator]:allocator:(malloc mmap)" \
             "blocksize[set file I/O block size (512K)]:" \
+            "cache_image[obsolete; has no effect]" \
             "cache_files[keep files in kernel cache]" \
             "cache_sparse[keep sparse files in kernel cache]" \
             "cachesize[set size of block cache (512M)]:" \
@@ -70,13 +71,13 @@ case "$state" in
             "debug[enable debug output (implies -f)]" \
             "debuglevel[debug level]:level:(error warn info verbose debug trace)" \
             "decratio[ratio for full decompression (0.8)]:" \
+            "enable_nlink[obsolete; has no effect]" \
             "gid[override group ID for file system]:" \
             "imagesize[filesystem image size in bytes]:" \
-            "io_uring[enable io-uring]" \
-            "io_uring_q_depth[io-uring queue depth]:" \
             "max_idle_threads[maximum number of idle worker threads (deprecated)]:" \
             "max_threads[maximum number of worker threads (10)]:" \
             "mlock[mlock mode]:mode:(none try must)" \
+            "no_cache_image[obsolete; has no effect]" \
             "no_cache_files[do not keep files in kernel cache]" \
             "no_cache_sparse[do not keep sparse files in kernel cache]" \
             "offset[filesystem image offset in bytes (0)]:offset:(auto)" \
