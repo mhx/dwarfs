@@ -398,7 +398,8 @@ void console_writer::update(writer_progress& prog, bool last) {
     auto w = width.get();
     auto spinner{opts_.progress == UNICODE ? uni_spinner : asc_spinner};
 
-    oss << progress_bar(w - 8, frac_, opts_.progress == UNICODE)
+    oss << progress_bar(std::max<size_t>(w, 8) - 8, frac_,
+                        opts_.progress == UNICODE)
         << fmt::format("{:3.0f}% ", 100 * frac_)
         << spinner[counter_ % spinner.size()] << '\n';
 
