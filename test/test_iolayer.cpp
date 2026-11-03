@@ -485,7 +485,7 @@ test_file_access::get_file(std::filesystem::path const& path) const {
 
 test_terminal::test_terminal() = default;
 
-size_t test_terminal::width() const { return width_; }
+terminal_dimensions test_terminal::dimensions() const { return dimensions_; }
 
 bool test_terminal::is_tty(std::ostream& /*os*/) const { return is_tty_; }
 
@@ -665,6 +665,9 @@ void test_iolayer::set_terminal_is_tty(bool is_tty) {
 }
 void test_iolayer::set_terminal_fancy(bool fancy) { term_->set_fancy(fancy); }
 void test_iolayer::set_terminal_width(size_t width) { term_->set_width(width); }
+void test_iolayer::set_terminal_height(size_t height) {
+  term_->set_height(height);
+}
 void test_iolayer::set_in(std::string in) { in_.str(std::move(in)); }
 
 std::string test_iolayer::out() const { return out_.str(); }

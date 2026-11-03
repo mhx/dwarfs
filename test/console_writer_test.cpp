@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <locale>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <sstream>
@@ -389,4 +390,126 @@ TEST(console_writer, narrow_final_summary_is_not_a_live_frame) {
   cw.update(progress, true);
   EXPECT_THAT(t.err(), HasSubstr("compressed filesystem:"));
   EXPECT_THAT(t.err(), Not(HasSubstr("<rewind>")));
+}
+
+TEST(console_writer, contexts_use_available_terminal_height) {
+  for (auto const mode : {console_writer::NORMAL, console_writer::REWRITE}) {
+    auto const fixed_rows = mode == console_writer::NORMAL ? 9 : 4;
+
+    for (auto const height : {0, 1, 9, 10, 11, 12, 14, 20, 40, 64}) {
+      SCOPED_TRACE(static_cast<int>(mode));
+      SCOPED_TRACE(height);
+      test_iolayer t;
+      t.set_terminal_width(120);
+      t.set_terminal_height(height);
+      auto const& io = t.get();
+      writer_progress progress;
+      populate(progress);
+
+      std::vector<std::shared_ptr<aligned_context>> contexts;
+
+      for (int i = 0; i < 50; ++i) {
+        contexts.push_back(
+            progress.get_internal().create_context<aligned_context>(
+                "[scanning]", "", "/tmp/file", true, true));
+      }
+
+      console_writer cw(io.term, t.err_stream(), *io.os,
+                        {.progress = console_writer::ASCII, .display = mode});
+      cw.update(progress, false);
+
+      auto const expected = height < 10 || height < fixed_rows + 2
+                                ? 0
+                                : std::min(fixed_rows + 50, height - 2);
+      auto const rows = lines(t.err());
+      EXPECT_EQ(rows.size(), expected);
+
+      for (auto const& row : rows) {
+        EXPECT_LE(utf8_display_width(row), 119) << row;
+      }
+    }
+  }
+}
+
+TEST(console_writer, height_resize_abandons_previous_frame) {
+  test_iolayer t;
+  t.set_terminal_width(100);
+  t.set_terminal_height(20);
+  auto const& io = t.get();
+  writer_progress progress;
+  populate(progress);
+
+  std::vector<std::shared_ptr<aligned_context>> contexts;
+
+  for (int i = 0; i < 30; ++i) {
+    contexts.push_back(progress.get_internal().create_context<aligned_context>(
+        "[scanning]", "", "/tmp/file", true, true));
+  }
+
+  console_writer cw(io.term, t.err_stream(), *io.os,
+                    {.progress = console_writer::ASCII},
+                    {.threshold = logger::INFO});
+  cw.update(progress, false);
+  EXPECT_EQ(lines(t.err()).size(), 18);
+
+  // At a fixed size, the previous frame is erased normally.
+  auto before = t.err().size();
+  cw.update(progress, false);
+  EXPECT_THAT(t.err().substr(before), HasSubstr("<rewind>"));
+
+  // A height-only resize must not rewind the previous frame.
+  t.set_terminal_height(30);
+  before = t.err().size();
+  cw.update(progress, false);
+  auto const grown = t.err().substr(before);
+  EXPECT_THAT(grown, Not(HasSubstr("<rewind>")));
+  EXPECT_EQ(lines(grown).size(), 28);
+
+  // A log message after a height change must not rewind the previous frame.
+  t.set_terminal_height(25);
+  before = t.err().size();
+  cw.write(logger::INFO, "height changed", DWARFS_CURRENT_SOURCE_LOCATION);
+  auto const log = t.err().substr(before);
+  EXPECT_THAT(log, HasSubstr("height changed"));
+  EXPECT_THAT(log, Not(HasSubstr("<rewind>")));
+  EXPECT_THAT(log, Not(HasSubstr("filesystem:")));
+
+  // Suspend the output if the terminal is too short.
+  t.set_terminal_height(9);
+  before = t.err().size();
+  cw.update(progress, false);
+  EXPECT_EQ(t.err().size(), before);
+
+  // Start a new frame if the terminal becomes tall enough again.
+  t.set_terminal_height(32);
+  cw.update(progress, false);
+  auto const resumed = t.err().substr(before);
+  EXPECT_THAT(resumed, Not(HasSubstr("<rewind>")));
+  EXPECT_EQ(lines(resumed).size(), 30);
+}
+
+TEST(console_writer, short_terminal_still_prints_final_summary) {
+  test_iolayer t;
+  t.set_terminal_width(80);
+  t.set_terminal_height(9);
+  auto const& io = t.get();
+  writer_progress progress;
+  populate(progress);
+  console_writer cw(io.term, t.err_stream(), *io.os,
+                    {.progress = console_writer::UNICODE});
+  cw.update(progress, false);
+  EXPECT_TRUE(t.err().empty());
+  cw.update(progress, true);
+  EXPECT_THAT(t.err(), HasSubstr("compressed filesystem:"));
+  EXPECT_THAT(t.err(), Not(HasSubstr("<rewind>")));
+}
+
+TEST(console_writer, terminal_dimensions_include_height) {
+  test_terminal term;
+  EXPECT_EQ(term.dimensions(), (terminal_dimensions{80, 24}));
+  EXPECT_EQ(term.width(), 80);
+  term.set_width(123);
+  term.set_height(17);
+  EXPECT_EQ(term.dimensions(), (terminal_dimensions{123, 17}));
+  EXPECT_EQ(term.width(), 123);
 }
