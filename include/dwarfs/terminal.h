@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <iosfwd>
 #include <string>
 #include <string_view>
@@ -68,11 +69,20 @@ enum class termcolor {
 
 enum class termstyle { NORMAL, BOLD, DIM };
 
+struct terminal_dimensions {
+  size_t columns;
+  size_t rows;
+
+  friend bool
+  operator==(terminal_dimensions const&, terminal_dimensions const&) = default;
+};
+
 class terminal {
  public:
   virtual ~terminal() = default;
 
-  virtual size_t width() const = 0;
+  virtual terminal_dimensions dimensions() const = 0;
+  size_t width() const { return dimensions().columns; }
   virtual bool is_tty(std::ostream& os) const = 0;
   virtual bool is_fancy() const = 0;
   virtual std::string_view

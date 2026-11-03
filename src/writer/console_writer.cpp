@@ -49,6 +49,9 @@ namespace dwarfs::writer {
 namespace {
 
 constexpr size_t kMinLiveWidth = 40;
+constexpr size_t kMinLiveHeight = 10;
+// Leave space for a few log messages above the live frame.
+constexpr size_t kReservedRows = 2;
 constexpr int kMandatory = 100;
 
 constexpr std::array<std::string_view, 8> asc_bar{
@@ -401,17 +404,17 @@ struct rendered_frame {
   size_t lines{0};
 };
 
-rendered_frame
+std::optional<rendered_frame>
 render_frame(internal::progress& p, console_writer::options const& opts,
-             terminal const& term, bool colored, size_t width, double fraction,
-             size_t tick, std::optional<size_t> memory_usage) {
+             terminal const& term, bool colored, terminal_dimensions dimensions,
+             double fraction, size_t tick, std::optional<size_t> memory_usage) {
   rendered_frame result;
   auto append = [&](std::string text) {
     result.text += std::move(text);
     result.text += '\n';
     ++result.lines;
   };
-  auto const available = width - 1;
+  auto const available = dimensions.columns - 1;
 
   // Horizontal rules and everything else leave the terminal's last column
   // untouched, so no frame can produce an automatic line wrap.
@@ -444,13 +447,18 @@ render_frame(internal::progress& p, console_writer::options const& opts,
                       opts.progress == console_writer::UNICODE) +
          suffix);
 
-  // Contexts are already sorted by priority. The cap prevents an excessive
-  // number of context lines from taking over a small terminal.
-  if (width >= 60) {
+  // If we cannot fit the live frame, don't render it at all.
+  if (result.lines + kReservedRows > dimensions.rows) {
+    return std::nullopt;
+  }
+
+  // Use as many contexts as the available terminal height permits.
+  if (dimensions.columns >= 60) {
+    auto const max_contexts = dimensions.rows - kReservedRows - result.lines;
     auto contexts = p.get_active_contexts();
     std::vector<context_display> displays;
 
-    for (size_t i = 0; i < std::min<size_t>(contexts.size(), 8); ++i) {
+    for (size_t i = 0; i < std::min(contexts.size(), max_contexts); ++i) {
       displays.push_back(prepare_context(*contexts[i]));
     }
 
@@ -516,8 +524,8 @@ console_writer::console_writer(std::shared_ptr<terminal const> term,
 
 // Only rewind when the terminal has not resized since the frame was printed.
 // This prevents previous log output from being accidentally overwritten.
-void console_writer::forget_resized_frame(size_t width) {
-  if (!frame_.empty() && width != frame_width_) {
+void console_writer::forget_resized_frame(terminal_dimensions dimensions) {
+  if (!frame_.empty() && dimensions != frame_dimensions_) {
     frame_lines_ = 0;
     frame_.clear();
   }
@@ -536,14 +544,14 @@ void console_writer::erase_frame(std::ostream& os) {
 }
 
 void console_writer::preamble(std::ostream& os) {
-  forget_resized_frame(term().width());
+  forget_resized_frame(term().dimensions());
   erase_frame(os);
 }
 
 void console_writer::postamble(std::ostream& os) {
   if (!frame_.empty()) {
     // A resize can also occur between the logger's preamble and postamble.
-    forget_resized_frame(term().width());
+    forget_resized_frame(term().dimensions());
     if (!frame_.empty()) {
       os << frame_;
     }
@@ -616,21 +624,22 @@ void console_writer::update(writer_progress& prog, bool last) {
     return;
   }
 
-  // Render without holding the logger mutex.
-  // If the width changes while we render, drop this frame.
-  auto const width = term().width();
+  // Render without holding the logger mutex. If either dimension changes
+  // while we render, drop this frame.
+  auto const dimensions = term().dimensions();
   std::optional<rendered_frame> next;
 
-  if (width >= kMinLiveWidth) {
-    next = render_frame(p, opts_, term(), log_is_colored(), width, frac_,
+  if (dimensions.columns >= kMinLiveWidth &&
+      dimensions.rows >= kMinLiveHeight) {
+    next = render_frame(p, opts_, term(), log_is_colored(), dimensions, frac_,
                         counter_++, memory_usage);
   }
 
   std::lock_guard lock(log_mutex());
-  auto const current_width = term().width();
-  forget_resized_frame(current_width);
+  auto const current_dimensions = term().dimensions();
+  forget_resized_frame(current_dimensions);
 
-  if (width != current_width) {
+  if (dimensions != current_dimensions) {
     return;
   }
 
@@ -649,7 +658,7 @@ void console_writer::update(writer_progress& prog, bool last) {
   write_nolock(os.str());
   frame_ = std::move(next->text);
   frame_lines_ = next->lines;
-  frame_width_ = width;
+  frame_dimensions_ = dimensions;
 
   if (last) {
     frame_.clear();
