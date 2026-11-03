@@ -158,6 +158,19 @@ Most other options are concerned with compression tuning:
   This option also controls the number of threads used for ordering the
   input to the segmenter.
 
+- `--num-file-prep-workers=`*value*:
+  Number of workers used to open, map and prefetch input files ahead of
+  segmentation. Passing `0` prepares each file on demand with no prefetching.
+  The default is `2`. In addition to opening and mapping files ahead of time,
+  on systems that support it, preparation includes issuing `MADV_WILLNEED`
+  for up to 64 MiB of the current category's fragments per file. This can
+  improve cold-cache and remote file system performance significantly.
+
+- `--file-prep-queue-size=`*value*:
+  Maximum number of queued file preparations per category. The default is
+  `64`. With `--num-file-prep-workers=0`, files are prepared synchronously
+  and this option has no effect.
+
 - `-B`, `--max-lookback-blocks=[*category*`::`]`*value*:
   Specify how many of the most recent blocks to scan for duplicate segments.
   By default, only the current block will be scanned (`-B 1`). The larger this

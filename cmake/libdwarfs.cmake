@@ -82,6 +82,7 @@ add_library(
   src/internal/metadata_utils.cpp
   src/internal/mmap_file_view.cpp
   src/internal/option_parser.cpp
+  src/internal/ordered_preparation_queue.cpp
   src/internal/os_access_generic_data.cpp
   src/internal/read_file_view.cpp
   src/internal/sparse_chunk_codec.cpp
