@@ -115,6 +115,12 @@ class read_file_view final
     // not implemented for read_file_view
   }
 
+  void advise(io_advice /*adv*/, file_range /*range*/,
+              std::error_code& ec) const override {
+    // not implemented for read_file_view
+    ec.clear();
+  }
+
   std::filesystem::path const& path() const override { return path_; }
 
  private:

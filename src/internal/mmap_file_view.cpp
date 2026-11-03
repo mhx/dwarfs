@@ -118,6 +118,17 @@ class mmap_file_view final
     }
   }
 
+  void
+  advise(io_advice adv, file_range range, std::error_code& ec) const override {
+    ec.clear();
+    if (range.offset() < 0 || range.size() < 0 || range.size() > size() ||
+        range.offset() > size() - range.size()) {
+      ec = make_error_code(std::errc::invalid_argument);
+    } else if (mapping_.has_value() && !range.empty()) {
+      mapping_->advise(adv, range.offset(), range.size(), ec);
+    }
+  }
+
   std::filesystem::path const& path() const override { return path_; }
 
   // Not exposed publicly
