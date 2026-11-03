@@ -47,7 +47,7 @@ namespace dwarfs {
 
 namespace {
 
-constexpr size_t default_width{80};
+constexpr terminal_dimensions default_dimensions{80, 24};
 
 #if defined(_WIN32)
 
@@ -74,12 +74,20 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
   ::SetConsoleMode(hdl, out_mode);
 }
 
-size_t width_impl() {
+terminal_dimensions dimensions_impl() {
   CONSOLE_SCREEN_BUFFER_INFO csbi;
+  auto result = default_dimensions;
   if (::GetConsoleScreenBufferInfo(::GetStdHandle(STD_ERROR_HANDLE), &csbi)) {
-    return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    auto const columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    auto const rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    if (columns > 0) {
+      result.columns = static_cast<size_t>(columns);
+    }
+    if (rows > 0) {
+      result.rows = static_cast<size_t>(rows);
+    }
   }
-  return default_width;
+  return result;
 }
 
 bool is_tty_impl(std::ostream& os) {
@@ -96,11 +104,20 @@ bool is_fancy_impl() { return true; }
 
 #else
 
-size_t width_impl() {
-  struct ::winsize w;
+terminal_dimensions dimensions_impl() {
+  struct ::winsize w{};
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-  auto rv = ::ioctl(STDERR_FILENO, TIOCGWINSZ, &w);
-  return rv == 0 ? w.ws_col : default_width;
+  auto const rv = ::ioctl(STDERR_FILENO, TIOCGWINSZ, &w);
+  auto result = default_dimensions;
+  if (rv == 0) {
+    if (w.ws_col != 0) {
+      result.columns = w.ws_col;
+    }
+    if (w.ws_row != 0) {
+      result.rows = w.ws_row;
+    }
+  }
+  return result;
 }
 
 bool is_tty_impl(std::ostream& os) {
@@ -253,7 +270,9 @@ std::string terminal_ansi::colored_impl(std::string_view text, termcolor color,
   return result;
 }
 
-size_t terminal_ansi::width() const { return width_impl(); }
+terminal_dimensions terminal_ansi::dimensions() const {
+  return dimensions_impl();
+}
 
 bool terminal_ansi::is_tty(std::ostream& os) const { return is_tty_impl(os); }
 

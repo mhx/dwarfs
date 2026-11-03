@@ -295,9 +295,10 @@ class test_terminal : public terminal {
 
   void set_fancy(bool fancy) { fancy_ = fancy; }
   void set_is_tty(bool is_tty) { is_tty_ = is_tty; }
-  void set_width(size_t width) { width_ = width; }
+  void set_width(size_t width) { dimensions_.columns = width; }
+  void set_height(size_t height) { dimensions_.rows = height; }
 
-  size_t width() const override;
+  terminal_dimensions dimensions() const override;
   bool is_tty(std::ostream& os) const override;
   bool is_fancy() const override;
   std::string_view bgcolor(termcolor color) const override;
@@ -311,7 +312,7 @@ class test_terminal : public terminal {
  private:
   bool fancy_{false};
   bool is_tty_{false};
-  size_t width_{80};
+  terminal_dimensions dimensions_{80, 24};
 };
 
 class test_file_access : public file_access {
@@ -393,6 +394,7 @@ class test_iolayer {
   void set_terminal_is_tty(bool is_tty);
   void set_terminal_fancy(bool fancy);
   void set_terminal_width(size_t width);
+  void set_terminal_height(size_t height);
 
   std::istream& in_stream() { return in_; }
   std::ostream& out_stream() { return out_; }
