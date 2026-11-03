@@ -1013,6 +1013,50 @@ INSTANTIATE_TEST_SUITE_P(mkdwarfs_test, write_superblock_test,
                          ::testing::Combine(::testing::ValuesIn(build_steps),
                                             ::testing::Bool()));
 
+TEST(mkdwarfs_superblock_digest_test, hollow_preserves_attribute_digest) {
+  // Use independent, but identical source trees.
+  mkdwarfs_tester regular;
+  mkdwarfs_tester hollow;
+  regular.fa->sync_files_to(*regular.os);
+  hollow.fa->sync_files_to(*hollow.os);
+
+  ASSERT_EQ(0,
+            regular.run({"-i", "/", "-o", "regular.dwarfs", "-l1",
+                         "--no-backwards-compat", "--superblock-digests=both"}))
+      << regular.err();
+  ASSERT_EQ(0, hollow.run({"-i", "/", "-o", "hollow.dwarfs", "-l1",
+                           "--no-backwards-compat", "--hollow",
+                           "--superblock-digests=both"}))
+      << hollow.err();
+
+  auto regular_fs = regular.fs_from_file("regular.dwarfs");
+  auto hollow_fs = hollow.fs_from_file("hollow.dwarfs");
+  auto const regular_digests = regular_fs.digests();
+  auto const hollow_digests = hollow_fs.digests();
+
+  ASSERT_TRUE(regular_digests.attr_digest);
+  ASSERT_TRUE(hollow_digests.attr_digest);
+  EXPECT_EQ(regular_digests.attr_digest.hex(),
+            hollow_digests.attr_digest.hex());
+  EXPECT_EQ(regular_digests.attr_digest.hex(), kAttrDigest);
+
+  auto const regular_computed = compute_digests(regular, regular_fs, true);
+  auto const hollow_computed = compute_digests(hollow, hollow_fs, true);
+  EXPECT_EQ(regular_digests.attr_digest.hex(),
+            regular_computed.attr_digest.hex());
+  EXPECT_EQ(hollow_digests.attr_digest.hex(),
+            hollow_computed.attr_digest.hex());
+
+  ASSERT_TRUE(regular_digests.tree_digest);
+  ASSERT_TRUE(hollow_digests.tree_digest);
+  EXPECT_EQ(regular_digests.tree_digest.hex(),
+            regular_computed.tree_digest.hex());
+  EXPECT_EQ(hollow_digests.tree_digest.hex(),
+            hollow_computed.tree_digest.hex());
+  EXPECT_NE(regular_digests.tree_digest.hex(),
+            hollow_digests.tree_digest.hex());
+}
+
 TEST(mkdwarfs_superblock_cli_test, rejects_conflicting_or_invalid_options) {
   auto expect_rejected = [](std::vector<std::string> extra,
                             std::string_view message) {
