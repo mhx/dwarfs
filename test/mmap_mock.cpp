@@ -112,8 +112,8 @@ class mmap_mock final : public detail::file_view_impl,
 
   void release_until(file_off_t, std::error_code&) const override {}
 
-  std::error_code advise(io_advice, file_range) const {
-    return std::error_code();
+  void advise(io_advice, file_range, std::error_code& ec) const override {
+    ec.clear();
   }
 
   std::error_code lock(file_range) const { return std::error_code(); }
@@ -233,7 +233,7 @@ class mmap_mock_file_segment final : public detail::file_segment_impl {
   }
 
   void advise(io_advice adv, std::error_code& ec) const override {
-    ec = mm_->advise(adv, range_);
+    mm_->advise(adv, range_, ec);
   }
 
   void lock(std::error_code& ec) const override { ec = mm_->lock(range_); }
