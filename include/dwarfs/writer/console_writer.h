@@ -67,10 +67,13 @@ class console_writer : public stream_logger {
   void preamble(std::ostream& os) override;
   void postamble(std::ostream& os) override;
   std::string_view get_newline() const override;
-  void rewind(std::ostream& os, int next_rewind_lines);
+  void forget_resized_frame(size_t width);
+  void erase_frame(std::ostream& os);
 
-  std::string statebuf_;
-  int rewind_lines_{0};
+  std::string frame_;
+  std::string last_simple_message_;
+  size_t frame_lines_{0};
+  size_t frame_width_{0};
   double frac_{0.0};
   std::atomic<size_t> counter_{0};
   options const opts_;
