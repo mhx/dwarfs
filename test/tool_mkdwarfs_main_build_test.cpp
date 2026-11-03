@@ -91,7 +91,7 @@ TEST_P(mkdwarfs_build_options_test, basic) {
 
 namespace {
 
-constexpr std::array<std::string_view, 8> const build_options = {
+constexpr std::array<std::string_view, 10> const build_options = {
     "--categorize --order=none --no-dedupe",
     "--categorize=pcmaudio --order=path",
     "--categorize --order=revpath",
@@ -101,6 +101,8 @@ constexpr std::array<std::string_view, 8> const build_options = {
     "--categorize --order=nilsimsa:max-cluster-size=16:max-children=16 "
     "--max-similarity-size=1M",
     "--categorize -B4 -S18",
+    "--order=none --num-file-prep-workers=2 --file-prep-queue-size=2",
+    "--categorize --order=none --num-file-prep-workers=0",
 };
 
 } // namespace
@@ -1124,6 +1126,14 @@ TEST(mkdwarfs_test, unknown_compression) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "WeIrDcOmP"})) << t.err();
 
   EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown compression: WeIrDcOmP"));
+}
+
+TEST(mkdwarfs_test, reject_zero_file_preparation_queue_size) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--num-file-prep-workers=2",
+                      "--file-prep-queue-size=0"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("--file-prep-queue-size must be positive"));
 }
 
 TEST(mkdwarfs_test, cannot_use_hollow_with_no_sparse_files) {

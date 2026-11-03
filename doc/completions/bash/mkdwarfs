@@ -164,6 +164,8 @@ _mkdwarfs_completion()
         --no-section-index
         --no-sparse-files
         --no-superblock
+        --num-file-prep-workers
+        --file-prep-queue-size
         --num-scanner-workers
         --num-segmenter-workers
         --num-walk-workers
@@ -216,7 +218,8 @@ _mkdwarfs_completion()
     local OPTION_ARG_NONE=( --block-size-bits --chmod --compress-niceness
         --filter --incompressible-block-size --incompressible-min-input-size
         --incompressible-ratio --incompressible-zstd-level
-        --max-similarity-size --num-scanner-workers --num-segmenter-workers
+        --max-similarity-size --num-file-prep-workers --file-prep-queue-size
+        --num-scanner-workers --num-segmenter-workers
         --num-walk-workers --num-workers -F -N -S )
 
     local prevoption
