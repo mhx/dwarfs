@@ -59,12 +59,6 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/map.hpp>
 
-#if __has_include(<utf8cpp/utf8.h>)
-#include <utf8cpp/utf8.h>
-#else
-#include <utf8.h>
-#endif
-
 #include <dwarfs/portability/jthread.h>
 
 #include <dwarfs/binary_literals.h>
@@ -472,7 +466,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       time_resolution, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
       history_compression, recompress_categories, image_size_alignment_str,
-      rebuild_metadata_source_os_hint, uuid_str;
+      rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -483,8 +477,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
        estimate_compression_memory = false, no_dedupe = false,
-       no_superblock = false, no_superblock_init = false,
-       no_superblock_digests = false, no_superblock_tree_digest = false,
+       no_superblock = false, no_superblock_init = false, clear_label = false,
        no_backwards_compat = false;
   unsigned level;
   int compress_niceness;
@@ -669,12 +662,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-superblock-init",
         po::value<bool>(&no_superblock_init)->zero_tokens(),
         "don't initialize superblock fields after writing filesystem")
-    ("no-superblock-digests",
-        po::value<bool>(&no_superblock_digests)->zero_tokens(),
-        "don't initialize superblock digests after writing filesystem")
-    ("no-superblock-tree-digest",
-        po::value<bool>(&no_superblock_tree_digest)->zero_tokens(),
-        "don't initialize superblock tree digest after writing filesystem")
+    ("superblock-digests",
+        po::value<std::string>(&superblock_digests_str)->default_value("auto"),
+        "digests to store in superblock (auto, none, attr, tree, both)")
+    ("clear-label",
+        po::value<bool>(&clear_label)->zero_tokens(),
+        "clear inherited filesystem label")
     ("label",
         po_sys_value<sys_string>(&fs_label),
         "set filesystem label to this string")
@@ -1553,6 +1546,26 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+  if (vm.contains("label") && clear_label) {
+    LOG_ERROR << "'--label' and '--clear-label' are mutually exclusive";
+    return 1;
+  }
+
+  // A digest selection describes the *output*, not which computations to skip.
+  bool const want_attr_digest = superblock_digests_str == "auto" ||
+                                superblock_digests_str == "both" ||
+                                superblock_digests_str == "attr";
+  bool const want_tree_digest = superblock_digests_str == "auto" ||
+                                superblock_digests_str == "both" ||
+                                superblock_digests_str == "tree";
+  if (superblock_digests_str != "auto" && superblock_digests_str != "both" &&
+      superblock_digests_str != "none" && superblock_digests_str != "attr" &&
+      superblock_digests_str != "tree") {
+    LOG_ERROR << "invalid '--superblock-digests' mode: "
+              << superblock_digests_str;
+    return 1;
+  }
+
   if (!no_backwards_compat) {
     if (vm.contains("label")) {
       LOG_ERROR << "the '--label' option requires '--no-backwards-compat'";
@@ -1564,10 +1577,31 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
+    if (clear_label) {
+      LOG_ERROR << "'--clear-label' requires '--no-backwards-compat'";
+      return 1;
+    }
+
+    if (superblock_digests_str != "auto" && superblock_digests_str != "none") {
+      LOG_ERROR << "'--superblock-digests' requires a superblock";
+      return 1;
+    }
+
     no_superblock = true;
   }
 
   if (no_superblock) {
+    if (clear_label) {
+      LOG_ERROR << "'--clear-label' cannot be used with '--no-superblock'";
+      return 1;
+    }
+
+    if (superblock_digests_str != "auto" &&
+        (want_attr_digest || want_tree_digest)) {
+      LOG_ERROR << "cannot request digests without a superblock";
+      return 1;
+    }
+
     if (vm.contains("label")) {
       LOG_ERROR << "the '--label' option cannot be used with '--no-superblock'";
       return 1;
@@ -1591,6 +1625,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         if (!recompress) {
           LOG_ERROR << "'--uuid=keep' can only be used when recompressing an "
                        "existing filesystem";
+          return 1;
+        }
+
+        if (!input_filesystem->has_superblock()) {
+          LOG_ERROR << "'--uuid=keep' requires a source superblock";
           return 1;
         }
 
@@ -1706,25 +1745,54 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.count("label")) {
     fswopts.fs_label = sys_string_to_string(fs_label);
-    if (!utf8::is_valid(fswopts.fs_label)) {
-      LOG_ERROR << "invalid UTF-8 in filesystem label";
+  } else if (!clear_label && input_filesystem.has_value()) {
+    fswopts.fs_label = input_filesystem->filesystem_label();
+  }
+
+  if (!no_superblock) {
+    // Just validate the label here, the actual work is done by the writer.
+    try {
+      superblock_editor::builder().set_fs_label(fswopts.fs_label);
+    } catch (std::exception const& e) {
+      LOG_ERROR << "invalid filesystem label: " << e.what();
       return 1;
     }
-  } else if (input_filesystem.has_value()) {
-    fswopts.fs_label = input_filesystem->filesystem_label();
   }
 
   if (input_filesystem.has_value() && input_filesystem->has_superblock()) {
     auto digests = input_filesystem->digests();
 
-    if (rebuild_metadata) {
-      // Rebuilding can change the attribute digest
+    if (rebuild_metadata || change_block_size) {
+      // Both paths rebuild metadata, potentially changing its attributes.
       digests.attr_digest.reset();
+    }
+
+    if (!want_attr_digest) {
+      digests.attr_digest.reset();
+    }
+
+    if (!want_tree_digest) {
+      digests.tree_digest.reset();
     }
 
     if (digests.attr_digest || digests.tree_digest) {
       assert(digests.scheme_version != 0);
       fswopts.digests = digests;
+    }
+  }
+
+  // An explicit digest request must not silently produce incomplete output
+  // when writing to stdout or with --no-superblock-init.
+  if (!no_superblock && no_superblock_init &&
+      (superblock_digests_str == "attr" || superblock_digests_str == "tree" ||
+       superblock_digests_str == "both")) {
+    bool const have_attr = fswopts.digests && fswopts.digests->attr_digest;
+    bool const have_tree = fswopts.digests && fswopts.digests->tree_digest;
+
+    if ((want_attr_digest && !have_attr) || (want_tree_digest && !have_tree)) {
+      LOG_ERROR << "requested superblock digests cannot be produced without "
+                   "post-write initialization";
+      return 1;
     }
   }
 
@@ -1899,39 +1967,41 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       ed.init_fs_size(stream.tellg() - ed.image_offset());
 
-      if (!no_superblock_digests) {
+      bool const need_attr = want_attr_digest && !ed.attr_digest();
+      bool const need_tree = want_tree_digest && !ed.tree_digest();
+
+      if (need_attr || need_tree) {
         reader::filesystem_v2 fs(
             lgr, *iol.os, output,
             reader::filesystem_options{
                 .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
 
-        bool const has_tree_digest = ed.tree_digest().has_value();
-
         reader::filesystem_digests_config const cfg{
-            .compute_tree_digest =
-                !no_superblock_tree_digest && !has_tree_digest,
+            .compute_tree_digest = need_tree,
             .num_worker_threads = num_workers,
         };
 
         auto const digests =
             reader::compute_filesystem_digests(lgr, *iol.os, fs, cfg);
 
-        if (ed.digest_algo() == digest_algorithm::UNINITIALIZED &&
-            ed.digest_scheme_version() == 0) {
+        if (ed.digest_algo() == digest_algorithm::UNINITIALIZED) {
           ed.set_digests(digests.algorithm, digests.scheme_version,
-                         digests.attr_digest.span());
+                         need_attr ? std::optional{digests.attr_digest.span()}
+                                   : std::nullopt,
+                         need_tree ? std::optional{digests.tree_digest.span()}
+                                   : std::nullopt);
         } else {
           DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
                            ed.digest_scheme_version() == digests.scheme_version,
                        "unsupported digest algorithm or scheme version");
-          ed.set_attr_digest(digests.attr_digest.span());
-        }
 
-        if (digests.tree_digest) {
-          DWARFS_CHECK(ed.digest_algo() == digests.algorithm &&
-                           ed.digest_scheme_version() == digests.scheme_version,
-                       "unsupported digest algorithm or scheme version");
-          ed.set_tree_digest(digests.tree_digest.span());
+          if (need_attr) {
+            ed.set_attr_digest(digests.attr_digest.span());
+          }
+
+          if (need_tree) {
+            ed.set_tree_digest(digests.tree_digest.span());
+          }
         }
       }
 
