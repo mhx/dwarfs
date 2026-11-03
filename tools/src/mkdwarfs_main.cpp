@@ -589,6 +589,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<size_t>(&num_segmenter_workers)
           ->value_name(dep_def_val("num-workers")),
         "number of segmenter worker threads")
+    ("num-file-prep-workers",
+        po::value<size_t>(&options.num_file_prep_workers)->default_value(2),
+        "file preparation workers (0: synchronous preparation)")
+    ("file-prep-queue-size",
+        po::value<size_t>(&options.file_prep_queue_size)->default_value(64),
+        "maximum outstanding file preparations per category")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("auto"),
         "block manager memory limit")
@@ -1091,6 +1097,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   options.num_walk_workers = num_walk_workers;
   options.num_segmenter_workers = num_segmenter_workers;
+
+  if (options.num_file_prep_workers > 0 && options.file_prep_queue_size == 0) {
+    iol.err << "error: --file-prep-queue-size must be positive when "
+               "file preparation is enabled\n";
+    return 1;
+  }
 
   std::vector<writer::debug_filter_entry> debug_filter_entries;
 

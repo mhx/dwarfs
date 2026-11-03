@@ -43,6 +43,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/binary_literals.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
@@ -63,6 +64,7 @@
 #include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/directory_walker.h>
+#include <dwarfs/internal/ordered_preparation_queue.h>
 #include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/block_manager.h>
@@ -81,6 +83,7 @@ namespace dwarfs::writer {
 namespace internal {
 
 using namespace dwarfs::internal;
+using namespace dwarfs::binary_literals;
 using namespace std::chrono_literals;
 
 namespace {
@@ -110,6 +113,33 @@ class tsan_visible_latch {
   std::condition_variable cv_;
   std::ptrdiff_t count_;
 };
+
+constexpr file_size_t kFilePrepPrefetchBytes = 64_MiB;
+
+void prefetch_fragments(file_view const& mm, inode_handle ino,
+                        fragment_category category) {
+  if (!mm.supports_raw_bytes()) {
+    return;
+  }
+
+  file_size_t remaining = kFilePrepPrefetchBytes;
+  file_off_t offset = 0;
+
+  for (auto const frag : ino.fragments_view()) {
+    if (remaining == 0) {
+      break;
+    }
+
+    if (frag.category() == category) {
+      auto const length = std::min(frag.size(), remaining);
+      std::error_code ec;
+      mm.advise(io_advice::willneed, {offset, length}, ec);
+      remaining -= length;
+    }
+
+    offset += frag.size();
+  }
+}
 
 constexpr std::string_view kEnvVarDumpFilesRaw{"DWARFS_DUMP_FILES_RAW"};
 constexpr std::string_view kEnvVarDumpFilesFinal{"DWARFS_DUMP_FILES_FINAL"};
@@ -346,6 +376,10 @@ class scanner_ final : public scanner::impl {
                   std::shared_ptr<file_access const> const& fa,
                   std::function<void(std::ostream&)> const& dumper) const;
 
+  file_view
+  prepare_inode_for_category(inode_handle ino, fragment_category category,
+                             progress& prog) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
   scanner_options const& options_;
@@ -522,6 +556,38 @@ void scanner_<LoggerPolicy>::dump_state(
       LOG_ERROR << "cannot dump " << what << ": no file access";
     }
   }
+}
+
+template <typename LoggerPolicy>
+file_view
+scanner_<LoggerPolicy>::prepare_inode_for_category(inode_handle ino,
+                                                   fragment_category category,
+                                                   progress& prog) const {
+  auto f = ino.any();
+
+  if (options_.hollow_filesystem || f.size() == 0 || f.is_invalid()) {
+    return {};
+  }
+
+  auto [mm, _, errors] = ino.mmap_any(os_);
+
+  if (mm) {
+    prefetch_fragments(mm, ino, category);
+  } else {
+    for (auto const& [fp, e] : errors) {
+      LOG_ERROR << "failed to map file " << fp.path_as_string() << ": "
+                << exception_str(e) << ", creating empty inode";
+      ++prog.errors;
+    }
+
+    for (auto const frag : ino.fragments_view()) {
+      if (frag.category() == category) {
+        --prog.fragments_found;
+      }
+    }
+  }
+
+  return mm;
 }
 
 template <typename LoggerPolicy>
@@ -906,6 +972,20 @@ void scanner_<LoggerPolicy>::scan(
     size_t const num_threads = options_.num_segmenter_workers;
     worker_group wg_ordering(LOG_GET_LOGGER, os_, "ordering",
                              {.num_workers = num_threads});
+    std::unique_ptr<worker_group> wg_fileprep;
+
+    if (options_.num_file_prep_workers > 0 &&
+        options_.file_prep_queue_size == 0) {
+      DWARFS_THROW(runtime_error, "file prep queue size must be positive");
+    }
+
+    if (options_.num_file_prep_workers > 0 && !options_.hollow_filesystem) {
+      wg_fileprep = std::make_unique<worker_group>(
+          LOG_GET_LOGGER, os_, "fileprep",
+          worker_group_options{.num_workers = options_.num_file_prep_workers});
+    }
+
+    // Destruct the blockify group before the worker pool it references.
     worker_group wg_blockify(LOG_GET_LOGGER, os_, "blockify",
                              {.num_workers = num_threads});
 
@@ -942,7 +1022,8 @@ void scanner_<LoggerPolicy>::scan(
                          category, cc));
 
       wg_blockify.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
-                           &prog, &fsw, &im, &wg_ordering, &similarity_latch] {
+                           &prog, &fsw, &im, &wg_ordering, &similarity_latch,
+                           &wg_fileprep] {
         auto span = im.ordered_span(category, wg_ordering);
 
         similarity_latch.count_down();
@@ -963,13 +1044,21 @@ void scanner_<LoggerPolicy>::scan(
                   meta);
             });
 
-        for (auto ino : span) {
-          prog.current.store(ino);
+        auto prepared_files = prepare_ordered(
+            span, wg_fileprep.get(), options_.file_prep_queue_size,
+            [this, category, &prog](inode_handle ino) {
+              return prepare_inode_for_category(ino, category, prog);
+            });
 
-          // TODO: factor this code out
+        for (auto&& prep : prepared_files) {
+          // workaround for AppleClang 15
+          auto& ino = prep.first;
+          auto& mm = prep.second;
           auto f = ino.any();
 
           if (auto size = f.size(); size > 0 && !f.is_invalid()) {
+            prog.current.store(ino);
+
             auto for_each_fragment = [&](auto&& func) {
               file_off_t offset{0};
               for (auto&& frag : ino.fragments_view()) {
@@ -984,28 +1073,11 @@ void scanner_<LoggerPolicy>::scan(
             if (options_.hollow_filesystem) {
               for_each_fragment(
                   [&](auto&& frag, auto) { frag.add_hole(frag.size()); });
-            } else {
-              auto [mm, _, errors] = ino.mmap_any(os_);
-
-              if (mm) {
-                auto& mm_ref = mm; // workaround for AppleClang 15
-                for_each_fragment([&](auto&& frag, auto offset) {
-                  fragment_chunkable fc(ino, frag, offset, mm_ref, catmgr);
-                  seg.add_chunkable(fc);
-                });
-              } else {
-                for (auto& [fp, e] : errors) {
-                  LOG_ERROR << "failed to map file " << fp.path_as_string()
-                            << ": " << exception_str(e)
-                            << ", creating empty inode";
-                  ++prog.errors;
-                }
-                for (auto const& frag : ino.fragments_view()) {
-                  if (frag.category() == category) {
-                    prog.fragments_found--;
-                  }
-                }
-              }
+            } else if (mm) {
+              for_each_fragment([&](auto&& frag, auto offset) {
+                fragment_chunkable fc(ino, frag, offset, mm, catmgr);
+                seg.add_chunkable(fc);
+              });
             }
           }
 

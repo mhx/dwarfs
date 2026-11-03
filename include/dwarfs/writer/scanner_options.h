@@ -48,6 +48,9 @@ struct scanner_options {
       debug_filter_function;
   size_t num_walk_workers{1};
   size_t num_segmenter_workers{1};
+  // Zero workers prepares files synchronously.
+  size_t num_file_prep_workers{2};
+  size_t file_prep_queue_size{64};
   bool enable_history{true};
   std::optional<std::vector<std::string>> command_line_arguments;
   history_config history;
