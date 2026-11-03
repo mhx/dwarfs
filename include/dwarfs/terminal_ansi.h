@@ -46,7 +46,7 @@ class terminal_ansi : public terminal {
   colored_impl(std::string_view text, termcolor color, bool enable = true,
                termstyle style = termstyle::NORMAL);
 
-  size_t width() const override;
+  terminal_dimensions dimensions() const override;
   bool is_tty(std::ostream& os) const override;
   bool is_fancy() const override;
   std::string_view color(termcolor color, termstyle style) const override;

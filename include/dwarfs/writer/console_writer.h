@@ -31,6 +31,7 @@
 #include <string>
 
 #include <dwarfs/logger.h>
+#include <dwarfs/terminal.h>
 
 namespace dwarfs {
 
@@ -67,13 +68,13 @@ class console_writer : public stream_logger {
   void preamble(std::ostream& os) override;
   void postamble(std::ostream& os) override;
   std::string_view get_newline() const override;
-  void forget_resized_frame(size_t width);
+  void forget_resized_frame(terminal_dimensions dimensions);
   void erase_frame(std::ostream& os);
 
   std::string frame_;
   std::string last_simple_message_;
   size_t frame_lines_{0};
-  size_t frame_width_{0};
+  terminal_dimensions frame_dimensions_{0, 0};
   double frac_{0.0};
   std::atomic<size_t> counter_{0};
   options const opts_;
