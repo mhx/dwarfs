@@ -1,7 +1,3 @@
-- should `keep` really be the default for UUIDs when re-writing? => YES
-
-- disallow both `--clear-label` and `--set-label` in `dwarfsck`
-
 - reference `dwarfs-format.md` from documentation for superblock
   digests
 
@@ -19,35 +15,13 @@
   => document!
   => headers should *NOT* be considered for alignment/padding
 
-- introduce superblocks only with --no-backwards-compat flag
-  set; make them the default in v0.18.0. Otherwise there are
-  too many issues with pre-v0.16.0 rewriting but not updating
-  superblocks properly
-
-- make sure rewriting superblocks works correctly:
-  - must be written with a zero size
-  - attr digest *must* be reset if there are any rebuild options
-    that affect metadata (chmod, chown, touch, ...)
-  - tree digest should *never* change: this means in theory we
-    could have a rewritten filesystem with a tree digest, but no
-    attr digest, which contradicts the current documentation
-
-- rebuilding metadata with chmod / chown / timestamp will
-  require rebuilding the attr digest!
-
 - make sure we keep the FS minor version of blocks we don't
   know when rewriting?
 
 - add an OS flag to the metadata for future use?
 - add a flag for hollow file systems?
 
-- tests for filesystem digests
-
-  - attr_digest should be *identical* for hollow fs
-
 - update completions for all tools
-
-- increment accepted/written minor versions!!!
 
 - implement section headers using BLAKE3 for FS version v2.7
   => no, we're not going to do that; document somewhere why
@@ -62,18 +36,7 @@
 
 - add superblock / digests documentation to dwarfs-format
 
-- CHECKSUMS section? -> decide on hash function to use
-- remove `--init-superblock` from `mkdwarfs`?
-- refactor superblock stuff:
-  - add checksums (tree / attr)
-  - make variable size
-  - remove `reserved1`????
-  - use `--uuid=[<uuid>|nil|keep|random]` <<<<<<<!!!!!
-    - defaults to `keep` when re-writing;
-      warning + fallback to `random` if source has no UUID
-    - otherwise, defaults to `random`
-  - make sure label is correctly truncated (not UTF-8 code splits)
-  - force \0-termination of label string (limit to 63 bytes?)
+- CHECKSUMS section? -> BLAKE3-256, but not for v0.16.0
 - introduce `mkdwarfs --reproducible`, which bundles
   - `--uuid=nil`
   - `--no-create-timestamp`
@@ -82,11 +45,6 @@
 - check `SOURCE_DATE_EPOCH`; should that imply `--reproducible`?
 - `dwarfsck --compare`?
 - refactor code that uses `checksum` to make use of `.reset()`?
-
-- deprecate/ignore/warn about `--file-hash`
-- introduce `--no-dedupe` as replacement for `--file-hash=none`
-- de-dupe will use BLAKE3-256 unconditionally
-- BLAKE3-256 will also be used for CHECKSUM sections and tree/attr digests
 
 
 ==================
