@@ -45,13 +45,13 @@ _dwarfs_completion()
     )
 
     local OPTION_ARG__owitharg=( analysis_file block_allocator blocksize
-        cachesize debuglevel decratio gid imagesize io_uring_q_depth
+        cachesize debuglevel decratio gid imagesize
         max_idle_threads max_threads mlock offset perfmon perfmon_trace
         preload_category readahead seq_detector tidy_interval tidy_max_age
         tidy_strategy uid workers )
     local OPTION_ARG__onoarg=( allow_other allow_root auto_unmount cache_files
-        cache_sparse case_insensitive clone_fd debug io_uring no_cache_files
-        no_cache_sparse preload_all readonly )
+        cache_image cache_sparse case_insensitive clone_fd debug enable_nlink
+        no_cache_files no_cache_image no_cache_sparse preload_all readonly )
 
     # values for the -o suboptions that have a fixed set of arguments
     local OPTION_ARG__block_allocator=( malloc mmap )
@@ -95,7 +95,7 @@ _dwarfs_completion()
         fi
     done
 
-    if [[ $carg == 2 ]]; then
+    if [[ $carg == 2 && $cur != -* ]]; then
         # second arg is dir or --auto-mp
         _comp_compgen -- -W '"--auto-mountpoint"'
         _comp_compgen -a -- -d

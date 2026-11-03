@@ -64,7 +64,7 @@ _arguments -S \
 	"--checksum=[print checksums for all files]:algorithm:__dwarfsck_checksums" \
 	"--export-metadata=[export raw metadata as JSON to file]:filename:_files" \
 	"--fs-digests[compute filesystem digests]" \
-	"--init-superblock=-[initialize selected missing superblock fields]:fields:(size digests uuid attr_digest tree_digest all)" \
+	"--init-superblock=-[initialize selected missing superblock fields]:fields:_values -s , field all size uuid digests attr_digest tree_digest" \
 	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
 	"--log-with-context[enable context logging regardless of level]" \
 	"--no-check[don't even verify block checksums]" \
