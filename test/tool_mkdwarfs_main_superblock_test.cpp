@@ -146,6 +146,10 @@ std::vector<build_step> build_steps{
         .label = "something",
     },
     {
+        .args = {"--label=" + std::string(63, 'a')},
+        .label = std::string(63, 'a'),
+    },
+    {
         .args = {"--no-superblock"},
         .has_superblock = false,
         .has_attr_digest = false,
@@ -173,13 +177,20 @@ std::vector<build_step> build_steps{
         .has_tree_digest = false,
     },
     {
-        .args = {"--no-superblock-digests"},
+        .args = {"--superblock-digests=none"},
         .has_attr_digest = false,
         .has_tree_digest = false,
     },
     {
-        .args = {"--no-superblock-tree-digest"},
+        .args = {"--superblock-digests=attr"},
         .has_tree_digest = false,
+    },
+    {
+        .args = {"--superblock-digests=tree"},
+        .has_attr_digest = false,
+    },
+    {
+        .args = {"--superblock-digests=both"},
     },
     {
         .args =
@@ -249,6 +260,12 @@ std::vector<rebuild_step> rebuild_steps{
         .has_tree_digest = true,
     },
     {
+        .args = {"--recompress=none", "--clear-label"},
+        .label = "",
+        .has_attr_digest = true,
+        .has_tree_digest = true,
+    },
+    {
         .args = {"--rebuild-metadata", "--chmod=norm"},
         .has_attr_digest = true,
         .has_tree_digest = true,
@@ -265,11 +282,19 @@ std::vector<rebuild_step> rebuild_steps{
         .has_size = false,
     },
     {
-        .args = {"--recompress=none", "--no-superblock-digests"},
+        .args = {"--recompress=none", "--superblock-digests=none"},
+        .has_attr_digest = false,
+        .has_tree_digest = false,
     },
     {
-        .args = {"--recompress=none", "--no-superblock-tree-digest"},
+        .args = {"--recompress=none", "--superblock-digests=attr"},
         .has_attr_digest = true,
+        .has_tree_digest = false,
+    },
+    {
+        .args = {"--recompress=none", "--superblock-digests=tree"},
+        .has_attr_digest = false,
+        .has_tree_digest = true,
     },
     {
         .args = {"--rebuild-metadata", "--no-superblock-init"},
@@ -277,17 +302,20 @@ std::vector<rebuild_step> rebuild_steps{
         .has_attr_digest = false,
     },
     {
-        .args = {"--rebuild-metadata", "--no-superblock-digests"},
+        .args = {"--rebuild-metadata", "--superblock-digests=none"},
         .has_attr_digest = false,
+        .has_tree_digest = false,
     },
     {
-        .args = {"--rebuild-metadata", "--no-superblock-tree-digest"},
+        .args = {"--rebuild-metadata", "--superblock-digests=attr"},
         .has_attr_digest = true,
+        .has_tree_digest = false,
     },
     {
         .args = {"--rebuild-metadata", "--chmod=norm",
-                 "--no-superblock-digests"},
+                 "--superblock-digests=none"},
         .has_attr_digest = false,
+        .has_tree_digest = false,
         .attr_digest = kAttrDigestNorm,
     },
 };
@@ -303,12 +331,20 @@ std::vector<check_step> check_steps{
     },
     {
         .args = {"--init-superblock"},
+        .has_size = true,
+        .has_attr_digest = true,
+        .has_tree_digest = true,
+    },
+    {
+        .args = {"--init-superblock=all"},
         .has_uuid = true,
+        .has_size = true,
         .has_attr_digest = true,
         .has_tree_digest = true,
     },
     {
         .args = {"--init-superblock=size"},
+        .has_size = true,
     },
     {
         .args = {"--init-superblock=uuid"},
@@ -324,6 +360,10 @@ std::vector<check_step> check_steps{
         .has_attr_digest = true,
     },
     {
+        .args = {"--init-superblock=tree_digest"},
+        .has_tree_digest = true,
+    },
+    {
         .args = {"--init-superblock=uuid,attr_digest"},
         .has_uuid = true,
         .has_attr_digest = true,
@@ -335,10 +375,6 @@ std::vector<check_step> check_steps{
     {
         .args = {"--clear-label"},
         .label = "",
-    },
-    {
-        .args = {"--set-label", std::string{kUnicodeLabel}, "--clear-label"},
-        .label = std::string{kUnicodeLabel},
     },
     {
         .args = {"--set-uuid=nil"},
@@ -519,7 +555,7 @@ TEST_P(write_superblock_test, write_superblock) {
     if (check.read_only || build.has_superblock) {
       ASSERT_EQ(0, exit_code) << ct.err();
     } else {
-      ASSERT_EQ(2, exit_code) << ct.err();
+      ASSERT_EQ(1, exit_code) << ct.err();
       if (!build.has_superblock) {
         EXPECT_THAT(ct.err(), testing::HasSubstr("no valid superblock found"));
       }
@@ -558,8 +594,10 @@ TEST_P(write_superblock_test, write_superblock) {
       EXPECT_EQ(ed.fs_size_alignment(), build.size_alignment);
 
       auto const fs_size = ed.fs_size();
-      ASSERT_TRUE(fs_size.has_value());
-      EXPECT_EQ(fs_size.value(), outimg->size() - ed.image_offset());
+      EXPECT_EQ(fs_size.has_value(), check.has_size.value_or(build.has_size));
+      if (fs_size) {
+        EXPECT_EQ(*fs_size, outimg->size() - ed.image_offset());
+      }
 
       bool const has_uuid = check.has_uuid.value_or(build.has_uuid);
       auto const uuid = ed.fs_uuid();
@@ -830,7 +868,7 @@ TEST_P(write_superblock_test, write_superblock) {
       if (check.read_only || rebuild.has_superblock) {
         ASSERT_EQ(0, exit_code) << ct.err();
       } else {
-        ASSERT_EQ(2, exit_code) << ct.err();
+        ASSERT_EQ(1, exit_code) << ct.err();
         if (!rebuild.has_superblock) {
           EXPECT_THAT(ct.err(),
                       testing::HasSubstr("no valid superblock found"));
@@ -872,8 +910,11 @@ TEST_P(write_superblock_test, write_superblock) {
         EXPECT_EQ(ed.fs_size_alignment(), expected_alignment);
 
         auto const fs_size = ed.fs_size();
-        ASSERT_TRUE(fs_size.has_value());
-        EXPECT_EQ(fs_size.value(), outimg->size() - ed.image_offset());
+        EXPECT_EQ(fs_size.has_value(),
+                  check.has_size.value_or(rebuild.has_size));
+        if (fs_size) {
+          EXPECT_EQ(*fs_size, outimg->size() - ed.image_offset());
+        }
 
         bool const has_uuid =
             check.has_uuid.or_else([&] { return rebuild.has_uuid; })
@@ -971,3 +1012,70 @@ TEST_P(write_superblock_test, write_superblock) {
 INSTANTIATE_TEST_SUITE_P(mkdwarfs_test, write_superblock_test,
                          ::testing::Combine(::testing::ValuesIn(build_steps),
                                             ::testing::Bool()));
+
+TEST(mkdwarfs_superblock_cli_test, rejects_conflicting_or_invalid_options) {
+  auto expect_rejected = [](std::vector<std::string> extra,
+                            std::string_view message) {
+    mkdwarfs_tester t;
+    t.fa->sync_files_to(*t.os);
+    std::vector<std::string> args = {
+        "-i", "/", "-o", "test.dwarfs", "-l1", "--no-backwards-compat"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    EXPECT_EQ(1, t.run(args)) << t.err();
+    EXPECT_THAT(t.err(), testing::HasSubstr(std::string(message)));
+  };
+
+  expect_rejected({"--label=test", "--clear-label"}, "mutually exclusive");
+  expect_rejected({"--label=" + std::string(64, 'a')},
+                  "filesystem label is too long");
+  expect_rejected({"--label=" + std::string(30, 'x') +
+                   std::string("我爱你我爱你我爱你我爱你")},
+                  "filesystem label is too long");
+  expect_rejected({"--superblock-digests=invalid"},
+                  "invalid '--superblock-digests'");
+  expect_rejected({"--no-superblock", "--superblock-digests=both"},
+                  "cannot request digests without a superblock");
+  expect_rejected({"--no-superblock-init", "--superblock-digests=tree"},
+                  "requested superblock digests cannot be produced");
+}
+
+TEST(mkdwarfs_superblock_cli_test, rejects_explicit_keep_without_source_uuid) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "legacy.dwarfs", "-l1"})) << t.err();
+  auto const source = t.fa->get_file("legacy.dwarfs");
+  ASSERT_TRUE(source);
+
+  auto t2 = mkdwarfs_tester::create_with_image(*source, "input.dwarfs");
+  t2.fa->sync_files_to(*t2.os);
+  EXPECT_EQ(
+      1, t2.run({"-i", "input.dwarfs", "-o", "out.dwarfs", "-l1",
+                 "--recompress=none", "--no-backwards-compat", "--uuid=keep"}))
+      << t2.err();
+  EXPECT_THAT(t2.err(), testing::HasSubstr("requires a source superblock"));
+}
+
+TEST(mkdwarfs_superblock_cli_test, dwarfsck_rejects_conflicting_edits) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "test.dwarfs", "-l1",
+                      "--no-backwards-compat"}))
+      << t.err();
+  auto const image = t.fa->get_file("test.dwarfs");
+  ASSERT_TRUE(image);
+
+  for (auto const& args : std::vector<std::vector<std::string>>{
+           {"--set-label=test", "--clear-label"},
+           {"--repair-superblock", "--set-uuid=nil"},
+           {"--repair-superblock", "--init-superblock"}}) {
+    auto ct = dwarfsck_tester::create_with_image(*image, "test.dwarfs");
+    std::vector<std::string> cargs = {"-i", "test.dwarfs"};
+    cargs.insert(cargs.end(), args.begin(), args.end());
+    EXPECT_EQ(1, ct.run(cargs)) << ct.err();
+    EXPECT_THAT(ct.err(), testing::HasSubstr("mutually exclusive"));
+  }
+
+  auto ct = dwarfsck_tester::create_with_image(*image, "test.dwarfs");
+  EXPECT_EQ(0, ct.run({"-i", "test.dwarfs", "--repair-superblock"}))
+      << ct.err();
+}

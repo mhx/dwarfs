@@ -104,6 +104,7 @@ class dwarfsck_impl {
     bool attr_digest{false};
     bool fs_digests{false};
     bool init_superblock{false};
+    bool init_size{false};
     bool init_uuid{false};
     bool init_attr_digest{false};
     bool init_tree_digest{false};
@@ -231,8 +232,8 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&export_metadata_raw),
         "export raw metadata as JSON to file")
     ("init-superblock",
-        po::value<std::string>(&init_superblock_raw)->implicit_value("all"),
-        "initialize superblock fields (all, size, uuid, digests, attr_digest)")
+        po::value<std::string>(&init_superblock_raw)->implicit_value("size,digests"),
+        "initialize missing fields (size, digests, attr_digest, tree_digest, uuid, all)")
     ("repair-superblock",
         po::value<bool>(&o.repair_superblock)->zero_tokens(),
         "repair a corrupted superblock (will clear UUID, label, and digests)")
@@ -320,11 +321,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
 
     for (auto const& field : fields) {
       if (field == "all") {
+        o.init_size = true;
         o.init_attr_digest = true;
         o.init_tree_digest = true;
         o.init_uuid = true;
       } else if (field == "size") {
-        // nothing to do, size is always initialized
+        o.init_size = true;
       } else if (field == "uuid") {
         o.init_uuid = true;
       } else if (field == "digests") {
@@ -332,11 +334,18 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
         o.init_tree_digest = true;
       } else if (field == "attr_digest") {
         o.init_attr_digest = true;
+      } else if (field == "tree_digest") {
+        o.init_tree_digest = true;
       } else {
         iol.err << "error: invalid --init-superblock field: " << field << "\n";
         return std::unexpected(1);
       }
     }
+  }
+
+  if (clear_label && vm.contains("set-label")) {
+    iol.err << "error: --set-label and --clear-label are mutually exclusive\n";
+    return std::unexpected(1);
   }
 
   if (clear_label) {
@@ -352,6 +361,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("set-uuid")) {
     o.init_superblock = true;
     o.set_uuid = uuid_str_raw;
+  }
+
+  if (o.repair_superblock && o.init_superblock) {
+    iol.err << "error: --repair-superblock is mutually exclusive with "
+               "superblock initialization and editing\n";
+    return std::unexpected(1);
   }
 
   return o;
@@ -449,8 +464,8 @@ int dwarfsck_impl::run() {
       if (fs().has_superblock()) {
         do_edit_superblock(input_path);
       } else {
-        LOG_WARN << "no valid superblock found";
-        warnings = true;
+        LOG_ERROR << "no valid superblock found";
+        return 1;
       }
     }
   } catch (std::exception const& e) {
@@ -556,8 +571,8 @@ int dwarfsck_impl::do_check_and_repair(
     }
 
     if (!is_bad_superblock) {
-      LOG_WARN << "superblock is not corrupt, repair not needed";
-      return 1;
+      LOG_INFO << "superblock is not corrupt, repair not needed";
+      return 0;
     }
 
     if (!is_repairable) {
@@ -701,7 +716,7 @@ void dwarfsck_impl::do_edit_superblock(
   ios.seekg(fs().image_offset());
   sbe.read(ios);
 
-  if (!sbe.fs_size()) {
+  if (opts_.init_size && !sbe.fs_size()) {
     sbe.init_fs_size(fs().image_size());
   }
 
@@ -729,7 +744,12 @@ void dwarfsck_impl::do_edit_superblock(
         reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
 
     if (sbe.digest_algo() == digest_algorithm::UNINITIALIZED) {
-      sbe.set_digests(digests);
+      sbe.set_digests(
+          digests.algorithm, digests.scheme_version,
+          init_attr_digest ? std::optional{digests.attr_digest.span()}
+                           : std::nullopt,
+          init_tree_digest ? std::optional{digests.tree_digest.span()}
+                           : std::nullopt);
     } else {
       if (sbe.digest_algo() != digests.algorithm) {
         throw std::runtime_error(
@@ -749,6 +769,7 @@ void dwarfsck_impl::do_edit_superblock(
       if (init_attr_digest) {
         sbe.set_attr_digest(digests.attr_digest.span());
       }
+
       if (init_tree_digest) {
         sbe.set_tree_digest(digests.tree_digest.span());
       }

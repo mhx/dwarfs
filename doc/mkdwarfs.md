@@ -518,7 +518,7 @@ Most other options are concerned with compression tuning:
 - `--no-superblock`:
   Don't add a superblock to the file system. The superblock stores information
   such as the file system size, UUID, and file system label. If you don't need
-  these features and want to save 160 bytes, you can disable the superblock.
+  these features, you can disable the superblock.
 
 - `--no-superblock-init`:
   Don't initialize superblock fields after writing a file system image. This
@@ -526,41 +526,59 @@ Most other options are concerned with compression tuning:
   for example the file system size and the file system digests. This option
   is enabled automatically when the image is written to standard output. In
   this case, the superblock can be initialized later using `dwarfsck`.
+  Known fields such as the UUID and label are unaffected; in particular,
+  `--no-superblock-init` does not imply `--uuid=nil`.
 
-- `--no-superblock-digests`:
-  Disable the computation and storage of file system digests in the superblock.
-  Digests are useful for verifying the integrity of the file system, as well
-  as for comparing file system images for equality. Disabling digests when they
-  are not needed can save some time during file system creation. The digests
-  can also be computed later using `dwarfsck`.
+- `--superblock-digests=auto`|`none`|`attr`|`tree`|`both`:
+  Choose which filesystem digests to store in the output superblock. This
+  selection specifies the *result*, including when rewriting an existing
+  image: `none` stores neither digest, `attr` only the attribute digest,
+  `tree` only the tree digest, and `both` stores both. By default, `auto`,
+  will store both digests in regular file output, reusing applicable digests
+  from the input image when possible. The attribute digest is invalidated when
+  rebuilding metadata and is then recomputed. The tree digest can usually be
+  preserved. Computing the tree digest requires reading every file's data and
+  can be expensive, particularly for large sparse files. Digests can also be
+  initialized later using `dwarfsck`.
 
-- `--no-superblock-tree-digest`:
-  Disable the computation and storage of the file system tree digest in the
-  superblock. The tree digests takes into account the actual file contents and
-  is more expensive to compute than the attribute digest. Especially for file
-  systems with large sparse files, the tree digest can take a significant
-  amount of time to compute. The tree digest can also be computed later using
-  `dwarfsck`.
+  When writing images to standard output, or with `--no-superblock-init`, newly
+  computed digests cannot be written back into the superblock. In these cases
+  `auto` stores only digests already available from an input image. An explicit
+  `attr`, `tree`, or `both` request fails if the required digests are
+  unavailable.
 
 - `--label=`*label*:
   Set the file system label. This can be used during initial file system
   creation, when recompressing an existing file system, or whenever a file
   system was created with a superblock. Unlike other superblock fields, the
-  label can be changed at any time.
+  label can be changed at any time. Labels must be valid UTF-8 strings of at
+  most 63 bytes. Labels that are invalid or too long will be rejected with
+  an error.
+
+- `--clear-label`:
+  Clear the filesystem label. This is mainly useful when rewriting an image
+  with an existing label. Cannot be combined with `--label`.
 
 - `--uuid=random`|`nil`|`keep`|*UUID*:
   Set the file system UUID to a random RFC 9562 v4 UUID (default for newly
   created file systems with a superblock), leave it empty (e.g. for
   bit-identical file system images), keep it (default when re-writing an
-  image) or explicitly set an RFC 9562 UUID. The UUID can be initialized
-  later using `dwarfsck`.
+  image) or explicitly set an RFC 9562 UUID. `keep` preserves an existing
+  nil UUID as well as an existing non-nil UUID; explicitly requesting `keep`
+  when the source image has no superblock is an error. Rewriting an old image
+  without a superblock generates a new UUID by default. The UUID can be
+  initialized later using `dwarfsck`.
 
 - `--image-size-alignment=`*value*:
   Align the file system image size to a multiple of this value. This can be
   useful e.g. when the file system image is going to be attached to a loop
   device which has a sector size requirement. This is 1 by default, meaning
-  no extra padding is added. Setting this to a value larger than 1 will
-  insert a padding section if necessary.
+  no extra padding is added. When rewriting an existing file system image,
+  the alignment of the existing image is preserved unless this option is
+  specified. Setting this to a value larger than 1 will insert a padding
+  section if necessary. Alignment measures the filesystem image size
+  *excluding* any prepended header. Padding is written before the section
+  index, which remains the last section.
 
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny

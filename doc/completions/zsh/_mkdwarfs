@@ -169,7 +169,7 @@ _arguments -S \
 	"--chmod=[recursively apply permission changes]:mode:(norm)" \
 	"--compress-niceness=[compression worker threads niceness]:niceness:" \
 	"--debug-filter=-[show effect of filter rules without producing an image]:mode:(all excluded excluded-files files included included-files)" \
-	"--empty-uuid[leave superblock UUID empty]" \
+	"--clear-label[clear inherited filesystem label]" \
 	"--estimate-compression-memory[estimate compression algorithm per-thread memory usage]" \
 	"--file-hash=[deprecated; passing 'none' is equivalent to --no-dedupe]:hash:(none)" \
 	"--header=[prepend output filesystem with contents of this file]:filename:_files" \
@@ -182,7 +182,6 @@ _arguments -S \
 	"--incompressible-min-input-size=[minimum file size to check for incompressibility]:size:" \
 	"--incompressible-ratio=[compression ratio above which files or fragments are considered incompressible]:ratio:" \
 	"--incompressible-zstd-level=[ZSTD compression level]:level:" \
-	"--init-superblock[initialize all uninitialized superblock fields]" \
 	"--input-list=[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
 	"--keep-all-times[save atime and ctime in addition to mtime]" \
 	"--label=[set filesystem label to this string]:label:" \
@@ -204,6 +203,7 @@ _arguments -S \
 	"--no-section-index[don't add section index to file system]" \
 	"--no-sparse-files[don't store sparse files as sparse]" \
 	"--no-superblock[don't add superblock to file system]" \
+	"--no-superblock-init[don't initialize superblock fields after writing]" \
 	"--num-file-prep-workers=[number of asynchronous file preparation workers]:num:" \
 	"--file-prep-queue-size=[maximum outstanding file preparations per category]:num:" \
 	"--num-scanner-workers=[number of scanner (hasher/categorizer) worker threads]:num:" \
@@ -217,6 +217,7 @@ _arguments -S \
 	"--remove-empty-dirs[remove empty directories in file system]" \
 	"--remove-header[remove any header present before filesystem data]" \
 	"--schema-compression=[metadata schema compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--superblock-digests=[select output digests]:mode:(auto none attr tree both)" \
 	"--set-group=[set group (gid) for whole file system]:gid:_groups" \
 	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \
 	"--set-time=[set timestamp for whole file system (unixtime or 'now')]:time:(now)" \
