@@ -179,6 +179,10 @@ class file_view {
     return s;
   }
 
+  void advise(io_advice advice, file_range range, std::error_code& ec) const {
+    impl_->advise(advice, range, ec);
+  }
+
   // TODO: maybe deprecate this
   void release_until(file_off_t offset, std::error_code& ec) const {
     impl_->release_until(offset, ec);

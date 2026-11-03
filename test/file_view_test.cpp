@@ -827,6 +827,9 @@ TEST(mmap_file_view, memory_ops_mapped_segment) {
   fv.release_until(kReleaseOffset, ec);
   EXPECT_FALSE(ec);
 
+  fv.advise(io_advice::willneed, {kWantOffset, kWantSize}, ec);
+  EXPECT_FALSE(ec);
+
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
 
   EXPECT_CALL(mock_ops, unmap(mapped_base, kExpectedMapLength, _)).Times(1);
@@ -899,6 +902,16 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
       .Times(1);
 
   seg.advise(io_advice::sequential);
+
+  ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
+
+  EXPECT_CALL(mock_ops,
+              advise(static_cast<std::byte*>(mapped_base) + kExpectedMapBase,
+                     kExpectedAdviseLength, io_advice::willneed, _))
+      .Times(1);
+  std::error_code prefetch_ec;
+  fv.advise(io_advice::willneed, {kWantOffset, kWantSize}, prefetch_ec);
+  EXPECT_FALSE(prefetch_ec);
 
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
 

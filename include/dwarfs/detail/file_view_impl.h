@@ -63,6 +63,8 @@ class file_view_impl {
   virtual size_t default_segment_size() const = 0;
 
   virtual void release_until(file_off_t offset, std::error_code& ec) const = 0;
+
+  virtual void advise(io_advice, file_range, std::error_code& ec) const = 0;
 };
 
 } // namespace dwarfs::detail
