@@ -49,13 +49,20 @@ _dwarfsck_completion()
     _comp_initialize -s || return
 
     local OPTIONS_GENERAL=(
+        --attr-digest
         --check-integrity
+        --clear-label
         --checksum
         --export-metadata
+        --fs-digests
+        --init-superblock
         --log-level
         --log-with-context
         --no-check
         --perfmon
+        --repair-superblock
+        --set-label
+        --set-uuid
         --perfmon-trace
         -d --detail
         -h --help
@@ -75,10 +82,13 @@ _dwarfsck_completion()
     # after options we cannot complete, and to find the positional argument
     local OPTIONS_WITH_ARG=(
         --cache-size --checksum --detail --export-metadata --image-offset
-        --input --log-level --num-workers --perfmon --perfmon-trace
+        --input --init-superblock --log-level --num-workers --perfmon
+        --perfmon-trace --set-label --set-uuid
         -d -i -n -O -s
     )
 
+    local OPTION_ARG__init_superblock=( all size uuid digests attr_digest tree_digest )
+    local OPTION_ARG__set_uuid=( random nil )
     local OPTION_ARG__log_level=( error warn info verbose debug trace )
     local OPTION_ARG__perfmon=( filesystem_v2 metadata inode_reader_v2 block_cache )
 
@@ -90,6 +100,17 @@ _dwarfsck_completion()
             ;;
         --checksum)
             _comp_compgen -- -W '$(__dwarfsck_list_checksums)'
+            return 0
+            ;;
+        --init-superblock)
+            _comp_compgen -- -W '"${OPTION_ARG__init_superblock[@]}"'
+            return 0
+            ;;
+        --set-uuid)
+            _comp_compgen -- -W '"${OPTION_ARG__set_uuid[@]}"'
+            return 0
+            ;;
+        --set-label)
             return 0
             ;;
         --log-level)

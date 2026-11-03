@@ -58,13 +58,20 @@ __dwarfsck_image_files()
 }
 
 _arguments -S \
+	"--attr-digest[compute filesystem attribute digest]" \
 	"--check-integrity[check integrity of each block]" \
+	"--clear-label[clear filesystem label]" \
 	"--checksum=[print checksums for all files]:algorithm:__dwarfsck_checksums" \
 	"--export-metadata=[export raw metadata as JSON to file]:filename:_files" \
+	"--fs-digests[compute filesystem digests]" \
+	"--init-superblock=-[initialize selected missing superblock fields]:fields:(size digests uuid attr_digest tree_digest all)" \
 	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
 	"--log-with-context[enable context logging regardless of level]" \
 	"--no-check[don't even verify block checksums]" \
 	"--perfmon=[enable performance monitor]:component:_values -s , component filesystem_v2 metadata inode_reader_v2 block_cache" \
+	"--repair-superblock[repair a corrupted superblock]" \
+	"--set-label=[set filesystem label]:label:" \
+	"--set-uuid=[set filesystem UUID]:uuid:(random nil)" \
 	"--perfmon-trace=[write performance monitor trace file]:filename:_files" \
 	{-d,--detail=}"[detail level or feature list]:detail:__dwarfsck_detail" \
 	"(- *)"{-h,--help}"[output help message and exit]" \
