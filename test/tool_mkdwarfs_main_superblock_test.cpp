@@ -1079,3 +1079,164 @@ TEST(mkdwarfs_superblock_cli_test, dwarfsck_rejects_conflicting_edits) {
   EXPECT_EQ(0, ct.run({"-i", "test.dwarfs", "--repair-superblock"}))
       << ct.err();
 }
+
+TEST(mkdwarfs_superblock_rewrite_test, preserves_initialized_image_alignment) {
+  auto const header = loremipsum(321);
+  mkdwarfs_tester t;
+  t.fa->set_file("header.bin", header);
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "source.dwarfs", "-l1",
+                      "--no-backwards-compat", "--header=header.bin",
+                      "--image-size-alignment=512"}))
+      << t.err();
+
+  auto check_alignment = [](mkdwarfs_tester& tester, std::string const& path,
+                            std::string_view header, std::uint64_t alignment) {
+    auto const image = tester.fa->get_file(path);
+    ASSERT_TRUE(image);
+    EXPECT_THAT(*image, testing::StartsWith(std::string(header)));
+
+    auto fs = tester.fs_from_file(
+        path, {.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
+    EXPECT_EQ(fs.image_offset(), header.size());
+    EXPECT_EQ(fs.image_size(), image->size() - header.size());
+    EXPECT_EQ(fs.image_size_alignment(), alignment);
+    EXPECT_EQ(fs.image_size() % alignment, 0);
+    if (!header.empty()) {
+      EXPECT_NE(image->size() % alignment, 0)
+          << "the prepended header must not be included in alignment";
+    }
+
+    superblock_editor ed;
+    std::istringstream iss(*image);
+    iss.seekg(header.size(), std::ios::beg);
+    ASSERT_NO_THROW(ed.read(iss));
+    EXPECT_EQ(ed.fs_size_alignment(), alignment);
+    ASSERT_TRUE(ed.fs_size());
+    EXPECT_EQ(*ed.fs_size(), fs.image_size());
+  };
+
+  check_alignment(t, "source.dwarfs", header, 512);
+  auto const source = t.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(source);
+
+  // Inherit the source alignment and header.
+  auto t2 = mkdwarfs_tester::create_with_image(*source, "input.dwarfs");
+  t2.fa->sync_files_to(*t2.os);
+  ASSERT_EQ(0, t2.run({"-i", "input.dwarfs", "-o", "rewritten.dwarfs", "-l1",
+                       "--recompress=none"}))
+      << t2.err();
+  check_alignment(t2, "rewritten.dwarfs", header, 512);
+
+  // Override the alignment and remove the header.
+  auto const rewritten = t2.fa->get_file("rewritten.dwarfs");
+  ASSERT_TRUE(rewritten);
+  auto t3 = mkdwarfs_tester::create_with_image(*rewritten, "input.dwarfs");
+  t3.fa->sync_files_to(*t3.os);
+  ASSERT_EQ(0, t3.run({"-i", "input.dwarfs", "-o", "rewritten.dwarfs", "-l1",
+                       "--recompress=none", "--remove-header",
+                       "--image-size-alignment=4096"}))
+      << t3.err();
+  check_alignment(t3, "rewritten.dwarfs", "", 4096);
+}
+
+TEST(mkdwarfs_superblock_rewrite_test, metadata_changes_recompute_attr_digest) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "source.dwarfs", "-l1",
+                      "--no-backwards-compat"}))
+      << t.err();
+  auto const source = t.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(source);
+
+  auto const source_fs = t.fs_from_file("source.dwarfs");
+  auto const source_digests = source_fs.digests();
+  ASSERT_TRUE(source_digests.attr_digest);
+  ASSERT_TRUE(source_digests.tree_digest);
+
+  struct test_case {
+    std::string_view name;
+    std::vector<std::string> args;
+    bool changes_attributes{true};
+  };
+
+  for (auto const& tc : std::vector<test_case>{
+           {"owner", {"--rebuild-metadata", "--set-owner=123"}},
+           {"group", {"--rebuild-metadata", "--set-group=456"}},
+           {"time", {"--rebuild-metadata", "--set-time=98765"}},
+           {"block-size and owner",
+            {"--change-block-size", "-S12", "--set-owner=123"}},
+           {"block-size only", {"--change-block-size", "-S12"}, false},
+       }) {
+    SCOPED_TRACE(tc.name);
+    auto t2 = mkdwarfs_tester::create_with_image(*source, "input.dwarfs");
+    t2.fa->sync_files_to(*t2.os);
+    std::vector<std::string> args = {"-i", "input.dwarfs", "-o",
+                                     "rewritten.dwarfs", "-l1"};
+    args.insert(args.end(), tc.args.begin(), tc.args.end());
+    ASSERT_EQ(0, t2.run(args)) << t2.err();
+
+    auto fs = t2.fs_from_file("rewritten.dwarfs");
+    auto const stored = fs.digests();
+    ASSERT_TRUE(stored.attr_digest);
+    ASSERT_TRUE(stored.tree_digest);
+    auto const computed = compute_digests(t2, fs, true);
+
+    // These transformations really changed the metadata. A copied attribute
+    // digest would differ from the independently recomputed digest. A pure
+    // block-size change should leave the logical attributes unchanged.
+    if (tc.changes_attributes) {
+      EXPECT_NE(stored.attr_digest.hex(), source_digests.attr_digest.hex());
+    } else {
+      EXPECT_EQ(stored.attr_digest.hex(), source_digests.attr_digest.hex());
+    }
+    EXPECT_EQ(stored.attr_digest.hex(), computed.attr_digest.hex());
+
+    // File contents and the logical tree are always unchanged.
+    EXPECT_EQ(stored.tree_digest.hex(), source_digests.tree_digest.hex());
+    EXPECT_EQ(computed.tree_digest.hex(), source_digests.tree_digest.hex());
+  }
+}
+
+TEST(mkdwarfs_superblock_rewrite_test,
+     metadata_changes_clear_attr_digest_without_initialization) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "source.dwarfs", "-l1",
+                      "--no-backwards-compat"}))
+      << t.err();
+  auto const source = t.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(source);
+  auto const source_fs = t.fs_from_file("source.dwarfs");
+  auto const source_digests = source_fs.digests();
+  ASSERT_TRUE(source_digests.attr_digest);
+  ASSERT_TRUE(source_digests.tree_digest);
+
+  auto t2 = mkdwarfs_tester::create_with_image(*source, "input.dwarfs");
+  t2.fa->sync_files_to(*t2.os);
+  ASSERT_EQ(
+      0, t2.run({"-i", "input.dwarfs", "-o", "rewritten.dwarfs", "-l1",
+                 "--rebuild-metadata", "--chmod=norm", "--no-superblock-init"}))
+      << t2.err();
+
+  auto const rewritten = t2.fa->get_file("rewritten.dwarfs");
+  ASSERT_TRUE(rewritten);
+  superblock_editor ed;
+  std::istringstream iss(*rewritten);
+  ASSERT_NO_THROW(ed.read(iss));
+  EXPECT_FALSE(ed.fs_size()); // Do not inherit the source's initialized size.
+  EXPECT_FALSE(ed.attr_digest());
+  ASSERT_TRUE(ed.tree_digest());
+  EXPECT_EQ(ed.tree_digest().hex(), source_digests.tree_digest.hex());
+
+  auto fs = t2.fs_from_file("rewritten.dwarfs");
+  auto const stored = fs.digests();
+  EXPECT_FALSE(stored.attr_digest);
+  ASSERT_TRUE(stored.tree_digest);
+  EXPECT_EQ(stored.tree_digest.hex(), source_digests.tree_digest.hex());
+
+  auto const computed = compute_digests(t2, fs, true);
+  EXPECT_EQ(computed.attr_digest.hex(), kAttrDigestNorm);
+  EXPECT_NE(computed.attr_digest.hex(), source_digests.attr_digest.hex());
+  EXPECT_EQ(computed.tree_digest.hex(), source_digests.tree_digest.hex());
+}
