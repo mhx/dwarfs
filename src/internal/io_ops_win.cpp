@@ -338,9 +338,49 @@ class io_ops_win : public io_ops {
     }
   }
 
-  void advise(void* /*addr*/, size_t /*size*/, io_advice /*advice*/,
-              std::error_code& /*ec*/) const override {
-    // TODO: implement Windows equivalent of madvise
+  void advise(void* addr, size_t size, io_advice advice,
+              std::error_code& ec) const override {
+    ec.clear();
+
+    if (size == 0) {
+      return;
+    }
+
+    switch (advice) {
+    case io_advice::willneed: {
+      // PrefetchVirtualMemory is available since Windows 8. Resolve it at
+      // runtime to preserve support for the Windows 7 build target. The range
+      // structure is ABI-compatible with WIN32_MEMORY_RANGE_ENTRY, which is
+      // hidden by older _WIN32_WINNT header settings.
+      struct memory_range_entry {
+        PVOID VirtualAddress;
+        SIZE_T NumberOfBytes;
+      };
+      using prefetch_fn =
+          BOOL(WINAPI*)(HANDLE, ULONG_PTR, memory_range_entry*, ULONG);
+      static auto const prefetch = [] {
+        auto const kernel32 = ::GetModuleHandleW(L"kernel32.dll");
+        return kernel32 ? reinterpret_cast<prefetch_fn>(::GetProcAddress(
+                              kernel32, "PrefetchVirtualMemory"))
+                        : nullptr;
+      }();
+
+      if (prefetch) {
+        memory_range_entry range{addr, size};
+        if (!prefetch(::GetCurrentProcess(), 1, &range, 0)) {
+          ec = std::error_code(::GetLastError(), std::system_category());
+        }
+      }
+      break;
+    }
+
+    case io_advice::dontneed:
+    case io_advice::normal:
+    case io_advice::random:
+    case io_advice::sequential:
+      // No useful Windows equivalents.
+      break;
+    }
   }
 
   void lock(void* addr, size_t size, std::error_code& ec) const override {

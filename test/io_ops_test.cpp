@@ -241,7 +241,7 @@ TEST(io_ops, lock_bad_ptr) {
 }
 
 #ifndef _WIN32
-// advice() isn't currently implemented on Windows
+// io_advice::normal is a no-op on Windows
 TEST(io_ops, advise_bad_ptr) {
   auto const& ops = get_native_memory_mapping_ops();
 
