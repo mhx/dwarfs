@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <random>
 #include <regex>
 #include <set>
@@ -1258,6 +1259,28 @@ TEST(file_scanner, scan_request_requires_at_least_one_source) {
   writer::filesystem_writer fsw(out, lgr, pool, prog);
 
   EXPECT_THROW(s.scan(fsw, {}, prog), runtime_error);
+}
+
+TEST(file_scanner, failed_category_setup_does_not_hang) {
+  test::test_logger lgr;
+  auto input = std::make_shared<test::os_access_mock>();
+  input->add_dir("/");
+  input->add_file("/file.txt", "non-empty file contents");
+
+  writer::writer_progress prog;
+  thread_pool pool(lgr, *input, "worker", 1);
+  writer::segmenter_factory sf(lgr, prog);
+  writer::scanner_options options;
+  writer::scanner s(lgr, pool, sf, *input, options);
+
+  std::ostringstream out;
+  writer::filesystem_writer fsw(out, lgr, pool, prog);
+
+  // No default compressor: get_compression_constraints() throws after the
+  // similarity-data cleanup thread has started, but before any category job
+  // can count down the latch. Unwinding must not block in jthread::join().
+  EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}}}, prog),
+               std::bad_optional_access);
 }
 
 TEST(file_scanner, multiple_sources_merge_and_keep_first) {
