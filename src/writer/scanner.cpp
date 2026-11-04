@@ -89,12 +89,9 @@ using namespace std::chrono_literals;
 
 namespace {
 
-// This exists purely as a workaround for a false positive in ThreadSanitizer
-// when using libstdc++-16's std::latch.
-// TODO: Remove and replace with std::latch once this is resolved.
-class tsan_visible_latch {
+class cancellable_latch {
  public:
-  explicit tsan_visible_latch(std::ptrdiff_t n)
+  explicit cancellable_latch(std::ptrdiff_t n)
       : count_{n} {}
 
   void count_down() {
@@ -104,15 +101,25 @@ class tsan_visible_latch {
     }
   }
 
-  void wait() {
+  bool wait() {
     std::unique_lock lock(mx_);
-    cv_.wait(lock, [this] { return count_ == 0; });
+    cv_.wait(lock, [this] { return count_ == 0 || cancelled_; });
+    return count_ == 0;
+  }
+
+  void cancel() {
+    {
+      std::lock_guard lock(mx_);
+      cancelled_ = true;
+    }
+    cv_.notify_all();
   }
 
  private:
   std::mutex mx_;
   std::condition_variable cv_;
   std::ptrdiff_t count_;
+  bool cancelled_{false};
 };
 
 constexpr file_size_t kFilePrepPrefetchBytes = 64_MiB;
@@ -1115,6 +1122,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   auto blockmgr = std::make_shared<block_manager>();
 
   {
+    // The latch must outlive every worker group whose jobs may count it down,
+    // including when a later step throws while jobs are still running.
+    cancellable_latch similarity_latch(frag_info.categories.size());
+
     size_t const num_threads = options_.num_segmenter_workers;
     worker_group wg_ordering(LOG_GET_LOGGER, os_, "ordering",
                              {.num_workers = num_threads});
@@ -1138,14 +1149,17 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     fsw.configure(frag_info.categories, num_threads);
     fsw.start_write_filesystem();
 
-    tsan_visible_latch similarity_latch(frag_info.categories.size());
-
     compat::jthread drop_sim_thread([this, &similarity_latch, &tree] {
       set_thread_name("drop-sim-data");
-      similarity_latch.wait();
-      tree->drop_similarity_data();
-      LOG_VERBOSE << "dropped similarity data from inode storage";
+      if (similarity_latch.wait()) {
+        tree->drop_similarity_data();
+        LOG_VERBOSE << "dropped similarity data from inode storage";
+      }
     });
+
+    // In case of an exception, not every category may have been processed,
+    // so we need to cancel the latch to avoid deadlock.
+    scope_exit cancel_similarity_wait{[&] { similarity_latch.cancel(); }};
 
     for (auto category : frag_info.categories) {
       auto cat_size = frag_info.category_size.at(category);
