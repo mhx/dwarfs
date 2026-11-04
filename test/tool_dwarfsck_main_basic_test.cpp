@@ -21,7 +21,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <array>
 #include <regex>
+#include <sstream>
+
+#include <dwarfs/superblock_editor.h>
 
 #include <gmock/gmock.h>
 
@@ -1755,7 +1759,8 @@ INSTANTIATE_TEST_SUITE_P(dwarfsck, dwarfsck_checksum_test,
 TEST(dwarfsck_test, attribute_digest) {
   auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
   auto t = dwarfsck_tester::create_with_image(read_file(file));
-  EXPECT_EQ(0, t.run({"image.dwarfs", "--attr-digest", "-q"})) << t.err();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--compute-digests=attr", "-q"}))
+      << t.err();
   EXPECT_EQ(
       R"(filesystem digests:
   attr: 2418e0be16f0f43f25b2189c31555959e32624e5a22be637f2755541f23962f4
@@ -1766,11 +1771,89 @@ TEST(dwarfsck_test, attribute_digest) {
 TEST(dwarfsck_test, filesystem_digests) {
   auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
   auto t = dwarfsck_tester::create_with_image(read_file(file));
-  EXPECT_EQ(0, t.run({"image.dwarfs", "--fs-digests", "-q"})) << t.err();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--compute-digests", "-q"})) << t.err();
   EXPECT_EQ(
       R"(filesystem digests:
   attr: 2418e0be16f0f43f25b2189c31555959e32624e5a22be637f2755541f23962f4
   tree: 4f38eed7ab43ece7b959ade41afbe3203676afac75177186fae5ba4b6fa65b90
 )",
       t.out());
+}
+
+TEST(dwarfsck_test, compute_digests_selection) {
+  auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
+  auto const image = read_file(file);
+  for (auto const& [selection, expected_attr, expected_tree] :
+       std::vector<std::tuple<std::string, bool, bool>>{
+           {"attr", true, false},
+           {"tree", false, true},
+           {"both", true, true},
+       }) {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs", "--compute-digests=" + selection}))
+        << t.err();
+    EXPECT_EQ(t.out().find("  attr:") != std::string::npos, expected_attr);
+    EXPECT_EQ(t.out().find("  tree:") != std::string::npos, expected_tree);
+  }
+
+  for (auto const& option :
+       {"--compute-digests=invalid", "--verify-digests=boths"}) {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(1, t.run({"image.dwarfs", option})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid --"));
+  }
+}
+
+TEST(dwarfsck_test, verify_superblock_digests) {
+  for (auto const& mode : {"both", "attr", "tree", "none"}) {
+    auto [fs, builder] =
+        build_with_args({"-l1", "--no-backwards-compat",
+                         std::string("--superblock-digests=") + mode},
+                        true);
+    ASSERT_TRUE(fs.has_value()) << builder.err();
+    auto const output = builder.fa->get_file("test.dwarfs");
+    ASSERT_TRUE(output);
+
+    for (auto const& selection : {"all", "attr", "tree"}) {
+      auto t = dwarfsck_tester::create_with_image(*output);
+      bool const present =
+          mode != std::string("none") &&
+          (selection == std::string("all") || mode == std::string("both") ||
+           std::string_view(mode) == selection);
+      EXPECT_EQ(
+          present ? 0 : 1,
+          t.run({"image.dwarfs", std::string("--verify-digests=") + selection}))
+          << mode << ", " << selection << ": " << t.err();
+    }
+
+    auto t = dwarfsck_tester::create_with_image(*output);
+    EXPECT_EQ(mode == std::string("none") ? 1 : 0,
+              t.run({"image.dwarfs", "--verify-digests"}))
+        << t.err();
+  }
+}
+
+TEST(dwarfsck_test, verify_detects_stale_digest_with_valid_section_checksums) {
+  auto [fs, builder] = build_with_args({"-l1", "--no-backwards-compat"}, true);
+  ASSERT_TRUE(fs.has_value()) << builder.err();
+  auto const output = builder.fa->get_file("test.dwarfs");
+  ASSERT_TRUE(output);
+
+  std::stringstream image(*output,
+                          std::ios::in | std::ios::out | std::ios::binary);
+  superblock_editor editor;
+  editor.read(image);
+  std::array<std::uint8_t, 32> wrong{};
+  wrong.fill(0x42);
+  editor.set_attr_digest(wrong);
+  editor.update(image);
+
+  auto t = dwarfsck_tester::create_with_image(image.str());
+  EXPECT_EQ(1, t.run({"image.dwarfs", "--verify-digests=attr"})) << t.err();
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("attr: FAILED"));
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("stored:"));
+
+  // --check-integrity deliberately does NOT compare stored filesystem digests.
+  auto check = dwarfsck_tester::create_with_image(image.str());
+  EXPECT_EQ(0, check.run({"image.dwarfs", "--check-integrity"})) << check.err();
 }
