@@ -37,15 +37,18 @@ namespace dwarfs::writer::internal {
 
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
-                                     std::optional<dir_handle> parent)
-    : provisional_entry(path, os.symlink_info(path), parent) {}
+                                     std::optional<dir_handle> parent,
+                                     std::size_t source_root)
+    : provisional_entry(path, os.symlink_info(path), parent, source_root) {}
 
 provisional_entry::provisional_entry(std::filesystem::path const& path,
                                      file_stat stat,
-                                     std::optional<dir_handle> parent)
+                                     std::optional<dir_handle> parent,
+                                     std::size_t source_root)
     : path_{path}
     , stat_{std::move(stat)}
-    , parent_{parent} {
+    , parent_{parent}
+    , source_root_{source_root} {
   if (!parent_ && stat_.type() != posix_file_type::directory) {
     DWARFS_THROW(
         runtime_error,
@@ -105,24 +108,24 @@ std::string provisional_entry::unix_dpath() const {
 entry_handle provisional_entry::commit(entry_storage& tree) {
   switch (stat_.type()) {
   case posix_file_type::regular:
-    return tree.create_file(path_, parent_.value(), stat_);
+    return tree.create_file(path_, parent_.value(), stat_, source_root_);
 
   case posix_file_type::directory:
     if (parent_) {
-      return tree.create_dir(path_, *parent_, stat_);
+      return tree.create_dir(path_, *parent_, stat_, source_root_);
     }
-    return tree.create_root_dir(path_, stat_);
+    return tree.create_root_dir(path_, stat_, source_root_);
 
   case posix_file_type::symlink:
-    return tree.create_link(path_, parent_.value(), stat_);
+    return tree.create_link(path_, parent_.value(), stat_, source_root_);
 
   case posix_file_type::character:
   case posix_file_type::block:
-    return tree.create_device(path_, parent_.value(), stat_);
+    return tree.create_device(path_, parent_.value(), stat_, source_root_);
 
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    return tree.create_other(path_, parent_.value(), stat_);
+    return tree.create_other(path_, parent_.value(), stat_, source_root_);
 
   default:
     DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));

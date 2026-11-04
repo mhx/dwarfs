@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <optional>
 
@@ -41,9 +42,11 @@ class provisional_entry : public entry_interface {
  public:
   // TODO: no need to use optional here...
   provisional_entry(os_access const& os, std::filesystem::path const& path,
-                    std::optional<dir_handle> parent = std::nullopt);
+                    std::optional<dir_handle> parent = std::nullopt,
+                    std::size_t source_root = 0);
   provisional_entry(std::filesystem::path const& path, file_stat stat,
-                    std::optional<dir_handle> parent = std::nullopt);
+                    std::optional<dir_handle> parent = std::nullopt,
+                    std::size_t source_root = 0);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
@@ -62,6 +65,7 @@ class provisional_entry : public entry_interface {
   std::filesystem::path const& path_;
   file_stat stat_;
   std::optional<dir_handle> parent_;
+  std::size_t source_root_;
 };
 
 } // namespace writer::internal
