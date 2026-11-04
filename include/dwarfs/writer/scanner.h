@@ -31,6 +31,8 @@
 #include <string>
 #include <vector>
 
+#include <dwarfs/file_stat.h>
+
 namespace dwarfs {
 
 class file_access;
@@ -48,17 +50,25 @@ class filesystem_writer;
 class writer_progress;
 class segmenter_factory;
 
+// Whether a directory contributes its contents to the image root, or
+// appears as a named entry below the image root.
+enum class scan_source_mode { contents, entry };
+
 // A physical input root. When input_list is set, only the listed entries
 // are included, otherwise the directory is traversed recursively.
 struct scan_source {
   std::filesystem::path path;
   std::optional<std::span<std::filesystem::path const>> input_list{};
+  scan_source_mode mode{scan_source_mode::contents};
 };
 
 struct scan_request {
   std::vector<scan_source> sources;
   std::shared_ptr<file_access const> fa{};
   std::function<void(library_dependencies&)> extra_deps{};
+  // If absent, inherit the root of a single contents source, or create a
+  // synthetic root when combining sources or including an entry by name.
+  std::optional<file_stat> root_metadata{};
 };
 
 class scanner {
