@@ -39,11 +39,14 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
+#include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
@@ -616,6 +619,41 @@ std::vector<std::string> const kCompressionOpts{
 };
 
 } // namespace
+
+#ifdef DWARFS_HAVE_LIBLZMA
+TEST(lzma_compressor, advanced_options_round_trip) {
+  block_compressor comp(
+      "lzma:level=3:extreme:binary=x86:dict_size=20:mode=fast:mf=hc4:"
+      "nice=64:depth=16");
+
+  EXPECT_EQ(compression_type::LZMA, comp.type());
+  EXPECT_THAT(comp.describe(), testing::HasSubstr("extreme"));
+  EXPECT_THAT(comp.describe(), testing::HasSubstr("binary=x86"));
+  EXPECT_THAT(comp.describe(), testing::HasSubstr("depth=16"));
+  EXPECT_GT(comp.estimate_memory_usage(65536), 65536);
+
+  auto const input = malloc_byte_buffer::create_zeroed(65536).share();
+  auto const compressed = comp.compress(input);
+  EXPECT_LT(compressed.size(), input.size());
+  EXPECT_EQ(input, block_decompressor::decompress(compression_type::LZMA,
+                                                  compressed.span()));
+}
+
+TEST(lzma_compressor, rejects_invalid_options) {
+  EXPECT_THAT([] { (void)block_compressor{"lzma:binary=bogus"}; },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unknown binary mode 'bogus'")));
+  EXPECT_THAT([] { (void)block_compressor{"lzma:mode=bogus"}; },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unknown compression mode 'bogus'")));
+  EXPECT_THAT([] { (void)block_compressor{"lzma:mf=bogus"}; },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unknown match finder 'bogus'")));
+  EXPECT_THAT([] { (void)block_compressor{"lzma:level=999"}; },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unsupported preset")));
+}
+#endif
 
 class compression_test
     : public testing::TestWithParam<
