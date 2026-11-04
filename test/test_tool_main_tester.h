@@ -203,7 +203,8 @@ class dwarfsextract_tester : public tester_common {
 };
 
 std::tuple<std::optional<reader::filesystem_v2>, mkdwarfs_tester>
-build_with_args(std::vector<std::string> opt_args = {});
+build_with_args(std::vector<std::string> opt_args = {},
+                bool sync_output_image = false);
 
 std::set<std::filesystem::path>
 get_all_fs_paths(reader::filesystem_v2 const& fs);

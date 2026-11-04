@@ -77,6 +77,16 @@ namespace po = boost::program_options;
 
 namespace {
 
+enum class digest_selection { attr, tree, both, all };
+
+bool includes_attr(digest_selection selection) {
+  return selection != digest_selection::tree;
+}
+
+bool includes_tree(digest_selection selection) {
+  return selection != digest_selection::attr;
+}
+
 class dwarfsck_impl {
  public:
   struct options {
@@ -101,8 +111,8 @@ class dwarfsck_impl {
     bool no_check{false};
     bool print_header{false};
     bool list_files{false};
-    bool attr_digest{false};
-    bool fs_digests{false};
+    std::optional<digest_selection> compute_digests;
+    std::optional<digest_selection> verify_digests;
     bool init_superblock{false};
     bool init_size{false};
     bool init_uuid{false};
@@ -135,7 +145,9 @@ class dwarfsck_impl {
   void do_dump_info();
   void do_list_files();
   void do_checksum();
-  void do_fs_digests();
+  filesystem_digests compute_digests(bool with_tree);
+  void do_compute_digests();
+  int do_verify_digests();
   void do_edit_superblock(std::filesystem::path const& image_path);
   int do_repair_superblock(std::filesystem::path const& image_path);
 
@@ -174,6 +186,8 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   std::string uuid_str_raw;
   std::string checksum_algo_raw;
   std::string init_superblock_raw;
+  std::string compute_digests_raw;
+  std::string verify_digests_raw;
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_enabled_raw;
   sys_string perfmon_trace_file_raw;
@@ -207,12 +221,12 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     ("checksum",
         po::value<std::string>(&checksum_algo_raw),
         checksum_desc.c_str())
-    ("attr-digest",
-        po::value<bool>(&o.attr_digest)->zero_tokens(),
-        "compute and print filesystem attribute digest")
-    ("fs-digests",
-        po::value<bool>(&o.fs_digests)->zero_tokens(),
-        "compute and print filesystem digests")
+    ("compute-digests",
+        po::value<std::string>(&compute_digests_raw)->implicit_value("both"),
+        "compute filesystem digests (attr, tree, both; default: both)")
+    ("verify-digests",
+        po::value<std::string>(&verify_digests_raw)->implicit_value("all"),
+        "verify stored filesystem digests (all, attr, tree; default: all)")
     ("num-workers,n",
         po::value<size_t>(&o.num_workers)->default_value(num_cpu),
         "number of reader worker threads")
@@ -312,6 +326,42 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     o.export_metadata = std::move(export_metadata_raw);
   }
 
+  auto parse_digests =
+      [&](std::string_view option, std::string_view value,
+          bool allow_all) -> std::expected<digest_selection, int> {
+    if (value == "attr") {
+      return digest_selection::attr;
+    }
+    if (value == "tree") {
+      return digest_selection::tree;
+    }
+    if (value == "both") {
+      return digest_selection::both;
+    }
+    if (allow_all && value == "all") {
+      return digest_selection::all;
+    }
+    iol.err << "error: invalid --" << option << " selection: " << value << "\n";
+    return std::unexpected(1);
+  };
+
+  if (vm.contains("compute-digests")) {
+    auto selection =
+        parse_digests("compute-digests", compute_digests_raw, false);
+    if (!selection) {
+      return std::unexpected(selection.error());
+    }
+    o.compute_digests = *selection;
+  }
+
+  if (vm.contains("verify-digests")) {
+    auto selection = parse_digests("verify-digests", verify_digests_raw, true);
+    if (!selection) {
+      return std::unexpected(selection.error());
+    }
+    o.verify_digests = *selection;
+  }
+
   if (vm.contains("init-superblock")) {
     o.init_superblock = true;
 
@@ -383,6 +433,11 @@ bool dwarfsck_impl::validate_options() const {
     return false;
   }
 
+  if (opts_.compute_digests && opts_.verify_digests) {
+    LOG_WARN << "--compute-digests and --verify-digests are mutually exclusive";
+    return false;
+  }
+
   if (opts_.num_workers < 1) {
     LOG_WARN << "number of worker threads must be at least 1";
     return false;
@@ -438,9 +493,11 @@ int dwarfsck_impl::run() {
       do_dump_info();
     }
 
-    if (opts_.attr_digest || opts_.fs_digests) {
-      do_fs_digests();
+    if (opts_.compute_digests) {
+      do_compute_digests();
     }
+
+    auto const digest_errors = opts_.verify_digests ? do_verify_digests() : 0;
 
     if (opts_.list_files) {
       do_list_files();
@@ -456,7 +513,7 @@ int dwarfsck_impl::run() {
     }
 #endif
 
-    if (errors > 0) {
+    if (errors > 0 || digest_errors > 0) {
       return 1;
     }
 
@@ -688,22 +745,77 @@ void dwarfsck_impl::do_checksum() {
                               });
 }
 
-void dwarfsck_impl::do_fs_digests() {
+filesystem_digests dwarfsck_impl::compute_digests(bool with_tree) {
   reader::filesystem_digests_config cfg{
-      .compute_tree_digest = opts_.fs_digests,
+      .compute_tree_digest = with_tree,
       .max_queued_bytes = fsopts_.block_cache.max_bytes,
       .num_worker_threads = opts_.num_workers,
   };
+  return reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
+}
 
-  auto const digests =
-      reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
+void dwarfsck_impl::do_compute_digests() {
+  auto const selection = *opts_.compute_digests;
+  auto const digests = compute_digests(includes_tree(selection));
 
-  iol_.out << "filesystem digests:\n"
-           << "  attr: " << digests.attr_digest.hex() << "\n";
-
-  if (digests.tree_digest) {
+  iol_.out << "filesystem digests:\n";
+  if (includes_attr(selection)) {
+    iol_.out << "  attr: " << digests.attr_digest.hex() << "\n";
+  }
+  if (includes_tree(selection)) {
     iol_.out << "  tree: " << digests.tree_digest.hex() << "\n";
   }
+}
+
+int dwarfsck_impl::do_verify_digests() {
+  auto const selection = *opts_.verify_digests;
+  auto const stored = fs().digests();
+  auto const check_attr = includes_attr(selection) && stored.attr_digest;
+  auto const check_tree = includes_tree(selection) && stored.tree_digest;
+
+  if (!fs().has_superblock() || (!check_attr && !check_tree) ||
+      (selection == digest_selection::attr && !check_attr) ||
+      (selection == digest_selection::tree && !check_tree)) {
+    LOG_ERROR
+        << "requested filesystem digests are not present in the superblock";
+    return 1;
+  }
+
+  // Do not compare digests generated by incompatible canonicalization schemes.
+  if (stored.algorithm != digest_algorithm::BLAKE3_256 ||
+      stored.scheme_version != 1) {
+    LOG_ERROR << "unsupported filesystem digest algorithm or scheme version";
+    return 1;
+  }
+
+  auto const computed = compute_digests(check_tree);
+  if (stored.algorithm != computed.algorithm ||
+      stored.scheme_version != computed.scheme_version) {
+    LOG_ERROR << "filesystem digest algorithm or scheme version mismatch";
+    return 1;
+  }
+
+  bool passed = true;
+  iol_.out << "filesystem digest verification:\n";
+  auto verify = [&](std::string_view name,
+                    checksum::digest_data const& expected,
+                    checksum::digest_data const& actual) {
+    bool const match = expected.hex() == actual.hex();
+    iol_.out << "  " << name << ": " << (match ? "OK" : "FAILED") << "\n";
+    if (!match) {
+      iol_.out << "    stored:   " << expected.hex() << "\n"
+               << "    computed: " << actual.hex() << "\n";
+      passed = false;
+    }
+  };
+
+  if (check_attr) {
+    verify("attr", stored.attr_digest, computed.attr_digest);
+  }
+  if (check_tree) {
+    verify("tree", stored.tree_digest, computed.tree_digest);
+  }
+  return passed ? 0 : 1;
 }
 
 void dwarfsck_impl::do_edit_superblock(

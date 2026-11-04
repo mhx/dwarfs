@@ -58,11 +58,18 @@ with a non-zero exit code.
   dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
   ```
 
-- `--attr-digest`:
-  Compute and print the file system attribute digest.
+- `--compute-digests`[=`attr`|`tree`|`both`]:
+  Compute and print filesystem digests. The default is `both`. This does *not*
+  use any digests stored in the superblock and hence works even on file system
+  images that do not have a superblock.
 
-- `--fs-digests`:
-  Compute and print the file system attribute and tree digests.
+- `--verify-digests`[=`all`|`attr`|`tree`]:
+  Recompute filesystem digests and compare them with the values stored in the
+  superblock. The default is `all`. This will verify every digest actually
+  present in the superblock. Explicit `attr` or `tree` requires that digest
+  to be present. Verification fails if no requested digest is present, the
+  algorithm or scheme is unsupported, or any digest differs. This check is
+  not included in `--check-integrity`.
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
@@ -77,7 +84,9 @@ with a non-zero exit code.
 
 - `--check-integrity`:
   Instead of performing a fast checksum check, perform a (much slower)
-  integrity check using the embedded SHA-512/256 hashes.
+  integrity check using the embedded SHA-512/256 hashes. This does not
+  recompute or verify filesystem attribute/tree digests. Use
+  `--verify-digests` for that.
 
 - `--no-check`:
   Don't even perform a fast checksum check on the file system blocks.

@@ -357,9 +357,13 @@ build_test_image(std::vector<std::string> extra_args,
 }
 
 std::tuple<std::optional<reader::filesystem_v2>, mkdwarfs_tester>
-build_with_args(std::vector<std::string> opt_args) {
+build_with_args(std::vector<std::string> opt_args,
+                bool const sync_output_image) {
   std::string const image_file = "test.dwarfs";
   mkdwarfs_tester t;
+  if (sync_output_image) {
+    t.fa->sync_files_to(*t.os);
+  }
   std::vector<std::string> args = {"-i", "/", "-o", image_file};
   args.insert(args.end(), opt_args.begin(), opt_args.end());
   if (t.run(args) != 0) {
