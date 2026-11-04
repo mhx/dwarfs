@@ -61,7 +61,8 @@ with a non-zero exit code.
 - `--compute-digests`[=`attr`|`tree`|`both`]:
   Compute and print filesystem digests. The default is `both`. This does *not*
   use any digests stored in the superblock and hence works even on file system
-  images that do not have a superblock.
+  images that do not have a superblock. With `--json`, output a JSON object
+  containing the selected `attr` and/or `tree` hex digest strings.
 
 - `--verify-digests`[=`all`|`attr`|`tree`]:
   Recompute filesystem digests and compare them with the values stored in the
@@ -69,7 +70,8 @@ with a non-zero exit code.
   present in the superblock. Explicit `attr` or `tree` requires that digest
   to be present. Verification fails if no requested digest is present, the
   algorithm or scheme is unsupported, or any digest differs. This check is
-  not included in `--check-integrity`.
+  not included in `--check-integrity`. With `--json`, output a JSON object
+  keyed by digest name, each containing `ok`, `stored` and `computed` fields.
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
@@ -95,7 +97,10 @@ with a non-zero exit code.
   than performing an actual file system check.
 
 - `-j`, `--json`:
-  Print a simple JSON representation of the filesystem metadata. Please
+  Print a simple JSON representation of the filesystem metadata, or of the
+  selected digest computation/verification if those options are given.
+  Cannot be combined with `--list`, `--checksum`, `--export-metadata`,
+  or in-place superblock editing/repair. Please
   note that the format is *not* stable. The level of detail also depends
   on the `--detail` switch. This can be useful in conjunction with the
   `jq` tool to extract file system information, for example generate a
