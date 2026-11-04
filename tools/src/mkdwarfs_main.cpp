@@ -25,6 +25,7 @@
 #include <array>
 #include <bit>
 #include <cerrno>
+#include <charconv>
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
@@ -1042,7 +1043,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   bool const recompress =
       vm.contains("recompress") || rebuild_metadata || change_block_size;
+
   utility::rewrite_options rw_opts;
+
   if (recompress) {
     std::unordered_map<std::string, unsigned> const modes{
         {"all", 3},
@@ -1358,6 +1361,28 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         << "creating hollow filesystem, no actual file data will be stored";
   }
 
+  std::optional<std::uint64_t> source_date_epoch;
+
+  if (auto const value = iol.os->getenv("SOURCE_DATE_EPOCH")) {
+    if (recompress) {
+      LOG_WARN << "SOURCE_DATE_EPOCH is ignored when rewriting a filesystem";
+    } else {
+      std::uint64_t epoch;
+      auto const [end, ec] =
+          std::from_chars(value->data(), value->data() + value->size(), epoch);
+
+      if (ec != std::errc{} || end != value->data() + value->size() ||
+          !std::in_range<std::time_t>(epoch)) {
+        LOG_ERROR << "invalid SOURCE_DATE_EPOCH: expected a non-negative Unix "
+                     "timestamp";
+        return 1;
+      }
+
+      source_date_epoch = epoch;
+      options.metadata.create_timestamp = epoch;
+    }
+  }
+
   if (auto const res = options.metadata.time_resolution) {
     if (auto const native = iol.os->native_file_time_resolution();
         *res < native) {
@@ -1436,6 +1461,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (options.enable_history) {
     options.history.with_timestamps = !no_history_timestamps;
     rw_opts.history.with_timestamps = !no_history_timestamps;
+    options.history.timestamp = source_date_epoch;
 
     if (!no_history_command_line) {
       options.command_line_arguments = command_line;

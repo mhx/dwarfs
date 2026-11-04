@@ -1032,6 +1032,14 @@ processor count, if you want images produced on different systems with
 different processor count to be bit-identical, you should explicitly
 set the number of segmenter workers.
 
+For fresh filesystem builds, the `SOURCE_DATE_EPOCH` environment variable
+can specify a non-negative Unix timestamp (in seconds) to be used instead
+of the current system time for the filesystem creation timestamp and new
+history entries. This is completely independent of `--reproducible`.
+Options to omit timestamps from the output image still take precedence.
+An invalid value is an error for fresh builds. When rewriting an existing
+filesystem, `SOURCE_DATE_EPOCH` is ignored with a warning.
+
 ### Virtual Block Size
 
 The concept of "virtual block size" is useful when thinking about

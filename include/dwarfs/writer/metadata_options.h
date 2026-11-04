@@ -57,6 +57,7 @@ struct metadata_options {
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
   bool no_create_timestamp{false};
+  std::optional<std::uint64_t> create_timestamp{};
   bool no_category_names{false};
   bool no_category_metadata{false};
   bool no_metadata_version_history{false};

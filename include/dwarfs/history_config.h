@@ -28,10 +28,14 @@
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
+
 namespace dwarfs {
 
 struct history_config {
   bool with_timestamps{false};
+  std::optional<std::uint64_t> timestamp{};
 };
 
 } // namespace dwarfs

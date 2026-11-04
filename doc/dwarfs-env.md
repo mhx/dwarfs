@@ -42,7 +42,14 @@ The `DWARFS_LOG_MEMORY_USAGE` environment variable can be set to a
 file path to enable logging of memory usage statistics in TSV format.
 It will log `total` (i.e. `anon` + `file`), `anon`, `file`, and
 `allocated` memory usage in bytes over time. The `allocated` column
-is only present if DwarFS was build against `jemalloc`.
+is only present if DwarFS was build against `jemalloc`. This currently
+only works for `mkdwarfs`.
+
+### SOURCE\_DATE\_EPOCH
+
+The `SOURCE_DATE_EPOCH` environment variable is read by `mkdwarfs`
+and affects timestamps during fresh file system creation.
+See [mkdwarfs(1)](mkdwarfs.md) for details.
 
 ## AUTHOR
 
