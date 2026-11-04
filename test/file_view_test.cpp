@@ -1204,3 +1204,61 @@ TEST(file_segments_iterable, default_iterator_is_end) {
   file_segments_iterable::iterator it;
   EXPECT_TRUE(it == std::default_sentinel);
 }
+
+TEST(read_file_view, invalid_ranges_and_short_read) {
+  fake_mm_ops_lowlevel fake(4096);
+  NiceMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, 8);
+  auto view = internal::create_read_file_view(ops, path,
+                                              file_extent_mode::treat_as_data);
+
+  EXPECT_FALSE(view.segment_at(-1, 1));
+  EXPECT_FALSE(view.segment_at(0, 0));
+  EXPECT_FALSE(view.segment_at(7, 2));
+
+  std::array<char, 4> data{};
+  std::error_code ec;
+  view.copy_to(std::span<char>{data}, -1, ec);
+  EXPECT_EQ(std::errc::invalid_argument, ec);
+
+  ec.clear();
+  view.copy_to(std::span<char>{data}, 6, ec);
+  EXPECT_EQ(std::errc::result_out_of_range, ec);
+
+  ec.clear();
+  view.copy_to(std::span<char>{}, 0, ec);
+  EXPECT_FALSE(ec);
+
+  EXPECT_CALL(mock_ops, pread(handle, _, data.size(), 0, _))
+      .WillOnce(Invoke(
+          [](auto const&, void*, size_t, file_off_t, std::error_code& ec) {
+            ec.clear();
+            return size_t{1};
+          }));
+  view.copy_to(std::span<char>{data}, 0, ec);
+  EXPECT_EQ(std::errc::io_error, ec);
+}
+
+TEST(read_file_view, treat_as_data_size_error) {
+  fake_mm_ops_lowlevel fake(4096);
+  NiceMock<mm_ops_lowlevel_mock> mock_ops;
+  mock_ops.delegate_to(&fake);
+  fake_mm_ops_adapter ops{mock_ops};
+
+  fs::path const path{"/tmp/testfile"};
+  auto handle = fake.add_file(path, 8);
+  EXPECT_CALL(mock_ops, size(handle, _))
+      .WillOnce(Invoke([](auto const&, std::error_code& ec) {
+        ec = std::make_error_code(std::errc::io_error);
+        return file_size_t{0};
+      }));
+
+  auto view = internal::create_read_file_view(ops, path,
+                                              file_extent_mode::treat_as_data);
+  EXPECT_EQ(0, view.size());
+  EXPECT_EQ(0, view.extents().size());
+}

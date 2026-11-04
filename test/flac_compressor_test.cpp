@@ -24,12 +24,14 @@
 #include <cmath>
 #include <numbers>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_decompressor.h>
+#include <dwarfs/error.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/pcm_sample_transformer.h>
 
@@ -203,3 +205,24 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Values(pcm_sample_padding::Lsb,
                                          pcm_sample_padding::Msb),
                        ::testing::ValuesIn(data_parameters)));
+
+TEST(flac_compressor, rejects_missing_metadata) {
+  block_compressor comp("flac");
+  auto const data = malloc_byte_buffer::create_zeroed(8).share();
+
+  EXPECT_THAT([&] { comp.compress(data); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("flac compression requires metadata")));
+}
+
+TEST(flac_compressor, rejects_incomplete_samples) {
+  block_compressor comp("flac");
+  auto const data = malloc_byte_buffer::create_zeroed(3).share();
+  nlohmann::json meta{{"endianness", "little"}, {"signedness", "signed"},
+                      {"padding", "msb"},       {"bytes_per_sample", 2},
+                      {"bits_per_sample", 16},  {"number_of_channels", 2}};
+
+  EXPECT_THAT([&] { comp.compress(data, meta.dump()); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unexpected PCM waveform configuration")));
+}
