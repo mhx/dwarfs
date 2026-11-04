@@ -163,6 +163,58 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("/somedir/ipsum.py", e4.unix_dpath());
 }
 
+TEST_F(entry_test, source_roots) {
+  auto local_os = std::make_shared<os_access_mock>();
+  auto const source_b = sep / "source-b";
+
+  local_os->add_dir(sep);
+  local_os->add_dir(sep / "shared");
+  local_os->add_file(sep / "shared" / "first.txt", "first");
+  local_os->add_dir(source_b);
+  local_os->add_dir(source_b / "shared");
+  local_os->add_file(source_b / "shared" / "second.txt", "second");
+
+  auto tree = entry_storage{};
+  auto root = create_entry(tree, *local_os, sep).as_dir();
+  auto shared = create_entry(tree, *local_os, sep / "shared", root).as_dir();
+  auto first =
+      create_entry(tree, *local_os, sep / "shared" / "first.txt", shared);
+
+  // An all-zero source-root field has no per-entry packed payload.
+  EXPECT_EQ(std::string::npos, tree.dump_entries().find("source root:"));
+  EXPECT_EQ(0, tree.add_source_root(sep));
+
+  auto const source_b_index = tree.add_source_root(source_b);
+  EXPECT_EQ(1, source_b_index);
+  EXPECT_EQ(source_b_index, tree.add_source_root(source_b));
+
+  // The logical parent belongs to root 0, but this file belongs to root 1.
+  auto second =
+      wi::provisional_entry(*local_os, source_b / "shared" / "second.txt",
+                            shared, source_b_index)
+          .commit(tree);
+
+  auto check_paths = [&] {
+    EXPECT_EQ(sep, root.fs_path());
+    EXPECT_EQ(sep / "shared", shared.fs_path());
+    EXPECT_EQ(sep / "shared" / "first.txt", first.fs_path());
+    EXPECT_EQ(source_b / "shared" / "second.txt", second.fs_path());
+    EXPECT_EQ("/shared/first.txt", first.unix_dpath());
+    EXPECT_EQ("/shared/second.txt", second.unix_dpath());
+  };
+
+  check_paths();
+  EXPECT_NE(std::string::npos, tree.dump_entries().find("source root:"));
+
+  test_logger lgr;
+  progress prog{};
+  tree.freeze_entries(lgr, prog);
+  check_paths();
+
+  tree.compress_path_components(lgr, prog);
+  check_paths();
+}
+
 TEST_F(entry_test, factory_creates_expected_entry_kinds) {
   auto tree = entry_storage{};
 
