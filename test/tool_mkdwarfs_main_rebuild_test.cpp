@@ -21,6 +21,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <sstream>
+
+#include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
+
 #include <gmock/gmock.h>
 
 #include <nlohmann/json.hpp>
@@ -33,6 +40,7 @@
 #include <dwarfs/device_number.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/superblock_editor.h>
 #include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_checks.h"
@@ -1006,6 +1014,120 @@ TEST(mkdwarfs_test, recompress_with_metadata) {
   }
 }
 #endif
+
+TEST(mkdwarfs_test, reproducible) {
+  struct variant {
+    std::vector<std::string> extra;
+    bool superblock;
+  };
+
+  for (auto const& test : std::vector<variant>{
+           {{}, false},
+           {{"--no-backwards-compat"}, true},
+           {{"--no-backwards-compat", "--uuid=nil"}, true},
+           {{"--no-backwards-compat", "--no-superblock"}, false},
+       }) {
+    SCOPED_TRACE(fmt::format("extra: {}, superblock: {}",
+                             fmt::join(test.extra, " "), test.superblock));
+    mkdwarfs_tester t;
+    std::vector<std::string> args{"-i", "/",   "-o",
+                                  "-",  "-l1", "--reproducible"};
+    args.insert(args.end(), test.extra.begin(), test.extra.end());
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto fs = t.fs_from_stdout();
+    auto const info = fsinfo_json(fs, 2);
+    EXPECT_FALSE(info.contains("created_on"));
+    ASSERT_EQ(1, info["history"].size());
+    EXPECT_FALSE(info["history"][0].contains("timestamp"));
+    EXPECT_EQ(fs.has_superblock(), test.superblock);
+
+    if (test.superblock) {
+      std::istringstream input(t.out());
+      superblock_editor editor;
+      ASSERT_NO_THROW(editor.read(input));
+      EXPECT_FALSE(editor.fs_uuid());
+    }
+  }
+}
+
+TEST(mkdwarfs_test, reproducible_file_output) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "image.dwarfs", "-l1",
+                      "--no-backwards-compat", "--reproducible"}))
+      << t.err();
+
+  auto const image = t.fa->get_file("image.dwarfs");
+  ASSERT_TRUE(image);
+  std::istringstream input(*image);
+  superblock_editor editor;
+  ASSERT_NO_THROW(editor.read(input));
+  EXPECT_FALSE(editor.fs_uuid());
+  ASSERT_TRUE(editor.fs_size());
+  EXPECT_EQ(*editor.fs_size(), image->size());
+}
+
+TEST(mkdwarfs_test, reproducible_matches_explicit_options) {
+  auto build = [](std::vector<std::string> extra) {
+    mkdwarfs_tester t;
+    std::vector<std::string> args{"-i", "/",   "-o",
+                                  "-",  "-l1", "--no-history-command-line"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    EXPECT_EQ(0, t.run(args)) << t.err();
+    return t.out();
+  };
+
+  EXPECT_EQ(build({"--reproducible", "--no-backwards-compat"}),
+            build({"--no-create-timestamp", "--no-history-timestamps",
+                   "--uuid=nil", "--no-backwards-compat"}));
+
+  EXPECT_EQ(build({"--reproducible"}),
+            build({"--no-create-timestamp", "--no-history-timestamps"}));
+}
+
+TEST(mkdwarfs_test, reproducible_uuid_conflicts) {
+  for (auto const& uuid :
+       {"random", "keep", "1fe2720a-2a81-446b-afc4-28cae43edade"}) {
+    mkdwarfs_tester t;
+    EXPECT_EQ(1, t.run({"-i", "/", "-o", "-", "-l1", "--no-backwards-compat",
+                        "--reproducible", std::string("--uuid=") + uuid}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("only --uuid=nil is allowed"));
+  }
+}
+
+TEST(mkdwarfs_test, reproducible_rewriting) {
+  mkdwarfs_tester source;
+  source.fa->sync_files_to(*source.os);
+  ASSERT_EQ(0, source.run({"-i", "/", "-o", "source.dwarfs", "-l1",
+                           "--no-backwards-compat"}))
+      << source.err();
+  auto const image = source.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(image);
+
+  for (auto const& rebuild : {false, true}) {
+    auto t = mkdwarfs_tester::create_with_image(*image, "input.dwarfs");
+    std::vector<std::string> args{"-i", "input.dwarfs", "-o",
+                                  "-",  "-l1",          "--reproducible"};
+    args.push_back(rebuild ? "--rebuild-metadata" : "--recompress=none");
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto fs = t.fs_from_stdout();
+    ASSERT_TRUE(fs.has_superblock());
+    std::istringstream input(t.out());
+    superblock_editor editor;
+    ASSERT_NO_THROW(editor.read(input));
+    EXPECT_FALSE(editor.fs_uuid());
+
+    auto const info = fsinfo_json(fs, 2);
+    EXPECT_EQ(info.contains("created_on"), !rebuild);
+    ASSERT_EQ(2, info["history"].size());
+    for (auto const& entry : info["history"]) {
+      EXPECT_FALSE(entry.contains("timestamp"));
+    }
+  }
+}
 
 TEST(mkdwarfs_test, no_timestamps) {
   {
