@@ -89,7 +89,7 @@ void history::append(
     histent.arguments() = std::move(*args);
   }
   if (cfg_.with_timestamps) {
-    histent.timestamp() = std::time(nullptr);
+    histent.timestamp() = cfg_.timestamp.value_or(std::time(nullptr));
   }
   library_dependencies deps;
   deps.add_common_libraries();
