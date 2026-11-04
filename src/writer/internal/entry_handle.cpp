@@ -72,6 +72,11 @@ std::string entry_handle_base<Mut>::unix_dpath() const {
 }
 
 template <mutability Mut>
+std::string entry_handle_base<Mut>::logical_path() const {
+  return storage_->get_logical_path(self_id_);
+}
+
+template <mutability Mut>
 std::string entry_handle_base<Mut>::name() const {
   return storage_->get_name(self_id_);
 }

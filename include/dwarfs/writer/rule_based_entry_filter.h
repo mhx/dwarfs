@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <iosfwd>
 #include <memory>
 #include <string_view>
@@ -44,10 +43,6 @@ class rule_based_entry_filter : public entry_filter {
                           std::shared_ptr<file_access const> const& fa);
   ~rule_based_entry_filter() override;
 
-  void set_root_path(std::filesystem::path const& path) {
-    impl_->set_root_path(path);
-  }
-
   void add_rule(std::string_view rule) { impl_->add_rule(rule); }
 
   void add_rules(std::istream& is) { impl_->add_rules(is); }
@@ -60,7 +55,6 @@ class rule_based_entry_filter : public entry_filter {
    public:
     virtual ~impl() = default;
 
-    virtual void set_root_path(std::filesystem::path const& path) = 0;
     virtual void add_rule(std::string_view rule) = 0;
     virtual void add_rules(std::istream& is) = 0;
     virtual filter_action filter(entry_interface const& ei) const = 0;

@@ -105,6 +105,20 @@ std::string provisional_entry::unix_dpath() const {
   return path;
 }
 
+std::string provisional_entry::logical_path() const {
+  if (!parent_) {
+    return "/";
+  }
+
+  auto path = parent_->logical_path() + name();
+
+  if (is_directory()) {
+    path += '/';
+  }
+
+  return path;
+}
+
 entry_handle provisional_entry::commit(entry_storage& tree) {
   switch (stat_.type()) {
   case posix_file_type::regular:
