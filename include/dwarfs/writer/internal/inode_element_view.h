@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <optional>
 #include <span>
 
 #include <dwarfs/writer/fragment_category.h>
@@ -44,8 +43,6 @@ class inode_element_view
   inode_element_view(sortable_inode_span& sp, index_type const& index,
                      fragment_category cat);
 
-  bool exists(size_t i) const override;
-  size_t size() const override;
   size_t weight(size_t i) const override;
   bool bitvec_less(size_t a, size_t b) const override;
   bool order_less(size_t a, size_t b) const override;
@@ -57,7 +54,6 @@ class inode_element_view
  private:
   sortable_inode_span& sp_;
   std::vector<nilsimsa::hash_type const*> hash_cache_;
-  std::optional<fragment_category> cat_;
 };
 
 } // namespace dwarfs::writer::internal
