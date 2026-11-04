@@ -1895,3 +1895,22 @@ TEST(dwarfsck_test, json_rejects_incompatible_output) {
     EXPECT_THAT(t.err(), ::testing::HasSubstr("--json cannot be combined"));
   }
 }
+
+TEST(dwarfsck_test, no_check_allows_initialization_but_not_repair) {
+  auto const image = build_test_image({"--no-backwards-compat"});
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0,
+              t.run({"image.dwarfs", "--no-check", "--init-superblock=size"}))
+        << t.err();
+  }
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(1, t.run({"image.dwarfs", "--no-check", "--repair-superblock"}))
+        << t.err();
+    EXPECT_THAT(
+        t.err(),
+        ::testing::HasSubstr(
+            "--no-check and --repair-superblock are mutually exclusive"));
+  }
+}
