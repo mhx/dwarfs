@@ -33,19 +33,12 @@ namespace dwarfs::writer::internal {
 inode_element_view::inode_element_view(sortable_inode_span& sp,
                                        index_type const& index,
                                        fragment_category cat)
-    : sp_{sp}
-    , cat_{cat} {
+    : sp_{sp} {
   hash_cache_.resize(sp_.raw_size());
   for (auto&& i : index) {
     hash_cache_[i] = sp_.raw_handle(i).nilsimsa_similarity_hash(cat);
   }
 }
-
-bool inode_element_view::exists(size_t i) const {
-  return !cat_ || sp_.raw_handle(i).has_category(*cat_);
-}
-
-size_t inode_element_view::size() const { return sp_.raw_size(); }
 
 size_t inode_element_view::weight(size_t i) const {
   return sp_.raw_handle(i).any().size();

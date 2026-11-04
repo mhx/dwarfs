@@ -45,7 +45,6 @@ class fs_section_checker {
   explicit fs_section_checker(file_segment const& seg)
       : seg_{seg} {}
 
-  bool check(fs_section const& section) const;
   bool check(fs_section::impl const& section) const;
   bool verify(fs_section const& section) const;
 
