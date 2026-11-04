@@ -58,6 +58,7 @@ class provisional_entry : public entry_interface {
 
   bool is_directory() const override;
   std::string unix_dpath() const override;
+  std::string logical_path() const override;
 
   entry_handle commit(entry_storage& tree);
 

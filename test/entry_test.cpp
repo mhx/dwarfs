@@ -163,6 +163,49 @@ TEST_F(entry_test, path) {
   EXPECT_EQ("/somedir/ipsum.py", e4.unix_dpath());
 }
 
+TEST_F(entry_test, logical_paths) {
+  auto local_os = std::make_shared<os_access_mock>();
+  auto const physical_root = sep / "physical-source";
+  local_os->add_dir(sep);
+  local_os->add_dir(physical_root);
+  local_os->add_dir(physical_root / "nested");
+  local_os->add_file(physical_root / "nested" / "file.txt", "contents");
+
+  // provisional_entry retains a reference to its path; these must outlive
+  // the uncommitted entries below.
+  auto const nested_path = physical_root / "nested";
+  auto const file_path = nested_path / "file.txt";
+
+  auto tree = entry_storage{};
+  auto root_candidate = wi::provisional_entry(*local_os, physical_root);
+  EXPECT_EQ("/", root_candidate.logical_path());
+  EXPECT_EQ(physical_root.generic_string() + "/", root_candidate.unix_dpath());
+  auto root = root_candidate.commit(tree).as_dir();
+
+  auto dir_candidate = wi::provisional_entry(*local_os, nested_path, root);
+  EXPECT_EQ("/nested/", dir_candidate.logical_path());
+  auto dir = dir_candidate.commit(tree).as_dir();
+
+  auto file_candidate = wi::provisional_entry(*local_os, file_path, dir);
+  EXPECT_EQ("/nested/file.txt", file_candidate.logical_path());
+  auto file = file_candidate.commit(tree);
+
+  auto check_paths = [&] {
+    EXPECT_EQ("/", root.logical_path());
+    EXPECT_EQ("/nested/", dir.logical_path());
+    EXPECT_EQ("/nested/file.txt", file.logical_path());
+    EXPECT_EQ(physical_root / "nested" / "file.txt", file.fs_path());
+  };
+
+  check_paths();
+  test_logger lgr;
+  progress prog{};
+  tree.freeze_entries(lgr, prog);
+  check_paths();
+  tree.compress_path_components(lgr, prog);
+  check_paths();
+}
+
 TEST_F(entry_test, source_roots) {
   auto local_os = std::make_shared<os_access_mock>();
   auto const source_b = sep / "source-b";
@@ -201,6 +244,8 @@ TEST_F(entry_test, source_roots) {
     EXPECT_EQ(source_b / "shared" / "second.txt", second.fs_path());
     EXPECT_EQ("/shared/first.txt", first.unix_dpath());
     EXPECT_EQ("/shared/second.txt", second.unix_dpath());
+    EXPECT_EQ("/shared/first.txt", first.logical_path());
+    EXPECT_EQ("/shared/second.txt", second.logical_path());
   };
 
   check_paths();

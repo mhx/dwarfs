@@ -1196,8 +1196,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     rule_filter =
         std::make_unique<writer::rule_based_entry_filter>(lgr, iol.file);
 
-    rule_filter->set_root_path(path);
-
     for (auto const& rule : filter) {
       auto srule = sys_string_to_string(rule);
       try {
