@@ -21,12 +21,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <cstddef>
+#include <cstring>
+
 #include <gmock/gmock.h>
 
 #include <boost/algorithm/string.hpp>
 
 #include <fmt/format.h>
 
+#include <dwarfs/checksum.h>
+#include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/reader/fsinfo_options.h>
 
@@ -298,6 +303,87 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
                         "SoMeThInG::null"}))
         << t.err();
     EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown category: 'SoMeThInG'"));
+  }
+}
+
+TEST(mkdwarfs_recompress_test, preserves_minor_version_of_unknown_section) {
+  // No section index so we can append an unknown section below
+  auto image = build_test_image({"--no-history", "--no-section-index"});
+  auto input = mkdwarfs_tester::create_with_image(image, "input.dwarfs");
+  auto input_fs = input.fs_from_file("input.dwarfs");
+
+  ASSERT_EQ(input_fs.version(), FS_VERSION_CURRENT);
+
+  ASSERT_FALSE(input_fs.has_valid_section_index());
+  reader::fsinfo_options const info_opts{
+      .features = {reader::fsinfo_feature::section_details}};
+  auto const section_number = static_cast<std::uint32_t>(
+      input_fs.info_as_json(info_opts)["sections"].size());
+
+  // Append a "future" (but accepted) section type
+  constexpr auto unknown_type = static_cast<section_type>(0x7fff);
+  constexpr std::string_view payload = "future section contents";
+  section_header_v2 hdr{};
+  std::memcpy(hdr.magic.data(), "DWARFS", hdr.magic.size());
+  hdr.major = MAJOR_VERSION;
+  hdr.minor = MINOR_VERSION_ACCEPTED;
+  hdr.number = section_number;
+  hdr.type = static_cast<uint16_t>(unknown_type);
+  hdr.compression = static_cast<uint16_t>(compression_type::NONE);
+  hdr.length = payload.size();
+
+  checksum xxh(checksum::xxh3_64);
+  xxh.update(&hdr.number, sizeof(hdr) - offsetof(section_header_v2, number));
+  xxh.update(payload.data(), payload.size());
+  ASSERT_TRUE(xxh.finalize(&hdr.xxh3_64));
+
+  checksum sha(checksum::sha2_512_256);
+  sha.update(&hdr.xxh3_64, sizeof(hdr) - offsetof(section_header_v2, xxh3_64));
+  sha.update(payload.data(), payload.size());
+  ASSERT_TRUE(sha.finalize(hdr.sha2_512_256.data()));
+
+  image.append(reinterpret_cast<char const*>(&hdr), sizeof(hdr));
+  image.append(payload.data(), payload.size());
+
+  for (bool const with_index : {true, false}) {
+    auto t = mkdwarfs_tester::create_with_image(image, "input.dwarfs");
+    std::vector<std::string> args{"-i", "input.dwarfs",      "-o",
+                                  "-",  "--recompress=none", "--no-history"};
+    if (!with_index) {
+      args.emplace_back("--no-section-index");
+    }
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto result = t.fs_from_stdout();
+    EXPECT_EQ(result.version(), FS_VERSION_CURRENT);
+    EXPECT_TRUE(
+        result.check(reader::filesystem_check_level::CHECKSUM).passed());
+
+    EXPECT_EQ(result.has_valid_section_index(), with_index);
+
+    // The public reader API does not expose individual section headers,
+    // and we cannot use internal headers in this test.
+    // Find our unique payload and inspect the preceding on-disk header.
+    auto const output = t.out();
+    auto const payload_pos = output.find(payload);
+    ASSERT_NE(payload_pos, std::string::npos);
+    ASSERT_GE(payload_pos, sizeof(section_header_v2));
+    EXPECT_EQ(output.find(payload, payload_pos + payload.size()),
+              std::string::npos);
+
+    section_header_v2 copied{};
+    std::memcpy(&copied, output.data() + payload_pos - sizeof(copied),
+                sizeof(copied));
+    EXPECT_EQ(std::string_view(copied.magic.data(), copied.magic.size()),
+              "DWARFS");
+    EXPECT_EQ(copied.major, MAJOR_VERSION);
+    EXPECT_EQ(copied.minor, MINOR_VERSION_ACCEPTED);
+    EXPECT_EQ(copied.type, static_cast<std::uint16_t>(unknown_type));
+    EXPECT_EQ(copied.number, section_number);
+    EXPECT_EQ(copied.compression,
+              static_cast<std::uint16_t>(compression_type::NONE));
+    EXPECT_EQ(copied.length, payload.size());
+    image = output;
   }
 }
 
