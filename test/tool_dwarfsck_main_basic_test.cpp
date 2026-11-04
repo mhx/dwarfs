@@ -1853,7 +1853,45 @@ TEST(dwarfsck_test, verify_detects_stale_digest_with_valid_section_checksums) {
   EXPECT_THAT(t.out(), ::testing::HasSubstr("attr: FAILED"));
   EXPECT_THAT(t.out(), ::testing::HasSubstr("stored:"));
 
-  // --check-integrity deliberately does NOT compare stored filesystem digests.
+  // --check-integrity does *not* check the digests, so it should succeed
   auto check = dwarfsck_tester::create_with_image(image.str());
   EXPECT_EQ(0, check.run({"image.dwarfs", "--check-integrity"})) << check.err();
+}
+
+TEST(dwarfsck_test, digest_json_output) {
+  auto const file = test_dir / "random" / "random-0.12.3.dwarfs";
+  auto const image = read_file(file);
+  for (auto const& selection : {"attr", "tree", "both"}) {
+    auto t = dwarfsck_tester::create_with_image(image);
+    ASSERT_EQ(0, t.run({"image.dwarfs", "--json",
+                        std::string("--compute-digests=") + selection}))
+        << t.err();
+    auto const result = nlohmann::json::parse(t.out());
+    EXPECT_EQ(result.contains("attr"), selection != std::string("tree"));
+    EXPECT_EQ(result.contains("tree"), selection != std::string("attr"));
+    EXPECT_FALSE(result.contains("version"));
+    EXPECT_LE(result.size(), 2);
+  }
+
+  auto [fs, builder] = build_with_args({"-l1", "--no-backwards-compat"}, true);
+  ASSERT_TRUE(fs.has_value()) << builder.err();
+  auto const output = builder.fa->get_file("test.dwarfs");
+  ASSERT_TRUE(output);
+  auto t = dwarfsck_tester::create_with_image(*output);
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--json", "--verify-digests"}))
+      << t.err();
+  auto const result = nlohmann::json::parse(t.out());
+  EXPECT_TRUE(result.at("attr").at("ok").get<bool>());
+  EXPECT_TRUE(result.at("tree").at("ok").get<bool>());
+  EXPECT_EQ(result.at("attr").at("stored"), result.at("attr").at("computed"));
+}
+
+TEST(dwarfsck_test, json_rejects_incompatible_output) {
+  for (auto const& option :
+       {"--list", "--checksum=blake3-256", "--export-metadata=-",
+        "--init-superblock=size", "--repair-superblock"}) {
+    auto t = dwarfsck_tester::create_with_image();
+    EXPECT_EQ(1, t.run({"image.dwarfs", "--json", option})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("--json cannot be combined"));
+  }
 }

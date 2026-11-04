@@ -445,9 +445,19 @@ bool dwarfsck_impl::validate_options() const {
 
   if (opts_.print_header &&
       (opts_.output_json || opts_.export_metadata || opts_.check_integrity ||
-       opts_.list_files || opts_.checksum_algo)) {
+       opts_.list_files || opts_.checksum_algo || opts_.compute_digests ||
+       opts_.verify_digests)) {
     LOG_WARN << "--print-header is mutually exclusive with --json, "
-                "--export-metadata, --check-integrity, --list and --checksum";
+                "--export-metadata, --check-integrity, --list, --checksum, "
+                "--compute-digests and --verify-digests";
+    return false;
+  }
+
+  if (opts_.output_json &&
+      (opts_.list_files || opts_.checksum_algo || opts_.export_metadata ||
+       opts_.init_superblock || opts_.repair_superblock)) {
+    LOG_WARN << "--json cannot be combined with --list, --checksum, "
+                "--export-metadata, or superblock editing/repair";
     return false;
   }
 
@@ -489,6 +499,7 @@ int dwarfsck_impl::run() {
     auto const errors = do_check_and_repair(input_path);
 
     if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
+        !opts_.compute_digests && !opts_.verify_digests &&
         !opts_.init_superblock && !opts_.repair_superblock) {
       do_dump_info();
     }
@@ -758,12 +769,23 @@ void dwarfsck_impl::do_compute_digests() {
   auto const selection = *opts_.compute_digests;
   auto const digests = compute_digests(includes_tree(selection));
 
-  iol_.out << "filesystem digests:\n";
-  if (includes_attr(selection)) {
-    iol_.out << "  attr: " << digests.attr_digest.hex() << "\n";
-  }
-  if (includes_tree(selection)) {
-    iol_.out << "  tree: " << digests.tree_digest.hex() << "\n";
+  if (opts_.output_json) {
+    nlohmann::json result = nlohmann::json::object();
+    if (includes_attr(selection)) {
+      result["attr"] = digests.attr_digest.hex();
+    }
+    if (includes_tree(selection)) {
+      result["tree"] = digests.tree_digest.hex();
+    }
+    iol_.out << result << "\n";
+  } else {
+    iol_.out << "filesystem digests:\n";
+    if (includes_attr(selection)) {
+      iol_.out << "  attr: " << digests.attr_digest.hex() << "\n";
+    }
+    if (includes_tree(selection)) {
+      iol_.out << "  tree: " << digests.tree_digest.hex() << "\n";
+    }
   }
 }
 
@@ -796,17 +818,28 @@ int dwarfsck_impl::do_verify_digests() {
   }
 
   bool passed = true;
-  iol_.out << "filesystem digest verification:\n";
+  nlohmann::json result = nlohmann::json::object();
+  if (!opts_.output_json) {
+    iol_.out << "filesystem digest verification:\n";
+  }
   auto verify = [&](std::string_view name,
                     checksum::digest_data const& expected,
                     checksum::digest_data const& actual) {
     bool const match = expected.hex() == actual.hex();
-    iol_.out << "  " << name << ": " << (match ? "OK" : "FAILED") << "\n";
-    if (!match) {
-      iol_.out << "    stored:   " << expected.hex() << "\n"
-               << "    computed: " << actual.hex() << "\n";
-      passed = false;
+    if (opts_.output_json) {
+      result[std::string(name)] = {
+          {"ok", match},
+          {"stored", expected.hex()},
+          {"computed", actual.hex()},
+      };
+    } else {
+      iol_.out << "  " << name << ": " << (match ? "OK" : "FAILED") << "\n";
+      if (!match) {
+        iol_.out << "    stored:   " << expected.hex() << "\n"
+                 << "    computed: " << actual.hex() << "\n";
+      }
     }
+    passed = passed && match;
   };
 
   if (check_attr) {
@@ -814,6 +847,9 @@ int dwarfsck_impl::do_verify_digests() {
   }
   if (check_tree) {
     verify("tree", stored.tree_digest, computed.tree_digest);
+  }
+  if (opts_.output_json) {
+    iol_.out << result << "\n";
   }
   return passed ? 0 : 1;
 }
