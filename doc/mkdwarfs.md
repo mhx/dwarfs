@@ -1020,7 +1020,10 @@ set the number of segmenter workers.
 For fresh filesystem builds, the `SOURCE_DATE_EPOCH` environment variable
 can specify a non-negative Unix timestamp (in seconds) to be used instead
 of the current system time for the filesystem creation timestamp and new
-history entries. This is completely independent of `--reproducible`.
+history entries. It also clamps timestamps (mtime, atime, ctime) in the
+input to this epoch if they refer to a later time. Older timestamps are
+preserved. An explicit `--set-time` overrides this clamping. The behaviour
+enabled by `SOURCE_DATE_EPOCH` is completely independent of `--reproducible`.
 Options to omit timestamps from the output image still take precedence.
 An invalid value is an error for fresh builds. When rewriting an existing
 filesystem, `SOURCE_DATE_EPOCH` is ignored with a warning.
