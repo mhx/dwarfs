@@ -43,8 +43,6 @@ class similarity_element_view {
  public:
   virtual ~similarity_element_view() = default;
 
-  virtual bool exists(size_t i) const = 0;
-  virtual size_t size() const = 0;
   virtual size_t weight(size_t i) const = 0;
   virtual bool bitvec_less(size_t a, size_t b) const = 0;
   virtual bool order_less(size_t a, size_t b) const = 0;

@@ -48,10 +48,6 @@ bool check_impl(T const& section, file_segment const& seg) {
 
 } // namespace
 
-bool fs_section_checker::check(fs_section const& section) const {
-  return check_impl(section, seg_);
-}
-
 bool fs_section_checker::check(fs_section::impl const& section) const {
   return check_impl(section, seg_);
 }
