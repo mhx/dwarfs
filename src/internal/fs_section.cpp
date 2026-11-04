@@ -135,6 +135,8 @@ class fs_section_v1 final : public fs_section::impl {
     return fmt::format("{}, offset={}", hdr_.to_string(), start());
   }
 
+  std::optional<uint8_t> minor_version() const override { return std::nullopt; }
+
   bool check_fast_mm(file_view const&) const override { return true; }
   bool check_fast(file_segment const&) const override { return true; }
 
@@ -221,6 +223,8 @@ class fs_section_v2 final : public fs_section::impl {
     return fmt::format("{} [{}], offset={}", hdr_.to_string(), checksum_status,
                        start());
   }
+
+  std::optional<uint8_t> minor_version() const override { return hdr_.minor; }
 
   bool check_fast_mm(file_view const& mm) const override {
     if (auto state = check_state_.load(); state != check_state::unknown) {
@@ -325,6 +329,10 @@ class fs_section_v2_lazy final : public fs_section::impl {
   std::string name() const override { return get_section_name(type_); }
 
   std::string description() const override { return section().description(); }
+
+  std::optional<uint8_t> minor_version() const override {
+    return section().minor_version();
+  }
 
   bool check_fast_mm(file_view const& mm) const override {
     return section().check_fast_mm(mm);
