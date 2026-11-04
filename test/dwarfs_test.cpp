@@ -132,7 +132,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   writer::filesystem_writer fsw(oss, lgr, pool, *prog, writer_opts);
   fsw.add_default_compressor(bc);
 
-  s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
+  s.scan(fsw, {.sources = {{.path = "/", .input_list = input_list}}}, *prog);
 
   return oss.str();
 }
@@ -1137,7 +1137,7 @@ class filter_test
     std::ostringstream null;
     writer::filesystem_writer fsw(null, lgr, pool, prog);
     fsw.add_default_compressor(bc);
-    s.scan(fsw, std::filesystem::path("/"), prog);
+    s.scan(fsw, {.sources = {{.path = "/"}}}, prog);
 
     std::ostringstream oss;
 
@@ -1239,6 +1239,23 @@ TEST_P(filter_test, debug_filter_function_files) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, filter_test,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
+
+TEST(file_scanner, scan_request_requires_one_source) {
+  test::test_logger lgr;
+  auto input = test::os_access_mock::create_test_instance();
+  writer::writer_progress prog;
+  thread_pool pool(lgr, *input, "worker", 1);
+  writer::segmenter_factory sf(lgr, prog);
+  writer::scanner_options options;
+  writer::scanner s(lgr, pool, sf, *input, options);
+
+  std::ostringstream out;
+  writer::filesystem_writer fsw(out, lgr, pool, prog);
+
+  EXPECT_THROW(s.scan(fsw, {}, prog), runtime_error);
+  EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}, {.path = "/"}}}, prog),
+               runtime_error);
+}
 
 TEST(file_scanner, input_list) {
   test::test_logger lgr;

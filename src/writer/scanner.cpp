@@ -342,12 +342,8 @@ class scanner_ final : public scanner::impl {
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
-  void
-  scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
-       writer_progress& wprog,
-       std::optional<std::span<std::filesystem::path const>> list,
-       std::shared_ptr<file_access const> fa,
-       std::function<void(library_dependencies&)> const& extra_deps) override;
+  void scan(filesystem_writer& fs_writer, scan_request const& request,
+            writer_progress& wprog) override;
 
  private:
   entry_handle scan_tree(entry_storage& tree, std::filesystem::path const& path,
@@ -776,12 +772,20 @@ scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
 }
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::scan(
-    filesystem_writer& fs_writer, std::filesystem::path const& path,
-    writer_progress& wprog,
-    std::optional<std::span<std::filesystem::path const>> list,
-    std::shared_ptr<file_access const> fa,
-    std::function<void(library_dependencies&)> const& extra_deps) {
+void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
+                                  scan_request const& request,
+                                  writer_progress& wprog) {
+  if (request.sources.size() != 1) {
+    DWARFS_THROW(runtime_error,
+                 "scanner currently requires exactly one source");
+  }
+
+  auto const& source = request.sources.front();
+  auto const& path = source.path;
+  auto const& list = source.input_list;
+  auto const& fa = request.fa;
+  auto const& extra_deps = request.extra_deps;
+
   auto& prog = wprog.get_internal();
   auto& fsw = fs_writer.get_internal();
 
