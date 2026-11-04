@@ -59,6 +59,8 @@
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_options.h>
+#include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/provisional_entry.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -1026,6 +1028,50 @@ INSTANTIATE_TEST_SUITE_P(
                           writer::fragment_order_mode::NILSIMSA),
         ::testing::Bool()));
 
+TEST(rule_based_entry_filter, logical_paths) {
+  test::test_logger lgr;
+  auto fa = std::make_shared<test::test_file_access>();
+  auto os = std::make_shared<test::os_access_mock>();
+  auto const root_path = std::filesystem::path(std::string(
+                             1, std::filesystem::path::preferred_separator)) /
+                         "physical-source";
+  os->add_dir(root_path.root_path());
+  os->add_dir(root_path);
+  os->add_dir(root_path / "nested");
+  os->add_file(root_path / "nested" / "file.txt", "contents");
+
+  // provisional_entry retains a reference to its path; these must outlive
+  // the uncommitted entries below.
+  auto const nested_path = root_path / "nested";
+  auto const file_path = nested_path / "file.txt";
+
+  writer::internal::entry_storage tree;
+  auto root =
+      writer::internal::provisional_entry(*os, root_path).commit(tree).as_dir();
+  auto dir = writer::internal::provisional_entry(*os, nested_path, root)
+                 .commit(tree)
+                 .as_dir();
+  auto file = writer::internal::provisional_entry(*os, file_path, dir);
+
+  writer::rule_based_entry_filter anchored(lgr, fa);
+  anchored.add_rule("- /nested/file.txt");
+  EXPECT_EQ(writer::filter_action::remove, anchored.filter(file));
+
+  writer::rule_based_entry_filter floating(lgr, fa);
+  floating.add_rule("- *.txt");
+  EXPECT_EQ(writer::filter_action::remove, floating.filter(file));
+
+  writer::rule_based_entry_filter physical_only(lgr, fa);
+  physical_only.add_rule("- physical-source/**");
+  EXPECT_EQ(writer::filter_action::keep, physical_only.filter(file));
+
+  writer::rule_based_entry_filter directory(lgr, fa);
+  directory.add_rule("- /nested/");
+  auto dir_candidate =
+      writer::internal::provisional_entry(*os, nested_path, root);
+  EXPECT_EQ(writer::filter_action::remove, directory.filter(dir_candidate));
+}
+
 class filter_test
     : public testing::TestWithParam<dwarfs::test::filter_test_data> {
  public:
@@ -1038,7 +1084,6 @@ class filter_test
     tfa = std::make_shared<test::test_file_access>();
 
     rbf = std::make_unique<writer::rule_based_entry_filter>(lgr, tfa);
-    rbf->set_root_path("");
 
     input = std::make_shared<test::os_access_mock>();
 

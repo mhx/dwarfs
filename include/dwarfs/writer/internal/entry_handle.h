@@ -140,6 +140,7 @@ class entry_handle_base {
   std::filesystem::path fs_path() const;
   std::string path_as_string() const;
   std::string unix_dpath() const;
+  std::string logical_path() const;
   std::string name() const;
   std::size_t path_component_index() const;
   bool less_revpath(basic_entry_handle<mutability::const_> rhs) const;
