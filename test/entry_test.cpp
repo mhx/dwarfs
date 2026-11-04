@@ -1062,3 +1062,10 @@ TEST(entry_id_vector_test, value_packing) {
   EXPECT_THAT(fvec, testing::ElementsAre(wi::entry_id{entry_type::E_FILE, 42},
                                          wi::entry_id{entry_type::E_FILE, 43}));
 }
+
+TEST(inode_fragments_test, to_string_without_category_mapper) {
+  writer::inode_fragments fragments;
+  fragments.emplace_back(writer::fragment_category{7, 3}, 12);
+
+  EXPECT_EQ(fragments.to_string(), "[(7/3, 12)]");
+}

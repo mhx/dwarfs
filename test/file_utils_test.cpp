@@ -189,3 +189,10 @@ TEST(file_utils, file_stat_symlink) {
     EXPECT_EQ(13, st.size());
   }
 }
+
+TEST(file_utils, write_file_missing_parent_throws) {
+  dwarfs::temporary_directory td("dwarfs");
+  EXPECT_THAT(
+      [&] { dwarfs::write_file(td.path() / "missing" / "file", "data"); },
+      testing::Throws<std::system_error>());
+}
