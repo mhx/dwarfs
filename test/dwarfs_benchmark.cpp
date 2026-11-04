@@ -175,7 +175,7 @@ make_filesystem(::benchmark::State const* state,
   writer::filesystem_writer fsw(oss, lgr, pool, prog);
   fsw.add_default_compressor(bc);
 
-  s.scan(fsw, "", prog);
+  s.scan(fsw, {.sources = {{.path = ""}}}, prog);
 
   return oss.str();
 }
