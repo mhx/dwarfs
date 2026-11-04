@@ -96,7 +96,8 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt,
-             std::unique_ptr<writer::entry_filter> filter = nullptr) {
+             std::unique_ptr<writer::entry_filter> filter = nullptr,
+             std::optional<writer::scan_request> request = std::nullopt) {
   // force multithreading
   thread_pool pool(lgr, *input, "worker", 4);
 
@@ -132,7 +133,11 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   writer::filesystem_writer fsw(oss, lgr, pool, *prog, writer_opts);
   fsw.add_default_compressor(bc);
 
-  s.scan(fsw, {.sources = {{.path = "/", .input_list = input_list}}}, *prog);
+  if (request) {
+    s.scan(fsw, *request, *prog);
+  } else {
+    s.scan(fsw, {.sources = {{.path = "/", .input_list = input_list}}}, *prog);
+  }
 
   return oss.str();
 }
@@ -1240,7 +1245,7 @@ TEST_P(filter_test, debug_filter_function_files) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, filter_test,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
 
-TEST(file_scanner, scan_request_requires_one_source) {
+TEST(file_scanner, scan_request_requires_at_least_one_source) {
   test::test_logger lgr;
   auto input = test::os_access_mock::create_test_instance();
   writer::writer_progress prog;
@@ -1253,6 +1258,124 @@ TEST(file_scanner, scan_request_requires_one_source) {
   writer::filesystem_writer fsw(out, lgr, pool, prog);
 
   EXPECT_THROW(s.scan(fsw, {}, prog), runtime_error);
+}
+
+TEST(file_scanner, multiple_sources_merge_and_keep_first) {
+  test::test_logger lgr;
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add_dir("/");
+  input->add_dir("/one");
+  input->add_dir("/two");
+  input->add_dir("/third");
+  input->add_dir("/one/shared");
+  input->add("/two/shared", {100, 040711, 1, 777, 778, 0, kNoRdev});
+  input->add_dir("/third/named");
+  input->add_dir("/one/blocked");
+  input->add_file("/one/shared/a.txt", "first");
+  input->add_file("/one/shared/duplicate.txt", "one");
+  input->add_file("/two/shared/b.txt", "second");
+  input->add_file("/two/shared/duplicate.txt", "second wins?");
+  input->add_file("/two/blocked", "ignored");
+  input->add_file("/third/named/child.txt", "child");
+  input->add_file("/third/loose.txt", "loose");
+
+  writer::scan_request request{
+      .sources =
+          {
+              {.path = "/one"},
+              {.path = "/two"},
+              {.path = "/third/named", .mode = writer::scan_source_mode::entry},
+              {.path = "/third/loose.txt",
+               .mode = writer::scan_source_mode::entry},
+          },
+  };
+
+  auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
+                            std::nullopt, nullptr, request);
+  auto mm = test::make_mock_file_view(std::move(image));
+  reader::filesystem_v2 fs(lgr, *input, mm);
+
+  auto a = fs.find("/shared/a.txt");
+  auto b = fs.find("/shared/b.txt");
+  auto duplicate = fs.find("/shared/duplicate.txt");
+  auto shared = fs.find("/shared");
+  auto blocked = fs.find("/blocked");
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(duplicate);
+  ASSERT_TRUE(shared);
+  ASSERT_TRUE(blocked);
+  EXPECT_EQ(3, fs.getattr(duplicate->inode()).size());
+  EXPECT_EQ(0755, fs.getattr(shared->inode()).mode() & 0777);
+  EXPECT_EQ(1000, fs.getattr(shared->inode()).uid());
+  EXPECT_EQ(posix_file_type::directory, fs.getattr(blocked->inode()).type());
+  EXPECT_FALSE(fs.find("/blocked/ignored"));
+  EXPECT_TRUE(fs.find("/named/child.txt"));
+  EXPECT_TRUE(fs.find("/loose.txt"));
+  EXPECT_FALSE(fs.find("/one"));
+  EXPECT_FALSE(fs.find("/two"));
+
+  auto const warnings = std::ranges::count_if(
+      lgr.get_log(), [](auto const& e) { return e.level == logger::WARN; });
+  EXPECT_GE(warnings, 3); // shared, duplicate.txt, blocked
+}
+
+TEST(file_scanner, explicit_synthetic_root_metadata) {
+  test::test_logger lgr;
+  auto input = std::make_shared<test::os_access_mock>();
+  input->add_dir("/");
+  input->add_dir("/staging");
+  input->add_file("/staging/file.txt", "content");
+
+  auto root_stat = input->symlink_info("/staging");
+  root_stat.set_mode(posix_file_type::directory | 0700);
+  root_stat.set_uid(4242);
+  root_stat.set_gid(4243);
+  root_stat.set_mtime(1234567);
+
+  writer::scan_request request{
+      .sources = {{.path = "/staging/file.txt",
+                   .mode = writer::scan_source_mode::entry}},
+      .root_metadata = root_stat,
+  };
+  auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
+                            std::nullopt, nullptr, request);
+  auto mm = test::make_mock_file_view(std::move(image));
+  reader::filesystem_v2 fs(lgr, *input, mm);
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto st = fs.getattr(root->inode());
+  EXPECT_EQ(0700, st.mode() & 0777);
+  EXPECT_EQ(4242, st.uid());
+  EXPECT_EQ(4243, st.gid());
+  EXPECT_EQ(1234567, st.mtime());
+  EXPECT_TRUE(fs.find("/file.txt"));
+}
+
+TEST(file_scanner, multiple_sources_reject_incompatible_modes) {
+  test::test_logger lgr;
+  auto input = test::os_access_mock::create_test_instance();
+  thread_pool pool(lgr, *input, "worker", 1);
+  writer::writer_progress prog;
+  writer::segmenter_factory sf(lgr, prog);
+  writer::scanner_options options;
+  writer::scanner s(lgr, pool, sf, *input, options);
+  std::ostringstream out;
+  writer::filesystem_writer fsw(out, lgr, pool, prog);
+
+  std::vector<fs::path> list{"file"};
+  EXPECT_THROW(
+      s.scan(fsw,
+             {.sources = {{.path = "/"},
+                          {.path = "/",
+                           .input_list = std::span<fs::path const>(list)}}},
+             prog),
+      runtime_error);
+
+  writer::fragment_order_options order;
+  order.mode = writer::fragment_order_mode::EXPLICIT;
+  options.inode.fragment_order.set_default(order);
   EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}, {.path = "/"}}}, prog),
                runtime_error);
 }
