@@ -88,7 +88,10 @@ with a non-zero exit code.
   Instead of performing a fast checksum check, perform a (much slower)
   integrity check using the embedded SHA-512/256 hashes. This does not
   recompute or verify filesystem attribute/tree digests. Use
-  `--verify-digests` for that.
+  `--verify-digests` for that. When a valid superblock is present,
+  this also validates that its initialized filesystem size equals the
+  actual image size and that the image satisfies its size alignment.
+  An uninitialized size in the superblock is permitted.
 
 - `--no-check`:
   Don't even perform a fast checksum check on the file system blocks.
