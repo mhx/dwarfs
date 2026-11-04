@@ -303,3 +303,126 @@ TEST(mkdwarfs_test, subsecond_time_resolution) {
                             .ctimespec = make_ts(6004, 0)}}}));
   }
 }
+
+TEST(mkdwarfs_test, source_date_epoch_clamps_scanned_timestamps) {
+  constexpr auto epoch = 100;
+
+  for (bool const keep_all_times : {false, true}) {
+    SCOPED_TRACE(keep_all_times);
+
+    auto t = mkdwarfs_tester::create_empty();
+
+    t.os->setenv("SOURCE_DATE_EPOCH", std::to_string(epoch));
+
+    t.os->add_dir("/", {.atim = make_ts(99, 7),
+                        .mtim = make_ts(100, 1),
+                        .ctim = make_ts(101, 0)});
+    t.os->add_dir("/dir", {.atim = make_ts(101, 17),
+                           .mtim = make_ts(102, 0),
+                           .ctim = make_ts(99, 42)});
+    t.os->add_file("/old", "old",
+                   {.atim = make_ts(90, 7),
+                    .mtim = make_ts(99, 99),
+                    .ctim = make_ts(80, 23)});
+    t.os->add_file("/boundary", "x",
+                   {.atim = make_ts(100, 0),
+                    .mtim = make_ts(100, 1),
+                    .ctim = make_ts(100, 2)});
+    t.os->add_file("/future", "data",
+                   {.atim = make_ts(105, 7),
+                    .mtim = make_ts(110, 8),
+                    .ctim = make_ts(120, 9)});
+    t.os->add("/link",
+              {.ino = 1000,
+               .mode = posix_file_type::symlink | 0777,
+               .size = 7,
+               .atim = {90, 20},
+               .mtim = {102, 5},
+               .ctim = {101, 0}},
+              "/future");
+
+    std::vector<std::string> args{"-i", "/",   "-o",
+                                  "-",  "-l1", "--time-resolution=ns"};
+    if (keep_all_times) {
+      args.emplace_back("--keep-all-times");
+    }
+
+    ASSERT_EQ(0, t.run(args)) << t.err();
+    auto fs = t.fs_from_stdout();
+
+    ASSERT_NO_FATAL_FAILURE(
+        expect_attrs(fs, {{"/", {.mtimespec = make_ts(100, 0)}},
+                          {"/dir", {.mtimespec = make_ts(100, 0)}},
+                          {"/old", {.mtimespec = make_ts(99, 99)}},
+                          {"/boundary", {.mtimespec = make_ts(100, 0)}},
+                          {"/future", {.mtimespec = make_ts(100, 0)}},
+                          {"/link", {.mtimespec = make_ts(100, 0)}}}));
+
+    if (keep_all_times) {
+      ASSERT_NO_FATAL_FAILURE(expect_attrs(
+          fs,
+          {{"/", {.atimespec = make_ts(99, 7), .ctimespec = make_ts(100, 0)}},
+           {"/dir",
+            {.atimespec = make_ts(100, 0), .ctimespec = make_ts(99, 42)}},
+           {"/old",
+            {.atimespec = make_ts(90, 7), .ctimespec = make_ts(80, 23)}},
+           {"/boundary",
+            {.atimespec = make_ts(100, 0), .ctimespec = make_ts(100, 0)}},
+           {"/future",
+            {.atimespec = make_ts(100, 0), .ctimespec = make_ts(100, 0)}},
+           {"/link",
+            {.atimespec = make_ts(90, 20), .ctimespec = make_ts(100, 0)}}}));
+    }
+  }
+}
+
+TEST(mkdwarfs_test, source_date_epoch_clamping_respects_set_time) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->setenv("SOURCE_DATE_EPOCH", "100");
+
+  t.os->add_dir("/", {.atim = make_ts(200, 9),
+                      .mtim = make_ts(200, 9),
+                      .ctim = make_ts(200, 9)});
+  t.os->add_file("/file", "data",
+                 {.atim = make_ts(200, 9),
+                  .mtim = make_ts(200, 9),
+                  .ctim = make_ts(200, 9)});
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--keep-all-times",
+                      "--time-resolution=ns", "--set-time=250"}))
+      << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  ASSERT_NO_FATAL_FAILURE(expect_attrs(fs, {{"/",
+                                             {.atimespec = make_ts(250, 0),
+                                              .mtimespec = make_ts(250, 0),
+                                              .ctimespec = make_ts(250, 0)}},
+                                            {"/file",
+                                             {.atimespec = make_ts(250, 0),
+                                              .mtimespec = make_ts(250, 0),
+                                              .ctimespec = make_ts(250, 0)}}}));
+}
+
+TEST(mkdwarfs_test, source_date_epoch_clamping_with_reproducible) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->setenv("SOURCE_DATE_EPOCH", "100");
+  t.os->add_dir("/", {.mtim = make_ts(110, 0)});
+  t.os->add_file("/file", "data", {.mtim = make_ts(200, 0)});
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--reproducible"}))
+      << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  ASSERT_NO_FATAL_FAILURE(
+      expect_attrs(fs, {{"/", {.mtime = 100}}, {"/file", {.mtime = 100}}}));
+
+  auto const info = fsinfo_json(fs, 2);
+
+  EXPECT_FALSE(info.contains("created_on"));
+  ASSERT_EQ(info.at("history").size(), 1);
+  EXPECT_FALSE(info["history"][0].contains("timestamp"));
+}

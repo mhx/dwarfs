@@ -727,6 +727,7 @@ class packed_entry_data {
       , keep_ctime_{options.keep_all_times}
       , keep_subsecond_{options.time_resolution.value_or(
                             std::chrono::seconds(1)) < std::chrono::seconds(1)}
+      , max_file_timestamp_{options.max_file_timestamp}
       , chmod_xfm_{chmod_transformer::build_chain(options.chmod_specifiers,
                                                   options.umask)} {}
 
@@ -1036,6 +1037,7 @@ class packed_entry_data {
   bool const keep_atime_{false};
   bool const keep_ctime_{false};
   bool const keep_subsecond_{false};
+  std::optional<file_stat::time_type> const max_file_timestamp_{};
 
   std::vector<chmod_transformer> chmod_xfm_;
 
@@ -1649,11 +1651,17 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 
   for_all_times([&]<typename time> {
     if (this->*time::keep) {
-      std::get<time::sec_field>(tmp) = time::sec(st);
+      auto sec = time::sec(st);
+      auto nsec = this->keep_subsecond_ ? time::nsec(st) : 0;
 
-      if (this->keep_subsecond_) {
-        std::get<time::nsec_field>(tmp) = time::nsec(st);
+      if (max_file_timestamp_ && (sec > *max_file_timestamp_ ||
+                                  (sec == *max_file_timestamp_ && nsec > 0))) {
+        sec = *max_file_timestamp_;
+        nsec = 0;
       }
+
+      std::get<time::sec_field>(tmp) = sec;
+      std::get<time::nsec_field>(tmp) = nsec;
     }
   });
 
