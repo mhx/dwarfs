@@ -166,6 +166,24 @@ TEST(file_utils, file_stat) {
                   testing::HasSubstr("unknown file type: 0x9000")));
 }
 
+TEST(file_utils, second_precision_timestamps_clear_subseconds) {
+  dwarfs::file_stat st;
+  st.set_atimespec(1, 123);
+  st.set_mtimespec(2, 456);
+  st.set_ctimespec(3, 789);
+
+  st.set_atime(10);
+  st.set_mtime(20);
+  st.set_ctime(30);
+
+  EXPECT_EQ(10, st.atime());
+  EXPECT_EQ(20, st.mtime());
+  EXPECT_EQ(30, st.ctime());
+  EXPECT_EQ(0, st.atime_nsec_unchecked());
+  EXPECT_EQ(0, st.mtime_nsec_unchecked());
+  EXPECT_EQ(0, st.ctime_nsec_unchecked());
+}
+
 TEST(file_utils, file_stat_symlink) {
   using namespace dwarfs;
 

@@ -1535,3 +1535,67 @@ TEST(superblock_editor_test, clear_digests) {
   EXPECT_EQ(std::string(2 * kDigestSize, '\0'),
             sb.substr(kOffAttrDigest, 2 * kDigestSize));
 }
+
+TEST(superblock_editor_test, read_corrupted_repair_checksums) {
+  auto damaged = superblock_builder{}.label("repair me").build();
+  damaged[kOffSha2] ^= 1;
+
+  std::stringstream io{damaged, kBinInOut};
+  superblock_editor ed;
+  EXPECT_THROW(ed.read(io), std::runtime_error);
+
+  io.clear();
+  io.seekg(0);
+  ed.read_corrupted(io);
+  EXPECT_EQ("repair me", ed.fs_label());
+
+  ed.update(io);
+  EXPECT_NE(damaged, io.str());
+
+  std::istringstream verified{io.str(), kBinIn};
+  superblock_editor reread;
+  ASSERT_NO_THROW(reread.read(verified));
+  EXPECT_EQ("repair me", reread.fs_label());
+}
+
+TEST(superblock_editor_test, clear_all_mutable_fields) {
+  test_image img{superblock_builder{}
+                     .fs_size(16 * kAlignment)
+                     .uuid(kUuid)
+                     .label("temporary label")
+                     .with_digests()
+                     .build()};
+
+  img.editor().clear_all_mutable_fields();
+
+  EXPECT_FALSE(img.editor().fs_size().has_value());
+  EXPECT_FALSE(img.editor().fs_uuid().has_value());
+  EXPECT_TRUE(img.editor().fs_label().empty());
+  EXPECT_EQ(digest_algorithm::UNINITIALIZED, img.editor().digest_algo());
+  EXPECT_FALSE(img.editor().attr_digest().has_value());
+  EXPECT_FALSE(img.editor().tree_digest().has_value());
+
+  img.update();
+  std::istringstream verified{img.current(), kBinIn};
+  superblock_editor reread;
+  ASSERT_NO_THROW(reread.read(verified));
+  EXPECT_FALSE(reread.fs_size().has_value());
+  EXPECT_FALSE(reread.fs_uuid().has_value());
+  EXPECT_TRUE(reread.fs_label().empty());
+}
+
+TEST(superblock_editor_test, digests_accessor) {
+  auto const attr = make_digest(7);
+  auto const tree = make_digest(17);
+  test_image img{superblock_builder{}
+                     .digests(kAlgo, kScheme)
+                     .attr_digest(attr)
+                     .tree_digest(tree)
+                     .build()};
+
+  auto const digests = img.editor().digests();
+  EXPECT_EQ(kAlgo, digests.algorithm);
+  EXPECT_EQ(kScheme, digests.scheme_version);
+  EXPECT_TRUE(digest_eq(digests.attr_digest, attr));
+  EXPECT_TRUE(digest_eq(digests.tree_digest, tree));
+}
