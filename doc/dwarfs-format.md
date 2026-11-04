@@ -477,8 +477,7 @@ made two changes to address this:
 The known features are defined in
 [`features.thrift`](../thrift/features.thrift). Features are serialized
 in the metadata by their stringified enumerator names, so enumerator
-names must never be renamed or reused. The only feature currently
-defined is `sparsefiles` (see the Sparse Files section).
+names must never be renamed or reused.
 
 There's one small version gap that needs to be mentioned for completeness.
 Since v0.7.3 did *not* increment the minor version, releases v0.7.0 to
