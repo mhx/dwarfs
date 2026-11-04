@@ -63,6 +63,7 @@ with a non-zero exit code.
   use any digests stored in the superblock and hence works even on file system
   images that do not have a superblock. With `--json`, output a JSON object
   containing the selected `attr` and/or `tree` hex digest strings.
+  See [dwarfs-format(5)](dwarfs-format.md) for details on the digests.
 
 - `--verify-digests`[=`all`|`attr`|`tree`]:
   Recompute filesystem digests and compare them with the values stored in the
@@ -72,6 +73,7 @@ with a non-zero exit code.
   algorithm or scheme is unsupported, or any digest differs. This check is
   not included in `--check-integrity`. With `--json`, output a JSON object
   keyed by digest name, each containing `ok`, `stored` and `computed` fields.
+  See [dwarfs-format(5)](dwarfs-format.md) for details on the digests.
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
