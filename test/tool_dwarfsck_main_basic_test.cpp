@@ -1834,6 +1834,26 @@ TEST(dwarfsck_test, verify_superblock_digests) {
   }
 }
 
+TEST(dwarfsck_test, missing_superblock_has_distinct_exit_code) {
+  auto const legacy = build_test_image();
+  for (auto const& args : std::vector<std::vector<std::string>>{
+           {"--init-superblock=size"},
+           {"--no-check", "--init-superblock=size"},
+           {"--set-label=test"},
+           {"--clear-label"},
+           {"--set-uuid=random"},
+           {"--verify-digests"},
+           {"--verify-digests=attr"},
+           {"--json", "--verify-digests"},
+           {"--repair-superblock"},
+       }) {
+    auto t = dwarfsck_tester::create_with_image(legacy);
+    std::vector<std::string> command{"image.dwarfs"};
+    command.insert(command.end(), args.begin(), args.end());
+    EXPECT_EQ(2, t.run(command)) << t.err();
+  }
+}
+
 TEST(dwarfsck_test, verify_detects_stale_digest_with_valid_section_checksums) {
   auto [fs, builder] = build_with_args({"-l1", "--no-backwards-compat"}, true);
   ASSERT_TRUE(fs.has_value()) << builder.err();
