@@ -1233,7 +1233,8 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   if (options_.no_create_timestamp) {
     md_.create_timestamp().reset();
   } else {
-    md_.create_timestamp() = std::time(nullptr);
+    md_.create_timestamp() =
+        options_.create_timestamp.value_or(std::time(nullptr));
   }
 
   if (!md_.preferred_path_separator().has_value()) {

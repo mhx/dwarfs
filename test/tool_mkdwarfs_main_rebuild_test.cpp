@@ -21,8 +21,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <ctime>
 #include <sstream>
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
@@ -41,6 +43,7 @@
 #include <dwarfs/file_util.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/superblock_editor.h>
+#include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
 #include "test_tool_main_checks.h"
@@ -1126,6 +1129,123 @@ TEST(mkdwarfs_test, reproducible_rewriting) {
     for (auto const& entry : info["history"]) {
       EXPECT_FALSE(entry.contains("timestamp"));
     }
+  }
+}
+
+TEST(mkdwarfs_test, source_date_epoch_sets_generated_timestamps) {
+  constexpr std::time_t epoch = 1'700'000'000;
+  auto const created_on = fmt::format("{:%FT%T}", safe_localtime(epoch));
+
+  for (auto const& extra :
+       {std::vector<std::string>{},
+        std::vector<std::string>{"--no-backwards-compat"}}) {
+    mkdwarfs_tester t;
+    t.os->setenv("SOURCE_DATE_EPOCH", std::to_string(epoch));
+    std::vector<std::string> args{"-i", "/", "-o", "-", "-l1"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto const info = fsinfo_json(t.fs_from_stdout(), 2);
+    EXPECT_EQ(info.at("created_on"), created_on);
+    ASSERT_EQ(info.at("history").size(), 1);
+    EXPECT_EQ(info["history"][0]["timestamp"]["epoch"], epoch);
+  }
+}
+
+TEST(mkdwarfs_test, source_date_epoch_respects_timestamp_omission) {
+  constexpr std::time_t epoch = 1'700'000'000;
+
+  struct test_case {
+    std::vector<std::string> extra;
+    bool create_timestamp;
+    bool history_timestamp;
+  };
+
+  for (auto const& tc : std::vector<test_case>{
+           {{"--no-create-timestamp"}, false, true},
+           {{"--no-history-timestamps"}, true, false},
+           {{"--reproducible"}, false, false},
+       }) {
+    mkdwarfs_tester t;
+    t.os->setenv("SOURCE_DATE_EPOCH", std::to_string(epoch));
+    std::vector<std::string> args{"-i", "/", "-o", "-", "-l1"};
+    args.insert(args.end(), tc.extra.begin(), tc.extra.end());
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto const info = fsinfo_json(t.fs_from_stdout(), 2);
+    EXPECT_EQ(info.contains("created_on"), tc.create_timestamp);
+    ASSERT_EQ(info.at("history").size(), 1);
+    EXPECT_EQ(info["history"][0].contains("timestamp"), tc.history_timestamp);
+    if (tc.history_timestamp) {
+      EXPECT_EQ(info["history"][0]["timestamp"]["epoch"], epoch);
+    }
+  }
+}
+
+TEST(mkdwarfs_test, source_date_epoch_rejects_invalid_values) {
+  for (auto const& epoch :
+       {"", "-1", "+42", "1.5", "42foo", " 42", "9223372036854775808"}) {
+    mkdwarfs_tester t;
+    t.os->setenv("SOURCE_DATE_EPOCH", epoch);
+    EXPECT_EQ(1, t.run({"-i", "/", "-o", "-", "-l1"})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid SOURCE_DATE_EPOCH"));
+  }
+
+  // zero is a valid epoch
+  mkdwarfs_tester t;
+  t.os->setenv("SOURCE_DATE_EPOCH", "0");
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1"})) << t.err();
+  auto const info = fsinfo_json(t.fs_from_stdout(), 2);
+  EXPECT_EQ(info.at("history")[0]["timestamp"]["epoch"], 0);
+  EXPECT_EQ(info.at("created_on"),
+            fmt::format("{:%FT%T}", safe_localtime(std::time_t{0})));
+}
+
+TEST(mkdwarfs_test, source_date_epoch_is_ignored_when_rewriting) {
+  constexpr std::time_t source_epoch = 1'600'000'000;
+  constexpr std::time_t rewrite_epoch = 1'700'000'000;
+
+  mkdwarfs_tester source;
+  source.os->setenv("SOURCE_DATE_EPOCH", std::to_string(source_epoch));
+  source.fa->sync_files_to(*source.os);
+  ASSERT_EQ(0, source.run({"-i", "/", "-o", "source.dwarfs", "-l1"}))
+      << source.err();
+  auto const image = source.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(image);
+
+  for (auto const& [option, env] :
+       std::vector<std::pair<std::string, std::string>>{
+           {"--recompress=none", std::to_string(rewrite_epoch)},
+           {"--recompress=all", "not-a-timestamp"},
+           {"--rebuild-metadata", std::to_string(rewrite_epoch)},
+       }) {
+    SCOPED_TRACE(option);
+    auto t = mkdwarfs_tester::create_with_image(*image, "input.dwarfs");
+    t.os->setenv("SOURCE_DATE_EPOCH", env);
+    auto const before = std::time(nullptr);
+    ASSERT_EQ(0, t.run({"-i", "input.dwarfs", "-o", "-", "-l1", option}))
+        << t.err();
+    auto const after = std::time(nullptr);
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("SOURCE_DATE_EPOCH is ignored"));
+
+    auto const info = fsinfo_json(t.fs_from_stdout(), 2);
+    auto const expected_creation =
+        option == "--rebuild-metadata" ? before : source_epoch;
+    if (option == "--rebuild-metadata") {
+      EXPECT_GE(info.at("created_on").get<std::string>(),
+                fmt::format("{:%FT%T}", safe_localtime(before)));
+      EXPECT_LE(info.at("created_on").get<std::string>(),
+                fmt::format("{:%FT%T}", safe_localtime(after)));
+    } else {
+      EXPECT_EQ(info.at("created_on"),
+                fmt::format("{:%FT%T}", safe_localtime(expected_creation)));
+    }
+    ASSERT_EQ(info.at("history").size(), 2);
+    EXPECT_EQ(info["history"][0]["timestamp"]["epoch"], source_epoch);
+    auto const new_timestamp =
+        info["history"][1]["timestamp"]["epoch"].get<std::time_t>();
+    EXPECT_GE(new_timestamp, before);
+    EXPECT_LE(new_timestamp, after);
   }
 }
 
