@@ -25,6 +25,7 @@
 #include <regex>
 #include <sstream>
 
+#include <dwarfs/checksum.h>
 #include <dwarfs/superblock_editor.h>
 
 #include <gmock/gmock.h>
@@ -1912,5 +1913,87 @@ TEST(dwarfsck_test, no_check_allows_initialization_but_not_repair) {
         t.err(),
         ::testing::HasSubstr(
             "--no-check and --repair-superblock are mutually exclusive"));
+  }
+}
+
+TEST(dwarfsck_test, integrity_checks_declared_superblock_size) {
+  auto const image = build_test_image({"--no-backwards-compat"});
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+  }
+
+  std::stringstream modified(image,
+                             std::ios::in | std::ios::out | std::ios::binary);
+  superblock_editor editor;
+  editor.read(modified);
+  ASSERT_FALSE(editor.fs_size());
+  editor.init_fs_size(image.size() + 512);
+  editor.update(modified);
+
+  {
+    auto t = dwarfsck_tester::create_with_image(modified.str());
+    EXPECT_EQ(0, t.run({"image.dwarfs"})) << t.err();
+  }
+
+  {
+    auto t = dwarfsck_tester::create_with_image(modified.str());
+    EXPECT_EQ(1, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr("superblock filesystem size mismatch"));
+  }
+
+  {
+    auto t = dwarfsck_tester::create_with_image(modified.str());
+    EXPECT_EQ(
+        1, t.run({"image.dwarfs", "--check-integrity", "--repair-superblock"}))
+        << t.err();
+  }
+}
+
+TEST(dwarfsck_test, integrity_accepts_aligned_superblock_image) {
+  auto const image =
+      build_test_image({"--no-backwards-compat", "--image-size-alignment=512"});
+  ASSERT_EQ(image.size() % 512, 0);
+  auto t = dwarfsck_tester::create_with_image(image);
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+}
+
+TEST(dwarfsck_test, integrity_checks_declared_superblock_alignment) {
+  auto image = build_test_image({"--no-backwards-compat"});
+  ASSERT_LT(image.size(), std::size_t{1} << 30);
+
+  image[sizeof(section_header_v2) +
+        offsetof(superblock_v1, fs_size_align_log2)] = 30;
+
+  auto const section_size = superblock_editor::min_section_size();
+  auto const xxh_start = offsetof(section_header_v2, number);
+  auto const xxh_offset = offsetof(section_header_v2, xxh3_64);
+  auto const sha_offset = offsetof(section_header_v2, sha2_512_256);
+
+  {
+    checksum cs(checksum::xxh3_64);
+    cs.update(image.data() + xxh_start, section_size - xxh_start);
+    ASSERT_TRUE(cs.finalize(image.data() + xxh_offset));
+  }
+
+  {
+    checksum cs(checksum::sha2_512_256);
+    cs.update(image.data() + xxh_offset, section_size - xxh_offset);
+    ASSERT_TRUE(cs.finalize(image.data() + sha_offset));
+  }
+
+  {
+    std::istringstream input(image);
+    superblock_editor editor;
+    ASSERT_NO_THROW(editor.read(input));
+    EXPECT_EQ(editor.fs_size_alignment(), std::uint64_t{1} << 30);
+  }
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(1, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                             "not a multiple of the expected alignment"));
   }
 }
