@@ -53,6 +53,7 @@
 #include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/varint.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -652,6 +653,41 @@ TEST(lzma_compressor, rejects_invalid_options) {
   EXPECT_THAT([] { (void)block_compressor{"lzma:level=999"}; },
               testing::ThrowsMessage<dwarfs::runtime_error>(
                   testing::HasSubstr("unsupported preset")));
+}
+#endif
+
+#ifdef DWARFS_HAVE_LIBBROTLI
+TEST(brotli_compressor, options_and_incremental_decompression) {
+  block_compressor comp("brotli:quality=2:lgwin=20");
+  EXPECT_THAT(comp.describe(), testing::HasSubstr("quality=2"));
+  EXPECT_THAT(comp.describe(), testing::HasSubstr("lgwin=20"));
+  EXPECT_GT(comp.estimate_memory_usage(65536), 65536);
+
+  auto const input = malloc_byte_buffer::create_zeroed(65536).share();
+  auto const compressed = comp.compress(input);
+  block_decompressor dec(compression_type::BROTLI, compressed.span());
+  EXPECT_EQ(compression_type::BROTLI, dec.type());
+
+  auto target = malloc_byte_buffer::create_reserve(dec.uncompressed_size());
+  dec.start_decompression(target);
+  EXPECT_THAT([&] { dec.decompress_frame(0); },
+              testing::ThrowsMessage<runtime_error>(
+                  testing::HasSubstr("frame size must be greater than zero")));
+  EXPECT_TRUE(dec.decompress_frame(dec.uncompressed_size()));
+}
+
+TEST(brotli_compressor, malformed_stream_is_rejected) {
+  std::vector<uint8_t> data(varint::max_size + 4);
+  auto const prefix_size = varint::encode(128, data.data());
+  data.resize(prefix_size + 4);
+  std::fill(data.begin() + prefix_size, data.end(), 0xff);
+
+  block_decompressor dec(compression_type::BROTLI, data);
+  auto target = malloc_byte_buffer::create_reserve(dec.uncompressed_size());
+  dec.start_decompression(target);
+  EXPECT_THAT([&] { dec.decompress_frame(128); },
+              testing::ThrowsMessage<runtime_error>(
+                  testing::HasSubstr("brotli error:")));
 }
 #endif
 
