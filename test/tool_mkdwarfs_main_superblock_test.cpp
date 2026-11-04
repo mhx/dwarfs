@@ -555,7 +555,7 @@ TEST_P(write_superblock_test, write_superblock) {
     if (check.read_only || build.has_superblock) {
       ASSERT_EQ(0, exit_code) << ct.err();
     } else {
-      ASSERT_EQ(1, exit_code) << ct.err();
+      ASSERT_EQ(2, exit_code) << ct.err();
       if (!build.has_superblock) {
         EXPECT_THAT(ct.err(), testing::HasSubstr("no valid superblock found"));
       }
@@ -868,7 +868,7 @@ TEST_P(write_superblock_test, write_superblock) {
       if (check.read_only || rebuild.has_superblock) {
         ASSERT_EQ(0, exit_code) << ct.err();
       } else {
-        ASSERT_EQ(1, exit_code) << ct.err();
+        ASSERT_EQ(2, exit_code) << ct.err();
         if (!rebuild.has_superblock) {
           EXPECT_THAT(ct.err(),
                       testing::HasSubstr("no valid superblock found"));

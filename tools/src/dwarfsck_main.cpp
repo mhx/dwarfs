@@ -79,6 +79,8 @@ namespace {
 
 enum class digest_selection { attr, tree, both, all };
 
+enum class check_outcome { passed, failed, missing_superblock };
+
 bool includes_attr(digest_selection selection) {
   return selection != digest_selection::tree;
 }
@@ -141,7 +143,7 @@ class dwarfsck_impl {
   int do_print_header(file_view const& mm);
 
   int do_export_metadata();
-  int do_check_and_repair(std::filesystem::path const& image_path);
+  check_outcome do_check_and_repair(std::filesystem::path const& image_path);
   bool check_superblock_geometry(std::filesystem::path const& image_path);
   void do_dump_info();
   void do_list_files();
@@ -502,7 +504,7 @@ int dwarfsck_impl::run() {
       return do_export_metadata();
     }
 
-    auto const errors = do_check_and_repair(input_path);
+    auto const check = do_check_and_repair(input_path);
 
     if (!opts_.quiet && !opts_.list_files && !opts_.checksum_algo &&
         !opts_.compute_digests && !opts_.verify_digests &&
@@ -530,8 +532,14 @@ int dwarfsck_impl::run() {
     }
 #endif
 
-    if (errors > 0 || digest_errors > 0) {
+    if (check == check_outcome::missing_superblock) {
+      return 2;
+    }
+    if (check == check_outcome::failed) {
       return 1;
+    }
+    if (digest_errors > 0) {
+      return digest_errors;
     }
 
     if (opts_.init_superblock) {
@@ -539,7 +547,7 @@ int dwarfsck_impl::run() {
         do_edit_superblock(input_path);
       } else {
         LOG_ERROR << "no valid superblock found";
-        return 1;
+        return 2;
       }
     }
   } catch (std::exception const& e) {
@@ -601,11 +609,15 @@ int dwarfsck_impl::do_export_metadata() {
   return 0;
 }
 
-int dwarfsck_impl::do_check_and_repair(
-    std::filesystem::path const& image_path) {
+check_outcome
+dwarfsck_impl::do_check_and_repair(std::filesystem::path const& image_path) {
   if (opts_.no_check && !opts_.repair_superblock) {
-    return 0;
+    return check_outcome::passed;
   }
+
+  auto passed_if_zero = [](auto const value) {
+    return value == 0 ? check_outcome::passed : check_outcome::failed;
+  };
 
   auto const level = opts_.check_integrity || opts_.repair_superblock
                          ? reader::filesystem_check_level::FULL
@@ -617,7 +629,7 @@ int dwarfsck_impl::do_check_and_repair(
       fs().walk([](auto const&) {});
     } catch (std::exception const& e) {
       LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
-      return 1;
+      return check_outcome::failed;
     }
 
     if (fs().has_superblock() && !check_superblock_geometry(image_path)) {
@@ -642,25 +654,30 @@ int dwarfsck_impl::do_check_and_repair(
         });
 
     if (!has_superblock) {
-      LOG_WARN << "no superblock found, cannot repair";
-      return 1;
+      if (sb.type != section_type::SUPERBLOCK) {
+        LOG_WARN << "no superblock found, cannot repair";
+        return check_outcome::missing_superblock;
+      }
+
+      LOG_ERROR << "invalid superblock section, cannot repair";
+      return check_outcome::failed;
     }
 
     if (!is_bad_superblock) {
       LOG_INFO << "superblock is not corrupt, repair not needed";
-      return res.error_count;
+      return passed_if_zero(res.error_count);
     }
 
     if (!is_repairable) {
       LOG_ERROR << "superblock is corrupt, but other sections are also "
                    "corrupt, cannot repair";
-      return 1;
+      return check_outcome::failed;
     }
 
-    return do_repair_superblock(image_path);
+    return passed_if_zero(do_repair_superblock(image_path));
   }
 
-  return res.error_count;
+  return passed_if_zero(res.error_count);
 }
 
 bool dwarfsck_impl::check_superblock_geometry(
@@ -834,7 +851,12 @@ int dwarfsck_impl::do_verify_digests() {
   auto const check_attr = includes_attr(selection) && stored.attr_digest;
   auto const check_tree = includes_tree(selection) && stored.tree_digest;
 
-  if (!fs().has_superblock() || (!check_attr && !check_tree) ||
+  if (!fs().has_superblock()) {
+    LOG_ERROR << "no valid superblock found";
+    return 2;
+  }
+
+  if ((!check_attr && !check_tree) ||
       (selection == digest_selection::attr && !check_attr) ||
       (selection == digest_selection::tree && !check_tree)) {
     LOG_ERROR
