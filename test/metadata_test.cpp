@@ -146,7 +146,7 @@ class metadata_test : public ::testing::Test {
     writer::filesystem_writer fsw(oss, lgr, pool, prog, {});
     fsw.add_default_compressor(bc);
 
-    s.scan(fsw, std::filesystem::path("/"), prog);
+    s.scan(fsw, {.sources = {{.path = "/"}}}, prog);
 
     mm = test::make_mock_file_view(oss.str());
   }

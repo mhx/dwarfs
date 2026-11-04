@@ -29,6 +29,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace dwarfs {
 
@@ -47,6 +48,19 @@ class filesystem_writer;
 class writer_progress;
 class segmenter_factory;
 
+// A physical input root. When input_list is set, only the listed entries
+// are included, otherwise the directory is traversed recursively.
+struct scan_source {
+  std::filesystem::path path;
+  std::optional<std::span<std::filesystem::path const>> input_list{};
+};
+
+struct scan_request {
+  std::vector<scan_source> sources;
+  std::shared_ptr<file_access const> fa{};
+  std::function<void(library_dependencies&)> extra_deps{};
+};
+
 class scanner {
  public:
   scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
@@ -56,13 +70,9 @@ class scanner {
     impl_->add_filter(std::move(filter));
   }
 
-  void scan(
-      filesystem_writer& fsw, std::filesystem::path const& path,
-      writer_progress& prog,
-      std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
-      std::shared_ptr<file_access const> fa = nullptr,
-      std::function<void(library_dependencies&)> const& extra_deps = {}) {
-    impl_->scan(fsw, path, prog, list, std::move(fa), extra_deps);
+  void scan(filesystem_writer& fsw, scan_request const& request,
+            writer_progress& prog) {
+    impl_->scan(fsw, request, prog);
   }
 
   class impl {
@@ -71,12 +81,8 @@ class scanner {
 
     virtual void add_filter(std::unique_ptr<entry_filter>&& filter) = 0;
 
-    virtual void
-    scan(filesystem_writer& fsw, std::filesystem::path const& path,
-         writer_progress& prog,
-         std::optional<std::span<std::filesystem::path const>> list,
-         std::shared_ptr<file_access const> fa,
-         std::function<void(library_dependencies&)> const& extra_deps) = 0;
+    virtual void scan(filesystem_writer& fsw, scan_request const& request,
+                      writer_progress& prog) = 0;
   };
 
  private:
