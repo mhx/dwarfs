@@ -1962,7 +1962,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         s.add_filter(std::move(rule_filter));
       }
 
-      s.scan(*fsw, path, prog, input_list, iol.file, extra_deps);
+      s.scan(*fsw,
+             {.sources = {{.path = path, .input_list = input_list}},
+              .fa = iol.file,
+              .extra_deps = extra_deps},
+             prog);
 
       options.inode.categorizer_mgr.reset();
     }
