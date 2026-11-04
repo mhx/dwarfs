@@ -428,6 +428,11 @@ bool dwarfsck_impl::validate_options() const {
     return false;
   }
 
+  if (opts_.no_check && opts_.repair_superblock) {
+    LOG_WARN << "--no-check and --repair-superblock are mutually exclusive";
+    return false;
+  }
+
   if (opts_.checksum_algo && !checksum::is_available(*opts_.checksum_algo)) {
     LOG_WARN << "checksum algorithm not available: " << *opts_.checksum_algo;
     return false;

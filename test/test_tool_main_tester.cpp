@@ -315,7 +315,9 @@ dwarfsck_tester::dwarfsck_tester()
 dwarfsck_tester
 dwarfsck_tester::create_with_image(std::string image,
                                    std::string const& image_file) {
-  return make_tester_with_image<dwarfsck_tester>(std::move(image), image_file);
+  auto t = make_tester_with_image<dwarfsck_tester>(image, image_file);
+  t.fa->set_file(image_file, std::move(image));
+  return t;
 }
 
 dwarfsck_tester dwarfsck_tester::create_with_image() {
