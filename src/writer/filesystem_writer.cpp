@@ -647,6 +647,11 @@ void fsblock::build_section_header(filesystem_writer_options const& opts,
   sh.length = range.size();
 
   if (sec) {
+    if (auto const orig_minor = sec->minor_version()) {
+      // Don't allow the minor version to be downgraded.
+      sh.minor = std::max(sh.minor, orig_minor.value());
+    }
+
     // This isn't just an optimization, it is actually a bit of a safety
     // feature. If we have an existing section header that we've previously
     // validated and we use its checksums, we can be sure that any mistake

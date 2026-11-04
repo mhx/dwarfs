@@ -56,7 +56,9 @@ make_image_os(std::string image, std::string const& image_file) {
 template <typename Tester>
 Tester
 make_tester_with_image(std::string image, std::string const& image_file) {
-  return Tester{make_image_os(std::move(image), image_file)};
+  auto t = Tester{make_image_os(image, image_file)};
+  t.fa->set_file(image_file, std::move(image));
+  return t;
 }
 
 } // namespace
@@ -315,9 +317,7 @@ dwarfsck_tester::dwarfsck_tester()
 dwarfsck_tester
 dwarfsck_tester::create_with_image(std::string image,
                                    std::string const& image_file) {
-  auto t = make_tester_with_image<dwarfsck_tester>(image, image_file);
-  t.fa->set_file(image_file, std::move(image));
-  return t;
+  return make_tester_with_image<dwarfsck_tester>(std::move(image), image_file);
 }
 
 dwarfsck_tester dwarfsck_tester::create_with_image() {

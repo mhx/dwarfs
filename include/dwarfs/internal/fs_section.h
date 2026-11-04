@@ -57,6 +57,9 @@ class fs_section {
   section_type type() const { return impl_->type(); }
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
+  std::optional<uint8_t> minor_version() const {
+    return impl_->minor_version();
+  }
 
   bool check_fast_mm(file_view const& mm) const {
     return impl_->check_fast_mm(mm);
@@ -112,6 +115,7 @@ class fs_section {
     virtual section_type type() const = 0;
     virtual std::string name() const = 0;
     virtual std::string description() const = 0;
+    virtual std::optional<uint8_t> minor_version() const = 0;
     virtual bool check_fast_mm(file_view const& mm) const = 0;
     virtual bool check_fast(file_segment const& seg) const = 0;
     virtual file_segment segment(file_view const& mm) const = 0;
