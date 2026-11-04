@@ -1118,6 +1118,58 @@ TEST(mkdwarfs_test, output_file_force) {
   EXPECT_TRUE(fs.find("/foo.pl"));
 }
 
+TEST(mkdwarfs_test, output_not_opened_for_invalid_compression) {
+  mkdwarfs_tester t;
+  t.fa->set_file("exists.dwarfs", "original image");
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "exists.dwarfs", "--force", "-C",
+                      "not-a-compressor"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to parse value"));
+  EXPECT_EQ(0, t.fa->output_binary_open_count());
+  auto const existing = t.fa->get_file("exists.dwarfs");
+  ASSERT_TRUE(existing);
+  EXPECT_EQ("original image", *existing);
+}
+
+#ifdef DWARFS_HAVE_RICEPP
+TEST(mkdwarfs_test, output_not_opened_for_compression_metadata_requirements) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs", "-C", "ricepp"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("metadata requirements not met"));
+  EXPECT_EQ(0, t.fa->output_binary_open_count());
+}
+
+TEST(mkdwarfs_test, output_not_opened_for_category_metadata_requirements) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs", "--categorize", "-C",
+                      "incompressible::ricepp"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("metadata requirements not met"));
+  EXPECT_EQ(0, t.fa->output_binary_open_count());
+}
+#endif
+
+TEST(mkdwarfs_test, output_not_opened_for_invalid_superblock_options) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs", "--no-backwards-compat",
+                      "--label=test", "--clear-label"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("mutually exclusive"));
+  EXPECT_EQ(0, t.fa->output_binary_open_count());
+  EXPECT_FALSE(t.fa->get_file("test.dwarfs"));
+}
+
+TEST(mkdwarfs_test, output_not_opened_for_invalid_rewrite_input) {
+  mkdwarfs_tester t;
+
+  EXPECT_NE(
+      0, t.run({"-i", "missing.dwarfs", "-o", "test.dwarfs", "--recompress"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("could not open input filesystem"));
+  EXPECT_EQ(0, t.fa->output_binary_open_count());
+  EXPECT_FALSE(t.fa->get_file("test.dwarfs"));
+}
+
 TEST(mkdwarfs_test, output_file_fail_open) {
   mkdwarfs_tester t;
   t.fa->set_file("exists.dwarfs", "bla");

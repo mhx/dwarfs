@@ -391,6 +391,7 @@ test_file_access::open_output(std::filesystem::path const& path) const {
 std::unique_ptr<output_stream>
 test_file_access::open_output_binary(std::filesystem::path const& path,
                                      std::error_code& ec) const {
+  ++output_binary_open_count_;
   ec.clear();
   auto rv = std::make_unique<test_output_stream>(path, ec, this);
   if (ec) {

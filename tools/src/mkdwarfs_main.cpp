@@ -1421,44 +1421,32 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                std::ostringstream>
       os;
 
-  if (!options.debug_filter_function && !estimate_compression_memory) {
-    if (output != "-") {
-      if (iol.file->exists(output)) {
-        std::error_code ec;
+  // Reject an existing output early
+  if (!options.debug_filter_function && !estimate_compression_memory &&
+      output != "-" && iol.file->exists(output)) {
+    std::error_code ec;
 
-        if (recompress && iol.file->equivalent(output, path, ec)) {
-          LOG_ERROR << "refusing to overwrite input file system";
-          return 1;
-        }
-
-        if (ec) {
-          LOG_DEBUG << "file equivalence check failed: " << ec.message();
-        }
-
-        if (!force_overwrite) {
-          LOG_ERROR << "output file already exists, use --force to overwrite";
-          return 1;
-        }
-      }
-
-      std::error_code ec;
-      auto stream = iol.file->open_output_binary(output, ec);
-
-      if (ec) {
-        LOG_ERROR << "cannot open output file '" << output
-                  << "': " << ec.message();
-        return 1;
-      }
-
-      assert(stream);
-
-      os.emplace<std::unique_ptr<output_stream>>(std::move(stream));
-    } else {
-      no_superblock_init = true;
-      ensure_binary_mode(iol.out);
+    if (recompress && iol.file->equivalent(output, path, ec)) {
+      LOG_ERROR << "refusing to overwrite input file system";
+      return 1;
     }
-  } else {
+
+    if (ec) {
+      LOG_DEBUG << "file equivalence check failed: " << ec.message();
+    }
+
+    if (!force_overwrite) {
+      LOG_ERROR << "output file already exists, use --force to overwrite";
+      return 1;
+    }
+  }
+
+  if (options.debug_filter_function || estimate_compression_memory) {
     os.emplace<std::ostringstream>();
+  } else if (output == "-") {
+    // stdout cannot be reopened for superblock initialization
+    no_superblock_init = true;
+    ensure_binary_mode(iol.out);
   }
 
   options.enable_history = !no_history;
@@ -1765,15 +1753,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   block_compressor metadata_bc(metadata_compression);
   block_compressor history_bc(history_compression);
 
-  thread_pool compress_pool(lgr, *iol.os, "compress", num_workers,
-                            std::numeric_limits<size_t>::max(),
-                            compress_niceness);
-
-  writer::writer_progress prog(std::move(updater), interval);
-
-  // No more streaming to iol.err after this point as this would
-  // cause a race with the progress thread.
-
   writer::filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
   fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
@@ -1843,10 +1822,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  std::optional<writer::filesystem_writer> fsw;
+  writer::categorized_option<block_compressor> compression_opt;
 
+  // Validate compression settings before creating the output file.
   try {
-    writer::categorized_option<block_compressor> compression_opt;
     writer::contextual_option_parser cop("--compression", compression_opt, cp,
                                          compressor_parser);
     compression_opt.set_default(
@@ -1864,6 +1843,61 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       return 0;
     }
 
+    auto bc = compression_opt.get();
+    if (!bc.metadata_requirements().empty()) {
+      throw std::runtime_error(
+          fmt::format("compression '{}' cannot be used without a category: "
+                      "metadata requirements not met",
+                      bc.describe()));
+    }
+
+    if (!recompress) {
+      compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr](
+                                           auto cat,
+                                           block_compressor const& bc) {
+        try {
+          catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
+        } catch (std::exception const& e) {
+          throw std::runtime_error(
+              fmt::format("compression '{}' cannot be used for category '{}': "
+                          "metadata requirements not met ({})",
+                          bc.describe(), catmgr->category_name(cat), e.what()));
+        }
+      });
+    }
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
+  // Defer starting worker and progress threads until after option validation.
+  thread_pool compress_pool(lgr, *iol.os, "compress", num_workers,
+                            std::numeric_limits<size_t>::max(),
+                            compress_niceness);
+
+  writer::writer_progress prog(std::move(updater), interval);
+
+  // No more streaming to iol.err after this point as this would
+  // cause a race with the progress thread.
+
+  // Pre-write configuration and input filesystem checks are complete.
+  if (!options.debug_filter_function && output != "-") {
+    std::error_code ec;
+    auto stream = iol.file->open_output_binary(output, ec);
+
+    if (ec) {
+      LOG_ERROR << "cannot open output file '" << output
+                << "': " << ec.message();
+      return 1;
+    }
+
+    assert(stream);
+    os.emplace<std::unique_ptr<output_stream>>(std::move(stream));
+  }
+
+  std::optional<writer::filesystem_writer> fsw;
+
+  try {
     std::ostream& fsw_os =
         os |
         match{[&](std::monostate) -> std::ostream& { return iol.out; },
@@ -1878,19 +1912,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     fsw->add_section_compressor(section_type::METADATA_V2_SCHEMA, schema_bc);
     fsw->add_section_compressor(section_type::METADATA_V2, metadata_bc);
     fsw->add_section_compressor(section_type::HISTORY, history_bc);
-
-    {
-      auto bc = compression_opt.get();
-
-      if (!bc.metadata_requirements().empty()) {
-        throw std::runtime_error(
-            fmt::format("compression '{}' cannot be used without a category: "
-                        "metadata requirements not met",
-                        bc.describe()));
-      }
-
-      fsw->add_default_compressor(std::move(bc));
-    }
+    fsw->add_default_compressor(compression_opt.get());
 
     if (recompress) {
       compression_opt.visit_contextual(
@@ -1902,7 +1924,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                         &fsw](auto cat,
                                               block_compressor const& bc) {
         try {
-          catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
           fsw->add_category_compressor(cat, bc);
         } catch (std::exception const& e) {
           throw std::runtime_error(

@@ -568,7 +568,9 @@ os_access_mock::open_file_opts(fs::path const& path,
                                {.extents = options.extents});
   }
 
-  DWARFS_PANIC(fmt::format("oops in open_file: {}", path.string()));
+  throw std::system_error(
+      std::make_error_code(std::errc::no_such_file_or_directory),
+      fmt::format("failed to open file: {}", path.string()));
 }
 
 readonly_memory_mapping os_access_mock::map_empty_readonly(size_t size) const {

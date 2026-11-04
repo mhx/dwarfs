@@ -352,6 +352,8 @@ class test_file_access : public file_access {
   void set_file(std::filesystem::path const& path, std::string contents) const;
   std::optional<std::string> get_file(std::filesystem::path const& path) const;
 
+  size_t output_binary_open_count() const { return output_binary_open_count_; }
+
   void
   set_open_error(std::filesystem::path const& path, std::error_code ec) const;
   void
@@ -370,6 +372,7 @@ class test_file_access : public file_access {
   std::map<std::filesystem::path, std::string> mutable files_;
   std::map<std::filesystem::path, std::error_code> mutable open_errors_;
   std::map<std::filesystem::path, std::error_code> mutable close_errors_;
+  mutable size_t output_binary_open_count_{0};
   os_access_mock* sync_os_{nullptr};
 };
 
