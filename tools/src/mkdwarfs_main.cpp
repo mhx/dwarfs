@@ -478,7 +478,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        rebuild_metadata = false, change_block_size = false, no_check = false,
        estimate_compression_memory = false, no_dedupe = false,
        no_superblock = false, no_superblock_init = false, clear_label = false,
-       no_backwards_compat = false;
+       no_backwards_compat = false, reproducible = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -683,6 +683,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-history",
         po::value<bool>(&no_history)->zero_tokens(),
         "don't add history to file system")
+    ("reproducible",
+        po::value<bool>(&reproducible)->zero_tokens(),
+        "omit non-deterministic timestamps and use a nil superblock UUID")
     ("no-history-timestamps",
         po::value<bool>(&no_history_timestamps)->zero_tokens(),
         "don't add timestamps to file system history")
@@ -957,6 +960,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.err << "error: block size must be between " << min_block_size_bits
             << " and " << max_block_size_bits << "\n";
     return 1;
+  }
+
+  if (reproducible) {
+    if (vm.contains("uuid") && uuid_str != superblock_editor::kUuidNil) {
+      iol.err << "error: --reproducible cannot be combined with --uuid="
+              << uuid_str << "; only --uuid=nil is allowed\n";
+      return 1;
+    }
+    options.metadata.no_create_timestamp = true;
+    no_history_timestamps = true;
   }
 
   if (options.hollow_filesystem && no_sparse_files) {
@@ -1613,7 +1626,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   } else {
     try {
-      if (!vm.contains("uuid")) {
+      if (reproducible) {
+        uuid_str = superblock_editor::kUuidNil;
+      } else if (!vm.contains("uuid")) {
         if (recompress && input_filesystem->has_superblock()) {
           uuid_str = "keep";
         } else {
