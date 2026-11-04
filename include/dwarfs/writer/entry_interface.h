@@ -33,6 +33,8 @@ class entry_interface {
 
   virtual bool is_directory() const = 0;
   virtual std::string unix_dpath() const = 0;
+  // Absolute path within the image, independent of the physical source root.
+  virtual std::string logical_path() const = 0;
 };
 
 } // namespace dwarfs::writer

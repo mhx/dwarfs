@@ -2030,24 +2030,12 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   std::string get_unix_dpath(entry_id id) const override {
     TRACE_CALL;
+    return get_dpath_impl(id, false);
+  }
 
-    bool const is_dir = id.is_dir();
-    std::string p;
-
-    container::small_vector<entry_id, 64> components;
-
-    fill_path_components(id, components);
-
-    p = build_path_from_components<std::string, '/'>(
-        components, [this](std::string& p, entry_id const id) {
-          append_path_string_impl(p, id);
-        });
-
-    if (is_dir && !p.ends_with('/')) {
-      p.append(1, '/');
-    }
-
-    return p;
+  std::string get_logical_path(entry_id id) const override {
+    TRACE_CALL;
+    return get_dpath_impl(id, true);
   }
 
   std::string get_name(entry_id const id) const override {
@@ -2541,6 +2529,26 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   dir_id get_parent_impl(entry_id const id) const {
     return dispatch_(&packed_entry_data::get_parent, id);
+  }
+
+  std::string get_dpath_impl(entry_id const id, bool logical) const {
+    container::small_vector<entry_id, 64> components;
+    fill_path_components(id, components);
+
+    auto p = build_path_from_components<std::string, '/'>(
+        components, [this, logical](std::string& p, entry_id const component) {
+          if (logical && component == kRootId) {
+            p += '/';
+          } else {
+            append_path_string_impl(p, component);
+          }
+        });
+
+    if (id.is_dir() && !p.ends_with('/')) {
+      p += '/';
+    }
+
+    return p;
   }
 
   std::string get_path_string_impl(entry_id const id) const {
@@ -3304,6 +3312,10 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   std::string get_unix_dpath(entry_id const id) const override {
     return impl_.lock()->get_unix_dpath(id);
+  }
+
+  std::string get_logical_path(entry_id const id) const override {
+    return impl_.lock()->get_logical_path(id);
   }
 
   std::string get_name(entry_id const id) const override {

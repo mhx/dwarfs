@@ -21,8 +21,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <algorithm>
-#include <cassert>
 #include <regex>
 #include <unordered_set>
 
@@ -39,25 +37,15 @@ namespace dwarfs::writer {
 
 namespace internal {
 
-namespace fs = std::filesystem;
-
-namespace {
-
-constexpr char const kLocalPathSeparator{
-    static_cast<char>(fs::path::preferred_separator)};
-
-}
-
 struct filter_rule {
   enum class rule_type {
     include,
     exclude,
   };
 
-  filter_rule(rule_type type, bool floating, std::string const& re,
-              std::string_view rule, bool ignore_case = false)
+  filter_rule(rule_type type, std::string const& re, std::string_view rule,
+              bool ignore_case = false)
       : type{type}
-      , floating{floating}
       , re{re, regex_flags(ignore_case)}
       , rule{rule} {}
 
@@ -72,7 +60,6 @@ struct filter_rule {
   }
 
   rule_type type;
-  bool floating;
   std::regex re;
   std::string rule;
 };
@@ -83,7 +70,6 @@ class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
   rule_based_entry_filter_(logger& lgr,
                            std::shared_ptr<file_access const> const& fa);
 
-  void set_root_path(fs::path const& path) override;
   void add_rule(std::string_view rule) override;
   void add_rules(std::istream& is) override;
   filter_action filter(entry_interface const& ei) const override;
@@ -97,7 +83,6 @@ class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
   filter_rule compile_filter_rule(std::string_view rule);
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::string root_path_;
   std::vector<filter_rule> filter_;
   std::shared_ptr<file_access const> fa_;
 };
@@ -169,7 +154,7 @@ auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
   LOG_DEBUG << "'" << rule << "' -> '" << re << "' [floating=" << floating
             << ", ignore_case=" << ignore_case << "]";
 
-  return {type, floating, re, rule, ignore_case};
+  return {type, re, rule, ignore_case};
 }
 
 template <typename LoggerPolicy>
@@ -177,24 +162,6 @@ rule_based_entry_filter_<LoggerPolicy>::rule_based_entry_filter_(
     logger& lgr, std::shared_ptr<file_access const> const& fa)
     : log_{lgr}
     , fa_{fa} {}
-
-template <typename LoggerPolicy>
-void rule_based_entry_filter_<LoggerPolicy>::set_root_path(
-    fs::path const& path) {
-  // TODO: this whole thing needs to be windowsized
-  root_path_ = path_to_utf8_string_sanitized(path);
-
-  if constexpr (kLocalPathSeparator != '/') {
-    // Both '/' and '\\' are, surprisingly, valid path separators on Windows,
-    // and invalid characters in filenames. So on Windows, it's a lossless
-    // transformation to replace all '\\' with '/'.
-    std::ranges::replace(root_path_, kLocalPathSeparator, '/');
-  }
-
-  if (root_path_.ends_with('/')) {
-    root_path_.pop_back();
-  }
-}
 
 template <typename LoggerPolicy>
 void rule_based_entry_filter_<LoggerPolicy>::add_rule(std::string_view rule) {
@@ -254,18 +221,11 @@ void rule_based_entry_filter_<LoggerPolicy>::add_rules(
 template <typename LoggerPolicy>
 filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
     entry_interface const& ei) const {
-  std::string path = ei.unix_dpath();
-  std::string relpath = path;
-
-  if (relpath.size() >= root_path_.size()) {
-    assert(relpath.substr(0, root_path_.size()) == root_path_);
-    relpath.erase(0, root_path_.size());
-  }
+  auto const path = ei.logical_path();
 
   for (auto const& r : filter_) {
-    if (std::regex_match(r.floating ? path : relpath, r.re)) {
-      LOG_TRACE << "[" << path << "] / [" << relpath << "] matched rule '"
-                << r.rule << "'";
+    if (std::regex_match(path, r.re)) {
+      LOG_TRACE << "[" << path << "] matched rule '" << r.rule << "'";
       switch (r.type) {
       case filter_rule::rule_type::include:
         return filter_action::keep;
@@ -276,7 +236,7 @@ filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
     }
   }
 
-  LOG_TRACE << "[" << path << "] / [" << relpath << "] matched no rule";
+  LOG_TRACE << "[" << path << "] matched no rule";
 
   return filter_action::keep;
 }
