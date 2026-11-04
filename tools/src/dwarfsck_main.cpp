@@ -142,6 +142,7 @@ class dwarfsck_impl {
 
   int do_export_metadata();
   int do_check_and_repair(std::filesystem::path const& image_path);
+  bool check_superblock_geometry(std::filesystem::path const& image_path);
   void do_dump_info();
   void do_list_files();
   void do_checksum();
@@ -611,14 +612,16 @@ int dwarfsck_impl::do_check_and_repair(
                          : reader::filesystem_check_level::CHECKSUM;
   auto res = fs().check(level, opts_.num_workers);
 
-  if (res.passed()) {
-    if (opts_.check_integrity) {
-      try {
-        fs().walk([](auto const&) {});
-      } catch (std::exception const& e) {
-        LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
-        return 1;
-      }
+  if (res.passed() && opts_.check_integrity) {
+    try {
+      fs().walk([](auto const&) {});
+    } catch (std::exception const& e) {
+      LOG_ERROR << "error: failed to walk filesystem: " << exception_str(e);
+      return 1;
+    }
+
+    if (fs().has_superblock() && !check_superblock_geometry(image_path)) {
+      ++res.error_count;
     }
   }
 
@@ -645,7 +648,7 @@ int dwarfsck_impl::do_check_and_repair(
 
     if (!is_bad_superblock) {
       LOG_INFO << "superblock is not corrupt, repair not needed";
-      return 0;
+      return res.error_count;
     }
 
     if (!is_repairable) {
@@ -658,6 +661,37 @@ int dwarfsck_impl::do_check_and_repair(
   }
 
   return res.error_count;
+}
+
+bool dwarfsck_impl::check_superblock_geometry(
+    std::filesystem::path const& image_path) {
+  auto in = iol_.file->open(image_path, std::ios::in | std::ios::binary);
+  auto& stream = in->ios();
+  superblock_editor editor;
+
+  stream.seekg(fs().image_offset());
+  editor.read(stream);
+
+  auto const actual_size = fs().image_size();
+  auto const alignment = editor.fs_size_alignment();
+  bool passed = true;
+
+  if (auto const expected = editor.fs_size();
+      expected && std::cmp_not_equal(*expected, actual_size)) {
+    LOG_ERROR << "superblock filesystem size mismatch: expected " << *expected
+              << " bytes, actual " << actual_size << " bytes";
+    passed = false;
+  }
+
+  if (actual_size % alignment != 0) {
+    LOG_ERROR << "filesystem image size " << actual_size
+              << " is not a multiple of the expected alignment " << alignment;
+    passed = false;
+  }
+
+  in->close();
+
+  return passed;
 }
 
 void dwarfsck_impl::do_dump_info() {
