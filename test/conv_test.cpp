@@ -38,12 +38,16 @@ TEST(conversion, to_bool) {
   EXPECT_TRUE(to<bool>("T"sv));
   EXPECT_TRUE(to<bool>("Y"sv));
   EXPECT_TRUE(to<bool>("Yes"sv));
+  EXPECT_TRUE(to<bool>("y"sv));
+  EXPECT_TRUE(to<bool>("yes"sv));
   EXPECT_FALSE(to<bool>("0"sv));
   EXPECT_FALSE(to<bool>("false"sv));
   EXPECT_FALSE(to<bool>("FaLse"sv));
   EXPECT_FALSE(to<bool>("F"sv));
   EXPECT_FALSE(to<bool>("N"sv));
   EXPECT_FALSE(to<bool>("No"sv));
+  EXPECT_FALSE(to<bool>("n"sv));
+  EXPECT_FALSE(to<bool>("no"sv));
   EXPECT_THROW(to<bool>("foo"sv), dwarfs::conversion_error);
   EXPECT_THROW(to<bool>(""sv), dwarfs::conversion_error);
   EXPECT_THROW(to<bool>("2"sv), dwarfs::conversion_error);
