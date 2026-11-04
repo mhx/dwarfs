@@ -481,6 +481,15 @@ Most other options are concerned with compression tuning:
   You may want to set `--no-dedupe` and `--order=none` when using this
   option to speed up the build process.
 
+- `--reproducible`:
+  Enable the settings for producing bit-identical filesystem images. This
+  is equivalent to `--no-create-timestamp` and `--no-history-timestamps`,
+  and also implies `--uuid=nil` when writing a superblock. See also
+  [Producing bit-identical images](#producing-bit-identical-images) for
+  other reproducibility requirements. The command line is still recorded
+  in the image history by default, so changes to arguments can affect the
+  output. Use `--no-history-command-line` or `--no-history` as appropriate.
+
 - `--no-backwards-compat`:
   Don't attempt to write a backwards-compatible file system. This will write
   the latest version of the file system format, which *can* make the output
@@ -600,7 +609,10 @@ Most other options are concerned with compression tuning:
 
 - `--no-create-timestamp`:
   Don't add a creation timestamp. This is useful when bit-identical file
-  system images are required to be produced from the same input.
+  system images are required to be produced from the same input. When
+  rewriting an existing file system image, the creation timestamp is
+  preserved. When rebuilding metadata during a rewrite, this option will
+  actually remove any present creation timestamp.
 
 - `--no-category-names`:
   Don't add category names to the file system. This is only relevant if
@@ -993,10 +1005,10 @@ By default, images produced by `mkdwarfs` will not be identical
 over multiple runs. This is due to time stamps that are being added
 to the file system image.
 
-In order to produce bit-identical images, you need to pass
-`--no-create-timestamp` and either `--no-history-timestamps` or
-`--no-history`. You also need to pass `--uuid=nil` if your image
-should contain a superblock.
+Use `--reproducible` to omit the creation and history timestamps and
+write a nil UUID if the image contains a superblock. Equivalently, you
+can pass `--no-create-timestamp` and either `--no-history-timestamps`
+or `--no-history`, plus `--uuid=nil` when writing a superblock.
 
 Another more subtle requirement for bit-identical images is that if
 you're using `--categorize`, the `--num-segmenter-workers` is kept
