@@ -1372,7 +1372,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
           std::from_chars(value->data(), value->data() + value->size(), epoch);
 
       if (ec != std::errc{} || end != value->data() + value->size() ||
-          !std::in_range<std::time_t>(epoch)) {
+          !std::in_range<std::time_t>(epoch) ||
+          !std::in_range<file_stat::time_type>(epoch)) {
         LOG_ERROR << "invalid SOURCE_DATE_EPOCH: expected a non-negative Unix "
                      "timestamp";
         return 1;
@@ -1380,6 +1381,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       source_date_epoch = epoch;
       options.metadata.create_timestamp = epoch;
+
+      if (!vm.contains("set-time")) {
+        options.metadata.max_file_timestamp =
+            static_cast<file_stat::time_type>(epoch);
+      }
     }
   }
 
