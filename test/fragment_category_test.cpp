@@ -31,6 +31,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/fragment_category.h>
 
 using namespace dwarfs::writer;
@@ -118,4 +119,13 @@ TEST(fragment_category_test, sortable) {
   EXPECT_EQ(fragment_category(2, 3), v[1]);
   EXPECT_EQ(fragment_category(2), v[2]);
   EXPECT_EQ(fragment_category(4, 5), v[3]);
+}
+
+TEST(category_parser_test, parse_without_resolver_throws) {
+  category_parser parser{nullptr, {}};
+
+  EXPECT_FALSE(parser.has_resolver());
+  EXPECT_THAT([&] { parser.parse("anything"); },
+              testing::ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                  "cannot configure category-specific options")));
 }
