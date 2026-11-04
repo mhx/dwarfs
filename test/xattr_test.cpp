@@ -67,6 +67,8 @@ TEST(xattr_test, portable_xattr) {
       ::testing::Throws<std::system_error>());
 
   EXPECT_THAT(dwarfs::listxattr(path), ::testing::Contains(xattr_name));
+  EXPECT_THAT([&] { dwarfs::listxattr(non_existant_path); },
+              ::testing::Throws<std::system_error>());
 
   EXPECT_EQ(dwarfs::getxattr(path, xattr_name), xattr_value);
 

@@ -635,3 +635,15 @@ TEST_P(open_file_test, extent_free_view_preserves_logical_bytes) {
 
 INSTANTIATE_TEST_SUITE_P(iolayer_modes, open_file_test,
                          ::testing::Values("mmap", "read"));
+
+TEST(os_access_generic_data, invalid_open_mode) {
+  test_env env;
+  env.set("DWARFS_IOLAYER_OPTS", "open_mode=invalid");
+  std::ostringstream err;
+
+  os_access_generic_data data{err, env};
+
+  EXPECT_THAT(err.str(), testing::HasSubstr(
+                             "warning: ignoring invalid DWARFS_IOLAYER_OPTS "
+                             "option 'open_mode': expected 'mmap' or 'read'"));
+}

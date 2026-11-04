@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 
+#include <dwarfs/detail/scoped_env.h>
 #include <dwarfs/terminal_ansi.h>
 
 using namespace dwarfs;
@@ -91,4 +92,21 @@ TEST(terminal, ansi_colored) {
   EXPECT_EQ("\033[1;31mfoo\033[0m",
             t.colored("foo", termcolor::RED, true, termstyle::BOLD));
   EXPECT_EQ("foo", t.colored("foo", termcolor::RED, false, termstyle::DIM));
+}
+
+TEST(terminal, ansi_control_sequences) {
+  terminal_ansi term(terminal_ansi::init_mode::FORCE);
+  EXPECT_EQ(term.carriage_return(), "\r");
+  EXPECT_EQ(term.rewind_line(), "\x1b[A");
+  EXPECT_EQ(term.clear_line(), "\x1b[2K");
+
+#ifndef _WIN32
+  detail::scoped_env env;
+  env.set("TERM", "dumb");
+  EXPECT_FALSE(term.is_fancy());
+  env.set("TERM", "xterm");
+  EXPECT_TRUE(term.is_fancy());
+  env.unset("TERM");
+  EXPECT_FALSE(term.is_fancy());
+#endif
 }

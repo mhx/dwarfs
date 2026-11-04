@@ -2253,3 +2253,9 @@ TEST(filesystem, case_insensitive_lookup) {
     }
   }
 }
+
+TEST(fragment_order_options, explicit_mode_streaming) {
+  std::ostringstream os;
+  os << writer::fragment_order_mode::EXPLICIT;
+  EXPECT_EQ(os.str(), "explicit");
+}

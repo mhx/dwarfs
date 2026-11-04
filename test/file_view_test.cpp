@@ -30,6 +30,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/file_segments_iterable.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
 
@@ -1197,4 +1198,9 @@ TEST(read_file_view, treat_as_data_skips_extent_discovery) {
     EXPECT_EQ(extent_kind::data, ext.kind());
     EXPECT_EQ(file_range(0, kSize), ext.range());
   }
+}
+
+TEST(file_segments_iterable, default_iterator_is_end) {
+  file_segments_iterable::iterator it;
+  EXPECT_TRUE(it == std::default_sentinel);
 }
