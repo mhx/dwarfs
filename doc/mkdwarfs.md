@@ -547,6 +547,8 @@ Most other options are concerned with compression tuning:
   `attr`, `tree`, or `both` request fails if the required digests are
   unavailable.
 
+  See [dwarfs-format(5)](dwarfs-format.md) for details on the digests.
+
 - `--label=`*label*:
   Set the file system label. This can be used during initial file system
   creation, when recompressing an existing file system, or whenever a file
