@@ -1070,6 +1070,35 @@ TEST(mkdwarfs_test, hotness_categorizer) {
   }
 }
 
+TEST(mkdwarfs_test, hotness_categorizer_multiple_sources) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->add_dir("/");
+  t.os->add_dir("/first");
+  t.os->add_dir("/second");
+  t.os->add_dir("/second/sub");
+  t.os->add_file("/first/one.txt", "first file contents");
+  t.os->add_file("/second/sub/two.txt", "second file contents");
+  t.fa->set_file("hot", "sub/two.txt\n");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "-B0", "--categorize=hotness",
+                      "--hotness-list=hot", "--", "/first/", "/second/"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto hot = fs.find("/sub/two.txt");
+  auto cold = fs.find("/one.txt");
+
+  ASSERT_TRUE(hot);
+  ASSERT_TRUE(cold);
+
+  auto hot_info = fs.get_inode_info(hot->inode());
+  auto cold_info = fs.get_inode_info(cold->inode());
+
+  EXPECT_EQ("hotness", hot_info["chunks"][0]["category"].get<std::string>());
+  EXPECT_EQ("<default>", cold_info["chunks"][0]["category"].get<std::string>());
+}
+
 TEST(mkdwarfs_test, hotness_categorizer_cannot_open_hotness_file) {
   mkdwarfs_tester t;
 
