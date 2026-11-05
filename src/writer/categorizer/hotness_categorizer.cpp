@@ -94,7 +94,7 @@ hotness_categorizer_<LoggerPolicy>::hotness_categorizer_(
     while (std::getline(input->is(), line)) {
       auto const path = std::filesystem::path{line}.relative_path();
       LOG_DEBUG << "hotness categorizer: adding path '" << path << "'";
-      if (!hotness_set_.emplace(path.string()).second) {
+      if (!hotness_set_.emplace(path.generic_string()).second) {
         DWARFS_THROW(runtime_error,
                      fmt::format("duplicate path in hotness list: '{}'", line));
       }
@@ -127,7 +127,7 @@ inode_fragments hotness_categorizer_<LoggerPolicy>::categorize(
     LOG_DEBUG << "hotness categorizer: checking path '" << rel_path << "' ('"
               << path.full_path() << "')";
 
-    if (hotness_set_.contains(rel_path.string())) {
+    if (hotness_set_.contains(rel_path.generic_string())) {
       fragments.emplace_back(fragment_category(mapper(HOTNESS_CATEGORY)),
                              mm.size());
     }
