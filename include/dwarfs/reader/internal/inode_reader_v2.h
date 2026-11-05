@@ -89,11 +89,6 @@ class inode_reader_v2 {
     return impl_->readv(inode, size, offset, maxiov, chunks, ec);
   }
 
-  void
-  dump(std::ostream& os, std::string const& indent, chunk_range chunks) const {
-    impl_->dump(os, indent, chunks);
-  }
-
   void set_num_workers(size_t num) { impl_->set_num_workers(num); }
 
   void set_cache_tidy_config(cache_tidy_config const& cfg) {
@@ -127,8 +122,6 @@ class inode_reader_v2 {
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
           chunk_range chunks, std::error_code& ec) const = 0;
-    virtual void dump(std::ostream& os, std::string const& indent,
-                      chunk_range chunks) const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
