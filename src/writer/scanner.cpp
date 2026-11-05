@@ -51,6 +51,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
@@ -917,6 +918,10 @@ void scanner_<LoggerPolicy>::scan(
   auto ge_data = std::make_optional<global_entry_data>(options_.metadata);
   metadata_builder mdb(LOG_GET_LOGGER, options_.metadata);
 
+  // Ensure that we wait for all background jobs even in case of exceptions
+  auto wait_for_background_jobs =
+      std::make_optional(scope_exit{[this] { wg_.wait(); }});
+
   LOG_INFO << "assigning device inodes...";
   set_status("assigning device inodes");
   uint32_t first_pipe_inode = first_device_inode;
@@ -1105,8 +1110,7 @@ void scanner_<LoggerPolicy>::scan(
              << time_with_unit(wg_blockify.try_get_cpu_time().value_or(0ns));
   }
 
-  // seg.finish();
-  wg_.wait();
+  wait_for_background_jobs.reset();
 
   prog.current.store(std::monostate{});
   prog.set_status_function_and_drain(
