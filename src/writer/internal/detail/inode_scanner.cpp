@@ -53,15 +53,19 @@ void inode_scanner::populate(file_size_t size) {
   storage_->set_inode_fragments(self_id_, fragments);
 }
 
-void inode_scanner::scan(file_view const& mm, inode_options const& opts,
-                         progress& prog) {
+void inode_scanner::scan(file_view const& mm, const_file_handle source,
+                         inode_options const& opts, progress& prog) {
   inode_fragments fragments;
 
   categorizer_job catjob;
 
   // No job if categorizers are disabled
   if (opts.categorizer_mgr) {
-    catjob = opts.categorizer_mgr->job(mm ? mm.path().string() : "<no-file>");
+    if (mm) {
+      catjob = opts.categorizer_mgr->job(mm.path(), source.logical_fs_path());
+    } else {
+      catjob = opts.categorizer_mgr->job("<no-file>");
+    }
   }
 
   /// TODO: remove comments or move elsewhere

@@ -240,7 +240,7 @@ void inode_manager_<LoggerPolicy>::scan(
         }
       }
 
-      ino.scan(mm, opts_, prog_);
+      ino.scan(mm, p, opts_, prog_);
       update_prog(ino, p);
     };
 
@@ -282,7 +282,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
           // TODO: p = p is a workaround for older Clang versions
           wg.add_job([this, p = p, ino, mm = std::move(mm)] mutable {
-            ino.scan(mm, opts_, prog_);
+            ino.scan(mm, p, opts_, prog_);
             update_prog(ino, p);
           });
 
@@ -294,7 +294,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
       assert(ino.any().is_invalid());
 
-      ino.scan({}, opts_, prog_);
+      ino.scan({}, ino.any(), opts_, prog_);
       update_prog(ino, ino.any());
 
       errors.emplace_back(scan_err.value());

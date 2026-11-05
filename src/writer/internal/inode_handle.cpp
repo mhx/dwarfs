@@ -165,10 +165,11 @@ void basic_inode_handle<Mut>::populate(file_size_t size)
 
 template <detail::mutability Mut>
 void basic_inode_handle<Mut>::scan(file_view const& mm,
+                                   const_file_handle source,
                                    inode_options const& options, progress& prog)
   requires is_mutable
 {
-  detail::inode_scanner(*storage_, self_id_).scan(mm, options, prog);
+  detail::inode_scanner(*storage_, self_id_).scan(mm, source, options, prog);
 }
 
 template <detail::mutability Mut>

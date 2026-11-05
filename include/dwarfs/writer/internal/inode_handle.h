@@ -30,6 +30,7 @@
 #include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/writer/internal/detail/mutability.h>
+#include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/inode_fragments_view.h>
 #include <dwarfs/writer/internal/inode_hole_mapper.h>
@@ -81,7 +82,8 @@ class basic_inode_handle final {
     requires is_mutable;
   void populate(file_size_t size)
     requires is_mutable;
-  void scan(file_view const& mm, inode_options const& options, progress& prog)
+  void scan(file_view const& mm, const_file_handle source,
+            inode_options const& options, progress& prog)
     requires is_mutable;
   void set_num(uint32_t num)
     requires is_mutable;
