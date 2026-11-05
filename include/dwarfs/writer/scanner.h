@@ -62,6 +62,13 @@ struct scan_source {
   scan_source_mode mode{scan_source_mode::contents};
 };
 
+struct scan_root_attributes {
+  std::optional<file_stat::mode_type> mode{};
+  std::optional<file_stat::uid_type> uid{};
+  std::optional<file_stat::gid_type> gid{};
+  std::optional<file_stat::time_type> time{};
+};
+
 struct scan_request {
   std::vector<scan_source> sources;
   std::shared_ptr<file_access const> fa{};
@@ -69,6 +76,7 @@ struct scan_request {
   // If absent, inherit the root of a single contents source, or create a
   // synthetic root when combining sources or including an entry by name.
   std::optional<file_stat> root_metadata{};
+  scan_root_attributes root_attributes{};
 };
 
 class scanner {

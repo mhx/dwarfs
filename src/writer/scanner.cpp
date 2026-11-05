@@ -358,9 +358,10 @@ file_stat synthetic_root_stat() {
   st.set_blksize(0);
   st.set_blocks(0);
   st.set_allocated_size(0);
-  st.set_atime(0);
-  st.set_mtime(0);
-  st.set_ctime(0);
+  auto const now = std::time(nullptr);
+  st.set_atime(now);
+  st.set_mtime(now);
+  st.set_ctime(now);
   return st;
 }
 
@@ -889,7 +890,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     return parent.empty() ? std::filesystem::path{"."} : parent;
   }();
 
-  auto const root_stat = [&] {
+  auto root_stat = [&] {
     if (request.root_metadata) {
       return *request.root_metadata;
     }
@@ -898,6 +899,26 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     }
     return synthetic_root_stat();
   }();
+
+  auto const& attrs = request.root_attributes;
+
+  if (attrs.mode) {
+    root_stat.set_mode((root_stat.mode() & ~07777) | *attrs.mode);
+  }
+
+  if (attrs.uid) {
+    root_stat.set_uid(*attrs.uid);
+  }
+
+  if (attrs.gid) {
+    root_stat.set_gid(*attrs.gid);
+  }
+
+  if (attrs.time) {
+    root_stat.set_atime(*attrs.time);
+    root_stat.set_mtime(*attrs.time);
+    root_stat.set_ctime(*attrs.time);
+  }
 
   auto root = internal::provisional_entry(first_root_path, root_stat)
                   .commit(*tree)

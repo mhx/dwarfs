@@ -8,6 +8,7 @@ SPDX-License-Identifier: MIT
 ## SYNOPSIS
 
 `mkdwarfs` `-i` *path* `-o` *file*\|`-` [*options*...]  
+`mkdwarfs` `-o` *file*\|`-` [*options*...] [`--`] *source* [*source*...]  
 `mkdwarfs` `--input-list=`*file*\|`-` `-o` *file*\|`-` [*options*...]  
 `mkdwarfs` `-i` *file* `-o` *file*\|`-` `--recompress` [*options*...]
 
@@ -23,13 +24,25 @@ full contents of `/path/dir` with:
 
     mkdwarfs -i /path/dir -o image.dwarfs
 
+You can also combine multiple sources:
+
+    mkdwarfs -o image.dwarfs /foo/bar/ /var/tmp/ /opt/bla random.txt
+
+A trailing slash adds a directory's contents to the image root. Without a
+trailing slash, the directory itself is added. Files are added at the image
+root. A trailing slash on a directory symlink follows its target. Sources
+are processed in order. Collisions produce warnings. The first entry wins
+and directories are merged recursively, keeping the first directory's
+metadata. Specifying a single source with a trailing slash is equivalent to
+using `--input`.
+
 After that, you can mount it using [dwarfs(1)](dwarfs.md):
 
     dwarfs image.dwarfs /path/to/mountpoint
 
 ## OPTIONS
 
-There are two mandatory options for specifying the input and output:
+Input and output can be specified as follows:
 
 - `-i`, `--input=`*path*|*file*:
   Path to the root directory containing the files from which you want to
@@ -418,6 +431,22 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
+- `--root-mode=`*mode*:
+  Set the synthetic root directory permissions when using *sources* (octal).
+  Defaults to `0755`.
+
+- `--root-owner=`*uid*:
+  Set the synthetic root directory owner when using *sources*. Defaults to
+  the effective user ID of the current user.
+
+- `--root-group=`*gid*:
+  Set the synthetic root directory group when using *sources*. Defaults to
+  the effective group ID of the current user.
+
+- `--root-time=now`|*iso-8601-string*|*unix-timestamp*:
+  Set the synthetic root directory timestamps. Defaults to the current time.
+  See `--set-time` for details on the supported formats.
+
 - `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]|`explicit:file=`*file*:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. When
@@ -441,7 +470,8 @@ Most other options are concerned with compression tuning:
   deterministic. See [Nilsimsa Ordering](#nilsimsa-ordering) for a detailed
   description of the algorithm.
   `explicit` ordering allows you to specify a file that contains the paths
-  in the desired order. The paths must be relative to the `--input` path,
+  in the desired order. It cannot be used with multiple sources.
+  The paths must be relative to the `--input` path,
   but may start with a leading `/`. The choice of ordering algorithm has
   significant impact on memory usage, see
   [De-duplication and Ordering](#de-duplication-and-ordering) for details.
@@ -456,6 +486,7 @@ Most other options are concerned with compression tuning:
 
 - `-F`, `--filter=`*rule*:
   Add a filter rule. This option can be specified multiple times.
+  Rules match paths within the generated file system.
   See [FILTER RULES](#filter-rules) for more details.
 
 - `--debug-filter`[`=all`|`=excluded`|`=excluded-files`|`=files`|`=included`|`=included-files`]:

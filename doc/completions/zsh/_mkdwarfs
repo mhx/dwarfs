@@ -6,7 +6,7 @@
 # zsh completion for mkdwarfs
 #
 # synopsis
-#   mkdwarfs [OPTIONS...]
+#   mkdwarfs [OPTIONS...] [SOURCE...]
 #
 
 local context state line ret=1
@@ -220,6 +220,10 @@ _arguments -S \
 	"--remove-empty-dirs[remove empty directories in file system]" \
 	"--remove-header[remove any header present before filesystem data]" \
 	"--schema-compression=[metadata schema compression algorithm]:algos:__mkdwarfs_compression_algos" \
+	"--root-mode=[set root directory permissions (octal)]:mode:" \
+	"--root-owner=[set root directory owner (uid)]:uid:_users" \
+	"--root-group=[set root directory group (gid)]:gid:_groups" \
+	"--root-time=[set root directory timestamps (unixtime or 'now')]:time:(now)" \
 	"--superblock-digests=[select output digests]:mode:(auto none attr tree both)" \
 	"--set-group=[set group (gid) for whole file system]:gid:_groups" \
 	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \
@@ -243,6 +247,7 @@ _arguments -S \
 	{-S,--block-size-bits=}"[block size bits (size = 2^arg bits)]:bits:" \
 	"*"{-W,--window-size=}"[window sizes for block hashing]:[category\:\:]bits: __mkdwarfs_category_value -W --window-size" \
 	"*"{-w,--window-step=}"[window step (as right shift of size)]:[category\:\:]step: __mkdwarfs_category_value -w --window-step" \
-	"$(__mkdwarfs_disable_man)--man[show manual page and exit]" && ret=0
+	"$(__mkdwarfs_disable_man)--man[show manual page and exit]" \
+	'*:source:_files' && ret=0
 
 return ret

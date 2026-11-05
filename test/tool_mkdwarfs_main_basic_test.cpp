@@ -21,6 +21,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <chrono>
+#include <ctime>
+
 #include <gmock/gmock.h>
 
 #include <fmt/format.h>
@@ -44,6 +47,269 @@ namespace fs = std::filesystem;
 
 class mkdwarfs_input_list_test
     : public testing::TestWithParam<std::tuple<input_mode, path_type>> {};
+
+TEST(mkdwarfs_test, positional_sources) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/one/common");
+  t.os->add_file("/one/common/a", "a");
+  t.os->add_file("/one/common/shared", "first");
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/common");
+  t.os->add_file("/two/common/b", "b");
+  t.os->add_file("/two/common/shared", "second");
+  t.os->add_dir("/named");
+  t.os->add_file("/named/c", "c");
+  t.os->add_file("/standalone", "text");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l", "1", "/one/", "/two/",
+                      "/named", "/standalone"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  EXPECT_EQ(
+      (std::set<fs::path>{"", "common", "common/a", "common/b", "common/shared",
+                          "named", "named/c", "standalone"}),
+      get_all_fs_paths(fs));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("merging directory"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate entry"));
+}
+
+TEST(mkdwarfs_test, positional_root_attributes) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/file", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "/src/", "--root-mode=0700",
+                      "--root-owner=1234", "--root-group=3456",
+                      "--root-time=123456789", "--keep-all-times"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto const st = fs.getattr(root->inode());
+  EXPECT_EQ(0700, st.mode() & 07777);
+  EXPECT_EQ(1234, st.uid());
+  EXPECT_EQ(3456, st.gid());
+  EXPECT_EQ(123456789, st.mtime());
+  EXPECT_EQ(123456789, st.atime());
+  EXPECT_EQ(123456789, st.ctime());
+  EXPECT_TRUE(fs.find("/file"));
+  EXPECT_FALSE(fs.find("/src"));
+}
+
+TEST(mkdwarfs_test, synthetic_root_defaults) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/first");
+  t.os->add_file("/first/a", "a");
+  t.os->add_dir("/second");
+  t.os->add_file("/second/b", "b");
+
+  auto const before = std::time(nullptr);
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/first/", "/second/",
+                      "--keep-all-times"}))
+      << t.err();
+  auto const after = std::time(nullptr);
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+
+  auto const st = fs.getattr(root->inode());
+
+  EXPECT_EQ(0755, st.mode() & 07777);
+
+#ifdef _WIN32
+  EXPECT_EQ(0, st.uid());
+  EXPECT_EQ(0, st.gid());
+#else
+  EXPECT_EQ(::geteuid(), st.uid());
+  EXPECT_EQ(::getegid(), st.gid());
+#endif
+
+  EXPECT_GE(st.mtime(), before);
+  EXPECT_LE(st.mtime(), after);
+  EXPECT_EQ(st.mtime(), st.atime());
+  EXPECT_EQ(st.mtime(), st.ctime());
+}
+
+TEST(mkdwarfs_test, root_time_now) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  auto const before = std::time(nullptr);
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--root-time=now",
+                      "--keep-all-times"}))
+      << t.err();
+  auto const after = std::time(nullptr);
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto const st = fs.getattr(root->inode());
+  EXPECT_GE(st.mtime(), before);
+  EXPECT_LE(st.mtime(), after);
+  EXPECT_EQ(st.mtime(), st.atime());
+  EXPECT_EQ(st.mtime(), st.ctime());
+}
+
+TEST(mkdwarfs_test, root_time_epoch_string) {
+  using namespace std::chrono_literals;
+  using std::chrono::sys_days;
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--root-time",
+                      "2020-01-01 01:02", "--keep-all-times"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto const st = fs.getattr(root->inode());
+  auto const expected =
+      std::chrono::duration_cast<std::chrono::seconds>(
+          (sys_days{2020y / 1 / 1} + 1h + 2min).time_since_epoch())
+          .count();
+  EXPECT_EQ(expected, st.mtime());
+  EXPECT_EQ(expected, st.atime());
+  EXPECT_EQ(expected, st.ctime());
+}
+
+TEST(mkdwarfs_test, synthetic_root_respects_set_time) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--set-time=42",
+                      "--keep-all-times"}))
+      << t.err();
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  auto file = fs.find("/file");
+  ASSERT_TRUE(root);
+  ASSERT_TRUE(file);
+  for (auto inode : {root->inode(), file->inode()}) {
+    auto const st = fs.getattr(inode);
+    EXPECT_EQ(42, st.mtime());
+    EXPECT_EQ(42, st.atime());
+    EXPECT_EQ(42, st.ctime());
+  }
+}
+
+TEST(mkdwarfs_test, synthetic_root_respects_source_date_epoch) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->setenv("SOURCE_DATE_EPOCH", "12345");
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--keep-all-times"}))
+      << t.err();
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto const st = fs.getattr(root->inode());
+  EXPECT_EQ(12345, st.mtime());
+  EXPECT_EQ(12345, st.atime());
+  EXPECT_EQ(12345, st.ctime());
+}
+
+TEST(mkdwarfs_test, positional_source_errors) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "/other"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("positional sources"));
+  EXPECT_NE(0, t.run({"--input-list", "-", "-o", "-", "/other"}));
+  EXPECT_NE(0, t.run({"--recompress", "-o", "-", "/other"}));
+  EXPECT_NE(0, t.run({"-o", "-", "/other/", "--root-mode=0888"}));
+  EXPECT_NE(0, t.run({"-o", "-", "/other/", "--root-mode=10000"}));
+  EXPECT_NE(0, t.run({"-o", "-", "/other/", "--root-time=InVaLiD"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse time point"));
+  EXPECT_NE(0,
+            t.run({"-o", "-", "/other/", "--root-time=18446744073709551615"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("--root-time is out of range"));
+}
+
+TEST(mkdwarfs_test, missing_input_or_output_is_an_error) {
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    EXPECT_NE(0, t.run({"-o", "test.dwarfs"}));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("no input specified"));
+    EXPECT_TRUE(t.out().empty());
+  }
+  {
+    auto t = mkdwarfs_tester::create_empty();
+    EXPECT_NE(0, t.run({"/source/"}));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("no output specified"));
+    EXPECT_TRUE(t.out().empty());
+  }
+}
+
+TEST(mkdwarfs_test, multitoken_option_cannot_consume_input_silently) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  // -B consumes subsequent non-option arguments. Without `--`, these
+  // paths are not positional sources and must trigger an error.
+  EXPECT_NE(0, t.run({"-o", "test.dwarfs", "-B0", "/first/", "/second/"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("no input specified"));
+  EXPECT_TRUE(t.out().empty());
+}
+
+TEST(mkdwarfs_test, positional_sources_with_double_dash) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/source");
+  t.os->add_file("/source/file", "contents");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "--", "/source/"}))
+      << t.err();
+  auto fs = t.fs_from_file("test.dwarfs");
+  EXPECT_TRUE(fs.find("/file"));
+  EXPECT_FALSE(fs.find("/source"));
+}
+
+TEST(mkdwarfs_test, positional_single_named_file) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/standalone", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/standalone"})) << t.err();
+  auto fs = t.fs_from_file("test.dwarfs");
+  EXPECT_TRUE(fs.find("/standalone"));
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  EXPECT_EQ(0755, fs.getattr(root->inode()).mode() & 0777);
+}
+
+TEST(mkdwarfs_test, root_attributes_with_legacy_input) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/file", "data");
+
+  ASSERT_EQ(0,
+            t.run({"-i", "/src", "-o", "test.dwarfs", "-l1", "--root-mode=0711",
+                   "--root-owner=123", "--root-group=456", "--root-time=42",
+                   "--keep-all-times"}))
+      << t.err();
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+  ASSERT_TRUE(root);
+  auto const st = fs.getattr(root->inode());
+  EXPECT_EQ(0711, st.mode() & 07777);
+  EXPECT_EQ(123, st.uid());
+  EXPECT_EQ(456, st.gid());
+  EXPECT_EQ(42, st.atime());
+  EXPECT_EQ(42, st.mtime());
+  EXPECT_EQ(42, st.ctime());
+  EXPECT_TRUE(fs.find("/file"));
+}
 
 TEST_P(mkdwarfs_input_list_test, basic) {
   using namespace std::string_view_literals;
@@ -920,7 +1186,7 @@ class mkdwarfs_cli_error_test : public testing::TestWithParam<cli_error_case> {
 };
 
 std::vector<cli_error_case> const option_errors{
-    {"unrecognized_arguments", {"grmpf"}, "unrecognized argument"},
+    {"unknown_option", {"--grmpf"}, "unrecognised option"},
     {"invalid_compression_level",
      {"-i", "/", "-o", "-", "-l", "10"},
      "invalid compression level"},
