@@ -30,6 +30,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/types.h>
 
+#include <dwarfs/writer/internal/entry_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
 
 namespace dwarfs::writer {
@@ -55,7 +56,8 @@ class inode_scanner {
 
   void populate(file_size_t size);
 
-  void scan(file_view const& mm, inode_options const& opts, progress& prog);
+  void scan(file_view const& mm, const_file_handle source,
+            inode_options const& opts, progress& prog);
 
  private:
   std::shared_ptr<scanner_progress>

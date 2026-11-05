@@ -22,6 +22,8 @@
  */
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -56,6 +58,7 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/varint.h>
 #include <dwarfs/vfs_stat.h>
+#include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
@@ -1281,6 +1284,80 @@ TEST(file_scanner, failed_category_setup_does_not_hang) {
   // can count down the latch. Unwinding must not block in jthread::join().
   EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}}}, prog),
                std::bad_optional_access);
+}
+
+TEST(file_path_info, logical_path_is_independent_of_physical_root) {
+  fs::path const physical_root{"/source-one"};
+  fs::path const physical_file{"/source-two/sub/file.txt"};
+  fs::path const logical_file{"/sub/file.txt"};
+
+  writer::file_path_info legacy{physical_root, physical_file};
+  writer::file_path_info mapped{physical_root, physical_file, &logical_file};
+
+  EXPECT_EQ(physical_file, mapped.full_path());
+  EXPECT_EQ(physical_root, mapped.root_path());
+  EXPECT_EQ(fs::path("sub/file.txt"), mapped.relative_path());
+  EXPECT_NE(mapped.relative_path(), legacy.relative_path());
+}
+
+class logical_path_probe_categorizer final
+    : public writer::random_access_categorizer {
+ public:
+  std::span<std::string_view const> categories() const override {
+    static constexpr std::array<std::string_view, 1> names{"probe"};
+    return names;
+  }
+
+  writer::inode_fragments
+  categorize(writer::file_path_info const& path, file_view const&,
+             writer::category_mapper const&) const override {
+    auto const& physical = path.full_path();
+    auto const logical = path.relative_path();
+    if ((physical == "/first/a.txt" && logical == "a.txt") ||
+        (physical == "/second/b.txt" && logical == "b.txt")) {
+      ++matched;
+    } else {
+      ++mismatched;
+    }
+    return {};
+  }
+
+  bool subcategory_less(writer::fragment_category,
+                        writer::fragment_category) const override {
+    return false;
+  }
+
+  std::atomic<unsigned> mutable matched{0};
+  std::atomic<unsigned> mutable mismatched{0};
+};
+
+TEST(file_scanner, categorizer_scans_before_inode_finalization) {
+  test::test_logger lgr;
+  auto input = std::make_shared<test::os_access_mock>();
+  input->add_dir("/");
+  input->add_dir("/first");
+  input->add_dir("/second");
+  input->add_file("/first/a.txt", "first");
+  input->add_file("/second/b.txt", "second");
+
+  writer::scanner_options options;
+  options.inode.categorizer_mgr =
+      std::make_shared<writer::categorizer_manager>(lgr, "/first");
+  auto probe = std::make_shared<logical_path_probe_categorizer>();
+  options.inode.categorizer_mgr->add(probe);
+
+  writer::scan_request request{
+      .sources = {{.path = "/first"}, {.path = "/second"}},
+  };
+
+  auto image = build_dwarfs(lgr, input, "null", {}, options, {}, nullptr,
+                            nullptr, std::nullopt, nullptr, request);
+  auto mm = test::make_mock_file_view(std::move(image));
+  reader::filesystem_v2 fs(lgr, *input, mm);
+  EXPECT_TRUE(fs.find("/a.txt"));
+  EXPECT_TRUE(fs.find("/b.txt"));
+  EXPECT_EQ(2u, probe->matched.load());
+  EXPECT_EQ(0u, probe->mismatched.load());
 }
 
 TEST(file_scanner, multiple_sources_merge_and_keep_first) {
