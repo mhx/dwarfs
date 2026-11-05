@@ -103,7 +103,7 @@ class block_cache {
   };
 
  private:
-  std::shared_ptr<impl> impl_;
+  std::unique_ptr<impl> impl_;
 };
 
 } // namespace internal
