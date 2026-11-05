@@ -1011,10 +1011,12 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
 
           for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
             if (chunk.is_data()) {
-              os << indent << "    [" << index
-                 << "] -> DATA (block=" << chunk.block()
-                 << ", offset=" << chunk.offset() << ", size=" << chunk.size()
-                 << ")\n";
+              os << indent << "    [" << index << "] -> DATA ";
+              if (auto cat = meta_.get_block_category(chunk.block())) {
+                os << "[" << *cat << "] ";
+              }
+              os << "(block=" << chunk.block() << ", offset=" << chunk.offset()
+                 << ", size=" << chunk.size() << ")\n";
             } else {
               os << indent << "    [" << index
                  << "] -> HOLE (size=" << chunk.size() << ")\n";
