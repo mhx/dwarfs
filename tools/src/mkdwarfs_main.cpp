@@ -442,6 +442,18 @@ void log_mem_usage(time_value_tsv_logger const& lgr, memory_usage const& mem) {
           mem.swap.value_or(0), get_allocated_memory().value_or(0));
 };
 
+std::uint64_t parse_timestamp(std::string const& value) {
+  if (value == "now") {
+    return std::time(nullptr);
+  }
+  if (auto const val = try_to<std::uint64_t>(value)) {
+    return *val;
+  }
+  return std::chrono::duration_cast<std::chrono::seconds>(
+             parse_time_point(value).time_since_epoch())
+      .count();
+}
+
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
@@ -463,11 +475,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   writer::segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str, fs_label;
+  std::vector<sys_string> source_path_strs;
   std::string memory_limit, schema_compression, metadata_compression, timestamp,
       time_resolution, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
       history_compression, recompress_categories, image_size_alignment_str,
-      rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str;
+      rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str,
+      root_mode_str, root_time_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -483,6 +497,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
+  file_stat::uid_type root_uid;
+  file_stat::gid_type root_gid;
   categorize_optval categorizer_list;
 
   integral_value_parser<size_t> max_lookback_parser;
@@ -786,6 +802,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("time-resolution",
         po::value<std::string>(&time_resolution),
         "resolution of inode timestamps (default: 1s)")
+    ("root-mode",
+        po::value<std::string>(&root_mode_str),
+        "set root directory permissions (octal)")
+    ("root-owner",
+        po::value<file_stat::uid_type>(&root_uid),
+        "set root directory owner (uid)")
+    ("root-group",
+        po::value<file_stat::gid_type>(&root_gid),
+        "set root directory group (gid)")
+    ("root-time",
+        po::value<std::string>(&root_time_str),
+        "set root directory timestamps (unixtime or 'now')")
     ("no-category-names",
         po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
         "don't add category names to file system")
@@ -814,6 +842,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   catreg.add_options(opts);
 
+  po::options_description positional_opts;
+  positional_opts.add_options()(
+      "source-path",
+      po_sys_value<std::vector<sys_string>>(&source_path_strs)->composing(),
+      "positional source paths");
+  po::options_description parse_opts;
+  parse_opts.add(opts).add(positional_opts);
+  po::positional_options_description positional;
+  positional.add("source-path", -1);
+
   po::variables_map vm;
 
   std::vector<std::string> command_line;
@@ -824,13 +862,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   try {
-    auto parsed = po::parse_command_line(argc, argv, opts);
+    auto parsed = po::basic_command_line_parser<sys_char>(argc, argv)
+                      .options(parse_opts)
+                      .positional(positional)
+                      .run();
 
     po::store(parsed, vm);
     po::notify(vm);
 
     auto unrecognized =
-        po::collect_unrecognized(parsed.options, po::include_positional);
+        po::collect_unrecognized(parsed.options, po::exclude_positional);
 
     if (!unrecognized.empty()) {
       iol.err << "error: unrecognized argument(s) '"
@@ -849,7 +890,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 #endif
 
-  constexpr auto usage = "Usage: mkdwarfs [OPTIONS...]\n";
+  constexpr auto usage = "Usage: mkdwarfs [OPTIONS...] [SOURCE...]\n";
   auto extra_deps = [&catreg](library_dependencies& deps) {
     compressor_registry::instance().add_library_dependencies(deps);
     decompressor_registry::instance().add_library_dependencies(deps);
@@ -921,13 +962,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 0;
   }
 
-  if (!estimate_compression_memory and
-      (vm.contains("help") or
-       !(vm.contains("input") or vm.contains("input-list")) or
-       (!vm.contains("output") and !vm.contains("debug-filter")))) {
+  if (!estimate_compression_memory and (vm.contains("help") or argc == 1)) {
     iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n"
             << basic_opts << "\n";
     return 0;
+  }
+
+  if (!estimate_compression_memory and !vm.contains("input") and
+      !vm.contains("input-list") and source_path_strs.empty()) {
+    iol.err << "error: no input specified\n";
+    return 1;
+  }
+
+  if (!estimate_compression_memory and !vm.contains("output") and
+      !vm.contains("debug-filter")) {
+    iol.err << "error: no output specified\n";
+    return 1;
   }
 
   if (level >= levels.size()) {
@@ -978,7 +1028,119 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  std::filesystem::path path(path_str);
+  if (!source_path_strs.empty() &&
+      (vm.contains("input") || vm.contains("input-list"))) {
+    iol.err << "error: positional sources cannot be combined with "
+               "--input or --input-list\n";
+    return 1;
+  }
+
+  bool const recompress =
+      vm.contains("recompress") || rebuild_metadata || change_block_size;
+
+  if (recompress && !source_path_strs.empty()) {
+    iol.err << "error: positional sources cannot be used when recompressing\n";
+    return 1;
+  }
+
+  writer::scan_root_attributes root_attributes;
+
+  if (vm.contains("root-mode")) {
+    std::string_view mode{root_mode_str};
+
+    if (mode.starts_with("0o") || mode.starts_with("0O")) {
+      mode.remove_prefix(2);
+    }
+
+    unsigned parsed_mode{};
+    auto const [end, ec] =
+        std::from_chars(mode.data(), mode.data() + mode.size(), parsed_mode, 8);
+
+    if (mode.empty() || ec != std::errc{} || end != mode.data() + mode.size() ||
+        parsed_mode > 07777) {
+      iol.err << "error: invalid --root-mode '" << root_mode_str << "'\n";
+      return 1;
+    }
+
+    root_attributes.mode = parsed_mode;
+  }
+
+  if (vm.contains("root-owner")) {
+    root_attributes.uid = root_uid;
+  }
+
+  if (vm.contains("root-group")) {
+    root_attributes.gid = root_gid;
+  }
+
+  if (vm.contains("root-time")) {
+    try {
+      auto const time = parse_timestamp(root_time_str);
+      if (!std::in_range<file_stat::time_type>(time)) {
+        iol.err << "error: --root-time is out of range\n";
+        return 1;
+      }
+      root_attributes.time = static_cast<file_stat::time_type>(time);
+    } catch (std::exception const& e) {
+      iol.err << "error: invalid --root-time: " << e.what() << "\n";
+      return 1;
+    }
+  }
+
+  if (recompress && (vm.contains("root-mode") || vm.contains("root-owner") ||
+                     vm.contains("root-group") || vm.contains("root-time"))) {
+    iol.err << "error: root directory options cannot be used when "
+               "recompressing\n";
+    return 1;
+  }
+
+  std::vector<writer::scan_source> sources;
+
+  if (!source_path_strs.empty()) {
+    sources.reserve(source_path_strs.size());
+
+    for (auto const& source_str : source_path_strs) {
+      if (source_str.empty()) {
+        iol.err << "error: empty source path\n";
+        return 1;
+      }
+
+      std::filesystem::path source_path(source_str);
+      bool const contents = source_str.back() == static_cast<sys_char>('/') ||
+#ifdef _WIN32
+                            source_str.back() == static_cast<sys_char>('\\') ||
+#endif
+                            source_path.filename() == ".";
+
+      if (source_path.is_relative()) {
+        source_path = iol.os->current_path() / source_path;
+      }
+
+      if (contents) {
+        source_path = iol.os->canonical(source_path);
+
+        if (source_path.has_relative_path() && !source_path.has_filename()) {
+          source_path = source_path.parent_path();
+        }
+      } else {
+        source_path = source_path.lexically_normal();
+      }
+
+      sources.push_back({.path = std::move(source_path),
+                         .mode = contents ? writer::scan_source_mode::contents
+                                          : writer::scan_source_mode::entry});
+    }
+  }
+
+  // Only the original --input/--input-list and rewrite modes have exactly one
+  // input path. Positional sources are represented solely by the scan_source
+  // list.
+  std::optional<std::filesystem::path> input_path;
+
+  if (sources.empty()) {
+    input_path.emplace(path_str);
+  }
+
   std::optional<std::vector<std::filesystem::path>> input_list;
 
   if (vm.contains("input-list")) {
@@ -992,7 +1154,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.with_specials = true;
 
     if (!vm.contains("input")) {
-      path = iol.os->current_path();
+      assert(input_path.has_value());
+      *input_path = iol.os->current_path();
     }
 
     std::filesystem::path input_list_path(input_list_str);
@@ -1026,7 +1189,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  path = iol.os->canonical(path);
+  if (input_path) {
+    *input_path = iol.os->canonical(*input_path);
+    sources.push_back({.path = *input_path, .input_list = input_list});
+  }
 
   std::optional<fs_source_os> source_os_hint;
 
@@ -1040,9 +1206,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
     source_os_hint = *os;
   }
-
-  bool const recompress =
-      vm.contains("recompress") || rebuild_metadata || change_block_size;
 
   utility::rewrite_options rw_opts;
 
@@ -1226,21 +1389,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (vm.contains("set-time")) {
-    if (timestamp == "now") {
-      options.metadata.timestamp = std::time(nullptr);
-    } else if (auto val = try_to<uint64_t>(timestamp)) {
-      options.metadata.timestamp = val;
-    } else {
-      try {
-        auto tp = parse_time_point(timestamp);
-        options.metadata.timestamp =
-            std::chrono::duration_cast<std::chrono::seconds>(
-                tp.time_since_epoch())
-                .count();
-      } catch (std::exception const& e) {
-        iol.err << "error: " << e.what() << "\n";
-        return 1;
-      }
+    try {
+      options.metadata.timestamp = parse_timestamp(timestamp);
+    } catch (std::exception const& e) {
+      iol.err << "error: " << e.what() << "\n";
+      return 1;
     }
   }
 
@@ -1424,7 +1577,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       output != "-" && iol.file->exists(output)) {
     std::error_code ec;
 
-    if (recompress && iol.file->equivalent(output, path, ec)) {
+    if (recompress && iol.file->equivalent(output, *input_path, ec)) {
       LOG_ERROR << "refusing to overwrite input file system";
       return 1;
     }
@@ -1466,7 +1619,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         split_to<std::vector<std::string>>(categorizer_list.value(), ',');
 
     options.inode.categorizer_mgr =
-        std::make_shared<writer::categorizer_manager>(lgr, path);
+        std::make_shared<writer::categorizer_manager>(
+            lgr, input_path.value_or(std::filesystem::path{}));
 
     try {
       for (auto const& name : categorizers) {
@@ -1485,7 +1639,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (recompress) {
     try {
       input_filesystem.emplace(
-          lgr, *iol.os, path,
+          lgr, *iol.os, *input_path,
           reader::filesystem_options{
               .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
     } catch (std::exception const& e) {
@@ -1963,9 +2117,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
 
       s.scan(*fsw,
-             {.sources = {{.path = path, .input_list = input_list}},
+             {.sources = std::move(sources),
               .fa = iol.file,
-              .extra_deps = extra_deps},
+              .extra_deps = extra_deps,
+              .root_attributes = root_attributes},
              prog);
 
       options.inode.categorizer_mgr.reset();

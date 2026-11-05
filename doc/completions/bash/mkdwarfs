@@ -4,7 +4,7 @@
 # bash completion for mkdwarfs
 #
 # synopsis
-#   mkdwarfs [OPTIONS...]
+#   mkdwarfs [OPTIONS...] [SOURCE...]
 #
 
 # TODO: unreliable? maybe not if app keeps the two groups intact.
@@ -180,6 +180,10 @@ _mkdwarfs_completion()
         --remove-empty-dirs
         --remove-header
         --schema-compression
+        --root-mode
+        --root-owner
+        --root-group
+        --root-time
         --superblock-digests
         --set-group
         --set-owner
@@ -219,12 +223,13 @@ _mkdwarfs_completion()
     local OPTION_ARG__order=( none path revpath similarity nilsimsa explicit )
     local OPTION_ARG__progress=( ascii none simple unicode )
     local OPTION_ARG__set_time=( now )
+    local OPTION_ARG__root_time=( now )
     local OPTION_ARG__time_resolution=( sec min hour day )
     local OPTION_ARG__pack_metadata=( auto all none chunk_table directories
         shared_files names names_index symlinks symlinks_index force plain )
     # silent, no completion
     local OPTION_ARG_NONE=( --block-size-bits --chmod --compress-niceness
-        --filter --image-size-alignment --label
+        --filter --image-size-alignment --label --root-mode
         --incompressible-block-size --incompressible-min-input-size
         --incompressible-ratio --incompressible-zstd-level
         --max-similarity-size --num-file-prep-workers --file-prep-queue-size
@@ -241,6 +246,7 @@ _mkdwarfs_completion()
     case $prev in
         --log-level | --compress-level | --recompress | --debug-filter | \
         --file-hash | --memory-limit | --progress | --set-time | \
+        --root-time | \
         --time-resolution | --pack-metadata | --superblock-digests | \
         --uuid | --rebuild-metadata-source-os-hint)
             prevoption=${prev//-/_}
@@ -277,11 +283,11 @@ _mkdwarfs_completion()
             fi
             return 0
             ;;
-        --set-owner)
+        --set-owner | --root-owner)
             _comp_compgen -- uids
             return 0
             ;;
-        --set-group)
+        --set-group | --root-group)
             _comp_compgen -- gids
             return 0
             ;;
