@@ -220,11 +220,26 @@ class block_request_set {
   size_t const block_no_;
 };
 
+// Keep block stats separate from the cache itself
+struct block_decompression_stats {
+  void update(cached_block const& cb) {
+    if (cb.range_end() < cb.uncompressed_size()) {
+      partially_decompressed.fetch_add(1, std::memory_order_relaxed);
+    }
+    total_decompressed_bytes.fetch_add(cb.range_end(),
+                                       std::memory_order_relaxed);
+    total_block_bytes.fetch_add(cb.uncompressed_size(),
+                                std::memory_order_relaxed);
+  }
+
+  std::atomic<size_t> partially_decompressed{0};
+  std::atomic<size_t> total_block_bytes{0};
+  std::atomic<size_t> total_decompressed_bytes{0};
+};
+
 // multi-threaded block cache
 template <typename LoggerPolicy>
-class block_cache_ final
-    : public block_cache::impl,
-      public std::enable_shared_from_this<block_cache_<LoggerPolicy>> {
+class block_cache_ final : public block_cache::impl {
  public:
   block_cache_(logger& lgr, os_access const& os, file_view const& mm,
                block_cache_options const& options,
@@ -275,7 +290,7 @@ class block_cache_ final
       LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
                 << static_cast<double>(cb.second->range_end()) /
                        static_cast<double>(cb.second->uncompressed_size());
-      update_block_stats(*cb.second);
+      block_stats_->update(*cb.second);
     }
 
     LOG_DEBUG << "evicted blocks:";
@@ -285,7 +300,7 @@ class block_cache_ final
         LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
                   << static_cast<double>(block->range_end()) /
                          static_cast<double>(block->uncompressed_size());
-        update_block_stats(*block);
+        block_stats_->update(*block);
       }
     }
 
@@ -294,8 +309,8 @@ class block_cache_ final
     double slow_hit_rate =
         100.0 * (active_hits_slow_ + cache_hits_slow_) / range_requests_;
     double miss_rate = 100.0 - (fast_hit_rate + slow_hit_rate);
-    double avg_decompression =
-        100.0 * total_decompressed_bytes_ / total_block_bytes_;
+    double avg_decompression = 100.0 * block_stats_->total_decompressed_bytes /
+                               block_stats_->total_block_bytes;
 
     // The same block can be evicted multiple times. Active requests may hold
     // on to a block that has been evicted from the cache and re-insert the
@@ -313,7 +328,8 @@ class block_cache_ final
     LOG_VERBOSE << "cache hits (fast): " << cache_hits_fast_.load();
     LOG_VERBOSE << "cache hits (slow): " << cache_hits_slow_.load();
 
-    LOG_VERBOSE << "total bytes decompressed: " << total_decompressed_bytes_;
+    LOG_VERBOSE << "total bytes decompressed: "
+                << block_stats_->total_decompressed_bytes;
     LOG_VERBOSE << "average block decompression: "
                 << fmt::format("{:.1f}", avg_decompression) << "%";
 
@@ -629,10 +645,10 @@ class block_cache_ final
 
       std::shared_ptr<cached_block> block{
           unique.release(),
-          [wself = this->weak_from_this(),
+          [stats = std::weak_ptr<block_decompression_stats>{block_stats_},
            deleter = std::move(unique.get_deleter())](auto* p) {
-            if (auto self = wself.lock()) {
-              self->update_block_stats(*p);
+            if (auto locked = stats.lock()) {
+              locked->update(*p);
             }
             deleter(p);
           }};
@@ -653,16 +669,6 @@ class block_cache_ final
     } catch (...) {
       promise.set_exception(std::current_exception());
     }
-  }
-
-  void update_block_stats(cached_block const& cb) const {
-    if (cb.range_end() < cb.uncompressed_size()) {
-      partially_decompressed_.fetch_add(1, std::memory_order_relaxed);
-    }
-    total_decompressed_bytes_.fetch_add(cb.range_end(),
-                                        std::memory_order_relaxed);
-    total_block_bytes_.fetch_add(cb.uncompressed_size(),
-                                 std::memory_order_relaxed);
   }
 
   void init_worker_group() const {
@@ -857,9 +863,8 @@ class block_cache_ final
   mutable std::atomic<size_t> active_hits_slow_{0};
   mutable std::atomic<size_t> cache_hits_fast_{0};
   mutable std::atomic<size_t> cache_hits_slow_{0};
-  mutable std::atomic<size_t> partially_decompressed_{0};
-  mutable std::atomic<size_t> total_block_bytes_{0};
-  mutable std::atomic<size_t> total_decompressed_bytes_{0};
+  std::shared_ptr<block_decompression_stats> block_stats_{
+      std::make_shared<block_decompression_stats>()};
   mutable std::atomic<size_t> blocks_tidied_{0};
   mutable std::atomic<size_t> active_expired_{0};
   mutable std::atomic<size_t> sequential_prefetches_{0};
@@ -890,7 +895,7 @@ block_cache::block_cache(
     block_cache_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_{
-          make_shared_logging_object<impl, block_cache_, default_logger_policy>(
+          make_unique_logging_object<impl, block_cache_, default_logger_policy>(
               lgr, os, mm, options, perfmon)} {}
 
 } // namespace dwarfs::reader::internal
