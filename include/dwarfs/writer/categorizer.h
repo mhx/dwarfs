@@ -77,9 +77,11 @@ class categorizer {
 class file_path_info {
  public:
   file_path_info(std::filesystem::path const& root_path,
-                 std::filesystem::path const& full_path)
+                 std::filesystem::path const& full_path,
+                 std::filesystem::path const* logical_path = nullptr)
       : root_path_{root_path}
-      , full_path_{full_path} {}
+      , full_path_{full_path}
+      , logical_path_{logical_path} {}
 
   std::filesystem::path const& root_path() const { return root_path_; }
   std::filesystem::path const& full_path() const { return full_path_; }
@@ -88,6 +90,7 @@ class file_path_info {
  private:
   std::filesystem::path const& root_path_;
   std::filesystem::path const& full_path_;
+  std::filesystem::path const* logical_path_;
 };
 
 class random_access_categorizer : public categorizer {
@@ -167,7 +170,14 @@ class categorizer_manager : public category_resolver {
   void add(std::shared_ptr<categorizer> c) { impl_->add(std::move(c)); }
 
   categorizer_job job(std::filesystem::path const& path) const {
-    return impl_->job(path);
+    return impl_->job(path, nullptr);
+  }
+
+  // The logical path is the absolute path inside the image. The physical
+  // path remains available to categorizers that need it.
+  categorizer_job job(std::filesystem::path const& path,
+                      std::filesystem::path const& logical_path) const {
+    return impl_->job(path, &logical_path);
   }
 
   std::string_view
@@ -198,7 +208,9 @@ class categorizer_manager : public category_resolver {
     virtual ~impl() = default;
 
     virtual void add(std::shared_ptr<categorizer> c) = 0;
-    virtual categorizer_job job(std::filesystem::path const& path) const = 0;
+    virtual categorizer_job
+    job(std::filesystem::path const& path,
+        std::filesystem::path const* logical_path) const = 0;
     virtual std::string_view
     category_name(fragment_category::value_type c) const = 0;
     virtual std::optional<fragment_category::value_type>
