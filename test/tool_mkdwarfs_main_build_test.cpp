@@ -1120,6 +1120,20 @@ TEST(mkdwarfs_test, hotness_categorizer_duplicate_path_in_hotness_list) {
               ::testing::HasSubstr("duplicate path in hotness list: 'foo.pl'"));
 }
 
+#ifdef _WIN32
+TEST(mkdwarfs_test, hotness_categorizer_duplicate_mixed_separators) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "contents");
+  t.fa->set_file("hot", "sub/two.txt\nsub\\two.txt\n");
+
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize=hotness",
+                      "--hotness-list=hot", "-B0"}))
+      << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate path in hotness list"));
+}
+#endif
+
 TEST(mkdwarfs_test, unknown_compression) {
   mkdwarfs_tester t;
 
