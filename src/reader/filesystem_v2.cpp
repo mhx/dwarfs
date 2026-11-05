@@ -40,6 +40,8 @@
 
 #include <fmt/format.h>
 
+#include <range/v3/view/enumerate.hpp>
+
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_view.h>
@@ -1006,7 +1008,18 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
         auto chunks = meta_.get_chunks(inode, ec);
         if (!ec) {
           os << indent << chunks.size() << " chunks in inode " << inode << "\n";
-          ir_.dump(os, indent + "  ", chunks);
+
+          for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
+            if (chunk.is_data()) {
+              os << indent << "    [" << index
+                 << "] -> DATA (block=" << chunk.block()
+                 << ", offset=" << chunk.offset() << ", size=" << chunk.size()
+                 << ")\n";
+            } else {
+              os << indent << "    [" << index
+                 << "] -> HOLE (size=" << chunk.size() << ")\n";
+            }
+          }
         } else {
           LOG_ERROR << "error reading chunks for inode " << inode << ": "
                     << ec.message();

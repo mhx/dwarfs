@@ -151,8 +151,6 @@ class inode_reader_ final : public inode_reader_v2::impl {
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
         chunk_range chunks, std::error_code& ec) const override;
-  void dump(std::ostream& os, std::string const& indent,
-            chunk_range chunks) const override;
   void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
     cache_.set_tidy_config(cfg);
@@ -217,21 +215,6 @@ class inode_reader_ final : public inode_reader_v2::impl {
   mutable std::once_flag hole_data_init_flag_;
   mutable readonly_memory_mapping hole_data_;
 };
-
-template <typename LoggerPolicy>
-void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
-                                       std::string const& indent,
-                                       chunk_range chunks) const {
-  for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
-    if (chunk.is_data()) {
-      os << indent << "  [" << index << "] -> DATA (block=" << chunk.block()
-         << ", offset=" << chunk.offset() << ", size=" << chunk.size() << ")\n";
-    } else {
-      os << indent << "  [" << index << "] -> HOLE (size=" << chunk.size()
-         << ")\n";
-    }
-  }
-}
 
 template <typename LoggerPolicy>
 void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
