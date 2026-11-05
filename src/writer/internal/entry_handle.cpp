@@ -62,6 +62,11 @@ fs::path entry_handle_base<Mut>::fs_path() const {
 }
 
 template <mutability Mut>
+fs::path entry_handle_base<Mut>::logical_fs_path() const {
+  return storage_->get_logical_fs_path(self_id_);
+}
+
+template <mutability Mut>
 std::string entry_handle_base<Mut>::path_as_string() const {
   return path_to_utf8_string_sanitized(fs_path());
 }
