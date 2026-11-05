@@ -131,6 +131,10 @@ class entry_storage {
     return entry_impl_->get_path(id);
   }
 
+  [[nodiscard]] std::filesystem::path get_logical_fs_path(entry_id id) const {
+    return entry_impl_->get_logical_fs_path(id);
+  }
+
   [[nodiscard]] std::string get_unix_dpath(entry_id id) const {
     return entry_impl_->get_unix_dpath(id);
   }
@@ -403,6 +407,7 @@ class entry_storage {
 
     virtual dir_id get_parent(entry_id id) const = 0;
     virtual std::filesystem::path get_path(entry_id id) const = 0;
+    virtual std::filesystem::path get_logical_fs_path(entry_id id) const = 0;
     virtual std::string get_unix_dpath(entry_id id) const = 0;
     virtual std::string get_logical_path(entry_id id) const = 0;
     virtual std::string get_name(entry_id id) const = 0;
