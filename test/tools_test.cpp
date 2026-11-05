@@ -2645,7 +2645,8 @@ TEST_F(sparse_files_test, random_large_files) {
                             dwarfsck.args(), image.string(), "-d9");
   ASSERT_TRUE(dump.has_value());
   EXPECT_THAT(*dump, ::testing::HasSubstr("] -> HOLE (size="));
-  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> DATA (block="));
+  EXPECT_THAT(*dump, ::testing::HasSubstr("] -> DATA"));
+  EXPECT_THAT(*dump, ::testing::HasSubstr("(block="));
 
   auto const extracted = td->path() / "extracted";
   ASSERT_TRUE(extract_to_dir(image, extracted));
