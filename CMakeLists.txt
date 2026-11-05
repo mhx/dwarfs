@@ -1285,6 +1285,9 @@ if(ENABLE_COVERAGE)
     COMMAND llvm-cov export -instr-profile=${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
                 -skip-branches -ignore-filename-regex="\(fsst\|build[^/]*\)/"
                 -format=lcov ${_PROFILE_OBJECTS} > ${CMAKE_BINARY_DIR}/coverage/coverage.info
+    COMMAND llvm-cov export -instr-profile=${CMAKE_BINARY_DIR}/coverage/dwarfs.profdata
+                -skip-branches -ignore-filename-regex="\(fsst\|build[^/]*\)/"
+                -format=text ${_PROFILE_OBJECTS} > ${CMAKE_BINARY_DIR}/coverage/coverage.json
     COMMAND genhtml -o ${CMAKE_BINARY_DIR}/coverage/html
                 --no-branch-coverage --missed --show-details
                 --rc derive_function_end_line=1
