@@ -138,6 +138,7 @@ class entry_handle_base {
   bool has_parent() const;
   basic_entry_handle<Mut> parent() const;
   std::filesystem::path fs_path() const;
+  std::filesystem::path logical_fs_path() const;
   std::string path_as_string() const;
   std::string unix_dpath() const;
   std::string logical_path() const;

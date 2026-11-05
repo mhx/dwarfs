@@ -194,6 +194,9 @@ TEST_F(entry_test, logical_paths) {
     EXPECT_EQ("/", root.logical_path());
     EXPECT_EQ("/nested/", dir.logical_path());
     EXPECT_EQ("/nested/file.txt", file.logical_path());
+    EXPECT_EQ(sep, root.logical_fs_path());
+    EXPECT_EQ(sep / "nested", dir.logical_fs_path());
+    EXPECT_EQ(sep / "nested" / "file.txt", file.logical_fs_path());
     EXPECT_EQ(physical_root / "nested" / "file.txt", file.fs_path());
   };
 
@@ -246,6 +249,10 @@ TEST_F(entry_test, source_roots) {
     EXPECT_EQ("/shared/second.txt", second.unix_dpath());
     EXPECT_EQ("/shared/first.txt", first.logical_path());
     EXPECT_EQ("/shared/second.txt", second.logical_path());
+    EXPECT_EQ(sep, root.logical_fs_path());
+    EXPECT_EQ(sep / "shared", shared.logical_fs_path());
+    EXPECT_EQ(sep / "shared" / "first.txt", first.logical_fs_path());
+    EXPECT_EQ(sep / "shared" / "second.txt", second.logical_fs_path());
   };
 
   check_paths();

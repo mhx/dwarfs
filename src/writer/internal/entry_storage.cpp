@@ -2008,24 +2008,13 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   fs::path get_path(entry_id id) const override {
     TRACE_CALL;
+    return get_fs_path_impl(id,
+                            dispatch_(&packed_entry_data::get_source_root, id));
+  }
 
-    container::small_vector<entry_id, 64> components;
-
-    fill_path_components(id, components);
-
-    auto const source_root = dispatch_(&packed_entry_data::get_source_root, id);
-
-    return fs::path(build_path_from_components<fs::path::string_type,
-                                               fs::path::preferred_separator>(
-        components, [this, source_root](fs::path::string_type& p,
-                                        entry_id const component) {
-          if (component == kRootId) {
-            shared_.append_native_source_root(p, source_root);
-          } else {
-            dispatch_shared_(&packed_entry_data::append_native_path_string,
-                             component, p);
-          }
-        }));
+  fs::path get_logical_fs_path(entry_id id) const override {
+    TRACE_CALL;
+    return get_fs_path_impl(id, std::nullopt);
   }
 
   std::string get_unix_dpath(entry_id id) const override {
@@ -2529,6 +2518,28 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   dir_id get_parent_impl(entry_id const id) const {
     return dispatch_(&packed_entry_data::get_parent, id);
+  }
+
+  fs::path get_fs_path_impl(entry_id const id,
+                            std::optional<std::size_t> source_root) const {
+    container::small_vector<entry_id, 64> components;
+    fill_path_components(id, components);
+
+    return fs::path(build_path_from_components<fs::path::string_type,
+                                               fs::path::preferred_separator>(
+        components, [this, source_root](fs::path::string_type& p,
+                                        entry_id const component) {
+          if (component == kRootId) {
+            if (source_root) {
+              shared_.append_native_source_root(p, *source_root);
+            } else {
+              p.push_back(fs::path::preferred_separator);
+            }
+          } else {
+            dispatch_shared_(&packed_entry_data::append_native_path_string,
+                             component, p);
+          }
+        }));
   }
 
   std::string get_dpath_impl(entry_id const id, bool logical) const {
@@ -3308,6 +3319,10 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
 
   fs::path get_path(entry_id const id) const override {
     return impl_.lock()->get_path(id);
+  }
+
+  fs::path get_logical_fs_path(entry_id const id) const override {
+    return impl_.lock()->get_logical_fs_path(id);
   }
 
   std::string get_unix_dpath(entry_id const id) const override {
