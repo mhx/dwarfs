@@ -869,8 +869,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   // "--dereference /source" still treats /source as a positional input.
   std::vector<sys_string> parse_arguments;
   parse_arguments.reserve(argc - 1);
-  auto const bare_dereference =
-      std::filesystem::path{"--dereference"}.native();
+  auto const bare_dereference = std::filesystem::path{"--dereference"}.native();
   auto const default_dereference =
       std::filesystem::path{"--dereference=symlinks"}.native();
   bool positional_only = false;

@@ -895,8 +895,8 @@ class packed_entry_data {
                       uint64_t const index) const {
     auto const& stat = stat_common_.at(index);
     auto const mapping = get<kPhysicalMappingField>(stat);
-    if (mapping != 0 &&
-        shared.physical_mapping_at(mapping).anchor == entry_id{this_type_, index}) {
+    if (mapping != 0 && shared.physical_mapping_at(mapping).anchor ==
+                            entry_id{this_type_, index}) {
       // Self-anchored entries have no source hardlink identity.
       return std::nullopt;
     }

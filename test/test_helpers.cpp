@@ -620,7 +620,8 @@ os_access_mock::canonical(std::filesystem::path const& path) const {
         continue;
       }
       auto const target = fs::path(std::get<std::string>(de->v));
-      auto next = target.has_root_path() ? target : prefix.parent_path() / target;
+      auto next =
+          target.has_root_path() ? target : prefix.parent_path() / target;
       for (auto rest = std::next(it); rest != current.end(); ++rest) {
         next /= *rest;
       }
