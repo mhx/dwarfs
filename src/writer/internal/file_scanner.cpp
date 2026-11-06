@@ -161,7 +161,7 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   file_id_vector& hardlink_group(const_file_handle p);
-  void add_independent(file_handle p);
+  void add_file(file_handle p);
 
   template <typename KeyType, typename ValueType>
   void finalize_files(
@@ -403,20 +403,22 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
-    if (auto id = p.get_unique_inode_id()) {
-      by_inode_id_->mapped(*id).push_back(p.id());
-    } else {
-      add_independent(p);
-    }
+    add_file(p);
     scan_inode(p, add_inode(p, __LINE__), true);
   }
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::add_independent(file_handle p) {
-  file_id_vector files;
-  files.push_back(p.id());
-  independent_store_.emplace_back(p.id(), std::move(files));
+void file_scanner_<LoggerPolicy>::add_file(file_handle p) {
+  auto const file_id = p.id();
+
+  if (auto const id = p.get_unique_inode_id()) {
+    by_inode_id_->mapped(*id).push_back(file_id);
+  } else {
+    file_id_vector files;
+    files.push_back(file_id);
+    independent_store_.emplace_back(file_id, std::move(files));
+  }
 }
 
 template <typename LoggerPolicy>
@@ -502,7 +504,9 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(std::move(by_digest_), inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      return by_inode_id_->mapped_at(*p.get_unique_inode_id());
+      auto const id = p.get_unique_inode_id();
+      assert(id.has_value());
+      return by_inode_id_->mapped_at(*id);
     });
 
     by_inode_id_.reset();
@@ -663,11 +667,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
         assert(p.get_inode());
 
         if (p.is_invalid()) [[unlikely]] {
-          if (auto id = p.get_unique_inode_id()) {
-            by_inode_id_->mapped(*id).push_back(p.id());
-          } else {
-            add_independent(p);
-          }
+          add_file(p);
         } else {
           auto& ref = get_by_digest_autovivify(p);
           ref.push_back(p.id());
@@ -700,11 +700,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
       if (p.is_invalid()) [[unlikely]] {
         inode_to_scan = add_inode(p, __LINE__);
-        if (auto id = p.get_unique_inode_id()) {
-          by_inode_id_->mapped(*id).push_back(p.id());
-        } else {
-          add_independent(p);
-        }
+        add_file(p);
       } else {
         auto& ref = get_by_digest_autovivify(p);
 
