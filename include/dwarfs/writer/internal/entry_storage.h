@@ -28,6 +28,7 @@
 #include <functional>
 #include <iosfwd>
 #include <memory>
+#include <optional>
 
 #include <dwarfs/file_stat.h>
 
@@ -36,8 +37,8 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/inode_identity.h>
 #include <dwarfs/writer/internal/physical_mapping.h>
-#include <dwarfs/writer/internal/unique_inode_id.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
@@ -202,8 +203,8 @@ class entry_storage {
     entry_impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const {
-    return entry_impl_->get_unique_inode_id(id);
+  inode_identity get_inode_identity(entry_id id) const {
+    return entry_impl_->get_inode_identity(id);
   }
 
   file_stat::nlink_type get_nlink(entry_id id) const {
@@ -444,7 +445,7 @@ class entry_storage {
         global_entry_data const& data,
         time_resolution_converter const& timeres) const = 0;
 
-    virtual unique_inode_id get_unique_inode_id(entry_id id) const = 0;
+    virtual inode_identity get_inode_identity(entry_id id) const = 0;
 
     virtual file_stat::nlink_type get_nlink(entry_id id) const = 0;
 

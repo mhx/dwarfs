@@ -482,7 +482,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
       history_compression, recompress_categories, image_size_alignment_str,
       rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str,
-      root_mode_str, root_time_str;
+      root_mode_str, root_time_str, dereference_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -775,6 +775,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("debug-filter",
         po::value<std::string>(&debug_filter)->implicit_value("all"),
         debug_filter_desc.c_str())
+    ("dereference",
+        po::value<std::string>(&dereference_str)->implicit_value("symlinks"),
+        "follow symlinks (symlinks or external-symlinks)")
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
@@ -1047,6 +1050,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+  if (vm.contains("dereference")) {
+    if (dereference_str == "symlinks") {
+      options.dereference = writer::dereference_mode::symlinks;
+    } else if (dereference_str == "external-symlinks") {
+      options.dereference = writer::dereference_mode::external_symlinks;
+    } else {
+      iol.err << "error: invalid --dereference mode '" << dereference_str
+              << "' (expected symlinks or external-symlinks)\n";
+      return 1;
+    }
+  }
+
+  if (recompress && vm.contains("dereference")) {
+    iol.err << "error: --dereference cannot be used when recompressing\n";
+    return 1;
+  }
+
   writer::scan_root_attributes root_attributes;
 
   if (vm.contains("root-mode")) {
@@ -1217,7 +1237,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     while (std::getline(*is, line)) {
       std::filesystem::path p(line);
       if (p.has_root_directory()) {
-        p = iol.os->canonical(p);
+        // Use the same root spelling as canonical input paths (notably the
+        // extended-length path prefix on Windows), without resolving symlinks
+        // in the listed path before the scanner applies the dereference policy.
+        auto const root = p.root_path();
+        auto const canonical_root = iol.os->canonical(root);
+        if (canonical_root != root) {
+          p = canonical_root / p.relative_path();
+        }
       }
       input_list->emplace_back(std::move(p));
     }

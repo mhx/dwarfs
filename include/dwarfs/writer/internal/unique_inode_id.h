@@ -52,6 +52,8 @@ struct unique_inode_id {
   friend std::ostream& operator<<(std::ostream& os, unique_inode_id const& id);
 };
 
+static_assert(sizeof(unique_inode_id) == 2 * sizeof(std::uint64_t));
+
 } // namespace dwarfs::writer::internal
 
 namespace std {

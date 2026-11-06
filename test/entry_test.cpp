@@ -49,6 +49,7 @@ using wi::entry;
 using wi::entry_storage;
 using wi::entry_type;
 using wi::progress;
+using wi::scoped_inode_id;
 
 using dwarfs::test::os_access_mock;
 using dwarfs::test::test_logger;
@@ -344,6 +345,19 @@ TEST_F(entry_test, independent_physical_mappings) {
     EXPECT_EQ(relocated_mapping, tree.physical_mapping_id(relocated_dir.id()));
     EXPECT_EQ(sep / "bar" / "relocated.txt", relocated.logical_fs_path());
     EXPECT_EQ("/bar/common/second.txt", second.logical_path());
+    auto const first_identity = first.get_inode_identity();
+    auto const second_identity = second.get_inode_identity();
+    ASSERT_TRUE(std::holds_alternative<scoped_inode_id>(first_identity));
+    ASSERT_TRUE(std::holds_alternative<scoped_inode_id>(second_identity));
+    EXPECT_EQ(first_mapping, std::get<scoped_inode_id>(first_identity).mapping);
+    EXPECT_EQ(second_mapping,
+              std::get<scoped_inode_id>(second_identity).mapping);
+    EXPECT_TRUE(
+        std::holds_alternative<std::monostate>(relocated.get_inode_identity()));
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(
+        relocated_dir.get_inode_identity()));
+    EXPECT_TRUE(std::holds_alternative<scoped_inode_id>(
+        relocated_child.get_inode_identity()));
   };
 
   check_paths();

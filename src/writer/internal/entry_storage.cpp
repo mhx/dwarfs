@@ -890,11 +890,27 @@ class packed_entry_data {
              global_entry_data const& data,
              time_resolution_converter const& timeres) const;
 
-  unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
-                                      uint64_t const index) const {
+  inode_identity get_inode_identity(shared_entry_data const& shared,
+                                    uint64_t const index) const {
     auto const& stat = stat_common_.at(index);
-    return unique_inode_id{shared.get_device(get<kDeviceIndexField>(stat)),
-                           get<kInodeField>(stat)};
+    auto const mapping = get<kPhysicalMappingField>(stat);
+    auto const inode =
+        unique_inode_id{shared.get_device(get<kDeviceIndexField>(stat)),
+                        get<kInodeField>(stat)};
+
+    if (mapping != 0) {
+      auto const anchor = shared.physical_mapping_at(mapping).anchor;
+      if (anchor == entry_id{this_type_, index}) {
+        // An individually dereferenced symlink has no hardlink identity.
+        return std::monostate{};
+      }
+      if (anchor != entry_id{entry_type::E_DIR, 0}) {
+        // Every dereferenced directory traversal has its own namespace.
+        return scoped_inode_id{mapping, inode};
+      }
+    }
+
+    return inode;
   }
 
   file_stat::nlink_type get_nlink(uint64_t const index) const {
@@ -2243,9 +2259,9 @@ class entry_storage_ final : public entry_storage::entry_impl {
     pack_entry_impl(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const override {
+  inode_identity get_inode_identity(entry_id id) const override {
     TRACE_CALL;
-    return get_unique_inode_id_impl(id);
+    return get_inode_identity_impl(id);
   }
 
   file_stat::nlink_type get_nlink(entry_id id) const override {
@@ -2676,8 +2692,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
                      timeres);
   }
 
-  unique_inode_id get_unique_inode_id_impl(entry_id id) const {
-    return dispatch_shared_(&packed_entry_data::get_unique_inode_id, id);
+  inode_identity get_inode_identity_impl(entry_id id) const {
+    return dispatch_shared_(&packed_entry_data::get_inode_identity, id);
   }
 
   file_stat::nlink_type get_nlink_impl(entry_id id) const {
@@ -3467,8 +3483,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->pack_entry(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const override {
-    return impl_.lock()->get_unique_inode_id(id);
+  inode_identity get_inode_identity(entry_id id) const override {
+    return impl_.lock()->get_inode_identity(id);
   }
 
   file_stat::nlink_type get_nlink(entry_id id) const override {

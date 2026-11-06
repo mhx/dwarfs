@@ -850,6 +850,7 @@ if(WITH_TESTS)
       test/tool_dwarfsextract_main_basic_test.cpp
       test/tool_mkdwarfs_main_basic_test.cpp
       test/tool_mkdwarfs_main_build_test.cpp
+      test/tool_mkdwarfs_main_dereference_test.cpp
       test/tool_mkdwarfs_main_metadata_test.cpp
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp
