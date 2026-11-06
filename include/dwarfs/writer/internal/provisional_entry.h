@@ -30,7 +30,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/writer/entry_interface.h>
 
-#include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/entry_storage.h>
 
 namespace dwarfs {
 
@@ -41,16 +41,18 @@ namespace writer::internal {
 class provisional_entry : public entry_interface {
  public:
   // TODO: no need to use optional here...
-  provisional_entry(
-      os_access const& os, std::filesystem::path const& path,
-      std::optional<dir_handle> parent = std::nullopt,
-      std::size_t physical_mapping = 0,
-      std::optional<std::filesystem::path> physical_path = std::nullopt);
-  provisional_entry(
-      std::filesystem::path const& path, file_stat stat,
-      std::optional<dir_handle> parent = std::nullopt,
-      std::size_t physical_mapping = 0,
-      std::optional<std::filesystem::path> physical_path = std::nullopt);
+  provisional_entry(os_access const& os, std::filesystem::path const& path,
+                    std::optional<dir_handle> parent = std::nullopt,
+                    std::size_t physical_mapping = 0);
+  provisional_entry(os_access const& os, std::filesystem::path const& path,
+                    std::optional<dir_handle> parent,
+                    std::filesystem::path physical_path);
+  provisional_entry(std::filesystem::path const& path, file_stat stat,
+                    std::optional<dir_handle> parent = std::nullopt,
+                    std::size_t physical_mapping = 0);
+  provisional_entry(std::filesystem::path const& path, file_stat stat,
+                    std::optional<dir_handle> parent,
+                    std::filesystem::path physical_path);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
@@ -67,11 +69,16 @@ class provisional_entry : public entry_interface {
   entry_handle commit(entry_storage& tree);
 
  private:
+  using physical_mapping_type = entry_storage::physical_mapping_type;
+
+  provisional_entry(std::filesystem::path const& path, file_stat stat,
+                    std::optional<dir_handle> parent,
+                    physical_mapping_type mapping);
+
   std::filesystem::path const& path_;
   file_stat stat_;
   std::optional<dir_handle> parent_;
-  std::size_t physical_mapping_;
-  std::optional<std::filesystem::path> physical_path_;
+  physical_mapping_type mapping_;
 };
 
 } // namespace writer::internal

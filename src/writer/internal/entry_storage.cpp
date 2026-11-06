@@ -1830,6 +1830,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
   static constexpr bool is_mutable = !Frozen;
   static constexpr entry_id kRootId{entry_type::E_DIR, 0};
 
+  using physical_mapping_type = entry_storage::physical_mapping_type;
+
   friend class entry_storage_<true>;
 
   entry_storage_()
@@ -1895,20 +1897,22 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  entry_id make_obj_(entry_type const type, packed_entry_data& data,
-                     fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t physical_mapping,
-                     std::optional<fs::path> const& physical_path) {
+  entry_id
+  make_obj_(entry_type const type, packed_entry_data& data,
+            fs::path const& path, file_stat const& st, dir_id const parent,
+            physical_mapping_type const& mapping) {
     if constexpr (is_mutable) {
-      if (physical_path) {
-        DWARFS_CHECK(parent.valid(),
-                     "cannot override the physical path of the root entry");
-        // The mapping and the entry are created while holding the storage
-        // lock. The new entry becomes its own anchor.
-        physical_mapping = shared_.add_physical_path_mapping(
-            *physical_path, data.next_id(type));
-      }
-
+      auto const physical_mapping = [&] {
+        if (auto const* physical_path = std::get_if<fs::path>(&mapping)) {
+          DWARFS_CHECK(parent.valid(),
+                       "cannot override the physical path of the root");
+          // The mapping and the entry are created while holding the storage
+          // lock. The new entry becomes its own anchor.
+          return shared_.add_physical_path_mapping(*physical_path,
+                                                   data.next_id(type));
+        }
+        return std::get<std::size_t>(mapping);
+      }();
       auto const [entry_ix, path_storage] = data.add_entry_common(
           shared_, type, path, st, parent, physical_mapping);
 
@@ -1950,39 +1954,34 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
-  entry_id make_file(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t physical_mapping,
-                     std::optional<fs::path> const& physical_path) override {
-    return make_obj_(entry_type::E_FILE, files_, path, st, parent,
-                     physical_mapping, physical_path);
+  entry_id
+  make_file(fs::path const& path, file_stat const& st, dir_id const parent,
+            physical_mapping_type const& mapping) override {
+    return make_obj_(entry_type::E_FILE, files_, path, st, parent, mapping);
   }
 
-  entry_id make_dir(fs::path const& path, file_stat const& st,
-                    dir_id const parent, std::size_t physical_mapping,
-                    std::optional<fs::path> const& physical_path) override {
-    return make_obj_(entry_type::E_DIR, dirs_, path, st, parent,
-                     physical_mapping, physical_path);
+  entry_id
+  make_dir(fs::path const& path, file_stat const& st, dir_id const parent,
+           physical_mapping_type const& mapping) override {
+    return make_obj_(entry_type::E_DIR, dirs_, path, st, parent, mapping);
   }
 
-  entry_id make_link(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t physical_mapping,
-                     std::optional<fs::path> const& physical_path) override {
-    return make_obj_(entry_type::E_LINK, links_, path, st, parent,
-                     physical_mapping, physical_path);
+  entry_id
+  make_link(fs::path const& path, file_stat const& st, dir_id const parent,
+            physical_mapping_type const& mapping) override {
+    return make_obj_(entry_type::E_LINK, links_, path, st, parent, mapping);
   }
 
-  entry_id make_device(fs::path const& path, file_stat const& st,
-                       dir_id const parent, std::size_t physical_mapping,
-                       std::optional<fs::path> const& physical_path) override {
-    return make_obj_(entry_type::E_DEVICE, devices_, path, st, parent,
-                     physical_mapping, physical_path);
+  entry_id
+  make_device(fs::path const& path, file_stat const& st, dir_id const parent,
+              physical_mapping_type const& mapping) override {
+    return make_obj_(entry_type::E_DEVICE, devices_, path, st, parent, mapping);
   }
 
-  entry_id make_other(fs::path const& path, file_stat const& st,
-                      dir_id const parent, std::size_t physical_mapping,
-                      std::optional<fs::path> const& physical_path) override {
-    return make_obj_(entry_type::E_OTHER, others_, path, st, parent,
-                     physical_mapping, physical_path);
+  entry_id
+  make_other(fs::path const& path, file_stat const& st, dir_id const parent,
+             physical_mapping_type const& mapping) override {
+    return make_obj_(entry_type::E_OTHER, others_, path, st, parent, mapping);
   }
 
   std::size_t
@@ -3318,6 +3317,8 @@ void inode_storage_<Frozen>::dump_events(std::ostream& os
 
 class synchronized_entry_storage_ final : public entry_storage::entry_impl {
  public:
+  using physical_mapping_type = entry_storage::physical_mapping_type;
+
   synchronized_entry_storage_() = default;
   explicit synchronized_entry_storage_(metadata_options const& options)
       : impl_{std::in_place, options} {}
@@ -3327,39 +3328,34 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->add_physical_path_mapping(path, anchor);
   }
 
-  entry_id make_file(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t physical_mapping,
-                     std::optional<fs::path> const& physical_path) override {
-    return impl_.lock()->make_file(path, st, parent, physical_mapping,
-                                   physical_path);
+  entry_id
+  make_file(fs::path const& path, file_stat const& st, dir_id const parent,
+            physical_mapping_type const& mapping) override {
+    return impl_.lock()->make_file(path, st, parent, mapping);
   }
 
-  entry_id make_dir(fs::path const& path, file_stat const& st,
-                    dir_id const parent, std::size_t physical_mapping,
-                    std::optional<fs::path> const& physical_path) override {
-    return impl_.lock()->make_dir(path, st, parent, physical_mapping,
-                                  physical_path);
+  entry_id
+  make_dir(fs::path const& path, file_stat const& st, dir_id const parent,
+           physical_mapping_type const& mapping) override {
+    return impl_.lock()->make_dir(path, st, parent, mapping);
   }
 
-  entry_id make_link(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t physical_mapping,
-                     std::optional<fs::path> const& physical_path) override {
-    return impl_.lock()->make_link(path, st, parent, physical_mapping,
-                                   physical_path);
+  entry_id
+  make_link(fs::path const& path, file_stat const& st, dir_id const parent,
+            physical_mapping_type const& mapping) override {
+    return impl_.lock()->make_link(path, st, parent, mapping);
   }
 
-  entry_id make_device(fs::path const& path, file_stat const& st,
-                       dir_id const parent, std::size_t physical_mapping,
-                       std::optional<fs::path> const& physical_path) override {
-    return impl_.lock()->make_device(path, st, parent, physical_mapping,
-                                     physical_path);
+  entry_id
+  make_device(fs::path const& path, file_stat const& st, dir_id const parent,
+              physical_mapping_type const& mapping) override {
+    return impl_.lock()->make_device(path, st, parent, mapping);
   }
 
-  entry_id make_other(fs::path const& path, file_stat const& st,
-                      dir_id const parent, std::size_t physical_mapping,
-                      std::optional<fs::path> const& physical_path) override {
-    return impl_.lock()->make_other(path, st, parent, physical_mapping,
-                                    physical_path);
+  entry_id
+  make_other(fs::path const& path, file_stat const& st, dir_id const parent,
+             physical_mapping_type const& mapping) override {
+    return impl_.lock()->make_other(path, st, parent, mapping);
   }
 
   std::size_t physical_mapping_id(entry_id id) const override {
@@ -3725,53 +3721,43 @@ dir_handle
 entry_storage::create_root_dir(fs::path const& path, file_stat const& st,
                                std::size_t physical_mapping) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, entry_impl_->make_dir(path, st, dir_id{}, physical_mapping,
-                                       std::nullopt)};
+  return {*this, entry_impl_->make_dir(path, st, dir_id{}, physical_mapping)};
 }
 
-file_handle
-entry_storage::create_file(fs::path const& path, dir_handle parent,
-                           file_stat const& st, std::size_t physical_mapping,
-                           std::optional<fs::path> const& physical_path) {
+file_handle entry_storage::create_file(fs::path const& path, dir_handle parent,
+                                       file_stat const& st,
+                                       physical_mapping_type const& mapping) {
   assert(!empty());
-  return {*this, entry_impl_->make_file(path, st, parent.id(), physical_mapping,
-                                        physical_path)};
+  return {*this, entry_impl_->make_file(path, st, parent.id(), mapping)};
 }
 
-dir_handle
-entry_storage::create_dir(fs::path const& path, dir_handle parent,
-                          file_stat const& st, std::size_t physical_mapping,
-                          std::optional<fs::path> const& physical_path) {
+dir_handle entry_storage::create_dir(fs::path const& path, dir_handle parent,
+                                     file_stat const& st,
+                                     physical_mapping_type const& mapping) {
   assert(!empty());
-  return {*this, entry_impl_->make_dir(path, st, parent.id(), physical_mapping,
-                                       physical_path)};
+  return {*this, entry_impl_->make_dir(path, st, parent.id(), mapping)};
 }
 
-link_handle
-entry_storage::create_link(fs::path const& path, dir_handle parent,
-                           file_stat const& st, std::size_t physical_mapping,
-                           std::optional<fs::path> const& physical_path) {
+link_handle entry_storage::create_link(fs::path const& path, dir_handle parent,
+                                       file_stat const& st,
+                                       physical_mapping_type const& mapping) {
   assert(!empty());
-  return {*this, entry_impl_->make_link(path, st, parent.id(), physical_mapping,
-                                        physical_path)};
+  return {*this, entry_impl_->make_link(path, st, parent.id(), mapping)};
 }
 
 device_handle
 entry_storage::create_device(fs::path const& path, dir_handle parent,
-                             file_stat const& st, std::size_t physical_mapping,
-                             std::optional<fs::path> const& physical_path) {
+                             file_stat const& st,
+                             physical_mapping_type const& mapping) {
   assert(!empty());
-  return {*this, entry_impl_->make_device(path, st, parent.id(),
-                                          physical_mapping, physical_path)};
+  return {*this, entry_impl_->make_device(path, st, parent.id(), mapping)};
 }
 
-other_handle
-entry_storage::create_other(fs::path const& path, dir_handle parent,
-                            file_stat const& st, std::size_t physical_mapping,
-                            std::optional<fs::path> const& physical_path) {
+other_handle entry_storage::create_other(fs::path const& path,
+                                         dir_handle parent, file_stat const& st,
+                                         physical_mapping_type const& mapping) {
   assert(!empty());
-  return {*this, entry_impl_->make_other(path, st, parent.id(),
-                                         physical_mapping, physical_path)};
+  return {*this, entry_impl_->make_other(path, st, parent.id(), mapping)};
 }
 
 inode_handle entry_storage::create_inode() {
