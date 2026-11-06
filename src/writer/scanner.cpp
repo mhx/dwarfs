@@ -92,8 +92,8 @@ using namespace std::chrono_literals;
 
 namespace {
 
-// Matches rsync's conservative --copy-unsafe-links lexical classification.
-// The boundary is the current imported physical directory, not the image root.
+// Matches rsync's --copy-unsafe-links lexical classification.
+// The boundary is the current imported physical directory.
 bool unsafe_symlink(std::filesystem::path const& target,
                     std::filesystem::path const& link_parent,
                     std::filesystem::path const& boundary) {
@@ -102,11 +102,13 @@ bool unsafe_symlink(std::filesystem::path const& target,
   }
 
   auto const relative = link_parent.lexically_relative(boundary);
+
   if (relative.empty() || relative.is_absolute()) {
     return true;
   }
 
   std::size_t depth = 0;
+
   for (auto const& part : relative) {
     if (part == "..") {
       return true;
@@ -117,6 +119,7 @@ bool unsafe_symlink(std::filesystem::path const& target,
   }
 
   bool seen_non_parent = false;
+
   for (auto const& part : target) {
     if (part == "..") {
       if (seen_non_parent || depth == 0) {
@@ -128,6 +131,7 @@ bool unsafe_symlink(std::filesystem::path const& target,
       ++depth;
     }
   }
+
   return false;
 }
 
@@ -242,6 +246,7 @@ class hardlink_handler {
     }
 
     auto const id = p.get_unique_inode_id();
+
     if (!id) {
       return inode_num_++;
     }
@@ -250,6 +255,7 @@ class hardlink_handler {
       if (is_new) {
         *is_new = false;
       }
+
       return it->second;
     }
 

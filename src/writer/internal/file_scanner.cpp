@@ -273,6 +273,9 @@ class file_scanner_ final : public file_scanner::impl {
 
   // Entries without source hardlink identity. Only populated when hashing is
   // disabled or an independently mapped file becomes invalid while hashing.
+  // TODO: This is an identity map: it only ever contains the file_id of the
+  //       file itself. We can potentially replace this with just a simple
+  //       file_id_vector if we can make finalize_files handle that case.
   container::chunked_append_only_vector<std::pair<file_id, file_id_vector>>
       independent_store_;
 
