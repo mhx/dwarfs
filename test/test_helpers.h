@@ -144,6 +144,9 @@ class os_access_mock : public os_access {
 
   void
   add_dir(std::filesystem::path const& path, add_file_options const& opts = {});
+  void add_symlink(std::filesystem::path const& path,
+                   std::filesystem::path const& target,
+                   add_file_options const& opts = {});
   simplestat add_file(std::filesystem::path const& path, file_size_t size,
                       bool random = false, add_file_options const& opts = {});
   simplestat

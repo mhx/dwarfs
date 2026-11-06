@@ -42,6 +42,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/types.h>
 #include <dwarfs/util.h>
@@ -76,7 +77,11 @@ class pair_inode_accessor {
  public:
   template <typename T>
   auto key(T const& p) const {
-    return p.first;
+    if constexpr (requires { p.first.index(); }) {
+      return p.first.index();
+    } else {
+      return p.first;
+    }
   }
 
   template <typename T>
@@ -157,6 +162,19 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   file_id_vector& hardlink_group(const_file_handle p);
+  file_id_vector* by_inode_group(inode_identity const& id, bool create);
+  void add_file(file_handle p);
+
+  template <typename Key>
+  dense_cao_map_index<Key>& get_scoped_index(
+      std::optional<dense_cao_map_index<Key>>& index,
+      container::chunked_append_only_vector<std::pair<Key, file_id_vector>>&
+          store) {
+    if (!index) {
+      index.emplace(store);
+    }
+    return *index;
+  }
 
   template <typename KeyType, typename ValueType>
   void finalize_files(
@@ -236,6 +254,12 @@ class file_scanner_ final : public file_scanner::impl {
   std::optional<dense_cao_map_index<unique_inode_id>> hardlinks_{
       hardlinks_store_};
 
+  // Scoped indices are only created when for dereferenced directories.
+  container::chunked_append_only_vector<
+      std::pair<scoped_inode_id, file_id_vector>>
+      scoped_hardlinks_store_;
+  std::optional<dense_cao_map_index<scoped_inode_id>> scoped_hardlinks_;
+
   // Large files that have been seen exactly once by size only.
   //
   // For these files we have not computed a start hash yet. If another file with
@@ -265,6 +289,18 @@ class file_scanner_ final : public file_scanner::impl {
       by_inode_id_store_;
   std::optional<dense_cao_map_index<unique_inode_id>> by_inode_id_{
       by_inode_id_store_};
+  container::chunked_append_only_vector<
+      std::pair<scoped_inode_id, file_id_vector>>
+      scoped_by_inode_id_store_;
+  std::optional<dense_cao_map_index<scoped_inode_id>> scoped_by_inode_id_;
+
+  // Entries without source hardlink identity. Only populated when hashing is
+  // disabled or an independently mapped file becomes invalid while hashing.
+  // TODO: This is an identity map: it only ever contains the file_id of the
+  //       file itself. We can potentially replace this with just a simple
+  //       file_id_vector if we can make finalize_files handle that case.
+  container::chunked_append_only_vector<std::pair<file_id, file_id_vector>>
+      independent_store_;
 
   // There is likely no point in trying to store a digest pointer in this vector
   // to keep for sorting later. It would just use memory while we're scanning,
@@ -345,10 +381,11 @@ class file_scanner_ final : public file_scanner::impl {
 // Files that are not deduplicated
 //
 //   A file that is already invalid, or that becomes invalid while being read,
-//   never takes part in deduplication. It is collected in `by_inode_id_` and
-//   always gets an inode of its own. The same is true for every file if no
-//   hash algorithm is configured, in which case deduplication is disabled and
-//   `by_inode_id_` is the only table that is populated.
+//   never takes part in content deduplication. The same is true when hashing
+//   is disabled. Ordinary files go into `by_inode_id_`, descendants of
+//   dereferenced directories into `scoped_by_inode_id_`, and independently
+//   mapped files into `independent_store_`. Genuine source hardlinks are still
+//   grouped within each identity namespace.
 
 template <typename LoggerPolicy>
 file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
@@ -369,13 +406,26 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   // This method is supposed to be called from a single thread only.
 
   if (p.num_hard_links() > 1) {
-    auto& vec = hardlinks_->mapped(p.get_unique_inode_id());
-    vec.push_back(p.id());
+    auto* vec = p.get_inode_identity() |
+                match{
+                    [this](unique_inode_id const& id) -> file_id_vector* {
+                      return &hardlinks_->mapped(id);
+                    },
+                    [this](scoped_inode_id const& id) -> file_id_vector* {
+                      return &get_scoped_index(scoped_hardlinks_,
+                                               scoped_hardlinks_store_)
+                                  .mapped(id);
+                    },
+                    [](std::monostate) -> file_id_vector* { return nullptr; },
+                };
 
-    if (vec.size() > 1) {
-      p.hardlink(storage_.handle(vec[0]), prog_);
-      ++prog_.files_scanned;
-      return;
+    if (vec) {
+      vec->push_back(p.id());
+      if (vec->size() > 1) {
+        p.hardlink(storage_.handle(vec->front()), prog_);
+        ++prog_.files_scanned;
+        return;
+      }
     }
   }
 
@@ -390,8 +440,53 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
-    by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+    add_file(p);
     scan_inode(p, add_inode(p, __LINE__), true);
+  }
+}
+
+template <typename LoggerPolicy>
+file_id_vector*
+file_scanner_<LoggerPolicy>::by_inode_group(inode_identity const& identity,
+                                            bool create) {
+  auto lookup = [create](auto& index, auto& store,
+                         auto const& id) -> file_id_vector* {
+    if (create) {
+      return &index.mapped(id);
+    }
+    if (auto ix = index.index_of(id)) {
+      return &store[*ix].second;
+    }
+    return nullptr;
+  };
+
+  return identity |
+         match{
+             [&](unique_inode_id const& id) -> file_id_vector* {
+               return lookup(*by_inode_id_, by_inode_id_store_, id);
+             },
+             [&](scoped_inode_id const& id) -> file_id_vector* {
+               if (!create && !scoped_by_inode_id_) {
+                 return nullptr;
+               }
+               auto& index = get_scoped_index(scoped_by_inode_id_,
+                                              scoped_by_inode_id_store_);
+               return lookup(index, scoped_by_inode_id_store_, id);
+             },
+             [](std::monostate) -> file_id_vector* { return nullptr; },
+         };
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::add_file(file_handle p) {
+  auto const file_id = p.id();
+
+  if (auto* files = by_inode_group(p.get_inode_identity(), true)) {
+    files->push_back(file_id);
+  } else {
+    file_id_vector fv;
+    fv.push_back(file_id);
+    independent_store_.emplace_back(file_id, std::move(fv));
   }
 }
 
@@ -441,6 +536,8 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
   LOG_VERBOSE << "file scanner table stats:"
               << "\n  hardlinks store: " << table_stats(hardlinks_store_)
               << "\n  hardlinks index: " << index_stats(hardlinks_.value())
+              << "\n  scoped hardlinks store: "
+              << table_stats(scoped_hardlinks_store_)
               << "\n  size-buckets store: " << table_stats(size_buckets_store_)
               << "\n  size-buckets index: "
               << index_stats(size_buckets_.value())
@@ -451,9 +548,13 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
               << "\n  file-start-hash: " << table_stats(file_start_hash_)
               << "\n  by-inode-id store: " << table_stats(by_inode_id_store_)
               << "\n  by-inode-id index: " << index_stats(by_inode_id_.value())
+              << "\n  scoped by-inode-id store: "
+              << table_stats(scoped_by_inode_id_store_)
+              << "\n  independent store: " << table_stats(independent_store_)
               << "\n  by-digest: " << table_stats(by_digest_);
 
   hardlinks_.reset();
+  scoped_hardlinks_.reset();
 
   if (opts_.hash_files) {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
@@ -467,6 +568,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     size_buckets_.reset();
     start_hash_buckets_.reset();
     by_inode_id_.reset();
+    scoped_by_inode_id_.reset();
 
     // Only `by_digest_` can hold groups of more than one distinct file; every
     // group in the other maps is a single file plus its own hardlinks.
@@ -474,16 +576,26 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(std::move(start_hash_buckets_store_), inode_num, obj_num,
                    "start hash");
     finalize_files(std::move(by_inode_id_store_), inode_num, obj_num, "inode");
+    finalize_files(std::move(scoped_by_inode_id_store_), inode_num, obj_num,
+                   "scoped inode");
     finalize_files(std::move(by_digest_), inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      return by_inode_id_->mapped_at(p.get_unique_inode_id());
+      auto* files = by_inode_group(p.get_inode_identity(), false);
+      assert(files);
+      return *files;
     });
 
     by_inode_id_.reset();
+    scoped_by_inode_id_.reset();
 
     finalize_files(std::move(by_inode_id_store_), inode_num, obj_num, "inode");
+    finalize_files(std::move(scoped_by_inode_id_store_), inode_num, obj_num,
+                   "scoped inode");
   }
+
+  finalize_files(std::move(independent_store_), inode_num, obj_num,
+                 "independent");
 }
 
 template <typename LoggerPolicy>
@@ -491,8 +603,8 @@ file_id_vector&
 file_scanner_<LoggerPolicy>::hardlink_group(const_file_handle p) {
   // Invalid files never take part in deduplication.
   if (p.is_invalid()) {
-    if (auto ix = by_inode_id_->index_of(p.get_unique_inode_id())) {
-      return by_inode_id_store_[*ix].second;
+    if (auto* files = by_inode_group(p.get_inode_identity(), false)) {
+      return *files;
     }
   }
 
@@ -633,7 +745,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
         assert(p.get_inode());
 
         if (p.is_invalid()) [[unlikely]] {
-          by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+          add_file(p);
         } else {
           auto& ref = get_by_digest_autovivify(p);
           ref.push_back(p.id());
@@ -666,7 +778,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
       if (p.is_invalid()) [[unlikely]] {
         inode_to_scan = add_inode(p, __LINE__);
-        by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+        add_file(p);
       } else {
         auto& ref = get_by_digest_autovivify(p);
 
@@ -770,28 +882,31 @@ template <typename Lookup>
 void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
   auto tv = LOG_TIMED_VERBOSE;
 
-  auto hardlinks = std::move(hardlinks_store_);
-
   size_t groups_finalized = 0;
   size_t links_finalized = 0;
 
-  for (auto& kv : hardlinks) {
-    auto& hlv = kv.second;
+  auto finalize = [&](auto& hardlinks) {
+    for (auto& kv : hardlinks) {
+      auto& hlv = kv.second;
 
-    if (hlv.size() > 1) {
-      auto& fv = lookup(storage_.handle(hlv.front()));
+      if (hlv.size() > 1) {
+        auto& fv = lookup(storage_.handle(hlv.front()));
 
-      for (auto p : ranges::views::drop(hlv, 1)) {
-        auto handle = storage_.handle(p);
-        handle.set_inode(storage_.handle(fv.front()).get_inode());
-        fv.push_back(p);
+        for (auto p : ranges::views::drop(hlv, 1)) {
+          auto handle = storage_.handle(p);
+          handle.set_inode(storage_.handle(fv.front()).get_inode());
+          fv.push_back(p);
 
-        ++links_finalized;
+          ++links_finalized;
+        }
+
+        ++groups_finalized;
       }
-
-      ++groups_finalized;
     }
-  }
+  };
+
+  finalize(hardlinks_store_);
+  finalize(scoped_hardlinks_store_);
 
   tv << "finalized " << links_finalized << " hardlinks in " << groups_finalized
      << " groups";
@@ -1075,6 +1190,8 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << "{\n";
   dump_map(os, "hardlinks", hardlinks_store_);
   os << ",\n";
+  dump_map(os, "scoped_hardlinks", scoped_hardlinks_store_);
+  os << ",\n";
   dump_map(os, "size_buckets", size_buckets_store_);
   os << ",\n";
   dump_map(os, "start_hash_buckets", start_hash_buckets_store_);
@@ -1082,6 +1199,10 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   dump_map(os, "file_start_hash", file_start_hash_);
   os << ",\n";
   dump_map(os, "by_inode_id", by_inode_id_store_);
+  os << ",\n";
+  dump_map(os, "scoped_by_inode_id", scoped_by_inode_id_store_);
+  os << ",\n";
+  dump_map(os, "independent", independent_store_);
   os << ",\n";
   dump_map(os, "by_digest", by_digest_);
   os << ",\n";

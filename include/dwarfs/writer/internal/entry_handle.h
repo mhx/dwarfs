@@ -40,7 +40,7 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/entry_type.h>
 #include <dwarfs/writer/internal/inode_id.h>
-#include <dwarfs/writer/internal/unique_inode_id.h>
+#include <dwarfs/writer/internal/inode_identity.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
 
@@ -149,7 +149,7 @@ class entry_handle_base {
   file_size_info size_info() const;
   entry_type type() const;
   void update(internal::global_entry_data& data) const;
-  unique_inode_id get_unique_inode_id() const;
+  inode_identity get_inode_identity() const;
   file_stat::nlink_type num_hard_links() const;
   std::optional<std::uint64_t> inode_num() const;
 
