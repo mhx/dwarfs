@@ -481,7 +481,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
       history_compression, recompress_categories, image_size_alignment_str,
       rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str,
-      root_mode_str, root_time_str;
+      root_mode_str, root_time_str, dereference_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -774,6 +774,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("debug-filter",
         po::value<std::string>(&debug_filter)->implicit_value("all"),
         debug_filter_desc.c_str())
+    ("dereference",
+        po::value<std::string>(&dereference_str)->implicit_value("symlinks"),
+        "follow symlinks (symlinks or external-symlinks)")
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
@@ -861,8 +864,28 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     command_line.emplace_back(sys_string_to_string(argv[i]));
   }
 
+  // Boost.Program_options treats the token following an option with an
+  // implicit argument as its value. Normalize the bare spelling so that
+  // "--dereference /source" still treats /source as a positional input.
+  std::vector<sys_string> parse_arguments;
+  parse_arguments.reserve(argc - 1);
+  auto const bare_dereference =
+      std::filesystem::path{"--dereference"}.native();
+  auto const default_dereference =
+      std::filesystem::path{"--dereference=symlinks"}.native();
+  bool positional_only = false;
+  for (int i = 1; i < argc; ++i) {
+    sys_string argument{argv[i]};
+    if (argument == std::filesystem::path{"--"}.native()) {
+      positional_only = true;
+    } else if (!positional_only && argument == bare_dereference) {
+      argument = default_dereference;
+    }
+    parse_arguments.push_back(std::move(argument));
+  }
+
   try {
-    auto parsed = po::basic_command_line_parser<sys_char>(argc, argv)
+    auto parsed = po::basic_command_line_parser<sys_char>(parse_arguments)
                       .options(parse_opts)
                       .positional(positional)
                       .run();
@@ -1043,6 +1066,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+  if (vm.contains("dereference")) {
+    if (dereference_str == "symlinks") {
+      options.dereference = writer::dereference_mode::symlinks;
+    } else if (dereference_str == "external-symlinks") {
+      options.dereference = writer::dereference_mode::external_symlinks;
+    } else {
+      iol.err << "error: invalid --dereference mode '" << dereference_str
+              << "' (expected symlinks or external-symlinks)\n";
+      return 1;
+    }
+  }
+
+  if (recompress && vm.contains("dereference")) {
+    iol.err << "error: --dereference cannot be used when recompressing\n";
+    return 1;
+  }
+
   writer::scan_root_attributes root_attributes;
 
   if (vm.contains("root-mode")) {
@@ -1183,7 +1223,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     while (std::getline(*is, line)) {
       std::filesystem::path p(line);
       if (p.has_root_directory()) {
-        p = iol.os->canonical(p);
+        // Don't resolve an explicitly listed symlink before the scanner has
+        // applied the requested dereference policy.
+        p = p.lexically_normal();
       }
       input_list->emplace_back(std::move(p));
     }

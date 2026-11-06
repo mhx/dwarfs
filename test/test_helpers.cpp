@@ -27,6 +27,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <random>
 #include <regex>
 
@@ -499,7 +500,7 @@ void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
 
 std::unique_ptr<dir_reader>
 os_access_mock::opendir(fs::path const& path) const {
-  if (auto de = find(path);
+  if (auto de = find(canonical(path));
       de && de->status.type() == posix_file_type::directory) {
     std::vector<fs::path> files;
     for (auto const& e :
@@ -514,7 +515,12 @@ os_access_mock::opendir(fs::path const& path) const {
 }
 
 file_stat os_access_mock::symlink_info(fs::path const& path) const {
-  if (auto de = find(path.has_filename() ? path : path.parent_path())) {
+  auto const lookup = path.has_filename() ? path : path.parent_path();
+  auto* de = find(lookup);
+  if (!de && lookup.has_parent_path()) {
+    de = find(canonical(lookup.parent_path()) / lookup.filename());
+  }
+  if (de) {
     return make_file_stat(de->status);
   }
 
@@ -522,8 +528,11 @@ file_stat os_access_mock::symlink_info(fs::path const& path) const {
 }
 
 fs::path os_access_mock::read_symlink(fs::path const& path) const {
-  if (auto de = find(path);
-      de && de->status.type() == posix_file_type::symlink) {
+  auto* de = find(path);
+  if (!de) {
+    de = find(canonical(path.parent_path()) / path.filename());
+  }
+  if (de && de->status.type() == posix_file_type::symlink) {
     return std::get<std::string>(de->v);
   }
 
@@ -597,7 +606,38 @@ int os_access_mock::access(fs::path const& path, int) const {
 
 std::filesystem::path
 os_access_mock::canonical(std::filesystem::path const& path) const {
-  return path;
+  // Follow symlinks in each component, not only the final component.
+  // This lets scanner tests exercise paths below dereferenced directories.
+  auto current = path;
+  bool followed = false;
+  for (unsigned hops = 0; hops < 40; ++hops) {
+    fs::path prefix;
+    bool found_link = false;
+    for (auto it = current.begin(); it != current.end(); ++it) {
+      prefix /= *it;
+      auto const* de = find(prefix);
+      if (!de || de->status.type() != posix_file_type::symlink) {
+        continue;
+      }
+      auto const target = fs::path(std::get<std::string>(de->v));
+      auto next = target.has_root_path() ? target : prefix.parent_path() / target;
+      for (auto rest = std::next(it); rest != current.end(); ++rest) {
+        next /= *rest;
+      }
+      current = next.lexically_normal();
+      followed = found_link = true;
+      break;
+    }
+    if (!found_link) {
+      if (followed && !find(current)) {
+        throw std::system_error(
+            std::make_error_code(std::errc::no_such_file_or_directory));
+      }
+      return current;
+    }
+  }
+  throw std::system_error(
+      std::make_error_code(std::errc::too_many_symbolic_link_levels));
 }
 
 std::filesystem::path os_access_mock::current_path() const {

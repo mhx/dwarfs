@@ -38,7 +38,10 @@
 
 namespace dwarfs::writer {
 
+enum class dereference_mode { none, symlinks, external_symlinks };
+
 struct scanner_options {
+  dereference_mode dereference{dereference_mode::none};
   bool hash_files{true};
   bool remove_empty_dirs{false};
   bool with_devices{false};

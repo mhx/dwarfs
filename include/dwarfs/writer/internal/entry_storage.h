@@ -28,6 +28,7 @@
 #include <functional>
 #include <iosfwd>
 #include <memory>
+#include <optional>
 
 #include <dwarfs/file_stat.h>
 
@@ -202,7 +203,7 @@ class entry_storage {
     entry_impl_->pack_entry(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const {
+  std::optional<unique_inode_id> get_unique_inode_id(entry_id id) const {
     return entry_impl_->get_unique_inode_id(id);
   }
 
@@ -444,7 +445,8 @@ class entry_storage {
         global_entry_data const& data,
         time_resolution_converter const& timeres) const = 0;
 
-    virtual unique_inode_id get_unique_inode_id(entry_id id) const = 0;
+    virtual std::optional<unique_inode_id>
+    get_unique_inode_id(entry_id id) const = 0;
 
     virtual file_stat::nlink_type get_nlink(entry_id id) const = 0;
 

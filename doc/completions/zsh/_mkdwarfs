@@ -217,6 +217,7 @@ _arguments -S \
 	"--recompress=-[recompress an existing filesystem]:mode:(none block metadata all)" \
 	"--recompress-categories=[only recompress blocks of these categories]:categories:__mkdwarfs_categories" \
 	"--reproducible[omit generated timestamps and use a nil superblock UUID]" \
+	"--dereference=-[follow symlinks]:mode:(symlinks external-symlinks)" \
 	"--remove-empty-dirs[remove empty directories in file system]" \
 	"--remove-header[remove any header present before filesystem data]" \
 	"--schema-compression=[metadata schema compression algorithm]:algos:__mkdwarfs_compression_algos" \

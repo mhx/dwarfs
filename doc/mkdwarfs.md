@@ -497,6 +497,15 @@ Most other options are concerned with compression tuning:
   set of files/directories. `included-files` and `excluded-files` work
   as before, but again omit all directories.
 
+- `--dereference`[`=symlinks`|`=external-symlinks`]:
+  Follow symbolic links when scanning input. By default (or with
+  `--dereference=symlinks`), all symbolic links are followed and stored as
+  their referents, including directory symlinks. `external-symlinks` follows
+  only links considered unsafe by rsync's `--copy-unsafe-links` lexical rules;
+  other links remain symlinks. Each dereferenced directory establishes a new
+  safety boundary for its descendants. Broken links and directory cycles are
+  reported and skipped. Without this option, all symbolic links are preserved.
+
 - `--remove-empty-dirs`:
   Removes all empty directories from the output file system, recursively.
   This is particularly useful when using scripts that filter out a lot of

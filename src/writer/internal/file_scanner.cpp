@@ -76,7 +76,11 @@ class pair_inode_accessor {
  public:
   template <typename T>
   auto key(T const& p) const {
-    return p.first;
+    if constexpr (requires { p.first.index(); }) {
+      return p.first.index();
+    } else {
+      return p.first;
+    }
   }
 
   template <typename T>
@@ -157,6 +161,7 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   file_id_vector& hardlink_group(const_file_handle p);
+  void add_independent(file_handle p);
 
   template <typename KeyType, typename ValueType>
   void finalize_files(
@@ -266,6 +271,11 @@ class file_scanner_ final : public file_scanner::impl {
   std::optional<dense_cao_map_index<unique_inode_id>> by_inode_id_{
       by_inode_id_store_};
 
+  // Entries without source hardlink identity. Only populated when hashing is
+  // disabled or an independently mapped file becomes invalid while hashing.
+  container::chunked_append_only_vector<std::pair<file_id, file_id_vector>>
+      independent_store_;
+
   // There is likely no point in trying to store a digest pointer in this vector
   // to keep for sorting later. It would just use memory while we're scanning,
   // and at the time when we create the temporary vector for sorting, we've
@@ -348,7 +358,8 @@ class file_scanner_ final : public file_scanner::impl {
 //   never takes part in deduplication. It is collected in `by_inode_id_` and
 //   always gets an inode of its own. The same is true for every file if no
 //   hash algorithm is configured, in which case deduplication is disabled and
-//   `by_inode_id_` is the only table that is populated.
+//   `by_inode_id_` is used for entries with a source inode identity. Entries
+//   without one are collected in `independent_store_` instead.
 
 template <typename LoggerPolicy>
 file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
@@ -369,13 +380,15 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
   // This method is supposed to be called from a single thread only.
 
   if (p.num_hard_links() > 1) {
-    auto& vec = hardlinks_->mapped(p.get_unique_inode_id());
-    vec.push_back(p.id());
+    if (auto id = p.get_unique_inode_id()) {
+      auto& vec = hardlinks_->mapped(*id);
+      vec.push_back(p.id());
 
-    if (vec.size() > 1) {
-      p.hardlink(storage_.handle(vec[0]), prog_);
-      ++prog_.files_scanned;
-      return;
+      if (vec.size() > 1) {
+        p.hardlink(storage_.handle(vec[0]), prog_);
+        ++prog_.files_scanned;
+        return;
+      }
     }
   }
 
@@ -390,9 +403,20 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     scan_dedupe(p, size_info);
   } else {
     prog_.current.store(p);
-    by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+    if (auto id = p.get_unique_inode_id()) {
+      by_inode_id_->mapped(*id).push_back(p.id());
+    } else {
+      add_independent(p);
+    }
     scan_inode(p, add_inode(p, __LINE__), true);
   }
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::add_independent(file_handle p) {
+  file_id_vector files;
+  files.push_back(p.id());
+  independent_store_.emplace_back(p.id(), std::move(files));
 }
 
 template <typename LoggerPolicy>
@@ -451,6 +475,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
               << "\n  file-start-hash: " << table_stats(file_start_hash_)
               << "\n  by-inode-id store: " << table_stats(by_inode_id_store_)
               << "\n  by-inode-id index: " << index_stats(by_inode_id_.value())
+              << "\n  independent store: " << table_stats(independent_store_)
               << "\n  by-digest: " << table_stats(by_digest_);
 
   hardlinks_.reset();
@@ -477,13 +502,16 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
     finalize_files(std::move(by_digest_), inode_num, obj_num);
   } else {
     finalize_hardlinks([this](const_file_handle p) -> file_id_vector& {
-      return by_inode_id_->mapped_at(p.get_unique_inode_id());
+      return by_inode_id_->mapped_at(*p.get_unique_inode_id());
     });
 
     by_inode_id_.reset();
 
     finalize_files(std::move(by_inode_id_store_), inode_num, obj_num, "inode");
   }
+
+  finalize_files(std::move(independent_store_), inode_num, obj_num,
+                 "independent");
 }
 
 template <typename LoggerPolicy>
@@ -491,8 +519,10 @@ file_id_vector&
 file_scanner_<LoggerPolicy>::hardlink_group(const_file_handle p) {
   // Invalid files never take part in deduplication.
   if (p.is_invalid()) {
-    if (auto ix = by_inode_id_->index_of(p.get_unique_inode_id())) {
-      return by_inode_id_store_[*ix].second;
+    if (auto id = p.get_unique_inode_id()) {
+      if (auto ix = by_inode_id_->index_of(*id)) {
+        return by_inode_id_store_[*ix].second;
+      }
     }
   }
 
@@ -633,7 +663,11 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
         assert(p.get_inode());
 
         if (p.is_invalid()) [[unlikely]] {
-          by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+          if (auto id = p.get_unique_inode_id()) {
+            by_inode_id_->mapped(*id).push_back(p.id());
+          } else {
+            add_independent(p);
+          }
         } else {
           auto& ref = get_by_digest_autovivify(p);
           ref.push_back(p.id());
@@ -666,7 +700,11 @@ void file_scanner_<LoggerPolicy>::scan_dedupe_after_start_hash(
 
       if (p.is_invalid()) [[unlikely]] {
         inode_to_scan = add_inode(p, __LINE__);
-        by_inode_id_->mapped(p.get_unique_inode_id()).push_back(p.id());
+        if (auto id = p.get_unique_inode_id()) {
+          by_inode_id_->mapped(*id).push_back(p.id());
+        } else {
+          add_independent(p);
+        }
       } else {
         auto& ref = get_by_digest_autovivify(p);
 
@@ -1080,6 +1118,8 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   dump_map(os, "file_start_hash", file_start_hash_);
   os << ",\n";
   dump_map(os, "by_inode_id", by_inode_id_store_);
+  os << ",\n";
+  dump_map(os, "independent", independent_store_);
   os << ",\n";
   dump_map(os, "by_digest", by_digest_);
   os << ",\n";

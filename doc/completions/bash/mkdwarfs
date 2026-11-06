@@ -177,6 +177,7 @@ _mkdwarfs_completion()
         --reproducible
         --recompress
         --recompress-categories
+        --dereference
         --remove-empty-dirs
         --remove-header
         --schema-compression
@@ -215,6 +216,7 @@ _mkdwarfs_completion()
     local OPTION_ARG__recompress=( none block metadata all )
     local OPTION_ARG__debug_filter=( all excluded excluded-files files included
         included-files )
+    local OPTION_ARG__dereference=( symlinks external-symlinks )
     local OPTION_ARG__file_hash=( none )
     local OPTION_ARG__uuid=( random nil keep )
     local OPTION_ARG__rebuild_metadata_source_os_hint=( linux windows macos freebsd )
@@ -245,6 +247,7 @@ _mkdwarfs_completion()
     # catch option with known arguments first
     case $prev in
         --log-level | --compress-level | --recompress | --debug-filter | \
+        --dereference | \
         --file-hash | --memory-limit | --progress | --set-time | \
         --root-time | \
         --time-resolution | --pack-metadata | --superblock-digests | \

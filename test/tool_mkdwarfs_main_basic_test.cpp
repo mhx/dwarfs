@@ -76,6 +76,215 @@ TEST(mkdwarfs_test, positional_sources) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate entry"));
 }
 
+namespace {
+
+void add_mock_symlink(os_access_mock& os, fs::path const& link,
+                      fs::path const& target, file_stat::ino_type ino) {
+  simplestat st;
+  st.ino = ino;
+  st.mode = posix_file_type::symlink | 0777;
+  st.uid = 1000;
+  st.gid = 100;
+  st.size = static_cast<file_stat::off_type>(target.native().size());
+  os.add(link, st, target.string());
+}
+
+} // namespace
+
+TEST(mkdwarfs_test, dereference_symlinks) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/original", "contents");
+  t.os->add_dir("/blobs");
+  t.os->add_file("/blobs/data", "external contents");
+  t.os->add_dir("/external");
+  t.os->add_file("/external/child", "directory contents");
+  add_mock_symlink(*t.os, "/src/local", "original", 201);
+  add_mock_symlink(*t.os, "/src/remote", "/blobs/data", 202);
+  add_mock_symlink(*t.os, "/src/dir", "/external", 203);
+
+  ASSERT_EQ(0, t.run({"-o", "deref.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"})) << t.err();
+  auto image = t.fs_from_file("deref.dwarfs");
+  auto local = image.find("/local");
+  auto remote = image.find("/remote");
+  auto dir = image.find("/dir");
+  auto child = image.find("/dir/child");
+  ASSERT_TRUE(local);
+  ASSERT_TRUE(remote);
+  ASSERT_TRUE(dir);
+  ASSERT_TRUE(child);
+  EXPECT_TRUE(local->inode().is_regular_file());
+  EXPECT_TRUE(remote->inode().is_regular_file());
+  EXPECT_TRUE(dir->inode().is_directory());
+  EXPECT_TRUE(child->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereference_default_and_bare_option) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/target", "data");
+  add_mock_symlink(*t.os, "/src/link", "target", 261);
+
+  ASSERT_EQ(0, t.run({"-o", "preserved.dwarfs", "-l1", "-i", "/src"}))
+      << t.err();
+  auto preserved = t.fs_from_file("preserved.dwarfs");
+  ASSERT_TRUE(preserved.find("/link"));
+  EXPECT_TRUE(preserved.find("/link")->inode().is_symlink());
+
+  ASSERT_EQ(0, t.run({"-o", "bare.dwarfs", "-l1", "--dereference",
+                      "/src/"})) << t.err();
+  auto dereferenced = t.fs_from_file("bare.dwarfs");
+  ASSERT_TRUE(dereferenced.find("/link"));
+  EXPECT_TRUE(dereferenced.find("/link")->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereference_external_symlinks) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/original", "local");
+  t.os->add_dir("/targets");
+  t.os->add_dir("/targets/tree");
+  t.os->add_dir("/targets/tree/sub");
+  t.os->add_file("/targets/tree/sub/data", "inside");
+  t.os->add_file("/targets/other", "outside");
+  add_mock_symlink(*t.os, "/src/internal", "original", 211);
+  add_mock_symlink(*t.os, "/src/tree", "/targets/tree", 212);
+  add_mock_symlink(*t.os, "/targets/tree/safe", "sub/data", 213);
+  add_mock_symlink(*t.os, "/targets/tree/unsafe", "../other", 214);
+  add_mock_symlink(*t.os, "/targets/tree/embedded", "sub/../sub/data", 215);
+
+  ASSERT_EQ(0, t.run({"-o", "external.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=external-symlinks"})) << t.err();
+  auto image = t.fs_from_file("external.dwarfs");
+  auto internal = image.find("/internal");
+  auto tree = image.find("/tree");
+  auto safe = image.find("/tree/safe");
+  auto unsafe = image.find("/tree/unsafe");
+  auto embedded = image.find("/tree/embedded");
+  ASSERT_TRUE(internal);
+  ASSERT_TRUE(tree);
+  ASSERT_TRUE(safe);
+  ASSERT_TRUE(unsafe);
+  ASSERT_TRUE(embedded);
+  EXPECT_TRUE(internal->inode().is_symlink());
+  EXPECT_TRUE(tree->inode().is_directory());
+  EXPECT_TRUE(safe->inode().is_symlink());
+  EXPECT_TRUE(unsafe->inode().is_regular_file());
+  EXPECT_TRUE(embedded->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereferenced_files_are_not_implicit_hardlinks) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/blobs");
+  t.os->add_file("/blobs/target", "shared", {.nlink = 2});
+  add_mock_symlink(*t.os, "/src/a", "/blobs/target", 241);
+  add_mock_symlink(*t.os, "/src/b", "/blobs/target", 242);
+
+  ASSERT_EQ(0, t.run({"-o", "no-dedupe.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks", "--no-dedupe"})) << t.err();
+  auto image = t.fs_from_file("no-dedupe.dwarfs");
+  auto a = image.find("/a");
+  auto b = image.find("/b");
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  EXPECT_TRUE(a->inode().is_regular_file());
+  EXPECT_TRUE(b->inode().is_regular_file());
+  EXPECT_NE(a->inode().inode_num(), b->inode().inode_num());
+}
+
+TEST(mkdwarfs_test, dereference_input_list) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/outside");
+  t.os->add_file("/outside/data", "contents");
+  add_mock_symlink(*t.os, "/src/alias", "/outside", 251);
+  auto const input = t.set_input_list(input_mode::from_file, "alias/data\n");
+  ASSERT_EQ(0, t.run({"-o", "list-deref.dwarfs", "-l1", "-i", "/src",
+                      "--input-list", input, "--dereference=symlinks"}))
+      << t.err();
+  auto image = t.fs_from_file("list-deref.dwarfs");
+  auto data = image.find("/alias/data");
+  ASSERT_TRUE(data);
+  EXPECT_TRUE(data->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereference_absolute_input_list) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_file("/src/target", "data");
+  add_mock_symlink(*t.os, "/src/link", "target", 271);
+  auto const input =
+      t.set_input_list(input_mode::from_file, "/src/link\n");
+
+  ASSERT_EQ(0, t.run({"-o", "listed.dwarfs", "-l1", "-i", "/src",
+                      "--input-list", input, "--dereference=symlinks"}))
+      << t.err();
+  auto image = t.fs_from_file("listed.dwarfs");
+  auto link = image.find("/link");
+  ASSERT_TRUE(link);
+  EXPECT_TRUE(link->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereference_merged_directories) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/two");
+  t.os->add_dir("/targets");
+  t.os->add_dir("/targets/a");
+  t.os->add_dir("/targets/b");
+  t.os->add_dir("/targets/a/common");
+  t.os->add_dir("/targets/b/common");
+  t.os->add_file("/targets/a/common/first", "first");
+  t.os->add_file("/targets/b/common/second", "second");
+  add_mock_symlink(*t.os, "/one/bar", "/targets/a", 221);
+  add_mock_symlink(*t.os, "/two/bar", "/targets/b", 222);
+
+  ASSERT_EQ(0, t.run({"-o", "merged.dwarfs", "-l1",
+                      "--dereference=symlinks", "--", "/one/", "/two/"}))
+      << t.err();
+  auto image = t.fs_from_file("merged.dwarfs");
+  EXPECT_EQ((std::set<fs::path>{"", "bar", "bar/common",
+                                  "bar/common/first", "bar/common/second"}),
+            get_all_fs_paths(image));
+  EXPECT_TRUE(image.find("/bar/common/first")->inode().is_regular_file());
+  EXPECT_TRUE(image.find("/bar/common/second")->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, dereference_cycles_and_dangling_links) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/src/a");
+  t.os->add_file("/src/a/file", "okay");
+  add_mock_symlink(*t.os, "/src/a/again", "/src", 231);
+  add_mock_symlink(*t.os, "/src/dangling", "/missing", 232);
+
+  // A dangling link and a cycle are both reported as scan errors.
+  ASSERT_EQ(2, t.run({"-o", "cycles.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"})) << t.err();
+  auto image = t.fs_from_file("cycles.dwarfs");
+  EXPECT_TRUE(image.find("/a/file"));
+  EXPECT_FALSE(image.find("/a/again"));
+  EXPECT_FALSE(image.find("/dangling"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("directory cycle"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("error following entry"));
+}
+
+TEST(mkdwarfs_test, invalid_dereference_mode) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-o", "bad.dwarfs", "--dereference=hardlinks", "/src/"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid --dereference mode"));
+}
+
 TEST(mkdwarfs_test, positional_root_attributes) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");

@@ -890,9 +890,16 @@ class packed_entry_data {
              global_entry_data const& data,
              time_resolution_converter const& timeres) const;
 
-  unique_inode_id get_unique_inode_id(shared_entry_data const& shared,
-                                      uint64_t const index) const {
+  std::optional<unique_inode_id>
+  get_unique_inode_id(shared_entry_data const& shared,
+                      uint64_t const index) const {
     auto const& stat = stat_common_.at(index);
+    auto const mapping = get<kPhysicalMappingField>(stat);
+    if (mapping != 0 &&
+        shared.physical_mapping_at(mapping).anchor == entry_id{this_type_, index}) {
+      // Self-anchored entries have no source hardlink identity.
+      return std::nullopt;
+    }
     return unique_inode_id{shared.get_device(get<kDeviceIndexField>(stat)),
                            get<kInodeField>(stat)};
   }
@@ -2243,7 +2250,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
     pack_entry_impl(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const override {
+  std::optional<unique_inode_id>
+  get_unique_inode_id(entry_id id) const override {
     TRACE_CALL;
     return get_unique_inode_id_impl(id);
   }
@@ -2676,7 +2684,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
                      timeres);
   }
 
-  unique_inode_id get_unique_inode_id_impl(entry_id id) const {
+  std::optional<unique_inode_id> get_unique_inode_id_impl(entry_id id) const {
     return dispatch_shared_(&packed_entry_data::get_unique_inode_id, id);
   }
 
@@ -3467,7 +3475,8 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->pack_entry(id, entry_v2, data, timeres);
   }
 
-  unique_inode_id get_unique_inode_id(entry_id id) const override {
+  std::optional<unique_inode_id>
+  get_unique_inode_id(entry_id id) const override {
     return impl_.lock()->get_unique_inode_id(id);
   }
 

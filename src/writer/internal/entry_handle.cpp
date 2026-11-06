@@ -117,7 +117,8 @@ void entry_handle_base<Mut>::update(internal::global_entry_data& data) const {
 }
 
 template <mutability Mut>
-unique_inode_id entry_handle_base<Mut>::get_unique_inode_id() const {
+std::optional<unique_inode_id>
+entry_handle_base<Mut>::get_unique_inode_id() const {
   return storage_->get_unique_inode_id(self_id_);
 }
 

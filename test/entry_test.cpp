@@ -344,6 +344,11 @@ TEST_F(entry_test, independent_physical_mappings) {
     EXPECT_EQ(relocated_mapping, tree.physical_mapping_id(relocated_dir.id()));
     EXPECT_EQ(sep / "bar" / "relocated.txt", relocated.logical_fs_path());
     EXPECT_EQ("/bar/common/second.txt", second.logical_path());
+    EXPECT_TRUE(first.get_unique_inode_id().has_value());
+    EXPECT_TRUE(second.get_unique_inode_id().has_value());
+    EXPECT_FALSE(relocated.get_unique_inode_id().has_value());
+    EXPECT_FALSE(relocated_dir.get_unique_inode_id().has_value());
+    EXPECT_TRUE(relocated_child.get_unique_inode_id().has_value());
   };
 
   check_paths();
