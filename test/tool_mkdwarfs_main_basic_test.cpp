@@ -135,7 +135,8 @@ TEST(mkdwarfs_test, dereference_default_and_bare_option) {
   ASSERT_TRUE(preserved.find("/link"));
   EXPECT_TRUE(preserved.find("/link")->inode().is_symlink());
 
-  ASSERT_EQ(0, t.run({"-o", "bare.dwarfs", "-l1", "--dereference", "/src/"}))
+  ASSERT_EQ(0,
+            t.run({"-o", "bare.dwarfs", "-l1", "--dereference", "--", "/src/"}))
       << t.err();
   auto dereferenced = t.fs_from_file("bare.dwarfs");
   ASSERT_TRUE(dereferenced.find("/link"));

@@ -864,27 +864,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     command_line.emplace_back(sys_string_to_string(argv[i]));
   }
 
-  // Boost.Program_options treats the token following an option with an
-  // implicit argument as its value. Normalize the bare spelling so that
-  // "--dereference /source" still treats /source as a positional input.
-  std::vector<sys_string> parse_arguments;
-  parse_arguments.reserve(argc - 1);
-  auto const bare_dereference = std::filesystem::path{"--dereference"}.native();
-  auto const default_dereference =
-      std::filesystem::path{"--dereference=symlinks"}.native();
-  bool positional_only = false;
-  for (int i = 1; i < argc; ++i) {
-    sys_string argument{argv[i]};
-    if (argument == std::filesystem::path{"--"}.native()) {
-      positional_only = true;
-    } else if (!positional_only && argument == bare_dereference) {
-      argument = default_dereference;
-    }
-    parse_arguments.push_back(std::move(argument));
-  }
-
   try {
-    auto parsed = po::basic_command_line_parser<sys_char>(parse_arguments)
+    auto parsed = po::basic_command_line_parser<sys_char>(argc, argv)
                       .options(parse_opts)
                       .positional(positional)
                       .run();
