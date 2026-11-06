@@ -683,9 +683,11 @@ auto scanner_<LoggerPolicy>::inspect(
     std::filesystem::path const& path, file_stat const* metadata,
     std::filesystem::path const& boundary) const -> inspected_entry {
   auto st = metadata ? *metadata : os_.symlink_info(path);
+
   if (auto ec = st.error()) {
     throw std::system_error(ec, path.string());
   }
+
   if (st.type() != posix_file_type::symlink ||
       options_.dereference == dereference_mode::none) {
     return {std::move(st), std::nullopt};
@@ -694,6 +696,7 @@ auto scanner_<LoggerPolicy>::inspect(
   // Resolve the parent independently of the logical tree: it may itself be
   // a directory symlink, or a merged directory from a different source.
   auto const parent = os_.canonical(path.parent_path());
+
   if (options_.dereference == dereference_mode::external_symlinks &&
       !unsafe_symlink(os_.read_symlink(path), parent, boundary)) {
     return {std::move(st), std::nullopt};
@@ -701,12 +704,15 @@ auto scanner_<LoggerPolicy>::inspect(
 
   auto physical_path = os_.canonical(parent / path.filename());
   auto referent = os_.symlink_info(physical_path);
+
   if (auto ec = referent.error()) {
     throw std::system_error(ec, physical_path.string());
   }
+
   // Dereferencing must not synthesize hardlinks merely because two symlinks
   // happen to refer to the same source inode. File contents can still dedupe.
   referent.set_nlink(1);
+
   return {std::move(referent), std::move(physical_path)};
 }
 
@@ -783,11 +789,14 @@ void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                 .collect_metadata = true});
 
   std::shared_ptr<directory_ancestry const> root_ancestors;
+
   if (options_.dereference != dereference_mode::none) {
     auto const root_stat = os_.symlink_info(os_.canonical(path));
+
     if (auto ec = root_stat.error()) {
       throw std::system_error(ec, path.string());
     }
+
     root_ancestors = std::make_shared<directory_ancestry>(
         root_stat.dev(), root_stat.ino(), nullptr);
   }
@@ -811,8 +820,8 @@ void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
               entry.path, entry.metadata ? &entry.metadata->value() : nullptr,
               ctx.boundary);
 
-          if (incoming.stat.is_directory() &&
-              options_.dereference != dereference_mode::none &&
+          if (options_.dereference != dereference_mode::none &&
+              incoming.stat.is_directory() &&
               is_ancestor(incoming.stat, ctx.ancestors)) {
             LOG_ERROR << "directory cycle at '"
                       << path_to_utf8_string_sanitized(entry.path) << "'";
@@ -825,15 +834,20 @@ void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                               fs, debug_filter, &incoming.stat,
                               incoming.mapping(ctx.physical_mapping),
                               check_collisions);
+
           if (!pe || !pe.is_dir()) {
             return std::nullopt;
           }
 
           auto mapping = ctx.physical_mapping;
           auto boundary = ctx.boundary;
+
           if (incoming.physical_path) {
-            // For a merged directory, the existing logical entry keeps its
-            // original mapping; this traversal needs a distinct one.
+            // The incoming directory was reached through a dereferenced
+            // symlink, so this traversal needs a physical mapping for its
+            // children. If the existing logical entry (pe) already maps to
+            // the same physical path, we can reuse its mapping. Otherwise,
+            // we create a new mapping without modifying pe.
             if (pe.fs_path().lexically_normal() ==
                 incoming.physical_path->lexically_normal()) {
               mapping = tree.physical_mapping_id(pe.id());
@@ -841,14 +855,17 @@ void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
               mapping = tree.add_physical_path_mapping(*incoming.physical_path,
                                                        pe.id());
             }
+
             boundary = *incoming.physical_path;
           }
 
           auto ancestors = ctx.ancestors;
+
           if (options_.dereference != dereference_mode::none) {
             ancestors = std::make_shared<directory_ancestry>(
                 incoming.stat.dev(), incoming.stat.ino(), ctx.ancestors);
           }
+
           return scan_context{pe.id(), mapping, std::move(boundary),
                               std::move(ancestors)};
         } catch (std::system_error const& e) {
@@ -905,14 +922,17 @@ void scanner_<LoggerPolicy>::scan_list(
         } else {
           LOG_DEBUG << "adding directory '"
                     << path_to_utf8_string_sanitized(component) << "'";
+
           auto const& boundary = boundaries.at(d.logical_path());
           auto const physical_path = d.fs_path() / component;
           auto incoming = inspect(physical_path, nullptr, boundary);
           no_mutex mx_scanner;
+
           root = add_entry(mx_scanner, tree, physical_path, d, prog, fs, false,
                            &incoming.stat,
                            incoming.mapping(tree.physical_mapping_id(d.id())),
                            false);
+
           if (root && root.is_dir()) {
             boundaries.emplace(root.logical_path(),
                                incoming.physical_path.value_or(boundary));
@@ -1015,6 +1035,7 @@ void scanner_<LoggerPolicy>::scan_list(
     auto const physical_path = pd.fs_path() / relpath.filename();
     auto const& boundary = boundaries.at(pd.logical_path());
     std::optional<inspected_entry> incoming;
+
     try {
       incoming.emplace(inspect(physical_path, nullptr, boundary));
     } catch (std::system_error const& e) {
@@ -1024,7 +1045,9 @@ void scanner_<LoggerPolicy>::scan_list(
       ++prog.errors;
       continue;
     }
+
     no_mutex mx_scanner;
+
     if (auto pe = add_entry(mx_scanner, tree, physical_path, pd, prog, fs, false,
                             &incoming->stat,
                             incoming->mapping(tree.physical_mapping_id(pd.id())),
@@ -1181,6 +1204,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     auto parent = root;
     auto active_mapping = physical_mapping;
     auto boundary = physical_mapping_path;
+
     if (options_.dereference != dereference_mode::none) {
       boundary = os_.canonical(physical_mapping_path);
     }
@@ -1192,11 +1216,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                              options_.debug_filter_function.has_value(),
                              &incoming.stat, incoming.mapping(physical_mapping),
                              check_collisions);
+
       if (!entry || !entry.is_dir()) {
         wg_.wait();
         continue;
       }
+
       parent = entry.as_dir();
+
       if (incoming.physical_path) {
         if (entry.fs_path().lexically_normal() ==
             incoming.physical_path->lexically_normal()) {
@@ -1205,12 +1232,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
           active_mapping = tree->add_physical_path_mapping(
               *incoming.physical_path, entry.id());
         }
+
         boundary = *incoming.physical_path;
       }
     } else {
       auto const path = options_.dereference == dereference_mode::none
                             ? source.path
                             : os_.canonical(source.path);
+
       if (!os_.symlink_info(path).is_directory()) {
         DWARFS_THROW(runtime_error,
                      fmt::format("contents source '{}' is not a directory",
