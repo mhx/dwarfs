@@ -325,24 +325,50 @@ struct shared_entry_data {
   auto set_root_path_component(fs::path const& component)
       -> path_name_storage_tuple {
     utf8_root_path_component_ = path_to_u8string_sanitized(component);
-    assert(native_source_roots_.empty());
-    native_source_roots_.push_back(component.native());
+    assert(physical_path_mappings_.empty());
+    physical_path_mappings_.push_back(
+        {component.native(), entry_id{entry_type::E_DIR, 0}});
     return {}; // doesn't matter
   }
 
-  std::size_t add_source_root(fs::path const& path) {
-    DWARFS_CHECK(!native_source_roots_.empty(), "root directory not set");
-    auto const& native = path.native();
-    if (auto const it = std::ranges::find(native_source_roots_, native);
-        it != native_source_roots_.end()) {
-      return std::distance(native_source_roots_.begin(), it);
+  std::size_t add_physical_path_mapping(fs::path const& path, entry_id anchor) {
+    DWARFS_CHECK(!physical_path_mappings_.empty(), "root directory not set");
+    DWARFS_CHECK(anchor.valid(), "invalid physical path mapping anchor");
+    physical_path_mapping mapping{path.native(), anchor};
+
+    // Sources sharing a parent directory can reuse the same root mapping. This
+    // is the common case when using multiple inputs, so it's worth saving the
+    // bits otherwise spent on the mapping index. In the unlikely case of a
+    // large number of path mappings, these root mappings are still rare enough
+    // that using a linear search is acceptable.
+    if (anchor == entry_id{entry_type::E_DIR, 0}) {
+      if (auto const it = std::ranges::find(physical_path_mappings_, mapping);
+          it != physical_path_mappings_.end()) {
+        return std::distance(physical_path_mappings_.begin(), it);
+      }
     }
-    auto const index = native_source_roots_.size();
-    native_source_roots_.push_back(native);
+
+    auto const index = physical_path_mappings_.size();
+
+    physical_path_mappings_.push_back(std::move(mapping));
+
     return index;
   }
 
-  std::size_t source_root_count() const { return native_source_roots_.size(); }
+  std::size_t physical_mapping_count() const {
+    return physical_path_mappings_.size();
+  }
+
+  struct physical_path_mapping {
+    fs::path::string_type base;
+    entry_id anchor;
+
+    bool operator==(physical_path_mapping const&) const = default;
+  };
+
+  physical_path_mapping const& physical_mapping_at(std::size_t index) const {
+    return physical_path_mappings_.at(index);
+  }
 
   auto
   add_path_component(fs::path const& component) -> path_name_storage_tuple {
@@ -398,9 +424,9 @@ struct shared_entry_data {
     append_utf8_component_at(p, index);
   }
 
-  void
-  append_native_source_root(fs::path::string_type& p, std::size_t index) const {
-    p.append(native_source_roots_.at(index));
+  void append_native_mapping_base(fs::path::string_type& p,
+                                  std::size_t index) const {
+    p.append(physical_path_mappings_.at(index).base);
   }
 
   void
@@ -653,7 +679,7 @@ struct shared_entry_data {
   }
 
   std::optional<std::u8string> utf8_root_path_component_;
-  std::vector<fs::path::string_type> native_source_roots_;
+  std::vector<physical_path_mapping> physical_path_mappings_;
 
   stable_string_vector<std::u8string> utf8_path_components_;
   std::optional<parallel_flat_string_index<std::u8string>> utf8_path_index_{
@@ -761,12 +787,21 @@ class packed_entry_data {
   static constexpr std::size_t kStatusChangeTimeSubsecondField = 9;
   static constexpr std::size_t kInodeField = 10;
   static constexpr std::size_t kDeviceIndexField = 11;
-  static constexpr std::size_t kSourceRootField = 12;
+  static constexpr std::size_t kPhysicalMappingField = 12;
   static constexpr std::array kStatCommonFieldNames{
-      "nlink"sv,       "mode"sv,       "uid"sv,       "gid"sv,
-      "atime sec"sv,   "atime nsec"sv, "mtime sec"sv, "mtime nsec"sv,
-      "ctime sec"sv,   "ctime nsec"sv, "inode"sv,     "device index"sv,
-      "source root"sv,
+      "nlink"sv,
+      "mode"sv,
+      "uid"sv,
+      "gid"sv,
+      "atime sec"sv,
+      "atime nsec"sv,
+      "mtime sec"sv,
+      "mtime nsec"sv,
+      "ctime sec"sv,
+      "ctime nsec"sv,
+      "inode"sv,
+      "device index"sv,
+      "physical mapping"sv,
   };
 
   using stat_common_tuple =
@@ -777,11 +812,16 @@ class packed_entry_data {
 
   bool empty() const { return path_storage_index_.empty(); }
 
+  entry_id next_id(entry_type type) const {
+    return {type, path_storage_index_.size()};
+  }
+
   void dump(std::ostream& os, std::string_view name) const;
 
-  add_entry_result add_entry_common(shared_entry_data& shared, entry_type type,
-                                    fs::path const& path, file_stat const& st,
-                                    dir_id parent, std::size_t source_root);
+  add_entry_result
+  add_entry_common(shared_entry_data& shared, entry_type type,
+                   fs::path const& path, file_stat const& st, dir_id parent,
+                   std::size_t physical_mapping);
 
   void add_file_specific() {
     assert(this_type_ == entry_type::E_FILE);
@@ -804,8 +844,8 @@ class packed_entry_data {
     return parent_dir_id_.at(index);
   }
 
-  std::size_t get_source_root(uint64_t const index) const {
-    return stat_common_.template get_field<kSourceRootField>(index);
+  std::size_t get_physical_mapping(uint64_t const index) const {
+    return stat_common_.template get_field<kPhysicalMappingField>(index);
   }
 
   void append_native_path_string(shared_entry_data const& shared,
@@ -1536,7 +1576,7 @@ void shared_entry_data::dump(std::ostream& os) const {
   memory_usage_dumper d;
 
   d.add("utf8 path components", utf8_path_components_);
-  d.add("source roots", native_source_roots_);
+  d.add("physical path mappings", physical_path_mappings_);
   d.add("utf8 path index entries", utf8_path_index_);
   if (auto const& cpc = compressed_utf8_path_components_; cpc.has_value()) {
     d.add("compressed utf8 path components",
@@ -1622,7 +1662,7 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
                                          entry_type type, fs::path const& path,
                                          file_stat const& st,
                                          dir_id const parent,
-                                         std::size_t const source_root)
+                                         std::size_t const physical_mapping)
     -> add_entry_result {
   st.ensure_valid(
       file_stat::nlink_valid | file_stat::mode_valid | file_stat::uid_valid |
@@ -1631,10 +1671,10 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
       file_stat::size_valid | file_stat::allocated_size_valid);
 
   bool const is_root = !parent.valid();
-  DWARFS_CHECK(!is_root || source_root == 0,
-               "root directory must use source root 0");
-  DWARFS_CHECK(is_root || source_root < shared.source_root_count(),
-               "invalid source root index");
+  DWARFS_CHECK(!is_root || physical_mapping == 0,
+               "root directory must use physical mapping 0");
+  DWARFS_CHECK(is_root || physical_mapping < shared.physical_mapping_count(),
+               "invalid physical mapping index");
   auto const path_storage = is_root ? shared.set_root_path_component(path)
                                     : shared.add_path_component(path);
   auto const entry_ix = path_storage_index_.size();
@@ -1698,7 +1738,7 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
 
   std::get<kInodeField>(tmp) = st.ino_unchecked();
   std::get<kDeviceIndexField>(tmp) = shared.add_device(st.dev_unchecked());
-  std::get<kSourceRootField>(tmp) = source_root;
+  std::get<kPhysicalMappingField>(tmp) = physical_mapping;
 
   stat_common_.push_back(tmp);
 
@@ -1857,10 +1897,20 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   entry_id make_obj_(entry_type const type, packed_entry_data& data,
                      fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t source_root) {
+                     dir_id const parent, std::size_t physical_mapping,
+                     std::optional<fs::path> const& physical_path) {
     if constexpr (is_mutable) {
-      auto const [entry_ix, path_storage] =
-          data.add_entry_common(shared_, type, path, st, parent, source_root);
+      if (physical_path) {
+        DWARFS_CHECK(parent.valid(),
+                     "cannot override the physical path of the root entry");
+        // The mapping and the entry are created while holding the storage
+        // lock. The new entry becomes its own anchor.
+        physical_mapping = shared_.add_physical_path_mapping(
+            *physical_path, data.next_id(type));
+      }
+
+      auto const [entry_ix, path_storage] = data.add_entry_common(
+          shared_, type, path, st, parent, physical_mapping);
 
       if (parent) {
         shared_.add_dir_entry(parent, type, entry_ix);
@@ -1901,38 +1951,51 @@ class entry_storage_ final : public entry_storage::entry_impl {
   }
 
   entry_id make_file(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t source_root) override {
-    return make_obj_(entry_type::E_FILE, files_, path, st, parent, source_root);
+                     dir_id const parent, std::size_t physical_mapping,
+                     std::optional<fs::path> const& physical_path) override {
+    return make_obj_(entry_type::E_FILE, files_, path, st, parent,
+                     physical_mapping, physical_path);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
-                    dir_id const parent, std::size_t source_root) override {
-    return make_obj_(entry_type::E_DIR, dirs_, path, st, parent, source_root);
+                    dir_id const parent, std::size_t physical_mapping,
+                    std::optional<fs::path> const& physical_path) override {
+    return make_obj_(entry_type::E_DIR, dirs_, path, st, parent,
+                     physical_mapping, physical_path);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t source_root) override {
-    return make_obj_(entry_type::E_LINK, links_, path, st, parent, source_root);
+                     dir_id const parent, std::size_t physical_mapping,
+                     std::optional<fs::path> const& physical_path) override {
+    return make_obj_(entry_type::E_LINK, links_, path, st, parent,
+                     physical_mapping, physical_path);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
-                       dir_id const parent, std::size_t source_root) override {
+                       dir_id const parent, std::size_t physical_mapping,
+                       std::optional<fs::path> const& physical_path) override {
     return make_obj_(entry_type::E_DEVICE, devices_, path, st, parent,
-                     source_root);
+                     physical_mapping, physical_path);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
-                      dir_id const parent, std::size_t source_root) override {
+                      dir_id const parent, std::size_t physical_mapping,
+                      std::optional<fs::path> const& physical_path) override {
     return make_obj_(entry_type::E_OTHER, others_, path, st, parent,
-                     source_root);
+                     physical_mapping, physical_path);
   }
 
-  std::size_t add_source_root(fs::path const& path) override {
+  std::size_t
+  add_physical_path_mapping(fs::path const& path, entry_id anchor) override {
     if constexpr (is_mutable) {
-      return shared_.add_source_root(path);
+      return shared_.add_physical_path_mapping(path, anchor);
     } else {
       frozen_panic();
     }
+  }
+
+  std::size_t physical_mapping_id(entry_id id) const override {
+    return dispatch_(&packed_entry_data::get_physical_mapping, id);
   }
 
   bool empty() const noexcept override {
@@ -2008,8 +2071,8 @@ class entry_storage_ final : public entry_storage::entry_impl {
 
   fs::path get_path(entry_id id) const override {
     TRACE_CALL;
-    return get_fs_path_impl(id,
-                            dispatch_(&packed_entry_data::get_source_root, id));
+    return get_fs_path_impl(
+        id, dispatch_(&packed_entry_data::get_physical_mapping, id));
   }
 
   fs::path get_logical_fs_path(entry_id id) const override {
@@ -2521,17 +2584,29 @@ class entry_storage_ final : public entry_storage::entry_impl {
   }
 
   fs::path get_fs_path_impl(entry_id const id,
-                            std::optional<std::size_t> source_root) const {
+                            std::optional<std::size_t> physical_mapping) const {
+    entry_id const anchor =
+        physical_mapping ? shared_.physical_mapping_at(*physical_mapping).anchor
+                         : kRootId;
     container::small_vector<entry_id, 64> components;
-    fill_path_components(id, components);
+    auto current = id;
+    // Each entry selects its mapping independently of its logical parent.
+    // Only traverse the suffix from this entry to its mapping's anchor.
+    while (current.valid() && current != anchor) {
+      components.push_back(current);
+      current = get_parent_impl(current);
+    }
+    DWARFS_CHECK(current == anchor,
+                 "physical path mapping anchor is not an ancestor");
+    components.push_back(anchor);
 
     return fs::path(build_path_from_components<fs::path::string_type,
                                                fs::path::preferred_separator>(
-        components, [this, source_root](fs::path::string_type& p,
-                                        entry_id const component) {
-          if (component == kRootId) {
-            if (source_root) {
-              shared_.append_native_source_root(p, *source_root);
+        components, [this, physical_mapping, anchor](fs::path::string_type& p,
+                                                     entry_id const component) {
+          if (component == anchor) {
+            if (physical_mapping) {
+              shared_.append_native_mapping_base(p, *physical_mapping);
             } else {
               p.push_back(fs::path::preferred_separator);
             }
@@ -3247,33 +3322,48 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
   explicit synchronized_entry_storage_(metadata_options const& options)
       : impl_{std::in_place, options} {}
 
-  std::size_t add_source_root(fs::path const& path) override {
-    return impl_.lock()->add_source_root(path);
+  std::size_t
+  add_physical_path_mapping(fs::path const& path, entry_id anchor) override {
+    return impl_.lock()->add_physical_path_mapping(path, anchor);
   }
 
   entry_id make_file(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t source_root) override {
-    return impl_.lock()->make_file(path, st, parent, source_root);
+                     dir_id const parent, std::size_t physical_mapping,
+                     std::optional<fs::path> const& physical_path) override {
+    return impl_.lock()->make_file(path, st, parent, physical_mapping,
+                                   physical_path);
   }
 
   entry_id make_dir(fs::path const& path, file_stat const& st,
-                    dir_id const parent, std::size_t source_root) override {
-    return impl_.lock()->make_dir(path, st, parent, source_root);
+                    dir_id const parent, std::size_t physical_mapping,
+                    std::optional<fs::path> const& physical_path) override {
+    return impl_.lock()->make_dir(path, st, parent, physical_mapping,
+                                  physical_path);
   }
 
   entry_id make_link(fs::path const& path, file_stat const& st,
-                     dir_id const parent, std::size_t source_root) override {
-    return impl_.lock()->make_link(path, st, parent, source_root);
+                     dir_id const parent, std::size_t physical_mapping,
+                     std::optional<fs::path> const& physical_path) override {
+    return impl_.lock()->make_link(path, st, parent, physical_mapping,
+                                   physical_path);
   }
 
   entry_id make_device(fs::path const& path, file_stat const& st,
-                       dir_id const parent, std::size_t source_root) override {
-    return impl_.lock()->make_device(path, st, parent, source_root);
+                       dir_id const parent, std::size_t physical_mapping,
+                       std::optional<fs::path> const& physical_path) override {
+    return impl_.lock()->make_device(path, st, parent, physical_mapping,
+                                     physical_path);
   }
 
   entry_id make_other(fs::path const& path, file_stat const& st,
-                      dir_id const parent, std::size_t source_root) override {
-    return impl_.lock()->make_other(path, st, parent, source_root);
+                      dir_id const parent, std::size_t physical_mapping,
+                      std::optional<fs::path> const& physical_path) override {
+    return impl_.lock()->make_other(path, st, parent, physical_mapping,
+                                    physical_path);
+  }
+
+  std::size_t physical_mapping_id(entry_id id) const override {
+    return impl_.lock()->physical_mapping_id(id);
   }
 
   void create_packed_file_data(file_id id) override {
@@ -3633,44 +3723,55 @@ void entry_storage::freeze_inodes() noexcept {
 
 dir_handle
 entry_storage::create_root_dir(fs::path const& path, file_stat const& st,
-                               std::size_t source_root) {
+                               std::size_t physical_mapping) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
-  return {*this, entry_impl_->make_dir(path, st, dir_id{}, source_root)};
+  return {*this, entry_impl_->make_dir(path, st, dir_id{}, physical_mapping,
+                                       std::nullopt)};
 }
 
 file_handle
 entry_storage::create_file(fs::path const& path, dir_handle parent,
-                           file_stat const& st, std::size_t source_root) {
+                           file_stat const& st, std::size_t physical_mapping,
+                           std::optional<fs::path> const& physical_path) {
   assert(!empty());
-  return {*this, entry_impl_->make_file(path, st, parent.id(), source_root)};
+  return {*this, entry_impl_->make_file(path, st, parent.id(), physical_mapping,
+                                        physical_path)};
 }
 
 dir_handle
 entry_storage::create_dir(fs::path const& path, dir_handle parent,
-                          file_stat const& st, std::size_t source_root) {
+                          file_stat const& st, std::size_t physical_mapping,
+                          std::optional<fs::path> const& physical_path) {
   assert(!empty());
-  return {*this, entry_impl_->make_dir(path, st, parent.id(), source_root)};
+  return {*this, entry_impl_->make_dir(path, st, parent.id(), physical_mapping,
+                                       physical_path)};
 }
 
 link_handle
 entry_storage::create_link(fs::path const& path, dir_handle parent,
-                           file_stat const& st, std::size_t source_root) {
+                           file_stat const& st, std::size_t physical_mapping,
+                           std::optional<fs::path> const& physical_path) {
   assert(!empty());
-  return {*this, entry_impl_->make_link(path, st, parent.id(), source_root)};
+  return {*this, entry_impl_->make_link(path, st, parent.id(), physical_mapping,
+                                        physical_path)};
 }
 
 device_handle
 entry_storage::create_device(fs::path const& path, dir_handle parent,
-                             file_stat const& st, std::size_t source_root) {
+                             file_stat const& st, std::size_t physical_mapping,
+                             std::optional<fs::path> const& physical_path) {
   assert(!empty());
-  return {*this, entry_impl_->make_device(path, st, parent.id(), source_root)};
+  return {*this, entry_impl_->make_device(path, st, parent.id(),
+                                          physical_mapping, physical_path)};
 }
 
 other_handle
 entry_storage::create_other(fs::path const& path, dir_handle parent,
-                            file_stat const& st, std::size_t source_root) {
+                            file_stat const& st, std::size_t physical_mapping,
+                            std::optional<fs::path> const& physical_path) {
   assert(!empty());
-  return {*this, entry_impl_->make_other(path, st, parent.id(), source_root)};
+  return {*this, entry_impl_->make_other(path, st, parent.id(),
+                                         physical_mapping, physical_path)};
 }
 
 inode_handle entry_storage::create_inode() {

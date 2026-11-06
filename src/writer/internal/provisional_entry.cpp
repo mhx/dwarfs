@@ -35,20 +35,24 @@
 
 namespace dwarfs::writer::internal {
 
-provisional_entry::provisional_entry(os_access const& os,
-                                     std::filesystem::path const& path,
-                                     std::optional<dir_handle> parent,
-                                     std::size_t source_root)
-    : provisional_entry(path, os.symlink_info(path), parent, source_root) {}
+provisional_entry::provisional_entry(
+    os_access const& os, std::filesystem::path const& path,
+    std::optional<dir_handle> parent, std::size_t physical_mapping,
+    std::optional<std::filesystem::path> physical_path)
+    : provisional_entry(path, os.symlink_info(path), parent, physical_mapping,
+                        std::move(physical_path)) {}
 
-provisional_entry::provisional_entry(std::filesystem::path const& path,
-                                     file_stat stat,
-                                     std::optional<dir_handle> parent,
-                                     std::size_t source_root)
+provisional_entry::provisional_entry(
+    std::filesystem::path const& path, file_stat stat,
+    std::optional<dir_handle> parent, std::size_t physical_mapping,
+    std::optional<std::filesystem::path> physical_path)
     : path_{path}
     , stat_{std::move(stat)}
     , parent_{parent}
-    , source_root_{source_root} {
+    , physical_mapping_{physical_mapping}
+    , physical_path_{std::move(physical_path)} {
+  DWARFS_CHECK(parent_ || !physical_path_,
+               "root entry cannot have a physical path override");
   if (!parent_ && stat_.type() != posix_file_type::directory) {
     DWARFS_THROW(
         runtime_error,
@@ -122,24 +126,29 @@ std::string provisional_entry::logical_path() const {
 entry_handle provisional_entry::commit(entry_storage& tree) {
   switch (stat_.type()) {
   case posix_file_type::regular:
-    return tree.create_file(path_, parent_.value(), stat_, source_root_);
+    return tree.create_file(path_, parent_.value(), stat_, physical_mapping_,
+                            physical_path_);
 
   case posix_file_type::directory:
     if (parent_) {
-      return tree.create_dir(path_, *parent_, stat_, source_root_);
+      return tree.create_dir(path_, *parent_, stat_, physical_mapping_,
+                             physical_path_);
     }
-    return tree.create_root_dir(path_, stat_, source_root_);
+    return tree.create_root_dir(path_, stat_, physical_mapping_);
 
   case posix_file_type::symlink:
-    return tree.create_link(path_, parent_.value(), stat_, source_root_);
+    return tree.create_link(path_, parent_.value(), stat_, physical_mapping_,
+                            physical_path_);
 
   case posix_file_type::character:
   case posix_file_type::block:
-    return tree.create_device(path_, parent_.value(), stat_, source_root_);
+    return tree.create_device(path_, parent_.value(), stat_, physical_mapping_,
+                              physical_path_);
 
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    return tree.create_other(path_, parent_.value(), stat_, source_root_);
+    return tree.create_other(path_, parent_.value(), stat_, physical_mapping_,
+                             physical_path_);
 
   default:
     DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));

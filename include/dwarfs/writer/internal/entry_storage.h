@@ -95,8 +95,15 @@ class entry_storage {
 
   [[nodiscard]] bool empty() const noexcept { return entry_impl_->empty(); }
 
-  std::size_t add_source_root(std::filesystem::path const& path) {
-    return entry_impl_->add_source_root(path);
+  // Map a logical ancestor to a physical path.
+  std::size_t add_physical_path_mapping(std::filesystem::path const& path,
+                                        entry_id anchor) {
+    return entry_impl_->add_physical_path_mapping(path, anchor);
+  }
+
+  // The physical mapping ID of the logical ancestor of the entry.
+  [[nodiscard]] std::size_t physical_mapping_id(entry_id id) const {
+    return entry_impl_->physical_mapping_id(id);
   }
 
   void set_entry_index(entry_id id, std::size_t index) {
@@ -372,23 +379,32 @@ class entry_storage {
    public:
     virtual ~entry_impl() = default;
 
-    virtual std::size_t add_source_root(std::filesystem::path const& path) = 0;
+    virtual std::size_t
+    add_physical_path_mapping(std::filesystem::path const& path,
+                              entry_id anchor) = 0;
 
     virtual entry_id
     make_file(std::filesystem::path const& path, file_stat const& st,
-              dir_id parent, std::size_t source_root) = 0;
+              dir_id parent, std::size_t physical_mapping,
+              std::optional<std::filesystem::path> const& physical_path) = 0;
     virtual entry_id
     make_dir(std::filesystem::path const& path, file_stat const& st,
-             dir_id parent, std::size_t source_root) = 0;
+             dir_id parent, std::size_t physical_mapping,
+             std::optional<std::filesystem::path> const& physical_path) = 0;
     virtual entry_id
     make_link(std::filesystem::path const& path, file_stat const& st,
-              dir_id parent, std::size_t source_root) = 0;
+              dir_id parent, std::size_t physical_mapping,
+              std::optional<std::filesystem::path> const& physical_path) = 0;
     virtual entry_id
     make_device(std::filesystem::path const& path, file_stat const& st,
-                dir_id parent, std::size_t source_root) = 0;
+                dir_id parent, std::size_t physical_mapping,
+                std::optional<std::filesystem::path> const& physical_path) = 0;
     virtual entry_id
     make_other(std::filesystem::path const& path, file_stat const& st,
-               dir_id parent, std::size_t source_root) = 0;
+               dir_id parent, std::size_t physical_mapping,
+               std::optional<std::filesystem::path> const& physical_path) = 0;
+
+    virtual std::size_t physical_mapping_id(entry_id id) const = 0;
 
     virtual void create_packed_file_data(file_id id) = 0;
 
@@ -529,24 +545,32 @@ class entry_storage {
   friend class provisional_entry;
 
   dir_handle create_root_dir(std::filesystem::path const& path,
-                             file_stat const& st, std::size_t source_root);
+                             file_stat const& st, std::size_t physical_mapping);
 
-  file_handle create_file(std::filesystem::path const& path, dir_handle parent,
-                          file_stat const& st, std::size_t source_root);
+  file_handle create_file(
+      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
+      std::size_t physical_mapping,
+      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
 
-  dir_handle create_dir(std::filesystem::path const& path, dir_handle parent,
-                        file_stat const& st, std::size_t source_root);
+  dir_handle create_dir(
+      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
+      std::size_t physical_mapping,
+      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
 
-  link_handle create_link(std::filesystem::path const& path, dir_handle parent,
-                          file_stat const& st, std::size_t source_root);
+  link_handle create_link(
+      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
+      std::size_t physical_mapping,
+      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
 
-  device_handle
-  create_device(std::filesystem::path const& path, dir_handle parent,
-                file_stat const& st, std::size_t source_root);
+  device_handle create_device(
+      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
+      std::size_t physical_mapping,
+      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
 
-  other_handle
-  create_other(std::filesystem::path const& path, dir_handle parent,
-               file_stat const& st, std::size_t source_root);
+  other_handle create_other(
+      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
+      std::size_t physical_mapping,
+      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
 
   std::unique_ptr<entry_impl> entry_impl_;
   std::unique_ptr<inode_impl> inode_impl_;
