@@ -979,10 +979,11 @@ void scanner_<LoggerPolicy>::scan_list(
                                  rootpath_str));
       }
 
-      auto mm = std::ranges::mismatch(listpath, rootpath);
+      auto const normalized = listpath.lexically_normal();
+      auto mm = std::ranges::mismatch(normalized, rootpath);
 
       if (mm.in2 == rootpath.end()) {
-        relpath = listpath.lexically_relative(rootpath);
+        relpath = normalized.lexically_relative(rootpath);
       } else {
         LOG_ERROR << "ignoring path '"
                   << path_to_utf8_string_sanitized(listpath)

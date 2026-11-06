@@ -1203,9 +1203,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     while (std::getline(*is, line)) {
       std::filesystem::path p(line);
       if (p.has_root_directory()) {
-        // Don't resolve an explicitly listed symlink before the scanner has
-        // applied the requested dereference policy.
-        p = p.lexically_normal();
+        // Use the same root spelling as canonical input paths (notably the
+        // extended-length path prefix on Windows), without resolving symlinks
+        // in the listed path before the scanner applies the dereference policy.
+        auto const root = p.root_path();
+        auto const canonical_root = iol.os->canonical(root);
+        if (canonical_root != root) {
+          p = canonical_root / p.relative_path();
+        }
       }
       input_list->emplace_back(std::move(p));
     }

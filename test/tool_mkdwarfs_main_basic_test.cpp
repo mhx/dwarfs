@@ -219,6 +219,44 @@ TEST(mkdwarfs_test, dereference_input_list) {
   EXPECT_TRUE(data->inode().is_regular_file());
 }
 
+TEST(mkdwarfs_test, dereference_absolute_input_list_through_directory_symlink) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/outside");
+  t.os->add_file("/outside/data", "contents");
+  add_mock_symlink(*t.os, "/src/alias", "/outside", 260);
+  auto const input =
+      t.set_input_list(input_mode::from_file, "/src/alias/data\n");
+
+  ASSERT_EQ(0, t.run({"-o", "absolute-alias.dwarfs", "-l1", "-i", "/src",
+                      "--input-list", input, "--dereference=symlinks"}))
+      << t.err();
+  auto image = t.fs_from_file("absolute-alias.dwarfs");
+  auto data = image.find("/alias/data");
+  ASSERT_TRUE(data);
+  EXPECT_TRUE(data->inode().is_regular_file());
+}
+
+TEST(mkdwarfs_test, absolute_input_list_normalizes_before_root_check) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/outside");
+  t.os->add_file("/src/valid", "data");
+  t.os->add_file("/outside/file", "outside");
+  auto const input = t.set_input_list(input_mode::from_file,
+                                      "/src/valid\n/src/../outside/file\n");
+
+  ASSERT_EQ(0, t.run({"-o", "list-normalized.dwarfs", "-l1", "-i", "/src",
+                      "--input-list", input}))
+      << t.err();
+  auto image = t.fs_from_file("list-normalized.dwarfs");
+  EXPECT_TRUE(image.find("/valid"));
+  EXPECT_FALSE(image.find("/outside/file"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("ignoring path"));
+}
+
 TEST(mkdwarfs_test, dereference_absolute_input_list) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
