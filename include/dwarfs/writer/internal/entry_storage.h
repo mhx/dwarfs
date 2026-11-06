@@ -28,7 +28,6 @@
 #include <functional>
 #include <iosfwd>
 #include <memory>
-#include <variant>
 
 #include <dwarfs/file_stat.h>
 
@@ -37,6 +36,7 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/physical_mapping.h>
 #include <dwarfs/writer/internal/unique_inode_id.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
@@ -68,11 +68,6 @@ class device;
 
 class entry_storage {
  public:
-  // Either use an existing mapping id or create a self-anchored mapping
-  // using the supplied physical path.
-  using physical_mapping_type =
-      std::variant<std::size_t, std::filesystem::path>;
-
   entry_storage();
   explicit entry_storage(metadata_options const& options);
   ~entry_storage();

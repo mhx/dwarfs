@@ -38,30 +38,9 @@ namespace dwarfs::writer::internal {
 provisional_entry::provisional_entry(os_access const& os,
                                      std::filesystem::path const& path,
                                      std::optional<dir_handle> parent,
-                                     std::size_t physical_mapping)
-    : provisional_entry(path, os.symlink_info(path), parent, physical_mapping) {
-}
-
-provisional_entry::provisional_entry(os_access const& os,
-                                     std::filesystem::path const& path,
-                                     std::optional<dir_handle> parent,
-                                     std::filesystem::path physical_path)
+                                     physical_mapping_type mapping)
     : provisional_entry(path, os.symlink_info(path), parent,
-                        std::move(physical_path)) {}
-
-provisional_entry::provisional_entry(std::filesystem::path const& path,
-                                     file_stat stat,
-                                     std::optional<dir_handle> parent,
-                                     std::size_t physical_mapping)
-    : provisional_entry(path, std::move(stat), parent,
-                        physical_mapping_type{physical_mapping}) {}
-
-provisional_entry::provisional_entry(std::filesystem::path const& path,
-                                     file_stat stat,
-                                     std::optional<dir_handle> parent,
-                                     std::filesystem::path physical_path)
-    : provisional_entry(path, std::move(stat), parent,
-                        physical_mapping_type{std::move(physical_path)}) {}
+                        std::move(mapping)) {}
 
 provisional_entry::provisional_entry(std::filesystem::path const& path,
                                      file_stat stat,

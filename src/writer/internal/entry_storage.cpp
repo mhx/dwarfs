@@ -1830,8 +1830,6 @@ class entry_storage_ final : public entry_storage::entry_impl {
   static constexpr bool is_mutable = !Frozen;
   static constexpr entry_id kRootId{entry_type::E_DIR, 0};
 
-  using physical_mapping_type = entry_storage::physical_mapping_type;
-
   friend class entry_storage_<true>;
 
   entry_storage_()
@@ -3317,8 +3315,6 @@ void inode_storage_<Frozen>::dump_events(std::ostream& os
 
 class synchronized_entry_storage_ final : public entry_storage::entry_impl {
  public:
-  using physical_mapping_type = entry_storage::physical_mapping_type;
-
   synchronized_entry_storage_() = default;
   explicit synchronized_entry_storage_(metadata_options const& options)
       : impl_{std::in_place, options} {}

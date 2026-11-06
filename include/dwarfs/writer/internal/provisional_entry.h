@@ -30,7 +30,8 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/writer/entry_interface.h>
 
-#include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/entry_handle.h>
+#include <dwarfs/writer/internal/physical_mapping.h>
 
 namespace dwarfs {
 
@@ -43,16 +44,10 @@ class provisional_entry : public entry_interface {
   // TODO: no need to use optional here...
   provisional_entry(os_access const& os, std::filesystem::path const& path,
                     std::optional<dir_handle> parent = std::nullopt,
-                    std::size_t physical_mapping = 0);
-  provisional_entry(os_access const& os, std::filesystem::path const& path,
-                    std::optional<dir_handle> parent,
-                    std::filesystem::path physical_path);
+                    physical_mapping_type mapping = std::size_t{0});
   provisional_entry(std::filesystem::path const& path, file_stat stat,
                     std::optional<dir_handle> parent = std::nullopt,
-                    std::size_t physical_mapping = 0);
-  provisional_entry(std::filesystem::path const& path, file_stat stat,
-                    std::optional<dir_handle> parent,
-                    std::filesystem::path physical_path);
+                    physical_mapping_type mapping = std::size_t{0});
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
@@ -69,12 +64,6 @@ class provisional_entry : public entry_interface {
   entry_handle commit(entry_storage& tree);
 
  private:
-  using physical_mapping_type = entry_storage::physical_mapping_type;
-
-  provisional_entry(std::filesystem::path const& path, file_stat stat,
-                    std::optional<dir_handle> parent,
-                    physical_mapping_type mapping);
-
   std::filesystem::path const& path_;
   file_stat stat_;
   std::optional<dir_handle> parent_;
