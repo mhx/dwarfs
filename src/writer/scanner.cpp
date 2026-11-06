@@ -380,7 +380,7 @@ class scanner_ final : public scanner::impl {
 
  private:
   void scan_tree(entry_storage& tree, std::filesystem::path const& path,
-                 dir_handle parent, std::size_t source_root,
+                 dir_handle parent, std::size_t physical_mapping,
                  bool check_collisions, progress& prog, file_scanner& fs);
 
   void scan_list(entry_storage& tree, std::filesystem::path const& rootpath,
@@ -392,16 +392,16 @@ class scanner_ final : public scanner::impl {
   add_entry(Lockable& mx_walk, entry_storage& tree,
             std::filesystem::path const& path, dir_handle parent,
             progress& prog, file_scanner& fs, bool debug_filter = false,
-            file_stat const* metadata = nullptr, std::size_t source_root = 0,
-            bool check_collisions = false);
+            file_stat const* metadata = nullptr,
+            std::size_t physical_mapping = 0, bool check_collisions = false);
 
   entry_handle
   add_entry(entry_storage& tree, std::filesystem::path const& path,
             dir_handle parent, progress& prog, file_scanner& fs,
-            bool debug_filter = false, std::size_t source_root = 0) {
+            bool debug_filter = false, std::size_t physical_mapping = 0) {
     no_mutex mx;
     return add_entry(mx, tree, path, parent, prog, fs, debug_filter, nullptr,
-                     source_root);
+                     physical_mapping);
   }
 
   void dump_state(std::string_view env_var, std::string_view what,
@@ -442,14 +442,18 @@ DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 template <typename Lockable>
-entry_handle scanner_<LoggerPolicy>::add_entry(
-    Lockable& mx_walk, entry_storage& tree, std::filesystem::path const& path,
-    dir_handle parent, progress& prog, file_scanner& fs, bool debug_filter,
-    file_stat const* metadata, std::size_t source_root, bool check_collisions) {
+entry_handle
+scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
+                                  std::filesystem::path const& path,
+                                  dir_handle parent, progress& prog,
+                                  file_scanner& fs, bool debug_filter,
+                                  file_stat const* metadata,
+                                  std::size_t physical_mapping,
+                                  bool check_collisions) {
   try {
     internal::provisional_entry ent(
         path, metadata ? *metadata : os_.symlink_info(path), parent,
-        source_root);
+        physical_mapping);
 
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       try {
@@ -645,7 +649,7 @@ template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
                                        std::filesystem::path const& path,
                                        dir_handle parent,
-                                       std::size_t source_root,
+                                       std::size_t physical_mapping,
                                        bool check_collisions, progress& prog,
                                        file_scanner& fs) {
   bool const debug_filter = options_.debug_filter_function.has_value();
@@ -671,7 +675,7 @@ void scanner_<LoggerPolicy>::scan_tree(entry_storage& tree,
         if (auto pe = add_entry(
                 mx_scanner, tree, entry.path, parent, prog, fs, debug_filter,
                 entry.metadata ? &entry.metadata->value() : nullptr,
-                source_root, check_collisions)) {
+                physical_mapping, check_collisions)) {
           if (pe.is_dir()) {
             return pe.id();
           }
@@ -939,21 +943,22 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
       DWARFS_THROW(runtime_error, "named input sources must have a filename");
     }
 
-    auto const source_root_path = [&] {
+    auto const physical_mapping_path = [&] {
       if (source.mode == scan_source_mode::contents) {
         return source.path;
       }
       auto parent = source.path.parent_path();
       return parent.empty() ? std::filesystem::path{"."} : parent;
     }();
-    auto const source_root = tree->add_source_root(source_root_path);
+    auto const physical_mapping =
+        tree->add_physical_path_mapping(physical_mapping_path, root.id());
     auto parent = root;
 
     if (source.mode == scan_source_mode::entry) {
       no_mutex mx_scanner;
       auto entry = add_entry(mx_scanner, *tree, source.path, root, prog, *fs,
                              options_.debug_filter_function.has_value(),
-                             nullptr, source_root, check_collisions);
+                             nullptr, physical_mapping, check_collisions);
       if (!entry || !entry.is_dir()) {
         wg_.wait();
         continue;
@@ -968,8 +973,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     if (source.input_list) {
       scan_list(*tree, source.path, *source.input_list, parent, prog, *fs);
     } else {
-      scan_tree(*tree, source.path, parent, source_root, check_collisions, prog,
-                *fs);
+      scan_tree(*tree, source.path, parent, physical_mapping, check_collisions,
+                prog, *fs);
     }
 
     // Finish the current source before continuing with the next one.

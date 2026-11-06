@@ -209,7 +209,7 @@ TEST_F(entry_test, logical_paths) {
   check_paths();
 }
 
-TEST_F(entry_test, source_roots) {
+TEST_F(entry_test, physical_path_mappings) {
   auto local_os = std::make_shared<os_access_mock>();
   auto const source_b = sep / "source-b";
 
@@ -226,13 +226,15 @@ TEST_F(entry_test, source_roots) {
   auto first =
       create_entry(tree, *local_os, sep / "shared" / "first.txt", shared);
 
-  // An all-zero source-root field has no per-entry packed payload.
-  EXPECT_EQ(std::string::npos, tree.dump_entries().find("source root:"));
-  EXPECT_EQ(0, tree.add_source_root(sep));
+  // An all-zero physical-mapping field has no per-entry packed payload.
+  EXPECT_EQ(std::string::npos, tree.dump_entries().find("physical mapping:"));
+  EXPECT_EQ(0, tree.add_physical_path_mapping(sep, root.id()));
 
-  auto const source_b_index = tree.add_source_root(source_b);
+  auto const source_b_index =
+      tree.add_physical_path_mapping(source_b, root.id());
   EXPECT_EQ(1, source_b_index);
-  EXPECT_EQ(source_b_index, tree.add_source_root(source_b));
+  EXPECT_EQ(source_b_index,
+            tree.add_physical_path_mapping(source_b, root.id()));
 
   // The logical parent belongs to root 0, but this file belongs to root 1.
   auto second =
@@ -256,10 +258,99 @@ TEST_F(entry_test, source_roots) {
   };
 
   check_paths();
-  EXPECT_NE(std::string::npos, tree.dump_entries().find("source root:"));
+  EXPECT_NE(std::string::npos, tree.dump_entries().find("physical mapping:"));
 
   test_logger lgr;
   progress prog{};
+  tree.freeze_entries(lgr, prog);
+  check_paths();
+
+  tree.compress_path_components(lgr, prog);
+  check_paths();
+}
+
+TEST_F(entry_test, independent_physical_mappings) {
+  auto local_os = std::make_shared<os_access_mock>();
+  auto const source_a = sep / "first";
+  auto const source_b = sep / "second";
+  auto const target = sep / "blobs" / "opaque-hash";
+  local_os->add_dir(sep);
+  local_os->add_dir(source_a);
+  local_os->add_dir(source_b);
+  local_os->add_dir(source_a / "bar");
+  local_os->add_dir(source_b / "bar");
+  local_os->add_dir(source_a / "bar" / "common");
+  local_os->add_dir(source_b / "bar" / "common");
+  local_os->add_file(source_a / "bar" / "common" / "first.txt", "first");
+  local_os->add_file(source_b / "bar" / "common" / "second.txt", "second");
+  local_os->add_dir(sep / "blobs");
+  local_os->add_file(target, "blob");
+
+  auto tree = entry_storage{};
+  auto root = create_entry(tree, *local_os, source_a).as_dir();
+  auto bar = create_entry(tree, *local_os, source_a / "bar", root).as_dir();
+  auto common =
+      create_entry(tree, *local_os, source_a / "bar" / "common", bar).as_dir();
+
+  // Both mappings have the *same* logical anchor, even though their
+  // physical directories are different and /bar/common is merged.
+  auto const first_mapping =
+      tree.add_physical_path_mapping(source_a / "bar", bar.id());
+  auto const second_mapping =
+      tree.add_physical_path_mapping(source_b / "bar", bar.id());
+  auto const first =
+      wi::provisional_entry(
+          source_a / "bar" / "common" / "first.txt",
+          local_os->symlink_info(source_a / "bar" / "common" / "first.txt"),
+          common, first_mapping)
+          .commit(tree);
+  auto const second =
+      wi::provisional_entry(
+          source_b / "bar" / "common" / "second.txt",
+          local_os->symlink_info(source_b / "bar" / "common" / "second.txt"),
+          common, second_mapping)
+          .commit(tree);
+
+  // An exact physical override is registered together with its new entry.
+  auto const relocated =
+      wi::provisional_entry(source_a / "bar" / "relocated.txt",
+                            local_os->symlink_info(target), bar, 0, target)
+          .commit(tree);
+
+  auto const relocated_dir_path = source_a / "bar" / "relocated-dir";
+  auto const relocated_dir_source = source_b / "bar" / "common";
+  auto relocated_dir =
+      wi::provisional_entry(relocated_dir_path,
+                            local_os->symlink_info(relocated_dir_source), bar,
+                            0, relocated_dir_source)
+          .commit(tree)
+          .as_dir();
+  auto const relocated_mapping = tree.physical_mapping_id(relocated_dir.id());
+  auto const relocated_child =
+      wi::provisional_entry(
+          relocated_dir_source / "second.txt",
+          local_os->symlink_info(relocated_dir_source / "second.txt"),
+          relocated_dir, relocated_mapping)
+          .commit(tree);
+
+  auto check_paths = [&] {
+    EXPECT_EQ(source_a / "bar" / "common" / "first.txt", first.fs_path());
+    EXPECT_EQ(source_b / "bar" / "common" / "second.txt", second.fs_path());
+    EXPECT_EQ(target, relocated.fs_path());
+    EXPECT_EQ(relocated_dir_source, relocated_dir.fs_path());
+    EXPECT_EQ(relocated_dir_source / "second.txt", relocated_child.fs_path());
+    EXPECT_EQ(sep / "bar" / "relocated-dir" / "second.txt",
+              relocated_child.logical_fs_path());
+    EXPECT_EQ(relocated_mapping, tree.physical_mapping_id(relocated_dir.id()));
+    EXPECT_EQ(sep / "bar" / "relocated.txt", relocated.logical_fs_path());
+    EXPECT_EQ("/bar/common/second.txt", second.logical_path());
+  };
+
+  check_paths();
+
+  test_logger lgr;
+  progress prog{};
+
   tree.freeze_entries(lgr, prog);
   check_paths();
 
