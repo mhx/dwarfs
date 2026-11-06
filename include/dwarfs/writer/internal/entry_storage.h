@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <iosfwd>
@@ -35,6 +36,7 @@
 #include <dwarfs/writer/internal/entry_id.h>
 #include <dwarfs/writer/internal/inode_handle.h>
 #include <dwarfs/writer/internal/inode_id.h>
+#include <dwarfs/writer/internal/physical_mapping.h>
 #include <dwarfs/writer/internal/unique_inode_id.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_types.h>
@@ -385,24 +387,19 @@ class entry_storage {
 
     virtual entry_id
     make_file(std::filesystem::path const& path, file_stat const& st,
-              dir_id parent, std::size_t physical_mapping,
-              std::optional<std::filesystem::path> const& physical_path) = 0;
+              dir_id parent, physical_mapping_type const& mapping) = 0;
     virtual entry_id
     make_dir(std::filesystem::path const& path, file_stat const& st,
-             dir_id parent, std::size_t physical_mapping,
-             std::optional<std::filesystem::path> const& physical_path) = 0;
+             dir_id parent, physical_mapping_type const& mapping) = 0;
     virtual entry_id
     make_link(std::filesystem::path const& path, file_stat const& st,
-              dir_id parent, std::size_t physical_mapping,
-              std::optional<std::filesystem::path> const& physical_path) = 0;
+              dir_id parent, physical_mapping_type const& mapping) = 0;
     virtual entry_id
     make_device(std::filesystem::path const& path, file_stat const& st,
-                dir_id parent, std::size_t physical_mapping,
-                std::optional<std::filesystem::path> const& physical_path) = 0;
+                dir_id parent, physical_mapping_type const& mapping) = 0;
     virtual entry_id
     make_other(std::filesystem::path const& path, file_stat const& st,
-               dir_id parent, std::size_t physical_mapping,
-               std::optional<std::filesystem::path> const& physical_path) = 0;
+               dir_id parent, physical_mapping_type const& mapping) = 0;
 
     virtual std::size_t physical_mapping_id(entry_id id) const = 0;
 
@@ -547,30 +544,25 @@ class entry_storage {
   dir_handle create_root_dir(std::filesystem::path const& path,
                              file_stat const& st, std::size_t physical_mapping);
 
-  file_handle create_file(
-      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
-      std::size_t physical_mapping,
-      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
+  file_handle
+  create_file(std::filesystem::path const& path, dir_handle parent,
+              file_stat const& st, physical_mapping_type const& mapping);
 
-  dir_handle create_dir(
-      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
-      std::size_t physical_mapping,
-      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
+  dir_handle
+  create_dir(std::filesystem::path const& path, dir_handle parent,
+             file_stat const& st, physical_mapping_type const& mapping);
 
-  link_handle create_link(
-      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
-      std::size_t physical_mapping,
-      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
+  link_handle
+  create_link(std::filesystem::path const& path, dir_handle parent,
+              file_stat const& st, physical_mapping_type const& mapping);
 
-  device_handle create_device(
-      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
-      std::size_t physical_mapping,
-      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
+  device_handle
+  create_device(std::filesystem::path const& path, dir_handle parent,
+                file_stat const& st, physical_mapping_type const& mapping);
 
-  other_handle create_other(
-      std::filesystem::path const& path, dir_handle parent, file_stat const& st,
-      std::size_t physical_mapping,
-      std::optional<std::filesystem::path> const& physical_path = std::nullopt);
+  other_handle
+  create_other(std::filesystem::path const& path, dir_handle parent,
+               file_stat const& st, physical_mapping_type const& mapping);
 
   std::unique_ptr<entry_impl> entry_impl_;
   std::unique_ptr<inode_impl> inode_impl_;

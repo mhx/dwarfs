@@ -314,7 +314,7 @@ TEST_F(entry_test, independent_physical_mappings) {
   // An exact physical override is registered together with its new entry.
   auto const relocated =
       wi::provisional_entry(source_a / "bar" / "relocated.txt",
-                            local_os->symlink_info(target), bar, 0, target)
+                            local_os->symlink_info(target), bar, target)
           .commit(tree);
 
   auto const relocated_dir_path = source_a / "bar" / "relocated-dir";
@@ -322,7 +322,7 @@ TEST_F(entry_test, independent_physical_mappings) {
   auto relocated_dir =
       wi::provisional_entry(relocated_dir_path,
                             local_os->symlink_info(relocated_dir_source), bar,
-                            0, relocated_dir_source)
+                            relocated_dir_source)
           .commit(tree)
           .as_dir();
   auto const relocated_mapping = tree.physical_mapping_id(relocated_dir.id());
