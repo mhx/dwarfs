@@ -789,8 +789,10 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       }
 
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
+    }
 
-      // needed for reproducibility
+    // needed for reproducibility, also for unique hardlinked files
+    if (files.size() > 1) {
       storage_.sort_file_id_vector(files);
     }
 
