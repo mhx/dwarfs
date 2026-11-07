@@ -224,6 +224,7 @@ _arguments -S \
 	"--root-owner=[set root directory owner (uid)]:uid:_users" \
 	"--root-group=[set root directory group (gid)]:gid:_groups" \
 	"--root-time=[set root directory timestamps (unixtime or 'now')]:time:(now)" \
+	"--root-like=[take root directory metadata from an existing directory]:directory:_files -/" \
 	"--superblock-digests=[select output digests]:mode:(auto none attr tree both)" \
 	"--set-group=[set group (gid) for whole file system]:gid:_groups" \
 	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \

@@ -474,7 +474,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }()};
 
   writer::segmenter_factory::config sf_config;
-  sys_string path_str, input_list_str, output_str, header_str, fs_label;
+  sys_string path_str, input_list_str, output_str, header_str, fs_label,
+      root_like_str;
   std::vector<sys_string> source_path_strs;
   std::string memory_limit, schema_compression, metadata_compression, timestamp,
       time_resolution, progress_mode, recompress_opts, pack_metadata,
@@ -814,6 +815,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("root-time",
         po::value<std::string>(&root_time_str),
         "set root directory timestamps (unixtime or 'now')")
+    ("root-like",
+        po::value<sys_string>(&root_like_str),
+        "take root directory metadata from an existing directory")
     ("no-category-names",
         po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
         "don't add category names to file system")
@@ -1088,10 +1092,40 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (recompress && (vm.contains("root-mode") || vm.contains("root-owner") ||
-                     vm.contains("root-group") || vm.contains("root-time"))) {
+                     vm.contains("root-group") || vm.contains("root-time") ||
+                     vm.contains("root-like"))) {
     iol.err << "error: root directory options cannot be used when "
                "recompressing\n";
     return 1;
+  }
+
+  std::optional<file_stat> root_metadata;
+
+  if (vm.contains("root-like")) {
+    auto const path = std::filesystem::path{root_like_str};
+
+    try {
+      auto const resolved = iol.os->canonical(path);
+      auto st = iol.os->symlink_info(resolved);
+
+      if (auto const ec = st.error()) {
+        iol.err << "error: cannot stat --root-like directory '" << path
+                << "': " << ec.message() << "\n";
+        return 1;
+      }
+
+      if (!st.is_directory()) {
+        iol.err << "error: --root-like path '" << path
+                << "' is not a directory\n";
+        return 1;
+      }
+
+      root_metadata.emplace(std::move(st));
+    } catch (std::exception const& e) {
+      iol.err << "error: cannot stat --root-like directory '" << path
+              << "': " << e.what() << "\n";
+      return 1;
+    }
   }
 
   std::vector<writer::scan_source> sources;
@@ -2120,6 +2154,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
              {.sources = std::move(sources),
               .fa = iol.file,
               .extra_deps = extra_deps,
+              .root_metadata = std::move(root_metadata),
               .root_attributes = root_attributes},
              prog);
 
