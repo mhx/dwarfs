@@ -34,6 +34,9 @@ namespace dwarfs::test {
 struct test_file_extent {
   dwarfs::detail::file_extent_info info;
   std::string data{};
+
+  friend bool operator==(test_file_extent const& lhs,
+                         test_file_extent const& rhs) noexcept = default;
 };
 
 struct test_file_extent_spec {
@@ -55,6 +58,9 @@ struct test_file_data {
 
   file_size_t size() const;
   file_size_t allocated_size() const;
+
+  friend bool operator==(test_file_data const& lhs,
+                         test_file_data const& rhs) noexcept = default;
 };
 
 } // namespace dwarfs::test

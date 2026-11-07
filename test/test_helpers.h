@@ -239,8 +239,11 @@ class os_access_mock : public os_access {
   void add_internal(std::filesystem::path const& path, simplestat const& st,
                     value_variant_type var);
 
+  using file_id_type = std::pair<file_stat::dev_type, file_stat::ino_type>;
+
   std::mutex mutable mx_;
   std::unique_ptr<mock_dirent> root_;
+  std::map<file_id_type, value_variant_type> file_contents_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
   std::map<std::filesystem::path, std::shared_ptr<error_info>> map_file_errors_;

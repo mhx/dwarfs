@@ -238,10 +238,16 @@ std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
 void os_access_mock::add_entries(
     std::span<std::pair<std::string_view, simplestat> const> entries,
     std::function<std::string(std::string_view)> link_resolver) {
+  std::set<file_id_type> seen_inodes;
+
   for (auto const& [name, stat] : entries) {
     switch (stat.type()) {
     case posix_file_type::regular:
-      add(name, stat, [size = stat.size] { return loremipsum(size); });
+      if (seen_inodes.insert({stat.dev, stat.ino}).second) {
+        add(name, stat, [size = stat.size] { return loremipsum(size); });
+      } else {
+        add(name, stat);
+      }
       break;
     case posix_file_type::symlink:
       add(name, stat, link_resolver(name));
@@ -458,8 +464,38 @@ void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
                                   value_variant_type var) {
   auto parts = splitpath(path);
 
-  if (st.type() == posix_file_type::directory &&
-      std::holds_alternative<std::monostate>(var)) {
+  if (st.type() == posix_file_type::regular) {
+    // Hardlinks share the same inode.
+    if (!std::holds_alternative<std::monostate>(var)) {
+      auto const [it, inserted] =
+          file_contents_.emplace(file_id_type{st.dev, st.ino}, std::move(var));
+
+      if (!inserted) {
+        bool const is_same =
+            var |
+            match{
+                [&](std::string const& s) {
+                  return std::holds_alternative<std::string>(it->second) &&
+                         std::get<std::string>(it->second) == s;
+                },
+                [&](test_file_data const& d) {
+                  return std::holds_alternative<test_file_data>(it->second) &&
+                         std::get<test_file_data>(it->second) == d;
+                },
+                [](auto const&) { return false; },
+            };
+
+        if (!is_same) {
+          throw std::runtime_error(
+              fmt::format("oops in add_internal: data for inode ({}:{}) must "
+                          "not be redefined ({})",
+                          st.dev, st.ino, path.string()));
+        }
+      }
+    }
+    var = std::monostate{};
+  } else if (st.type() == posix_file_type::directory &&
+             std::holds_alternative<std::monostate>(var)) {
     var = std::make_unique<mock_directory>();
   }
 
@@ -525,12 +561,17 @@ file_view os_access_mock::open_file(fs::path const& path) const {
       }
     }
 
-    if (std::holds_alternative<test_file_data>(de->v)) {
-      return make_mock_file_view(std::get<test_file_data>(de->v), path);
+    auto it = file_contents_.find({de->status.dev, de->status.ino});
+    DWARFS_CHECK(it != file_contents_.end(),
+                 fmt::format("no file contents for: {}", path.string()));
+    auto const& contents = it->second;
+
+    if (std::holds_alternative<test_file_data>(contents)) {
+      return make_mock_file_view(std::get<test_file_data>(contents), path);
     }
 
     auto data =
-        de->v |
+        contents |
         match{
             [](std::string const& str) { return str; },
             [](std::function<std::string()> const& fun) { return fun(); },

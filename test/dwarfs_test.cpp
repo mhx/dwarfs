@@ -1411,13 +1411,11 @@ TEST(file_scanner, file_start_hash) {
 
   auto input = std::make_shared<test::os_access_mock>();
   static constexpr size_t const kSize{1 << 20};
-  auto generator = [] { return test::loremipsum(kSize); };
 
   input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
   input->add("hardlink1", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
-             generator);
-  input->add("hardlink2", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
-             generator);
+             [] { return test::loremipsum(kSize); });
+  input->add("hardlink2", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0});
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
