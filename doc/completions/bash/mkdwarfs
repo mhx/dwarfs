@@ -184,6 +184,7 @@ _mkdwarfs_completion()
         --root-owner
         --root-group
         --root-time
+        --root-like
         --superblock-digests
         --set-group
         --set-owner
@@ -291,8 +292,8 @@ _mkdwarfs_completion()
             _comp_compgen -- gids
             return 0
             ;;
-        -i | --input)
-            # a directory, or a source filesystem image with --recompress
+        -i | --input | --root-like)
+            # a directory (or an image for --input with --recompress)
             _comp_compgen -a filedir
             return 0
             ;;

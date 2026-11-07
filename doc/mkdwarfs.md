@@ -447,6 +447,12 @@ Most other options are concerned with compression tuning:
   Set the synthetic root directory timestamps. Defaults to the current time.
   See `--set-time` for details on the supported formats.
 
+- `--root-like=`*directory*:
+  Take the root directory metadata (permissions, owner, group, and timestamps)
+  from an existing directory instead of using synthetic defaults. Explicit
+  `--root-mode`, `--root-owner`, `--root-group`, and `--root-time` options
+  will override the corresponding inherited attributes.
+
 - `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]|`explicit:file=`*file*:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. When
