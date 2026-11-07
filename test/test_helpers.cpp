@@ -554,7 +554,9 @@ file_stat os_access_mock::symlink_info(fs::path const& path) const {
     return make_file_stat(de->status);
   }
 
-  DWARFS_PANIC(fmt::format("oops in symlink_info: {}", path.string()));
+  throw std::system_error(
+      std::make_error_code(std::errc::no_such_file_or_directory),
+      fmt::format("symlink_info: {}", path.string()));
 }
 
 fs::path os_access_mock::read_symlink(fs::path const& path) const {
