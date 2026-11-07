@@ -101,6 +101,100 @@ TEST(mkdwarfs_test, positional_root_attributes) {
   EXPECT_FALSE(fs.find("/src"));
 }
 
+TEST(mkdwarfs_test, root_like_produces_identical_image_for_named_children) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+
+  // These attributes differ from the synthetic-root defaults.
+  // Use fractional timestamps to ensure the full stat is preserved.
+  simplestat st;
+  st.ino = 100;
+  st.mode = posix_file_type::directory | 0555;
+  st.uid = 1003;
+  st.gid = 103;
+  st.atim = {1740552544, 123456789};
+  st.mtim = {1740552544, 234567890};
+  st.ctim = {1740552544, 345678901};
+  t.os->add("/input", st);
+
+  t.os->add_file("/input/alpha", "alpha contents");
+  t.os->add_dir("/input/beta");
+  t.os->add_file("/input/beta/nested", "nested contents");
+  t.os->add_file("/input/zeta", "zeta contents");
+
+  std::vector<std::string> const common{
+      "-l1",
+      "--no-create-timestamp",
+      "--no-history",
+      "--keep-all-times",
+      "--time-resolution=us",
+      "--order=path",
+      "--num-walk-workers=1",
+      "--num-scanner-workers=1",
+      "--num-file-prep-workers=0",
+      "--num-segmenter-workers=1",
+  };
+
+  auto args = common;
+  args.insert(args.end(), {"-i", "/input", "-o", "old.dwarfs"});
+  ASSERT_EQ(0, t.run(args)) << t.err();
+
+  args = common;
+  args.insert(args.end(), {"-o", "new.dwarfs", "--root-like=/input", "--",
+                           "/input/alpha", "/input/beta", "/input/zeta"});
+  ASSERT_EQ(0, t.run(args)) << t.err();
+
+  EXPECT_EQ(t.get_file("old.dwarfs"), t.get_file("new.dwarfs"));
+}
+
+TEST(mkdwarfs_test, root_like_with_explicit_overrides) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/input", {.mtim = file_stat::timespec_type{12345, 123456789}});
+  t.os->add_file("/input/file", "contents");
+
+  ASSERT_EQ(0,
+            t.run({"-o", "test.dwarfs", "-l1", "--root-like=/input",
+                   "--root-mode=0700", "--root-owner=2345", "--root-group=4567",
+                   "--root-time=42", "--keep-all-times", "--", "/input/file"}))
+      << t.err();
+
+  auto image = t.fs_from_file("test.dwarfs");
+  auto root = image.find("/");
+
+  ASSERT_TRUE(root);
+
+  auto const root_stat = image.getattr(root->inode());
+
+  EXPECT_EQ(0700, root_stat.mode() & 07777);
+  EXPECT_EQ(2345, root_stat.uid());
+  EXPECT_EQ(4567, root_stat.gid());
+  EXPECT_EQ(42, root_stat.atime());
+  EXPECT_EQ(42, root_stat.mtime());
+  EXPECT_EQ(42, root_stat.ctime());
+  EXPECT_TRUE(image.find("/file"));
+}
+
+TEST(mkdwarfs_test, root_like_rejects_invalid_paths_and_recompression) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/input");
+  t.os->add_file("/input/file", "contents");
+
+  EXPECT_NE(0, t.run({"-o", "test.dwarfs", "--root-like=/missing", "--",
+                      "/input/file"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot stat --root-like"));
+
+  EXPECT_NE(0, t.run({"-o", "test.dwarfs", "--root-like=/input/file", "--",
+                      "/input/file"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("is not a directory"));
+
+  EXPECT_NE(0, t.run({"-i", "old.dwarfs", "-o", "new.dwarfs", "--recompress",
+                      "--root-like=/input"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("root directory options cannot be used"));
+}
+
 TEST(mkdwarfs_test, synthetic_root_defaults) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
