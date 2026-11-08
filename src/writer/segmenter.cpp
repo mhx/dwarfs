@@ -1571,7 +1571,9 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
       if (cfg_.enable_sparse_files) {
         for (auto const& ext : chkable.extents()) {
           if (ext.kind() == extent_kind::hole) {
-            chkable.add_hole(ext.size());
+            auto const size_in_bytes = ext.size();
+            chkable.add_hole(size_in_bytes);
+            pctx_->bytes_processed += size_in_bytes;
           } else if (ext.supports_raw_bytes()) {
             auto data = this->template create<extent_adapter_t<false>>(ext);
             process_data(data);
