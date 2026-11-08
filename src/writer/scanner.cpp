@@ -758,14 +758,13 @@ auto scanner_<LoggerPolicy>::inspect(
 
   // Resolve the parent independently of the logical tree: it may itself be
   // a directory symlink, or a merged directory from a different source.
-  auto const parent = os_.canonical(path.parent_path());
-
   if (options_.dereference == dereference_mode::external_symlinks &&
-      !unsafe_symlink(os_.read_symlink(path), parent, boundary)) {
+      !unsafe_symlink(os_.read_symlink(path), os_.canonical(path.parent_path()),
+                      boundary)) {
     return {std::move(st), std::nullopt};
   }
 
-  auto physical_path = os_.canonical(parent / path.filename());
+  auto physical_path = os_.canonical(path);
   auto referent = os_.symlink_info(physical_path);
 
   if (auto ec = referent.error()) {
