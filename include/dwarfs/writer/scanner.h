@@ -73,8 +73,6 @@ struct scan_request {
   std::vector<scan_source> sources;
   std::shared_ptr<file_access const> fa{};
   std::function<void(library_dependencies&)> extra_deps{};
-  // If absent, inherit the root of a single contents source, or create a
-  // synthetic root when combining sources or including an entry by name.
   std::optional<file_stat> root_metadata{};
   scan_root_attributes root_attributes{};
 };

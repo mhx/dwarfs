@@ -34,7 +34,8 @@ root. A trailing slash on a directory symlink follows its target. Sources
 are processed in order. Collisions produce warnings. The first entry wins
 and directories are merged recursively, keeping the first directory's
 metadata. Specifying a single source with a trailing slash is equivalent to
-using `--input`.
+using `--input`. See [root metadata defaults](#root-metadata-defaults) for
+how multiple sources determine the root directory's attributes.
 
 After that, you can mount it using [dwarfs(1)](dwarfs.md):
 
@@ -433,25 +434,26 @@ Most other options are concerned with compression tuning:
 
 - `--root-mode=`*mode*:
   Set the synthetic root directory permissions when using *sources* (octal).
-  Defaults to `0755`.
+  Defaults to inherited metadata, or `0755` with synthetic attributes.
 
 - `--root-owner=`*uid*:
   Set the synthetic root directory owner when using *sources*. Defaults to
-  the effective user ID of the current user.
+  an inherited owner, or the effective user ID with synthetic attributes.
 
 - `--root-group=`*gid*:
   Set the synthetic root directory group when using *sources*. Defaults to
-  the effective group ID of the current user.
+  an inherited group, or the effective group ID with synthetic attributes.
 
 - `--root-time=now`|*iso-8601-string*|*unix-timestamp*:
-  Set the synthetic root directory timestamps. Defaults to the current time.
+  Set the synthetic root directory timestamps explicitly. Without this option,
+  timestamps follow the [root metadata defaults](#root-metadata-defaults).
   See `--set-time` for details on the supported formats.
 
 - `--root-like=`*directory*:
   Take the root directory metadata (permissions, owner, group, and timestamps)
-  from an existing directory instead of using synthetic defaults. Explicit
-  `--root-mode`, `--root-owner`, `--root-group`, and `--root-time` options
-  will override the corresponding inherited attributes.
+  from an existing directory instead of using inferred or synthetic defaults.
+  Explicit `--root-mode`, `--root-owner`, `--root-group`, and `--root-time`
+  options override the corresponding default or inherited attributes.
 
 - `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]|`explicit:file=`*file*:
   The order in which inodes will be written to the file system. Choosing `none`,
@@ -523,9 +525,11 @@ Most other options are concerned with compression tuning:
   is equivalent to `--no-create-timestamp` and `--no-history-timestamps`,
   and also implies `--uuid=nil` when writing a superblock. See also
   [Producing bit-identical images](#producing-bit-identical-images) for
-  other reproducibility requirements. The command line is still recorded
-  in the image history by default, so changes to arguments can affect the
-  output. Use `--no-history-command-line` or `--no-history` as appropriate.
+  other reproducibility requirements. With multiple sources as input, the
+  root directory uses [deterministic metadata defaults](#root-metadata-defaults)
+  when no root metadata or time are specified. The command line is still
+  recorded in the image history by default, so changes to arguments will affect
+  the output. Use `--no-history-command-line` or `--no-history` as appropriate.
 
 - `--no-backwards-compat`:
   Don't attempt to write a backwards-compatible file system. This will write
@@ -1045,7 +1049,13 @@ to the file system image.
 Use `--reproducible` to omit the creation and history timestamps and
 write a nil UUID if the image contains a superblock. Equivalently, you
 can pass `--no-create-timestamp` and either `--no-history-timestamps`
-or `--no-history`, plus `--uuid=nil` when writing a superblock.
+or `--no-history`, plus `--uuid=nil` when writing a superblock. With
+multiple *sources*, the synthetic root's timestamps will be set according
+to [root metadata defaults](#root-metadata-defaults). This avoids having
+to specify `--root-time` or `--root-like` only to make the synthetic root
+reproducible. Note, however, that `--keep-all-times` can store access
+times that change when files are read, so it can prevent builds from being
+reproducible.
 
 Another more subtle requirement for bit-identical images is that if
 you're using `--categorize`, the `--num-segmenter-workers` is kept
@@ -1064,6 +1074,25 @@ enabled by `SOURCE_DATE_EPOCH` is completely independent of `--reproducible`.
 Options to omit timestamps from the output image still take precedence.
 An invalid value is an error for fresh builds. When rewriting an existing
 filesystem, `SOURCE_DATE_EPOCH` is ignored with a warning.
+
+### Root Metadata Defaults
+
+Unless `--root-like` is specified, the synthetic root's metadata defaults
+are selected in the following order:
+
+1. If all sources are named entries (without trailing slashes) with the
+   same parent directory, inherit that parent's metadata.
+
+2. Otherwise, if the first source contributes the contents of a directory
+   (with a trailing slash), inherit that directory's metadata.
+
+3. Otherwise, use synthetic permissions (`0755`), owner and group (the
+   effective user and group IDs, or zero on Windows). Set all timestamps
+   (atime, mtime and ctime) to the latest modification time of any source.
+   An explicit `--root-time` still overrides these timestamps.
+
+Only the source paths themselves are considered for the timestamp fallback,
+their descendants are *not* searched.
 
 ### Virtual Block Size
 

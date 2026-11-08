@@ -148,7 +148,7 @@ TEST(mkdwarfs_test, positional_root_attributes) {
   EXPECT_FALSE(fs.find("/src"));
 }
 
-TEST(mkdwarfs_test, root_like_produces_identical_image_for_named_children) {
+TEST(mkdwarfs_test, common_parent_produces_identical_image_for_named_children) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
 
@@ -192,6 +192,121 @@ TEST(mkdwarfs_test, root_like_produces_identical_image_for_named_children) {
   ASSERT_EQ(0, t.run(args)) << t.err();
 
   EXPECT_EQ(t.get_file("old.dwarfs"), t.get_file("new.dwarfs"));
+
+  args = common;
+  args.insert(args.end(), {"-o", "inferred.dwarfs", "--", "/input/alpha",
+                           "/input/beta", "/input/zeta"});
+  ASSERT_EQ(0, t.run(args)) << t.err();
+  EXPECT_EQ(t.get_file("old.dwarfs"), t.get_file("inferred.dwarfs"));
+}
+
+TEST(mkdwarfs_test, common_parent_inference_and_root_like_precedence) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  simplestat parent;
+  parent.mode = posix_file_type::directory | 0710;
+  parent.uid = 4242;
+  parent.gid = 4243;
+  parent.atim = {101, 123456789};
+  parent.mtim = {102, 234567890};
+  parent.ctim = {103, 345678901};
+  t.os->add("/input", parent);
+  t.os->add_file("/input/a", "a");
+  t.os->add_file("/input/b", "b");
+
+  simplestat override = parent;
+  override.mode = posix_file_type::directory | 0750;
+  override.uid = 5000;
+  override.gid = 5001;
+  override.mtim = {200, 987654321};
+  t.os->add("/override", override);
+
+  ASSERT_EQ(0, t.run({"-o", "inferred.dwarfs", "-l1", "--keep-all-times",
+                      "--time-resolution=ns", "--", "/input/./a", "/input/b"}))
+      << t.err();
+  {
+    auto image = t.fs_from_file("inferred.dwarfs");
+    auto root = image.find("/");
+    ASSERT_TRUE(root);
+    auto const st = image.getattr(root->inode());
+    EXPECT_EQ(0710, st.mode() & 07777);
+    EXPECT_EQ(4242, st.uid());
+    EXPECT_EQ(4243, st.gid());
+    EXPECT_EQ((file_stat::timespec_type{101, 123456789}), st.atimespec());
+    EXPECT_EQ((file_stat::timespec_type{102, 234567890}), st.mtimespec());
+    EXPECT_EQ((file_stat::timespec_type{103, 345678901}), st.ctimespec());
+  }
+
+  ASSERT_EQ(0, t.run({"-o", "explicit.dwarfs", "-l1", "--keep-all-times",
+                      "--time-resolution=ns", "--root-like=/override", "--",
+                      "/input/a", "/input/b"}))
+      << t.err();
+
+  {
+    auto image = t.fs_from_file("explicit.dwarfs");
+    auto root = image.find("/");
+    ASSERT_TRUE(root);
+    auto const st = image.getattr(root->inode());
+    EXPECT_EQ(0750, st.mode() & 07777);
+    EXPECT_EQ(5000, st.uid());
+    EXPECT_EQ(5001, st.gid());
+    EXPECT_EQ((file_stat::timespec_type{200, 987654321}), st.mtimespec());
+  }
+
+  // Per-field root attributes override inferred metadata.
+  ASSERT_EQ(0,
+            t.run({"-o", "attributes.dwarfs", "-l1", "--root-mode=0700",
+                   "--root-owner=6000", "--root-group=6001", "--root-time=300",
+                   "--keep-all-times", "--", "/input/a", "/input/b"}))
+      << t.err();
+
+  {
+    auto image = t.fs_from_file("attributes.dwarfs");
+    auto root = image.find("/");
+    ASSERT_TRUE(root);
+    auto const st = image.getattr(root->inode());
+    EXPECT_EQ(0700, st.mode() & 07777);
+    EXPECT_EQ(6000, st.uid());
+    EXPECT_EQ(6001, st.gid());
+    EXPECT_EQ(300, st.atime());
+    EXPECT_EQ(300, st.mtime());
+    EXPECT_EQ(300, st.ctime());
+  }
+}
+
+TEST(mkdwarfs_test, first_contents_source_defines_root_metadata) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  simplestat first;
+  first.mode = posix_file_type::directory | 0701;
+  first.uid = 1234;
+  first.gid = 2345;
+  first.atim = {10, 100000001};
+  first.mtim = {20, 200000002};
+  first.ctim = {30, 300000003};
+  t.os->add("/first", first);
+  t.os->add_file("/first/a", "a");
+  t.os->add_dir("/second", {.mtim = file_stat::timespec_type{99, 0}});
+  t.os->add_file("/second/b", "b");
+  t.os->add_file("/third", "c", {.mtim = file_stat::timespec_type{100, 0}});
+
+  ASSERT_EQ(
+      0, t.run({"-o", "image.dwarfs", "-l1", "--keep-all-times",
+                "--time-resolution=ns", "--", "/first/", "/second/", "/third"}))
+      << t.err();
+
+  auto image = t.fs_from_file("image.dwarfs");
+  auto root = image.find("/");
+
+  ASSERT_TRUE(root);
+
+  auto const st = image.getattr(root->inode());
+  EXPECT_EQ(0701, st.mode() & 07777);
+  EXPECT_EQ(1234, st.uid());
+  EXPECT_EQ(2345, st.gid());
+  EXPECT_EQ((file_stat::timespec_type{10, 100000001}), st.atimespec());
+  EXPECT_EQ((file_stat::timespec_type{20, 200000002}), st.mtimespec());
+  EXPECT_EQ((file_stat::timespec_type{30, 300000003}), st.ctimespec());
 }
 
 TEST(mkdwarfs_test, root_like_with_explicit_overrides) {
@@ -245,16 +360,17 @@ TEST(mkdwarfs_test, root_like_rejects_invalid_paths_and_recompression) {
 TEST(mkdwarfs_test, synthetic_root_defaults) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
-  t.os->add_dir("/first");
+  t.os->add_dir("/first", {.mtim = file_stat::timespec_type{100, 999999999}});
   t.os->add_file("/first/a", "a");
-  t.os->add_dir("/second");
+  t.os->add_dir("/second", {.mtim = file_stat::timespec_type{101, 123456789}});
   t.os->add_file("/second/b", "b");
+  t.os->add_file("/third", "c",
+                 {.mtim = file_stat::timespec_type{101, 987654321}});
 
-  auto const before = std::time(nullptr);
-  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/first/", "/second/",
-                      "--keep-all-times"}))
+  ASSERT_EQ(
+      0, t.run({"-o", "test.dwarfs", "-l1", "--keep-all-times",
+                "--time-resolution=ns", "--", "/third", "/first/", "/second/"}))
       << t.err();
-  auto const after = std::time(nullptr);
 
   auto fs = t.fs_from_file("test.dwarfs");
   auto root = fs.find("/");
@@ -272,10 +388,54 @@ TEST(mkdwarfs_test, synthetic_root_defaults) {
   EXPECT_EQ(::getegid(), st.gid());
 #endif
 
-  EXPECT_GE(st.mtime(), before);
-  EXPECT_LE(st.mtime(), after);
-  EXPECT_EQ(st.mtime(), st.atime());
-  EXPECT_EQ(st.mtime(), st.ctime());
+  auto const latest = file_stat::timespec_type{101, 987654321};
+  EXPECT_EQ(latest, st.mtimespec());
+  EXPECT_EQ(latest, st.atimespec());
+  EXPECT_EQ(latest, st.ctimespec());
+
+  // Explicit root time takes precedence over the timestamp fallback.
+  ASSERT_EQ(0, t.run({"-o", "overridden.dwarfs", "-l1", "--keep-all-times",
+                      "--root-time=42", "--", "/third", "/first/", "/second/"}))
+      << t.err();
+  auto overridden = t.fs_from_file("overridden.dwarfs");
+  auto overridden_root = overridden.find("/");
+  ASSERT_TRUE(overridden_root);
+  auto const overridden_stat = overridden.getattr(overridden_root->inode());
+  EXPECT_EQ(42, overridden_stat.mtime());
+  EXPECT_EQ(42, overridden_stat.atime());
+  EXPECT_EQ(42, overridden_stat.ctime());
+}
+
+TEST(mkdwarfs_test, reproducible_multi_source_without_root_options) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_file("/one/a", "a", {.mtim = file_stat::timespec_type{123, 1}});
+  t.os->add_dir("/two", {.mtim = file_stat::timespec_type{456, 2}});
+  t.os->add_file("/two/b", "b");
+
+  std::vector<std::string> args{"-l1",
+                                "--reproducible",
+                                "--no-history",
+                                "--order=path",
+                                "--num-walk-workers=1",
+                                "--num-scanner-workers=1",
+                                "--num-file-prep-workers=0",
+                                "--num-segmenter-workers=1"};
+  auto run = [&](std::string const& output) {
+    auto cmd = args;
+    cmd.insert(cmd.end(), {"-o", output, "--", "/one/a", "/two/"});
+    return t.run(cmd);
+  };
+
+  ASSERT_EQ(0, run("first.dwarfs")) << t.err();
+  ASSERT_EQ(0, run("second.dwarfs")) << t.err();
+  EXPECT_EQ(t.get_file("first.dwarfs"), t.get_file("second.dwarfs"));
+
+  auto image = t.fs_from_file("first.dwarfs");
+  auto root = image.find("/");
+  ASSERT_TRUE(root);
+  EXPECT_EQ(456, image.getattr(root->inode()).mtime());
 }
 
 TEST(mkdwarfs_test, root_time_now) {
@@ -349,9 +509,14 @@ TEST(mkdwarfs_test, synthetic_root_respects_source_date_epoch) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->setenv("SOURCE_DATE_EPOCH", "12345");
   t.os->add_dir("/");
-  t.os->add_file("/file", "data");
+  t.os->add_dir("/one");
+  t.os->add_file("/one/file", "data",
+                 {.mtim = file_stat::timespec_type{20000, 0}});
+  t.os->add_dir("/two");
+  t.os->add_file("/two/other", "other");
 
-  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--keep-all-times"}))
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "--keep-all-times", "--",
+                      "/one/file", "/two/other"}))
       << t.err();
   auto fs = t.fs_from_file("test.dwarfs");
   auto root = fs.find("/");
