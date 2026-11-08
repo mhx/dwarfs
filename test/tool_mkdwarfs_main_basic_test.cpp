@@ -123,6 +123,198 @@ TEST(mkdwarfs_test, positional_sources_debug_filter_all_reports_merged_once) {
   EXPECT_THAT(out, ::testing::HasSubstr("+ /two/common/b\n")) << out;
 }
 
+namespace {
+
+void add_colliding_sources(mkdwarfs_tester& t) {
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/one/common");
+  t.os->add_file("/one/common/a", "a");
+  t.os->add_file("/one/common/shared", "first");
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/common");
+  t.os->add_file("/two/common/b", "b");
+  t.os->add_file("/two/common/shared", "second");
+}
+
+} // namespace
+
+TEST(mkdwarfs_test, positional_sources_order_decides_winner) {
+  for (auto const& [first, second, expected] :
+       {std::tuple{"/one/", "/two/", "first"},
+        std::tuple{"/two/", "/one/", "second"}}) {
+    SCOPED_TRACE(
+        fmt::format("first={} second={} expected={}", first, second, expected));
+
+    auto t = mkdwarfs_tester::create_empty();
+    add_colliding_sources(t);
+
+    ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", first, second})) << t.err();
+
+    auto fs = t.fs_from_file("test.dwarfs");
+    auto shared = fs.find("/common/shared");
+
+    ASSERT_TRUE(shared);
+    EXPECT_EQ(std::string_view{expected},
+              fs.read_string(fs.open(shared->inode())));
+  }
+}
+
+TEST(mkdwarfs_test, positional_sources_filter_matches_logical_paths) {
+  auto t = mkdwarfs_tester::create_empty();
+  add_colliding_sources(t);
+
+  // The rule refers to the *logical* path, so it must remove `shared`
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "-F", "- /common/shared",
+                      "--", "/one/", "/two/"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+
+  EXPECT_EQ((std::set<fs::path>{"", "common", "common/a", "common/b"}),
+            get_all_fs_paths(fs));
+}
+
+TEST(mkdwarfs_test, positional_sources_later_dir_does_not_replace_file) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_file("/one/x", "file");
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/x");
+  t.os->add_file("/two/x/child", "child");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/one/", "/two/"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+
+  EXPECT_EQ((std::set<fs::path>{"", "x"}), get_all_fs_paths(fs));
+
+  auto x = fs.find("/x");
+
+  ASSERT_TRUE(x);
+  EXPECT_EQ(posix_file_type::regular, fs.getattr(x->inode()).type());
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate entry '/x/'"));
+}
+
+TEST(mkdwarfs_test, positional_sources_symlink_is_not_merged_with_dir) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/one/real");
+  t.os->add_file("/one/real/file", "file");
+  t.os->add("/one/x",
+            {900, posix_file_type::symlink | 0777, 1, 1000, 100, 4, kNoRdev},
+            std::string{"real"});
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/x");
+  t.os->add_file("/two/x/child", "child");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/one/", "/two/"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+
+  EXPECT_EQ((std::set<fs::path>{"", "real", "real/file", "x"}),
+            get_all_fs_paths(fs));
+
+  auto x = fs.find("/x");
+
+  ASSERT_TRUE(x);
+  EXPECT_EQ(posix_file_type::symlink, fs.getattr(x->inode()).type());
+}
+
+TEST(mkdwarfs_test, positional_named_symlink_is_stored_as_symlink) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/data");
+  t.os->add_dir("/data/real");
+  t.os->add_file("/data/real/file", "file");
+  t.os->add("/data/link",
+            {900, posix_file_type::symlink | 0777, 1, 1000, 100, 4, kNoRdev},
+            std::string{"real"});
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/data/link"})) << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+
+  EXPECT_EQ((std::set<fs::path>{"", "link"}), get_all_fs_paths(fs));
+
+  auto link = fs.find("/link");
+
+  ASSERT_TRUE(link);
+  EXPECT_EQ(posix_file_type::symlink, fs.getattr(link->inode()).type());
+  std::error_code ec;
+  EXPECT_EQ("real", fs.readlink(link->inode(), ec));
+  EXPECT_FALSE(ec);
+}
+
+TEST(mkdwarfs_test, positional_named_dir_merges_into_contents_dir) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/a");
+  t.os->add_dir("/a/named");
+  t.os->add_file("/a/named/x", "xx");
+  t.os->add_dir("/b");
+  t.os->add_dir("/b/named");
+  t.os->add_dir("/b/named/sub");
+  t.os->add_file("/b/named/sub/y", "yyyy");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/a/", "/b/named"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+
+  EXPECT_EQ(
+      (std::set<fs::path>{"", "named", "named/x", "named/sub", "named/sub/y"}),
+      get_all_fs_paths(fs));
+
+  auto y = fs.find("/named/sub/y");
+
+  ASSERT_TRUE(y);
+  EXPECT_EQ(4, fs.getattr(y->inode()).size());
+  EXPECT_EQ("yyyy", fs.read_string(fs.open(y->inode())));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("merging directory '/named/'"));
+}
+
+TEST(mkdwarfs_test, set_owner_takes_precedence_over_root_owner) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(
+      0, t.run({"-o", "test.dwarfs", "-l1", "--set-owner=42", "--set-group=43",
+                "--root-owner=7", "--root-group=8", "/file"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+
+  ASSERT_TRUE(root);
+
+  auto const st = fs.getattr(root->inode());
+
+  EXPECT_EQ(42, st.uid());
+  EXPECT_EQ(43, st.gid());
+}
+
+TEST(mkdwarfs_test, chmod_applies_on_top_of_root_mode) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "--root-mode=0700",
+                      "--chmod=go+rX", "/file"}))
+      << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  auto root = fs.find("/");
+
+  ASSERT_TRUE(root);
+  EXPECT_EQ(0755, fs.getattr(root->inode()).mode() & 07777);
+}
+
 TEST(mkdwarfs_test, positional_root_attributes) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
