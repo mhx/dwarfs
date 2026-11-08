@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 
@@ -74,6 +75,52 @@ TEST(mkdwarfs_test, positional_sources) {
       get_all_fs_paths(fs));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("merging directory"));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate entry"));
+}
+
+TEST(mkdwarfs_test, positional_sources_debug_filter_omits_collisions) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/one/common");
+  t.os->add_file("/one/common/a", "a");
+  t.os->add_file("/one/common/shared", "first");
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/common");
+  t.os->add_file("/two/common/b", "b");
+  t.os->add_file("/two/common/shared", "second");
+
+  ASSERT_EQ(0, t.run({"--debug-filter=included-files", "/one/", "/two/"}))
+      << t.err();
+
+  // Only three files end up in the image. The second `shared` is dropped
+  // as a duplicate and must not be reported as included.
+  auto const out = t.out();
+  EXPECT_EQ(3, std::ranges::count(out, '\n')) << out;
+  EXPECT_THAT(out, ::testing::Not(::testing::HasSubstr("/two/common/shared")))
+      << out;
+  EXPECT_THAT(out, ::testing::HasSubstr("/two/common/b")) << out;
+}
+
+TEST(mkdwarfs_test, positional_sources_debug_filter_all_reports_merged_once) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/one");
+  t.os->add_dir("/one/common");
+  t.os->add_file("/one/common/a", "a");
+  t.os->add_dir("/two");
+  t.os->add_dir("/two/common");
+  t.os->add_file("/two/common/b", "b");
+
+  ASSERT_EQ(0, t.run({"--debug-filter=all", "/one/", "/two/"})) << t.err();
+
+  // The merged directory is reported once (from the first source), and the
+  // entries merged into it from the second source are still reported.
+  auto const out = t.out();
+  EXPECT_EQ(3, std::ranges::count(out, '\n')) << out;
+  EXPECT_THAT(out, ::testing::HasSubstr("+ /one/common/\n")) << out;
+  EXPECT_THAT(out, ::testing::Not(::testing::HasSubstr("/two/common/\n")))
+      << out;
+  EXPECT_THAT(out, ::testing::HasSubstr("+ /two/common/b\n")) << out;
 }
 
 TEST(mkdwarfs_test, positional_root_attributes) {

@@ -477,7 +477,18 @@ entry_handle scanner_<LoggerPolicy>::add_entry(
       return f->filter(ent) == filter_action::remove;
     });
 
-    if (debug_filter) {
+    // A collision is determined by the image path. Colliding directories
+    // are merged, keeping the first directory's metadata. Look this up
+    // before reporting to the debug filter: an entry that collides is
+    // either dropped or merged into an entry that has already been
+    // reported, so it must not show up as a separate included entry.
+    entry_handle existing;
+
+    if (check_collisions && !exclude) {
+      existing = parent.find(path.filename());
+    }
+
+    if (debug_filter && !existing) {
       std::lock_guard lock(mx_walk);
       (*options_.debug_filter_function)(exclude, ent);
     }
@@ -507,24 +518,20 @@ entry_handle scanner_<LoggerPolicy>::add_entry(
       break;
     }
 
-    // A collision is determined by the image path. Colliding directories
-    // are merged, keeping the first directory's metadata.
-    if (check_collisions) {
-      if (auto existing = parent.find(path.filename())) {
-        if (existing.is_dir() && ent.is_directory()) {
-          LOG_WARN << "merging directory '" << ent.logical_path() << "' from '"
-                   << path_to_utf8_string_sanitized(path) << "' with '"
-                   << path_to_utf8_string_sanitized(existing.fs_path())
-                   << "' (keeping first directory metadata)";
-          return existing;
-        }
-
-        LOG_WARN << "duplicate entry '" << ent.logical_path() << "' from '"
-                 << path_to_utf8_string_sanitized(path) << "' conflicts with '"
+    if (existing) {
+      if (existing.is_dir() && ent.is_directory()) {
+        LOG_WARN << "merging directory '" << ent.logical_path() << "' from '"
+                 << path_to_utf8_string_sanitized(path) << "' with '"
                  << path_to_utf8_string_sanitized(existing.fs_path())
-                 << "' (keeping first entry)";
-        return {};
+                 << "' (keeping first directory metadata)";
+        return existing;
       }
+
+      LOG_WARN << "duplicate entry '" << ent.logical_path() << "' from '"
+               << path_to_utf8_string_sanitized(path) << "' conflicts with '"
+               << path_to_utf8_string_sanitized(existing.fs_path())
+               << "' (keeping first entry)";
+      return {};
     }
 
     auto pe = ent.commit(tree);
