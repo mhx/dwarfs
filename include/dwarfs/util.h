@@ -41,6 +41,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <unordered_map>
 
@@ -115,6 +116,8 @@ void shorten_path_string(std::string& path, char separator, size_t max_len);
 bool is_well_formed_utf16_path(std::filesystem::path const& p);
 
 std::filesystem::path canonical_path(std::filesystem::path p);
+std::filesystem::path
+strict_canonical_path(std::filesystem::path const& p, std::error_code& ec);
 std::string path_to_utf8_string_sanitized(std::filesystem::path const& p);
 std::u8string path_to_u8string_sanitized(std::filesystem::path const& p);
 

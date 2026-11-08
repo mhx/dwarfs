@@ -235,6 +235,11 @@ fs::path os_access_generic::canonical(fs::path const& path) const {
   return canonical_path(path);
 }
 
+fs::path os_access_generic::strict_canonical(fs::path const& path,
+                                             std::error_code& ec) const {
+  return strict_canonical_path(path, ec);
+}
+
 fs::path os_access_generic::current_path() const { return fs::current_path(); }
 
 std::optional<std::string>

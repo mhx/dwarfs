@@ -201,6 +201,8 @@ class os_access_mock : public os_access {
 
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;
+  std::filesystem::path strict_canonical(std::filesystem::path const& path,
+                                         std::error_code& ec) const override;
 
   std::filesystem::path current_path() const override;
 

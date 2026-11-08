@@ -23,6 +23,7 @@
 
 #include <set>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -945,4 +946,39 @@ TEST(mkdwarfs_test, dereference_physical_alias_unreadable_representative) {
   EXPECT_EQ("GOOD DATA", image.read_string(second->inode().inode_num()));
   EXPECT_EQ("OTHERDATA", image.read_string(unrelated->inode().inode_num()));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to map file"));
+}
+
+// Links that cannot be resolved must be reported and skipped.
+TEST(mkdwarfs_test, dereference_unresolvable_links_below_dereferenced_dir) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/t");
+  t.os->add_file("/t/file", "okay");
+  t.os->add_symlink("/t/broken", "missing");
+  t.os->add_symlink("/t/loop", "loop");
+  t.os->add_symlink("/src/alias", "/t");
+
+  EXPECT_EQ(2, t.run({"-o", "unresolvable.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"}))
+      << t.err();
+
+  auto image = t.fs_from_file("unresolvable.dwarfs");
+  auto file = image.find("/alias/file");
+
+  ASSERT_TRUE(file);
+  EXPECT_EQ("okay", image.read_string(file->inode().inode_num()));
+  EXPECT_FALSE(image.find("/alias/broken"));
+  EXPECT_FALSE(image.find("/alias/loop"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot resolve symbolic link"));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  std::make_error_code(std::errc::no_such_file_or_directory)
+                      .message()));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  std::make_error_code(std::errc::too_many_symbolic_link_levels)
+                      .message()));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("filesystem created with 2 errors"));
 }

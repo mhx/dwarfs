@@ -857,19 +857,39 @@ void shorten_path_string(std::string& path, char separator, size_t max_len) {
   }
 }
 
+namespace {
+
+std::filesystem::path add_extended_length_prefix(std::filesystem::path p) {
+#ifdef _WIN32
+  if (auto wstr = p.wstring(); !wstr.starts_with(L"\\\\")) {
+    p = std::filesystem::path(L"\\\\?\\" + wstr);
+  }
+#endif
+  return p;
+}
+
+} // namespace
+
+std::filesystem::path
+strict_canonical_path(std::filesystem::path const& p, std::error_code& ec) {
+  auto resolved = std::filesystem::canonical(p, ec);
+
+  if (ec) {
+    return {};
+  }
+
+  return add_extended_length_prefix(std::move(resolved));
+}
+
 std::filesystem::path canonical_path(std::filesystem::path p) {
   if (!p.empty()) {
-    try {
-      p = std::filesystem::canonical(p);
-    } catch (std::filesystem::filesystem_error const&) {
-      p = std::filesystem::absolute(p);
+    std::error_code ec;
+
+    if (auto resolved = strict_canonical_path(p, ec); !ec) {
+      return resolved;
     }
 
-#ifdef _WIN32
-    if (auto wstr = p.wstring(); !wstr.starts_with(L"\\\\")) {
-      p = std::filesystem::path(L"\\\\?\\" + wstr);
-    }
-#endif
+    p = add_extended_length_prefix(std::filesystem::absolute(p));
   }
 
   return p;

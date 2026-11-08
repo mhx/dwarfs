@@ -93,6 +93,9 @@ class os_access {
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
   virtual std::filesystem::path
   canonical(std::filesystem::path const& path) const = 0;
+  virtual std::filesystem::path
+  strict_canonical(std::filesystem::path const& path,
+                   std::error_code& ec) const = 0;
   virtual std::filesystem::path current_path() const = 0;
   virtual std::optional<std::string> getenv(std::string_view name) const = 0;
   virtual void
