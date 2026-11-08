@@ -818,3 +818,131 @@ TEST(mkdwarfs_test, dereference_input_list_aliases_have_distinct_inodes) {
   EXPECT_EQ("LIST DATA", image.read_string(b->inode().inode_num()));
   EXPECT_NE(a->inode().inode_num(), b->inode().inode_num());
 }
+
+TEST(mkdwarfs_test, dereference_physical_alias_unique_by_size) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/target");
+  std::string const contents(1024 * 1024 + 37, 'X');
+  t.os->add_file("/target/data", contents);
+  // A later unique start-hash bucket must be numbered before the shared
+  // content group in the size-only bucket.
+  t.os->add_file("/src/tiny", "tiny file");
+  t.os->add_symlink("/src/a", "/target");
+  t.os->add_symlink("/src/b", "/target");
+
+  ASSERT_EQ(0, t.run({"-o", "aliases-large.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"}))
+      << t.err();
+
+  auto image = t.fs_from_file("aliases-large.dwarfs");
+  auto a = image.find("/a/data");
+  auto b = image.find("/b/data");
+  auto tiny = image.find("/tiny");
+
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(tiny);
+  EXPECT_EQ("tiny file", image.read_string(tiny->inode().inode_num()));
+  EXPECT_EQ(contents, image.read_string(a->inode().inode_num()));
+  EXPECT_EQ(contents, image.read_string(b->inode().inode_num()));
+  EXPECT_NE(a->inode().inode_num(), b->inode().inode_num());
+}
+
+// A size collision with different start hashes should not trigger
+// full-file hashing for a repeated physical inode.
+TEST(mkdwarfs_test, dereference_physical_alias_unique_by_start_hash) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/target");
+  std::string const first(1024 * 1024 + 17, 'A');
+  std::string const other(first.size(), 'B');
+  t.os->add_file("/target/data", first);
+  t.os->add_file("/src/unrelated", other);
+  t.os->add_symlink("/src/a", "/target");
+  t.os->add_symlink("/src/b", "/target");
+
+  ASSERT_EQ(0, t.run({"-o", "aliases-start-hash.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"}))
+      << t.err();
+  auto image = t.fs_from_file("aliases-start-hash.dwarfs");
+  auto a = image.find("/a/data");
+  auto b = image.find("/b/data");
+  auto unrelated = image.find("/unrelated");
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(unrelated);
+  EXPECT_EQ(first, image.read_string(a->inode().inode_num()));
+  EXPECT_EQ(first, image.read_string(b->inode().inode_num()));
+  EXPECT_EQ(other, image.read_string(unrelated->inode().inode_num()));
+  EXPECT_NE(a->inode().inode_num(), b->inode().inode_num());
+}
+
+// If an unrelated physical inode has the same contents, its digest must
+// still be computed, but later references to the first inode must not
+// compute the digest again.
+TEST(mkdwarfs_test, dereference_physical_alias_with_digest_duplicates) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/target");
+  std::string const contents(4097, 'Q');
+  t.os->add_file("/target/data", contents);
+  t.os->add_file("/src/unrelated", contents);
+  t.os->add_symlink("/src/a", "/target");
+  t.os->add_symlink("/src/b", "/target");
+
+  ASSERT_EQ(0, t.run({"-o", "aliases-digest.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"}))
+      << t.err();
+
+  auto image = t.fs_from_file("aliases-digest.dwarfs");
+  auto a = image.find("/a/data");
+  auto b = image.find("/b/data");
+  auto unrelated = image.find("/unrelated");
+
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(unrelated);
+  EXPECT_EQ(contents, image.read_string(a->inode().inode_num()));
+  EXPECT_EQ(contents, image.read_string(b->inode().inode_num()));
+  EXPECT_EQ(contents, image.read_string(unrelated->inode().inode_num()));
+  EXPECT_NE(a->inode().inode_num(), b->inode().inode_num());
+  EXPECT_NE(a->inode().inode_num(), unrelated->inode().inode_num());
+}
+
+// A failed read through one path must not prevent a later path to the same
+// physical inode from being scanned successfully. An input list defines the
+// scanning order explicitly.
+TEST(mkdwarfs_test, dereference_physical_alias_unreadable_representative) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  // The mock gives these two paths one physical inode but no logical
+  // hardlink relationship, so they exercise the failed-representative path.
+  t.os->add_file("/src/first", "GOOD DATA", {.ino = 912, .nlink = 1});
+  t.os->add_file("/src/second", "GOOD DATA", {.ino = 912, .nlink = 1});
+  // A third file of the same size forces the representative into the digest
+  // stage. Without it, neither of the physically aliased files is read.
+  t.os->add_file("/src/unrelated", "OTHERDATA");
+  t.os->set_open_fail("/src/first");
+  auto const list =
+      t.set_input_list(input_mode::from_file, "first\nsecond\nunrelated\n");
+
+  EXPECT_GT(t.run({"-o", "aliases-fallback.dwarfs", "-l1", "-i", "/src",
+                   "--input-list", list, "--dereference=symlinks"}),
+            0)
+      << t.err();
+
+  auto image = t.fs_from_file("aliases-fallback.dwarfs");
+  auto second = image.find("/second");
+  auto unrelated = image.find("/unrelated");
+
+  ASSERT_TRUE(second);
+  ASSERT_TRUE(unrelated);
+  EXPECT_EQ("GOOD DATA", image.read_string(second->inode().inode_num()));
+  EXPECT_EQ("OTHERDATA", image.read_string(unrelated->inode().inode_num()));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to map file"));
+}
