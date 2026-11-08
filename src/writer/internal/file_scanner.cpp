@@ -77,7 +77,9 @@ class pair_inode_accessor {
  public:
   template <typename T>
   auto key(T const& p) const {
-    if constexpr (requires { p.first.index(); }) {
+    if constexpr (std::convertible_to<T, file_id>) {
+      return static_cast<file_id>(p).index();
+    } else if constexpr (requires { p.first.index(); }) {
       return p.first.index();
     } else {
       return p.first;
@@ -86,7 +88,11 @@ class pair_inode_accessor {
 
   template <typename T>
   decltype(auto) files(T& p) const {
-    if constexpr (requires { p.second.files; }) {
+    if constexpr (std::convertible_to<T, file_id>) {
+      file_id_vector files;
+      files.push_back(static_cast<file_id>(p));
+      return files;
+    } else if constexpr (requires { p.second.files; }) {
       return (p.second.files);
     } else {
       return (p.second);
@@ -176,6 +182,9 @@ class file_scanner_ final : public file_scanner::impl {
     return *index;
   }
 
+  void finalize_files(file_id_vector ent, uint32_t& inode_num,
+                      uint32_t& obj_num, std::string_view name);
+
   template <typename KeyType, typename ValueType>
   void finalize_files(
       container::chunked_append_only_vector<std::pair<KeyType, ValueType>> ent,
@@ -237,6 +246,9 @@ class file_scanner_ final : public file_scanner::impl {
   void dump_map(std::ostream& os, std::string_view name,
                 by_digest_vec const& map) const;
 
+  void dump_map(std::ostream& os, std::string_view name,
+                file_id_vector const& map) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   entry_storage& storage_;
   worker_group& wg_;
@@ -296,11 +308,7 @@ class file_scanner_ final : public file_scanner::impl {
 
   // Entries without source hardlink identity. Only populated when hashing is
   // disabled or an independently mapped file becomes invalid while hashing.
-  // TODO: This is an identity map: it only ever contains the file_id of the
-  //       file itself. We can potentially replace this with just a simple
-  //       file_id_vector if we can make finalize_files handle that case.
-  container::chunked_append_only_vector<std::pair<file_id, file_id_vector>>
-      independent_store_;
+  file_id_vector independent_store_;
 
   // There is likely no point in trying to store a digest pointer in this vector
   // to keep for sorting later. It would just use memory while we're scanning,
@@ -484,9 +492,7 @@ void file_scanner_<LoggerPolicy>::add_file(file_handle p) {
   if (auto* files = by_inode_group(p.get_inode_identity(), true)) {
     files->push_back(file_id);
   } else {
-    file_id_vector fv;
-    fv.push_back(file_id);
-    independent_store_.emplace_back(file_id, std::move(fv));
+    independent_store_.push_back(file_id);
   }
 }
 
@@ -913,6 +919,20 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
 }
 
 template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::finalize_files(file_id_vector ent,
+                                                 uint32_t& inode_num,
+                                                 uint32_t& obj_num,
+                                                 std::string_view name) {
+  auto tv = LOG_TIMED_VERBOSE;
+  pair_inode_accessor access;
+
+  storage_.sort_file_id_vector(ent);
+  finalize_inodes<true>(ent, access, inode_num, obj_num, name);
+
+  tv << "finalized " << ent.size() << " unique files (by " << name << ")";
+}
+
+template <typename LoggerPolicy>
 template <typename KeyType, typename ValueType>
 void file_scanner_<LoggerPolicy>::finalize_files(
     container::chunked_append_only_vector<std::pair<KeyType, ValueType>> ent,
@@ -1012,7 +1032,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
   auto tv = LOG_TIMED_VERBOSE;
 
   for (auto&& p : ent) {
-    auto& files = access.files(p);
+    auto&& files = access.files(p);
 
     DWARFS_CHECK(!files.empty(),
                  fmt::format("internal error while finalizing {} inodes: "
@@ -1178,6 +1198,27 @@ void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
     auto fh = storage_.handle(v.front());
     os << "    \"" << format_key(fh.digest()) << "\": ";
     dump_value(os, v);
+  }
+
+  os << "\n  }";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
+                                           std::string_view name,
+                                           file_id_vector const& map) const {
+  os << "  \"" << name << "\": {\n";
+
+  bool first = true;
+  for (auto id : map) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    os << "    \"" << format_key(id) << "\": ";
+    file_id_vector files;
+    files.push_back(id);
+    dump_value(os, files);
   }
 
   os << "\n  }";
