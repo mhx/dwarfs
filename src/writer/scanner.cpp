@@ -25,10 +25,10 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <ctime>
 #include <functional>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -358,11 +358,34 @@ file_stat synthetic_root_stat() {
   st.set_blksize(0);
   st.set_blocks(0);
   st.set_allocated_size(0);
-  auto const now = std::time(nullptr);
-  st.set_atime(now);
-  st.set_mtime(now);
-  st.set_ctime(now);
+  st.set_atime(0);
+  st.set_mtime(0);
+  st.set_ctime(0);
   return st;
+}
+
+std::optional<std::filesystem::path>
+inferred_root_metadata_path(std::span<scan_source const> sources) {
+  auto const& first = sources.front();
+
+  if (first.mode == scan_source_mode::contents) {
+    return first.path;
+  }
+
+  auto source_parent = [](std::filesystem::path const& path) {
+    auto const parent = path.lexically_normal().parent_path();
+    return parent.empty() ? std::filesystem::path{"."} : parent;
+  };
+
+  auto const parent = source_parent(first.path);
+  if (std::ranges::all_of(sources, [&](scan_source const& source) {
+        return source.mode == scan_source_mode::entry &&
+               source_parent(source.path) == parent;
+      })) {
+    return parent;
+  }
+
+  return std::nullopt;
 }
 
 } // namespace
@@ -411,6 +434,8 @@ class scanner_ final : public scanner::impl {
   file_view
   prepare_inode_for_category(inode_handle ino, fragment_category category,
                              progress& prog) const;
+
+  file_stat get_root_stat(scan_request const& request) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
@@ -826,6 +851,49 @@ void scanner_<LoggerPolicy>::scan_list(
 }
 
 template <typename LoggerPolicy>
+file_stat
+scanner_<LoggerPolicy>::get_root_stat(scan_request const& request) const {
+  // Explicitly provided root metadata takes precedence.
+  if (request.root_metadata) {
+    return *request.root_metadata;
+  }
+
+  if (auto path = inferred_root_metadata_path(request.sources)) {
+    return os_.symlink_info(os_.canonical(*path));
+  }
+
+  auto st = synthetic_root_stat();
+
+  if (!request.root_attributes.time) {
+    std::optional<file_stat::timespec_type> latest;
+
+    for (auto const& source : request.sources) {
+      auto const source_stat = os_.symlink_info(source.path);
+
+      if (source_stat.error()) {
+        // Errors will be reported during scanning, just skip this here.
+        continue;
+      }
+
+      auto const mtime = source_stat.mtimespec();
+
+      if (!latest || mtime.sec > latest->sec ||
+          (mtime.sec == latest->sec && mtime.nsec > latest->nsec)) {
+        latest = mtime;
+      }
+    }
+
+    if (latest) {
+      st.set_atimespec(*latest);
+      st.set_mtimespec(*latest);
+      st.set_ctimespec(*latest);
+    }
+  }
+
+  return st;
+}
+
+template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                                   scan_request const& request,
                                   writer_progress& wprog) {
@@ -890,9 +958,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   auto wait_for_scanning_jobs =
       std::make_optional(scope_exit{[this] { wg_.wait(); }});
 
-  // All entries, including the root, go through the same entry storage.
-  // In the single-source case, preserve the physical root's metadata.
-  // Otherwise a synthetic root is used if no metadata was provided.
   auto const first_root_path = [&] {
     if (first.mode == scan_source_mode::contents) {
       return first.path;
@@ -901,16 +966,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     return parent.empty() ? std::filesystem::path{"."} : parent;
   }();
 
-  auto root_stat = [&] {
-    if (request.root_metadata) {
-      return *request.root_metadata;
-    }
-    if (single_source && first.mode == scan_source_mode::contents) {
-      return os_.symlink_info(first.path);
-    }
-    return synthetic_root_stat();
-  }();
-
+  auto root_stat = get_root_stat(request);
   auto const& attrs = request.root_attributes;
 
   if (attrs.mode) {
