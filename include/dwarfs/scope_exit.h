@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <optional>
 #include <utility>
 
 namespace dwarfs {
@@ -37,10 +38,22 @@ class scope_exit {
  public:
   explicit scope_exit(F&& f)
       : f_{std::move(f)} {}
-  ~scope_exit() { f_(); }
+
+  scope_exit(scope_exit&& other)
+      : f_{std::move(other.f_)} {
+    other.f_.reset();
+  }
+
+  scope_exit& operator=(scope_exit&& other) = delete;
+
+  ~scope_exit() {
+    if (f_) {
+      (*f_)();
+    }
+  }
 
  private:
-  F f_;
+  std::optional<F> f_;
 };
 
 } // namespace dwarfs
