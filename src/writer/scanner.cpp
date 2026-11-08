@@ -879,6 +879,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                                 os_.getenv(kEnvVarDumpFilesFinal),
       });
 
+  // Ensure that we wait for all background jobs even in case of exceptions
+  auto wait_for_scanning_jobs =
+      std::make_optional(scope_exit{[this] { wg_.wait(); }});
+
   // All entries, including the root, go through the same entry storage.
   // In the single-source case, preserve the physical root's metadata.
   // Otherwise a synthetic root is used if no metadata was provided.
@@ -929,7 +933,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   }
 
   // A directory walker completes all entry callbacks for a source before
-  // returning. Later sources cannot affect first-wins decisions.
+  // returning, and all tree modifications relevant for traversal happen on
+  // this thread. Later sources thus cannot affect first-wins decisions,
+  // and so there is no need to wait for background jobs (hashing, inode
+  // scanning) between sources.
   for (std::size_t source_index = 0; source_index < request.sources.size();
        ++source_index) {
     auto const& source = request.sources[source_index];
@@ -955,7 +962,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                              options_.debug_filter_function.has_value(),
                              nullptr, source_root, check_collisions);
       if (!entry || !entry.is_dir()) {
-        wg_.wait();
         continue;
       }
       parent = entry.as_dir();
@@ -971,29 +977,28 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
       scan_tree(*tree, source.path, parent, source_root, check_collisions, prog,
                 *fs);
     }
-
-    // Finish the current source before continuing with the next one.
-    wg_.wait();
   }
 
   if (options_.debug_filter_function) {
+    // There shouldn't be any scanning jobs here, but still...
+    wait_for_scanning_jobs.reset();
     LOG_VERBOSE << "entry storage:\n" << tree->dump();
     return;
   }
 
-  if (options_.remove_empty_dirs) {
-    LOG_INFO << "removing empty directories...";
-    tree->remove_empty_dirs(prog);
-  }
-
   LOG_INFO << "waiting for background scanners...";
 
-  wg_.wait();
+  wait_for_scanning_jobs.reset();
 
   // stop progress briefly to avoid race while freezing entry storage
   prog.current.store(std::monostate{});
   prog.set_status_function_and_drain(
       [](progress const&, size_t) { return "freezing entries"; });
+
+  if (options_.remove_empty_dirs) {
+    LOG_INFO << "removing empty directories...";
+    tree->remove_empty_dirs(prog);
+  }
 
   LOG_VERBOSE << "entry storage (before freezing):\n" << tree->dump_entries();
 
@@ -1037,8 +1042,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   // the file vectors are populated
   if (im.has_invalid_inodes()) {
     LOG_INFO << "trying to recover any invalid inodes...";
+    scope_exit wait_guard{[this] { wg_.wait(); }};
     im.try_scan_invalid(wg_, os_);
-    wg_.wait();
   }
 
   tree->drop_file_digests();
