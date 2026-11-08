@@ -25,13 +25,16 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <latch>
 #include <random>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #ifdef _WIN32
 #include <dwarfs/portability/windows.h>
@@ -419,6 +422,77 @@ TEST(os_access_generic, symlink_info_deferred_error) {
   auto missing = os.symlink_info(td.path() / "no_such_entry");
   EXPECT_TRUE(missing.error());
   EXPECT_THROW(missing.type(), std::system_error);
+}
+
+TEST(os_access_generic, canonical_and_strict_canonical) {
+  using namespace dwarfs;
+  temporary_directory td;
+  auto const base = fs::canonical(td.path());
+  auto const target = base / "target";
+  auto const good = base / "good";
+  auto const dangling = base / "dangling";
+  auto const loop_a = base / "loop-a";
+  auto const loop_b = base / "loop-b";
+  auto const not_a_dir = base / "good" / "sub";
+  auto const new_output = base / "does-not-exist-yet.tar";
+
+  write_file(target, "data");
+  fs::create_symlink("target", good);
+  fs::create_symlink("missing", dangling);
+  fs::create_symlink("loop-b", loop_a);
+  fs::create_symlink("loop-a", loop_b);
+
+  os_access_generic os;
+
+  auto add_prefix = [](std::filesystem::path p) {
+#ifdef _WIN32
+    p = std::filesystem::path(L"\\\\?\\" + p.wstring());
+#endif
+    return p;
+  };
+
+  // best effort
+  EXPECT_EQ(add_prefix(target), os.canonical(good));
+
+  for (auto const& path : {dangling, loop_a, not_a_dir, new_output}) {
+    SCOPED_TRACE(path);
+    fs::path resolved;
+    EXPECT_NO_THROW(resolved = os.canonical(path));
+    EXPECT_EQ(add_prefix(path), resolved);
+  }
+
+  for (auto const& link : {dangling, loop_a}) {
+    SCOPED_TRACE(link);
+    EXPECT_EQ(posix_file_type::symlink,
+              os.symlink_info(os.canonical(link)).type());
+  }
+
+  // strict
+  {
+    std::error_code ec;
+    auto const resolved = os.strict_canonical(good, ec);
+    ASSERT_FALSE(ec) << ec.message();
+    EXPECT_EQ(add_prefix(target), resolved);
+  }
+
+  for (auto const& [path, expected] :
+       std::initializer_list<std::pair<fs::path, std::errc>>{
+           {dangling, std::errc::no_such_file_or_directory},
+           {loop_a, std::errc::too_many_symbolic_link_levels},
+           {not_a_dir, std::errc::not_a_directory},
+           {new_output, std::errc::no_such_file_or_directory},
+       }) {
+    SCOPED_TRACE(path);
+    std::error_code ec;
+    auto const resolved = os.strict_canonical(path, ec);
+#ifdef _WIN32
+    EXPECT_TRUE(ec);
+#else
+    EXPECT_TRUE(ec == expected)
+        << ec.message() << " != " << std::make_error_code(expected).message();
+#endif
+    EXPECT_TRUE(resolved.empty());
+  }
 }
 
 TEST(os_access_generic, symlink_info) {

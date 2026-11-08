@@ -61,6 +61,8 @@ class os_access_generic : public os_access {
   int access(std::filesystem::path const& path, int mode) const override;
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;
+  std::filesystem::path strict_canonical(std::filesystem::path const& path,
+                                         std::error_code& ec) const override;
   std::filesystem::path current_path() const override;
   std::optional<std::string> getenv(std::string_view name) const override;
   void thread_set_affinity(std::thread::id tid, std::span<int const> cpus,

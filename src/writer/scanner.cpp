@@ -764,11 +764,27 @@ auto scanner_<LoggerPolicy>::inspect(
     return {std::move(st), std::nullopt};
   }
 
-  auto physical_path = os_.canonical(path);
+  std::error_code resolve_ec;
+  auto physical_path = os_.strict_canonical(path, resolve_ec);
+
+  if (resolve_ec) {
+    throw std::system_error(resolve_ec,
+                            fmt::format("cannot resolve symbolic link '{}'",
+                                        path_to_utf8_string_sanitized(path)));
+  }
+
   auto referent = os_.symlink_info(physical_path);
 
   if (auto ec = referent.error()) {
     throw std::system_error(ec, physical_path.string());
+  }
+
+  // A fully resolved path can never be a symlink.
+  if (referent.type() == posix_file_type::symlink) {
+    throw std::system_error(
+        std::make_error_code(std::errc::resource_unavailable_try_again),
+        fmt::format("referent of symbolic link '{}' changed while scanning",
+                    path_to_utf8_string_sanitized(path)));
   }
 
   // Dereferencing must not synthesize hardlinks just because two symlinks

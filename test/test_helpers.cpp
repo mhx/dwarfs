@@ -660,13 +660,15 @@ int os_access_mock::access(fs::path const& path, int) const {
 }
 
 std::filesystem::path
-os_access_mock::canonical(std::filesystem::path const& path) const {
+os_access_mock::strict_canonical(std::filesystem::path const& path,
+                                 std::error_code& ec) const {
+  ec.clear();
+
   if (!root_) {
     return path;
   }
 
   auto current = path;
-  bool followed = false;
 
   for (unsigned hops = 0; hops < 40; ++hops) {
     fs::path prefix;
@@ -689,23 +691,30 @@ os_access_mock::canonical(std::filesystem::path const& path) const {
       }
 
       current = next.lexically_normal();
-      followed = found_link = true;
+      found_link = true;
 
       break;
     }
 
     if (!found_link) {
-      if (followed && !find(current)) {
-        throw std::system_error(
-            std::make_error_code(std::errc::no_such_file_or_directory));
+      if (!find(current)) {
+        ec = std::make_error_code(std::errc::no_such_file_or_directory);
+        return {};
       }
 
       return current;
     }
   }
 
-  throw std::system_error(
-      std::make_error_code(std::errc::too_many_symbolic_link_levels));
+  ec = std::make_error_code(std::errc::too_many_symbolic_link_levels);
+  return {};
+}
+
+std::filesystem::path
+os_access_mock::canonical(std::filesystem::path const& path) const {
+  std::error_code ec;
+  auto resolved = strict_canonical(path, ec);
+  return ec ? path : resolved;
 }
 
 std::filesystem::path os_access_mock::current_path() const {
