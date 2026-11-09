@@ -22,6 +22,7 @@
  */
 
 #include <algorithm>
+#include <filesystem>
 
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/inode_options.h>
@@ -35,7 +36,6 @@
 namespace dwarfs::writer::internal {
 
 using namespace dwarfs::internal;
-namespace fs = std::filesystem;
 
 namespace {
 
@@ -96,7 +96,7 @@ class inode_ordering_ final : public inode_ordering::impl {
   void
   by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
               sortable_inode_span& sp, fragment_category cat) const override;
-  void by_explicit_order(sortable_inode_span& sp, fs::path const& root_path,
+  void by_explicit_order(sortable_inode_span& sp,
                          fragment_order_options const& opts) const override;
 
  private:
@@ -260,8 +260,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_explicit_order(
-    sortable_inode_span& sp, fs::path const& root_path,
-    fragment_order_options const& opts) const {
+    sortable_inode_span& sp, fragment_order_options const& opts) const {
   auto& index = sp.index();
   auto const& order = opts.explicit_order;
 
@@ -275,8 +274,7 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   path_order.resize(sp.raw_size());
 
   for (auto i : index) {
-    paths[i] =
-        sp.raw_handle(i).first_file().fs_path().lexically_relative(root_path);
+    paths[i] = sp.raw_handle(i).first_file().logical_fs_path().relative_path();
 
     if (auto it = order.find(paths[i]); it != order.end()) {
       path_order[i] = it->second;

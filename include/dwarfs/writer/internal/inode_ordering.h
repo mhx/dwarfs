@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <memory>
 #include <unordered_map>
 
@@ -74,9 +73,8 @@ class inode_ordering {
   }
 
   void by_explicit_order(sortable_inode_span& sp,
-                         std::filesystem::path const& root_path,
                          fragment_order_options const& opts) const {
-    impl_->by_explicit_order(sp, root_path, opts);
+    impl_->by_explicit_order(sp, opts);
   }
 
   class impl {
@@ -95,7 +93,6 @@ class inode_ordering {
                 sortable_inode_span& sp, fragment_category cat) const = 0;
     virtual void
     by_explicit_order(sortable_inode_span& sp,
-                      std::filesystem::path const& root_path,
                       fragment_order_options const& opts) const = 0;
   };
 

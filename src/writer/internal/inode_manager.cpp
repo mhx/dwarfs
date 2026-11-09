@@ -62,18 +62,15 @@
 namespace dwarfs::writer::internal {
 
 using namespace dwarfs::internal;
-namespace fs = std::filesystem;
 
 template <typename LoggerPolicy>
 class inode_manager_ final : public inode_manager::impl {
  public:
   inode_manager_(logger& lgr, entry_storage& storage, progress& prog,
-                 fs::path const& root_path, inode_options const& opts,
-                 bool list_mode)
+                 inode_options const& opts, bool list_mode)
       : LOG_PROXY_INIT(lgr)
       , storage_(storage)
       , prog_(prog)
-      , root_path_{root_path}
       , opts_{opts}
       , inodes_need_scanning_{inodes_need_scanning(opts_)}
       , list_mode_{list_mode} {}
@@ -195,7 +192,6 @@ class inode_manager_ final : public inode_manager::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   entry_storage& storage_;
   progress& prog_;
-  fs::path const root_path_;
   inode_options opts_;
   bool const inodes_need_scanning_;
   bool const list_mode_;
@@ -379,7 +375,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     LOG_VERBOSE << prefix << "ordering " << span.size()
                 << " inodes by explicit order...";
     auto tv = LOG_CPU_TIMED_VERBOSE;
-    order.by_explicit_order(span, root_path_, opts);
+    order.by_explicit_order(span, opts);
     tv << prefix << span.size() << " inodes ordered";
   } break;
   }
@@ -405,10 +401,10 @@ size_t inode_manager_<LoggerPolicy>::get_max_data_chunk_size() const {
 }
 
 inode_manager::inode_manager(logger& lgr, entry_storage& storage,
-                             progress& prog, fs::path const& root_path,
-                             inode_options const& opts, bool list_mode)
+                             progress& prog, inode_options const& opts,
+                             bool list_mode)
     : impl_(make_unique_logging_object<impl, internal::inode_manager_,
                                        default_logger_policy>(
-          lgr, storage, prog, root_path, opts, list_mode)) {}
+          lgr, storage, prog, opts, list_mode)) {}
 
 } // namespace dwarfs::writer::internal
