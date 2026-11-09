@@ -24,7 +24,6 @@
 #pragma once
 
 #include <cstddef>
-#include <filesystem>
 #include <functional>
 #include <iosfwd>
 #include <memory>
@@ -76,7 +75,6 @@ class inode_manager {
   };
 
   inode_manager(logger& lgr, entry_storage& storage, progress& prog,
-                std::filesystem::path const& root_path,
                 inode_options const& opts, bool list_mode);
 
   size_t count() const { return impl_->count(); }

@@ -1453,33 +1453,6 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
   EXPECT_TRUE(fs.find("/file.txt"));
 }
 
-TEST(file_scanner, multiple_sources_reject_incompatible_modes) {
-  test::test_logger lgr;
-  auto input = test::os_access_mock::create_test_instance();
-  thread_pool pool(lgr, *input, "worker", 1);
-  writer::writer_progress prog;
-  writer::segmenter_factory sf(lgr, prog);
-  writer::scanner_options options;
-  writer::scanner s(lgr, pool, sf, *input, options);
-  std::ostringstream out;
-  writer::filesystem_writer fsw(out, lgr, pool, prog);
-
-  std::vector<fs::path> list{"file"};
-  EXPECT_THROW(
-      s.scan(fsw,
-             {.sources = {{.path = "/"},
-                          {.path = "/",
-                           .input_list = std::span<fs::path const>(list)}}},
-             prog),
-      runtime_error);
-
-  writer::fragment_order_options order;
-  order.mode = writer::fragment_order_mode::EXPLICIT;
-  options.inode.fragment_order.set_default(order);
-  EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}, {.path = "/"}}}, prog),
-               runtime_error);
-}
-
 TEST(file_scanner, input_list) {
   test::test_logger lgr;
 

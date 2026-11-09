@@ -478,10 +478,9 @@ Most other options are concerned with compression tuning:
   deterministic. See [Nilsimsa Ordering](#nilsimsa-ordering) for a detailed
   description of the algorithm.
   `explicit` ordering allows you to specify a file that contains the paths
-  in the desired order. It cannot be used with multiple sources.
-  The paths must be relative to the `--input` path,
-  but may start with a leading `/`. The choice of ordering algorithm has
-  significant impact on memory usage, see
+  in the desired order. Paths are *logical*, i.e. they refer to files in the
+  resulting image, relative to its root. They may start with a leading `/`.
+  The choice of ordering algorithm has significant impact on memory usage, see
   [De-duplication and Ordering](#de-duplication-and-ordering) for details.
 
 - `--max-similarity-size=`*value*:
@@ -735,8 +734,8 @@ Most other options are concerned with compression tuning:
 
 - `--hotness-list=`*file*:
   A file containing the paths of all "hot" files for the "hotness"
-  categorizer. The paths must be relative to the `--input` path, but
-  may start with a leading `/`.
+  categorizer. Paths are *logical*, i.e. they refer to files in the
+  resulting image, relative to its root. They may start with a leading `/`.
 
 - `--incompressible-min-input-size=`*value*:
   The minimum size of a file to be checked for incompressibility when
@@ -920,7 +919,8 @@ share the same subcategories.
 ### "hotness" Categorizer
 
 The `hotness` categorizer will simply categorize files given in a hotness
-list as `hot`. All other files will be passed to categorizers further down
+list as `hot`. Matching uses *logical* paths in the image, not physical
+source paths. All other files will be passed to categorizers further down
 the chain. This is intended to be used along with the `analysis_file` and
 `preload_category` options of the `dwarfs` FUSE driver to keep "hot" files
 clustered and potentially pre-cache them when mounting the file system.

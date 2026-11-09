@@ -973,6 +973,73 @@ TEST_P(fragment_order_test, basic) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, fragment_order_test,
                          ::testing::ValuesIn(fragment_orders));
 
+TEST(mkdwarfs_test, explicit_order_multiple_sources) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->add_dir("/");
+  t.os->add_dir("/first");
+  t.os->add_dir("/second");
+  t.os->add_dir("/named");
+  t.os->add_dir("/named/dir");
+  t.os->add_file("/first/one.txt", "first file");
+  t.os->add_file("/second/two.txt", "second file");
+  t.os->add_file("/named/dir/three.txt", "third file");
+  t.fa->set_file("order.dat", "/dir/three.txt\n/two.txt\none.txt\n");
+
+  ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "-B0",
+                      "--order=explicit:file=order.dat", "--", "/first/",
+                      "/second/", "/named/dir"}))
+      << t.err();
+
+  auto image = t.fs_from_file("test.dwarfs");
+  std::vector<std::pair<size_t, std::string>> offsets;
+
+  for (auto const& path : {"/one.txt", "/two.txt", "/dir/three.txt"}) {
+    auto file = image.find(path);
+    ASSERT_TRUE(file) << path;
+    auto info = image.get_inode_info(file->inode());
+    offsets.emplace_back(info["chunks"][0]["offset"].get<size_t>(), path);
+  }
+
+  std::ranges::sort(offsets);
+  std::vector<std::string> ordered_paths;
+
+  for (auto const& item : offsets) {
+    ordered_paths.push_back(item.second);
+  }
+
+  EXPECT_EQ(
+      (std::vector<std::string>{"/dir/three.txt", "/two.txt", "/one.txt"}),
+      ordered_paths);
+}
+
+TEST(mkdwarfs_test, explicit_order_single_input_relative_paths) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->add_dir("/");
+  t.os->add_dir("/source");
+  t.os->add_file("/source/one.txt", "first file");
+  t.os->add_file("/source/two.txt", "second file");
+  t.fa->set_file("order.dat", "/two.txt\none.txt\n");
+
+  ASSERT_EQ(0, t.run({"-i", "/source", "-o", "test.dwarfs", "-l1", "-B0",
+                      "--order=explicit:file=order.dat"}))
+      << t.err();
+
+  auto image = t.fs_from_file("test.dwarfs");
+  auto first = image.find("/one.txt");
+  auto second = image.find("/two.txt");
+
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+
+  auto first_info = image.get_inode_info(first->inode());
+  auto second_info = image.get_inode_info(second->inode());
+
+  EXPECT_LT(second_info["chunks"][0]["offset"].get<size_t>(),
+            first_info["chunks"][0]["offset"].get<size_t>());
+}
+
 class mkdwarfs_progress_test : public testing::TestWithParam<char const*> {
   DWARFS_SLOW_FIXTURE
 };
@@ -1097,6 +1164,49 @@ TEST(mkdwarfs_test, hotness_categorizer_multiple_sources) {
 
   EXPECT_EQ("hotness", hot_info["chunks"][0]["category"].get<std::string>());
   EXPECT_EQ("<default>", cold_info["chunks"][0]["category"].get<std::string>());
+}
+
+TEST(mkdwarfs_test, hotness_and_explicit_order_multiple_sources_dereferenced) {
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.os->add_dir("/");
+  t.os->add_dir("/first");
+  t.os->add_dir("/second");
+  t.os->add_dir("/backing");
+  t.os->add_file("/backing/a", "first hot file");
+  t.os->add_file("/backing/b", "second hot file");
+  t.os->add_file("/second/cold.txt", "cold file");
+  t.os->add_symlink("/first/one.txt", "/backing/a");
+  t.os->add_symlink("/second/two.txt", "/backing/b");
+
+  t.fa->set_file("hot", "/one.txt\ntwo.txt\n");
+  t.fa->set_file("order.dat", "/two.txt\none.txt\n");
+
+  ASSERT_EQ(0,
+            t.run({"-o", "test.dwarfs", "-l1", "-B0", "--dereference=symlinks",
+                   "--categorize=hotness", "--hotness-list=hot",
+                   "--order=hotness::explicit:file=order.dat", "--", "/first/",
+                   "/second/"}))
+      << t.err();
+
+  auto image = t.fs_from_file("test.dwarfs");
+  auto first = image.find("/one.txt");
+  auto second = image.find("/two.txt");
+  auto cold = image.find("/cold.txt");
+
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  ASSERT_TRUE(cold);
+
+  auto first_info = image.get_inode_info(first->inode());
+  auto second_info = image.get_inode_info(second->inode());
+  auto cold_info = image.get_inode_info(cold->inode());
+
+  EXPECT_EQ("hotness", first_info["chunks"][0]["category"].get<std::string>());
+  EXPECT_EQ("hotness", second_info["chunks"][0]["category"].get<std::string>());
+  EXPECT_EQ("<default>", cold_info["chunks"][0]["category"].get<std::string>());
+  EXPECT_LT(second_info["chunks"][0]["offset"].get<size_t>(),
+            first_info["chunks"][0]["offset"].get<size_t>());
 }
 
 TEST(mkdwarfs_test, hotness_categorizer_named_source) {

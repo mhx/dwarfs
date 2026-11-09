@@ -1192,14 +1192,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                  "cannot combine input lists with multiple sources");
   }
 
-  if (!single_source &&
-      options_.inode.fragment_order.any_is([](fragment_order_options const& o) {
-        return o.mode == fragment_order_mode::EXPLICIT;
-      })) {
-    DWARFS_THROW(runtime_error,
-                 "cannot use explicit inode ordering with multiple sources");
-  }
-
   auto const& first = request.sources.front();
 
   if (list_mode && first.mode != scan_source_mode::contents) {
@@ -1225,8 +1217,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
 
   auto tree = std::make_optional<entry_storage>(options_.metadata);
 
-  inode_manager im(LOG_GET_LOGGER, *tree, prog, path, options_.inode,
-                   list_mode);
+  inode_manager im(LOG_GET_LOGGER, *tree, prog, options_.inode, list_mode);
   auto fs = std::make_optional<file_scanner>(
       LOG_GET_LOGGER, *tree, wg_, os_, im, prog,
       file_scanner::options{
