@@ -195,6 +195,7 @@ add_library(
   src/writer/inode_fragments.cpp
   src/writer/metadata_options.cpp
   src/writer/rule_based_entry_filter.cpp
+  src/writer/input_entry_reader.cpp
   src/writer/scanner.cpp
   src/writer/segmenter.cpp
   src/writer/segmenter_factory.cpp

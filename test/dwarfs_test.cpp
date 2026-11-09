@@ -63,6 +63,7 @@
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_options.h>
+#include <dwarfs/writer/input_entry_reader.h>
 #include <dwarfs/writer/internal/entry_storage.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
@@ -140,7 +141,16 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   if (request) {
     s.scan(fsw, *request, *prog);
   } else {
-    s.scan(fsw, {.sources = {{.path = "/", .input_list = input_list}}}, *prog);
+    writer::scan_request default_request;
+    default_request.sources.push_back({
+        .path = "/",
+        .input_entries = input_list
+                             ? writer::plain_input_entry_reader::create(
+                                   std::vector<fs::path>(input_list->begin(),
+                                                         input_list->end()))
+                             : nullptr,
+    });
+    s.scan(fsw, default_request, *prog);
   }
 
   return oss.str();
@@ -1146,7 +1156,9 @@ class filter_test
     std::ostringstream null;
     writer::filesystem_writer fsw(null, lgr, pool, prog);
     fsw.add_default_compressor(bc);
-    s.scan(fsw, {.sources = {{.path = "/"}}}, prog);
+    writer::scan_request request;
+    request.sources.push_back({.path = "/"});
+    s.scan(fsw, request, prog);
 
     std::ostringstream oss;
 
@@ -1282,8 +1294,9 @@ TEST(file_scanner, failed_category_setup_does_not_hang) {
   // No default compressor: get_compression_constraints() throws after the
   // similarity-data cleanup thread has started, but before any category job
   // can count down the latch. Unwinding must not block in jthread::join().
-  EXPECT_THROW(s.scan(fsw, {.sources = {{.path = "/"}}}, prog),
-               std::bad_optional_access);
+  writer::scan_request request;
+  request.sources.push_back({.path = "/"});
+  EXPECT_THROW(s.scan(fsw, request, prog), std::bad_optional_access);
 }
 
 TEST(file_path_info, logical_path_is_independent_of_physical_root) {
@@ -1346,12 +1359,13 @@ TEST(file_scanner, categorizer_scans_before_inode_finalization) {
   auto probe = std::make_shared<logical_path_probe_categorizer>();
   options.inode.categorizer_mgr->add(probe);
 
-  writer::scan_request request{
-      .sources = {{.path = "/first"}, {.path = "/second"}},
-  };
+  std::vector<writer::scan_source> sources;
+  sources.push_back({.path = "/first"});
+  sources.push_back({.path = "/second"});
+  writer::scan_request request{.sources = std::move(sources)};
 
   auto image = build_dwarfs(lgr, input, "null", {}, options, {}, nullptr,
-                            nullptr, std::nullopt, nullptr, request);
+                            nullptr, std::nullopt, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
   EXPECT_TRUE(fs.find("/a.txt"));
@@ -1380,19 +1394,17 @@ TEST(file_scanner, multiple_sources_merge_and_keep_first) {
   input->add_file("/third/named/child.txt", "child");
   input->add_file("/third/loose.txt", "loose");
 
-  writer::scan_request request{
-      .sources =
-          {
-              {.path = "/one"},
-              {.path = "/two"},
-              {.path = "/third/named", .mode = writer::scan_source_mode::entry},
-              {.path = "/third/loose.txt",
-               .mode = writer::scan_source_mode::entry},
-          },
-  };
+  std::vector<writer::scan_source> sources;
+  sources.push_back({.path = "/one"});
+  sources.push_back({.path = "/two"});
+  sources.push_back(
+      {.path = "/third/named", .mode = writer::scan_source_mode::entry});
+  sources.push_back(
+      {.path = "/third/loose.txt", .mode = writer::scan_source_mode::entry});
+  writer::scan_request request{.sources = std::move(sources)};
 
   auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
-                            std::nullopt, nullptr, request);
+                            std::nullopt, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1434,13 +1446,15 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
   root_stat.set_gid(4243);
   root_stat.set_mtime(1234567);
 
+  std::vector<writer::scan_source> sources;
+  sources.push_back(
+      {.path = "/staging/file.txt", .mode = writer::scan_source_mode::entry});
   writer::scan_request request{
-      .sources = {{.path = "/staging/file.txt",
-                   .mode = writer::scan_source_mode::entry}},
+      .sources = std::move(sources),
       .root_metadata = root_stat,
   };
   auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
-                            std::nullopt, nullptr, request);
+                            std::nullopt, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
   auto root = fs.find("/");
@@ -1451,6 +1465,65 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
   EXPECT_EQ(4243, st.gid());
   EXPECT_EQ(1234567, st.mtime());
   EXPECT_TRUE(fs.find("/file.txt"));
+}
+
+TEST(file_scanner, plain_input_entry_reader_is_single_pass) {
+  std::vector<fs::path> const paths{"/some/../file", "./file", "dir/",
+                                    "file",          "file",   ""};
+  auto reader = writer::plain_input_entry_reader::create(paths);
+
+  for (auto const& expected : paths) {
+    auto entry = reader->next();
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(expected, entry->path);
+  }
+
+  EXPECT_FALSE(reader->next());
+  EXPECT_FALSE(reader->next());
+}
+
+TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add_dir("/");
+  os->add_dir("/real");
+  os->add_dir("/real/src");
+  os->add_dir("/real/src/subdir");
+  os->add_file("/real/src/subdir/file", "file");
+  os->add_symlink("/alias", "/real");
+  os->add_symlink("/real/src/link", "subdir/file");
+
+  auto const root = os->canonical("/alias/src");
+  ASSERT_EQ(fs::path("/real/src"), root);
+
+  std::istringstream list{
+      "/alias/src/subdir/file\n"
+      "/alias/./src/subdir/../link\n"
+      "/real/src/link\n"
+      "subdir/file\n"
+      "/outside/file\n"
+      "subdir/file\n"
+      "\n",
+  };
+
+  auto reader = writer::plain_input_entry_reader::create(list, root, *os);
+
+  std::vector<fs::path> const expected{
+      "/real/src/subdir/file",
+      "/real/src/link",
+      "/real/src/link",
+      "subdir/file",
+      "/outside/file",
+      "subdir/file",
+      "",
+  };
+
+  for (auto const& path : expected) {
+    auto entry = reader->next();
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(path, entry->path);
+  }
+
+  EXPECT_FALSE(reader->next());
 }
 
 TEST(file_scanner, input_list) {
