@@ -1231,27 +1231,67 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       is = &ifs->is();
     }
 
+    // Read the input list file and rebase absolute paths onto the canonical
+    // input path. If we don't do this, the scanner can fail if the input
+    // list uses non-canonical absolute paths. Note that we must only rebase
+    // the input path prefix of each entry in order to preserve symbolic
+    // links in the input list.
+
+    // This keeps track of all aliases of the input path we've seen in the
+    // input list so far, so we can test subsequent entries lexically.
+    std::vector<std::filesystem::path> lexical_input_aliases;
+
+    if (input_path) {
+      *input_path = iol.os->canonical(*input_path);
+      lexical_input_aliases.push_back(*input_path);
+    }
+
+    auto rebase_input_list_entry = [&](std::filesystem::path const& p) {
+      auto const normalized = p.lexically_normal();
+
+      auto rebase_onto = [&](std::filesystem::path const& alias) {
+        auto const rel = normalized.lexically_relative(alias);
+        return rel.empty() || rel == "." ? *input_path : *input_path / rel;
+      };
+
+      for (auto const& alias : lexical_input_aliases) {
+        if (std::ranges::mismatch(normalized, alias).in2 == alias.end()) {
+          return rebase_onto(alias);
+        }
+      }
+
+      // Check if the start of the lexically normalized path canonicalizes
+      // to the canonical input path.
+      std::filesystem::path prefix;
+
+      for (auto const& part : normalized) {
+        prefix /= part;
+
+        // Skip bare root names (e.g. `C:`)
+        if (prefix.has_root_directory() &&
+            iol.os->canonical(prefix) == *input_path) {
+          lexical_input_aliases.push_back(prefix);
+          return rebase_onto(prefix);
+        }
+      }
+
+      // Not below the input path; the scanner will report this.
+      return p;
+    };
+
     std::string line;
     input_list.emplace();
 
     while (std::getline(*is, line)) {
       std::filesystem::path p(line);
-      if (p.has_root_directory()) {
-        // Use the same root spelling as canonical input paths (notably the
-        // extended-length path prefix on Windows), without resolving symlinks
-        // in the listed path before the scanner applies the dereference policy.
-        auto const root = p.root_path();
-        auto const canonical_root = iol.os->canonical(root);
-        if (canonical_root != root) {
-          p = canonical_root / p.relative_path();
-        }
+      if (input_path && p.has_root_directory()) {
+        p = rebase_input_list_entry(p);
       }
       input_list->emplace_back(std::move(p));
     }
   }
 
   if (input_path) {
-    *input_path = iol.os->canonical(*input_path);
     sources.push_back({.path = *input_path, .input_list = input_list});
   }
 

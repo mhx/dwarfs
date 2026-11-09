@@ -982,3 +982,40 @@ TEST(mkdwarfs_test, dereference_unresolvable_links_below_dereferenced_dir) {
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("filesystem created with 2 errors"));
 }
+
+TEST(mkdwarfs_test, absolute_input_list_through_symlinked_input_ancestor) {
+  for (bool const deref : {false, true}) {
+    SCOPED_TRACE(deref);
+
+    auto t = mkdwarfs_tester::create_empty();
+    t.os->add_dir("/");
+    t.os->add_dir("/real");
+    t.os->add_dir("/real/src");
+    t.os->add_file("/real/src/file", "data");
+    t.os->add_file("/real/src/target", "target");
+    t.os->add_symlink("/real/src/link", "target");
+    t.os->add_symlink("/alias", "/real");
+
+    auto const input = t.set_input_list(input_mode::from_file,
+                                        "/alias/src/file\n/alias/src/link\n");
+
+    std::vector<std::string> args{
+        "-o",           "alias-root.dwarfs", "-l1", "-i", "/alias/src",
+        "--input-list", std::string(input)};
+    if (deref) {
+      args.emplace_back("--dereference=symlinks");
+    }
+
+    ASSERT_EQ(0, t.run(args)) << t.err();
+
+    auto image = t.fs_from_file("alias-root.dwarfs");
+    auto file = image.find("/file");
+    auto link = image.find("/link");
+
+    ASSERT_TRUE(file) << t.err();
+    ASSERT_TRUE(link) << t.err();
+    EXPECT_EQ("data", image.read_string(file->inode().inode_num()));
+    EXPECT_EQ(!deref, link->inode().is_symlink());
+    EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("ignoring path")));
+  }
+}
