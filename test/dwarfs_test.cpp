@@ -1505,7 +1505,7 @@ TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
       "\n",
   };
 
-  auto reader = writer::plain_input_entry_reader::create(list, root, *os);
+  auto reader = writer::plain_input_entry_reader::create(&list, root, *os);
 
   std::vector<fs::path> const expected{
       "/real/src/subdir/file",

@@ -1214,30 +1214,27 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     std::filesystem::path input_list_path(input_list_str);
-    std::unique_ptr<input_stream> ifs;
-    std::istream* is;
+    std::optional<writer::entry_reader_stream> stream;
 
     if (input_list_path == "-") {
-      is = &iol.in;
+      stream.emplace(&iol.in);
     } else {
       std::error_code ec;
-      ifs = iol.file->open_input(input_list_path, ec);
+      stream.emplace(iol.file->open_input(input_list_path, ec));
 
       if (ec) {
         iol.err << "cannot open input list file '" << input_list_path
                 << "': " << ec.message() << "\n";
         return 1;
       }
-
-      is = &ifs->is();
     }
 
     // Keep the legacy canonical input root and eagerly read the list before
     // scanning. Parsing and the plain format's special absolute-path rebasing
     // are owned by the reader, not by the CLI or generic scanner.
     *input_path = iol.os->canonical(*input_path);
-    input_entries =
-        writer::plain_input_entry_reader::create(*is, *input_path, *iol.os);
+    input_entries = writer::plain_input_entry_reader::create(
+        std::move(*stream), *input_path, *iol.os);
   }
 
   if (input_path) {
