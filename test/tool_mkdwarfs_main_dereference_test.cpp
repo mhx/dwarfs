@@ -1053,3 +1053,99 @@ TEST(mkdwarfs_test, unreadable_named_source_is_reported_and_skipped) {
                                               " error"));
   }
 }
+
+TEST(mkdwarfs_test, dereference_filters_match_logical_names) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/outside");
+  t.os->add_dir("/outside/dir");
+  t.os->add_file("/outside/keep", "keep target");
+  t.os->add_file("/outside/drop.me", "drop target");
+  t.os->add_file("/outside/dir/x.me", "x");
+  t.os->add_file("/outside/dir/y", "y");
+  t.os->add_symlink("/src/link.me", "/outside/keep");
+  t.os->add_symlink("/src/plain", "/outside/drop.me");
+  t.os->add_symlink("/src/dir", "/outside/dir");
+
+  ASSERT_EQ(0, t.run({"-o", "filtered.dwarfs", "-l1", "-F", "- *.me", "-i",
+                      "/src", "--dereference=symlinks"}))
+      << t.err();
+
+  auto image = t.fs_from_file("filtered.dwarfs");
+
+  EXPECT_EQ((std::set<fs::path>{"", "dir", "dir/y", "plain"}),
+            get_all_fs_paths(image));
+
+  auto plain = image.find("/plain");
+  ASSERT_TRUE(plain);
+  EXPECT_EQ("drop target", image.read_string(plain->inode().inode_num()));
+}
+
+TEST(mkdwarfs_test, dereference_nested_directory_aliases_scoped_hardlinks) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/src");
+  t.os->add_dir("/target");
+  t.os->add_dir("/target/sub");
+  t.os->add_dir("/u");
+  t.os->add_file("/target/sub/three", "OUTER", {.ino = 1700, .nlink = 2});
+  t.os->add_file("/target/four", "OUTER", {.ino = 1700, .nlink = 2});
+  t.os->add_file("/u/one", "INNER", {.ino = 1600, .nlink = 2});
+  t.os->add_file("/u/two", "INNER", {.ino = 1600, .nlink = 2});
+  t.os->add_symlink("/target/inner", "/u");
+  t.os->add_symlink("/src/a", "/target");
+  t.os->add_symlink("/src/b", "/target");
+
+  ASSERT_EQ(0, t.run({"-o", "nested.dwarfs", "-l1", "-i", "/src",
+                      "--dereference=symlinks"}))
+      << t.err();
+
+  auto image = t.fs_from_file("nested.dwarfs");
+
+  auto inode_of = [&](std::string const& path) {
+    auto e = image.find(path.c_str());
+    EXPECT_TRUE(e) << path;
+    return e ? e->inode().inode_num() : ~0U;
+  };
+
+  for (auto const* alias : {"/a", "/b"}) {
+    SCOPED_TRACE(alias);
+    auto const p = std::string(alias);
+    EXPECT_EQ(inode_of(p + "/sub/three"), inode_of(p + "/four"));
+    EXPECT_EQ(inode_of(p + "/inner/one"), inode_of(p + "/inner/two"));
+    EXPECT_NE(inode_of(p + "/inner/one"), inode_of(p + "/four"));
+  }
+
+  EXPECT_NE(inode_of("/a/four"), inode_of("/b/four"));
+  EXPECT_NE(inode_of("/a/inner/one"), inode_of("/b/inner/one"));
+}
+
+TEST(mkdwarfs_test, dereference_external_symlinks_named_source_boundary) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/a");
+  t.os->add_dir("/a/one");
+  t.os->add_dir("/a/two");
+  t.os->add_file("/a/two/file", "sibling");
+  t.os->add_dir("/elsewhere");
+  t.os->add_file("/elsewhere/f", "outside");
+  t.os->add_symlink("/a/one/sibling", "../two/file");
+  t.os->add_symlink("/a/one/escape", "../../elsewhere/f");
+
+  ASSERT_EQ(0, t.run({"-o", "named-boundary.dwarfs", "-l1",
+                      "--dereference=external-symlinks", "/a/one", "/a/two"}))
+      << t.err();
+
+  auto image = t.fs_from_file("named-boundary.dwarfs");
+  auto sibling = image.find("/one/sibling");
+  auto escape = image.find("/one/escape");
+
+  ASSERT_TRUE(sibling);
+  ASSERT_TRUE(escape);
+  ASSERT_TRUE(sibling->inode().is_symlink());
+  EXPECT_EQ("../two/file",
+            image.readlink(sibling->inode(), reader::readlink_mode::posix));
+  ASSERT_TRUE(escape->inode().is_regular_file());
+  EXPECT_EQ("outside", image.read_string(escape->inode().inode_num()));
+}
