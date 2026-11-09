@@ -46,6 +46,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/error.h>
+#include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>
@@ -99,8 +100,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
                  writer::filesystem_writer_options(),
              writer::writer_progress* prog = nullptr,
              std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
-             std::optional<std::span<std::filesystem::path const>> input_list =
-                 std::nullopt,
+             std::istream* input_list = nullptr,
              std::unique_ptr<writer::entry_filter> filter = nullptr,
              std::optional<writer::scan_request> request = std::nullopt) {
   // force multithreading
@@ -144,11 +144,9 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
     writer::scan_request default_request;
     default_request.sources.push_back({
         .path = "/",
-        .input_entries = input_list
-                             ? writer::plain_input_entry_reader::create(
-                                   std::vector<fs::path>(input_list->begin(),
-                                                         input_list->end()))
-                             : nullptr,
+        .input_entries = input_list ? writer::plain_input_entry_reader::create(
+                                          input_list, "/", *input)
+                                    : nullptr,
     });
     s.scan(fsw, default_request, *prog);
   }
@@ -1189,7 +1187,7 @@ TEST_P(filter_test, filesystem) {
   options.remove_empty_dirs = true;
 
   auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, {}, nullptr,
-                              nullptr, std::nullopt, std::move(rbf));
+                              nullptr, nullptr, std::move(rbf));
 
   auto mm = test::make_mock_file_view(std::move(fsimage));
 
@@ -1365,7 +1363,7 @@ TEST(file_scanner, categorizer_scans_before_inode_finalization) {
   writer::scan_request request{.sources = std::move(sources)};
 
   auto image = build_dwarfs(lgr, input, "null", {}, options, {}, nullptr,
-                            nullptr, std::nullopt, nullptr, std::move(request));
+                            nullptr, nullptr, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
   EXPECT_TRUE(fs.find("/a.txt"));
@@ -1404,7 +1402,7 @@ TEST(file_scanner, multiple_sources_merge_and_keep_first) {
   writer::scan_request request{.sources = std::move(sources)};
 
   auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
-                            std::nullopt, nullptr, std::move(request));
+                            nullptr, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
 
@@ -1454,7 +1452,7 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
       .root_metadata = root_stat,
   };
   auto image = build_dwarfs(lgr, input, "null", {}, {}, {}, nullptr, nullptr,
-                            std::nullopt, nullptr, std::move(request));
+                            nullptr, nullptr, std::move(request));
   auto mm = test::make_mock_file_view(std::move(image));
   reader::filesystem_v2 fs(lgr, *input, mm);
   auto root = fs.find("/");
@@ -1468,18 +1466,70 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
 }
 
 TEST(file_scanner, plain_input_entry_reader_is_single_pass) {
-  std::vector<fs::path> const paths{"/some/../file", "./file", "dir/",
-                                    "file",          "file",   ""};
-  auto reader = writer::plain_input_entry_reader::create(paths);
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add_dir("/");
+  std::istringstream list{"./file\ndir/\nfile\nfile\n\n"};
+  auto reader = writer::plain_input_entry_reader::create(&list, "/", *os);
 
-  for (auto const& expected : paths) {
+  // Construction must not consume any input.
+  EXPECT_EQ(0, list.tellg());
+
+  auto first = reader->next();
+  ASSERT_TRUE(first);
+  EXPECT_EQ(fs::path("./file"), first->path);
+
+  // Only the first entry should have been consumed.
+  EXPECT_EQ(std::streampos(7), list.tellg());
+
+  std::vector<fs::path> const expected{"dir/", "file", "file", ""};
+  for (auto const& path : expected) {
     auto entry = reader->next();
     ASSERT_TRUE(entry);
-    EXPECT_EQ(expected, entry->path);
+    EXPECT_EQ(path, entry->path);
   }
 
   EXPECT_FALSE(reader->next());
   EXPECT_FALSE(reader->next());
+}
+
+TEST(file_scanner, plain_input_entry_reader_owns_input_stream) {
+  class owned_list_stream final : public input_stream {
+   public:
+    explicit owned_list_stream(int& destroyed)
+        : stream_("first\nsecond\n")
+        , destroyed_(destroyed) {}
+
+    ~owned_list_stream() override { ++destroyed_; }
+
+    std::istream& is() override { return stream_; }
+    void close() override {}
+    void close(std::error_code& ec) override { ec.clear(); }
+
+   private:
+    std::istringstream stream_;
+    int& destroyed_;
+  };
+
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add_dir("/");
+  int destroyed = 0;
+  std::unique_ptr<input_stream> stream =
+      std::make_unique<owned_list_stream>(destroyed);
+  auto reader =
+      writer::plain_input_entry_reader::create(std::move(stream), "/", *os);
+
+  EXPECT_EQ(0, destroyed);
+  auto first = reader->next();
+  ASSERT_TRUE(first);
+  EXPECT_EQ(fs::path("first"), first->path);
+  auto second = reader->next();
+  ASSERT_TRUE(second);
+  EXPECT_EQ(fs::path("second"), second->path);
+  EXPECT_FALSE(reader->next());
+  EXPECT_EQ(0, destroyed);
+
+  reader.reset();
+  EXPECT_EQ(1, destroyed);
 }
 
 TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
@@ -1537,13 +1587,10 @@ TEST(file_scanner, input_list) {
 
   auto input = test::os_access_mock::create_test_instance();
 
-  std::vector<std::filesystem::path> input_list{
-      "/somedir/ipsum.py",
-      "/foo.pl",
-  };
+  std::istringstream input_list{"/somedir/ipsum.py\n/foo.pl\n"};
 
   auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, {}, nullptr,
-                              nullptr, input_list);
+                              nullptr, &input_list);
 
   auto mm = test::make_mock_file_view(std::move(fsimage));
 
