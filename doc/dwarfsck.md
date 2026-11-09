@@ -63,7 +63,11 @@ with a non-zero exit code.
   use any digests stored in the superblock and hence works even on file system
   images that do not have a superblock. With `--json`, output a JSON object
   containing the selected `attr` and/or `tree` hex digest strings.
-  See [dwarfs-format(5)](dwarfs-format.md) for details on the digests.
+  See [dwarfs-format(5)](dwarfs-format.md) for details on the digests. With
+  `--verbose`, this prints the full tree of all entries that contribute to
+  the digests, along with their individual digests and the attributes that
+  were used for the computation. `--verbose` cannot be combined with `--json`
+  for this option.
 
 - `--verify-digests`[=`all`|`attr`|`tree`]:
   Recompute filesystem digests and compare them with the values stored in the

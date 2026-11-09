@@ -38,6 +38,7 @@
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/file_util.h>
+#include <dwarfs/reader/compute_fs_digests.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 
@@ -1805,6 +1806,150 @@ TEST(dwarfsck_test, compute_digests_selection) {
   }
 }
 
+TEST(dwarfsck_test, verbose_digest_trace) {
+  using namespace std::string_view_literals;
+
+  mkdwarfs_tester builder;
+  builder.os->add_file("tab\tname", "contents");
+  builder.os->add_symlink("tab-target", "tab\tname");
+  ASSERT_EQ(0, builder.run({"-i", "/", "-o", "image.dwarfs", "-l1"}))
+      << builder.err();
+  auto const image_file = builder.fa->get_file("image.dwarfs");
+  ASSERT_TRUE(image_file);
+  auto const& image = *image_file;
+
+  for (auto const& selection : {"attr", "tree", "both"}) {
+    SCOPED_TRACE(selection);
+
+    auto t = dwarfsck_tester::create_with_image(image);
+    ASSERT_EQ(
+        0, t.run({"image.dwarfs", "--compute-digests=" + std::string(selection),
+                  "--verbose", "--no-check", "-q"}))
+        << t.err();
+
+    auto const output = t.out();
+    auto const summary = output.find("filesystem digests:\n");
+    ASSERT_NE(std::string::npos, summary) << output;
+    auto const lines = split_to<std::vector<std::string_view>>(
+        std::string_view(output).substr(0, summary), '\n');
+    ASSERT_GT(lines.size(), 2);
+    EXPECT_TRUE(lines.back().empty());
+    EXPECT_TRUE(lines[lines.size() - 2].starts_with("/\t"));
+
+    static constexpr std::size_t kTraceDigestLen{12};
+    bool saw_file{false};
+    bool saw_symlink{false};
+    bool saw_dir{false};
+    bool saw_escaped_path{false};
+    bool saw_escaped_target{false};
+    std::string foo_group;
+    std::string bar_group;
+
+    for (auto const line : lines) {
+      if (line.empty()) {
+        continue;
+      }
+
+      auto const fields = split_to<std::vector<std::string_view>>(line, '\t');
+      ASSERT_GE(fields.size(), 3) << line;
+      EXPECT_TRUE(fields[0].starts_with('/')) << line;
+      auto const has_attr = line.find("\tattr=") != std::string_view::npos;
+      auto const has_tree = line.find("\ttree=") != std::string_view::npos;
+      EXPECT_EQ(has_attr, selection != "tree"sv) << line;
+      EXPECT_EQ(has_tree, selection != "attr"sv) << line;
+      EXPECT_NE(line.find("\tdomain="), std::string_view::npos) << line;
+
+      if (has_attr) {
+        auto const pos = line.find("\tattr=") + 6;
+        EXPECT_EQ(line.find('\t', pos) - pos, kTraceDigestLen) << line;
+        EXPECT_NE(line.find("\tmode="), std::string_view::npos) << line;
+        EXPECT_NE(line.find("\thardlink_group="), std::string_view::npos)
+            << line;
+        EXPECT_NE(line.find("\tmtime_nsec="), std::string_view::npos) << line;
+      } else {
+        EXPECT_EQ(line.find("\tmode="), std::string_view::npos) << line;
+      }
+
+      if (has_tree) {
+        auto const pos = line.find("\ttree=") + 6;
+        EXPECT_EQ(line.find('\t', pos) - pos, kTraceDigestLen) << line;
+        EXPECT_NE(line.find("\ttype="), std::string_view::npos) << line;
+      } else {
+        EXPECT_EQ(line.find("\ttype="), std::string_view::npos) << line;
+        EXPECT_EQ(line.find("\tcontent="), std::string_view::npos) << line;
+        EXPECT_EQ(line.find("\ttarget="), std::string_view::npos) << line;
+      }
+
+      if (has_attr &&
+          (line.starts_with("/foo.pl\t") || line.starts_with("/bar.pl\t"))) {
+        constexpr std::string_view field{"\thardlink_group="};
+        auto const pos = line.find(field) + field.size();
+        auto const end = line.find('\t', pos);
+        auto const group = std::string{line.substr(pos, end - pos)};
+        if (line.starts_with("/foo.pl\t")) {
+          foo_group = group;
+        } else {
+          bar_group = group;
+        }
+      }
+
+      saw_file |= line.find("\tdomain=file-v1") != std::string_view::npos;
+      saw_symlink |= line.find("\tdomain=symlink-v1") != std::string_view::npos;
+      saw_dir |= line.find("\tdomain=dir-v1") != std::string_view::npos;
+      saw_escaped_path |= line.starts_with("/tab\\tname\t");
+
+      if (has_tree && line.starts_with("/tab-target\t")) {
+        saw_escaped_target |=
+            line.find("\ttarget=tab\\tname") != std::string_view::npos;
+      }
+
+      if (has_tree && line.find("\tdomain=file-v1") != std::string_view::npos) {
+        auto const pos = line.find("\tcontent=");
+        ASSERT_NE(pos, std::string_view::npos);
+        EXPECT_EQ(line.substr(pos + 9).size(), kTraceDigestLen) << line;
+      }
+
+      if (has_tree &&
+          line.find("\tdomain=symlink-v1") != std::string_view::npos) {
+        EXPECT_NE(line.find("\ttarget="), std::string_view::npos) << line;
+      }
+
+      if (line.find("\tdomain=dir-v1") != std::string_view::npos) {
+        EXPECT_NE(line.find("\tchildren="), std::string_view::npos) << line;
+      }
+    }
+
+    EXPECT_TRUE(saw_file);
+    EXPECT_TRUE(saw_symlink);
+    EXPECT_TRUE(saw_dir);
+    EXPECT_TRUE(saw_escaped_path);
+
+    if (selection != "tree"sv) {
+      EXPECT_FALSE(foo_group.empty());
+      EXPECT_EQ(foo_group, bar_group);
+      EXPECT_NE(foo_group, "0");
+    }
+
+    if (selection != "attr"sv) {
+      EXPECT_TRUE(saw_escaped_target);
+    }
+
+    auto baseline = dwarfsck_tester::create_with_image(image);
+    ASSERT_EQ(0, baseline.run({"image.dwarfs",
+                               "--compute-digests=" + std::string(selection),
+                               "--no-check", "-q"}))
+        << baseline.err();
+    EXPECT_EQ(output.substr(summary), baseline.out());
+
+    auto repeated = dwarfsck_tester::create_with_image(image);
+    ASSERT_EQ(0, repeated.run({"image.dwarfs",
+                               "--compute-digests=" + std::string(selection),
+                               "--verbose", "--no-check", "-q"}))
+        << repeated.err();
+    EXPECT_EQ(output, repeated.out());
+  }
+}
+
 TEST(dwarfsck_test, verify_superblock_digests) {
   for (auto const& mode : {"both", "attr", "tree", "none"}) {
     auto [fs, builder] =
@@ -1915,6 +2060,14 @@ TEST(dwarfsck_test, json_rejects_incompatible_output) {
     EXPECT_EQ(1, t.run({"image.dwarfs", "--json", option})) << t.err();
     EXPECT_THAT(t.err(), ::testing::HasSubstr("--json cannot be combined"));
   }
+}
+
+TEST(dwarfsck_test, json_rejects_verbose_digest_trace) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(1,
+            t.run({"image.dwarfs", "--json", "--compute-digests", "--verbose"}))
+      << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("--json cannot be combined"));
 }
 
 TEST(dwarfsck_test, no_check_allows_initialization_but_not_repair) {
