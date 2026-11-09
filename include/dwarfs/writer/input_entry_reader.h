@@ -27,10 +27,12 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 namespace dwarfs {
 
+class input_stream;
 class os_access;
 
 namespace writer {
@@ -46,10 +48,14 @@ class input_entry_reader {
   virtual std::optional<input_entry> next() = 0;
 };
 
+using entry_reader_stream =
+    std::variant<std::istream*, std::unique_ptr<input_stream>>;
+
 class plain_input_entry_reader {
  public:
   static std::unique_ptr<input_entry_reader>
-  create(std::istream& input, std::filesystem::path const& canonical_input_root,
+  create(entry_reader_stream input,
+         std::filesystem::path const& canonical_input_root,
          os_access const& os);
 
   static std::unique_ptr<input_entry_reader>

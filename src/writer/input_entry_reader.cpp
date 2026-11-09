@@ -31,11 +31,22 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/file_access.h>
+#include <dwarfs/match.h>
 #include <dwarfs/os_access.h>
 
 namespace dwarfs::writer {
 
 namespace {
+
+std::istream& get_input_stream(entry_reader_stream& input) {
+  return input | match{
+                     [](std::istream* s) -> std::istream& { return *s; },
+                     [](std::unique_ptr<input_stream>& s) -> std::istream& {
+                       return s->is();
+                     },
+                 };
+}
 
 class plain_input_entry_reader_impl final : public input_entry_reader {
  public:
@@ -44,8 +55,8 @@ class plain_input_entry_reader_impl final : public input_entry_reader {
       : paths_(std::move(paths)) {}
 
   plain_input_entry_reader_impl(
-      std::istream& input, std::filesystem::path const& canonical_input_root,
-      os_access const& os);
+      entry_reader_stream input,
+      std::filesystem::path const& canonical_input_root, os_access const& os);
 
   std::optional<input_entry> next() override;
 
@@ -55,8 +66,8 @@ class plain_input_entry_reader_impl final : public input_entry_reader {
 };
 
 plain_input_entry_reader_impl::plain_input_entry_reader_impl(
-    std::istream& input, std::filesystem::path const& canonical_input_root,
-    os_access const& os) {
+    entry_reader_stream input,
+    std::filesystem::path const& canonical_input_root, os_access const& os) {
   // Read the input list file and rebase absolute paths onto the canonical
   // input path. If we don't do this, the scanner can fail if the input
   // list uses non-canonical absolute paths. Note that we must only rebase
@@ -102,9 +113,10 @@ plain_input_entry_reader_impl::plain_input_entry_reader_impl(
     return p;
   };
 
+  auto& is = get_input_stream(input);
   std::string line;
 
-  while (std::getline(input, line)) {
+  while (std::getline(is, line)) {
     std::filesystem::path p(line);
     if (p.has_root_directory()) {
       p = rebase_input_list_entry(p);
@@ -124,10 +136,10 @@ std::optional<input_entry> plain_input_entry_reader_impl::next() {
 } // namespace
 
 std::unique_ptr<input_entry_reader> plain_input_entry_reader::create(
-    std::istream& input, std::filesystem::path const& canonical_input_root,
-    os_access const& os) {
+    entry_reader_stream input,
+    std::filesystem::path const& canonical_input_root, os_access const& os) {
   return std::make_unique<plain_input_entry_reader_impl>(
-      input, canonical_input_root, os);
+      std::move(input), canonical_input_root, os);
 }
 
 std::unique_ptr<input_entry_reader>
