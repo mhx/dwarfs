@@ -50,87 +50,79 @@ std::istream& get_input_stream(entry_reader_stream& input) {
 
 class plain_input_entry_reader_impl final : public input_entry_reader {
  public:
-  explicit plain_input_entry_reader_impl(
-      std::vector<std::filesystem::path> paths)
-      : paths_(std::move(paths)) {}
-
   plain_input_entry_reader_impl(
       entry_reader_stream input,
-      std::filesystem::path const& canonical_input_root, os_access const& os);
+      std::filesystem::path const& canonical_input_root, os_access const& os)
+      : input_{std::move(input)}
+      , is_{get_input_stream(input_)}
+      , canonical_input_root_{canonical_input_root}
+      , os_{os}
+      , lexical_input_aliases_{canonical_input_root} {}
 
   std::optional<input_entry> next() override;
 
  private:
-  std::vector<std::filesystem::path> paths_;
-  std::size_t next_{0};
-};
+  std::filesystem::path rebase_input_list_entry(std::filesystem::path const& p);
 
-plain_input_entry_reader_impl::plain_input_entry_reader_impl(
-    entry_reader_stream input,
-    std::filesystem::path const& canonical_input_root, os_access const& os) {
-  // Read the input list file and rebase absolute paths onto the canonical
-  // input path. If we don't do this, the scanner can fail if the input
-  // list uses non-canonical absolute paths. Note that we must only rebase
-  // the input path prefix of each entry in order to preserve symbolic
-  // links in the input list.
-
+  entry_reader_stream input_;
+  std::istream& is_;
+  std::filesystem::path canonical_input_root_;
+  os_access const& os_;
   // This keeps track of all aliases of the input path we've seen in the
   // input list so far, so we can test subsequent entries lexically.
-  std::vector<std::filesystem::path> lexical_input_aliases{
-      canonical_input_root};
+  std::vector<std::filesystem::path> lexical_input_aliases_;
+};
 
-  auto rebase_input_list_entry = [&](std::filesystem::path const& p) {
-    auto const normalized = p.lexically_normal();
+std::filesystem::path plain_input_entry_reader_impl::rebase_input_list_entry(
+    std::filesystem::path const& p) {
+  // Rebase only the input path prefix, preserve symlinks in the suffix.
+  auto const normalized = p.lexically_normal();
 
-    auto rebase_onto = [&](std::filesystem::path const& alias) {
-      auto const rel = normalized.lexically_relative(alias);
-      return rel.empty() || rel == "." ? canonical_input_root
-                                       : canonical_input_root / rel;
-    };
-
-    for (auto const& alias : lexical_input_aliases) {
-      if (std::ranges::mismatch(normalized, alias).in2 == alias.end()) {
-        return rebase_onto(alias);
-      }
-    }
-
-    // Check if the start of the lexically normalized path canonicalizes
-    // to the canonical input path.
-    std::filesystem::path prefix;
-
-    for (auto const& part : normalized) {
-      prefix /= part;
-
-      // Skip bare root names (e.g. `C:`).
-      if (prefix.has_root_directory() &&
-          os.canonical(prefix) == canonical_input_root) {
-        lexical_input_aliases.push_back(prefix);
-        return rebase_onto(prefix);
-      }
-    }
-
-    // Not below the input path.
-    return p;
+  auto rebase_onto = [&](std::filesystem::path const& alias) {
+    auto const rel = normalized.lexically_relative(alias);
+    return rel.empty() || rel == "." ? canonical_input_root_
+                                     : canonical_input_root_ / rel;
   };
 
-  auto& is = get_input_stream(input);
-  std::string line;
-
-  while (std::getline(is, line)) {
-    std::filesystem::path p(line);
-    if (p.has_root_directory()) {
-      p = rebase_input_list_entry(p);
+  for (auto const& alias : lexical_input_aliases_) {
+    if (std::ranges::mismatch(normalized, alias).in2 == alias.end()) {
+      return rebase_onto(alias);
     }
-    paths_.emplace_back(std::move(p));
   }
+
+  // Check if the start of the lexically normalized path canonicalizes
+  // to the canonical input path.
+  std::filesystem::path prefix;
+
+  for (auto const& part : normalized) {
+    prefix /= part;
+
+    // Skip bare root names (e.g. `C:`).
+    if (prefix.has_root_directory() &&
+        os_.canonical(prefix) == canonical_input_root_) {
+      lexical_input_aliases_.push_back(prefix);
+      return rebase_onto(prefix);
+    }
+  }
+
+  // Not below the input path.
+  return p;
 }
 
 std::optional<input_entry> plain_input_entry_reader_impl::next() {
-  if (next_ == paths_.size()) {
+  std::string line;
+
+  if (!std::getline(is_, line)) {
     return std::nullopt;
   }
 
-  return input_entry{std::move(paths_[next_++])};
+  std::filesystem::path p(line);
+
+  if (p.has_root_directory()) {
+    p = rebase_input_list_entry(p);
+  }
+
+  return input_entry{std::move(p)};
 }
 
 } // namespace
@@ -140,11 +132,6 @@ std::unique_ptr<input_entry_reader> plain_input_entry_reader::create(
     std::filesystem::path const& canonical_input_root, os_access const& os) {
   return std::make_unique<plain_input_entry_reader_impl>(
       std::move(input), canonical_input_root, os);
-}
-
-std::unique_ptr<input_entry_reader>
-plain_input_entry_reader::create(std::vector<std::filesystem::path> paths) {
-  return std::make_unique<plain_input_entry_reader_impl>(std::move(paths));
 }
 
 } // namespace dwarfs::writer

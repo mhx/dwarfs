@@ -1229,9 +1229,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
 
-    // Keep the legacy canonical input root and eagerly read the list before
-    // scanning. Parsing and the plain format's special absolute-path rebasing
-    // are owned by the reader, not by the CLI or generic scanner.
+    // Keep the legacy canonical input root. The plain reader consumes the
+    // stream incrementally during scanning.
     *input_path = iol.os->canonical(*input_path);
     input_entries = writer::plain_input_entry_reader::create(
         std::move(*stream), *input_path, *iol.os);

@@ -28,7 +28,6 @@
 #include <memory>
 #include <optional>
 #include <variant>
-#include <vector>
 
 namespace dwarfs {
 
@@ -57,9 +56,6 @@ class plain_input_entry_reader {
   create(entry_reader_stream input,
          std::filesystem::path const& canonical_input_root,
          os_access const& os);
-
-  static std::unique_ptr<input_entry_reader>
-  create(std::vector<std::filesystem::path> paths);
 };
 
 } // namespace writer
