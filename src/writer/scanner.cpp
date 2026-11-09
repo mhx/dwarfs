@@ -509,8 +509,8 @@ class scanner_ final : public scanner::impl {
                  progress& prog, file_scanner& fs);
 
   void scan_list(entry_storage& tree, std::filesystem::path const& rootpath,
-                 std::span<std::filesystem::path const> list, dir_handle root,
-                 progress& prog, file_scanner& fs);
+                 input_entry_reader& reader, dir_handle root, progress& prog,
+                 file_scanner& fs);
 
   template <typename Lockable>
   entry_handle
@@ -957,10 +957,11 @@ void scanner_<LoggerPolicy>::scan_tree(
 }
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::scan_list(
-    entry_storage& tree, std::filesystem::path const& rootpath,
-    std::span<std::filesystem::path const> list, dir_handle root,
-    progress& prog, file_scanner& fs) {
+void scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
+                                       std::filesystem::path const& rootpath,
+                                       input_entry_reader& reader,
+                                       dir_handle root, progress& prog,
+                                       file_scanner& fs) {
   if (!filters_.empty()) {
     DWARFS_THROW(runtime_error, "cannot use filters with file lists");
   }
@@ -1020,7 +1021,8 @@ void scanner_<LoggerPolicy>::scan_list(
   std::unordered_map<std::string, dir_handle> dir_cache;
   uint32_t file_order_index{0};
 
-  for (auto const& listpath : list) {
+  while (auto entry = reader.next()) {
+    auto const& listpath = entry->path;
     std::filesystem::path relpath;
 
     if (listpath.has_root_directory()) {
@@ -1183,10 +1185,11 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   }
 
   bool const single_source = request.sources.size() == 1;
-  bool const list_mode = request.sources.front().input_list.has_value();
+  bool const list_mode =
+      static_cast<bool>(request.sources.front().input_entries);
 
   if (!single_source && std::ranges::any_of(request.sources, [](auto const& s) {
-        return s.input_list.has_value();
+        return static_cast<bool>(s.input_entries);
       })) {
     DWARFS_THROW(runtime_error,
                  "cannot combine input lists with multiple sources");
@@ -1340,8 +1343,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
       }
     }
 
-    if (source.input_list) {
-      scan_list(*tree, source.path, *source.input_list, parent, prog, *fs);
+    if (source.input_entries) {
+      scan_list(*tree, source.path, *source.input_entries, parent, prog, *fs);
     } else {
       scan_tree(*tree, source.path, parent, active_mapping, boundary,
                 check_collisions, prog, *fs);

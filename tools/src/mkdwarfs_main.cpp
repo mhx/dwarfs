@@ -101,6 +101,7 @@
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_parser.h>
+#include <dwarfs/writer/input_entry_reader.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/scanner_options.h>
@@ -1195,7 +1196,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     input_path.emplace(path_str);
   }
 
-  std::optional<std::vector<std::filesystem::path>> input_list;
+  std::unique_ptr<writer::input_entry_reader> input_entries;
 
   if (vm.contains("input-list")) {
     if (vm.contains("filter")) {
@@ -1231,68 +1232,19 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       is = &ifs->is();
     }
 
-    // Read the input list file and rebase absolute paths onto the canonical
-    // input path. If we don't do this, the scanner can fail if the input
-    // list uses non-canonical absolute paths. Note that we must only rebase
-    // the input path prefix of each entry in order to preserve symbolic
-    // links in the input list.
-
-    // This keeps track of all aliases of the input path we've seen in the
-    // input list so far, so we can test subsequent entries lexically.
-    std::vector<std::filesystem::path> lexical_input_aliases;
-
-    if (input_path) {
-      *input_path = iol.os->canonical(*input_path);
-      lexical_input_aliases.push_back(*input_path);
-    }
-
-    auto rebase_input_list_entry = [&](std::filesystem::path const& p) {
-      auto const normalized = p.lexically_normal();
-
-      auto rebase_onto = [&](std::filesystem::path const& alias) {
-        auto const rel = normalized.lexically_relative(alias);
-        return rel.empty() || rel == "." ? *input_path : *input_path / rel;
-      };
-
-      for (auto const& alias : lexical_input_aliases) {
-        if (std::ranges::mismatch(normalized, alias).in2 == alias.end()) {
-          return rebase_onto(alias);
-        }
-      }
-
-      // Check if the start of the lexically normalized path canonicalizes
-      // to the canonical input path.
-      std::filesystem::path prefix;
-
-      for (auto const& part : normalized) {
-        prefix /= part;
-
-        // Skip bare root names (e.g. `C:`)
-        if (prefix.has_root_directory() &&
-            iol.os->canonical(prefix) == *input_path) {
-          lexical_input_aliases.push_back(prefix);
-          return rebase_onto(prefix);
-        }
-      }
-
-      // Not below the input path; the scanner will report this.
-      return p;
-    };
-
-    std::string line;
-    input_list.emplace();
-
-    while (std::getline(*is, line)) {
-      std::filesystem::path p(line);
-      if (input_path && p.has_root_directory()) {
-        p = rebase_input_list_entry(p);
-      }
-      input_list->emplace_back(std::move(p));
-    }
+    // Keep the legacy canonical input root and eagerly read the list before
+    // scanning. Parsing and the plain format's special absolute-path rebasing
+    // are owned by the reader, not by the CLI or generic scanner.
+    *input_path = iol.os->canonical(*input_path);
+    input_entries =
+        writer::plain_input_entry_reader::create(*is, *input_path, *iol.os);
   }
 
   if (input_path) {
-    sources.push_back({.path = *input_path, .input_list = input_list});
+    sources.push_back({
+        .path = *input_path,
+        .input_entries = std::move(input_entries),
+    });
   }
 
   std::optional<fs_source_os> source_os_hint;

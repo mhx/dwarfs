@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/writer/input_entry_reader.h>
 
 namespace dwarfs {
 
@@ -54,11 +55,11 @@ class segmenter_factory;
 // appears as a named entry below the image root.
 enum class scan_source_mode { contents, entry };
 
-// A physical input root. When input_list is set, only the listed entries
+// A physical input root. When input_entries is set, only the listed entries
 // are included, otherwise the directory is traversed recursively.
 struct scan_source {
   std::filesystem::path path;
-  std::optional<std::span<std::filesystem::path const>> input_list{};
+  std::unique_ptr<input_entry_reader> input_entries{};
   scan_source_mode mode{scan_source_mode::contents};
 };
 
