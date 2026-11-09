@@ -141,6 +141,58 @@ la_ssize_t write_range_data(sparse_file_mode mode, struct archive* a,
   return ::archive_write_data(a, data, size);
 }
 
+#ifdef _WIN32
+// Windows has different symbolic link types for files and directories.
+// When extracting to disk, we try to resolve the link target within the
+// image to determine the correct type.
+int symlink_type_in_image(reader::filesystem_v2_lite const& fs,
+                          std::string_view link_path,
+                          std::string_view link_target) {
+  auto to_path = [](std::string_view s) {
+    return std::filesystem::path(string_to_u8string(std::string(s)));
+  };
+
+  auto parent = to_path(link_path).parent_path();
+  auto target = to_path(link_target);
+
+  for (int hops = 0; hops < 100; ++hops) {
+    if (target.is_absolute() || target.has_root_name()) {
+      break;
+    }
+
+    auto path = (parent / target).lexically_normal();
+    auto resolved = u8string_to_string(path.generic_u8string());
+    if (resolved == ".." || resolved.starts_with("../")) {
+      break;
+    }
+
+    auto entry = fs.find(resolved);
+    if (!entry) {
+      break;
+    }
+
+    auto inode = entry->inode();
+    if (inode.is_directory()) {
+      return AE_SYMLINK_TYPE_DIRECTORY;
+    }
+    if (!inode.is_symlink()) {
+      return AE_SYMLINK_TYPE_FILE;
+    }
+
+    std::error_code ec;
+    auto next_target = fs.readlink(inode, reader::readlink_mode::posix, ec);
+    if (ec) {
+      break;
+    }
+
+    parent = path.parent_path();
+    target = to_path(next_target);
+  }
+
+  return AE_SYMLINK_TYPE_UNDEFINED;
+}
+#endif
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -851,6 +903,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         LOG_TRACE << "progress: " << bytes_written_.load() << " bytes written";
       }
 #ifdef _WIN32
+      if (sparse_mode == sparse_file_mode::sparse_disk) {
+        ::archive_entry_set_symlink_type(
+            ae, symlink_type_in_image(
+                    fs, entry.unix_path(),
+                    fs.readlink(inode, reader::readlink_mode::posix)));
+      }
       std::filesystem::path linkpath(string_to_u8string(link));
       ::archive_entry_copy_symlink_w(ae, linkpath.c_str());
 #else
