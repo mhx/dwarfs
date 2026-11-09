@@ -113,6 +113,7 @@ constexpr auto kDefaultTimeout{30s};
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
 auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
+auto test_multisource_dwarfs = test_dir / "multisource.dwarfs";
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -1956,6 +1957,108 @@ TEST_P(tools_test, categorize) {
       std::ranges::copy(mkdwarfs_args_recompress, std::back_inserter(ref_args));
       EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
     }
+  }
+}
+
+TEST_P(tools_test, mkdwarfs_multi_source_deref) {
+  GTEST_REQUIRES_HELPER(*mkdwarfs_);
+
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto input = td / "input";
+
+  ASSERT_TRUE(*dwarfsextract_);
+  ASSERT_TRUE(fs::create_directory(input));
+
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path(),
+                                    dwarfsextract_->args(), "-i",
+                                    test_multisource_dwarfs, "-o", input));
+
+  ASSERT_TRUE(fs::is_symlink(input / "alias-alpha"));
+  ASSERT_TRUE(fs::is_directory(input / "alias-alpha"));
+  ASSERT_TRUE(fs::is_symlink(input / "alpha/linked-file"));
+  ASSERT_TRUE(fs::is_symlink(input / "alpha/linked-directory"));
+  ASSERT_TRUE(fs::is_directory(input / "alpha/linked-directory"));
+
+  auto const alpha = (input / "alpha").string() + "/./";
+  auto const beta = (input / "beta").string() + "/../beta/";
+  auto const named = (input / "outside").string() + "/./subdir";
+
+  auto build_image = [&](fs::path const& image,
+                         std::vector<std::string> extra_args) {
+    std::vector<std::string> args{"-o", image.string(), "-l1", "--order=none"};
+    args.insert(args.end(), extra_args.begin(), extra_args.end());
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs_->path(),
+                                 mkdwarfs_->args(), args);
+  };
+
+  auto extract_image = [&](fs::path const& image, fs::path const& output) {
+    fs::create_directory(output);
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsextract_->path(),
+                                 dwarfsextract_->args(), "-i", image, "-o",
+                                 output);
+  };
+
+  auto expect_contents = [](fs::path const& path, std::string_view expected) {
+    std::string contents;
+    ASSERT_TRUE(read_file(path, contents)) << path;
+    EXPECT_EQ(expected, contents) << path;
+  };
+
+  {
+    auto const merged_image = td / "merged.dwarfs";
+    auto const merged = td / "merged";
+
+    ASSERT_TRUE(build_image(merged_image, {"--", alpha, beta, named}));
+    ASSERT_TRUE(extract_image(merged_image, merged));
+
+    expect_contents(merged / "overlap.txt", "first source wins\n");
+    expect_contents(merged / "shared/one.txt", "from alpha\n");
+    expect_contents(merged / "shared/two.txt", "from beta\n");
+    expect_contents(merged / "subdir/child.txt", "dereferenced directory\n");
+
+    EXPECT_TRUE(fs::is_symlink(merged / "linked-file"));
+    EXPECT_TRUE(fs::is_symlink(merged / "linked-directory"));
+  }
+
+  {
+    auto const input_image = td / "noncanonical-input.dwarfs";
+    auto const input_output = td / "noncanonical-input";
+    auto const noncanonical = (input / "beta").string() + "/../alpha";
+
+    ASSERT_TRUE(subprocess::check_run(
+        DWARFS_ARG_EMULATOR_ mkdwarfs_->path(), mkdwarfs_->args(), "-i",
+        noncanonical, "-o", input_image, "-l1", "--order=none"));
+    ASSERT_TRUE(extract_image(input_image, input_output));
+
+    expect_contents(input_output / "overlap.txt", "first source wins\n");
+
+    EXPECT_TRUE(fs::is_symlink(input_output / "linked-file"));
+  }
+
+  {
+    auto const deref_image = td / "deref.dwarfs";
+    auto const deref = td / "deref";
+    auto const alias = (input / "alias-alpha").string() + "/";
+
+    ASSERT_TRUE(
+        build_image(deref_image, {"--dereference", "--", alias, beta, named}));
+    ASSERT_TRUE(extract_image(deref_image, deref));
+
+    expect_contents(deref / "overlap.txt", "first source wins\n");
+    expect_contents(deref / "shared/two.txt", "from beta\n");
+    expect_contents(deref / "subdir/child.txt", "dereferenced directory\n");
+
+    EXPECT_TRUE(fs::is_regular_file(deref / "linked-file"));
+    EXPECT_FALSE(fs::is_symlink(deref / "linked-file"));
+
+    expect_contents(deref / "linked-file", "dereferenced file\n");
+
+    EXPECT_TRUE(fs::is_directory(deref / "linked-directory"));
+    EXPECT_FALSE(fs::is_symlink(deref / "linked-directory"));
+
+    expect_contents(deref / "linked-directory/child.txt",
+                    "dereferenced directory\n");
   }
 }
 
