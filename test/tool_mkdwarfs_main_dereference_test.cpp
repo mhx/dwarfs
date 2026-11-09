@@ -1019,3 +1019,37 @@ TEST(mkdwarfs_test, absolute_input_list_through_symlinked_input_ancestor) {
     EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("ignoring path")));
   }
 }
+
+TEST(mkdwarfs_test, unreadable_named_source_is_reported_and_skipped) {
+  for (bool const deref : {false, true}) {
+    SCOPED_TRACE(deref);
+
+    auto t = mkdwarfs_tester::create_empty();
+    t.os->add_dir("/");
+    t.os->add_dir("/one");
+    t.os->add_file("/one/file", "data");
+    t.os->add_symlink("/dangling", "/nowhere");
+
+    std::vector<std::string> args{
+        "-o", "named-missing.dwarfs", "-l1", "/one/", "/missing", "/dangling"};
+    if (deref) {
+      args.emplace_back("--dereference=symlinks");
+    }
+
+    auto const expected_errors = deref ? 2 : 1;
+
+    EXPECT_EQ(2, t.run(args)) << t.err();
+
+    auto image = t.fs_from_file("named-missing.dwarfs");
+    auto file = image.find("/file");
+
+    ASSERT_TRUE(file);
+    EXPECT_EQ("data", image.read_string(file->inode().inode_num()));
+    EXPECT_FALSE(image.find("/missing"));
+    // Without --dereference, the dangling symlink is stored as is.
+    EXPECT_EQ(!deref, static_cast<bool>(image.find("/dangling")));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("filesystem created with " +
+                                              std::to_string(expected_errors) +
+                                              " error"));
+  }
+}

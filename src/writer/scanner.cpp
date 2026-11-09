@@ -1309,12 +1309,24 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     }
 
     if (source.mode == scan_source_mode::entry) {
+      std::optional<inspected_entry> incoming;
+
+      try {
+        incoming.emplace(inspect(source.path, nullptr, boundary));
+      } catch (std::system_error const& e) {
+        LOG_ERROR << fmt::format("error reading entry (path={}): {}",
+                                 path_to_utf8_string_sanitized(source.path),
+                                 exception_str(e));
+        ++prog.errors;
+        continue;
+      }
+
       no_mutex mx_scanner;
-      auto incoming = inspect(source.path, nullptr, boundary);
+
       auto entry =
           add_entry(mx_scanner, *tree, source.path, root, prog, *fs,
-                    options_.debug_filter_function.has_value(), &incoming.stat,
-                    incoming.mapping(physical_mapping), check_collisions);
+                    options_.debug_filter_function.has_value(), &incoming->stat,
+                    incoming->mapping(physical_mapping), check_collisions);
 
       if (!entry || !entry.is_dir()) {
         continue;
@@ -1322,10 +1334,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
 
       parent = entry.as_dir();
 
-      if (incoming.physical_path) {
+      if (incoming->physical_path) {
         active_mapping =
-            get_physical_mapping(*tree, entry, *incoming.physical_path);
-        boundary = *incoming.physical_path;
+            get_physical_mapping(*tree, entry, *incoming->physical_path);
+        boundary = *incoming->physical_path;
       }
     } else {
       auto const path = canonical_if_dereference(source.path);
