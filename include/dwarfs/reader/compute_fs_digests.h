@@ -28,7 +28,10 @@
 
 #pragma once
 
+#include <cstddef>
+#include <functional>
 #include <optional>
+#include <string_view>
 
 #include <dwarfs/filesystem_digests.h>
 
@@ -41,10 +44,18 @@ namespace reader {
 
 class filesystem_v2;
 
+using digest_entry_callback =
+    std::function<void(std::string_view path, filesystem_digests const& digests,
+                       std::string_view fields)>;
+
 struct filesystem_digests_config {
   bool compute_tree_digest{false};
   std::size_t max_queued_bytes{64 * 1024 * 1024}; // 64 MiB
   std::size_t num_worker_threads{4};
+  // Only affects diagnostic output, not digest computation.
+  bool trace_attr_fields{true};
+  std::size_t trace_digest_hex_length{12};
+  digest_entry_callback on_entry{};
 };
 
 filesystem_digests

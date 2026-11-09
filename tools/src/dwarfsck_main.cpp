@@ -91,6 +91,8 @@ bool includes_tree(digest_selection selection) {
 
 class dwarfsck_impl {
  public:
+  static constexpr std::size_t kTraceDigestHexLength{12};
+
   struct options {
     sys_string input;
     std::optional<sys_string> export_metadata;
@@ -148,7 +150,9 @@ class dwarfsck_impl {
   void do_dump_info();
   void do_list_files();
   void do_checksum();
-  filesystem_digests compute_digests(bool with_tree);
+  filesystem_digests
+  compute_digests(bool with_tree, reader::digest_entry_callback on_entry = {},
+                  bool trace_attr_fields = true);
   void do_compute_digests();
   int do_verify_digests();
   void do_edit_superblock(std::filesystem::path const& image_path);
@@ -458,6 +462,11 @@ bool dwarfsck_impl::validate_options() const {
     LOG_WARN << "--print-header is mutually exclusive with --json, "
                 "--export-metadata, --check-integrity, --list, --checksum, "
                 "--compute-digests and --verify-digests";
+    return false;
+  }
+
+  if (opts_.output_json && opts_.verbose && opts_.compute_digests) {
+    LOG_WARN << "--json cannot be combined with --compute-digests --verbose";
     return false;
   }
 
@@ -812,18 +821,42 @@ void dwarfsck_impl::do_checksum() {
                               });
 }
 
-filesystem_digests dwarfsck_impl::compute_digests(bool with_tree) {
+filesystem_digests
+dwarfsck_impl::compute_digests(bool with_tree,
+                               reader::digest_entry_callback on_entry,
+                               bool trace_attr_fields) {
   reader::filesystem_digests_config cfg{
       .compute_tree_digest = with_tree,
       .max_queued_bytes = fsopts_.block_cache.max_bytes,
       .num_worker_threads = opts_.num_workers,
+      .trace_attr_fields = trace_attr_fields,
+      .trace_digest_hex_length = kTraceDigestHexLength,
+      .on_entry = std::move(on_entry),
   };
   return reader::compute_filesystem_digests(lgr_, *iol_.os, fs(), cfg);
 }
 
 void dwarfsck_impl::do_compute_digests() {
   auto const selection = *opts_.compute_digests;
-  auto const digests = compute_digests(includes_tree(selection));
+  reader::digest_entry_callback on_entry;
+  if (opts_.verbose) {
+    on_entry = [this, selection](std::string_view path,
+                                 filesystem_digests const& d,
+                                 std::string_view fields) {
+      iol_.out << path;
+      if (includes_attr(selection)) {
+        iol_.out << "\tattr="
+                 << d.attr_digest.hex().substr(0, kTraceDigestHexLength);
+      }
+      if (includes_tree(selection)) {
+        iol_.out << "\ttree="
+                 << d.tree_digest.hex().substr(0, kTraceDigestHexLength);
+      }
+      iol_.out << fields << "\n";
+    };
+  }
+  auto const digests = compute_digests(
+      includes_tree(selection), std::move(on_entry), includes_attr(selection));
 
   if (opts_.output_json) {
     nlohmann::json result = nlohmann::json::object();

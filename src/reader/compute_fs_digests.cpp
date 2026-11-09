@@ -28,6 +28,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
+#include <iterator>
+#include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -50,19 +54,119 @@ namespace {
 
 constexpr std::uint8_t kCurrentDigestSchemeVersion{1};
 
+class digest_field_aggregator {
+ public:
+  digest_field_aggregator(filesystem_digests_config const& config,
+                          dir_entry_view const& de)
+      : config_{config}
+      , de_{de} {}
+
+  template <typename T>
+  void add_field(std::string_view name, T const& value) {
+    fmt::format_to(std::back_inserter(fields_), "\t{}={}", name, value);
+  }
+
+  template <typename T>
+  void add_attr_field(std::string_view name, T const& value) {
+    if (config_.trace_attr_fields) {
+      add_field(name, value);
+    }
+  }
+
+  void add_mode_field(std::uint32_t mode) {
+    if (config_.trace_attr_fields) {
+      add_field("mode", fmt::format("{:o}", mode));
+    }
+  }
+
+  template <typename T>
+  void add_tree_field(std::string_view name, T const& value) {
+    if (config_.compute_tree_digest) {
+      add_field(name, value);
+    }
+  }
+
+  void add_escaped_field(std::string_view name, std::string_view value) {
+    add_field(name, escape(value));
+  }
+
+  void add_content_digest(std::span<std::byte const> digest) {
+    auto const kHexChars = config_.trace_digest_hex_length;
+    std::string short_hex;
+
+    for (auto const c : digest) {
+      if (short_hex.size() >= kHexChars) {
+        break;
+      }
+
+      fmt::format_to(std::back_inserter(short_hex), "{:02x}",
+                     std::to_integer<unsigned>(c));
+    }
+
+    short_hex.resize(std::min(short_hex.size(), kHexChars));
+    add_tree_field("content", short_hex);
+  }
+
+  void emit(filesystem_digests const& digests) const {
+    config_.on_entry(escape("/" + de_.unix_path()), digests, fields_);
+  }
+
+ private:
+  static std::string escape(std::string_view value) {
+    std::string result;
+    for (unsigned char c : value) {
+      switch (c) {
+      case '\t':
+        result += "\\t";
+        break;
+      case '\n':
+        result += "\\n";
+        break;
+      case '\r':
+        result += "\\r";
+        break;
+      case '\\':
+        result += "\\\\";
+        break;
+      default:
+        if (c < 0x20 || c == 0x7f) {
+          fmt::format_to(std::back_inserter(result), "\\x{:02x}", c);
+        } else {
+          result += static_cast<char>(c);
+        }
+      }
+    }
+    return result;
+  }
+
+  filesystem_digests_config const& config_;
+  dir_entry_view const& de_;
+  std::string fields_;
+};
+
 class entry_hasher {
  public:
-  entry_hasher(filesystem_digests_config const& config, std::string_view id) {
+  entry_hasher(filesystem_digests_config const& config, std::string_view id,
+               dir_entry_view const& de) {
     attr_.update(id);
 
     if (config.compute_tree_digest) {
       tree_.emplace(checksum::blake3_256);
       tree_->update(id);
     }
+
+    if (config.on_entry) {
+      field_aggregator_.emplace(config, de);
+      field_aggregator_->add_field("domain", id);
+    }
   }
 
   checksum& attr() { return attr_; }
   std::optional<checksum>& tree() { return tree_; }
+
+  digest_field_aggregator* field_aggregator() {
+    return field_aggregator_ ? &*field_aggregator_ : nullptr;
+  }
 
   filesystem_digests finalize() {
     filesystem_digests digests;
@@ -73,12 +177,17 @@ class entry_hasher {
       digests.tree_digest = tree_->finalize();
     }
 
+    if (field_aggregator_) {
+      field_aggregator_->emit(digests);
+    }
+
     return digests;
   }
 
  private:
   checksum attr_{checksum::blake3_256};
   std::optional<checksum> tree_;
+  std::optional<digest_field_aggregator> field_aggregator_;
 };
 
 class fs_digest_computer {
@@ -120,9 +229,10 @@ class fs_digest_computer {
     std::unordered_map<file_stat::ino_type, std::uint64_t> hardlink_groups_;
   };
 
-  entry_hasher make_entry_hasher(std::string_view id, state& st,
-                                 file_stat const& fstat) const {
-    auto h = entry_hasher{config_, id};
+  entry_hasher
+  make_entry_hasher(std::string_view id, state& st, file_stat const& fstat,
+                    dir_entry_view const& de) const {
+    auto h = entry_hasher{config_, id, de};
     hash_inode_common(h, st, fstat);
     return h;
   }
@@ -134,14 +244,16 @@ class fs_digest_computer {
   compute_entry_digests(state& st, dir_entry_view const& de) const;
   filesystem_digests compute_dir_digests(state& st, dir_entry_view const& de,
                                          inode_view const& iv) const;
+  filesystem_digests compute_file_digests(state& st, dir_entry_view const& de,
+                                          inode_view const& iv) const;
   filesystem_digests
-  compute_file_digests(state& st, inode_view const& iv) const;
+  compute_symlink_digests(state& st, dir_entry_view const& de,
+                          inode_view const& iv) const;
+  filesystem_digests compute_device_digests(state& st, dir_entry_view const& de,
+                                            inode_view const& iv) const;
   filesystem_digests
-  compute_symlink_digests(state& st, inode_view const& iv) const;
-  filesystem_digests
-  compute_device_digests(state& st, inode_view const& iv) const;
-  filesystem_digests
-  compute_special_digests(state& st, inode_view const& iv) const;
+  compute_special_digests(state& st, dir_entry_view const& de,
+                          inode_view const& iv) const;
 
   LOG_PROXY_DECL(debug_logger_policy);
   os_access const& os_;
@@ -233,7 +345,8 @@ void fs_digest_computer::hash_inode_common(entry_hasher& h, state& st,
   ac.uid = fstat.uid_unchecked();
   ac.gid = fstat.gid_unchecked();
 
-  ac.hardlink_group = st.hardlink_group(fstat);
+  auto const hardlink_group = st.hardlink_group(fstat);
+  ac.hardlink_group = hardlink_group;
   ac.nlink = fstat.nlink_unchecked();
 
   auto const& atime = fstat.atimespec_unchecked();
@@ -256,6 +369,21 @@ void fs_digest_computer::hash_inode_common(entry_hasher& h, state& st,
 
     tree->update(&tc, sizeof(tc));
   }
+
+  if (auto* aggr = h.field_aggregator()) {
+    aggr->add_mode_field(fstat.mode_unchecked());
+    aggr->add_attr_field("uid", fstat.uid_unchecked());
+    aggr->add_attr_field("gid", fstat.gid_unchecked());
+    aggr->add_attr_field("hardlink_group", hardlink_group);
+    aggr->add_attr_field("nlink", fstat.nlink_unchecked());
+    aggr->add_attr_field("atime_sec", atime.sec);
+    aggr->add_attr_field("atime_nsec", atime.nsec);
+    aggr->add_attr_field("mtime_sec", mtime.sec);
+    aggr->add_attr_field("mtime_nsec", mtime.nsec);
+    aggr->add_attr_field("ctime_sec", ctime.sec);
+    aggr->add_attr_field("ctime_nsec", ctime.nsec);
+    aggr->add_tree_field("type", std::to_underlying(fstat.type()));
+  }
 }
 
 filesystem_digests
@@ -270,17 +398,17 @@ fs_digest_computer::compute_entry_digests(state& st,
     return compute_dir_digests(st, de, iv);
 
   case regular:
-    return compute_file_digests(st, iv);
+    return compute_file_digests(st, de, iv);
 
   case symlink:
-    return compute_symlink_digests(st, iv);
+    return compute_symlink_digests(st, de, iv);
 
   case character:
   case block:
-    return compute_device_digests(st, iv);
+    return compute_device_digests(st, de, iv);
 
   default:
-    return compute_special_digests(st, iv);
+    return compute_special_digests(st, de, iv);
   }
 }
 
@@ -296,7 +424,7 @@ fs_digest_computer::compute_dir_digests(state& st, dir_entry_view const& de,
   assert(num_entries >= 2); // "." and ".." entries
 
   auto const fstat = fs_.getattr(iv);
-  auto h = make_entry_hasher("dir-v1", st, fstat);
+  auto h = make_entry_hasher("dir-v1", st, fstat, de);
 
   auto& attr = h.attr();
   auto& tree = h.tree();
@@ -304,6 +432,9 @@ fs_digest_computer::compute_dir_digests(state& st, dir_entry_view const& de,
   uint64be_t count{num_entries - 2};
 
   attr.update(&count, sizeof(count));
+  if (auto* aggr = h.field_aggregator()) {
+    aggr->add_field("children", num_entries - 2);
+  }
 
   if (tree) {
     tree->update(&count, sizeof(count));
@@ -335,51 +466,66 @@ fs_digest_computer::compute_dir_digests(state& st, dir_entry_view const& de,
 }
 
 filesystem_digests
-fs_digest_computer::compute_file_digests(state& st,
+fs_digest_computer::compute_file_digests(state& st, dir_entry_view const& de,
                                          inode_view const& iv) const {
   auto const fstat = fs_.getattr(iv);
-  auto h = make_entry_hasher("file-v1", st, fstat);
+  auto h = make_entry_hasher("file-v1", st, fstat, de);
 
   uint64be_t size{static_cast<uint64_t>(fstat.size())};
 
   h.attr().update(&size, sizeof(size));
 
+  digest_type const* content_digest{nullptr};
   if (auto& tree = h.tree()) {
     tree->update(&size, sizeof(size));
 
     auto const dup_info = fs_.get_duplication_info(iv);
-    auto const& content_digest =
-        content_digests_.at(dup_info.unique_content_id);
+    content_digest = &content_digests_.at(dup_info.unique_content_id);
+    tree->update(*content_digest);
+  }
 
-    tree->update(content_digest);
+  if (auto* aggr = h.field_aggregator()) {
+    aggr->add_field("size", fstat.size());
+    if (content_digest) {
+      aggr->add_content_digest(*content_digest);
+    }
   }
 
   return h.finalize();
 }
 
 filesystem_digests
-fs_digest_computer::compute_symlink_digests(state& st,
+fs_digest_computer::compute_symlink_digests(state& st, dir_entry_view const& de,
                                             inode_view const& iv) const {
   auto const fstat = fs_.getattr(iv);
-  auto h = make_entry_hasher("symlink-v1", st, fstat);
+  auto h = make_entry_hasher("symlink-v1", st, fstat, de);
 
   uint64be_t size{static_cast<uint64_t>(fstat.size())};
 
   h.attr().update(&size, sizeof(size));
 
+  std::optional<std::string> target;
   if (auto& tree = h.tree()) {
     tree->update(&size, sizeof(size));
-    tree->update(fs_.readlink(iv, readlink_mode::posix));
+    target.emplace(fs_.readlink(iv, readlink_mode::posix));
+    tree->update(*target);
+  }
+
+  if (auto* aggr = h.field_aggregator()) {
+    aggr->add_field("size", fstat.size());
+    if (target) {
+      aggr->add_escaped_field("target", *target);
+    }
   }
 
   return h.finalize();
 }
 
 filesystem_digests
-fs_digest_computer::compute_device_digests(state& st,
+fs_digest_computer::compute_device_digests(state& st, dir_entry_view const& de,
                                            inode_view const& iv) const {
   auto const fstat = fs_.getattr(iv);
-  auto h = make_entry_hasher("device-v1", st, fstat);
+  auto h = make_entry_hasher("device-v1", st, fstat, de);
 
   assert(fstat.is_device());
 
@@ -401,6 +547,10 @@ fs_digest_computer::compute_device_digests(state& st,
   dev.rdev_minor = rdev.minor_id();
 
   h.attr().update(&dev, sizeof(dev));
+  if (auto* aggr = h.field_aggregator()) {
+    aggr->add_field("rdev_major", rdev.major_id());
+    aggr->add_field("rdev_minor", rdev.minor_id());
+  }
 
   if (auto& tree = h.tree()) {
     tree->update(&dev, sizeof(dev));
@@ -410,10 +560,10 @@ fs_digest_computer::compute_device_digests(state& st,
 }
 
 filesystem_digests
-fs_digest_computer::compute_special_digests(state& st,
+fs_digest_computer::compute_special_digests(state& st, dir_entry_view const& de,
                                             inode_view const& iv) const {
   auto const fstat = fs_.getattr(iv);
-  auto h = make_entry_hasher("special-v1", st, fstat);
+  auto h = make_entry_hasher("special-v1", st, fstat, de);
 
   return h.finalize();
 }
