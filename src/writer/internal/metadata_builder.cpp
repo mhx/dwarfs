@@ -256,7 +256,10 @@ class metadata_builder_ final : public metadata_builder::impl {
   metadata_builder_(logger& lgr, metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , options_{options}
-      , timeres_{options.time_resolution} {}
+      , timeres_{options.time_resolution} {
+    DWARFS_CHECK(!options.source_os_hint.has_value(),
+                 "source OS hint is only allowed when rebuilding metadata");
+  }
 
   template <typename T>
     requires(std::same_as<std::decay_t<T>, thrift::metadata::metadata>)
