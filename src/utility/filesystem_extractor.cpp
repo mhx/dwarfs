@@ -263,7 +263,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       LOG_DEBUG << "closing archive";
       try {
         check_result(a_, ::archive_write_close(a_.get()));
-      } catch (...) {
+      } catch (archive_error const&) {
         close_error = std::current_exception();
       }
       LOG_TRACE << "freeing archive";
