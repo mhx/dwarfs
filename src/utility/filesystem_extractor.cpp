@@ -28,6 +28,7 @@
 
 #include <array>
 #include <condition_variable>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -254,9 +255,17 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       a_reg_.clear();
     }
 
+    // Always join the I/O thread, even if closing the archive fails;
+    // destroying a joinable std::thread calls std::terminate().
+    std::exception_ptr close_error;
+
     if (a_) {
       LOG_DEBUG << "closing archive";
-      check_result(a_, ::archive_write_close(a_.get()));
+      try {
+        check_result(a_, ::archive_write_close(a_.get()));
+      } catch (...) {
+        close_error = std::current_exception();
+      }
       LOG_TRACE << "freeing archive";
       a_.reset();
     }
@@ -271,6 +280,10 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
       LOG_TRACE << "closing pipe[0]";
       closefd(pipefd_[0]);
+    }
+
+    if (close_error) {
+      std::rethrow_exception(close_error);
     }
   }
 
