@@ -488,10 +488,26 @@ file_stat make_synthetic_entry_stat(std::optional<file_stat::time_type> time) {
   return st;
 }
 
-void apply_entry_attributes(file_stat& st, input_entry_spec const& spec) {
-  st.set_mode((st.mode() & ~07777) | spec.permissions);
-  st.set_uid(spec.uid);
-  st.set_gid(spec.gid);
+void apply_entry_attributes(file_stat& st,
+                            input_entry_attributes const& attributes) {
+  if (attributes.permissions) {
+    st.set_mode((st.mode() & ~07777) | *attributes.permissions);
+  }
+  if (attributes.uid) {
+    st.set_uid(*attributes.uid);
+  }
+  if (attributes.gid) {
+    st.set_gid(*attributes.gid);
+  }
+  if (attributes.atime) {
+    st.set_atimespec(*attributes.atime);
+  }
+  if (attributes.mtime) {
+    st.set_mtimespec(*attributes.mtime);
+  }
+  if (attributes.ctime) {
+    st.set_ctimespec(*attributes.ctime);
+  }
 }
 
 bool valid_list_path(std::filesystem::path const& path) {
@@ -1159,11 +1175,11 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
       DWARFS_THROW(runtime_error, "input entry has no source or specification");
     }
 
-    auto source = inspect(*entry.source, nullptr, boundary);
+    auto esrc = inspect(*entry.source, nullptr, boundary);
 
-    rv.stat = std::move(source.stat);
-    rv.mapping = source.mapping(inherited);
-    rv.physical_path = std::move(source.physical_path);
+    rv.stat = std::move(esrc.stat);
+    rv.mapping = esrc.mapping(inherited);
+    rv.physical_path = std::move(esrc.physical_path);
 
     return rv;
   }
@@ -1175,9 +1191,9 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
       DWARFS_THROW(runtime_error, "invalid manifest file link count");
     }
 
-    auto source = inspect(file->source, nullptr, boundary, true);
+    auto fsrc = inspect(file->source, nullptr, boundary, true);
 
-    if (!source.stat.is_regular_file()) {
+    if (!fsrc.stat.is_regular_file()) {
       DWARFS_THROW(runtime_error,
                    fmt::format("source type mismatch for '{}'",
                                path_to_utf8_string_sanitized(entry.path)));
@@ -1185,14 +1201,14 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
 
     auto& st = rv.stat;
 
-    st = std::move(source.stat);
+    st = std::move(fsrc.stat);
     st.set_dev(0);
     st.set_ino(state.next_inode++);
     st.set_nlink(file->nlink);
 
-    apply_entry_attributes(st, spec);
+    apply_entry_attributes(st, spec.attributes);
 
-    auto const& physical = source.physical_path.value_or(file->source);
+    auto const& physical = fsrc.physical_path.value_or(file->source);
 
     rv.mapping =
         file->nlink > 1
@@ -1200,7 +1216,7 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
                   physical}}
             : internal::physical_mapping_type{physical};
 
-    rv.physical_path = std::move(source.physical_path);
+    rv.physical_path = std::move(fsrc.physical_path);
 
     return rv;
   }
@@ -1242,7 +1258,7 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
           },
       };
 
-  apply_entry_attributes(rv.stat, spec);
+  apply_entry_attributes(rv.stat, spec.attributes);
 
   return rv;
 }
@@ -1429,11 +1445,11 @@ dir_handle scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     }
 
     if (root_entry->source) {
-      auto const source = os_.canonical(*root_entry->source);
-      stat = os_.symlink_info(source);
+      auto const esrc = os_.canonical(*root_entry->source);
+      stat = os_.symlink_info(esrc);
 
       if (auto ec = stat.error()) {
-        throw std::system_error(ec, source.string());
+        throw std::system_error(ec, esrc.string());
       }
 
       if (!stat.is_directory()) {
@@ -1443,7 +1459,7 @@ dir_handle scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
     }
 
     if (root_entry->spec) {
-      apply_entry_attributes(stat, *root_entry->spec);
+      apply_entry_attributes(stat, root_entry->spec->attributes);
     }
   }
 

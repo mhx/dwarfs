@@ -62,7 +62,7 @@ TEST(input_entry_reader, gen_init_cpio_streaming_and_hardlinks) {
   ASSERT_TRUE(dir->spec);
   EXPECT_EQ(fs::path("etc"), dir->path);
   EXPECT_TRUE(std::holds_alternative<spec::directory>(dir->spec->content));
-  EXPECT_EQ(0755, dir->spec->permissions);
+  EXPECT_EQ(0755, dir->spec->attributes.permissions);
 
   auto primary = reader->next();
   ASSERT_TRUE(primary);
@@ -74,9 +74,12 @@ TEST(input_entry_reader, gen_init_cpio_streaming_and_hardlinks) {
   EXPECT_EQ((std::vector<fs::path>{"etc/config2", "etc/config3"}),
             file->aliases);
   EXPECT_EQ(3, file->nlink);
-  EXPECT_EQ(0640, primary->spec->permissions);
-  EXPECT_EQ(123, primary->spec->uid);
-  EXPECT_EQ(456, primary->spec->gid);
+  EXPECT_EQ(0640, primary->spec->attributes.permissions);
+  EXPECT_EQ(123, primary->spec->attributes.uid);
+  EXPECT_EQ(456, primary->spec->attributes.gid);
+  EXPECT_FALSE(primary->spec->attributes.atime);
+  EXPECT_FALSE(primary->spec->attributes.mtime);
+  EXPECT_FALSE(primary->spec->attributes.ctime);
 
   auto symlink = reader->next();
   ASSERT_TRUE(symlink);
@@ -430,9 +433,9 @@ TEST(input_entry_reader, gen_init_cpio_explicit_root_is_regular_entry) {
   ASSERT_TRUE(root->spec);
   EXPECT_TRUE(std::holds_alternative<writer::input_entry_spec::directory>(
       root->spec->content));
-  EXPECT_EQ(0700, root->spec->permissions);
-  EXPECT_EQ(17, root->spec->uid);
-  EXPECT_EQ(18, root->spec->gid);
+  EXPECT_EQ(0700, root->spec->attributes.permissions);
+  EXPECT_EQ(17, root->spec->attributes.uid);
+  EXPECT_EQ(18, root->spec->attributes.gid);
   auto etc = reader->next();
   ASSERT_TRUE(etc);
   EXPECT_EQ(fs::path("etc"), etc->path);
