@@ -182,7 +182,8 @@ _arguments -S \
 	"--incompressible-min-input-size=[minimum file size to check for incompressibility]:size:" \
 	"--incompressible-ratio=[compression ratio above which files or fragments are considered incompressible]:ratio:" \
 	"--incompressible-zstd-level=[ZSTD compression level]:level:" \
-	"--input-list=[file containing list of file paths relative to root directory or - for stdin]:filename:_files" \
+	"--input-list=[input list file or - for stdin]:filename:_files" \
+	"--input-list-format=[input list format]:format:(plain gen_init_cpio jsonl)" \
 	"--keep-all-times[save atime and ctime in addition to mtime]" \
 	"--label=[set filesystem label to this string]:label:" \
 	"--log-level=[log level]:level:(error warn info verbose debug trace)" \
@@ -229,6 +230,7 @@ _arguments -S \
 	"--superblock-digests=[select output digests]:mode:(auto none attr tree both)" \
 	"--set-group=[set group (gid) for whole file system]:gid:_groups" \
 	"--set-owner=[set owner (uid) for whole file system]:uid:_users" \
+	"--synthetic-time=[default timestamp for synthetic entries]:time:" \
 	"--set-time=[set timestamp for whole file system (unixtime or 'now')]:time:(now)" \
 	"--time-resolution=[resolution of inode timestamps]:resolution:(sec min hour day)" \
 	"--uuid=[set filesystem UUID]:uuid:(random nil keep)" \
