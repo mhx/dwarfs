@@ -1638,15 +1638,15 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
 
     using spec = writer::input_entry_spec;
     spec file_a{
-        .content = spec::file{"/staging/a", {}, 4},
+        .content = spec::file{"/staging/a", {}},
         .attributes = {.permissions = 0640, .uid = 123, .gid = 456},
     };
     spec file_b{
-        .content = spec::file{"/staging/b", {}, 2},
+        .content = spec::file{"/staging/b", {}},
         .attributes = {.permissions = 0640, .uid = 123, .gid = 456},
     };
     spec file_c{
-        .content = spec::file{"/staging/c", {}, 1},
+        .content = spec::file{"/staging/c", {}},
         .attributes = {.mtime = file_stat::timespec_type{777, 123456789}},
     };
     spec dir_spec{
@@ -1744,6 +1744,7 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
     EXPECT_EQ(b_ino, b_link->inode().inode_num());
     EXPECT_EQ(4, fs.getattr(a->inode()).nlink());
     EXPECT_EQ(2, fs.getattr(b->inode()).nlink());
+    EXPECT_EQ(1, fs.getattr(c->inode()).nlink());
     auto const st = fs.getattr(a->inode());
     EXPECT_EQ(0060, st.mode() & 07777);
     EXPECT_EQ(123, st.uid());

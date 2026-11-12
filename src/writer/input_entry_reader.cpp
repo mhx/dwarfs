@@ -383,7 +383,6 @@ std::optional<input_entry> gen_init_cpio_impl::next() {
       input_entry_spec::file file{
           .source = physical.is_absolute() ? physical : root_ / physical,
           .aliases = {},
-          .nlink = args.size() - 5,
       };
       file.aliases.reserve(args.size() - 6);
       for (std::size_t i = 6; i < args.size(); ++i) {

@@ -26,6 +26,7 @@
 #include <memory>
 #include <mutex>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include <fmt/format.h>
@@ -128,7 +129,8 @@ class file_scanner_ final : public file_scanner::impl {
                 os_access const& os, inode_manager& im, progress& prog,
                 file_scanner::options const& opts);
 
-  void scan(file_handle p) override;
+  void scan(file_handle p, bool track_hardlinks) override;
+  bool can_hardlink(file_handle p) const override;
   void finalize(uint32_t& inode_num) override;
 
   uint32_t num_unique() const override { return num_unique_; }
@@ -410,10 +412,10 @@ file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, entry_storage& storage,
     , opts_{opts} {}
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::scan(file_handle p) {
+void file_scanner_<LoggerPolicy>::scan(file_handle p, bool track_hardlinks) {
   // This method is supposed to be called from a single thread only.
 
-  if (p.num_hard_links() > 1) {
+  if (track_hardlinks || p.num_hard_links() > 1) {
     auto* vec = p.get_inode_identity() |
                 match{
                     [this](unique_inode_id const& id) -> file_id_vector* {
@@ -451,6 +453,21 @@ void file_scanner_<LoggerPolicy>::scan(file_handle p) {
     add_file(p);
     scan_inode(p, add_inode(p, __LINE__), true);
   }
+}
+
+template <typename LoggerPolicy>
+bool file_scanner_<LoggerPolicy>::can_hardlink(file_handle p) const {
+  auto const identity = p.get_inode_identity();
+
+  if (auto const* id = std::get_if<unique_inode_id>(&identity)) {
+    return hardlinks_->index_of(*id).has_value();
+  }
+
+  if (auto const* id = std::get_if<scoped_inode_id>(&identity)) {
+    return scoped_hardlinks_ && scoped_hardlinks_->index_of(*id).has_value();
+  }
+
+  return false;
 }
 
 template <typename LoggerPolicy>

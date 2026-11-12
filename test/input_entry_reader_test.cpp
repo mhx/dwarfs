@@ -73,7 +73,6 @@ TEST(input_entry_reader, gen_init_cpio_streaming_and_hardlinks) {
   EXPECT_EQ(fs::path("/root/relative/config"), file->source);
   EXPECT_EQ((std::vector<fs::path>{"etc/config2", "etc/config3"}),
             file->aliases);
-  EXPECT_EQ(3, file->nlink);
   EXPECT_EQ(0640, primary->spec->attributes.permissions);
   EXPECT_EQ(123, primary->spec->attributes.uid);
   EXPECT_EQ(456, primary->spec->attributes.gid);

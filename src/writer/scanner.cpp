@@ -605,7 +605,7 @@ class scanner_ final : public scanner::impl {
                      std::filesystem::path const& path, progress& prog,
                      file_scanner& fs, bool debug_filter,
                      std::optional<std::string_view> symlink_target = {},
-                     bool synthetic = false);
+                     bool synthetic = false, bool track_hardlinks = false);
 
   template <typename Lockable>
   entry_handle
@@ -815,7 +815,7 @@ void scanner_<LoggerPolicy>::process_entry(
     Lockable& mx_walk, entry_storage& tree, entry_handle pe,
     std::filesystem::path const& path, progress& prog, file_scanner& fs,
     bool debug_filter, std::optional<std::string_view> symlink_target,
-    bool synthetic) {
+    bool synthetic, bool track_hardlinks) {
   switch (pe.type()) {
   case entry_type::E_DIR:
     ++prog.dirs_found;
@@ -832,7 +832,7 @@ void scanner_<LoggerPolicy>::process_entry(
     ++prog.files_found;
     if (!debug_filter) {
       std::lock_guard lock(mx_walk);
-      fs.scan(pe.as_file());
+      fs.scan(pe.as_file(), track_hardlinks);
     }
     break;
 
@@ -1187,10 +1187,6 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
   auto const& spec = *entry.spec;
 
   if (auto const* file = std::get_if<input_entry_spec::file>(&spec.content)) {
-    if (file->nlink == 0 || file->nlink < file->aliases.size() + 1) {
-      DWARFS_THROW(runtime_error, "invalid manifest file link count");
-    }
-
     auto fsrc = inspect(file->source, nullptr, boundary, true);
 
     if (!fsrc.stat.is_regular_file()) {
@@ -1204,17 +1200,13 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
     st = std::move(fsrc.stat);
     st.set_dev(0);
     st.set_ino(state.next_inode++);
-    st.set_nlink(file->nlink);
+    st.set_nlink(1);
 
     apply_entry_attributes(st, spec.attributes);
 
     auto const& physical = fsrc.physical_path.value_or(file->source);
 
-    rv.mapping =
-        file->nlink > 1
-            ? internal::physical_mapping_type{internal::hardlink_source_mapping{
-                  physical}}
-            : internal::physical_mapping_type{physical};
+    rv.mapping = internal::hardlink_source_mapping{physical};
 
     rv.physical_path = std::move(fsrc.physical_path);
 
@@ -1287,8 +1279,8 @@ void scanner_<LoggerPolicy>::scan_list_hardlink(
     return;
   }
 
-  if (source.num_hard_links() <= 1) {
-    DWARFS_THROW(runtime_error, "hardlink target must declare multiple links");
+  if (!fs.can_hardlink(source)) {
+    DWARFS_THROW(runtime_error, "hardlink target is not tracked for hardlinks");
   }
 
   auto const storage_path = state.root_path / path;
@@ -1296,7 +1288,8 @@ void scanner_<LoggerPolicy>::scan_list_hardlink(
       internal::provisional_entry(storage_path, parent, source).commit(tree);
   no_mutex mx_scanner;
 
-  process_entry(mx_scanner, tree, entry, storage_path, prog, fs, false);
+  process_entry(mx_scanner, tree, entry, storage_path, prog, fs, false, {},
+                false, true);
 
   entry.as_file().set_order_index(state.next_file_order++);
 }
@@ -1370,8 +1363,12 @@ void scanner_<LoggerPolicy>::scan_list_entry(entry_storage& tree,
       return;
     }
 
+    auto const track_hardlinks =
+        entry.spec &&
+        std::holds_alternative<input_entry_spec::file>(entry.spec->content);
+
     process_entry(mx_scanner, tree, created, storage_path, prog, fs, false,
-                  data.symlink_target, data.synthetic);
+                  data.symlink_target, data.synthetic, track_hardlinks);
 
     if (created.is_dir()) {
       state.directories.emplace(path.generic_string(), created.as_dir());
