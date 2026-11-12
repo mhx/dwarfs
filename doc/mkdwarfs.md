@@ -60,10 +60,10 @@ Input and output can be specified as follows:
   paths in the description are resolved against the path given by `--input`,
   or the current directory if `--input` was omitted.
 
-- `--input-list-format=`*plain*|*gen_init_cpio*:
+- `--input-list-format=`*plain*|*gen_init_cpio*|*jsonl*:
   Select how the `--input-list` should be interpreted. Defaults to `plain`.
   The `plain` format retains the legacy `--input-list` semantics.
-  See[INPUT LIST FORMATS](#input-list-formats) for details.
+  See [INPUT LIST FORMATS](#input-list-formats) for details.
 
 - `-o`, `--output=`*file*|`-`:
   File name of the output filesystem or `-` to write the filesystem to stdout.
@@ -1351,6 +1351,58 @@ records always create symlinks.
 Synthetic entries, including a synthetic image root, use the default time
 provided by `--synthetic-time`. Regular files preserve the timestamps of
 their physical sources.
+
+### jsonl
+
+This accepts one JSON object per line. Each object describes one entry in the
+output filesystem. Empty lines are ignored. Entries are processed in order,
+so parent directories and hardlink targets must already exist. An initial
+`dir` entry with path `/` or `.` can define root attributes. Otherwise, a
+synthetic root is created. For example:
+
+```json
+{"type":"dir","path":"etc"}
+{"type":"dir","path":"etc/my app","mode":"0755","uid":0,"gid":0}
+{"type":"file","path":"etc/my app/config file","source":"config file","mtime":[1762941600,123456789],"aliases":["etc/my app/config backup"]}
+{"type":"hardlink","path":"etc/my app/another copy","target":"etc/my app/config backup"}
+{"type":"symlink","path":"etc/my app/active","target":"config file"}
+{"type":"dir","path":"dev"}
+{"type":"char","path":"dev/null","major":1,"minor":3,"mode":"0666"}
+{"type":"block","path":"dev/loop0","major":7,"minor":0}
+{"type":"fifo","path":"fifo"}
+{"type":"socket","path":"socket"}
+```
+
+Every object requires `type` and `path`. Supported types are `dir`, `file`,
+`hardlink`, `symlink`, `char`, `block`, `fifo`, and `socket`. A `file` requires
+`source`, the location of an existing regular file. Relative source paths are
+resolved against `--input` (or the current directory). Absolute source
+paths are used verbatim. Source symlinks are followed. The optional `aliases`
+array adds hardlink names to that file. A `hardlink` requires `target`, the
+path of an earlier regular file or hardlink. A `symlink` also requires
+`target`. Both `char` and `block` require `major` and `minor`. Device
+numbers, UIDs, and GIDs are non-negative integers.
+
+The optional `mode`, `uid`, and `gid` fields override the corresponding
+attributes. `mode` is a string containing octal permissions, such as
+`"0644"`. The optional `atime`, `mtime`, and `ctime` fields override timestamps.
+Each timestamp accepts integer Unix seconds, floating-point Unix seconds,
+`[seconds, nanoseconds]`, or a date/time string such as `"2026-11-12T12:34:56"`.
+The array form preserves nanosecond precision, including for dates before the
+Unix epoch. Nanoseconds must be between 0 and 999999999. Floating-point
+seconds are rounded to the nearest nanosecond. To store atime and ctime, use
+`--keep-all-times`. To retain subsecond timestamps, set `--time-resolution`
+to the desired resolution.
+
+Attributes may be omitted to preserve values from a physical source, or to
+use the defaults for synthetic entries. Hardlink records cannot override
+attributes.
+
+Paths and targets may contain whitespace or escaped characters, including
+newlines. The input is UTF-8. Logical paths are relative to the image root.
+A leading `/` is allowed. Invalid paths, unrecognized fields, duplicate JSON
+keys, and values of the wrong type are errors. Records cannot span multiple
+lines. JSON comments and trailing commas are not supported.
 
 ## INTERNAL OPERATION
 

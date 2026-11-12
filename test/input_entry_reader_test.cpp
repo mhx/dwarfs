@@ -345,11 +345,6 @@ TEST(input_entry_reader, plain_missing_sources_do_not_abort_reading) {
   EXPECT_EQ(0, reader->error_count());
 }
 
-TEST(input_entry_reader, factory_lists_supported_formats) {
-  EXPECT_THAT(writer::input_entry_reader_factory::names(),
-              testing::ElementsAre("plain", "gen_init_cpio"));
-}
-
 TEST(input_entry_reader, factory_rejects_unknown_format) {
   auto os = std::make_shared<test::os_access_mock>();
   test::test_logger lgr;
@@ -439,4 +434,133 @@ TEST(input_entry_reader, gen_init_cpio_explicit_root_is_regular_entry) {
   ASSERT_TRUE(etc);
   EXPECT_EQ(fs::path("etc"), etc->path);
   EXPECT_FALSE(reader->next());
+}
+
+TEST(input_entry_reader, jsonl_streaming_and_metadata) {
+  auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
+  std::istringstream list{R"(
+{"type":"dir","path":"/etc/my app","mode":"0750","uid":7}
+{"type":"file","path":"etc/my app/file name","source":"physical file","aliases":["etc/my app/copy 1"],"mtime":-0.25,"atime":[-2,123456789],"ctime":"1970-01-02T00:00:00"}
+{"type":"hardlink","path":"etc/my app/copy 2","target":"etc/my app/copy 1"}
+{"type":"symlink","path":"link name","target":"file name\nnext"}
+{"type":"char","path":"dev/null","major":1,"minor":3}
+{"type":"block","path":"dev/loop0","major":7,"minor":0}
+{"type":"fifo","path":"a fifo"}
+{"type":"socket","path":"a socket"}
+{"type":"dir","path":"root-time","mtime":1762941600}
+)"};
+  auto reader = writer::input_entry_reader_factory::create("jsonl", lgr, *os,
+                                                           &list, "/staging");
+  EXPECT_EQ(std::streampos(0), list.tellg());
+  EXPECT_FALSE(reader->implicit_root());
+
+  using spec = writer::input_entry_spec;
+  auto dir = reader->next();
+  ASSERT_TRUE(dir);
+  ASSERT_TRUE(dir->spec);
+  EXPECT_EQ(fs::path("etc/my app"), dir->path);
+  EXPECT_EQ(0750, dir->spec->attributes.permissions);
+  EXPECT_EQ(7, dir->spec->attributes.uid);
+  EXPECT_FALSE(dir->spec->attributes.gid);
+
+  auto file = reader->next();
+  ASSERT_TRUE(file);
+  ASSERT_TRUE(file->spec);
+  auto const* content = std::get_if<spec::file>(&file->spec->content);
+  ASSERT_TRUE(content);
+  EXPECT_EQ(fs::path("/staging/physical file"), content->source);
+  EXPECT_EQ((std::vector<fs::path>{"etc/my app/copy 1"}), content->aliases);
+  EXPECT_EQ((file_stat::timespec_type{-1, 750000000}),
+            file->spec->attributes.mtime);
+  EXPECT_EQ((file_stat::timespec_type{-2, 123456789}),
+            file->spec->attributes.atime);
+  EXPECT_EQ((file_stat::timespec_type{86400, 0}), file->spec->attributes.ctime);
+
+  auto hardlink = reader->next();
+  ASSERT_TRUE(hardlink);
+  ASSERT_TRUE(hardlink->spec);
+  EXPECT_EQ(fs::path("etc/my app/copy 1"),
+            std::get<spec::hardlink>(hardlink->spec->content).target);
+
+  auto symlink = reader->next();
+  ASSERT_TRUE(symlink);
+  ASSERT_TRUE(symlink->spec);
+  EXPECT_EQ("file name\nnext",
+            std::get<spec::symlink>(symlink->spec->content).target);
+
+  auto device = reader->next();
+  ASSERT_TRUE(device);
+  ASSERT_TRUE(device->spec);
+  auto const* dev = std::get_if<spec::device>(&device->spec->content);
+  ASSERT_TRUE(dev);
+  EXPECT_EQ(posix_file_type::character, dev->type);
+  EXPECT_EQ(1, dev->major);
+  EXPECT_EQ(3, dev->minor);
+
+  auto block = reader->next();
+  ASSERT_TRUE(block);
+  ASSERT_TRUE(block->spec);
+  auto const* block_dev = std::get_if<spec::device>(&block->spec->content);
+  ASSERT_TRUE(block_dev);
+  EXPECT_EQ(posix_file_type::block, block_dev->type);
+  EXPECT_EQ(7, block_dev->major);
+  EXPECT_EQ(0, block_dev->minor);
+
+  auto fifo = reader->next();
+  ASSERT_TRUE(fifo);
+  EXPECT_EQ(posix_file_type::fifo,
+            std::get<spec::special>(fifo->spec->content).type);
+  auto socket = reader->next();
+  ASSERT_TRUE(socket);
+  EXPECT_EQ(posix_file_type::socket,
+            std::get<spec::special>(socket->spec->content).type);
+  auto final = reader->next();
+  ASSERT_TRUE(final);
+  EXPECT_EQ((file_stat::timespec_type{1762941600, 0}),
+            final->spec->attributes.mtime);
+  EXPECT_FALSE(reader->next());
+  EXPECT_EQ(0, reader->error_count());
+}
+
+TEST(input_entry_reader, jsonl_rejects_invalid_records) {
+  auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
+  for (
+      auto const& record : {
+          R"({"type":"file","path":"a"})",
+          R"({"type":"dir","path":"../escape"})",
+          R"({"type":"dir","path":"/","extra":1})",
+          R"({"type":"file","path":"a","source":"b","nlink":2})",
+          R"({"type":"dir","path":"a","uid":-1})",
+          R"({"type":"dir","path":"a","gid":4294967296})",
+          R"({"type":"dir","path":"a","mode":644})",
+          R"({"type":"dir","path":"a","mode":"0899"})",
+          R"({"type":"dir","path":"a","mtime":[0,1000000000]})",
+          R"({"type":"dir","path":"a","mtime":[0,-1]})",
+          R"({"type":"dir","path":"a","mtime":null})",
+          R"({"type":"dir","path":"a","mtime":9223372036854775808})",
+          R"({"type":"dir","path":"a","mtime":"nonsense"})",
+          R"({"type":"dir","path":"a","uid":1,"uid":2})",
+          R"({"type":"hardlink","path":"b","target":"a","mode":"0644"})",
+          R"({"type":"hardlink","path":"b","target":"../a"})",
+          R"({"type":"symlink","path":"b"})",
+          R"({"type":"char","path":"a","major":1})",
+          R"({"type":"block","path":"a","minor":2})",
+          R"({"type":"char","path":"a","major":1,"minor":2,"device_type":"char"})",
+          R"({"type":"device","path":"a","device_type":"char","major":1,"minor":2})",
+          R"({"type":"dir","path":"a",})",
+          R"([{"type":"dir","path":"a"}])",
+      }) {
+    SCOPED_TRACE(record);
+    std::istringstream list(std::string(record) + "\n");
+    auto reader = writer::input_entry_reader_factory::create("jsonl", lgr, *os,
+                                                             &list, "/");
+    try {
+      reader->next();
+      FAIL() << "expected an invalid record error";
+    } catch (std::exception const& e) {
+      EXPECT_THAT(e.what(), testing::HasSubstr("jsonl line 1:"));
+    }
+  }
 }

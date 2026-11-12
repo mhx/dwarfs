@@ -24,9 +24,16 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <deque>
+#include <filesystem>
+#include <initializer_list>
 #include <istream>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -37,6 +44,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
@@ -54,7 +62,9 @@ namespace fs = std::filesystem;
 
 constexpr std::string_view kPlainReaderName = "plain";
 constexpr std::string_view kGenInitCpioReaderName = "gen_init_cpio";
-constexpr std::array kReaderNames{kPlainReaderName, kGenInitCpioReaderName};
+constexpr std::string_view kJsonlReaderName = "jsonl";
+constexpr std::array kReaderNames{kPlainReaderName, kGenInitCpioReaderName,
+                                  kJsonlReaderName};
 
 std::istream& get_input_stream(entry_reader_stream& input) {
   return input | match{
@@ -421,6 +431,365 @@ std::optional<input_entry> gen_init_cpio_impl::next() {
   return std::nullopt;
 }
 
+class jsonl_impl final : public input_entry_reader {
+ public:
+  using json = nlohmann::json;
+  using spec = input_entry_spec;
+
+  jsonl_impl(entry_reader_stream input, fs::path const& root)
+      : input_{std::move(input)}
+      , is_{get_input_stream(input_)}
+      , root_{root} {}
+
+  std::optional<input_entry> next() override;
+
+  std::optional<input_entry> implicit_root() const override {
+    return std::nullopt;
+  }
+
+  std::size_t error_count() const noexcept override { return 0; }
+
+ private:
+  input_entry parse_entry(json const& record) const;
+  input_entry_attributes parse_attributes(json const& record) const;
+  file_stat::timespec_type parse_timestamp(json const& value) const;
+  fs::path logical_path(json const& value, bool allow_root = false) const;
+  fs::path physical_path(json const& value) const;
+  std::string string(json const& value, std::string_view field) const;
+  std::uint32_t number(json const& value, std::string_view field) const;
+  void check_fields(json const& record,
+                    std::initializer_list<std::string_view> fields) const;
+
+  entry_reader_stream input_;
+  std::istream& is_;
+  fs::path root_;
+  std::size_t line_{0};
+};
+
+std::string
+jsonl_impl::string(json const& value, std::string_view field) const {
+  if (!value.is_string()) {
+    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a string", field));
+  }
+
+  auto result = value.get<std::string>();
+
+  if (result.find('\0') != std::string::npos) {
+    DWARFS_THROW(runtime_error, fmt::format("'{}' contains a NUL byte", field));
+  }
+
+  return result;
+}
+
+std::uint32_t
+jsonl_impl::number(json const& value, std::string_view field) const {
+  if (!value.is_number_integer()) {
+    DWARFS_THROW(runtime_error, fmt::format("'{}' must be an integer", field));
+  }
+
+  if (value.is_number_unsigned()) {
+    auto const n = value.get<std::uint64_t>();
+
+    if (n <= std::numeric_limits<std::uint32_t>::max()) {
+      return static_cast<std::uint32_t>(n);
+    }
+  } else {
+    auto const n = value.get<std::int64_t>();
+
+    if (n >= 0 && n <= std::numeric_limits<std::uint32_t>::max()) {
+      return static_cast<std::uint32_t>(n);
+    }
+  }
+
+  DWARFS_THROW(runtime_error, fmt::format("'{}' is out of range", field));
+}
+
+fs::path jsonl_impl::logical_path(json const& value, bool allow_root) const {
+  auto const name = string(value, "path");
+
+  if (allow_root && (name == "/" || name == ".")) {
+    return ".";
+  }
+
+  auto path = fs::path{name}.relative_path().lexically_normal();
+
+  if (name.empty() || path.empty() || path == "." ||
+      std::ranges::any_of(path,
+                          [](auto const& part) { return part == ".."; })) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid image path '{}'", name));
+  }
+
+  return path;
+}
+
+fs::path jsonl_impl::physical_path(json const& value) const {
+  auto const name = string(value, "source");
+
+  if (name.empty()) {
+    DWARFS_THROW(runtime_error, "'source' must not be empty");
+  }
+
+  fs::path path{name};
+
+  if (!path.is_absolute()) {
+    path = root_ / path;
+  }
+
+  return path;
+}
+
+file_stat::timespec_type jsonl_impl::parse_timestamp(json const& value) const {
+  if (value.is_array()) {
+    if (value.size() != 2 || !value[0].is_number_integer()) {
+      DWARFS_THROW(runtime_error,
+                   "timestamp must be [integer seconds, integer nanoseconds]");
+    }
+
+    if (value[0].is_number_unsigned() &&
+        value[0].get<std::uint64_t>() >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<file_stat::time_type>::max())) {
+      DWARFS_THROW(runtime_error, "timestamp seconds out of range");
+    }
+
+    auto const seconds = value[0].get<file_stat::time_type>();
+    auto const nanos = number(value[1], "timestamp nanoseconds");
+
+    if (nanos >= 1'000'000'000) {
+      DWARFS_THROW(runtime_error, "timestamp nanoseconds out of range");
+    }
+
+    return {seconds, nanos};
+  }
+
+  if (value.is_string()) {
+    auto const tp = parse_time_point(string(value, "timestamp"));
+    auto const elapsed = tp.time_since_epoch();
+    auto const seconds = std::chrono::floor<std::chrono::seconds>(elapsed);
+    auto const nanos =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed - seconds)
+            .count();
+
+    return {seconds.count(), static_cast<std::uint32_t>(nanos)};
+  }
+
+  if (value.is_number_integer()) {
+    if (value.is_number_unsigned()) {
+      auto const n = value.get<std::uint64_t>();
+
+      if (n > static_cast<std::uint64_t>(
+                  std::numeric_limits<file_stat::time_type>::max())) {
+        DWARFS_THROW(runtime_error, "timestamp seconds out of range");
+      }
+
+      return {static_cast<file_stat::time_type>(n), 0};
+    }
+
+    return {value.get<file_stat::time_type>(), 0};
+  }
+
+  if (value.is_number_float()) {
+    auto const seconds = static_cast<long double>(value.get<double>());
+    auto const whole = std::floor(seconds);
+    auto const limit = std::ldexp(1.0L, 63);
+
+    if (!std::isfinite(seconds) || whole < -limit || whole >= limit) {
+      DWARFS_THROW(runtime_error, "timestamp seconds out of range");
+    }
+
+    auto sec = static_cast<file_stat::time_type>(whole);
+    auto nanos = std::llround((seconds - whole) * 1000000000.0L);
+
+    if (nanos == 1000000000) {
+      if (whole >= limit - 1) {
+        DWARFS_THROW(runtime_error, "timestamp seconds out of range");
+      }
+
+      ++sec;
+      nanos = 0;
+    }
+
+    return {sec, static_cast<std::uint32_t>(nanos)};
+  }
+
+  DWARFS_THROW(runtime_error, "invalid timestamp value");
+}
+
+input_entry_attributes jsonl_impl::parse_attributes(json const& record) const {
+  input_entry_attributes attributes;
+
+  if (record.contains("mode")) {
+    auto const mode = string(record.at("mode"), "mode");
+    std::uint32_t value{};
+    auto const [end, ec] =
+        std::from_chars(mode.data(), mode.data() + mode.size(), value, 8);
+
+    if (ec != std::errc{} || end != mode.data() + mode.size() ||
+        value > 07777) {
+      DWARFS_THROW(runtime_error, fmt::format("invalid mode '{}'", mode));
+    }
+
+    attributes.permissions = value;
+  }
+
+  if (record.contains("uid")) {
+    attributes.uid = number(record.at("uid"), "uid");
+  }
+
+  if (record.contains("gid")) {
+    attributes.gid = number(record.at("gid"), "gid");
+  }
+
+  if (record.contains("atime")) {
+    attributes.atime = parse_timestamp(record.at("atime"));
+  }
+
+  if (record.contains("mtime")) {
+    attributes.mtime = parse_timestamp(record.at("mtime"));
+  }
+
+  if (record.contains("ctime")) {
+    attributes.ctime = parse_timestamp(record.at("ctime"));
+  }
+
+  return attributes;
+}
+
+void jsonl_impl::check_fields(
+    json const& record, std::initializer_list<std::string_view> fields) const {
+  for (auto it = record.begin(); it != record.end(); ++it) {
+    auto const& key = it.key();
+
+    if (key == "type" || key == "path" || key == "mode" || key == "uid" ||
+        key == "gid" || key == "atime" || key == "mtime" || key == "ctime" ||
+        std::ranges::find(fields, std::string_view{key}) != fields.end()) {
+      continue;
+    }
+
+    DWARFS_THROW(runtime_error, fmt::format("unknown field '{}'", key));
+  }
+}
+
+input_entry jsonl_impl::parse_entry(json const& record) const {
+  if (!record.is_object()) {
+    DWARFS_THROW(runtime_error, "record must be a JSON object");
+  }
+
+  if (!record.contains("type") || !record.contains("path")) {
+    DWARFS_THROW(runtime_error, "record requires 'type' and 'path'");
+  }
+
+  auto const type = string(record.at("type"), "type");
+  auto const path = logical_path(record.at("path"), type == "dir");
+  spec result{.content = spec::directory{},
+              .attributes = parse_attributes(record)};
+
+  if (type == "file") {
+    check_fields(record, {"source", "aliases"});
+
+    if (!record.contains("source")) {
+      DWARFS_THROW(runtime_error, "file requires 'source'");
+    }
+
+    spec::file file{.source = physical_path(record.at("source"))};
+
+    if (record.contains("aliases")) {
+      auto const& aliases = record.at("aliases");
+
+      if (!aliases.is_array()) {
+        DWARFS_THROW(runtime_error, "'aliases' must be an array");
+      }
+
+      file.aliases.reserve(aliases.size());
+
+      for (auto const& alias : aliases) {
+        file.aliases.push_back(logical_path(alias));
+      }
+    }
+
+    result.content = std::move(file);
+  } else if (type == "dir") {
+    check_fields(record, {});
+  } else if (type == "symlink" || type == "hardlink") {
+    check_fields(record, {"target"});
+
+    if (!record.contains("target")) {
+      DWARFS_THROW(runtime_error, "link requires 'target'");
+    }
+
+    if (type == "symlink") {
+      result.content = spec::symlink{string(record.at("target"), "target")};
+    } else {
+      for (auto const& key :
+           {"mode", "uid", "gid", "atime", "mtime", "ctime"}) {
+        if (record.contains(key)) {
+          DWARFS_THROW(runtime_error,
+                       "hardlink cannot override file attributes");
+        }
+      }
+
+      result.content = spec::hardlink{logical_path(record.at("target"))};
+    }
+  } else if (type == "char" || type == "block") {
+    check_fields(record, {"major", "minor"});
+
+    if (!record.contains("major") || !record.contains("minor")) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("{} requires 'major' and 'minor'", type));
+    }
+
+    result.content = spec::device{
+        .type = type == "char" ? posix_file_type::character
+                               : posix_file_type::block,
+        .major = number(record.at("major"), "major"),
+        .minor = number(record.at("minor"), "minor"),
+    };
+  } else if (type == "fifo" || type == "socket") {
+    check_fields(record, {});
+    result.content = spec::special{type == "fifo" ? posix_file_type::fifo
+                                                  : posix_file_type::socket};
+  } else {
+    DWARFS_THROW(runtime_error, fmt::format("unknown entry type '{}'", type));
+  }
+
+  return {.path = path, .source = std::nullopt, .spec = std::move(result)};
+}
+
+std::optional<input_entry> jsonl_impl::next() {
+  std::string line;
+
+  while (std::getline(is_, line)) {
+    ++line_;
+
+    if (line.find_first_not_of(" \t\r") == std::string::npos) {
+      continue;
+    }
+
+    try {
+      std::unordered_set<std::string> keys;
+      auto callback = [&keys](int depth, json::parse_event_t event,
+                              json& value) {
+        if (depth == 1 && event == json::parse_event_t::key &&
+            !keys.insert(value.get<std::string>()).second) {
+          DWARFS_THROW(runtime_error, "duplicate JSON object key");
+        }
+        return true;
+      };
+
+      return parse_entry(json::parse(line, callback));
+    } catch (std::exception const& e) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("jsonl line {}: {}", line_, e.what()));
+    }
+  }
+
+  if (!is_.eof()) {
+    DWARFS_THROW(runtime_error, "error reading jsonl input list");
+  }
+
+  return std::nullopt;
+}
+
 } // namespace
 
 std::span<std::string_view const> input_entry_reader_factory::names() noexcept {
@@ -440,6 +809,10 @@ input_entry_reader_factory::create(std::string_view name, logger& lgr,
   if (name == kGenInitCpioReaderName) {
     return std::make_unique<gen_init_cpio_impl>(std::move(input), os, lgr,
                                                 canonical_input_root);
+  }
+
+  if (name == kJsonlReaderName) {
+    return std::make_unique<jsonl_impl>(std::move(input), canonical_input_root);
   }
 
   DWARFS_THROW(runtime_error,
