@@ -23,7 +23,11 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <set>
+#include <string>
+#include <string_view>
 #include <system_error>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -45,6 +49,73 @@ TEST(mkdwarfs_input_list, format_names_in_help) {
   EXPECT_THAT(t.out(), testing::HasSubstr("--input-list-format"));
   EXPECT_THAT(t.out(), testing::HasSubstr("gen_init_cpio"));
   EXPECT_THAT(t.out(), testing::HasSubstr("jsonl"));
+}
+
+TEST(mkdwarfs_input_list, all_formats_contain_only_listed_paths) {
+  for (auto const format : {"plain", "gen_init_cpio", "jsonl"}) {
+    for (bool const include_root : {false, true}) {
+      SCOPED_TRACE(fmt::format("{} include_root={}", format, include_root));
+
+      auto t = mkdwarfs_tester::create_empty();
+      t.os->add_dir("/");
+      t.os->add_dir("/staging");
+      t.os->add_file("/staging/alpha", "alpha contents");
+      t.os->add_dir("/staging/sub");
+      t.os->add_file("/staging/sub/beta", "beta contents");
+      t.os->add_dir("/staging/sub/empty");
+
+      std::string list;
+
+      if (std::string_view(format) == "plain") {
+        if (include_root) {
+          list = "/staging\n";
+        }
+
+        list += "/staging/alpha\n/staging/sub\n/staging/sub/beta\n"
+                "/staging/sub/empty\n";
+      } else if (std::string_view(format) == "gen_init_cpio") {
+        if (include_root) {
+          list = "dir / 0755 0 0\n";
+        }
+
+        list += R"(file /alpha alpha 0644 0 0
+dir /sub 0755 0 0
+file /sub/beta sub/beta 0644 0 0
+dir /sub/empty 0755 0 0
+)";
+      } else {
+        if (include_root) {
+          list = R"({"type":"dir","path":"/"}
+)";
+        }
+
+        list += R"({"type":"file","path":"alpha","source":"alpha"}
+{"type":"dir","path":"sub"}
+{"type":"file","path":"sub/beta","source":"sub/beta"}
+{"type":"dir","path":"sub/empty"}
+)";
+      }
+
+      auto const input = t.set_input_list(input_mode::from_stdin, list);
+      std::vector<std::string> args{"-i",  "/staging", "--input-list", input,
+                                    "-l1", "-o",       "test.dwarfs"};
+
+      if (std::string_view(format) != "plain") {
+        args.emplace_back("--input-list-format=" + std::string(format));
+      }
+
+      ASSERT_EQ(0, t.run(args)) << t.err();
+
+      auto fs = t.fs_from_file("test.dwarfs");
+      std::multiset<std::filesystem::path> paths;
+
+      fs.walk([&](auto const& entry) { paths.insert(entry.fs_path()); });
+
+      EXPECT_EQ((std::multiset<std::filesystem::path>{"", "alpha", "sub",
+                                                      "sub/beta", "sub/empty"}),
+                paths);
+    }
+  }
 }
 
 TEST(mkdwarfs_input_list, gen_init_cpio_synthetic_entries_and_hardlinks) {
