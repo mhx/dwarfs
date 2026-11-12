@@ -57,7 +57,10 @@ class file_scanner {
                dwarfs::internal::worker_group& wg, os_access const& os,
                inode_manager& im, progress& prog, options const& opts);
 
-  void scan(file_handle p) { impl_->scan(p); }
+  void scan(file_handle p, bool track_hardlinks = false) {
+    impl_->scan(p, track_hardlinks);
+  }
+  bool can_hardlink(file_handle p) const { return impl_->can_hardlink(p); }
   void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
   uint32_t num_unique() const { return impl_->num_unique(); }
   void dump(std::ostream& os) const { impl_->dump(os); }
@@ -66,7 +69,8 @@ class file_scanner {
    public:
     virtual ~impl() = default;
 
-    virtual void scan(file_handle p) = 0;
+    virtual void scan(file_handle p, bool track_hardlinks) = 0;
+    virtual bool can_hardlink(file_handle p) const = 0;
     virtual void finalize(uint32_t& inode_num) = 0;
     virtual uint32_t num_unique() const = 0;
     virtual void dump(std::ostream& os) const = 0;

@@ -58,8 +58,7 @@ struct input_entry_attributes {
 struct input_entry_spec {
   struct file {
     std::filesystem::path source;
-    std::vector<std::filesystem::path> aliases;
-    file_stat::nlink_type nlink{1};
+    std::vector<std::filesystem::path> aliases{};
   };
 
   struct directory {};

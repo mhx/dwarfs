@@ -230,6 +230,48 @@ file /a/two second 0600 21 22 /b/two-link
   }
 }
 
+TEST(mkdwarfs_input_list, rejected_alias_does_not_change_link_count) {
+  for (bool const dedupe : {true, false}) {
+    SCOPED_TRACE(dedupe);
+    auto t = mkdwarfs_tester::create_empty();
+    t.os->add_dir("/");
+    t.os->add_dir("/staging");
+    t.os->add_file("/staging/source", "contents");
+
+    auto const input = t.set_input_list(input_mode::from_stdin,
+                                        "file /a source 0644 0 0 /b /b /c\n");
+
+    std::vector<std::string> args{
+        "-i",
+        "/staging",
+        "--input-list",
+        input,
+        "--input-list-format=gen_init_cpio",
+        "-l1",
+        "-o",
+        "test.dwarfs",
+    };
+
+    if (!dedupe) {
+      args.emplace_back("--no-dedupe");
+    }
+
+    EXPECT_EQ(2, t.run(args)) << t.err();
+
+    auto fs = t.fs_from_file("test.dwarfs");
+    auto a = fs.find("/a");
+    auto b = fs.find("/b");
+    auto c = fs.find("/c");
+
+    ASSERT_TRUE(a);
+    ASSERT_TRUE(b);
+    ASSERT_TRUE(c);
+    EXPECT_EQ(a->inode().inode_num(), b->inode().inode_num());
+    EXPECT_EQ(a->inode().inode_num(), c->inode().inode_num());
+    EXPECT_EQ(3, fs.getattr(a->inode()).nlink());
+  }
+}
+
 TEST(mkdwarfs_input_list, gen_init_cpio_rejects_invalid_option) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");
