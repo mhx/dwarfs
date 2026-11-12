@@ -37,6 +37,34 @@
 using namespace dwarfs;
 namespace fs = std::filesystem;
 
+TEST(input_entry_reader, manifest_sources_use_native_separators) {
+  auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
+#ifdef _WIN32
+  fs::path const root{LR"(\\?\C:\staging)"};
+#else
+  fs::path const root{"/staging"};
+#endif
+
+  for (auto const format : {"gen_init_cpio", "jsonl"}) {
+    SCOPED_TRACE(format);
+    std::istringstream list{
+        std::string(format) == "gen_init_cpio"
+            ? "file /sub/beta sub/beta 0644 0 0\n"
+            : R"({"type":"file","path":"sub/beta","source":"sub/beta"})"
+              "\n"};
+    auto reader = writer::input_entry_reader_factory::create(format, lgr, *os,
+                                                             &list, root);
+    auto entry = reader->next();
+    ASSERT_TRUE(entry);
+    ASSERT_TRUE(entry->spec);
+    auto const* file =
+        std::get_if<writer::input_entry_spec::file>(&entry->spec->content);
+    ASSERT_TRUE(file);
+    EXPECT_EQ((root / "sub" / "beta").native(), file->source.native());
+  }
+}
+
 TEST(input_entry_reader, gen_init_cpio_streaming_and_hardlinks) {
   auto os = std::make_shared<test::os_access_mock>();
   test::test_logger lgr;
