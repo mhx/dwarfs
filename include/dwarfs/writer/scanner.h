@@ -61,6 +61,7 @@ struct scan_source {
   std::filesystem::path path;
   std::unique_ptr<input_entry_reader> input_entries{};
   scan_source_mode mode{scan_source_mode::contents};
+  std::optional<file_stat::time_type> synthetic_time{};
 };
 
 struct scan_root_attributes {

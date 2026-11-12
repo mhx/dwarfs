@@ -331,10 +331,12 @@ struct shared_entry_data {
     return {}; // doesn't matter
   }
 
-  std::size_t add_physical_path_mapping(fs::path const& path, entry_id anchor) {
+  std::size_t add_physical_path_mapping(fs::path const& path, entry_id anchor,
+                                        bool preserve_inode_identity = false) {
     DWARFS_CHECK(!physical_path_mappings_.empty(), "root directory not set");
     DWARFS_CHECK(anchor.valid(), "invalid physical path mapping anchor");
-    physical_path_mapping mapping{path.native(), anchor};
+    physical_path_mapping mapping{path.native(), anchor,
+                                  preserve_inode_identity};
 
     // Sources sharing a parent directory can reuse the same root mapping. This
     // is the common case when using multiple inputs, so it's worth saving the
@@ -362,6 +364,7 @@ struct shared_entry_data {
   struct physical_path_mapping {
     fs::path::string_type base;
     entry_id anchor;
+    bool preserve_inode_identity{false};
 
     bool operator==(physical_path_mapping const&) const = default;
   };
@@ -823,6 +826,10 @@ class packed_entry_data {
                    fs::path const& path, file_stat const& st, dir_id parent,
                    std::size_t physical_mapping);
 
+  add_entry_result
+  add_hardlinked_file(shared_entry_data& shared, fs::path const& path,
+                      dir_id parent, std::size_t mapping, file_id source);
+
   void add_file_specific() {
     assert(this_type_ == entry_type::E_FILE);
     file_data_index_.push_back(std::nullopt);
@@ -901,6 +908,9 @@ class packed_entry_data {
     if (mapping != 0) {
       auto const anchor = shared.physical_mapping_at(mapping).anchor;
       if (anchor == entry_id{this_type_, index}) {
+        if (shared.physical_mapping_at(mapping).preserve_inode_identity) {
+          return inode;
+        }
         // An individually dereferenced symlink has no hardlink identity.
         return std::monostate{};
       }
@@ -1777,6 +1787,37 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   return {entry_ix, path_storage};
 }
 
+packed_entry_data::add_entry_result
+packed_entry_data::add_hardlinked_file(shared_entry_data& shared,
+                                       fs::path const& path, dir_id parent,
+                                       std::size_t mapping, file_id source) {
+  assert(this_type_ == entry_type::E_FILE);
+
+  auto stat = stat_common_.get(source.index());
+
+  get<kPhysicalMappingField>(stat) = mapping;
+
+  auto const storage = shared.add_path_component(path);
+  auto const index = path_storage_index_.size();
+
+  path_storage_index_.push_back(storage);
+  parent_dir_id_.push_back(parent);
+  final_entry_index_.push_back(std::nullopt);
+  stat_common_.push_back(stat);
+
+  auto const size = get_size_info(source.index());
+
+  entry_size_.push_back(size.total);
+
+  if (size.total != size.allocated) {
+    entry_allocated_size_.emplace(index, size.allocated);
+  }
+
+  add_file_specific();
+
+  return {index, storage};
+}
+
 void packed_entry_data::update_global_entry_data(
     shared_entry_data const& shared, uint64_t const index,
     global_entry_data& data) const {
@@ -1911,39 +1952,49 @@ class entry_storage_ final : public entry_storage::entry_impl {
     }
   }
 
+  void register_dir_entry(dir_id parent, entry_type type, std::size_t index,
+                          path_name_storage_tuple const& storage) {
+    if (!parent) {
+      return;
+    }
+
+    shared_.add_dir_entry(parent, type, index);
+
+    if (auto const it = dir_entry_lookup_.find(parent.index());
+        it != dir_entry_lookup_.end()) {
+      auto const inserted [[maybe_unused]] =
+          it->second
+              .emplace(shared_.get_utf8_path_component(storage),
+                       entry_id{type, index})
+              .second;
+      assert(inserted);
+    }
+  }
+
   entry_id
   make_obj_(entry_type const type, packed_entry_data& data,
             fs::path const& path, file_stat const& st, dir_id const parent,
             physical_mapping_type const& mapping) {
     if constexpr (is_mutable) {
       auto const physical_mapping = [&] {
-        if (auto const* physical_path = std::get_if<fs::path>(&mapping)) {
+        auto const* physical_path = std::get_if<fs::path>(&mapping);
+        if (physical_path ||
+            std::holds_alternative<hardlink_source_mapping>(mapping)) {
           DWARFS_CHECK(parent.valid(),
                        "cannot override the physical path of the root");
-          // The mapping and the entry are created while holding the storage
-          // lock. The new entry becomes its own anchor.
-          return shared_.add_physical_path_mapping(*physical_path,
-                                                   data.next_id(type));
+          auto const preserve_identity = !physical_path;
+          auto const& path =
+              physical_path ? *physical_path
+                            : std::get<hardlink_source_mapping>(mapping).path;
+          return shared_.add_physical_path_mapping(path, data.next_id(type),
+                                                   preserve_identity);
         }
         return std::get<std::size_t>(mapping);
       }();
       auto const [entry_ix, path_storage] = data.add_entry_common(
           shared_, type, path, st, parent, physical_mapping);
 
-      if (parent) {
-        shared_.add_dir_entry(parent, type, entry_ix);
-
-        if (auto const it = dir_entry_lookup_.find(parent.index());
-            it != dir_entry_lookup_.end()) {
-          auto& lookup = it->second;
-          auto const inserted [[maybe_unused]] =
-              lookup
-                  .emplace(shared_.get_utf8_path_component(path_storage),
-                           entry_id{type, entry_ix})
-                  .second;
-          assert(inserted);
-        }
-      }
+      register_dir_entry(parent, type, entry_ix, path_storage);
 
       switch (type) {
       case entry_type::E_FILE:
@@ -1972,6 +2023,26 @@ class entry_storage_ final : public entry_storage::entry_impl {
   make_file(fs::path const& path, file_stat const& st, dir_id const parent,
             physical_mapping_type const& mapping) override {
     return make_obj_(entry_type::E_FILE, files_, path, st, parent, mapping);
+  }
+
+  entry_id make_hardlinked_file(fs::path const& path, dir_id parent,
+                                file_id source) override {
+    if constexpr (is_mutable) {
+      DWARFS_CHECK(parent.valid() && source.valid(),
+                   "hardlink needs a parent and source");
+
+      auto const physical =
+          get_fs_path_impl(source, physical_mapping_id(source));
+      auto const mapping = shared_.add_physical_path_mapping(
+          physical, files_.next_id(entry_type::E_FILE), true);
+      auto const [index, storage] =
+          files_.add_hardlinked_file(shared_, path, parent, mapping, source);
+
+      register_dir_entry(parent, entry_type::E_FILE, index, storage);
+      return {entry_type::E_FILE, index};
+    } else {
+      frozen_panic();
+    }
   }
 
   entry_id
@@ -3346,6 +3417,11 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->make_file(path, st, parent, mapping);
   }
 
+  entry_id make_hardlinked_file(fs::path const& path, dir_id parent,
+                                file_id source) override {
+    return impl_.lock()->make_hardlinked_file(path, parent, source);
+  }
+
   entry_id
   make_dir(fs::path const& path, file_stat const& st, dir_id const parent,
            physical_mapping_type const& mapping) override {
@@ -3686,6 +3762,28 @@ entry_storage::~entry_storage() = default;
 entry_storage::entry_storage(entry_storage&&) noexcept = default;
 entry_storage& entry_storage::operator=(entry_storage&&) noexcept = default;
 
+entry_handle entry_storage::find_entry(dir_handle root, fs::path const& path) {
+  if (!root || path.empty() || path.has_root_path()) {
+    return {};
+  }
+
+  entry_handle current = root;
+
+  for (auto const& part : path) {
+    if (part.empty() || part == "." || part == ".." || !current.is_dir()) {
+      return {};
+    }
+
+    current = current.as_dir().find(part.string());
+
+    if (!current) {
+      return {};
+    }
+  }
+
+  return current;
+}
+
 void entry_storage::dump(std::ostream& os) const {
   entry_impl_->dump(os);
   inode_impl_->dump(os);
@@ -3734,6 +3832,14 @@ entry_storage::create_root_dir(fs::path const& path, file_stat const& st,
                                std::size_t physical_mapping) {
   DWARFS_CHECK(empty(), "entry_storage root already set");
   return {*this, entry_impl_->make_dir(path, st, dir_id{}, physical_mapping)};
+}
+
+file_handle
+entry_storage::create_hardlinked_file(fs::path const& path, dir_handle parent,
+                                      file_handle source) {
+  assert(!empty());
+  return {*this,
+          entry_impl_->make_hardlinked_file(path, parent.id(), source.id())};
 }
 
 file_handle entry_storage::create_file(fs::path const& path, dir_handle parent,

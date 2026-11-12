@@ -144,9 +144,10 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
     writer::scan_request default_request;
     default_request.sources.push_back({
         .path = "/",
-        .input_entries = input_list ? writer::plain_input_entry_reader::create(
-                                          input_list, "/", *input)
-                                    : nullptr,
+        .input_entries = input_list
+                             ? writer::input_entry_reader_factory::create(
+                                   "plain", lgr, *input, input_list, "/")
+                             : nullptr,
     });
     s.scan(fsw, default_request, *prog);
   }
@@ -1467,21 +1468,31 @@ TEST(file_scanner, explicit_synthetic_root_metadata) {
 
 TEST(file_scanner, plain_input_entry_reader_is_single_pass) {
   auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
   os->add_dir("/");
   std::istringstream list{"./file\ndir/\nfile\nfile\n\n"};
-  auto reader = writer::plain_input_entry_reader::create(&list, "/", *os);
+  auto reader =
+      writer::input_entry_reader_factory::create("plain", lgr, *os, &list, "/");
 
   // Construction must not consume any input.
   EXPECT_EQ(0, list.tellg());
 
+  auto root = reader->implicit_root();
+  ASSERT_TRUE(root);
+  EXPECT_EQ(fs::path("."), root->path);
+  EXPECT_EQ(fs::path("/"), root->source);
+  EXPECT_EQ(std::streampos(0), list.tellg());
+
   auto first = reader->next();
   ASSERT_TRUE(first);
-  EXPECT_EQ(fs::path("./file"), first->path);
+  EXPECT_EQ(fs::path("file"), first->path);
+  ASSERT_TRUE(first->source);
+  EXPECT_EQ(fs::path("/file"), *first->source);
 
   // Only the first entry should have been consumed.
   EXPECT_EQ(std::streampos(7), list.tellg());
 
-  std::vector<fs::path> const expected{"dir/", "file", "file", ""};
+  std::vector<fs::path> const expected{"dir", "file", "file"};
   for (auto const& path : expected) {
     auto entry = reader->next();
     ASSERT_TRUE(entry);
@@ -1490,6 +1501,7 @@ TEST(file_scanner, plain_input_entry_reader_is_single_pass) {
 
   EXPECT_FALSE(reader->next());
   EXPECT_FALSE(reader->next());
+  EXPECT_EQ(1, reader->error_count()); // Empty line is invalid.
 }
 
 TEST(file_scanner, plain_input_entry_reader_owns_input_stream) {
@@ -1511,14 +1523,18 @@ TEST(file_scanner, plain_input_entry_reader_owns_input_stream) {
   };
 
   auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
   os->add_dir("/");
   int destroyed = 0;
   std::unique_ptr<input_stream> stream =
       std::make_unique<owned_list_stream>(destroyed);
-  auto reader =
-      writer::plain_input_entry_reader::create(std::move(stream), "/", *os);
+  auto reader = writer::input_entry_reader_factory::create(
+      "plain", lgr, *os, std::move(stream), "/");
 
   EXPECT_EQ(0, destroyed);
+  auto root = reader->implicit_root();
+  ASSERT_TRUE(root);
+  EXPECT_EQ(fs::path("."), root->path);
   auto first = reader->next();
   ASSERT_TRUE(first);
   EXPECT_EQ(fs::path("first"), first->path);
@@ -1534,6 +1550,7 @@ TEST(file_scanner, plain_input_entry_reader_owns_input_stream) {
 
 TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
   auto os = std::make_shared<test::os_access_mock>();
+  test::test_logger lgr;
   os->add_dir("/");
   os->add_dir("/real");
   os->add_dir("/real/src");
@@ -1555,16 +1572,17 @@ TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
       "\n",
   };
 
-  auto reader = writer::plain_input_entry_reader::create(&list, root, *os);
+  auto reader = writer::input_entry_reader_factory::create("plain", lgr, *os,
+                                                           &list, root);
+
+  // The scanner uses the source-backed implicit root if no root is listed.
+  auto implicit_root = reader->implicit_root();
+  ASSERT_TRUE(implicit_root);
+  EXPECT_EQ(fs::path("."), implicit_root->path);
+  EXPECT_EQ(root, implicit_root->source);
 
   std::vector<fs::path> const expected{
-      "/real/src/subdir/file",
-      "/real/src/link",
-      "/real/src/link",
-      "subdir/file",
-      "/outside/file",
-      "subdir/file",
-      "",
+      "subdir", "subdir/file", "link", "link", "subdir/file", "subdir/file",
   };
 
   for (auto const& path : expected) {
@@ -1574,6 +1592,135 @@ TEST(file_scanner, plain_input_entry_reader_rebases_only_root_prefix) {
   }
 
   EXPECT_FALSE(reader->next());
+  EXPECT_EQ(2, reader->error_count()); // Outside root and empty line.
+}
+
+TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
+  class vector_reader final : public writer::input_entry_reader {
+   public:
+    explicit vector_reader(std::vector<writer::input_entry> entries)
+        : entries_{std::move(entries)} {}
+
+    std::optional<writer::input_entry> next() override {
+      if (index_ == entries_.size()) {
+        return std::nullopt;
+      }
+      return entries_[index_++];
+    }
+
+    std::optional<writer::input_entry> implicit_root() const override {
+      return std::nullopt;
+    }
+
+    std::size_t error_count() const noexcept override { return 0; }
+
+   private:
+    std::vector<writer::input_entry> entries_;
+    std::size_t index_{0};
+  };
+
+  for (bool const dedupe : {true, false}) {
+    SCOPED_TRACE(dedupe);
+
+    test::test_logger lgr;
+    auto os = std::make_shared<test::os_access_mock>();
+    os->add_dir("/");
+    os->add_dir("/staging");
+    os->add_file("/staging/a", "alpha contents");
+    os->add_file("/staging/b", "beta contents");
+
+    using spec = writer::input_entry_spec;
+    spec file_a{.content = spec::file{"/staging/a", {}, 4},
+                .permissions = 0640,
+                .uid = 123,
+                .gid = 456};
+    spec file_b{.content = spec::file{"/staging/b", {}, 2},
+                .permissions = 0640,
+                .uid = 123,
+                .gid = 456};
+    spec dir_spec{.content = spec::directory{}, .permissions = 0755};
+    spec symlink_spec{.content = spec::symlink{"a"}, .permissions = 0777};
+    spec device_spec{.content = spec::device{posix_file_type::character, 1, 3},
+                     .permissions = 0644};
+    spec fifo_spec{.content = spec::special{posix_file_type::fifo},
+                   .permissions = 0644};
+    spec socket_spec{.content = spec::special{posix_file_type::socket},
+                     .permissions = 0644};
+
+    auto alias = [](fs::path path, fs::path target) {
+      return writer::input_entry{
+          std::move(path), std::nullopt,
+          spec{.content = spec::hardlink{std::move(target)}}};
+    };
+
+    std::vector<writer::input_entry> entries{
+        {"a", std::nullopt, file_a},
+        {"b", std::nullopt, file_b},
+        {"nested", std::nullopt, dir_spec},
+        alias("a-link", "a"),
+        alias("b-link", "b"),
+        alias("a-chain", "a-link"),
+        alias("nested/a-link", "a-chain"),
+        {"sym", std::nullopt, symlink_spec},
+        {"dev", std::nullopt, device_spec},
+        {"fifo", std::nullopt, fifo_spec},
+        {"socket", std::nullopt, socket_spec},
+    };
+
+    writer::scan_request request;
+    request.sources.push_back(
+        {.path = "/staging",
+         .input_entries = std::make_unique<vector_reader>(std::move(entries))});
+
+    writer::scanner_options opts;
+    opts.hash_files = dedupe;
+    opts.with_devices = true;
+    opts.with_specials = true;
+    opts.metadata.chmod_specifiers = "g=u,u=o";
+    writer::writer_progress prog;
+    auto image = build_dwarfs(lgr, os, "null", {}, opts, {}, &prog, nullptr,
+                              nullptr, nullptr, std::move(request));
+    EXPECT_EQ(0, prog.errors());
+    EXPECT_EQ(2, prog.get_internal().dirs_found.load()); // Root + nested
+
+    auto mm = test::make_mock_file_view(std::move(image));
+    reader::filesystem_v2 fs(lgr, *os, mm);
+
+    auto a = fs.find("/a");
+    auto b = fs.find("/b");
+    ASSERT_TRUE(a);
+    ASSERT_TRUE(b);
+    auto const a_ino = a->inode().inode_num();
+    auto const b_ino = b->inode().inode_num();
+    EXPECT_NE(a_ino, b_ino);
+    for (auto const& name : {"/a-link", "/a-chain", "/nested/a-link"}) {
+      auto link = fs.find(name);
+      ASSERT_TRUE(link) << name;
+      EXPECT_EQ(a_ino, link->inode().inode_num());
+      EXPECT_EQ("alpha contents", fs.read_string(fs.open(link->inode())));
+    }
+    auto b_link = fs.find("/b-link");
+    ASSERT_TRUE(b_link);
+    EXPECT_EQ(b_ino, b_link->inode().inode_num());
+    EXPECT_EQ(4, fs.getattr(a->inode()).nlink());
+    EXPECT_EQ(2, fs.getattr(b->inode()).nlink());
+    auto const st = fs.getattr(a->inode());
+    EXPECT_EQ(0060, st.mode() & 07777);
+    EXPECT_EQ(123, st.uid());
+    EXPECT_EQ(456, st.gid());
+
+    auto sym = fs.find("/sym");
+    ASSERT_TRUE(sym);
+    EXPECT_EQ("a", fs.readlink(sym->inode()));
+
+    auto dev = fs.find("/dev");
+
+    ASSERT_TRUE(dev);
+    std::error_code ec;
+    EXPECT_EQ(device_number(fs.getattr(dev->inode()).rdev(), ec),
+              device_number(1, 3));
+    EXPECT_FALSE(ec);
+  }
 }
 
 TEST(file_scanner, input_list) {

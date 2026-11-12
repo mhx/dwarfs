@@ -270,6 +270,40 @@ TEST_F(entry_test, physical_path_mappings) {
   check_paths();
 }
 
+TEST_F(entry_test, manifest_hardlinks_preserve_inode_identity) {
+  auto const source = sep / "source";
+  os->add_file(source, "contents");
+
+  auto tree = entry_storage{};
+  auto root = create_entry(tree, sep).as_dir();
+  auto stat = os->symlink_info(source);
+  stat.set_nlink(2);
+
+  auto const regular_path = sep / "regular";
+  auto regular = wi::provisional_entry(regular_path, stat, root, source)
+                     .commit(tree)
+                     .as_file();
+  EXPECT_TRUE(
+      std::holds_alternative<std::monostate>(regular.get_inode_identity()));
+
+  auto const manifest_path = sep / "manifest";
+  auto manifest = wi::provisional_entry(manifest_path, stat, root,
+                                        wi::hardlink_source_mapping{source})
+                      .commit(tree)
+                      .as_file();
+  EXPECT_TRUE(std::holds_alternative<wi::unique_inode_id>(
+      manifest.get_inode_identity()));
+
+  auto const alias_path = sep / "alias";
+  wi::provisional_entry provisional(alias_path, root, manifest);
+  EXPECT_EQ(entry_type::E_FILE, provisional.type());
+  EXPECT_EQ("/alias", provisional.logical_path());
+  auto alias = provisional.commit(tree).as_file();
+  EXPECT_EQ(source, alias.fs_path());
+  EXPECT_EQ(manifest.get_inode_identity(), alias.get_inode_identity());
+  EXPECT_EQ(manifest.num_hard_links(), alias.num_hard_links());
+}
+
 TEST_F(entry_test, independent_physical_mappings) {
   auto local_os = std::make_shared<os_access_mock>();
   auto const source_a = sep / "first";

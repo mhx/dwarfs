@@ -98,6 +98,9 @@ class entry_storage {
 
   [[nodiscard]] bool empty() const noexcept { return entry_impl_->empty(); }
 
+  [[nodiscard]] entry_handle
+  find_entry(dir_handle root, std::filesystem::path const& relative_path);
+
   // Map a logical ancestor to a physical path.
   std::size_t add_physical_path_mapping(std::filesystem::path const& path,
                                         entry_id anchor) {
@@ -389,6 +392,8 @@ class entry_storage {
     virtual entry_id
     make_file(std::filesystem::path const& path, file_stat const& st,
               dir_id parent, physical_mapping_type const& mapping) = 0;
+    virtual entry_id make_hardlinked_file(std::filesystem::path const& path,
+                                          dir_id parent, file_id source) = 0;
     virtual entry_id
     make_dir(std::filesystem::path const& path, file_stat const& st,
              dir_id parent, physical_mapping_type const& mapping) = 0;
@@ -544,6 +549,9 @@ class entry_storage {
 
   dir_handle create_root_dir(std::filesystem::path const& path,
                              file_stat const& st, std::size_t physical_mapping);
+
+  file_handle create_hardlinked_file(std::filesystem::path const& path,
+                                     dir_handle parent, file_handle source);
 
   file_handle
   create_file(std::filesystem::path const& path, dir_handle parent,

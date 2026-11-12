@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <variant>
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/writer/entry_interface.h>
@@ -48,6 +49,8 @@ class provisional_entry : public entry_interface {
   provisional_entry(std::filesystem::path const& path, file_stat stat,
                     std::optional<dir_handle> parent = std::nullopt,
                     physical_mapping_type mapping = std::size_t{0});
+  provisional_entry(std::filesystem::path const& path, dir_handle parent,
+                    file_handle source);
 
   provisional_entry(provisional_entry const&) = delete;
   provisional_entry& operator=(provisional_entry const&) = delete;
@@ -65,7 +68,7 @@ class provisional_entry : public entry_interface {
 
  private:
   std::filesystem::path const& path_;
-  file_stat stat_;
+  std::variant<file_stat, file_handle> content_;
   std::optional<dir_handle> parent_;
   physical_mapping_type mapping_;
 };
