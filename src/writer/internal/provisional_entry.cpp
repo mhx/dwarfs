@@ -47,20 +47,32 @@ provisional_entry::provisional_entry(std::filesystem::path const& path,
                                      std::optional<dir_handle> parent,
                                      physical_mapping_type mapping)
     : path_{path}
-    , stat_{std::move(stat)}
+    , content_{std::move(stat)}
     , parent_{parent}
     , mapping_{std::move(mapping)} {
   DWARFS_CHECK(parent_ || std::holds_alternative<std::size_t>(mapping_),
                "root entry cannot have a physical path override");
-  if (!parent_ && stat_.type() != posix_file_type::directory) {
+  if (!parent_ && type() != entry_type::E_DIR) {
     DWARFS_THROW(
         runtime_error,
         fmt::format("root entry '{}' must be a directory", path.string()));
   }
 }
 
+provisional_entry::provisional_entry(std::filesystem::path const& path,
+                                     dir_handle parent, file_handle source)
+    : path_{path}
+    , content_{source}
+    , parent_{parent} {
+  DWARFS_CHECK(parent && source, "hardlink needs a parent and source");
+}
+
 entry_type provisional_entry::type() const {
-  switch (stat_.type()) {
+  if (std::holds_alternative<file_handle>(content_)) {
+    return entry_type::E_FILE;
+  }
+
+  switch (std::get<file_stat>(content_).type()) {
   case posix_file_type::regular:
     return entry_type::E_FILE;
 
@@ -123,26 +135,32 @@ std::string provisional_entry::logical_path() const {
 }
 
 entry_handle provisional_entry::commit(entry_storage& tree) {
-  switch (stat_.type()) {
+  if (auto const* source = std::get_if<file_handle>(&content_)) {
+    return tree.create_hardlinked_file(path_, *parent_, *source);
+  }
+
+  auto const& stat = std::get<file_stat>(content_);
+
+  switch (stat.type()) {
   case posix_file_type::regular:
-    return tree.create_file(path_, parent_.value(), stat_, mapping_);
+    return tree.create_file(path_, parent_.value(), stat, mapping_);
 
   case posix_file_type::directory:
     if (parent_) {
-      return tree.create_dir(path_, *parent_, stat_, mapping_);
+      return tree.create_dir(path_, *parent_, stat, mapping_);
     }
-    return tree.create_root_dir(path_, stat_, std::get<std::size_t>(mapping_));
+    return tree.create_root_dir(path_, stat, std::get<std::size_t>(mapping_));
 
   case posix_file_type::symlink:
-    return tree.create_link(path_, parent_.value(), stat_, mapping_);
+    return tree.create_link(path_, parent_.value(), stat, mapping_);
 
   case posix_file_type::character:
   case posix_file_type::block:
-    return tree.create_device(path_, parent_.value(), stat_, mapping_);
+    return tree.create_device(path_, parent_.value(), stat, mapping_);
 
   case posix_file_type::fifo:
   case posix_file_type::socket:
-    return tree.create_other(path_, parent_.value(), stat_, mapping_);
+    return tree.create_other(path_, parent_.value(), stat, mapping_);
 
   default:
     DWARFS_PANIC(fmt::format("unknown file type for '{}'", path_.string()));

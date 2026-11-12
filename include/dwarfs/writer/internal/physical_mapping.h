@@ -29,10 +29,16 @@
 
 namespace dwarfs::writer::internal {
 
+struct hardlink_source_mapping {
+  std::filesystem::path path;
+};
+
 using physical_mapping_type = std::variant<
     // an existing mapping ID
     std::size_t,
     // a self-anchored mapping at the given physical path
-    std::filesystem::path>;
+    std::filesystem::path,
+    // a hardlink to an existing entry
+    hardlink_source_mapping>;
 
 } // namespace dwarfs::writer::internal

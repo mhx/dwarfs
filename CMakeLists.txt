@@ -714,6 +714,7 @@ if(WITH_TESTS)
       test/fsst_test.cpp
       test/glob_matcher_test.cpp
       test/global_metadata_test.cpp
+      test/input_entry_reader_test.cpp
       test/integral_value_parser_test.cpp
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
@@ -851,6 +852,7 @@ if(WITH_TESTS)
       test/tool_mkdwarfs_main_basic_test.cpp
       test/tool_mkdwarfs_main_build_test.cpp
       test/tool_mkdwarfs_main_dereference_test.cpp
+      test/tool_mkdwarfs_main_input_list_test.cpp
       test/tool_mkdwarfs_main_metadata_test.cpp
       test/tool_mkdwarfs_main_rebuild_test.cpp
       test/tool_mkdwarfs_main_recompress_test.cpp

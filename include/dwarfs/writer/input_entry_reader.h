@@ -23,39 +23,91 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
+#include <string>
+#include <string_view>
 #include <variant>
+#include <vector>
+
+#include <dwarfs/file_type.h>
 
 namespace dwarfs {
 
 class input_stream;
 class os_access;
+class logger;
 
 namespace writer {
 
+struct input_entry_spec {
+  struct file {
+    std::filesystem::path source;
+    std::vector<std::filesystem::path> aliases;
+    std::uint64_t nlink{1};
+  };
+
+  struct directory {};
+
+  struct symlink {
+    std::string target;
+  };
+
+  struct device {
+    posix_file_type::value type;
+    std::uint32_t major;
+    std::uint32_t minor;
+  };
+
+  struct special {
+    posix_file_type::value type;
+  };
+
+  struct hardlink {
+    std::filesystem::path target;
+  };
+
+  std::variant<file, directory, symlink, device, special, hardlink> content;
+  std::uint32_t permissions{0};
+  std::uint32_t uid{0};
+  std::uint32_t gid{0};
+};
+
 struct input_entry {
+  // Logical path in the resulting image.
   std::filesystem::path path;
+  // Path of the source if backed by a real file system entry.
+  std::optional<std::filesystem::path> source;
+  // Optional specification of the entry's attributes.
+  std::optional<input_entry_spec> spec{};
 };
 
 class input_entry_reader {
  public:
   virtual ~input_entry_reader() = default;
-
   virtual std::optional<input_entry> next() = 0;
+  // Root entry to use if the input does not contain an explicit root entry.
+  // If this returns nullopt, a synthetic root should be created.
+  virtual std::optional<input_entry> implicit_root() const = 0;
+  virtual std::size_t error_count() const noexcept = 0;
 };
 
 using entry_reader_stream =
     std::variant<std::istream*, std::unique_ptr<input_stream>>;
 
-class plain_input_entry_reader {
+class input_entry_reader_factory {
  public:
+  static std::span<std::string_view const> names() noexcept;
+
   static std::unique_ptr<input_entry_reader>
-  create(entry_reader_stream input,
-         std::filesystem::path const& canonical_input_root,
-         os_access const& os);
+  create(std::string_view name, logger& lgr, os_access const& os,
+         entry_reader_stream input,
+         std::filesystem::path const& canonical_input_root);
 };
 
 } // namespace writer

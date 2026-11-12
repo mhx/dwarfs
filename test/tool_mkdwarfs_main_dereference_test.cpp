@@ -211,7 +211,8 @@ TEST(mkdwarfs_test, absolute_input_list_normalizes_before_root_check) {
   auto const input = t.set_input_list(input_mode::from_file,
                                       "/src/valid\n/src/../outside/file\n");
 
-  ASSERT_EQ(0, t.run({"-o", "list-normalized.dwarfs", "-l1", "-i", "/src",
+  // An out-of-root entry is skipped and causes a non-zero exit code
+  ASSERT_EQ(2, t.run({"-o", "list-normalized.dwarfs", "-l1", "-i", "/src",
                       "--input-list", input}))
       << t.err();
 
@@ -219,7 +220,7 @@ TEST(mkdwarfs_test, absolute_input_list_normalizes_before_root_check) {
 
   EXPECT_TRUE(image.find("/valid"));
   EXPECT_FALSE(image.find("/outside/file"));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("ignoring path"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("not below '/src'"));
 }
 
 TEST(mkdwarfs_test, dereference_absolute_input_list) {
@@ -399,18 +400,23 @@ TEST(mkdwarfs_test, dereference_dangling_input_list_entries) {
   t.os->add_dir("/src");
   t.os->add_symlink("/src/missing-dir", "/absent");
   t.os->add_symlink("/src/missing-file", "/also-absent");
+  t.os->add_file("/src/valid", "still scanned");
 
-  auto const input = t.set_input_list(input_mode::from_file,
-                                      "missing-dir/child\nmissing-file\n");
+  auto const input = t.set_input_list(
+      input_mode::from_file, "missing-dir/child\nmissing-file\nvalid\n");
 
   EXPECT_EQ(2, t.run({"-o", "dangling-list.dwarfs", "-l1", "-i", "/src",
                       "--input-list", input, "--dereference=symlinks"}))
       << t.err();
 
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("error following input-list directory"));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("error following input-list entry"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("missing or non-directory parent"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "error processing input entry 'missing-dir'"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "error processing input entry 'missing-file'"));
+
+  auto image = t.fs_from_file("dangling-list.dwarfs");
+  EXPECT_TRUE(image.find("/valid"));
 }
 
 TEST(mkdwarfs_test, dereferenced_file_hash_failure_is_independent) {

@@ -30,9 +30,11 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -46,6 +48,7 @@
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/compiler.h>
+#include <dwarfs/device_number.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
@@ -473,6 +476,30 @@ inferred_root_metadata_path(std::span<scan_source const> sources) {
   return std::nullopt;
 }
 
+file_stat make_synthetic_entry_stat(std::optional<file_stat::time_type> time) {
+  auto st = synthetic_root_stat();
+
+  if (time) {
+    st.set_atime(*time);
+    st.set_mtime(*time);
+    st.set_ctime(*time);
+  }
+
+  return st;
+}
+
+void apply_entry_attributes(file_stat& st, input_entry_spec const& spec) {
+  st.set_mode((st.mode() & ~07777) | spec.permissions);
+  st.set_uid(spec.uid);
+  st.set_gid(spec.gid);
+}
+
+bool valid_list_path(std::filesystem::path const& path) {
+  return !path.empty() && !path.is_absolute() &&
+         std::ranges::none_of(path,
+                              [](auto const& part) { return part == ".."; });
+}
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -501,16 +528,68 @@ class scanner_ final : public scanner::impl {
 
   inspected_entry
   inspect(std::filesystem::path const& path, file_stat const* metadata,
-          std::filesystem::path const& boundary) const;
+          std::filesystem::path const& boundary,
+          bool force_dereference = false) const;
 
   void scan_tree(entry_storage& tree, std::filesystem::path const& path,
                  dir_handle parent, std::size_t physical_mapping,
                  std::filesystem::path const& boundary, bool check_collisions,
                  progress& prog, file_scanner& fs);
 
-  void scan_list(entry_storage& tree, std::filesystem::path const& rootpath,
-                 input_entry_reader& reader, dir_handle root, progress& prog,
-                 file_scanner& fs);
+  dir_handle
+  scan_list(entry_storage& tree, scan_source const& source,
+            scan_request const& request, progress& prog, file_scanner& fs);
+
+  struct list_scan_state {
+    dir_handle root;
+    std::filesystem::path root_path;
+    std::unordered_map<std::string, dir_handle> directories;
+    std::unordered_map<std::string, std::filesystem::path> boundaries;
+    std::uint64_t next_inode{1};
+    std::uint32_t next_file_order{0};
+  };
+
+  struct list_entry_data {
+    file_stat stat;
+    internal::physical_mapping_type mapping;
+    std::optional<std::filesystem::path> physical_path{};
+    std::optional<std::string_view> symlink_target{};
+    bool synthetic{false};
+  };
+
+  dir_handle list_parent(list_scan_state& state,
+                         std::filesystem::path const& path, progress& prog);
+  list_entry_data
+  materialize_list_entry(entry_storage& tree, list_scan_state& state,
+                         input_entry const& entry, dir_handle parent,
+                         scan_source const& source);
+  void scan_list_hardlink(entry_storage& tree, list_scan_state& state,
+                          std::filesystem::path const& path, file_handle source,
+                          progress& prog, file_scanner& fs);
+  void scan_list_entry(entry_storage& tree, list_scan_state& state,
+                       input_entry const& entry, scan_source const& source,
+                       progress& prog, file_scanner& fs);
+
+  dir_handle create_root(entry_storage& tree, std::filesystem::path const& path,
+                         file_stat stat, scan_request const& request);
+
+  // Entry creation is independent of a physical file, if any.
+  // This is the function that mutates the entry_storage tree.
+  template <typename Lockable>
+  std::pair<entry_handle, bool>
+  create_entry(Lockable& mx_walk, entry_storage& tree,
+               std::filesystem::path const& path, dir_handle parent,
+               progress& prog, bool debug_filter = false,
+               file_stat const* metadata = nullptr,
+               internal::physical_mapping_type mapping = std::size_t{0},
+               bool check_collisions = false);
+
+  template <typename Lockable>
+  void process_entry(Lockable& mx_walk, entry_storage& tree, entry_handle pe,
+                     std::filesystem::path const& path, progress& prog,
+                     file_scanner& fs, bool debug_filter,
+                     std::optional<std::string_view> symlink_target = {},
+                     bool synthetic = false);
 
   template <typename Lockable>
   entry_handle
@@ -519,7 +598,25 @@ class scanner_ final : public scanner::impl {
             progress& prog, file_scanner& fs, bool debug_filter = false,
             file_stat const* metadata = nullptr,
             internal::physical_mapping_type mapping = std::size_t{0},
-            bool check_collisions = false);
+            bool check_collisions = false) {
+    auto [pe, created] =
+        create_entry(mx_walk, tree, path, parent, prog, debug_filter, metadata,
+                     std::move(mapping), check_collisions);
+
+    if (created) {
+      try {
+        process_entry(mx_walk, tree, pe, path, prog, fs, debug_filter);
+      } catch (std::system_error const& e) {
+        LOG_ERROR << fmt::format("error reading entry (path={}): {}",
+                                 path_to_utf8_string_sanitized(path),
+                                 exception_str(e));
+        ++prog.errors;
+        return {};
+      }
+    }
+
+    return pe;
+  }
 
   entry_handle
   add_entry(entry_storage& tree, std::filesystem::path const& path,
@@ -590,14 +687,14 @@ DWARFS_GCC14_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
 template <typename Lockable>
-entry_handle
-scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
-                                  std::filesystem::path const& path,
-                                  dir_handle parent, progress& prog,
-                                  file_scanner& fs, bool debug_filter,
-                                  file_stat const* metadata,
-                                  internal::physical_mapping_type mapping,
-                                  bool check_collisions) {
+std::pair<entry_handle, bool>
+scanner_<LoggerPolicy>::create_entry(Lockable& mx_walk, entry_storage& tree,
+                                     std::filesystem::path const& path,
+                                     dir_handle parent, progress& prog,
+                                     bool debug_filter,
+                                     file_stat const* metadata,
+                                     internal::physical_mapping_type mapping,
+                                     bool check_collisions) {
   try {
     internal::provisional_entry ent(
         path, metadata ? *metadata : os_.symlink_info(path), parent,
@@ -620,7 +717,7 @@ scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
           lock.unlock();
           LOG_ERROR << fmt::format(
               "cannot store \"{}\" as the name already exists", ent.name());
-          return {};
+          return {{}, false};
         }
       }
     }
@@ -650,19 +747,19 @@ scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
         LOG_DEBUG << "excluding " << ent.unix_dpath();
       }
 
-      return {};
+      return {{}, false};
     }
 
     switch (ent.type()) {
     case entry_type::E_DEVICE:
       if (!options_.with_devices) {
-        return {};
+        return {{}, false};
       }
       break;
 
     case entry_type::E_OTHER:
       if (!options_.with_specials) {
-        return {};
+        return {{}, false};
       }
       break;
 
@@ -676,75 +773,90 @@ scanner_<LoggerPolicy>::add_entry(Lockable& mx_walk, entry_storage& tree,
                  << path_to_utf8_string_sanitized(path) << "' with '"
                  << path_to_utf8_string_sanitized(existing.fs_path())
                  << "' (keeping first directory metadata)";
-        return existing;
+        return {existing, false};
       }
 
       LOG_WARN << "duplicate entry '" << ent.logical_path() << "' from '"
                << path_to_utf8_string_sanitized(path) << "' conflicts with '"
                << path_to_utf8_string_sanitized(existing.fs_path())
                << "' (keeping first entry)";
-      return {};
+      return {{}, false};
     }
 
-    auto pe = ent.commit(tree);
-
-    switch (pe.type()) {
-    case entry_type::E_DIR:
-      prog.dirs_found++;
-      if (!debug_filter) {
-        pe.scan(os_, prog);
-      }
-      break;
-
-    case entry_type::E_FILE:
-      prog.files_found++;
-
-      if (!debug_filter) {
-        std::lock_guard lock(mx_walk);
-        fs.scan(pe.as_file());
-      }
-      break;
-
-    case entry_type::E_LINK:
-      prog.symlinks_found++;
-      if (!debug_filter) {
-        pe.scan(os_, prog);
-      }
-      prog.symlinks_scanned++;
-      break;
-
-    case entry_type::E_DEVICE:
-    case entry_type::E_OTHER:
-      prog.specials_found++;
-      if (!debug_filter) {
-        pe.scan(os_, prog);
-      }
-      break;
-
-    default:
-      LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe.type())
-                << " (" << path_to_utf8_string_sanitized(path) << ")";
-      prog.errors++;
-      break;
-    }
-
-    return pe;
+    return {ent.commit(tree), true};
   } catch (std::system_error const& e) {
     LOG_ERROR << fmt::format("error reading entry (path={}): {}",
                              path_to_utf8_string_sanitized(path),
                              exception_str(e));
-    prog.errors++;
+    ++prog.errors;
   }
+  return {{}, false};
+}
 
-  return {};
+template <typename LoggerPolicy>
+template <typename Lockable>
+void scanner_<LoggerPolicy>::process_entry(
+    Lockable& mx_walk, entry_storage& tree, entry_handle pe,
+    std::filesystem::path const& path, progress& prog, file_scanner& fs,
+    bool debug_filter, std::optional<std::string_view> symlink_target,
+    bool synthetic) {
+  switch (pe.type()) {
+  case entry_type::E_DIR:
+    ++prog.dirs_found;
+    if (!debug_filter) {
+      if (synthetic) {
+        ++prog.dirs_scanned;
+      } else {
+        pe.scan(os_, prog);
+      }
+    }
+    break;
+
+  case entry_type::E_FILE:
+    ++prog.files_found;
+    if (!debug_filter) {
+      std::lock_guard lock(mx_walk);
+      fs.scan(pe.as_file());
+    }
+    break;
+
+  case entry_type::E_LINK:
+    ++prog.symlinks_found;
+    if (!debug_filter) {
+      if (symlink_target) {
+        tree.set_link_target(pe.as_link().id(), std::string(*symlink_target),
+                             prog);
+      } else {
+        pe.scan(os_, prog);
+      }
+    }
+    ++prog.symlinks_scanned;
+    break;
+
+  case entry_type::E_DEVICE:
+  case entry_type::E_OTHER:
+    ++prog.specials_found;
+    if (!debug_filter && !synthetic) {
+      pe.scan(os_, prog);
+    }
+    break;
+
+  default:
+    LOG_ERROR << "unsupported entry type: " << static_cast<int>(pe.type())
+              << " (" << path_to_utf8_string_sanitized(path) << ")";
+    ++prog.errors;
+    break;
+  }
 }
 
 DWARFS_POP_WARNING
 
 template <typename LoggerPolicy>
-auto scanner_<LoggerPolicy>::inspect(
-    std::filesystem::path const& path, file_stat const* metadata,
-    std::filesystem::path const& boundary) const -> inspected_entry {
+auto scanner_<LoggerPolicy>::inspect(std::filesystem::path const& path,
+                                     file_stat const* metadata,
+                                     std::filesystem::path const& boundary,
+                                     bool force_dereference) const
+    -> inspected_entry {
   auto st = metadata ? *metadata : os_.symlink_info(path);
 
   if (auto ec = st.error()) {
@@ -752,13 +864,14 @@ auto scanner_<LoggerPolicy>::inspect(
   }
 
   if (st.type() != posix_file_type::symlink ||
-      options_.dereference == dereference_mode::none) {
+      (options_.dereference == dereference_mode::none && !force_dereference)) {
     return {std::move(st), std::nullopt};
   }
 
   // Resolve the parent independently of the logical tree: it may itself be
   // a directory symlink, or a merged directory from a different source.
-  if (options_.dereference == dereference_mode::external_symlinks &&
+  if (!force_dereference &&
+      options_.dereference == dereference_mode::external_symlinks &&
       !unsafe_symlink(os_.read_symlink(path), os_.canonical(path.parent_path()),
                       boundary)) {
     return {std::move(st), std::nullopt};
@@ -957,180 +1070,406 @@ void scanner_<LoggerPolicy>::scan_tree(
 }
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
-                                       std::filesystem::path const& rootpath,
-                                       input_entry_reader& reader,
-                                       dir_handle root, progress& prog,
-                                       file_scanner& fs) {
+dir_handle
+scanner_<LoggerPolicy>::create_root(entry_storage& tree,
+                                    std::filesystem::path const& path,
+                                    file_stat stat,
+                                    scan_request const& request) {
+  if (request.root_metadata) {
+    stat = *request.root_metadata;
+  }
+
+  auto const& attrs = request.root_attributes;
+
+  if (attrs.mode) {
+    stat.set_mode((stat.mode() & ~07777) | *attrs.mode);
+  }
+
+  if (attrs.uid) {
+    stat.set_uid(*attrs.uid);
+  }
+
+  if (attrs.gid) {
+    stat.set_gid(*attrs.gid);
+  }
+
+  if (attrs.time) {
+    stat.set_atime(*attrs.time);
+    stat.set_mtime(*attrs.time);
+    stat.set_ctime(*attrs.time);
+  }
+
+  return internal::provisional_entry(path, stat).commit(tree).as_dir();
+}
+
+template <typename LoggerPolicy>
+dir_handle
+scanner_<LoggerPolicy>::list_parent(list_scan_state& state,
+                                    std::filesystem::path const& path,
+                                    progress& prog) {
+  auto const parent_path = path.parent_path();
+
+  if (parent_path.empty()) {
+    return state.root;
+  }
+
+  auto const key = parent_path.generic_string();
+
+  if (auto it = state.directories.find(key); it != state.directories.end()) {
+    return it->second;
+  }
+
+  auto parent = state.root;
+
+  for (auto const& component : parent_path) {
+    auto child = parent.find(component.string());
+
+    if (!child || !child.is_dir()) {
+      LOG_ERROR << "missing or non-directory parent of '"
+                << path_to_utf8_string_sanitized(path) << "'";
+      ++prog.errors;
+      return {};
+    }
+
+    parent = child.as_dir();
+  }
+
+  state.directories.emplace(key, parent);
+
+  return parent;
+}
+
+template <typename LoggerPolicy>
+auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
+                                                    list_scan_state& state,
+                                                    input_entry const& entry,
+                                                    dir_handle parent,
+                                                    scan_source const& source)
+    -> list_entry_data {
+  auto const inherited = tree.physical_mapping_id(parent.id());
+  auto const boundary = [&] {
+    auto it = state.boundaries.find(parent.logical_path());
+    return it == state.boundaries.end() ? state.root_path : it->second;
+  }();
+
+  list_entry_data rv;
+
+  if (!entry.spec) {
+    if (!entry.source) {
+      DWARFS_THROW(runtime_error, "input entry has no source or specification");
+    }
+
+    auto source = inspect(*entry.source, nullptr, boundary);
+
+    rv.stat = std::move(source.stat);
+    rv.mapping = source.mapping(inherited);
+    rv.physical_path = std::move(source.physical_path);
+
+    return rv;
+  }
+
+  auto const& spec = *entry.spec;
+
+  if (auto const* file = std::get_if<input_entry_spec::file>(&spec.content)) {
+    if (file->nlink == 0 || file->nlink < file->aliases.size() + 1) {
+      DWARFS_THROW(runtime_error, "invalid manifest file link count");
+    }
+
+    auto source = inspect(file->source, nullptr, boundary, true);
+
+    if (!source.stat.is_regular_file()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("source type mismatch for '{}'",
+                               path_to_utf8_string_sanitized(entry.path)));
+    }
+
+    auto& st = rv.stat;
+
+    st = std::move(source.stat);
+    st.set_dev(0);
+    st.set_ino(state.next_inode++);
+    st.set_nlink(file->nlink);
+
+    apply_entry_attributes(st, spec);
+
+    auto const& physical = source.physical_path.value_or(file->source);
+
+    rv.mapping =
+        file->nlink > 1
+            ? internal::physical_mapping_type{internal::hardlink_source_mapping{
+                  physical}}
+            : internal::physical_mapping_type{physical};
+
+    rv.physical_path = std::move(source.physical_path);
+
+    return rv;
+  }
+
+  rv.stat = make_synthetic_entry_stat(source.synthetic_time);
+  rv.mapping = inherited;
+  rv.synthetic = true;
+
+  rv.stat.set_ino(state.next_inode++);
+
+  spec.content |
+      match{
+          [&rv](input_entry_spec::directory const&) {
+            rv.stat.set_mode(posix_file_type::directory | 0755);
+          },
+          [&rv](input_entry_spec::symlink const& link) {
+            rv.stat.set_mode(posix_file_type::symlink | 0777);
+            rv.stat.set_size(link.target.size());
+            rv.symlink_target = link.target;
+          },
+          [&rv](input_entry_spec::device const& device) {
+            rv.stat.set_mode(device.type | 0644);
+            std::error_code ec;
+            rv.stat.set_rdev(
+                device_number(device.major, device.minor).native(ec));
+            if (ec) {
+              throw std::system_error(ec, "invalid device number");
+            }
+          },
+          [&rv](input_entry_spec::special const& special) {
+            rv.stat.set_mode(special.type | 0644);
+          },
+          [](input_entry_spec::file const&) {
+            DWARFS_THROW(runtime_error, "file cannot be synthetic");
+          },
+          [](input_entry_spec::hardlink const&) {
+            DWARFS_THROW(runtime_error,
+                         "hardlink cannot be materialized as a file");
+          },
+      };
+
+  apply_entry_attributes(rv.stat, spec);
+
+  return rv;
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::scan_list_hardlink(
+    entry_storage& tree, list_scan_state& state,
+    std::filesystem::path const& path, file_handle source, progress& prog,
+    file_scanner& fs) {
+  if (!valid_list_path(path) || path == ".") {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid hardlink path '{}'",
+                             path_to_utf8_string_sanitized(path)));
+  }
+
+  auto parent = list_parent(state, path, prog);
+
+  if (!parent) {
+    return;
+  }
+
+  if (parent.find(path.filename())) {
+    LOG_ERROR << "skipping duplicate entry '"
+              << path_to_utf8_string_sanitized(path) << "' in input list";
+    ++prog.errors;
+    return;
+  }
+
+  if (source.num_hard_links() <= 1) {
+    DWARFS_THROW(runtime_error, "hardlink target must declare multiple links");
+  }
+
+  auto const storage_path = state.root_path / path;
+  auto entry =
+      internal::provisional_entry(storage_path, parent, source).commit(tree);
+  no_mutex mx_scanner;
+
+  process_entry(mx_scanner, tree, entry, storage_path, prog, fs, false);
+
+  entry.as_file().set_order_index(state.next_file_order++);
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::scan_list_entry(entry_storage& tree,
+                                             list_scan_state& state,
+                                             input_entry const& entry,
+                                             scan_source const& source,
+                                             progress& prog, file_scanner& fs) {
+  auto const& path = entry.path;
+
+  try {
+    if (path == ".") {
+      LOG_ERROR << "root directory entry must precede all other entries";
+      ++prog.errors;
+      return;
+    }
+
+    if (!valid_list_path(path)) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid input entry path '{}'",
+                               path_to_utf8_string_sanitized(path)));
+    }
+
+    if (entry.source && entry.spec) {
+      DWARFS_THROW(runtime_error,
+                   "input entry cannot have both source and specification");
+    }
+
+    if (entry.spec) {
+      if (auto const* hardlink =
+              std::get_if<input_entry_spec::hardlink>(&entry.spec->content)) {
+        auto target = tree.find_entry(state.root, hardlink->target);
+
+        if (!target || !target.is_file()) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format("hardlink '{}' has no preceding file '{}'",
+                          path_to_utf8_string_sanitized(path),
+                          path_to_utf8_string_sanitized(hardlink->target)));
+        }
+
+        scan_list_hardlink(tree, state, path, target.as_file(), prog, fs);
+
+        return;
+      }
+    }
+
+    auto parent = list_parent(state, path, prog);
+
+    if (!parent) {
+      return;
+    }
+
+    if (parent.find(path.filename())) {
+      LOG_ERROR << "skipping duplicate entry '"
+                << path_to_utf8_string_sanitized(path) << "' in input list";
+      ++prog.errors;
+      return;
+    }
+
+    auto data = materialize_list_entry(tree, state, entry, parent, source);
+    auto const storage_path = state.root_path / path;
+    no_mutex mx_scanner;
+    auto [created, committed] =
+        create_entry(mx_scanner, tree, storage_path, parent, prog, false,
+                     &data.stat, std::move(data.mapping));
+
+    if (!committed) {
+      return;
+    }
+
+    process_entry(mx_scanner, tree, created, storage_path, prog, fs, false,
+                  data.symlink_target, data.synthetic);
+
+    if (created.is_dir()) {
+      state.directories.emplace(path.generic_string(), created.as_dir());
+
+      if (entry.source) {
+        auto const it = state.boundaries.find(parent.logical_path());
+
+        state.boundaries.emplace(
+            created.logical_path(),
+            data.physical_path.value_or(
+                it == state.boundaries.end() ? state.root_path : it->second));
+
+        ++prog.dirs_scanned;
+      }
+    } else if (created.is_file()) {
+      created.as_file().set_order_index(state.next_file_order++);
+
+      if (entry.spec) {
+        if (auto const* file =
+                std::get_if<input_entry_spec::file>(&entry.spec->content)) {
+          for (auto const& alias : file->aliases) {
+            try {
+              scan_list_hardlink(tree, state, alias, created.as_file(), prog,
+                                 fs);
+            } catch (std::exception const& e) {
+              LOG_ERROR << "error processing hardlink '"
+                        << path_to_utf8_string_sanitized(alias)
+                        << "': " << exception_str(e);
+              ++prog.errors;
+            }
+          }
+        }
+      }
+    }
+  } catch (std::exception const& e) {
+    LOG_ERROR << "error processing input entry '"
+              << path_to_utf8_string_sanitized(path)
+              << "': " << exception_str(e);
+    ++prog.errors;
+  }
+}
+
+template <typename LoggerPolicy>
+dir_handle scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
+                                             scan_source const& source,
+                                             scan_request const& request,
+                                             progress& prog, file_scanner& fs) {
   if (!filters_.empty()) {
     DWARFS_THROW(runtime_error, "cannot use filters with file lists");
   }
 
   auto ti = LOG_TIMED_INFO;
+  auto& reader = *source.input_entries;
+  auto error_updater = scope_exit{[&] { prog.errors += reader.error_count(); }};
+  auto first = reader.next();
+  bool const has_explicit_root = first && first->path == ".";
+  auto root_entry =
+      has_explicit_root ? std::move(first) : reader.implicit_root();
 
-  // Explicit lists use the same mapping rules as recursive traversal, but
-  // need to remember boundaries for directories already created by the list.
-  std::unordered_map<std::string, std::filesystem::path> boundaries;
-  boundaries.emplace(root.logical_path(), canonical_if_dereference(rootpath));
+  if (has_explicit_root) {
+    first.reset();
+  }
 
-  auto ensure_path = [this, &tree, &prog, &fs, &boundaries](
-                         std::filesystem::path const& path, entry_handle root) {
-    LOG_TRACE << "ensuring path '" << path_to_utf8_string_sanitized(path)
-              << "'";
+  auto stat = make_synthetic_entry_stat(source.synthetic_time);
 
-    for (auto const& component : path) {
-      LOG_TRACE << "checking '" << path_to_utf8_string_sanitized(component)
-                << "'";
-      if (auto d = root.as_dir()) {
-        if (auto e = d.find(component.string())) {
-          root = e;
-        } else {
-          LOG_DEBUG << "adding directory '"
-                    << path_to_utf8_string_sanitized(component) << "'";
+  if (root_entry) {
+    if (root_entry->spec &&
+        !std::holds_alternative<input_entry_spec::directory>(
+            root_entry->spec->content)) {
+      DWARFS_THROW(runtime_error, "input list root must be a directory");
+    }
 
-          auto const& boundary = boundaries.at(d.logical_path());
-          auto const physical_path = d.fs_path() / component;
-          auto incoming = inspect(physical_path, nullptr, boundary);
-          no_mutex mx_scanner;
+    if (root_entry->source) {
+      auto const source = os_.canonical(*root_entry->source);
+      stat = os_.symlink_info(source);
 
-          root = add_entry(mx_scanner, tree, physical_path, d, prog, fs, false,
-                           &incoming.stat,
-                           incoming.mapping(tree.physical_mapping_id(d.id())),
-                           false);
+      if (auto ec = stat.error()) {
+        throw std::system_error(ec, source.string());
+      }
 
-          if (root && root.is_dir()) {
-            boundaries.emplace(root.logical_path(),
-                               incoming.physical_path.value_or(boundary));
-            prog.dirs_scanned++;
-          } else {
-            DWARFS_THROW(runtime_error,
-                         fmt::format("invalid path '{}'",
-                                     path_to_utf8_string_sanitized(path)));
-          }
-        }
-      } else {
+      if (!stat.is_directory()) {
         DWARFS_THROW(runtime_error,
-                     fmt::format("invalid path '{}'",
-                                 path_to_utf8_string_sanitized(path)));
+                     "input list root source is not a directory");
       }
     }
 
-    return root;
-  };
-
-  std::unordered_map<std::string, dir_handle> dir_cache;
-  uint32_t file_order_index{0};
-
-  while (auto entry = reader.next()) {
-    auto const& listpath = entry->path;
-    std::filesystem::path relpath;
-
-    if (listpath.has_root_directory()) {
-      if (!rootpath.has_root_directory()) {
-        std::string rootpath_str;
-        if (rootpath.empty()) {
-          rootpath_str = "empty";
-        } else {
-          rootpath_str = "'" + path_to_utf8_string_sanitized(rootpath) + "'";
-        }
-        DWARFS_THROW(runtime_error,
-                     fmt::format("absolute paths in input list require "
-                                 "absolute input path, but input path is {}",
-                                 rootpath_str));
-      }
-
-      auto const normalized = listpath.lexically_normal();
-      auto mm = std::ranges::mismatch(normalized, rootpath);
-
-      if (mm.in2 == rootpath.end()) {
-        relpath = normalized.lexically_relative(rootpath);
-      } else {
-        LOG_ERROR << "ignoring path '"
-                  << path_to_utf8_string_sanitized(listpath)
-                  << "' not below input path '"
-                  << path_to_utf8_string_sanitized(rootpath) << "'";
-        continue;
-      }
-    } else {
-      relpath = listpath.lexically_normal();
-    }
-
-    // Remove trailing slash(es) if present, fixes gh #370.
-    if (!relpath.has_filename()) {
-      relpath = relpath.parent_path();
-    }
-
-    auto parent = relpath.parent_path();
-    dir_handle pd{};
-
-    LOG_TRACE << "adding path '" << path_to_utf8_string_sanitized(relpath)
-              << "' (parent: " << parent
-              << ", root: " << path_to_utf8_string_sanitized(rootpath)
-              << ", orig: " << path_to_utf8_string_sanitized(listpath) << ")";
-
-    if (auto it = dir_cache.find(parent.string()); it != dir_cache.end()) {
-      pd = it->second;
-    } else {
-      try {
-        pd = ensure_path(parent, root).as_dir();
-      } catch (std::system_error const& e) {
-        LOG_ERROR << "error following input-list directory '"
-                  << path_to_utf8_string_sanitized(parent)
-                  << "': " << exception_str(e);
-        ++prog.errors;
-        continue;
-      }
-
-      if (pd) {
-        dir_cache.emplace(parent.string(), pd);
-      } else {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("invalid path '{}'",
-                                 path_to_utf8_string_sanitized(listpath)));
-      }
-    }
-
-    if (pd.find(relpath)) {
-      LOG_WARN << "skipping duplicate entry '"
-               << path_to_utf8_string_sanitized(relpath) << "' in input list";
-      continue;
-    }
-
-    LOG_TRACE << "adding entry '"
-              << path_to_utf8_string_sanitized(rootpath / relpath) << "'";
-
-    auto const physical_path = pd.fs_path() / relpath.filename();
-    auto const& boundary = boundaries.at(pd.logical_path());
-    std::optional<inspected_entry> incoming;
-
-    try {
-      incoming.emplace(inspect(physical_path, nullptr, boundary));
-    } catch (std::system_error const& e) {
-      LOG_ERROR << "error following input-list entry '"
-                << path_to_utf8_string_sanitized(physical_path)
-                << "': " << exception_str(e);
-      ++prog.errors;
-      continue;
-    }
-
-    no_mutex mx_scanner;
-
-    if (auto pe = add_entry(
-            mx_scanner, tree, physical_path, pd, prog, fs, false,
-            &incoming->stat,
-            incoming->mapping(tree.physical_mapping_id(pd.id())), false)) {
-      if (pe.is_dir()) {
-        boundaries.emplace(pe.logical_path(),
-                           incoming->physical_path.value_or(boundary));
-        prog.dirs_scanned++;
-      } else if (pe.is_file()) {
-        auto fp = pe.as_file();
-        fp.set_order_index(file_order_index++);
-      }
+    if (root_entry->spec) {
+      apply_entry_attributes(stat, *root_entry->spec);
     }
   }
 
+  auto const& rootpath = source.path;
+  auto root = create_root(tree, rootpath, std::move(stat), request);
+
+  ++prog.dirs_found;
+
+  auto physical_root = canonical_if_dereference(rootpath);
+
+  tree.add_physical_path_mapping(physical_root, root.id());
+
+  list_scan_state state{
+      .root = root, .root_path = rootpath, .directories = {}, .boundaries = {}};
+  state.boundaries.emplace(root.logical_path(), std::move(physical_root));
+
+  auto entry = first ? std::move(first) : reader.next();
+
+  while (entry) {
+    scan_list_entry(tree, state, *entry, source, prog, fs);
+    entry = reader.next();
+  }
+
   ti << "scanned input list";
+
+  return root;
 }
 
 template <typename LoggerPolicy>
@@ -1241,111 +1580,89 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     return parent.empty() ? std::filesystem::path{"."} : parent;
   }();
 
-  auto root_stat = get_root_stat(request);
-  auto const& attrs = request.root_attributes;
+  dir_handle root;
 
-  if (attrs.mode) {
-    root_stat.set_mode((root_stat.mode() & ~07777) | *attrs.mode);
-  }
-
-  if (attrs.uid) {
-    root_stat.set_uid(*attrs.uid);
-  }
-
-  if (attrs.gid) {
-    root_stat.set_gid(*attrs.gid);
-  }
-
-  if (attrs.time) {
-    root_stat.set_atime(*attrs.time);
-    root_stat.set_mtime(*attrs.time);
-    root_stat.set_ctime(*attrs.time);
-  }
-
-  auto root = internal::provisional_entry(first_root_path, root_stat)
-                  .commit(*tree)
-                  .as_dir();
-
-  if (!list_mode) {
+  if (list_mode) {
+    root = scan_list(*tree, first, request, prog, *fs);
+  } else {
+    root = create_root(*tree, first_root_path, get_root_stat(request), request);
     ++prog.dirs_found;
-  }
 
-  // A directory walker completes all entry callbacks for a source before
-  // returning, and all tree modifications relevant for traversal happen on
-  // this thread. Later sources thus cannot affect first-wins decisions,
-  // and so there is no need to wait for background jobs (hashing, inode
-  // scanning) between sources.
-  for (std::size_t source_index = 0; source_index < request.sources.size();
-       ++source_index) {
-    auto const& source = request.sources[source_index];
-    bool const check_collisions = source_index != 0;
+    // A directory walker completes all entry callbacks for a source before
+    // returning, and all tree modifications relevant for traversal happen on
+    // this thread. Later sources thus cannot affect first-wins decisions,
+    // and so there is no need to wait for background jobs (hashing, inode
+    // scanning) between sources.
 
-    if (source.mode == scan_source_mode::entry && !source.path.has_filename()) {
-      DWARFS_THROW(runtime_error, "named input sources must have a filename");
-    }
+    for (std::size_t source_index = 0; source_index < request.sources.size();
+         ++source_index) {
+      auto const& source = request.sources[source_index];
+      bool const check_collisions = source_index != 0;
 
-    auto const physical_mapping_path = [&] {
-      if (source.mode == scan_source_mode::contents) {
-        return canonical_if_dereference(source.path);
+      if (source.mode == scan_source_mode::entry &&
+          !source.path.has_filename()) {
+        DWARFS_THROW(runtime_error, "named input sources must have a filename");
       }
 
-      auto parent = source.path.parent_path();
-      return parent.empty() ? std::filesystem::path{"."} : parent;
-    }();
-    auto const physical_mapping =
-        tree->add_physical_path_mapping(physical_mapping_path, root.id());
-    auto parent = root;
-    auto active_mapping = physical_mapping;
-    auto boundary = physical_mapping_path;
+      auto const physical_mapping_path = [&] {
+        if (source.mode == scan_source_mode::contents) {
+          return canonical_if_dereference(source.path);
+        }
 
-    if (options_.dereference != dereference_mode::none) {
-      boundary = os_.canonical(physical_mapping_path);
-    }
+        auto parent = source.path.parent_path();
+        return parent.empty() ? std::filesystem::path{"."} : parent;
+      }();
+      auto const physical_mapping =
+          tree->add_physical_path_mapping(physical_mapping_path, root.id());
+      auto parent = root;
+      auto active_mapping = physical_mapping;
+      auto boundary = physical_mapping_path;
 
-    if (source.mode == scan_source_mode::entry) {
-      std::optional<inspected_entry> incoming;
-
-      try {
-        incoming.emplace(inspect(source.path, nullptr, boundary));
-      } catch (std::system_error const& e) {
-        LOG_ERROR << fmt::format("error reading entry (path={}): {}",
-                                 path_to_utf8_string_sanitized(source.path),
-                                 exception_str(e));
-        ++prog.errors;
-        continue;
+      if (options_.dereference != dereference_mode::none) {
+        boundary = os_.canonical(physical_mapping_path);
       }
 
-      no_mutex mx_scanner;
+      if (source.mode == scan_source_mode::entry) {
+        std::optional<inspected_entry> incoming;
 
-      auto entry =
-          add_entry(mx_scanner, *tree, source.path, root, prog, *fs,
-                    options_.debug_filter_function.has_value(), &incoming->stat,
-                    incoming->mapping(physical_mapping), check_collisions);
+        try {
+          incoming.emplace(inspect(source.path, nullptr, boundary));
+        } catch (std::system_error const& e) {
+          LOG_ERROR << fmt::format("error reading entry (path={}): {}",
+                                   path_to_utf8_string_sanitized(source.path),
+                                   exception_str(e));
+          ++prog.errors;
+          continue;
+        }
 
-      if (!entry || !entry.is_dir()) {
-        continue;
+        no_mutex mx_scanner;
+
+        auto entry = add_entry(
+            mx_scanner, *tree, source.path, root, prog, *fs,
+            options_.debug_filter_function.has_value(), &incoming->stat,
+            incoming->mapping(physical_mapping), check_collisions);
+
+        if (!entry || !entry.is_dir()) {
+          continue;
+        }
+
+        parent = entry.as_dir();
+
+        if (incoming->physical_path) {
+          active_mapping =
+              get_physical_mapping(*tree, entry, *incoming->physical_path);
+          boundary = *incoming->physical_path;
+        }
+      } else {
+        auto const path = canonical_if_dereference(source.path);
+
+        if (!os_.symlink_info(path).is_directory()) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("contents source '{}' is not a directory",
+                                   path_to_utf8_string_sanitized(source.path)));
+        }
       }
 
-      parent = entry.as_dir();
-
-      if (incoming->physical_path) {
-        active_mapping =
-            get_physical_mapping(*tree, entry, *incoming->physical_path);
-        boundary = *incoming->physical_path;
-      }
-    } else {
-      auto const path = canonical_if_dereference(source.path);
-
-      if (!os_.symlink_info(path).is_directory()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("contents source '{}' is not a directory",
-                                 path_to_utf8_string_sanitized(source.path)));
-      }
-    }
-
-    if (source.input_entries) {
-      scan_list(*tree, source.path, *source.input_entries, parent, prog, *fs);
-    } else {
       scan_tree(*tree, source.path, parent, active_mapping, boundary,
                 check_collisions, prog, *fs);
     }

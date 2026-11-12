@@ -874,17 +874,17 @@ TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
   mkdwarfs_tester t;
   auto const input_file = t.set_input_list(mode, input_list);
 
-  ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/somedir", "-o",
-                      image_file, t.safe_log_level_opt(logger::TRACE)}))
+  // The out-of-root entry in the absolute input list triggers an error
+  ASSERT_EQ(type == path_type::absolute ? 2 : 0,
+            t.run({"--input-list", input_file, "-i", "/somedir", "-o",
+                   image_file, t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
   if (type == path_type::absolute) {
-    EXPECT_THAT(
-        t.err(),
-        ::testing::HasSubstr(
-            "ignoring path '/foo/bar' not below input path '/somedir'"));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                             "path '/foo/bar' is not below '/somedir'"));
   } else {
-    EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("ignoring path")));
+    EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("not below")));
   }
 
   std::ostringstream oss;
@@ -971,7 +971,7 @@ TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
 
   t.iol->set_in(input_list);
 
-  ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
+  ASSERT_EQ(2, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
                       t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 
@@ -1114,7 +1114,7 @@ TEST(mkdwarfs_test, input_list_with_leading_dots_github292) {
 
   t.iol->set_in(input_list);
 
-  ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
+  ASSERT_EQ(2, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
                       t.safe_log_level_opt(logger::TRACE)}))
       << t.err();
 

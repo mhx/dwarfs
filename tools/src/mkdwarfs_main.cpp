@@ -39,6 +39,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <variant>
@@ -483,7 +484,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       file_hash_algo, debug_filter, max_similarity_size, chmod_str,
       history_compression, recompress_categories, image_size_alignment_str,
       rebuild_metadata_source_os_hint, uuid_str, superblock_digests_str,
-      root_mode_str, root_time_str, dereference_str;
+      root_mode_str, root_time_str, synthetic_time_str, dereference_str,
+      input_list_format_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -512,6 +514,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   writer::scanner_options options;
   logger_options logopts;
+
+  auto const input_list_formats = writer::input_entry_reader_factory::names();
+  auto const input_list_format_desc = fmt::format(
+      "input list format ({})", fmt::join(input_list_formats, ", "));
 
   auto order_desc = "inode fragments order (" +
                     dwarfs::writer::fragment_order_parser::choices() + ")";
@@ -560,8 +566,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "path to root directory or source filesystem")
     ("input-list",
         po_sys_value<sys_string>(&input_list_str),
-        "file containing list of file paths relative to root directory "
-        "or - for stdin")
+        "input list file or - for stdin")
+    ("input-list-format",
+        po::value<std::string>(&input_list_format_str)->default_value("plain"),
+        input_list_format_desc.c_str())
     ("output,o",
         po_sys_value<sys_string>(&output_str),
         "filesystem output name or - for stdout")
@@ -807,6 +815,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("time-resolution",
         po::value<std::string>(&time_resolution),
         "resolution of inode timestamps (default: 1s)")
+    ("synthetic-time",
+        po::value<std::string>(&synthetic_time_str),
+        "default timestamp for synthetic input-list entries (unixtime or 'now')")
     ("root-mode",
         po::value<std::string>(&root_mode_str),
         "set root directory permissions (octal)")
@@ -1112,6 +1123,27 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
+  std::optional<file_stat::time_type> explicit_synthetic_time;
+
+  if (vm.contains("synthetic-time")) {
+    if (!vm.contains("input-list")) {
+      iol.err << "error: --synthetic-time requires --input-list\n";
+      return 1;
+    }
+
+    try {
+      auto const time = parse_timestamp(synthetic_time_str);
+      if (!std::in_range<file_stat::time_type>(time)) {
+        iol.err << "error: --synthetic-time is out of range\n";
+        return 1;
+      }
+      explicit_synthetic_time = static_cast<file_stat::time_type>(time);
+    } catch (std::exception const& e) {
+      iol.err << "error: invalid --synthetic-time: " << e.what() << "\n";
+      return 1;
+    }
+  }
+
   if (recompress && (vm.contains("root-mode") || vm.contains("root-owner") ||
                      vm.contains("root-group") || vm.contains("root-time") ||
                      vm.contains("root-like"))) {
@@ -1196,7 +1228,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     input_path.emplace(path_str);
   }
 
-  std::unique_ptr<writer::input_entry_reader> input_entries;
+  std::optional<writer::entry_reader_stream> input_entries_stream;
+
+  if (std::ranges::find(input_list_formats, input_list_format_str) ==
+      input_list_formats.end()) {
+    iol.err << "error: invalid --input-list-format: " << input_list_format_str
+            << "\n";
+    return 1;
+  }
 
   if (vm.contains("input-list")) {
     if (vm.contains("filter")) {
@@ -1204,7 +1243,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
-    // implicitly turn on
     options.with_devices = true;
     options.with_specials = true;
 
@@ -1229,18 +1267,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
 
-    // Keep the legacy canonical input root. The plain reader consumes the
-    // stream incrementally during scanning.
     *input_path = iol.os->canonical(*input_path);
-    input_entries = writer::plain_input_entry_reader::create(
-        std::move(*stream), *input_path, *iol.os);
+
+    input_entries_stream.emplace(std::move(*stream));
   }
 
   if (input_path) {
-    sources.push_back({
-        .path = *input_path,
-        .input_entries = std::move(input_entries),
-    });
+    sources.push_back({.path = *input_path});
   }
 
   std::optional<fs_source_os> source_os_hint;
@@ -1361,6 +1394,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   };
 
   writer::console_writer lgr(iol.term, iol.err, *iol.os, cwopts, logopts);
+  if (input_entries_stream) {
+    sources.back().input_entries = writer::input_entry_reader_factory::create(
+        input_list_format_str, lgr, *iol.os, std::move(*input_entries_stream),
+        *input_path);
+  }
   std::optional<compat::jthread> mem_logger_thread;
 
   if (auto usage = get_self_memory_usage(); usage.total.has_value()) {
@@ -1587,6 +1625,38 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
             static_cast<file_stat::time_type>(epoch);
       }
     }
+  }
+
+  std::optional<file_stat::time_type> synthetic_time;
+
+  if (vm.contains("input-list")) {
+    if (explicit_synthetic_time) {
+      synthetic_time = *explicit_synthetic_time;
+    } else if (source_date_epoch) {
+      synthetic_time = static_cast<file_stat::time_type>(*source_date_epoch);
+    } else if (std::filesystem::path{input_list_str} != "-") {
+      try {
+        auto const list_path = iol.os->canonical(input_list_str);
+        auto const st = iol.os->symlink_info(list_path);
+        if (auto ec = st.error()) {
+          throw std::system_error(ec, list_path.string());
+        }
+        synthetic_time = st.mtime();
+      } catch (std::system_error const& e) {
+        LOG_WARN << "cannot determine input-list file timestamp: "
+                 << exception_str(e);
+      }
+    }
+
+    if (!synthetic_time) {
+      synthetic_time =
+          reproducible ? file_stat::time_type{0}
+                       : static_cast<file_stat::time_type>(std::time(nullptr));
+    }
+  }
+
+  if (synthetic_time) {
+    sources.back().synthetic_time = synthetic_time;
   }
 
   if (auto const res = options.metadata.time_resolution) {

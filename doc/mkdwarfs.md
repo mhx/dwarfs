@@ -51,18 +51,19 @@ Input and output can be specified as follows:
   is the source filesystem.
 
 - `--input-list=`*file*|`-`:
-  Read list of file paths to add to the file system from this file or from stdin.
-  If the paths in the file are relative, they will be interpreted relative to
-  the path given with `--input`. If `--input` is omitted, the path names will be
-  interpreted relative to the current directory. If the paths in the file are
-  absolute, `--input` must be an absolute path that is a prefix to all absolute
-  paths in the file. If `--input` is omitted, the absolute path to the current
-  directory will be used. Any absolute paths in the file for which the `--input`
-  path is not a prefix will be ignored with an error message. If you want files
-  to be stored in the exact same order as read from this list (because, for
-  example, you have already sorted them by similarity or access frequency), you
-  must also pass `--order=none`. This option implicitly enables both
-  `--with-devices` and `--with-specials`.
+  Read a description of the logical contents of the target file system from a
+  file or from stdin. The description can be in any of the formats accepted by
+  `--input-list-format`. See [INPUT LIST FORMATS](#input-list-formats) for
+  details. If you want files to be stored in the exact same order as read from
+  this description, you must also pass `--order=none`. This option implicitly
+  enables both `--with-devices` and `--with-specials`. Any relative physical
+  paths in the description are resolved against the path given by `--input`,
+  or the current directory if `--input` was omitted.
+
+- `--input-list-format=`*plain*|*gen_init_cpio*:
+  Select how the `--input-list` should be interpreted. Defaults to `plain`.
+  The `plain` format retains the legacy `--input-list` semantics.
+  See[INPUT LIST FORMATS](#input-list-formats) for details.
 
 - `-o`, `--output=`*file*|`-`:
   File name of the output filesystem or `-` to write the filesystem to stdout.
@@ -431,6 +432,16 @@ Most other options are concerned with compression tuning:
   or non-directories. As a special case, you can pass `--chmod=norm` to
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
+
+- `--synthetic-time=now`|*iso-8601-string*|*unix-timestamp*:
+  When using `--input-list`, this can be used to set the default timestamps
+  for entries without a physical source. Without this option, the default is
+  taken from `SOURCE_DATE_EPOCH` if set, otherwise the input-list file's
+  modification time when reading from a file, the current time when reading
+  from stdin, or zero for when reading from stdin and `--reproducible` is
+  given on the command line as well. A synthetic root also uses this value
+  unless overridden by `--root-like` or `--root-time`. See `--set-time` for
+  supported formats.
 
 - `--root-mode=`*mode*:
   Set the synthetic root directory permissions when using *sources* (octal).
@@ -1289,6 +1300,57 @@ be removed using `--remove-empty-dirs`.
 
 You can use the `--debug-filter` option to show the sets of included
 and excluded files without building an actual file system.
+
+## INPUT LIST FORMATS
+
+### plain
+
+A plain list of file paths. This retains the semantics of the `--input-list`
+option before supporting multiple formats.
+
+If the paths in the description are absolute, `--input` must be an absolute
+path that is a prefix to all absolute paths in the file. If `--input` is
+omitted, the absolute path to the current directory will be used. Any absolute
+paths in the file for which the `--input` path is not a prefix will be ignored
+with an error message.
+
+### gen\_init\_cpio
+
+This accepts the Linux `usr/gen_init_cpio` textual listing format. Its names
+are logical paths in the output image. A relative physical file location in
+a `file` record is resolved as described for the `--input-list` option.
+Absolute file locations are used verbatim. For example:
+
+```text
+# A tiny initramfs tree
+dir /etc 0755 0 0
+file /etc/config staging/config 0644 0 0 /etc/config.copy
+slink /etc/active config 0777 0 0
+dir /dev 0755 0 0
+nod /dev/null 0666 0 0 c 1 3
+dir /run 0755 0 0
+pipe /run/fifo 0600 0 0
+sock /run/socket 0600 0 0
+```
+
+The `file`, `dir`, `nod`, `slink`, `pipe` and `sock` records are supported,
+as are extra hardlink names on `file` records and `${NAME}` substitutions in
+physical file locations. Modes are octal. UID, GID and device numbers are
+decimal. The format uses whitespace-separated fields, so paths and targets
+cannot contain whitespace. Symlink targets are stored verbatim, even when
+`--dereference` is enabled. Parent directories must be defined before their
+children. Missing parents and duplicate definitions are errors. For the image
+root, an initial `dir /` record may specify permissions, UID, and GID.
+When absent, a synthetic root directory will be created. Explicit `--root-*`
+options take precedence.
+
+An explicit `file` record reads the referenced source as a regular file,
+following a source symlink even without `--dereference`. Explicit `slink`
+records always create symlinks.
+
+Synthetic entries, including a synthetic image root, use the default time
+provided by `--synthetic-time`. Regular files preserve the timestamps of
+their physical sources.
 
 ## INTERNAL OPERATION
 
