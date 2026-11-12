@@ -75,6 +75,16 @@ std::istream& get_input_stream(entry_reader_stream& input) {
                  };
 }
 
+fs::path resolve_source_path(fs::path const& root, fs::path path) {
+  if (!path.is_absolute()) {
+    path = root / path;
+  }
+
+  path.make_preferred();
+
+  return path;
+}
+
 class plain_impl final : public input_entry_reader {
  public:
   plain_impl(entry_reader_stream input, fs::path const& canonical_root,
@@ -389,9 +399,9 @@ std::optional<input_entry> gen_init_cpio_impl::next() {
     };
 
     if (is_file) {
-      auto const physical = fs::path(expand_variables(args[2]));
       input_entry_spec::file file{
-          .source = physical.is_absolute() ? physical : root_ / physical,
+          .source =
+              resolve_source_path(root_, fs::path{expand_variables(args[2])}),
           .aliases = {},
       };
       file.aliases.reserve(args.size() - 6);
@@ -529,13 +539,7 @@ fs::path jsonl_impl::physical_path(json const& value) const {
     DWARFS_THROW(runtime_error, "'source' must not be empty");
   }
 
-  fs::path path{name};
-
-  if (!path.is_absolute()) {
-    path = root_ / path;
-  }
-
-  return path;
+  return resolve_source_path(root_, fs::path{name});
 }
 
 file_stat::timespec_type jsonl_impl::parse_timestamp(json const& value) const {
