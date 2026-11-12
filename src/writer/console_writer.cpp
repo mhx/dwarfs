@@ -343,14 +343,18 @@ context_line(terminal const& term, context_display const& ctx, size_t width,
   auto const text_width = width - (bar_width ? bar_width + 1 : 0) -
                           (speed_width ? speed_width + 1 : 0);
 
-  line_fields fields{{ctx.label, ""}};
+  line_fields fields;
+
+  if (!ctx.label.empty()) {
+    fields.push_back({ctx.label, ""});
+  }
 
   if (!ctx.status.empty()) {
-    fields.push_back({" " + ctx.status, "", 80});
+    fields.push_back({ctx.status, "", 80});
   }
 
   if (!ctx.path.empty()) {
-    auto const separator = ctx.status.empty() ? " " : ": ";
+    auto const separator = ctx.status.empty() ? "" : ": ";
     std::string short_path = ctx.path;
     auto const prefix_width =
         display_width(ctx.label) +
