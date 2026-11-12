@@ -1192,6 +1192,108 @@ class tools_test : public ::testing::TestWithParam<binary_type> {
 
 } // namespace
 
+TEST(tools_test, input_list_formats_have_identical_digests) {
+  tool_helper mkdwarfs{tool_type::mkdwarfs};
+  tool_helper dwarfsck{tool_type::dwarfsck};
+
+  GTEST_REQUIRES_HELPER(mkdwarfs);
+  GTEST_REQUIRES_HELPER(dwarfsck);
+
+  dwarfs::temporary_directory tempdir("dwarfs-input-list");
+  auto const td = tempdir.path();
+  auto const source = td / "source";
+
+  ASSERT_TRUE(fs::create_directories(source / "sub" / "empty"));
+  dwarfs::write_file(source / "alpha", "alpha contents\n");
+  dwarfs::write_file(source / "sub" / "beta", "beta contents\n");
+
+  std::vector<std::string> const common_args{
+      "--set-time=123456789",
+      "--set-owner=0",
+      "--set-group=0",
+      "--root-mode=0755",
+      "--chmod=D=755,F=644",
+      "--no-progress",
+      "-l1",
+      "-C",
+      "null",
+  };
+
+  auto digests = [&](fs::path const& image) {
+    return subprocess::check_run(DWARFS_ARG_EMULATOR_ dwarfsck.path(),
+                                 dwarfsck.args(), "--compute-digests", "-q",
+                                 "-i", image);
+  };
+
+  auto const regular_image = td / "regular.dwarfs";
+  ASSERT_TRUE(subprocess::check_run(DWARFS_ARG_EMULATOR_ mkdwarfs.path(),
+                                    mkdwarfs.args(), "-i", source, "-o",
+                                    regular_image, common_args));
+
+  auto const reference = digests(regular_image);
+  ASSERT_TRUE(reference);
+  ASSERT_THAT(*reference, ::testing::StartsWith("filesystem digests:"));
+
+  for (auto const format : {"plain", "gen_init_cpio", "jsonl"}) {
+    for (bool const include_root : {false, true}) {
+      SCOPED_TRACE(fmt::format("{} include_root={}", format, include_root));
+
+      std::string list;
+      if (format == "plain"sv) {
+        if (include_root) {
+          list += source.generic_string() + "\n";
+        }
+
+        for (auto const& path : {"alpha", "sub", "sub/beta", "sub/empty"}) {
+          list += (source / path).generic_string() + "\n";
+        }
+      } else if (format == "gen_init_cpio"sv) {
+        if (include_root) {
+          list = "dir / 0755 0 0\n";
+        }
+
+        list += R"(file /alpha alpha 0644 0 0
+dir /sub 0755 0 0
+file /sub/beta sub/beta 0644 0 0
+dir /sub/empty 0755 0 0
+)";
+      } else {
+        if (include_root) {
+          list = R"({"type":"dir","path":"/","mode":"0755"}
+)";
+        }
+
+        list += R"({"type":"file","path":"alpha","source":"alpha","mode":"0644"}
+{"type":"dir","path":"sub","mode":"0755"}
+{"type":"file","path":"sub/beta","source":"sub/beta","mode":"0644"}
+{"type":"dir","path":"sub/empty","mode":"0755"}
+)";
+      }
+
+      auto const name =
+          fmt::format("{}-{}", format, include_root ? "root" : "no-root");
+      auto const input_list = td / (name + ".list");
+
+      dwarfs::write_file(input_list, list);
+
+      auto const image = td / (name + ".dwarfs");
+      std::vector<std::string> format_args;
+
+      if (format != "plain"sv) {
+        format_args.emplace_back("--input-list-format=" + std::string(format));
+      }
+
+      ASSERT_TRUE(subprocess::check_run(
+          DWARFS_ARG_EMULATOR_ mkdwarfs.path(), mkdwarfs.args(), "-i", source,
+          "--input-list", input_list, "-o", image, format_args, common_args));
+
+      auto const actual = digests(image);
+      ASSERT_TRUE(actual);
+      EXPECT_EQ(*reference, *actual);
+    }
+  }
+}
+
 TEST_P(tools_test, end_to_end) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
