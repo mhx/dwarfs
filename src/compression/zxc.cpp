@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <memory>
 
 #include <zxc.h>
 
@@ -73,12 +74,19 @@ class zxc_block_compressor final : public block_compressor::impl {
     auto const max_size = ::zxc_compress_bound(data.size());
     auto compressed = malloc_byte_buffer::create(max_size);
 
-    zxc_compress_opts_t copts{};
-    copts.level = level_;
-    copts.block_size = block_size;
+    std::unique_ptr<::zxc_cctx, decltype(&::zxc_free_cctx)> cctx{
+        ::zxc_create_cctx(), &::zxc_free_cctx};
 
-    auto const csize = ::zxc_compress(
-        data.data(), data.size(), compressed.data(), compressed.size(), &copts);
+    if (!cctx) {
+      DWARFS_THROW(runtime_error, "ZXC: failed to create compression context");
+    }
+
+    set_param(cctx.get(), ZXC_C_LEVEL, level_);
+    set_param(cctx.get(), ZXC_C_BLOCK_SIZE, static_cast<int64_t>(block_size));
+
+    auto const csize =
+        ::zxc_compress_cctx(cctx.get(), data.data(), data.size(),
+                            compressed.data(), compressed.size());
 
     if (csize < 0) {
       DWARFS_THROW(runtime_error,
@@ -117,6 +125,15 @@ class zxc_block_compressor final : public block_compressor::impl {
   }
 
  private:
+  static void set_param(::zxc_cctx* cctx, zxc_cparam_t param, int64_t value) {
+    if (auto const rv = ::zxc_cctx_set_param(cctx, param, value);
+        rv != ZXC_OK) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("ZXC: invalid compression parameter ({})",
+                               ::zxc_error_name(rv)));
+    }
+  }
+
   int const level_;
 };
 
@@ -143,12 +160,10 @@ class zxc_block_decompressor final : public block_decompressor_base {
       DWARFS_THROW(runtime_error, error_);
     }
 
-    zxc_decompress_opts_t opts{};
     decompressed_.resize(uncompressed_size_);
 
-    auto const rv =
-        ::zxc_decompress(data_.data(), data_.size(), decompressed_.data(),
-                         decompressed_.size(), &opts);
+    auto const rv = ::zxc_decompress(
+        data_.data(), data_.size(), decompressed_.data(), decompressed_.size());
 
     if (rv < 0) {
       decompressed_.clear();
