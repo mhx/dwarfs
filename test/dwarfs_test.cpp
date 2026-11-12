@@ -595,6 +595,10 @@ std::vector<std::string> const kCompressionOpts{
 #ifdef DWARFS_HAVE_LIBBROTLI
     "brotli:quality=2",
 #endif
+#ifdef DWARFS_HAVE_LIBZXC
+    "zxc:level=1",
+    "zxc:level=3",
+#endif
 };
 
 } // namespace
