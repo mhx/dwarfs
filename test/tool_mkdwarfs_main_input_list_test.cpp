@@ -44,6 +44,7 @@ TEST(mkdwarfs_input_list, format_names_in_help) {
   ASSERT_EQ(0, t.run({"--help"})) << t.err();
   EXPECT_THAT(t.out(), testing::HasSubstr("--input-list-format"));
   EXPECT_THAT(t.out(), testing::HasSubstr("gen_init_cpio"));
+  EXPECT_THAT(t.out(), testing::HasSubstr("jsonl"));
 }
 
 TEST(mkdwarfs_input_list, gen_init_cpio_synthetic_entries_and_hardlinks) {
@@ -733,4 +734,86 @@ TEST(mkdwarfs_input_list, source_date_epoch_supplies_synthetic_time) {
   ASSERT_TRUE(etc);
   EXPECT_EQ(4321, fs.getattr(root->inode()).mtime());
   EXPECT_EQ(4321, fs.getattr(etc->inode()).mtime());
+}
+
+TEST(mkdwarfs_input_list, jsonl_entries_metadata_and_hardlinks) {
+  for (bool const dedupe : {true, false}) {
+    SCOPED_TRACE(dedupe);
+    auto t = mkdwarfs_tester::create_empty();
+    t.os->add_dir("/");
+    t.os->add_dir("/staging");
+    t.os->add_file("/staging/file with spaces", "file contents");
+
+    auto const input = t.set_input_list(input_mode::from_stdin, R"(
+{"type":"dir","path":"/","uid":11,"mtime":100}
+{"type":"dir","path":"dir with spaces","mode":"0700","uid":12}
+{"type":"file","path":"dir with spaces/a file","source":"file with spaces","mode":"0640","gid":13,"mtime":[101,123456789],"aliases":["dir with spaces/alias"]}
+{"type":"hardlink","path":"dir with spaces/chain","target":"dir with spaces/alias"}
+{"type":"symlink","path":"a link","target":"dir with spaces/a file"}
+{"type":"dir","path":"dev"}
+{"type":"char","path":"dev/null","major":1,"minor":3}
+{"type":"block","path":"dev/loop0","major":7,"minor":0}
+{"type":"fifo","path":"a fifo"}
+{"type":"socket","path":"a socket"}
+)");
+
+    std::vector<std::string> args{"-i",
+                                  "/staging",
+                                  "--input-list",
+                                  input,
+                                  "--input-list-format=jsonl",
+                                  "--keep-all-times",
+                                  "--time-resolution=ns",
+                                  "-l1",
+                                  "-o",
+                                  "test.dwarfs"};
+    if (!dedupe) {
+      args.emplace_back("--no-dedupe");
+    }
+
+    ASSERT_EQ(0, t.run(args)) << t.err();
+    auto fs = t.fs_from_file("test.dwarfs");
+
+    auto primary = fs.find("/dir with spaces/a file");
+    auto alias = fs.find("/dir with spaces/alias");
+    auto chain = fs.find("/dir with spaces/chain");
+    ASSERT_TRUE(primary);
+    ASSERT_TRUE(alias);
+    ASSERT_TRUE(chain);
+    EXPECT_EQ(primary->inode().inode_num(), alias->inode().inode_num());
+    EXPECT_EQ(primary->inode().inode_num(), chain->inode().inode_num());
+    EXPECT_EQ(3, fs.getattr(primary->inode()).nlink());
+    EXPECT_EQ("file contents", fs.read_string(fs.open(primary->inode())));
+    auto const st = fs.getattr(primary->inode());
+    EXPECT_EQ(0640, st.mode() & 07777);
+    EXPECT_EQ(13, st.gid());
+    EXPECT_EQ((file_stat::timespec_type{101, 123456789}), st.mtimespec());
+
+    auto dir = fs.find("/dir with spaces");
+    ASSERT_TRUE(dir);
+    EXPECT_EQ(0700, fs.getattr(dir->inode()).mode() & 07777);
+    EXPECT_EQ(12, fs.getattr(dir->inode()).uid());
+
+    auto link = fs.find("/a link");
+    ASSERT_TRUE(link);
+    EXPECT_EQ("dir with spaces/a file", fs.readlink(link->inode()));
+
+    auto device = fs.find("/dev/null");
+    ASSERT_TRUE(device);
+    EXPECT_EQ(posix_file_type::character, fs.getattr(device->inode()).type());
+    auto block = fs.find("/dev/loop0");
+    ASSERT_TRUE(block);
+    EXPECT_EQ(posix_file_type::block, fs.getattr(block->inode()).type());
+    auto fifo = fs.find("/a fifo");
+    auto socket = fs.find("/a socket");
+    ASSERT_TRUE(fifo);
+    ASSERT_TRUE(socket);
+    EXPECT_EQ(posix_file_type::fifo, fs.getattr(fifo->inode()).type());
+    EXPECT_EQ(posix_file_type::socket, fs.getattr(socket->inode()).type());
+    auto root = fs.find("/");
+    ASSERT_TRUE(root);
+    EXPECT_EQ(11, fs.getattr(root->inode()).uid());
+    EXPECT_EQ((file_stat::timespec_type{100, 0}),
+              fs.getattr(root->inode()).mtimespec());
+  }
 }
