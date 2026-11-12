@@ -370,9 +370,12 @@ std::optional<input_entry> gen_init_cpio_impl::next() {
 
     input_entry_spec spec{
         .content = input_entry_spec::directory{},
-        .permissions = permissions,
-        .uid = numeric(args[attr_ix + 1], 10, "uid"),
-        .gid = numeric(args[attr_ix + 2], 10, "gid"),
+        .attributes =
+            {
+                .permissions = permissions,
+                .uid = numeric(args[attr_ix + 1], 10, "uid"),
+                .gid = numeric(args[attr_ix + 2], 10, "gid"),
+            },
     };
 
     if (is_file) {

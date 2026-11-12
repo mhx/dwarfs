@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -1628,24 +1629,51 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
     os->add_dir("/staging");
     os->add_file("/staging/a", "alpha contents");
     os->add_file("/staging/b", "beta contents");
+    os->add_file("/staging/c", "gamma contents",
+                 {
+                     .atim = file_stat::timespec_type{101, 1001},
+                     .mtim = file_stat::timespec_type{102, 2002},
+                     .ctim = file_stat::timespec_type{103, 3003},
+                 });
 
     using spec = writer::input_entry_spec;
-    spec file_a{.content = spec::file{"/staging/a", {}, 4},
-                .permissions = 0640,
-                .uid = 123,
-                .gid = 456};
-    spec file_b{.content = spec::file{"/staging/b", {}, 2},
-                .permissions = 0640,
-                .uid = 123,
-                .gid = 456};
-    spec dir_spec{.content = spec::directory{}, .permissions = 0755};
-    spec symlink_spec{.content = spec::symlink{"a"}, .permissions = 0777};
-    spec device_spec{.content = spec::device{posix_file_type::character, 1, 3},
-                     .permissions = 0644};
-    spec fifo_spec{.content = spec::special{posix_file_type::fifo},
-                   .permissions = 0644};
-    spec socket_spec{.content = spec::special{posix_file_type::socket},
-                     .permissions = 0644};
+    spec file_a{
+        .content = spec::file{"/staging/a", {}, 4},
+        .attributes = {.permissions = 0640, .uid = 123, .gid = 456},
+    };
+    spec file_b{
+        .content = spec::file{"/staging/b", {}, 2},
+        .attributes = {.permissions = 0640, .uid = 123, .gid = 456},
+    };
+    spec file_c{
+        .content = spec::file{"/staging/c", {}, 1},
+        .attributes = {.mtime = file_stat::timespec_type{777, 123456789}},
+    };
+    spec dir_spec{
+        .content = spec::directory{},
+        .attributes =
+            {
+                .permissions = 0755,
+                .atime = file_stat::timespec_type{111, 1111},
+                .ctime = file_stat::timespec_type{333, 3333},
+            },
+    };
+    spec symlink_spec{
+        .content = spec::symlink{"a"},
+        .attributes = {.permissions = 0777},
+    };
+    spec device_spec{
+        .content = spec::device{posix_file_type::character, 1, 3},
+        .attributes = {.permissions = 0644},
+    };
+    spec fifo_spec{
+        .content = spec::special{posix_file_type::fifo},
+        .attributes = {.permissions = 0644},
+    };
+    spec socket_spec{
+        .content = spec::special{posix_file_type::socket},
+        .attributes = {.permissions = 0644},
+    };
 
     auto alias = [](fs::path path, fs::path target) {
       return writer::input_entry{
@@ -1654,8 +1682,14 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
     };
 
     std::vector<writer::input_entry> entries{
+        {".", std::nullopt,
+         spec{
+             .content = spec::directory{},
+             .attributes = {.mtime = file_stat::timespec_type{5151, 51515}},
+         }},
         {"a", std::nullopt, file_a},
         {"b", std::nullopt, file_b},
+        {"c", std::nullopt, file_c},
         {"nested", std::nullopt, dir_spec},
         alias("a-link", "a"),
         alias("b-link", "b"),
@@ -1668,15 +1702,19 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
     };
 
     writer::scan_request request;
-    request.sources.push_back(
-        {.path = "/staging",
-         .input_entries = std::make_unique<vector_reader>(std::move(entries))});
+    request.sources.push_back({
+        .path = "/staging",
+        .input_entries = std::make_unique<vector_reader>(std::move(entries)),
+        .synthetic_time = 4242,
+    });
 
     writer::scanner_options opts;
     opts.hash_files = dedupe;
     opts.with_devices = true;
     opts.with_specials = true;
     opts.metadata.chmod_specifiers = "g=u,u=o";
+    opts.metadata.keep_all_times = true;
+    opts.metadata.time_resolution = std::chrono::nanoseconds(1);
     writer::writer_progress prog;
     auto image = build_dwarfs(lgr, os, "null", {}, opts, {}, &prog, nullptr,
                               nullptr, nullptr, std::move(request));
@@ -1688,8 +1726,10 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
 
     auto a = fs.find("/a");
     auto b = fs.find("/b");
+    auto c = fs.find("/c");
     ASSERT_TRUE(a);
     ASSERT_TRUE(b);
+    ASSERT_TRUE(c);
     auto const a_ino = a->inode().inode_num();
     auto const b_ino = b->inode().inode_num();
     EXPECT_NE(a_ino, b_ino);
@@ -1708,6 +1748,28 @@ TEST(file_scanner, input_list_interleaved_and_chained_hardlinks) {
     EXPECT_EQ(0060, st.mode() & 07777);
     EXPECT_EQ(123, st.uid());
     EXPECT_EQ(456, st.gid());
+
+    auto const cst = fs.getattr(c->inode());
+    EXPECT_EQ(0464, cst.mode() & 07777);
+    EXPECT_EQ(1000, cst.uid());
+    EXPECT_EQ(100, cst.gid());
+    EXPECT_EQ((file_stat::timespec_type{101, 1001}), cst.atimespec());
+    EXPECT_EQ((file_stat::timespec_type{777, 123456789}), cst.mtimespec());
+    EXPECT_EQ((file_stat::timespec_type{103, 3003}), cst.ctimespec());
+
+    auto root = fs.find("/");
+    ASSERT_TRUE(root);
+    auto const root_st = fs.getattr(root->inode());
+    EXPECT_EQ((file_stat::timespec_type{4242, 0}), root_st.atimespec());
+    EXPECT_EQ((file_stat::timespec_type{5151, 51515}), root_st.mtimespec());
+    EXPECT_EQ((file_stat::timespec_type{4242, 0}), root_st.ctimespec());
+
+    auto nested = fs.find("/nested");
+    ASSERT_TRUE(nested);
+    auto const nested_st = fs.getattr(nested->inode());
+    EXPECT_EQ((file_stat::timespec_type{111, 1111}), nested_st.atimespec());
+    EXPECT_EQ((file_stat::timespec_type{4242, 0}), nested_st.mtimespec());
+    EXPECT_EQ((file_stat::timespec_type{333, 3333}), nested_st.ctimespec());
 
     auto sym = fs.find("/sym");
     ASSERT_TRUE(sym);

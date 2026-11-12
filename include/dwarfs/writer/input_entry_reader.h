@@ -35,6 +35,7 @@
 #include <variant>
 #include <vector>
 
+#include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 
 namespace dwarfs {
@@ -45,11 +46,20 @@ class logger;
 
 namespace writer {
 
+struct input_entry_attributes {
+  std::optional<file_stat::perms_type> permissions{};
+  std::optional<file_stat::uid_type> uid{};
+  std::optional<file_stat::gid_type> gid{};
+  std::optional<file_stat::timespec_type> atime{};
+  std::optional<file_stat::timespec_type> mtime{};
+  std::optional<file_stat::timespec_type> ctime{};
+};
+
 struct input_entry_spec {
   struct file {
     std::filesystem::path source;
     std::vector<std::filesystem::path> aliases;
-    std::uint64_t nlink{1};
+    file_stat::nlink_type nlink{1};
   };
 
   struct directory {};
@@ -73,9 +83,7 @@ struct input_entry_spec {
   };
 
   std::variant<file, directory, symlink, device, special, hardlink> content;
-  std::uint32_t permissions{0};
-  std::uint32_t uid{0};
-  std::uint32_t gid{0};
+  input_entry_attributes attributes{};
 };
 
 struct input_entry {
