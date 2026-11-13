@@ -77,6 +77,15 @@ class magic_wrapper {
     throw_magic_error(m.get(), "identify");
   }
 
+  [[nodiscard]] static std::string default_database() {
+#ifdef DWARFS_HAS_MAGIC_DATABASE
+    auto const db = internal::compressed_magic_database();
+    return fmt::format("embedded {} database", size_with_unit(db.size()));
+#else
+    return "use system default";
+#endif
+  }
+
  private:
   using magic_cookie_t =
       std::unique_ptr<struct ::magic_set, decltype(&::magic_close)>;
@@ -322,7 +331,7 @@ class libmagic_categorizer_factory : public categorizer_factory {
           "identify it")
       ("libmagic-database",
           po::value<std::string>(&magic_db_path_),
-          "path to libmagic database (default: use system default)")
+          default_database_str())
       ;
     // clang-format on
   }
@@ -351,6 +360,13 @@ class libmagic_categorizer_factory : public categorizer_factory {
   }
 
  private:
+  static char const* default_database_str() {
+    static std::string const str =
+        fmt::format("path to libmagic database (default: {})",
+                    magic_wrapper::default_database());
+    return str.c_str();
+  }
+
   std::shared_ptr<po::options_description> opts_;
   std::vector<std::string> categories_;
   std::string max_bytes_str_;
