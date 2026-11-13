@@ -286,6 +286,8 @@ fi
 
 case "-$BUILD_TYPE-" in
   *-lto-*)
+    # -DFMT_HEADER_ONLY=1 increases uncompressed binary size, but reduces
+    # compressed binary size, albeit by a tiny amount.
     export CFLAGS="${CFLAGS} -flto=auto -DFMT_HEADER_ONLY=1"
     export CXXFLAGS="${CXXFLAGS} -flto=auto -DFMT_HEADER_ONLY=1"
     export LDFLAGS="${LDFLAGS} -flto=auto"
