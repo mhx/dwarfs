@@ -598,6 +598,24 @@ Most other options are concerned with compression tuning:
 - `--incompressible-zstd-level=`*value*:
   The ZSTD compression level used for incompressible categorization.
 
+- `--libmagic-category=`*category*`=`*glob*[`:`*glob*...]:
+  Create a new category that selects whole files based on their MIME type as
+  determined by libmagic. Types can be specified as globs, e.g. `image/*` or
+  `text/*`. Multiple globs can be specified, separated by colons. Multiple
+  `--libmagic-category` options can be specified to define more than one
+  category. The newly defined categories can be used just like any other
+  category with any option that accepts a category name.
+
+- `--libmagic-max-bytes=`*value*:
+  The maximum number of bytes read from a file to determine its libmagic type.
+  The default is 64 KiB. The value can be specified with a size suffix.
+
+- `--libmagic-database=`*file*:
+  Use a custom libmagic database file (`magic.mgc`) instead of the default or
+  built-in database. Static release builds contain a built-in, compressed
+  database matching the libmagic version used to build the binary. All other
+  builds will use the system database file by default.
+
 - `-h`, `--help`:
   Show usage and the most common basic options.
 
@@ -653,6 +671,21 @@ It's also worth noting that the order in which the categorizers are given
 is important. The first categorizer that will successfully categorize a
 file wins and, if possible, no other categorizers will run on the same
 file.
+
+### "libmagic" Categorizer
+
+The `libmagic` categorizer uses the libmagic library that is part of the
+`file` utility to determine the MIME type of each input file. Using the
+`--libmagic-category` option, you can define categories of files based on
+their MIME type. For example, if you wanted to group already compressed
+image files into an `images` category, you could use something like:
+
+```
+--libmagic-category=image=image/png:image/jpeg:image/gif
+```
+
+The `--libmagic-category` option accepts wildcards, so you could also use
+`text=text/*` to group all text files into a `text` category.
 
 ### "incompressible" Categorizer
 
