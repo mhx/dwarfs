@@ -32,6 +32,7 @@
 #include <dwarfs/writer/internal/inode_ordering.h>
 #include <dwarfs/writer/internal/promise_receiver.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>
+#include <dwarfs/writer/internal/sort_index.h>
 
 namespace dwarfs::writer::internal {
 
@@ -44,37 +45,6 @@ bool inode_less_by_size(const_inode_handle const& a,
   auto sa = a.size();
   auto sb = b.size();
   return sa > sb || (sa == sb && a.first_file().less_revpath(b.first_file()));
-}
-
-using index_t = sortable_inode_span::index_type::value_type;
-
-// Type-erased comparison function for sorting indices.
-// This saves about 120 KiB in the static, stripped, size-optimized LTO binary,
-// or about 25 KiB after compression.
-class idx_less {
- public:
-  template <typename F>
-  explicit idx_less(F const& f)
-      : ctx_{&f}
-      , fn_{[](void const* c, index_t a, index_t b) {
-        return (*static_cast<F const*>(c))(a, b);
-      }} {}
-
-  bool operator()(index_t a, index_t b) const { return fn_(ctx_, a, b); }
-
- private:
-  void const* ctx_;
-  bool (*fn_)(void const*, index_t, index_t);
-};
-
-template <typename C, typename F>
-void sort_index(C& idx, F const& f) {
-  std::ranges::sort(idx, idx_less{f});
-}
-
-template <typename It, typename F>
-void sort_index(It begin, It end, F const& f) {
-  std::ranges::sort(begin, end, idx_less{f});
 }
 
 } // namespace

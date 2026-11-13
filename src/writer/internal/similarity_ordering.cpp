@@ -46,6 +46,7 @@
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>
+#include <dwarfs/writer/internal/sort_index.h>
 
 namespace dwarfs::writer::internal {
 
@@ -439,8 +440,7 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
   {
     auto tt = LOG_TIMED_TRACE;
 
-    std::ranges::sort(index,
-                      [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
+    sort_index(index, [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
 
     tt << opts_.context << "sort index of " << index.size() << " elements";
   }
@@ -501,8 +501,7 @@ void similarity_ordering_<LoggerPolicy>::order_cluster(
   if (!index.empty()) {
     // TODO: try simulated annealing again? reproducibly?
 
-    std::ranges::sort(index,
-                      [&ev](auto a, auto b) { return ev.order_less(a, b); });
+    sort_index(index, [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
     std::vector<bitvec_type const*> bits;
     bits.reserve(index.size());
@@ -698,8 +697,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
       if (auto it = dup.find(e); it != dup.end()) {
         auto& dupvec = it->second;
 
-        std::ranges::sort(
-            dupvec, [&ev](auto a, auto b) { return ev.order_less(a, b); });
+        sort_index(dupvec,
+                   [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
         for (auto i : dupvec) {
           LOG_TRACE << opts_.context << indent << "  + " << ev.description(i)
