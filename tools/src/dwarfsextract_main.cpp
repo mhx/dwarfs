@@ -88,9 +88,8 @@ class progress_thread {
       cond_.notify_all();
       thread_.join();
     } catch (...) {
-      DWARFS_PANIC(
-          fmt::format("exception thrown in writer_progress destructor: {}",
-                      exception_str(std::current_exception())));
+      DWARFS_PANIC("exception thrown in writer_progress destructor: " +
+                   exception_str(std::current_exception()));
     }
   }
 
