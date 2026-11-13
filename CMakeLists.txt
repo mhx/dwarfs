@@ -193,9 +193,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
   list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 
-  # TODO: still needed?
-  add_link_options(-Wl,--start-group -lstdc++ -lgcc_eh -lgcc -lm -lpthread -Wl,--end-group)
-
   if(DISABLE_CXA_DEMANGLE)
     add_library(wrap_cxa_demangle STATIC ${CMAKE_SOURCE_DIR}/cmake/wrap_cxa_demangle.c)
     target_link_options(wrap_cxa_demangle INTERFACE -Wl,--wrap=__cxa_demangle)
