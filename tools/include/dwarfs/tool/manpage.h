@@ -28,27 +28,33 @@
 
 #pragma once
 
-#include <cstdint>
-#include <span>
 #include <string_view>
-
-#include <fmt/color.h>
-#include <fmt/format.h>
 
 namespace dwarfs::tool::manpage {
 
-struct element {
-  fmt::text_style style;
-  std::string_view text;
-};
-
-struct line {
-  std::span<element const> elements{};
-  uint8_t indent_first{0};
-  uint8_t indent_next{0};
-  bool no_wrap{false};
-};
-
-using document = std::span<line const>;
+// An immutable stream of UTF-8 text and inline formatting commands.
+//
+// The generator writes exactly one of the following control sequences
+// per logical layout line (before width-dependent wrapping):
+//
+//   0x10..0x19             common indentation / no-wrap layout (see decoder)
+//   0x1f <first> <next> <no_wrap>  arbitrary layout (all byte values)
+//
+// A line continues until the next line command or the end of the stream.
+// Every line starts with unstyled text; within a line, these commands begin
+// a new text fragment (which can affect wrapping at style boundaries):
+//
+//   0x01                   plain
+//   0x02                   bold
+//   0x03                   italic
+//   0x04                   heading
+//   0x05                   code
+//   0x06                   preformatted block
+//   0x07 <mask>            combination of style bits (BOLD=1, ITALIC=2,
+//                          HEAD=4, CODE=8, BLOCK=16)
+//
+// No other bytes are interpreted as commands. Literal occurrences of the
+// reserved control bytes 0x01..0x07 and 0x10..0x1f are rejected at generation.
+using document = std::string_view;
 
 } // namespace dwarfs::tool::manpage

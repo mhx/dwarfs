@@ -27,10 +27,16 @@
  */
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <iterator>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#include <fmt/color.h>
+#include <fmt/format.h>
 
 #if __has_include(<utf8cpp/utf8.h>)
 #include <utf8cpp/utf8.h>
@@ -56,10 +62,189 @@ size_t utf8_offset(std::string_view sv, size_t n) {
   return static_cast<size_t>(std::distance(sv.begin(), it));
 }
 
+// Keep these common layouts in sync with LINE_LAYOUTS in
+// cmake/render_manpage_v2.py. Other layouts use the 0x1f escape.
+struct layout {
+  uint8_t indent_first;
+  uint8_t indent_next;
+  bool no_wrap;
+};
+
+constexpr std::array<layout, 10> layouts{{
+    {0, 0, false},
+    {4, 4, false},
+    {8, 8, false},
+    {8, 10, false},
+    {8, 11, false},
+    {8, 16, false},
+    {12, 12, true},
+    {14, 14, true},
+    {16, 16, false},
+    {20, 20, true},
+}};
+
+bool is_line_command(unsigned char byte) {
+  return byte >= 0x10 && byte <= 0x1f;
+}
+
+bool is_style_command(unsigned char byte) {
+  return byte >= 0x01 && byte <= 0x07;
+}
+
+struct line_view {
+  layout format;
+  std::string_view text;
+};
+
+std::optional<line_view> next_line(std::string_view& data) {
+  if (data.empty()) {
+    return std::nullopt;
+  }
+
+  auto const command = static_cast<unsigned char>(data.front());
+  layout format;
+
+  if (command == 0x1f) {
+    if (data.size() < 4) {
+      throw std::invalid_argument("truncated manpage line layout");
+    }
+
+    format = {static_cast<uint8_t>(data[1]), static_cast<uint8_t>(data[2]),
+              data[3] != 0};
+
+    data.remove_prefix(4);
+  } else if (command >= 0x10 && command - 0x10 < layouts.size()) {
+    format = layouts[command - 0x10];
+    data.remove_prefix(1);
+  } else {
+    throw std::invalid_argument("invalid manpage line layout");
+  }
+
+  size_t count = 0;
+
+  while (count < data.size()) {
+    auto const byte = static_cast<unsigned char>(data[count]);
+
+    if (is_line_command(byte)) {
+      break;
+    }
+
+    if (byte == 0x07) {
+      if (count + 1 == data.size()) {
+        throw std::invalid_argument("truncated manpage style mask");
+      }
+
+      ++count; // The mask may itself look like a line command.
+    }
+
+    ++count;
+  }
+
+  auto text = data.substr(0, count);
+
+  data.remove_prefix(count);
+
+  return line_view{format, text};
+}
+
+struct text_run {
+  uint8_t style;
+  std::string_view text;
+};
+
+std::optional<text_run> next_run(std::string_view& data, uint8_t& style) {
+  while (!data.empty()) {
+    auto const command = static_cast<unsigned char>(data.front());
+
+    if (!is_style_command(command)) {
+      break;
+    }
+
+    data.remove_prefix(1);
+
+    if (command == 0x07) {
+      if (data.empty()) {
+        throw std::invalid_argument("truncated manpage style mask");
+      }
+
+      style =
+          static_cast<uint8_t>(0x80 | static_cast<unsigned char>(data.front()));
+
+      data.remove_prefix(1);
+    } else {
+      style = command - 1;
+    }
+  }
+
+  if (data.empty()) {
+    return std::nullopt;
+  }
+
+  size_t count = 0;
+
+  while (count < data.size() &&
+         !is_style_command(static_cast<unsigned char>(data[count]))) {
+    ++count;
+  }
+
+  auto text = data.substr(0, count);
+
+  data.remove_prefix(count);
+
+  return text_run{style, text};
+}
+
+fmt::text_style text_style(uint8_t code) {
+  switch (code) {
+  case 0:
+    return {};
+  case 1:
+    return fmt::emphasis::bold;
+  case 2:
+    return fmt::emphasis::italic;
+  case 3:
+    return fmt::fg(fmt::terminal_color::bright_green) | fmt::emphasis::bold;
+  case 4:
+    return fmt::fg(fmt::terminal_color::bright_blue) | fmt::emphasis::bold;
+  case 5:
+    return fmt::emphasis::faint;
+  default:
+    break;
+  }
+
+  // Styles not in the fast-path table are encoded as a bit mask.
+  auto const mask = code & 0x1f;
+  fmt::text_style style;
+
+  if (mask & 1) {
+    style = style | fmt::emphasis::bold;
+  }
+
+  if (mask & 2) {
+    style = style | fmt::emphasis::italic;
+  }
+
+  if (mask & 4) {
+    style = style | fmt::fg(fmt::terminal_color::bright_green) |
+            fmt::emphasis::bold;
+  }
+
+  if (mask & 8) {
+    style =
+        style | fmt::fg(fmt::terminal_color::bright_blue) | fmt::emphasis::bold;
+  }
+
+  if (mask & 16) {
+    style = style | fmt::emphasis::faint;
+  }
+
+  return style;
+}
+
 } // namespace
 
-std::string render_manpage(manpage::document const doc, size_t const width,
-                           bool const color) {
+std::string
+render_manpage(manpage::document doc, size_t const width, bool const color) {
   static constexpr size_t min_width = 20;
 
   if (width < min_width) {
@@ -88,30 +273,35 @@ std::string render_manpage(manpage::document const doc, size_t const width,
     return static_cast<uint32_t>(std::min<size_t>(i, max_indent));
   };
 
-  for (auto const& l : doc) {
-    auto const indent_first = clamp_indent(l.indent_first);
-    auto const indent_next = clamp_indent(l.indent_next);
+  while (auto l = next_line(doc)) {
+    auto const indent_first = clamp_indent(l->format.indent_first);
+    auto const indent_next = clamp_indent(l->format.indent_next);
 
     indent_line(indent_first);
 
-    if (l.no_wrap) {
-      for (auto const& e : l.elements) {
-        fmt::format_to(out_it, color ? e.style : fmt::text_style{}, "{}",
-                       e.text);
+    auto text = l->text;
+    uint8_t current_style = 0;
+    auto e = next_run(text, current_style);
+
+    if (l->format.no_wrap) {
+      while (e) {
+        fmt::format_to(out_it, color ? text_style(e->style) : fmt::text_style{},
+                       "{}", e->text);
+        e = next_run(text, current_style);
       }
+
       fmt::format_to(out_it, "\n");
+
       continue;
     }
 
     uint32_t indent = indent_first;
     size_t column = indent;
 
-    for (size_t i = 0; i < l.elements.size(); ++i) {
-      auto const& e = l.elements[i];
-      auto const* next =
-          (i + 1 < l.elements.size()) ? &l.elements[i + 1] : nullptr;
-      auto t = e.text;
-      auto style = color ? e.style : fmt::text_style{};
+    while (e) {
+      auto const next = next_run(text, current_style);
+      auto t = e->text;
+      auto style = color ? text_style(e->style) : fmt::text_style{};
       auto len = utf8_length(t);
 
       while (!t.empty() && column + len > effective_width) {
@@ -146,8 +336,8 @@ std::string render_manpage(manpage::document const doc, size_t const width,
         throw std::logic_error("line too long");
       }
 
-      if (column + len == effective_width && next != nullptr &&
-          next->text.size() == 1 && punct.contains(next->text[0])) {
+      if (column + len == effective_width && next && next->text.size() == 1 &&
+          punct.contains(next->text[0])) {
         indent = indent_next;
         break_line(indent);
         column = indent;
@@ -155,6 +345,7 @@ std::string render_manpage(manpage::document const doc, size_t const width,
 
       fmt::format_to(out_it, style, "{}", t);
       column += len;
+      e = next;
     }
 
     fmt::format_to(out_it, "\n");

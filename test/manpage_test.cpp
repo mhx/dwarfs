@@ -108,6 +108,28 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, manpage_render_test,
                          ::testing::Combine(::testing::ValuesIn(render_tests),
                                             ::testing::Bool()));
 
+TEST(manpage_stream_test, inline_styles_and_extended_layout) {
+  // The extended style mask (0x13) looks like a line marker; it must not
+  // terminate the line. The extended layout allows uncommon indentation.
+  constexpr char data[] = "\020Simple \002bold\001 and \003italic"
+                          "\037\003\005\001\006raw UTF-8: \303\274"
+                          "\020"
+                          "\020\007\023mixed";
+  manpage::document const doc{data, sizeof(data) - 1};
+
+  EXPECT_EQ(render_manpage(doc, 80, false),
+            "Simple bold and italic\n   raw UTF-8: \303\274\n\nmixed\n");
+  EXPECT_NE(render_manpage(doc, 80, true), render_manpage(doc, 80, false));
+}
+
+TEST(manpage_stream_test, adjacent_fragments_preserve_punctuation_wrapping) {
+  // Even a repeated style command starts another fragment; the lookahead
+  // for punctuation must behave just like the original element array.
+  constexpr char data[] = "\020abcdefghijklmnop\001.";
+  manpage::document const doc{data, sizeof(data) - 1};
+  EXPECT_EQ(render_manpage(doc, 20, false), "\nabcdefghijklmnop\n.\n");
+}
+
 namespace {
 
 std::regex const boost_po_option{R"(\n\s+(-(\w)\s+\[\s+)?--(\w[\w-]*\w))"};

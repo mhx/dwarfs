@@ -498,42 +498,99 @@ class Layout:
             head.spans = merge_spans([Span(marker)] + head.spans)
 
 
-STYLES = [
-    (BOLD, "fmt::emphasis::bold"),
-    (ITALIC, "fmt::emphasis::italic"),
-    (HEAD, "fmt::fg(fmt::terminal_color::bright_green) | fmt::emphasis::bold"),
-    (CODE, "fmt::fg(fmt::terminal_color::bright_blue) | fmt::emphasis::bold"),
-    (BLOCK, "fmt::emphasis::faint"),
-]
+# See the byte-stream format documented in dwarfs/tool/manpage.h. The common
+# layouts have single-byte opcodes, other layouts use the extended line opcode.
+# Keep this table in sync with the decoder in render_manpage.cpp.
+LINE_LAYOUTS = (
+    (0, 0, False),
+    (4, 4, False),
+    (8, 8, False),
+    (8, 10, False),
+    (8, 11, False),
+    (8, 16, False),
+    (12, 12, True),
+    (14, 14, True),
+    (16, 16, False),
+    (20, 20, True),
+)
+
+# Style control bytes 1..6 encode these styles (0 is the initial style).
+SIMPLE_STYLES = (
+    frozenset(),
+    frozenset({BOLD}),
+    frozenset({ITALIC}),
+    frozenset({HEAD}),
+    frozenset({CODE}),
+    frozenset({BLOCK}),
+)
+STYLE_BITS = (BOLD, ITALIC, HEAD, CODE, BLOCK)
 
 
-def cxx_style(style):
-    parts = [expr for tag, expr in STYLES if tag in style]
-    return " | ".join(parts) if parts else "{}"
+def encode_cpp_manpage(lines):
+    data = bytearray()
+
+    for line in lines:
+        layout = (line.indent_first, line.indent_next, line.no_wrap)
+
+        if layout in LINE_LAYOUTS:
+            data.append(0x10 + LINE_LAYOUTS.index(layout))
+        else:
+            if not all(0 <= n <= 255 for n in layout[:2]):
+                raise ValueError(f"manpage indentation out of range: {layout}")
+            data.extend((0x1F, layout[0], layout[1], int(layout[2])))
+
+        previous_style = 0
+
+        for index, span in enumerate(shift_spaces(line.spans)):
+            if not span.style.issubset(STYLE_BITS):
+                raise ValueError(f"unknown manpage style: {span.style}")
+
+            try:
+                style = SIMPLE_STYLES.index(span.style)
+                marker = bytes((style + 1,))
+            except ValueError:
+                mask = sum(
+                    1 << i for i, tag in enumerate(STYLE_BITS) if tag in span.style
+                )
+                style = 0x80 | mask
+                marker = bytes((0x07, mask))
+
+            # Mark *every* fragment after the first, even if its style hasn't
+            # changed. Fragment boundaries affect punctuation wrapping.
+            if style != previous_style or index != 0:
+                data.extend(marker)
+
+            previous_style = style
+            encoded = span.text.encode("utf-8")
+
+            # Control bytes cannot occur as text. UTF-8 continuation bytes
+            # never collide with them, so only ASCII controls need checking.
+            if any(1 <= b <= 7 or 0x10 <= b <= 0x1F for b in encoded):
+                raise ValueError("manpage contains a reserved control character")
+
+            data.extend(encoded)
+
+    return bytes(data)
 
 
-def cxx_string(text):
-    if ')"' not in text and "\\" not in text:
-        return f'R"({text})"'
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+def cxx_byte_array(data):
+    # A direct aggregate initializer avoids string-literal length limits and
+    # constexpr evaluation limits. The bytes are emitted as unsigned values
+    # to avoid char signedness differences across target platforms.
+    return "\n".join(
+        "    " + ", ".join(f"0x{byte:02x}" for byte in data[i : i + 16]) + ","
+        for i in range(0, len(data), 16)
+    )
 
 
 def render_cpp(doc, name):
     lines = Layout().document(doc)
-
-    elements = []  # flat list of (style, text)
-    spans = []  # (offset, count) per line
-    for line in lines:
-        line_spans = shift_spaces(line.spans)
-        spans.append((len(elements), len(line_spans)))
-        elements.extend((cxx_style(s.style), s.text) for s in line_spans)
+    data = encode_cpp_manpage(lines)
 
     out = []
-    out.append("// Generated from markdown by render_manpage.py -- do not edit.\n")
+    out.append("// Generated from markdown by render_manpage_v2.py -- do not edit.\n")
     out.append("\n")
     out.append("#include <array>\n")
-    out.append("\n")
     out.append("#include <dwarfs/tool/manpage.h>\n")
     out.append("\n")
     out.append("namespace dwarfs::tool::manpage {\n")
@@ -542,28 +599,16 @@ def render_cpp(doc, name):
     out.append("\n")
     out.append("namespace {\n")
     out.append("\n")
-
-    out.append(f"constexpr std::array<element, {len(elements)}> const elements{{{{\n")
-    for style, text in elements:
-        out.append(f"    {{{style}, {cxx_string(text)}}},\n")
-    out.append("}};\n\n")
-
-    out.append(f"constexpr std::array<line, {len(lines)}> const document_array{{{{\n")
-    for line, (offset, count) in zip(lines, spans):
-        span = f"{{elements.data() + {offset}, {count}}}" if count else "{}"
-        extra = ""
-        if line.indent_first or line.indent_next or line.no_wrap:
-            extra += f", {line.indent_first}, {line.indent_next}"
-        if line.no_wrap:
-            extra += ", true"
-        out.append(f"    {{{span}{extra}}},\n")
-    out.append("}};\n\n")
-
+    out.append(f"constexpr std::array<unsigned char, {len(data)}> data{{{{\n")
+    out.append(cxx_byte_array(data))
+    out.append("\n}};\n\n")
     out.append("} // namespace\n")
     out.append("\n")
     out.append("// NOLINTEND(readability-*)\n")
     out.append("\n")
-    out.append(f"document get_{name}_manpage() {{ return document_array; }}\n")
+    out.append(f"document get_{name}_manpage() {{\n")
+    out.append("  return {reinterpret_cast<char const*>(data.data()), data.size()};\n")
+    out.append("}\n")
     out.append("\n")
     out.append("} // namespace dwarfs::tool::manpage\n")
 
