@@ -1,5 +1,12 @@
 # Change Log
 
+## Version 0.15.10 - 2026-11-14
+
+- (fix) Avoid integer underflow on problematic TTYs. Using `mkdwarfs` on
+  narrow terminals with "live" (`unicode` or `ascii`) progress output would
+  trigger an integer underflow and subsequently a huge memory allocation.
+  Thanks to @cnt0 for reporting this issue and providing a fix.
+
 ## Version 0.15.9 - 2026-11-14
 
 - (fix) Always join I/O thread in `filesystem_extractor`, even when
