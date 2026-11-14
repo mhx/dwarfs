@@ -1,5 +1,24 @@
 # Change Log
 
+## Version 0.15.9 - 2026-11-14
+
+- (fix) Always join I/O thread in `filesystem_extractor`, even when
+  `archive_write_close()` causes `close()` to throw. This caused some of
+  the tests to fail when building against libarchive-3.8.10 or later.
+  Thanks to @tijove for the pull request to fix this.
+
+- (fix) While v0.15.8 fixed an issue where the `total_hardlink_size` was
+  computed incorrectly, it introduced an accidentally quadratic complexity
+  algorithm while doing so. This was only noticeable with a large number of
+  duplicate files, but it could cause a significant slowdown when building
+  or re-building metadata.
+
+- (fix) Correctly update segmenter progress context for sparse holes. Without
+  `--no-sparse-files`, the segmenter progress context would not count the size
+  of sparse holes, which would cause the progress to be reported incorrectly
+  and finish below 100%. This is purely a cosmetic issue with no functional
+  impact, but the fix was trivial.
+
 ## Version 0.15.8 - 2026-09-30
 
 - (fix) Correctly handle sparse files when querying entries in "data order".
