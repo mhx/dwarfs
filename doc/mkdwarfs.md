@@ -646,11 +646,12 @@ Most other options are concerned with compression tuning:
   useful e.g. when the file system image is going to be attached to a loop
   device which has a sector size requirement. This is 1 by default, meaning
   no extra padding is added. When rewriting an existing file system image,
-  the alignment of the existing image is preserved unless this option is
-  specified. Setting this to a value larger than 1 will insert a padding
-  section if necessary. Alignment measures the filesystem image size
-  *excluding* any prepended header. Padding is written before the section
-  index, which remains the last section.
+  and if its alignment is known from the superblock, the alignment of the
+  existing image is preserved unless this option is specified. Setting this
+  to a value larger than 1 will insert a padding section if necessary.
+  Alignment measures the filesystem image size *excluding* any prepended
+  header. Padding is written before the section index, which remains the last
+  section.
 
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny
