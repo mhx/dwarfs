@@ -1013,6 +1013,39 @@ TEST(mkdwarfs_test, explicit_order_multiple_sources) {
       ordered_paths);
 }
 
+TEST(mkdwarfs_test, explicit_order_partial_list) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_dir("/source");
+  for (auto const& name : {"a", "b", "c", "d"}) {
+    t.os->add_file("/source/" + std::string(name), std::string(name));
+  }
+  t.fa->set_file("order.dat", "d\nb\n");
+
+  ASSERT_EQ(0, t.run({"-i", "/source", "-o", "test.dwarfs", "-l1", "-B0",
+                      "--order=explicit:file=order.dat"}))
+      << t.err();
+
+  auto image = t.fs_from_file("test.dwarfs");
+  auto get_offset = [&](char const* name) {
+    auto const file = image.find(std::string("/") + name);
+    if (!file) {
+      ADD_FAILURE() << "missing file " << name;
+      return size_t{0};
+    }
+    return image.get_inode_info(file->inode())["chunks"][0]["offset"]
+        .get<size_t>();
+  };
+
+  auto const d = get_offset("d");
+  auto const b = get_offset("b");
+  auto const a = get_offset("a");
+  auto const c = get_offset("c");
+  EXPECT_LT(d, b);
+  EXPECT_LT(b, a);
+  EXPECT_LT(b, c);
+}
+
 TEST(mkdwarfs_test, explicit_order_single_input_relative_paths) {
   auto t = mkdwarfs_tester::create_empty();
 

@@ -257,9 +257,16 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   sort_index(index, [&](auto const a, auto const b) {
     auto const& ai = path_order[a];
     auto const& bi = path_order[b];
-    return ai.has_value() && bi.has_value()
-               ? *ai < *bi
-               : sp.raw_handle(a).num() < sp.raw_handle(b).num();
+
+    if (ai.has_value() != bi.has_value()) {
+      return ai.has_value();
+    }
+
+    if (ai && *ai != *bi) {
+      return *ai < *bi;
+    }
+
+    return sp.raw_handle(a).num() < sp.raw_handle(b).num();
   });
 
   for (auto i : index) {
