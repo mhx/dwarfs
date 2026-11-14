@@ -1052,7 +1052,13 @@ int dwarfsck_impl::do_repair_superblock(
   auto const orig_size = sbe.fs_size();
   auto const actual_size = fs().image_size();
 
-  auto const orig_align = sbe.fs_size_alignment();
+  std::optional<std::uint64_t> orig_align;
+  try {
+    orig_align = sbe.fs_size_alignment();
+  } catch (std::exception const&) {
+    LOG_WARN << "invalid image size alignment in corrupted superblock, "
+                "resetting to byte alignment";
+  }
 
   sbe.clear_all_mutable_fields();
 
@@ -1061,13 +1067,17 @@ int dwarfsck_impl::do_repair_superblock(
              << actual_size;
   }
 
-  sbe.init_fs_size(actual_size);
-
-  if (actual_size % orig_align != 0) {
-    LOG_WARN << "invalid image size alignment (" << size_with_unit(orig_align)
-             << ") in corrupted superblock, resetting to byte alignment";
-    sbe.set_fs_size_alignment(1);
+  // Fix the alignment before initializing the filesystem size.
+  if (!orig_align || actual_size % *orig_align != 0) {
+    if (orig_align) {
+      LOG_WARN << "invalid image size alignment ("
+               << size_with_unit(*orig_align)
+               << ") in corrupted superblock, resetting to byte alignment";
+    }
+    sbe.reset_fs_size_alignment();
   }
+
+  sbe.init_fs_size(actual_size);
 
   sbe.update(ios);
 

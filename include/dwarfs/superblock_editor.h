@@ -180,6 +180,7 @@ class superblock_editor {
   static superblock_editor builder();
 
   void set_fs_size_alignment(std::uint64_t alignment);
+  void reset_fs_size_alignment();
 
   std::vector<std::uint8_t> get_payload() const;
 

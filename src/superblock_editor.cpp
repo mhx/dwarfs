@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstring>
@@ -407,14 +408,21 @@ class superblock_editor::impl {
     DWARFS_CHECK(mode_ == editor_mode::create,
                  "superblock_editor::set_fs_size_alignment() can only be "
                  "called in create mode");
-    if (!std::has_single_bit(alignment)) {
-      throw std::runtime_error("fs_size_alignment must be a power of two");
+    if (!std::has_single_bit(alignment) ||
+        std::countr_zero(alignment) > kMaxSizeAlignLog2) {
+      throw std::runtime_error(
+          "fs_size_alignment must be a power of two no greater than 2^48");
     }
-    assert(s_);
-    auto& sb = s_.value().sb;
-    sb.fs_size_align_log2 =
+    auto& sblk = sb();
+    if (sblk.fs_size != 0 && sblk.fs_size % alignment != 0) {
+      throw std::runtime_error(
+          "filesystem size is not a multiple of the alignment");
+    }
+    sblk.fs_size_align_log2 =
         static_cast<std::uint8_t>(std::countr_zero(alignment));
   }
+
+  void reset_fs_size_alignment() { sb().fs_size_align_log2 = 0; }
 
   std::streamoff image_offset() const {
     assert_loaded();
@@ -430,8 +438,12 @@ class superblock_editor::impl {
   std::uint8_t minor_version() const { return sb().minor_version; }
 
   std::uint64_t fs_size_alignment() const {
-    // Bounded by check_superblock(), so the shift is well-defined.
-    return std::uint64_t{1} << sb().fs_size_align_log2;
+    // validate alignment in case this was a corrupted superblock
+    auto const exponent = sb().fs_size_align_log2;
+    if (exponent > kMaxSizeAlignLog2) {
+      throw std::runtime_error("invalid filesystem size alignment");
+    }
+    return std::uint64_t{1} << exponent;
   }
 
   std::optional<std::uint64_t> fs_size() const {
@@ -451,8 +463,10 @@ class superblock_editor::impl {
   }
 
   std::string_view fs_label() const {
-    // Null termination is guaranteed by check_superblock().
-    return std::string_view{sb().fs_label.data()};
+    // read_corrupted() may expose a label without a null terminator.
+    auto const& label = sb().fs_label;
+    auto const end = std::ranges::find(label, '\0');
+    return {label.data(), static_cast<std::size_t>(end - label.begin())};
   }
 
   digest_algorithm digest_algo() const { return sb().digest_algo; }
@@ -894,6 +908,10 @@ void superblock_editor::set_uuid(std::span<std::uint8_t> buffer,
 
 void superblock_editor::set_fs_size_alignment(std::uint64_t alignment) {
   impl_->set_fs_size_alignment(alignment);
+}
+
+void superblock_editor::reset_fs_size_alignment() {
+  impl_->reset_fs_size_alignment();
 }
 
 std::vector<std::uint8_t> superblock_editor::get_payload() const {

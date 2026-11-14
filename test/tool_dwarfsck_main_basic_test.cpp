@@ -2124,6 +2124,29 @@ TEST(dwarfsck_test, integrity_checks_declared_superblock_size) {
   }
 }
 
+TEST(dwarfsck_test, repair_corrupt_superblock_alignment) {
+  auto const original = build_test_image({"--no-backwards-compat"});
+
+  for (unsigned const log2 : {30u, 255u}) {
+    SCOPED_TRACE(log2);
+    auto image = original;
+    image[sizeof(section_header_v2) +
+          offsetof(superblock_v1, fs_size_align_log2)] =
+        static_cast<char>(log2);
+
+    auto t = dwarfsck_tester::create_with_image(image);
+    ASSERT_EQ(0, t.run({"image.dwarfs", "--repair-superblock"})) << t.err();
+
+    auto const repaired = t.fa->get_file("image.dwarfs");
+    ASSERT_TRUE(repaired);
+    std::istringstream input(*repaired);
+    superblock_editor ed;
+    ASSERT_NO_THROW(ed.read(input));
+    EXPECT_EQ(1, ed.fs_size_alignment());
+    EXPECT_EQ(original.size(), ed.fs_size());
+  }
+}
+
 TEST(dwarfsck_test, integrity_accepts_aligned_superblock_image) {
   auto const image =
       build_test_image({"--no-backwards-compat", "--image-size-alignment=512"});

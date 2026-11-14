@@ -1558,6 +1558,42 @@ TEST(superblock_editor_test, read_corrupted_repair_checksums) {
   EXPECT_EQ("repair me", reread.fs_label());
 }
 
+TEST(superblock_editor_test, reject_alignment_incompatible_with_fs_size) {
+  auto ed = superblock_editor::builder();
+  ed.init_fs_size(kSbSize);
+  EXPECT_THAT([&] { ed.set_fs_size_alignment(512); },
+              testing::ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                  "filesystem size is not a multiple of the alignment")));
+  EXPECT_THAT([&] { ed.set_fs_size_alignment(511); },
+              testing::ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                  "fs_size_alignment must be a power of two no greater than")));
+}
+
+TEST(superblock_editor_test, repair_invalid_alignment_and_label) {
+  auto damaged = superblock_builder{}.build();
+  damaged[kOffAlignLog2] = static_cast<char>(255);
+  damaged.replace(kOffLabel, kLabelSize, std::string(kLabelSize, 'x'));
+
+  std::stringstream io{damaged, kBinInOut};
+  superblock_editor ed;
+  ASSERT_NO_THROW(ed.read_corrupted(io));
+
+  EXPECT_THROW(ed.fs_size_alignment(), std::runtime_error);
+  EXPECT_EQ(std::string(kLabelSize, 'x'), ed.fs_label());
+
+  ed.clear_all_mutable_fields();
+  EXPECT_NO_THROW(ed.reset_fs_size_alignment());
+  EXPECT_NO_THROW(ed.init_fs_size(kSbSize));
+  EXPECT_NO_THROW(ed.update(io));
+
+  std::istringstream repaired{io.str(), kBinIn};
+  superblock_editor reread;
+  ASSERT_NO_THROW(reread.read(repaired));
+  EXPECT_EQ(1, reread.fs_size_alignment());
+  EXPECT_EQ(kSbSize, reread.fs_size());
+  EXPECT_TRUE(reread.fs_label().empty());
+}
+
 TEST(superblock_editor_test, clear_all_mutable_fields) {
   test_image img{superblock_builder{}
                      .fs_size(16 * kAlignment)
