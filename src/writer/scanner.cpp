@@ -381,6 +381,8 @@ class save_shared_files_visitor : public visitor_base {
     shared_files_.resize(inode_end - begin_shared_);
   }
 
+  bool has_any_shared_files() const { return !shared_files_.empty(); }
+
   void visit(file_handle p) override {
     if (auto ino = p.inode_num().value(); ino >= begin_shared_) {
       auto ufi = p.unique_file_id();
@@ -2027,7 +2029,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
   {
     save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                    num_unique_files);
-    root.accept(ssfv);
+    if (ssfv.has_any_shared_files()) {
+      root.accept(ssfv);
+    }
     mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
   }
 
