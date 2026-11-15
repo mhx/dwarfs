@@ -71,9 +71,7 @@ file_stat make_file_stat(simplestat const& ss) {
   rv.set_mode(ss.mode);
   rv.set_uid(ss.uid);
   rv.set_gid(ss.gid);
-  std::error_code ec;
-  rv.set_rdev(ss.rdev.native(ec));
-  DWARFS_CHECK(!ec, fmt::format("failed to set rdev: {}", ec.message()));
+  rv.set_rdev(ss.rdev);
   rv.set_size(ss.size);
   auto const allocated = ss.allocated_size.value_or(ss.size);
   rv.set_allocated_size(allocated);

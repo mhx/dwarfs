@@ -256,7 +256,7 @@ class entry_storage {
     return entry_impl_->get_inode_num_for_entry(id);
   }
 
-  file_stat::dev_type get_represented_device(device_id id) const {
+  device_number get_represented_device(device_id id) const {
     return entry_impl_->get_represented_device(id);
   }
 
@@ -474,7 +474,7 @@ class entry_storage {
     virtual std::optional<std::uint64_t>
     get_inode_num_for_entry(entry_id id) const = 0;
 
-    virtual file_stat::dev_type get_represented_device(device_id id) const = 0;
+    virtual device_number get_represented_device(device_id id) const = 0;
 
     virtual bool empty() const = 0;
     virtual void dump(std::ostream& os) const = 0;

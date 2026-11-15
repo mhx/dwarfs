@@ -770,20 +770,18 @@ class metadata_v2_data {
   }
 
   template <typename LoggerPolicy>
-  std::uint64_t
-  get_native_device_id(LOG_PROXY_REF_(LoggerPolicy) int inode) const {
+  device_number
+  get_device_number(LOG_PROXY_REF_(LoggerPolicy) int inode) const {
     std::error_code ec;
 
     if (auto const dev = get_device_id(inode, ec); dev && !ec) {
-      if (auto const id = dev->native(ec); !ec) {
-        return id;
-      }
+      return *dev;
     }
 
-    LOG_WARN << "failed to get native device id for inode " << inode << ": "
+    LOG_WARN << "failed to get device number for inode " << inode << ": "
              << ec.message();
 
-    return 0;
+    return {};
   }
 
   std::vector<uint8_t> schema_;
@@ -2458,8 +2456,8 @@ file_stat metadata_v2_data::getattr_impl(LOG_PROXY_REF_(LoggerPolicy)
   timeres_handler_.fill_stat_timevals(stbuf, ivr);
 
   stbuf.set_nlink(hardlink_count(ivr));
-  stbuf.set_rdev(stbuf.is_device() ? get_native_device_id(LOG_PROXY_ARG_ inode)
-                                   : 0);
+  stbuf.set_rdev(stbuf.is_device() ? get_device_number(LOG_PROXY_ARG_ inode)
+                                   : device_number{});
 
   return stbuf;
 }

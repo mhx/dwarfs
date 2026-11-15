@@ -316,14 +316,14 @@ class device_set_inode_visitor : public visitor_base {
     bool is_new{false};
     p.set_inode_num(hh_.get_inode_num(p, &is_new));
     if (is_new) {
-      dev_ids_.push_back(p.posix_device_id());
+      dev_ids_.push_back(p.represented_device());
     }
   }
 
-  std::vector<uint64_t>& device_ids() { return dev_ids_; }
+  std::vector<device_number>& device_ids() { return dev_ids_; }
 
  private:
-  std::vector<uint64_t> dev_ids_;
+  std::vector<device_number> dev_ids_;
   hardlink_handler hh_;
 };
 
@@ -1231,12 +1231,7 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
           },
           [&rv](input_entry_spec::device const& device) {
             rv.stat.set_mode(device.type | 0644);
-            std::error_code ec;
-            rv.stat.set_rdev(
-                device_number(device.major, device.minor).native(ec));
-            if (ec) {
-              throw std::system_error(ec, "invalid device number");
-            }
+            rv.stat.set_rdev(device_number(device.major, device.minor));
           },
           [&rv](input_entry_spec::special const& special) {
             rv.stat.set_mode(special.type | 0644);

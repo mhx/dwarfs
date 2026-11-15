@@ -214,6 +214,7 @@ TEST(mkdwarfs_input_list, gen_init_cpio_device_numbers_round_trip) {
 dir /dev 0755 0 0
 nod /dev/char 0600 0 0 c 42 74565
 nod /dev/block 0660 0 0 b 7 144470
+nod /dev/wide 0600 0 0 c 305419896 2596069104
 )");
 
   ASSERT_EQ(0, t.run({"-i", "/staging", "--input-list", input,
@@ -237,14 +238,21 @@ nod /dev/block 0660 0 0 b 7 144470
     ASSERT_FALSE(ec) << ec.message();
     EXPECT_EQ(device_number(major, minor), stored);
 
+    EXPECT_EQ(device_number(major, minor), stat.rdev_device());
+
     ec.clear();
-    device_number const decoded(stat.rdev(), ec);
-    ASSERT_FALSE(ec) << ec.message();
-    EXPECT_EQ(device_number(major, minor), decoded);
+    auto const native = device_number(major, minor).native(ec);
+    if (ec) {
+      EXPECT_EQ(ec, std::make_error_code(std::errc::result_out_of_range));
+      EXPECT_EQ(0, stat.rdev());
+    } else {
+      EXPECT_EQ(native, stat.rdev());
+    }
   };
 
   check_device("/dev/char", posix_file_type::character, 42, 74565);
   check_device("/dev/block", posix_file_type::block, 7, 144470);
+  check_device("/dev/wide", posix_file_type::character, 0x12345678, 0x9abcdef0);
 }
 
 TEST(mkdwarfs_input_list, gen_init_cpio_hardlink_groups_are_local) {
@@ -824,6 +832,7 @@ TEST(mkdwarfs_input_list, jsonl_entries_metadata_and_hardlinks) {
 {"type":"dir","path":"dev"}
 {"type":"char","path":"dev/null","major":1,"minor":3}
 {"type":"block","path":"dev/loop0","major":7,"minor":0}
+{"type":"char","path":"dev/wide","major":305419896,"minor":2596069104}
 {"type":"fifo","path":"a fifo"}
 {"type":"socket","path":"a socket"}
 )");
@@ -875,6 +884,13 @@ TEST(mkdwarfs_input_list, jsonl_entries_metadata_and_hardlinks) {
     auto block = fs.find("/dev/loop0");
     ASSERT_TRUE(block);
     EXPECT_EQ(posix_file_type::block, fs.getattr(block->inode()).type());
+    auto wide = fs.find("/dev/wide");
+    ASSERT_TRUE(wide);
+    auto const wide_stat = fs.getattr(wide->inode());
+    EXPECT_EQ(device_number(0x12345678, 0x9abcdef0), wide_stat.rdev_device());
+    std::error_code ec;
+    EXPECT_EQ(wide_stat.rdev_device(), fs.get_device(wide->inode(), ec));
+    EXPECT_FALSE(ec);
     auto fifo = fs.find("/a fifo");
     auto socket = fs.find("/a socket");
     ASSERT_TRUE(fifo);

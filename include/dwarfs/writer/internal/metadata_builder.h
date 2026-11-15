@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/device_number.h>
 
 #include <dwarfs/writer/internal/entry_id.h>
 
@@ -86,7 +87,7 @@ class metadata_builder {
 
   ~metadata_builder();
 
-  void set_devices(std::vector<uint64_t> devices) {
+  void set_devices(std::vector<device_number> devices) {
     impl_->set_devices(std::move(devices));
   }
 
@@ -151,7 +152,7 @@ class metadata_builder {
    public:
     virtual ~impl() = default;
 
-    virtual void set_devices(std::vector<uint64_t> devices) = 0;
+    virtual void set_devices(std::vector<device_number> devices) = 0;
     virtual void set_symlink_table_size(size_t size) = 0;
     virtual void set_block_size(uint32_t block_size) = 0;
     virtual void set_shared_files_table(

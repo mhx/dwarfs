@@ -35,6 +35,7 @@
 #include <system_error>
 #include <type_traits>
 
+#include <dwarfs/device_number.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
 
@@ -136,9 +137,15 @@ class file_stat {
   gid_type gid_unchecked() const { return gid_; }
   void set_gid(gid_type gid);
 
+  // legacy device ID accessors
   dev_type rdev() const;
-  dev_type rdev_unchecked() const { return rdev_; }
+  dev_type rdev_unchecked() const;
   void set_rdev(dev_type rdev);
+
+  // lossless, platform-independent device ID accessors
+  device_number rdev_device() const;
+  device_number rdev_device_unchecked() const { return rdev_; }
+  void set_rdev(device_number rdev);
 
   off_type size() const;
   off_type size_unchecked() const { return size_; }
@@ -207,7 +214,7 @@ class file_stat {
     out->st_mode = mode_;
     out->st_uid = uid_;
     out->st_gid = gid_;
-    out->st_rdev = rdev_;
+    out->st_rdev = rdev_unchecked();
     out->st_size = size_;
     out->st_blksize = blksize_;
     out->st_blocks = blocks_;
@@ -236,7 +243,7 @@ class file_stat {
   mode_type mode_{};
   uid_type uid_{};
   gid_type gid_{};
-  dev_type rdev_{};
+  device_number rdev_{};
   off_type size_{};
   blksize_type blksize_{};
   blkcnt_type blocks_{};

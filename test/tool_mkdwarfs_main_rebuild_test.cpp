@@ -24,6 +24,10 @@
 #include <ctime>
 #include <sstream>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
@@ -1612,6 +1616,15 @@ TEST_P(mkdwarfs_rebuild_devices_test, rebuild_legacy_devices) {
     EXPECT_EQ(expected_major, dev.major_id());
     EXPECT_EQ(123456, dev.minor_id());
   }
+
+  EXPECT_EQ(device_number(expected_major, 123456), st.rdev_device());
+  EXPECT_EQ(st.rdev_device(), st.rdev_device_unchecked());
+
+#ifndef _WIN32
+  struct ::stat native_stat{};
+  ASSERT_NO_THROW(st.copy_to(&native_stat));
+  EXPECT_EQ(st.rdev(), static_cast<file_stat::dev_type>(native_stat.st_rdev));
+#endif
 
   {
     std::error_code ec;

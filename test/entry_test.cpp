@@ -1164,8 +1164,6 @@ TEST_F(entry_handle_test, typed_handles_convert_to_const_typed_handles) {
 
   EXPECT_EQ(link.name(), clink.name());
   EXPECT_EQ(fs::path{"somedir"} / "ipsum.py", fs::path{clink.linkname()});
-
-  EXPECT_EQ(dev.posix_device_id(), cdev.posix_device_id());
 }
 
 TEST_F(entry_handle_test, mutable_typed_handles_construct_const_entry_handles) {

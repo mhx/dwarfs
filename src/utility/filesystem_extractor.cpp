@@ -888,7 +888,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       ::archive_entry_set_ino(ae, stat.ino_unchecked());
       ::archive_entry_set_nlink(ae, stat.nlink_unchecked());
     }
-    ::archive_entry_set_rdev(ae, stat.rdev_unchecked());
+    auto const rdev = stat.rdev_device_unchecked();
+    ::archive_entry_set_rdevmajor(ae, rdev.major_id());
+    ::archive_entry_set_rdevminor(ae, rdev.minor_id());
     ::archive_entry_set_size(ae, stat.size_unchecked());
     ::archive_entry_set_mode(ae, stat.mode_unchecked());
 

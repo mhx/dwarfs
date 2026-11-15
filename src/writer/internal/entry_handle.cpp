@@ -418,7 +418,7 @@ std::string_view basic_link_handle<Mut>::linkname() const {
 // --------- device_handle ----------
 
 template <detail::mutability Mut>
-std::uint64_t basic_device_handle<Mut>::posix_device_id() const {
+device_number basic_device_handle<Mut>::represented_device() const {
   return this->storage().get_represented_device(this->id());
 }
 

@@ -293,7 +293,7 @@ class metadata_builder_ final : public metadata_builder::impl {
     update_inodes();
   }
 
-  void set_devices(std::vector<uint64_t> devices) override {
+  void set_devices(std::vector<device_number> devices) override {
     if (devices.empty()) {
       md_.devices().reset();
       return;
@@ -302,11 +302,7 @@ class metadata_builder_ final : public metadata_builder::impl {
     std::vector<thrift::metadata::device_id> tmp;
     tmp.reserve(devices.size());
 
-    for (auto const& raw : devices) {
-      std::error_code ec;
-      device_number id(raw, ec);
-      DWARFS_CHECK(!ec, fmt::format("invalid device number: {} ({})", raw,
-                                    ec.message()));
+    for (auto const& id : devices) {
       auto& dev = tmp.emplace_back();
       dev.major_id() = id.major_id();
       dev.minor_id() = id.minor_id();

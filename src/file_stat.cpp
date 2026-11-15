@@ -613,7 +613,7 @@ file_stat::file_stat(fs::path const& path, struct ::stat const& st) {
   mode_ = st.st_mode;
   uid_ = st.st_uid;
   gid_ = st.st_gid;
-  rdev_ = st.st_rdev;
+  set_rdev(static_cast<dev_type>(st.st_rdev));
   size_ = st.st_size;
   if (S_ISREG(mode_) && st.st_blocks * 512 < size_) {
     allocated_size_ = get_sparse_file_allocated_size_posix(path, size_);
@@ -781,10 +781,30 @@ void file_stat::set_gid(gid_type gid) {
 
 file_stat::dev_type file_stat::rdev() const {
   ensure_valid(rdev_valid);
-  return rdev_;
+  return rdev_unchecked();
+}
+
+file_stat::dev_type file_stat::rdev_unchecked() const {
+  std::error_code ec;
+  auto const native = rdev_.native(ec);
+  return ec ? 0 : native;
 }
 
 void file_stat::set_rdev(dev_type rdev) {
+  std::error_code ec;
+  device_number const id(rdev, ec);
+  if (ec) {
+    throw std::system_error(ec, "invalid native device number");
+  }
+  set_rdev(id);
+}
+
+device_number file_stat::rdev_device() const {
+  ensure_valid(rdev_valid);
+  return rdev_;
+}
+
+void file_stat::set_rdev(device_number rdev) {
   valid_fields_ |= rdev_valid;
   rdev_ = rdev;
 }

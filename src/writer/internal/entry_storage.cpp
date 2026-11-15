@@ -813,6 +813,14 @@ class packed_entry_data {
                  std::int64_t, std::uint64_t, std::uint64_t, std::uint64_t,
                  std::size_t>;
 
+  static constexpr std::size_t kRepresentedDeviceMajorField = 0;
+  static constexpr std::size_t kRepresentedDeviceMinorField = 1;
+  static constexpr std::array kRepresentedDeviceFieldNames{
+      "major"sv,
+      "minor"sv,
+  };
+  using represented_device_tuple = std::tuple<std::uint32_t, std::uint32_t>;
+
   bool empty() const { return path_storage_index_.empty(); }
 
   entry_id next_id(entry_type type) const {
@@ -844,7 +852,8 @@ class packed_entry_data {
 
   void add_device_specific(file_stat const& st) {
     assert(this_type_ == entry_type::E_DEVICE);
-    represented_device_.push_back(st.rdev_unchecked());
+    auto const dev = st.rdev_device_unchecked();
+    represented_device_.push_back({dev.major_id(), dev.minor_id()});
   }
 
   dir_id get_parent(uint64_t const index) const {
@@ -1092,8 +1101,11 @@ class packed_entry_data {
     return *link_target;
   }
 
-  file_stat::dev_type get_represented_device(device_id id) const {
-    return represented_device_.at(id.index());
+  device_number get_represented_device(device_id id) const {
+    return {
+        represented_device_.get_field<kRepresentedDeviceMajorField>(id.index()),
+        represented_device_.get_field<kRepresentedDeviceMinorField>(
+            id.index())};
   }
 
   void drop_digest_buffers() {
@@ -1180,7 +1192,7 @@ class packed_entry_data {
   segtor<std::optional<size_t>> link_target_index_;
 
   // device-specific:
-  segtor<file_stat::dev_type> represented_device_;
+  segtor<represented_device_tuple> represented_device_;
 };
 
 struct packed_entry_data::mtime_traits {
@@ -1646,6 +1658,7 @@ void packed_entry_data::dump(std::ostream& os, std::string_view name) const {
   d.add("parent dir index", parent_dir_id_);
   d.add("link target index", link_target_index_);
   d.add("represented device", represented_device_);
+  d.add_tuple_field_sizes(represented_device_, kRepresentedDeviceFieldNames);
   d.add("inode number", inode_num_);
   d.add("final entry index", final_entry_index_);
   d.add("file data vec", file_data_vec_);
@@ -2405,7 +2418,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return dispatch_(&packed_entry_data::get_inode_num, id);
   }
 
-  file_stat::dev_type get_represented_device(device_id id) const override {
+  device_number get_represented_device(device_id id) const override {
     TRACE_CALL;
     return devices_.get_represented_device(id);
   }
@@ -3613,7 +3626,7 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     return impl_.lock()->get_inode_num_for_entry(id);
   }
 
-  file_stat::dev_type get_represented_device(device_id id) const override {
+  device_number get_represented_device(device_id id) const override {
     return impl_.lock()->get_represented_device(id);
   }
 

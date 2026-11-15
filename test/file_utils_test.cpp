@@ -166,6 +166,45 @@ TEST(file_utils, file_stat) {
                   testing::HasSubstr("unknown file type: 0x9000")));
 }
 
+TEST(file_utils, file_stat_portable_device_numbers) {
+  using namespace dwarfs;
+
+  file_stat st;
+
+  EXPECT_THAT([&] { st.rdev_device(); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("missing stat fields:")));
+
+  device_number const wide{0x12345678, 0x9abcdef0};
+  st.set_rdev(wide);
+
+  EXPECT_EQ(wide, st.rdev_device());
+  EXPECT_EQ(wide, st.rdev_device_unchecked());
+
+  std::error_code ec;
+  auto const native = wide.native(ec);
+
+  if (ec) {
+    EXPECT_EQ(ec, std::make_error_code(std::errc::result_out_of_range));
+    EXPECT_EQ(0, st.rdev());
+    EXPECT_EQ(0, st.rdev_unchecked());
+  } else {
+    EXPECT_EQ(native, st.rdev());
+    EXPECT_EQ(native, st.rdev_unchecked());
+  }
+
+  device_number const small{7, 11};
+  ec.clear();
+  auto const small_native = small.native(ec);
+
+  ASSERT_FALSE(ec);
+
+  st.set_rdev(small_native);
+
+  EXPECT_EQ(small, st.rdev_device());
+  EXPECT_EQ(small_native, st.rdev());
+}
+
 TEST(file_utils, second_precision_timestamps_clear_subseconds) {
   dwarfs::file_stat st;
   st.set_atimespec(1, 123);

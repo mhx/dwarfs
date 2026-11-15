@@ -363,7 +363,7 @@ class basic_device_handle final : public detail::entry_handle_base<Mut> {
 
   device_id id() const { return device_id{this->base_id()}; }
 
-  std::uint64_t posix_device_id() const;
+  device_number represented_device() const;
 };
 
 template <detail::mutability Mut>
