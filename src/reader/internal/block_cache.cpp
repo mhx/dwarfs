@@ -452,6 +452,15 @@ class block_cache_ final : public block_cache::impl {
       return future;
     }
 
+    if (size == 0 || size > std::numeric_limits<size_t>::max() - offset) {
+      try {
+        DWARFS_THROW(runtime_error, "invalid block request range");
+      } catch (...) {
+        promise.set_exception(std::current_exception());
+      }
+      return future;
+    }
+
     // That is a mighty long lock, let's see how it works...
     std::lock_guard lock(mx_);
 
