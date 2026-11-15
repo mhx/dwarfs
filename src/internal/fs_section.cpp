@@ -65,7 +65,7 @@ void read_section_header_common(T& header, file_off_t& start,
                              image_end, sizeof(T), mm.size()));
   }
 
-  if (std::cmp_greater(offset, image_end - sizeof(T))) {
+  if (offset < 0 || std::cmp_greater(offset, image_end - sizeof(T))) {
     DWARFS_THROW(
         runtime_error,
         fmt::format("truncated section header: {} > {} - {} [mm.size() = {}]",
@@ -76,17 +76,11 @@ void read_section_header_common(T& header, file_off_t& start,
 
   offset += sizeof(T);
 
-  file_off_t section_end = offset + header.length;
-
-  if (section_end < offset) {
-    DWARFS_THROW(runtime_error, fmt::format("offset/length overflow: {} < {}",
-                                            section_end, offset));
-  }
-
-  if (section_end > image_end) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("truncated section data: {} > {} [mm.size() = {}]",
-                             section_end, image_end, mm.size()));
+  if (std::cmp_greater(header.length.load(), image_end - offset)) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("truncated section data: {} + {} > {} [mm.size() = {}]",
+                    offset, header.length.load(), image_end, mm.size()));
   }
 
   start = offset;
