@@ -48,10 +48,6 @@ class inode_ordering {
  public:
   inode_ordering(logger& lgr, progress& prog, inode_options const& opts);
 
-  void by_inode_number(sortable_inode_span& sp) const {
-    impl_->by_inode_number(sp);
-  }
-
   void by_input_order(sortable_inode_span& sp) const {
     impl_->by_input_order(sp);
   }
@@ -81,7 +77,6 @@ class inode_ordering {
    public:
     virtual ~impl() = default;
 
-    virtual void by_inode_number(sortable_inode_span& sp) const = 0;
     virtual void by_input_order(sortable_inode_span& sp) const = 0;
     virtual void by_path(sortable_inode_span& sp) const = 0;
     virtual void by_reverse_path(sortable_inode_span& sp) const = 0;

@@ -32,6 +32,7 @@
 
 #include <dwarfs/writer/internal/entry_id_vector.h>
 #include <dwarfs/writer/internal/entry_storage.h>
+#include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_types.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/provisional_entry.h>
@@ -935,6 +936,31 @@ TEST_F(entry_test, file_set_inode_rejects_second_assignment) {
   f.set_inode(ino1.id());
 
   ASSERT_DEATH(f.set_inode(ino2.id()), "inode already set for file");
+}
+
+TEST_F(entry_test, inode_number_order) {
+  for (auto const& numbers : std::vector<std::vector<uint32_t>>{
+           {}, {0}, {0, 1, 2, 3}, {3, 0, 5, 1, 4, 2}}) {
+    SCOPED_TRACE(numbers.size());
+
+    auto tree = entry_storage{};
+    progress prog{};
+    test_logger lgr;
+    wi::inode_manager im(lgr, tree, prog, writer::inode_options{}, false);
+
+    for (auto num : numbers) {
+      tree.create_inode().set_num(num);
+    }
+
+    size_t next = 0;
+    im.for_each_inode_in_order([&](wi::const_inode_handle ino) {
+      ASSERT_LT(next, numbers.size());
+      EXPECT_EQ(next, ino.num());
+      EXPECT_EQ(next, numbers.at(ino.id().index()));
+      ++next;
+    });
+    EXPECT_EQ(numbers.size(), next);
+  }
 }
 
 TEST_F(entry_test, storage_file_hash_size_must_be_consistent) {

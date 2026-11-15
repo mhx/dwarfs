@@ -57,7 +57,6 @@ class inode_ordering_ final : public inode_ordering::impl {
       , prog_{prog}
       , opts_{opts} {}
 
-  void by_inode_number(sortable_inode_span& sp) const override;
   void by_input_order(sortable_inode_span& sp) const override;
   void by_path(sortable_inode_span& sp) const override;
   void by_reverse_path(sortable_inode_span& sp) const override;
@@ -81,16 +80,6 @@ class inode_ordering_ final : public inode_ordering::impl {
   progress& prog_;
   inode_options const& opts_;
 };
-
-template <typename LoggerPolicy>
-void inode_ordering_<LoggerPolicy>::by_inode_number(
-    sortable_inode_span& sp) const {
-  sort_index(sp.index(), [&sp](auto const a, auto const b) {
-    auto const& ha = sp.raw_handle(a);
-    auto const& hb = sp.raw_handle(b);
-    return ha.num() < hb.num();
-  });
-}
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_input_order(

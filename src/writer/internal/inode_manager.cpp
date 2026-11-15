@@ -80,8 +80,21 @@ class inode_manager_ final : public inode_manager::impl {
   void
   for_each_inode_in_order(inode_manager::inode_cb const& fn) const override {
     auto span = sortable_span();
-    span.all();
-    inode_ordering(LOG_GET_LOGGER, prog_, opts_).by_inode_number(span);
+    auto& index = span.index();
+    auto const n = span.raw_size();
+
+    if (n == 0) {
+      return;
+    }
+
+    index.reset(index.required_bits(n - 1), n);
+
+    for (size_t i = 0; i < n; ++i) {
+      auto const num = span.raw_handle(i).num();
+      assert(num < n);
+      index[num] = i;
+    }
+
     for (auto const& i : span) {
       fn(i);
     }
