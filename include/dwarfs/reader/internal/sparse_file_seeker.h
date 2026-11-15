@@ -30,7 +30,9 @@
 
 #include <algorithm>
 #include <concepts>
+#include <limits>
 #include <ranges>
+#include <stdexcept>
 #include <system_error>
 #include <vector>
 
@@ -73,6 +75,10 @@ class sparse_file_seeker {
     for (auto const& chk : chunks) {
       --chunks_remaining;
       auto const size = chk.size();
+      if (size < 0 || size > std::numeric_limits<file_off_t>::max() - pos) {
+        ec = std::make_error_code(std::errc::value_too_large);
+        return -1;
+      }
       auto const end = pos + size;
 
       if (chk.is_hole() && offset < end) {
@@ -105,6 +111,10 @@ class sparse_file_seeker {
 
     for (auto const& chk : chunks) {
       auto const size = chk.size();
+
+      if (size < 0 || size > std::numeric_limits<file_off_t>::max() - pos) {
+        throw std::overflow_error("sparse file size out of range");
+      }
 
       if (chk.is_hole()) {
         holes_.emplace_back(pos, size);

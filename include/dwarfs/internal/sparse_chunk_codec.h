@@ -34,7 +34,9 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <limits>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 
@@ -167,6 +169,10 @@ class sparse_chunk_size_accumulator {
   template <sparse_chunk_like Chunk>
   void add(Chunk const& chunk) {
     auto const size = static_cast<uint64_t>(chunk.size());
+    if (size > static_cast<uint64_t>(std::numeric_limits<file_size_t>::max()) -
+                   size_) {
+      throw std::overflow_error("sparse file size out of range");
+    }
     size_ += size;
     if (holes_are_allocated_ || chunk.is_data()) {
       allocated_size_ += size;

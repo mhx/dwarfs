@@ -409,6 +409,14 @@ TEST(sparse_chunk_codec, size_accumulator) {
   EXPECT_EQ(175, non_sparse.allocated_size());
 }
 
+TEST(sparse_chunk_codec, rejects_file_size_overflow) {
+  sparse_chunk_size_accumulator sizes;
+  auto const max_size = std::numeric_limits<dwarfs::file_size_t>::max();
+  sizes.add(sparse_chunk::make_hole(max_size));
+  EXPECT_THROW(sizes.add(sparse_chunk::make_hole(1)), std::overflow_error);
+  EXPECT_EQ(max_size, sizes.size());
+}
+
 TEST(sparse_chunk_codec, error_strings) {
   using enum sparse_chunk_codec::error;
   for (auto const e :

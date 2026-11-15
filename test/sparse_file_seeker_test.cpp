@@ -122,6 +122,14 @@ TEST(sparse_file_seeker, offset_at_or_beyond_size_is_enxio_static) {
   }
 }
 
+TEST(sparse_file_seeker, file_size_overflow_throws_overflow_error) {
+  auto chunks = make_chunks(
+      {{seg::H, std::numeric_limits<file_size_t>::max()}, {seg::D, 1}});
+  EXPECT_THAT([&] { sparse_file_seeker s(chunks); },
+              testing::ThrowsMessage<std::overflow_error>(
+                  testing::HasSubstr("sparse file size out of range")));
+}
+
 // ------------------------------------
 // All data, no holes (single chunk)
 // ------------------------------------
