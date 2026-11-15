@@ -964,19 +964,10 @@ void file_scanner_<LoggerPolicy>::finalize_files(
   std::ranges::sort(
       ent, [](auto& left, auto& right) { return left.first < right.first; });
 
-  for (auto& kv : ent) {
-    auto& fv = access.files(kv);
-    auto const expected = storage_.handle(fv.front()).hardlink_count();
-    DWARFS_CHECK(fv.size() == expected,
-                 fmt::format("internal error while finalizing {} files: "
-                             "hardlink count mismatch ({} != {})",
-                             name, fv.size(), expected));
-    fv.shrink_to_fit();
-  }
-
+  auto const total_files = ent.size();
   finalize_inodes<true>(ent, access, inode_num, obj_num, name);
 
-  tv << "finalized " << ent.size() << " unique files (by " << name << ")";
+  tv << "finalized " << total_files << " unique files (by " << name << ")";
 }
 
 template <typename LoggerPolicy>
@@ -1048,7 +1039,9 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
 
   auto tv = LOG_TIMED_VERBOSE;
 
-  for (auto&& p : ent) {
+  constexpr bool drainable = requires { std::move(ent).drain(); };
+
+  auto finalize = [&](auto&& p) {
     auto&& files = access.files(p);
 
     DWARFS_CHECK(!files.empty(),
@@ -1091,10 +1084,27 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
 
     assert(inode);
 
+    if constexpr (drainable) {
+      files.shrink_to_fit();
+    }
+
     inode.set_num(obj_num);
     inode.set_files(std::move(files));
 
     ++obj_num;
+  };
+
+  if constexpr (drainable) {
+    auto drain = std::move(ent).drain();
+    while (auto chunk = drain.next_chunk()) {
+      for (auto& p : *chunk) {
+        finalize(p);
+      }
+    }
+  } else {
+    for (auto&& p : ent) {
+      finalize(p);
+    }
   }
 
   tv << "finalized " << (obj_num - obj_num_before) << (Unique ? " " : " non-")
