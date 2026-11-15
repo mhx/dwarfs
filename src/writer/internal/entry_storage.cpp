@@ -3128,48 +3128,26 @@ void reorder_by_map(reorder_map_type& map,
   };
 
   for (std::size_t pos = 0; pos < count; ++pos) {
-    while (true) {
-      auto value = map[pos].load();
+    auto value = map[pos].load();
 
-      // If there is no mapping at `pos`, either this position is already
-      // settled or it is an unused/orphaned tail slot.
-      if (!value.has_value()) {
-        break;
-      }
+    if (!value.has_value()) {
+      continue;
+    }
 
-      // The component currently at `pos` belongs at `target`.
+    while (value.has_value()) {
       auto const target = untag(*value);
-
       assert(target < used);
 
       if (target == pos) {
-        // The component at `pos` is already in the correct sorted
-        // position. Clear the map entry to mark this position as settled.
-        map[pos] = std::nullopt;
         break;
       }
 
-      // We are about to move the component at `pos` to `target`, but
-      // `target` currently contains some other component. Save that
-      // component's mapping before the swap, because after the swap that
-      // displaced component will be at `pos`.
-      auto displaced_mapping = map[target].load();
-
+      value = map[target].load();
       swap_component(pos, target);
-
-      // The component moved from `pos` to `target`, and `target` is
-      // exactly where it belongs, so `target` is now settled.
       map[target] = std::nullopt;
-
-      // The component displaced from `target` is now at `pos`. Its old
-      // mapping must move with it so the next loop iteration can place
-      // it.
-      //
-      // If `displaced_mapping` is nullopt, then the displaced component
-      // is an unused/orphaned component, and the loop will terminate on
-      // the next iteration.
-      map[pos] = displaced_mapping;
     }
+
+    map[pos] = std::nullopt;
   }
 }
 
