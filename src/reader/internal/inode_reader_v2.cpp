@@ -452,7 +452,8 @@ inode_reader_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
 
   if (!ec) {
     try {
-      std::vector<block_range> brs(ranges.size());
+      std::vector<block_range> brs;
+      brs.reserve(ranges.size());
       size_t total_size{0};
       for (auto& r : ranges) {
         auto br = r.get();
