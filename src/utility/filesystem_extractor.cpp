@@ -581,6 +581,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
             << " bytes";
 
+  if (opts.max_queued_bytes == 0 ||
+      std::cmp_greater(opts.max_queued_bytes,
+                       std::numeric_limits<int64_t>::max())) {
+    DWARFS_THROW(runtime_error, "invalid extraction queue byte limit");
+  }
+
   counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
 
@@ -991,6 +997,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
       archiver->wait();
     }
+  }
+
+  if (hard_error) {
+    DWARFS_THROW(runtime_error, "extraction aborted");
   }
 
   if (opts.enable_progress) {
