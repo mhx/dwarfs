@@ -423,9 +423,11 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
                         im.get_max_data_chunk_size());
   }
 
+  std::size_t inode_num = 0;
   im.for_each_inode_in_order([&](const_inode_handle ino) {
+    assert(ino.num() == inode_num);
     auto const total_chunks = md_.chunks()->size();
-    DWARFS_NOTHROW(md_.chunk_table()->at(ino.num())) = total_chunks;
+    DWARFS_NOTHROW(md_.chunk_table()->at(inode_num++)) = total_chunks;
     if (!ino.append_chunks_to(md_.chunks().value(), hole_mapper)) {
       std::ostringstream oss;
       bool all_files_are_invalid{true};
@@ -451,7 +453,8 @@ void metadata_builder_<LoggerPolicy>::gather_chunks(inode_manager const& im,
   bm.map_logical_blocks(md_.chunks().value(), hole_mapper);
 
   // insert sentinel inode to help determine number of chunks per inode
-  DWARFS_NOTHROW(md_.chunk_table()->at(im.count())) = md_.chunks()->size();
+  assert(inode_num == im.count());
+  DWARFS_NOTHROW(md_.chunk_table()->at(inode_num)) = md_.chunks()->size();
 
   if (hole_mapper && hole_mapper->has_holes()) {
     md_.hole_block_index() = hole_mapper->hole_block_index();
