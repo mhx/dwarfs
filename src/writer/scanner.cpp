@@ -1998,14 +1998,20 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
 
   LOG_INFO << "saving chunks...";
   set_status("saving chunks");
-  mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
+  {
+    auto tv = LOG_TIMED_VERBOSE;
+    mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
+    tv << "saved chunks";
+  }
 
   LOG_INFO << "saving directories...";
   set_status("saving directories");
   {
+    auto tv = LOG_TIMED_VERBOSE;
     save_directories_visitor sdv(first_link_inode);
     root.accept(sdv);
     mdb.gather_entries(*tree, sdv.get_directory_ids(), *ge_data, last_inode);
+    tv << "saved directories";
   }
 
   LOG_INFO << "saving shared files table...";
