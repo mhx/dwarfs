@@ -26,7 +26,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
 #include <cassert>
+#include <exception>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -39,6 +42,7 @@
 #include <dwarfs/reader/compute_file_hashes.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/util.h>
 
 #include <dwarfs/internal/worker_group.h>
 
@@ -66,14 +70,14 @@ void compute_file_hashes(logger& lgr, os_access const& os,
 
   std::mutex mx;
   std::unordered_map<uint32_t, cache_entry> hash_cache;
+  if (max_queued_bytes == 0 ||
+      std::cmp_greater(max_queued_bytes, std::numeric_limits<int64_t>::max())) {
+    throw std::invalid_argument("invalid checksum queue byte limit");
+  }
+
   counting_semaphore sem;
   sem.post(static_cast<int64_t>(max_queued_bytes));
-
-  dwarfs::internal::worker_group wg{
-      lgr, os, "checksum", {.num_workers = config.num_worker_threads}};
-
-  size_t const max_queued_per_worker =
-      max_queued_bytes / config.num_worker_threads;
+  std::exception_ptr first_error;
 
   auto hash_ranges = [&algo,
                       format = config.digest_format](auto const& ranges) {
@@ -130,6 +134,11 @@ void compute_file_hashes(logger& lgr, os_access const& os,
     callback(result);
   };
 
+  dwarfs::internal::worker_group wg{
+      lgr, os, "checksum", {.num_workers = config.num_worker_threads}};
+  size_t const max_queued_per_worker =
+      std::max<size_t>(1, max_queued_bytes / wg.size());
+
   for (auto const& de : fs.entries_in_data_order()) {
     auto iv = de.inode();
 
@@ -170,7 +179,7 @@ void compute_file_hashes(logger& lgr, os_access const& os,
 
       wg.add_job(
           [&lgr, &hash_ranges, &hash_cache, &mx, &run_callback, &make_queued,
-           de, dup_info, unique_only,
+           &first_error, de, dup_info, unique_only,
            ranges = fr.read_sequential(sem, max_queued_per_worker)] mutable {
             try {
               std::string digest = hash_ranges(ranges);
@@ -202,10 +211,17 @@ void compute_file_hashes(logger& lgr, os_access const& os,
                   }
                 }
               }
-            } catch (std::exception const& e) {
+            } catch (...) {
+              auto error = std::current_exception();
+              {
+                std::lock_guard lock(mx);
+                if (!first_error) {
+                  first_error = error;
+                }
+              }
               LOG_PROXY(debug_logger_policy, lgr);
-              LOG_ERROR << "error processing inode for " << de.unix_path()
-                        << ": " << e.what();
+              LOG_ERROR << "error computing file checksum: "
+                        << exception_str(error);
             }
           });
     }
@@ -213,12 +229,9 @@ void compute_file_hashes(logger& lgr, os_access const& os,
 
   wg.wait();
 
-#ifdef NDEBUG
-  {
-    std::lock_guard lock(mx);
-    assert(hash_cache.empty());
+  if (first_error) {
+    std::rethrow_exception(first_error);
   }
-#endif
 }
 
 } // namespace dwarfs::reader
