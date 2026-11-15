@@ -28,6 +28,8 @@
 
 #include <fmt/format.h>
 
+#include <utility>
+
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/error.h>
 #include <dwarfs/malloc_byte_buffer.h>
@@ -166,8 +168,8 @@ file_segment read_file_view::segment_at(file_range range) const {
   auto const offset = range.offset();
   auto const size = range.size();
 
-  if (offset < 0 || size == 0 ||
-      std::cmp_greater(offset + size, this->size())) {
+  if (offset < 0 || size <= 0 || !std::in_range<size_t>(size) ||
+      offset > this->size() || size > this->size() - offset) {
     return {};
   }
 
@@ -192,16 +194,18 @@ void read_file_view::copy_bytes(void* dest, file_range range,
   auto const offset = range.offset();
   auto const size = range.size();
 
+  ec.clear();
   if (size == 0) {
     return;
   }
 
-  if (dest == nullptr || offset < 0) {
+  if (dest == nullptr || offset < 0 || size < 0) {
     ec = make_error_code(std::errc::invalid_argument);
     return;
   }
 
-  if (std::cmp_greater(offset + size, this->size())) {
+  if (offset > this->size() || size > this->size() - offset ||
+      !std::in_range<size_t>(size)) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }

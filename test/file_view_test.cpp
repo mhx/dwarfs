@@ -31,6 +31,8 @@
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/file_segments_iterable.h>
+#include <limits>
+
 #include <dwarfs/file_util.h>
 #include <dwarfs/file_view.h>
 
@@ -698,6 +700,25 @@ TEST(mmap_file_view, basic) {
   {
     auto seg = mm.segment_at(20, 10);
     EXPECT_FALSE(seg.valid());
+    EXPECT_FALSE(mm.segment_at(0, -1));
+    EXPECT_FALSE(mm.segment_at(std::numeric_limits<file_off_t>::max(), 2));
+
+    std::error_code ec;
+    std::array<char, 4> buf{};
+    mm.copy_to(buf, std::numeric_limits<file_off_t>::max(), ec);
+    EXPECT_EQ(std::errc::result_out_of_range, ec);
+    mm.copy_to(buf, 0, -1, ec);
+    EXPECT_EQ(std::errc::result_out_of_range, ec);
+
+    seg = mm.segment_at(0, 13);
+    ASSERT_TRUE(seg);
+    seg.copy_to(buf, 12, ec);
+    EXPECT_EQ(std::errc::result_out_of_range, ec);
+    seg.copy_to(buf, -1, ec);
+    EXPECT_EQ(std::errc::result_out_of_range, ec);
+    seg.copy_to(buf, 0, ec);
+    EXPECT_FALSE(ec);
+    EXPECT_EQ("Hell"s, std::string(buf.data(), buf.size()));
   }
 }
 
@@ -1219,6 +1240,8 @@ TEST(read_file_view, invalid_ranges_and_short_read) {
   EXPECT_FALSE(view.segment_at(-1, 1));
   EXPECT_FALSE(view.segment_at(0, 0));
   EXPECT_FALSE(view.segment_at(7, 2));
+  EXPECT_FALSE(view.segment_at(0, -1));
+  EXPECT_FALSE(view.segment_at(std::numeric_limits<file_off_t>::max(), 2));
 
   std::array<char, 4> data{};
   std::error_code ec;

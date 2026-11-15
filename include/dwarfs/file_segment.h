@@ -32,6 +32,7 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 #include <dwarfs/detail/file_segment_impl.h>
 
@@ -88,12 +89,14 @@ class file_segment {
   template <typename T>
     requires std::is_trivially_copyable_v<T>
   void copy_to(T& t, file_off_t offset, std::error_code& ec) const {
-    auto const bytes = impl_->raw_bytes().subspan(offset, sizeof(T));
-    if (bytes.size() == sizeof(T)) {
-      std::memcpy(&t, bytes.data(), sizeof(T));
-    } else {
+    auto const bytes = impl_->raw_bytes();
+    if (offset < 0 || std::cmp_greater(offset, bytes.size()) ||
+        sizeof(T) > bytes.size() - static_cast<size_t>(offset)) {
       ec = make_error_code(std::errc::result_out_of_range);
+      return;
     }
+    std::memcpy(&t, bytes.data() + offset, sizeof(T));
+    ec.clear();
   }
 
   template <typename T>

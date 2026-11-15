@@ -110,7 +110,7 @@ class file_view {
     requires std::is_trivially_copyable_v<T>
   void
   copy_to(T& t, file_off_t offset, file_size_t len, std::error_code& ec) const {
-    if (std::cmp_less_equal(len, sizeof(T))) {
+    if (len >= 0 && std::cmp_less_equal(len, sizeof(T))) {
       impl_->copy_bytes(&t, file_range{offset, len}, ec);
     } else {
       ec = make_error_code(std::errc::result_out_of_range);

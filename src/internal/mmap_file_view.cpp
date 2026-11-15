@@ -31,6 +31,8 @@
 #include <cassert>
 #include <mutex>
 
+#include <utility>
+
 #include <dwarfs/binary_literals.h>
 
 #include <dwarfs/internal/mappable_file.h>
@@ -277,8 +279,8 @@ file_segment mmap_file_view::segment_at(file_range range) const {
   auto const offset = range.offset();
   auto const size = range.size();
 
-  if (offset < 0 || size == 0 ||
-      std::cmp_greater(offset + size, file_.size())) {
+  if (offset < 0 || size <= 0 || !std::in_range<size_t>(size) ||
+      offset > file_.size() || size > file_.size() - offset) {
     return {};
   }
 
@@ -306,12 +308,13 @@ void mmap_file_view::copy_bytes(void* dest, file_range range,
     return;
   }
 
-  if (dest == nullptr || offset < 0) {
+  if (dest == nullptr || offset < 0 || size < 0) {
     ec = make_error_code(std::errc::invalid_argument);
     return;
   }
 
-  if (std::cmp_greater(offset + size, file_.size())) {
+  if (offset > file_.size() || size > file_.size() - offset ||
+      !std::in_range<size_t>(size)) {
     ec = make_error_code(std::errc::result_out_of_range);
     return;
   }
