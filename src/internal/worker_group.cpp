@@ -79,16 +79,22 @@ class worker_group_impl_ final : public worker_group_impl {
 
     workers_.reserve(num_workers);
 
-    for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([this, niceness = options.niceness,
-                             thread_name_prefix, i, state = sf(i)] mutable {
-        set_thread_name(fmt::format("{}{}", thread_name_prefix, i + 1));
-        set_thread_niceness(niceness);
-        do_work(*state, niceness > 10);
-      });
-    }
+    try {
+      for (size_t i = 0; i < num_workers; ++i) {
+        workers_.emplace_back([this, niceness = options.niceness,
+                               thread_name_prefix, i, state = sf(i)] mutable {
+          set_thread_name(fmt::format("{}{}", thread_name_prefix, i + 1));
+          set_thread_niceness(niceness);
+          do_work(*state, niceness > 10);
+        });
+      }
 
-    check_set_affinity_from_environment(group_name);
+      check_set_affinity_from_environment(group_name);
+    } catch (...) {
+      // Join any workers that were started before the exception was thrown.
+      stop();
+      throw;
+    }
   }
 
   worker_group_impl_(worker_group_impl_ const&) = delete;

@@ -27,6 +27,8 @@
 #include <atomic>
 #include <future>
 #include <memory>
+#include <stdexcept>
+#include <tuple>
 
 #include <dwarfs/internal/worker_group.h>
 
@@ -54,6 +56,21 @@ TEST(worker_group_test, set_thread_affinity_env) {
   os.set_affinity_calls.clear();
   internal::worker_group wg_apple(lgr, os, "apple", {.num_workers = 1});
   EXPECT_EQ(0, os.set_affinity_calls.size());
+}
+
+TEST(worker_group_test, state_factory_exception_after_worker_started) {
+  test::test_logger lgr;
+  test::os_access_mock os;
+
+  EXPECT_THROW((internal::basic_worker_group<int>(
+                   lgr, os, "factory", {.num_workers = 2},
+                   [](size_t i) -> std::tuple<int> {
+                     if (i == 1) {
+                       throw std::runtime_error("worker state failure");
+                     }
+                     return {0};
+                   })),
+               std::runtime_error);
 }
 
 TEST(worker_group_test, direct_callable_and_move_only_job) {
