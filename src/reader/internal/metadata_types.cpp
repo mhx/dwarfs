@@ -104,24 +104,36 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
 
   auto td = LOG_TIMED_DEBUG;
 
-  auto dirent = *dep;
   auto metadir = meta.directories();
+
+  if (!dep || dep->empty() || metadir.size() < 2) {
+    DWARFS_THROW(runtime_error, "missing directory entries or directory table");
+  }
+
+  auto dirent = *dep;
   auto const num_dir_inodes = metadir.size() - 1;
 
   thrift::metadata::metadata::directories_member_type directories;
 
-  if (opts->packed_directories()) {
+  if (opts && opts->packed_directories()) {
     directories.resize(metadir.size());
 
     // delta-decode first entries first
     {
       auto tt = LOG_TIMED_TRACE;
 
-      directories[0].first_entry() = metadir[0].first_entry();
+      uint64_t first_entry{0};
 
-      for (size_t i = 1; i < directories.size(); ++i) {
-        directories[i].first_entry() =
-            directories[i - 1].first_entry().value() + metadir[i].first_entry();
+      for (size_t i = 0; i < directories.size(); ++i) {
+        first_entry += metadir[i].first_entry();
+
+        if (first_entry > dirent.size() ||
+            first_entry > std::numeric_limits<uint32_t>::max()) {
+          DWARFS_THROW(runtime_error,
+                       "packed directory first_entry out of range");
+        }
+
+        directories[i].first_entry() = static_cast<uint32_t>(first_entry);
       }
 
       tt << "delta-decoded " << directories.size() << " first entries";
@@ -131,6 +143,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
     {
       auto tt = LOG_TIMED_TRACE;
 
+      std::vector<bool> seen(num_dir_inodes, false);
       std::queue<uint32_t> queue;
       queue.push(0);
 
@@ -145,6 +158,13 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
                        fmt::format("invalid parent inode number {} >= {}",
                                    p_ino, num_dir_inodes));
         }
+
+        if (seen[p_ino]) {
+          DWARFS_THROW(runtime_error,
+                       "cycle or duplicate inode in packed directories");
+        }
+
+        seen[p_ino] = true;
 
         auto beg = directories[p_ino].first_entry().value();
         auto end = directories[p_ino + 1].first_entry().value();
@@ -172,11 +192,19 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
     auto tt = LOG_TIMED_TRACE;
 
     size_t count{0};
+    std::vector<bool> seen(num_dir_inodes, false);
 
     for (size_t i = 0; i < dirent.size(); ++i) {
       auto const ino = dirent[i].inode_num();
 
       if (ino < num_dir_inodes) {
+        if (seen[ino]) {
+          DWARFS_THROW(
+              runtime_error,
+              "could not recover all self entries: duplicate directory inode");
+        }
+
+        seen[ino] = true;
         directories[ino].self_entry() = i;
         ++count;
       }

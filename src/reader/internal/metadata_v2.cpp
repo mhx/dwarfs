@@ -2182,25 +2182,28 @@ template <typename LoggerPolicy, typename T>
 void metadata_v2_data::walk(LOG_PROXY_REF_(LoggerPolicy) uint32_t self_index,
                             uint32_t parent_index, set_type<int>& seen,
                             T const& func) const {
-  func(self_index, parent_index);
-
   auto entry = make_dir_entry_view_impl(self_index, parent_index);
   auto iv = entry.inode();
 
-  if (iv.is_directory()) {
-    auto inode = iv.inode_num();
+  if (!iv.is_directory()) {
+    func(self_index, parent_index);
+    return;
+  }
 
-    if (!seen.emplace(inode).second) {
-      DWARFS_THROW(runtime_error, "cycle detected during directory walk");
-    }
+  auto inode = iv.inode_num();
 
-    auto dir = make_directory_view(inode);
+  if (!seen.emplace(inode).second) {
+    DWARFS_THROW(
+        runtime_error,
+        "cycle detected during directory walk or duplicate directory inode");
+  }
 
-    for (auto cur_index : dir.entry_range()) {
-      walk(LOG_PROXY_ARG_ cur_index, self_index, seen, func);
-    }
+  func(self_index, parent_index);
 
-    seen.erase(inode);
+  auto dir = make_directory_view(inode);
+
+  for (auto cur_index : dir.entry_range()) {
+    walk(LOG_PROXY_ARG_ cur_index, self_index, seen, func);
   }
 }
 
@@ -2229,6 +2232,10 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
         walk_tree(LOG_PROXY_ARG_[&, de = *dep, beg = file_inode_offset_,
                                  end = dev_inode_offset_](
             uint32_t self_index, uint32_t parent_index) {
+          if (self_index >= de.size() || other_ix >= file_ix) {
+            DWARFS_THROW(runtime_error,
+                         "invalid directory traversal: too many entries");
+          }
           int ino = de[self_index].inode_num();
           size_t index;
 
@@ -2242,9 +2249,11 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
           entries[index] = {self_index, parent_index};
         });
 
-        DWARFS_CHECK(file_ix == other_ix,
-                     fmt::format("unexpected file/other index: {} != {}",
-                                 file_ix, other_ix));
+        if (file_ix != other_ix) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("unexpected file/other index: {} != {}",
+                                   file_ix, other_ix));
+        }
 
         mid += file_ix;
 

@@ -22,9 +22,12 @@
  */
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -34,7 +37,11 @@
 
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/string_table.h>
+#include <dwarfs/reader/metadata_options.h>
+
 #include <dwarfs/reader/internal/metadata_types.h>
+#include <dwarfs/reader/internal/metadata_v2.h>
+#include <dwarfs/writer/internal/metadata_freezer.h>
 
 #include <dwarfs/gen-cpp-lite/metadata_layouts.h>
 
@@ -141,6 +148,16 @@ metadata make_valid_metadata_without_self_entry() {
   for (auto&& d : *raw.directories()) {
     d.self_entry() = 0;
   }
+  return raw;
+}
+
+metadata make_valid_packed_directories() {
+  auto raw = make_valid_metadata_without_self_entry();
+  raw.options()->packed_directories() = true;
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 2;
+  ds[2].first_entry() = 0;
   return raw;
 }
 
@@ -1038,19 +1055,23 @@ TEST_F(global_metadata_unpack_test, duplicate_directory_inode) {
   expect_consistent(raw);
 
   auto meta = freeze(raw);
+  EXPECT_THAT(
+      [&] { global_metadata gm(lgr, meta); },
+      throws_error(
+          "could not recover all self entries: duplicate directory inode"));
+}
+
+TEST_F(global_metadata_unpack_test, cyclic_packed_directory) {
+  auto raw = make_valid_packed_directories();
+  raw.dir_entries()->at(1).inode_num() = 0;
+
+  auto meta = freeze(raw);
   EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
-              throws_error("could not recover all self entries"));
+              throws_error("cycle or duplicate inode in packed directories"));
 }
 
 TEST_F(global_metadata_unpack_test, invalid_parent_inode_when_packed) {
-  auto raw = make_valid_metadata_without_self_entry();
-  raw.options()->packed_directories() = true;
-
-  // delta-encode first_entry (1, 3, 3) -> (1, 2, 0)
-  auto& ds = *raw.directories();
-  ds[0].first_entry() = 1;
-  ds[1].first_entry() = 2;
-  ds[2].first_entry() = 0;
+  auto raw = make_valid_packed_directories();
 
   // the root entry must reference a directory inode
   raw.dir_entries()->at(0).inode_num() = 2;
@@ -1058,6 +1079,223 @@ TEST_F(global_metadata_unpack_test, invalid_parent_inode_when_packed) {
   auto meta = freeze(raw);
   EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
               throws_error("invalid parent inode number"));
+}
+
+TEST_F(global_metadata_unpack_test, recovers_self_entries_without_options) {
+  auto raw = make_valid_metadata_without_self_entry();
+  raw.options().reset();
+
+  auto meta = freeze(raw);
+  global_metadata const gm{lgr, meta};
+  EXPECT_EQ(0, gm.self_dir_entry(0));
+  EXPECT_EQ(1, gm.self_dir_entry(1));
+}
+
+TEST_F(global_metadata_unpack_test, recovers_packed_directories) {
+  auto raw = make_valid_packed_directories();
+  auto meta = freeze(raw);
+  global_metadata const gm{lgr, meta};
+  EXPECT_EQ(1, gm.first_dir_entry(0));
+  EXPECT_EQ(3, gm.first_dir_entry(1));
+  EXPECT_EQ(3, gm.first_dir_entry(2));
+  EXPECT_EQ(0, gm.self_dir_entry(0));
+  EXPECT_EQ(1, gm.self_dir_entry(1));
+  EXPECT_EQ(0, gm.parent_dir_entry(1));
+}
+
+TEST_F(global_metadata_unpack_test, packed_directories_missing_dir_entries) {
+  auto raw = make_valid_packed_directories();
+  raw.dir_entries().reset();
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("missing directory entries or directory table"));
+}
+
+TEST_F(global_metadata_unpack_test, empty_dir_entries) {
+  for (bool packed : {false, true}) {
+    SCOPED_TRACE(packed);
+
+    auto raw = packed ? make_valid_packed_directories()
+                      : make_valid_metadata_without_self_entry();
+    raw.dir_entries()->clear();
+    auto meta = freeze(raw);
+    EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+                throws_error("missing directory entries or directory table"));
+  }
+}
+
+TEST_F(global_metadata_unpack_test, missing_root_or_sentinel) {
+  for (size_t count : {0, 1}) {
+    SCOPED_TRACE(count);
+
+    auto raw = make_valid_packed_directories();
+    raw.directories()->resize(count);
+    auto meta = freeze(raw);
+    EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+                throws_error("missing directory entries or directory table"));
+  }
+}
+
+TEST_F(global_metadata_unpack_test, packed_directory_first_entry_out_of_range) {
+  auto raw = make_valid_packed_directories();
+  raw.directories()->at(0).first_entry() = 4;
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("packed directory first_entry out of range"));
+}
+
+TEST_F(global_metadata_unpack_test, packed_directory_delta_out_of_range) {
+  auto raw = make_valid_packed_directories();
+  raw.directories()->at(1).first_entry() = 3; // 1 + 3 > 3 dir_entries
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("packed directory first_entry out of range"));
+}
+
+TEST_F(global_metadata_unpack_test, packed_directory_delta_overflow) {
+  auto raw = make_valid_packed_directories();
+  raw.directories()->at(1).first_entry() = std::numeric_limits<uint32_t>::max();
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("packed directory first_entry out of range"));
+}
+
+TEST_F(global_metadata_unpack_test, duplicate_packed_directory_inode) {
+  auto raw = make_valid_packed_directories();
+  // root directory refers to the same subdirectory twice
+  raw.dir_entries()->at(2).inode_num() = 1;
+  auto meta = freeze(raw);
+  EXPECT_THAT([&] { global_metadata gm(lgr, meta); },
+              throws_error("cycle or duplicate inode in packed directories"));
+}
+
+// ---------------------------------------------------------------------------
+// metadata_v2 directory traversal (without optional consistency checking)
+// ---------------------------------------------------------------------------
+
+class metadata_v2_walk_test : public ::testing::Test {
+ protected:
+  static auto throws_error(std::string_view msg) {
+    return testing::ThrowsMessage<dwarfs::error>(testing::HasSubstr(msg));
+  }
+
+  static metadata make_metadata() {
+    auto raw = make_valid_metadata_with_subdir();
+    raw.options()->inodes_have_nlink() = true;
+    raw.names()->at(0) = "entry";
+    return raw;
+  }
+
+  template <typename F>
+  void with_metadata(metadata const& raw, F&& func) {
+    auto [schema, data] =
+        dwarfs::writer::internal::metadata_freezer(lgr).freeze(raw);
+    metadata_v2 mv2(lgr, schema.span(), data.span(), {});
+    std::forward<F>(func)(mv2);
+  }
+
+  test_logger lgr;
+};
+
+TEST_F(metadata_v2_walk_test, valid_tree) {
+  auto raw = make_metadata();
+
+  with_metadata(raw, [](metadata_v2 const& mv2) {
+    std::vector<uint32_t> walked;
+    mv2.walk([&](auto const& entry) {
+      walked.push_back(entry.inode().inode_num());
+    });
+
+    EXPECT_THAT(walked, testing::ElementsAre(0, 1, 2));
+
+    std::vector<uint32_t> ordered;
+    for (auto const& entry : mv2.entries_in_data_order()) {
+      ordered.push_back(entry.inode().inode_num());
+    }
+
+    EXPECT_THAT(ordered, testing::ElementsAre(0, 1, 2));
+  });
+}
+
+TEST_F(metadata_v2_walk_test, cyclic_directory) {
+  auto raw = make_metadata();
+  raw.dir_entries()->at(1).inode_num() = 0;
+
+  with_metadata(raw, [](metadata_v2 const& mv2) {
+    std::vector<uint32_t> walked;
+    EXPECT_THAT(
+        [&] {
+          mv2.walk([&](auto const& entry) {
+            walked.push_back(entry.inode().inode_num());
+          });
+        },
+        throws_error("cycle detected during directory walk"));
+    EXPECT_THAT(walked, testing::ElementsAre(0));
+    EXPECT_THAT([&] { mv2.entries_in_data_order(); },
+                throws_error("cycle detected during directory walk"));
+  });
+}
+
+TEST_F(metadata_v2_walk_test, duplicate_directory_inode) {
+  auto raw = make_metadata();
+  raw.dir_entries()->at(2).inode_num() = 1;
+
+  with_metadata(raw, [](metadata_v2 const& mv2) {
+    std::vector<uint32_t> walked;
+    EXPECT_THAT(
+        [&] {
+          mv2.walk([&](auto const& entry) {
+            walked.push_back(entry.inode().inode_num());
+          });
+        },
+        throws_error("duplicate directory inode"));
+    EXPECT_THAT(walked, testing::ElementsAre(0, 1));
+    EXPECT_THAT([&] { (void)mv2.entries_in_data_order(); },
+                throws_error("duplicate directory inode"));
+  });
+}
+
+TEST_F(metadata_v2_walk_test, too_few_entries_in_data_order) {
+  auto raw = make_metadata();
+  // subdir is unreachable from the root
+  raw.directories()->at(0).first_entry() = 2;
+  with_metadata(raw, [](metadata_v2 const& mv2) {
+    EXPECT_THAT([&] { (void)mv2.entries_in_data_order(); },
+                throws_error("unexpected file/other index"));
+  });
+}
+
+TEST_F(metadata_v2_walk_test, too_many_entries_in_data_order) {
+  auto raw = make_metadata();
+  // The root [1, 4) and directory inode 2 [2, 4) have overlapping
+  // ranges. Inode 1 is unreachable, and its descending range [4, 2)
+  // is never visited. Both directories are visited only once, but
+  // their common file entries would overrun the result vector.
+  raw.inodes()->resize(4);
+  raw.inodes()->at(2).mode_index() = 0;
+  raw.inodes()->at(3).mode_index() = 1;
+  raw.dir_entries()->resize(4);
+  raw.dir_entries()->at(1).inode_num() = 2;
+  raw.dir_entries()->at(2).inode_num() = 3;
+  raw.dir_entries()->at(3).inode_num() = 3;
+
+  auto& ds = *raw.directories();
+  ds.resize(4);
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 4;
+  ds[2].first_entry() = 2;
+  ds[2].self_entry() = 1;
+  ds[3].first_entry() = 4;
+
+  with_metadata(raw, [](metadata_v2 const& mv2) {
+    std::vector<uint32_t> walked;
+    mv2.walk([&](auto const& entry) {
+      walked.push_back(entry.inode().inode_num());
+    });
+    EXPECT_THAT(walked, testing::ElementsAre(0, 2, 3, 3, 3, 3));
+    EXPECT_THAT([&] { (void)mv2.entries_in_data_order(); },
+                throws_error("invalid directory traversal: too many entries"));
+  });
 }
 
 // ---------------------------------------------------------------------------
