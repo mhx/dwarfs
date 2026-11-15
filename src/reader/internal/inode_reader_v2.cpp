@@ -190,8 +190,8 @@ class inode_reader_ final : public inode_reader_v2::impl {
   readonly_memory_mapping const& get_hole_data() const {
     std::call_once(hole_data_init_flag_, [this] {
       hole_data_ = os_.map_empty_readonly(opts_.hole_data_size);
-      if (!hole_data_) {
-        LOG_ERROR << "failed to allocate zero block: "
+      if (!hole_data_ || hole_data_.size() == 0) {
+        LOG_FATAL << "failed to allocate zero block: "
                   << exception_str(std::current_exception());
       }
     });
@@ -227,8 +227,15 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
             << "/" << it_offset;
 
   file_off_t readahead_pos{0};
-  file_off_t const current_offset = read_offset + size;
-  file_off_t const readahead_until = current_offset + opts_.readahead;
+  auto const max_offset = std::numeric_limits<file_off_t>::max();
+  file_off_t const current_offset =
+      std::cmp_greater(size, max_offset - read_offset)
+          ? max_offset
+          : read_offset + static_cast<file_off_t>(size);
+  file_off_t const readahead_until =
+      std::cmp_greater(opts_.readahead, max_offset - current_offset)
+          ? max_offset
+          : current_offset + static_cast<file_off_t>(opts_.readahead);
 
   {
     std::lock_guard lock(readahead_cache_mutex_);
@@ -248,6 +255,10 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
 
   while (it != end) {
     auto const chk = *it;
+
+    if (chk.size() <= 0 || chk.size() > max_offset - it_offset) {
+      break;
+    }
 
     if (chk.is_data() && it_offset + chk.size() >= readahead_pos) {
       cache_.get(chk.block(), chk.offset(), chk.size());
@@ -320,6 +331,11 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   // search for the first chunk that contains data from this request
   while (it < end) {
     auto const chunksize = it->size();
+    if (chunksize <= 0 ||
+        chunksize > std::numeric_limits<file_off_t>::max() - it_offset) {
+      ec = std::make_error_code(std::errc::value_too_large);
+      return {};
+    }
 
     if (offset < chunksize) {
       break;
@@ -346,11 +362,16 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   while (it != end) {
     auto const chk = *it;
     auto const chunksize = chk.size();
+    if (chunksize <= 0 ||
+        chunksize > std::numeric_limits<file_off_t>::max() - it_offset) {
+      ec = std::make_error_code(std::errc::value_too_large);
+      return {};
+    }
     auto copysize = chunksize - offset;
 
     DWARFS_CHECK(copysize > 0, "unexpected zero-sized chunk");
 
-    if (std::cmp_greater(num_read + copysize, size)) {
+    if (std::cmp_greater(copysize, size - num_read)) {
       copysize = size - num_read;
     }
 
