@@ -278,6 +278,10 @@ template <typename LoggerPolicy>
 file_off_t
 filesystem_parser_<LoggerPolicy>::find_image_offset(file_off_t image_offset) {
   if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
+    if (image_offset < 0 || image_offset > mm_.size()) {
+      DWARFS_THROW(runtime_error, "filesystem image offset out of range");
+    }
+
     return image_offset;
   }
 
@@ -387,11 +391,10 @@ void filesystem_parser_<LoggerPolicy>::find_index() {
   }
 
   index_pos &= section_offset_mask;
-  index_pos += image_offset_;
-
-  if (std::cmp_greater_equal(index_pos, image_offset_ + image_size_)) {
+  if (std::cmp_greater_equal(index_pos, image_size_)) {
     return;
   }
+  index_pos += image_offset_;
 
   auto section = fs_section(mm_, index_pos, image_end(), header_version_);
 
