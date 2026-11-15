@@ -78,7 +78,7 @@ class basic_inode_handle final {
 
   inode_id id() const { return self_id_; }
 
-  void set_files(file_id_vector const& fv)
+  void set_files(file_id_vector fv)
     requires is_mutable;
   void populate(file_size_t size)
     requires is_mutable;

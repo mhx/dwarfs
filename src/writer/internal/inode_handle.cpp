@@ -150,10 +150,10 @@ auto mmap_any_impl(entry_storage& storage, inode_id self_id,
 } // namespace
 
 template <detail::mutability Mut>
-void basic_inode_handle<Mut>::set_files(file_id_vector const& fv)
+void basic_inode_handle<Mut>::set_files(file_id_vector fv)
   requires is_mutable
 {
-  storage_->set_files_for_inode(self_id_, fv);
+  storage_->set_files_for_inode(self_id_, std::move(fv));
 }
 
 template <detail::mutability Mut>
