@@ -134,10 +134,17 @@ auto block_range_iterable::iterator::operator*() const -> reference {
 }
 
 block_range_iterable::iterator& block_range_iterable::iterator::operator++() {
-  cur_.reset();
+  if (cur_) {
+    cur_.reset();
+  } else {
+    // advance to the next range if we didn't dereference the iterator before
+    state_->next();
+  }
+
   if (!state_->more()) {
     state_.reset();
   }
+
   return *this;
 }
 
