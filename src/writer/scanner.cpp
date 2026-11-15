@@ -2004,6 +2004,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
     tv << "saved chunks";
   }
 
+  LOG_INFO << "dropping inode payload...";
+  set_status("dropping inode payload");
+  {
+    auto tv = LOG_TIMED_VERBOSE;
+    tree->drop_inode_payload();
+    tv << "dropped inode payload";
+  }
+
   LOG_INFO << "saving directories...";
   set_status("saving directories");
   {

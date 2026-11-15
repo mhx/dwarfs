@@ -1534,6 +1534,13 @@ class packed_inode_data {
     }
   }
 
+  void drop_inode_payload() {
+    files_for_inode_.clear();
+    fragment_info_.clear();
+    fragment_data_.clear();
+    fragment_chunks_.clear();
+  }
+
   void drop_similarity_data() {
     similarity_info_.clear();
     similarity_hash_.clear();
@@ -2961,6 +2968,15 @@ class inode_storage_ final : public entry_storage::inode_impl {
     }
   }
 
+  void drop_inode_payload() override {
+    TRACE_CALL;
+    if constexpr (is_mutable) {
+      mutable_panic();
+    } else {
+      inodes_.drop_inode_payload();
+    }
+  }
+
   void dump(std::ostream& os) const override;
   void dump_events(std::ostream& os) const override;
 
@@ -3732,6 +3748,8 @@ class synchronized_inode_storage_ final : public entry_storage::inode_impl {
   }
 
   void drop_similarity_data() override { impl_.lock()->drop_similarity_data(); }
+
+  void drop_inode_payload() override { impl_.lock()->drop_inode_payload(); }
 
   std::unique_ptr<inode_impl> freeze() override {
     return impl_.lock()->freeze();
