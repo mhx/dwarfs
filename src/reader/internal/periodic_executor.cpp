@@ -54,8 +54,8 @@ class periodic_executor_ final : public periodic_executor::impl {
   void start() const override {
     std::lock_guard lock(mx_);
     if (!running_.load()) {
-      running_.store(true);
       thread_.emplace(&periodic_executor_::run, this);
+      running_.store(true);
     }
   }
 
