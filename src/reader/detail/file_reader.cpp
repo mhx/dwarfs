@@ -28,11 +28,12 @@
 
 #include <array>
 #include <cassert>
-#include <numeric>
+#include <limits>
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/container/small_fifo.h>
 #include <dwarfs/detail/file_view_impl.h>
+#include <dwarfs/error.h>
 #include <dwarfs/reader/detail/file_reader.h>
 #include <dwarfs/reader/filesystem_v2.h>
 
@@ -43,9 +44,18 @@ using namespace binary_literals;
 class block_range_iterable::state {
  public:
   static file_size_t total_size(std::span<file_range const> ranges) {
-    return std::accumulate(
-        ranges.begin(), ranges.end(), file_size_t{0},
-        [](auto acc, auto const& r) { return acc + r.size(); });
+    file_size_t size{0};
+
+    for (auto const& r : ranges) {
+      if (r.size() < 0 ||
+          r.size() > std::numeric_limits<file_size_t>::max() - size) {
+        DWARFS_THROW(runtime_error, "invalid sequential read range size");
+      }
+
+      size += r.size();
+    }
+
+    return size;
   }
 
   state(filesystem_v2_lite const& fs, uint32_t inode,
@@ -53,15 +63,16 @@ class block_range_iterable::state {
         file_size_t max_bytes)
       : fs_{fs}
       , inode_{inode}
-      , ranges_{ranges.begin(), ranges.end()}
       , remaining_{total_size(ranges)}
       , lease_{sem, std::min(remaining_, max_bytes)} {
-    if (remaining_ == 0) {
-      ranges_.clear();
+    for (auto const& range : ranges) {
+      if (!range.empty()) {
+        ranges_.push_back(range);
+      }
     }
   }
 
-  bool more() noexcept {
+  bool more() {
     pending_bytes_ -= current_bytes_;
     current_bytes_ = 0;
 
@@ -69,7 +80,9 @@ class block_range_iterable::state {
       assert(remaining_ == 0);
 
       if (pending_.empty()) {
-        assert(pending_bytes_ == 0);
+        if (pending_bytes_ != 0) {
+          DWARFS_THROW(runtime_error, "short sequential read");
+        }
         lease_.release();
         return false;
       }
@@ -84,6 +97,10 @@ class block_range_iterable::state {
 
       auto r = fs_.readv(inode_, to_read, range.offset());
 
+      if (r.empty()) {
+        DWARFS_THROW(runtime_error, "empty sequential read");
+      }
+
       if (to_read < range.size()) {
         range.advance(to_read);
       } else {
@@ -95,7 +112,9 @@ class block_range_iterable::state {
       std::ranges::move(r, std::back_inserter(pending_));
     }
 
-    assert(!pending_.empty());
+    if (pending_.empty()) {
+      DWARFS_THROW(runtime_error, "short sequential read");
+    }
 
     return true;
   }
@@ -105,6 +124,9 @@ class block_range_iterable::state {
     auto fut = std::move(pending_.front());
     pending_.pop_front();
     auto r = fut.get();
+    if (r.size() == 0 || std::cmp_greater(r.size(), pending_bytes_)) {
+      DWARFS_THROW(runtime_error, "invalid sequential read size");
+    }
     current_bytes_ = r.size();
     return r;
   }
@@ -165,6 +187,17 @@ file_reader::read_sequential(counting_semaphore& sem, file_size_t max_bytes) {
 block_range_iterable
 file_reader::read_sequential(std::span<file_range const> ranges,
                              counting_semaphore& sem, file_size_t max_bytes) {
+  if (max_bytes <= 0) {
+    DWARFS_THROW(runtime_error, "sequential read byte limit must be positive");
+  }
+
+  for (auto const& range : ranges) {
+    if (range.offset() < 0 || range.size() < 0 || range.offset() > size_ ||
+        range.size() > size_ - range.offset()) {
+      DWARFS_THROW(runtime_error, "sequential read range outside file");
+    }
+  }
+
   auto state = std::make_shared<block_range_iterable::state>(
       fs_, iv_.inode_num(), ranges, sem, max_bytes);
 

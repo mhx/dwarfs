@@ -702,6 +702,7 @@ if(WITH_TESTS)
       $<$<BOOL:${ENABLE_STACKTRACE}>:test/event_tracer_test.cpp>
       test/file_access_test.cpp
       test/file_range_utils_test.cpp
+      test/file_reader_test.cpp
       test/file_utils_test.cpp
       test/file_view_test.cpp
       test/filesystem_test.cpp
