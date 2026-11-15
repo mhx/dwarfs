@@ -584,6 +584,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   counting_semaphore sem;
   sem.post(opts.max_queued_bytes);
 
+  // these must outlive any worker threads
+  std::atomic<size_t> hard_error{0};
+  std::atomic<size_t> soft_error{0};
+
   static constexpr std::size_t kMaxRegQueueLen = 1024;
   using worker_ptr = std::shared_ptr<basic_worker_group<archive*>>;
 
@@ -601,9 +605,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                              .max_queue_len = kMaxRegQueueLen},
         [this](size_t idx) { return a_reg_[idx].get(); });
   }
-
-  std::atomic<size_t> hard_error{0};
-  std::atomic<size_t> soft_error{0};
 
   auto do_archive = [&](worker_ptr const& aptr,
                         std::shared_ptr<::archive_entry> ae,
