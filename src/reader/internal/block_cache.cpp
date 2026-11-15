@@ -369,13 +369,12 @@ class block_cache_ final : public block_cache::impl {
   }
 
   void set_num_workers(size_t num) override {
-    std::unique_lock lock(mx_wg_);
-
-    if (wg_) {
-      wg_.stop();
+    auto tmp =
+        worker_group(LOG_GET_LOGGER, os_, "blkcache", {.num_workers = num});
+    {
+      std::unique_lock lock(mx_wg_);
+      std::swap(wg_, tmp);
     }
-
-    wg_ = worker_group(LOG_GET_LOGGER, os_, "blkcache", {.num_workers = num});
   }
 
   void set_tidy_config(cache_tidy_config const& cfg) override {
