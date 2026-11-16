@@ -1,5 +1,125 @@
 # Change Log
 
+## Version 0.16.0 - 2026-12-xx
+
+- (fix) `mkdwarfs` now refuses to overwrite its own input filesystem image.
+  Fixes GitHub issue #388.
+
+- (fix) When using the `--input-list` option, a stray literal `.` entry could
+  end up in the final file system image. This has been fixed.
+
+- (fix) Ensure explicit file ordering remains consistent when the order file
+  does not contain every input file. Previously the comparison of listed and
+  unlisted files was not transitive, which could result in undefined sorting
+  behavior.
+
+- (fix) Ensure the console progress display works correctly on small terminal
+  windows. The display will now dynamically adjust to the available width and
+  height, and will turn off live updates if the terminal is too small.
+
+- (fix) Avoid keeping the block cache alive through cached block objects.
+  This could result in destruction of the cache being delayed until after
+  some of the objects it references have been destroyed, which could lead to
+  crashes.
+
+- (fix) Document memory behaviour for inputs with millions of files. Fixes
+  GitHub issue #226.
+
+- (feature) `mkdwarfs` can now accept multiple source paths on the command
+  line. Sources can contribute directory contents or named entries, and their
+  contents are merged into a single file system. This makes it possible to
+  build an image without first copying unrelated input trees into a common
+  directory, or using filters excessively to select only a subset of files.
+  Fixes GitHub issue #379.
+
+- (feature) Add `--dereference` to `mkdwarfs` to follow symbolic links when
+  scanning input sources. By default, this will dereference all symbolic
+  links, but it is also possible to use `--dereference=external-symlinks`
+  to only follow links that point outside of the input sources. Fixes GitHub
+  issue #350.
+
+- (feature) The functionality of `--input-list` has been extended to support
+  multiple formats. By default, or using `--input-list-format=plain`, the
+  legacy behaviour of `--input-list` is preserved. `--input-list-format` can
+  also be set to `gen_init_cpio` or `jsonl`. The former then accepts a file
+  in the `gen_init_cpio` Linux utility format, which is easy to write and
+  more capable than the plain format. However, it still has some limitations,
+  primarily the inability to specify timestamps or file names containing
+  spaces. The `jsonl` format, on the other hand, allows specifying all in a
+  format that is possible to write by hand, but very easy to generate from
+  scripts, making it possible to create input lists in custom formats using
+  a simple conversion script. Fixes GitHub issue #272.
+
+- (feature) Add `--root-like`, `--root-mode`, `--root-owner`, `--root-group`,
+  and `--root-time` to `mkdwarfs` to allow setting the root directory metadata
+  in cases where the default is not suitable. Also, add `--synthetic-time` to
+  allow setting timestamps for synthetic input-list entries.
+
+- (feature) Add a `--reproducible` option to `mkdwarfs` to simplify producing
+  bit-identical filesystem images. Also, the `SOURCE_DATE_EPOCH` environment
+  variable is now supported for setting creation and history timestamps and
+  clamping input timestamps for new images.
+
+- (feature) Add support for filesystem superblocks. These are fixed-size,
+  always uncompressed, and always located at the beginning of the image.
+  The superblock contains information about the filesystem size and alignment,
+  as well as the filesystem UUID, label, and (optionally) digests. To create
+  images with superblocks, `mkdwarfs` must be run with `--no-backwards-compat`
+  since superblocks cannot be properly handled by older DwarFS releases.
+  For images with superblocks, the label can be changed using `dwarfsck`.
+
+- (feature) File system images can now be padded to a specified size alignment
+  using the `--image-size-alignment` option. Fixes GitHub issue #356.
+
+- (feature) Add BLAKE3 digest support. This is now the default and only
+  algorithm for de-duplication. The `--file-hash` option has been deprecated
+  and will issue a warning. `--file-hash=none` is replaced by `--no-dedupe`.
+
+- (feature) Add support for computing and verifying filesystem digests. These
+  can be used to check if the metadata and/or contents of a filesystem image
+  have changed, or if two images are identical. `dwarfsck` can compute, verify,
+  and display these digests, including a detailed breakdown of how the digests
+  were computed in verbose mode. These digests can also be stored in the
+  superblock as an additional integrity check.
+
+- (feature) Add a `libmagic` categorizer to `mkdwarfs` for categorizing files
+  by their detected MIME types. The type patterns, maximum amount of data to
+  inspect, and magic database can be configured. Static release builds embed a
+  compressed copy of the magic database.
+
+- (feature) `dwarfsextract` now has a `--no-hardlinks` option to extract all
+  hardlinked files independently. Addresses GitHub issue #387.
+
+- (feature) Add support for ARM64 and RISC-V filters in the LZMA compressor.
+
+- (feature) Strengthen validation of malformed images, in particular the Frozen
+  metadata. Corrupted Frozen metadata could only be detected up to a certain
+  point before, but the fork that is now maintained in the DwarFS repository
+  has been improved allow detecting pretty much any corruption in the Frozen
+  metadata without accessing out-of-bounds memory.
+
+- (perf) Significantly reduce the memory overhead of `mkdwarfs`, especially
+  in the context of scanning large numbers of files. Both the peak memory
+  usage and the number of memory allocations have been reduced roughly by a
+  factor of five. The entry representation and storage have been completely
+  rewritten around compact, packed containers, and data is now freed as soon
+  as it is no longer needed. Data such as path names is compressed as soon as
+  it becomes immutable, in the exact same format that will later be used in
+  the final image. Algorithms have been rewritten, where possible, to use as
+  little temporary memory as possible without sacrificing performance.
+
+- (perf) Improve scanning throughput through parallel directory walking and
+  an optional file preparation queue, which can help in particular with cold
+  filesystem caches. This can be configured using `--num-walk-workers` and
+  `--num-file-prep-workers`, although the default values should generally
+  work well.
+
+- (perf) Add an `--estimate-compression-memory` option to `mkdwarfs` to help
+  estimate the memory usage requirements given a particular configuration.
+
+- (perf) Improve segmenter throughput by using a blocked Bloom filter and
+  caching cyclic hashes.
+
 ## Version 0.15.10 - 2026-11-14
 
 - (fix) Avoid integer underflow on problematic TTYs. Using `mkdwarfs` on
