@@ -1044,11 +1044,11 @@ TEST_F(entry_test, synchronized_storage_operations) {
 
   auto root = create_entry(tree, sep);
   auto file = create_entry(tree, sep / "foo.pl", root).as_file();
-  auto link = create_entry(tree, sep / "somelink", root).as_link();
+  auto dir = create_entry(tree, sep / "somedir", root).as_dir();
 
-  tree.set_entry_index(file.id(), 42);
-  EXPECT_EQ(42, tree.get_entry_index(file.id()).value());
-  EXPECT_FALSE(tree.get_entry_index(link.id()).has_value());
+  tree.set_entry_index(dir.id(), 42);
+  EXPECT_EQ(42, tree.get_entry_index(dir.id()).value());
+  EXPECT_FALSE(tree.get_entry_index(root.as_dir().id()).has_value());
 
   tree.set_file_order_index(file.id(), 17);
   EXPECT_EQ(17, tree.get_file_order_index(file.id()));
@@ -1120,6 +1120,30 @@ TEST_F(entry_test, synchronized_storage_operations) {
   EXPECT_THAT(oss.str(), testing::HasSubstr("similarity hashes:"));
   EXPECT_THAT(oss.str(), testing::HasSubstr("0 basic"));
   EXPECT_THAT(oss.str(), testing::HasSubstr("1/7 nilsimsa"));
+}
+
+TEST_F(entry_test, directory_entry_index_after_freeze) {
+  auto tree = entry_storage{};
+  auto root = create_entry(tree, sep).as_dir();
+  auto dir = create_entry(tree, sep / "somedir", root).as_dir();
+  create_entry(tree, sep / "foo.pl", root);
+
+  EXPECT_FALSE(root.entry_index().has_value());
+  EXPECT_FALSE(dir.entry_index().has_value());
+
+  progress prog{};
+  test_logger lgr;
+  tree.freeze_entries(lgr, prog);
+
+  root.set_entry_index(0);
+  dir.set_entry_index(42);
+
+  wi::const_dir_handle const croot = root;
+  wi::const_dir_handle const cdir = dir;
+  EXPECT_EQ(0, croot.entry_index().value());
+  EXPECT_EQ(42, cdir.entry_index().value());
+  EXPECT_DEATH(dir.set_entry_index(43),
+               "attempt to set entry index more than once");
 }
 
 namespace {

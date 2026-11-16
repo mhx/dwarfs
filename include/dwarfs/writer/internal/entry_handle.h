@@ -157,15 +157,11 @@ class entry_handle_base {
     requires is_mutable;
   void scan(os_access const& os, internal::progress& prog)
     requires is_mutable;
-  void set_entry_index(std::size_t index)
-    requires is_mutable;
   void set_inode_num(std::uint64_t ino)
     requires is_mutable;
   void
   walk(std::function<void(basic_entry_handle<mutability::mutable_>)> const& f)
     requires is_mutable;
-
-  std::optional<std::size_t> entry_index() const;
 
   void pack(thrift::metadata::metadata::inodes_member_type::reference entry_v2,
             internal::global_entry_data const& data,
@@ -313,6 +309,10 @@ class basic_dir_handle final : public detail::entry_handle_base<Mut> {
   }
 
   dir_id id() const { return dir_id{this->base_id()}; }
+
+  void set_entry_index(std::size_t index)
+    requires is_mutable;
+  std::optional<std::size_t> entry_index() const;
 
   entry_handle find(std::filesystem::path const& path)
     requires is_mutable;

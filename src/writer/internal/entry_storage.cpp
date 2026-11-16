@@ -845,6 +845,11 @@ class packed_entry_data {
     file_order_index_.push_back(0);
   }
 
+  void add_dir_specific() {
+    assert(this_type_ == entry_type::E_DIR);
+    final_entry_index_.push_back(std::nullopt);
+  }
+
   void add_link_specific() {
     assert(this_type_ == entry_type::E_LINK);
     link_target_index_.push_back(std::nullopt);
@@ -1003,14 +1008,16 @@ class packed_entry_data {
     return file_invalid_vec_.at(fdi).load();
   }
 
-  void set_entry_index(std::uint64_t const index, std::size_t const ix) {
-    auto ei = final_entry_index_.at(index);
+  void set_entry_index(dir_id id, std::size_t const ix) {
+    assert(this_type_ == entry_type::E_DIR);
+    auto ei = final_entry_index_.at(id.index());
     DWARFS_CHECK(!ei.has_value(), "attempt to set entry index more than once");
     ei = ix;
   }
 
-  std::optional<std::size_t> get_entry_index(std::uint64_t const index) const {
-    return final_entry_index_.at(index);
+  std::optional<std::size_t> get_entry_index(dir_id id) const {
+    assert(this_type_ == entry_type::E_DIR);
+    return final_entry_index_.at(id.index());
   }
 
   void set_file_order_index(file_id id, std::size_t index) {
@@ -1150,9 +1157,6 @@ class packed_entry_data {
   // parent directory id (invalid for root)
   segtor<dir_id> parent_dir_id_;
 
-  // final index of this entry assigned during packing
-  segtor<std::optional<size_t>> final_entry_index_;
-
   // inode number for non-file entries, assigned after scanning is complete
   segtor<std::optional<std::uint64_t>> inode_num_;
 
@@ -1187,6 +1191,9 @@ class packed_entry_data {
 
   segtor<file_data_tuple> file_data_vec_;
   cao_vector<std::atomic<bool>> file_invalid_vec_;
+
+  // directory-specific
+  segtor<std::optional<size_t>> final_entry_index_;
 
   // link-specific
   segtor<std::optional<size_t>> link_target_index_;
@@ -1726,7 +1733,6 @@ auto packed_entry_data::add_entry_common(shared_entry_data& shared,
   auto const entry_ix = path_storage_index_.size();
   path_storage_index_.push_back(path_storage);
   parent_dir_id_.push_back(parent);
-  final_entry_index_.push_back(std::nullopt);
 
   auto const nlink = st.nlink_unchecked();
   assert(nlink > 0);
@@ -1822,7 +1828,6 @@ packed_entry_data::add_hardlinked_file(shared_entry_data& shared,
 
   path_storage_index_.push_back(storage);
   parent_dir_id_.push_back(parent);
-  final_entry_index_.push_back(std::nullopt);
   stat_common_.push_back(stat);
 
   auto const size = get_size_info(source.index());
@@ -2021,6 +2026,7 @@ class entry_storage_ final : public entry_storage::entry_impl {
         data.add_file_specific();
         break;
       case entry_type::E_DIR:
+        data.add_dir_specific();
         shared_.add_dir_entry_vec();
         break;
       case entry_type::E_LINK:
@@ -2126,15 +2132,15 @@ class entry_storage_ final : public entry_storage::entry_impl {
     return files_.get_inode_id(id);
   }
 
-  void set_entry_index(entry_id id, std::size_t index) override {
+  void set_entry_index(dir_id id, std::size_t index) override {
     TRACE_CALL;
     // this is safe even on frozen storage if it's single-threaded
-    dispatch_(&packed_entry_data::set_entry_index, id, index);
+    dirs_.set_entry_index(id, index);
   }
 
-  std::optional<std::size_t> get_entry_index(entry_id id) const override {
+  std::optional<std::size_t> get_entry_index(dir_id id) const override {
     TRACE_CALL;
-    return dispatch_(&packed_entry_data::get_entry_index, id);
+    return dirs_.get_entry_index(id);
   }
 
   void set_file_order_index(file_id id, std::size_t index) override {
@@ -3461,11 +3467,11 @@ class synchronized_entry_storage_ final : public entry_storage::entry_impl {
     impl_.lock()->create_packed_file_data(id);
   }
 
-  void set_entry_index(entry_id id, std::size_t index) override {
+  void set_entry_index(dir_id id, std::size_t index) override {
     impl_.lock()->set_entry_index(id, index);
   }
 
-  std::optional<std::size_t> get_entry_index(entry_id id) const override {
+  std::optional<std::size_t> get_entry_index(dir_id id) const override {
     return impl_.lock()->get_entry_index(id);
   }
 

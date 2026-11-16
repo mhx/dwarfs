@@ -112,11 +112,11 @@ class entry_storage {
     return entry_impl_->physical_mapping_id(id);
   }
 
-  void set_entry_index(entry_id id, std::size_t index) {
+  void set_entry_index(dir_id id, std::size_t index) {
     entry_impl_->set_entry_index(id, index);
   }
 
-  [[nodiscard]] std::optional<std::size_t> get_entry_index(entry_id id) const {
+  [[nodiscard]] std::optional<std::size_t> get_entry_index(dir_id id) const {
     return entry_impl_->get_entry_index(id);
   }
 
@@ -416,8 +416,8 @@ class entry_storage {
     virtual void set_file_inode(file_id id, inode_id ino) = 0;
     virtual inode_id get_file_inode(file_id id) const = 0;
 
-    virtual void set_entry_index(entry_id id, std::size_t index) = 0;
-    virtual std::optional<std::size_t> get_entry_index(entry_id id) const = 0;
+    virtual void set_entry_index(dir_id id, std::size_t index) = 0;
+    virtual std::optional<std::size_t> get_entry_index(dir_id id) const = 0;
 
     virtual void set_file_order_index(file_id id, std::size_t index) = 0;
     virtual std::size_t get_file_order_index(file_id id) const = 0;

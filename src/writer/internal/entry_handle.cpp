@@ -185,18 +185,6 @@ void entry_handle_base<Mut>::scan(os_access const& os, internal::progress& prog)
 }
 
 template <mutability Mut>
-void entry_handle_base<Mut>::set_entry_index(std::size_t index)
-  requires is_mutable
-{
-  storage_->set_entry_index(self_id_, index);
-}
-
-template <mutability Mut>
-std::optional<std::size_t> entry_handle_base<Mut>::entry_index() const {
-  return storage_->get_entry_index(self_id_);
-}
-
-template <mutability Mut>
 void entry_handle_base<Mut>::set_inode_num(std::uint64_t ino)
   requires is_mutable
 {
@@ -348,6 +336,18 @@ uint32_t basic_file_handle<Mut>::unique_file_id() const {
 // ---------- dir_handle -----------
 
 template <detail::mutability Mut>
+void basic_dir_handle<Mut>::set_entry_index(std::size_t index)
+  requires is_mutable
+{
+  this->storage().set_entry_index(this->id(), index);
+}
+
+template <detail::mutability Mut>
+std::optional<std::size_t> basic_dir_handle<Mut>::entry_index() const {
+  return this->storage().get_entry_index(this->id());
+}
+
+template <detail::mutability Mut>
 entry_handle basic_dir_handle<Mut>::find(fs::path const& path)
   requires is_mutable
 {
@@ -378,7 +378,9 @@ void basic_dir_handle<Mut>::pack(
   d.self_entry() = *se;
   mv2.directories()->push_back(d);
   this->for_each_child([&](entry_handle e) {
-    e.set_entry_index(mv2.dir_entries()->size());
+    if (auto dir = e.as_dir()) {
+      dir.set_entry_index(mv2.dir_entries()->size());
+    }
     auto&& de = mv2.dir_entries()->emplace_back();
     de.name_index() = e.path_component_index();
     de.inode_num() = DWARFS_NOTHROW(e.inode_num().value());
