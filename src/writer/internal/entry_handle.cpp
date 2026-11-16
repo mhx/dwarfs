@@ -244,7 +244,10 @@ void basic_file_handle<Mut>::scan(file_view const& mm, internal::progress& prog,
 
   if (hash_files) {
     progress::scan_updater supd(prog.hash, s);
-    checksum cs(checksum::blake3_256);
+    // Reuse the same checksum object to avoid reallocation.
+    thread_local checksum cs(checksum::blake3_256);
+
+    cs.reset();
 
     if (s > 0) {
       std::shared_ptr<scanner_progress> pctx;
