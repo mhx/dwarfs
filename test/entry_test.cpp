@@ -862,7 +862,7 @@ TEST_F(entry_test, file_hardlink_shares_hash_state) {
   bar.hardlink(foo, prog);
 
   auto mm = os->open_file(sep / "foo.pl");
-  foo.scan(mm, prog, "sha512-256");
+  foo.scan(mm, prog, true);
 
   EXPECT_EQ(hexlify(foo.digest()), hexlify(bar.digest()));
   EXPECT_FALSE(foo.digest().empty());
