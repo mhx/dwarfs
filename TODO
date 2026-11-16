@@ -1,14 +1,19 @@
+- optimize fuse-extract size?
+
+- scanner cleanup?
+
+- RAW image format compression
+
+- refactor mkdwarfs_main :)
+
+- refactor entry_storage / entry handles?
+
 - test image size aligment > 1 produces backwards-compatible
   image
 
 - add an OS flag to the metadata for future use?
 - add a flag for hollow file systems?
 
-- introduce `mkdwarfs --reproducible`, which bundles
-  - `--uuid=nil`
-  - `--no-create-timestamp`
-  - `--no-history-timestamps`
-- check `SOURCE_DATE_EPOCH`; should that imply `--reproducible`?
 - `dwarfsck --compare`?
 
 
