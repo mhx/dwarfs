@@ -46,7 +46,7 @@ directory_walker::directory_walker(os_access const& os,
     : os_{os}
     , options_{options} {
   if (!options_.num_workers || !options_.max_pending_entries ||
-      !options_.batch_size) {
+      !options_.batch_size || options_.max_inflight_directories == 0) {
     throw std::invalid_argument("directory_walker: zero queue/worker limit");
   }
 }

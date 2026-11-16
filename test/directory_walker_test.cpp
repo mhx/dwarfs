@@ -186,6 +186,9 @@ TEST(directory_walker_test, reject_zero_limits) {
   EXPECT_THROW((internal::directory_walker(
                    os, {.num_workers = 2, .max_pending_entries = 0})),
                std::invalid_argument);
+  EXPECT_THROW((internal::directory_walker(
+                   os, {.num_workers = 2, .max_inflight_directories = 0})),
+               std::invalid_argument);
 }
 
 TEST(directory_walker_test, visitor_exception_joins_workers) {
