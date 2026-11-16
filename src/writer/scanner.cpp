@@ -162,7 +162,9 @@ bool is_ancestor(file_stat const& st,
 struct scan_context {
   entry_id parent;
   std::size_t physical_mapping;
-  std::filesystem::path boundary;
+  // The boundary is inherited by ordinary descendants, only dereferenced
+  // directory symlinks establish a new boundary.
+  std::shared_ptr<std::filesystem::path const> boundary;
   std::shared_ptr<directory_ancestry const> ancestors;
 };
 
@@ -1010,7 +1012,8 @@ void scanner_<LoggerPolicy>::scan_tree(
   no_mutex mx_scanner;
   walker.run(
       path,
-      scan_context{parent.id(), physical_mapping, boundary,
+      scan_context{parent.id(), physical_mapping,
+                   std::make_shared<std::filesystem::path const>(boundary),
                    std::move(root_ancestors)},
       [&](walk_entry const& entry,
           scan_context const& ctx) -> std::optional<scan_context> {
@@ -1025,7 +1028,7 @@ void scanner_<LoggerPolicy>::scan_tree(
         try {
           auto incoming = inspect(
               entry.path, entry.metadata ? &entry.metadata->value() : nullptr,
-              ctx.boundary);
+              *ctx.boundary);
 
           if (options_.dereference != dereference_mode::none &&
               incoming.stat.is_directory() &&
@@ -1054,7 +1057,8 @@ void scanner_<LoggerPolicy>::scan_tree(
             // symlink, so the traversal needs a physical mapping for its
             // children.
             mapping = get_physical_mapping(tree, pe, *incoming.physical_path);
-            boundary = *incoming.physical_path;
+            boundary = std::make_shared<std::filesystem::path const>(
+                std::move(*incoming.physical_path));
           }
 
           auto ancestors = ctx.ancestors;
