@@ -27,6 +27,7 @@
 #include <filesystem>
 #include <optional>
 #include <ranges>
+#include <utility>
 
 #include <parallel_hashmap/phmap.h>
 
@@ -360,7 +361,7 @@ class metadata_builder_ final : public metadata_builder::impl {
   void remap_blocks(std::span<block_mapping const> mapping,
                     size_t new_block_count) override;
 
-  thrift::metadata::metadata const& build() override;
+  thrift::metadata::metadata build() override;
 
  private:
   using chunks_t =
@@ -1068,7 +1069,7 @@ void metadata_builder_<LoggerPolicy>::update_nlink() {
 }
 
 template <typename LoggerPolicy>
-thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
+thrift::metadata::metadata metadata_builder_<LoggerPolicy>::build() {
   LOG_VERBOSE << "building metadata";
 
   thrift::metadata::fs_options fsopts;
@@ -1244,7 +1245,7 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
         static_cast<uint32_t>(std::filesystem::path::preferred_separator);
   }
 
-  return md_;
+  return std::move(md_);
 }
 
 template <typename LoggerPolicy>

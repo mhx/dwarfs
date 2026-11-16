@@ -146,7 +146,8 @@ class metadata_builder {
     impl_->remap_blocks(mapping, new_block_count);
   }
 
-  thrift::metadata::metadata const& build() { return impl_->build(); }
+  // Transfers ownership of the metadata to the caller, can only be called once.
+  thrift::metadata::metadata build() { return impl_->build(); }
 
   class impl {
    public:
@@ -177,7 +178,7 @@ class metadata_builder {
     virtual void remap_blocks(std::span<block_mapping const> mapping,
                               size_t new_block_count) = 0;
 
-    virtual thrift::metadata::metadata const& build() = 0;
+    virtual thrift::metadata::metadata build() = 0;
   };
 
  private:
