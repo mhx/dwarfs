@@ -97,7 +97,7 @@ void directory_walker::run_impl(std::filesystem::path const& root,
           fetch_missing_metadata(ent);
 
           if (auto child = visitor(ent, current.context)) {
-            children.push_back({ent.path, std::move(*child)});
+            children.push_back({std::move(ent.path), std::move(*child)});
           }
         }
 
@@ -129,6 +129,10 @@ void directory_walker::run_impl(std::filesystem::path const& root,
   std::mutex mx;
   std::condition_variable jobs_cv, results_cv, space_cv;
   std::deque<std::shared_ptr<task const>> jobs;
+  // Only the visitor thread accesses the backlog of deferred tasks.
+  // Prefer recently discovered subtrees to keep a bias towards depth-first
+  // traversal. Do not block the visitor on this stack, it must keep draining
+  // results to avoid deadlocks.
   std::deque<task> deferred;
   std::deque<std::vector<event>> results;
   std::size_t queued_events{0};
@@ -142,8 +146,8 @@ void directory_walker::run_impl(std::filesystem::path const& root,
 
   auto dispatch = [&] {
     while (inflight < max_inflight && !deferred.empty()) {
-      jobs.push_back(std::make_shared<task const>(std::move(deferred.front())));
-      deferred.pop_front();
+      jobs.push_back(std::make_shared<task const>(std::move(deferred.back())));
+      deferred.pop_back();
       ++inflight;
       jobs_cv.notify_one();
     }
@@ -293,7 +297,7 @@ void directory_walker::run_impl(std::filesystem::path const& root,
           }
           --inflight;
         } else if (auto child = visitor(ev.entry, ev.parent->context)) {
-          deferred.push_back({ev.entry.path, std::move(*child)});
+          deferred.push_back({std::move(ev.entry.path), std::move(*child)});
         }
       }
 

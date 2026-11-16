@@ -78,7 +78,8 @@ class directory_walker {
    * read error. This does not imply that all descendants have been processed.
    *
    * Each parent callback completes before any of its children are delivered.
-   * The call blocks until all workers have stopped.
+   * The order in which subtrees are visited is unspecified. The call blocks
+   * until all workers have stopped.
    */
   template <typename Context, typename Visitor>
   void run(std::filesystem::path const& root, Context&& root_context,

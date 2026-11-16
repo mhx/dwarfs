@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -177,6 +178,66 @@ TEST(directory_walker_test, prune_subtrees) {
   EXPECT_FALSE(seen.contains("root/a/file"));
   EXPECT_FALSE(seen.contains("root/a/deeper"));
   EXPECT_TRUE(seen.contains("root/b/file"));
+}
+
+TEST(directory_walker_test, traversal_is_depth_first_biased) {
+  test::os_access_mock os;
+  os.add_dir("/");
+  os.add_dir("root");
+
+  constexpr size_t fanout = 5;
+  constexpr size_t depth = 4;
+  size_t num_dirs = 1;
+
+  auto populate_tree = [&](auto const& self, fs::path const& parent,
+                           size_t levels) -> void {
+    if (levels) {
+      for (size_t i = 0; i < fanout; ++i) {
+        auto child = parent / std::to_string(i);
+        os.add_dir(child);
+        ++num_dirs;
+        self(self, child, levels - 1);
+      }
+    }
+  };
+
+  populate_tree(populate_tree, "root", depth);
+
+  for (size_t inflight : {1, 8}) {
+    internal::directory_walker walker(os,
+                                      {.num_workers = 4,
+                                       .max_pending_entries = 2,
+                                       .batch_size = 2,
+                                       .max_inflight_directories = inflight});
+    size_t outstanding = 1;
+    size_t peak_outstanding = outstanding;
+    std::set<fs::path> visited, completed;
+
+    walker.run(
+        "root", fs::path("root"),
+        [&](internal::walk_entry const& e,
+            fs::path const& parent) -> std::optional<fs::path> {
+          EXPECT_EQ(parent, e.path.parent_path());
+          EXPECT_TRUE(visited.insert(e.path).second);
+          peak_outstanding = std::max(peak_outstanding, ++outstanding);
+          return e.path;
+        },
+        [&](fs::path const& dir, fs::path const& context, std::error_code ec) {
+          EXPECT_FALSE(ec);
+          EXPECT_EQ(dir, context);
+          EXPECT_TRUE(completed.insert(dir).second);
+          EXPECT_GT(outstanding, 0);
+          --outstanding;
+        });
+
+    EXPECT_EQ(num_dirs - 1, visited.size());
+    EXPECT_EQ(num_dirs, completed.size());
+    EXPECT_EQ(0, outstanding);
+
+    if (inflight == 1) {
+      EXPECT_LE(peak_outstanding, 1 + depth * fanout);
+    }
+  }
 }
 
 TEST(directory_walker_test, reject_zero_limits) {
