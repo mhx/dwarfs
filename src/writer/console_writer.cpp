@@ -323,14 +323,15 @@ context_display prepare_context(internal::progress::context& ctx) {
     result.path = printable(std::move(*st.path));
   }
 
-  if (st.bytes_processed) {
-    ctx.speed.put(*st.bytes_processed);
+  if (st.processed) {
+    ctx.speed.put(*st.processed);
     result.speed =
-        fmt::format("{}/s", size_with_unit(ctx.speed.num_per_second()));
+        st.unit
+            ? fmt::format("{} {}/s", ctx.speed.num_per_second(), *st.unit)
+            : fmt::format("{}/s", size_with_unit(ctx.speed.num_per_second()));
 
-    if (st.bytes_total && *st.bytes_total > 0) {
-      result.fraction =
-          static_cast<double>(*st.bytes_processed) / *st.bytes_total;
+    if (st.total && *st.total > 0) {
+      result.fraction = static_cast<double>(*st.processed) / *st.total;
     }
   }
 

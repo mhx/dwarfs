@@ -1235,8 +1235,8 @@ class segmenter_progress : public progress::context {
     if (f) {
       st.path.emplace(f.path_as_string());
     }
-    st.bytes_processed.emplace(bytes_processed.load());
-    st.bytes_total.emplace(bytes_total_);
+    st.processed.emplace(bytes_processed.load());
+    st.total.emplace(bytes_total_);
     return st;
   }
 

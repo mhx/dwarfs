@@ -153,7 +153,7 @@ class compression_progress : public progress::context {
                                      size_with_unit(bin), size_with_unit(bout),
                                      100.0 * bout / bin);
     }
-    st.bytes_processed.emplace(bytes_in.load());
+    st.processed.emplace(bytes_in.load());
     return st;
   }
 

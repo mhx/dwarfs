@@ -41,8 +41,8 @@ auto scanner_progress::get_status() const -> status {
   st.color = color_;
   st.context = context_;
   st.path.emplace(file_);
-  st.bytes_processed.emplace(bytes_processed_.load());
-  st.bytes_total.emplace(bytes_total_);
+  st.processed.emplace(bytes_processed_.load());
+  st.total.emplace(bytes_total_);
   return st;
 }
 

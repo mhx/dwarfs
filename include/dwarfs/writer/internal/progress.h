@@ -31,6 +31,7 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -57,9 +58,11 @@ class progress {
       termcolor color;
       std::string context;
       std::string status_string;
-      std::optional<std::string> path;
-      std::optional<file_size_t> bytes_processed;
-      std::optional<file_size_t> bytes_total;
+      std::optional<std::string> path{};
+      // Counters are bytes unless a different unit is supplied.
+      std::optional<uint64_t> processed{};
+      std::optional<uint64_t> total{};
+      std::optional<std::string> unit{};
     };
 
     virtual ~context() = default;

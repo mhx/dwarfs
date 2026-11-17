@@ -73,8 +73,8 @@ struct active_context : dwarfs::writer::internal::progress::context {
         .context = "hashing",
         .status_string = "processing",
         .path = std::string(150, 'x') + "/我爱你/filename\nwith\tesc\x1b[1m",
-        .bytes_processed = 10000,
-        .bytes_total = 20000,
+        .processed = 10000,
+        .total = 20000,
     };
   }
 };
@@ -94,10 +94,9 @@ struct aligned_context : dwarfs::writer::internal::progress::context {
         .context = label,
         .status_string = status_text,
         .path = path,
-        .bytes_processed =
+        .processed =
             with_speed ? std::optional<file_size_t>{500} : std::nullopt,
-        .bytes_total =
-            with_total ? std::optional<file_size_t>{1000} : std::nullopt,
+        .total = with_total ? std::optional<file_size_t>{1000} : std::nullopt,
     };
   }
 
@@ -512,4 +511,35 @@ TEST(console_writer, terminal_dimensions_include_height) {
   term.set_height(17);
   EXPECT_EQ(term.dimensions(), (terminal_dimensions{123, 17}));
   EXPECT_EQ(term.width(), 123);
+}
+
+TEST(console_writer, context_supports_non_byte_units) {
+  struct counter_context : writer::internal::progress::context {
+    status get_status() const override {
+      return {.color = termcolor::CYAN,
+              .context = "[sorting]",
+              .status_string = "3/8",
+              .processed = 3,
+              .total = 8,
+              .unit = "projections"};
+    }
+  };
+
+  test_iolayer t;
+  t.set_terminal_width(120);
+  auto const& io = t.get();
+  writer_progress progress;
+  populate(progress);
+  auto ctx = progress.get_internal().create_context<counter_context>();
+  console_writer cw(io.term, t.err_stream(), *io.os,
+                    {.progress = console_writer::ASCII});
+  cw.update(progress, false);
+  auto const output = t.err();
+  EXPECT_THAT(output, HasSubstr("[sorting]"));
+  EXPECT_THAT(output, HasSubstr("3/8"));
+  EXPECT_THAT(output, HasSubstr("projections/s"));
+  auto const begin = output.find("[sorting]");
+  ASSERT_NE(begin, std::string::npos);
+  auto const end = output.find('\n', begin);
+  EXPECT_THAT(output.substr(begin, end - begin), Not(HasSubstr("B/s")));
 }
