@@ -452,6 +452,61 @@ class sorted_projection {
   active_positions active_;
 };
 
+class nilsimsa_preparation_context final : public progress::context {
+ public:
+  using progress::context::status;
+
+  enum class phase {
+    sorting_index,
+    finding_duplicates,
+    sorting_unique,
+    caching
+  };
+
+  nilsimsa_preparation_context(std::string_view category, size_t count)
+      : label_{fmt::format("{}[nilsimsa] ", category)}
+      , count_{count} {}
+
+  status get_status() const override {
+    auto const phase = phase_.load(std::memory_order_acquire);
+    std::string message;
+
+    switch (phase) {
+    case phase::sorting_index:
+      message = fmt::format("sorting index of {} elements", count_);
+      break;
+    case phase::finding_duplicates:
+      message = fmt::format("finding duplicates in {} elements", count_);
+      break;
+    case phase::sorting_unique:
+      message = fmt::format("sorting {} unique hashes",
+                            unique_count_.load(std::memory_order_relaxed));
+      break;
+    case phase::caching:
+      message = fmt::format("preparing pointers for {} unique hashes",
+                            unique_count_.load(std::memory_order_relaxed));
+      break;
+    }
+
+    return {.color = termcolor::YELLOW,
+            .context = label_,
+            .status_string = std::move(message)};
+  }
+
+  void update(phase next, size_t unique_count = 0) {
+    if (next == phase::sorting_unique) {
+      unique_count_.store(unique_count, std::memory_order_relaxed);
+    }
+    phase_.store(next, std::memory_order_release);
+  }
+
+ private:
+  std::string const label_;
+  size_t const count_;
+  std::atomic<size_t> unique_count_{0};
+  std::atomic<phase> phase_{phase::sorting_index};
+};
+
 class nilsimsa_progress_context final : public progress::context {
  public:
   using progress::context::status;
@@ -737,7 +792,8 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
  private:
   duplicates_map
-  find_duplicates(similarity_element_view const& ev, index_type& index) const;
+  find_duplicates(similarity_element_view const& ev, index_type& index,
+                  nilsimsa_preparation_context* preparing) const;
 
 #if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
   size_t total_distance(similarity_element_view const& ev,
@@ -754,8 +810,8 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
 template <typename LoggerPolicy>
 auto similarity_ordering_<LoggerPolicy>::find_duplicates(
-    similarity_element_view const& ev, index_type& index) const
-    -> duplicates_map {
+    similarity_element_view const& ev, index_type& index,
+    nilsimsa_preparation_context* preparing) const -> duplicates_map {
   duplicates_map dm;
 
   {
@@ -767,6 +823,11 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
       auto const c = ev.get_bits(a) <=> ev.get_bits(b);
       return c != 0 ? c < 0 : ev.order_less(a, b);
     });
+
+    if (preparing) {
+      preparing->update(
+          nilsimsa_preparation_context::phase::finding_duplicates);
+    }
 
     tt << opts_.context << "sort index of " << index.size() << " elements";
   }
@@ -826,10 +887,25 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
 #endif
 
   auto const size_hint = index.size();
-  auto duplicates = find_duplicates(ev, index);
+  auto preparing =
+      opts_.prog && size_hint >= 250'000
+          ? opts_.prog->create_context<nilsimsa_preparation_context>(
+                opts_.context, size_hint)
+          : std::shared_ptr<nilsimsa_preparation_context>{};
+  auto duplicates = find_duplicates(ev, index, preparing.get());
+
+  if (preparing) {
+    preparing->update(nilsimsa_preparation_context::phase::sorting_unique,
+                      index.size());
+  }
 
   // Canonical starting order and deterministic tie-breaking.
   sort_index(index, [&ev](auto a, auto b) { return ev.order_less(a, b); });
+
+  if (preparing) {
+    preparing->update(nilsimsa_preparation_context::phase::caching);
+  }
+
   nilsimsa_ordering_result res;
   size_t rank_cache_bytes = 0, released_cache_bytes = 0;
 
@@ -848,6 +924,8 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
     // The pointers refer to inode storage, not the original pointer cache.
     // Only the rank-ordered cache is needed during the projection/walk phase.
     released_cache_bytes = ev.release_hash_cache();
+
+    preparing.reset();
 
     auto tv = LOG_TIMED_VERBOSE;
     res = order_nilsimsa_hashes(hashes, opts_.passes, opts_.window,
