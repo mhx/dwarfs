@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include <span>
+#include <vector>
 
 #include <dwarfs/writer/fragment_category.h>
 
@@ -35,21 +35,17 @@ namespace dwarfs::writer::internal {
 
 class inode;
 
-class inode_element_view
-    : public basic_array_similarity_element_view<256, uint64_t> {
+class inode_element_view final : public similarity_element_view {
  public:
   using index_type = sortable_inode_span::index_type;
 
   inode_element_view(sortable_inode_span& sp, index_type const& index,
                      fragment_category cat);
 
-  size_t weight(size_t i) const override;
-  bool bitvec_less(size_t a, size_t b) const override;
   bool order_less(size_t a, size_t b) const override;
-  bool bits_equal(size_t a, size_t b) const override;
 
-  std::string description(size_t i) const override;
   nilsimsa::hash_type const& get_bits(size_t i) const override;
+  size_t release_hash_cache() override;
 
  private:
   sortable_inode_span& sp_;

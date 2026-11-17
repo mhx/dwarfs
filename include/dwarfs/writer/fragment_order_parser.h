@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -31,6 +32,7 @@
 namespace dwarfs {
 
 class file_access;
+class logger;
 
 namespace writer {
 
@@ -38,13 +40,16 @@ struct fragment_order_parser {
  public:
   static std::string choices();
 
-  explicit fragment_order_parser(std::shared_ptr<file_access const> const& fa)
-      : fa_{fa} {}
+  fragment_order_parser(logger& lgr,
+                        std::shared_ptr<file_access const> const& fa)
+      : lgr_{lgr}
+      , fa_{fa} {}
 
   fragment_order_options parse(std::string_view arg) const;
   std::string to_string(fragment_order_options const& opts) const;
 
  private:
+  logger& lgr_;
   std::shared_ptr<file_access const> fa_;
 };
 

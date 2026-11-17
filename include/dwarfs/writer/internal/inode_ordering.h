@@ -40,13 +40,11 @@ struct fragment_order_options;
 
 namespace internal {
 
-class progress;
-
 struct similarity_ordering_options;
 
 class inode_ordering {
  public:
-  inode_ordering(logger& lgr, progress& prog, inode_options const& opts);
+  inode_ordering(logger& lgr, inode_options const& opts);
 
   void by_input_order(sortable_inode_span& sp) const {
     impl_->by_input_order(sp);

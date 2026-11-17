@@ -509,7 +509,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   integral_value_parser<unsigned> window_size_parser(0, 24);
   integral_value_parser<unsigned> window_step_parser(0, 8);
   integral_value_parser<unsigned> bloom_filter_size_parser(0, 10);
-  writer::fragment_order_parser order_parser(iol.file);
   block_compressor_parser compressor_parser;
 
   writer::scanner_options options;
@@ -1965,6 +1964,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     {
+      writer::fragment_order_parser order_parser(lgr, iol.file);
       writer::contextual_option_parser cop(
           "--order", options.inode.fragment_order, cp, order_parser);
       cop.parse(defaults.order);

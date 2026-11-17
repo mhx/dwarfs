@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <iosfwd>
 #include <string>
@@ -40,12 +41,14 @@ enum class fragment_order_mode {
 };
 
 struct fragment_order_options {
-  static constexpr int const kDefaultNilsimsaMaxChildren{16384};
-  static constexpr int const kDefaultNilsimsaMaxClusterSize{16384};
+  static constexpr size_t kDefaultNilsimsaPasses{8};
+  static constexpr size_t kDefaultNilsimsaWindow{24};
+  static constexpr size_t kDefaultNilsimsaOffsetBits{4};
 
   fragment_order_mode mode{fragment_order_mode::NONE};
-  int nilsimsa_max_children{kDefaultNilsimsaMaxChildren};
-  int nilsimsa_max_cluster_size{kDefaultNilsimsaMaxClusterSize};
+  size_t nilsimsa_passes{kDefaultNilsimsaPasses};
+  size_t nilsimsa_window{kDefaultNilsimsaWindow};
+  size_t nilsimsa_offset_bits{kDefaultNilsimsaOffsetBits};
   std::string explicit_order_file{};
   std::unordered_map<std::filesystem::path, size_t> explicit_order{};
 };

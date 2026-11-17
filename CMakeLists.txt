@@ -1065,7 +1065,7 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
 
       add_executable(nilsimsa_benchmark test/nilsimsa_benchmark.cpp)
       target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
-      target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
+      target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer dwarfs_metadata_thrift)
       list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
 
       add_executable(frozen_benchmark frozen/thrift/lib/cpp2/frozen/test/FrozenBench.cpp)

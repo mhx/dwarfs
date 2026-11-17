@@ -478,16 +478,13 @@ Most other options are concerned with compression tuning:
   function.
   `nilsimsa` ordering uses a more sophisticated similarity function that is
   typically better than `similarity`, but can be significantly slower to
-  determine a good ordering.
-  However, the new implementation of this algorithm can be parallelized and
-  will perform much better on huge numbers of files. `nilsimsa` ordering can
-  be tweaked by specifying `max-children` and `max-cluster-size`. In general,
-  larger values for `max-cluster-size` tend to result in better compression,
-  but will slow down the algorithm quadratically. There is no point in setting
-  `max-cluster-size` larger than the number of files in the input.
-  Unlike the old implementation, `nilsimsa` ordering is now completely
-  deterministic. See [Nilsimsa Ordering](#nilsimsa-ordering) for a detailed
-  description of the algorithm.
+  determine a good ordering. Ordering uses a deterministic locality-sensitive
+  algorithm with bounded candidate searches, which also scales to large numbers
+  of unique files. The `passes`, `window`, and `offset` options trade time and
+  memory for compression quality. See [Nilsimsa Ordering](#nilsimsa-ordering)
+  for details. The legacy `max-children` and `max-cluster-size` options are
+  deprecated and will be ignored with a warning. They will be removed in a
+  future release.
   `explicit` ordering allows you to specify a file that contains the paths
   in the desired order. Paths are *logical*, i.e. they refer to files in the
   resulting image, relative to its root. They may start with a leading `/`.
@@ -1487,41 +1484,35 @@ in which they were discovered.
 
 ### Nilsimsa Ordering
 
-The actual ordering step for nilsimsa ordering uses a recursive
-divide-and-conquer approach in order for the algorithm to be both
-parallelizable and deterministic. In the following description, a
-"node" is typically equivalent to a "unique file", although that's
-not a requirement for the algorithm.
+Nilsimsa ordering uses a deterministic approximation to greedy nearest-neighbour
+ordering in Hamming space. Identical fingerprints are grouped first. The unique
+fingerprints are sorted by several fixed, pseudorandom bit projections. At each
+step, the closest remaining entries in each sorted projection are considered as
+candidates, scored using the full 256-bit Hamming distance with canonical rank
+as tie-breaker. The final 256 entries are searched exhaustively.
 
-1. Nodes are clustered by distance to centroids into up to `max-children`
-   clusters. With `max-children` set to 1, all nodes end up in the same
-   cluster. If `max-children` is larger than 1, a new cluster is created
-   as soon as all existing clusters are further away than a "maximum
-   distance" that gets smaller as recursion depth increases.
+The default is equivalent to `--order=nilsimsa:passes=8:window=24:offset=4`.
 
-2. After the nodes have been clustered, each cluster that is larger than
-   `max-cluster-size` is recursively clustered again with a smaller
-   "maximum distance" as per (1). These recursive clustering steps can
-   potentially run in parallel.
+- `passes` (1–32, default 8) sets the number of projections. More projections
+  increase memory use and candidate diversity.
 
-3. As soon as a cluster is smaller than `max-cluster-size`, its nodes
-   will be ordered by performing a nearest neighbour search. Note that
-   this only happens for leaf clusters in the tree. The ordering of each
-   leaf cluster can also run parallel with clustering / ordering of other
-   clusters.
+- `window` (1–128, default 24) sets the number of entries examined on each
+  side of the current fingerprint, in each projection. Increasing the window
+  costs time but does not increase projection storage.
 
-4. Once all clustering / ordering is done, the nodes are "collected" from
-   the clusters in the tree. There is currently no similarity ordering
-   between individual clusters, but this is something that can be explored
-   further in the future.
+- `offset` (0–8, default 4) sets the width of bucket-local inverse-position
+  offsets. Zero omits these offsets. Larger widths trade memory for faster
+  lookups, without changing the ordering.
 
-By setting `max-children` to 1 and `max-cluster-size` to a really large
-number, only a single cluster will be created and the nearest neighbour
-search will be performed on the set of all nodes. Since the algorithm is
-O(n^2), this does not scale well for `max-cluster-size` beyond a few
-100,000. Also, since the algorithm does not minimize the global distance
-between all nodes, there's no guarantee that the result will be better
-if you use only a single cluster.
+For example, `--order=nilsimsa:passes=24:window=32` searches more candidates
+for potentially better compression. The deprecated `max-children` and
+`max-cluster-size` options are accepted for compatibility but ignored with a
+warning. They will be removed in a future release.
+
+For fixed options, run-time is O(n log n), where n is the number of distinct
+fingerprints. The storage is approximately `bit_width(n) + offset_bits + 2`
+bits per rank per projection, plus the directory and allocation rounding.
+Ordering is single-threaded per category.
 
 ## MEMORY USAGE
 

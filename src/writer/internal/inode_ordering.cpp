@@ -52,9 +52,8 @@ bool inode_less_by_size(const_inode_handle const& a,
 template <typename LoggerPolicy>
 class inode_ordering_ final : public inode_ordering::impl {
  public:
-  inode_ordering_(logger& lgr, progress& prog, inode_options const& opts)
+  inode_ordering_(logger& lgr, inode_options const& opts)
       : LOG_PROXY_INIT(lgr)
-      , prog_{prog}
       , opts_{opts} {}
 
   void by_input_order(sortable_inode_span& sp) const override;
@@ -77,7 +76,6 @@ class inode_ordering_ final : public inode_ordering::impl {
                    fragment_category cat) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  progress& prog_;
   inode_options const& opts_;
 };
 
@@ -211,7 +209,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
   auto ev = inode_element_view(sp, index, cat);
   std::promise<index_type> promise;
   auto future = promise.get_future();
-  auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
+  auto sim_order = similarity_ordering(LOG_GET_LOGGER, wg, opts);
   sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)),
                            std::move(index));
   future.get().swap(index);
@@ -263,10 +261,8 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   }
 }
 
-inode_ordering::inode_ordering(logger& lgr, progress& prog,
-                               inode_options const& opts)
-    : impl_(
-          make_unique_logging_object<impl, internal::inode_ordering_,
-                                     default_logger_policy>(lgr, prog, opts)) {}
+inode_ordering::inode_ordering(logger& lgr, inode_options const& opts)
+    : impl_{make_unique_logging_object<impl, internal::inode_ordering_,
+                                       default_logger_policy>(lgr, opts)} {}
 
 } // namespace dwarfs::writer::internal

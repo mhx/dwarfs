@@ -89,9 +89,46 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   fs.dump(std::cout, {.features = reader::fsinfo_features::for_level(3)});
 }
 
+TEST(mkdwarfs_test, deprecated_nilsimsa_options) {
+  mkdwarfs_tester t;
+  ASSERT_EQ(0, t.run("-i / -o - --order=nilsimsa:max-children=1k:"
+                     "max-cluster-size=16"))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "nilsimsa option 'max-children' is deprecated and ignored"));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::HasSubstr(
+          "nilsimsa option 'max-cluster-size' is deprecated and ignored"));
+}
+
+TEST(mkdwarfs_test, nilsimsa_reproducible) {
+  auto build = [](unsigned workers, std::string const& order) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    std::mt19937_64 rng{42};
+    // More than the exhaustive tail, so exercise projection traversal.
+    for (unsigned i = 0; i < 600; ++i) {
+      t.os->add_file("/file" + std::to_string(i),
+                     test::create_random_string(512, rng));
+    }
+    EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--reproducible",
+                        "--no-history-command-line", "--order=" + order,
+                        "--num-workers=" + std::to_string(workers),
+                        "--num-scanner-workers=" + std::to_string(workers),
+                        "--num-segmenter-workers=" + std::to_string(workers)}))
+        << t.err();
+    return t.out();
+  };
+  auto expected = build(1, "nilsimsa");
+  EXPECT_EQ(expected, build(4, "nilsimsa:passes=8:window=24:offset=8"));
+  EXPECT_EQ(expected, build(2, "nilsimsa:offset=0:max-children=1"));
+}
+
 namespace {
 
-constexpr std::array<std::string_view, 10> const build_options = {
+constexpr std::array<std::string_view, 12> const build_options = {
     "--categorize --order=none --no-dedupe",
     "--categorize=pcmaudio --order=path",
     "--categorize --order=revpath",
@@ -99,6 +136,10 @@ constexpr std::array<std::string_view, 10> const build_options = {
     "--categorize --order=nilsimsa --time-resolution=30",
     "--categorize --order=nilsimsa:max-children=1k --time-resolution=hour",
     "--categorize --order=nilsimsa:max-cluster-size=16:max-children=16 "
+    "--max-similarity-size=1M",
+    "--categorize --order=nilsimsa:passes=8:window=8:offset=0 "
+    "--max-similarity-size=1M",
+    "--categorize --order=nilsimsa:passes=8:window=64:offset=8 "
     "--max-similarity-size=1M",
     "--categorize -B4 -S18",
     "--order=none --num-file-prep-workers=2 --file-prep-queue-size=2",

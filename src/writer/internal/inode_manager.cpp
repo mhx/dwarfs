@@ -333,7 +333,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
   auto span = sortable_span();
   span.select([cat](const_inode_handle v) { return v.has_category(cat); });
 
-  inode_ordering order(LOG_GET_LOGGER, prog_, opts_);
+  inode_ordering order(LOG_GET_LOGGER, opts_);
 
   switch (opts.mode) {
   case fragment_order_mode::NONE:
@@ -377,8 +377,10 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
                 << " inodes using nilsimsa similarity...";
     similarity_ordering_options soo;
     soo.context = prefix;
-    soo.max_children = opts.nilsimsa_max_children;
-    soo.max_cluster_size = opts.nilsimsa_max_cluster_size;
+    soo.prog = &prog_;
+    soo.passes = opts.nilsimsa_passes;
+    soo.window = opts.nilsimsa_window;
+    soo.offset_bits = opts.nilsimsa_offset_bits;
     auto tv = LOG_TIMED_VERBOSE;
     order.by_nilsimsa(wg, soo, span, cat);
     tv << prefix << span.size() << " inodes ordered";

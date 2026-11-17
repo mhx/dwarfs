@@ -34,6 +34,7 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/file_access.h>
+#include <dwarfs/logger.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/writer/fragment_order_parser.h>
 
@@ -79,24 +80,33 @@ fragment_order_parser::parse(std::string_view arg) const {
 
   if (om.has_options()) {
     switch (rv.mode) {
-    case fragment_order_mode::NILSIMSA:
-      rv.nilsimsa_max_children = om.get_size(
-          "max-children", fragment_order_options::kDefaultNilsimsaMaxChildren);
-      rv.nilsimsa_max_cluster_size =
-          om.get_size("max-cluster-size",
-                      fragment_order_options::kDefaultNilsimsaMaxClusterSize);
-
-      if (rv.nilsimsa_max_children < 1) {
-        throw std::runtime_error(fmt::format("invalid max-children value: {}",
-                                             rv.nilsimsa_max_children));
+    case fragment_order_mode::NILSIMSA: {
+      LOG_PROXY(prod_logger_policy, lgr_);
+      for (auto key : {"max-children"sv, "max-cluster-size"sv}) {
+        if (om.get_optional<std::string>(key, std::string{})) {
+          LOG_WARN << "nilsimsa option '" << key
+                   << "' is deprecated and ignored";
+        }
       }
-
-      if (rv.nilsimsa_max_cluster_size < 1) {
+      rv.nilsimsa_passes =
+          om.get_size("passes", fragment_order_options::kDefaultNilsimsaPasses);
+      rv.nilsimsa_window =
+          om.get_size("window", fragment_order_options::kDefaultNilsimsaWindow);
+      rv.nilsimsa_offset_bits = om.get_size(
+          "offset", fragment_order_options::kDefaultNilsimsaOffsetBits);
+      if (rv.nilsimsa_passes < 1 || rv.nilsimsa_passes > 32) {
         throw std::runtime_error(
-            fmt::format("invalid max-cluster-size value: {}",
-                        rv.nilsimsa_max_cluster_size));
+            fmt::format("invalid passes value: {}", rv.nilsimsa_passes));
       }
-      break;
+      if (rv.nilsimsa_window < 1 || rv.nilsimsa_window > 128) {
+        throw std::runtime_error(
+            fmt::format("invalid window value: {}", rv.nilsimsa_window));
+      }
+      if (rv.nilsimsa_offset_bits > 8) {
+        throw std::runtime_error(
+            fmt::format("invalid offset value: {}", rv.nilsimsa_offset_bits));
+      }
+    } break;
 
     case fragment_order_mode::EXPLICIT: {
       auto file = om.get<std::string>("file");
@@ -143,9 +153,9 @@ fragment_order_parser::to_string(fragment_order_options const& opts) const {
     return "similarity";
 
   case fragment_order_mode::NILSIMSA:
-    return fmt::format("nilsimsa:max_children={}:max_cluster_size={}",
-                       opts.nilsimsa_max_children,
-                       opts.nilsimsa_max_cluster_size);
+    return fmt::format("nilsimsa:passes={}:window={}:offset={}",
+                       opts.nilsimsa_passes, opts.nilsimsa_window,
+                       opts.nilsimsa_offset_bits);
 
   case fragment_order_mode::EXPLICIT:
     return fmt::format("explicit:file={}", opts.explicit_order_file);

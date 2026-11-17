@@ -22,27 +22,37 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cassert>
+#include <chrono>
 #include <limits>
-#include <mutex>
+#include <memory>
 #include <numeric>
 #include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <tuple>
 #include <unordered_map>
-#include <variant>
+#include <utility>
 #include <vector>
+
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
+#if defined(__linux__) && (defined(__aarch64__) || defined(__arm__))
+#include <asm/hwcap.h>
+#include <sys/auxv.h>
+#endif
 
 #include <fmt/format.h>
 
-#include <range/v3/view/enumerate.hpp>
-
 #include <dwarfs/compiler.h>
-#include <dwarfs/container/bit_view.h>
-#include <dwarfs/container/index_based_span.h>
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/logger.h>
 
-#include <dwarfs/internal/move_only_function.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/progress.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>
@@ -54,302 +64,660 @@ using namespace dwarfs::internal;
 
 namespace {
 
-// TODO: move out of here
-class job_tracker {
- public:
-  explicit job_tracker(move_only_function<void()>&& on_jobs_done)
-      : on_jobs_done_{std::move(on_jobs_done)} {}
+using hash_type = std::array<uint64_t, 4>;
 
-  void start_job() {
-    std::lock_guard lock(mx_);
-    ++active_;
-  }
-
-  void finish_job() {
-    bool all_done = false;
-    {
-      std::lock_guard lock(mx_);
-      assert(active_ > 0);
-      --active_;
-      all_done = active_ == 0;
-    }
-    if (all_done) {
-      on_jobs_done_();
-    }
-  }
-
- private:
-  std::mutex mx_;
-  size_t active_{0};
-  move_only_function<void()> on_jobs_done_;
-};
-
-template <typename T, size_t N>
-int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
+DWARFS_FORCE_INLINE int
+distance_portable(hash_type const& a, hash_type const& b) {
   int d = 0;
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < a.size(); ++i) {
     d += std::popcount(a[i] ^ b[i]);
   }
   return d;
 }
 
-#if defined(DWARFS_USE_CPU_FEATURES) && defined(__x86_64__)
-#define DWARFS_USE_POPCNT
-#endif
-
-enum class cpu_feature {
-  none,
-  popcnt,
-};
-
-#ifdef DWARFS_USE_POPCNT
-cpu_feature detect_cpu_feature() {
-  static cpu_feature const feature = [] {
-    if (__builtin_cpu_supports("popcnt")) {
-      return cpu_feature::popcnt;
-    }
-    return cpu_feature::none;
-  }();
-  return feature;
+#if defined(__aarch64__)
+DWARFS_FORCE_INLINE int distance_neon(hash_type const& a, hash_type const& b) {
+  auto const x0 = veorq_u64(vld1q_u64(a.data()), vld1q_u64(b.data()));
+  auto const x1 = veorq_u64(vld1q_u64(a.data() + 2), vld1q_u64(b.data() + 2));
+  auto const c0 = vcntq_u8(vreinterpretq_u8_u64(x0));
+  auto const c1 = vcntq_u8(vreinterpretq_u8_u64(x1));
+  return vaddlvq_u8(vaddq_u8(c0, c1));
+}
+#elif defined(__linux__) && defined(__arm__)
+DWARFS_FORCE_INLINE int distance_neon(hash_type const& a, hash_type const& b) {
+  int d;
+  __asm__(".fpu neon\n\t"
+          "vld1.8 {d0-d3}, [%[a]]\n\t"
+          "vld1.8 {d4-d7}, [%[b]]\n\t"
+          "veor q0, q0, q2\n\t"
+          "veor q1, q1, q3\n\t"
+          "vcnt.8 q0, q0\n\t"
+          "vcnt.8 q1, q1\n\t"
+          "vadd.i8 q0, q0, q1\n\t"
+          "vpaddl.u8 q0, q0\n\t"
+          "vpaddl.u16 q0, q0\n\t"
+          "vpaddl.u32 q0, q0\n\t"
+          "vadd.i64 d0, d0, d1\n\t"
+          "vmov.32 %[d], d0[0]"
+          : [d] "=r"(d)
+          : [a] "r"(a.data()), [b] "r"(b.data()), "m"(a), "m"(b)
+          : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7");
+  return d;
 }
 #endif
 
-template <typename Fn, typename... Args>
-decltype(auto) cpu_dispatch(Args&&... args) {
-#ifdef DWARFS_USE_POPCNT
-  auto feature = detect_cpu_feature();
-  switch (feature) {
-  case cpu_feature::popcnt:
-    return Fn::template call<cpu_feature::popcnt>(std::forward<Args>(args)...);
-  default:
-    break;
-  }
-#endif
-  return Fn::template call<cpu_feature::none>(std::forward<Args>(args)...);
+using rank_type = uint32_t;
+constexpr auto invalid_rank = std::numeric_limits<rank_type>::max();
+constexpr size_t exact_tail = 256;
+
+// Fixed SplitMix64 stream and Fisher-Yates shuffle
+inline uint64_t next_random(uint64_t& state) {
+  auto z = (state += 0x9e3779b97f4a7c15ULL);
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
 }
 
-int distance_default(std::array<uint64_t, 4> const& a,
-                     std::array<uint64_t, 4> const& b) {
-  return distance<uint64_t, 4>(a, b);
-}
+// Project onto the first 64 bits of a random bit permutation. A byte table
+// makes projection construction cheap and independent of native byte order.
+class projection {
+ public:
+  explicit projection(uint64_t& seed) {
+    std::array<unsigned, 256> bits;
+    std::iota(bits.begin(), bits.end(), 0);
 
-#ifdef DWARFS_USE_POPCNT
-__attribute__((__target__("popcnt"))) int
-distance_popcnt(std::array<uint64_t, 4> const& a,
-                std::array<uint64_t, 4> const& b) {
-  return distance<uint64_t, 4>(a, b);
-}
-#endif
+    for (unsigned i = 0; i < 64; ++i) {
+      auto j = i + next_random(seed) % (bits.size() - i);
+      std::swap(bits[i], bits[j]);
+      auto bit = bits[i];
+      selected_[i] = static_cast<uint8_t>(bit);
 
-struct distance_cpu {
-  template <cpu_feature CpuFeature>
-  static int
-  call(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
-#ifdef DWARFS_USE_POPCNT
-    if constexpr (CpuFeature == cpu_feature::popcnt) {
-      return distance_popcnt(a, b);
-    }
-#endif
-    return distance_default(a, b);
-  }
-};
-
-struct order_by_shortest_path_cpu {
-  template <cpu_feature CpuFeature, typename GetI, typename GetK, typename Swap>
-  static void
-  call(size_t count, GetI const& geti, GetK const& getk, Swap const& swapper) {
-    for (size_t i = 0; i < count - 1; ++i) {
-      auto bi = geti(i);
-      int best_distance = std::numeric_limits<int>::max();
-      size_t best_index = 0;
-
-      for (size_t k = i + 1; k < count; ++k) {
-        auto bk = getk(k);
-        auto d = distance_cpu::template call<CpuFeature>(*bi, *bk);
-        if (d < best_distance) {
-          best_distance = d;
-          best_index = k;
-          if (best_distance <= 1) {
-            break;
-          }
+      for (unsigned v = 0; v < 256; ++v) {
+        if (v & (1U << (bit % 8))) {
+          table_[bit / 8][v] |= uint64_t{1} << (63 - i);
         }
       }
-
-      if (best_index > 0 && i + 1 != best_index) {
-        swapper(i + 1, best_index);
-      }
     }
   }
+
+  uint64_t operator()(hash_type const& hash) const {
+    uint64_t key = 0;
+
+    for (size_t word = 0; word < hash.size(); ++word) {
+      auto h = hash[word];
+
+      for (size_t byte = 0; byte < 8; ++byte) {
+        key |= table_[8 * word + byte][h & 0xff];
+        h >>= 8;
+      }
+    }
+
+    return key;
+  }
+
+  auto const& selected_bits() const { return selected_; }
+
+ private:
+  std::array<uint8_t, 64> selected_{};
+  std::array<std::array<uint64_t, 256>, 32> table_{};
 };
 
-int distance(std::array<uint64_t, 4> const& a,
-             std::array<uint64_t, 4> const& b) {
-  return cpu_dispatch<distance_cpu>(a, b);
+// The prefix and canonical rank fit in one native integer. Refine equal
+// prefixes with the full projection key to preserve the exact sort order.
+// Within a run, the prefix is shared, so the remaining key bits and the rank
+// (both at most `rank_bits` wide) fit in one integer as well, and each key is
+// projected only once.
+template <typename HashAt>
+void sort_projection(std::vector<uint64_t>& keys, projection const& project,
+                     unsigned rank_bits, HashAt const& hash_at) {
+  auto const mask = (uint64_t{1} << rank_bits) - 1;
+
+  for (size_t i = 0; i < keys.size(); ++i) {
+    keys[i] = (project(hash_at(i)) & ~mask) | i;
+  }
+
+  std::ranges::sort(std::span(keys));
+
+  for (size_t first = 0; first < keys.size();) {
+    auto const prefix = keys[first] >> rank_bits;
+    auto last = first + 1;
+
+    while (last < keys.size() && (keys[last] >> rank_bits) == prefix) {
+      ++last;
+    }
+
+    if (last - first > 1) {
+      auto const run = std::span(keys).subspan(first, last - first);
+      auto const prefix_key = run.front() & ~mask;
+
+      for (auto& k : run) {
+        auto const rank = k & mask;
+        k = ((project(hash_at(rank)) & mask) << rank_bits) | rank;
+      }
+
+      std::ranges::sort(run);
+
+      for (auto& k : run) {
+        k = prefix_key | (k & mask);
+      }
+    }
+
+    first = last;
+  }
 }
 
-template <typename GetI, typename GetK, typename Swap>
-void order_by_shortest_path(size_t count, GetI const& geti, GetK const& getk,
-                            Swap const& swapper) {
-  cpu_dispatch<order_by_shortest_path_cpu>(count, geti, getk, swapper);
-}
-
-/**
- * Scratch storage for cluster centroid bit counts.
- *
- * While a centroid is being built, it needs one counter per bit plus a
- * vector count. For 256-bit hashes, that's 1028 bytes of state to maintain
- * a 32-byte centroid. The counters are no longer needed once the centroid
- * has been built.
- */
-template <size_t Bits>
-class centroid_accumulator {
+// Use a bitmap for each group of 64 sorted positions, and link only the
+// nonempty groups. This allow to skip long runs of deleted positions in
+// constant time, with only two links per 64 ranks.
+class active_positions {
  public:
-  using counts_type = std::size_t;
-  using vector_type = container::auto_packed_int_vector<counts_type>;
-  using bitcounts_type = container::index_based_span<vector_type>;
-  using veccount_type = vector_type::reference;
+  explicit active_positions(size_t n)
+      : blocks_{n / 64 + (n % 64 != 0)} {
+    assert(n != 0);
 
-  class slot_ref {
-   public:
-    slot_ref(bitcounts_type bitcounts, veccount_type veccount)
-        : bitcounts_{bitcounts}
-        , veccount_{veccount} {}
+    for (size_t i = 0; i < blocks_.size(); ++i) {
+      blocks_[i] = {~uint64_t{0}, i == 0 ? invalid_rank : rank_type(i - 1),
+                    i + 1 == blocks_.size() ? invalid_rank : rank_type(i + 1)};
+    }
 
-    bitcounts_type bitcounts() const { return bitcounts_; }
-    veccount_type increment_veccount() const { return ++veccount_; }
+    if (auto const tail = n % 64; tail != 0) {
+      blocks_.back().mask = (uint64_t{1} << tail) - 1;
+    }
+  }
 
-   private:
-    bitcounts_type bitcounts_;
-    veccount_type mutable veccount_;
+  size_t capacity_in_bytes() const {
+    return blocks_.capacity() * sizeof(block);
+  }
+
+  void erase(rank_type pos) {
+    auto& b = blocks_[pos / 64];
+
+    b.mask &= ~(uint64_t{1} << (pos % 64));
+
+    if (b.mask == 0) {
+      if (b.prev != invalid_rank) {
+        blocks_[b.prev].next = b.next;
+      }
+
+      if (b.next != invalid_rank) {
+        blocks_[b.next].prev = b.prev;
+      }
+
+      // Keep the old links, as cursors initialized at this block can still
+      // walk out of it until the next erase operation.
+    }
+  }
+
+  struct cursor {
+    rank_type block_index;
+    uint64_t mask;
   };
 
-  size_t emplace_back() {
-    bitcounts_.resize(bitcounts_.size() + Bits, 0);
-    veccounts_.push_back(0);
-    return veccounts_.size() - 1;
+  std::pair<cursor, cursor> around(rank_type pos) const {
+    auto const index = pos / 64;
+    auto const bit = uint64_t{1} << (pos % 64);
+    auto const mask = blocks_[index].mask;
+    return {{index, mask & (bit - 1)}, {index, mask & ~(bit | (bit - 1))}};
   }
 
-  slot_ref operator[](size_t slot) {
-    assert(slot < veccounts_.size());
-    return {make_span(bitcounts_, slot * Bits, Bits), veccounts_[slot]};
-  }
+  template <bool Forward>
+  rank_type take(cursor& c, rank_type end) const {
+    if (c.mask == 0) {
+      if (c.block_index == invalid_rank) {
+        return end;
+      }
 
-  std::string memory_usage() const {
-    std::ostringstream oss;
-    oss << "centroid accumulator: bitcounts=" << bitcounts_.size() << " ("
-        << bitcounts_.size_in_bytes() << " bytes)"
-        << ", veccounts=" << veccounts_.size() << " ("
-        << veccounts_.size_in_bytes() << " bytes)";
-    return oss.str();
+      auto const& b = blocks_[c.block_index];
+
+      c.block_index = Forward ? b.next : b.prev;
+
+      if (c.block_index == invalid_rank) {
+        return end;
+      }
+
+      c.mask = blocks_[c.block_index].mask;
+    }
+
+    unsigned bit;
+
+    if constexpr (Forward) {
+      bit = std::countr_zero(c.mask);
+      c.mask &= c.mask - 1;
+    } else {
+      bit = 63 - std::countl_zero(c.mask);
+      c.mask ^= uint64_t{1} << bit;
+    }
+
+    return c.block_index * 64 + bit;
   }
 
  private:
-  container::auto_packed_int_vector<counts_type> bitcounts_;
-  container::auto_packed_int_vector<counts_type> veccounts_;
+  struct block {
+    uint64_t mask;
+    rank_type prev;
+    rank_type next;
+  };
+
+  std::vector<block> blocks_;
 };
 
-template <size_t Bits, typename BitsType = uint64_t>
-class basic_centroid {
+// Immutable projection-sorted ranks. For the inverse mapping, keep only the
+// low bits of the position relative to its projection-prefix bucket.
+// The offset may be omitted entirely. Search at the corresponding stride,
+// using binary search for large/skewed buckets.
+class sorted_projection {
  public:
-  static_assert(Bits % (8 * sizeof(BitsType)) == 0);
-  static constexpr size_t const array_size = Bits / (8 * sizeof(BitsType));
-  using value_type = std::array<BitsType, array_size>;
+  sorted_projection(std::vector<uint64_t> const& keys,
+                    projection const& project, unsigned rank_bits,
+                    unsigned prefix_bits, unsigned offset_bits)
+      : selected_{project.selected_bits()}
+      , prefix_bits_{prefix_bits}
+      , ranks_(rank_bits, keys.size())
+      , stride_{size_t{1} << offset_bits}
+      , local_(offset_bits, offset_bits ? keys.size() : 0)
+      , directory_((size_t{1} << prefix_bits) + 1)
+      , active_{keys.size()} {
+    auto const rank_mask = (uint64_t{1} << rank_bits) - 1;
+    size_t pos = 0;
 
-  basic_centroid() { std::ranges::fill(centroid_, 0); }
+    for (size_t b = 0; b + 1 < directory_.size(); ++b) {
+      auto const start = pos;
 
-  value_type const& value() const { return centroid_; };
+      directory_[b] = static_cast<rank_type>(start);
 
-  // Add `vec` to this centroid, using `slot` to track the bit counts.
-  // The same slot must be passed for every call on the same centroid.
-  template <typename SlotRef>
-  void add(value_type const& vec, SlotRef slot) {
-    auto bitcounts = slot.bitcounts();
-    auto const veccount = slot.increment_veccount();
-    auto centroid_bits = container::bit_view(centroid_.data());
-    auto const vec_bits = container::bit_view(vec.data());
+      while (pos < keys.size() &&
+             (prefix_bits == 0 ? 0 : keys[pos] >> (64 - prefix_bits)) == b) {
+        auto const rank = static_cast<rank_type>(keys[pos] & rank_mask);
 
-    for (size_t bit = 0; bit < Bits; ++bit) {
-      if (vec_bits.test(bit)) {
-        ++bitcounts[bit];
-      }
-      if (bitcounts[bit] > veccount / 2) {
-        centroid_bits.set(bit);
-      } else {
-        centroid_bits.clear(bit);
+        ranks_.set(pos, rank);
+
+        if (!local_.empty()) {
+          local_.set(rank, static_cast<uint8_t>((pos - start) & (stride_ - 1)));
+        }
+
+        ++pos;
       }
     }
+
+    directory_.back() = static_cast<rank_type>(pos);
+
+    assert(pos == keys.size());
   }
 
-  auto distance_to(value_type const& vec) const {
-    return distance(centroid_, vec);
+  size_t capacity_in_bytes() const {
+    return ranks_.capacity_in_bytes() + local_.capacity_in_bytes() +
+           directory_.capacity() * sizeof(rank_type) +
+           active_.capacity_in_bytes();
+  }
+
+  rank_type rank(rank_type pos) const { return ranks_.get(pos); }
+
+  auto around(rank_type pos) const { return active_.around(pos); }
+
+  rank_type prev(active_positions::cursor& c, rank_type end) const {
+    return active_.take<false>(c, end);
+  }
+
+  rank_type next(active_positions::cursor& c, rank_type end) const {
+    return active_.take<true>(c, end);
+  }
+
+  void erase(rank_type pos) { active_.erase(pos); }
+
+  template <typename HashAt>
+  rank_type position(rank_type rank, HashAt const& hash_at) const {
+    auto const& hash = hash_at(rank);
+    auto const bucket = project_bits(hash, prefix_bits_);
+    auto const first =
+        size_t{directory_[bucket]} + (local_.empty() ? 0 : local_.get(rank));
+    auto const last = size_t{directory_[bucket + 1]};
+
+    assert(first < last);
+
+    if (ranks_.get(first) == rank) {
+      return static_cast<rank_type>(first);
+    }
+
+    auto const count = (last - first - 1) / stride_ + 1;
+
+    if (count <= 8) {
+      for (size_t i = 1; i < count; ++i) {
+        auto const pos = first + stride_ * i;
+        if (ranks_.get(pos) == rank) {
+          return static_cast<rank_type>(pos);
+        }
+      }
+    }
+
+    size_t lo = 1, hi = count;
+
+    while (lo < hi) {
+      auto const mid = lo + (hi - lo) / 2;
+      auto const other = ranks_.get(first + stride_ * mid);
+
+      if (other == rank) {
+        return static_cast<rank_type>(first + stride_ * mid);
+      }
+
+      if (projected_less(hash_at(other), other, hash, rank)) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    // A rank is present even after it has been marked inactive.
+    assert(lo < count && ranks_.get(first + stride_ * lo) == rank);
+
+    return static_cast<rank_type>(first + stride_ * lo);
   }
 
  private:
-  value_type centroid_;
+  // Compare (key(a), ra) < (key(b), rb) for two hashes in the same bucket.
+  // Only the first differing selected bit matters, so avoid building keys.
+  bool projected_less(hash_type const& a, rank_type ra, hash_type const& b,
+                      rank_type rb) const {
+    hash_type diff;
+
+    for (size_t w = 0; w < diff.size(); ++w) {
+      diff[w] = a[w] ^ b[w];
+    }
+
+    for (unsigned i = prefix_bits_; i < selected_.size(); ++i) {
+      auto const bit = selected_[i];
+
+      if ((diff[bit / 64] >> (bit % 64)) & 1) {
+        return (b[bit / 64] >> (bit % 64)) & 1;
+      }
+    }
+
+    return ra < rb;
+  }
+
+  uint64_t project_bits(hash_type const& hash, unsigned count) const {
+    uint64_t key = 0;
+    for (unsigned i = 0; i < count; ++i) {
+      auto const bit = selected_[i];
+      key = (key << 1) | ((hash[bit / 64] >> (bit % 64)) & 1);
+    }
+    return key;
+  }
+
+  std::array<uint8_t, 64> selected_;
+  unsigned prefix_bits_;
+  container::packed_int_vector<rank_type> ranks_;
+  size_t stride_;
+  container::packed_int_vector<uint8_t> local_;
+  std::vector<rank_type> directory_;
+  active_positions active_;
 };
 
-template <size_t Bits, typename BitsType, typename IndexValueType>
-struct basic_cluster {
-  using centroid_type = basic_centroid<Bits, BitsType>;
-  using index_value_type = IndexValueType;
-  using index_type = sortable_inode_span::index_type;
+class nilsimsa_progress_context final : public progress::context {
+ public:
+  using progress::context::status;
 
-  basic_cluster() = default;
-  explicit basic_cluster(index_type&& index)
-      : index{std::move(index)} {}
+  nilsimsa_progress_context(std::string_view category, std::string phase,
+                            std::string unit, size_t total)
+      : label_{fmt::format("{}[nilsimsa] ", category)}
+      , phase_{std::move(phase)}
+      , unit_{std::move(unit)}
+      , total_{total} {}
 
-  centroid_type centroid;
-  index_type index;
+  status get_status() const override {
+    auto const completed = completed_.load(std::memory_order_relaxed);
+    return {.color = termcolor::YELLOW,
+            .context = label_,
+            .status_string = fmt::format("{} {}/{}", phase_, completed, total_),
+            .processed = completed,
+            .total = total_,
+            .unit = unit_};
+  }
+
+  void update(size_t completed) {
+    completed_.store(completed, std::memory_order_relaxed);
+  }
+
+ private:
+  std::string const label_;
+  std::string const phase_;
+  std::string const unit_;
+  size_t const total_;
+  std::atomic<size_t> completed_{0};
 };
 
-template <typename ClusterType>
-struct basic_cluster_tree_node {
-  using cluster_type = ClusterType;
-  using index_type = cluster_type::index_type;
-  using index_value_type = cluster_type::index_value_type;
-  using cluster_pointer = std::unique_ptr<cluster_type>;
-  using children_vector = std::vector<basic_cluster_tree_node<cluster_type>>;
+bool show_nilsimsa_progress(size_t hashes, size_t passes, size_t window) {
+  // Avoid flashing contexts for small inputs.
+  constexpr uint64_t kMinEstimatedCandidates = 10'000'000;
+  return uint64_t{hashes} * passes * (2 * window) >= kMinEstimatedCandidates;
+}
 
-  basic_cluster_tree_node()
-      : v{std::make_unique<cluster_type>()} {}
-  explicit basic_cluster_tree_node(index_type&& index)
-      : v{std::make_unique<cluster_type>(std::move(index))} {}
-
-  children_vector const& children() const {
-    return std::get<children_vector>(v);
-  }
-  children_vector& children() { return std::get<children_vector>(v); }
-
-  cluster_type const& cluster() const { return *std::get<cluster_pointer>(v); }
-  cluster_type& cluster() { return *std::get<cluster_pointer>(v); }
-
-  bool is_leaf() const { return std::holds_alternative<cluster_pointer>(v); }
-
-  std::string description() const {
-    if (is_leaf()) {
-      return fmt::format("{} items", cluster().index.size());
-    }
-    return fmt::format("{} children", children().size());
-  }
-
-  index_value_type first_index() const {
-    if (is_leaf()) {
-      return cluster().index.front();
-    }
-    return children().front().first_index();
-  }
-
-  index_value_type last_index() const {
-    if (is_leaf()) {
-      return cluster().index.back();
-    }
-    return children().back().last_index();
-  }
-
-  std::variant<cluster_pointer, children_vector> v;
+struct walk_state {
+  std::span<hash_type const* const> hashes;
+  std::span<sorted_projection> lists;
+  size_t window;
+  nilsimsa_progress_context* progress;
+  nilsimsa_ordering_result& result;
 };
+
+// Force-inlined so that each CPU-specific wrapper below gets its own copy
+// of the hot loop with the distance kernel inlined.
+template <int (*Distance)(hash_type const&, hash_type const&)>
+DWARFS_FORCE_INLINE void walk_impl(walk_state& s) {
+  auto const hash_at = [&](size_t rank) -> auto const& {
+    return *s.hashes[rank];
+  };
+
+  // n itself is the out-of-range position sentinel.
+  auto const end = static_cast<rank_type>(s.hashes.size());
+  rank_type current = 0;
+
+  for (;;) {
+    s.result.order.push_back(current);
+
+    auto const remaining = s.hashes.size() - s.result.order.size();
+
+    // A batched update keeps the hot walk free of per-inode atomics.
+    if (s.progress && ((s.result.order.size() & 4095) == 0 || remaining == 0)) {
+      s.progress->update(s.result.order.size());
+    }
+
+    if (remaining == 0) {
+      break;
+    }
+
+    rank_type best = invalid_rank;
+    int best_distance = std::numeric_limits<int>::max();
+    auto const& query = hash_at(current);
+
+    auto consider = [&](rank_type candidate) {
+      // Repeated candidates cannot change the distance/rank minimum.
+      auto d = Distance(query, hash_at(candidate));
+      ++s.result.comparisons;
+      if (d < best_distance || (d == best_distance && candidate < best)) {
+        best = candidate;
+        best_distance = d;
+      }
+    };
+
+    auto const exact = remaining <= exact_tail;
+    // Once in the exact tail, only the first projection is ever consulted.
+    auto const num_lists = exact ? size_t{1} : s.lists.size();
+    std::array<active_positions::cursor, 32> left, right;
+
+    for (size_t p = 0; p < num_lists; ++p) {
+      auto& list = s.lists[p];
+      auto const pos = list.position(current, hash_at);
+      std::tie(left[p], right[p]) = list.around(pos);
+      list.erase(pos);
+    }
+
+    auto const limit = exact ? remaining : s.window;
+
+    // Walk each projection independently, keeping cursors local to this step.
+    for (size_t p = 0; p < num_lists; ++p) {
+      auto const& list = s.lists[p];
+
+      for (size_t i = 0; i < limit; ++i) {
+        auto const l = list.prev(left[p], end);
+        auto const r = list.next(right[p], end);
+
+        if (l == end && r == end) {
+          break;
+        }
+
+        if (l != end) {
+          consider(list.rank(l));
+        }
+
+        if (r != end) {
+          consider(list.rank(r));
+        }
+      }
+    }
+
+    assert(best != invalid_rank);
+    s.result.total_distance += best_distance;
+    current = best;
+  }
+}
+
+#if defined(__aarch64__)
+void walk(walk_state&& s) { walk_impl<distance_neon>(s); }
+#else
+void walk_portable(walk_state& s) { walk_impl<distance_portable>(s); }
+
+#if defined(__linux__) && defined(__arm__)
+void walk_neon(walk_state& s) { walk_impl<distance_neon>(s); }
+#elif defined(DWARFS_USE_CPU_FEATURES) && defined(__x86_64__)
+__attribute__((__target__("popcnt"))) void walk_popcnt(walk_state& s) {
+  walk_impl<distance_portable>(s);
+}
+#endif
+
+void walk(walk_state&& s) {
+#if defined(__linux__) && defined(__arm__)
+  if ((getauxval(AT_HWCAP) & HWCAP_NEON) != 0) {
+    walk_neon(s);
+    return;
+  }
+#elif defined(DWARFS_USE_CPU_FEATURES) && defined(__x86_64__)
+  if (__builtin_cpu_supports("popcnt")) {
+    walk_popcnt(s);
+    return;
+  }
+#endif
+  walk_portable(s);
+}
+#endif
 
 } // namespace
+
+nilsimsa_ordering_result
+order_nilsimsa_hashes(std::span<std::array<uint64_t, 4> const* const> hashes,
+                      size_t passes, size_t window, size_t offset_bits,
+                      progress* prog, std::string_view context) {
+  auto const n = hashes.size();
+  auto const hash_at = [&](size_t rank) -> auto const& {
+    return *hashes[rank];
+  };
+
+  if (passes == 0 || passes > 32 || window == 0 || window > 128 ||
+      offset_bits > 8) {
+    throw std::invalid_argument("invalid Nilsimsa ordering parameters");
+  }
+
+  if (n > invalid_rank) {
+    throw std::length_error("too many Nilsimsa ranks");
+  }
+
+  nilsimsa_ordering_result result;
+
+  if (n == 0) {
+    return result;
+  }
+
+  bool const small = n <= exact_tail;
+
+  if (small) {
+    passes = 1;
+  }
+
+  auto const bits = static_cast<uint8_t>(std::bit_width(n));
+
+  result.rank_bits = bits;
+  result.offset_bits = offset_bits;
+  result.key_bits = 64 - bits;
+
+  // Aim for 64--128 ranks per bucket on uniformly distributed prefixes.
+  if (!small) {
+    result.prefix_bits = std::min(16U, static_cast<unsigned>(bits - 7));
+  }
+
+  using clock = std::chrono::steady_clock;
+
+  auto const start = clock::now();
+
+  auto const show_progress =
+      prog && !small && show_nilsimsa_progress(n, passes, window);
+  auto sorting =
+      show_progress ? prog->create_context<nilsimsa_progress_context>(
+                          context, "sorting projections", "projections", passes)
+                    : std::shared_ptr<nilsimsa_progress_context>{};
+
+  std::vector<sorted_projection> lists;
+  lists.reserve(passes);
+
+  {
+    std::vector<uint64_t> keys(n);
+    uint64_t seed = 0x6a09e667f3bcc909ULL;
+
+    for (size_t p = 0; p < passes; ++p) {
+      // The 64 KiB lookup table can be too large for small (e.g. musl) thread
+      // stacks, so keep it on the heap.
+      auto const project = std::make_unique<projection const>(seed);
+
+      sort_projection(keys, *project, bits, hash_at);
+
+      auto& list = lists.emplace_back(keys, *project, bits, result.prefix_bits,
+                                      result.offset_bits);
+      result.projection_bytes += list.capacity_in_bytes();
+
+      if (sorting) {
+        sorting->update(p + 1);
+      }
+    }
+
+    // The sorting buffer is released before reserving the output vector.
+    result.peak_scratch_bytes =
+        result.projection_bytes + keys.capacity() * sizeof(uint64_t);
+  }
+
+  sorting.reset();
+
+  auto ordering = show_progress
+                      ? prog->create_context<nilsimsa_progress_context>(
+                            context, "ordering unique inodes", "inodes", n)
+                      : std::shared_ptr<nilsimsa_progress_context>{};
+
+  result.order = container::packed_int_vector<rank_type>(bits);
+  result.order.reserve(n);
+
+  auto const walk_start = clock::now();
+
+  result.build_time = walk_start - start;
+  result.peak_scratch_bytes =
+      std::max(result.peak_scratch_bytes,
+               result.projection_bytes + result.order.capacity_in_bytes());
+  walk({.hashes = hashes,
+        .lists = lists,
+        .window = window,
+        .progress = ordering.get(),
+        .result = result});
+
+  result.walk_time = clock::now() - walk_start;
+
+  return result;
+}
 
 template <typename LoggerPolicy>
 class similarity_ordering_ final : public similarity_ordering::impl {
@@ -357,76 +725,29 @@ class similarity_ordering_ final : public similarity_ordering::impl {
   using index_value_type = similarity_ordering::index_value_type;
   using index_type = sortable_inode_span::index_type;
   using duplicates_map = std::unordered_map<index_value_type, index_type>;
-  using nilsimsa_element_view =
-      basic_array_similarity_element_view<256, uint64_t>;
-  using nilsimsa_cluster = basic_cluster<256, uint64_t, index_value_type>;
-  using nilsimsa_cluster_tree_node = basic_cluster_tree_node<nilsimsa_cluster>;
 
-  similarity_ordering_(logger& lgr, progress& prog, worker_group& wg,
+  similarity_ordering_(logger& lgr, worker_group& wg,
                        similarity_ordering_options const& opts)
       : LOG_PROXY_INIT(lgr)
-      , prog_{prog}
       , wg_{wg}
       , opts_{opts} {}
 
-  void order_nilsimsa(nilsimsa_element_view const& ev, receiver<index_type> rec,
+  void order_nilsimsa(similarity_element_view& ev, receiver<index_type> rec,
                       index_type index) const override;
 
  private:
   duplicates_map
   find_duplicates(similarity_element_view const& ev, index_type& index) const;
 
-  template <size_t Bits, typename BitsType>
-  size_t
-  total_distance(basic_array_similarity_element_view<Bits, BitsType> const& ev,
-                 index_type const& index) const;
+#if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
+  size_t total_distance(similarity_element_view const& ev,
+                        index_type const& index) const;
+#endif
 
-  template <size_t Bits, typename BitsType>
-  void
-  order_cluster(basic_array_similarity_element_view<Bits, BitsType> const& ev,
-                index_type& index) const;
-
-  template <size_t Bits, typename BitsType>
-  size_t order_tree_rec(
-      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-          node,
-      basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
-
-  template <size_t Bits, typename BitsType>
-  void cluster_by_distance(
-      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-          node,
-      basic_array_similarity_element_view<Bits, BitsType> const& ev,
-      int max_distance) const;
-
-  template <size_t Bits, typename BitsType>
-  void cluster_rec(
-      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-          node,
-      basic_array_similarity_element_view<Bits, BitsType> const& ev,
-      std::shared_ptr<job_tracker> const& jt, int max_distance) const;
-
-  template <size_t Bits, typename BitsType>
-  void cluster(basic_cluster_tree_node<
-                   basic_cluster<Bits, BitsType, index_value_type>>& root,
-               basic_array_similarity_element_view<Bits, BitsType> const& ev,
-               std::shared_ptr<job_tracker> const& jt) const;
-
-  template <size_t Bits, typename BitsType>
-  void collect_rec(
-      basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-          node,
-      basic_array_similarity_element_view<Bits, BitsType> const& ev,
-      duplicates_map& dup, index_type& ordered,
-      std::string const& indent) const;
-
-  template <size_t Bits, typename BitsType>
-  void order_impl(
-      receiver<index_type>&& rec, index_type index,
-      basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
+  void order_impl(receiver<index_type>&& rec, index_type index,
+                  similarity_element_view& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  progress& prog_;
   worker_group& wg_;
   similarity_ordering_options const opts_;
 };
@@ -440,7 +761,12 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
   {
     auto tt = LOG_TIMED_TRACE;
 
-    sort_index(index, [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
+    // Break ties canonically, so each group of identical hashes starts with
+    // its canonical representative and is already in canonical order.
+    sort_index(index, [&ev](auto a, auto b) {
+      auto const c = ev.get_bits(a) <=> ev.get_bits(b);
+      return c != 0 ? c < 0 : ev.order_less(a, b);
+    });
 
     tt << opts_.context << "sort index of " << index.size() << " elements";
   }
@@ -453,7 +779,7 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
       auto dst = src;
 
       while (++src != index.end()) {
-        if (ev.bits_equal(*dst, *src)) {
+        if (ev.get_bits(*dst) == ev.get_bits(*src)) {
           dm[*dst].push_back(*src);
         } else if (++dst != src) {
           *dst = *src;
@@ -470,11 +796,10 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
   return dm;
 }
 
+#if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
 size_t similarity_ordering_<LoggerPolicy>::total_distance(
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    index_type const& index) const {
+    similarity_element_view const& ev, index_type const& index) const {
   size_t td = 0;
 
   if (!index.empty()) {
@@ -482,278 +807,108 @@ size_t similarity_ordering_<LoggerPolicy>::total_distance(
 
     for (size_t i = 1; i < index.size(); ++i) {
       auto& curr = ev.get_bits(index[i]);
-      td += distance(*prev, curr);
+      td += distance_portable(*prev, curr);
       prev = &curr;
     }
   }
 
   return td;
 }
+#endif
 
 template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-void similarity_ordering_<LoggerPolicy>::order_cluster(
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    index_type& index) const {
-  using bitvec_type =
-      basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
-
-  if (!index.empty()) {
-    // TODO: try simulated annealing again? reproducibly?
-
-    sort_index(index, [&ev](auto a, auto b) { return ev.order_less(a, b); });
-
-    std::vector<bitvec_type const*> bits;
-    bits.reserve(index.size());
-    for (auto i : index) {
-      bits.push_back(&ev.get_bits(i));
-    }
-
-    auto getter = [&bits](auto i) { return bits[i]; };
-    auto swapper = [&bits, &index](auto i, auto k) {
-      using std::swap;
-      swap(bits[i], bits[k]);
-      swap(index[i], index[k]);
-    };
-
-    order_by_shortest_path(index.size(), getter, getter, swapper);
-  }
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
-    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-        node,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
-  using node_type = std::decay_t<decltype(node)>;
-  using bitvec_type =
-      basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
-
-  if (node.is_leaf()) {
-    auto& cluster = node.cluster();
-    return std::accumulate(
-        cluster.index.begin(), cluster.index.end(), static_cast<size_t>(0),
-        [&ev](size_t acc, size_t i) { return acc + ev.weight(i); });
-  }
-
-  auto& children = node.children();
-  std::vector<
-      std::tuple<bitvec_type const*, bitvec_type const*, node_type*, size_t>>
-      bits;
-  bits.reserve(children.size());
-  size_t total_weight = 0;
-
-  for (auto& cn : children) {
-    auto weight = order_tree_rec(cn, ev);
-    bits.emplace_back(&ev.get_bits(cn.first_index()),
-                      &ev.get_bits(cn.last_index()), &cn, weight);
-    total_weight += weight;
-  }
-
-  // all children of this node are ordered now
-
-  std::ranges::stable_sort(bits, [](auto const& a, auto const& b) {
-    return std::get<3>(a) > std::get<3>(b);
-  });
-
-  order_by_shortest_path(
-      bits.size(), [&bits](auto i) { return std::get<1>(bits[i]); },
-      [&bits](auto k) { return std::get<0>(bits[k]); },
-      [&bits](auto i, auto k) { std::swap(bits[i], bits[k]); });
-
-  std::vector<node_type> ordered_children;
-  ordered_children.reserve(children.size());
-
-  for (auto& b : bits) {
-    ordered_children.emplace_back(std::move(*std::get<2>(b)));
-  }
-
-  children.swap(ordered_children);
-
-  return total_weight;
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
-    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-        node,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    int max_distance) const {
-  using node_type = std::decay_t<decltype(node)>;
-  static constexpr size_t const no_match = std::numeric_limits<size_t>::max();
-
-  auto const& index = node.cluster().index;
-  typename node_type::children_vector children;
-
-  // Bit counts for the centroids of `children`, indexed in lockstep. These
-  // are released when this function returns; only the centroids themselves
-  // stay alive as part of the cluster tree. Deliberately *not* reserved up
-  // front: most nodes create far fewer than `max_children` children.
-  centroid_accumulator<Bits> counts;
-
-  children.reserve(std::min<size_t>(index.size(), opts_.max_children));
-
-  auto td = LOG_TIMED_DEBUG;
-
-  for (auto i : index) {
-    auto const& vec = ev.get_bits(i);
-    size_t match = no_match;
-    int best_distance = std::numeric_limits<int>::max();
-    size_t best_match = no_match;
-
-    for (size_t c = 0; c < children.size(); ++c) {
-      auto d = children[c].cluster().centroid.distance_to(vec);
-
-      if (d <= max_distance) {
-        match = c;
-        break;
-      }
-      if (d < best_distance) {
-        best_distance = d;
-        best_match = c;
-      }
-    }
-
-    if (match == no_match) {
-      if (children.size() < opts_.max_children) {
-        children.emplace_back();
-        match = counts.emplace_back();
-        assert(match + 1 == children.size());
-      } else {
-        assert(best_match != no_match);
-        match = best_match;
-      }
-    }
-
-    auto& cluster = children[match].cluster();
-    cluster.centroid.add(vec, counts[match]);
-    cluster.index.push_back(i);
-  }
-
-  td << opts_.context << "cluster_by_distance: " << index.size() << " -> "
-     << children.size() << " (" << counts.memory_usage() << ")";
-
-  node.v = std::move(children);
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-void similarity_ordering_<LoggerPolicy>::cluster_rec(
-    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-        node,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    std::shared_ptr<job_tracker> const& jt, int max_distance) const {
-  cluster_by_distance(node, ev, max_distance);
-
-  for (auto& cn : node.children()) {
-    if (max_distance > 1 &&
-        cn.cluster().index.size() > opts_.max_cluster_size) {
-      jt->start_job();
-      wg_.add_job([this, &cn, &ev, jt, md = max_distance / 2] {
-        cluster_rec(cn, ev, jt, md);
-        jt->finish_job();
-      });
-    } else if (cn.cluster().index.size() > 1) {
-      jt->start_job();
-      wg_.add_job([this, &index = cn.cluster().index, &ev, jt] {
-        order_cluster(ev, index);
-        jt->finish_job();
-      });
-    }
-  }
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-void similarity_ordering_<LoggerPolicy>::cluster(
-    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-        root,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    std::shared_ptr<job_tracker> const& jt) const {
-  jt->start_job();
-  wg_.add_job([this, &root, &ev, jt] {
-    cluster_rec(root, ev, jt, Bits / 2);
-    jt->finish_job();
-  });
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
-void similarity_ordering_<LoggerPolicy>::collect_rec(
-    basic_cluster_tree_node<basic_cluster<Bits, BitsType, index_value_type>>&
-        node,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    duplicates_map& dup, index_type& ordered, std::string const& indent) const {
-  if (node.is_leaf()) {
-    for (auto e : node.cluster().index) {
-      LOG_TRACE << opts_.context << indent << "  " << ev.description(e)
-                << " -> "
-                << node.cluster().centroid.distance_to(ev.get_bits(e));
-
-      ordered.push_back(e);
-
-      if (auto it = dup.find(e); it != dup.end()) {
-        auto& dupvec = it->second;
-
-        sort_index(dupvec,
-                   [&ev](auto a, auto b) { return ev.order_less(a, b); });
-
-        for (auto i : dupvec) {
-          LOG_TRACE << opts_.context << indent << "  + " << ev.description(i)
-                    << " -> "
-                    << node.cluster().centroid.distance_to(ev.get_bits(i));
-          ordered.push_back(i);
-        }
-      }
-    }
-  } else {
-    // TODO: order children, probably do this as a separate (parallel)
-    //       step before collecting
-
-    for (auto const& [i, cn] : ranges::views::enumerate(node.children())) {
-      LOG_TRACE << opts_.context << indent << "[" << i << "] "
-                << cn.description();
-      collect_rec(cn, ev, dup, ordered, indent + "  ");
-    }
-  }
-}
-
-template <typename LoggerPolicy>
-template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::order_impl(
     receiver<index_type>&& rec, index_type index,
-    basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
+    similarity_element_view& ev) const {
+#if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
   LOG_DEBUG << opts_.context
             << "total distance before ordering: " << total_distance(ev, index);
+#endif
 
-  size_t size_hint = index.size();
+  auto const size_hint = index.size();
   auto duplicates = find_duplicates(ev, index);
-  auto root = std::make_shared<nilsimsa_cluster_tree_node>(std::move(index));
 
-  auto jt = std::make_shared<job_tracker>(
-      [this, size_hint, &ev, rec = std::move(rec), root,
-       dup = std::move(duplicates)] mutable {
-        {
-          auto tv = LOG_TIMED_VERBOSE;
-          order_tree_rec(*root, ev);
-          tv << opts_.context << "nilsimsa recursive ordering finished";
-        }
-        index_type rv;
-        rv.reserve(size_hint);
-        collect_rec(*root, ev, dup, rv, "");
-        LOG_DEBUG << opts_.context << "total distance after ordering: "
-                  << total_distance(ev, rv);
-        rec.set_value(std::move(rv));
-      });
+  // Canonical starting order and deterministic tie-breaking.
+  sort_index(index, [&ev](auto a, auto b) { return ev.order_less(a, b); });
+  nilsimsa_ordering_result res;
+  size_t rank_cache_bytes = 0, released_cache_bytes = 0;
 
-  cluster(*root, ev, jt);
+  {
+    using bitvec_type = similarity_element_view::bitvec_type;
+    std::vector<bitvec_type const*> hashes;
+
+    hashes.reserve(index.size());
+
+    for (auto i : index) {
+      hashes.push_back(&ev.get_bits(i));
+    }
+
+    rank_cache_bytes = hashes.capacity() * sizeof(bitvec_type const*);
+
+    // The pointers refer to inode storage, not the original pointer cache.
+    // Only the rank-ordered cache is needed during the projection/walk phase.
+    released_cache_bytes = ev.release_hash_cache();
+
+    auto tv = LOG_TIMED_VERBOSE;
+    res = order_nilsimsa_hashes(hashes, opts_.passes, opts_.window,
+                                opts_.offset_bits, opts_.prog, opts_.context);
+    tv << opts_.context << "nilsimsa ordering: " << index.size()
+       << " unique hashes, " << res.comparisons << " comparisons, distance "
+       << res.total_distance;
+  }
+
+  auto const build_ms =
+      std::chrono::duration<double, std::milli>(res.build_time).count();
+  auto const walk_ms =
+      std::chrono::duration<double, std::milli>(res.walk_time).count();
+
+  LOG_VERBOSE << opts_.context << "nilsimsa ordering phases: build=" << build_ms
+              << "ms, walk=" << walk_ms << "ms, rank bits=" << res.rank_bits
+              << ", offset bits=" << res.offset_bits
+              << ", key bits=" << res.key_bits
+              << ", prefix bits=" << res.prefix_bits
+              << ", rank cache bytes=" << rank_cache_bytes
+              << ", released cache bytes=" << released_cache_bytes
+              << ", projection bytes=" << res.projection_bytes
+              << ", peak scratch payload bytes=" << res.peak_scratch_bytes;
+
+#if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
+  LOG_DEBUG << opts_.context << "canonical rank order checksum: " << [&] {
+    // FNV-1a over little-endian uint32_t ranks
+    uint64_t checksum = 14695981039346656037ULL;
+    for (uint32_t rank : std::as_const(res.order)) {
+      for (unsigned shift = 0; shift < 32; shift += 8) {
+        checksum ^= (rank >> shift) & 0xff;
+        checksum *= 1099511628211ULL;
+      }
+    }
+    return checksum;
+  }();
+#endif
+
+  index_type rv;
+  rv.reserve(size_hint);
+
+  for (auto rank : std::as_const(res.order)) {
+    auto i = static_cast<size_t>(index[rank]);
+    rv.push_back(i);
+
+    if (auto it = duplicates.find(i); it != duplicates.end()) {
+      for (auto d : it->second) {
+        rv.push_back(d);
+      }
+    }
+  }
+
+  LOG_DEBUG << opts_.context
+            << "total distance after ordering: " << res.total_distance;
+
+  rec.set_value(std::move(rv));
 }
 
 template <typename LoggerPolicy>
 void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
-    nilsimsa_element_view const& ev, receiver<index_type> rec,
+    similarity_element_view& ev, receiver<index_type> rec,
     index_type index) const {
   wg_.add_job(
       [this, rec = std::move(rec), idx = std::move(index), &ev] mutable {
@@ -762,10 +917,9 @@ void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
 }
 
 similarity_ordering::similarity_ordering(
-    logger& lgr, progress& prog, internal::worker_group& wg,
+    logger& lgr, internal::worker_group& wg,
     similarity_ordering_options const& opts)
-    : impl_(make_unique_logging_object<impl, internal::similarity_ordering_,
-                                       default_logger_policy>(lgr, prog, wg,
-                                                              opts)) {}
+    : impl_{make_unique_logging_object<impl, internal::similarity_ordering_,
+                                       default_logger_policy>(lgr, wg, opts)} {}
 
 } // namespace dwarfs::writer::internal

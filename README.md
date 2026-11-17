@@ -1800,7 +1800,8 @@ It uses pretty much the same amount of CPU resources, but finishes more than
 
 You can actually squeeze a bit more redundancy out of the original data by
 tweaking the similarity ordering and switching from lzma to brotli compression,
-albeit at a somewhat slower compression speed:
+albeit at a somewhat slower compression speed. Note that this benchmark uses
+the deprecated `max-cluster-size` option.
 
 ```
 mkdwarfs -i winesrc -o winesrc.dwarfs -l9 -C brotli:quality=11:lgwin=26 --order=nilsimsa:max-cluster-size=200k
@@ -2218,7 +2219,8 @@ $ ll -h perl-install-lzma9.erofs
 That's definitely slower than SquashFS, but also significantly smaller.
 
 For a fair comparison, let's use the same 1 MiB block size with DwarFS,
-but also tweak the options for best compression:
+but also tweak the options for best compression. Note that this benchmark uses
+the deprecated `max-cluster-size` option.
 
 ```
 $ time mkdwarfs -i perl-install -o perl-install-1M.dwarfs -l9 -S20 -B64 --order=nilsimsa:max-cluster-size=150000

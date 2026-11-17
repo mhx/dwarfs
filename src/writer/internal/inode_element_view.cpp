@@ -23,8 +23,6 @@
 
 #include <cassert>
 
-#include <fmt/format.h>
-
 #include <dwarfs/writer/internal/inode_element_view.h>
 #include <dwarfs/writer/internal/sortable_inode_span.h>
 
@@ -40,24 +38,6 @@ inode_element_view::inode_element_view(sortable_inode_span& sp,
   }
 }
 
-size_t inode_element_view::weight(size_t i) const {
-  return sp_.raw_handle(i).any().size();
-}
-
-bool inode_element_view::bitvec_less(size_t a, size_t b) const {
-  assert(hash_cache_[a] != nullptr);
-  assert(hash_cache_[b] != nullptr);
-  auto const& ha = *hash_cache_[a];
-  auto const& hb = *hash_cache_[b];
-  if (ha < hb) {
-    return true;
-  }
-  if (ha > hb) {
-    return false;
-  }
-  return sp_.raw_handle(a).any().less_revpath(sp_.raw_handle(b).any());
-}
-
 bool inode_element_view::order_less(size_t a, size_t b) const {
   auto const fa = sp_.raw_handle(a).any();
   auto const fb = sp_.raw_handle(b).any();
@@ -66,20 +46,17 @@ bool inode_element_view::order_less(size_t a, size_t b) const {
   return sa > sb || (sa == sb && fa.less_revpath(fb));
 }
 
-bool inode_element_view::bits_equal(size_t a, size_t b) const {
-  assert(hash_cache_[a] != nullptr);
-  assert(hash_cache_[b] != nullptr);
-  return *hash_cache_[a] == *hash_cache_[b];
-}
-
-std::string inode_element_view::description(size_t i) const {
-  auto f = sp_.raw_handle(i).any();
-  return fmt::format("{} [{}]", f.path_as_string(), f.size());
-}
-
 nilsimsa::hash_type const& inode_element_view::get_bits(size_t i) const {
+  assert(i < hash_cache_.size());
   assert(hash_cache_[i] != nullptr);
   return *hash_cache_[i];
+}
+
+size_t inode_element_view::release_hash_cache() {
+  auto const bytes =
+      hash_cache_.capacity() * sizeof(nilsimsa::hash_type const*);
+  decltype(hash_cache_){}.swap(hash_cache_);
+  return bytes;
 }
 
 } // namespace dwarfs::writer::internal

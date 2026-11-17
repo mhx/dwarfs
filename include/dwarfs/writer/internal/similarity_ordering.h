@@ -24,8 +24,16 @@
 #pragma once
 
 #include <array>
+#include <chrono>
+#include <cstdint>
 #include <memory>
-#include <vector>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include <dwarfs/container/packed_int_vector.h>
+#include <dwarfs/writer/fragment_order_options.h>
 
 #include <dwarfs/internal/worker_group_fwd.h>
 #include <dwarfs/writer/internal/receiver.h>
@@ -39,45 +47,60 @@ namespace writer::internal {
 
 class progress;
 
+// Nilsimsa is the only similarity-ordering backend and uses 256-bit hashes.
 class similarity_element_view {
  public:
+  using bitvec_type = std::array<uint64_t, 4>;
   virtual ~similarity_element_view() = default;
 
-  virtual size_t weight(size_t i) const = 0;
-  virtual bool bitvec_less(size_t a, size_t b) const = 0;
+  // Canonical order: determines starting point, tie-breaking and the
+  // order of elements with identical hashes.
   virtual bool order_less(size_t a, size_t b) const = 0;
-  virtual bool bits_equal(size_t a, size_t b) const = 0;
-  virtual std::string description(size_t i) const = 0;
-};
-
-template <size_t Bits, typename BitsType>
-class basic_array_similarity_element_view : public similarity_element_view {
- public:
-  static_assert(Bits % (8 * sizeof(BitsType)) == 0);
-  static constexpr size_t const bitvec_size = Bits / (8 * sizeof(BitsType));
-  using bitvec_type = std::array<BitsType, bitvec_size>;
-
   virtual bitvec_type const& get_bits(size_t i) const = 0;
+
+  // Release any internal cache. Only `order_less()` may be called after this.
+  virtual size_t release_hash_cache() = 0;
 };
 
 struct similarity_ordering_options {
   std::string context;
-  size_t max_children{256};
-  size_t max_cluster_size{256};
+  progress* prog{nullptr};
+  size_t passes{fragment_order_options::kDefaultNilsimsaPasses};
+  size_t window{fragment_order_options::kDefaultNilsimsaWindow};
+  size_t offset_bits{fragment_order_options::kDefaultNilsimsaOffsetBits};
 };
+
+// Order canonical ranks using their caller-owned fingerprints.
+struct nilsimsa_ordering_result {
+  container::packed_int_vector<uint32_t> order;
+  uint64_t comparisons{0};
+  uint64_t total_distance{0};
+  size_t projection_bytes{0};
+  size_t peak_scratch_bytes{0};
+  unsigned rank_bits{0};
+  unsigned offset_bits{0};
+  unsigned key_bits{0};
+  unsigned prefix_bits{0};
+  std::chrono::nanoseconds build_time{};
+  std::chrono::nanoseconds walk_time{};
+};
+
+nilsimsa_ordering_result order_nilsimsa_hashes(
+    std::span<std::array<uint64_t, 4> const* const> hashes, size_t passes,
+    size_t window,
+    size_t offset_bits = fragment_order_options::kDefaultNilsimsaOffsetBits,
+    progress* prog = nullptr, std::string_view context = {});
 
 class similarity_ordering {
  public:
   using index_value_type = uint32_t;
 
-  similarity_ordering(logger& lgr, progress& prog,
-                      dwarfs::internal::worker_group& wg,
+  similarity_ordering(logger& lgr, dwarfs::internal::worker_group& wg,
                       similarity_ordering_options const& opts);
 
-  void
-  order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
-                 receiver<sortable_inode_span::index_type> rec,
-                 sortable_inode_span::index_type index) const {
+  void order_nilsimsa(similarity_element_view& ev,
+                      receiver<sortable_inode_span::index_type> rec,
+                      sortable_inode_span::index_type index) const {
     impl_->order_nilsimsa(ev, std::move(rec), std::move(index));
   }
 
@@ -86,7 +109,7 @@ class similarity_ordering {
     virtual ~impl() = default;
 
     virtual void
-    order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
+    order_nilsimsa(similarity_element_view& ev,
                    receiver<sortable_inode_span::index_type> rec,
                    sortable_inode_span::index_type index) const = 0;
   };
