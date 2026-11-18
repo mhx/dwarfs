@@ -125,6 +125,11 @@
 - (perf) Improve segmenter throughput by using a blocked Bloom filter and
   caching cyclic hashes.
 
+- (build) The static release builds now use libc++ instead of libstdc++,
+  as it was *much* easier to build the former with LTO enabled. This allows
+  for better optimization and smaller binaries. Despite adding a lot of new
+  features, the static release builds are typically smaller than before.
+
 - (other) The Boost.Process based pager has been replaced with a native
   implementation that removes the dependency on both Boost.Process and
   Boost.Asio. This saves roughly 35 KiB in the static release builds. Also,
