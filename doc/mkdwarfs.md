@@ -1491,8 +1491,8 @@ step, the closest remaining entries in each sorted projection are considered as
 candidates, scored using the full 256-bit Hamming distance with canonical rank
 as tie-breaker. The final 256 entries are searched exhaustively.
 
-The default is equivalent to `--order=nilsimsa:passes=8:window=24:offset=8`,
-although higher compression level defaults can use more aggressive settings.
+The defaults are a good compromise between speed and quality, although higher
+compression level defaults can use more aggressive settings.
 
 - `passes` (1–32, default 8) sets the number of projections. More projections
   increase memory use and candidate diversity.
@@ -1504,6 +1504,11 @@ although higher compression level defaults can use more aggressive settings.
 - `offset` (0–8, default 8) sets the width of bucket-local inverse-position
   offsets. Zero omits these offsets. Larger widths trade memory for faster
   lookups, without changing the ordering.
+
+- `seed` (unsigned 64-bit integer, default 0) selects the seed for the random
+  number generator used to generate the projection sequence. Changing the seed
+  can produce different orderings, but the same seed will always produce the
+  same ordering.
 
 For example, `--order=nilsimsa:passes=24:window=32` searches more candidates
 for potentially better compression. The deprecated `max-children` and

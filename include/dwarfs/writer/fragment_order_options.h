@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <iosfwd>
 #include <string>
@@ -49,6 +50,7 @@ struct fragment_order_options {
   size_t nilsimsa_passes{kDefaultNilsimsaPasses};
   size_t nilsimsa_window{kDefaultNilsimsaWindow};
   size_t nilsimsa_offset_bits{kDefaultNilsimsaOffsetBits};
+  uint64_t nilsimsa_seed{0};
   std::string explicit_order_file{};
   std::unordered_map<std::filesystem::path, size_t> explicit_order{};
 };

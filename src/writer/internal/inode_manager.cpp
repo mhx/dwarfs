@@ -381,6 +381,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     soo.passes = opts.nilsimsa_passes;
     soo.window = opts.nilsimsa_window;
     soo.offset_bits = opts.nilsimsa_offset_bits;
+    soo.seed = opts.nilsimsa_seed;
     auto tv = LOG_TIMED_VERBOSE;
     order.by_nilsimsa(wg, soo, span, cat);
     tv << prefix << span.size() << " inodes ordered";

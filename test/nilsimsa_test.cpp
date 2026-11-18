@@ -291,10 +291,10 @@ namespace {
 
 nilsimsa_ordering_result
 reference_ordering(std::vector<test_hash> const& hashes, size_t passes,
-                   size_t window) {
+                   size_t window, uint64_t seed_offset = 0) {
   auto const n = hashes.size();
   std::vector<std::vector<rank_type>> lists(passes);
-  uint64_t seed = 0x6a09e667f3bcc909ULL;
+  uint64_t seed = 0x6a09e667f3bcc909ULL + seed_offset;
 
   for (auto& list : lists) {
     reference_projection project(seed);
@@ -355,6 +355,29 @@ reference_ordering(std::vector<test_hash> const& hashes, size_t passes,
 }
 
 } // namespace
+
+TEST(nilsimsa_ordering, seeded_projections_match_reference) {
+  auto hashes = random_hashes(1025);
+  auto ptrs = hash_pointers(hashes);
+  auto original = order_nilsimsa_hashes(ptrs, 4, 16);
+  auto zero = order_nilsimsa_hashes(ptrs, 4, 16, 4, 0);
+  EXPECT_EQ(original.order, zero.order);
+  EXPECT_EQ(original.comparisons, zero.comparisons);
+  EXPECT_EQ(original.total_distance, zero.total_distance);
+
+  for (uint64_t seed :
+       {uint64_t{0}, uint64_t{1}, uint64_t{2}, uint64_t{123456789},
+        std::numeric_limits<uint64_t>::max()}) {
+    SCOPED_TRACE(seed);
+    auto expected = reference_ordering(hashes, 4, 16, seed);
+    for (size_t offset : {0, 4, 8}) {
+      auto actual = order_nilsimsa_hashes(ptrs, 4, 16, offset, seed);
+      EXPECT_EQ(actual.order, expected.order);
+      EXPECT_EQ(actual.comparisons, expected.comparisons);
+      EXPECT_EQ(actual.total_distance, expected.total_distance);
+    }
+  }
+}
 
 TEST(nilsimsa_ordering, packed_fixed_matches_reference) {
   for (size_t n : {511, 512, 513, 1024}) {

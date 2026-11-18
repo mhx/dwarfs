@@ -670,7 +670,7 @@ void walk(walk_state&& s) {
 nilsimsa_ordering_result
 order_nilsimsa_hashes(std::span<std::array<uint64_t, 4> const* const> hashes,
                       size_t passes, size_t window, size_t offset_bits,
-                      progress* prog, std::string_view context) {
+                      uint64_t seed, progress* prog, std::string_view context) {
   auto const n = hashes.size();
   auto const hash_at = [&](size_t rank) -> auto const& {
     return *hashes[rank];
@@ -724,12 +724,12 @@ order_nilsimsa_hashes(std::span<std::array<uint64_t, 4> const* const> hashes,
 
   {
     std::vector<uint64_t> keys(n);
-    uint64_t seed = 0x6a09e667f3bcc909ULL;
+    uint64_t rng_state = 0x6a09e667f3bcc909ULL + seed;
 
     for (size_t p = 0; p < passes; ++p) {
       // The 64 KiB lookup table can be too large for small (e.g. musl) thread
       // stacks, so keep it on the heap.
-      auto const project = std::make_unique<projection const>(seed);
+      auto const project = std::make_unique<projection const>(rng_state);
 
       sort_projection(keys, *project, bits, hash_at);
 
@@ -929,7 +929,8 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
 
     auto tv = LOG_TIMED_VERBOSE;
     res = order_nilsimsa_hashes(hashes, opts_.passes, opts_.window,
-                                opts_.offset_bits, opts_.prog, opts_.context);
+                                opts_.offset_bits, opts_.seed, opts_.prog,
+                                opts_.context);
     tv << opts_.context << "nilsimsa ordering: " << index.size()
        << " unique hashes, " << res.comparisons << " comparisons, distance "
        << res.total_distance;

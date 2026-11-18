@@ -124,11 +124,14 @@ TEST(mkdwarfs_test, nilsimsa_reproducible) {
   auto expected = build(1, "nilsimsa");
   EXPECT_EQ(expected, build(4, "nilsimsa:passes=8:window=24:offset=8"));
   EXPECT_EQ(expected, build(2, "nilsimsa:offset=0:max-children=1"));
+  EXPECT_EQ(expected, build(4, "nilsimsa:seed=0"));
+  auto seeded = build(1, "nilsimsa:seed=42");
+  EXPECT_EQ(seeded, build(4, "nilsimsa:seed=42"));
 }
 
 namespace {
 
-constexpr std::array<std::string_view, 12> const build_options = {
+constexpr std::array<std::string_view, 13> const build_options = {
     "--categorize --order=none --no-dedupe",
     "--categorize=pcmaudio --order=path",
     "--categorize --order=revpath",
@@ -141,6 +144,7 @@ constexpr std::array<std::string_view, 12> const build_options = {
     "--max-similarity-size=1M",
     "--categorize --order=nilsimsa:passes=8:window=64:offset=8 "
     "--max-similarity-size=1M",
+    "--categorize --order=nilsimsa:seed=18446744073709551615",
     "--categorize -B4 -S18",
     "--order=none --num-file-prep-workers=2 --file-prep-queue-size=2",
     "--categorize --order=none --num-file-prep-workers=0",

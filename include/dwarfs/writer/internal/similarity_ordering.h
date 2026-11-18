@@ -68,6 +68,7 @@ struct similarity_ordering_options {
   size_t passes{fragment_order_options::kDefaultNilsimsaPasses};
   size_t window{fragment_order_options::kDefaultNilsimsaWindow};
   size_t offset_bits{fragment_order_options::kDefaultNilsimsaOffsetBits};
+  uint64_t seed{0};
 };
 
 // Order canonical ranks using their caller-owned fingerprints.
@@ -89,7 +90,7 @@ nilsimsa_ordering_result order_nilsimsa_hashes(
     std::span<std::array<uint64_t, 4> const* const> hashes, size_t passes,
     size_t window,
     size_t offset_bits = fragment_order_options::kDefaultNilsimsaOffsetBits,
-    progress* prog = nullptr, std::string_view context = {});
+    uint64_t seed = 0, progress* prog = nullptr, std::string_view context = {});
 
 class similarity_ordering {
  public:

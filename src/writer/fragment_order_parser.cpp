@@ -94,6 +94,7 @@ fragment_order_parser::parse(std::string_view arg) const {
           om.get_size("window", fragment_order_options::kDefaultNilsimsaWindow);
       rv.nilsimsa_offset_bits = om.get_size(
           "offset", fragment_order_options::kDefaultNilsimsaOffsetBits);
+      rv.nilsimsa_seed = om.get<uint64_t>("seed", uint64_t{0});
       if (rv.nilsimsa_passes < 1 || rv.nilsimsa_passes > 32) {
         throw std::runtime_error(
             fmt::format("invalid passes value: {}", rv.nilsimsa_passes));
@@ -153,9 +154,9 @@ fragment_order_parser::to_string(fragment_order_options const& opts) const {
     return "similarity";
 
   case fragment_order_mode::NILSIMSA:
-    return fmt::format("nilsimsa:passes={}:window={}:offset={}",
+    return fmt::format("nilsimsa:passes={}:window={}:offset={}:seed={}",
                        opts.nilsimsa_passes, opts.nilsimsa_window,
-                       opts.nilsimsa_offset_bits);
+                       opts.nilsimsa_offset_bits, opts.nilsimsa_seed);
 
   case fragment_order_mode::EXPLICIT:
     return fmt::format("explicit:file={}", opts.explicit_order_file);
