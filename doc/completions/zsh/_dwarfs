@@ -74,6 +74,8 @@ case "$state" in
             "enable_nlink[obsolete; has no effect]" \
             "gid[override group ID for file system]:" \
             "imagesize[filesystem image size in bytes]:" \
+            "io_uring[enable io-uring]" \
+            "io_uring_q_depth[io-uring queue depth]:depth:" \
             "max_idle_threads[maximum number of idle worker threads (deprecated)]:" \
             "max_threads[maximum number of worker threads (10)]:" \
             "mlock[mlock mode]:mode:(none try must)" \
