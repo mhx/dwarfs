@@ -98,6 +98,11 @@
   has been improved allow detecting pretty much any corruption in the Frozen
   metadata without accessing out-of-bounds memory.
 
+- (feature) The multi-threaded O(n^2) clustering algorithm used for Nilsimsa
+  ordering has been replaced with a single-threaded, usually faster, and more
+  intuitively configurable O(n log n) algorithm. This new algorithm typically
+  outperforms the old one in both speed and quality of the resulting ordering.
+
 - (perf) Significantly reduce the memory overhead of `mkdwarfs`, especially
   in the context of scanning large numbers of files. Both the peak memory
   usage and the number of memory allocations have been reduced roughly by a
@@ -119,6 +124,12 @@
 
 - (perf) Improve segmenter throughput by using a blocked Bloom filter and
   caching cyclic hashes.
+
+- (other) The Boost.Process based pager has been replaced with a native
+  implementation that removes the dependency on both Boost.Process and
+  Boost.Asio. This saves roughly 35 KiB in the static release builds. Also,
+  the intermediate format used for rendering manpages has been optimized for
+  better compression and smaller size.
 
 ## Version 0.15.10 - 2026-11-14
 
