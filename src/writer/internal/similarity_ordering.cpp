@@ -667,6 +667,151 @@ void walk(walk_state&& s) {
 
 } // namespace
 
+/*
+
+Random projections
+------------------
+
+Each inode is represented by a 256-bit Nilsimsa fingerprint. Inodes with
+identical fingerprints are grouped together first. The remaining fingerprints
+are assigned a canonical rank, which also determines the starting point and
+makes tie-breaking deterministic.
+
+For each projection, the algorithm picks 64 distinct bit positions from the
+256-bit fingerprint, using a pseudorandom sequence. The selected bits form a
+64-bit sorting key. Neighbouring fingerprints tend to agree on many bits, so
+sorting by several different projections gives nearby fingerprints multiple
+chances to end up close to each other. The `passes` option sets the number
+of projections. The `seed` option can be used to generate different sequences
+of projections, which may yield different orderings.
+
+The projection keys are only needed while building the sorted lists. To keep
+sorting fast, a temporary 64-bit value combines the leading part of each key
+with its canonical rank. Entries with equal leading parts are sorted again
+using their complete projection keys.
+
+Each finished sorted projection stores the following information:
+
+* A packed array of canonical ranks, in projection-key order. Each rank uses
+  a width determined by the number of unique fingerprints, rather than a
+  fixed 32-bit integer. The array remains unchanged throughout the walk.
+
+* A directory that gives the start of each prefix bucket in the sorted array.
+  A bucket contains all ranks whose projection keys begin with the same bits.
+  The number of prefix bits is chosen automatically, aiming for about 64 to
+  128 ranks per bucket when keys are evenly distributed. The directory has
+  one entry for each possible prefix, plus a final end position. The start
+  of the next bucket also gives the end of the current one.
+
+* A bitmap of active positions, divided into blocks of 64 positions, with
+  links between nonempty blocks. Each block contains a 64-bit mask and two
+  block indices for its neighbours. This tracks which ranks are still
+  available without changing their positions in the sorted array.
+
+* Optionally, a few bits per canonical rank that help find its position in
+  the sorted array. These are controlled by `offset` and described below.
+
+For example, a projection with three prefix bits might look like this:
+
+             bucket 010       bucket 011         bucket 100
+           +--------------+------------------+----------+
+  position | 0   1   2    | 3   4   5   6    | 7   8    |
+  rank     | 18  7   34   | 12  4   27  9    | 3   21   |
+           +--------------+------------------+----------+
+
+  directory[010] = 0      directory[011] = 3
+  directory[100] = 7      directory[101] = 9
+
+The ranks are the identities of the fingerprints. Different projections
+contain the same ranks in different orders. The prefix directory makes
+it possible to search a small part of each array without keeping all
+the original 64-bit keys.
+
+Walking the projections
+-----------------------
+
+The walk starts with canonical rank zero. At each step, the current rank is
+found in every projection's sorted array. Its position is located using the
+prefix directory and, if enabled, the `offset` hints described below.
+
+The algorithm then looks at the nearest remaining positions in the sorted
+array on both sides of the current position. The `window` option controls
+how many active entries are examined on each side, in each projection.
+For example, with `window=2`:
+
+  projection 1:  ...  17   6  [12]  40   3  ...
+  projection 2:  ...   4  31  [12]   9  22  ...
+                               |
+                          current rank
+
+Here, both projections suggest candidates for rank 12. The candidates may
+be different because the two projections use different fingerprint bits.
+Entries already chosen earlier in the walk are skipped.
+
+Each candidate is scored using the Hamming distance between the complete
+256-bit fingerprints. The candidate with the smallest distance becomes the
+next rank in the path. Equal distances are resolved by canonical rank.
+This produces a greedy path that tries to keep consecutive fingerprints
+similar, which ultimately groups common data and helps the compressor.
+
+The algorithm uses two cursors per projection, one to search backwards and
+one to search forwards through the active positions. Each cursor takes the
+next set bit from a 64-bit bitmap. When a bitmap has no more active bits in
+that direction, the cursor follows a link to the next nonempty block.
+
+A block represents 64 consecutive positions in the sorted rank array. A set
+bit means the position is still active, while a cleared bit means that its
+rank has already been placed in the output path. Each block also stores
+links to the previous and next nonempty blocks.
+
+When the current rank is visited, the algorithm creates the two cursors
+around its sorted position and clears the corresponding bit in each
+projection. If this was the last active position in a block, that block
+is removed from the linked chain by updating its neighbours. The packed
+rank array and prefix directory remain unchanged. This keeps removal cheap
+and lets subsequent searches skip long runs of already used positions.
+
+When 256 or fewer fingerprints remain, the algorithm considers every
+remaining fingerprint to finish the path. Identical fingerprints are then
+expanded back into the final inode order.
+
+The `offset` option
+-------------------
+
+The walk repeatedly needs to find a canonical rank in each projection's
+sorted array. The rank's fingerprint determines its prefix bucket. The
+directory provides that bucket's start and end positions, but not the exact
+position of the rank within it.
+
+With `offset=0`, the algorithm searches the bucket directly. It scans small
+buckets and uses a binary search for larger ones. For the binary search, it
+compares the selected fingerprint bits as needed, since the complete sorting
+keys are no longer stored.
+
+With `offset=k`, each rank also stores the lowest k bits of its position
+*relative to the start of its bucket*. This is equivalent to storing that
+relative position modulo 2^k. Thus, only positions with the same remainder
+need to be searched.
+
+For example, suppose a bucket begins at position 200, has 12 entries, and
+rank 12 is at position 205. With `offset=2`, its relative position is 5, so
+the stored hint is `5 mod 4 = 1`:
+
+  bucket positions:  200 201 202 203 204 205 206 207 208 209 210 211
+  possible matches:      ^               ^               ^
+  ranks at matches:      ?              12               ?
+
+Instead of searching all 12 positions, the lookup only needs to consider
+201, 205 and 209. With `offset=4`, the hint would identify position 205
+immediately in this bucket. Larger buckets can still require a search, but
+the stride between possible matches grows with the number of offset bits.
+
+The default is `offset=8`. Larger values speed up these repeated lookups at
+the cost of a few more bits per rank and projection. The setting changes
+memory use and lookup time, but not the resulting inode order.
+
+*/
+
 nilsimsa_ordering_result
 order_nilsimsa_hashes(std::span<std::array<uint64_t, 4> const* const> hashes,
                       size_t passes, size_t window, size_t offset_bits,
