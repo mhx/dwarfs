@@ -43,7 +43,7 @@ enum class fragment_order_mode {
 struct fragment_order_options {
   static constexpr size_t kDefaultNilsimsaPasses{8};
   static constexpr size_t kDefaultNilsimsaWindow{24};
-  static constexpr size_t kDefaultNilsimsaOffsetBits{4};
+  static constexpr size_t kDefaultNilsimsaOffsetBits{8};
 
   fragment_order_mode mode{fragment_order_mode::NONE};
   size_t nilsimsa_passes{kDefaultNilsimsaPasses};

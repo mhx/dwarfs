@@ -1491,7 +1491,8 @@ step, the closest remaining entries in each sorted projection are considered as
 candidates, scored using the full 256-bit Hamming distance with canonical rank
 as tie-breaker. The final 256 entries are searched exhaustively.
 
-The default is equivalent to `--order=nilsimsa:passes=8:window=24:offset=4`.
+The default is equivalent to `--order=nilsimsa:passes=8:window=24:offset=8`,
+although higher compression level defaults can use more aggressive settings.
 
 - `passes` (1–32, default 8) sets the number of projections. More projections
   increase memory use and candidate diversity.
@@ -1500,7 +1501,7 @@ The default is equivalent to `--order=nilsimsa:passes=8:window=24:offset=4`.
   side of the current fingerprint, in each projection. Increasing the window
   costs time but does not increase projection storage.
 
-- `offset` (0–8, default 4) sets the width of bucket-local inverse-position
+- `offset` (0–8, default 8) sets the width of bucket-local inverse-position
   offsets. Zero omits these offsets. Larger widths trade memory for faster
   lookups, without changing the ordering.
 
