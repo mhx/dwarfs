@@ -146,6 +146,9 @@ _mkdwarfs_completion()
         --input-list-format
         --keep-all-times
         --label
+        --libmagic-category
+        --libmagic-database
+        --libmagic-max-bytes
         --log-level
         --log-with-context
         --max-similarity-size
@@ -235,7 +238,8 @@ _mkdwarfs_completion()
         shared_files names names_index symlinks symlinks_index force plain )
     # silent, no completion
     local OPTION_ARG_NONE=( --block-size-bits --chmod --compress-niceness
-        --filter --image-size-alignment --label --root-mode
+        --filter --image-size-alignment --label --libmagic-category
+        --libmagic-max-bytes --root-mode
         --incompressible-block-size --incompressible-min-input-size
         --incompressible-ratio --incompressible-zstd-level
         --max-similarity-size --num-file-prep-workers --file-prep-queue-size
@@ -303,7 +307,8 @@ _mkdwarfs_completion()
             _comp_compgen -a filedir
             return 0
             ;;
-        --header | --hotness-list | --input-list | -o | --output)
+        --header | --hotness-list | --input-list | --libmagic-database | \
+        -o | --output)
             _comp_compgen -a filedir
             return 0
             ;;
