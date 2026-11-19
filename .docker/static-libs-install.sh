@@ -597,6 +597,26 @@ if use_lib libarchive; then
         rm -rf libarchive-${LIBARCHIVE_VERSION}
         tar xf ${WORKROOT}/${LIBARCHIVE_TARBALL}
         cd libarchive-${LIBARCHIVE_VERSION}
+
+        # Disable per-entry umask query. We never change this during extraction,
+        # and this causes a *massive* 50% performance regression when extracting
+        # to disk.
+        patch -p1 <<'PATCH'
+diff --git a/libarchive/archive_write_disk_posix.c b/libarchive/archive_write_disk_posix.c
+index e62da665..e4ff57be 100644
+--- a/libarchive/archive_write_disk_posix.c
++++ b/libarchive/archive_write_disk_posix.c
+@@ -648,7 +648,7 @@ _archive_write_disk_header(struct archive *_a, struct archive_entry *entry)
+ 	 * user edits their umask during the extraction for some
+ 	 * reason.
+ 	 */
+-	a->user_umask = __archive_get_umask();
++	// a->user_umask = __archive_get_umask();
+ 
+ 	/* Figure out what we need to do for this entry. */
+ 	a->todo = TODO_MODE_BASE;
+PATCH
+
         # TODO: once DwarFS supports ACLs / xattrs, we need to update this
         ./configure ${TRIPLETS} --prefix="$prefix" \
                     --without-iconv --without-xml2 --without-expat \
