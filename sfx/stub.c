@@ -107,7 +107,7 @@ static void fmterr(char const* fmt, ...) {
 
 static void stub_perror(char const* msg) {
   int err = errno;
-  fmterr("%s: errno=%s\n", msg, err);
+  fmterr("%s: errno=%d\n", msg, err);
 }
 #endif
 
