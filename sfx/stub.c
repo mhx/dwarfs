@@ -90,10 +90,14 @@ static void fmterr(char const* fmt, ...) {
   va_start(ap, fmt);
   char buf[1024];
   int len = npf_vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+
   if (len > 0) {
+    if ((size_t)len >= sizeof(buf)) {
+      len = sizeof(buf) - 1;
+    }
     msgerr(buf, len);
   }
-  va_end(ap);
 }
 
 #if DWARFS_SFX_STUB_ENABLE_PERROR
