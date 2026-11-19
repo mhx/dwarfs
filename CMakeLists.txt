@@ -1357,7 +1357,13 @@ if(STATIC_BUILD_DO_NOT_USE)
 
     add_executable(sfxstub_zstd_minimal sfx/stub.c)
     target_compile_options(sfxstub_zstd_minimal PRIVATE -Oz)
-    target_compile_definitions(sfxstub_zstd_minimal PRIVATE DYNAMIC_BMI2=0)
+    target_compile_definitions(sfxstub_zstd_minimal PRIVATE
+      DYNAMIC_BMI2=0
+      HUF_FORCE_DECOMPRESS_X1=1
+      ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT=1
+      # ZSTD_NO_INLINE=1
+      # HUF_DISABLE_FAST_DECODE=1
+    )
 
     if(LIBLZ4_FOUND)
       add_executable(sfxstub_lz4 sfx/stub.c)
