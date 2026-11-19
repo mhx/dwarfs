@@ -517,12 +517,12 @@ if use_lib zstd; then
     tar xf ${WORKROOT}/${ZSTD_TARBALL}
     cd zstd-${ZSTD_VERSION}
 
-    # https://github.com/facebook/zstd/issues/4590
-    fetch.sh https://github.com/facebook/zstd/commit/81cf153bce7c0ab41aeef574a70e32eaea7a8ba7.diff - | patch -p1
-    # Fix unintended high memory usage (https://github.com/facebook/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a)
-    fetch.sh https://github.com/facebook/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a.diff - | patch -p1
-    # Add RISC-V 64-bit architecture detection (https://github.com/facebook/zstd/commit/71146f5b6d975d0b6d20426ee14ce28afbfb0d5a)
-    fetch.sh https://github.com/facebook/zstd/commit/71146f5b6d975d0b6d20426ee14ce28afbfb0d5a.diff - | patch -p1
+    # https://github.com/meta/zstd/issues/4590
+    fetch.sh https://github.com/meta/zstd/commit/81cf153bce7c0ab41aeef574a70e32eaea7a8ba7.diff - | patch -p1
+    # Fix unintended high memory usage (https://github.com/meta/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a)
+    fetch.sh https://github.com/meta/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a.diff - | patch -p1
+    # Add RISC-V 64-bit architecture detection (https://github.com/meta/zstd/commit/71146f5b6d975d0b6d20426ee14ce28afbfb0d5a)
+    fetch.sh https://github.com/meta/zstd/commit/71146f5b6d975d0b6d20426ee14ce28afbfb0d5a.diff - | patch -p1
 
     mkdir meson-build
     cd meson-build
