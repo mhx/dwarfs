@@ -30,7 +30,6 @@ add_library(
   src/byte_buffer.cpp
   src/checksum.cpp
   src/compression.cpp
-  src/compression_registry.cpp
   src/conv.cpp
   src/detail/file_extent_info.cpp
   src/detail/scoped_env.cpp
@@ -113,14 +112,12 @@ add_library(
 
   src/block_compressor.cpp
   src/block_compressor_parser.cpp
-  src/compressor_registry.cpp
 )
 
 add_library(
   dwarfs_decompressor
 
   src/block_decompressor.cpp
-  src/decompressor_registry.cpp
 )
 
 add_library(

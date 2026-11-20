@@ -27,15 +27,75 @@
  */
 
 #include <dwarfs/block_decompressor.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/config.h>
+#include <dwarfs/container/sorted_array_map.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/library_dependencies.h>
 #include <dwarfs/malloc_byte_buffer.h>
 
 namespace dwarfs {
 
+namespace {
+
+constexpr container::sorted_array_map decompressors{
+    std::pair{compression_type::NONE,
+              &detail::decompressor_factory_for<compression_type::NONE>},
+#ifdef DWARFS_HAVE_LIBLZMA
+    std::pair{compression_type::LZMA,
+              &detail::decompressor_factory_for<compression_type::LZMA>},
+#endif
+#ifdef DWARFS_HAVE_LIBZSTD
+    std::pair{compression_type::ZSTD,
+              &detail::decompressor_factory_for<compression_type::ZSTD>},
+#endif
+#ifdef DWARFS_HAVE_LIBLZ4
+    std::pair{compression_type::LZ4,
+              &detail::decompressor_factory_for<compression_type::LZ4>},
+#endif
+#ifdef DWARFS_HAVE_LIBLZ4
+    std::pair{compression_type::LZ4HC,
+              &detail::decompressor_factory_for<compression_type::LZ4HC>},
+#endif
+#ifdef DWARFS_HAVE_LIBBROTLI
+    std::pair{compression_type::BROTLI,
+              &detail::decompressor_factory_for<compression_type::BROTLI>},
+#endif
+#ifdef DWARFS_HAVE_FLAC
+    std::pair{compression_type::FLAC,
+              &detail::decompressor_factory_for<compression_type::FLAC>},
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+    std::pair{compression_type::RICEPP,
+              &detail::decompressor_factory_for<compression_type::RICEPP>},
+#endif
+#ifdef DWARFS_HAVE_LIBZXC
+    std::pair{compression_type::ZXC,
+              &detail::decompressor_factory_for<compression_type::ZXC>},
+#endif
+};
+
+} // namespace
+
+decompressor_factory const& get_decompressor_factory(compression_type type) {
+  if (auto factory = decompressors.get(type)) {
+    return (*factory)();
+  }
+
+  throw unsupported_compression_error(type);
+}
+
+void add_decompressor_library_dependencies(library_dependencies& deps) {
+  for (auto const& entry : decompressors) {
+    for (auto const& lib : entry.second().library_dependencies()) {
+      deps.add_library(lib);
+    }
+  }
+}
+
 block_decompressor::block_decompressor(compression_type type,
                                        std::span<uint8_t const> data) {
-  impl_ = decompressor_registry::instance().create(type, data);
+  impl_ = get_decompressor_factory(type).create(data);
 }
 
 shared_byte_buffer

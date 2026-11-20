@@ -30,8 +30,8 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/compressor_registry.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/compressor_factory.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>

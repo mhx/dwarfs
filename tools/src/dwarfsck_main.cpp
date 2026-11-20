@@ -51,7 +51,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
@@ -318,7 +318,7 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.contains("help") or !vm.contains("input")) {
     auto extra_deps = [](library_dependencies& deps) {
-      decompressor_registry::instance().add_library_dependencies(deps);
+      add_decompressor_library_dependencies(deps);
     };
     iol.out << tool::tool_header("dwarfsck", extra_deps) << usage << "\n"
             << opts << "\n";

@@ -38,6 +38,8 @@
 
 namespace dwarfs {
 
+class library_dependencies;
+
 class decompressor_info {
  public:
   virtual ~decompressor_info() = default;
@@ -53,4 +55,33 @@ class decompressor_factory : public decompressor_info {
   create(std::span<uint8_t const> data) const = 0;
 };
 
+namespace detail {
+
+template <compression_type Type>
+decompressor_factory const& decompressor_factory_for();
+
+#define DWARFS_DECLARE_DECOMPRESSOR_FACTORY_(name, value)                      \
+  template <>                                                                  \
+  decompressor_factory const&                                                  \
+  decompressor_factory_for<compression_type::name>();
+#define DWARFS_NO_SEPARATOR_
+DWARFS_COMPRESSION_TYPE_LIST(DWARFS_DECLARE_DECOMPRESSOR_FACTORY_,
+                             DWARFS_NO_SEPARATOR_)
+#undef DWARFS_NO_SEPARATOR_
+#undef DWARFS_DECLARE_DECOMPRESSOR_FACTORY_
+
+} // namespace detail
+
+decompressor_factory const& get_decompressor_factory(compression_type type);
+void add_decompressor_library_dependencies(library_dependencies& deps);
+
 } // namespace dwarfs
+
+#define REGISTER_DECOMPRESSOR_FACTORY(factory)                                 \
+  namespace detail {                                                           \
+  template <>                                                                  \
+  decompressor_factory const& decompressor_factory_for<factory::type>() {      \
+    static factory const instance;                                             \
+    return instance;                                                           \
+  }                                                                            \
+  }

@@ -100,7 +100,7 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -1586,7 +1586,7 @@ void print_fuse_help(std::ostream& os,
 
 void usage(std::ostream& os, safe_fuse_args const& args) {
   auto extra_deps = [](library_dependencies& deps) {
-    decompressor_registry::instance().add_library_dependencies(deps);
+    add_decompressor_library_dependencies(deps);
 #if FUSE_USE_VERSION >= 30
     deps.add_library("libfuse", ::fuse_pkgversion());
 #endif

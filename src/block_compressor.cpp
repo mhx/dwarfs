@@ -27,12 +27,93 @@
  */
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/compressor_registry.h>
+#include <dwarfs/compressor_factory.h>
+#include <dwarfs/config.h>
+#include <dwarfs/container/sorted_array_map.h>
+#include <dwarfs/error.h>
+#include <dwarfs/library_dependencies.h>
+#include <dwarfs/option_map.h>
 
 namespace dwarfs {
 
+namespace {
+
+constexpr container::sorted_array_map compressors{
+    std::pair{compression_type::NONE,
+              &detail::compressor_factory_for<compression_type::NONE>},
+#ifdef DWARFS_HAVE_LIBLZMA
+    std::pair{compression_type::LZMA,
+              &detail::compressor_factory_for<compression_type::LZMA>},
+#endif
+#ifdef DWARFS_HAVE_LIBZSTD
+    std::pair{compression_type::ZSTD,
+              &detail::compressor_factory_for<compression_type::ZSTD>},
+#endif
+#ifdef DWARFS_HAVE_LIBLZ4
+    std::pair{compression_type::LZ4,
+              &detail::compressor_factory_for<compression_type::LZ4>},
+#endif
+#ifdef DWARFS_HAVE_LIBLZ4
+    std::pair{compression_type::LZ4HC,
+              &detail::compressor_factory_for<compression_type::LZ4HC>},
+#endif
+#ifdef DWARFS_HAVE_LIBBROTLI
+    std::pair{compression_type::BROTLI,
+              &detail::compressor_factory_for<compression_type::BROTLI>},
+#endif
+#ifdef DWARFS_HAVE_FLAC
+    std::pair{compression_type::FLAC,
+              &detail::compressor_factory_for<compression_type::FLAC>},
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+    std::pair{compression_type::RICEPP,
+              &detail::compressor_factory_for<compression_type::RICEPP>},
+#endif
+#ifdef DWARFS_HAVE_LIBZXC
+    std::pair{compression_type::ZXC,
+              &detail::compressor_factory_for<compression_type::ZXC>},
+#endif
+};
+
+} // namespace
+
+compressor_factory const& get_compressor_factory(compression_type type) {
+  if (auto factory = compressors.get(type)) {
+    return (*factory)();
+  }
+
+  throw unsupported_compression_error(type);
+}
+
+void for_each_compressor(
+    std::function<void(compression_type, compressor_info const&)> const& fn) {
+  for (auto const& [type, get_factory] : compressors) {
+    fn(type, get_factory());
+  }
+}
+
+void add_compressor_library_dependencies(library_dependencies& deps) {
+  for (auto const& entry : compressors) {
+    for (auto const& lib : entry.second().library_dependencies()) {
+      deps.add_library(lib);
+    }
+  }
+}
+
 block_compressor::block_compressor(std::string const& spec) {
-  impl_ = compressor_registry::instance().create(spec);
+  option_map om(spec);
+
+  for (auto const& entry : compressors) {
+    auto const& factory = entry.second();
+
+    if (factory.name() == om.choice()) {
+      impl_ = factory.create(om);
+      om.report();
+      return;
+    }
+  }
+
+  DWARFS_THROW(runtime_error, "unknown compression: " + om.choice());
 }
 
 } // namespace dwarfs

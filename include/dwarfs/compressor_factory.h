@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <set>
 #include <span>
@@ -39,6 +40,7 @@
 namespace dwarfs {
 
 class option_map;
+class library_dependencies;
 
 class compressor_info {
  public:
@@ -57,4 +59,34 @@ class compressor_factory : public compressor_info {
   create(option_map& om) const = 0;
 };
 
+namespace detail {
+
+template <compression_type Type>
+compressor_factory const& compressor_factory_for();
+
+#define DWARFS_DECLARE_COMPRESSOR_FACTORY_(name, value)                        \
+  template <>                                                                  \
+  compressor_factory const& compressor_factory_for<compression_type::name>();
+#define DWARFS_NO_SEPARATOR_
+DWARFS_COMPRESSION_TYPE_LIST(DWARFS_DECLARE_COMPRESSOR_FACTORY_,
+                             DWARFS_NO_SEPARATOR_)
+#undef DWARFS_NO_SEPARATOR_
+#undef DWARFS_DECLARE_COMPRESSOR_FACTORY_
+
+} // namespace detail
+
+compressor_factory const& get_compressor_factory(compression_type type);
+void for_each_compressor(
+    std::function<void(compression_type, compressor_info const&)> const& fn);
+void add_compressor_library_dependencies(library_dependencies& deps);
+
 } // namespace dwarfs
+
+#define REGISTER_COMPRESSOR_FACTORY(factory)                                   \
+  namespace detail {                                                           \
+  template <>                                                                  \
+  compressor_factory const& compressor_factory_for<factory::type>() {          \
+    static factory const instance;                                             \
+    return instance;                                                           \
+  }                                                                            \
+  }

@@ -68,11 +68,11 @@
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
 #include <dwarfs/compiler.h>
-#include <dwarfs/compressor_registry.h>
+#include <dwarfs/compressor_factory.h>
 #include <dwarfs/config.h>
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/integral_value_parser.h>
@@ -910,8 +910,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   constexpr auto usage = "Usage: mkdwarfs [OPTIONS...] [SOURCE...]\n";
   auto extra_deps = [&catreg](library_dependencies& deps) {
-    compressor_registry::instance().add_library_dependencies(deps);
-    decompressor_registry::instance().add_library_dependencies(deps);
+    add_compressor_library_dependencies(deps);
+    add_decompressor_library_dependencies(deps);
     catreg.add_library_dependencies(deps);
   };
 
@@ -956,15 +956,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     iol.out << "\nCompression algorithms:\n";
 
-    compressor_registry::instance().for_each_algorithm(
-        [&iol](compression_type, compressor_info const& info) {
-          iol.out << fmt::format(
-              "  {:9}{}{}\n", info.name(), info.description(),
-              info.is_experimental() ? " [experimental]" : "");
-          for (auto const& opt : info.options()) {
-            iol.out << fmt::format("               {}\n", opt);
-          }
-        });
+    for_each_compressor([&iol](compression_type, compressor_info const& info) {
+      iol.out << fmt::format("  {:9}{}{}\n", info.name(), info.description(),
+                             info.is_experimental() ? " [experimental]" : "");
+      for (auto const& opt : info.options()) {
+        iol.out << fmt::format("               {}\n", opt);
+      }
+    });
 
     iol.out << "\nCategories:\n";
 
@@ -2155,11 +2153,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     compression_opt.visit_contextual(
         [&seen](auto, block_compressor const& bc) { seen.insert(bc.type()); });
 
-    auto const& reg = compressor_registry::instance();
-
     for (auto const& type : seen) {
-      if (reg.is_experimental(type)) {
-        LOG_WARN << "compression algorithm '" << reg.get_name(type)
+      auto const& factory = get_compressor_factory(type);
+      if (factory.is_experimental()) {
+        LOG_WARN << "compression algorithm '" << factory.name()
                  << "' is experimental, use with caution";
       }
     }

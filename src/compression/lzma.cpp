@@ -39,9 +39,9 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-#include <dwarfs/compressor_registry.h>
+#include <dwarfs/compressor_factory.h>
 #include <dwarfs/container/sorted_array_map.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>

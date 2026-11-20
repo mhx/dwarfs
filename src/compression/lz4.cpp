@@ -31,10 +31,10 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/compressor_registry.h>
+#include <dwarfs/compressor_factory.h>
 #include <dwarfs/container/endian.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>

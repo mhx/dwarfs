@@ -33,8 +33,8 @@
 #include <ricepp/create_decoder.h>
 #include <ricepp/create_encoder.h>
 
-#include <dwarfs/compressor_registry.h>
-#include <dwarfs/decompressor_registry.h>
+#include <dwarfs/compressor_factory.h>
+#include <dwarfs/decompressor_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
