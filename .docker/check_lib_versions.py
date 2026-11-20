@@ -20,7 +20,7 @@ repositories = [
     "Cyan4973/xxHash",
     "lz4/lz4",
     "google/brotli",
-    "facebook/zstd",
+    "meta/zstd",
     "libfuse/libfuse",
     # "microsoft/mimalloc",
     "jemalloc/jemalloc",
