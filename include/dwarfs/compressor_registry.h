@@ -37,6 +37,8 @@ class compressor_registry final : public detail::compressor_registry_base {
   static compressor_registry& instance();
 
   std::unique_ptr<block_compressor::impl> create(std::string_view spec) const;
+  std::string_view get_name(compression_type type) const;
+  bool is_experimental(compression_type type) const;
 
  private:
   compressor_registry();

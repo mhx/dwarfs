@@ -58,4 +58,12 @@ compressor_registry::create(std::string_view spec) const {
   return obj;
 }
 
+std::string_view compressor_registry::get_name(compression_type type) const {
+  return get_factory(type).name();
+}
+
+bool compressor_registry::is_experimental(compression_type type) const {
+  return get_factory(type).is_experimental();
+}
+
 } // namespace dwarfs

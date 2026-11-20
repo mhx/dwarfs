@@ -205,6 +205,8 @@ class lz4_compressor_factory final
  public:
   std::span<std::string const> options() const override { return {}; }
 
+  bool is_experimental() const override { return false; }
+
   std::unique_ptr<block_compressor::impl> create(option_map&) const override {
     return std::make_unique<lz4_block_compressor<lz4_compression_policy>>();
   }
@@ -223,6 +225,8 @@ class lz4hc_compressor_factory final
     : public lz4_compression_info<compressor_factory, compression_type::LZ4HC> {
  public:
   std::span<std::string const> options() const override { return options_; }
+
+  bool is_experimental() const override { return false; }
 
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {

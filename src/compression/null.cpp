@@ -123,6 +123,8 @@ class null_compressor_factory final
  public:
   std::span<std::string const> options() const override { return {}; }
 
+  bool is_experimental() const override { return false; }
+
   std::unique_ptr<block_compressor::impl> create(option_map&) const override {
     return std::make_unique<null_block_compressor>();
   }

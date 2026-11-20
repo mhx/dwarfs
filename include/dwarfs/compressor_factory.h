@@ -48,6 +48,7 @@ class compressor_info {
   virtual std::string_view description() const = 0;
   virtual std::span<std::string const> options() const = 0;
   virtual std::set<std::string> library_dependencies() const = 0;
+  virtual bool is_experimental() const = 0;
 };
 
 class compressor_factory : public compressor_info {

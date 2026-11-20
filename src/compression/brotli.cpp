@@ -701,6 +701,8 @@ class brotli_compressor_factory final
     return s_desc;
   }
 
+  bool is_experimental() const override { return false; }
+
   std::span<std::string const> options() const override { return options_; }
 
   std::set<std::string> library_dependencies() const override {

@@ -529,6 +529,8 @@ class flac_compressor_factory final
  public:
   std::span<std::string const> options() const override { return options_; }
 
+  bool is_experimental() const override { return false; }
+
   std::unique_ptr<block_compressor::impl>
   create(option_map& om) const override {
     return std::make_unique<flac_block_compressor>(om.get<uint32_t>("level", 5),

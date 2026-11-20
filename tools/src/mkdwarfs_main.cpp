@@ -958,7 +958,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     compressor_registry::instance().for_each_algorithm(
         [&iol](compression_type, compressor_info const& info) {
-          iol.out << fmt::format("  {:9}{}\n", info.name(), info.description());
+          iol.out << fmt::format(
+              "  {:9}{}{}\n", info.name(), info.description(),
+              info.is_experimental() ? " [experimental]" : "");
           for (auto const& opt : info.options()) {
             iol.out << fmt::format("               {}\n", opt);
           }
@@ -2139,6 +2141,28 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
+  }
+
+  // Check if we're using any experimental compression algorithms.
+  {
+    std::unordered_set<compression_type> seen;
+
+    for (auto const& bc :
+         {schema_bc, metadata_bc, history_bc, compression_opt.get()}) {
+      seen.insert(bc.type());
+    }
+
+    compression_opt.visit_contextual(
+        [&seen](auto, block_compressor const& bc) { seen.insert(bc.type()); });
+
+    auto const& reg = compressor_registry::instance();
+
+    for (auto const& type : seen) {
+      if (reg.is_experimental(type)) {
+        LOG_WARN << "compression algorithm '" << reg.get_name(type)
+                 << "' is experimental, use with caution";
+      }
+    }
   }
 
   // Defer starting worker and progress threads until after option validation.
