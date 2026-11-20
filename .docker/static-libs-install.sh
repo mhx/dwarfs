@@ -23,7 +23,7 @@ if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd,zxc"
     if [[ "$COMPILER" == clang* ]] && [[ "$TARGET_ARCH" != "arm" ]]; then
       # add llvm to PKGS
       PKGS="llvm${PKGS:+,$PKGS}"
@@ -491,6 +491,21 @@ if use_lib lz4; then
     mkdir build
     cd build
     cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON ${CMAKE_ARGS}
+    $NINJA_PARALLEL
+    ninja install
+fi
+
+if use_lib zxc; then
+    opt_size
+    cd "$WORKDIR"
+    tar xf ${WORKROOT}/${ZXC_TARBALL}
+    cd zxc-${ZXC_VERSION}
+
+    mkdir meson-build
+    cd meson-build
+    meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
+    meson configure -D build_cli=false
+    meson setup --reconfigure ..
     $NINJA_PARALLEL
     ninja install
 fi

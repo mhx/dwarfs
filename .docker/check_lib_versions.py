@@ -21,6 +21,7 @@ repositories = [
     "lz4/lz4",
     "google/brotli",
     "meta/zstd",
+    "hellobertrand/zxc",
     "libfuse/libfuse",
     # "microsoft/mimalloc",
     "jemalloc/jemalloc",
