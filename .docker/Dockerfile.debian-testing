@@ -44,6 +44,7 @@ RUN apt install -y \
         liblz4-dev \
         liblzma-dev \
         libzstd-dev \
+        libzxc-dev \
         libxxhash-dev \
         libmagic-dev \
         libparallel-hashmap-dev \
