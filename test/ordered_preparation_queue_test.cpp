@@ -1,5 +1,8 @@
 /* vim:set ts=2 sw=2 sts=2 et: */
 /**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
  * This file is part of dwarfs.
  *
  * dwarfs is free software: you can redistribute it and/or modify
