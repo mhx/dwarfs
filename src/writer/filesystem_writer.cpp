@@ -958,7 +958,7 @@ void filesystem_writer_<LoggerPolicy>::write_block_impl(
   std::shared_ptr<compression_progress> pctx;
 
   {
-    std::unique_lock lock(mx_);
+    std::lock_guard lock(mx_);
 
     pctx = ensure_progress_context_nolock();
   }
@@ -982,7 +982,7 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
   uint32_t number;
 
   {
-    std::unique_lock lock(mx_);
+    std::lock_guard lock(mx_);
 
     // TODO: move all section_number_ stuff to writer thread
     //       we probably can't do that if we want to build
@@ -1016,7 +1016,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
   uint32_t number;
 
   {
-    std::unique_lock lock(mx_);
+    std::lock_guard lock(mx_);
 
     auto pctx = ensure_progress_context_nolock();
     auto fsb =
