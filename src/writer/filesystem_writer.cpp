@@ -1174,7 +1174,8 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
     std::lock_guard lock(mx_);
 
     auto pctx = ensure_progress_context_nolock();
-    auto fsb = std::make_unique<fsblock>(options_, sec, segment, pctx);
+    auto fsb =
+        std::make_unique<fsblock>(options_, sec, std::move(segment), pctx);
 
     fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
