@@ -1295,18 +1295,22 @@ void filesystem_writer_<LoggerPolicy>::start_write_filesystem() {
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::copy_header(
     file_extents_iterable header) {
-  if (!options_.remove_header) {
-    if (header_) {
-      LOG_WARN << "replacing old header";
-    } else {
-      for (auto const& ext : header) {
-        for (auto const& seg : ext.segments()) {
-          write(seg.span<uint8_t>());
-        }
-      }
-      header_size_ = size();
+  if (options_.remove_header) {
+    return;
+  }
+
+  if (header_) {
+    LOG_WARN << "replacing old header";
+    return;
+  }
+
+  for (auto const& ext : header) {
+    for (auto const& seg : ext.segments()) {
+      write(seg.span<uint8_t>());
     }
   }
+
+  header_size_ = size();
 }
 
 template <typename LoggerPolicy>
