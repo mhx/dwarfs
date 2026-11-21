@@ -52,6 +52,7 @@
 #include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/completion_gate.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/thread_util.h>
 #include <dwarfs/internal/worker_group.h>
@@ -285,10 +286,9 @@ class raw_fsblock : public fsblock::impl {
   }
 
   void compress(worker_group& wg, std::optional<std::string> meta) override {
-    std::promise<void> prom;
-    compression_future_ = prom.get_future();
+    future_ = header_promise_.get_future();
 
-    wg.add_job([this, prom = std::move(prom), meta = std::move(meta)] mutable {
+    wg.add_job([this, meta = std::move(meta)] mutable {
       try {
         shared_byte_buffer tmp;
         auto const start = boost::chrono::thread_clock::now();
@@ -312,24 +312,18 @@ class raw_fsblock : public fsblock::impl {
         }
       } catch (bad_compression_ratio_error const&) {
         comp_type_ = compression_type::NONE;
+      } catch (...) {
+        header_promise_.set_exception(std::current_exception());
+        return;
       }
 
-      prom.set_value();
+      header_gate_.arrive([this] { finish_header(); });
     });
   }
 
   void build_header(worker_group& wg) {
-    std::promise<section_header_v2> prom;
-    future_ = prom.get_future();
-
-    wg.add_job([this, prom = std::move(prom)] mutable {
-      try {
-        compression_future_.get();
-        prom.set_value(fsblock::build_section_header(options_, *this));
-      } catch (...) {
-        prom.set_exception(std::current_exception());
-      }
-    });
+    header_gate_.arrive(
+        [this, &wg] { wg.add_job([this] { finish_header(); }); });
   }
 
   section_type type() const override { return type_; }
@@ -375,12 +369,21 @@ class raw_fsblock : public fsblock::impl {
   }
 
  private:
+  void finish_header() {
+    try {
+      header_promise_.set_value(fsblock::build_section_header(options_, *this));
+    } catch (...) {
+      header_promise_.set_exception(std::current_exception());
+    }
+  }
+
   section_type const type_;
   block_compressor const& bc_;
   size_t const uncompressed_size_;
   mutable std::mutex mx_;
   shared_byte_buffer data_;
-  std::future<void> compression_future_;
+  std::promise<section_header_v2> header_promise_;
+  completion_gate<2> header_gate_;
   std::optional<uint32_t> section_number_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
