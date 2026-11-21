@@ -181,8 +181,8 @@ class fsblock {
   fsblock(filesystem_writer_options const& options, section_type type,
           block_compressor const& bc, delayed_data_fn_type data,
           size_t compressed_size, size_t uncompressed_size,
-          std::shared_ptr<compression_progress> pctx,
-          std::condition_variable& cond);
+          std::shared_ptr<compression_progress> pctx, std::mutex& queue_mx,
+          std::condition_variable& space_available);
 
   void
   compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
@@ -477,7 +477,8 @@ class rewritten_fsblock : public fsblock::impl {
                     block_compressor const& bc, delayed_data_fn_type data,
                     size_t compressed_size, size_t uncompressed_size,
                     std::shared_ptr<compression_progress> pctx,
-                    std::condition_variable& cond)
+                    std::mutex& queue_mx,
+                    std::condition_variable& space_available)
       : type_{type}
       , bc_{bc}
       , data_{std::move(data)}
@@ -486,7 +487,8 @@ class rewritten_fsblock : public fsblock::impl {
       , compressed_size_{compressed_size}
       , uncompressed_size_{uncompressed_size}
       , compressor_mem_usage_{bc.estimate_memory_usage(uncompressed_size)}
-      , cond_{cond}
+      , queue_mx_{queue_mx}
+      , space_available_{space_available}
       , options_{options} {
     DWARFS_CHECK(bc_, "block_compressor must not be null");
   }
@@ -577,12 +579,13 @@ class rewritten_fsblock : public fsblock::impl {
       pctx_->bytes_out += block.size();
 
       {
-        std::lock_guard lock(mx_);
+        std::lock_guard queue_lock(queue_mx_);
+        std::lock_guard block_lock(mx_);
         block_data_.emplace(std::move(block));
         compression_time_ = duration.count();
       }
 
-      cond_.notify_one();
+      space_available_.notify_all();
 
       prom.set_value(fsblock::build_section_header(options_, *this));
     } catch (...) {
@@ -602,7 +605,8 @@ class rewritten_fsblock : public fsblock::impl {
   size_t const uncompressed_size_;
   size_t const compressor_mem_usage_;
   double compression_time_{0.0};
-  std::condition_variable& cond_;
+  std::mutex& queue_mx_;
+  std::condition_variable& space_available_;
   filesystem_writer_options const& options_;
 };
 
@@ -629,10 +633,10 @@ fsblock::fsblock(filesystem_writer_options const& options, section_type type,
                  block_compressor const& bc, delayed_data_fn_type data,
                  size_t compressed_size, size_t uncompressed_size,
                  std::shared_ptr<compression_progress> pctx,
-                 std::condition_variable& cond)
+                 std::mutex& queue_mx, std::condition_variable& space_available)
     : impl_(std::make_unique<rewritten_fsblock>(
           options, type, bc, std::move(data), compressed_size,
-          uncompressed_size, std::move(pctx), cond)) {}
+          uncompressed_size, std::move(pctx), queue_mx, space_available)) {}
 
 section_header_v2
 fsblock::build_section_header(filesystem_writer_options const& opts,
@@ -788,7 +792,8 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   std::deque<block_holder_type> queue_;
   std::shared_ptr<compression_progress> pctx_;
   mutable std::mutex mx_;
-  std::condition_variable cond_;
+  std::condition_variable work_available_;
+  std::condition_variable space_available_;
   bool stop_requested_{false};
   std::thread writer_thread_;
   uint32_t section_number_{0};
@@ -842,7 +847,8 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
     {
       std::unique_lock lock(mx_);
 
-      cond_.wait(lock, [this] { return stop_requested_ || !queue_.empty(); });
+      work_available_.wait(
+          lock, [this] { return stop_requested_ || !queue_.empty(); });
 
       if (queue_.empty()) {
         break;
@@ -874,7 +880,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
       }
     }
 
-    cond_.notify_one();
+    space_available_.notify_all();
   }
 }
 
@@ -980,6 +986,8 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
   {
     std::lock_guard lock(mx_);
 
+    assert(!stop_requested_);
+
     // TODO: move all section_number_ stuff to writer thread
     //       we probably can't do that if we want to build
     //       metadata in the background as we need to know
@@ -995,7 +1003,7 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
 
   LOG_DEBUG << "merged block " << number;
 
-  cond_.notify_one();
+  work_available_.notify_one();
 }
 
 template <typename LoggerPolicy>
@@ -1014,6 +1022,8 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
   {
     std::lock_guard lock(mx_);
 
+    assert(!stop_requested_);
+
     auto pctx = ensure_progress_context_nolock();
     auto fsb =
         std::make_unique<fsblock>(options_, type, bc, std::move(data), pctx);
@@ -1028,7 +1038,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
 
   LOG_DEBUG << "write section " << number;
 
-  cond_.notify_one();
+  work_available_.notify_one();
 }
 
 template <typename LoggerPolicy>
@@ -1077,30 +1087,33 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
 
     auto pctx = ensure_progress_context_nolock();
     auto& bc = get_compressor(type, cat);
-    cond_.wait(lock, [this, this_section_mem =
-                                compressed_size +
-                                bc.estimate_memory_usage(uncompressed_size)] {
-      if (queue_.empty()) {
-        return true;
-      }
+    space_available_.wait(
+        lock,
+        [this, this_section_mem = compressed_size +
+                                  bc.estimate_memory_usage(uncompressed_size)] {
+          if (queue_.empty()) {
+            return true;
+          }
 
-      auto mem = mem_used();
+          auto mem = mem_used();
 
-      if (mem + this_section_mem <= options_.max_queue_size) {
-        return true;
-      }
+          if (mem + this_section_mem <= options_.max_queue_size) {
+            return true;
+          }
 
-      LOG_VERBOSE << "waiting for queue to drain (" << queue_.size()
-                  << " jobs, " << size_with_unit(mem) << " + "
-                  << size_with_unit(this_section_mem) << " > "
-                  << size_with_unit(options_.max_queue_size) << ")";
+          LOG_VERBOSE << "waiting for queue to drain (" << queue_.size()
+                      << " jobs, " << size_with_unit(mem) << " + "
+                      << size_with_unit(this_section_mem) << " > "
+                      << size_with_unit(options_.max_queue_size) << ")";
 
-      return false;
-    });
+          return false;
+        });
+
+    assert(!stop_requested_);
 
     auto fsb = std::make_unique<fsblock>(options_, type, bc, std::move(data),
                                          compressed_size, uncompressed_size,
-                                         pctx, cond_);
+                                         pctx, mx_, space_available_);
 
     fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
@@ -1108,7 +1121,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
     queue_.emplace_back(std::move(fsb));
   }
 
-  cond_.notify_one();
+  work_available_.notify_one();
 }
 
 template <typename LoggerPolicy>
@@ -1169,6 +1182,8 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
   {
     std::lock_guard lock(mx_);
 
+    assert(!stop_requested_);
+
     auto pctx = ensure_progress_context_nolock();
     auto fsb =
         std::make_unique<fsblock>(options_, sec, std::move(segment), pctx);
@@ -1179,7 +1194,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
     queue_.emplace_back(std::move(fsb));
   }
 
-  cond_.notify_one();
+  work_available_.notify_one();
 }
 
 template <typename LoggerPolicy>
@@ -1385,7 +1400,7 @@ void filesystem_writer_<LoggerPolicy>::flush() {
     stop_requested_ = true;
   }
 
-  cond_.notify_one();
+  work_available_.notify_one();
 
   writer_thread_.join();
 
