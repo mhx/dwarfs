@@ -275,7 +275,7 @@ class raw_fsblock : public fsblock::impl {
 
   void compress(worker_group& wg, std::optional<std::string> meta) override {
     std::promise<void> prom;
-    future_ = prom.get_future();
+    compression_future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom), meta = std::move(meta)] mutable {
       try {
@@ -307,7 +307,27 @@ class raw_fsblock : public fsblock::impl {
     });
   }
 
-  void wait_until_compressed() override { future_.wait(); }
+  void build_header(worker_group& wg) {
+    std::promise<void> prom;
+    header_future_ = prom.get_future();
+
+    wg.add_job([this, prom = std::move(prom)] mutable {
+      try {
+        compression_future_.get();
+        section_header_v2 sh{};
+        fsblock::build_section_header(options_, sh, *this);
+        {
+          std::lock_guard lock(mx_);
+          header_ = std::move(sh);
+        }
+        prom.set_value();
+      } catch (...) {
+        prom.set_exception(std::current_exception());
+      }
+    });
+  }
+
+  void wait_until_compressed() override { header_future_.get(); }
 
   section_type type() const override { return type_; }
 
@@ -353,10 +373,6 @@ class raw_fsblock : public fsblock::impl {
 
   section_header_v2 const& header() const override {
     std::lock_guard lock(mx_);
-    if (!header_) {
-      header_ = section_header_v2{};
-      fsblock::build_section_header(options_, *header_, *this);
-    }
     return header_.value();
   }
 
@@ -366,9 +382,10 @@ class raw_fsblock : public fsblock::impl {
   size_t const uncompressed_size_;
   mutable std::recursive_mutex mx_;
   shared_byte_buffer data_;
-  std::future<void> future_;
+  std::future<void> compression_future_;
+  std::future<void> header_future_;
   std::optional<uint32_t> section_number_;
-  std::optional<section_header_v2> mutable header_;
+  std::optional<section_header_v2> header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
   move_only_function<void(size_t)> set_block_cb_;
@@ -980,7 +997,9 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
     //       the section numbers for that
     number = section_number_;
     holder.value()->set_section_num(section_number_++);
-    holder.value()->as<raw_fsblock>().set_block_num(block_number_++);
+    auto& raw = holder.value()->as<raw_fsblock>();
+    raw.set_block_num(block_number_++);
+    raw.build_header(wg_);
 
     queue_.emplace_back(std::move(holder));
   }
@@ -1016,6 +1035,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
     number = section_number_;
     fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
+    fsb->template as<raw_fsblock>().build_header(wg_);
 
     queue_.emplace_back(std::move(fsb));
   }
