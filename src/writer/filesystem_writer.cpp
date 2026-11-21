@@ -196,9 +196,18 @@ class fsblock {
   size_t estimated_mem_usage() const { return impl_->estimated_mem_usage(); }
   double compression_time() const { return impl_->compression_time(); }
   void set_section_num(uint32_t number) { impl_->set_section_num(number); }
-  void set_block_num(uint32_t number) { impl_->set_block_num(number); }
   uint32_t section_num() const { return impl_->section_num(); }
   section_header_v2 const& header() const { return impl_->header(); }
+
+  template <typename T>
+  T& as() {
+    return dynamic_cast<T&>(*impl_);
+  }
+
+  template <typename T>
+  T const& as() const {
+    return dynamic_cast<T const&>(*impl_);
+  }
 
   class impl {
    public:
@@ -216,7 +225,6 @@ class fsblock {
     virtual size_t estimated_mem_usage() const = 0;
     virtual double compression_time() const = 0;
     virtual void set_section_num(uint32_t number) = 0;
-    virtual void set_block_num(uint32_t number) = 0;
     virtual uint32_t section_num() const = 0;
     virtual section_header_v2 const& header() const = 0;
   };
@@ -332,7 +340,7 @@ class raw_fsblock : public fsblock::impl {
     section_number_ = number;
   }
 
-  void set_block_num(uint32_t number) override {
+  void set_block_num(uint32_t number) {
     if (set_block_cb_) {
       set_block_cb_(number);
     }
@@ -432,10 +440,6 @@ class compressed_fsblock : public fsblock::impl {
 
   void set_section_num(uint32_t number) override { number_ = number; }
   uint32_t section_num() const override { return number_.value(); }
-  void set_block_num(uint32_t /* number */) override {
-    DWARFS_PANIC("compressed_fsblock does not support block numbers");
-  }
-
   section_header_v2 const& header() const override { return header_; }
 
  private:
@@ -533,10 +537,6 @@ class rewritten_fsblock : public fsblock::impl {
   uint32_t section_num() const override {
     std::lock_guard lock(mx_);
     return number_.value();
-  }
-
-  void set_block_num(uint32_t /* number */) override {
-    DWARFS_PANIC("rewritten_fsblock does not support block numbers");
   }
 
   section_header_v2 const& header() const override {
@@ -980,7 +980,7 @@ void filesystem_writer_<LoggerPolicy>::on_block_merged(
     //       the section numbers for that
     number = section_number_;
     holder.value()->set_section_num(section_number_++);
-    holder.value()->set_block_num(block_number_++);
+    holder.value()->as<raw_fsblock>().set_block_num(block_number_++);
 
     queue_.emplace_back(std::move(holder));
   }
