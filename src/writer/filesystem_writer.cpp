@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -186,6 +187,7 @@ class fsblock {
   compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
     impl_->compress(wg, std::move(meta));
   }
+
   void wait_until_compressed() { impl_->wait_until_compressed(); }
   section_type type() const { return impl_->type(); }
   compression_type compression() const { return impl_->compression(); }
@@ -215,7 +217,11 @@ class fsblock {
 
     virtual void
     compress(worker_group& wg, std::optional<std::string> meta) = 0;
-    virtual void wait_until_compressed() = 0;
+
+    void wait_until_compressed() { header_ = future_.get(); }
+
+    section_header_v2 const& header() const { return header_.value(); }
+
     virtual section_type type() const = 0;
     virtual compression_type compression() const = 0;
     virtual std::string description() const = 0;
@@ -226,12 +232,17 @@ class fsblock {
     virtual double compression_time() const = 0;
     virtual void set_section_num(uint32_t number) = 0;
     virtual uint32_t section_num() const = 0;
-    virtual section_header_v2 const& header() const = 0;
+
+   protected:
+    std::future<section_header_v2> future_;
+
+   private:
+    std::optional<section_header_v2> header_;
   };
 
-  static void
+  static section_header_v2
   build_section_header(filesystem_writer_options const& opts,
-                       section_header_v2& sh, fsblock::impl const& fsb,
+                       fsblock::impl const& fsb,
                        std::optional<fs_section> const& sec = std::nullopt);
 
  private:
@@ -308,26 +319,18 @@ class raw_fsblock : public fsblock::impl {
   }
 
   void build_header(worker_group& wg) {
-    std::promise<void> prom;
-    header_future_ = prom.get_future();
+    std::promise<section_header_v2> prom;
+    future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom)] mutable {
       try {
         compression_future_.get();
-        section_header_v2 sh{};
-        fsblock::build_section_header(options_, sh, *this);
-        {
-          std::lock_guard lock(mx_);
-          header_ = std::move(sh);
-        }
-        prom.set_value();
+        prom.set_value(fsblock::build_section_header(options_, *this));
       } catch (...) {
         prom.set_exception(std::current_exception());
       }
     });
   }
-
-  void wait_until_compressed() override { header_future_.get(); }
 
   section_type type() const override { return type_; }
 
@@ -371,21 +374,14 @@ class raw_fsblock : public fsblock::impl {
     return section_number_.value();
   }
 
-  section_header_v2 const& header() const override {
-    std::lock_guard lock(mx_);
-    return header_.value();
-  }
-
  private:
   section_type const type_;
   block_compressor const& bc_;
   size_t const uncompressed_size_;
-  mutable std::recursive_mutex mx_;
+  mutable std::mutex mx_;
   shared_byte_buffer data_;
   std::future<void> compression_future_;
-  std::future<void> header_future_;
   std::optional<uint32_t> section_number_;
-  std::optional<section_header_v2> header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
   move_only_function<void(size_t)> set_block_cb_;
@@ -427,20 +423,22 @@ class compressed_fsblock : public fsblock::impl {
 
   void
   compress(worker_group& wg, std::optional<std::string> /* meta */) override {
-    std::promise<void> prom;
+    std::promise<section_header_v2> prom;
     future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom)] mutable {
-      fsblock::build_section_header(options_, header_, *this, sec_);
-      if (pctx_) {
-        pctx_->bytes_in += size();
-        pctx_->bytes_out += size();
+      try {
+        auto sh = fsblock::build_section_header(options_, *this, sec_);
+        if (pctx_) {
+          pctx_->bytes_in += size();
+          pctx_->bytes_out += size();
+        }
+        prom.set_value(std::move(sh));
+      } catch (...) {
+        prom.set_exception(std::current_exception());
       }
-      prom.set_value();
     });
   }
-
-  void wait_until_compressed() override { future_.wait(); }
 
   section_type type() const override { return type_; }
   compression_type compression() const override { return compression_; }
@@ -457,7 +455,6 @@ class compressed_fsblock : public fsblock::impl {
 
   void set_section_num(uint32_t number) override { number_ = number; }
   uint32_t section_num() const override { return number_.value(); }
-  section_header_v2 const& header() const override { return header_; }
 
  private:
   section_type const type_;
@@ -465,9 +462,7 @@ class compressed_fsblock : public fsblock::impl {
   std::span<uint8_t const> range_;
   // This is only used to keep the file segment data alive.
   file_segment segment_;
-  std::future<void> future_;
   std::optional<uint32_t> number_;
-  section_header_v2 header_;
   std::shared_ptr<compression_progress> pctx_;
   std::optional<fs_section> sec_;
   filesystem_writer_options const& options_;
@@ -497,15 +492,13 @@ class rewritten_fsblock : public fsblock::impl {
     DWARFS_CHECK(!meta,
                  "metadata not supported for rewritten_fsblock::compress");
 
-    std::promise<void> prom;
+    std::promise<section_header_v2> prom;
     future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom)] mutable {
       compress_job(std::move(prom));
     });
   }
-
-  void wait_until_compressed() override { future_.get(); }
 
   section_type type() const override { return type_; }
 
@@ -556,17 +549,8 @@ class rewritten_fsblock : public fsblock::impl {
     return number_.value();
   }
 
-  section_header_v2 const& header() const override {
-    std::lock_guard lock(mx_);
-    if (!header_) {
-      header_ = section_header_v2{};
-      fsblock::build_section_header(options_, *header_, *this);
-    }
-    return header_.value();
-  }
-
  private:
-  void compress_job(std::promise<void> prom) {
+  void compress_job(std::promise<section_header_v2> prom) {
     try {
       auto [block, meta] = data_();
 
@@ -597,7 +581,7 @@ class rewritten_fsblock : public fsblock::impl {
 
       cond_.notify_one();
 
-      prom.set_value();
+      prom.set_value(fsblock::build_section_header(options_, *this));
     } catch (...) {
       prom.set_exception(std::current_exception());
     }
@@ -605,12 +589,10 @@ class rewritten_fsblock : public fsblock::impl {
 
   section_type const type_;
   block_compressor const& bc_;
-  mutable std::recursive_mutex mx_;
+  mutable std::mutex mx_;
   delayed_data_fn_type data_;
   std::optional<shared_byte_buffer> block_data_;
-  std::future<void> future_;
   std::optional<uint32_t> number_;
-  std::optional<section_header_v2> mutable header_;
   compression_type comp_type_;
   std::shared_ptr<compression_progress> pctx_;
   size_t const compressed_size_;
@@ -649,10 +631,11 @@ fsblock::fsblock(filesystem_writer_options const& options, section_type type,
           options, type, bc, std::move(data), compressed_size,
           uncompressed_size, std::move(pctx), cond)) {}
 
-void fsblock::build_section_header(filesystem_writer_options const& opts,
-                                   section_header_v2& sh,
-                                   fsblock::impl const& fsb,
-                                   std::optional<fs_section> const& sec) {
+section_header_v2
+fsblock::build_section_header(filesystem_writer_options const& opts,
+                              fsblock::impl const& fsb,
+                              std::optional<fs_section> const& sec) {
+  section_header_v2 sh{};
   auto range = fsb.data();
 
   ::memcpy(sh.magic.data(), "DWARFS", 6);
@@ -684,7 +667,7 @@ void fsblock::build_section_header(filesystem_writer_options const& opts,
       if (xxh && sha && sha->size() == sh.sha2_512_256.size()) {
         sh.xxh3_64 = xxh.value();
         std::ranges::copy(*sha, sh.sha2_512_256.data());
-        return;
+        return sh;
       }
     }
   }
@@ -701,6 +684,8 @@ void fsblock::build_section_header(filesystem_writer_options const& opts,
   sha.update(range.data(), range.size());
   DWARFS_CHECK(sha.finalize(sh.sha2_512_256.data()),
                "SHA512/256 checksum failed");
+
+  return sh;
 }
 
 } // namespace
