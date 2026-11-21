@@ -1040,13 +1040,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
     compression_type compression, std::span<uint8_t const> data,
     std::optional<fragment_category::value_type> cat,
     std::optional<std::string> cat_metadata, block_compression_info* info) {
-  block_compressor const* bc{nullptr};
-
-  if (cat) {
-    bc = &compressor_for_category(*cat);
-  } else {
-    bc = &default_bc_.value();
-  }
+  auto const& bc = cat ? compressor_for_category(*cat) : default_bc_.value();
 
   block_decompressor bd(compression, data);
 
@@ -1054,7 +1048,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
     cat_metadata = bd.metadata();
   }
 
-  if (auto reqstr = bc->metadata_requirements(); !reqstr.empty()) {
+  if (auto reqstr = bc.metadata_requirements(); !reqstr.empty()) {
     auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
     try {
@@ -1063,7 +1057,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
       auto msg = fmt::format(
           "cannot compress {} compressed block with compressor '{}' because "
           "the following metadata requirements are not met: {}",
-          get_compression_name(compression), bc->describe(), e.what());
+          get_compression_name(compression), bc.describe(), e.what());
       DWARFS_THROW(runtime_error, msg);
     }
   }
@@ -1072,7 +1066,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
     info->uncompressed_size = bd.uncompressed_size();
     info->metadata = std::move(cat_metadata);
     if (info->metadata) {
-      info->constraints = bc->get_compression_constraints(*info->metadata);
+      info->constraints = bc.get_compression_constraints(*info->metadata);
     }
   }
 }
