@@ -763,6 +763,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
       std::optional<fragment_category::value_type> cat);
   void on_block_merged(block_holder_type holder);
   void write_section_impl(section_type type, shared_byte_buffer data);
+  std::shared_ptr<compression_progress> ensure_progress_context_nolock();
   void write(fsblock const& fsb);
   void write(char const* data, size_t size);
   template <typename T>
@@ -943,6 +944,15 @@ filesystem_writer_<LoggerPolicy>::compressor_for_category(
 }
 
 template <typename LoggerPolicy>
+std::shared_ptr<compression_progress>
+filesystem_writer_<LoggerPolicy>::ensure_progress_context_nolock() {
+  if (!pctx_) {
+    pctx_ = prog_.create_context<compression_progress>();
+  }
+  return pctx_;
+}
+
+template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_block_impl(
     fragment_category cat, shared_byte_buffer data, block_compressor const& bc,
     std::optional<std::string> meta, physical_block_cb_type physical_block_cb) {
@@ -953,11 +963,7 @@ void filesystem_writer_<LoggerPolicy>::write_block_impl(
   {
     std::unique_lock lock(mx_);
 
-    if (!pctx_) {
-      pctx_ = prog_.create_context<compression_progress>();
-    }
-
-    pctx = pctx_;
+    pctx = ensure_progress_context_nolock();
   }
 
   LOG_DEBUG << "compressor memory usage: "
@@ -1015,12 +1021,9 @@ void filesystem_writer_<LoggerPolicy>::write_section_impl(
   {
     std::unique_lock lock(mx_);
 
-    if (!pctx_) {
-      pctx_ = prog_.create_context<compression_progress>();
-    }
-
+    auto pctx = ensure_progress_context_nolock();
     auto fsb =
-        std::make_unique<fsblock>(options_, type, bc, std::move(data), pctx_);
+        std::make_unique<fsblock>(options_, type, bc, std::move(data), pctx);
 
     number = section_number_;
     fsb->set_section_num(section_number_++);
@@ -1085,10 +1088,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
   {
     std::unique_lock lock(mx_);
 
-    if (!pctx_) {
-      pctx_ = prog_.create_context<compression_progress>();
-    }
-
+    auto pctx = ensure_progress_context_nolock();
     auto& bc = get_compressor(type, cat);
     cond_.wait(lock, [this, this_section_mem =
                                 compressed_size +
@@ -1113,7 +1113,7 @@ void filesystem_writer_<LoggerPolicy>::rewrite_section_delayed_data(
 
     auto fsb = std::make_unique<fsblock>(options_, type, bc, std::move(data),
                                          compressed_size, uncompressed_size,
-                                         pctx_, cond_);
+                                         pctx, cond_);
 
     fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
@@ -1182,11 +1182,8 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
   {
     std::lock_guard lock(mx_);
 
-    if (!pctx_) {
-      pctx_ = prog_.create_context<compression_progress>();
-    }
-
-    auto fsb = std::make_unique<fsblock>(options_, sec, segment, pctx_);
+    auto pctx = ensure_progress_context_nolock();
+    auto fsb = std::make_unique<fsblock>(options_, sec, segment, pctx);
 
     fsb->set_section_num(section_number_++);
     fsb->compress(wg_);
