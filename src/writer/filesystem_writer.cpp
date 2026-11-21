@@ -849,10 +849,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
       cond_.wait(lock, [this] { return flush_ || !queue_.empty(); });
 
       if (queue_.empty()) {
-        if (flush_) {
-          break;
-        }
-        continue;
+        break;
       }
 
       holder = &queue_.front();
