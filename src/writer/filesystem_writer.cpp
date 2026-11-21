@@ -748,6 +748,8 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   using block_holder_type = block_merger_type::block_holder_type;
 
   void write_superblock();
+  void
+  write_uncompressed_section(section_type type, std::span<uint8_t const> data);
   void pad_to_alignment();
   block_compressor const&
   compressor_for_category(fragment_category::value_type cat) const;
@@ -1320,6 +1322,16 @@ void filesystem_writer_<LoggerPolicy>::copy_header(
 }
 
 template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_uncompressed_section(
+    section_type type, std::span<uint8_t const> data) {
+  fsblock fsb(options_, type, compression_type::NONE, data);
+  fsb.set_section_num(section_number_++);
+  fsb.compress(wg_);
+  fsb.wait_until_compressed();
+  write(fsb);
+}
+
+template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_superblock() {
   DWARFS_CHECK(section_number_ == 0, "superblock must be the first section");
 
@@ -1344,14 +1356,7 @@ void filesystem_writer_<LoggerPolicy>::write_superblock() {
 
   auto buffer = ed.get_payload();
 
-  auto fsb = fsblock(options_, section_type::SUPERBLOCK, compression_type::NONE,
-                     buffer);
-
-  fsb.set_section_num(section_number_++);
-  fsb.compress(wg_);
-  fsb.wait_until_compressed();
-
-  write(fsb);
+  write_uncompressed_section(section_type::SUPERBLOCK, buffer);
 }
 
 template <typename LoggerPolicy>
@@ -1429,14 +1434,7 @@ void filesystem_writer_<LoggerPolicy>::pad_to_alignment() {
     auto const padding_needed = (options_.image_size_alignment - misalignment) %
                                 options_.image_size_alignment;
     std::vector<uint8_t> padding(padding_needed, 0);
-    auto fsb = fsblock(options_, section_type::PADDING, compression_type::NONE,
-                       padding);
-
-    fsb.set_section_num(section_number_++);
-    fsb.compress(wg_);
-    fsb.wait_until_compressed();
-
-    write(fsb);
+    write_uncompressed_section(section_type::PADDING, padding);
   }
 }
 
@@ -1452,14 +1450,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
   auto data = std::span(reinterpret_cast<uint8_t*>(section_index_.data()),
                         sizeof(section_index_[0]) * section_index_.size());
 
-  auto fsb = fsblock(options_, section_type::SECTION_INDEX,
-                     compression_type::NONE, data);
-
-  fsb.set_section_num(section_number_++);
-  fsb.compress(wg_);
-  fsb.wait_until_compressed();
-
-  write(fsb);
+  write_uncompressed_section(section_type::SECTION_INDEX, data);
 }
 
 } // namespace internal
