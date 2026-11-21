@@ -789,7 +789,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   std::shared_ptr<compression_progress> pctx_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
-  bool volatile flush_{true};
+  bool stop_requested_{false};
   std::thread writer_thread_;
   uint32_t section_number_{0};
   uint32_t block_number_{0};
@@ -818,17 +818,13 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     }
   }
 
-  // TODO: the whole flush & thread thing needs to be revisited
-  flush_ = false;
   writer_thread_ = std::thread(&filesystem_writer_::writer_thread, this);
 }
 
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::~filesystem_writer_() noexcept {
   try {
-    if (!flush_) {
-      flush();
-    }
+    flush();
   } catch (...) {
     DWARFS_PANIC(
         fmt::format("exception thrown in filesystem_writer destructor: {}",
@@ -846,7 +842,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
     {
       std::unique_lock lock(mx_);
 
-      cond_.wait(lock, [this] { return flush_ || !queue_.empty(); });
+      cond_.wait(lock, [this] { return stop_requested_ || !queue_.empty(); });
 
       if (queue_.empty()) {
         break;
@@ -1382,11 +1378,11 @@ void filesystem_writer_<LoggerPolicy>::flush() {
   {
     std::lock_guard lock(mx_);
 
-    if (flush_) {
+    if (stop_requested_) {
       return;
     }
 
-    flush_ = true;
+    stop_requested_ = true;
   }
 
   cond_.notify_one();
