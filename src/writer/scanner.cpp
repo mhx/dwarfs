@@ -1919,7 +1919,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
 
         auto tv = LOG_CPU_TIMED_VERBOSE;
 
-        auto seg = segmenter_factory_.create(
+        auto seg = std::make_optional(segmenter_factory_.create(
             category, cat_size, cc, blockmgr,
             [category, meta, blockmgr, &fsw](auto block,
                                              auto logical_block_num) {
@@ -1931,7 +1931,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
                                                 physical_block_num, category);
                   },
                   meta);
-            });
+            }));
 
         auto prepared_files = prepare_ordered(
             span, wg_fileprep.get(), options_.file_prep_queue_size,
@@ -1965,7 +1965,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
             } else if (mm) {
               for_each_fragment([&](auto&& frag, auto offset) {
                 fragment_chunkable fc(ino, frag, offset, mm, catmgr);
-                seg.add_chunkable(fc);
+                seg->add_chunkable(fc);
               });
             }
           }
@@ -1973,7 +1973,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
           prog.inodes_written++; // TODO: remove?
         }
 
-        seg.finish();
+        seg->finish();
+        seg.reset();
+
         fsw.finish_category(category);
 
         tv << category_prefix(catmgr, category) << "segmenting finished";
