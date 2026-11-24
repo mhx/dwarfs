@@ -342,12 +342,6 @@ class ConstantGranularityPolicy {
  public:
   static constexpr size_t const kGranularity{N};
 
-  template <typename T, typename U>
-  static DWARFS_FORCE_INLINE void
-  add_match(T& matches, U const* block, uint32_t off) {
-    matches.emplace_back(block, off);
-  }
-
   static DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) {
     if constexpr (kGranularity > 1) {
       size -= size % kGranularity;
@@ -394,12 +388,6 @@ class VariableGranularityPolicy {
   explicit DWARFS_FORCE_INLINE
   VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
-
-  template <typename T, typename U>
-  DWARFS_FORCE_INLINE void
-  add_match(T& matches, U const* block, uint32_t off) const {
-    matches.emplace_back(block, off, granularity_);
-  }
 
   DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) const {
     if (granularity_ > 1) {
@@ -1282,17 +1270,49 @@ DWARFS_NOINLINE void initialize_segmentation(
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-class segment_match;
+class segment_match {
+ public:
+  DWARFS_FORCE_INLINE
+  segment_match(active_block const* blk, uint32_t off) noexcept
+      : block_{blk}
+      , offset_{off} {}
+
+  template <typename GranularityPolicy, typename Data>
+  void verify_and_extend(GranularityPolicy const& granularity, Data const& data,
+                         size_t pos, size_t len, size_t begin, size_t end);
+
+  DWARFS_FORCE_INLINE friend bool
+  operator<(segment_match const& a, segment_match const& b) {
+    if (a.size_ != b.size_) {
+      return a.size_ < b.size_;
+    }
+
+    auto const a_num = a.block_->num();
+    auto const b_num = b.block_->num();
+    if (a_num != b_num) {
+      return a_num < b_num;
+    }
+
+    return a.offset_ < b.offset_;
+  }
+
+  DWARFS_FORCE_INLINE size_t pos() const { return pos_; }
+  DWARFS_FORCE_INLINE uint32_t size() const { return size_; }
+  DWARFS_FORCE_INLINE uint32_t offset() const { return offset_; }
+  DWARFS_FORCE_INLINE size_t block_num() const { return block_->num(); }
+
+ private:
+  active_block const* block_;
+  uint32_t offset_;
+  uint32_t size_{0};
+  size_t pos_{0};
+};
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
   using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
-  using match_vector =
-      container::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>,
-                              1>;
-  using GranularityPolicyT::add_match;
+  using match_vector = container::small_vector<segment_match, 1>;
   using GranularityPolicyT::bytes_to_frames;
   using GranularityPolicyT::compile_time_granularity;
   using GranularityPolicyT::constrained_block_size;
@@ -1403,49 +1423,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   repeating_collisions_map_type repeating_collisions_;
 
   value_stream_quantile_estimator match_counts_{0.5, 0.75, 0.9, 0.95, 0.99};
-};
-
-template <typename LoggerPolicy, typename GranularityPolicy>
-class segment_match : private GranularityPolicy {
- public:
-  using active_block_type = active_block;
-
-  template <typename... PolicyArgs>
-  DWARFS_FORCE_INLINE segment_match(active_block_type const* blk, uint32_t off,
-                                    PolicyArgs&&... args) noexcept
-      : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , block_{blk}
-      , offset_{off} {}
-
-  template <typename Data>
-  void verify_and_extend(Data const& data, size_t pos, size_t len, size_t begin,
-                         size_t end);
-
-  DWARFS_FORCE_INLINE friend bool
-  operator<(segment_match const& a, segment_match const& b) {
-    if (a.size_ != b.size_) {
-      return a.size_ < b.size_;
-    }
-
-    auto const a_num = a.block_->num();
-    auto const b_num = b.block_->num();
-    if (a_num != b_num) {
-      return a_num < b_num;
-    }
-
-    return a.offset_ < b.offset_;
-  }
-
-  DWARFS_FORCE_INLINE size_t pos() const { return pos_; }
-  DWARFS_FORCE_INLINE uint32_t size() const { return size_; }
-  DWARFS_FORCE_INLINE uint32_t offset() const { return offset_; }
-  DWARFS_FORCE_INLINE size_t block_num() const { return block_->num(); }
-
- private:
-  active_block_type const* block_;
-  uint32_t offset_;
-  uint32_t size_{0};
-  size_t pos_{0};
 };
 
 DWARFS_FORCE_INLINE bool
@@ -1583,12 +1560,13 @@ DWARFS_NOINLINE bool active_block::update_hashes(
   return false;
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-template <typename Data>
-void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
-    Data const& data, size_t pos, size_t len, size_t begin, size_t end) {
-  auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
-      block_->data().raw_buffer());
+template <typename GranularityPolicy, typename Data>
+void segment_match::verify_and_extend(GranularityPolicy const& granularity,
+                                      Data const& data, size_t pos, size_t len,
+                                      size_t begin, size_t end) {
+  auto v =
+      granularity.template create<granular_buffer_adapter<GranularityPolicy>>(
+          block_->data().raw_buffer());
 
   // First, check if the regions actually match
   if (data.compare(pos, v.subspan(offset_, len)) == 0) {
@@ -1865,15 +1843,13 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::collect_matches(
     rsync_hash::value_type hashval, match_vector& matches) {
   if (is_multi_block_mode()) {
     for (auto const& block : blocks_) {
-      block.for_each_offset_filter(hashval, [&, this](auto off) {
-        this->add_match(matches, &block, off);
-      });
+      block.for_each_offset_filter(
+          hashval, [&](auto off) { matches.emplace_back(&block, off); });
     }
   } else {
     auto& block = blocks_.front();
-    block.for_each_offset(hashval, [&, this](auto off) {
-      this->add_match(matches, &block, off);
-    });
+    block.for_each_offset(hashval,
+                          [&](auto off) { matches.emplace_back(&block, off); });
   }
 }
 
@@ -1966,7 +1942,8 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
                     << m.offset();
 #endif
 
-          m.verify_and_extend(data, offset_in_frames - window_size_,
+          m.verify_and_extend(static_cast<GranularityPolicyT const&>(*this),
+                              data, offset_in_frames - window_size_,
                               window_size_, frames_written, size_in_frames);
 
 #if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
