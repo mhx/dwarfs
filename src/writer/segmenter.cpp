@@ -722,19 +722,26 @@ class segment_queue {
   std::unique_ptr<queue_data> data_;
 };
 
-template <typename GranularityPolicy, typename Source>
+template <typename Source>
+void release_raw_source_until(void const* source, file_off_t offset_in_bytes) {
+  std::error_code ec;
+  static_cast<Source const*>(source)->release_until(offset_in_bytes, ec);
+}
+
+template <typename GranularityPolicy>
 class granular_span_adapter : private GranularityPolicy {
  public:
   static constexpr bool kUseSegmentQueue{false};
 
   using value_type = uint8_t;
 
-  template <typename... PolicyArgs>
+  template <typename Source, typename... PolicyArgs>
   DWARFS_FORCE_INLINE explicit granular_span_adapter(Source const& source,
                                                      PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , source_{source}
-      , raw_bytes_{get_raw_bytes(source)} {}
+      , source_{&source}
+      , raw_bytes_{get_raw_bytes(source)}
+      , release_until_{&release_raw_source_until<Source>} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
     return this->bytes_to_frames(raw_bytes_.size());
@@ -784,8 +791,7 @@ class granular_span_adapter : private GranularityPolicy {
   }
 
   void release_until(file_off_t offset_in_bytes) {
-    std::error_code ec;
-    source_.release_until(offset_in_bytes, ec);
+    release_until_(source_, offset_in_bytes);
   }
 
  private:
@@ -819,14 +825,16 @@ class granular_span_adapter : private GranularityPolicy {
     return this->bytes_to_frames(match_length);
   }
 
+  template <typename Source>
   static std::span<value_type const> get_raw_bytes(Source const& source) {
     assert(source.supports_raw_bytes());
     auto const span = source.raw_bytes();
     return {reinterpret_cast<value_type const*>(span.data()), span.size()};
   }
 
-  Source const& source_;
+  void const* source_;
   std::span<value_type const> raw_bytes_;
+  void (*release_until_)(void const*, file_off_t);
 };
 
 template <typename GranularityPolicy>
@@ -1637,9 +1645,9 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
 
     auto process_source = [&](auto const& source) {
       if (source.supports_raw_bytes()) {
-        using source_type = std::remove_cvref_t<decltype(source)>;
-        auto data = this->template create<
-            granular_span_adapter<GranularityPolicyT, source_type>>(source);
+        auto data =
+            this->template create<granular_span_adapter<GranularityPolicyT>>(
+                source);
         process_data(data);
       } else {
         auto data = this->template create<
