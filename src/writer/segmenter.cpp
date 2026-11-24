@@ -119,7 +119,7 @@ class fast_multimap {
  public:
   DWARFS_FORCE_INLINE void insert(KeyT const& key, ValT const& val) {
     if (!values_.insert(std::make_pair(key, val)).second) [[unlikely]] {
-      collisions_[key].emplace_back(val);
+      insert_collision(key, val);
     }
   }
 
@@ -178,6 +178,10 @@ class fast_multimap {
   }
 
  private:
+  DWARFS_NOINLINE void insert_collision(KeyT const& key, ValT const& val) {
+    collisions_[key].emplace_back(val);
+  }
+
   blockhash_t values_;
   collision_t collisions_;
 };
@@ -1198,6 +1202,10 @@ class active_block {
   is_existing_repeating_sequence(hash_t hashval, size_t offset,
                                  uint64_t granularity);
 
+  DWARFS_NOINLINE bool check_repeating_sequence(
+      hash_t hashval, size_t offset, uint64_t granularity,
+      repeating_sequence_map_type::mapped_type const& bytes);
+
   size_t const num_, capacity_in_bytes_, window_size_, window_step_mask_;
   rsync_hash hasher_;
   bloom_filter filter_;
@@ -1442,34 +1450,43 @@ DWARFS_FORCE_INLINE bool
 active_block::is_existing_repeating_sequence(hash_t hashval, size_t offset,
                                              uint64_t granularity) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
-    auto pdata = data_.data();
-    auto winbeg = pdata + offset * granularity;
-    auto const window_size_in_bytes = window_size_ * granularity;
-    auto winend = winbeg + window_size_in_bytes;
-    auto byte = *winbeg;
-    static_assert(std::is_same_v<typename decltype(it->second)::value_type,
-                                 decltype(byte)>);
+    return check_repeating_sequence(hashval, offset, granularity, it->second);
+  }
 
-    // check if this is a known character for a repeating sequence
-    if (!it->second.contains(byte)) {
+  return false;
+}
+
+DWARFS_NOINLINE bool active_block::check_repeating_sequence(
+    hash_t hashval, size_t offset, uint64_t granularity,
+    repeating_sequence_map_type::mapped_type const& bytes) {
+  auto pdata = data_.data();
+  auto winbeg = pdata + offset * granularity;
+  auto const window_size_in_bytes = window_size_ * granularity;
+  auto winend = winbeg + window_size_in_bytes;
+  auto byte = *winbeg;
+  static_assert(
+      std::is_same_v<repeating_sequence_map_type::mapped_type::value_type,
+                     decltype(byte)>);
+
+  // check if this is a known character for a repeating sequence
+  if (!bytes.contains(byte)) {
+    return false;
+  }
+
+  if (std::find_if(winbeg, winend, [byte](auto b) { return b != byte; }) ==
+      winend) {
+    return offsets_.any_value_is(hashval, [&, this](auto off) {
+      auto offbeg = pdata + off * granularity;
+      auto offend = offbeg + window_size_in_bytes;
+
+      if (std::find_if(offbeg, offend, [byte](auto b) { return b != byte; }) ==
+          offend) {
+        ++repeating_collisions_[byte];
+        return true;
+      }
+
       return false;
-    }
-
-    if (std::find_if(winbeg, winend, [byte](auto b) { return b != byte; }) ==
-        winend) {
-      return offsets_.any_value_is(hashval, [&, this](auto off) {
-        auto offbeg = pdata + off * granularity;
-        auto offend = offbeg + window_size_in_bytes;
-
-        if (std::find_if(offbeg, offend,
-                         [byte](auto b) { return b != byte; }) == offend) {
-          ++repeating_collisions_[byte];
-          return true;
-        }
-
-        return false;
-      });
-    }
+    });
   }
 
   return false;
