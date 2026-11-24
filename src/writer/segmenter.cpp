@@ -1347,6 +1347,9 @@ class segmenter_base : public segmenter::impl {
                  bool compile_time_granularity, bool segmentation_enabled);
 
   DWARFS_NOINLINE void block_ready();
+  DWARFS_FORCE_INLINE void
+  prepare_new_block(size_t capacity_in_bytes, bool segmentation_enabled,
+                    bool multi_block_mode);
 
   struct chunk_state {
     file_off_t offset_in_frames{0};
@@ -1804,16 +1807,17 @@ DWARFS_NOINLINE void segmenter_base::block_ready() {
   ++prog_.block_count;
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
 DWARFS_FORCE_INLINE void
-segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
+segmenter_base::prepare_new_block(size_t capacity_in_bytes,
+                                  bool segmentation_enabled,
+                                  bool multi_block_mode) {
   if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
     blocks_.pop_front();
   }
 
-  if constexpr (is_segmentation_enabled()) {
+  if (segmentation_enabled) {
     global_filter_.clear();
-    if (is_multi_block_mode()) {
+    if (multi_block_mode) {
       for (auto const& b : blocks_) {
         global_filter_.merge(b.filter());
       }
@@ -1822,9 +1826,17 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
 
   blocks_.emplace_back(
       LOG_GET_LOGGER, repeating_sequence_hash_values_, repeating_collisions_,
-      blkmgr_->get_logical_block(), frames_to_bytes(block_size_in_frames_),
+      blkmgr_->get_logical_block(), capacity_in_bytes,
       cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
-      is_multi_block_mode() ? global_filter_.size() : 0);
+      multi_block_mode ? global_filter_.size() : 0);
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+DWARFS_FORCE_INLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
+  segmenter_base::prepare_new_block(frames_to_bytes(block_size_in_frames_),
+                                    is_segmentation_enabled(),
+                                    is_multi_block_mode());
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
