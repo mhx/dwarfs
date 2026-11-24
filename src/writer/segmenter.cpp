@@ -1308,11 +1308,27 @@ class segment_match {
   size_t pos_{0};
 };
 
+using match_vector = container::small_vector<segment_match, 1>;
+
+DWARFS_NOINLINE void
+collect_matches(std::deque<active_block> const& blocks, bool multi_block_mode,
+                rsync_hash::value_type hashval, match_vector& matches) {
+  if (multi_block_mode) {
+    for (auto const& block : blocks) {
+      block.for_each_offset_filter(
+          hashval, [&](auto off) { matches.emplace_back(&block, off); });
+    }
+  } else {
+    auto const& block = blocks.front();
+    block.for_each_offset(hashval,
+                          [&](auto off) { matches.emplace_back(&block, off); });
+  }
+}
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
   using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
-  using match_vector = container::small_vector<segment_match, 1>;
   using GranularityPolicyT::bytes_to_frames;
   using GranularityPolicyT::compile_time_granularity;
   using GranularityPolicyT::constrained_block_size;
@@ -1370,9 +1386,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   template <typename Data>
   DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
                                                 file_size_t size_in_frames);
-
-  DWARFS_NOINLINE void
-  collect_matches(rsync_hash::value_type hashval, match_vector& matches);
 
   DWARFS_FORCE_INLINE bool is_multi_block_mode() const {
     return is_segmentation_enabled() && cfg_.max_active_blocks > 1;
@@ -1838,22 +1851,6 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-DWARFS_NOINLINE void
-segmenter_<LoggerPolicy, SegmentingPolicy>::collect_matches(
-    rsync_hash::value_type hashval, match_vector& matches) {
-  if (is_multi_block_mode()) {
-    for (auto const& block : blocks_) {
-      block.for_each_offset_filter(
-          hashval, [&](auto off) { matches.emplace_back(&block, off); });
-    }
-  } else {
-    auto& block = blocks_.front();
-    block.for_each_offset(hashval,
-                          [&](auto off) { matches.emplace_back(&block, off); });
-  }
-}
-
-template <typename LoggerPolicy, typename SegmentingPolicy>
 template <typename Data>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
@@ -1921,7 +1918,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     if (global_filter_.test(hashval)) [[unlikely]] {
       ++stats_.bloom_hits;
 
-      collect_matches(hashval, matches);
+      collect_matches(blocks_, is_multi_block_mode(), hashval, matches);
 
       if (!matches.empty()) [[unlikely]] {
         ++stats_.bloom_true_positives;
