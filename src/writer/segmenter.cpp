@@ -342,16 +342,6 @@ class ConstantGranularityPolicy {
  public:
   static constexpr size_t const kGranularity{N};
 
-  template <typename T>
-  static void add_new_block(T& blocks, logger& lgr,
-                            repeating_sequence_map_type const& repseqmap,
-                            repeating_collisions_map_type& repcoll, size_t num,
-                            size_t size, size_t window_size, size_t window_step,
-                            size_t bloom_filter_size) {
-    blocks.emplace_back(lgr, repseqmap, repcoll, num, size, window_size,
-                        window_step, bloom_filter_size);
-  }
-
   template <typename T, typename U>
   static DWARFS_FORCE_INLINE void
   add_match(T& matches, U const* block, uint32_t off) {
@@ -404,16 +394,6 @@ class VariableGranularityPolicy {
   explicit DWARFS_FORCE_INLINE
   VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
-
-  template <typename T>
-  void add_new_block(T& blocks, logger& lgr,
-                     repeating_sequence_map_type const& repseqmap,
-                     repeating_collisions_map_type& repcoll, size_t num,
-                     size_t size, size_t window_size, size_t window_step,
-                     size_t bloom_filter_size) const {
-    blocks.emplace_back(lgr, repseqmap, repcoll, num, size, window_size,
-                        window_step, bloom_filter_size, granularity_);
-  }
 
   template <typename T, typename U>
   DWARFS_FORCE_INLINE void
@@ -1072,6 +1052,8 @@ template <typename T, typename GranularityPolicy>
 class basic_granular_container_adapter : private GranularityPolicy {
  public:
   using value_type = T::value_type;
+  using GranularityPolicy::granularity_bytes;
+
   static_assert(sizeof(value_type) == 1,
                 "value_type must be a byte type (for now)");
 
@@ -1150,22 +1132,17 @@ DWARFS_NOINLINE void finalize_block_offsets(block_offsets_type const& offsets,
   }
 }
 
-template <typename GranularityPolicy>
-class active_block : private GranularityPolicy {
+class active_block {
  private:
-  using GranularityPolicy::bytes_to_frames;
-  using GranularityPolicy::frames_to_bytes;
   using hash_t = uint32_t;
 
  public:
-  template <typename... PolicyArgs>
   active_block(logger& lgr, repeating_sequence_map_type const& repseqmap,
                repeating_collisions_map_type& repcoll, size_t num,
-               size_t size_in_frames, size_t window_size, size_t window_step,
-               size_t bloom_filter_size, PolicyArgs&&... args)
-      : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , num_(num)
-      , capacity_in_frames_(size_in_frames)
+               size_t capacity_in_bytes, size_t window_size, size_t window_step,
+               size_t bloom_filter_size)
+      : num_(num)
+      , capacity_in_bytes_(capacity_in_bytes)
       , window_size_(window_size)
       , window_step_mask_(window_step - 1)
       , filter_(bloom_filter_size)
@@ -1175,32 +1152,33 @@ class active_block : private GranularityPolicy {
       , lgr_{lgr} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
-    data_.reserve(this->frames_to_bytes(capacity_in_frames_));
+    data_.reserve(capacity_in_bytes_);
   }
 
   ~active_block() { log_block_destroyed(lgr_, num_, offsets_, filter_); }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
 
-  DWARFS_FORCE_INLINE size_t size_in_frames() const {
-    return this->bytes_to_frames(data_.size());
-  }
+  DWARFS_FORCE_INLINE size_t size_in_bytes() const { return data_.size(); }
 
   DWARFS_FORCE_INLINE bool full() const {
-    return size_in_frames() == capacity_in_frames_;
+    return size_in_bytes() == capacity_in_bytes_;
   }
 
   DWARFS_FORCE_INLINE mutable_byte_buffer data() const { return data_; }
 
   // returns true if cached_hashval was used to avoid recomputation
-  template <typename Data>
+  template <typename GranularityPolicy, typename Data>
   DWARFS_FORCE_INLINE bool
-  append_bytes(Data& data, file_off_t offset, file_size_t size,
-               bloom_filter& global_filter,
+  append_bytes(GranularityPolicy const& granularity, Data& data,
+               file_off_t offset, file_size_t size, bloom_filter& global_filter,
                std::optional<rsync_hash::value_type> cached_hashval);
 
-  DWARFS_FORCE_INLINE size_t next_hash_distance_in_frames() const {
-    return window_step_mask_ + 1 - (size_in_frames() & window_step_mask_);
+  template <typename GranularityPolicy>
+  DWARFS_FORCE_INLINE size_t
+  next_hash_distance_in_frames(GranularityPolicy const& granularity) const {
+    return window_step_mask_ + 1 -
+           (granularity.bytes_to_frames(size_in_bytes()) & window_step_mask_);
   }
 
   template <typename F>
@@ -1222,15 +1200,17 @@ class active_block : private GranularityPolicy {
   DWARFS_FORCE_INLINE bloom_filter const& filter() const { return filter_; }
 
  private:
+  template <typename GranularityPolicy>
   DWARFS_NOINLINE bool
   update_hashes(granular_buffer_adapter<GranularityPolicy> v, size_t offset,
                 uint64_t data_frames, bloom_filter& global_filter,
                 std::optional<rsync_hash::value_type> cached_hashval);
 
   DWARFS_FORCE_INLINE bool
-  is_existing_repeating_sequence(hash_t hashval, size_t offset);
+  is_existing_repeating_sequence(hash_t hashval, size_t offset,
+                                 uint64_t granularity);
 
-  size_t const num_, capacity_in_frames_, window_size_, window_step_mask_;
+  size_t const num_, capacity_in_bytes_, window_size_, window_step_mask_;
   rsync_hash hasher_;
   bloom_filter filter_;
   block_offsets_type offsets_;
@@ -1313,7 +1293,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       container::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>,
                               1>;
   using GranularityPolicyT::add_match;
-  using GranularityPolicyT::add_new_block;
   using GranularityPolicyT::bytes_to_frames;
   using GranularityPolicyT::compile_time_granularity;
   using GranularityPolicyT::constrained_block_size;
@@ -1414,13 +1393,11 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   segmenter_stats stats_;
 
-  using active_block_type = active_block<GranularityPolicyT>;
-
   // Active blocks are blocks that can still be referenced from new chunks.
   // Up to N blocks (configurable) can be active and are kept in this queue.
   // All active blocks except for the last one are immutable and potentially
   // already being compressed.
-  std::deque<active_block_type> blocks_;
+  std::deque<active_block> blocks_;
 
   repeating_sequence_map_type repeating_sequence_hash_values_;
   repeating_collisions_map_type repeating_collisions_;
@@ -1431,7 +1408,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 template <typename LoggerPolicy, typename GranularityPolicy>
 class segment_match : private GranularityPolicy {
  public:
-  using active_block_type = active_block<GranularityPolicy>;
+  using active_block_type = active_block;
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE segment_match(active_block_type const* blk, uint32_t off,
@@ -1471,14 +1448,14 @@ class segment_match : private GranularityPolicy {
   size_t pos_{0};
 };
 
-template <typename GranularityPolicy>
 DWARFS_FORCE_INLINE bool
-active_block<GranularityPolicy>::is_existing_repeating_sequence(hash_t hashval,
-                                                                size_t offset) {
+active_block::is_existing_repeating_sequence(hash_t hashval, size_t offset,
+                                             uint64_t granularity) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
     auto pdata = data_.data();
-    auto winbeg = pdata + frames_to_bytes(offset);
-    auto winend = winbeg + frames_to_bytes(window_size_);
+    auto winbeg = pdata + offset * granularity;
+    auto const window_size_in_bytes = window_size_ * granularity;
+    auto winend = winbeg + window_size_in_bytes;
     auto byte = *winbeg;
     static_assert(std::is_same_v<typename decltype(it->second)::value_type,
                                  decltype(byte)>);
@@ -1491,8 +1468,8 @@ active_block<GranularityPolicy>::is_existing_repeating_sequence(hash_t hashval,
     if (std::find_if(winbeg, winend, [byte](auto b) { return b != byte; }) ==
         winend) {
       return offsets_.any_value_is(hashval, [&, this](auto off) {
-        auto offbeg = pdata + frames_to_bytes(off);
-        auto offend = offbeg + frames_to_bytes(window_size_);
+        auto offbeg = pdata + off * granularity;
+        auto offend = offbeg + window_size_in_bytes;
 
         if (std::find_if(offbeg, offend,
                          [byte](auto b) { return b != byte; }) == offend) {
@@ -1508,25 +1485,27 @@ active_block<GranularityPolicy>::is_existing_repeating_sequence(hash_t hashval,
   return false;
 }
 
-template <typename GranularityPolicy>
-template <typename Data>
-DWARFS_FORCE_INLINE bool active_block<GranularityPolicy>::append_bytes(
-    Data& data, file_off_t data_offset, file_size_t data_size,
-    bloom_filter& global_filter,
+template <typename GranularityPolicy, typename Data>
+DWARFS_FORCE_INLINE bool active_block::append_bytes(
+    GranularityPolicy const& granularity, Data& data, file_off_t data_offset,
+    file_size_t data_size, bloom_filter& global_filter,
     std::optional<rsync_hash::value_type> cached_hashval) {
-  auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
-      data_.raw_buffer());
+  auto v =
+      granularity.template create<granular_buffer_adapter<GranularityPolicy>>(
+          data_.raw_buffer());
 
   // TODO: this works in theory, but slows down the segmenter by almost 10%
-  // auto v = this->template create<
+  // auto v = granularity.template create<
   //     granular_byte_buffer_adapter<GranularityPolicy>>(data_);
 
-  auto const data_frames = bytes_to_frames(data_size);
+  auto const data_frames = granularity.bytes_to_frames(data_size);
   auto offset = v.size();
 
-  DWARFS_CHECK(offset + data_frames <= capacity_in_frames_,
-               fmt::format("block capacity exceeded: {} + {} > {}", offset,
-                           data_size, frames_to_bytes(capacity_in_frames_)));
+  DWARFS_CHECK(granularity.frames_to_bytes(offset) + data_size <=
+                   capacity_in_bytes_,
+               fmt::format("block capacity exceeded: {} + {} > {}",
+                           granularity.frames_to_bytes(offset), data_size,
+                           capacity_in_bytes_));
 
   v.append(data, data_offset, data_size);
 
@@ -1538,14 +1517,14 @@ DWARFS_FORCE_INLINE bool active_block<GranularityPolicy>::append_bytes(
 }
 
 template <typename GranularityPolicy>
-DWARFS_NOINLINE bool active_block<GranularityPolicy>::update_hashes(
+DWARFS_NOINLINE bool active_block::update_hashes(
     granular_buffer_adapter<GranularityPolicy> v, size_t offset,
     uint64_t data_frames, bloom_filter& global_filter,
     std::optional<rsync_hash::value_type> cached_hashval) {
   auto insert_hashval = [&](size_t offset) {
     auto const hashval = hasher_();
-    if (!is_existing_repeating_sequence(hashval, offset - window_size_))
-        [[likely]] {
+    if (!is_existing_repeating_sequence(hashval, offset - window_size_,
+                                        v.granularity_bytes())) [[likely]] {
       offsets_.insert(hashval, offset - window_size_);
       if (filter_.size() > 0) {
         filter_.add(hashval);
@@ -1794,11 +1773,11 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
     }
   }
 
-  add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
-                repeating_collisions_, blkmgr_->get_logical_block(),
-                block_size_in_frames_,
-                cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
-                is_multi_block_mode() ? global_filter_.size() : 0);
+  blocks_.emplace_back(
+      LOG_GET_LOGGER, repeating_sequence_hash_values_, repeating_collisions_,
+      blkmgr_->get_logical_block(), frames_to_bytes(block_size_in_frames_),
+      cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
+      is_multi_block_mode() ? global_filter_.size() : 0);
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
@@ -1818,12 +1797,13 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
 
   LOG_TRACE << cfg_.context << "appending " << size_in_bytes
             << " bytes to block " << block.num() << " @ "
-            << frames_to_bytes(block.size_in_frames())
-            << " from chunkable offset " << offset_in_bytes;
+            << block.size_in_bytes() << " from chunkable offset "
+            << offset_in_bytes;
 
   ++stats_.total_appends;
 
-  if (block.append_bytes(data, offset_in_bytes, size_in_bytes, global_filter_,
+  if (block.append_bytes(static_cast<GranularityPolicyT const&>(*this), data,
+                         offset_in_bytes, size_in_bytes, global_filter_,
                          cached_hashval)) {
     ++stats_.total_appends_with_cached_hash;
   }
@@ -1849,7 +1829,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
     file_off_t block_offset_in_frames = 0;
 
     if (!blocks_.empty()) {
-      block_offset_in_frames = blocks_.back().size_in_frames();
+      block_offset_in_frames = bytes_to_frames(blocks_.back().size_in_bytes());
     }
 
     auto const chunk_size_in_frames = std::min<file_size_t>(
@@ -1872,7 +1852,8 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
     auto& block = blocks_.back();
     chkable.add_chunk(block.num(), frames_to_bytes(chunk_.offset_in_frames),
                       frames_to_bytes(chunk_.size_in_frames));
-    chunk_.offset_in_frames = block.full() ? 0 : block.size_in_frames();
+    chunk_.offset_in_frames =
+        block.full() ? 0 : bytes_to_frames(block.size_in_bytes());
     chunk_.size_in_frames = 0;
     prog_.chunk_count++;
   }
@@ -1908,7 +1889,8 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   size_t next_hash_offset_in_frames =
       lookback_size_in_frames +
       (blocks_.empty() ? window_step_
-                       : blocks_.back().next_hash_distance_in_frames());
+                       : blocks_.back().next_hash_distance_in_frames(
+                             static_cast<GranularityPolicyT const&>(*this)));
   /*
    * The lagging hashvals vector is used to store the hash values every
    * window_step_ frames that reach back up to lookback_size_in_frames.
@@ -1971,9 +1953,9 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
 #if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
         LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
-                  << frames_to_bytes(blocks_.back().size_in_frames())
-                  << ", chunkable @ " << frames_to_bytes(offset_in_frames)
-                  << "] found " << matches.size()
+                  << blocks_.back().size_in_bytes() << ", chunkable @ "
+                  << frames_to_bytes(offset_in_frames) << "] found "
+                  << matches.size()
                   << " matches (hash=" << fmt::format("{:08x}", hashval)
                   << ", window size=" << window_size_ << ")";
 #endif
@@ -2040,7 +2022,8 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           next_hash_offset_in_frames =
               frames_written + lookback_size_in_frames +
-              blocks_.back().next_hash_distance_in_frames();
+              blocks_.back().next_hash_distance_in_frames(
+                  static_cast<GranularityPolicyT const&>(*this));
 
           // must reset lagging hashvals after a successful match
           lagging_hashvals_count = 0;
