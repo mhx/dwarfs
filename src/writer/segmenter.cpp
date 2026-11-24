@@ -700,6 +700,21 @@ void release_raw_source_until(void const* source, file_off_t offset_in_bytes) {
   static_cast<Source const*>(source)->release_until(offset_in_bytes, ec);
 }
 
+struct raw_span_source {
+  void const* source;
+  std::span<uint8_t const> bytes;
+  void (*release_until)(void const*, file_off_t);
+};
+
+template <typename Source>
+raw_span_source make_raw_span_source(Source const& source) {
+  assert(source.supports_raw_bytes());
+  auto const span = source.raw_bytes();
+  return {&source,
+          {reinterpret_cast<uint8_t const*>(span.data()), span.size()},
+          &release_raw_source_until<Source>};
+}
+
 template <typename GranularityPolicy>
 class granular_span_adapter : private GranularityPolicy {
  public:
@@ -707,13 +722,13 @@ class granular_span_adapter : private GranularityPolicy {
 
   using value_type = uint8_t;
 
-  template <typename Source, typename... PolicyArgs>
-  DWARFS_FORCE_INLINE explicit granular_span_adapter(Source const& source,
-                                                     PolicyArgs&&... args)
+  template <typename... PolicyArgs>
+  DWARFS_FORCE_INLINE explicit granular_span_adapter(
+      raw_span_source const& source, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , source_{&source}
-      , raw_bytes_{get_raw_bytes(source)}
-      , release_until_{&release_raw_source_until<Source>} {}
+      , source_{source.source}
+      , raw_bytes_{source.bytes}
+      , release_until_{source.release_until} {}
 
   DWARFS_FORCE_INLINE file_size_t size() const {
     return this->bytes_to_frames(raw_bytes_.size());
@@ -795,13 +810,6 @@ class granular_span_adapter : private GranularityPolicy {
     match_length -= match_length % this->granularity_bytes();
 
     return this->bytes_to_frames(match_length);
-  }
-
-  template <typename Source>
-  static std::span<value_type const> get_raw_bytes(Source const& source) {
-    assert(source.supports_raw_bytes());
-    auto const span = source.raw_bytes();
-    return {reinterpret_cast<value_type const*>(span.data()), span.size()};
   }
 
   void const* source_;
@@ -1346,6 +1354,8 @@ class segmenter_base : public segmenter::impl {
                  size_t block_size_in_frames, uint_fast32_t granularity,
                  bool compile_time_granularity, bool segmentation_enabled);
 
+  DWARFS_NOINLINE void
+  add_chunkable_impl(chunkable& chkable, bool can_use_sparse_extents);
   DWARFS_NOINLINE void block_ready();
   void finish_chunk(chunkable& chkable);
   DWARFS_FORCE_INLINE void
@@ -1386,6 +1396,14 @@ class segmenter_base : public segmenter::impl {
   value_stream_quantile_estimator match_counts_{0.5, 0.75, 0.9, 0.95, 0.99};
 
  private:
+  template <typename Source>
+  void process_source(chunkable& chkable, Source const& source);
+  virtual void
+  process_raw_source(chunkable& chkable, raw_span_source const& source) = 0;
+  virtual void
+  process_segment_source(chunkable& chkable, file_segments_iterable segments,
+                         file_size_t size) = 0;
+
   static size_t
   bloom_filter_size(segmenter::config const& cfg, size_t block_size_in_frames,
                     size_t step, bool segmentation_enabled);
@@ -1451,9 +1469,19 @@ class segmenter_ final : public segmenter_base, private SegmentingPolicy {
                    prog, std::move(blkmgr), cfg, total_size,
                    std::move(block_ready)) {}
 
-  void add_chunkable(chunkable& chkable) override;
+  void add_chunkable(chunkable& chkable) override {
+    add_chunkable_impl(chkable, GranularityPolicyT::can_use_sparse_extents());
+  }
 
  private:
+  void process_raw_source(chunkable& chkable,
+                          raw_span_source const& source) override;
+  void
+  process_segment_source(chunkable& chkable, file_segments_iterable segments,
+                         file_size_t size) override;
+  template <typename Data>
+  void process_data(chunkable& chkable, Data& data);
+
   segmenter_(SegmentingPolicy const& policy, logger& lgr, progress& prog,
              std::shared_ptr<block_manager> blkmgr,
              segmenter::config const& cfg, uint64_t total_size,
@@ -1670,60 +1698,73 @@ void segment_match::verify_and_extend(GranularityPolicy const& granularity,
   // size_ defaults to 0 unless we have a real match and set it above.
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
-    chunkable& chkable) {
+template <typename Source>
+void segmenter_base::process_source(chunkable& chkable, Source const& source) {
+  if (source.supports_raw_bytes()) {
+    process_raw_source(chkable, make_raw_span_source(source));
+  } else {
+    process_segment_source(chkable, source.segments(), source.size());
+  }
+}
+
+DWARFS_NOINLINE void
+segmenter_base::add_chunkable_impl(chunkable& chkable,
+                                   bool can_use_sparse_extents) {
   if (chkable.size() > 0) {
     LOG_TRACE << cfg_.context << "adding " << chkable.description();
 
     pctx_->current_file.store(chkable.get_file());
 
-    auto process_data = [&](auto& data) {
-      auto const size_in_frames = data.size();
-
-      if (!is_segmentation_enabled() or
-          std::cmp_less(size_in_frames, window_size_)) {
-        // no point dealing with hashing, just write it out
-        add_data(chkable, data, 0, size_in_frames);
-        finish_chunk(chkable);
-        auto const size_in_bytes = data.size_in_bytes();
-        prog_.total_bytes_read += size_in_bytes;
-        pctx_->bytes_processed += size_in_bytes;
-      } else {
-        segment_and_add_data(chkable, data, size_in_frames);
-      }
-    };
-
-    auto process_source = [&](auto const& source) {
-      if (source.supports_raw_bytes()) {
-        auto data =
-            this->template create<granular_span_adapter<GranularityPolicyT>>(
-                source);
-        process_data(data);
-      } else {
-        auto data = this->template create<
-            granular_segments_adapter<GranularityPolicyT>>(source.segments(),
-                                                           source.size());
-        process_data(data);
-      }
-    };
-
-    if constexpr (GranularityPolicyT::can_use_sparse_extents()) {
-      if (cfg_.enable_sparse_files) {
-        for (auto const& ext : chkable.extents()) {
-          if (ext.kind() == extent_kind::hole) {
-            auto const size_in_bytes = ext.size();
-            chkable.add_hole(size_in_bytes);
-            pctx_->bytes_processed += size_in_bytes;
-          } else {
-            process_source(ext);
-          }
+    if (can_use_sparse_extents && cfg_.enable_sparse_files) {
+      for (auto const& ext : chkable.extents()) {
+        if (ext.kind() == extent_kind::hole) {
+          auto const size_in_bytes = ext.size();
+          chkable.add_hole(size_in_bytes);
+          pctx_->bytes_processed += size_in_bytes;
+        } else {
+          process_source(chkable, ext);
         }
-        return;
       }
+      return;
     }
 
-    process_source(chkable);
+    process_source(chkable, chkable);
+  }
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::process_raw_source(
+    chunkable& chkable, raw_span_source const& source) {
+  auto data =
+      this->template create<granular_span_adapter<GranularityPolicyT>>(source);
+  process_data(chkable, data);
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::process_segment_source(
+    chunkable& chkable, file_segments_iterable segments, file_size_t size) {
+  auto data =
+      this->template create<granular_segments_adapter<GranularityPolicyT>>(
+          std::move(segments), size);
+  process_data(chkable, data);
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+template <typename Data>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::process_data(
+    chunkable& chkable, Data& data) {
+  auto const size_in_frames = data.size();
+
+  if (!is_segmentation_enabled() or
+      std::cmp_less(size_in_frames, window_size_)) {
+    // no point dealing with hashing, just write it out
+    add_data(chkable, data, 0, size_in_frames);
+    finish_chunk(chkable);
+    auto const size_in_bytes = data.size_in_bytes();
+    prog_.total_bytes_read += size_in_bytes;
+    pctx_->bytes_processed += size_in_bytes;
+  } else {
+    segment_and_add_data(chkable, data, size_in_frames);
   }
 }
 
