@@ -1347,13 +1347,14 @@ class segmenter_base : public segmenter::impl {
                  bool compile_time_granularity, bool segmentation_enabled);
 
   DWARFS_NOINLINE void block_ready();
+  void finish_chunk(chunkable& chkable);
   DWARFS_FORCE_INLINE void
   prepare_new_block(size_t capacity_in_bytes, bool segmentation_enabled,
                     bool multi_block_mode);
 
   struct chunk_state {
-    file_off_t offset_in_frames{0};
-    file_size_t size_in_frames{0};
+    file_off_t offset_in_bytes{0};
+    file_size_t size_in_bytes{0};
   };
 
   LOG_PROXY_DECL(segmenter_logger_policy);
@@ -1464,7 +1465,6 @@ class segmenter_ final : public segmenter_base, private SegmentingPolicy {
       , SegmentingPolicy(policy) {}
 
   DWARFS_FORCE_INLINE void prepare_new_block();
-  void finish_chunk(chunkable& chkable);
   template <typename Data>
   DWARFS_FORCE_INLINE void
   append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_frames,
@@ -1867,7 +1867,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
     ++stats_.total_appends_with_cached_hash;
   }
 
-  chunk_.size_in_frames += size_in_frames;
+  chunk_.size_in_bytes += size_in_bytes;
 
   prog_.filesystem_size += size_in_bytes;
 
@@ -1904,16 +1904,13 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
   }
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
-    chunkable& chkable) {
-  if (chunk_.size_in_frames > 0) {
+void segmenter_base::finish_chunk(chunkable& chkable) {
+  if (chunk_.size_in_bytes > 0) {
     auto& block = blocks_.back();
-    chkable.add_chunk(block.num(), frames_to_bytes(chunk_.offset_in_frames),
-                      frames_to_bytes(chunk_.size_in_frames));
-    chunk_.offset_in_frames =
-        block.full() ? 0 : bytes_to_frames(block.size_in_bytes());
-    chunk_.size_in_frames = 0;
+    chkable.add_chunk(block.num(), chunk_.offset_in_bytes,
+                      chunk_.size_in_bytes);
+    chunk_.offset_in_bytes = block.full() ? 0 : block.size_in_bytes();
+    chunk_.size_in_bytes = 0;
     prog_.chunk_count++;
   }
 }
