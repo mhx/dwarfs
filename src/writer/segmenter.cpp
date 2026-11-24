@@ -1333,91 +1333,22 @@ collect_matches(std::deque<active_block> const& blocks, bool multi_block_mode,
   }
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
-class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
- private:
-  using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
-  using GranularityPolicyT::bytes_to_frames;
-  using GranularityPolicyT::compile_time_granularity;
-  using GranularityPolicyT::constrained_block_size;
-  using GranularityPolicyT::frames_to_bytes;
-  using GranularityPolicyT::granularity_bytes;
-  using SegmentingPolicy::is_segmentation_enabled;
+class segmenter_base : public segmenter::impl {
+ protected:
+  DWARFS_NOINLINE
+  segmenter_base(logger& lgr, progress& prog,
+                 std::shared_ptr<block_manager> blkmgr,
+                 segmenter::config const& cfg, uint64_t total_size,
+                 segmenter::block_ready_cb block_ready,
+                 size_t block_size_in_frames, uint_fast32_t granularity,
+                 bool compile_time_granularity, bool segmentation_enabled);
 
- public:
-  template <typename... PolicyArgs>
-  segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
-             segmenter::config const& cfg, uint64_t total_size,
-             segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
-      : SegmentingPolicy(std::forward<PolicyArgs>(args)...)
-      , LOG_PROXY_INIT(lgr)
-      , prog_{prog}
-      , blkmgr_{std::move(blkmgr)}
-      , cfg_{cfg}
-      , block_ready_{std::move(block_ready)}
-      , pctx_{prog.create_context<segmenter_progress>(cfg.context, total_size)}
-      , window_size_{window_size(cfg)}
-      , window_step_{window_step(cfg)}
-      , block_size_in_frames_{block_size_in_frames(cfg)}
-      , global_filter_{bloom_filter_size(cfg)} {
-    if constexpr (is_segmentation_enabled()) {
-      initialize_segmentation(log_, cfg_.context, frames_to_bytes(window_size_),
-                              frames_to_bytes(window_step_),
-                              compile_time_granularity(), granularity_bytes(),
-                              global_filter_.size(),
-                              repeating_sequence_hash_values_);
-    }
-  }
-
-  void add_chunkable(chunkable& chkable) override;
-  void finish() override;
-
- private:
   struct chunk_state {
     file_off_t offset_in_frames{0};
     file_size_t size_in_frames{0};
   };
 
-  DWARFS_FORCE_INLINE void prepare_new_block();
-  DWARFS_NOINLINE void block_ready();
-  void finish_chunk(chunkable& chkable);
-  template <typename Data>
-  DWARFS_FORCE_INLINE void
-  append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_frames,
-                  file_size_t size_in_frames,
-                  std::optional<rsync_hash::value_type> cached_hashval);
-  template <typename Data>
-  void
-  add_data(chunkable& chkable, Data& data, file_off_t offset_in_frames,
-           file_size_t size_in_frames,
-           std::optional<rsync_hash::value_type> cached_hashval = std::nullopt);
-  template <typename Data>
-  DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
-                                                file_size_t size_in_frames);
-
-  DWARFS_FORCE_INLINE bool is_multi_block_mode() const {
-    return is_segmentation_enabled() && cfg_.max_active_blocks > 1;
-  }
-
-  DWARFS_FORCE_INLINE size_t
-  bloom_filter_size(segmenter::config const& cfg) const {
-    if constexpr (is_segmentation_enabled()) {
-      auto hash_count =
-          std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
-                        (block_size_in_frames(cfg) / window_step(cfg)));
-      return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
-    } else {
-      return 0;
-    }
-  }
-
-  size_t DWARFS_FORCE_INLINE
-  block_size_in_frames(segmenter::config const& cfg) const {
-    auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
-    return bytes_to_frames(constrained_block_size(raw_size));
-  }
-
-  LOG_PROXY_DECL(LoggerPolicy);
+  LOG_PROXY_DECL(segmenter_logger_policy);
   progress& prog_;
   std::shared_ptr<block_manager> blkmgr_;
   segmenter::config const cfg_;
@@ -1444,6 +1375,113 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   repeating_collisions_map_type repeating_collisions_;
 
   value_stream_quantile_estimator match_counts_{0.5, 0.75, 0.9, 0.95, 0.99};
+
+ private:
+  static size_t
+  bloom_filter_size(segmenter::config const& cfg, size_t block_size_in_frames,
+                    size_t step, bool segmentation_enabled);
+};
+
+size_t
+segmenter_base::bloom_filter_size(segmenter::config const& cfg,
+                                  size_t block_size_in_frames, size_t step,
+                                  bool segmentation_enabled) {
+  if (segmentation_enabled) {
+    auto const hash_count =
+        std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
+                      (block_size_in_frames / step));
+    return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
+  }
+
+  return 0;
+}
+
+DWARFS_NOINLINE segmenter_base::segmenter_base(
+    logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
+    segmenter::config const& cfg, uint64_t total_size,
+    segmenter::block_ready_cb block_ready, size_t block_size_in_frames,
+    uint_fast32_t granularity, bool compile_time_granularity,
+    bool segmentation_enabled)
+    : LOG_PROXY_INIT(lgr)
+    , prog_{prog}
+    , blkmgr_{std::move(blkmgr)}
+    , cfg_{cfg}
+    , block_ready_{std::move(block_ready)}
+    , pctx_{prog.create_context<segmenter_progress>(cfg.context, total_size)}
+    , window_size_{window_size(cfg)}
+    , window_step_{window_step(cfg)}
+    , block_size_in_frames_{block_size_in_frames}
+    , global_filter_{bloom_filter_size(cfg, block_size_in_frames_, window_step_,
+                                       segmentation_enabled)} {
+  if (segmentation_enabled) {
+    initialize_segmentation(
+        log_, cfg_.context, uint64_t{window_size_} * granularity,
+        uint64_t{window_step_} * granularity, compile_time_granularity,
+        granularity, global_filter_.size(), repeating_sequence_hash_values_);
+  }
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+class segmenter_ final : public segmenter_base, private SegmentingPolicy {
+ private:
+  static_assert(std::is_same_v<LoggerPolicy, segmenter_logger_policy>);
+
+  using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
+  using GranularityPolicyT::bytes_to_frames;
+  using GranularityPolicyT::compile_time_granularity;
+  using GranularityPolicyT::frames_to_bytes;
+  using SegmentingPolicy::is_segmentation_enabled;
+
+ public:
+  template <typename... PolicyArgs>
+  segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
+             segmenter::config const& cfg, uint64_t total_size,
+             segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
+      : segmenter_(SegmentingPolicy(std::forward<PolicyArgs>(args)...), lgr,
+                   prog, std::move(blkmgr), cfg, total_size,
+                   std::move(block_ready)) {}
+
+  void add_chunkable(chunkable& chkable) override;
+  void finish() override;
+
+ private:
+  segmenter_(SegmentingPolicy const& policy, logger& lgr, progress& prog,
+             std::shared_ptr<block_manager> blkmgr,
+             segmenter::config const& cfg, uint64_t total_size,
+             segmenter::block_ready_cb block_ready)
+      : segmenter_base(lgr, prog, std::move(blkmgr), cfg, total_size,
+                       std::move(block_ready),
+                       block_size_in_frames(cfg, policy),
+                       policy.granularity_bytes(), compile_time_granularity(),
+                       is_segmentation_enabled())
+      , SegmentingPolicy(policy) {}
+
+  DWARFS_FORCE_INLINE void prepare_new_block();
+  DWARFS_NOINLINE void block_ready();
+  void finish_chunk(chunkable& chkable);
+  template <typename Data>
+  DWARFS_FORCE_INLINE void
+  append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_frames,
+                  file_size_t size_in_frames,
+                  std::optional<rsync_hash::value_type> cached_hashval);
+  template <typename Data>
+  void
+  add_data(chunkable& chkable, Data& data, file_off_t offset_in_frames,
+           file_size_t size_in_frames,
+           std::optional<rsync_hash::value_type> cached_hashval = std::nullopt);
+  template <typename Data>
+  DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
+                                                file_size_t size_in_frames);
+
+  DWARFS_FORCE_INLINE bool is_multi_block_mode() const {
+    return is_segmentation_enabled() && cfg_.max_active_blocks > 1;
+  }
+
+  static size_t DWARFS_FORCE_INLINE block_size_in_frames(
+      segmenter::config const& cfg, GranularityPolicyT const& policy) {
+    auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
+    return policy.bytes_to_frames(policy.constrained_block_size(raw_size));
+  }
 };
 
 DWARFS_FORCE_INLINE bool
