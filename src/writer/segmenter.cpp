@@ -1222,6 +1222,11 @@ class active_block : private GranularityPolicy {
   DWARFS_FORCE_INLINE bloom_filter const& filter() const { return filter_; }
 
  private:
+  DWARFS_NOINLINE bool
+  update_hashes(granular_buffer_adapter<GranularityPolicy> v, size_t offset,
+                uint64_t data_frames, bloom_filter& global_filter,
+                std::optional<rsync_hash::value_type> cached_hashval);
+
   DWARFS_FORCE_INLINE bool
   is_existing_repeating_sequence(hash_t hashval, size_t offset);
 
@@ -1525,6 +1530,18 @@ DWARFS_FORCE_INLINE bool active_block<GranularityPolicy>::append_bytes(
 
   v.append(data, data_offset, data_size);
 
+  if (window_size_ > 0) {
+    return update_hashes(v, offset, data_frames, global_filter, cached_hashval);
+  }
+
+  return false;
+}
+
+template <typename GranularityPolicy>
+DWARFS_NOINLINE bool active_block<GranularityPolicy>::update_hashes(
+    granular_buffer_adapter<GranularityPolicy> v, size_t offset,
+    uint64_t data_frames, bloom_filter& global_filter,
+    std::optional<rsync_hash::value_type> cached_hashval) {
   auto insert_hashval = [&](size_t offset) {
     auto const hashval = hasher_();
     if (!is_existing_repeating_sequence(hashval, offset - window_size_))
@@ -1537,51 +1554,49 @@ DWARFS_FORCE_INLINE bool active_block<GranularityPolicy>::append_bytes(
     }
   };
 
-  if (window_size_ > 0) {
-    /*
-     * If a cached hash value is provided *and* we are already at least
-     * window_size_ frames into the block, we can skip the cyclic hash
-     * computation and reuse the cached hash value. `segment_and_add_data`
-     * guarantees that it will only set a cached hash value for a segment
-     * with `window_step` frames and aligned to a `window_step` offset.
-     * However, `add_data` could still split that segment if it would
-     * cross a block boundary, which is why we need additional checks.
-     *
-     * For a granularity that is a power of two, these checks can never
-     * fail, since the block size is always a multiple of the step size
-     * in bytes.
-     */
+  /*
+   * If a cached hash value is provided *and* we are already at least
+   * window_size_ frames into the block, we can skip the cyclic hash
+   * computation and reuse the cached hash value. `segment_and_add_data`
+   * guarantees that it will only set a cached hash value for a segment
+   * with `window_step` frames and aligned to a `window_step` offset.
+   * However, `add_data` could still split that segment if it would
+   * cross a block boundary, which is why we need additional checks.
+   *
+   * For a granularity that is a power of two, these checks can never
+   * fail, since the block size is always a multiple of the step size
+   * in bytes.
+   */
 
-    auto is_complete_segment = [&] {
-      if constexpr (GranularityPolicy::compile_time_granularity()) {
-        if constexpr (std::has_single_bit(GranularityPolicy::kGranularity)) {
-          assert(std::cmp_equal(data_frames, window_step_mask_ + 1) &&
-                 (offset & window_step_mask_) == 0);
-          return true;
-        }
+  auto is_complete_segment = [&] {
+    if constexpr (GranularityPolicy::compile_time_granularity()) {
+      if constexpr (std::has_single_bit(GranularityPolicy::kGranularity)) {
+        assert(std::cmp_equal(data_frames, window_step_mask_ + 1) &&
+               (offset & window_step_mask_) == 0);
+        return true;
       }
-      return std::cmp_equal(data_frames, window_step_mask_ + 1) &&
-             (offset & window_step_mask_) == 0;
-    };
-
-    if (cached_hashval.has_value() && offset >= window_size_ &&
-        is_complete_segment()) {
-      offset += data_frames;
-      hasher_.set(*cached_hashval);
-      insert_hashval(offset);
-      return true;
     }
+    return std::cmp_equal(data_frames, window_step_mask_ + 1) &&
+           (offset & window_step_mask_) == 0;
+  };
 
-    while (offset < v.size()) {
-      if (offset < window_size_) [[unlikely]] {
-        v.update_hash(hasher_, offset);
-      } else {
-        v.update_hash(hasher_, offset - window_size_, offset);
-      }
-      if (++offset >= window_size_) [[likely]] {
-        if ((offset & window_step_mask_) == 0) [[unlikely]] {
-          insert_hashval(offset);
-        }
+  if (cached_hashval.has_value() && offset >= window_size_ &&
+      is_complete_segment()) {
+    offset += data_frames;
+    hasher_.set(*cached_hashval);
+    insert_hashval(offset);
+    return true;
+  }
+
+  while (offset < v.size()) {
+    if (offset < window_size_) [[unlikely]] {
+      v.update_hash(hasher_, offset);
+    } else {
+      v.update_hash(hasher_, offset - window_size_, offset);
+    }
+    if (++offset >= window_size_) [[likely]] {
+      if ((offset & window_step_mask_) == 0) [[unlikely]] {
+        insert_hashval(offset);
       }
     }
   }
