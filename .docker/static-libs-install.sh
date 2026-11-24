@@ -532,14 +532,6 @@ if use_lib zstd; then
     tar xf ${WORKROOT}/${ZSTD_TARBALL}
     cd zstd-${ZSTD_VERSION}
 
-    # https://github.com/meta/zstd/issues/4590
-    fetch.sh https://github.com/meta/zstd/commit/81cf153bce7c0ab41aeef574a70e32eaea7a8ba7.diff - | patch -p1
-    # Fix unintended high memory usage (https://github.com/meta/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a)
-    fetch.sh https://github.com/meta/zstd/commit/cef5a5611a3792cf9eaab5826f48e92c7c287f0a.diff - | patch -p1
-    # Fix potential out-of-bounds access in decompression dictionary hash set
-    # https://github.com/meta/zstd/commit/c6f91a41
-    fetch.sh https://github.com/meta/zstd/commit/c6f91a41.diff - | patch -p1
-
     mkdir meson-build
     cd meson-build
     meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
