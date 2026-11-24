@@ -1297,10 +1297,16 @@ DWARFS_NOINLINE void initialize_segmentation(
   }
 }
 
+template <typename LoggerPolicy, typename GranularityPolicy>
+class segment_match;
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
   using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
+  using match_vector =
+      container::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>,
+                              1>;
   using GranularityPolicyT::add_match;
   using GranularityPolicyT::add_new_block;
   using GranularityPolicyT::bytes_to_frames;
@@ -1360,6 +1366,9 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   template <typename Data>
   DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
                                                 file_size_t size_in_frames);
+
+  DWARFS_NOINLINE void
+  collect_matches(rsync_hash::value_type hashval, match_vector& matches);
 
   DWARFS_FORCE_INLINE bool is_multi_block_mode() const {
     return is_segmentation_enabled() && cfg_.max_active_blocks > 1;
@@ -1855,6 +1864,24 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
+DWARFS_NOINLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::collect_matches(
+    rsync_hash::value_type hashval, match_vector& matches) {
+  if (is_multi_block_mode()) {
+    for (auto const& block : blocks_) {
+      block.for_each_offset_filter(hashval, [&, this](auto off) {
+        this->add_match(matches, &block, off);
+      });
+    }
+  } else {
+    auto& block = blocks_.front();
+    block.for_each_offset(hashval, [&, this](auto off) {
+      this->add_match(matches, &block, off);
+    });
+  }
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
 template <typename Data>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
@@ -1888,8 +1915,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
   offset_in_frames = hashwin.seek(hasher, data, 0);
 
-  container::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
-      matches;
+  match_vector matches;
 
   // // TODO: we have multiple segmenter threads, so this doesn't fly anymore
   // auto total_bytes_read_before = prog_.total_bytes_read.load();
@@ -1922,18 +1948,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     if (global_filter_.test(hashval)) [[unlikely]] {
       ++stats_.bloom_hits;
 
-      if (is_multi_block_mode()) {
-        for (auto const& block : blocks_) {
-          block.for_each_offset_filter(hashval, [&, this](auto off) {
-            this->add_match(matches, &block, off);
-          });
-        }
-      } else {
-        auto& block = blocks_.front();
-        block.for_each_offset(hashval, [&, this](auto off) {
-          this->add_match(matches, &block, off);
-        });
-      }
+      collect_matches(hashval, matches);
 
       if (!matches.empty()) [[unlikely]] {
         ++stats_.bloom_true_positives;
