@@ -1334,6 +1334,9 @@ collect_matches(std::deque<active_block> const& blocks, bool multi_block_mode,
 }
 
 class segmenter_base : public segmenter::impl {
+ public:
+  void finish() override;
+
  protected:
   DWARFS_NOINLINE
   segmenter_base(logger& lgr, progress& prog,
@@ -1342,6 +1345,8 @@ class segmenter_base : public segmenter::impl {
                  segmenter::block_ready_cb block_ready,
                  size_t block_size_in_frames, uint_fast32_t granularity,
                  bool compile_time_granularity, bool segmentation_enabled);
+
+  DWARFS_NOINLINE void block_ready();
 
   struct chunk_state {
     file_off_t offset_in_frames{0};
@@ -1442,7 +1447,6 @@ class segmenter_ final : public segmenter_base, private SegmentingPolicy {
                    std::move(block_ready)) {}
 
   void add_chunkable(chunkable& chkable) override;
-  void finish() override;
 
  private:
   segmenter_(SegmentingPolicy const& policy, logger& lgr, progress& prog,
@@ -1457,7 +1461,6 @@ class segmenter_ final : public segmenter_base, private SegmentingPolicy {
       , SegmentingPolicy(policy) {}
 
   DWARFS_FORCE_INLINE void prepare_new_block();
-  DWARFS_NOINLINE void block_ready();
   void finish_chunk(chunkable& chkable);
   template <typename Data>
   DWARFS_FORCE_INLINE void
@@ -1785,8 +1788,7 @@ DWARFS_NOINLINE void report_segmenter_stats(
   }
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
+void segmenter_base::finish() {
   if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
@@ -1795,8 +1797,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
                          repeating_collisions_);
 }
 
-template <typename LoggerPolicy, typename SegmentingPolicy>
-DWARFS_NOINLINE void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
+DWARFS_NOINLINE void segmenter_base::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
   block_ready_(block.data().share(), block.num());
