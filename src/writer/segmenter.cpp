@@ -1366,7 +1366,7 @@ class segmenter_base : public segmenter::impl {
 
   size_t const window_size_;
   size_t const window_step_;
-  size_t const block_size_in_frames_;
+  size_t const block_size_in_bytes_;
 
   chunk_state chunk_;
 
@@ -1419,8 +1419,9 @@ DWARFS_NOINLINE segmenter_base::segmenter_base(
     , pctx_{prog.create_context<segmenter_progress>(cfg.context, total_size)}
     , window_size_{window_size(cfg)}
     , window_step_{window_step(cfg)}
-    , block_size_in_frames_{block_size_in_frames}
-    , global_filter_{bloom_filter_size(cfg, block_size_in_frames_, window_step_,
+    , block_size_in_bytes_{block_size_in_frames *
+                           static_cast<size_t>(granularity)}
+    , global_filter_{bloom_filter_size(cfg, block_size_in_frames, window_step_,
                                        segmentation_enabled)} {
   if (segmentation_enabled) {
     initialize_segmentation(
@@ -1467,8 +1468,8 @@ class segmenter_ final : public segmenter_base, private SegmentingPolicy {
   DWARFS_FORCE_INLINE void prepare_new_block();
   template <typename Data>
   DWARFS_FORCE_INLINE void
-  append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_frames,
-                  file_size_t size_in_frames,
+  append_to_block(chunkable& chkable, Data& data, file_off_t offset_in_bytes,
+                  file_size_t size_in_bytes,
                   std::optional<rsync_hash::value_type> cached_hashval);
   template <typename Data>
   void
@@ -1834,24 +1835,21 @@ segmenter_base::prepare_new_block(size_t capacity_in_bytes,
 template <typename LoggerPolicy, typename SegmentingPolicy>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
-  segmenter_base::prepare_new_block(frames_to_bytes(block_size_in_frames_),
-                                    is_segmentation_enabled(),
-                                    is_multi_block_mode());
+  segmenter_base::prepare_new_block(
+      block_size_in_bytes_, is_segmentation_enabled(), is_multi_block_mode());
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
 template <typename Data>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
-    chunkable& chkable, Data& data, file_off_t offset_in_frames,
-    file_size_t size_in_frames,
+    chunkable& chkable, Data& data, file_off_t offset_in_bytes,
+    file_size_t size_in_bytes,
     std::optional<rsync_hash::value_type> cached_hashval) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     prepare_new_block();
   }
 
-  auto const offset_in_bytes = frames_to_bytes(offset_in_frames);
-  auto const size_in_bytes = frames_to_bytes(size_in_frames);
   auto& block = blocks_.back();
 
   LOG_TRACE << cfg_.context << "appending " << size_in_bytes
@@ -1884,21 +1882,27 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
     chunkable& chkable, Data& data, file_off_t offset_in_frames,
     file_size_t size_in_frames,
     std::optional<rsync_hash::value_type> cached_hashval) {
-  while (size_in_frames > 0) {
-    file_off_t block_offset_in_frames = 0;
+  if (size_in_frames <= 0) {
+    return;
+  }
 
-    if (!blocks_.empty()) {
-      block_offset_in_frames = bytes_to_frames(blocks_.back().size_in_bytes());
-    }
+  auto offset_in_bytes =
+      static_cast<file_off_t>(frames_to_bytes(offset_in_frames));
+  auto size_in_bytes =
+      static_cast<file_size_t>(frames_to_bytes(size_in_frames));
 
-    auto const chunk_size_in_frames = std::min<file_size_t>(
-        size_in_frames, block_size_in_frames_ - block_offset_in_frames);
+  while (size_in_bytes > 0) {
+    auto const block_offset_in_bytes =
+        blocks_.empty() ? 0 : blocks_.back().size_in_bytes();
 
-    append_to_block(chkable, data, offset_in_frames, chunk_size_in_frames,
+    auto const chunk_size_in_bytes = std::min<file_size_t>(
+        size_in_bytes, block_size_in_bytes_ - block_offset_in_bytes);
+
+    append_to_block(chkable, data, offset_in_bytes, chunk_size_in_bytes,
                     cached_hashval);
 
-    offset_in_frames += chunk_size_in_frames;
-    size_in_frames -= chunk_size_in_frames;
+    offset_in_bytes += chunk_size_in_bytes;
+    size_in_bytes -= chunk_size_in_bytes;
 
     cached_hashval.reset(); // only use for first append
   }
