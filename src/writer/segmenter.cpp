@@ -57,6 +57,10 @@
 #include <dwarfs/writer/internal/cyclic_hash.h>
 #include <dwarfs/writer/internal/progress.h>
 
+#ifndef DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
+#define DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING 0
+#endif
+
 namespace dwarfs::writer {
 
 namespace internal {
@@ -1897,22 +1901,28 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         ++stats_.bloom_true_positives;
         match_counts_.add(matches.size());
 
+#if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
         LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
                   << frames_to_bytes(blocks_.back().size_in_frames())
                   << ", chunkable @ " << frames_to_bytes(offset_in_frames)
                   << "] found " << matches.size()
                   << " matches (hash=" << fmt::format("{:08x}", hashval)
                   << ", window size=" << window_size_ << ")";
+#endif
 
         for (auto& m : matches) {
+#if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
           LOG_TRACE << cfg_.context << "  block " << m.block_num() << " @ "
                     << m.offset();
+#endif
 
           m.verify_and_extend(data, offset_in_frames - window_size_,
                               window_size_, frames_written, size_in_frames);
 
+#if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
           LOG_TRACE << cfg_.context << "    -> " << m.offset() << " -> "
                     << m.size();
+#endif
         }
 
         stats_.total_matches += matches.size();
@@ -1925,8 +1935,11 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
         if (match_len > 0) {
           ++stats_.good_matches;
+
+#if DWARFS_ENABLE_SEGMENTER_HOT_PATH_LOGGING
           LOG_TRACE << cfg_.context << "successful match of length "
                     << match_len << " @ " << best->offset();
+#endif
 
           auto block_num = best->block_num();
           auto match_off = best->offset();
@@ -2039,8 +2052,8 @@ create_segmenter2(logger& lgr, progress& prog,
         segmenter::impl,
         constant_granularity_segmenter_<SegmentingPolicy,
                                         Granularity>::template type,
-        hot_path_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                                std::move(block_ready));
+        default_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
+                               std::move(block_ready));
   };
 
   switch (granularity) {
@@ -2061,8 +2074,8 @@ create_segmenter2(logger& lgr, progress& prog,
   return make_unique_logging_object<
       segmenter::impl,
       variable_granularity_segmenter_<SegmentingPolicy>::template type,
-      hot_path_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
-                              std::move(block_ready), cc.granularity.value());
+      default_logger_policy>(lgr, prog, std::move(blkmgr), cfg, total_size,
+                             std::move(block_ready), cc.granularity.value());
 }
 
 std::unique_ptr<segmenter::impl>
