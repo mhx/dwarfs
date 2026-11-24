@@ -28,6 +28,7 @@
 #include <cstring>
 #include <deque>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -184,6 +185,10 @@ class fast_multimap {
 using repeating_sequence_map_type =
     phmap::flat_hash_map<uint32_t, dwarfs::internal::small_vector_set<uint8_t>>;
 using repeating_collisions_map_type = std::unordered_map<uint8_t, uint32_t>;
+using block_offsets_type = fast_multimap<uint32_t, uint32_t, 4>;
+
+static_assert(std::tuple_size_v<default_logger_policy> == 1);
+using segmenter_logger_policy = std::tuple_element_t<0, default_logger_policy>;
 
 /**
  * A very simple bloom filter. This is not generalized at all and highly
@@ -1119,12 +1124,37 @@ using granular_buffer_adapter =
     basic_granular_container_adapter<dwarfs::internal::malloc_buffer,
                                      GranularityPolicy>;
 
-template <typename LoggerPolicy, typename GranularityPolicy>
+DWARFS_NOINLINE void
+log_block_destroyed(logger& lgr, size_t num, block_offsets_type const& offsets,
+                    bloom_filter const& filter) {
+  LOG_PROXY(segmenter_logger_policy, lgr);
+
+  LOG_DEBUG << "block " << num << " destroyed, "
+            << size_with_unit(offsets.memory_usage()) << " offset memory ("
+            << fmt::format("{:.1f}",
+                           static_cast<double>(offsets.memory_usage()) /
+                               offsets.values().size())
+            << " bytes per offset, " << offsets.values().size() << " offsets, "
+            << offsets.collisions().size() << " collisions), "
+            << size_with_unit(filter.memory_usage()) << " bloom filter";
+}
+
+DWARFS_NOINLINE void finalize_block_offsets(block_offsets_type const& offsets,
+                                            segmenter_stats& stats) {
+  stats.total_hashes += offsets.values().size();
+  for (auto const& c : offsets.collisions()) {
+    stats.total_hashes += c.second.size();
+    stats.l1_collisions += 1;
+    stats.l2_collisions += c.second.size() - 1;
+    stats.l2_collision_vec_size.add(c.second.size());
+  }
+}
+
+template <typename GranularityPolicy>
 class active_block : private GranularityPolicy {
  private:
   using GranularityPolicy::bytes_to_frames;
   using GranularityPolicy::frames_to_bytes;
-  using offset_t = uint32_t;
   using hash_t = uint32_t;
 
  public:
@@ -1134,7 +1164,6 @@ class active_block : private GranularityPolicy {
                size_t size_in_frames, size_t window_size, size_t window_step,
                size_t bloom_filter_size, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
-      , LOG_PROXY_INIT(lgr)
       , num_(num)
       , capacity_in_frames_(size_in_frames)
       , window_size_(window_size)
@@ -1142,23 +1171,14 @@ class active_block : private GranularityPolicy {
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
-      , data_{malloc_byte_buffer::create()} {
+      , data_{malloc_byte_buffer::create()}
+      , lgr_{lgr} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_.reserve(this->frames_to_bytes(capacity_in_frames_));
   }
 
-  ~active_block() {
-    LOG_DEBUG << "block " << num_ << " destroyed, "
-              << size_with_unit(offsets_.memory_usage()) << " offset memory ("
-              << fmt::format("{:.1f}",
-                             static_cast<double>(offsets_.memory_usage()) /
-                                 offsets_.values().size())
-              << " bytes per offset, " << offsets_.values().size()
-              << " offsets, " << offsets_.collisions().size()
-              << " collisions), " << size_with_unit(filter_.memory_usage())
-              << " bloom filter";
-  }
+  ~active_block() { log_block_destroyed(lgr_, num_, offsets_, filter_); }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
 
@@ -1195,14 +1215,8 @@ class active_block : private GranularityPolicy {
     }
   }
 
-  DWARFS_FORCE_INLINE void finalize(segmenter_stats& stats) {
-    stats.total_hashes += offsets_.values().size();
-    for (auto& c : offsets_.collisions()) {
-      stats.total_hashes += c.second.size();
-      stats.l1_collisions += 1;
-      stats.l2_collisions += c.second.size() - 1;
-      stats.l2_collision_vec_size.add(c.second.size());
-    }
+  void finalize(segmenter_stats& stats) {
+    finalize_block_offsets(offsets_, stats);
   }
 
   DWARFS_FORCE_INLINE bloom_filter const& filter() const { return filter_; }
@@ -1211,16 +1225,14 @@ class active_block : private GranularityPolicy {
   DWARFS_FORCE_INLINE bool
   is_existing_repeating_sequence(hash_t hashval, size_t offset);
 
-  static constexpr size_t num_inline_offsets = 4;
-
-  LOG_PROXY_DECL(LoggerPolicy);
   size_t const num_, capacity_in_frames_, window_size_, window_step_mask_;
   rsync_hash hasher_;
   bloom_filter filter_;
-  fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
+  block_offsets_type offsets_;
   repeating_sequence_map_type const& repseqmap_;
   repeating_collisions_map_type& repeating_collisions_;
   mutable_byte_buffer data_;
+  logger& lgr_;
 };
 
 class segmenter_progress : public progress::context {
@@ -1264,6 +1276,27 @@ DWARFS_FORCE_INLINE size_t window_step(segmenter::config const& cfg) {
   return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
 }
 
+DWARFS_NOINLINE void initialize_segmentation(
+    LOG_PROXY_REF(segmenter_logger_policy), std::string const& context,
+    uint64_t window_size_in_bytes, uint64_t window_step_in_bytes,
+    bool compile_time_granularity, uint_fast32_t granularity_bytes,
+    size_t bloom_filter_size,
+    repeating_sequence_map_type& repeating_sequence_hash_values) {
+  LOG_VERBOSE << context << "using a " << size_with_unit(window_size_in_bytes)
+              << " window at " << size_with_unit(window_step_in_bytes)
+              << " steps with "
+              << (compile_time_granularity ? "compile" : "run") << "-time "
+              << granularity_bytes << "-byte frames for segment analysis";
+  LOG_VERBOSE << context
+              << "bloom filter size: " << size_with_unit(bloom_filter_size / 8);
+
+  for (int i = 0; i < 256; ++i) {
+    auto val = rsync_hash::repeating_window(i, window_size_in_bytes);
+    DWARFS_CHECK(repeating_sequence_hash_values[val].insert(i).second,
+                 "repeating sequence hash value / byte collision");
+  }
+}
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
@@ -1295,23 +1328,11 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       , block_size_in_frames_{block_size_in_frames(cfg)}
       , global_filter_{bloom_filter_size(cfg)} {
     if constexpr (is_segmentation_enabled()) {
-      LOG_VERBOSE << cfg_.context << "using a "
-                  << size_with_unit(frames_to_bytes(window_size_))
-                  << " window at "
-                  << size_with_unit(frames_to_bytes(window_step_))
-                  << " steps with "
-                  << (compile_time_granularity() ? "compile" : "run")
-                  << "-time " << granularity_bytes()
-                  << "-byte frames for segment analysis";
-      LOG_VERBOSE << cfg_.context << "bloom filter size: "
-                  << size_with_unit(global_filter_.size() / 8);
-
-      for (int i = 0; i < 256; ++i) {
-        auto val =
-            rsync_hash::repeating_window(i, frames_to_bytes(window_size_));
-        DWARFS_CHECK(repeating_sequence_hash_values_[val].insert(i).second,
-                     "repeating sequence hash value / byte collision");
-      }
+      initialize_segmentation(log_, cfg_.context, frames_to_bytes(window_size_),
+                              frames_to_bytes(window_step_),
+                              compile_time_granularity(), granularity_bytes(),
+                              global_filter_.size(),
+                              repeating_sequence_hash_values_);
     }
   }
 
@@ -1324,7 +1345,8 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     file_size_t size_in_frames{0};
   };
 
-  DWARFS_FORCE_INLINE void block_ready();
+  DWARFS_FORCE_INLINE void prepare_new_block();
+  DWARFS_NOINLINE void block_ready();
   void finish_chunk(chunkable& chkable);
   template <typename Data>
   DWARFS_FORCE_INLINE void
@@ -1375,7 +1397,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   segmenter_stats stats_;
 
-  using active_block_type = active_block<LoggerPolicy, GranularityPolicyT>;
+  using active_block_type = active_block<GranularityPolicyT>;
 
   // Active blocks are blocks that can still be referenced from new chunks.
   // Up to N blocks (configurable) can be active and are kept in this queue.
@@ -1392,7 +1414,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 template <typename LoggerPolicy, typename GranularityPolicy>
 class segment_match : private GranularityPolicy {
  public:
-  using active_block_type = active_block<LoggerPolicy, GranularityPolicy>;
+  using active_block_type = active_block<GranularityPolicy>;
 
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE segment_match(active_block_type const* blk, uint32_t off,
@@ -1432,10 +1454,10 @@ class segment_match : private GranularityPolicy {
   size_t pos_{0};
 };
 
-template <typename LoggerPolicy, typename GranularityPolicy>
+template <typename GranularityPolicy>
 DWARFS_FORCE_INLINE bool
-active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
-    hash_t hashval, size_t offset) {
+active_block<GranularityPolicy>::is_existing_repeating_sequence(hash_t hashval,
+                                                                size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
     auto pdata = data_.data();
     auto winbeg = pdata + frames_to_bytes(offset);
@@ -1469,10 +1491,9 @@ active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
   return false;
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
+template <typename GranularityPolicy>
 template <typename Data>
-DWARFS_FORCE_INLINE bool
-active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
+DWARFS_FORCE_INLINE bool active_block<GranularityPolicy>::append_bytes(
     Data& data, file_off_t data_offset, file_size_t data_size,
     bloom_filter& global_filter,
     std::optional<rsync_hash::value_type> cached_hashval) {
@@ -1647,79 +1668,110 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
   }
 }
 
+DWARFS_NOINLINE void report_segmenter_stats(
+    LOG_PROXY_REF(segmenter_logger_policy), std::string const& context,
+    segmenter_stats const& stats,
+    value_stream_quantile_estimator const& match_counts,
+    repeating_collisions_map_type const& repeating_collisions) {
+  if (stats.bloom_lookups > 0) {
+    LOG_VERBOSE << context << "bloom filter reject rate: "
+                << fmt::format("{:.3f}%", 100.0 - 100.0 * stats.bloom_hits /
+                                                      stats.bloom_lookups)
+                << " (TPR="
+                << fmt::format("{:.3f}%", 100.0 * stats.bloom_true_positives /
+                                              stats.bloom_hits)
+                << ", lookups=" << stats.bloom_lookups << ")";
+  }
+  if (stats.total_matches > 0) {
+    LOG_VERBOSE << fmt::format(
+        "{}segment matches: good={}, bad={}, collisions={}, total={}", context,
+        stats.good_matches, stats.bad_matches,
+        (stats.total_matches - (stats.bad_matches + stats.good_matches)),
+        stats.total_matches);
+  }
+  if (stats.total_hashes > 0) {
+    LOG_VERBOSE << context << "segmentation collisions: L1="
+                << fmt::format("{:.3f}%",
+                               100.0 *
+                                   (stats.l1_collisions + stats.l2_collisions) /
+                                   stats.total_hashes)
+                << ", L2="
+                << fmt::format("{:.3f}%",
+                               100.0 * stats.l2_collisions / stats.total_hashes)
+                << " [" << stats.total_hashes << " hashes]";
+  }
+
+  if (stats.l1_collisions > 0) {
+    auto pct = [&](double p) {
+      return stats.l2_collision_vec_size.quantile(p / 100.0);
+    };
+    LOG_VERBOSE << context << "collision vector size p50: " << pct(50)
+                << ", p75: " << pct(75) << ", p90: " << pct(90)
+                << ", p95: " << pct(95) << ", p99: " << pct(99);
+  }
+
+  auto pct = [&](double p) { return match_counts.quantile(p / 100.0); };
+
+  LOG_VERBOSE << context << "match counts p50: " << pct(50)
+              << ", p75: " << pct(75) << ", p90: " << pct(90)
+              << ", p95: " << pct(95) << ", p99: " << pct(99);
+
+  for (auto [k, v] : repeating_collisions) {
+    LOG_VERBOSE << context
+                << fmt::format(
+                       "avoided {} collisions in 0x{:02x}-byte sequences", v,
+                       k);
+  }
+
+  if (stats.total_appends > 0) {
+    LOG_VERBOSE << context
+                << fmt::format("appends using cached hashes: {}/{} ({:.3f}%)",
+                               stats.total_appends_with_cached_hash,
+                               stats.total_appends,
+                               100.0 * stats.total_appends_with_cached_hash /
+                                   stats.total_appends);
+  }
+}
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
   if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
 
-  if (stats_.bloom_lookups > 0) {
-    LOG_VERBOSE << cfg_.context << "bloom filter reject rate: "
-                << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
-                                                      stats_.bloom_lookups)
-                << " (TPR="
-                << fmt::format("{:.3f}%", 100.0 * stats_.bloom_true_positives /
-                                              stats_.bloom_hits)
-                << ", lookups=" << stats_.bloom_lookups << ")";
-  }
-  if (stats_.total_matches > 0) {
-    LOG_VERBOSE << fmt::format(
-        "{}segment matches: good={}, bad={}, collisions={}, total={}",
-        cfg_.context, stats_.good_matches, stats_.bad_matches,
-        (stats_.total_matches - (stats_.bad_matches + stats_.good_matches)),
-        stats_.total_matches);
-  }
-  if (stats_.total_hashes > 0) {
-    LOG_VERBOSE << cfg_.context << "segmentation collisions: L1="
-                << fmt::format(
-                       "{:.3f}%",
-                       100.0 * (stats_.l1_collisions + stats_.l2_collisions) /
-                           stats_.total_hashes)
-                << ", L2="
-                << fmt::format("{:.3f}%", 100.0 * stats_.l2_collisions /
-                                              stats_.total_hashes)
-                << " [" << stats_.total_hashes << " hashes]";
-  }
-
-  if (stats_.l1_collisions > 0) {
-    auto pct = [&](double p) {
-      return stats_.l2_collision_vec_size.quantile(p / 100.0);
-    };
-    LOG_VERBOSE << cfg_.context << "collision vector size p50: " << pct(50)
-                << ", p75: " << pct(75) << ", p90: " << pct(90)
-                << ", p95: " << pct(95) << ", p99: " << pct(99);
-  }
-
-  auto pct = [&](double p) { return match_counts_.quantile(p / 100.0); };
-
-  LOG_VERBOSE << cfg_.context << "match counts p50: " << pct(50)
-              << ", p75: " << pct(75) << ", p90: " << pct(90)
-              << ", p95: " << pct(95) << ", p99: " << pct(99);
-
-  for (auto [k, v] : repeating_collisions_) {
-    LOG_VERBOSE << cfg_.context
-                << fmt::format(
-                       "avoided {} collisions in 0x{:02x}-byte sequences", v,
-                       k);
-  }
-
-  if (stats_.total_appends > 0) {
-    LOG_VERBOSE << cfg_.context
-                << fmt::format("appends using cached hashes: {}/{} ({:.3f}%)",
-                               stats_.total_appends_with_cached_hash,
-                               stats_.total_appends,
-                               100.0 * stats_.total_appends_with_cached_hash /
-                                   stats_.total_appends);
-  }
+  report_segmenter_stats(log_, cfg_.context, stats_, match_counts_,
+                         repeating_collisions_);
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-DWARFS_FORCE_INLINE void
-segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
+DWARFS_NOINLINE void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
   block_ready_(block.data().share(), block.num());
   ++prog_.block_count;
+}
+
+template <typename LoggerPolicy, typename SegmentingPolicy>
+DWARFS_FORCE_INLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
+  if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
+    blocks_.pop_front();
+  }
+
+  if constexpr (is_segmentation_enabled()) {
+    global_filter_.clear();
+    if constexpr (is_multi_block_mode()) {
+      for (auto const& b : blocks_) {
+        global_filter_.merge(b.filter());
+      }
+    }
+  }
+
+  add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
+                repeating_collisions_, blkmgr_->get_logical_block(),
+                block_size_in_frames_,
+                cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
+                is_multi_block_mode() ? global_filter_.size() : 0);
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
@@ -1730,24 +1782,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
     file_size_t size_in_frames,
     std::optional<rsync_hash::value_type> cached_hashval) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
-    if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
-      blocks_.pop_front();
-    }
-
-    if constexpr (is_segmentation_enabled()) {
-      global_filter_.clear();
-      if constexpr (is_multi_block_mode()) {
-        for (auto const& b : blocks_) {
-          global_filter_.merge(b.filter());
-        }
-      }
-    }
-
-    add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
-                  repeating_collisions_, blkmgr_->get_logical_block(),
-                  block_size_in_frames_,
-                  cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
-                  is_multi_block_mode() ? global_filter_.size() : 0);
+    prepare_new_block();
   }
 
   auto const offset_in_bytes = frames_to_bytes(offset_in_frames);
