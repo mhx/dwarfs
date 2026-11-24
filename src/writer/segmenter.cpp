@@ -1046,7 +1046,7 @@ class hash_window<true> {
   segment_queue::byte_range_iterable::iterator to_it_;
 };
 
-template <typename GranularityPolicy, bool SegmentationEnabled, bool MultiBlock>
+template <typename GranularityPolicy, bool SegmentationEnabled>
 class BasicSegmentationPolicy : public GranularityPolicy {
  public:
   using GranularityPolicyT = GranularityPolicy;
@@ -1058,23 +1058,15 @@ class BasicSegmentationPolicy : public GranularityPolicy {
   static DWARFS_FORCE_INLINE constexpr bool is_segmentation_enabled() {
     return SegmentationEnabled;
   }
-
-  static DWARFS_FORCE_INLINE constexpr bool is_multi_block_mode() {
-    return MultiBlock;
-  }
 };
 
 template <typename GranularityPolicy>
 using SegmentationDisabledPolicy =
-    BasicSegmentationPolicy<GranularityPolicy, false, false>;
+    BasicSegmentationPolicy<GranularityPolicy, false>;
 
 template <typename GranularityPolicy>
-using SingleBlockSegmentationPolicy =
-    BasicSegmentationPolicy<GranularityPolicy, true, false>;
-
-template <typename GranularityPolicy>
-using MultiBlockSegmentationPolicy =
-    BasicSegmentationPolicy<GranularityPolicy, true, true>;
+using SegmentationEnabledPolicy =
+    BasicSegmentationPolicy<GranularityPolicy, true>;
 
 template <typename T, typename GranularityPolicy>
 class basic_granular_container_adapter : private GranularityPolicy {
@@ -1316,7 +1308,6 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   using GranularityPolicyT::constrained_block_size;
   using GranularityPolicyT::frames_to_bytes;
   using GranularityPolicyT::granularity_bytes;
-  using SegmentingPolicy::is_multi_block_mode;
   using SegmentingPolicy::is_segmentation_enabled;
 
  public:
@@ -1369,6 +1360,10 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   template <typename Data>
   DWARFS_FORCE_INLINE void segment_and_add_data(chunkable& chkable, Data& data,
                                                 file_size_t size_in_frames);
+
+  DWARFS_FORCE_INLINE bool is_multi_block_mode() const {
+    return is_segmentation_enabled() && cfg_.max_active_blocks > 1;
+  }
 
   DWARFS_FORCE_INLINE size_t
   bloom_filter_size(segmenter::config const& cfg) const {
@@ -1768,7 +1763,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::prepare_new_block() {
 
   if constexpr (is_segmentation_enabled()) {
     global_filter_.clear();
-    if constexpr (is_multi_block_mode()) {
+    if (is_multi_block_mode()) {
       for (auto const& b : blocks_) {
         global_filter_.merge(b.filter());
       }
@@ -1927,7 +1922,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     if (global_filter_.test(hashval)) [[unlikely]] {
       ++stats_.bloom_hits;
 
-      if constexpr (is_multi_block_mode()) {
+      if (is_multi_block_mode()) {
         for (auto const& block : blocks_) {
           block.for_each_offset_filter(hashval, [&, this](auto off) {
             this->add_match(matches, &block, off);
@@ -2133,13 +2128,7 @@ create_segmenter(logger& lgr, progress& prog,
         std::move(block_ready));
   }
 
-  if (cfg.max_active_blocks == 1) {
-    return create_segmenter2<SingleBlockSegmentationPolicy>(
-        lgr, prog, std::move(blkmgr), cfg, cc, total_size,
-        std::move(block_ready));
-  }
-
-  return create_segmenter2<MultiBlockSegmentationPolicy>(
+  return create_segmenter2<SegmentationEnabledPolicy>(
       lgr, prog, std::move(blkmgr), cfg, cc, total_size,
       std::move(block_ready));
 }
@@ -2180,7 +2169,7 @@ uint64_t segmenter::estimate_memory_usage(config const& cfg,
 
   // Single active block uses memory for:
   // - offsets
-  // - bloom filter (only with MultiBlockSegmentationPolicy)
+  // - bloom filter (only in multi-block segmentation mode)
   // We do *not* consider the memory for the block data buffer here
   size_t const active_block_mem_usage =
       (max_offset_count * kWorstCaseBytesPerOffset) +
