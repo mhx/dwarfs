@@ -50,10 +50,13 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define DWARFS_FORCE_INLINE inline __attribute__((__always_inline__))
+#define DWARFS_NOINLINE __attribute__((__noinline__))
 #elif defined(_MSC_VER)
 #define DWARFS_FORCE_INLINE __forceinline
+#define DWARFS_NOINLINE __declspec(noinline)
 #else
 #define DWARFS_FORCE_INLINE inline
+#define DWARFS_NOINLINE
 #endif
 
 #define DWARFS_STRINGIFY2(x) #x
