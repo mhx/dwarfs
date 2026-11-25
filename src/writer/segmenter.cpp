@@ -526,102 +526,81 @@ class segment_queue {
 #endif
   };
 
-  class byte_range_iterable {
+  class byte_cursor {
    public:
-    class iterator {
-     public:
-      using value_type = std::byte;
-      using difference_type = std::ptrdiff_t;
-      using iterator_category = std::input_iterator_tag;
-      using reference = value_type const&;
-      using pointer = value_type const*;
+    byte_cursor() = default;
 
-      iterator() = default;
-      iterator(queue_data* d, file_off_t offset,
-               [[maybe_unused]] file_off_t end)
-          : data_{d}
-          , offset_{offset}
-          , cached_end_{offset}
-#ifndef NDEBUG
-          , range_end_{end}
-#endif
-      {
-        assert(offset <= end);
-      }
-
-      DWARFS_FORCE_INLINE reference operator*() {
-        assert(data_ && offset_ < range_end_);
-        assert(offset_ >= data_->released_until());
-
-        if (offset_ >= cached_end_ ||
-            generation_ != data_->release_generation()) [[unlikely]] {
-          refill();
-        }
-
-        assert(offset_ >= cached_begin_ && offset_ < cached_end_);
-        assert(cached_data_);
-
-        return cached_data_[offset_ - cached_begin_];
-      }
-
-      DWARFS_FORCE_INLINE pointer operator->() { return &**this; }
-
-      DWARFS_FORCE_INLINE iterator& operator++() {
-        assert(data_ && offset_ < range_end_);
-        ++offset_;
-        return *this;
-      }
-
-      DWARFS_FORCE_INLINE void operator++(int) { ++*this; }
-
-      [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
-      operator==(iterator const& a, iterator const& b) noexcept {
-        return a.data_ == b.data_ && a.offset_ == b.offset_;
-      }
-
-      [[maybe_unused]] friend DWARFS_FORCE_INLINE bool
-      operator!=(iterator const& a, iterator const& b) noexcept {
-        return !(a == b);
-      }
-
-     private:
-      DWARFS_NOINLINE void refill() {
-        auto const bytes = data_->span(offset_);
-
-        assert(!bytes.empty());
-
-        cached_data_ = bytes.data();
-        cached_begin_ = offset_;
-        cached_end_ = offset_ + static_cast<file_off_t>(bytes.size());
-        generation_ = data_->release_generation();
-      }
-
-      queue_data* data_{nullptr};
-      file_off_t offset_{0};
-      std::byte const* cached_data_{nullptr};
-      file_off_t cached_begin_{0};
-      file_off_t cached_end_{0};
-      size_t generation_{0};
-#ifndef NDEBUG
-      file_off_t range_end_{0};
-#endif
-    };
-
-    static_assert(std::input_or_output_iterator<iterator>);
-
-    iterator begin() { return iterator{data_, range_.begin(), range_.end()}; }
-
-    iterator end() { return iterator{data_, range_.end(), range_.end()}; }
-
-    byte_range_iterable() = default;
-
-    byte_range_iterable(queue_data* d, file_range range)
+    byte_cursor(queue_data* d, file_range range)
         : data_{d}
-        , range_{range} {}
+        , end_offset_{range.begin()}
+#ifndef NDEBUG
+        , offset_{range.begin()}
+        , range_end_{range.end()}
+#endif
+    {
+      assert(range.begin() <= range.end());
+    }
+
+    DWARFS_FORCE_INLINE uint8_t next_byte() {
+      assert(data_ && offset_ < range_end_);
+      assert(offset_ == position());
+      assert(offset_ >= data_->released_until());
+
+      // don't use the pointer until its generation is valid
+      if (remaining_ == 0 || generation_ != data_->release_generation())
+          [[unlikely]] {
+        refill();
+      }
+
+      assert(remaining_ > 0 && next_);
+      assert(next_ + remaining_ == cached_end_);
+      assert(offset_ == position());
+
+      --remaining_;
+#ifndef NDEBUG
+      ++offset_;
+#endif
+      return static_cast<uint8_t>(*next_++);
+    }
+
+#ifndef NDEBUG
+    bool same_position(byte_cursor const& other) const noexcept {
+      assert(offset_ == position());
+      assert(other.offset_ == other.position());
+      return data_ == other.data_ && offset_ == other.offset_;
+    }
+#endif
 
    private:
+    file_off_t position() const noexcept { return end_offset_ - remaining_; }
+
+    DWARFS_NOINLINE void refill() {
+      auto const offset = position();
+      auto const bytes = data_->span(offset);
+
+      assert(!bytes.empty());
+      assert(std::in_range<file_size_t>(bytes.size()));
+
+      next_ = bytes.data();
+      remaining_ = static_cast<file_size_t>(bytes.size());
+      end_offset_ = offset + remaining_;
+      generation_ = data_->release_generation();
+#ifndef NDEBUG
+      cached_end_ = next_ + remaining_;
+      assert(offset_ == position());
+#endif
+    }
+
     queue_data* data_{nullptr};
-    file_range range_;
+    std::byte const* next_{nullptr};
+    file_size_t remaining_{0};
+    file_off_t end_offset_{0};
+    size_t generation_{0};
+#ifndef NDEBUG
+    file_off_t offset_{0};
+    file_off_t range_end_{0};
+    std::byte const* cached_end_{nullptr};
+#endif
   };
 
   class span_range_iterable {
@@ -706,9 +685,9 @@ class segment_queue {
   explicit segment_queue(file_segments_iterable segments)
       : data_{std::make_unique<queue_data>(std::move(segments))} {}
 
-  byte_range_iterable byte_range(file_range range) {
-    return byte_range_iterable{
-        data_.get(), {data_->offset() + range.offset(), range.size()}};
+  byte_cursor make_byte_cursor(file_range range) {
+    return byte_cursor{data_.get(),
+                       {data_->offset() + range.offset(), range.size()}};
   }
 
   span_range_iterable span_range(file_range range) {
@@ -934,25 +913,25 @@ class granular_segments_adapter : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE file_size_t size_in_bytes() const { return size_; }
 
-  segment_queue::byte_range_iterable byte_range(file_off_t offset) const {
+  segment_queue::byte_cursor make_byte_cursor(file_off_t offset) const {
     offset = this->frames_to_bytes(offset);
-    return queue_.byte_range({offset, size_ - offset});
+    return queue_.make_byte_cursor({offset, size_ - offset});
   }
 
-  template <typename H, typename It>
-  DWARFS_FORCE_INLINE void update_hash(H& hasher, It& it) const {
-    this->for_bytes_in_frame([&] {
-      hasher.update(static_cast<uint8_t>(*it));
-      ++it;
-    });
+  template <typename H>
+  DWARFS_FORCE_INLINE void
+  update_hash(H& hasher, segment_queue::byte_cursor& cursor) const {
+    this->for_bytes_in_frame([&] { hasher.update(cursor.next_byte()); });
   }
 
-  template <typename H, typename It>
-  DWARFS_FORCE_INLINE void update_hash(H& hasher, It& from, It& to) const {
+  template <typename H>
+  DWARFS_FORCE_INLINE void
+  update_hash(H& hasher, segment_queue::byte_cursor& from,
+              segment_queue::byte_cursor& to) const {
     this->for_bytes_in_frame([&] {
-      hasher.update(static_cast<uint8_t>(*from), static_cast<uint8_t>(*to));
-      ++from;
-      ++to;
+      auto const outbyte = from.next_byte();
+      auto const inbyte = to.next_byte();
+      hasher.update(outbyte, inbyte);
     });
   }
 
@@ -1090,19 +1069,17 @@ class hash_window<true> {
   template <typename Hasher, typename ExtentAdapter>
   DWARFS_FORCE_INLINE file_off_t seek(Hasher& hasher, ExtentAdapter const& data,
                                       file_off_t offset) {
-    from_range_ = data.byte_range(offset);
-    from_it_ = from_range_.begin();
-    to_range_ = data.byte_range(offset);
-    to_it_ = to_range_.begin();
+    from_ = data.make_byte_cursor(offset);
+    to_ = from_;
 
     file_off_t end = offset + window_size_;
 
     for (; offset < end; ++offset) {
-      data.update_hash(hasher, to_it_);
+      data.update_hash(hasher, to_);
     }
 
-    assert(from_it_ == data.byte_range(offset - window_size_).begin());
-    assert(to_it_ == data.byte_range(offset).begin());
+    assert(from_.same_position(data.make_byte_cursor(offset - window_size_)));
+    assert(to_.same_position(data.make_byte_cursor(offset)));
 
     return offset;
   }
@@ -1111,20 +1088,18 @@ class hash_window<true> {
   DWARFS_FORCE_INLINE file_off_t slide(Hasher& hasher,
                                        ExtentAdapter const& data,
                                        file_off_t offset) {
-    assert(from_it_ == data.byte_range(offset - window_size_).begin());
-    assert(to_it_ == data.byte_range(offset).begin());
+    assert(from_.same_position(data.make_byte_cursor(offset - window_size_)));
+    assert(to_.same_position(data.make_byte_cursor(offset)));
 
-    data.update_hash(hasher, from_it_, to_it_);
+    data.update_hash(hasher, from_, to_);
 
     return offset + 1;
   }
 
  private:
   size_t const window_size_{0};
-  segment_queue::byte_range_iterable from_range_;
-  segment_queue::byte_range_iterable to_range_;
-  segment_queue::byte_range_iterable::iterator from_it_;
-  segment_queue::byte_range_iterable::iterator to_it_;
+  segment_queue::byte_cursor from_;
+  segment_queue::byte_cursor to_;
 };
 
 template <typename GranularityPolicy, bool SegmentationEnabled>
