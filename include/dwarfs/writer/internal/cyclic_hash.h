@@ -23,7 +23,9 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <stdexcept>
 
 #include <dwarfs/compiler.h>
@@ -49,6 +51,16 @@ class rsync_hash {
     a_ += inbyte;
     b_ += a_;
     ++len_;
+  }
+
+  DWARFS_FORCE_INLINE void update(std::span<std::byte const> bytes) {
+    for (auto byte : bytes) {
+      update(std::to_integer<std::uint8_t>(byte));
+    }
+  }
+
+  DWARFS_FORCE_INLINE void update(std::span<std::uint8_t const> bytes) {
+    update(std::as_bytes(bytes));
   }
 
   DWARFS_FORCE_INLINE void update(std::uint8_t outbyte, std::uint8_t inbyte) {
