@@ -970,31 +970,29 @@ class granular_segments_adapter : private GranularityPolicy {
     auto const spans = collect_spans(offset_in_bytes, rhs.size());
     size_t match_length{0};
 
-    // NOLINTBEGIN(modernize-use-ranges)
     if constexpr (Forward) {
       for (auto const& lhs : spans) {
-        auto const [lit, rit] =
-            std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-        auto const submatch_length = std::distance(lhs.begin(), lit);
+        assert(lhs.size() <= rhs.size());
+        auto const submatch_length =
+            common_prefix_length(lhs.data(), rhs.data(), lhs.size());
         match_length += submatch_length;
-        if (lit != lhs.end() && rit != rhs.end()) {
+        if (submatch_length != lhs.size()) {
           break;
         }
         rhs = rhs.subspan(submatch_length);
       }
     } else {
       for (auto const& lhs : std::views::reverse(spans)) {
-        auto const [lit, rit] =
-            std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend());
-        auto const submatch_length = std::distance(lhs.rbegin(), lit);
+        assert(lhs.size() <= rhs.size());
+        auto const submatch_length = common_suffix_length(
+            lhs.data(), rhs.data() + rhs.size() - lhs.size(), lhs.size());
         match_length += submatch_length;
-        if (lit != lhs.rend() && rit != rhs.rend()) {
+        if (submatch_length != lhs.size()) {
           break;
         }
         rhs = rhs.subspan(0, rhs.size() - submatch_length);
       }
     }
-    // NOLINTEND(modernize-use-ranges)
 
     match_length -= match_length % this->granularity_bytes();
     return this->bytes_to_frames(match_length);
