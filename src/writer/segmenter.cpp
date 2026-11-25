@@ -755,6 +755,39 @@ DWARFS_NOINLINE size_t common_prefix_length(uint8_t const* lhs,
   return matched;
 }
 
+// return the common suffix length of two contiguous byte ranges
+DWARFS_NOINLINE size_t common_suffix_length(uint8_t const* lhs,
+                                            uint8_t const* rhs, size_t size) {
+  size_t remaining{size};
+
+  while (remaining >= sizeof(uint64_t)) {
+    auto const offset = remaining - sizeof(uint64_t);
+    uint64_t a, b;
+
+    std::memcpy(&a, lhs + offset, sizeof(a));
+    std::memcpy(&b, rhs + offset, sizeof(b));
+
+    if (auto const diff = a ^ b; diff != 0) {
+      if constexpr (std::endian::native == std::endian::little) {
+        return size - remaining + std::countl_zero(diff) / 8;
+      } else if constexpr (std::endian::native == std::endian::big) {
+        return size - remaining + std::countr_zero(diff) / 8;
+      } else {
+        // unknown endianness, fallback to byte-by-byte comparison
+        break;
+      }
+    }
+
+    remaining = offset;
+  }
+
+  while (remaining > 0 && lhs[remaining - 1] == rhs[remaining - 1]) {
+    --remaining;
+  }
+
+  return size - remaining;
+}
+
 template <typename GranularityPolicy>
 class granular_span_adapter : private GranularityPolicy {
  public:
@@ -834,16 +867,11 @@ class granular_span_adapter : private GranularityPolicy {
 
     size_t match_length;
 
-    // NOLINTBEGIN(modernize-use-ranges)
     if constexpr (Forward) {
       match_length = common_prefix_length(lhs.data(), rhs.data(), lhs.size());
     } else {
-      auto const it =
-          std::mismatch(lhs.rbegin(), lhs.rend(), rhs.rbegin(), rhs.rend())
-              .first;
-      match_length = std::distance(lhs.rbegin(), it);
+      match_length = common_suffix_length(lhs.data(), rhs.data(), lhs.size());
     }
-    // NOLINTEND(modernize-use-ranges)
 
     match_length -= match_length % this->granularity_bytes();
 
