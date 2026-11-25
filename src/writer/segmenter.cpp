@@ -846,9 +846,7 @@ class granular_span_adapter : private GranularityPolicy {
     assert(offset_in_bytes <= raw_bytes_.size());
     assert(size_in_bytes <= raw_bytes_.size() - offset_in_bytes);
 
-    for (auto byte : raw_bytes_.subspan(offset_in_bytes, size_in_bytes)) {
-      hasher.update(byte);
-    }
+    hasher.update(raw_bytes_.subspan(offset_in_bytes, size_in_bytes));
   }
 
   template <typename H>
@@ -950,9 +948,7 @@ class granular_segments_adapter : private GranularityPolicy {
     auto const size_in_bytes = this->frames_to_bytes(size);
 
     for (auto const& span : get_span_range(offset_in_bytes, size_in_bytes)) {
-      for (auto byte : span) {
-        hasher.update(static_cast<uint8_t>(byte));
-      }
+      hasher.update(span);
     }
   }
 
