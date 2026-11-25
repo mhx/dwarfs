@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <limits>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -548,17 +549,13 @@ class segment_queue {
       assert(offset_ == position());
       assert(offset_ >= data_->released_until());
 
-      assert(remaining_ == 0 || generation_ == data_->release_generation());
-
-      if (remaining_ == 0) [[unlikely]] {
+      if (next_ == end_) [[unlikely]] {
         refill();
       }
 
-      assert(remaining_ > 0 && next_);
-      assert(next_ + remaining_ == cached_end_);
+      assert(next_ && next_ < end_);
       assert(offset_ == position());
 
-      --remaining_;
 #ifndef NDEBUG
       ++offset_;
 #endif
@@ -568,10 +565,9 @@ class segment_queue {
     DWARFS_FORCE_INLINE void invalidate() noexcept {
       assert(offset_ == position());
       end_offset_ = position();
-      remaining_ = 0;
-      next_ = nullptr;
+      next_ = end_ = nullptr;
 #ifndef NDEBUG
-      cached_end_ = nullptr;
+      generation_.reset();
       assert(offset_ == position());
 #endif
     }
@@ -585,7 +581,13 @@ class segment_queue {
 #endif
 
    private:
-    file_off_t position() const noexcept { return end_offset_ - remaining_; }
+    file_off_t position() const noexcept {
+      // perform lifetime checks in debug builds
+      assert(!generation_ || *generation_ == data_->release_generation());
+      assert((next_ == nullptr) == (end_ == nullptr));
+      assert(!next_ || next_ <= end_);
+      return next_ == end_ ? end_offset_ : end_offset_ - (end_ - next_);
+    }
 
     DWARFS_NOINLINE void refill() {
       auto const offset = position();
@@ -594,25 +596,25 @@ class segment_queue {
       assert(!bytes.empty());
       assert(std::in_range<file_size_t>(bytes.size()));
 
+      auto const size = std::min<size_t>(
+          bytes.size(), std::numeric_limits<std::ptrdiff_t>::max());
       next_ = bytes.data();
-      remaining_ = static_cast<file_size_t>(bytes.size());
-      end_offset_ = offset + remaining_;
+      end_ = next_ + size;
+      end_offset_ = offset + static_cast<file_size_t>(size);
 #ifndef NDEBUG
       generation_ = data_->release_generation();
-      cached_end_ = next_ + remaining_;
       assert(offset_ == position());
 #endif
     }
 
     queue_data* data_{nullptr};
     std::byte const* next_{nullptr};
-    file_size_t remaining_{0};
+    std::byte const* end_{nullptr};
     file_off_t end_offset_{0};
 #ifndef NDEBUG
-    size_t generation_{0};
+    std::optional<size_t> generation_;
     file_off_t offset_{0};
     file_off_t range_end_{0};
-    std::byte const* cached_end_{nullptr};
 #endif
   };
 
