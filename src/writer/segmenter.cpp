@@ -718,7 +718,15 @@ raw_span_source make_raw_span_source(Source const& source) {
 // return the common prefix length of two contiguous byte ranges
 DWARFS_NOINLINE size_t common_prefix_length(uint8_t const* lhs,
                                             uint8_t const* rhs, size_t size) {
+  constexpr size_t width{32};
   size_t matched{0};
+
+  while (size - matched >= width) {
+    if (std::memcmp(lhs + matched, rhs + matched, width) != 0) {
+      break;
+    }
+    matched += width;
+  }
 
   while (size - matched >= sizeof(uint64_t)) {
     uint64_t a, b;
