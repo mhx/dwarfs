@@ -447,9 +447,21 @@ class segment_queue {
       if (seg_it_ != segments_.end()) {
         offset_ = seg_it_->offset();
       }
+
+#ifndef NDEBUG
+      released_until_ = offset_;
+#endif
     }
 
     file_off_t offset() const noexcept { return offset_; }
+
+    DWARFS_FORCE_INLINE size_t release_generation() const noexcept {
+      return release_generation_;
+    }
+
+#ifndef NDEBUG
+    file_off_t released_until() const noexcept { return released_until_; }
+#endif
 
     struct queued_segment {
       explicit queued_segment(file_segment seg)
@@ -462,47 +474,25 @@ class segment_queue {
       file_segment segment;
     };
 
-    struct versioned_iterator {
-      versioned_iterator(std::deque<queued_segment>::iterator const& it_,
-                         size_t ver)
-          : it{it_}
-          , version{ver} {}
-
-      std::deque<queued_segment>::iterator it;
-      size_t version{0};
-    };
-
-    using lookup_hint = std::optional<versioned_iterator>;
-
     std::span<std::byte const> span(file_off_t offset) {
+      assert(offset >= released_until_);
+
       auto it = find_segment(offset);
+
+      assert(offset >= it->range.offset() && offset < it->range.end());
+      assert(std::cmp_equal(it->bytes.size(), it->range.size()));
+
       return it->bytes.subspan(offset - it->range.offset());
     }
 
-    DWARFS_FORCE_INLINE std::byte const&
-    at(file_off_t offset, lookup_hint* phint = nullptr) {
-      if (phint && phint->has_value()) [[likely]] {
-        auto const& hint = **phint;
-        if (hint.version == queue_version_) [[likely]] {
-          auto const& r = hint.it->range;
-          if (offset >= r.offset() && offset < r.end()) [[likely]] {
-            return hint.it->bytes[offset - r.offset()];
-          }
-        }
-        phint->reset();
-      }
-
-      auto it = find_segment(offset);
-
-      if (phint) [[likely]] {
-        phint->emplace(it, queue_version_);
-      }
-
-      return it->bytes[offset - it->range.offset()];
-    }
-
     void release_until(file_off_t offset) {
+#ifndef NDEBUG
+      assert(offset >= released_until_);
+      released_until_ = offset;
+#endif
+
       while (!queue_.empty() && queue_.front().range.end() <= offset) {
+        ++release_generation_;
         queue_.pop_front();
       }
     }
@@ -514,7 +504,6 @@ class segment_queue {
           throw std::out_of_range("offset out of range");
         }
         queue_.emplace_back(*seg_it_++);
-        ++queue_version_;
       }
 
       for (auto it = queue_.rbegin(); it != queue_.rend(); ++it) {
@@ -531,7 +520,10 @@ class segment_queue {
     file_segments_iterable segments_;
     file_segments_iterable::iterator seg_it_;
     file_off_t offset_{0};
-    size_t queue_version_{0};
+    size_t release_generation_{0};
+#ifndef NDEBUG
+    file_off_t released_until_{0};
+#endif
   };
 
   class byte_range_iterable {
@@ -545,16 +537,37 @@ class segment_queue {
       using pointer = value_type const*;
 
       iterator() = default;
-      iterator(queue_data* d, file_off_t offset)
+      iterator(queue_data* d, file_off_t offset,
+               [[maybe_unused]] file_off_t end)
           : data_{d}
-          , offset_{offset} {}
+          , offset_{offset}
+          , cached_end_{offset}
+#ifndef NDEBUG
+          , range_end_{end}
+#endif
+      {
+        assert(offset <= end);
+      }
 
       DWARFS_FORCE_INLINE reference operator*() {
-        return data_->at(offset_, &hint_);
+        assert(data_ && offset_ < range_end_);
+        assert(offset_ >= data_->released_until());
+
+        if (offset_ >= cached_end_ ||
+            generation_ != data_->release_generation()) [[unlikely]] {
+          refill();
+        }
+
+        assert(offset_ >= cached_begin_ && offset_ < cached_end_);
+        assert(cached_data_);
+
+        return cached_data_[offset_ - cached_begin_];
       }
+
       DWARFS_FORCE_INLINE pointer operator->() { return &**this; }
 
       DWARFS_FORCE_INLINE iterator& operator++() {
+        assert(data_ && offset_ < range_end_);
         ++offset_;
         return *this;
       }
@@ -572,16 +585,33 @@ class segment_queue {
       }
 
      private:
+      DWARFS_NOINLINE void refill() {
+        auto const bytes = data_->span(offset_);
+
+        assert(!bytes.empty());
+
+        cached_data_ = bytes.data();
+        cached_begin_ = offset_;
+        cached_end_ = offset_ + static_cast<file_off_t>(bytes.size());
+        generation_ = data_->release_generation();
+      }
+
       queue_data* data_{nullptr};
       file_off_t offset_{0};
-      queue_data::lookup_hint hint_;
+      std::byte const* cached_data_{nullptr};
+      file_off_t cached_begin_{0};
+      file_off_t cached_end_{0};
+      size_t generation_{0};
+#ifndef NDEBUG
+      file_off_t range_end_{0};
+#endif
     };
 
     static_assert(std::input_or_output_iterator<iterator>);
 
-    iterator begin() { return iterator{data_, range_.begin()}; }
+    iterator begin() { return iterator{data_, range_.begin(), range_.end()}; }
 
-    iterator end() { return iterator{data_, range_.end()}; }
+    iterator end() { return iterator{data_, range_.end(), range_.end()}; }
 
     byte_range_iterable() = default;
 
@@ -1071,6 +1101,9 @@ class hash_window<true> {
       data.update_hash(hasher, to_it_);
     }
 
+    assert(from_it_ == data.byte_range(offset - window_size_).begin());
+    assert(to_it_ == data.byte_range(offset).begin());
+
     return offset;
   }
 
@@ -1078,7 +1111,11 @@ class hash_window<true> {
   DWARFS_FORCE_INLINE file_off_t slide(Hasher& hasher,
                                        ExtentAdapter const& data,
                                        file_off_t offset) {
+    assert(from_it_ == data.byte_range(offset - window_size_).begin());
+    assert(to_it_ == data.byte_range(offset).begin());
+
     data.update_hash(hasher, from_it_, to_it_);
+
     return offset + 1;
   }
 
@@ -2141,6 +2178,12 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           auto block_num = best->block_num();
           auto match_off = best->offset();
+
+          assert(std::cmp_greater_equal(best->pos(), frames_written));
+          assert(std::cmp_greater_equal(offset_in_frames, window_size_));
+          assert(std::cmp_less_equal(best->pos(),
+                                     offset_in_frames - window_size_));
+
           auto num_to_write = best->pos() - frames_written;
 
           // best->block can be invalidated by this call to add_data()!
@@ -2190,6 +2233,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
     if (std::cmp_equal(offset_in_frames, next_hash_offset_in_frames))
         [[unlikely]] {
+      assert(std::cmp_greater_equal(offset_in_frames, lookback_size_in_frames));
+      assert(std::cmp_greater_equal(offset_in_frames - lookback_size_in_frames,
+                                    frames_written));
+
       auto num_to_write =
           offset_in_frames - lookback_size_in_frames - frames_written;
       std::optional<rsync_hash::value_type> cached_hv;
@@ -2199,6 +2246,11 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       if (lagging_hashvals_count >= lagging_hashvals.size()) {
         cached_hv = lagging_hashvals[lagging_hashvals_index];
       }
+
+      // block completion may release the input, but never inside the live
+      // rolling window or the additional lookback
+      assert(std::cmp_less_equal(frames_written + num_to_write,
+                                 offset_in_frames - window_size_));
 
       add_frames(num_to_write, cached_hv);
       frames_written += num_to_write;
