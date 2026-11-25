@@ -455,11 +455,11 @@ class segment_queue {
 
     file_off_t offset() const noexcept { return offset_; }
 
+#ifndef NDEBUG
     DWARFS_FORCE_INLINE size_t release_generation() const noexcept {
       return release_generation_;
     }
 
-#ifndef NDEBUG
     file_off_t released_until() const noexcept { return released_until_; }
 #endif
 
@@ -492,7 +492,9 @@ class segment_queue {
 #endif
 
       while (!queue_.empty() && queue_.front().range.end() <= offset) {
+#ifndef NDEBUG
         ++release_generation_;
+#endif
         queue_.pop_front();
       }
     }
@@ -520,8 +522,8 @@ class segment_queue {
     file_segments_iterable segments_;
     file_segments_iterable::iterator seg_it_;
     file_off_t offset_{0};
-    size_t release_generation_{0};
 #ifndef NDEBUG
+    size_t release_generation_{0};
     file_off_t released_until_{0};
 #endif
   };
@@ -546,9 +548,9 @@ class segment_queue {
       assert(offset_ == position());
       assert(offset_ >= data_->released_until());
 
-      // don't use the pointer until its generation is valid
-      if (remaining_ == 0 || generation_ != data_->release_generation())
-          [[unlikely]] {
+      assert(remaining_ == 0 || generation_ == data_->release_generation());
+
+      if (remaining_ == 0) [[unlikely]] {
         refill();
       }
 
@@ -561,6 +563,17 @@ class segment_queue {
       ++offset_;
 #endif
       return static_cast<uint8_t>(*next_++);
+    }
+
+    DWARFS_FORCE_INLINE void invalidate() noexcept {
+      assert(offset_ == position());
+      end_offset_ = position();
+      remaining_ = 0;
+      next_ = nullptr;
+#ifndef NDEBUG
+      cached_end_ = nullptr;
+      assert(offset_ == position());
+#endif
     }
 
 #ifndef NDEBUG
@@ -584,8 +597,8 @@ class segment_queue {
       next_ = bytes.data();
       remaining_ = static_cast<file_size_t>(bytes.size());
       end_offset_ = offset + remaining_;
-      generation_ = data_->release_generation();
 #ifndef NDEBUG
+      generation_ = data_->release_generation();
       cached_end_ = next_ + remaining_;
       assert(offset_ == position());
 #endif
@@ -595,8 +608,8 @@ class segment_queue {
     std::byte const* next_{nullptr};
     file_size_t remaining_{0};
     file_off_t end_offset_{0};
-    size_t generation_{0};
 #ifndef NDEBUG
+    size_t generation_{0};
     file_off_t offset_{0};
     file_off_t range_end_{0};
     std::byte const* cached_end_{nullptr};
@@ -1094,6 +1107,11 @@ class hash_window<true> {
     data.update_hash(hasher, from_, to_);
 
     return offset + 1;
+  }
+
+  DWARFS_FORCE_INLINE void invalidate() noexcept {
+    from_.invalidate();
+    to_.invalidate();
   }
 
  private:
@@ -2093,6 +2111,13 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   auto add_frames = [&](file_size_t num,
                         std::optional<rsync_hash::value_type> cached_hv =
                             std::nullopt) {
+    if constexpr (Data::kUseSegmentQueue) {
+      // invalidate hash window cursors before potentially releasing the data
+      if (num > 0) {
+        hashwin.invalidate();
+      }
+    }
+
     add_data(chkable, data, frames_written, num, cached_hv);
   };
 
