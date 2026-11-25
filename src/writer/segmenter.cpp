@@ -836,9 +836,19 @@ class granular_span_adapter : private GranularityPolicy {
   }
 
   template <typename H>
-  DWARFS_FORCE_INLINE void update_hash(H& hasher, file_off_t offset) const {
-    offset = this->frames_to_bytes(offset);
-    this->for_bytes_in_frame([&] { hasher.update(raw_bytes_[offset++]); });
+  DWARFS_FORCE_INLINE void
+  initialize_hash(H& hasher, file_off_t offset, file_size_t size) const {
+    assert(offset >= 0 && size >= 0);
+
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const size_in_bytes = this->frames_to_bytes(size);
+
+    assert(offset_in_bytes <= raw_bytes_.size());
+    assert(size_in_bytes <= raw_bytes_.size() - offset_in_bytes);
+
+    for (auto byte : raw_bytes_.subspan(offset_in_bytes, size_in_bytes)) {
+      hasher.update(byte);
+    }
   }
 
   template <typename H>
@@ -935,8 +945,15 @@ class granular_segments_adapter : private GranularityPolicy {
 
   template <typename H>
   DWARFS_FORCE_INLINE void
-  update_hash(H& hasher, segment_queue::byte_cursor& cursor) const {
-    this->for_bytes_in_frame([&] { hasher.update(cursor.next_byte()); });
+  initialize_hash(H& hasher, file_off_t offset, file_size_t size) const {
+    auto const offset_in_bytes = this->frames_to_bytes(offset);
+    auto const size_in_bytes = this->frames_to_bytes(size);
+
+    for (auto const& span : get_span_range(offset_in_bytes, size_in_bytes)) {
+      for (auto byte : span) {
+        hasher.update(static_cast<uint8_t>(byte));
+      }
+    }
   }
 
   template <typename H>
@@ -1056,11 +1073,8 @@ class hash_window<false> {
   template <typename Hasher, typename ExtentAdapter>
   DWARFS_FORCE_INLINE file_off_t seek(Hasher& hasher, ExtentAdapter const& data,
                                       file_off_t offset) {
-    file_off_t end = offset + window_size_;
-    for (; offset < end; ++offset) {
-      data.update_hash(hasher, offset);
-    }
-    return offset;
+    data.initialize_hash(hasher, offset, window_size_);
+    return offset + window_size_;
   }
 
   template <typename Hasher, typename ExtentAdapter>
@@ -1085,13 +1099,9 @@ class hash_window<true> {
   DWARFS_FORCE_INLINE file_off_t seek(Hasher& hasher, ExtentAdapter const& data,
                                       file_off_t offset) {
     from_ = data.make_byte_cursor(offset);
-    to_ = from_;
-
-    file_off_t end = offset + window_size_;
-
-    for (; offset < end; ++offset) {
-      data.update_hash(hasher, to_);
-    }
+    data.initialize_hash(hasher, offset, window_size_);
+    offset += window_size_;
+    to_ = data.make_byte_cursor(offset);
 
     assert(from_.same_position(data.make_byte_cursor(offset - window_size_)));
     assert(to_.same_position(data.make_byte_cursor(offset)));
