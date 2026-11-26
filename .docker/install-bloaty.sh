@@ -9,7 +9,8 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
-git clone --depth=1 --recurse-submodules --shallow-submodules https://github.com/google/bloaty
+git clone --depth=1 --revision ccb49b0be3d5bc0dd156bcf16f1515726c395ec5 \
+          --recurse-submodules --shallow-submodules https://github.com/google/bloaty
 cd bloaty
 mkdir build
 cd build
