@@ -75,6 +75,9 @@ COPY toolchain-install.sh /usr/local/bin/toolchain-install.sh
 RUN $WITH_CACHES \\
     bash /usr/local/bin/toolchain-prepare.sh
 
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
+COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+
 ###############################################################################
 
 FROM base AS staticlibs_base
@@ -92,29 +95,19 @@ my @staticlibs;
 
 for my $target (@targets) {
     my $toolchain_stage = "toolchain_$target";
-    my $compiler_rt_stage = "compiler_rt_$target";
-    push @toolchains, $compiler_rt_stage;
+    push @toolchains, $toolchain_stage;
 
     print <<ENDTARGET;
 ###############################################################################
 
 FROM build_base AS $toolchain_stage
 
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
+
 RUN $WITH_CACHES \\
     bash /usr/local/bin/toolchain-install.sh 2 $target
 
 RUN apk del zlib-dev zstd-dev
-
-###############################################################################
-
-FROM $toolchain_stage AS $compiler_rt_stage
-
-COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
-COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
-
-RUN $WITH_CACHES \\
-    bash /usr/local/bin/compiler-rt-install.sh $target
 
 ENDTARGET
 
@@ -125,7 +118,7 @@ ENDTARGET
         print <<ENDCOMPILER;
 ###############################################################################
 
-FROM $compiler_rt_stage AS $staticlibs_stage
+FROM $toolchain_stage AS $staticlibs_stage
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 

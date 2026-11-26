@@ -419,17 +419,18 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     exit 1
   fi
   # Keep using the existing -O2 musl toolchain.
-  _SYSROOT="/opt/cross/O2"
+  _TOOLCHAIN="/opt/cross/O2"
   if [[ "$_MARCH" == "arm" ]]; then
     _TARGET="${_MARCH}-linux-musleabihf"
   else
     _TARGET="${_MARCH}-alpine-linux-musl"
   fi
+  _SYSROOT="$_TOOLCHAIN/sysroots/$_TARGET"
   export CC="${_TARGET}-${CC}"
   export CXX="${_TARGET}-${CXX}"
   export STRIP_TOOL="${_TARGET}-strip"
   export ELFEDIT_TOOL="${_TARGET}-elfedit"
-  export PATH="$_SYSROOT/usr/bin:$PATH"
+  export PATH="$_TOOLCHAIN/usr/bin:$PATH"
 
   if [[ "$BUILD_DIST" == "alpine" ]]; then
     export PATH="/usr/lib/ninja-build/bin:$PATH"
@@ -448,8 +449,8 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   fi
 
   # Use exactly the same LLVM runtimes as the third-party libraries.
-  export CC="$CC --config=$_staticprefix/clang.cfg"
-  export CXX="$CXX --config=$_staticprefix/clang++.cfg"
+  export CC="$CC --no-default-config --config=$_staticprefix/clang.cfg"
+  export CXX="$CXX --no-default-config --config=$_staticprefix/clang++.cfg"
 
   export LDFLAGS="${LDFLAGS} -L$_sslprefix/lib -static"
   export CFLAGS="${CFLAGS} -g -isystem $_staticprefix/include"

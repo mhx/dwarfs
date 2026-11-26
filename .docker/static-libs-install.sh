@@ -96,7 +96,7 @@ opt_size() {
     export CXXFLAGS="$SIZE_CXXFLAGS"
     export CPPFLAGS=""
     export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
-    export CMAKE_ARGS="-GNinja"
+    export CMAKE_ARGS="-GNinja -DCMAKE_SYSROOT=$SYSROOT"
     if [[ "$CARCH" != "$ARCH" ]]; then
         export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     fi
@@ -108,7 +108,7 @@ opt_perf() {
     export CXXFLAGS="$PERF_CXXFLAGS"
     export CPPFLAGS=""
     export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-    export CMAKE_ARGS="-GNinja"
+    export CMAKE_ARGS="-GNinja -DCMAKE_SYSROOT=$SYSROOT"
     if [[ "$CARCH" != "$ARCH" ]]; then
         export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=$CARCH"
     fi
@@ -166,8 +166,9 @@ case "$CARCH" in
         ;;
 esac
 
-export SYSROOT="/opt/cross/O2"
-export PATH="$SYSROOT/usr/lib/ccache/bin:$SYSROOT/usr/bin:/usr/lib/ninja-build/bin:$PATH"
+TOOLCHAIN="/opt/cross/O2"
+export SYSROOT="$TOOLCHAIN/sysroots/$TARGET"
+export PATH="$TOOLCHAIN/usr/lib/ccache/bin:$TOOLCHAIN/usr/bin:/usr/lib/ninja-build/bin:$PATH"
 export WORKROOT="$HOME/pkgs"
 
 INSTALL_ROOT="/opt/static-libs"
@@ -177,8 +178,8 @@ INSTALL_DIR_LIBRESSL="$INSTALL_ROOT/$COMPILER-libressl/$TARGET"
 WORKSUBDIR="$COMPILER/$TARGET"
 WORKDIR="$WORKROOT/$WORKSUBDIR"
 
-RESOURCE_DIR="$SYSROOT/clang/$TARGET"
-TARGET_FLAGS="--sysroot=$SYSROOT -resource-dir=$RESOURCE_DIR"
+RESOURCE_DIR="$TOOLCHAIN/clang/$TARGET"
+TARGET_FLAGS="--no-default-config --config=$RESOURCE_DIR/target.cfg"
 export SIZE_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
 export SIZE_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
 export PERF_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
@@ -283,10 +284,8 @@ if use_lib llvm; then
     # Use the same driver configuration for all subsequent builds, including
     # build systems that do not consistently propagate CFLAGS/LDFLAGS.
     cat > "$INSTALL_DIR/clang.cfg" <<EOF
---sysroot=$SYSROOT
--resource-dir=$RESOURCE_DIR
+@$RESOURCE_DIR/target.cfg
 --start-no-unused-arguments
--rtlib=compiler-rt
 -unwindlib=libunwind
 -L$INSTALL_DIR/lib
 --end-no-unused-arguments
@@ -302,13 +301,13 @@ fi
 # A selective build must use an already installed set of LLVM runtimes.
 test -f "$INSTALL_DIR/clang.cfg"
 test -f "$INSTALL_DIR/clang++.cfg"
-export CC="$TARGET-clang --config=$INSTALL_DIR/clang.cfg"
-export CXX="$TARGET-clang++ --config=$INSTALL_DIR/clang++.cfg"
+export CC="$TARGET-clang --no-default-config --config=$INSTALL_DIR/clang.cfg"
+export CXX="$TARGET-clang++ --no-default-config --config=$INSTALL_DIR/clang++.cfg"
 # Meson needs the compiler command and its arguments as separate array entries.
 cat <<EOF > /tmp/meson-$CARCH-$COMPILER.txt
 [binaries]
-c = ['$TARGET-clang', '--config=$INSTALL_DIR/clang.cfg']
-cpp = ['$TARGET-clang++', '--config=$INSTALL_DIR/clang++.cfg']
+c = ['$TARGET-clang', '--no-default-config', '--config=$INSTALL_DIR/clang.cfg']
+cpp = ['$TARGET-clang++', '--no-default-config', '--config=$INSTALL_DIR/clang++.cfg']
 ld = '$TARGET-clang'
 ar = '$TARGET-ar'
 strip = '$TARGET-strip'

@@ -9,14 +9,15 @@ source "$(dirname "$0")/static-libs-versions.sh"
 
 CARCH="$1"
 LLVM_MAJOR=${LLVM_VERSION%%.*}
-SYSROOT=/opt/cross/O2
+TOOLCHAIN="/opt/cross/O${2:-2}"
 TARGET="$CARCH-alpine-linux-musl"
 if [[ "$CARCH" == arm ]]; then
     TARGET=arm-linux-musleabihf
 fi
 
-export PATH="$SYSROOT/usr/bin:/usr/lib/ninja-build/bin:$PATH"
-RESOURCE_DIR="$SYSROOT/clang/$TARGET"
+SYSROOT="$TOOLCHAIN/sysroots/$TARGET"
+export PATH="$TOOLCHAIN/usr/bin:/usr/lib/ninja-build/bin:$PATH"
+RESOURCE_DIR="$TOOLCHAIN/clang/$TARGET"
 CC="$TARGET-clang"
 CXX="$TARGET-clang++"
 
@@ -39,7 +40,7 @@ sed -i '/list(GET .* 0 COMPILER_RT_DEFAULT_TARGET_ARCH)/a\
 # No target C++ runtime or libgcc is required for the compile-only probes.
 # Set the sysroot in CMAKE_*_FLAGS as well as CMAKE_SYSROOT: compiler-rt
 # has a few custom compile-only probes that use CMAKE_C_FLAGS directly.
-FLAGS="--sysroot=$SYSROOT -resource-dir=$RESOURCE_DIR -ffunction-sections -fdata-sections"
+FLAGS="--no-default-config --config=$RESOURCE_DIR/target.cfg --sysroot=$SYSROOT -ffunction-sections -fdata-sections"
 cmake -S compiler-rt/lib/builtins -B build-builtins -GNinja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SYSTEM_NAME=Linux \
@@ -56,7 +57,7 @@ cmake -S compiler-rt/lib/builtins -B build-builtins -GNinja \
     -DCMAKE_ASM_FLAGS="$FLAGS" \
     -DCMAKE_AR=/usr/bin/llvm${LLVM_MAJOR}-ar \
     -DCMAKE_RANLIB=/usr/bin/llvm${LLVM_MAJOR}-ranlib \
-    -DCMAKE_OBJDUMP="$SYSROOT/usr/bin/$TARGET-objdump" \
+    -DCMAKE_OBJDUMP="$TOOLCHAIN/usr/bin/$TARGET-objdump" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
     -DCMAKE_INSTALL_PREFIX="$RESOURCE_DIR" \
     -DCOMPILER_RT_INSTALL_PATH="$RESOURCE_DIR" \
@@ -71,11 +72,11 @@ ninja -C build-builtins install
 
 # Clang silently falls back to GCC's CRT if the LLVM objects aren't found.
 # Check the actual driver-selected builtins and adjacent CRT objects.
-BUILTINS="$($CC --sysroot="$SYSROOT" -resource-dir="$RESOURCE_DIR" -rtlib=compiler-rt -print-libgcc-file-name)"
+BUILTINS="$($CC --no-default-config --config="$RESOURCE_DIR/target.cfg" -print-libgcc-file-name)"
 [[ "$BUILTINS" == "$RESOURCE_DIR/"* ]]
 test -f "$BUILTINS"
 test -f "$(dirname "$BUILTINS")/clang_rt.crtbegin.o"
 test -f "$(dirname "$BUILTINS")/clang_rt.crtend.o"
 
-cd "$HOME"
-rm -rf pkgs
+cd "$HOME/pkgs"
+rm -rf "llvm-project-${LLVM_VERSION}.src"
