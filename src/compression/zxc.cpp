@@ -62,7 +62,12 @@ constexpr size_t pick_block_size(size_t data_size) {
 class zxc_block_compressor final : public block_compressor::impl {
  public:
   explicit zxc_block_compressor(int level = kDefaultLevel)
-      : level_{level} {}
+      : level_{level} {
+    if (level_ < ::zxc_min_level() || level_ > ::zxc_max_level()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("ZXC: invalid compression level {}", level_));
+    }
+  }
 
   zxc_block_compressor(zxc_block_compressor const&) = default;
 
@@ -137,8 +142,8 @@ class zxc_block_compressor final : public block_compressor::impl {
   int const level_;
 };
 
-// Decodes one zxc block at a time, so that a partial read of a dwarfs block
-// only pays for the zxc blocks it covers.
+// Decodes a few zxc blocks at a time, so that a partial read of a dwarfs block
+// does not have to decode all of it.
 class zxc_block_decompressor final : public block_decompressor_base {
  public:
   explicit zxc_block_decompressor(std::span<uint8_t const> data)
@@ -196,10 +201,10 @@ class zxc_block_decompressor final : public block_decompressor_base {
         data_.data(), data_.size(), decompressed_.data(), decompressed_.size());
 
     if (rv < 0) {
-      fail(rv);
+      fail(rv, 0);
     }
     if (static_cast<size_t>(rv) != uncompressed_size_) {
-      fail(ZXC_ERROR_CORRUPT_DATA);
+      fail(ZXC_ERROR_CORRUPT_DATA, 0);
     }
   }
 
@@ -210,7 +215,7 @@ class zxc_block_decompressor final : public block_decompressor_base {
     if (!stream_) {
       stream_.reset(::zxc_dstream_create(nullptr));
       if (!stream_) {
-        fail(ZXC_ERROR_MEMORY);
+        fail(ZXC_ERROR_MEMORY, pos);
       }
     }
 
@@ -218,37 +223,38 @@ class zxc_block_decompressor final : public block_decompressor_base {
     zxc_outbuf_t out{decompressed_.data() + pos, remaining, 0};
 
     // The decoder runs as far as its input allows, so the input is fed in
-    // slices. The frame only completes once its footer has been consumed.
+    // slices; a slice can hold several highly compressible blocks. The frame
+    // only completes once its footer has been consumed.
     while (out.pos < want || out.pos == remaining) {
       zxc_inbuf_t in{data_.data(), std::min(kInputSliceSize, data_.size()), 0};
       auto const rv = ::zxc_dstream_decompress(stream_.get(), &out, &in);
 
       if (rv < 0) {
-        fail(rv);
+        fail(rv, pos);
       }
 
       data_ = data_.subspan(in.pos);
 
       if (::zxc_dstream_finished(stream_.get())) {
         if (out.pos != remaining) {
-          fail(ZXC_ERROR_CORRUPT_DATA);
+          fail(ZXC_ERROR_CORRUPT_DATA, pos);
         }
         stream_.reset();
         break;
       }
 
       if (rv == 0 && in.pos == 0) {
-        fail(ZXC_ERROR_SRC_TOO_SMALL);
+        fail(ZXC_ERROR_SRC_TOO_SMALL, pos);
       }
     }
 
     return out.pos;
   }
 
-  [[noreturn]] void fail(int64_t code) {
-    decompressed_.clear();
+  [[noreturn]] void fail(int64_t code, size_t valid_size) {
     error_ = fmt::format("ZXC: decompression failed ({})",
                          ::zxc_error_name(static_cast<int>(code)));
+    decompressed_.resize(valid_size);
     DWARFS_THROW(runtime_error, error_);
   }
 
