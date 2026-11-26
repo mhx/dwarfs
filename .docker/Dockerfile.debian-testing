@@ -3,9 +3,8 @@
 # SPDX-FileCopyrightText: Copyright (c) Marcus Holland-Moritz
 # SPDX-License-Identifier: MIT
 
-FROM debian:testing-slim@sha256:c6343ac5a6f7952485fc804a1cf700bdb8af7408d4c549faf682bed42b1c7f96
-RUN apt update && apt upgrade -y
-RUN apt install -y \
+FROM debian:testing-slim@sha256:501494a9e260de3e9e8989acab51064bbf4235f10cca22957df12d89f3023e12
+RUN apt update && apt upgrade -y && apt install -y \
         bash-completion \
         wget \
         curl \
