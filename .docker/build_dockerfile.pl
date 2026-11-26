@@ -19,7 +19,6 @@ GetOptions(\%opt,
 my @targets = split /,/, $opt{targets};
 
 my @compilers = qw(
-    gcc
     clang
     clang-lto
     clang-minsize-lto
