@@ -551,7 +551,8 @@ fi
 if use_lib zxc; then
     opt_size
 
-    ZXC_MESON_ARGS=(-Dbuild_cli=false)
+    ZXC_MESON_ARGS=(-Dbuild_cli=false -Ddict=false -Dbuild_simd_variants=minimal)
+
     if [[ "$CARCH" == arm ]]; then
         # Avoid mixing ARMv6 and ARMv7 NEON bitcode during LTO.
         export CFLAGS="$CFLAGS -fno-lto"
