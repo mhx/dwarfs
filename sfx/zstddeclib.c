@@ -4556,6 +4556,28 @@ ZSTDLIB_API unsigned long long ZSTD_getDecompressedSize(const void* src, size_t 
  *          which is always equal to its content size + 8 bytes for headers. */
 ZSTDLIB_API size_t ZSTD_findFrameCompressedSize(const void* src, size_t srcSize);
 
+typedef enum { ZSTD_frame, ZSTD_skippableFrame } ZSTD_FrameType_e;
+#define ZSTD_frameType_e ZSTD_FrameType_e /* old name */
+typedef struct {
+    unsigned long long frameContentSize; /**< if == ZSTD_CONTENTSIZE_UNKNOWN, it means this field is not available. 0 means "empty" */
+    unsigned long long windowSize;       /**< can be very large, up to <= frameContentSize */
+    unsigned blockSizeMax;
+    ZSTD_FrameType_e frameType;          /**< if == ZSTD_skippableFrame, frameContentSize is the size of skippable content */
+    unsigned headerSize;
+    unsigned dictID;                     /**< for ZSTD_skippableFrame, contains the skippable magic variant [0-15] */
+    unsigned checksumFlag;
+    unsigned _reserved1;
+    unsigned _reserved2;
+} ZSTD_FrameHeader;
+#define ZSTD_frameHeader ZSTD_FrameHeader /* old name */
+
+/*! ZSTD_getFrameHeader() : Requires v1.6.0+
+ *  decode Frame Header into `zfhPtr`, or requires larger `srcSize`.
+ * @return : 0 => header is complete, `zfhPtr` is correctly filled,
+ *          >0 => `srcSize` is too small, @return value is the wanted `srcSize` amount, `zfhPtr` is not filled,
+ *           or an error code, which can be tested using ZSTD_isError() */
+ZSTDLIB_API size_t ZSTD_getFrameHeader(ZSTD_FrameHeader* zfhPtr, const void* src, size_t srcSize);
+
 
 /*======  Compression helper functions  ======*/
 
@@ -5365,6 +5387,13 @@ typedef struct ZSTD_DDict_s ZSTD_DDict;
  *  dictBuffer can be released after DDict creation, as its content is copied inside DDict. */
 ZSTDLIB_API ZSTD_DDict* ZSTD_createDDict(const void* dictBuffer, size_t dictSize);
 
+/*! ZSTD_createDDict_byReference() : Requires v1.6.0+
+ *  Create a digested dictionary, ready to start decompression operation without startup delay.
+ *  Dictionary content is referenced, and therefore stays in dictBuffer.
+ *  It is important that dictBuffer outlives DDict,
+ *  it must remain read accessible throughout the lifetime of DDict */
+ZSTDLIB_API ZSTD_DDict* ZSTD_createDDict_byReference(const void* dictBuffer, size_t dictSize);
+
 /*! ZSTD_freeDDict() :
  *  Function frees memory allocated with ZSTD_createDDict()
  *  If a NULL pointer is passed, no operation is performed. */
@@ -5453,6 +5482,23 @@ ZSTDLIB_API unsigned ZSTD_getDictID_fromFrame(const void* src, size_t srcSize);
  */
 ZSTDLIB_API size_t ZSTD_CCtx_loadDictionary(ZSTD_CCtx* cctx, const void* dict, size_t dictSize);
 
+typedef enum {
+    ZSTD_dct_auto = 0,       /**< dictionary is "full" when starting with ZSTD_MAGIC_DICTIONARY, otherwise it is "rawContent" */
+    ZSTD_dct_rawContent = 1, /**< ensures dictionary is always loaded as rawContent, even if it starts with ZSTD_MAGIC_DICTIONARY */
+    ZSTD_dct_fullDict = 2    /**< refuses to load a dictionary if it does not respect Zstandard's specification, starting with ZSTD_MAGIC_DICTIONARY */
+} ZSTD_dictContentType_e;
+
+typedef enum {
+    ZSTD_dlm_byCopy = 0,  /**< Copy dictionary content internally */
+    ZSTD_dlm_byRef = 1    /**< Reference dictionary content -- the dictionary buffer must outlive its users. */
+} ZSTD_dictLoadMethod_e;
+
+/*! ZSTD_CCtx_loadDictionary_advanced() : Requires v1.6.0+
+ *  Same as ZSTD_CCtx_loadDictionary(), but gives finer control over
+ *  how to load the dictionary (by copy ? by reference ?)
+ *  and how to interpret it (automatic ? force raw mode ? full mode only ?) */
+ZSTDLIB_API size_t ZSTD_CCtx_loadDictionary_advanced(ZSTD_CCtx* cctx, const void* dict, size_t dictSize, ZSTD_dictLoadMethod_e dictLoadMethod, ZSTD_dictContentType_e dictContentType);
+
 /*! ZSTD_CCtx_refCDict() : Requires v1.4.0+
  *  Reference a prepared dictionary, to be used for all future compressed frames.
  *  Note that compression parameters are enforced from within CDict,
@@ -5507,6 +5553,13 @@ ZSTDLIB_API size_t ZSTD_CCtx_refPrefix(ZSTD_CCtx* cctx,
  *           how dictionary content is loaded and interpreted.
  */
 ZSTDLIB_API size_t ZSTD_DCtx_loadDictionary(ZSTD_DCtx* dctx, const void* dict, size_t dictSize);
+
+/*! ZSTD_DCtx_loadDictionary_advanced() : Requires v1.6.0+
+ *  Same as ZSTD_DCtx_loadDictionary(),
+ *  but gives direct control over
+ *  how to load the dictionary (by copy ? by reference ?)
+ *  and how to interpret it (automatic ? force raw mode ? full mode only ?). */
+ZSTDLIB_API size_t ZSTD_DCtx_loadDictionary_advanced(ZSTD_DCtx* dctx, const void* dict, size_t dictSize, ZSTD_dictLoadMethod_e dictLoadMethod, ZSTD_dictContentType_e dictContentType);
 
 /*! ZSTD_DCtx_refDDict() : Requires v1.4.0+
  *  Reference a prepared dictionary, to be used to decompress next frames.
@@ -5748,17 +5801,6 @@ typedef struct {
 } ZSTD_parameters;
 
 typedef enum {
-    ZSTD_dct_auto = 0,       /* dictionary is "full" when starting with ZSTD_MAGIC_DICTIONARY, otherwise it is "rawContent" */
-    ZSTD_dct_rawContent = 1, /* ensures dictionary is always loaded as rawContent, even if it starts with ZSTD_MAGIC_DICTIONARY */
-    ZSTD_dct_fullDict = 2    /* refuses to load a dictionary if it does not respect Zstandard's specification, starting with ZSTD_MAGIC_DICTIONARY */
-} ZSTD_dictContentType_e;
-
-typedef enum {
-    ZSTD_dlm_byCopy = 0,  /**< Copy dictionary content internally */
-    ZSTD_dlm_byRef = 1    /**< Reference dictionary content -- the dictionary buffer must outlive its users. */
-} ZSTD_dictLoadMethod_e;
-
-typedef enum {
     ZSTD_f_zstd1 = 0,           /* zstd frame format, specified in zstd_compression_format.md (default) */
     ZSTD_f_zstd1_magicless = 1  /* Variant of zstd frame format, without initial 4-bytes magic number.
                                  * Useful to save 4 bytes per generated frame.
@@ -5885,27 +5927,6 @@ ZSTDLIB_STATIC_API unsigned long long ZSTD_decompressBound(const void* src, size
  *           or an error code (if srcSize is too small) */
 ZSTDLIB_STATIC_API size_t ZSTD_frameHeaderSize(const void* src, size_t srcSize);
 
-typedef enum { ZSTD_frame, ZSTD_skippableFrame } ZSTD_FrameType_e;
-#define ZSTD_frameType_e ZSTD_FrameType_e /* old name */
-typedef struct {
-    unsigned long long frameContentSize; /* if == ZSTD_CONTENTSIZE_UNKNOWN, it means this field is not available. 0 means "empty" */
-    unsigned long long windowSize;       /* can be very large, up to <= frameContentSize */
-    unsigned blockSizeMax;
-    ZSTD_FrameType_e frameType;          /* if == ZSTD_skippableFrame, frameContentSize is the size of skippable content */
-    unsigned headerSize;
-    unsigned dictID;                     /* for ZSTD_skippableFrame, contains the skippable magic variant [0-15] */
-    unsigned checksumFlag;
-    unsigned _reserved1;
-    unsigned _reserved2;
-} ZSTD_FrameHeader;
-#define ZSTD_frameHeader ZSTD_FrameHeader /* old name */
-
-/*! ZSTD_getFrameHeader() :
- *  decode Frame Header into `zfhPtr`, or requires larger `srcSize`.
- * @return : 0 => header is complete, `zfhPtr` is correctly filled,
- *          >0 => `srcSize` is too small, @return value is the wanted `srcSize` amount, `zfhPtr` is not filled,
- *           or an error code, which can be tested using ZSTD_isError() */
-ZSTDLIB_STATIC_API size_t ZSTD_getFrameHeader(ZSTD_FrameHeader* zfhPtr, const void* src, size_t srcSize);
 /*! ZSTD_getFrameHeader_advanced() :
  *  same as ZSTD_getFrameHeader(),
  *  with added capability to select a format (like ZSTD_f_zstd1_magicless) */
@@ -6397,12 +6418,6 @@ size_t ZSTD_compress_usingCDict_advanced(ZSTD_CCtx* cctx,
  *  It saves some memory, but also requires that `dict` outlives its usage within `cctx` */
 ZSTDLIB_STATIC_API size_t ZSTD_CCtx_loadDictionary_byReference(ZSTD_CCtx* cctx, const void* dict, size_t dictSize);
 
-/*! ZSTD_CCtx_loadDictionary_advanced() :
- *  Same as ZSTD_CCtx_loadDictionary(), but gives finer control over
- *  how to load the dictionary (by copy ? by reference ?)
- *  and how to interpret it (automatic ? force raw mode ? full mode only ?) */
-ZSTDLIB_STATIC_API size_t ZSTD_CCtx_loadDictionary_advanced(ZSTD_CCtx* cctx, const void* dict, size_t dictSize, ZSTD_dictLoadMethod_e dictLoadMethod, ZSTD_dictContentType_e dictContentType);
-
 /*! ZSTD_CCtx_refPrefix_advanced() :
  *  Same as ZSTD_CCtx_refPrefix(), but gives finer control over
  *  how to interpret prefix content (automatic ? force raw mode (default) ? full mode only ?) */
@@ -6837,26 +6852,12 @@ ZSTDLIB_STATIC_API size_t ZSTD_compressStream2_simpleArgs (
  *  Note 3 : Skippable Frame Identifiers are considered valid. */
 ZSTDLIB_STATIC_API unsigned ZSTD_isFrame(const void* buffer, size_t size);
 
-/*! ZSTD_createDDict_byReference() :
- *  Create a digested dictionary, ready to start decompression operation without startup delay.
- *  Dictionary content is referenced, and therefore stays in dictBuffer.
- *  It is important that dictBuffer outlives DDict,
- *  it must remain read accessible throughout the lifetime of DDict */
-ZSTDLIB_STATIC_API ZSTD_DDict* ZSTD_createDDict_byReference(const void* dictBuffer, size_t dictSize);
-
 /*! ZSTD_DCtx_loadDictionary_byReference() :
  *  Same as ZSTD_DCtx_loadDictionary(),
  *  but references `dict` content instead of copying it into `dctx`.
  *  This saves memory if `dict` remains around.,
  *  However, it's imperative that `dict` remains accessible (and unmodified) while being used, so it must outlive decompression. */
 ZSTDLIB_STATIC_API size_t ZSTD_DCtx_loadDictionary_byReference(ZSTD_DCtx* dctx, const void* dict, size_t dictSize);
-
-/*! ZSTD_DCtx_loadDictionary_advanced() :
- *  Same as ZSTD_DCtx_loadDictionary(),
- *  but gives direct control over
- *  how to load the dictionary (by copy ? by reference ?)
- *  and how to interpret it (automatic ? force raw mode ? full mode only ?). */
-ZSTDLIB_STATIC_API size_t ZSTD_DCtx_loadDictionary_advanced(ZSTD_DCtx* dctx, const void* dict, size_t dictSize, ZSTD_dictLoadMethod_e dictLoadMethod, ZSTD_dictContentType_e dictContentType);
 
 /*! ZSTD_DCtx_refPrefix_advanced() :
  *  Same as ZSTD_DCtx_refPrefix(), but gives finer control over
@@ -17555,6 +17556,9 @@ void ZSTD_checkContinuity(ZSTD_DCtx* dctx, const void* dst, size_t dstSize);
  * ZSTD_getDictID_fromDict()
  */
 
+/* The complete dictionary blob, including its header. Legacy decoders need
+ * the original bytes; ZSTD_copyDDictParameters() excludes the header from
+ * modern match history. */
 const void* ZSTD_DDict_dictContent(const ZSTD_DDict* ddict);
 size_t ZSTD_DDict_dictSize(const ZSTD_DDict* ddict);
 
@@ -17584,8 +17588,9 @@ size_t ZSTD_createDDict_advanced_internal(ZSTD_DDict** ddictPtr,
 *********************************************************/
 struct ZSTD_DDict_s {
     void* dictBuffer;
-    const void* dictContent;
+    const void* dictContent;  /* complete dictionary, including any header */
     size_t dictSize;
+    size_t dictHeaderSize;    /* excluded from matchable history */
     ZSTD_entropyDTables_t entropy;
     U32 dictID;
     U32 entropyPresent;
@@ -17606,12 +17611,16 @@ size_t ZSTD_DDict_dictSize(const ZSTD_DDict* ddict)
 
 void ZSTD_copyDDictParameters(ZSTD_DCtx* dctx, const ZSTD_DDict* ddict)
 {
+    const void* content;
     DEBUGLOG(4, "ZSTD_copyDDictParameters");
     assert(dctx != NULL);
     assert(ddict != NULL);
+    content = ddict->dictHeaderSize != 0
+            ? (const BYTE*)ddict->dictContent + ddict->dictHeaderSize
+            : ddict->dictContent;
     dctx->dictID = ddict->dictID;
-    dctx->prefixStart = ddict->dictContent;
-    dctx->virtualStart = ddict->dictContent;
+    dctx->prefixStart = content;
+    dctx->virtualStart = content;
     /* An empty DDict may have NULL content. */
     dctx->dictEnd = ddict->dictSize != 0
             ? (const BYTE*)ddict->dictContent + ddict->dictSize
@@ -17643,6 +17652,7 @@ ZSTD_loadEntropy_intoDDict(ZSTD_DDict* ddict,
                            ZSTD_dictContentType_e dictContentType)
 {
     ddict->dictID = 0;
+    ddict->dictHeaderSize = 0;
     ddict->entropyPresent = 0;
     if (dictContentType == ZSTD_dct_rawContent) return 0;
 
@@ -17661,9 +17671,12 @@ ZSTD_loadEntropy_intoDDict(ZSTD_DDict* ddict,
     ddict->dictID = MEM_readLE32((const char*)ddict->dictContent + ZSTD_FRAMEIDSIZE);
 
     /* load entropy tables */
-    RETURN_ERROR_IF(ZSTD_isError(ZSTD_loadDEntropy(
-            &ddict->entropy, ddict->dictContent, ddict->dictSize)),
-        dictionary_corrupted, "");
+    {   size_t const headerSize = ZSTD_loadDEntropy(
+                &ddict->entropy, ddict->dictContent, ddict->dictSize);
+        RETURN_ERROR_IF(ZSTD_isError(headerSize), dictionary_corrupted, "");
+        assert(headerSize <= ddict->dictSize);
+        ddict->dictHeaderSize = headerSize;
+    }
     ddict->entropyPresent = 1;
     return 0;
 }
@@ -20528,6 +20541,25 @@ static void ZSTD_allocateLiteralsBuffer(ZSTD_DCtx* dctx, void* const dst, const 
     }
 }
 
+/**
+ * Zeros the bytes directly after the decompressed literals so that over-reads
+ * only read zeros, rather than potentially uninitialized memory, or bytes from
+ * prior decompressions.
+ */
+static void ZSTD_zeroLiteralsBufferPadding(ZSTD_DCtx* dctx, size_t litSize)
+{
+    if (dctx->litBufferLocation == ZSTD_split) {
+        BYTE* const litBufferEnd = dctx->litBuffer + litSize - ZSTD_LITBUFFEREXTRASIZE;
+        assert(litBufferEnd == dctx->litBufferEnd);
+        ZSTD_memset(litBufferEnd, 0, WILDCOPY_OVERLENGTH);
+        ZSTD_memset(dctx->litExtraBuffer + ZSTD_LITBUFFEREXTRASIZE, 0, WILDCOPY_OVERLENGTH);
+    } else {
+        BYTE* const litBufferEnd = dctx->litBuffer + litSize;
+        assert(litBufferEnd == dctx->litBufferEnd);
+        ZSTD_memset(litBufferEnd, 0, WILDCOPY_OVERLENGTH);
+    }
+}
+
 /*! ZSTD_decodeLiteralsBlock() :
  * Where it is possible to do so without being stomped by the output during decompression, the literals block will be stored
  * in the dstBuffer.  If there is room to do so, it will be stored in full in the excess dst space after where the current
@@ -20647,6 +20679,7 @@ static size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
 
                 RETURN_ERROR_IF(HUF_isError(hufSuccess), corruption_detected, "");
 
+                ZSTD_zeroLiteralsBufferPadding(dctx, litSize);
                 dctx->litPtr = dctx->litBuffer;
                 dctx->litSize = litSize;
                 dctx->litEntropy = 1;
@@ -20690,6 +20723,7 @@ static size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
                     {
                         ZSTD_memcpy(dctx->litBuffer, istart + lhSize, litSize);
                     }
+                    ZSTD_zeroLiteralsBufferPadding(dctx, litSize);
                     dctx->litPtr = dctx->litBuffer;
                     dctx->litSize = litSize;
                     return lhSize+litSize;
@@ -20736,6 +20770,7 @@ static size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
                 {
                     ZSTD_memset(dctx->litBuffer, istart[lhSize], litSize);
                 }
+                ZSTD_zeroLiteralsBufferPadding(dctx, litSize);
                 dctx->litPtr = dctx->litBuffer;
                 dctx->litSize = litSize;
                 return lhSize+1;
@@ -22690,6 +22725,19 @@ void ZSTD_checkContinuity(ZSTD_DCtx* dctx, const void* dst, size_t dstSize)
         dctx->virtualStart = (const char*)dst - ((const char*)(dctx->previousDstEnd) - (const char*)(dctx->prefixStart));
         dctx->prefixStart = dst;
         dctx->previousDstEnd = dst;
+    }
+    /* The external dictionary and current prefix share the frame window.
+     * As the prefix grows after a wrap, retaining a full external window
+     * could let corrupt offsets alias the destination and expose stale literals.
+     * decodedSize > 0 ensures the frame header has initialized windowSize.
+     * Only kicks in after decoding windowSize bytes because the entire dictionary is
+     * valid as long as a single byte of the dictionary is in the window.
+     */
+    if (dstSize > 0 && dctx->isFrameDecompression && dctx->decodedSize > 0 && dctx->decodedSize >= dctx->fParams.windowSize) {
+        size_t const prefixSize = (size_t)((const char*)dctx->previousDstEnd - (const char*)dctx->prefixStart);
+        size_t const extDictSize = (size_t)((const char*)dctx->prefixStart - (const char*)dctx->virtualStart);
+        U64 const maxExtDictSize = prefixSize < dctx->fParams.windowSize ? dctx->fParams.windowSize - prefixSize : 0;
+        dctx->virtualStart = (const char*)dctx->prefixStart - (size_t)MIN((U64)extDictSize, maxExtDictSize);
     }
 }
 
