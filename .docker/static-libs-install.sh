@@ -504,7 +504,10 @@ if use_lib zxc; then
     mkdir meson-build
     cd meson-build
     meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-    meson configure -D build_cli=false
+    # build_simd_variants: all (every SIMD tier for encoder and decoders),
+    # decoder (baseline encoder, no AVX-512), minimal (baseline encoder and
+    # LZ decoder, AVX2/NEON entropy decoder only)
+    meson configure -D build_cli=false -D dict=false -D build_simd_variants=all
     meson setup --reconfigure ..
     $NINJA_PARALLEL
     ninja install

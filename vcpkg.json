@@ -30,6 +30,6 @@
     {"name": "zxc", "version>=": "1.0.1"}
   ],
   "overrides": [
-    {"name": "zxc", "version": "1.0.1"}
+    {"name": "zxc", "version": "1.0.2"}
   ]
 }
