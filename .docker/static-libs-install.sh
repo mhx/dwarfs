@@ -550,15 +550,23 @@ fi
 
 if use_lib zxc; then
     opt_size
+
+    ZXC_MESON_ARGS=(-Dbuild_cli=false)
+    if [[ "$CARCH" == arm ]]; then
+        # Avoid mixing ARMv6 and ARMv7 NEON bitcode during LTO.
+        export CFLAGS="$CFLAGS -fno-lto"
+        export CXXFLAGS="$CXXFLAGS -fno-lto"
+        export LDFLAGS="$LDFLAGS -fno-lto"
+        ZXC_MESON_ARGS+=(-Db_lto=false)
+    fi
+
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${ZXC_TARBALL}
     cd zxc-${ZXC_VERSION}
 
     mkdir meson-build
     cd meson-build
-    meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE
-    meson configure -D build_cli=false
-    meson setup --reconfigure ..
+    meson setup .. --default-library=static --prefix="$INSTALL_DIR" $MESON_CROSS_FILE "${ZXC_MESON_ARGS[@]}"
     $NINJA_PARALLEL
     ninja install
 fi
