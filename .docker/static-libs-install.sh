@@ -23,11 +23,7 @@ if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd,zxc"
-    if [[ "$COMPILER" == clang* ]] && [[ "$TARGET_ARCH" != "arm" ]]; then
-      # add llvm to PKGS
-      PKGS="llvm${PKGS:+,$PKGS}"
-    fi
+    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,llvm,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd,zxc"
 fi
 
 TARGET_EMULATOR=""

@@ -454,12 +454,8 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   fi
 
   if [[ "$COMPILER" == clang* ]]; then
-    export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc"
-
-    if [[ "$_MARCH" != "arm" ]]; then
-      export CXXFLAGS="${CXXFLAGS} -nostdinc++ -isystem $_staticprefix/include/c++/v1"
-      export LDFLAGS="${LDFLAGS} -stdlib=libc++"
-    fi
+    export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc -stdlib=libc++"
+    export CXXFLAGS="${CXXFLAGS} -nostdinc++ -isystem $_staticprefix/include/c++/v1"
   fi
 
   export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -L$_sslprefix/lib -static -static-libgcc"
