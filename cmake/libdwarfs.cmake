@@ -396,7 +396,6 @@ target_link_libraries(
   PUBLIC
   Boost::boost
   Boost::chrono
-  Boost::filesystem
   fmt::fmt
   PRIVATE
   dwarfs_thrift_lite_v2
@@ -413,10 +412,6 @@ target_link_libraries(
   PUBLIC
   Boost::program_options
 )
-
-if(TARGET Boost::process)
-  target_link_libraries(dwarfs_common PUBLIC Boost::process)
-endif()
 
 list(APPEND LIBDWARFS_TARGETS
   dwarfs_common

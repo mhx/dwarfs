@@ -266,8 +266,12 @@ if(WITH_LIBDWARFS)
 
   find_package(Threads REQUIRED)
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
-               COMPONENTS chrono filesystem program_options
-               OPTIONAL_COMPONENTS process)
+               COMPONENTS chrono program_options)
+
+  if(WITH_TESTS)
+    find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
+                 OPTIONAL_COMPONENTS process)
+  endif()
 
   if(ENABLE_STACKTRACE)
     find_package(cpptrace REQUIRED CONFIG)
