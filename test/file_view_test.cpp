@@ -49,7 +49,6 @@ using namespace std::string_literals;
 namespace fs = std::filesystem;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::StrictMock;
 
@@ -814,12 +813,12 @@ TEST(mmap_file_view, memory_ops_mapped_segment) {
   EXPECT_CALL(mock_ops, granularity()).Times(1);
 
   EXPECT_CALL(mock_ops, map(handle, kExpectedMapBase, kExpectedMapLength, _))
-      .WillOnce(Invoke([&](fake_mm_ops_lowlevel::handle_type const& h,
-                           file_off_t off, size_t sz, std::error_code& ec) {
+      .WillOnce([&](fake_mm_ops_lowlevel::handle_type const& h, file_off_t off,
+                    size_t sz, std::error_code& ec) {
         void* p = fake.map(h, off, sz, ec);
         mapped_base = p;
         return p;
-      }));
+      });
 
   auto seg = fv.segment_at(kWantOffset, kWantSize);
 
@@ -897,12 +896,12 @@ TEST(mmap_file_view, memory_ops_ref_segment) {
   void* mapped_base{nullptr};
 
   EXPECT_CALL(mock_ops, map(handle, 0, kFileSize, _))
-      .WillOnce(Invoke([&](fake_mm_ops_lowlevel::handle_type const& h,
-                           file_off_t off, size_t sz, std::error_code& ec) {
+      .WillOnce([&](fake_mm_ops_lowlevel::handle_type const& h, file_off_t off,
+                    size_t sz, std::error_code& ec) {
         void* p = fake.map(h, off, sz, ec);
         mapped_base = p;
         return p;
-      }));
+      });
 
   internal::mmap_file_view_options const opts{
       .max_eager_map_size = 1_MiB, // map the whole test file eagerly
@@ -987,12 +986,12 @@ TEST(mappable_file, virtual_alloc_free) {
 
   EXPECT_CALL(mock_ops,
               virtual_alloc(kAllocSize, internal::memory_access::readwrite, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [&](size_t sz, internal::memory_access acc, std::error_code& ec) {
             void* p = fake.virtual_alloc(sz, acc, ec);
             allocated_ptr = p;
             return p;
-          }));
+          });
 
   auto mapping = internal::mappable_file::map_empty(ops, kAllocSize);
 
@@ -1001,11 +1000,11 @@ TEST(mappable_file, virtual_alloc_free) {
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
 
   EXPECT_CALL(mock_ops, virtual_free(allocated_ptr, kAllocSize, _))
-      .WillOnce(Invoke([&](void* p, size_t sz, std::error_code& ec) {
+      .WillOnce([&](void* p, size_t sz, std::error_code& ec) {
         EXPECT_EQ(p, allocated_ptr);
         EXPECT_EQ(sz, kAllocSize);
         fake.virtual_free(p, sz, ec);
-      }));
+      });
 
   mapping.reset();
 
@@ -1027,12 +1026,12 @@ TEST(mappable_file, virtual_alloc_free_readonly) {
 
   EXPECT_CALL(mock_ops,
               virtual_alloc(kAllocSize, internal::memory_access::readonly, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [&](size_t sz, internal::memory_access acc, std::error_code& ec) {
             void* p = fake.virtual_alloc(sz, acc, ec);
             allocated_ptr = p;
             return p;
-          }));
+          });
 
   auto mapping = internal::mappable_file::map_empty_readonly(ops, kAllocSize);
 
@@ -1041,11 +1040,11 @@ TEST(mappable_file, virtual_alloc_free_readonly) {
   ::testing::Mock::VerifyAndClearExpectations(&mock_ops);
 
   EXPECT_CALL(mock_ops, virtual_free(allocated_ptr, kAllocSize, _))
-      .WillOnce(Invoke([&](void* p, size_t sz, std::error_code& ec) {
+      .WillOnce([&](void* p, size_t sz, std::error_code& ec) {
         EXPECT_EQ(p, allocated_ptr);
         EXPECT_EQ(sz, kAllocSize);
         fake.virtual_free(p, sz, ec);
-      }));
+      });
 
   mapping.reset();
 
@@ -1067,11 +1066,11 @@ TEST(read_file_view, get_extents_error) {
   EXPECT_CALL(mock_ops, size(handle, _)).Times(1);
 
   EXPECT_CALL(mock_ops, get_extents(handle, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](fake_mm_ops_lowlevel::handle_type const&, std::error_code& ec) {
             ec = std::make_error_code(std::errc::io_error);
             return std::vector<dwarfs::detail::file_extent_info>{};
-          }));
+          });
 
   auto view = create_read_file_view(ops, path);
 
@@ -1104,7 +1103,7 @@ TEST(mmap_file_view, sparse_file) {
   auto handle = fake.add_file(path, kFileSize);
 
   EXPECT_CALL(mock_ops, get_extents(handle, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](fake_mm_ops_lowlevel::handle_type const&, std::error_code& ec) {
             ec.clear();
             return std::vector<dwarfs::detail::file_extent_info>{
@@ -1112,7 +1111,7 @@ TEST(mmap_file_view, sparse_file) {
                 {extent_kind::hole, file_range{512_KiB, 256_KiB}},
                 {extent_kind::data, file_range{768_KiB, 256_KiB}},
             };
-          }));
+          });
 
   internal::mmap_file_view_options const opts{
       .max_eager_map_size = 1_MiB, // map the whole test file eagerly
@@ -1257,11 +1256,11 @@ TEST(read_file_view, invalid_ranges_and_short_read) {
   EXPECT_FALSE(ec);
 
   EXPECT_CALL(mock_ops, pread(handle, _, data.size(), 0, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](auto const&, void*, size_t, file_off_t, std::error_code& ec) {
             ec.clear();
             return size_t{1};
-          }));
+          });
   view.copy_to(std::span<char>{data}, 0, ec);
   EXPECT_EQ(std::errc::io_error, ec);
 }
@@ -1275,10 +1274,10 @@ TEST(read_file_view, treat_as_data_size_error) {
   fs::path const path{"/tmp/testfile"};
   auto handle = fake.add_file(path, 8);
   EXPECT_CALL(mock_ops, size(handle, _))
-      .WillOnce(Invoke([](auto const&, std::error_code& ec) {
+      .WillOnce([](auto const&, std::error_code& ec) {
         ec = std::make_error_code(std::errc::io_error);
         return file_size_t{0};
-      }));
+      });
 
   auto view = internal::create_read_file_view(ops, path,
                                               file_extent_mode::treat_as_data);
