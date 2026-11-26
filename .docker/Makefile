@@ -5,6 +5,7 @@ IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_DEBIAN="dwarfs-buildenv-debian"
 IMAGE_DEBIAN_TESTING="dwarfs-buildenv-debian-testing"
 IMAGE_ALPINE="dwarfs-buildenv-alpine"
+IMAGE_ALPINE_BASE="ghcr.io/mhx/dwarfs-alpine-base:edge"
 IMAGE_ALPINE_NEWARCH="dwarfs-buildenv-alpine-newarch"
 IMAGE_ALPINE_APK="dwarfs-alpine-apk"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
@@ -117,10 +118,14 @@ prune_build_cache:
 prune_images:
 	@docker image prune -af
 
-update_base_images: _update_base_images dockerfiles
+# Resolve the digest of the published image before regenerating Dockerfiles.
+.PHONY: update_base_images _update_base_images publish_alpine_base_image
+update_base_images: _update_base_images
+	$(MAKE) dockerfiles
 
 _update_base_images:
 	@./update_base_images.py \
+		Dockerfile.alpine-base \
 		build_dockerfile.pl \
 		Dockerfile.arch \
 		Dockerfile.debian \
@@ -129,3 +134,12 @@ _update_base_images:
 		Dockerfile.suse \
 		Dockerfile.ubuntu \
 		Dockerfile.ubuntu-2404
+
+# Refresh APK packages independently of the expensive cross-toolchain builds.
+# Requires a buildx builder supporting both platforms and GHCR write access.
+publish_alpine_base_image:
+	@./update_base_images.py Dockerfile.alpine-base
+	docker buildx build --no-cache --platform linux/amd64,linux/arm64 \
+		-f Dockerfile.alpine-base -t $(IMAGE_ALPINE_BASE) --push .
+	@./update_base_images.py build_dockerfile.pl
+	$(MAKE) dockerfiles

@@ -39,7 +39,7 @@ BLOATY
 }
 
 my $BASE_IMAGE = <<'BASEIMAGE';
-FROM alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000 AS base
+FROM ghcr.io/mhx/dwarfs-alpine-base:edge@sha256:ebd3434aac72a1c803595419a39028d996d05fc8be16f52607618b71461bd9a8 AS base
 BASEIMAGE
 
 print <<ENDHEADER;
@@ -57,84 +57,6 @@ print <<ENDHEADER;
 ###############################################################################
 
 $BASE_IMAGE
-RUN apk update && \\
-    apk upgrade && \\
-    apk add --no-cache \\
-        bash-completion \\
-        build-base \\
-        wget \\
-        curl \\
-        vim \\
-        tar \\
-        ripgrep \\
-        less \\
-        gcc \\
-        g++ \\
-        clang23 \\
-        llvm23 \\
-        lld \\
-        git \\
-        xz \\
-        gzip \\
-        bzip2 \\
-        zstd \\
-        ccache \\
-        ninja-build \\
-        cmake \\
-        make \\
-        bison \\
-        flex \\
-        flock \\
-        mandoc \\
-        perf \\
-        hyperfine \\
-        py3-markdown-it-py \\
-        py3-pip \\
-        py3-xxhash \\
-        py3-zstd \\
-        py3-lz4 \\
-        fuse \\
-        fuse3 \\
-        pkgconf \\
-        meson \\
-        autoconf \\
-        strace \\
-        gdb \\
-        gmp-dev \\
-        util-linux \\
-        zlib-static \\
-        zstd-static \\
-        zlib-dev \\
-        zstd-dev \\
-        mpfr-dev \\
-        mpc1-dev \\
-        isl-dev \\
-        texinfo \\
-        linux-headers \\
-        gdb-multiarch \\
-        rsync \\
-        screen \\
-        qemu-arm \\
-        qemu-armeb \\
-        qemu-i386 \\
-        qemu-mips \\
-        qemu-mipsel \\
-        qemu-ppc \\
-        qemu-riscv32 \\
-        qemu-sparc \\
-        qemu-aarch64 \\
-        qemu-aarch64_be \\
-        qemu-alpha \\
-        qemu-hppa \\
-        qemu-loongarch64 \\
-        qemu-mips64 \\
-        qemu-mips64el \\
-        qemu-ppc64 \\
-        qemu-ppc64le \\
-        qemu-riscv64 \\
-        qemu-s390x \\
-        qemu-sparc64
-
 COPY fetch.sh /usr/local/bin/fetch.sh
 
 # Install mold
