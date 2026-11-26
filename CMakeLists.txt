@@ -268,11 +268,6 @@ if(WITH_LIBDWARFS)
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
                COMPONENTS chrono program_options)
 
-  if(WITH_TESTS)
-    find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
-                 OPTIONAL_COMPONENTS process)
-  endif()
-
   if(ENABLE_STACKTRACE)
     find_package(cpptrace REQUIRED CONFIG)
   endif()
@@ -623,6 +618,7 @@ endif()
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ OR WITH_DEV_TOOLS)
   add_library(dwarfs_test_helpers
+    test/subprocess.cpp
     test/compare_directories.cpp
     test/mmap_mock.cpp
     test/sparse_file_builder.cpp
@@ -895,6 +891,9 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS manpage_test)
   endif()
 
+  list(APPEND DWARFS_TESTS subprocess_test)
+  add_executable(subprocess_test_helper test/subprocess_test_helper.cpp)
+
   add_library(dwarfs_test_main OBJECT test/test_main.cpp)
   target_link_libraries(dwarfs_test_main PUBLIC GTest::gtest GTest::gmock dwarfs_common)
   if(DWARFS_STACKTRACE_ENABLED)
@@ -936,6 +935,12 @@ if(WITH_TESTS)
     list(APPEND TEST_TARGETS ${test})
   endforeach()
 
+  target_sources(subprocess_test PRIVATE test/process_guard.cpp)
+  target_link_libraries(subprocess_test_helper PRIVATE Threads::Threads)
+  target_compile_definitions(subprocess_test PRIVATE
+    SUBPROCESS_TEST_HELPER="$<TARGET_FILE:subprocess_test_helper>")
+  add_dependencies(subprocess_test subprocess_test_helper)
+
   if(TARGET tool_main_test)
     target_link_libraries(tool_main_test PRIVATE dwarfs_tool_main_tester PkgConfig::LIBARCHIVE)
   endif()
@@ -960,6 +965,7 @@ if(WITH_TESTS)
   endif()
 
   if(TARGET tools_test)
+    target_sources(tools_test PRIVATE test/driver_runner.cpp test/process_guard.cpp)
     target_compile_definitions(tools_test PRIVATE
       $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
       $<$<AND:$<BOOL:${WITH_FUSE_EXTRACT_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_FUSE_EXTRACT_BINARY>

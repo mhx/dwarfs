@@ -29,26 +29,21 @@
 #include <cassert>
 #include <cerrno>
 #include <chrono>
-#include <concepts>
-#include <deque>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <future>
 #include <iostream>
-#include <latch>
 #include <random>
 #include <regex>
 #include <sstream>
 #include <string_view>
-#include <thread>
 #include <tuple>
 #include <unordered_set>
 
-#ifndef _WIN32
-#include <fcntl.h>
-#include <signal.h>
+#ifdef _WIN32
+#include <dwarfs/portability/windows.h>
+#else
 #include <sys/stat.h>
-#include <sys/types.h>
 #ifdef __APPLE__
 #include <sys/mount.h>
 #elif defined(__FreeBSD__)
@@ -57,17 +52,6 @@
 #else
 #include <sys/vfs.h>
 #endif
-#endif
-
-#include <boost/asio/io_context.hpp>
-#if __has_include(<boost/process/v1/args.hpp>)
-#define BOOST_PROCESS_VERSION 1
-#include <boost/process/v1/args.hpp>
-#include <boost/process/v1/async.hpp>
-#include <boost/process/v1/child.hpp>
-#include <boost/process/v1/io.hpp>
-#else
-#include <boost/process.hpp>
 #endif
 
 #include <fmt/format.h>
@@ -89,13 +73,14 @@
 #include <dwarfs/xattr.h>
 
 #include "compare_directories.h"
+#include "driver_runner.h"
 #include "loremipsum.h"
 #include "sparse_file_builder.h"
+#include "subprocess.h"
 #include "test_helpers.h"
 
 namespace {
 
-namespace bp = boost::process;
 namespace fs = std::filesystem;
 
 using namespace std::chrono_literals;
@@ -103,12 +88,8 @@ using namespace std::string_view_literals;
 using namespace dwarfs::binary_literals;
 
 using dwarfs::test::compare_directories;
-
-#ifdef __linux__
-constexpr auto kDefaultTimeout{10s};
-#else
-constexpr auto kDefaultTimeout{30s};
-#endif
+using dwarfs::test::driver_runner;
+using dwarfs::test::subprocess;
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
@@ -455,67 +436,6 @@ class scoped_no_leak_check {
 #endif
 };
 
-struct default_wait_policy {
-  static constexpr auto const kInitialWait{1ms};
-  static constexpr auto const kMaxWait{500ms};
-  static constexpr auto const kTimeout{kDefaultTimeout};
-
-  static std::chrono::milliseconds
-  next_wait(std::chrono::milliseconds duration) {
-    return std::min(2 * duration, kMaxWait);
-  }
-};
-
-template <typename Policy, typename Fn>
-bool wait_until(std::string_view desc, Fn const& fn) {
-  auto const start = std::chrono::steady_clock::now();
-  auto const end = start + Policy::kTimeout;
-  auto wait = Policy::kInitialWait;
-
-  while (!fn()) {
-    auto const now = std::chrono::steady_clock::now();
-
-    std::cerr << desc << " after "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(now -
-                                                                       start)
-                     .count()
-              << " ms, waiting " << wait.count() << " ms...\n";
-
-    std::this_thread::sleep_for(wait);
-
-    if (now >= end) {
-      return false;
-    }
-
-    wait = Policy::next_wait(wait);
-  }
-
-  return true;
-}
-
-#ifndef _WIN32
-pid_t get_dwarfs_pid(fs::path const& path) {
-  return dwarfs::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
-}
-#endif
-
-bool wait_until_file_ready(fs::path const& path) {
-  return wait_until<default_wait_policy>(path.string() + " not ready", [&path] {
-    std::error_code ec;
-    if (fs::exists(path, ec)) {
-      return true;
-    }
-#ifdef _WIN32
-    if (ec && ec.value() != ERROR_OPERATION_ABORTED) {
-#else
-    if (ec) {
-#endif
-      std::cerr << "*** exists: " << ec.message() << "\n";
-    }
-    return false;
-  });
-}
-
 bool read_file(fs::path const& path, std::string& out) {
   std::ifstream ifs(path, std::ios::binary);
   if (!ifs.is_open()) {
@@ -538,606 +458,6 @@ bool read_lines(fs::path const& path, std::vector<std::string>& out) {
   }
   return true;
 }
-
-#ifdef _WIN32
-struct new_process_group : public ::boost::process::detail::handler_base {
-  template <class WindowsExecutor>
-  void on_setup(WindowsExecutor& e [[maybe_unused]]) const {
-    e.creation_flags |= CREATE_NEW_PROCESS_GROUP;
-  }
-};
-#endif
-
-void ignore_sigpipe() {
-#ifdef __APPLE__
-  static bool already_ignoring{false};
-
-  if (!already_ignoring) {
-    struct sigaction sa;
-    std::memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = SIG_IGN;
-    int res = ::sigaction(SIGPIPE, &sa, NULL);
-    if (res != 0) {
-      std::cerr << "sigaction(SIGPIPE, SIG_IGN): " << std::strerror(errno)
-                << "\n";
-      std::abort();
-    }
-    already_ignoring = true;
-  }
-#endif
-}
-
-template <typename T>
-concept subprocess_arg = std::convertible_to<T, std::string> ||
-                         std::convertible_to<T, std::vector<std::string>> ||
-                         std::convertible_to<T, fs::path>;
-
-class subprocess {
- public:
-  template <subprocess_arg... Args>
-  subprocess(std::filesystem::path const& prog, Args&&... args)
-      : subprocess(nullptr, prog, std::forward<Args>(args)...) {}
-
-  ~subprocess() {
-    if (pt_) {
-      std::cerr << "subprocess still running in destructor: " << cmdline()
-                << "\n";
-      join_process_thread();
-    }
-  }
-
-  std::string cmdline() const {
-    std::string cmd = prog_.string();
-    if (!cmdline_.empty()) {
-      cmd += fmt::format(" {}", fmt::join(cmdline_, " "));
-    }
-    return cmd;
-  }
-
-  void run() {
-    if (!ios_) {
-      throw std::runtime_error("processes with external io_context must be run "
-                               "externally and then waited for");
-    }
-    ios_->run();
-    wait();
-  }
-
-  void wait() {
-    c_.wait();
-    outs_ = out_.get();
-    errs_ = err_.get();
-  }
-
-  void run_background() {
-    if (pt_) {
-      throw std::runtime_error("already running in background");
-    }
-    latch_.emplace(1);
-    pt_ = std::make_unique<std::thread>([this] {
-      run();
-      latch_->count_down();
-    });
-  }
-
-  void wait_background() {
-    if (!pt_) {
-      throw std::runtime_error("no process running in background");
-    }
-    join_process_thread();
-  }
-
-  void interrupt() {
-    std::cerr << "interrupting: " << cmdline() << "\n";
-#ifdef _WIN32
-    ::GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid());
-#else
-    if (auto rv = ::kill(pid(), SIGINT); rv != 0) {
-      std::cerr << "kill(" << pid() << ", SIGINT) = " << rv << "\n";
-    }
-#endif
-  }
-
-  std::string const& out() const { return outs_; }
-
-  std::string const& err() const { return errs_; }
-
-  bp::pid_t pid() const { return c_.id(); }
-
-  int exit_code() const { return c_.exit_code(); }
-
-  template <typename... Args>
-  static std::tuple<std::string, std::string, int> run(Args&&... args) {
-    auto p = subprocess(std::forward<Args>(args)...);
-    p.run();
-    return {p.out(), p.err(), p.exit_code()};
-  }
-
-  template <typename... Args>
-  static std::optional<std::string> check_run(Args&&... args) {
-    auto const [out, err, ec] = run(std::forward<Args>(args)...);
-
-    if (ec != 0) {
-      std::cerr << "stdout:\n"
-                << out << "\nstderr:\n"
-                << err << "\nexit code: " << ec << "\n";
-      return std::nullopt;
-    }
-
-    return out;
-  }
-
- private:
-  void join_process_thread() {
-    std::cerr << "waiting for: " << cmdline() << " to finish\n";
-    if (!wait_until<default_wait_policy>(
-            "still waiting for: " + cmdline(),
-            [this] { return latch_->try_wait(); })) {
-      std::cerr << "timeout waiting for: " << cmdline() << "\n";
-      interrupt();
-    }
-    pt_->join();
-    pt_.reset();
-    latch_.reset();
-    std::cerr << "finished waiting for: " << cmdline() << "\n";
-  }
-
-  template <subprocess_arg... Args>
-  subprocess(boost::asio::io_context* ios, std::filesystem::path const& prog,
-             Args&&... args)
-      : prog_{prog} {
-    (append_arg(cmdline_, std::forward<Args>(args)), ...);
-
-    ignore_sigpipe();
-
-    if (!ios) {
-      ios_ = std::make_unique<boost::asio::io_context>();
-      ios = ios_.get();
-    }
-
-    try {
-      std::cerr << "running: " << cmdline() << "\n";
-      c_ = bp::child(prog_.string(), bp::args(cmdline_), bp::std_in.close(),
-                     bp::std_out > out_, bp::std_err > err_, *ios
-#ifdef _WIN32
-                     ,
-                     new_process_group()
-#endif
-      );
-    } catch (...) {
-      std::cerr << "failed to create subprocess: " << cmdline() << "\n";
-      throw;
-    }
-  }
-
-  static void append_arg(std::vector<std::string>& args, fs::path const& arg) {
-    args.emplace_back(arg.string());
-  }
-
-  static void append_arg(std::vector<std::string>& args,
-                         std::vector<std::string> const& more) {
-    args.insert(args.end(), more.begin(), more.end());
-  }
-
-  template <std::convertible_to<std::string> T>
-  static void append_arg(std::vector<std::string>& args, T const& arg) {
-    args.emplace_back(arg);
-  }
-
-  bp::child c_;
-  std::unique_ptr<boost::asio::io_context> ios_;
-  std::future<std::string> out_;
-  std::future<std::string> err_;
-  std::string outs_;
-  std::string errs_;
-  std::unique_ptr<std::thread> pt_;
-  std::optional<std::latch> latch_;
-  std::filesystem::path const prog_;
-  std::vector<std::string> cmdline_;
-};
-
-#ifndef _WIN32
-namespace fs_guard_detail {
-
-// TODO: can be replaced with boost::scope::unique_fd (Boost 1.85+)
-struct unique_fd {
-  int fd{-1};
-  unique_fd() = default;
-  explicit unique_fd(int f)
-      : fd{f} {}
-  unique_fd(unique_fd const&) = delete;
-  unique_fd& operator=(unique_fd const&) = delete;
-  unique_fd(unique_fd&& o) noexcept
-      : fd{o.fd} {
-    o.fd = -1;
-  }
-  unique_fd& operator=(unique_fd&& o) noexcept {
-    if (this != &o) {
-      if (fd >= 0) {
-        ::close(fd);
-      }
-      fd = o.fd;
-      o.fd = -1;
-    }
-    return *this;
-  }
-  ~unique_fd() {
-    if (fd >= 0) {
-      ::close(fd);
-    }
-  }
-  int get() const { return fd; }
-  explicit operator bool() const { return fd >= 0; }
-};
-
-} // namespace fs_guard_detail
-
-class process_guard {
- public:
-  process_guard() = default;
-
-  explicit process_guard(pid_t pid)
-      : pid_{pid}
-#if defined(__FreeBSD__) || defined(__APPLE__)
-      , kq_{fs_guard_detail::unique_fd(::kqueue())}
-#endif
-  {
-#if defined(__FreeBSD__) || defined(__APPLE__)
-    if (!kq_) {
-      throw std::system_error(errno, std::generic_category(), "kqueue");
-    }
-
-    struct kevent kev{};
-    EV_SET(&kev, static_cast<uintptr_t>(pid_), EVFILT_PROC, EV_ADD | EV_CLEAR,
-           NOTE_EXIT, 0, nullptr);
-    if (::kevent(kq_.get(), &kev, 1, nullptr, 0, nullptr) < 0) {
-      // If the process is already gone, treat as non-existent.
-      if (errno == ESRCH) {
-        already_exited_ = true;
-      } else {
-        throw std::system_error(errno, std::generic_category(),
-                                "kevent(EV_ADD)");
-      }
-    }
-#else
-    std::string proc_dir = "/proc/" + std::to_string(pid_);
-    procfd_ = fs_guard_detail::unique_fd(
-        ::open(proc_dir.c_str(), O_DIRECTORY | O_CLOEXEC));
-    if (!procfd_) {
-      throw std::system_error(errno, std::generic_category(),
-                              "open(" + proc_dir + ")");
-    }
-#endif
-  }
-
-  bool check_exit(std::chrono::milliseconds timeout) {
-#if defined(__FreeBSD__) || defined(__APPLE__)
-    if (already_exited_) {
-      return true;
-    }
-
-    struct kevent ev{};
-    struct timespec ts{
-        .tv_sec = static_cast<time_t>(timeout.count() / 1000),
-        .tv_nsec = static_cast<long>((timeout.count() % 1000) * 1'000'000)};
-
-    int n = ::kevent(kq_.get(), nullptr, 0, &ev, 1, &ts);
-    if (n < 0) {
-      // If PID vanished between registration and wait, consider it exited.
-      if (errno == ESRCH) {
-        return true;
-      }
-      // Other error: be conservative and signal timeout+terminate behavior
-      // below.
-      n = 0;
-    }
-
-    if (n == 0) {
-      // timed out: gently ask it to stop
-      ::kill(pid_, SIGTERM);
-      return false;
-    }
-
-    // We got an event; NOTE_EXIT means it's gone.
-    if (ev.filter == EVFILT_PROC && (ev.fflags & NOTE_EXIT)) {
-      return true;
-    }
-
-    // Unexpected event; treat as not exited yet.
-    return false;
-#else
-    // Poll for existence of a known child entry (like "fd") in /proc/<pid>.
-    auto deadline = std::chrono::steady_clock::now() + timeout;
-    for (;;) {
-      int rc = ::faccessat(procfd_.get(), "fd", F_OK, 0);
-      if (rc != 0) {
-        // Directory no longer has 'fd' → process is gone.
-        return true;
-      }
-      if (std::chrono::steady_clock::now() >= deadline) {
-        ::kill(pid_, SIGTERM);
-        return false;
-      }
-      std::this_thread::sleep_for(1ms);
-    }
-#endif
-  }
-
- private:
-  pid_t pid_{-1};
-#if defined(__FreeBSD__) || defined(__APPLE__)
-  fs_guard_detail::unique_fd kq_;
-  bool already_exited_{false};
-#else
-  fs_guard_detail::unique_fd procfd_;
-#endif
-};
-#endif
-
-class driver_runner {
- public:
-  struct foreground_t {};
-  static constexpr foreground_t foreground{};
-
-  struct automount_t {};
-  static constexpr automount_t automount{};
-
-  driver_runner() = default;
-
-  template <typename... Args>
-  driver_runner(fs::path const& driver, bool tool_arg, fs::path const& image,
-                fs::path const& mountpoint, Args&&... args)
-      : mountpoint_{mountpoint} {
-    setup_mountpoint(mountpoint);
-#ifdef _WIN32
-    process_ =
-        std::make_unique<subprocess>(driver, make_tool_arg(tool_arg), image,
-                                     mountpoint, std::forward<Args>(args)...);
-    process_->run_background();
-
-    wait_until_file_ready(mountpoint);
-#else
-    std::vector<std::string> options;
-    auto const [out, err, ec] =
-        subprocess::run(DWARFS_ARG_EMULATOR_ driver, make_tool_arg(tool_arg),
-                        image, mountpoint, std::forward<Args>(args)...);
-    if (ec != 0) {
-      throw std::runtime_error(
-          fmt::format("error running {}: exit code {}\n{}{}", driver.string(),
-                      ec, out, err));
-    }
-    errs_ = err;
-    dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
-#endif
-  }
-
-  template <typename... Args>
-  driver_runner(foreground_t, fs::path const& driver, bool tool_arg,
-                fs::path const& image, fs::path const& mountpoint,
-                Args&&... args)
-      : mountpoint_{mountpoint} {
-    setup_mountpoint(mountpoint);
-    process_ = std::make_unique<subprocess>(
-        DWARFS_ARG_EMULATOR_ driver, make_tool_arg(tool_arg), image, mountpoint,
-#ifndef _WIN32
-        "-f",
-#endif
-        std::forward<Args>(args)...);
-    process_->run_background();
-#ifndef _WIN32
-    dwarfs_guard_ = process_guard(process_->pid());
-#endif
-  }
-
-  template <typename... Args>
-  driver_runner(automount_t, fs::path const& driver, bool tool_arg,
-                fs::path const& image, fs::path const& mountpoint,
-                Args&&... args)
-      : mountpoint_{mountpoint}
-      , process_{std::make_unique<subprocess>(DWARFS_ARG_EMULATOR_ driver,
-                                              make_tool_arg(tool_arg),
-                                              "--auto-mountpoint", image,
-#ifndef _WIN32
-                                              "-f",
-#endif
-                                              std::forward<Args>(args)...)} {
-    process_->run_background();
-#ifndef _WIN32
-    dwarfs_guard_ = process_guard(process_->pid());
-#endif
-  }
-
-  bool unmount() {
-#ifdef _WIN32
-    static constexpr int const kSigIntExitCode{-1073741510};
-#elif !defined(__APPLE__)
-    static constexpr int const kSigIntExitCode{SIGINT};
-#endif
-
-    if (!mountpoint_.empty()) {
-#ifdef __APPLE__
-      auto diskutil = dwarfs::test::find_binary("diskutil");
-      if (!diskutil) {
-        throw std::runtime_error("no diskutil binary found");
-      }
-      bool const unmount_success =
-          is_mounted(mountpoint_) &&
-          wait_until<default_wait_policy>(
-              "diskutil unmount " + mountpoint_.string() + " failed",
-              [this, &diskutil] {
-                auto const [out, err, ec] =
-                    subprocess::run(diskutil.value(), "unmount", mountpoint_);
-                if (ec == 0) {
-                  return true;
-                }
-                std::cerr << "unmount " << mountpoint_ << " failed:\nout:\n"
-                          << out << "err:\n"
-                          << err << "exit code: " << ec << "\n";
-                if (!is_mounted(mountpoint_)) {
-                  std::cerr << "mountpoint " << mountpoint_
-                            << " no longer mounted\n";
-                  return true;
-                }
-                return false;
-              });
-      bool rv{true};
-      if (process_) {
-        if (!unmount_success) {
-          process_->interrupt();
-        }
-        process_->wait_background();
-        auto ec = process_->exit_code();
-        if (ec != 0) {
-          std::cerr << "driver failed to unmount:\nout:\n"
-                    << process_->out() << "err:\n"
-                    << process_->err() << "exit code: " << ec << "\n";
-          rv = false;
-        } else {
-          std::cerr << "driver successfully finished:\nout:\n"
-                    << process_->out() << "err:\n"
-                    << process_->err();
-        }
-        errs_ = process_->err();
-      }
-      process_.reset();
-      wait_until<default_wait_policy>(
-          "mountpoint " + mountpoint_.string() + " not fully unmounted",
-          [this] { return !is_mounted(mountpoint_); });
-      mountpoint_.clear();
-      return rv;
-#else
-#ifndef _WIN32
-      if (process_) {
-#endif
-        process_->interrupt();
-        process_->wait_background();
-        auto ec = process_->exit_code();
-        bool is_expected_exit_code = ec == 0 || ec == kSigIntExitCode;
-        if (!is_expected_exit_code) {
-          std::cerr << "driver failed to unmount:\nout:\n"
-                    << process_->out() << "err:\n"
-                    << process_->err() << "exit code: " << ec << "\n";
-        }
-        errs_ = process_->err();
-        process_.reset();
-        mountpoint_.clear();
-        return is_expected_exit_code;
-#ifndef _WIN32
-      } else {
-#ifdef __FreeBSD__
-        auto umount = find_umount();
-        for (int i = 0; i < 5; ++i) {
-          if (subprocess::check_run(umount, mountpoint_)) {
-            break;
-          }
-          std::cerr << "retrying umount...\n";
-          std::this_thread::sleep_for(200ms);
-        }
-#else
-        auto fusermount = find_fusermount();
-        for (int i = 0; i < 5; ++i) {
-          if (subprocess::check_run(fusermount, "-u", mountpoint_)) {
-            break;
-          }
-          std::cerr << "retrying fusermount...\n";
-          std::this_thread::sleep_for(200ms);
-        }
-#endif
-        mountpoint_.clear();
-        return dwarfs_guard_.check_exit(kDefaultTimeout);
-      }
-#endif
-#endif
-    }
-    return false;
-  }
-
-  std::string cmdline() const {
-    std::string rv;
-    if (process_) {
-      rv = process_->cmdline();
-    }
-    return rv;
-  }
-
-  std::string const& err() const { return errs_; }
-
-  ~driver_runner() {
-    try {
-      if (!mountpoint_.empty()) {
-        if (!unmount()) {
-          std::abort();
-        }
-      }
-    } catch (...) {
-      std::cerr << "Exception in ~driver_runner: "
-                << dwarfs::exception_str(std::current_exception()) << "\n";
-      std::abort();
-    }
-  }
-
-  static std::vector<std::string> make_tool_arg(bool tool_arg) {
-    std::vector<std::string> rv;
-    if (tool_arg) {
-      rv.push_back("--tool=dwarfs");
-    }
-    return rv;
-  }
-
- private:
-#if !(defined(_WIN32) || defined(__APPLE__))
-#ifdef __FreeBSD__
-  static fs::path find_umount() {
-    auto umount_bin = dwarfs::test::find_binary("umount");
-    if (!umount_bin) {
-      throw std::runtime_error("no umount binary found");
-    }
-    return *umount_bin;
-  }
-#else
-  static fs::path find_fusermount() {
-    auto fusermount_bin = dwarfs::test::find_binary("fusermount");
-    if (!fusermount_bin) {
-      fusermount_bin = dwarfs::test::find_binary("fusermount3");
-    }
-    if (!fusermount_bin) {
-      throw std::runtime_error("no fusermount binary found");
-    }
-    return *fusermount_bin;
-  }
-#endif
-#endif
-
-#ifdef __APPLE__
-  static bool is_mounted(fs::path const& mp) {
-    struct statfs buf;
-    if (::statfs(mp.c_str(), &buf) == 0) {
-      std::cerr << "statfs(" << mp << "): fstypename=" << buf.f_fstypename
-                << ", f_mnttoname=" << buf.f_mntonname
-                << ", f_mntfromname=" << buf.f_mntfromname << "\n";
-      return buf.f_fstypename == "macfuse_dwarfs"sv;
-    }
-    std::cerr << "statfs(" << mp << "): " << std::strerror(errno) << "\n";
-    return false;
-  }
-#endif
-
-  static void setup_mountpoint(fs::path const& mp) {
-    if (fs::exists(mp)) {
-      fs::remove(mp);
-    }
-#ifndef _WIN32
-    fs::create_directory(mp);
-#endif
-  }
-
-  fs::path mountpoint_;
-  std::unique_ptr<subprocess> process_;
-  std::string errs_;
-#ifndef _WIN32
-  process_guard dwarfs_guard_;
-#endif
-};
 
 bool check_readonly(fs::path const& p, bool readonly) {
   auto st = fs::status(p);
@@ -1409,7 +729,7 @@ TEST_P(tools_test, end_to_end) {
       driver_runner runner(driver_runner::foreground, driver.path(),
                            driver.tool_arg(), image, mountpoint, args);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+      ASSERT_TRUE(runner.wait_until_ready(mountpoint / "format.sh"))
           << runner.cmdline();
       auto const cdr = compare_directories(fsdata_dir, mountpoint);
       ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1559,7 +879,7 @@ TEST_P(tools_test, end_to_end) {
       driver_runner runner(driver.path(), driver.tool_arg(), image_to_use,
                            mountpoint, args);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+      ASSERT_TRUE(runner.wait_until_ready(mountpoint / "format.sh"))
           << runner.cmdline();
       EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
       EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
@@ -1684,7 +1004,7 @@ TEST_P(fuse_driver_test, mutating_and_error_ops) {
   driver_runner runner(driver_runner::foreground, bin_, tool_arg_,
                        test_data_dwarfs, mountpoint);
 
-  ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh"))
+  ASSERT_TRUE(runner.wait_until_ready(mountpoint / "format.sh"))
       << runner.cmdline();
 
   // remove (unlink)
@@ -1921,7 +1241,7 @@ TEST_P(tools_test, categorize) {
     driver_runner runner(driver_runner::foreground, driver.path(),
                          driver.tool_arg(), image, mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "random"))
         << runner.cmdline();
     auto const cdr = compare_directories(fsdata_dir, mountpoint);
     ASSERT_TRUE(cdr.identical()) << runner.cmdline() << ": " << cdr;
@@ -1949,7 +1269,7 @@ TEST_P(tools_test, categorize) {
                            "-opreload_category=pcmaudio/waveform",
                            "-oanalysis_file=" + analysis_file_str);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random"))
+      ASSERT_TRUE(runner.wait_until_ready(mountpoint / "random"))
           << runner.cmdline();
 
       std::array const files_to_read{
@@ -2901,7 +2221,7 @@ TEST_F(sparse_files_test, random_large_files) {
     driver_runner runner(driver_runner::foreground, fuse3.path(),
                          fuse3.tool_arg(), image, mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "file0000.bin"))
         << runner.cmdline();
 
     // Only compare if we know the FUSE driver supports sparse files.
@@ -2937,7 +2257,7 @@ TEST_F(sparse_files_test, random_large_files) {
     driver_runner runner(driver_runner::foreground, fuse2.path(),
                          fuse2.tool_arg(), image, mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "file0000.bin"))
         << runner.cmdline();
 
     for (auto const& file : info.files) {
@@ -3064,7 +2384,7 @@ TEST_F(sparse_files_test, random_small_files_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "file0000.bin"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "file0000.bin"))
         << runner.cmdline();
 
     auto const cdr = compare_directories(input, mountpoint);
@@ -3216,7 +2536,7 @@ TEST_F(sparse_files_test, huge_holes_fuse) {
     driver_runner runner(driver_runner::foreground, driver_bin, false, image,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "hole_then_data"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "hole_then_data"))
         << runner.cmdline();
 
     EXPECT_EQ(fs::file_size(mountpoint / "hole_then_data"), 5_GiB + 16_KiB)
@@ -3364,7 +2684,7 @@ TEST_P(fuse_driver_test, timestamps_fuse) {
   driver_runner runner(driver_runner::foreground, bin_, tool_arg_, image,
                        mountpoint);
 
-  ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+  ASSERT_TRUE(runner.wait_until_ready(mountpoint / "file_1w2s3lb6"))
       << runner.cmdline();
 
   for (auto const& [path, ft] : kFileTimes) {
@@ -3417,7 +2737,7 @@ TEST_P(fuse_driver_test, dwarfs_automount) {
   driver_runner runner(driver_runner::automount, bin_, tool_arg_, image,
                        mountpoint);
 
-  EXPECT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+  EXPECT_TRUE(runner.wait_until_ready(mountpoint / "file_1w2s3lb6"))
       << runner.cmdline();
 
   EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -3496,7 +2816,7 @@ TEST_P(fuse_driver_test, dwarfs_automount_error) {
     driver_runner runner(bin_, tool_arg_, test_dir / "datadata.dwarfs",
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "data.dwarfs"))
+    ASSERT_TRUE(runner.wait_until_ready(mountpoint / "data.dwarfs"))
         << runner.cmdline();
 
     auto const [out, err, ec] =
@@ -3531,7 +2851,7 @@ TEST_P(fuse_driver_test, dwarfs_fsname_and_subtype) {
 
   driver_runner runner(bin_, tool_arg_, image, mountpoint);
 
-  ASSERT_TRUE(wait_until_file_ready(mountpoint / "file_1w2s3lb6"))
+  ASSERT_TRUE(runner.wait_until_ready(mountpoint / "file_1w2s3lb6"))
       << runner.cmdline();
 
   std::optional<std::string> out;
@@ -3615,7 +2935,7 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
                          "-ooffset=auto",
                          "-oimagesize=" + std::to_string(image_size));
 
-    EXPECT_TRUE(wait_until_file_ready(td.path() / "mnt" / "format.sh"))
+    EXPECT_TRUE(runner.wait_until_ready(td.path() / "mnt" / "format.sh"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -3627,7 +2947,7 @@ TEST_P(fuse_driver_test, dwarfs_image_size) {
                          "-ooffset=" + std::to_string(image2_offset),
                          "-oimagesize=" + std::to_string(image2_size));
 
-    EXPECT_TRUE(wait_until_file_ready(td.path() / "mnt" / "data.dwarfs"))
+    EXPECT_TRUE(runner.wait_until_ready(td.path() / "mnt" / "data.dwarfs"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -3652,7 +2972,7 @@ TEST(tools_test, dwarfs_obsolete_options) {
                          test_dir / "data.dwarfs", td.path(),
                          std::string{"-o"} + opt);
 
-    EXPECT_TRUE(wait_until_file_ready(td.path() / "format.sh"))
+    EXPECT_TRUE(runner.wait_until_ready(td.path() / "format.sh"))
         << runner.cmdline();
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();

@@ -36,8 +36,7 @@ set(DWARFS_PREFIX_DIR "${PACKAGE_PREFIX_DIR}")
 find_dependency(Threads REQUIRED)
 find_dependency(fmt CONFIG REQUIRED)
 find_dependency(Boost @BOOST_REQUIRED_VERSION@ REQUIRED CONFIG
-                COMPONENTS chrono filesystem program_options
-                OPTIONAL_COMPONENTS process)
+                COMPONENTS chrono program_options)
 
 set(LIBDWARFS_WITH_CPPTRACE @cpptrace_FOUND@)
 
