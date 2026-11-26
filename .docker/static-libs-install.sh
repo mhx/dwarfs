@@ -276,7 +276,9 @@ if use_lib llvm; then
     opt_size
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${LLVM_TARBALL}
-    cd llvm-project-${LLVM_VERSION}.src/runtimes
+    cd llvm-project-${LLVM_VERSION}.src
+    python /usr/local/bin/trim-libcxx-locale.py
+    cd runtimes
     mkdir build
     cd build
     cmake .. -DLLVM_ENABLE_RUNTIMES="$LIBCXX_RUNTIMES" \

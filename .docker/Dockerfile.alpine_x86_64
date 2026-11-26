@@ -140,6 +140,7 @@ FROM toolchain_x86_64 AS staticlibs_x86_64_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -152,6 +153,7 @@ FROM toolchain_x86_64 AS staticlibs_x86_64_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -164,6 +166,7 @@ FROM toolchain_x86_64 AS staticlibs_x86_64_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -176,6 +179,7 @@ FROM toolchain_x86_64 AS staticlibs_x86_64_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -197,6 +201,7 @@ FROM toolchain_aarch64 AS staticlibs_aarch64_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -209,6 +214,7 @@ FROM toolchain_aarch64 AS staticlibs_aarch64_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -221,6 +227,7 @@ FROM toolchain_aarch64 AS staticlibs_aarch64_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -233,6 +240,7 @@ FROM toolchain_aarch64 AS staticlibs_aarch64_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -254,6 +262,7 @@ FROM toolchain_loongarch64 AS staticlibs_loongarch64_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -266,6 +275,7 @@ FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -278,6 +288,7 @@ FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -290,6 +301,7 @@ FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -311,6 +323,7 @@ FROM toolchain_riscv64 AS staticlibs_riscv64_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -323,6 +336,7 @@ FROM toolchain_riscv64 AS staticlibs_riscv64_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -335,6 +349,7 @@ FROM toolchain_riscv64 AS staticlibs_riscv64_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -347,6 +362,7 @@ FROM toolchain_riscv64 AS staticlibs_riscv64_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -368,6 +384,7 @@ FROM toolchain_ppc64 AS staticlibs_ppc64_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -380,6 +397,7 @@ FROM toolchain_ppc64 AS staticlibs_ppc64_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -392,6 +410,7 @@ FROM toolchain_ppc64 AS staticlibs_ppc64_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -404,6 +423,7 @@ FROM toolchain_ppc64 AS staticlibs_ppc64_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -425,6 +445,7 @@ FROM toolchain_ppc64le AS staticlibs_ppc64le_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -437,6 +458,7 @@ FROM toolchain_ppc64le AS staticlibs_ppc64le_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -449,6 +471,7 @@ FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -461,6 +484,7 @@ FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -482,6 +506,7 @@ FROM toolchain_s390x AS staticlibs_s390x_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -494,6 +519,7 @@ FROM toolchain_s390x AS staticlibs_s390x_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -506,6 +532,7 @@ FROM toolchain_s390x AS staticlibs_s390x_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -518,6 +545,7 @@ FROM toolchain_s390x AS staticlibs_s390x_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -539,6 +567,7 @@ FROM toolchain_arm AS staticlibs_arm_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -551,6 +580,7 @@ FROM toolchain_arm AS staticlibs_arm_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -563,6 +593,7 @@ FROM toolchain_arm AS staticlibs_arm_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -575,6 +606,7 @@ FROM toolchain_arm AS staticlibs_arm_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -596,6 +628,7 @@ FROM toolchain_i386 AS staticlibs_i386_gcc
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -608,6 +641,7 @@ FROM toolchain_i386 AS staticlibs_i386_clang
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -620,6 +654,7 @@ FROM toolchain_i386 AS staticlibs_i386_clang-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
@@ -632,6 +667,7 @@ FROM toolchain_i386 AS staticlibs_i386_clang-minsize-lto
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \

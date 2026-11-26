@@ -205,6 +205,7 @@ FROM $toolchain_stage AS $staticlibs_stage
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
+COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
 COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
 
 RUN $WITH_CACHES \\
