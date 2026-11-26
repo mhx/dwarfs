@@ -130,20 +130,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_gcc
+FROM toolchain_aarch64 AS compiler_rt_aarch64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all aarch64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh aarch64
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -156,7 +154,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang-lto
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -169,7 +167,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang-minsize-lto
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -184,8 +182,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 FROM base AS final
 
-COPY --link --from=toolchain_aarch64 /opt/cross/ /opt/cross/
-COPY --link --from=staticlibs_aarch64_gcc /opt/static-libs/ /opt/static-libs/
+COPY --link --from=compiler_rt_aarch64 /opt/cross/ /opt/cross/
 COPY --link --from=staticlibs_aarch64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_aarch64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_aarch64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/

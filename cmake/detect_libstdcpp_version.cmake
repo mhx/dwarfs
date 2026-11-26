@@ -34,10 +34,11 @@ function(detect_libstdcpp_version out_var)
 
   set(_cmd ${CMAKE_CXX_COMPILER})
 
+  separate_arguments(_compiler_args UNIX_COMMAND "${CMAKE_CXX_COMPILER_ARG1}")
   separate_arguments(_cxx_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS}")
 
   execute_process(
-    COMMAND ${_cmd} ${_cxx_flags} -dM -E -x c++ "${_src}"
+    COMMAND ${_cmd} ${_compiler_args} ${_cxx_flags} -dM -E -x c++ "${_src}"
     RESULT_VARIABLE _rc
     OUTPUT_VARIABLE _macros
     ERROR_QUIET

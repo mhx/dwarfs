@@ -10,7 +10,6 @@ import subprocess
 repositories = [
     "libarchive/libarchive",
     "xiph/flac",
-    "libunwind/libunwind",
     "google/benchmark",
     "boostorg/boost",
     "openssl/openssl",

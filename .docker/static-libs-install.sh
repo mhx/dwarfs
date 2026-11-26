@@ -11,19 +11,20 @@ ARCH="$(uname -m)"
 
 LLVM_MAJOR=${LLVM_VERSION%%.*}
 
-GCC="gcc"
-CLANG="clang-$LLVM_MAJOR"
 PKGS="$1"
 TARGET_ARCH="$2"
 COMPILER="$3"
 
-echo "Using $GCC and $CLANG"
+if [[ "$COMPILER" != clang* ]]; then
+    echo "Unknown static library compiler: $COMPILER"
+    exit 1
+fi
 
 if [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
 elif [[ "$PKGS" == ":all" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libunwind,libressl,llvm,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd,zxc"
+    PKGS="benchmark,boost,brotli,cpptrace,file,flac,fmt,fuse,fuse3,hhdate,jemalloc,libarchive,libdwarf,libucontext,libressl,llvm,lz4,mimalloc,nlohmann,openssl,parallel-hashmap,range-v3,utfcpp,xxhash,xz,zstd,zxc"
 fi
 
 TARGET_EMULATOR=""
@@ -33,28 +34,27 @@ fi
 
 export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
 export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-export COMMON_LDFLAGS="-static-libgcc"
 
 use_lib() {
     local lib="$1"
     case "$CARCH" in
         ppc64*|arm)
             case "$lib" in
-                libunwind|libdwarf|cpptrace)
+                libdwarf|cpptrace)
                     return 1
                     ;;
             esac
             ;;
         s390x)
             case "$lib" in
-                libunwind|libdwarf|cpptrace|libressl)
+                libdwarf|cpptrace|libressl)
                     return 1
                     ;;
             esac
             ;;
         loongarch64)
             case "$lib" in
-                fuse|libunwind|libdwarf|cpptrace)
+                fuse|libdwarf|cpptrace)
                     return 1
                     ;;
             esac
@@ -94,7 +94,7 @@ set_build_flags() {
 opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
-    export CPPFLAGS="$TARGET_FLAGS"
+    export CPPFLAGS=""
     export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
     export CMAKE_ARGS="-GNinja"
     if [[ "$CARCH" != "$ARCH" ]]; then
@@ -106,7 +106,7 @@ opt_size() {
 opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
-    export CPPFLAGS="$TARGET_FLAGS"
+    export CPPFLAGS=""
     export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
     export CMAKE_ARGS="-GNinja"
     if [[ "$CARCH" != "$ARCH" ]]; then
@@ -149,9 +149,6 @@ case "$CARCH" in
     *)           MAX_LG_PAGE_SIZE=16 ;;
 esac
 
-LIBCXX_RUNTIMES="libcxx;libcxxabi"
-LIBCXX_UNWIND_ARGS="-DLIBCXXABI_USE_LLVM_UNWINDER=OFF"
-
 export TARGET="${CARCH}-alpine-linux-musl"
 
 case "$CARCH" in
@@ -180,37 +177,26 @@ INSTALL_DIR_LIBRESSL="$INSTALL_ROOT/$COMPILER-libressl/$TARGET"
 WORKSUBDIR="$COMPILER/$TARGET"
 WORKDIR="$WORKROOT/$WORKSUBDIR"
 
-export TARGET_FLAGS="--sysroot=$SYSROOT"
-export SIZE_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
-export SIZE_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
-export PERF_CFLAGS="$TARGET_FLAGS $COMMON_CFLAGS -isystem $INSTALL_DIR/include"
-export PERF_CXXFLAGS="$TARGET_FLAGS $COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
-export COMP_LDFLAGS="$TARGET_FLAGS $COMMON_LDFLAGS -L$INSTALL_DIR/lib"
+RESOURCE_DIR="$SYSROOT/clang/$TARGET"
+TARGET_FLAGS="--sysroot=$SYSROOT -resource-dir=$RESOURCE_DIR"
+export SIZE_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
+export SIZE_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
+export PERF_CFLAGS="$COMMON_CFLAGS -isystem $INSTALL_DIR/include"
+export PERF_CXXFLAGS="$COMMON_CXXFLAGS -isystem $INSTALL_DIR/include"
+export COMP_LDFLAGS=""
 
 case "$CARCH" in
     ppc64)
         # https://github.com/rui314/mold/issues/1699
-        export COMP_LDFLAGS="-fuse-ld=lld $COMP_LDFLAGS"
+        export COMP_LDFLAGS="-fuse-ld=lld"
         ;;
     *)
-        export COMP_LDFLAGS="-fuse-ld=mold $COMP_LDFLAGS"
+        export COMP_LDFLAGS="-fuse-ld=mold"
         ;;
 esac
 
-case "$COMPILER" in
-    clang*)
-        export CC="$TARGET-clang"
-        export CXX="$TARGET-clang++"
-        ;;
-    gcc*)
-        export CC="$TARGET-gcc"
-        export CXX="$TARGET-g++"
-        ;;
-    *)
-        echo "Unknown compiler: $COMPILER"
-        exit 1
-        ;;
-esac
+export CC="$TARGET-clang"
+export CXX="$TARGET-clang++"
 
 case "-$COMPILER-" in
     *-minsize-*)
@@ -236,30 +222,10 @@ case "$COMPILER" in
         export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto $COMMON_DEBUG_FLAGS"
         export COMP_LDFLAGS="$COMP_LDFLAGS -flto"
         ;;
-    gcc*)
-        export SIZE_CFLAGS="$SIZE_CFLAGS -flto -ffat-lto-objects"
-        export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto -ffat-lto-objects"
-        export PERF_CFLAGS="$PERF_CFLAGS -flto -ffat-lto-objects"
-        export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto -ffat-lto-objects"
-        ;;
 esac
 
 export MESON_CROSS_FILE="--cross-file=/tmp/meson-$CARCH-$COMPILER.txt"
 
-cat <<EOF > /tmp/meson-$CARCH-$COMPILER.txt
-[binaries]
-c = '$CC'
-cpp = '$CXX'
-ld = '$CC'
-ar = '$TARGET-ar'
-strip = '$TARGET-strip'
-
-[host_machine]
-system = 'linux'
-cpu_family = '$CARCH'
-cpu = '$CARCH'
-endian = '$endian'
-EOF
 
 CORES="$(nproc)"
 MAKE_PARALLEL="make -j$CORES -l$CORES --output-sync=target"
@@ -270,6 +236,11 @@ mkdir -p "$WORKSUBDIR"
 
 if use_lib llvm; then
     opt_size
+    # The C++ runtimes do not exist yet. In particular, do not let CMake's
+    # initial compiler checks pull in the GCC C++ library or unwinder.
+    export CFLAGS="$TARGET_FLAGS $CFLAGS"
+    export CXXFLAGS="$TARGET_FLAGS $CXXFLAGS -stdlib=libc++ -nostdinc++"
+    export LDFLAGS="$TARGET_FLAGS $LDFLAGS -static -rtlib=compiler-rt -unwindlib=none -nostdlib++"
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${LLVM_TARBALL}
     cd llvm-project-${LLVM_VERSION}.src
@@ -277,8 +248,23 @@ if use_lib llvm; then
     cd runtimes
     mkdir build
     cd build
-    cmake .. -DLLVM_ENABLE_RUNTIMES="$LIBCXX_RUNTIMES" \
-             $LIBCXX_UNWIND_ARGS \
+    LIBUNWIND_EXTRA_ARGS=()
+    if [[ "$CARCH" == arm ]]; then
+        # ARM EHABI's _Unwind_* implementations are compiled with
+        # -fno-exceptions; do not let LTO infer nounwind on __cxa_throw.
+        # https://github.com/llvm/llvm-project/issues/120657
+        LIBUNWIND_EXTRA_ARGS+=(-DLIBUNWIND_ADDITIONAL_COMPILE_FLAGS=-fno-lto)
+    fi
+    cmake .. -DLLVM_ENABLE_RUNTIMES="libunwind;libcxxabi;libcxx" \
+             -DLIBUNWIND_ENABLE_SHARED=OFF \
+             -DLIBUNWIND_USE_COMPILER_RT=ON \
+             -DLIBUNWIND_ENABLE_ASSERTIONS=OFF \
+             "${LIBUNWIND_EXTRA_ARGS[@]}" \
+             -DLIBUNWIND_INCLUDE_TESTS=OFF \
+             -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
+             -DLIBCXXABI_USE_COMPILER_RT=ON \
+             -DLIBCXXABI_INCLUDE_TESTS=OFF \
+             -DLIBCXX_USE_COMPILER_RT=ON \
              -DLIBCXX_ENABLE_SHARED=OFF \
              -DLIBCXXABI_ENABLE_SHARED=OFF \
              -DLIBCXX_ENABLE_STATIC_ABI_LIBRARY=ON \
@@ -286,17 +272,90 @@ if use_lib llvm; then
              -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
              -DLIBCXX_INCLUDE_TESTS=OFF \
              -DLIBCXX_HAS_MUSL_LIBC=ON \
+             -DCMAKE_ASM_COMPILER="$CC" \
+             -DCMAKE_ASM_FLAGS="$TARGET_FLAGS" \
              -DCMAKE_AR=/usr/bin/llvm${LLVM_MAJOR}-ar \
              -DCMAKE_RANLIB=/usr/bin/llvm${LLVM_MAJOR}-ranlib \
              -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
     $NINJA_PARALLEL
     ninja install
 
-    # These affect the remaining libraries
-    LIBCXX_CXXFLAGS="-stdlib=libc++ -nostdinc++ -isystem $INSTALL_DIR/include/c++/v1"
-    export SIZE_CXXFLAGS="$SIZE_CXXFLAGS $LIBCXX_CXXFLAGS"
-    export PERF_CXXFLAGS="$PERF_CXXFLAGS $LIBCXX_CXXFLAGS"
+    # Use the same driver configuration for all subsequent builds, including
+    # build systems that do not consistently propagate CFLAGS/LDFLAGS.
+    cat > "$INSTALL_DIR/clang.cfg" <<EOF
+--sysroot=$SYSROOT
+-resource-dir=$RESOURCE_DIR
+--start-no-unused-arguments
+-rtlib=compiler-rt
+-unwindlib=libunwind
+-L$INSTALL_DIR/lib
+--end-no-unused-arguments
+EOF
+    cat > "$INSTALL_DIR/clang++.cfg" <<EOF
+@$INSTALL_DIR/clang.cfg
+-stdlib=libc++
+-nostdinc++
+-isystem $INSTALL_DIR/include/c++/v1
+EOF
 fi
+
+# A selective build must use an already installed set of LLVM runtimes.
+test -f "$INSTALL_DIR/clang.cfg"
+test -f "$INSTALL_DIR/clang++.cfg"
+export CC="$TARGET-clang --config=$INSTALL_DIR/clang.cfg"
+export CXX="$TARGET-clang++ --config=$INSTALL_DIR/clang++.cfg"
+# Meson needs the compiler command and its arguments as separate array entries.
+cat <<EOF > /tmp/meson-$CARCH-$COMPILER.txt
+[binaries]
+c = ['$TARGET-clang', '--config=$INSTALL_DIR/clang.cfg']
+cpp = ['$TARGET-clang++', '--config=$INSTALL_DIR/clang++.cfg']
+ld = '$TARGET-clang'
+ar = '$TARGET-ar'
+strip = '$TARGET-strip'
+
+[host_machine]
+system = 'linux'
+cpu_family = '$CARCH'
+cpu = '$CARCH'
+endian = '$endian'
+EOF
+
+# Fail early, before building the expensive dependencies. Exercise C++ ABI,
+# unwinding, threads, and both native and non-lock-free atomics.
+opt_size
+cat > "$WORKDIR/llvm-runtime-test.cpp" <<'EOF'
+#include <atomic>
+#include <cstdint>
+#include <stdexcept>
+#include <thread>
+
+struct value { std::uint64_t data[3]; };
+std::atomic<value> wide;
+std::atomic<std::uint64_t> counter{0};
+
+int main() {
+    std::thread worker([] {
+        try {
+            throw std::runtime_error("test");
+        } catch (std::runtime_error const&) {
+            wide.store(value{{1, 2, 3}});
+            ++counter;
+        }
+    });
+    worker.join();
+    return counter.load() != 1 || wide.load().data[2] != 3;
+}
+EOF
+$CXX $CXXFLAGS $LDFLAGS -static -pthread \
+    -Wl,-Map,"$WORKDIR/llvm-runtime-test.map" \
+    "$WORKDIR/llvm-runtime-test.cpp" -o "$WORKDIR/llvm-runtime-test"
+test -s "$WORKDIR/llvm-runtime-test.map"
+if grep -E 'lib(gcc(_eh)?|stdc\+\+|supc\+\+|atomic)\.a|(^|[/[:space:]])crt(begin|end)[ST]?\.o' \
+        "$WORKDIR/llvm-runtime-test.map"; then
+    echo "Unexpected GCC runtime in LLVM runtime test" >&2
+    exit 1
+fi
+$TARGET_EMULATOR "$WORKDIR/llvm-runtime-test"
 
 if use_lib libucontext; then
     opt_size
@@ -306,19 +365,6 @@ if use_lib libucontext; then
     cd libucontext-${LIBUCONTEXT_VERSION}
     $MAKE_PARALLEL ${LIBUCONTEXT_MAKE_ARGS}
     make install ${LIBUCONTEXT_MAKE_ARGS} DESTDIR="$INSTALL_DIR" prefix=""
-fi
-
-if use_lib libunwind; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${LIBUNWIND_TARBALL}
-    cd libunwind-${LIBUNWIND_VERSION}
-    fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/Remove-the-useless-endina.h-for-loongarch64.patch - | patch -p1
-    fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/main/libunwind/fix-libunwind-pc-in.patch - | patch -p1
-    LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" \
-        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests --disable-shared
-    $MAKE_PARALLEL
-    make install
 fi
 
 if use_lib nlohmann; then
@@ -376,10 +422,17 @@ if use_lib jemalloc; then
     # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch - | patch -p1
     # fetch.sh https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch - | patch -p1
     # fetch.sh https://github.com/jemalloc/jemalloc/commit/1a15fe33a48c52bfe26ea83e49f0d317a47da3ea.diff - | patch -p1
-    ./autogen.sh ${TRIPLETS}
+    # Keep the _Unwind_Backtrace profiling backend, but use LLVM libunwind
+    # instead of libgcc. The other libunwind backend uses unw_backtrace,
+    # which LLVM libunwind does not provide.
+    grep -Fq 'AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lgcc)]' configure.ac
+    sed -i 's/AC_CHECK_LIB(\[gcc\], \[_Unwind_Backtrace\], \[JE_APPEND_VS(LIBS, -lgcc)\]/AC_CHECK_LIB([unwind], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lunwind)]/' configure.ac
+    grep -Fq 'AC_CHECK_LIB([unwind], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lunwind)]' configure.ac
+    ./autogen.sh ${TRIPLETS} --with-cxx-stdlib=libcxx
     mkdir build-minimal
     cd build-minimal
     ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-minimal/$TARGET" --localstatedir=/var \
+                 --with-cxx-stdlib=libcxx \
                  --sysconfdir=/etc --with-lg-page=$MAX_LG_PAGE_SIZE --with-lg-hugepage=21 \
                  --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
     $MAKE_PARALLEL
@@ -388,10 +441,14 @@ if use_lib jemalloc; then
     mkdir build-full
     cd build-full
     ../configure ${TRIPLETS} --prefix="$INSTALL_ROOT/$COMPILER-jemalloc-full/$TARGET" --localstatedir=/var \
+                 --with-cxx-stdlib=libcxx \
                  --sysconfdir=/etc --with-lg-page=$MAX_LG_PAGE_SIZE --with-lg-hugepage=21 \
-                 --enable-stats --enable-prof --enable-static --disable-shared --disable-log --disable-debug
+                 --enable-stats --enable-prof --disable-prof-libunwind --enable-static --disable-shared --disable-log --disable-debug
     $MAKE_PARALLEL
     make install
+    # Ensure profiling did not silently fall back to another backend.
+    grep -E '^Libs(\.private)?:.*[[:space:]]-lunwind([[:space:]]|$)' \
+        "$INSTALL_ROOT/$COMPILER-jemalloc-full/$TARGET/lib/pkgconfig/jemalloc.pc"
 fi
 
 if use_lib mimalloc; then
@@ -401,7 +458,8 @@ if use_lib mimalloc; then
     cd mimalloc-${MIMALLOC_VERSION}
     mkdir build
     cd build
-    cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DMI_INSTALL_TOPLEVEL=ON -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+    cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DMI_INSTALL_TOPLEVEL=ON \
+             -Dmi_has_libatomic:BOOL=OFF -DMI_LIBPATH_atomic:STRING= -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
     $NINJA_PARALLEL
     ninja install
 fi
@@ -549,6 +607,8 @@ if use_lib openssl; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${OPENSSL_TARBALL}
     cd openssl-${OPENSSL_VERSION}
+    # Atomic builtins are provided by compiler-rt.
+    sed -i 's/threads("-latomic")/threads("")/g' Configurations/10-main.conf
     ./Configure ${OPENSSL_TARGET_ARGS} --prefix="$INSTALL_DIR_OPENSSL" --libdir=lib \
             threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
             no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
@@ -598,7 +658,7 @@ if use_lib libarchive; then
         # This is safe because `opt_size` will re-initialize CFLAGS, CPPFLAGS, and LDFLAGS
         export CFLAGS="-I$prefix/include $CFLAGS"
         export CPPFLAGS="-I$prefix/include $CPPFLAGS"
-        export LDFLAGS="-L$prefix/lib $LDFLAGS -latomic"
+        export LDFLAGS="-L$prefix/lib $LDFLAGS"
         cd "$WORKDIR"
         rm -rf libarchive-${LIBARCHIVE_VERSION}
         tar xf ${WORKROOT}/${LIBARCHIVE_TARBALL}
@@ -640,10 +700,12 @@ if use_lib file; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${FILE_TARBALL}
     cd file-${FILE_VERSION}
-    ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no \
-                LDFLAGS="-fuse-ld=lld -static -static-libgcc"
+    # libtool's -all-static is needed for the executable run via QEMU.
+    FILE_LDFLAGS="${LDFLAGS/-fuse-ld=mold/-fuse-ld=lld}"
+    LDFLAGS="$FILE_LDFLAGS -static" \
+        ./configure ${TRIPLETS} --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no
     $MAKE_PARALLEL FILE_COMPILE="${TARGET_EMULATOR} $WORKDIR/file-${FILE_VERSION}/src/file" \
-                   LDFLAGS="-fuse-ld=lld -all-static -static-libgcc"
+                   LDFLAGS="$FILE_LDFLAGS -all-static"
     make install
 fi
 
@@ -694,7 +756,7 @@ if use_lib cpptrace; then
         cd build
         cmake .. -DCMAKE_PREFIX_PATH="$prefix;$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$prefix" \
                  -DCPPTRACE_USE_EXTERNAL_LIBDWARF=ON -DCPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG=ON \
-                 -DCPPTRACE_UNWIND_WITH_LIBUNWIND=ON -DCPPTRACE_GET_SYMBOLS_WITH_LIBDWARF=ON \
+                 -DCPPTRACE_UNWIND_WITH_UNWIND=ON -DCPPTRACE_GET_SYMBOLS_WITH_LIBDWARF=ON \
                  ${CMAKE_ARGS}
         $NINJA_PARALLEL
         ninja install
@@ -729,6 +791,27 @@ if use_lib parallel-hashmap; then
              ${CMAKE_ARGS}
     $NINJA_PARALLEL
     ninja install
+fi
+
+# Catch GCC runtime dependencies exported by third-party build systems.
+gcc_deps_found=0
+
+for prefix in "$INSTALL_ROOT/$COMPILER/$TARGET" "$INSTALL_ROOT/$COMPILER-"*/"$TARGET"; do
+    [[ -d "$prefix/lib" ]] || continue
+
+    if rg -n --no-ignore --hidden -g '*.pc' -g '*.la' -g '*.cmake' -- \
+            '(^|[[:space:];"=])-l(gcc(_s|_eh)?|stdc\+\+|supc\+\+|atomic)([[:space:];"]|$)|lib(gcc(_s|_eh)?|stdc\+\+|supc\+\+|atomic)\.(a|so)([.[:space:];"]|$)' \
+            "$prefix/lib"; then
+        gcc_deps_found=1
+    else
+        status=$?
+        [[ "$status" == 1 ]] || exit "$status"
+    fi
+done
+
+if (( gcc_deps_found )); then
+    echo "Unexpected GCC runtime dependencies found" >&2
+    exit 1
 fi
 
 cd "$HOME"

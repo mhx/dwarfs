@@ -292,17 +292,8 @@ case "-$BUILD_TYPE-" in
     export CXXFLAGS="${CXXFLAGS} -flto=auto -DFMT_HEADER_ONLY=1"
     export LDFLAGS="${LDFLAGS} -flto=auto"
     export LDFLAGS="${LDFLAGS} -Wl,--icf=all"
-    # GCC uses fat LTO objects
     if [[ "-$BUILD_TYPE-" != *-gcc-* ]]; then
       export COMPILER="${COMPILER}-lto"
-    fi
-    ;;
-  *)
-    if [[ "-$BUILD_TYPE-" == *-gcc-* ]] && [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-      # We're using fat LTO objects with GCC, so need to disable LTO explicitly
-      export CFLAGS="${CFLAGS} -fno-lto -fno-use-linker-plugin"
-      export CXXFLAGS="${CXXFLAGS} -fno-lto -fno-use-linker-plugin"
-      export LDFLAGS="${LDFLAGS} -fno-lto -fno-use-linker-plugin"
     fi
     ;;
 esac
@@ -423,8 +414,11 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  # A size-optimized libgcc/libstdc++/musl will only save about 10k for the universal
-  # and fuse-extract binaries, so we'll just stick to using the -O2 toolchain.
+  if [[ "$COMPILER" != clang* ]]; then
+    echo "Static builds require Clang" >&2
+    exit 1
+  fi
+  # Keep using the existing -O2 musl toolchain.
   _SYSROOT="/opt/cross/O2"
   if [[ "$_MARCH" == "arm" ]]; then
     _TARGET="${_MARCH}-linux-musleabihf"
@@ -453,20 +447,16 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-openssl/$_TARGET"
   fi
 
-  if [[ "$COMPILER" == clang* ]]; then
-    export LDFLAGS="${LDFLAGS} -unwindlib=libgcc -rtlib=libgcc -stdlib=libc++"
-    export CXXFLAGS="${CXXFLAGS} -nostdinc++ -isystem $_staticprefix/include/c++/v1"
-  fi
+  # Use exactly the same LLVM runtimes as the third-party libraries.
+  export CC="$CC --config=$_staticprefix/clang.cfg"
+  export CXX="$CXX --config=$_staticprefix/clang++.cfg"
 
-  export LDFLAGS="${LDFLAGS} -L$_staticprefix/lib -L$_sslprefix/lib -static -static-libgcc"
+  export LDFLAGS="${LDFLAGS} -L$_sslprefix/lib -static"
   export CFLAGS="${CFLAGS} -g -isystem $_staticprefix/include"
   export CXXFLAGS="${CXXFLAGS} -g -isystem $_staticprefix/include"
 
   case "$_MARCH" in
-    i386)
-      export LDFLAGS="${LDFLAGS} -lucontext -latomic"
-      ;;
-    s390x)
+    i386|s390x)
       export LDFLAGS="${LDFLAGS} -lucontext"
       ;;
   esac

@@ -135,20 +135,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_x86_64 AS staticlibs_x86_64_gcc
+FROM toolchain_x86_64 AS compiler_rt_x86_64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all x86_64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh x86_64
 
 ###############################################################################
 
-FROM toolchain_x86_64 AS staticlibs_x86_64_clang
+FROM compiler_rt_x86_64 AS staticlibs_x86_64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -161,7 +159,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_x86_64 AS staticlibs_x86_64_clang-lto
+FROM compiler_rt_x86_64 AS staticlibs_x86_64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -174,7 +172,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_x86_64 AS staticlibs_x86_64_clang-minsize-lto
+FROM compiler_rt_x86_64 AS staticlibs_x86_64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -196,20 +194,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_gcc
+FROM toolchain_aarch64 AS compiler_rt_aarch64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all aarch64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh aarch64
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -222,7 +218,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang-lto
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -235,7 +231,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_aarch64 AS staticlibs_aarch64_clang-minsize-lto
+FROM compiler_rt_aarch64 AS staticlibs_aarch64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -257,20 +253,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_loongarch64 AS staticlibs_loongarch64_gcc
+FROM toolchain_loongarch64 AS compiler_rt_loongarch64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all loongarch64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh loongarch64
 
 ###############################################################################
 
-FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang
+FROM compiler_rt_loongarch64 AS staticlibs_loongarch64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -283,7 +277,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang-lto
+FROM compiler_rt_loongarch64 AS staticlibs_loongarch64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -296,7 +290,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_loongarch64 AS staticlibs_loongarch64_clang-minsize-lto
+FROM compiler_rt_loongarch64 AS staticlibs_loongarch64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -318,20 +312,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_riscv64 AS staticlibs_riscv64_gcc
+FROM toolchain_riscv64 AS compiler_rt_riscv64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all riscv64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh riscv64
 
 ###############################################################################
 
-FROM toolchain_riscv64 AS staticlibs_riscv64_clang
+FROM compiler_rt_riscv64 AS staticlibs_riscv64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -344,7 +336,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_riscv64 AS staticlibs_riscv64_clang-lto
+FROM compiler_rt_riscv64 AS staticlibs_riscv64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -357,7 +349,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_riscv64 AS staticlibs_riscv64_clang-minsize-lto
+FROM compiler_rt_riscv64 AS staticlibs_riscv64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -379,20 +371,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_ppc64 AS staticlibs_ppc64_gcc
+FROM toolchain_ppc64 AS compiler_rt_ppc64
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all ppc64 gcc
+    bash /usr/local/bin/compiler-rt-install.sh ppc64
 
 ###############################################################################
 
-FROM toolchain_ppc64 AS staticlibs_ppc64_clang
+FROM compiler_rt_ppc64 AS staticlibs_ppc64_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -405,7 +395,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_ppc64 AS staticlibs_ppc64_clang-lto
+FROM compiler_rt_ppc64 AS staticlibs_ppc64_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -418,7 +408,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_ppc64 AS staticlibs_ppc64_clang-minsize-lto
+FROM compiler_rt_ppc64 AS staticlibs_ppc64_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -440,20 +430,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_ppc64le AS staticlibs_ppc64le_gcc
+FROM toolchain_ppc64le AS compiler_rt_ppc64le
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all ppc64le gcc
+    bash /usr/local/bin/compiler-rt-install.sh ppc64le
 
 ###############################################################################
 
-FROM toolchain_ppc64le AS staticlibs_ppc64le_clang
+FROM compiler_rt_ppc64le AS staticlibs_ppc64le_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -466,7 +454,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-lto
+FROM compiler_rt_ppc64le AS staticlibs_ppc64le_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -479,7 +467,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_ppc64le AS staticlibs_ppc64le_clang-minsize-lto
+FROM compiler_rt_ppc64le AS staticlibs_ppc64le_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -501,20 +489,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_s390x AS staticlibs_s390x_gcc
+FROM toolchain_s390x AS compiler_rt_s390x
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all s390x gcc
+    bash /usr/local/bin/compiler-rt-install.sh s390x
 
 ###############################################################################
 
-FROM toolchain_s390x AS staticlibs_s390x_clang
+FROM compiler_rt_s390x AS staticlibs_s390x_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -527,7 +513,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_s390x AS staticlibs_s390x_clang-lto
+FROM compiler_rt_s390x AS staticlibs_s390x_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -540,7 +526,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_s390x AS staticlibs_s390x_clang-minsize-lto
+FROM compiler_rt_s390x AS staticlibs_s390x_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -562,20 +548,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_arm AS staticlibs_arm_gcc
+FROM toolchain_arm AS compiler_rt_arm
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all arm gcc
+    bash /usr/local/bin/compiler-rt-install.sh arm
 
 ###############################################################################
 
-FROM toolchain_arm AS staticlibs_arm_clang
+FROM compiler_rt_arm AS staticlibs_arm_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -588,7 +572,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_arm AS staticlibs_arm_clang-lto
+FROM compiler_rt_arm AS staticlibs_arm_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -601,7 +585,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_arm AS staticlibs_arm_clang-minsize-lto
+FROM compiler_rt_arm AS staticlibs_arm_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -623,20 +607,18 @@ RUN apk del zlib-dev zstd-dev
 
 ###############################################################################
 
-FROM toolchain_i386 AS staticlibs_i386_gcc
+FROM toolchain_i386 AS compiler_rt_i386
 
-COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
-
+COPY --link --from=staticlibs_base /root/pkgs/llvm-project-*.src.tar.xz /root/pkgs/
 COPY static-libs-versions.sh /usr/local/bin/static-libs-versions.sh
-COPY trim-libcxx-locale.py /usr/local/bin/trim-libcxx-locale.py
-COPY static-libs-install.sh /usr/local/bin/static-libs-install.sh
+COPY compiler-rt-install.sh /usr/local/bin/compiler-rt-install.sh
 
 RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgcache,target=/root/.pkgcache \
-    bash /usr/local/bin/static-libs-install.sh :all i386 gcc
+    bash /usr/local/bin/compiler-rt-install.sh i386
 
 ###############################################################################
 
-FROM toolchain_i386 AS staticlibs_i386_clang
+FROM compiler_rt_i386 AS staticlibs_i386_clang
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -649,7 +631,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_i386 AS staticlibs_i386_clang-lto
+FROM compiler_rt_i386 AS staticlibs_i386_clang-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -662,7 +644,7 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 ###############################################################################
 
-FROM toolchain_i386 AS staticlibs_i386_clang-minsize-lto
+FROM compiler_rt_i386 AS staticlibs_i386_clang-minsize-lto
 
 COPY --link --from=staticlibs_base /root/pkgs/ /root/pkgs/
 
@@ -677,48 +659,39 @@ RUN --mount=type=cache,id=ccache,target=/root/.ccache --mount=type=cache,id=pkgc
 
 FROM base AS final
 
-COPY --link --from=toolchain_x86_64 /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_aarch64 /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_loongarch64 /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_riscv64 /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_ppc64 /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_ppc64le /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_s390x /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_arm /opt/cross/ /opt/cross/
-COPY --link --from=toolchain_i386 /opt/cross/ /opt/cross/
-COPY --link --from=staticlibs_x86_64_gcc /opt/static-libs/ /opt/static-libs/
+COPY --link --from=compiler_rt_x86_64 /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_aarch64 /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_loongarch64 /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_riscv64 /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_ppc64 /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_ppc64le /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_s390x /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_arm /opt/cross/ /opt/cross/
+COPY --link --from=compiler_rt_i386 /opt/cross/ /opt/cross/
 COPY --link --from=staticlibs_x86_64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_x86_64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_x86_64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_aarch64_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_aarch64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_aarch64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_aarch64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_loongarch64_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_loongarch64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_loongarch64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_loongarch64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_riscv64_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_riscv64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_riscv64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_riscv64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_ppc64_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_ppc64le_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64le_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64le_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_ppc64le_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_s390x_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_s390x_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_arm_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_arm_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_arm_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_arm_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
-COPY --link --from=staticlibs_i386_gcc /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_i386_clang /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_i386_clang-lto /opt/static-libs/ /opt/static-libs/
 COPY --link --from=staticlibs_i386_clang-minsize-lto /opt/static-libs/ /opt/static-libs/
