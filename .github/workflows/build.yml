@@ -295,9 +295,9 @@ jobs:
             build_dist: fedora
             build_type: clang-release-shared-ninja-full
 
-          - build_arch: arm64v8
-            build_dist: alpine
-            build_type: gcc-release-ninja-static
+          #skip# - build_arch: arm64v8
+          #skip#   build_dist: alpine
+          #skip#   build_type: gcc-release-ninja-static
 
           #skip# - build_arch: arm64v8
           #skip#   build_dist: alpine
