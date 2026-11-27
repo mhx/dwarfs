@@ -53,6 +53,7 @@
 #include <mach/thread_info.h>
 #endif
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
