@@ -26,6 +26,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <cstring>
+
 #include <lz4.h>
 #include <lz4hc.h>
 
@@ -160,7 +162,7 @@ class lz4_block_decompressor final : public block_decompressor_base {
  private:
   static size_t get_uncompressed_size(uint8_t const* data) {
     uint32le_t size;
-    ::memcpy(&size, data, sizeof(size));
+    std::memcpy(&size, data, sizeof(size));
     return size;
   }
 
