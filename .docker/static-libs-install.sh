@@ -464,9 +464,15 @@ if use_lib boost; then
     cd boost-${BOOST_VERSION}
     mkdir build
     cd build
+
+    BOOST_LIBRARIES='accumulators;algorithm;align;assert;chrono;compat;config'
+    BOOST_LIBRARIES+=';container;container_hash;convert;core;iterator'
+    BOOST_LIBRARIES+=';lexical_cast;range;uuid'
+
     cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
              -DBOOST_CHARCONV_QUADMATH_FOUND_EXITCODE=0 \
-             -DBOOST_EXCLUDE_LIBRARIES='cobalt;context;contract;coroutine;fiber;graph;graph_parallel;iostreams;json;locale;log;log_setup;nowide;prg_exec_monitor;program_options;regex;stacktrace;thread;timer;type_erasure;unit_test_framework;url;wave;wserialization' \
+             -DBOOST_CONTAINER_HEADER_ONLY=ON \
+             -DBOOST_INCLUDE_LIBRARIES="$BOOST_LIBRARIES" \
              ${BOOST_CMAKE_ARGS} \
              -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
     $NINJA_PARALLEL
