@@ -29,6 +29,7 @@ add_library(
 
   src/byte_buffer.cpp
   src/checksum.cpp
+  src/command_line.cpp
   src/compression.cpp
   src/conv.cpp
   src/detail/file_extent_info.cpp
@@ -59,6 +60,7 @@ add_library(
   src/scoped_output_capture.cpp
   src/semver.cpp
   src/superblock_editor.cpp
+  src/sys_string.cpp
   src/terminal_ansi.cpp
   src/thread_pool.cpp
   src/util.cpp

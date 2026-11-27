@@ -133,3 +133,23 @@ TEST(dwarfsextract_main_test, cmdline_help_arg) {
   EXPECT_FALSE(t.out().empty());
   EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsextract"));
 }
+
+TEST(dwarfsextract_main_test, cmdline_option_values) {
+  for (auto const& args : std::vector<std::vector<std::string>>{
+           {"--input=", "--help"}, {"--input=--help", "--help"}}) {
+    dwarfsextract_tester t;
+    EXPECT_EQ(t.run(args), 0);
+    EXPECT_TRUE(t.err().empty());
+    EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsextract"));
+  }
+  {
+    dwarfsextract_tester t;
+    EXPECT_EQ(t.run({"--input", "--help"}), 1);
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("required argument"));
+  }
+  {
+    dwarfsextract_tester t;
+    EXPECT_EQ(t.run({"--num-workers=-1", "--help"}), 1);
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("is invalid"));
+  }
+}

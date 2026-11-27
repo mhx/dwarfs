@@ -33,22 +33,33 @@
 #include <string>
 #include <string_view>
 
-#include <boost/program_options.hpp>
-
 #include <dwarfs/config.h>
 
 #ifdef DWARFS_BUILTIN_MANPAGE
 #include <dwarfs/tool/manpage.h>
 #endif
 
+namespace boost::program_options {
+class options_description;
+}
+
 namespace dwarfs {
 
 struct logger_options;
 class library_dependencies;
 
+namespace cli {
+class options;
+}
+
 namespace tool {
 
 struct iolayer;
+
+struct common_cli_options {
+  bool help{false};
+  bool man{false};
+};
 
 using extra_deps_fn = std::function<void(library_dependencies&)>;
 
@@ -64,6 +75,9 @@ tool_header(std::string_view tool_name, extra_deps_fn const& extra_deps) {
 
 void add_common_options(boost::program_options::options_description& opts,
                         logger_options& logopts);
+
+void add_common_options(cli::options& opts, logger_options& logopts,
+                        common_cli_options& common);
 
 #ifdef DWARFS_BUILTIN_MANPAGE
 void show_manpage(manpage::document doc, iolayer const& iol);
