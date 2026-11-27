@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <latch>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -33,11 +34,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/format.h>
 
 #include <dwarfs/binary_literals.h>
+#include <dwarfs/command_line.h>
 #include <dwarfs/writer/categorizer.h>
 
 #include "loremipsum.h"
@@ -51,8 +51,6 @@ using dwarfs::test::make_mock_file_view;
 using namespace std::string_view_literals;
 
 namespace fs = std::filesystem;
-namespace po = boost::program_options;
-
 namespace {
 
 std::string png_data(size_t payload = 64) {
@@ -82,23 +80,17 @@ class libmagic_categorizer_fixture : public Base {
 
   void create_catmgr() { create_catmgr({}); }
 
-  void create_catmgr(std::vector<char const*> args) {
+  void create_catmgr(std::vector<std::string_view> args) {
     writer::categorizer_registry catreg;
 
-    po::options_description opts;
+    cli::options opts;
     catreg.add_options(opts);
 
-    args.insert(args.begin(), "program");
-
-    po::variables_map vm;
-    auto parsed = po::parse_command_line(args.size(), args.data(), opts);
-
-    po::store(parsed, vm);
-    po::notify(vm);
+    opts.parse(args);
 
     catmgr = std::make_shared<writer::categorizer_manager>(lgr, "/");
 
-    catmgr->add(catreg.create(lgr, "libmagic", vm, nullptr));
+    catmgr->add(catreg.create(lgr, "libmagic", nullptr));
   }
 
  public:

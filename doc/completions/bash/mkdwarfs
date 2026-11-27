@@ -128,7 +128,6 @@ _mkdwarfs_completion()
         --change-block-size
         --chmod
         --compress-niceness
-        --clear-label
         --debug-filter
         --estimate-compression-memory
         --file-hash

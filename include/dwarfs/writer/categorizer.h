@@ -37,12 +37,11 @@
 #include <dwarfs/writer/category_resolver.h>
 #include <dwarfs/writer/inode_fragments.h>
 
-namespace boost::program_options {
-class options_description;
-class variables_map;
-} // namespace boost::program_options
-
 namespace dwarfs {
+
+namespace cli {
+class options;
+}
 
 class file_access;
 class library_dependencies;
@@ -236,16 +235,15 @@ class categorizer_info {
   virtual ~categorizer_info() = default;
 
   virtual std::string_view name() const = 0;
-  virtual std::shared_ptr<boost::program_options::options_description const>
-  options() const = 0;
   virtual void add_library_dependencies(library_dependencies& deps) const;
 };
 
 class categorizer_factory : public categorizer_info {
  public:
+  virtual void add_options(cli::options& opts);
+
   virtual std::unique_ptr<categorizer>
-  create(logger& lgr, boost::program_options::variables_map const& vm,
-         std::shared_ptr<file_access const> const& fa) const = 0;
+  create(logger& lgr, std::shared_ptr<file_access const> const& fa) const = 0;
 };
 
 class categorizer_registry {
@@ -255,19 +253,18 @@ class categorizer_registry {
 
   std::unique_ptr<categorizer>
   create(logger& lgr, std::string const& name,
-         boost::program_options::variables_map const& vm,
          std::shared_ptr<file_access const> const& fa) const;
 
-  void add_options(boost::program_options::options_description& opts) const;
+  void add_options(cli::options& opts);
 
   std::vector<std::string> categorizer_names() const;
 
-  void register_factory(std::unique_ptr<categorizer_factory const>&& factory);
+  void register_factory(std::unique_ptr<categorizer_factory>&& factory);
 
   void add_library_dependencies(library_dependencies& deps) const;
 
  private:
-  std::map<std::string, std::unique_ptr<categorizer_factory const>> factories_;
+  std::map<std::string, std::unique_ptr<categorizer_factory>> factories_;
 };
 
 namespace detail {

@@ -30,10 +30,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/format.h>
 
+#include <dwarfs/command_line.h>
 #include <dwarfs/error_fmt.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
@@ -41,8 +40,6 @@
 #include <dwarfs/writer/categorizer.h>
 
 namespace dwarfs::writer {
-
-namespace po = boost::program_options;
 
 namespace {
 
@@ -149,27 +146,17 @@ bool hotness_categorizer_<LoggerPolicy>::subcategory_less(
 
 class hotness_categorizer_factory : public categorizer_factory {
  public:
-  hotness_categorizer_factory()
-      : opts_{std::make_shared<po::options_description>(
-            "Hotness categorizer options")} {
-    // clang-format off
-    opts_->add_options()
-      ("hotness-list",
-          po::value<std::string>(&cfg_.hotness_list)
-            ->value_name("file"),
-          "file with list of hot file paths")
-      ;
-    // clang-format on
+  void add_options(cli::options& opts) override {
+    opts.group("Hotness categorizer options");
+    opts.add("hotness-list", cfg_.hotness_list,
+             "file with list of hot file paths")
+        .value_name("file");
   }
 
   std::string_view name() const override { return "hotness"; }
 
-  std::shared_ptr<po::options_description const> options() const override {
-    return opts_;
-  }
-
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/,
+  create(logger& lgr,
          std::shared_ptr<file_access const> const& fa) const override {
     return make_unique_logging_object<categorizer, hotness_categorizer_,
                                       default_logger_policy>(lgr, cfg_, fa);
@@ -177,7 +164,6 @@ class hotness_categorizer_factory : public categorizer_factory {
 
  private:
   hotness_categorizer_config cfg_;
-  std::shared_ptr<po::options_description> opts_;
 };
 
 } // namespace

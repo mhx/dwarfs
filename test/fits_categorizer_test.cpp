@@ -30,10 +30,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <boost/program_options.hpp>
-
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/command_line.h>
 #include <dwarfs/container/endian.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -43,32 +42,22 @@
 using namespace dwarfs;
 
 namespace fs = std::filesystem;
-namespace po = boost::program_options;
-
 template <typename Base>
 class fits_categorizer_fixture : public Base {
  protected:
   void SetUp() override { lgr.clear(); }
 
-  void create_catmgr() { create_catmgr({}); }
-
-  void create_catmgr(std::vector<char const*> args) {
+  void create_catmgr() {
     writer::categorizer_registry catreg;
 
-    po::options_description opts;
+    cli::options opts;
     catreg.add_options(opts);
 
-    args.insert(args.begin(), "program");
-
-    po::variables_map vm;
-    auto parsed = po::parse_command_line(args.size(), args.data(), opts);
-
-    po::store(parsed, vm);
-    po::notify(vm);
+    opts.parse({});
 
     catmgr = std::make_shared<writer::categorizer_manager>(lgr, "/");
 
-    catmgr->add(catreg.create(lgr, "fits", vm, nullptr));
+    catmgr->add(catreg.create(lgr, "fits", nullptr));
   }
 
  public:
