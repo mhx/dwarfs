@@ -57,7 +57,7 @@
 #include <dwarfs/container/packed_int_vector.h>
 #include <dwarfs/container/small_vector.h>
 #include <dwarfs/device_number.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_range.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -139,10 +139,10 @@ check_frozen(MappedFrozen<thrift::metadata::metadata> meta) {
   if (meta.features()) {
     auto unsupported = feature_set::get_unsupported(meta.features()->thaw());
     if (!unsupported.empty()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("file system uses the following features "
-                               "unsupported by this build: {}",
-                               boost::join(unsupported, ", ")));
+      DWARFS_THROWF(runtime_error,
+                    "file system uses the following features "
+                    "unsupported by this build: {}",
+                    boost::join(unsupported, ", "));
     }
   }
   return meta;
@@ -873,34 +873,31 @@ metadata_v2_data::metadata_v2_data(
 {
   if (std::cmp_not_equal(meta_.directories().size() - 1,
                          symlink_inode_offset_)) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("metadata inconsistency: number of directories ({}) does "
-                    "not match link index ({})",
-                    meta_.directories().size() - 1, symlink_inode_offset_));
+    DWARFS_THROWF(runtime_error,
+                  "metadata inconsistency: number of directories ({}) does "
+                  "not match link index ({})",
+                  meta_.directories().size() - 1, symlink_inode_offset_);
   }
 
   if (std::cmp_not_equal(meta_.symlink_table().size(),
                          file_inode_offset_ - symlink_inode_offset_)) {
-    DWARFS_THROW(
+    DWARFS_THROWF(
         runtime_error,
-        fmt::format(
-            "metadata inconsistency: number of symlinks ({}) does not match "
-            "chunk/symlink table delta ({} - {} = {})",
-            meta_.symlink_table().size(), file_inode_offset_,
-            symlink_inode_offset_, file_inode_offset_ - symlink_inode_offset_));
+        "metadata inconsistency: number of symlinks ({}) does not match "
+        "chunk/symlink table delta ({} - {} = {})",
+        meta_.symlink_table().size(), file_inode_offset_, symlink_inode_offset_,
+        file_inode_offset_ - symlink_inode_offset_);
   }
 
   if (!meta_.shared_files_table()) {
     if (static_cast<int>(meta_.chunk_table().size() - 1) !=
         (dev_inode_offset_ - file_inode_offset_)) {
-      DWARFS_THROW(
+      DWARFS_THROWF(
           runtime_error,
-          fmt::format(
-              "metadata inconsistency: number of files ({}) does not match "
-              "device/chunk index delta ({} - {} = {})",
-              meta_.chunk_table().size() - 1, dev_inode_offset_,
-              file_inode_offset_, dev_inode_offset_ - file_inode_offset_));
+          "metadata inconsistency: number of files ({}) does not match "
+          "device/chunk index delta ({} - {} = {})",
+          meta_.chunk_table().size() - 1, dev_inode_offset_, file_inode_offset_,
+          dev_inode_offset_ - file_inode_offset_);
     }
   }
 
@@ -916,12 +913,11 @@ metadata_v2_data::metadata_v2_data(
     auto const expected_count = other_offset - dev_inode_offset_;
 
     if (std::cmp_not_equal(device_count, expected_count)) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("metadata inconsistency: number of devices ({}) does "
-                      "not match other/device index delta ({} - {} = {})",
-                      device_count, other_offset, dev_inode_offset_,
-                      expected_count));
+      DWARFS_THROWF(runtime_error,
+                    "metadata inconsistency: number of devices ({}) does "
+                    "not match other/device index delta ({} - {} = {})",
+                    device_count, other_offset, dev_inode_offset_,
+                    expected_count);
     }
   }
 
@@ -963,8 +959,7 @@ void metadata_v2_data::check_inode_size_cache(
 
           std::error_code ec;
           auto cr = get_chunk_range_from_index(index, ec);
-          DWARFS_CHECK(
-              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+          DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", inode, ec.message());
 
           LOG_TRACE << "checking inode " << inode << " [index=" << index
                     << "] size " << size << " (" << cr.size() << " chunks)";
@@ -993,8 +988,7 @@ void metadata_v2_data::check_inode_size_cache(
 
           std::error_code ec;
           auto cr = get_chunk_range_from_index(index, ec);
-          DWARFS_CHECK(
-              !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+          DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", inode, ec.message());
 
           LOG_TRACE << "checking inode " << inode << " [index=" << index
                     << "] allocated size " << alloc_size << " (" << cr.size()
@@ -1046,9 +1040,8 @@ void metadata_v2_data::check_inode_size_cache(
     }
 
     if (errors > 0) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("inode size cache check failed: {} error(s)", errors));
+      DWARFS_THROWF(runtime_error, "inode size cache check failed: {} error(s)",
+                    errors);
     }
   }
 }
@@ -1367,16 +1360,13 @@ metadata_v2_data::build_shared_start_positions(logger& lgr) const {
         startpos.push_back(sfp->size() + hardlinks);
       }
 
-      DWARFS_CHECK(
-          startpos.size() == shared_content_count + 1,
-          fmt::format("unexpected shared file start position count: {} != {}",
-                      startpos.size(), shared_content_count + 1));
-      DWARFS_CHECK(
+      DWARFS_CHECKF(startpos.size() == shared_content_count + 1,
+                    "unexpected shared file start position count: {} != {}",
+                    startpos.size(), shared_content_count + 1);
+      DWARFS_CHECKF(
           startpos.back() == shared_files_count + shared_hardlink_count,
-          fmt::format(
-              "unexpected last shared file start position value: {} != {} + {}",
-              startpos.back().load(), shared_files_count,
-              shared_hardlink_count));
+          "unexpected last shared file start position value: {} != {} + {}",
+          startpos.back().load(), shared_files_count, shared_hardlink_count);
 
       td << "built shared file start position table with " << startpos.size()
          << " entries (" << size_with_unit(startpos.size_in_bytes()) << ")";
@@ -1590,8 +1580,7 @@ metadata_v2_data::reg_file_size_impl_noperfmon(inode_view_impl const& iv,
   auto const inode = iv.inode_num();
   auto const index = file_inode_to_chunk_index(inode);
   auto const cr = get_chunk_range_from_index(index, ec);
-  DWARFS_CHECK(!ec,
-               fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+  DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", inode, ec.message());
 
   bool const enable_sparse = options_.enable_sparse_files;
 
@@ -2101,8 +2090,7 @@ void metadata_v2_data::dump(
   case posix_file_type::regular: {
     std::error_code ec;
     auto cr = get_chunk_range(inode, ec);
-    DWARFS_CHECK(!ec,
-                 fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+    DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", inode, ec.message());
     os << " [" << cr.begin_ << ", " << cr.end_ << "]";
     os << " " << reg_file_size_notrace(iv) << "\n";
     if (opts.features.has(fsinfo_feature::chunk_details)) {
@@ -2242,9 +2230,8 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
         });
 
         if (file_ix != other_ix) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("unexpected file/other index: {} != {}",
-                                   file_ix, other_ix));
+          DWARFS_THROWF(runtime_error, "unexpected file/other index: {} != {}",
+                        file_ix, other_ix);
         }
 
         mid += file_ix;
@@ -2269,8 +2256,7 @@ metadata_v2_data::entries_in_data_order(LOG_PROXY_REF(LoggerPolicy)) const {
             std::error_code ec;
             auto cr = get_chunk_range(ino, ec);
 
-            DWARFS_CHECK(
-                !ec, fmt::format("get_chunk_range({}): {}", ino, ec.message()));
+            DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", ino, ec.message());
 
             for (auto const& chunk : cr) {
               if (chunk.is_data()) {
@@ -2612,8 +2598,7 @@ nlohmann::json metadata_v2_data::get_inode_info(inode_view const& iv,
     std::error_code ec;
     auto chunk_range = get_chunk_range(iv.inode_num(), ec);
 
-    DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
-                                  ec.message()));
+    DWARFS_CHECKF(!ec, "get_chunk_range({}): {}", iv.inode_num(), ec.message());
 
     if (chunk_range.size() <= max_chunks) {
       for (auto const& chunk : chunk_range) {

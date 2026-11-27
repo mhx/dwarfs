@@ -36,7 +36,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/metadata_defs.h>
@@ -154,9 +154,8 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
         auto p_ino = dirent[parent].inode_num();
 
         if (p_ino >= num_dir_inodes) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("invalid parent inode number {} >= {}",
-                                   p_ino, num_dir_inodes));
+          DWARFS_THROWF(runtime_error, "invalid parent inode number {} >= {}",
+                        p_ino, num_dir_inodes);
         }
 
         if (seen[p_ino]) {
@@ -211,10 +210,9 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
     }
 
     if (count != num_dir_inodes) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("could not recover all self entries, expected {} got {}",
-                      num_dir_inodes, count));
+      DWARFS_THROWF(runtime_error,
+                    "could not recover all self entries, expected {} got {}",
+                    num_dir_inodes, count);
     }
 
     tt << "recovered " << count << " self entries from " << dirent.size()
@@ -298,44 +296,42 @@ void check_index_range(global_metadata::Meta const& meta) {
       v2_2 ? std::numeric_limits<uint32_t>::max() : meta.dir_entries()->size();
 
   if (num_modes > num_inodes) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid number of modes: {} > {}",
-                                            num_modes, num_inodes));
+    DWARFS_THROWF(runtime_error, "invalid number of modes: {} > {}", num_modes,
+                  num_inodes);
   }
 
   if (num_uids > num_inodes) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid number of uids: {} > {}",
-                                            num_uids, num_inodes));
+    DWARFS_THROWF(runtime_error, "invalid number of uids: {} > {}", num_uids,
+                  num_inodes);
   }
 
   if (num_gids > num_inodes) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid number of gids: {} > {}",
-                                            num_gids, num_inodes));
+    DWARFS_THROWF(runtime_error, "invalid number of gids: {} > {}", num_gids,
+                  num_inodes);
   }
 
   if (num_names > max_names) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid number of names: {} > {}",
-                                            num_names, max_names));
+    DWARFS_THROWF(runtime_error, "invalid number of names: {} > {}", num_names,
+                  max_names);
   }
 
   if (num_inodes > max_inodes) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid number of inodes: {} > {}",
-                                            num_inodes, max_inodes));
+    DWARFS_THROWF(runtime_error, "invalid number of inodes: {} > {}",
+                  num_inodes, max_inodes);
   }
 
   for (auto ino : meta.inodes()) {
     if (ino.mode_index() >= num_modes) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("mode_index out of range: {} >= {}",
-                               ino.mode_index(), num_modes));
+      DWARFS_THROWF(runtime_error, "mode_index out of range: {} >= {}",
+                    ino.mode_index(), num_modes);
     }
     // Special handling for legacy filesystems built with --set-owner
     // where num_uids == 0 is valid and owner_index is used to store
     // the uid.
     if (num_uids > 0) {
       if (auto i = ino.owner_index(); i >= num_uids) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("owner_index out of range: {} >= {}", i, num_uids));
+        DWARFS_THROWF(runtime_error, "owner_index out of range: {} >= {}", i,
+                      num_uids);
       }
     }
     // Special handling for legacy filesystems built with --set-group
@@ -343,26 +339,22 @@ void check_index_range(global_metadata::Meta const& meta) {
     // the gid.
     if (num_gids > 0) {
       if (auto i = ino.group_index(); i >= num_gids) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("group_index out of range: {} >= {}", i, num_gids));
+        DWARFS_THROWF(runtime_error, "group_index out of range: {} >= {}", i,
+                      num_gids);
       }
     }
     if (v2_2) {
       if (auto i = ino.name_index_v2_2(); i >= num_names && i > 0) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("name_index_v2_2 out of range: {} >= {}", i,
-                                 num_names));
+        DWARFS_THROWF(runtime_error, "name_index_v2_2 out of range: {} >= {}",
+                      i, num_names);
       }
     }
   }
 
   if (auto dep = meta.dir_entries()) {
     if (dep->size() >= std::numeric_limits<uint32_t>::max()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid number of dir_entries: {} >= {}",
-                               dep->size(),
-                               std::numeric_limits<uint32_t>::max()));
+      DWARFS_THROWF(runtime_error, "invalid number of dir_entries: {} >= {}",
+                    dep->size(), std::numeric_limits<uint32_t>::max());
     }
 
     if (auto cn = meta.compact_names()) {
@@ -377,45 +369,39 @@ void check_index_range(global_metadata::Meta const& meta) {
 
     if (auto const root_ino = dep->front().inode_num();
         root_ino >= num_directories) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("root inode number out of range: {} >= {}",
-                               root_ino, num_directories));
+      DWARFS_THROWF(runtime_error, "root inode number out of range: {} >= {}",
+                    root_ino, num_directories);
     }
 
     for (auto de : *dep) {
       if (auto i = de.name_index(); i >= num_names && i > 0) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("name_index out of range: {} >= {}", i, num_names));
+        DWARFS_THROWF(runtime_error, "name_index out of range: {} >= {}", i,
+                      num_names);
       }
       if (auto i = de.inode_num(); i >= num_inodes) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("inode_num out of range: {} >= {}", i, num_inodes));
+        DWARFS_THROWF(runtime_error, "inode_num out of range: {} >= {}", i,
+                      num_inodes);
       }
     }
   } else {
     if (meta.entry_table_v2_2().size() >=
         std::numeric_limits<uint32_t>::max()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid number of entries: {} >= {}",
-                               meta.entry_table_v2_2().size(),
-                               std::numeric_limits<uint32_t>::max()));
+      DWARFS_THROWF(runtime_error, "invalid number of entries: {} >= {}",
+                    meta.entry_table_v2_2().size(),
+                    std::numeric_limits<uint32_t>::max());
     }
 
     if (auto iv = meta.inodes().at(0);
         iv.inode_v2_2() >= meta.directories().size()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("root inode number out of range: {} >= {}",
-                               iv.inode_v2_2(), meta.directories().size()));
+      DWARFS_THROWF(runtime_error, "root inode number out of range: {} >= {}",
+                    iv.inode_v2_2(), meta.directories().size());
     }
 
     for (auto ent : meta.entry_table_v2_2()) {
       if (ent >= num_inodes) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("entry_table_v2_2 value out of range: {} >= {}", ent,
-                        num_inodes));
+        DWARFS_THROWF(runtime_error,
+                      "entry_table_v2_2 value out of range: {} >= {}", ent,
+                      num_inodes);
       }
     }
   }
@@ -427,17 +413,16 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
   auto const num_inodes = meta.inodes().size();
 
   if (meta.directories().size() > num_inodes + 1) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid number of directories: {} > {}",
-                             meta.directories().size(), num_inodes + 1));
+    DWARFS_THROWF(runtime_error, "invalid number of directories: {} > {}",
+                  meta.directories().size(), num_inodes + 1);
   }
 
   // strictly, the chunk table can only one entry per regular file,
   // plus the sentinel entry at the end
   if (meta.chunk_table().size() > num_inodes) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid number of chunk_table entries: {} > {}",
-                             meta.chunk_table().size(), num_inodes));
+    DWARFS_THROWF(runtime_error,
+                  "invalid number of chunk_table entries: {} > {}",
+                  meta.chunk_table().size(), num_inodes);
   }
 
   if (auto opt = meta.options(); opt and opt->packed_directories()) {
@@ -454,11 +439,9 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                             meta.directories().end(), static_cast<size_t>(0),
                             [](auto n, auto d) { return n + d.first_entry(); });
         expected != meta.dir_entries()->size()) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format(
-              "first_entry inconsistency in packed directories: {} != {}",
-              expected, meta.dir_entries()->size()));
+      DWARFS_THROWF(runtime_error,
+                    "first_entry inconsistency in packed directories: {} != {}",
+                    expected, meta.dir_entries()->size());
     }
   } else {
     bool const has_dir_entries = meta.dir_entries().has_value();
@@ -494,37 +477,33 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
       auto const s = d.self_entry();
 
       if (f > num_entries) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("[{}] first_entry out of range: {} > {}", i, f,
-                                 num_entries));
+        DWARFS_THROWF(runtime_error, "[{}] first_entry out of range: {} > {}",
+                      i, f, num_entries);
       }
 
       if (s > num_entries) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("[{}] self_entry out of range: {} > {}", i, s,
-                                 num_entries));
+        DWARFS_THROWF(runtime_error, "[{}] self_entry out of range: {} > {}", i,
+                      s, num_entries);
       }
 
       if (p >= num_parents) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("[{}] parent_entry out of range: {} >= {}", i,
-                                 p, num_parents));
+        DWARFS_THROWF(runtime_error, "[{}] parent_entry out of range: {} >= {}",
+                      i, p, num_parents);
       }
 
       // Only meaningful for v2.3+, where both are dir_entries indices; in
       // v2.2, `first_entry` is an entry index and `parent_entry` an inode
       // number, so comparing them is meaningless.
       if (has_dir_entries && f == p) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("[{}] first_entry == parent_entry", i));
+        DWARFS_THROWF(runtime_error, "[{}] first_entry == parent_entry", i);
       }
 
       if (i == 0 || is_last) {
         auto const what = i == 0 ? "root" : "sentinel";
         if (p != 0) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("[{}] parent_entry {} != 0 for {} directory",
-                                   i, p, what));
+          DWARFS_THROWF(runtime_error,
+                        "[{}] parent_entry {} != 0 for {} directory", i, p,
+                        what);
         }
         if (has_self && s != 0) {
           if (is_last) {
@@ -533,20 +512,18 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
                      << ", this is harmless and can be fixed by rebuilding the "
                         "metadata";
           } else {
-            DWARFS_THROW(runtime_error,
-                         fmt::format("[{}] self_entry {} != 0 for {} directory",
-                                     i, s, what));
+            DWARFS_THROWF(runtime_error,
+                          "[{}] self_entry {} != 0 for {} directory", i, s,
+                          what);
           }
         }
       } else if (has_self) {
         if (f == s) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("[{}] first_entry == self_entry", i));
+          DWARFS_THROWF(runtime_error, "[{}] first_entry == self_entry", i);
         }
 
         if (s == p) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("[{}] self_entry == parent_entry", i));
+          DWARFS_THROWF(runtime_error, "[{}] self_entry == parent_entry", i);
         }
       }
     }
@@ -558,9 +535,8 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
     // is implied by the first_entry sum check above.
     if (auto const last = meta.directories().back().first_entry();
         std::cmp_not_equal(last, num_entries)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("sentinel first_entry mismatch: {} != {}", last,
-                               num_entries));
+      DWARFS_THROWF(runtime_error, "sentinel first_entry mismatch: {} != {}",
+                    last, num_entries);
     }
   }
 
@@ -569,19 +545,16 @@ void check_packed_tables(logger& lgr, global_metadata::Meta const& meta) {
             std::accumulate(meta.chunk_table().begin(),
                             meta.chunk_table().end(), static_cast<size_t>(0));
         expected != meta.chunks().size()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("packed chunk_table inconsistency: {} != {}",
-                               expected, meta.chunks().size()));
+      DWARFS_THROWF(runtime_error, "packed chunk_table inconsistency: {} != {}",
+                    expected, meta.chunks().size());
     }
   } else {
     if (!std::ranges::is_sorted(meta.chunk_table())) {
       DWARFS_THROW(runtime_error, "chunk_table values not sorted");
     }
     if (meta.chunk_table().back() != meta.chunks().size()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("chunk_table end value mismatch: {} != {}",
-                               meta.chunk_table().back(),
-                               meta.chunks().size()));
+      DWARFS_THROWF(runtime_error, "chunk_table end value mismatch: {} != {}",
+                    meta.chunk_table().back(), meta.chunks().size());
     }
   }
 }
@@ -596,9 +569,8 @@ void check_compact_strings(
   }
 
   if (index_size != expected_num) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unexpected number of compact {0}: {1} != {2}",
-                             what, index_size, expected_num));
+    DWARFS_THROWF(runtime_error, "unexpected number of compact {0}: {1} != {2}",
+                  what, index_size, expected_num);
   }
 
   size_t expected_data_size = 0;
@@ -611,13 +583,11 @@ void check_compact_strings(
     } else {
       auto idx = v.index();
       if (idx.front() != 0) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("invalid first compact {0} index: {1}", what,
-                                 idx.front()));
+        DWARFS_THROWF(runtime_error, "invalid first compact {0} index: {1}",
+                      what, idx.front());
       }
       if (!std::ranges::is_sorted(idx)) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("compact {0} index not sorted", what));
+        DWARFS_THROWF(runtime_error, "compact {0} index not sorted", what);
       }
       expected_data_size = idx.back();
       // waiting for std::ranges::views::adjacent_transform...
@@ -629,26 +599,24 @@ void check_compact_strings(
   }
 
   if (v.buffer().size() != expected_data_size) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("data size mismatch for compact {0}: {1} != {2}",
-                             what, v.buffer().size(), expected_data_size));
+    DWARFS_THROWF(runtime_error,
+                  "data size mismatch for compact {0}: {1} != {2}", what,
+                  v.buffer().size(), expected_data_size);
   }
 
   if (longest_item_len > max_item_len) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid item length in compact {0}: {1} > {2}",
-                             what, longest_item_len, max_item_len));
+    DWARFS_THROWF(runtime_error,
+                  "invalid item length in compact {0}: {1} > {2}", what,
+                  longest_item_len, max_item_len);
   }
 
   if (auto dict = v.symtab()) {
     if (dict->empty()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("empty dictionary for compact {0}", what));
+      DWARFS_THROWF(runtime_error, "empty dictionary for compact {0}", what);
     }
 
     if (!fsst_decoder::is_valid_dictionary(*dict)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid dictionary for compact {0}", what));
+      DWARFS_THROWF(runtime_error, "invalid dictionary for compact {0}", what);
     }
 
     auto check_compressed_string = [&](std::string_view sv) {
@@ -684,20 +652,17 @@ void check_plain_strings(
     size_t expected_num, size_t max_item_len, bool accept_empty,
     std::string const& what) {
   if (v.size() != expected_num) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unexpected number of {0}: {1} != {2}", what,
-                             v.size(), expected_num));
+    DWARFS_THROWF(runtime_error, "unexpected number of {0}: {1} != {2}", what,
+                  v.size(), expected_num);
   }
 
   for (auto s : v) {
     if (s.size() > max_item_len) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid item length in {0}: {1} > {2}", what,
-                               s.size(), max_item_len));
+      DWARFS_THROWF(runtime_error, "invalid item length in {0}: {1} > {2}",
+                    what, s.size(), max_item_len);
     }
     if (!accept_empty && s.empty()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("empty item in {0} is not allowed", what));
+      DWARFS_THROWF(runtime_error, "empty item in {0} is not allowed", what);
     }
   }
 }
@@ -773,10 +738,9 @@ void check_chunks(
   for (size_t i = 0; i < uncompressed_block_size.size(); ++i) {
     auto const& bs = uncompressed_block_size[i];
     if (bs.has_value() && *bs > block_size) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("invalid uncompressed block size for block {}: {} > {}",
-                      i, *bs, block_size));
+      DWARFS_THROWF(runtime_error,
+                    "invalid uncompressed block size for block {}: {} > {}", i,
+                    *bs, block_size);
     }
   }
 
@@ -799,16 +763,14 @@ void check_chunks(
   // chunks in that block would silently be interpreted as holes.
   if (hole_ix.has_value() &&
       std::cmp_less(*hole_ix, uncompressed_block_size.size())) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("hole_block_index {} references a real block (block "
-                    "count is {})",
-                    *hole_ix, uncompressed_block_size.size()));
+    DWARFS_THROWF(runtime_error,
+                  "hole_block_index {} references a real block (block "
+                  "count is {})",
+                  *hole_ix, uncompressed_block_size.size());
   }
 
   if (!std::has_single_bit(block_size)) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid block size: {}", block_size));
+    DWARFS_THROWF(runtime_error, "invalid block size: {}", block_size);
   }
 
   auto const large_hole_sizes = meta.large_hole_size();
@@ -826,68 +788,60 @@ void check_chunks(
 
     if (auto const chunk = codec.classify(b, o, s)) {
       if (chunk->size() == 0) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("chunk size is zero: block={} offset={} size={}", b, o,
-                        s));
+        DWARFS_THROWF(runtime_error,
+                      "chunk size is zero: block={} offset={} size={}", b, o,
+                      s);
       }
 
       if (chunk->is_data()) {
         if (chunk->block() >= uncompressed_block_size.size()) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("chunk block index {} out of range (raw "
-                                   "chunk: block={}, offset={}, size={})",
-                                   chunk->block(), b, o, s));
+          DWARFS_THROWF(runtime_error,
+                        "chunk block index {} out of range (raw "
+                        "chunk: block={}, offset={}, size={})",
+                        chunk->block(), b, o, s);
         }
 
         if (auto bs = uncompressed_block_size[chunk->block()]) {
           if (std::cmp_greater(chunk->offset() + chunk->size(), *bs)) {
-            DWARFS_THROW(
-                runtime_error,
-                fmt::format("chunk end outside of uncompressed block: {} + {} "
-                            "> {} (raw chunk: block={}, offset={}, size={})",
-                            chunk->offset(), chunk->size(), *bs, b, o, s));
+            DWARFS_THROWF(runtime_error,
+                          "chunk end outside of uncompressed block: {} + {} "
+                          "> {} (raw chunk: block={}, offset={}, size={})",
+                          chunk->offset(), chunk->size(), *bs, b, o, s);
           }
         }
       }
     } else {
       switch (chunk.error()) {
       case sparse_chunk_codec::error::data_offset_out_of_range:
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("chunk offset out of range: {} >= {}", o, block_size));
+        DWARFS_THROWF(runtime_error, "chunk offset out of range: {} >= {}", o,
+                      block_size);
         break;
       case sparse_chunk_codec::error::data_size_out_of_range:
         if (s > block_size) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("chunk size out of range: {} > {}", s, block_size));
+          DWARFS_THROWF(runtime_error, "chunk size out of range: {} > {}", s,
+                        block_size);
         }
-        DWARFS_THROW(runtime_error,
-                     fmt::format("chunk end outside of block: {} + {} > {}", o,
-                                 s, block_size));
+        DWARFS_THROWF(runtime_error, "chunk end outside of block: {} + {} > {}",
+                      o, s, block_size);
         break;
       case sparse_chunk_codec::error::hole_remainder_out_of_range:
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format(
-                "hole chunk size remainder exceeds block size: {} >= {}", o,
-                block_size));
+        DWARFS_THROWF(runtime_error,
+                      "hole chunk size remainder exceeds block size: {} >= {}",
+                      o, block_size);
         break;
       case sparse_chunk_codec::error::large_hole_list_missing:
         DWARFS_THROW(runtime_error,
                      "large hole chunk but no large_hole_size set");
         break;
       case sparse_chunk_codec::error::large_hole_index_out_of_range:
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("large hole chunk size index out of range: {} >= {}", s,
-                        large_hole_sizes->size()));
+        DWARFS_THROWF(runtime_error,
+                      "large hole chunk size index out of range: {} >= {}", s,
+                      large_hole_sizes->size());
         break;
       case sparse_chunk_codec::error::large_hole_size_out_of_range:
-        DWARFS_THROW(runtime_error,
-                     fmt::format("large hole chunk size out of range: {} > {}",
-                                 (*large_hole_sizes)[s], kChunkBitsSizeMask));
+        DWARFS_THROWF(runtime_error,
+                      "large hole chunk size out of range: {} > {}",
+                      (*large_hole_sizes)[s], kChunkBitsSizeMask);
         break;
       }
 
@@ -916,9 +870,8 @@ void check_categories(global_metadata::Meta const& meta) {
 
     for (auto cat : *categories) {
       if (cat >= catnames->size()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("category index out of range: {} >= {}", cat,
-                                 catnames->size()));
+        DWARFS_THROWF(runtime_error, "category index out of range: {} >= {}",
+                      cat, catnames->size());
       }
     }
   }
@@ -938,10 +891,9 @@ void check_categories(global_metadata::Meta const& meta) {
 
     for (auto const& ent : *cat_meta_index) {
       if (auto const index = ent.second(); index >= num_meta) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("category metadata index out of range: {} >= {}", index,
-                        num_meta));
+        DWARFS_THROWF(runtime_error,
+                      "category metadata index out of range: {} >= {}", index,
+                      num_meta);
       }
     }
 
@@ -991,17 +943,16 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
 void check_options(auto const& opts) {
   if (auto const val = opts.time_resolution_sec()) {
     if (*val <= 0) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("time_resolution_sec out of range: {}", *val));
+      DWARFS_THROWF(runtime_error, "time_resolution_sec out of range: {}",
+                    *val);
     }
   }
 
   if (auto const val = opts.subsecond_resolution_nsec_multiplier()) {
     if (*val <= 0 || *val >= 1'000'000'000) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("subsecond_resolution_nsec_multiplier out of range: {}",
-                      *val));
+      DWARFS_THROWF(runtime_error,
+                    "subsecond_resolution_nsec_multiplier out of range: {}",
+                    *val);
     }
   }
 }
@@ -1109,34 +1060,30 @@ global_metadata::Meta const& check_metadata(
                                    : meta.entry_table_v2_2().size();
 
   if (offsets.back() != num_partitioned) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unexpected inode rank in table: {} != {}",
-                             offsets.back(), num_partitioned));
+    DWARFS_THROWF(runtime_error, "unexpected inode rank in table: {} != {}",
+                  offsets.back(), num_partitioned);
   }
 
   if (num_dir != offsets[1]) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("wrong number of directories: {} != {}", num_dir,
-                             offsets[1]));
+    DWARFS_THROWF(runtime_error, "wrong number of directories: {} != {}",
+                  num_dir, offsets[1]);
   }
 
   if (num_lnk != offsets[2] - offsets[1]) {
-    DWARFS_THROW(runtime_error, fmt::format("wrong number of links: {} != {}",
-                                            num_lnk, offsets[2] - offsets[1]));
+    DWARFS_THROWF(runtime_error, "wrong number of links: {} != {}", num_lnk,
+                  offsets[2] - offsets[1]);
   }
 
   if (num_reg_unique + num_reg_shared != offsets[3] - offsets[2]) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("wrong number of files: {} + {} != {}",
-                             num_reg_unique, num_reg_shared,
-                             offsets[3] - offsets[2]));
+    DWARFS_THROWF(runtime_error, "wrong number of files: {} + {} != {}",
+                  num_reg_unique, num_reg_shared, offsets[3] - offsets[2]);
   }
 
   size_t const num_dev = get_device_count(meta);
 
   if (num_dev != offsets[4] - offsets[3]) {
-    DWARFS_THROW(runtime_error, fmt::format("wrong number of devices: {} != {}",
-                                            num_dev, offsets[4] - offsets[3]));
+    DWARFS_THROWF(runtime_error, "wrong number of devices: {} != {}", num_dev,
+                  offsets[4] - offsets[3]);
   }
 
   if (!meta.dir_entries()) {
@@ -1209,9 +1156,8 @@ uint32_t global_metadata::first_non_empty_dir_entry(uint32_t ino) const {
     auto const last = first_dir_entry(ino + 1);
 
     if (entry < last) {
-      DWARFS_CHECK(
-          entry < de->size(),
-          fmt::format("entry index out of range: {} >= {}", entry, de->size()));
+      DWARFS_CHECKF(entry < de->size(), "entry index out of range: {} >= {}",
+                    entry, de->size());
 
       auto const dev = (*de)[entry];
 
@@ -1363,12 +1309,12 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
-    DWARFS_CHECK(self_index < de->size(),
-                 fmt::format("self_index out of range: {0} >= {1}", self_index,
-                             de->size()));
-    DWARFS_CHECK(parent_index < de->size(),
-                 fmt::format("parent_index out of range: {0} >= {1}",
-                             parent_index, de->size()));
+    DWARFS_CHECKF(self_index < de->size(),
+                  "self_index out of range: {0} >= {1}", self_index,
+                  de->size());
+    DWARFS_CHECKF(parent_index < de->size(),
+                  "parent_index out of range: {0} >= {1}", parent_index,
+                  de->size());
 
     auto dev = (*de)[self_index];
 
@@ -1376,12 +1322,12 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
                                        name_type);
   }
 
-  DWARFS_CHECK(self_index < meta.inodes().size(),
-               fmt::format("self_index out of range: {0} >= {1}", self_index,
-                           meta.inodes().size()));
-  DWARFS_CHECK(parent_index < meta.inodes().size(),
-               fmt::format("parent_index out of range: {0} >= {1}",
-                           parent_index, meta.inodes().size()));
+  DWARFS_CHECKF(self_index < meta.inodes().size(),
+                "self_index out of range: {0} >= {1}", self_index,
+                meta.inodes().size());
+  DWARFS_CHECKF(parent_index < meta.inodes().size(),
+                "parent_index out of range: {0} >= {1}", parent_index,
+                meta.inodes().size());
 
   auto iv = meta.inodes()[self_index];
 
@@ -1396,25 +1342,25 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
-    DWARFS_CHECK(self_index < de->size(),
-                 fmt::format("self_index out of range: {0} >= {1}", self_index,
-                             de->size()));
+    DWARFS_CHECKF(self_index < de->size(),
+                  "self_index out of range: {0} >= {1}", self_index,
+                  de->size());
     auto dev = (*de)[self_index];
-    DWARFS_CHECK(dev.inode_num() < meta.directories().size(),
-                 fmt::format("inode_num out of range: {0} >= {1}",
-                             dev.inode_num(), meta.directories().size()));
+    DWARFS_CHECKF(dev.inode_num() < meta.directories().size(),
+                  "inode_num out of range: {0} >= {1}", dev.inode_num(),
+                  meta.directories().size());
     return Ctor<dir_entry_view_impl>()(
         dev, self_index, g.parent_dir_entry(dev.inode_num()), g, name_type);
   }
 
-  DWARFS_CHECK(self_index < meta.inodes().size(),
-               fmt::format("self_index out of range: {0} >= {1}", self_index,
-                           meta.inodes().size()));
+  DWARFS_CHECKF(self_index < meta.inodes().size(),
+                "self_index out of range: {0} >= {1}", self_index,
+                meta.inodes().size());
   auto iv = meta.inodes()[self_index];
 
-  DWARFS_CHECK(iv.inode_v2_2() < meta.directories().size(),
-               fmt::format("inode_v2_2 out of range: {0} >= {1}",
-                           iv.inode_v2_2(), meta.directories().size()));
+  DWARFS_CHECKF(iv.inode_v2_2() < meta.directories().size(),
+                "inode_v2_2 out of range: {0} >= {1}", iv.inode_v2_2(),
+                meta.directories().size());
   return Ctor<dir_entry_view_impl>()(
       iv, self_index,
       meta.entry_table_v2_2()[meta.directories()[iv.inode_v2_2()]

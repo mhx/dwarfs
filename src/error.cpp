@@ -41,7 +41,7 @@
 #endif
 #endif
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/util.h>
 
@@ -97,6 +97,22 @@ system_error::system_error(std::string_view s, int err, source_location loc)
     , syserr_{err, std::generic_category(),
               fmt::format("[{}:{}] {}", basename(loc.file_name()), loc.line(),
                           s)} {}
+
+namespace detail {
+
+void throw_formatted_impl(std::type_identity<runtime_error>,
+                          source_location loc, fmt::string_view format,
+                          fmt::format_args args) {
+  throw runtime_error(fmt::vformat(format, args), loc);
+}
+
+void assertion_failed_formatted_impl(std::string_view expr, source_location loc,
+                                     fmt::string_view format,
+                                     fmt::format_args args) {
+  assertion_failed(expr, fmt::vformat(format, args), loc);
+}
+
+} // namespace detail
 
 void handle_nothrow(std::string_view expr, source_location loc) {
   std::cerr << "Expression `" << expr << "` threw `"

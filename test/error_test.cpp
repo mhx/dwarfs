@@ -29,7 +29,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/util.h>
 
 using namespace dwarfs;
@@ -69,6 +69,30 @@ TEST(error_test, runtime_error) {
     FAIL() << "expected runtime_error, got "
            << exception_str(std::current_exception());
   }
+}
+
+TEST(error_test, formatted_runtime_error) {
+  std::string const value{"test"};
+  int const line = __LINE__ + 2;
+  try {
+    DWARFS_THROWF(runtime_error, "{1}:{0:02x}:{2}", 7, value, std::string{"x"});
+    FAIL() << "expected runtime_error to be thrown";
+  } catch (runtime_error const& e) {
+    EXPECT_EQ("error_test.cpp",
+              std::filesystem::path(e.file()).filename().string());
+    EXPECT_EQ(line, e.line());
+    EXPECT_EQ(fmt::format("[error_test.cpp:{}] test:07:x", line),
+              std::string(e.what()));
+  }
+  EXPECT_THROW(DWARFS_THROWF(runtime_error, "no arguments"), runtime_error);
+}
+
+TEST(error_test, formatted_check) {
+  int count = 0;
+  DWARFS_CHECKF(++count == 1, "unexpected value {}", ++count);
+  EXPECT_EQ(1, count);
+  EXPECT_DEATH(DWARFS_CHECKF(false, "unexpected value {}", 42),
+               "Assertion `false` failed in .*unexpected value 42");
 }
 
 TEST(error_test, system_error) {
