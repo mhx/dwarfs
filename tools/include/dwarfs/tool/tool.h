@@ -39,10 +39,6 @@
 #include <dwarfs/tool/manpage.h>
 #endif
 
-namespace boost::program_options {
-class options_description;
-}
-
 namespace dwarfs {
 
 struct logger_options;
@@ -72,9 +68,6 @@ inline std::string
 tool_header(std::string_view tool_name, extra_deps_fn const& extra_deps) {
   return tool_header(tool_name, {}, extra_deps);
 }
-
-void add_common_options(boost::program_options::options_description& opts,
-                        logger_options& logopts);
 
 void add_common_options(cli::options& opts, logger_options& logopts,
                         common_cli_options& common);

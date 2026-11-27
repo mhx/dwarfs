@@ -267,7 +267,7 @@ if(WITH_LIBDWARFS)
 
   find_package(Threads REQUIRED)
   find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
-               COMPONENTS chrono program_options)
+               COMPONENTS chrono)
 
   if(ENABLE_STACKTRACE)
     find_package(cpptrace REQUIRED CONFIG)
