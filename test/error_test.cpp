@@ -71,6 +71,40 @@ TEST(error_test, runtime_error) {
   }
 }
 
+TEST(error_test, runtime_error_message_types) {
+  std::string const message{"prefix: message suffix"};
+  auto const view = std::string_view(message).substr(8, 7);
+
+  auto const line = __LINE__ + 2;
+  try {
+    DWARFS_THROW(runtime_error, view);
+    FAIL() << "expected runtime_error to be thrown";
+  } catch (runtime_error const& e) {
+    EXPECT_EQ(line, e.line());
+    EXPECT_EQ(fmt::format("[error_test.cpp:{}] message", line), e.what());
+  }
+
+  EXPECT_THROW(DWARFS_THROW(runtime_error, std::string{"temporary"}),
+               runtime_error);
+}
+
+TEST(error_test, throw_other_exception_types) {
+  struct derived_error : runtime_error {
+    using runtime_error::runtime_error;
+  };
+
+  EXPECT_THROW(DWARFS_THROW(derived_error, "derived error"), derived_error);
+
+  auto const line = __LINE__ + 2;
+  try {
+    DWARFS_THROW(system_error, "explicit error code", EINVAL);
+    FAIL() << "expected system_error to be thrown";
+  } catch (system_error const& e) {
+    EXPECT_EQ(line, e.line());
+    EXPECT_EQ(EINVAL, e.get_errno());
+  }
+}
+
 TEST(error_test, formatted_runtime_error) {
   std::string const value{"test"};
   int const line = __LINE__ + 2;

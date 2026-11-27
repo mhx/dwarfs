@@ -32,6 +32,8 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
+#include <utility>
 
 #include <dwarfs/config.h>
 
@@ -39,6 +41,7 @@
 #include <cpptrace/cpptrace.hpp>
 #endif
 
+#include <dwarfs/compiler.h>
 #include <dwarfs/source_location.h>
 
 namespace dwarfs {
@@ -85,8 +88,26 @@ class system_error : public error {
   std::system_error syserr_;
 };
 
+namespace detail {
+
+[[noreturn]] DWARFS_NOINLINE DWARFS_COLD void
+throw_runtime_error(std::string_view message, source_location loc);
+
+template <typename Exception, typename... Args>
+[[noreturn]] DWARFS_FORCE_INLINE void
+throw_exception(source_location loc, Args&&... args) {
+  if constexpr (std::is_same_v<Exception, runtime_error>) {
+    throw_runtime_error(std::forward<Args>(args)..., loc);
+  } else {
+    throw Exception(std::forward<Args>(args)..., loc);
+  }
+}
+
+} // namespace detail
+
 #define DWARFS_THROW(cls, ...)                                                 \
-  throw cls(__VA_ARGS__, DWARFS_CURRENT_SOURCE_LOCATION)
+  ::dwarfs::detail::throw_exception<cls>(DWARFS_CURRENT_SOURCE_LOCATION,       \
+                                         __VA_ARGS__)
 
 #define DWARFS_CHECK(expr, message)                                            \
   do {                                                                         \
