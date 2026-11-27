@@ -33,7 +33,6 @@ RUN zypper -n refresh && zypper -n update && zypper -n in --no-recommends \
     boost-devel \
     libboost_chrono-devel \
     libboost_context-devel \
-    libboost_program_options-devel \
     libboost_regex-devel \
     libboost_thread-devel \
     libbrotli-devel \

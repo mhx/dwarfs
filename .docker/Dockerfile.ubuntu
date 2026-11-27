@@ -32,7 +32,6 @@ RUN apt update && apt upgrade -y && apt install -y \
         libbenchmark-dev \
         libboost-chrono-dev \
         libboost-context-dev \
-        libboost-program-options-dev \
         libboost-regex-dev \
         libboost-thread-dev \
         libbrotli-dev \
