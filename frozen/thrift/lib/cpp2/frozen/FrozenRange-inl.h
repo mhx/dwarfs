@@ -68,27 +68,40 @@ struct ArrayLayout : public LayoutBase {
   }
 
   FieldPosition layout(LayoutRoot& root, const T& coll, LayoutPosition self) {
-    FieldPosition pos = startFieldPosition();
+    return layoutRange(*this, root, coll, self);
+  }
+
+ protected:
+  // Dispatch to the concrete range's item operations without keeping the
+  // writer-only operations alive through the reader's layout vtable.
+  template <class RangeLayout>
+  static FieldPosition layoutRange(
+      RangeLayout& layout,
+      LayoutRoot& root,
+      const T& coll,
+      LayoutPosition self) {
+    FieldPosition pos = layout.startFieldPosition();
     size_t n = coll.size();
-    pos = root.layoutField(self, pos, countField, n);
+    pos = root.layoutField(self, pos, layout.countField, n);
     if (!n) {
-      return root.layoutField(self, pos, distanceField, 0);
+      return root.layoutField(self, pos, layout.distanceField, 0);
     }
-    size_t itemBytes = itemField.layout.size;
-    size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
+    size_t itemBytes = layout.itemField.layout.size;
+    size_t itemBits = itemBytes ? 0 : layout.itemField.layout.bits;
     size_t dist = root.layoutBytesDistance(
         self.start,
         itemBits ? (n * itemBits + 7) / 8 : n * itemBytes,
         kItemAlign);
 
-    pos = root.layoutField(self, pos, distanceField, dist);
+    pos = root.layoutField(self, pos, layout.distanceField, dist);
 
     LayoutPosition write{self.start + dist, 0};
     FieldPosition writeStep(itemBytes, itemBits);
-    return layoutItems(root, coll, self, pos, write, writeStep);
+    return layout.layoutItems(root, coll, self, pos, write, writeStep);
   }
 
-  virtual FieldPosition layoutItems(
+ public:
+  FieldPosition layoutItems(
       LayoutRoot& root,
       const T& coll,
       LayoutPosition /* self */,
@@ -114,14 +127,24 @@ struct ArrayLayout : public LayoutBase {
   }
 
   void freeze(FreezeRoot& root, const T& coll, FreezePosition self) const {
+    freezeRange(*this, root, coll, self);
+  }
+
+ protected:
+  template <class RangeLayout>
+  static void freezeRange(
+      const RangeLayout& layout,
+      FreezeRoot& root,
+      const T& coll,
+      FreezePosition self) {
     size_t n = coll.size();
-    root.freezeField(self, countField, n);
+    root.freezeField(self, layout.countField, n);
     if (!n) {
-      root.freezeField(self, distanceField, 0);
+      root.freezeField(self, layout.distanceField, 0);
       return;
     }
-    size_t itemBytes = itemField.layout.size;
-    size_t itemBits = itemBytes ? 0 : itemField.layout.bits;
+    size_t itemBytes = layout.itemField.layout.size;
+    size_t itemBits = itemBytes ? 0 : layout.itemField.layout.bits;
     std::span<uint8_t> range;
     size_t dist;
     root.appendBytes(
@@ -131,14 +154,15 @@ struct ArrayLayout : public LayoutBase {
         dist,
         kItemAlign);
 
-    root.freezeField(self, distanceField, dist);
+    root.freezeField(self, layout.distanceField, dist);
 
     FreezePosition write{range.data(), 0};
     FieldPosition writeStep(itemBytes, itemBits);
-    freezeItems(root, coll, self, write, writeStep);
+    layout.freezeItems(root, coll, self, write, writeStep);
   }
 
-  virtual void freezeItems(
+ public:
+  void freezeItems(
       FreezeRoot& root,
       const T& coll,
       FreezePosition /* self */,

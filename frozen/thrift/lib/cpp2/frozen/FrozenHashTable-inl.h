@@ -173,13 +173,21 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
     }
   }
 
+  FieldPosition layout(LayoutRoot& root, const T& coll, LayoutPosition self) {
+    return Base::layoutRange(*this, root, coll, self);
+  }
+
+  void freeze(FreezeRoot& root, const T& coll, FreezePosition self) const {
+    Base::freezeRange(*this, root, coll, self);
+  }
+
   FieldPosition layoutItems(
       LayoutRoot& root,
       const T& coll,
       LayoutPosition self,
       FieldPosition pos,
       LayoutPosition write,
-      FieldPosition writeStep) final {
+      FieldPosition writeStep) {
     std::vector<const Item*> index;
     std::vector<Block> sparseTable;
     buildIndex(coll, index, sparseTable);
@@ -202,7 +210,7 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       const T& coll,
       FreezePosition self,
       FreezePosition write,
-      FieldPosition writeStep) const final {
+      FieldPosition writeStep) const {
     std::vector<const Item*> index;
     std::vector<Block> sparseTable;
     buildIndex(coll, index, sparseTable);
