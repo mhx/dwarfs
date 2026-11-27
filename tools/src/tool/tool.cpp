@@ -69,7 +69,7 @@ namespace {
 
 #ifdef DWARFS_USE_JEMALLOC
 std::string get_jemalloc_version() {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(DWARFS_STATIC_JEMALLOC)
   char const* j = JEMALLOC_VERSION;
 #else
   char const* j = nullptr;
@@ -189,7 +189,7 @@ void show_manpage(manpage::document doc, iolayer const& iol) {
 
 std::optional<size_t> get_allocated_memory() {
   std::optional<size_t> allocated;
-#ifdef DWARFS_USE_JEMALLOC
+#if defined(DWARFS_USE_JEMALLOC) && !defined(DWARFS_JEMALLOC_NO_STATS)
   // refresh cached stats
   uint64_t epoch = 1;
   size_t sz = sizeof(epoch);

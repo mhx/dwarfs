@@ -2029,7 +2029,7 @@ TEST_P(mkdwarfs_log_mem_usage_test, log_memory_usage) {
   EXPECT_EQ(file, 0);
 #endif
 
-#ifdef DWARFS_USE_JEMALLOC
+#if defined(DWARFS_USE_JEMALLOC) && !defined(DWARFS_JEMALLOC_NO_STATS)
   bool jemalloc_has_stats = false;
   size_t sz = sizeof(jemalloc_has_stats);
   ::mallctl("config.stats", &jemalloc_has_stats, &sz, nullptr, 0);

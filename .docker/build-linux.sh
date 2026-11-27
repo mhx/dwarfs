@@ -439,8 +439,10 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   _staticprefix="/opt/static-libs/$COMPILER/$_TARGET"
   if [[ "$BUILD_TYPE" == *-minimal-* ]] || [[ "$BUILD_TYPE" == *-small-* ]]; then
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-minimal/$_TARGET"
+    CMAKE_ARGS="${CMAKE_ARGS} -DJEMALLOC_HAS_STATS=OFF"
   else
     _jemallocprefix="/opt/static-libs/$COMPILER-jemalloc-full/$_TARGET"
+    CMAKE_ARGS="${CMAKE_ARGS} -DJEMALLOC_HAS_STATS=ON"
   fi
   if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
     _sslprefix="/opt/static-libs/$COMPILER-libressl/$_TARGET"
