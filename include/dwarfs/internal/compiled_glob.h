@@ -28,11 +28,51 @@
 
 #pragma once
 
-#include <string>
+#include <bitset>
+#include <cstddef>
 #include <string_view>
+#include <vector>
 
 namespace dwarfs::internal {
 
-std::string glob_to_regex_string(std::string_view pattern);
+class compiled_glob {
+ public:
+  explicit compiled_glob(std::string_view pattern, bool ignorecase = false,
+                         bool floating = false);
+
+  bool match(std::string_view path) const;
+
+ private:
+  enum class opcode {
+    literal,
+    any,
+    char_set,
+    star,
+    globstar,
+    directory,
+    split,
+    jump,
+    accept,
+  };
+
+  struct instruction {
+    opcode op;
+    size_t arg{0};
+  };
+
+  static constexpr size_t npos = std::string_view::npos;
+
+  unsigned char fold(unsigned char c) const;
+  bool match_byte(instruction const& ins, unsigned char c) const;
+  size_t compile_char_set(std::string_view pattern, size_t pos);
+  bool match_linear(std::string_view path) const;
+  bool match_nfa(std::string_view path) const;
+
+  std::vector<instruction> code_;
+  std::vector<std::bitset<256>> char_sets_;
+  bool ignorecase_;
+  size_t basename_start_{0};
+  size_t linear_repeat_{npos};
+};
 
 } // namespace dwarfs::internal

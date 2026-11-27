@@ -22,12 +22,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <dwarfs/glob_matcher.h>
+#include <dwarfs/internal/compiled_glob.h>
 
 using dwarfs::glob_matcher;
 
@@ -458,4 +460,72 @@ TEST(glob_matcher_test, multi_pattern) {
   EXPECT_TRUE(matcher("CHANGELOG.TXT"));
   EXPECT_FALSE(matcher("main.c"));
   EXPECT_FALSE(matcher("UTILS.CPP"));
+}
+
+TEST(glob_matcher_test, globstar_directory_boundary) {
+  glob_matcher matcher{"src/**/main.cpp"};
+  EXPECT_TRUE(matcher("src/main.cpp"));
+  EXPECT_TRUE(matcher("src/dir/main.cpp"));
+  EXPECT_TRUE(matcher("src/dir\nname/main.cpp"));
+  EXPECT_FALSE(matcher("src/notmain.cpp"));
+  EXPECT_FALSE(matcher("src/dir/notmain.cpp"));
+  EXPECT_FALSE(glob_matcher{"**/main.cpp"}("notmain.cpp"));
+  EXPECT_TRUE(glob_matcher{"src/**.cpp"}("src/dir\nname/file.cpp"));
+  EXPECT_TRUE(glob_matcher{"**/"}(""));
+  EXPECT_TRUE(glob_matcher{"**/"}("dir/"));
+  EXPECT_FALSE(glob_matcher{"**/"}("dir"));
+  EXPECT_TRUE(glob_matcher{"**/*.{txt,cpp}"}("dir/file.cpp"));
+  EXPECT_FALSE(glob_matcher{"**/*.{txt,cpp}"}("dir/file.c"));
+
+  // Negated classes can match a slash.
+  EXPECT_TRUE(glob_matcher{"**/[!x]b"}("/b"));
+}
+
+TEST(glob_matcher_test, floating_patterns) {
+  using dwarfs::internal::compiled_glob;
+
+  compiled_glob files{"*.txt", true, true};
+  EXPECT_TRUE(files.match("/file.txt"));
+  EXPECT_TRUE(files.match("/dir\nname/file.TXT"));
+  EXPECT_FALSE(files.match("/dir/file.txt/"));
+  EXPECT_FALSE(files.match("file.txt"));
+  EXPECT_FALSE(files.match("/dir/file.cpp"));
+
+  compiled_glob directories{"foo/", false, true};
+  EXPECT_TRUE(directories.match("/dir/foo/"));
+  EXPECT_FALSE(directories.match("/dir/myfoo/"));
+  EXPECT_FALSE(directories.match("/dir/foo"));
+
+  compiled_glob multi{"foo/**/bar", false, true};
+  EXPECT_TRUE(multi.match("/foo/bar"));
+  EXPECT_TRUE(multi.match("/dir/foo/a/b/bar"));
+  EXPECT_FALSE(multi.match("/dir/myfoo/bar"));
+  EXPECT_FALSE(multi.match("/dir/foo/mybar"));
+}
+
+TEST(glob_matcher_test, long_patterns_and_alternatives) {
+  std::string pattern;
+  for (int i = 0; i < 80; ++i) {
+    pattern += "{a,aa}";
+  }
+  pattern += 'b';
+
+  glob_matcher matcher;
+  matcher.add_pattern(pattern);
+  EXPECT_TRUE(matcher(std::string(80, 'a') + 'b'));
+  EXPECT_TRUE(matcher(std::string(120, 'a') + 'b'));
+  EXPECT_TRUE(matcher(std::string(160, 'a') + 'b'));
+  EXPECT_FALSE(matcher(std::string(79, 'a') + 'b'));
+  EXPECT_FALSE(matcher(std::string(160, 'a') + 'c'));
+  EXPECT_FALSE(matcher(std::string(161, 'a') + 'b'));
+
+  glob_matcher repeats;
+  repeats.add_pattern(std::string(300, 'a') + "*b*c");
+  EXPECT_TRUE(repeats(std::string(300, 'a') + "xxbyyc"));
+  EXPECT_FALSE(repeats(std::string(300, 'a') + "xxb/yyc"));
+
+  EXPECT_TRUE(glob_matcher{"a{,b{,c}}d"}("ad"));
+  EXPECT_TRUE(glob_matcher{"a{,b{,c}}d"}("abd"));
+  EXPECT_TRUE(glob_matcher{"a{,b{,c}}d"}("abcd"));
+  EXPECT_FALSE(glob_matcher{"a{,b{,c}}d"}("acd"));
 }

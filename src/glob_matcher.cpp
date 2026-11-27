@@ -27,34 +27,13 @@
  */
 
 #include <algorithm>
-#include <regex>
 #include <vector>
 
 #include <dwarfs/glob_matcher.h>
 
-#include <dwarfs/internal/glob_to_regex.h>
+#include <dwarfs/internal/compiled_glob.h>
 
 namespace dwarfs {
-
-namespace {
-
-constexpr std::regex_constants::syntax_option_type
-regex_flags(glob_matcher::options const& opts) {
-  auto flags =
-      std::regex_constants::ECMAScript | std::regex_constants::optimize;
-  if (opts.ignorecase) {
-    flags |= std::regex_constants::icase;
-  }
-  return flags;
-}
-
-std::regex
-glob_to_regex(std::string_view pattern, glob_matcher::options const& opts) {
-  return std::regex("(?:^" + internal::glob_to_regex_string(pattern) + "$)",
-                    regex_flags(opts));
-}
-
-} // namespace
 
 class glob_matcher_ final : public glob_matcher::impl {
  public:
@@ -88,17 +67,16 @@ class glob_matcher_ final : public glob_matcher::impl {
 
   void add_pattern(std::string_view pattern,
                    glob_matcher::options const& opts) override {
-    m_.push_back(glob_to_regex(pattern, opts));
+    m_.emplace_back(pattern, opts.ignorecase);
   }
 
   bool match(std::string_view sv) const override {
-    return std::ranges::any_of(m_, [&sv](auto const& re) {
-      return std::regex_match(sv.begin(), sv.end(), re);
-    });
+    return std::ranges::any_of(
+        m_, [&sv](auto const& glob) { return glob.match(sv); });
   }
 
  private:
-  std::vector<std::regex> m_;
+  std::vector<internal::compiled_glob> m_;
 };
 
 glob_matcher::glob_matcher()

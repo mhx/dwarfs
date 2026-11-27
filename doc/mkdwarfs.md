@@ -1289,7 +1289,8 @@ and any number of characters, respectively. These patterns don't match
 across directory separators (`/`).
 
 Patterns also support the `**` globstar wildcard, which matches across
-directory separators.
+directory separators. A `**/` at the start of the pattern or immediately
+after a `/` matches zero or more complete directory components.
 
 Patterns also support character classes (`[avt]`), ranges (`[a-h]`),
 and complementation (`[!a-h]`).

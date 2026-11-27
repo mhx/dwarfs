@@ -21,8 +21,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <regex>
+#include <istream>
+#include <stdexcept>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -31,7 +34,7 @@
 #include <dwarfs/util.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 
-#include <dwarfs/internal/glob_to_regex.h>
+#include <dwarfs/internal/compiled_glob.h>
 
 namespace dwarfs::writer {
 
@@ -43,24 +46,14 @@ struct filter_rule {
     exclude,
   };
 
-  filter_rule(rule_type type, std::string const& re, std::string_view rule,
-              bool ignore_case = false)
+  filter_rule(rule_type type, std::string_view pattern, std::string_view rule,
+              bool ignore_case, bool floating)
       : type{type}
-      , re{re, regex_flags(ignore_case)}
+      , glob{pattern, ignore_case, floating}
       , rule{rule} {}
 
-  static constexpr std::regex_constants::syntax_option_type
-  regex_flags(bool ignore_case) {
-    auto flags =
-        std::regex_constants::ECMAScript | std::regex_constants::optimize;
-    if (ignore_case) {
-      flags |= std::regex_constants::icase;
-    }
-    return flags;
-  }
-
   rule_type type;
-  std::regex re;
+  dwarfs::internal::compiled_glob glob;
   std::string rule;
 };
 
@@ -90,7 +83,6 @@ class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
 template <typename LoggerPolicy>
 auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
     std::string_view rule) -> filter_rule {
-  std::string re;
   filter_rule::rule_type type;
 
   if (rule.empty()) {
@@ -145,16 +137,10 @@ auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
   // If the start of the pattern is not explicitly anchored, make it floating.
   bool floating = pattern[0] != '/';
 
-  if (floating) {
-    re += ".*/";
-  }
-
-  re += dwarfs::internal::glob_to_regex_string(pattern) + "$";
-
-  LOG_DEBUG << "'" << rule << "' -> '" << re << "' [floating=" << floating
+  LOG_DEBUG << "'" << rule << "' [floating=" << floating
             << ", ignore_case=" << ignore_case << "]";
 
-  return {type, re, rule, ignore_case};
+  return {type, pattern, rule, ignore_case, floating};
 }
 
 template <typename LoggerPolicy>
@@ -224,7 +210,7 @@ filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
   auto const path = ei.logical_path();
 
   for (auto const& r : filter_) {
-    if (std::regex_match(path, r.re)) {
+    if (r.glob.match(path)) {
       LOG_TRACE << "[" << path << "] matched rule '" << r.rule << "'";
       switch (r.type) {
       case filter_rule::rule_type::include:

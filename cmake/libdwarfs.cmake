@@ -66,6 +66,7 @@ add_library(
   src/xattr.cpp
 
   src/internal/activity_barrier.cpp
+  src/internal/compiled_glob.cpp
   src/internal/directory_walker.cpp
   $<$<BOOL:${ENABLE_STACKTRACE}>:src/internal/event_tracer.cpp>
   src/internal/features.cpp
@@ -73,7 +74,6 @@ add_library(
   src/internal/fs_section.cpp
   src/internal/fs_section_checker.cpp
   src/internal/fsst.cpp
-  src/internal/glob_to_regex.cpp
   src/internal/malloc_buffer.cpp
   src/internal/mappable_file.cpp
   src/internal/io_ops_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
