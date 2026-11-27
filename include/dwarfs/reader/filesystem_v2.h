@@ -34,6 +34,7 @@
 #include <functional>
 #include <future>
 #include <iosfwd>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -53,6 +54,7 @@
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/duplication_info.h>
 #include <dwarfs/reader/fsinfo_features.h>
+#include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/metadata_types.h>
 #include <dwarfs/types.h>
 
@@ -75,7 +77,6 @@ namespace reader {
 struct cache_tidy_config;
 struct filesystem_options;
 struct fsinfo_options;
-struct getattr_options;
 struct iovec_read_buf;
 
 enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
@@ -162,11 +163,11 @@ class filesystem_v2_lite {
   }
 
   file_stat getattr(inode_view entry, std::error_code& ec) const {
-    return lite_->getattr(std::move(entry), ec);
+    return getattr(std::move(entry), {}, ec);
   }
 
   file_stat getattr(inode_view entry) const {
-    return lite_->getattr(std::move(entry));
+    return getattr(std::move(entry), getattr_options{});
   }
 
   file_stat getattr(inode_view entry, getattr_options const& opts,
@@ -174,18 +175,14 @@ class filesystem_v2_lite {
     return lite_->getattr(std::move(entry), opts, ec);
   }
 
-  file_stat getattr(inode_view entry, getattr_options const& opts) const {
-    return lite_->getattr(std::move(entry), opts);
-  }
+  file_stat getattr(inode_view entry, getattr_options const& opts) const;
 
   device_number get_device(inode_view iv, std::error_code& ec) const {
     return lite_->get_device(std::move(iv), ec);
   }
 
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
-              file_stat::gid_type gid) const {
-    return lite_->access(std::move(entry), mode, uid, gid);
-  }
+              file_stat::gid_type gid) const;
 
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const {
@@ -213,21 +210,17 @@ class filesystem_v2_lite {
   }
 
   std::string readlink(inode_view entry,
-                       readlink_mode mode = readlink_mode::preferred) const {
-    return lite_->readlink(std::move(entry), mode);
-  }
+                       readlink_mode mode = readlink_mode::preferred) const;
 
   void statvfs(vfs_stat* stbuf) const { lite_->statvfs(stbuf); }
 
-  int open(inode_view entry) const { return lite_->open(std::move(entry)); }
+  int open(inode_view entry) const;
 
   int open(inode_view entry, std::error_code& ec) const {
     return lite_->open(std::move(entry), ec);
   }
 
-  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence) const {
-    return lite_->seek(inode, offset, whence);
-  }
+  file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence) const;
 
   file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
                   std::error_code& ec) const {
@@ -235,9 +228,7 @@ class filesystem_v2_lite {
   }
 
   size_t
-  read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
-    return lite_->read(inode, buf, size, offset);
-  }
+  read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const;
 
   size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
               std::error_code& ec) const {
@@ -250,16 +241,16 @@ class filesystem_v2_lite {
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf) const {
-    return lite_->readv(inode, buf);
+    return readv(inode, buf, kReadFullFile, 0, kDefaultMaxIOV);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const {
-    return lite_->readv(inode, buf, ec);
+    return readv(inode, buf, kReadFullFile, 0, kDefaultMaxIOV, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, std::error_code& ec) const {
-    return lite_->readv(inode, buf, size, offset, ec);
+    return readv(inode, buf, size, offset, kDefaultMaxIOV, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
@@ -269,47 +260,43 @@ class filesystem_v2_lite {
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                std::error_code& ec) const {
-    return lite_->readv(inode, buf, size, 0, ec);
+    return readv(inode, buf, size, 0, kDefaultMaxIOV, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset = 0) const {
-    return lite_->readv(inode, buf, size, offset);
+    return readv(inode, buf, size, offset, kDefaultMaxIOV);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-               file_off_t offset, size_t maxiov) const {
-    return lite_->readv(inode, buf, size, offset, maxiov);
-  }
+               file_off_t offset, size_t maxiov) const;
 
   std::vector<std::future<block_range>> readv(uint32_t inode) const {
-    return lite_->readv(inode);
+    return readv(inode, kReadFullFile, 0, kDefaultMaxIOV);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, std::error_code& ec) const {
-    return lite_->readv(inode, ec);
+    return readv(inode, kReadFullFile, 0, kDefaultMaxIOV, ec);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset = 0) const {
-    return lite_->readv(inode, size, offset);
+    return readv(inode, size, offset, kDefaultMaxIOV);
   }
 
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov) const {
-    return lite_->readv(inode, size, offset, maxiov);
-  }
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov) const;
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, std::error_code& ec) const {
-    return lite_->readv(inode, size, 0, ec);
+    return readv(inode, size, 0, kDefaultMaxIOV, ec);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset,
         std::error_code& ec) const {
-    return lite_->readv(inode, size, offset, ec);
+    return readv(inode, size, offset, kDefaultMaxIOV, ec);
   }
 
   std::vector<std::future<block_range>>
@@ -335,7 +322,7 @@ class filesystem_v2_lite {
   bool has_sparse_files() const { return lite_->has_sparse_files(); }
 
   nlohmann::json get_inode_info(inode_view entry) const {
-    return lite_->get_inode_info(std::move(entry));
+    return get_inode_info(std::move(entry), std::numeric_limits<size_t>::max());
   }
 
   nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
@@ -362,16 +349,10 @@ class filesystem_v2_lite {
     virtual std::optional<inode_view> find(int inode) const = 0;
     virtual std::optional<dir_entry_view>
     find(int inode, std::string_view name) const = 0;
-    virtual file_stat getattr(inode_view entry, std::error_code& ec) const = 0;
     virtual file_stat getattr(inode_view entry, getattr_options const& opts,
                               std::error_code& ec) const = 0;
-    virtual file_stat getattr(inode_view entry) const = 0;
-    virtual file_stat
-    getattr(inode_view entry, getattr_options const& opts) const = 0;
     virtual device_number
     get_device(inode_view entry, std::error_code& ec) const = 0;
-    virtual bool access(inode_view entry, int mode, file_stat::uid_type uid,
-                        file_stat::gid_type gid) const = 0;
     virtual void access(inode_view entry, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid, std::error_code& ec) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
@@ -380,43 +361,15 @@ class filesystem_v2_lite {
     virtual size_t dirsize(directory_view dir) const = 0;
     virtual std::string readlink(inode_view entry, readlink_mode mode,
                                  std::error_code& ec) const = 0;
-    virtual std::string
-    readlink(inode_view entry, readlink_mode mode) const = 0;
     virtual void statvfs(vfs_stat* stbuf) const = 0;
-    virtual int open(inode_view entry) const = 0;
     virtual int open(inode_view entry, std::error_code& ec) const = 0;
-    virtual file_off_t
-    seek(uint32_t inode, file_off_t offset, seek_whence whence) const = 0;
     virtual file_off_t seek(uint32_t inode, file_off_t offset,
                             seek_whence whence, std::error_code& ec) const = 0;
-    virtual size_t
-    read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual size_t read(uint32_t inode, char* buf, size_t size,
                         file_off_t offset, std::error_code& ec) const = 0;
-    virtual size_t readv(uint32_t inode, iovec_read_buf& buf) const = 0;
-    virtual size_t
-    readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const = 0;
-    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                         file_off_t offset, std::error_code& ec) const = 0;
-    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                         file_off_t offset) const = 0;
     virtual size_t
     readv(uint32_t inode, iovec_read_buf& buf, size_t size, file_off_t offset,
           size_t maxiov, std::error_code& ec) const = 0;
-    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                         file_off_t offset, size_t maxiov) const = 0;
-    virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode) const = 0;
-    virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode, std::error_code& ec) const = 0;
-    virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
-    virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode, size_t size, file_off_t offset,
-          std::error_code& ec) const = 0;
-    virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode, size_t size, file_off_t offset,
-          size_t maxiov) const = 0;
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
           std::error_code& ec) const = 0;
@@ -428,7 +381,6 @@ class filesystem_v2_lite {
     virtual file_size_t image_size() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual bool has_sparse_files() const = 0;
-    virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
     virtual nlohmann::json
     get_inode_info(inode_view entry, size_t max_chunks) const = 0;
     virtual void cache_blocks_by_category(std::string_view category) const = 0;
@@ -436,6 +388,8 @@ class filesystem_v2_lite {
   };
 
  protected:
+  static constexpr size_t kReadFullFile{std::numeric_limits<size_t>::max()};
+
   explicit filesystem_v2_lite(std::unique_ptr<impl_lite> impl)
       : lite_{std::move(impl)} {}
 
@@ -446,6 +400,8 @@ class filesystem_v2_lite {
   }
 
  private:
+  static constexpr size_t kDefaultMaxIOV{std::numeric_limits<size_t>::max()};
+
   std::unique_ptr<impl_lite> lite_;
 };
 
@@ -535,12 +491,6 @@ class filesystem_v2 final : public filesystem_v2_lite {
     walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual duplication_info
     get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
-    virtual duplication_info get_duplication_info(inode_view iv) const = 0;
-    virtual std::string read_string(uint32_t inode) const = 0;
-    virtual std::string
-    read_string(uint32_t inode, std::error_code& ec) const = 0;
-    virtual std::string
-    read_string(uint32_t inode, size_t size, file_off_t offset) const = 0;
     virtual std::string
     read_string(uint32_t inode, size_t size, file_off_t offset,
                 std::error_code& ec) const = 0;
@@ -555,7 +505,6 @@ class filesystem_v2 final : public filesystem_v2_lite {
     virtual filesystem_check_result
     check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
-    virtual std::string dump(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json metadata_as_json() const = 0;
     virtual void

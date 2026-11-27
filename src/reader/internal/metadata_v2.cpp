@@ -427,15 +427,9 @@ class metadata_v2_data {
   readdir(directory_view dir, size_t offset) const;
 
   template <typename LoggerPolicy>
-  file_stat getattr(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv) const {
-    PERFMON_CLS_SCOPED_SECTION(getattr)
-    return getattr_impl(LOG_PROXY_ARG_ iv, {});
-  }
-
-  template <typename LoggerPolicy>
   file_stat getattr(LOG_PROXY_REF_(LoggerPolicy) inode_view const& iv,
                     getattr_options const& opts) const {
-    PERFMON_CLS_SCOPED_SECTION(getattr_opts)
+    PERFMON_CLS_SCOPED_SECTION(getattr)
     return getattr_impl(LOG_PROXY_ARG_ iv, opts);
   }
 
@@ -814,7 +808,6 @@ class metadata_v2_data {
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(getattr)
-  PERFMON_CLS_TIMER_DECL(getattr_opts)
   PERFMON_CLS_TIMER_DECL(get_duplication_info)
   PERFMON_CLS_TIMER_DECL(get_device)
   PERFMON_CLS_TIMER_DECL(link_value)
@@ -872,7 +865,6 @@ metadata_v2_data::metadata_v2_data(
       PERFMON_CLS_TIMER_INIT(find)
       PERFMON_CLS_TIMER_INIT(find_path)
       PERFMON_CLS_TIMER_INIT(getattr)
-      PERFMON_CLS_TIMER_INIT(getattr_opts)
       PERFMON_CLS_TIMER_INIT(get_duplication_info)
       PERFMON_CLS_TIMER_INIT(get_device)
       PERFMON_CLS_TIMER_INIT(link_value)
@@ -2749,10 +2741,6 @@ class metadata_ final : public metadata_v2::impl {
     }
 
     return std::nullopt;
-  }
-
-  file_stat getattr(inode_view iv, std::error_code& /*ec*/) const override {
-    return data_.getattr(LOG_PROXY_ARG_ iv);
   }
 
   file_stat getattr(inode_view iv, getattr_options const& opts,

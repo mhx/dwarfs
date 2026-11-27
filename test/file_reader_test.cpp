@@ -30,6 +30,7 @@
 #include <span>
 #include <stdexcept>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -52,6 +53,8 @@ namespace {
 
 using read_result = std::vector<std::future<block_range>>;
 
+constexpr auto kUnlimited = std::numeric_limits<size_t>::max();
+
 std::future<block_range> ready_range(std::span<uint8_t const> data) {
   std::promise<block_range> p;
   p.set_value(block_range{data});
@@ -60,8 +63,11 @@ std::future<block_range> ready_range(std::span<uint8_t const> data) {
 
 class file_reader_backend : public filesystem_v2_lite::impl_lite {
  public:
-  MOCK_METHOD(file_stat, getattr, (inode_view), (const, override));
-  MOCK_METHOD(read_result, readv, (uint32_t, size_t, file_off_t),
+  MOCK_METHOD(file_stat, getattr,
+              (inode_view, getattr_options const&, std::error_code&),
+              (const, override));
+  MOCK_METHOD(read_result, readv,
+              (uint32_t, size_t, file_off_t, size_t, std::error_code&),
               (const, override));
 
   filesystem_version version() const override { unexpected_call(); }
@@ -82,21 +88,7 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
   std::optional<dir_entry_view> find(int, std::string_view) const override {
     unexpected_call();
   }
-  file_stat getattr(inode_view, std::error_code&) const override {
-    unexpected_call();
-  }
-  file_stat
-  getattr(inode_view, getattr_options const&, std::error_code&) const override {
-    unexpected_call();
-  }
-  file_stat getattr(inode_view, getattr_options const&) const override {
-    unexpected_call();
-  }
   device_number get_device(inode_view, std::error_code&) const override {
-    unexpected_call();
-  }
-  bool access(inode_view, int, file_stat::uid_type,
-              file_stat::gid_type) const override {
     unexpected_call();
   }
   void access(inode_view, int, file_stat::uid_type, file_stat::gid_type,
@@ -114,58 +106,18 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
   readlink(inode_view, readlink_mode, std::error_code&) const override {
     unexpected_call();
   }
-  std::string readlink(inode_view, readlink_mode) const override {
-    unexpected_call();
-  }
   void statvfs(vfs_stat*) const override { unexpected_call(); }
-  int open(inode_view) const override { unexpected_call(); }
   int open(inode_view, std::error_code&) const override { unexpected_call(); }
-  file_off_t seek(uint32_t, file_off_t, seek_whence) const override {
-    unexpected_call();
-  }
   file_off_t
   seek(uint32_t, file_off_t, seek_whence, std::error_code&) const override {
-    unexpected_call();
-  }
-  size_t read(uint32_t, char*, size_t, file_off_t) const override {
     unexpected_call();
   }
   size_t
   read(uint32_t, char*, size_t, file_off_t, std::error_code&) const override {
     unexpected_call();
   }
-  size_t readv(uint32_t, iovec_read_buf&) const override { unexpected_call(); }
-  size_t readv(uint32_t, iovec_read_buf&, std::error_code&) const override {
-    unexpected_call();
-  }
-  size_t readv(uint32_t, iovec_read_buf&, size_t, file_off_t,
-               std::error_code&) const override {
-    unexpected_call();
-  }
-  size_t readv(uint32_t, iovec_read_buf&, size_t, file_off_t) const override {
-    unexpected_call();
-  }
   size_t readv(uint32_t, iovec_read_buf&, size_t, file_off_t, size_t,
                std::error_code&) const override {
-    unexpected_call();
-  }
-  size_t
-  readv(uint32_t, iovec_read_buf&, size_t, file_off_t, size_t) const override {
-    unexpected_call();
-  }
-  read_result readv(uint32_t) const override { unexpected_call(); }
-  read_result readv(uint32_t, std::error_code&) const override {
-    unexpected_call();
-  }
-  read_result
-  readv(uint32_t, size_t, file_off_t, std::error_code&) const override {
-    unexpected_call();
-  }
-  read_result readv(uint32_t, size_t, file_off_t, size_t) const override {
-    unexpected_call();
-  }
-  read_result
-  readv(uint32_t, size_t, file_off_t, size_t, std::error_code&) const override {
     unexpected_call();
   }
   void set_num_workers(size_t) override { unexpected_call(); }
@@ -178,9 +130,6 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
   file_size_t image_size() const override { unexpected_call(); }
   bool has_symlinks() const override { unexpected_call(); }
   bool has_sparse_files() const override { unexpected_call(); }
-  nlohmann::json get_inode_info(inode_view) const override {
-    unexpected_call();
-  }
   nlohmann::json get_inode_info(inode_view, size_t) const override {
     unexpected_call();
   }
@@ -214,12 +163,13 @@ class file_reader_test : public Test {
  protected:
   file_reader_test()
       : fs{std::unique_ptr<file_reader_backend>{backend}} {
-    ON_CALL(*backend, getattr(_)).WillByDefault([this](auto) {
-      file_stat st;
-      st.set_mode(posix_file_type::regular);
-      st.set_size(size);
-      return st;
-    });
+    ON_CALL(*backend, getattr(_, _, _))
+        .WillByDefault([this](auto, auto const&, auto&) {
+          file_stat st;
+          st.set_mode(posix_file_type::regular);
+          st.set_size(size);
+          return st;
+        });
     sem.post(8);
   }
 
@@ -238,8 +188,8 @@ class file_reader_test : public Test {
   }
 
   void expect_read(size_t n, file_off_t offset) {
-    EXPECT_CALL(*backend, readv(42, n, offset))
-        .WillOnce([this](auto, size_t count, file_off_t off) {
+    EXPECT_CALL(*backend, readv(42, n, offset, kUnlimited, _))
+        .WillOnce([this](auto, size_t count, file_off_t off, auto, auto&) {
           read_result result;
           result.push_back(ready_range(
               std::span{data}.subspan(static_cast<size_t>(off), count)));
@@ -255,9 +205,45 @@ class file_reader_test : public Test {
   file_reader_filesystem fs;
 };
 
+TEST_F(file_reader_test, readv_overload_error_propagation) {
+  auto const error = std::make_error_code(std::errc::invalid_argument);
+  EXPECT_CALL(*backend, readv(42, kUnlimited, 0, kUnlimited, _))
+      .Times(2)
+      .WillRepeatedly([&](auto, auto, auto, auto, std::error_code& ec) {
+        ec = error;
+        return read_result{};
+      });
+
+  std::error_code ec;
+  EXPECT_TRUE(fs.readv(42, ec).empty());
+  EXPECT_EQ(ec, error);
+  EXPECT_THROW(fs.readv(42), std::system_error);
+}
+
+TEST_F(file_reader_test, readv_overload_explicit_maxiov) {
+  EXPECT_CALL(*backend, readv(42, 4, 2, 1, _))
+      .Times(2)
+      .WillRepeatedly([&](auto, auto, auto, auto, std::error_code& ec) {
+        ec.clear();
+        read_result result;
+        result.push_back(ready_range(std::span{data}.subspan(2, 4)));
+        return result;
+      });
+
+  std::error_code ec;
+  auto ranges = fs.readv(42, 4, 2, 1, ec);
+  ASSERT_FALSE(ec);
+  ASSERT_EQ(ranges.size(), 1);
+  EXPECT_THAT(as_span(ranges.front().get()), ElementsAre(2, 3, 4, 5));
+
+  ranges = fs.readv(42, 4, 2, 1);
+  ASSERT_EQ(ranges.size(), 1);
+  EXPECT_THAT(as_span(ranges.front().get()), ElementsAre(2, 3, 4, 5));
+}
+
 TEST_F(file_reader_test, invalid_byte_limit) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(_, _, _)).Times(0);
+  EXPECT_CALL(*backend, readv(_, _, _, _, _)).Times(0);
   for (file_size_t limit : {0, -1}) {
     SCOPED_TRACE(limit);
     EXPECT_THAT([&] { (void)fr.read_sequential(sem, limit); },
@@ -267,7 +253,7 @@ TEST_F(file_reader_test, invalid_byte_limit) {
 
 TEST_F(file_reader_test, invalid_ranges) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(_, _, _)).Times(0);
+  EXPECT_CALL(*backend, readv(_, _, _, _, _)).Times(0);
   constexpr auto max = std::numeric_limits<file_size_t>::max();
 
   for (auto range : {file_range{-1, 1}, file_range{0, -1}, file_range{9, 0},
@@ -283,14 +269,14 @@ TEST_F(file_reader_test, total_range_size_overflow) {
   size = std::numeric_limits<file_size_t>::max();
   auto fr = make_reader();
   std::array ranges{file_range{0, size}, file_range{0, 1}};
-  EXPECT_CALL(*backend, readv(_, _, _)).Times(0);
+  EXPECT_CALL(*backend, readv(_, _, _, _, _)).Times(0);
   EXPECT_THAT([&] { (void)fr.read_sequential(ranges, sem, 8); },
               throws_error("invalid sequential read range size"));
 }
 
 TEST_F(file_reader_test, empty_ranges) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(_, _, _)).Times(0);
+  EXPECT_CALL(*backend, readv(_, _, _, _, _)).Times(0);
 
   std::array ranges{file_range{0, 0}, file_range{8, 0}};
   auto empty = fr.read_sequential(ranges, sem, 1);
@@ -332,12 +318,13 @@ TEST_F(file_reader_test, increment_without_dereferencing) {
 
   {
     InSequence seq;
-    EXPECT_CALL(*backend, readv(42, 2, 0)).WillOnce([&](auto, auto, auto) {
-      read_result result;
-      result.push_back(ready_range(std::span{data}.subspan(0, 1)));
-      result.push_back(ready_range(std::span{data}.subspan(1, 1)));
-      return result;
-    });
+    EXPECT_CALL(*backend, readv(42, 2, 0, kUnlimited, _))
+        .WillOnce([&](auto, auto, auto, auto, auto&) {
+          read_result result;
+          result.push_back(ready_range(std::span{data}.subspan(0, 1)));
+          result.push_back(ready_range(std::span{data}.subspan(1, 1)));
+          return result;
+        });
     expect_read(1, 2);
     expect_read(1, 3);
   }
@@ -381,13 +368,15 @@ TEST_F(file_reader_test, skip_all_ranges_with_one_byte_budget) {
 
 TEST_F(file_reader_test, future_exception_when_skipping_range) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(42, 8, 0)).WillOnce([](auto, auto, auto) {
-    std::promise<block_range> p;
-    p.set_exception(std::make_exception_ptr(std::logic_error("read failed")));
-    read_result result;
-    result.push_back(p.get_future());
-    return result;
-  });
+  EXPECT_CALL(*backend, readv(42, 8, 0, kUnlimited, _))
+      .WillOnce([](auto, auto, auto, auto, auto&) {
+        std::promise<block_range> p;
+        p.set_exception(
+            std::make_exception_ptr(std::logic_error("read failed")));
+        read_result result;
+        result.push_back(p.get_future());
+        return result;
+      });
 
   auto iterable = fr.read_sequential(sem, 8);
   auto it = iterable.begin();
@@ -398,9 +387,8 @@ TEST_F(file_reader_test, future_exception_when_skipping_range) {
 
 TEST_F(file_reader_test, empty_read_result) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(42, 8, 0)).WillOnce([](auto, auto, auto) {
-    return read_result{};
-  });
+  EXPECT_CALL(*backend, readv(42, 8, 0, kUnlimited, _))
+      .WillOnce([](auto, auto, auto, auto, auto&) { return read_result{}; });
   EXPECT_THAT([&] { (void)fr.read_sequential(sem, 8); },
               throws_error("empty sequential read"));
 }
@@ -409,8 +397,8 @@ TEST_F(file_reader_test, readv_exception_on_increment) {
   auto fr = make_reader();
   InSequence seq;
   expect_read(4, 0);
-  EXPECT_CALL(*backend, readv(42, 4, 4))
-      .WillOnce([](auto, auto, auto) -> read_result {
+  EXPECT_CALL(*backend, readv(42, 4, 4, kUnlimited, _))
+      .WillOnce([](auto, auto, auto, auto, auto&) -> read_result {
         throw std::logic_error("readv failed");
       });
 
@@ -424,11 +412,12 @@ TEST_F(file_reader_test, readv_exception_on_increment) {
 
 TEST_F(file_reader_test, short_read_result) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(42, 8, 0)).WillOnce([&](auto, auto, auto) {
-    read_result result;
-    result.push_back(ready_range(std::span{data}.first(7)));
-    return result;
-  });
+  EXPECT_CALL(*backend, readv(42, 8, 0, kUnlimited, _))
+      .WillOnce([&](auto, auto, auto, auto, auto&) {
+        read_result result;
+        result.push_back(ready_range(std::span{data}.first(7)));
+        return result;
+      });
 
   auto iterable = fr.read_sequential(sem, 8);
   auto it = iterable.begin();
@@ -439,11 +428,12 @@ TEST_F(file_reader_test, short_read_result) {
 
 TEST_F(file_reader_test, zero_size_block_range) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(42, 8, 0)).WillOnce([](auto, auto, auto) {
-    read_result result;
-    result.push_back(ready_range({}));
-    return result;
-  });
+  EXPECT_CALL(*backend, readv(42, 8, 0, kUnlimited, _))
+      .WillOnce([](auto, auto, auto, auto, auto&) {
+        read_result result;
+        result.push_back(ready_range({}));
+        return result;
+      });
 
   auto iterable = fr.read_sequential(sem, 8);
   auto it = iterable.begin();
@@ -453,11 +443,12 @@ TEST_F(file_reader_test, zero_size_block_range) {
 
 TEST_F(file_reader_test, oversized_block_range) {
   auto fr = make_reader();
-  EXPECT_CALL(*backend, readv(42, 4, 0)).WillOnce([&](auto, auto, auto) {
-    read_result result;
-    result.push_back(ready_range(std::span{data}.first(5)));
-    return result;
-  });
+  EXPECT_CALL(*backend, readv(42, 4, 0, kUnlimited, _))
+      .WillOnce([&](auto, auto, auto, auto, auto&) {
+        read_result result;
+        result.push_back(ready_range(std::span{data}.first(5)));
+        return result;
+      });
 
   auto iterable = fr.read_sequential(sem, 4);
   auto it = iterable.begin();

@@ -116,10 +116,6 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  file_stat getattr(inode_view iv, std::error_code& ec) const {
-    return impl_->getattr(std::move(iv), ec);
-  }
-
   file_stat getattr(inode_view iv, getattr_options const& opts,
                     std::error_code& ec) const {
     return impl_->getattr(std::move(iv), opts, ec);
@@ -206,7 +202,6 @@ class metadata_v2 {
     virtual std::optional<dir_entry_view>
     find(int inode, std::string_view name) const = 0;
 
-    virtual file_stat getattr(inode_view iv, std::error_code& ec) const = 0;
     virtual file_stat getattr(inode_view iv, getattr_options const& opts,
                               std::error_code& ec) const = 0;
 
