@@ -38,9 +38,6 @@ RUN apt update && apt upgrade -y && apt install -y \
         libarchive-dev \
         libbenchmark-dev \
         libboost-chrono-dev \
-        libboost-context-dev \
-        libboost-regex-dev \
-        libboost-thread-dev \
         libbrotli-dev \
         libjemalloc-dev \
         libiberty-dev \
