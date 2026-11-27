@@ -64,13 +64,6 @@
 #define DWARFS_UTIL_HAVE_CXXABI_H 1
 #endif
 
-#if __has_include(<date/date.h>)
-#include <date/date.h>
-#define DWARFS_USE_HH_DATE 1
-#else
-#define DWARFS_USE_HH_DATE 0
-#endif
-
 #include <range/v3/view/chunk.hpp>
 
 #include <dwarfs/config.h>
@@ -746,25 +739,153 @@ std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
                fmt::format("unsupported time suffix: {}", suffix));
 }
 
-std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
-  static constexpr std::array<char const*, 9> formats{
-      "%Y%m%dT%H%M%S", "%Y%m%dT%H%M", "%Y%m%dT", "%F %T", "%FT%T",
-      "%F %R",         "%FT%R",       "%FT",     "%F"};
+namespace {
 
-  for (auto const& fmt : formats) {
-    std::istringstream iss(str);
-    std::chrono::system_clock::time_point tp;
-#if DWARFS_USE_HH_DATE
-    date::from_stream(iss, fmt, tp);
-#else
-    std::chrono::from_stream(iss, fmt, tp);
-#endif
-    if (!iss.fail()) {
-      iss.peek();
-      if (iss.eof()) {
-        return tp;
+std::optional<std::chrono::system_clock::time_point>
+try_parse_time_point(std::string_view str) {
+  using namespace std::chrono;
+  using duration = system_clock::duration;
+
+  auto consume = [&](char ch) {
+    if (!str.empty() && str.front() == ch) {
+      str.remove_prefix(1);
+      return true;
+    }
+    return false;
+  };
+
+  auto read_digits = [&](size_t n) -> int {
+    if (str.size() < n) {
+      return -1;
+    }
+
+    int value = 0;
+
+    for (char ch : str.substr(0, n)) {
+      if (ch < '0' || ch > '9') {
+        return -1;
+      }
+
+      value = 10 * value + (ch - '0');
+    }
+
+    str.remove_prefix(n);
+
+    return value;
+  };
+
+  auto const y = read_digits(4);
+  bool const extended = consume('-');
+  auto const m = read_digits(2);
+
+  if (extended && !consume('-')) {
+    return std::nullopt;
+  }
+
+  auto const d = read_digits(2);
+
+  if (y < 0 || m < 1 || d < 1) {
+    return std::nullopt;
+  }
+
+  year_month_day const ymd{year{y}, month{static_cast<unsigned>(m)},
+                           day{static_cast<unsigned>(d)}};
+
+  if (!ymd.ok()) {
+    return std::nullopt;
+  }
+
+  auto whole = duration_cast<seconds>(sys_days{ymd}.time_since_epoch());
+  duration fraction{};
+
+  if (str.empty()) {
+    // A compact date needs the T to distinguish it from a Unix timestamp.
+    if (!extended) {
+      return std::nullopt;
+    }
+  } else if (!consume('T') && (!extended || !consume(' ') || str.empty())) {
+    return std::nullopt;
+  }
+
+  if (!str.empty()) {
+    auto const h = read_digits(2);
+
+    if (extended && !consume(':')) {
+      return std::nullopt;
+    }
+
+    auto const min = read_digits(2);
+
+    if (h < 0 || h >= 24 || min < 0 || min >= 60) {
+      return std::nullopt;
+    }
+
+    whole += hours{h} + minutes{min};
+
+    if (!str.empty()) {
+      if (extended && !consume(':')) {
+        return std::nullopt;
+      }
+
+      auto const sec = read_digits(2);
+
+      if (sec < 0 || sec >= 60) {
+        return std::nullopt;
+      }
+
+      whole += seconds{sec};
+
+      if (consume('.')) {
+        if (str.empty() || str.size() > 9) {
+          return std::nullopt;
+        }
+
+        auto n = str.size();
+        auto ns = read_digits(n);
+
+        if (ns < 0) {
+          return std::nullopt;
+        }
+
+        for (; n < 9; ++n) {
+          ns *= 10;
+        }
+
+        fraction = duration_cast<duration>(nanoseconds{ns});
       }
     }
+  }
+
+  if (!str.empty()) {
+    return std::nullopt;
+  }
+
+  // Normalize negative timestamps before converting to the clock duration.
+  if (whole < seconds::zero() && fraction != duration::zero()) {
+    whole += seconds{1};
+    fraction -= duration_cast<duration>(seconds{1});
+  }
+
+  if (whole < ceil<seconds>(duration::min()) ||
+      whole > floor<seconds>(duration::max())) {
+    return std::nullopt;
+  }
+
+  auto const base = duration_cast<duration>(whole);
+
+  if ((fraction < duration::zero() && base < duration::min() - fraction) ||
+      (fraction > duration::zero() && base > duration::max() - fraction)) {
+    return std::nullopt;
+  }
+
+  return system_clock::time_point{base + fraction};
+}
+
+} // namespace
+
+std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
+  if (auto tp = try_parse_time_point(str)) {
+    return *tp;
   }
 
   DWARFS_THROW(runtime_error, "cannot parse time point");
