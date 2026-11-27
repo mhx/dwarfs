@@ -33,7 +33,6 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1818,10 +1817,16 @@ void add_derived_mount_options(safe_fuse_args& args [[maybe_unused]],
     return;
   }
 
-  auto const fsname_opt =
-      "-ofsname=" +
-      std::regex_replace(userdata.iol.os->canonical(*opts.fsimage).string(),
-                         std::regex(","), "\\,");
+  std::string fsname_opt{"-ofsname="};
+
+  for (char c : userdata.iol.os->canonical(*opts.fsimage).string()) {
+    if (c == ',') {
+      fsname_opt += '\\';
+    }
+
+    fsname_opt += c;
+  }
+
   args.add(fsname_opt);
 
 #if defined(__linux__) || defined(__FreeBSD__)
