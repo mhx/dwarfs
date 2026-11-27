@@ -22,6 +22,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <span>
 #include <string>
 #include <vector>
 
@@ -614,4 +615,31 @@ TEST(glob_matcher_test, malformed_utf8) {
   EXPECT_TRUE(glob_matcher{"i:*A"}("\xC2\x61"));
   EXPECT_TRUE(glob_matcher{"[\xFF]"}("\xFF"));
   EXPECT_FALSE(glob_matcher{"[\xFF]"}("ÿ"));
+}
+
+TEST(glob_matcher_test, malformed_utf8_continuation) {
+  // The invalid leading byte and the following ASCII byte remain distinct.
+  EXPECT_TRUE(glob_matcher{"??"}("\xC2\x61"));
+  EXPECT_FALSE(glob_matcher{"?"}("\xC2\x61"));
+  EXPECT_TRUE(glob_matcher{"*?a"}("\xC2\x61"));
+  EXPECT_TRUE(glob_matcher{"{x,y}??"}("x\xC2\x61"));
+  EXPECT_TRUE(glob_matcher{"???"}("\xE0\x80\x80"));
+}
+
+TEST(glob_matcher_test, invalid_character_class_range_endpoint) {
+  EXPECT_THAT(
+      [] { glob_matcher{"[.-/]"}; },
+      testing::ThrowsMessage<std::runtime_error>(
+          "invalid character '/' in character class in pattern: [.-/]"));
+}
+
+TEST(glob_matcher_test, span_patterns_with_options) {
+  std::vector<std::string> patterns{"*.cpp", "*.txt"};
+  glob_matcher matcher(std::span<std::string const>(patterns),
+                       {.ignorecase = true});
+  patterns.clear();
+
+  EXPECT_TRUE(matcher("main.CPP"));
+  EXPECT_TRUE(matcher("README.TXT"));
+  EXPECT_FALSE(matcher("README.md"));
 }

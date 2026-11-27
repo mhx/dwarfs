@@ -45,6 +45,7 @@ using namespace std::string_view_literals;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Optional;
+using ::testing::ThrowsMessage;
 
 namespace {
 
@@ -349,4 +350,120 @@ TEST(command_line, grouped_and_hidden_help) {
   parse(opts, {"source", "--source-path=other"});
 
   EXPECT_THAT(sources, ElementsAre("source", "other"));
+}
+
+TEST(command_line, invalid_option_definitions) {
+  cli::options opts;
+  std::string value;
+  bool flag{false};
+  std::vector<std::string> values;
+
+  for (auto name : {"", "-input", "in=put", "in put"}) {
+    SCOPED_TRACE(name);
+    EXPECT_THROW(opts.add(name, value, ""), std::logic_error);
+  }
+
+  for (auto name : {"input,", "input,ab", "input,-", "input,="}) {
+    SCOPED_TRACE(name);
+    EXPECT_THROW(opts.add(name, value, ""), std::logic_error);
+  }
+
+  opts.add("input,i", value, "");
+
+  EXPECT_THROW(opts.add("input", value, ""), std::logic_error);
+  EXPECT_THROW(opts.add("other,i", value, ""), std::logic_error);
+  EXPECT_THROW(opts.flag("flag,f", flag, "").implicit_value("true"),
+               std::logic_error);
+  EXPECT_THROW(opts.add_multi("values", values, "").implicit_value("x"),
+               std::logic_error);
+  EXPECT_THROW(opts.positional("unknown"), std::logic_error);
+  EXPECT_THROW(opts.positional("flag"), std::logic_error);
+
+  opts.positional("input");
+  parse(opts, {"file"});
+
+  EXPECT_EQ(value, "file");
+  EXPECT_THROW(opts.add("late", value, ""), std::logic_error);
+  EXPECT_THROW(opts.positional("input"), std::logic_error);
+  EXPECT_THROW(parse(opts, {}), std::logic_error);
+}
+
+TEST(command_line, ambiguous_and_empty_names) {
+  {
+    cli::options opts;
+    bool first{false}, second{false}, third{false};
+
+    opts.flag("number-c", third, "");
+    opts.flag("number-a", first, "");
+    opts.flag("number-b", second, "");
+
+    EXPECT_THAT([&] { parse(opts, {"--num"}); },
+                ThrowsMessage<cli::error>(
+                    "option '--num' is ambiguous and matches '--number-a', "
+                    "'--number-b', and '--number-c'"));
+  }
+
+  {
+    cli::options opts;
+    std::string value;
+
+    opts.add("input", value, "");
+
+    EXPECT_THAT([&] { parse(opts, {"--=value"}); },
+                ThrowsMessage<cli::error>("unrecognised option '--=value'"));
+  }
+}
+
+TEST(command_line, invalid_typed_values) {
+  {
+    cli::options opts;
+    std::optional<unsigned> value{42};
+    opts.add("number", value, "");
+
+    EXPECT_THAT([&] { parse(opts, {"--number=-1"}); },
+                ThrowsMessage<cli::error>(HasSubstr("is invalid")));
+    EXPECT_THAT(value, Optional(42u));
+    EXPECT_FALSE(opts.contains("number"));
+  }
+
+  {
+    cli::options opts;
+    std::vector<int> values;
+
+    opts.add_multi("numbers,n", values, "");
+
+    EXPECT_THAT([&] { parse(opts, {"-n", "bad"}); },
+                ThrowsMessage<cli::error>(HasSubstr("is invalid")));
+    EXPECT_THAT(values, ::testing::IsEmpty());
+  }
+
+  {
+    cli::options opts;
+    double value{};
+
+    opts.add("number", value, "");
+    parse(opts, {"--number", "-.5"});
+
+    EXPECT_DOUBLE_EQ(value, -0.5);
+  }
+}
+
+TEST(command_line, help_empty_group_and_description) {
+  cli::options opts("");
+  std::string value;
+  bool flag{false};
+
+  opts.flag("flag", flag, "");
+  opts.add("value", value, "first line\nsecond line \t")
+      .value_name("TEXT")
+      .implicit_value("implicit");
+
+  std::ostringstream out;
+  opts.help(out, 80);
+
+  EXPECT_THAT(out.str(), ::testing::AllOf(HasSubstr("  --flag\n"),
+                                          HasSubstr("[=TEXT(=implicit)]"),
+                                          HasSubstr("first line\n"),
+                                          HasSubstr("second line\n")));
+  EXPECT_THAT(out.str(), ::testing::Not(HasSubstr("\t")));
 }

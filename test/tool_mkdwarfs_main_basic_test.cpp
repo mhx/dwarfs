@@ -77,6 +77,13 @@ TEST(mkdwarfs_test, positional_sources) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("duplicate entry"));
 }
 
+TEST(mkdwarfs_test, empty_positional_source) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  EXPECT_EQ(1, t.run({"-o", "test.dwarfs", ""}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("empty source path"));
+}
+
 TEST(mkdwarfs_test, positional_sources_debug_filter_omits_collisions) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");

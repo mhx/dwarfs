@@ -768,6 +768,17 @@ TEST(mkdwarfs_input_list, synthetic_time_requires_list) {
               testing::HasSubstr("--synthetic-time requires --input-list"));
 }
 
+TEST(mkdwarfs_input_list, invalid_synthetic_time) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  auto const input =
+      t.set_input_list(input_mode::from_stdin, "dir / 0755 0 0\n");
+  EXPECT_EQ(1,
+            t.run({"--input-list", input, "--input-list-format=gen_init_cpio",
+                   "--synthetic-time=invalid", "-o", "test.dwarfs"}));
+  EXPECT_THAT(t.err(), testing::HasSubstr("invalid --synthetic-time"));
+}
+
 TEST(mkdwarfs_input_list, root_like_overrides_manifest_root) {
   auto t = mkdwarfs_tester::create_empty();
   t.os->add_dir("/");

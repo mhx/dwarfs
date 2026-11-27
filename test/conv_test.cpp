@@ -54,6 +54,9 @@ TEST(conversion, to_bool) {
   EXPECT_THROW(to<bool>("foo"sv), dwarfs::conversion_error);
   EXPECT_THROW(to<bool>(""sv), dwarfs::conversion_error);
   EXPECT_THROW(to<bool>("2"sv), dwarfs::conversion_error);
+  EXPECT_FALSE(try_to<bool>("10"sv));
+  EXPECT_FALSE(try_to<bool>("never"sv));
+  EXPECT_FALSE(try_to<bool>("yep"sv));
   EXPECT_THROW(to<bool>("truee"sv), dwarfs::conversion_error);
   EXPECT_THROW(to<bool>("fals"sv), dwarfs::conversion_error);
 }
@@ -116,4 +119,22 @@ TEST(conversion, to_string) {
   EXPECT_EQ(to<std::string>(""sv), "");
   EXPECT_EQ(to<std::string>("a\0b"sv), std::string("a\0b", 3));
   EXPECT_EQ(to<std::string>(1.25), "1.25");
+}
+
+TEST(conversion, floating_point_types) {
+  auto check = []<typename T> {
+    EXPECT_EQ(to<T>("-0.125"), static_cast<T>(-0.125));
+    EXPECT_EQ(to<T>("+1.25"), static_cast<T>(1.25));
+    EXPECT_TRUE(std::signbit(to<T>("-0")));
+
+    for (auto s :
+         {" "sv, "foo"sv, "1x"sv, "-0X1p0"sv, "1e99999"sv, "1e-99999"sv}) {
+      SCOPED_TRACE(s);
+      EXPECT_FALSE(try_to<T>(s)) << s;
+    }
+  };
+
+  check.template operator()<float>();
+  check.template operator()<double>();
+  check.template operator()<long double>();
 }

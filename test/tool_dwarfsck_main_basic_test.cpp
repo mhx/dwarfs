@@ -32,6 +32,9 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <nlohmann/json.hpp>
 
@@ -79,6 +82,23 @@ TEST(dwarfsck_test, check_exclusive) {
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr(
                   "--no-check and --check-integrity are mutually exclusive"));
+}
+
+TEST(dwarfsck_test, invalid_option_values) {
+  for (auto const& [args, message] :
+       std::vector<std::pair<std::vector<std::string>, std::string>>{
+           {{"image.dwarfs", "--num-workers=0"},
+            "number of worker threads must be at least 1"},
+           {{"image.dwarfs", "--compute-digests", "--verify-digests"},
+            "--compute-digests and --verify-digests are mutually exclusive"},
+           {{"image.dwarfs", "--init-superblock=unknown"},
+            "invalid --init-superblock field: unknown"},
+       }) {
+    SCOPED_TRACE(fmt::format("args: {}", fmt::join(args, " ")));
+    auto t = dwarfsck_tester::create_with_image();
+    EXPECT_EQ(1, t.run(args)) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(message));
+  }
 }
 
 TEST(dwarfsck_test, print_header_and_json) {
