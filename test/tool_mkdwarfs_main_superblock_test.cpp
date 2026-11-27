@@ -373,7 +373,7 @@ std::vector<check_step> check_steps{
         .label = "something",
     },
     {
-        .args = {"--clear-label"},
+        .args = {"--set-label="},
         .label = "",
     },
     {
@@ -1069,7 +1069,7 @@ TEST(mkdwarfs_superblock_cli_test, rejects_conflicting_or_invalid_options) {
     EXPECT_THAT(t.err(), testing::HasSubstr(std::string(message)));
   };
 
-  expect_rejected({"--label=test", "--clear-label"}, "mutually exclusive");
+  expect_rejected({"--label=test", "--no-superblock"}, "cannot be used with");
   expect_rejected({"--label=" + std::string(64, 'a')},
                   "filesystem label is too long");
   expect_rejected({"--label=" + std::string(30, 'x') +
@@ -1109,7 +1109,7 @@ TEST(mkdwarfs_superblock_cli_test, dwarfsck_rejects_conflicting_edits) {
   ASSERT_TRUE(image);
 
   for (auto const& args : std::vector<std::vector<std::string>>{
-           {"--set-label=test", "--clear-label"},
+           {"--repair-superblock", "--set-label=test"},
            {"--repair-superblock", "--set-uuid=nil"},
            {"--repair-superblock", "--init-superblock"}}) {
     auto ct = dwarfsck_tester::create_with_image(*image, "test.dwarfs");
