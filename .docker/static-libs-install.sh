@@ -315,6 +315,10 @@ diff --git a/libunwind/src/UnwindRegistersSave.S b/libunwind/src/UnwindRegisters
  #define PPC64_STVS(n)      \
 PATCH
 
+    # Read a saved condition register as a 32-bit word
+    # https://github.com/llvm/llvm-project/pull/238317
+    fetch.sh https://github.com/llvm/llvm-project/pull/238317.patch - | patch -p1
+
     python /usr/local/bin/trim-libcxx-locale.py
     cd runtimes
     mkdir build
