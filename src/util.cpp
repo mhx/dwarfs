@@ -422,7 +422,8 @@ std::string size_with_unit_impl_signed(std::int64_t const size) {
   if (size >= 0) {
     return size_with_unit_impl(static_cast<std::uint64_t>(size));
   }
-  return "-" + size_with_unit_impl(-static_cast<std::uint64_t>(size));
+  return "-" + size_with_unit_impl(std::uint64_t{0} -
+                                   static_cast<std::uint64_t>(size));
 }
 
 } // namespace detail
