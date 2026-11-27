@@ -33,6 +33,19 @@
 
 namespace dwarfs::internal {
 
+char32_t case_fold_char_slow(char32_t in);
+
+inline char32_t case_fold_char(char32_t in) {
+  if (in < 0xB5) [[likely]] {
+    if (in >= U'A' && in <= U'Z') {
+      in += U'a' - U'A';
+    }
+    return in;
+  }
+
+  return case_fold_char_slow(in);
+}
+
 std::string utf8_case_fold(std::string_view in);
 std::string utf8_case_fold_unchecked(std::string_view in);
 

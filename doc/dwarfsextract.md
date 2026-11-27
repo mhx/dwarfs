@@ -54,13 +54,13 @@ to disk:
   multiple times, in which case all files matching one or more patterns will
   be extracted. Can also be specified without `--pattern` for simplicity.
   If prefixed with `i:`, the glob pattern match will be case-insensitive
-  for ASCII characters,
-  e.g. `i:**/*.txt` would match all `.txt`, `.TXT` and `.tXt` files. If you
-  want the *actual* pattern to start with `i:`, you have to prefix the
-  pattern with `:`, i.e. `:i:...`. The glob patterns support the wildcards
-  `*` and `?`, character classes (`[avt]`), ranges (`[a-h]`), complementation
-  (`[!a-h]`) and globstar (`**`). A `**/` at the start of the pattern or
-  immediately after a `/` matches zero or more complete directory components.
+  using Unicode case folding, e.g. `i:**/*.txt` would match all `.txt`, `.TXT`
+  and `.tXt` files. If you want the *actual* pattern to start with `i:`, you
+  have to prefix the pattern with `:`, i.e. `:i:...`. The glob patterns support
+  the wildcards `*` and `?`, character classes (`[avt]`), ranges (`[a-h]`),
+  complementation (`[!a-h]`) and globstar (`**`). A `**/` at the start of the
+  pattern or immediately after a `/` matches zero or more complete directory
+  components. Wildcards and character classes operate on Unicode code points.
 
 - `--skip-devices`:
   Do not extract device nodes. Extracting device nodes to disk requires

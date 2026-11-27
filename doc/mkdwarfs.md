@@ -1293,7 +1293,8 @@ directory separators. A `**/` at the start of the pattern or immediately
 after a `/` matches zero or more complete directory components.
 
 Patterns also support character classes (`[avt]`), ranges (`[a-h]`),
-and complementation (`[!a-h]`).
+and complementation (`[!a-h]`). Wildcards and character classes operate on
+Unicode code points.
 
 Here's an exemplary rule set:
 

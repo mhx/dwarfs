@@ -529,3 +529,89 @@ TEST(glob_matcher_test, long_patterns_and_alternatives) {
   EXPECT_TRUE(glob_matcher{"a{,b{,c}}d"}("abcd"));
   EXPECT_FALSE(glob_matcher{"a{,b{,c}}d"}("acd"));
 }
+
+TEST(glob_matcher_test, unicode_case_folding) {
+  EXPECT_TRUE(glob_matcher{"i:ÄBC"}("äbc"));
+  EXPECT_FALSE(glob_matcher{"ÄBC"}("äbc"));
+  EXPECT_TRUE(glob_matcher({"ÄBC"}, {.ignorecase = true})("äbc"));
+  EXPECT_TRUE(glob_matcher{"i:**/*.ÄÖÜ"}("dir/file.äöü"));
+  EXPECT_TRUE(glob_matcher{"i:Σ"}("ς"));
+  EXPECT_TRUE(glob_matcher{"i:straße"}("STRAẞE"));
+  EXPECT_FALSE(glob_matcher{"i:straße"}("STRASSE"));
+  EXPECT_TRUE(glob_matcher{"i:k"}("K"));
+  EXPECT_TRUE(glob_matcher{"i:*K"}("fileK"));
+  EXPECT_TRUE(glob_matcher{"i:K*"}("kfile"));
+  EXPECT_TRUE(glob_matcher{"i:𐐀"}("𐐨"));
+  EXPECT_TRUE(glob_matcher{"i:{Ä,Σ}*?*.TXT"}("ς🙂.txt"));
+  EXPECT_TRUE(glob_matcher{"i:\\Ä"}("ä"));
+  EXPECT_FALSE(glob_matcher{"i:é"}("e\u0301"));
+}
+
+TEST(glob_matcher_test, unicode_wildcards) {
+  EXPECT_TRUE(glob_matcher{"?.txt"}("ä.txt"));
+  EXPECT_TRUE(glob_matcher{"?.txt"}("🙂.txt"));
+  EXPECT_FALSE(glob_matcher{"??.txt"}("🙂.txt"));
+  EXPECT_TRUE(glob_matcher{"??.txt"}("e\u0301.txt"));
+  EXPECT_TRUE(glob_matcher{"*?"}("🙂"));
+  EXPECT_TRUE(glob_matcher{"?*"}("🙂"));
+  EXPECT_FALSE(glob_matcher{"?*?"}("🙂"));
+  EXPECT_TRUE(glob_matcher{"?*?"}("ä🙂"));
+  EXPECT_TRUE(glob_matcher{"ä*🙂"}("ä🙂"));
+  EXPECT_FALSE(glob_matcher{"ä*🙂"}("ä/🙂"));
+  EXPECT_TRUE(glob_matcher{"ä**🙂"}("ä/🙂"));
+  EXPECT_TRUE(glob_matcher{"**/?.txt"}("目录/ä.txt"));
+  EXPECT_TRUE(glob_matcher{"目录/**/{?,ä}.txt"}("目录/子/🙂.txt"));
+  EXPECT_FALSE(glob_matcher{"目录/**/{?,ä}.txt"}("目录/子/ab.txt"));
+
+  dwarfs::internal::compiled_glob floating{"?.txt", false, true};
+  EXPECT_TRUE(floating.match("/目录/🙂.txt"));
+  EXPECT_FALSE(floating.match("/目录/🙂ä.txt"));
+}
+
+TEST(glob_matcher_test, unicode_character_classes) {
+  EXPECT_TRUE(glob_matcher{"[äöü].txt"}("ö.txt"));
+  EXPECT_FALSE(glob_matcher{"[äöü].txt"}("Ö.txt"));
+  EXPECT_TRUE(glob_matcher{"i:[äöü].txt"}("Ö.txt"));
+  EXPECT_FALSE(glob_matcher{"i:[!äöü].txt"}("Ö.txt"));
+  EXPECT_TRUE(glob_matcher{"[!äöü].txt"}("🙂.txt"));
+  EXPECT_TRUE(glob_matcher{"[aä]"}("a"));
+  EXPECT_TRUE(glob_matcher{"[aä]"}("ä"));
+  EXPECT_TRUE(glob_matcher{"[α-ω]"}("σ"));
+  EXPECT_FALSE(glob_matcher{"[α-ω]"}("Σ"));
+  EXPECT_TRUE(glob_matcher{"i:[Α-Ω]"}("ς"));
+  EXPECT_FALSE(glob_matcher{"i:[!Α-Ω]"}("ς"));
+  EXPECT_TRUE(glob_matcher{"i:[A-Z]"}("K"));
+  EXPECT_TRUE(glob_matcher{"i:[K]"}("k"));
+  EXPECT_TRUE(glob_matcher{"i:[ž-ƀ]"}("s"));
+  EXPECT_FALSE(glob_matcher{"i:[!ž-ƀ]"}("s"));
+  EXPECT_TRUE(glob_matcher{"[𐐀-𐐧]"}("𐐀"));
+  EXPECT_TRUE(glob_matcher{"i:[𐐀-𐐧]"}("𐐨"));
+  EXPECT_TRUE(glob_matcher{"[.-0]"}("0"));
+  EXPECT_FALSE(glob_matcher{"[.-0]"}("/"));
+  EXPECT_TRUE(glob_matcher{"**/[!ä]b"}("/b"));
+}
+
+TEST(glob_matcher_test, malformed_utf8) {
+  // Every invalid byte is a separate, opaque character.
+  for (std::string const bad : {"\xFF", "\x80", "\xC2", "\xC0\xAF",
+                                "\xED\xA0\x80", "\xF4\x90\x80\x80"}) {
+    SCOPED_TRACE(bad);
+
+    glob_matcher exact{bad};
+
+    EXPECT_TRUE(exact(bad));
+    EXPECT_FALSE(exact("�"));
+    EXPECT_TRUE(glob_matcher{"*"}(bad));
+    EXPECT_TRUE(glob_matcher{std::string(bad.size(), '?')}(bad));
+    EXPECT_TRUE(glob_matcher{"i:*" + bad}("a" + bad));
+    EXPECT_TRUE(glob_matcher{"{x,y}*" + bad}("x" + bad));
+    EXPECT_FALSE(glob_matcher{"i:" + bad}("�"));
+  }
+
+  EXPECT_TRUE(glob_matcher{"?*?"}("\xFFä"));
+  EXPECT_TRUE(glob_matcher{"?*?"}("ä\x80"));
+  EXPECT_TRUE(glob_matcher{"*ä?"}("ä\x80"));
+  EXPECT_TRUE(glob_matcher{"i:*A"}("\xC2\x61"));
+  EXPECT_TRUE(glob_matcher{"[\xFF]"}("\xFF"));
+  EXPECT_FALSE(glob_matcher{"[\xFF]"}("ÿ"));
+}

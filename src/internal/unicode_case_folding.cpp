@@ -36,8 +36,6 @@
 
 namespace dwarfs::internal {
 
-namespace {
-
 char32_t case_fold_char_slow(char32_t in) {
   // NOLINTBEGIN(bugprone-branch-clone)
   switch (in) {
@@ -48,16 +46,7 @@ char32_t case_fold_char_slow(char32_t in) {
   // NOLINTEND(bugprone-branch-clone)
 }
 
-inline char32_t case_fold_char(char32_t in) {
-  if (in < 0xB5) [[likely]] {
-    if (in >= 0x41 && in <= 0x5A) {
-      in += 0x20;
-    }
-    return in;
-  }
-
-  return case_fold_char_slow(in);
-}
+namespace {
 
 template <typename InputIt, typename OutputIt>
 void case_fold_impl(InputIt start, InputIt end, OutputIt out) {

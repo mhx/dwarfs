@@ -31,6 +31,7 @@
 #include <bitset>
 #include <cstddef>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace dwarfs::internal {
@@ -62,14 +63,23 @@ class compiled_glob {
 
   static constexpr size_t npos = std::string_view::npos;
 
-  unsigned char fold(unsigned char c) const;
-  bool match_byte(instruction const& ins, unsigned char c) const;
+  struct char_set {
+    void add_range(char32_t from, char32_t to);
+    bool matches(char32_t c) const;
+
+    std::bitset<128> ascii;
+    std::vector<std::pair<char32_t, char32_t>> ranges;
+    bool negate{false};
+  };
+
+  char32_t fold(char32_t c) const;
+  bool match_char(instruction const& ins, char32_t c) const;
   size_t compile_char_set(std::string_view pattern, size_t pos);
   bool match_linear(std::string_view path) const;
   bool match_nfa(std::string_view path) const;
 
   std::vector<instruction> code_;
-  std::vector<std::bitset<256>> char_sets_;
+  std::vector<char_set> char_sets_;
   bool ignorecase_;
   size_t basename_start_{0};
   size_t linear_repeat_{npos};

@@ -26,6 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cstdint>
@@ -35,6 +36,7 @@
 #include <utility>
 
 #include <dwarfs/internal/compiled_glob.h>
+#include <dwarfs/internal/unicode_case_folding.h>
 
 namespace dwarfs::internal {
 
@@ -46,23 +48,142 @@ invalid_pattern(std::string_view reason, std::string_view pattern) {
                            " in pattern: " + std::string(pattern));
 }
 
+// Keep invalid UTF-8 bytes distinct from valid Unicode scalar values and
+// from each other.
+constexpr char32_t kInvalidByteBase = 0x110000;
+
+constexpr bool is_continuation(unsigned char c) { return (c & 0xC0) == 0x80; }
+
+char32_t
+decode_non_ascii(std::string_view path, size_t& pos, unsigned char first) {
+  unsigned extra;
+  char32_t value;
+  char32_t minimum;
+
+  if (first >= 0xC2 && first <= 0xDF) {
+    extra = 1;
+    value = first & 0x1F;
+    minimum = 0x80;
+  } else if (first >= 0xE0 && first <= 0xEF) {
+    extra = 2;
+    value = first & 0x0F;
+    minimum = 0x800;
+  } else if (first >= 0xF0 && first <= 0xF4) {
+    extra = 3;
+    value = first & 0x07;
+    minimum = 0x10000;
+  } else {
+    return kInvalidByteBase + first;
+  }
+
+  if (path.size() - pos < extra) {
+    return kInvalidByteBase + first;
+  }
+
+  for (unsigned i = 0; i < extra; ++i) {
+    auto const c = static_cast<unsigned char>(path[pos + i]);
+    if (!is_continuation(c)) {
+      return kInvalidByteBase + first;
+    }
+    value = (value << 6) | (c & 0x3F);
+  }
+
+  if (value < minimum || value > 0x10FFFF ||
+      (value >= 0xD800 && value <= 0xDFFF)) {
+    return kInvalidByteBase + first;
+  }
+
+  pos += extra;
+
+  return value;
+}
+
+inline char32_t next_char(std::string_view path, size_t& pos) {
+  auto const first = static_cast<unsigned char>(path[pos++]);
+
+  if (first < 0x80) [[likely]] {
+    return first;
+  }
+
+  return decode_non_ascii(path, pos, first);
+}
+
+char32_t
+decode_prev_non_ascii(std::string_view path, size_t& end, unsigned char last) {
+  // Locate the potential leading byte, then validate using the same decoder
+  // as the forward scan. Invalid input must be consumed identically in both
+  // directions.
+  auto start = end;
+
+  while (start > 0 && end - start < 3 &&
+         is_continuation(static_cast<unsigned char>(path[start]))) {
+    --start;
+  }
+
+  auto pos = start;
+  auto const c = next_char(path.substr(0, end + 1), pos);
+
+  if (pos == end + 1 && c < kInvalidByteBase) {
+    end = start;
+    return c;
+  }
+
+  return kInvalidByteBase + last;
+}
+
+inline char32_t prev_char(std::string_view path, size_t& end) {
+  auto const last = static_cast<unsigned char>(path[--end]);
+
+  if (last < 0x80) [[likely]] {
+    return last;
+  }
+
+  return decode_prev_non_ascii(path, end, last);
+}
+
 } // namespace
 
-unsigned char compiled_glob::fold(unsigned char c) const {
-  if (ignorecase_ && c >= 'A' && c <= 'Z') {
-    c += 'a' - 'A';
+inline char32_t compiled_glob::fold(char32_t c) const {
+  return ignorecase_ ? case_fold_char(c) : c;
+}
+
+void compiled_glob::char_set::add_range(char32_t from, char32_t to) {
+  // Keep ASCII characters in a bitset for fast lookup.
+  for (; from <= to && from < ascii.size(); ++from) {
+    if (from != U'/') {
+      ascii.set(from);
+    }
   }
-  return c;
+
+  if (from <= to) {
+    if (!ranges.empty() && from <= ranges.back().second + 1 &&
+        to + 1 >= ranges.back().first) {
+      auto& [lo, hi] = ranges.back();
+      lo = std::min(lo, from);
+      hi = std::max(hi, to);
+    } else {
+      ranges.emplace_back(from, to);
+    }
+  }
+}
+
+bool compiled_glob::char_set::matches(char32_t c) const {
+  if (c < ascii.size()) [[likely]] {
+    return ascii[c] != negate;
+  }
+
+  return std::ranges::any_of(ranges, [c](auto const& range) {
+           return c >= range.first && c <= range.second;
+         }) != negate;
 }
 
 size_t compiled_glob::compile_char_set(std::string_view pattern, size_t pos) {
-  std::bitset<256> chars;
+  char_set chars;
 
   ++pos; // '['
 
-  bool const negate = pos < pattern.size() && pattern[pos] == '!';
-
-  if (negate) {
+  chars.negate = pos < pattern.size() && pattern[pos] == '!';
+  if (chars.negate) {
     ++pos;
   }
 
@@ -71,45 +192,46 @@ size_t compiled_glob::compile_char_set(std::string_view pattern, size_t pos) {
 
   while (pos < pattern.size()) {
     if (!first && pattern[pos] == ']') {
-      if (negate) {
-        chars.flip();
-      }
       code_.push_back({opcode::char_set, char_sets_.size()});
-      char_sets_.push_back(chars);
+      char_sets_.push_back(std::move(chars));
       return pos + 1;
     }
 
     first = false;
 
-    auto const from = static_cast<unsigned char>(pattern[pos++]);
+    auto const start = pos;
+    auto const from = next_char(pattern, pos);
+    auto to = from;
 
-    if (from == '/') {
+    if (from == U'/') {
       invalid_pattern("invalid character '/' in character class", pattern);
     }
 
     if (pos + 1 < pattern.size() && pattern[pos] == '-' &&
         pattern[pos + 1] != ']') {
-      auto const to = static_cast<unsigned char>(pattern[pos + 1]);
+      ++pos;
+      to = next_char(pattern, pos);
 
-      if (to == '/') {
+      if (to == U'/') {
         invalid_pattern("invalid character '/' in character class", pattern);
       }
 
       if (from > to) {
-        invalid_pattern(std::string("invalid range '") + char(from) + '-' +
-                            char(to) + "' in character class",
+        invalid_pattern(std::string("invalid range '") +
+                            std::string(pattern.substr(start, pos - start)) +
+                            "' in character class",
                         pattern);
       }
+    }
 
-      for (unsigned c = from; c <= to; ++c) {
-        if (c != '/') {
-          chars.set(fold(static_cast<unsigned char>(c)));
-        }
+    if (ignorecase_) {
+      // Fold each member of the original range.
+      for (auto c = from; c <= to; ++c) {
+        auto const folded = case_fold_char(c);
+        chars.add_range(folded, folded);
       }
-
-      pos += 2;
     } else {
-      chars.set(fold(from));
+      chars.add_range(from, to);
     }
   }
 
@@ -134,15 +256,14 @@ compiled_glob::compiled_glob(std::string_view pattern, bool ignorecase,
   size_t pos = 0;
 
   while (pos < pattern.size()) {
-    auto const c = pattern[pos++];
+    auto const c = next_char(pattern, pos);
 
     switch (c) {
     case '\\':
       if (pos == pattern.size()) {
         invalid_pattern("trailing backslash", pattern);
       }
-      code_.push_back(
-          {opcode::literal, fold(static_cast<unsigned char>(pattern[pos++]))});
+      code_.push_back({opcode::literal, fold(next_char(pattern, pos))});
       break;
 
     case '*': {
@@ -224,7 +345,7 @@ compiled_glob::compiled_glob(std::string_view pattern, bool ignorecase,
     }
 
     default:
-      code_.push_back({opcode::literal, fold(static_cast<unsigned char>(c))});
+      code_.push_back({opcode::literal, fold(c)});
       break;
     }
   }
@@ -254,7 +375,7 @@ compiled_glob::compiled_glob(std::string_view pattern, bool ignorecase,
 
       if (ins.op == opcode::directory || ins.op == opcode::globstar ||
           (ins.op == opcode::literal && ins.arg == '/') ||
-          (ins.op == opcode::char_set && char_sets_[ins.arg]['/'])) {
+          (ins.op == opcode::char_set && char_sets_[ins.arg].matches(U'/'))) {
         basename_start_ = 0;
         break;
       }
@@ -288,7 +409,8 @@ compiled_glob::compiled_glob(std::string_view pattern, bool ignorecase,
   linear_repeat_ = repeat;
 }
 
-bool compiled_glob::match_byte(instruction const& ins, unsigned char c) const {
+inline bool
+compiled_glob::match_char(instruction const& ins, char32_t c) const {
   switch (ins.op) {
   case opcode::literal:
     return ins.arg == c;
@@ -297,7 +419,7 @@ bool compiled_glob::match_byte(instruction const& ins, unsigned char c) const {
     return c != '/';
 
   case opcode::char_set:
-    return char_sets_[ins.arg][c];
+    return char_sets_[ins.arg].matches(c);
 
   default:
     return false;
@@ -310,37 +432,37 @@ bool compiled_glob::match_linear(std::string_view path) const {
   auto const begin = basename_start_;
   auto const width = end - begin;
 
-  if (repeat == end) {
-    if (path.size() != width) {
-      return false;
-    }
-  } else {
-    if (path.size() < width - 1) {
-      return false;
-    }
+  // Every code point occupies at least one byte.
+  if (path.size() < width - (repeat != end)) {
+    return false;
+  }
 
+  auto right = path.size();
+
+  if (repeat != end) {
     // Check the suffix first (e.g. the extension in *.txt).
-    for (size_t i = end, j = path.size(); i > repeat + 1;) {
-      if (!match_byte(code_[--i],
-                      fold(static_cast<unsigned char>(path[--j])))) {
+    for (size_t i = end; i > repeat + 1;) {
+      if (right == 0 || !match_char(code_[--i], fold(prev_char(path, right)))) {
         return false;
       }
     }
-
-    if (code_[repeat].op == opcode::star &&
-        path.substr(repeat - begin, path.size() - (width - 1)).find('/') !=
-            npos) {
-      return false;
-    }
   }
+
+  path = path.substr(0, right);
+  size_t left = 0;
 
   for (size_t i = begin; i < repeat; ++i) {
-    if (!match_byte(code_[i],
-                    fold(static_cast<unsigned char>(path[i - begin])))) {
+    if (left == path.size() ||
+        !match_char(code_[i], fold(next_char(path, left)))) {
       return false;
     }
   }
-  return true;
+
+  if (repeat == end) {
+    return left == path.size();
+  }
+
+  return code_[repeat].op == opcode::globstar || path.find('/', left) == npos;
 }
 
 bool compiled_glob::match_nfa(std::string_view path) const {
@@ -367,9 +489,9 @@ bool compiled_glob::match_nfa(std::string_view path) const {
 
   add(current, basename_start_);
 
-  for (size_t pos = 0;; ++pos) {
+  for (size_t pos = 0;;) {
     bool const at_end = pos == path.size();
-    auto const c = at_end ? 0 : fold(static_cast<unsigned char>(path[pos]));
+    auto const c = at_end ? char32_t{0} : fold(next_char(path, pos));
     bool consumed = false;
 
     auto advance = [&](size_t i) {
@@ -419,7 +541,7 @@ bool compiled_glob::match_nfa(std::string_view path) const {
           break;
 
         default:
-          if (!at_end && match_byte(ins, static_cast<unsigned char>(c))) {
+          if (!at_end && match_char(ins, c)) {
             advance(i + 1);
           }
           break;
