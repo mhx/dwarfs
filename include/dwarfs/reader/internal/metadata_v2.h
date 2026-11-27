@@ -125,11 +125,6 @@ class metadata_v2 {
     return impl_->getattr(std::move(iv), opts, ec);
   }
 
-  duplication_info
-  get_duplication_info(inode_view iv, std::error_code& ec) const {
-    return impl_->get_duplication_info(std::move(iv), ec);
-  }
-
   device_number get_device(inode_view iv, std::error_code& ec) const {
     return impl_->get_device(std::move(iv), ec);
   }
@@ -180,27 +175,6 @@ class metadata_v2 {
     return impl_->get_inode_info(std::move(iv), max_chunks);
   }
 
-  std::optional<std::string> get_block_category(size_t block_number) const {
-    return impl_->get_block_category(block_number);
-  }
-
-  std::optional<nlohmann::json>
-  get_block_category_metadata(size_t block_number) const {
-    return impl_->get_block_category_metadata(block_number);
-  }
-
-  std::vector<std::string> get_all_block_categories() const {
-    return impl_->get_all_block_categories();
-  }
-
-  std::vector<file_stat::uid_type> get_all_uids() const {
-    return impl_->get_all_uids();
-  }
-
-  std::vector<file_stat::gid_type> get_all_gids() const {
-    return impl_->get_all_gids();
-  }
-
   std::vector<size_t>
   get_block_numbers_by_category(std::string_view category) const {
     return impl_->get_block_numbers_by_category(category);
@@ -236,9 +210,6 @@ class metadata_v2 {
     virtual file_stat getattr(inode_view iv, getattr_options const& opts,
                               std::error_code& ec) const = 0;
 
-    virtual duplication_info
-    get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
-
     virtual device_number
     get_device(inode_view iv, std::error_code& ec) const = 0;
 
@@ -273,18 +244,6 @@ class metadata_v2 {
     virtual nlohmann::json
     get_inode_info(inode_view iv, size_t max_chunks) const = 0;
 
-    virtual std::optional<std::string>
-    get_block_category(size_t block_number) const = 0;
-
-    virtual std::optional<nlohmann::json>
-    get_block_category_metadata(size_t block_number) const = 0;
-
-    virtual std::vector<std::string> get_all_block_categories() const = 0;
-
-    virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
-
-    virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
-
     virtual std::vector<size_t>
     get_block_numbers_by_category(std::string_view category) const = 0;
 
@@ -298,6 +257,20 @@ class metadata_v2 {
 class metadata_v2_utils {
  public:
   explicit metadata_v2_utils(metadata_v2 const& meta);
+
+  duplication_info get_duplication_info(logger& lgr, inode_view const& iv,
+                                        std::error_code& ec) const;
+
+  std::optional<std::string> get_block_category(size_t block_number) const;
+
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const;
+
+  std::vector<std::string> get_all_block_categories() const;
+
+  std::vector<file_stat::uid_type> get_all_uids() const;
+
+  std::vector<file_stat::gid_type> get_all_gids() const;
 
   void dump(std::ostream& os, fsinfo_options const& opts,
             filesystem_info const* fsinfo,

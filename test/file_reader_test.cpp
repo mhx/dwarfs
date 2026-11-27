@@ -65,12 +65,7 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
               (const, override));
 
   filesystem_version version() const override { unexpected_call(); }
-  bool has_valid_section_index() const override { unexpected_call(); }
   void walk(std::function<void(dir_entry_view)> const&) const override {
-    unexpected_call();
-  }
-  void
-  walk_data_order(std::function<void(dir_entry_view)> const&) const override {
     unexpected_call();
   }
   dir_entry_view_iterable directory_entries() const override {
@@ -95,13 +90,6 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
     unexpected_call();
   }
   file_stat getattr(inode_view, getattr_options const&) const override {
-    unexpected_call();
-  }
-  duplication_info
-  get_duplication_info(inode_view, std::error_code&) const override {
-    unexpected_call();
-  }
-  duplication_info get_duplication_info(inode_view) const override {
     unexpected_call();
   }
   device_number get_device(inode_view, std::error_code&) const override {
@@ -137,17 +125,6 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
   }
   file_off_t
   seek(uint32_t, file_off_t, seek_whence, std::error_code&) const override {
-    unexpected_call();
-  }
-  std::string read_string(uint32_t) const override { unexpected_call(); }
-  std::string read_string(uint32_t, std::error_code&) const override {
-    unexpected_call();
-  }
-  std::string read_string(uint32_t, size_t, file_off_t) const override {
-    unexpected_call();
-  }
-  std::string
-  read_string(uint32_t, size_t, file_off_t, std::error_code&) const override {
     unexpected_call();
   }
   size_t read(uint32_t, char*, size_t, file_off_t) const override {
@@ -207,30 +184,10 @@ class file_reader_backend : public filesystem_v2_lite::impl_lite {
   nlohmann::json get_inode_info(inode_view, size_t) const override {
     unexpected_call();
   }
-  std::vector<std::string> get_all_block_categories() const override {
-    unexpected_call();
-  }
-  std::vector<file_stat::uid_type> get_all_uids() const override {
-    unexpected_call();
-  }
-  std::vector<file_stat::gid_type> get_all_gids() const override {
-    unexpected_call();
-  }
-  std::optional<std::string> get_block_category(size_t) const override {
-    unexpected_call();
-  }
-  std::optional<nlohmann::json>
-  get_block_category_metadata(size_t) const override {
-    unexpected_call();
-  }
   void cache_blocks_by_category(std::string_view) const override {
     unexpected_call();
   }
   void cache_all_blocks() const override { unexpected_call(); }
-  std::shared_ptr<reader::internal::filesystem_parser>
-  get_parser() const override {
-    unexpected_call();
-  }
 
  private:
   [[noreturn]] static void unexpected_call() {

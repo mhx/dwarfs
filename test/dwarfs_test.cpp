@@ -518,8 +518,12 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(set_uid ? EACCES : 0, ec.value());
   EXPECT_EQ(set_uid, !fs.access(iv, R_OK, 1337, 0));
 
-  for (auto mp : {&reader::filesystem_v2::walk,
-                  &reader::filesystem_v2::walk_data_order}) {
+  using walk_fn = decltype(&reader::filesystem_v2::walk_data_order);
+
+  for (auto mp : std::array<walk_fn, 2>{
+           &reader::filesystem_v2::walk,
+           &reader::filesystem_v2::walk_data_order,
+       }) {
     std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
 

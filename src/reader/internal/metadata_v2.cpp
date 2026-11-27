@@ -37,6 +37,7 @@
 #include <filesystem>
 #include <numeric>
 #include <ostream>
+#include <tuple>
 
 #include <boost/algorithm/string.hpp>
 
@@ -2759,11 +2760,6 @@ class metadata_ final : public metadata_v2::impl {
     return data_.getattr(LOG_PROXY_ARG_ iv, opts);
   }
 
-  duplication_info
-  get_duplication_info(inode_view iv, std::error_code& ec) const override {
-    return data_.get_duplication_info<LoggerPolicy>(LOG_GET_LOGGER, iv, ec);
-  }
-
   device_number get_device(inode_view iv, std::error_code& ec) const override {
     return data_.get_device(iv, ec);
   }
@@ -2839,28 +2835,6 @@ class metadata_ final : public metadata_v2::impl {
     return data_.get_inode_info(iv, max_chunks);
   }
 
-  std::optional<std::string>
-  get_block_category(size_t block_number) const override {
-    return data_.get_block_category(block_number);
-  }
-
-  std::optional<nlohmann::json>
-  get_block_category_metadata(size_t block_number) const override {
-    return data_.get_block_category_metadata(block_number);
-  }
-
-  std::vector<std::string> get_all_block_categories() const override {
-    return data_.get_all_block_categories();
-  }
-
-  std::vector<file_stat::uid_type> get_all_uids() const override {
-    return data_.get_all_uids();
-  }
-
-  std::vector<file_stat::gid_type> get_all_gids() const override {
-    return data_.get_all_gids();
-  }
-
   std::vector<size_t>
   get_block_numbers_by_category(std::string_view category) const override {
     return data_.get_block_numbers_by_category(category);
@@ -2875,6 +2849,36 @@ class metadata_ final : public metadata_v2::impl {
 
 metadata_v2_utils::metadata_v2_utils(metadata_v2 const& meta)
     : data_{meta.internal_data()} {}
+
+duplication_info
+metadata_v2_utils::get_duplication_info(logger& lgr, inode_view const& iv,
+                                        std::error_code& ec) const {
+  static_assert(std::tuple_size_v<default_logger_policy> == 1);
+  using policy = std::tuple_element_t<0, default_logger_policy>;
+  return data_.get_duplication_info<policy>(lgr, iv, ec);
+}
+
+std::optional<std::string>
+metadata_v2_utils::get_block_category(size_t block_number) const {
+  return data_.get_block_category(block_number);
+}
+
+std::optional<nlohmann::json>
+metadata_v2_utils::get_block_category_metadata(size_t block_number) const {
+  return data_.get_block_category_metadata(block_number);
+}
+
+std::vector<std::string> metadata_v2_utils::get_all_block_categories() const {
+  return data_.get_all_block_categories();
+}
+
+std::vector<file_stat::uid_type> metadata_v2_utils::get_all_uids() const {
+  return data_.get_all_uids();
+}
+
+std::vector<file_stat::gid_type> metadata_v2_utils::get_all_gids() const {
+  return data_.get_all_gids();
+}
 
 void metadata_v2_utils::dump(
     std::ostream& os, fsinfo_options const& opts, filesystem_info const* fsinfo,

@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -372,24 +373,24 @@ class filesystem_ final {
     return meta_.get_inode_info(std::move(entry), max_chunks);
   }
   std::vector<std::string> get_all_block_categories() const {
-    return meta_.get_all_block_categories();
+    return metadata_v2_utils(meta_).get_all_block_categories();
   }
   std::vector<file_stat::uid_type> get_all_uids() const {
-    return meta_.get_all_uids();
+    return metadata_v2_utils(meta_).get_all_uids();
   }
   std::vector<file_stat::gid_type> get_all_gids() const {
-    return meta_.get_all_gids();
+    return metadata_v2_utils(meta_).get_all_gids();
   }
   std::shared_ptr<filesystem_parser> get_parser() const {
     return std::make_shared<filesystem_parser>(
         LOG_GET_LOGGER, mm_, image_offset_, options_.image_size);
   }
   std::optional<std::string> get_block_category(size_t block_no) const {
-    return meta_.get_block_category(block_no);
+    return metadata_v2_utils(meta_).get_block_category(block_no);
   }
   std::optional<nlohmann::json>
   get_block_category_metadata(size_t block_no) const {
-    return meta_.get_block_category_metadata(block_no);
+    return metadata_v2_utils(meta_).get_block_category_metadata(block_no);
   }
 
   void cache_blocks_by_category(std::string_view category) const {
@@ -969,7 +970,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
       std::string category;
 
       if (s.type() == section_type::BLOCK) {
-        if (auto catstr = meta_.get_block_category(block_no)) {
+        if (auto catstr = get_block_category(block_no)) {
           category = fmt::format(", category={}", catstr.value());
         }
         ++block_no;
@@ -977,7 +978,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
 
       std::string extra;
 
-      if (auto m = meta_.get_block_category_metadata(block_no)) {
+      if (auto m = get_block_category_metadata(block_no)) {
         extra = fmt::format(", metadata={}", m->dump());
       } else if (bd) {
         if (auto m = bd->metadata()) {
@@ -1012,7 +1013,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
           for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
             if (chunk.is_data()) {
               os << indent << "    [" << index << "] -> DATA ";
-              if (auto cat = meta_.get_block_category(chunk.block())) {
+              if (auto cat = get_block_category(chunk.block())) {
                 os << "[" << *cat << "] ";
               }
               os << "(block=" << chunk.block() << ", offset=" << chunk.offset()
@@ -1082,7 +1083,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
         section_info["size"] = uncompressed_size;
         section_info["ratio"] = float(s.length()) / uncompressed_size;
 
-        if (auto m = meta_.get_block_category_metadata(block_no)) {
+        if (auto m = get_block_category_metadata(block_no)) {
           section_info["metadata"] = *m;
         } else if (auto m = bd->metadata()) {
           section_info["metadata"] = nlohmann::json::parse(*m);
@@ -1090,7 +1091,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
       }
 
       if (s.type() == section_type::BLOCK) {
-        if (auto catstr = meta_.get_block_category(block_no)) {
+        if (auto catstr = get_block_category(block_no)) {
           section_info["category"] = catstr.value();
         }
         ++block_no;
@@ -1218,7 +1219,8 @@ duplication_info
 filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry,
                                                 std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(get_duplication_info_ec)
-  return meta_.get_duplication_info(std::move(entry), ec);
+  return metadata_v2_utils(meta_).get_duplication_info(LOG_GET_LOGGER, entry,
+                                                       ec);
 }
 
 template <typename LoggerPolicy>
@@ -1226,7 +1228,8 @@ duplication_info
 filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(get_duplication_info)
   return call_ec_throw([&](std::error_code& ec) {
-    return meta_.get_duplication_info(std::move(entry), ec);
+    return metadata_v2_utils(meta_).get_duplication_info(LOG_GET_LOGGER, entry,
+                                                         ec);
   });
 }
 
@@ -1336,11 +1339,31 @@ std::string
 filesystem_<LoggerPolicy>::read_string_ec(uint32_t inode, size_t size,
                                           file_off_t offset,
                                           std::error_code& ec) const {
-  auto chunks = meta_.get_chunks(inode, ec);
+  auto ranges = readv_ec(inode, size, offset, kDefaultMaxIOV, ec);
+
+  std::string res;
+
   if (!ec) {
-    return ir_.read_string(inode, size, offset, chunks, ec);
+    try {
+      std::vector<block_range> brs;
+      brs.reserve(ranges.size());
+      size_t total_size{0};
+      for (auto& r : ranges) {
+        auto br = r.get();
+        total_size += br.size();
+        brs.emplace_back(std::move(br));
+      }
+      res.reserve(total_size);
+      for (auto const& br : brs) {
+        res.append(reinterpret_cast<char const*>(br.data()), br.size());
+      }
+    } catch (...) {
+      LOG_ERROR << exception_str(std::current_exception());
+      ec = std::make_error_code(std::errc::io_error);
+    }
   }
-  return {};
+
+  return res;
 }
 
 template <typename LoggerPolicy>
@@ -1545,15 +1568,8 @@ class filesystem_common_ : public Base {
       : fs_{lgr, os, std::move(mm), options, perfmon} {}
 
   filesystem_version version() const override { return fs_.version(); }
-  bool has_valid_section_index() const override {
-    return fs_.has_valid_section_index();
-  }
   void walk(std::function<void(dir_entry_view)> const& func) const override {
     fs_.walk(func);
-  }
-  void walk_data_order(
-      std::function<void(dir_entry_view)> const& func) const override {
-    fs_.walk_data_order(func);
   }
   dir_entry_view_iterable directory_entries() const override {
     return fs_.directory_entries();
@@ -1585,13 +1601,6 @@ class filesystem_common_ : public Base {
   file_stat
   getattr(inode_view entry, getattr_options const& opts) const override {
     return fs_.getattr(entry, opts);
-  }
-  duplication_info
-  get_duplication_info(inode_view iv, std::error_code& ec) const override {
-    return fs_.get_duplication_info(iv, ec);
-  }
-  duplication_info get_duplication_info(inode_view iv) const override {
-    return fs_.get_duplication_info(iv);
   }
   device_number get_device(inode_view iv, std::error_code& ec) const override {
     return fs_.get_device(iv, ec);
@@ -1631,20 +1640,6 @@ class filesystem_common_ : public Base {
   file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
                   std::error_code& ec) const override {
     return fs_.seek(inode, offset, whence, ec);
-  }
-  std::string read_string(uint32_t inode) const override {
-    return fs_.read_string(inode);
-  }
-  std::string read_string(uint32_t inode, std::error_code& ec) const override {
-    return fs_.read_string(inode, ec);
-  }
-  std::string
-  read_string(uint32_t inode, size_t size, file_off_t offset) const override {
-    return fs_.read_string(inode, size, offset);
-  }
-  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
-                          std::error_code& ec) const override {
-    return fs_.read_string(inode, size, offset, ec);
   }
   size_t read(uint32_t inode, char* buf, size_t size,
               file_off_t offset) const override {
@@ -1721,26 +1716,6 @@ class filesystem_common_ : public Base {
   get_inode_info(inode_view entry, size_t max_chunks) const override {
     return fs_.get_inode_info(entry, max_chunks);
   }
-  std::vector<std::string> get_all_block_categories() const override {
-    return fs_.get_all_block_categories();
-  }
-  std::vector<file_stat::uid_type> get_all_uids() const override {
-    return fs_.get_all_uids();
-  }
-  std::vector<file_stat::gid_type> get_all_gids() const override {
-    return fs_.get_all_gids();
-  }
-  std::shared_ptr<filesystem_parser> get_parser() const override {
-    return fs_.get_parser();
-  }
-  std::optional<std::string>
-  get_block_category(size_t block_no) const override {
-    return fs_.get_block_category(block_no);
-  }
-  std::optional<nlohmann::json>
-  get_block_category_metadata(size_t block_no) const override {
-    return fs_.get_block_category_metadata(block_no);
-  }
 
   void cache_blocks_by_category(std::string_view category) const override {
     fs_.cache_blocks_by_category(category);
@@ -1771,6 +1746,55 @@ class filesystem_full_
       : filesystem_common_<LoggerPolicy, filesystem_v2::impl>(
             lgr, os, std::move(mm), options, perfmon)
       , history_{fs().get_history()} {}
+
+  bool has_valid_section_index() const override {
+    return fs().has_valid_section_index();
+  }
+  void walk_data_order(
+      std::function<void(dir_entry_view)> const& func) const override {
+    fs().walk_data_order(func);
+  }
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const override {
+    return fs().get_duplication_info(iv, ec);
+  }
+  duplication_info get_duplication_info(inode_view iv) const override {
+    return fs().get_duplication_info(iv);
+  }
+  std::string read_string(uint32_t inode) const override {
+    return fs().read_string(inode);
+  }
+  std::string read_string(uint32_t inode, std::error_code& ec) const override {
+    return fs().read_string(inode, ec);
+  }
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset) const override {
+    return fs().read_string(inode, size, offset);
+  }
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          std::error_code& ec) const override {
+    return fs().read_string(inode, size, offset, ec);
+  }
+  std::vector<std::string> get_all_block_categories() const override {
+    return fs().get_all_block_categories();
+  }
+  std::vector<file_stat::uid_type> get_all_uids() const override {
+    return fs().get_all_uids();
+  }
+  std::vector<file_stat::gid_type> get_all_gids() const override {
+    return fs().get_all_gids();
+  }
+  std::shared_ptr<filesystem_parser> get_parser() const override {
+    return fs().get_parser();
+  }
+  std::optional<std::string>
+  get_block_category(size_t block_no) const override {
+    return fs().get_block_category(block_no);
+  }
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_no) const override {
+    return fs().get_block_category_metadata(block_no);
+  }
 
   filesystem_check_result
   check(filesystem_check_level level, size_t num_threads) const override {
@@ -1905,6 +1929,75 @@ std::optional<file_extents_iterable>
 filesystem_v2::header(logger& lgr, file_view const& mm,
                       file_off_t image_offset) {
   return internal::filesystem_parser(lgr, mm, image_offset).header();
+}
+
+bool filesystem_v2::has_valid_section_index() const {
+  return full_().has_valid_section_index();
+}
+
+void filesystem_v2::walk_data_order(
+    std::function<void(dir_entry_view)> const& func) const {
+  full_().walk_data_order(func);
+}
+
+duplication_info
+filesystem_v2::get_duplication_info(inode_view iv, std::error_code& ec) const {
+  return full_().get_duplication_info(std::move(iv), ec);
+}
+
+duplication_info filesystem_v2::get_duplication_info(inode_view iv) const {
+  return full_().get_duplication_info(std::move(iv));
+}
+
+std::string filesystem_v2::read_string(uint32_t inode) const {
+  return full_().read_string(inode);
+}
+
+std::string
+filesystem_v2::read_string(uint32_t inode, std::error_code& ec) const {
+  return full_().read_string(inode, ec);
+}
+
+std::string filesystem_v2::read_string(uint32_t inode, size_t size,
+                                       file_off_t offset) const {
+  return full_().read_string(inode, size, offset);
+}
+
+std::string filesystem_v2::read_string(uint32_t inode, size_t size,
+                                       std::error_code& ec) const {
+  return full_().read_string(inode, size, 0, ec);
+}
+
+std::string
+filesystem_v2::read_string(uint32_t inode, size_t size, file_off_t offset,
+                           std::error_code& ec) const {
+  return full_().read_string(inode, size, offset, ec);
+}
+
+std::vector<std::string> filesystem_v2::get_all_block_categories() const {
+  return full_().get_all_block_categories();
+}
+
+std::vector<file_stat::uid_type> filesystem_v2::get_all_uids() const {
+  return full_().get_all_uids();
+}
+
+std::vector<file_stat::gid_type> filesystem_v2::get_all_gids() const {
+  return full_().get_all_gids();
+}
+
+std::optional<std::string>
+filesystem_v2::get_block_category(size_t block_number) const {
+  return full_().get_block_category(block_number);
+}
+
+std::optional<nlohmann::json>
+filesystem_v2::get_block_category_metadata(size_t block_number) const {
+  return full_().get_block_category_metadata(block_number);
+}
+
+std::shared_ptr<internal::filesystem_parser> filesystem_v2::get_parser() const {
+  return full_().get_parser();
 }
 
 filesystem_check_result

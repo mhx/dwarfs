@@ -137,16 +137,8 @@ class filesystem_v2_lite {
 
   filesystem_version version() const { return lite_->version(); }
 
-  bool has_valid_section_index() const {
-    return lite_->has_valid_section_index();
-  }
-
   void walk(std::function<void(dir_entry_view)> const& func) const {
     lite_->walk(func);
-  }
-
-  void walk_data_order(std::function<void(dir_entry_view)> const& func) const {
-    lite_->walk_data_order(func);
   }
 
   dir_entry_view_iterable directory_entries() const {
@@ -184,15 +176,6 @@ class filesystem_v2_lite {
 
   file_stat getattr(inode_view entry, getattr_options const& opts) const {
     return lite_->getattr(std::move(entry), opts);
-  }
-
-  duplication_info
-  get_duplication_info(inode_view iv, std::error_code& ec) const {
-    return lite_->get_duplication_info(std::move(iv), ec);
-  }
-
-  duplication_info get_duplication_info(inode_view iv) const {
-    return lite_->get_duplication_info(std::move(iv));
   }
 
   device_number get_device(inode_view iv, std::error_code& ec) const {
@@ -249,29 +232,6 @@ class filesystem_v2_lite {
   file_off_t seek(uint32_t inode, file_off_t offset, seek_whence whence,
                   std::error_code& ec) const {
     return lite_->seek(inode, offset, whence, ec);
-  }
-
-  std::string read_string(uint32_t inode) const {
-    return lite_->read_string(inode);
-  }
-
-  std::string read_string(uint32_t inode, std::error_code& ec) const {
-    return lite_->read_string(inode, ec);
-  }
-
-  std::string
-  read_string(uint32_t inode, size_t size, file_off_t offset = 0) const {
-    return lite_->read_string(inode, size, offset);
-  }
-
-  std::string
-  read_string(uint32_t inode, size_t size, std::error_code& ec) const {
-    return lite_->read_string(inode, size, 0, ec);
-  }
-
-  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
-                          std::error_code& ec) const {
-    return lite_->read_string(inode, size, offset, ec);
   }
 
   size_t
@@ -382,47 +342,19 @@ class filesystem_v2_lite {
     return lite_->get_inode_info(std::move(entry), max_chunks);
   }
 
-  std::vector<std::string> get_all_block_categories() const {
-    return lite_->get_all_block_categories();
-  }
-
-  std::vector<file_stat::uid_type> get_all_uids() const {
-    return lite_->get_all_uids();
-  }
-
-  std::vector<file_stat::gid_type> get_all_gids() const {
-    return lite_->get_all_gids();
-  }
-
-  std::optional<std::string> get_block_category(size_t block_number) const {
-    return lite_->get_block_category(block_number);
-  }
-
-  std::optional<nlohmann::json>
-  get_block_category_metadata(size_t block_number) const {
-    return lite_->get_block_category_metadata(block_number);
-  }
-
   void cache_blocks_by_category(std::string_view category) const {
     lite_->cache_blocks_by_category(category);
   }
 
   void cache_all_blocks() const { lite_->cache_all_blocks(); }
 
-  std::shared_ptr<internal::filesystem_parser> get_parser() const {
-    return lite_->get_parser();
-  }
-
   class impl_lite {
    public:
     virtual ~impl_lite() = default;
 
     virtual filesystem_version version() const = 0;
-    virtual bool has_valid_section_index() const = 0;
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
-    virtual void
-    walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual dir_entry_view_iterable directory_entries() const = 0;
     virtual dir_entry_view_iterable entries_in_data_order() const = 0;
     virtual dir_entry_view root() const = 0;
@@ -436,9 +368,6 @@ class filesystem_v2_lite {
     virtual file_stat getattr(inode_view entry) const = 0;
     virtual file_stat
     getattr(inode_view entry, getattr_options const& opts) const = 0;
-    virtual duplication_info
-    get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
-    virtual duplication_info get_duplication_info(inode_view iv) const = 0;
     virtual device_number
     get_device(inode_view entry, std::error_code& ec) const = 0;
     virtual bool access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -460,14 +389,6 @@ class filesystem_v2_lite {
     seek(uint32_t inode, file_off_t offset, seek_whence whence) const = 0;
     virtual file_off_t seek(uint32_t inode, file_off_t offset,
                             seek_whence whence, std::error_code& ec) const = 0;
-    virtual std::string read_string(uint32_t inode) const = 0;
-    virtual std::string
-    read_string(uint32_t inode, std::error_code& ec) const = 0;
-    virtual std::string
-    read_string(uint32_t inode, size_t size, file_off_t offset) const = 0;
-    virtual std::string
-    read_string(uint32_t inode, size_t size, file_off_t offset,
-                std::error_code& ec) const = 0;
     virtual size_t
     read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual size_t read(uint32_t inode, char* buf, size_t size,
@@ -510,16 +431,8 @@ class filesystem_v2_lite {
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
     virtual nlohmann::json
     get_inode_info(inode_view entry, size_t max_chunks) const = 0;
-    virtual std::vector<std::string> get_all_block_categories() const = 0;
-    virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
-    virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
-    virtual std::optional<std::string>
-    get_block_category(size_t block_number) const = 0;
-    virtual std::optional<nlohmann::json>
-    get_block_category_metadata(size_t block_number) const = 0;
     virtual void cache_blocks_by_category(std::string_view category) const = 0;
     virtual void cache_all_blocks() const = 0;
-    virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
   };
 
  protected:
@@ -594,8 +507,51 @@ class filesystem_v2 final : public filesystem_v2_lite {
   std::string filesystem_label() const;
   std::optional<std::string> filesystem_uuid() const;
 
+  bool has_valid_section_index() const;
+  void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
+  duplication_info
+  get_duplication_info(inode_view iv, std::error_code& ec) const;
+  duplication_info get_duplication_info(inode_view iv) const;
+  std::string read_string(uint32_t inode) const;
+  std::string read_string(uint32_t inode, std::error_code& ec) const;
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset = 0) const;
+  std::string
+  read_string(uint32_t inode, size_t size, std::error_code& ec) const;
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          std::error_code& ec) const;
+  std::vector<std::string> get_all_block_categories() const;
+  std::vector<file_stat::uid_type> get_all_uids() const;
+  std::vector<file_stat::gid_type> get_all_gids() const;
+  std::optional<std::string> get_block_category(size_t block_number) const;
+  std::optional<nlohmann::json>
+  get_block_category_metadata(size_t block_number) const;
+  std::shared_ptr<internal::filesystem_parser> get_parser() const;
+
   class impl : public impl_lite {
    public:
+    virtual bool has_valid_section_index() const = 0;
+    virtual void
+    walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
+    virtual duplication_info
+    get_duplication_info(inode_view iv, std::error_code& ec) const = 0;
+    virtual duplication_info get_duplication_info(inode_view iv) const = 0;
+    virtual std::string read_string(uint32_t inode) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, std::error_code& ec) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, size_t size, file_off_t offset) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, size_t size, file_off_t offset,
+                std::error_code& ec) const = 0;
+    virtual std::vector<std::string> get_all_block_categories() const = 0;
+    virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
+    virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
+    virtual std::optional<std::string>
+    get_block_category(size_t block_number) const = 0;
+    virtual std::optional<nlohmann::json>
+    get_block_category_metadata(size_t block_number) const = 0;
+    virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
     virtual filesystem_check_result
     check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
