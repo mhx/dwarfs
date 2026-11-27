@@ -1985,7 +1985,7 @@ TEST(dwarfsck_test, missing_superblock_has_distinct_exit_code) {
            {"--init-superblock=size"},
            {"--no-check", "--init-superblock=size"},
            {"--set-label=test"},
-           {"--clear-label"},
+           {"--set-label="},
            {"--set-uuid=random"},
            {"--verify-digests"},
            {"--verify-digests=attr"},

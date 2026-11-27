@@ -157,12 +157,8 @@ with a non-zero exit code.
   place by overwriting the label in the filesystem superblock and updating
   the checksums. This is only supported for filesystem images that actually
   have a superblock. You can re-write an existing image without a superblock
-  using `mkdwarfs` to add a superblock.
-
-- `--clear-label`:
-  Clear the filesystem label. This is mostly a workaround for not being able
-  to set an empty label with `--set-label=` due to a Boost.ProgramOptions
-  limitation. `--set-label` and `--clear-label` are mutually exclusive.
+  using `mkdwarfs` to add a superblock. You can use `--set-label=` to clear
+  the filesystem label.
 
 - `--log-level=`*name*:
   Specify a logging level.

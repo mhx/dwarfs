@@ -153,3 +153,9 @@ TEST(dwarfsextract_main_test, cmdline_option_values) {
     EXPECT_THAT(t.err(), ::testing::HasSubstr("is invalid"));
   }
 }
+
+TEST(dwarfsck_main_test, positional_input_and_explicit_empty_label) {
+  dwarfsck_tester t;
+  EXPECT_EQ(t.run({"--set-label=", "input.dwarfs", "--help"}), 0);
+  EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: dwarfsck"));
+}

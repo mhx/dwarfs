@@ -51,7 +51,6 @@ _dwarfsck_completion()
     local OPTIONS_GENERAL=(
         --compute-digests
         --check-integrity
-        --clear-label
         --checksum
         --export-metadata
         --init-superblock

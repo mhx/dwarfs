@@ -39,8 +39,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -49,6 +47,7 @@
 #endif
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/command_line.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_factory.h>
@@ -65,15 +64,12 @@
 #include <dwarfs/string.h>
 #include <dwarfs/superblock_editor.h>
 #include <dwarfs/tool/iolayer.h>
-#include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 #include <dwarfs_tool_manpage.h>
 
 namespace dwarfs::tool {
-
-namespace po = boost::program_options;
 
 namespace {
 
@@ -173,164 +169,109 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
   size_t const num_cpu = std::max(hardware_concurrency(), 1U);
 
   auto algo_list = checksum::available_algorithms();
-  auto checksum_desc = fmt::format("print checksums for all files ({})",
-                                   fmt::join(algo_list, ", "));
-  auto detail_desc = fmt::format(
-      "detail level (0-{}, or feature list: {})",
-      reader::fsinfo_features::max_level(),
-      fmt::join(reader::fsinfo_features::all().to_string_views(), ", "));
-  auto const uuid_desc =
-      fmt::format("set UUID in superblock ({}, {}, or RFC 9562 string)",
-                  superblock_editor::kUuidRandom, superblock_editor::kUuidNil);
   auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
   options o;
 
-  // program_options cannot bind to std::optional<>, so these are parsed into
-  // raw values and moved into the optionals below if the option was present.
-  sys_string export_metadata_raw;
-  sys_string set_label_raw;
-  std::string uuid_str_raw;
-  std::string checksum_algo_raw;
-  std::string init_superblock_raw;
-  std::string compute_digests_raw;
-  std::string verify_digests_raw;
+  std::optional<std::string> init_superblock;
+  std::optional<std::string> compute_digests;
+  std::optional<std::string> verify_digests;
 #if DWARFS_PERFMON_ENABLED
-  std::string perfmon_enabled_raw;
-  sys_string perfmon_trace_file_raw;
+  std::optional<std::string> perfmon_enabled;
+  std::optional<sys_string> perfmon_trace_file;
 #endif
-  bool clear_label{false};
+  cli::options opts;
+  common_cli_options common;
 
-  // clang-format off
-  po::options_description opts("Command line options");
-  opts.add_options()
-    ("input,i",
-        po_sys_value<sys_string>(&o.input),
-        "input filesystem")
-    ("detail,d",
-        po::value<std::string>(&o.detail)->default_value(detail_default),
-        detail_desc.c_str())
-    ("quiet,q",
-        po::value<bool>(&o.quiet)->zero_tokens(),
-        "don't print anything unless an error occurs")
-    ("verbose,v",
-        po::value<bool>(&o.verbose)->zero_tokens(),
-        "produce verbose output")
-    ("image-offset,O",
-        po::value<std::string>(&o.image_offset)->default_value("auto"),
-        "filesystem image offset in bytes")
-    ("print-header,H",
-        po::value<bool>(&o.print_header)->zero_tokens(),
-        "print filesystem header to stdout and exit")
-    ("list,l",
-        po::value<bool>(&o.list_files)->zero_tokens(),
-        "list all files and exit")
-    ("checksum",
-        po::value<std::string>(&checksum_algo_raw),
-        checksum_desc.c_str())
-    ("compute-digests",
-        po::value<std::string>(&compute_digests_raw)->implicit_value("both"),
-        "compute filesystem digests (attr, tree, both)")
-    ("verify-digests",
-        po::value<std::string>(&verify_digests_raw)->implicit_value("all"),
-        "verify stored filesystem digests (all, attr, tree)")
-    ("num-workers,n",
-        po::value<size_t>(&o.num_workers)->default_value(num_cpu),
-        "number of reader worker threads")
-    ("cache-size,s",
-        po::value<std::string>(&o.cache_size_str)->default_value("512m"),
-        "block cache size")
-    ("check-integrity",
-        po::value<bool>(&o.check_integrity)->zero_tokens(),
-        "check integrity of each block")
-    ("no-check",
-        po::value<bool>(&o.no_check)->zero_tokens(),
-        "don't even verify block checksums")
-    ("json,j",
-        po::value<bool>(&o.output_json)->zero_tokens(),
-        "print information in JSON format")
-    ("export-metadata",
-        po_sys_value<sys_string>(&export_metadata_raw),
-        "export raw metadata as JSON to file")
-    ("init-superblock",
-        po::value<std::string>(&init_superblock_raw)->implicit_value("size,digests"),
-        "initialize missing fields (size, digests, attr_digest, tree_digest, uuid, all)")
-    ("repair-superblock",
-        po::value<bool>(&o.repair_superblock)->zero_tokens(),
-        "repair a corrupted superblock (will clear UUID, label, and digests)")
-    ("set-label",
-        po_sys_value<sys_string>(&set_label_raw),
-        "set filesystem label in superblock")
-    ("clear-label",
-        po::value<bool>(&clear_label)->zero_tokens(),
-        "clear filesystem label in superblock")
-    ("set-uuid",
-        po::value<std::string>(&uuid_str_raw),
-        uuid_desc.c_str())
+  opts.add("input,i", o.input, "input filesystem");
+  opts.add(
+      "detail,d", o.detail,
+      fmt::format(
+          "detail level (0-{}, or feature list: {})",
+          reader::fsinfo_features::max_level(),
+          fmt::join(reader::fsinfo_features::all().to_string_views(), ", ")),
+      detail_default);
+  opts.flag("quiet,q", o.quiet, "don't print anything unless an error occurs");
+  opts.flag("verbose,v", o.verbose, "produce verbose output");
+  opts.add("image-offset,O", o.image_offset, "filesystem image offset in bytes",
+           "auto");
+  opts.flag("print-header,H", o.print_header,
+            "print filesystem header to stdout and exit");
+  opts.flag("list,l", o.list_files, "list all files and exit");
+  opts.add("checksum", o.checksum_algo,
+           fmt::format("print checksums for all files ({})",
+                       fmt::join(algo_list, ", ")));
+  opts.add("compute-digests", compute_digests,
+           "compute filesystem digests (attr, tree, both)")
+      .implicit_value("both");
+  opts.add("verify-digests", verify_digests,
+           "verify stored filesystem digests (all, attr, tree)")
+      .implicit_value("all");
+  opts.add("num-workers,n", o.num_workers, "number of reader worker threads",
+           num_cpu);
+  opts.add("cache-size,s", o.cache_size_str, "block cache size", "512m");
+  opts.flag("check-integrity", o.check_integrity,
+            "check integrity of each block");
+  opts.flag("no-check", o.no_check, "don't even verify block checksums");
+  opts.flag("json,j", o.output_json, "print information in JSON format");
+  opts.add("export-metadata", o.export_metadata,
+           "export raw metadata as JSON to file");
+  opts.add("init-superblock", init_superblock,
+           "initialize missing fields (size, digests, attr_digest, "
+           "tree_digest, uuid, all)")
+      .implicit_value("size,digests");
+  opts.flag("repair-superblock", o.repair_superblock,
+            "repair a corrupted superblock (will clear UUID, label, and "
+            "digests)");
+  opts.add("set-label", o.set_label,
+           "set filesystem label in superblock (empty value clears label)");
+  opts.add("set-uuid", o.set_uuid,
+           fmt::format("set UUID in superblock ({}, {}, or RFC 9562 string)",
+                       superblock_editor::kUuidRandom,
+                       superblock_editor::kUuidNil));
 #if DWARFS_PERFMON_ENABLED
-    ("perfmon",
-        po::value<std::string>(&perfmon_enabled_raw),
-        "enable performance monitor")
-    ("perfmon-trace",
-        po_sys_value<sys_string>(&perfmon_trace_file_raw),
-        "write performance monitor trace file")
+  opts.add("perfmon", perfmon_enabled, "enable performance monitor");
+  opts.add("perfmon-trace", perfmon_trace_file,
+           "write performance monitor trace file");
 #endif
-    ;
-  // clang-format on
 
-  tool::add_common_options(opts, o.logopts);
-
-  po::positional_options_description pos;
-  pos.add("input", -1);
-
-  po::variables_map vm;
+  tool::add_common_options(opts, o.logopts, common);
+  opts.positional("input");
 
   try {
-    po::store(po::basic_command_line_parser<sys_char>(argc, argv)
-                  .options(opts)
-                  .positional(pos)
-                  .run(),
-              vm);
-    po::notify(vm);
-  } catch (po::error const& e) {
+    opts.parse(argc, argv);
+  } catch (cli::error const& e) {
     iol.err << "error: " << e.what() << "\n";
     return std::unexpected(1);
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.contains("man")) {
+  if (common.man) {
     tool::show_manpage(tool::manpage::get_dwarfsck_manpage(), iol);
     return std::unexpected(0);
   }
 #endif
 
 #if DWARFS_PERFMON_ENABLED
-  if (vm.contains("perfmon")) {
-    split_to(perfmon_enabled_raw, ',', o.perfmon_enabled);
+  if (perfmon_enabled) {
+    split_to(*perfmon_enabled, ',', o.perfmon_enabled);
   }
 
-  if (vm.contains("perfmon-trace")) {
-    o.perfmon_trace_file = iol.os->canonical(perfmon_trace_file_raw);
+  if (perfmon_trace_file) {
+    o.perfmon_trace_file = iol.os->canonical(*perfmon_trace_file);
   }
 #endif
 
   constexpr auto usage = "Usage: dwarfsck [OPTIONS...]\n";
 
-  if (vm.contains("help") or !vm.contains("input")) {
+  if (common.help or !opts.contains("input")) {
     auto extra_deps = [](library_dependencies& deps) {
       add_decompressor_library_dependencies(deps);
     };
-    iol.out << tool::tool_header("dwarfsck", extra_deps) << usage << "\n"
-            << opts << "\n";
+    iol.out << tool::tool_header("dwarfsck", extra_deps) << usage << "\n";
+    opts.help(iol.out);
+    iol.out << "\n";
     return std::unexpected(0);
-  }
-
-  if (vm.contains("checksum")) {
-    o.checksum_algo = std::move(checksum_algo_raw);
-  }
-
-  if (vm.contains("export-metadata")) {
-    o.export_metadata = std::move(export_metadata_raw);
   }
 
   auto parse_digests =
@@ -352,29 +293,28 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     return std::unexpected(1);
   };
 
-  if (vm.contains("compute-digests")) {
-    auto selection =
-        parse_digests("compute-digests", compute_digests_raw, false);
+  if (compute_digests) {
+    auto selection = parse_digests("compute-digests", *compute_digests, false);
     if (!selection) {
       return std::unexpected(selection.error());
     }
     o.compute_digests = *selection;
   }
 
-  if (vm.contains("verify-digests")) {
-    auto selection = parse_digests("verify-digests", verify_digests_raw, true);
+  if (verify_digests) {
+    auto selection = parse_digests("verify-digests", *verify_digests, true);
     if (!selection) {
       return std::unexpected(selection.error());
     }
     o.verify_digests = *selection;
   }
 
-  if (vm.contains("init-superblock")) {
+  if (init_superblock) {
     o.init_superblock = true;
 
     std::vector<std::string_view> fields;
 
-    split_to(init_superblock_raw, ',', fields);
+    split_to(*init_superblock, ',', fields);
 
     for (auto const& field : fields) {
       if (field == "all") {
@@ -400,24 +340,8 @@ dwarfsck_impl::parse_cmdline(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (clear_label && vm.contains("set-label")) {
-    iol.err << "error: --set-label and --clear-label are mutually exclusive\n";
-    return std::unexpected(1);
-  }
-
-  if (clear_label) {
+  if (o.set_label || o.set_uuid) {
     o.init_superblock = true;
-    o.set_label.emplace();
-  }
-
-  if (vm.contains("set-label")) {
-    o.init_superblock = true;
-    o.set_label = std::move(set_label_raw);
-  }
-
-  if (vm.contains("set-uuid")) {
-    o.init_superblock = true;
-    o.set_uuid = uuid_str_raw;
   }
 
   if (o.repair_superblock && o.init_superblock) {
