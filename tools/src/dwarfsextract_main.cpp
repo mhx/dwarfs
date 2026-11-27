@@ -29,11 +29,12 @@
 #include <chrono>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
-#include <boost/program_options.hpp>
-
+#include <dwarfs/command_line.h>
 #include <dwarfs/config.h>
 #include <dwarfs/decompressor_factory.h>
 #include <dwarfs/glob_matcher.h>
@@ -44,7 +45,6 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
-#include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/filesystem_extractor.h>
@@ -52,7 +52,6 @@
 #include <dwarfs_tool_main.h>
 #include <dwarfs_tool_manpage.h>
 
-namespace po = boost::program_options;
 using namespace std::chrono_literals;
 
 namespace dwarfs::tool {
@@ -112,7 +111,9 @@ class progress_thread {
 } // namespace
 
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
-  sys_string fs_image, output, trace_file;
+  std::optional<sys_string> fs_image;
+  sys_string output;
+  std::vector<std::string> patterns;
   std::string cache_size_str, image_offset;
   logger_options logopts;
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
@@ -121,97 +122,59 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
+  sys_string trace_file;
 #endif
   size_t num_workers, num_disk_writers;
   bool continue_on_error{false}, disable_integrity_check{false},
       stdout_progress{false}, skip_devices{false}, skip_specials{false},
       no_hardlinks{false};
 
-  // clang-format off
-  po::options_description opts("Command line options");
-  opts.add_options()
-    ("input,i",
-        po_sys_value<sys_string>(&fs_image),
-        "input filesystem file")
-    ("output,o",
-        po_sys_value<sys_string>(&output),
-        "output file or directory")
-    ("pattern",
-        po::value<std::vector<std::string>>(),
-        "only extract files matching these patterns")
-    ("skip-devices",
-        po::value<bool>(&skip_devices)->zero_tokens(),
-        "do not extract device files")
-    ("skip-specials",
-        po::value<bool>(&skip_specials)->zero_tokens(),
-        "do not extract special files (sockets, fifos, etc.)")
-    ("no-hardlinks",
-        po::value<bool>(&no_hardlinks)->zero_tokens(),
-        "do not create hardlinks, extract each file separately")
-    ("image-offset,O",
-        po::value<std::string>(&image_offset)->default_value("auto"),
-        "filesystem image offset in bytes")
+  cli::options opts;
+  common_cli_options common;
+  opts.add("input,i", fs_image, "input filesystem file");
+  opts.add("output,o", output, "output file or directory");
+  opts.add_repeated("pattern", patterns,
+                    "only extract files matching these patterns");
+  opts.positional("pattern");
+  opts.flag("skip-devices", skip_devices, "do not extract device files");
+  opts.flag("skip-specials", skip_specials,
+            "do not extract special files (sockets, fifos, etc.)");
+  opts.flag("no-hardlinks", no_hardlinks,
+            "do not create hardlinks, extract each file separately");
+  opts.add("image-offset,O", image_offset, "filesystem image offset in bytes",
+           "auto");
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
-    ("format,f",
-        po::value<std::string>(&format.name),
-        "output format")
-    ("format-filters",
-        po::value<std::string>(&format_filters),
-        "comma-separated libarchive format filters")
-    ("format-options",
-        po::value<std::string>(&format.options),
-        "options for the specific libarchive format/filters")
+  opts.add("format,f", format.name, "output format");
+  opts.add("format-filters", format_filters,
+           "comma-separated libarchive format filters");
+  opts.add("format-options", format.options,
+           "options for the specific libarchive format/filters");
 #endif
-    ("continue-on-error",
-        po::value<bool>(&continue_on_error)->zero_tokens(),
-        "continue if errors are encountered")
-    ("disable-integrity-check",
-        po::value<bool>(&disable_integrity_check)->zero_tokens(),
-        "disable file system image block integrity check (dangerous)")
-    ("stdout-progress",
-        po::value<bool>(&stdout_progress)->zero_tokens(),
-        "write percentage progress to stdout")
-    ("num-workers,n",
-        po::value<size_t>(&num_workers)->default_value(4),
-        "number of worker threads")
-    ("num-disk-writers",
-        po::value<size_t>(&num_disk_writers)->default_value(0),
-        "number of disk data writers")
-    ("cache-size,s",
-        po::value<std::string>(&cache_size_str)->default_value("512m"),
-        "block cache size")
+  opts.flag("continue-on-error", continue_on_error,
+            "continue if errors are encountered");
+  opts.flag("disable-integrity-check", disable_integrity_check,
+            "disable file system image block integrity check (dangerous)");
+  opts.flag("stdout-progress", stdout_progress,
+            "write percentage progress to stdout");
+  opts.add("num-workers,n", num_workers, "number of worker threads", 4);
+  opts.add("num-disk-writers", num_disk_writers, "number of disk data writers",
+           0);
+  opts.add("cache-size,s", cache_size_str, "block cache size", "512m");
 #if DWARFS_PERFMON_ENABLED
-    ("perfmon",
-        po::value<std::string>(&perfmon_str),
-        "enable performance monitor")
-    ("perfmon-trace",
-        po_sys_value<sys_string>(&trace_file),
-        "write performance monitor trace file")
+  opts.add("perfmon", perfmon_str, "enable performance monitor");
+  opts.add("perfmon-trace", trace_file, "write performance monitor trace file");
 #endif
-    ;
-  // clang-format on
-
-  tool::add_common_options(opts, logopts);
-
-  po::positional_options_description pos;
-  pos.add("pattern", -1);
-
-  po::variables_map vm;
+  tool::add_common_options(opts, logopts, common);
 
   try {
-    po::store(po::basic_command_line_parser<sys_char>(argc, argv)
-                  .options(opts)
-                  .positional(pos)
-                  .run(),
-              vm);
-    po::notify(vm);
-  } catch (po::error const& e) {
+    opts.parse(argc, argv);
+  } catch (cli::error const& e) {
     iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.contains("man")) {
+  if (common.man) {
     tool::show_manpage(tool::manpage::get_dwarfsextract_manpage(), iol);
     return 0;
   }
@@ -219,22 +182,22 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   constexpr auto usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
-  if (vm.contains("help") or !vm.contains("input")) {
+  if (common.help or !fs_image) {
     auto extra_deps = [](library_dependencies& deps) {
       utility::filesystem_extractor::add_library_dependencies(deps);
       add_decompressor_library_dependencies(deps);
     };
 
-    iol.out << tool::tool_header("dwarfsextract", extra_deps) << usage << "\n"
-            << opts << "\n";
+    iol.out << tool::tool_header("dwarfsextract", extra_deps) << usage << "\n";
+    opts.help(iol.out);
+    iol.out << "\n";
     return 0;
   }
 
   std::unique_ptr<glob_matcher> matcher;
 
-  if (vm.contains("pattern")) {
-    matcher = std::make_unique<glob_matcher>(
-        vm["pattern"].as<std::vector<std::string>>());
+  if (!patterns.empty()) {
+    matcher = std::make_unique<glob_matcher>(patterns);
   }
 
   int rv = 0;
@@ -266,7 +229,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
                                           perfmon_trace_file);
 #endif
 
-    reader::filesystem_v2_lite fs(lgr, *iol.os, fs_image, fsopts, perfmon);
+    reader::filesystem_v2_lite fs(lgr, *iol.os, *fs_image, fsopts, perfmon);
     utility::filesystem_extractor fsx(lgr, *iol.os, iol.file);
 
 #ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
