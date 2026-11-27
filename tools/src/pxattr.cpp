@@ -27,97 +27,88 @@
  */
 
 #include <iostream>
+#include <optional>
 
-#include <boost/program_options.hpp>
-
-#include <dwarfs/tool/program_options_helpers.h>
+#include <dwarfs/command_line.h>
 #include <dwarfs/tool/sys_char.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/xattr.h>
 
 namespace dwarfs::tool {
 
-namespace po = boost::program_options;
 namespace fs = std::filesystem;
 
 int pxattr_main(int argc, sys_char** argv) {
-  std::string name, value;
-  sys_string pathstr;
+  std::optional<std::string> get, set, remove, value;
+  std::optional<sys_string> pathstr;
 
-  // clang-format off
-  po::options_description desc("Command line options");
-  desc.add_options()
-    ("get,g", po::value<std::string>(&name), "get extended attribute value")
-    ("set,s", po::value<std::string>(&name), "set extended attribute value")
-    ("remove,r", po::value<std::string>(&name), "remove extended attribute")
-    ("list,l", "list extended attributes")
-    ("path", po_sys_value<sys_string>(&pathstr), "path to the file or directory")
-    ("value,V", po::value<std::string>(&value), "new attribute value (with -s)")
-    ("help,h", "show this help message")
-    ;
-  // clang-format on
+  cli::options opts;
+  bool list{false}, help{false};
+  opts.add("get,g", get, "get extended attribute value");
+  opts.add("set,s", set, "set extended attribute value");
+  opts.add("remove,r", remove, "remove extended attribute");
+  opts.flag("list,l", list, "list extended attributes");
+  opts.add("path", pathstr, "path to the file or directory");
+  opts.add("value,V", value, "new attribute value (with -s)");
+  opts.flag("help,h", help, "show this help message");
+  opts.positional("path");
 
-  po::positional_options_description pos;
-  pos.add("path", 1);
+  try {
+    opts.parse(argc, argv);
+  } catch (cli::error const& e) {
+    std::cerr << "error: " << e.what() << "\n";
+    return 1;
+  }
 
-  po::variables_map vm;
-  po::store(po::basic_command_line_parser<sys_char>(argc, argv)
-                .options(desc)
-                .positional(pos)
-                .run(),
-            vm);
-  po::notify(vm);
-
-  if (vm.contains("help")) {
+  if (help) {
     constexpr auto usage = "Usage: pxattr [OPTIONS...]\n";
-    std::cout << tool::tool_header_nodeps("pxattr") << usage << "\n"
-              << desc << "\n";
+    std::cout << tool::tool_header_nodeps("pxattr") << usage << "\n";
+    opts.help(std::cout);
+    std::cout << "\n";
     return 0;
   }
 
-  if (!vm.contains("path")) {
+  if (!pathstr) {
     std::cerr << "no path specified\n";
     return 1;
   }
 
-  if (vm.count("get") + vm.count("set") + vm.count("remove") +
-          vm.count("list") !=
-      1) {
+  if (get.has_value() + set.has_value() + remove.has_value() + list != 1) {
     std::cerr << "exactly one of --get, --set, --remove or --list must be "
                  "specified\n";
     return 1;
   }
 
-  if (vm.count("set") != vm.count("value")) {
+  if (set.has_value() != value.has_value()) {
     std::cerr << "missing value for --set\n";
     return 1;
   }
 
-  fs::path path(pathstr);
+  fs::path path(*pathstr);
 
-  if (vm.contains("get")) {
+  if (get) {
     std::error_code ec;
-    std::string val = getxattr(path, name, ec);
+    std::string val = getxattr(path, *get, ec);
     if (ec) {
       std::cerr << "getxattr failed: " << ec.message() << "\n";
       return 1;
     }
     std::cout << val << "\n";
-  } else if (vm.contains("set")) {
+  } else if (set) {
     std::error_code ec;
-    setxattr(path, name, value, ec);
+    setxattr(path, *set, *value, ec);
     if (ec) {
       std::cerr << "setxattr failed: " << ec.message() << "\n";
       return 1;
     }
-  } else if (vm.contains("remove")) {
+  } else if (remove) {
     std::error_code ec;
-    removexattr(path, name, ec);
+    removexattr(path, *remove, ec);
     if (ec) {
       std::cerr << "removexattr failed: " << ec.message() << "\n";
       return 1;
     }
-  } else if (vm.contains("list")) {
+  } else if (list) {
     std::error_code ec;
     std::vector<std::string> attrs = listxattr(path, ec);
     if (ec) {
