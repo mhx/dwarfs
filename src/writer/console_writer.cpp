@@ -37,6 +37,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/logger.h>
+#include <dwarfs/sort.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/console_writer.h>
@@ -112,7 +113,7 @@ std::vector<std::string> fit_fields(line_fields fields, size_t width) {
 
   std::vector<size_t> order(fields.size());
   std::iota(order.begin(), order.end(), 0);
-  std::ranges::stable_sort(order, [&](auto const a, auto const b) {
+  insert_sort(order, [&](auto const a, auto const b) {
     return fields[a].priority < fields[b].priority;
   });
 

@@ -39,6 +39,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/sort.h>
+
 namespace dwarfs::writer {
 
 namespace detail {
@@ -48,7 +50,7 @@ std::vector<T> ordered_set(std::unordered_set<T> const& set) {
   std::vector<T> vec;
   vec.reserve(set.size());
   std::ranges::copy(set, std::back_inserter(vec));
-  std::ranges::sort(vec);
+  insert_sort(vec);
   return vec;
 }
 

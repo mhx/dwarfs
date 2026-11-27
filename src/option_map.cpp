@@ -36,6 +36,7 @@
 
 #include <dwarfs/error_fmt.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/sort.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
@@ -83,7 +84,7 @@ void option_map::report() {
     std::vector<std::string> invalid;
     std::ranges::transform(opt_, std::back_inserter(invalid),
                            [](auto const& p) { return p.first; });
-    std::ranges::sort(invalid);
+    insert_sort(invalid);
     DWARFS_THROWF(runtime_error, "invalid option(s) for choice '{}': {}",
                   choice_, fmt::join(invalid, ", "));
   }

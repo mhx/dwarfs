@@ -21,6 +21,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <dwarfs/sort.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
 namespace dwarfs::writer {
@@ -62,7 +63,7 @@ void check_unsupported_metadata_requirements(nlohmann::json& req) {
     for (auto const& [k, v] : req.items()) {
       keys.emplace_back(k);
     }
-    std::ranges::sort(keys);
+    insert_sort(keys);
     throw std::runtime_error(fmt::format(
         "unsupported metadata requirements: {}", fmt::join(keys, ", ")));
   }

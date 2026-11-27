@@ -39,6 +39,7 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/sort.h>
 
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/reader/internal/metadata_analyzer.h>
@@ -267,8 +268,8 @@ void frozen_analyzer::add_string_table_size(std::vector<usage_info>& usage,
 void frozen_analyzer::summarize_details(
     std::vector<usage_info>& usage, std::string_view name, size_t count,
     size_t offset, size_t size, std::span<detail_bits_t> details) const {
-  std::ranges::stable_sort(details, std::ranges::greater{},
-                           &detail_bits_t::second);
+  insert_sort(details,
+              [](auto const& a, auto const& b) { return a.second > b.second; });
   auto fmt = fmt_size(name, count, size);
   for (size_t i = 0; i < details.size(); ++i) {
     auto [member, bits] = details[i];
@@ -449,7 +450,7 @@ void frozen_analyzer::print(std::ostream& os) const {
   add_size_unique(usage, "padding", total_size_ - LayoutRoot::kPaddingBytes,
                   LayoutRoot::kPaddingBytes);
 
-  std::ranges::sort(usage, [this](auto const& a, auto const& b) {
+  insert_sort(usage, [this](auto const& a, auto const& b) {
     if (verbose_) {
       return a.offset < b.offset ||
              (a.offset == b.offset &&

@@ -49,6 +49,7 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/error_fmt.h>
+#include <dwarfs/sort.h>
 
 namespace dwarfs {
 
@@ -315,7 +316,7 @@ std::vector<std::string> checksum::available_algorithms() {
   available.insert(available.end(), supported_algorithms.begin(),
                    supported_algorithms.end());
   available.insert(available.end(), available_evp.begin(), available_evp.end());
-  std::ranges::sort(available);
+  insert_sort(available);
   return available;
 }
 
