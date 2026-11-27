@@ -27,7 +27,6 @@ repositories = [
     "tukaani-project/xz",
     "davea42/libdwarf-code",
     "nlohmann/json",
-    "HowardHinnant/date",
     "nemtrif/utfcpp",
     "ericniebler/range-v3",
     "greg7mdp/parallel-hashmap",

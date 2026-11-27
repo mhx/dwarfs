@@ -457,20 +457,6 @@ if use_lib utfcpp; then
     ninja install
 fi
 
-if use_lib hhdate; then
-    opt_size
-    cd "$WORKDIR"
-    tar xf ${WORKROOT}/${DATE_TARBALL}
-    cd date-${DATE_VERSION}
-    mkdir build
-    cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-             -DBUILD_TZ_LIB=OFF -DENABLE_DATE_TESTING=OFF \
-             ${CMAKE_ARGS}
-    $NINJA_PARALLEL
-    ninja install
-fi
-
 if use_lib boost; then
     opt_size
     cd "$WORKDIR"

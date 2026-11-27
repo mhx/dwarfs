@@ -43,7 +43,6 @@ RUN apt update && apt upgrade -y && apt install -y \
         libboost-regex-dev \
         libboost-thread-dev \
         libbrotli-dev \
-        libhowardhinnant-date-dev \
         libjemalloc-dev \
         libiberty-dev \
         liblz4-dev \

@@ -27,7 +27,6 @@ XZ_VERSION=5.8.4                         # 2026-09-09
 LIBDWARF_VERSION=2.3.3                   # 2026-09-24
 NLOHMANN_VERSION=3.12.0                  # 2025-04-07
 UTFCPP_VERSION=5.0.0                     # 2026-11-15
-DATE_VERSION=3.0.5                       # 2025-07-28
 RANGE_V3_VERSION=0.12.0                  # 2022-06-21
 PARALLEL_HASHMAP_VERSION=2.1.0           # 2026-11-06
 
@@ -54,6 +53,5 @@ JEMALLOC_TARBALL="jemalloc-${JEMALLOC_VERSION}.tar.bz2"
 XZ_TARBALL="xz-${XZ_VERSION}.tar.xz"
 LIBDWARF_TARBALL="libdwarf-${LIBDWARF_VERSION}.tar.xz"
 UTFCPP_TARBALL="utfcpp-${UTFCPP_VERSION}.tar.gz"
-DATE_TARBALL="date-${DATE_VERSION}.tar.gz"
 RANGE_V3_TARBALL="range-v3-${RANGE_V3_VERSION}.tar.gz"
 PARALLEL_HASHMAP_TARBALL="parallel-hashmap-${PARALLEL_HASHMAP_VERSION}.tar.gz"
