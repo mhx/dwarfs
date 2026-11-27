@@ -28,22 +28,25 @@
 
 #pragma once
 
+#include <charconv>
 #include <concepts>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
-
-#include <boost/convert.hpp>
-#include <boost/convert/spirit.hpp>
-
-#include <dwarfs/compiler.h>
 
 namespace dwarfs {
 
 namespace detail {
 
 std::optional<bool> str_to_bool(std::string_view s);
+
+template <std::floating_point T>
+std::optional<T> str_to_floating(std::string_view s);
 
 } // namespace detail
 
@@ -68,15 +71,61 @@ class conversion_error : public std::runtime_error {
 
 template <typename T, typename U>
 std::optional<T> try_to(U const& s)
-  requires(!std::same_as<T, bool> && !std::convertible_to<U, T>)
+  requires(!std::same_as<T, bool> && !std::convertible_to<U, T> &&
+           std::is_arithmetic_v<T> &&
+           std::convertible_to<U const&, std::string_view>)
 {
-  DWARFS_PUSH_WARNING
-  DWARFS_GCC_DISABLE_WARNING("-Wmaybe-uninitialized")
-  if (auto r = boost::convert<T>(s, boost::cnv::spirit())) {
-    return r.value();
+  std::string_view str(s);
+
+  if (str.empty()) {
+    return std::nullopt;
   }
-  DWARFS_POP_WARNING
+
+  if constexpr (std::is_signed_v<T>) {
+    if (str.front() == '+') {
+      str.remove_prefix(1);
+      if (str.empty() || str.front() == '-' || str.front() == '+') {
+        return std::nullopt;
+      }
+    }
+  }
+
+  if constexpr (std::is_floating_point_v<T>) {
+    return detail::str_to_floating<T>(str);
+  } else {
+    T value{};
+    auto const* end = str.data() + str.size();
+    auto const res = std::from_chars(str.data(), end, value);
+
+    if (res.ec == std::errc{} && res.ptr == end) {
+      return value;
+    }
+
+    return std::nullopt;
+  }
+}
+
+template <typename T, typename U>
+std::optional<T> try_to(U const& value)
+  requires(std::same_as<T, std::string> && !std::convertible_to<U, T> &&
+           std::is_arithmetic_v<U> && !std::same_as<U, bool>)
+{
+  char buf[64];
+  auto const res = std::to_chars(buf, buf + sizeof(buf), value);
+
+  if (res.ec == std::errc{}) {
+    return std::string(buf, res.ptr);
+  }
+
   return std::nullopt;
+}
+
+template <typename T, typename U>
+std::optional<T> try_to(U const& s)
+  requires(std::same_as<T, std::string> && !std::convertible_to<U, T> &&
+           std::convertible_to<U const&, std::string_view>)
+{
+  return std::string(std::string_view(s));
 }
 
 template <typename T, typename U>

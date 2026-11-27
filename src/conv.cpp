@@ -28,6 +28,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <clocale>
+#include <cstdlib>
+
+#if __has_include(<xlocale.h>)
+#include <xlocale.h>
+#endif
 
 #include <dwarfs/conv.h>
 #include <dwarfs/thrift_lite/demangle.h>
@@ -49,6 +56,39 @@ bool eq_nocase(std::string_view const a, std::string_view const b) {
   return std::ranges::equal(a, b, [](char const a, char const b) {
     return std::tolower(a) == std::tolower(b);
   });
+}
+
+struct c_locale {
+#ifdef _WIN32
+  _locale_t value = ::_create_locale(LC_ALL, "C");
+
+  ~c_locale() {
+    if (value) {
+      ::_free_locale(value);
+    }
+  }
+
+  static constexpr auto parse_float = &::_strtof_l;
+  static constexpr auto parse_double = &::_strtod_l;
+  static constexpr auto parse_long_double = &::_strtold_l;
+#else
+  locale_t value = ::newlocale(LC_ALL_MASK, "C", nullptr);
+
+  ~c_locale() {
+    if (value) {
+      ::freelocale(value);
+    }
+  }
+
+  static constexpr auto parse_float = &::strtof_l;
+  static constexpr auto parse_double = &::strtod_l;
+  static constexpr auto parse_long_double = &::strtold_l;
+#endif
+};
+
+auto get_c_locale() {
+  static c_locale const loc;
+  return loc.value;
 }
 
 } // namespace
@@ -100,6 +140,58 @@ std::optional<bool> str_to_bool(std::string_view s) {
 
   return std::nullopt;
 }
+
+template <std::floating_point T>
+std::optional<T> str_to_floating(std::string_view s) {
+  if (s.empty() || s.find_first_of(" \t\n\r\f\v") == 0) {
+    return std::nullopt;
+  }
+
+  auto magnitude = s;
+
+  if (magnitude.front() == '+' || magnitude.front() == '-') {
+    magnitude.remove_prefix(1);
+  }
+
+  if (magnitude.starts_with("0x") || magnitude.starts_with("0X")) {
+    return std::nullopt;
+  }
+
+  auto const loc = get_c_locale();
+
+  if (!loc) {
+    return std::nullopt;
+  }
+
+  std::string const input(s);
+  char* end = nullptr;
+
+  errno = 0;
+
+  T value;
+
+  if constexpr (std::same_as<T, float>) {
+    value = c_locale::parse_float(input.c_str(), &end, loc);
+  } else if constexpr (std::same_as<T, double>) {
+    value = c_locale::parse_double(input.c_str(), &end, loc);
+  } else {
+    value = c_locale::parse_long_double(input.c_str(), &end, loc);
+  }
+
+  if (errno != ERANGE && end != input.c_str() &&
+      end == input.c_str() + input.size()) {
+    return value;
+  }
+
+  return std::nullopt;
+}
+
+template std::optional<float> str_to_floating<float>(std::string_view);
+
+template std::optional<double> str_to_floating<double>(std::string_view);
+
+template std::optional<long double>
+    str_to_floating<long double>(std::string_view);
 
 } // namespace detail
 } // namespace dwarfs
