@@ -409,12 +409,6 @@ target_link_libraries(
   dwarfs_fsst
 )
 
-target_link_libraries(
-  dwarfs_writer
-  PUBLIC
-  Boost::program_options
-)
-
 list(APPEND LIBDWARFS_TARGETS
   dwarfs_common
   dwarfs_compressor

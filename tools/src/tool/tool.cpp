@@ -27,9 +27,9 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 
-#include <boost/program_options.hpp>
 #include <fmt/format.h>
 
 #include <dwarfs/command_line.h>
@@ -53,18 +53,6 @@
 #ifdef DWARFS_USE_MIMALLOC
 #include <mimalloc.h>
 #endif
-
-namespace po = boost::program_options;
-
-namespace boost {
-
-void validate(boost::any& v, std::vector<std::string> const&,
-              std::optional<bool>*, int) {
-  po::validators::check_first_occurrence(v);
-  v = std::make_optional(true);
-}
-
-} // namespace boost
 
 namespace dwarfs::tool {
 
@@ -142,29 +130,6 @@ std::string tool_header(std::string_view tool_name, std::string_view extra_info,
 
 std::string tool_header_nodeps(std::string_view tool_name) {
   return tool_header_impl(tool_name);
-}
-
-void add_common_options(po::options_description& opts,
-                        logger_options& logopts) {
-  auto log_level_desc = "log level (" + logger::all_level_names() + ")";
-
-  // clang-format off
-  opts.add_options()
-    ("log-level",
-        po::value<logger::level_type>(&logopts.threshold)
-            ->default_value(logger::INFO),
-        log_level_desc.c_str())
-    ("log-with-context",
-        po::value<std::optional<bool>>(&logopts.with_context)->zero_tokens(),
-        "enable context logging regardless of level")
-#ifdef DWARFS_BUILTIN_MANPAGE
-    ("man",
-        "show manual page and exit")
-#endif
-    ("help,h",
-        "output help message and exit")
-    ;
-  // clang-format on
 }
 
 void add_common_options(cli::options& opts, logger_options& logopts,
