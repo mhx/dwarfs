@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <mutex>
 #include <regex>
 #include <stdexcept>
@@ -39,8 +40,10 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -908,13 +911,17 @@ int op_read(char const* path, char* buf, size_t size, native_off_t off,
             << ", " << off << ")" << get_caller_context();
   PERFMON_SET_CONTEXT(fi->fh, size)
 
-  return -checked_call(log_, [&] {
+  return -checked_call(log_, [&] -> int {
     auto rv = userdata.fs.read(fi->fh, buf, size, off);
 
     LOG_DEBUG << "read(" << path << " [" << fi->fh << "], " << size << ", "
               << off << ") -> " << rv;
 
-    return -rv;
+    if (std::cmp_greater(rv, std::numeric_limits<int>::max())) {
+      return EOVERFLOW;
+    }
+
+    return -static_cast<int>(rv);
   });
 }
 #endif
@@ -1802,8 +1809,8 @@ parse_dwarfs_options_from_args(safe_fuse_args& args, dwarfs_userdata& userdata,
   return std::nullopt;
 }
 
-void add_derived_mount_options(safe_fuse_args& args,
-                               dwarfs_userdata& userdata) {
+void add_derived_mount_options(safe_fuse_args& args [[maybe_unused]],
+                               dwarfs_userdata& userdata [[maybe_unused]]) {
 #ifndef _WIN32
   auto& opts = userdata.opts;
 
