@@ -168,7 +168,6 @@ _arguments -S \
 	"--change-block-size[change block size when recompressing]" \
 	"--chmod=[recursively apply permission changes]:mode:(norm)" \
 	"--compress-niceness=[compression worker threads niceness]:niceness:" \
-	"--clear-label[clear inherited filesystem label]" \
 	"--debug-filter=-[show effect of filter rules without producing an image]:mode:(all excluded excluded-files files included included-files)" \
 	"--estimate-compression-memory[estimate compression algorithm per-thread memory usage]" \
 	"--file-hash=[deprecated; passing 'none' is equivalent to --no-dedupe]:hash:(none)" \

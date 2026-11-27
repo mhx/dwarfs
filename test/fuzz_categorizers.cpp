@@ -23,8 +23,6 @@
 
 #include <filesystem>
 
-#include <boost/program_options.hpp>
-
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_access_generic.h>
 #include <dwarfs/file_view.h>
@@ -48,8 +46,7 @@ int main(int argc, char** argv) {
       lgr, std::filesystem::path{});
   std::shared_ptr<file_access const> fa = create_file_access_generic();
 
-  boost::program_options::variables_map vm;
-  catmgr->add(catreg.create(lgr, "pcmaudio", vm, fa));
+  catmgr->add(catreg.create(lgr, "pcmaudio", fa));
 
   auto const& ops = internal::get_native_memory_mapping_ops();
 

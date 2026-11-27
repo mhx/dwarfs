@@ -622,11 +622,7 @@ Most other options are concerned with compression tuning:
   system was created with a superblock. Unlike other superblock fields, the
   label can be changed at any time. Labels must be valid UTF-8 strings of at
   most 63 bytes. Labels that are invalid or too long will be rejected with
-  an error.
-
-- `--clear-label`:
-  Clear the filesystem label. This is mainly useful when rewriting an image
-  with an existing label. Cannot be combined with `--label`.
+  an error. Use `--label=` to clear an inherited filesystem label.
 
 - `--uuid=random`|`nil`|`keep`|*UUID*:
   Set the file system UUID to a random RFC 9562 v4 UUID (default for newly

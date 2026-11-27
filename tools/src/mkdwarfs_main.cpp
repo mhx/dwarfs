@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -41,6 +42,8 @@
 #include <string_view>
 #include <system_error>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -48,9 +51,6 @@
 #ifdef _WIN32
 #include <io.h>
 #endif
-
-#include <boost/algorithm/string/join.hpp>
-#include <boost/program_options.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -67,6 +67,7 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
+#include <dwarfs/command_line.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/config.h>
@@ -87,7 +88,6 @@
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
-#include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/sysinfo.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
@@ -110,8 +110,6 @@
 #include <dwarfs/writer/writer_progress.h>
 #include <dwarfs_tool_main.h>
 #include <dwarfs_tool_manpage.h>
-
-namespace po = boost::program_options;
 
 namespace dwarfs::tool {
 
@@ -347,18 +345,8 @@ categorize_defaults_type const& categorize_defaults_level(unsigned level) {
 
 constexpr unsigned default_level = 7;
 
-class categorize_optval {
+class categorizer_defaults {
  public:
-  categorize_optval() = default;
-  explicit categorize_optval(std::string const& val, bool expl = false)
-      : value_{val}
-      , is_explicit_{expl} {}
-
-  bool empty() const { return value_.empty(); }
-  std::string const& value() const { return value_; }
-
-  bool is_explicit() const { return is_explicit_; }
-
   template <typename T>
   void add_implicit_defaults(T& cop) const {
     if (cop.has_category_resolver()) {
@@ -379,19 +367,7 @@ class categorize_optval {
 
  private:
   categorize_defaults_type defaults_;
-  std::string value_;
-  bool is_explicit_{false};
 };
-
-std::ostream& operator<<(std::ostream& os, categorize_optval const& optval) {
-  return os << optval.value() << (optval.is_explicit() ? " (explicit)" : "");
-}
-
-void validate(boost::any& v, std::vector<std::string> const& values,
-              categorize_optval*, int) {
-  po::validators::check_first_occurrence(v);
-  v = categorize_optval{po::validators::get_single_string(values), true};
-}
 
 uint64_t
 compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
@@ -498,14 +474,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        no_history_timestamps = false, no_history_command_line = false,
        rebuild_metadata = false, change_block_size = false, no_check = false,
        estimate_compression_memory = false, no_dedupe = false,
-       no_superblock = false, no_superblock_init = false, clear_label = false,
+       no_superblock = false, no_superblock_init = false,
        no_backwards_compat = false, reproducible = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
   file_stat::uid_type root_uid;
   file_stat::gid_type root_gid;
-  categorize_optval categorizer_list;
+  std::string categorizer_list;
+  categorizer_defaults cat_defaults;
 
   integral_value_parser<size_t> max_lookback_parser;
   integral_value_parser<unsigned> window_size_parser(0, 24);
@@ -516,34 +493,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   writer::scanner_options options;
   logger_options logopts;
 
-  auto const input_list_formats = writer::input_entry_reader_factory::names();
-  auto const input_list_format_desc = fmt::format(
-      "input list format ({})", fmt::join(input_list_formats, ", "));
-
-  auto order_desc = "inode fragments order (" +
-                    dwarfs::writer::fragment_order_parser::choices() + ")";
-
-  auto progress_desc =
-      fmt::format("progress mode ({})",
-                  fmt::join(ranges::views::keys(progress_modes), ", "));
-
-  auto debug_filter_desc =
-      fmt::format("show effect of filter rules without producing an image ({})",
-                  fmt::join(ranges::views::keys(debug_filter_modes), ", "));
-
-  auto const uuid_desc =
-      fmt::format("set UUID in superblock ({}, {}, keep, or RFC 9562 string)",
-                  superblock_editor::kUuidRandom, superblock_editor::kUuidNil);
-
   writer::categorizer_registry catreg;
-
-  auto categorize_desc =
-      fmt::format("enable categorizers in the given order ({})",
-                  fmt::join(catreg.categorizer_names(), ", "));
-
-  auto const source_os_hint_desc =
-      fmt::format("hint for source OS when rebuilding metadata ({})",
-                  fmt::join(get_fs_source_os_names(), ", "));
 
   auto lvl_def_val = [](auto opt) {
     return fmt::format("arg (={})", levels[default_level].*opt);
@@ -559,320 +509,207 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return fmt::format("[cat::]arg (={})", levels[default_level].*opt);
   };
 
-  // clang-format off
-  po::options_description basic_opts("Options");
-  basic_opts.add_options()
-    ("input,i",
-        po_sys_value<sys_string>(&path_str),
-        "path to root directory or source filesystem")
-    ("input-list",
-        po_sys_value<sys_string>(&input_list_str),
-        "input list file or - for stdin")
-    ("input-list-format",
-        po::value<std::string>(&input_list_format_str)->default_value("plain"),
-        input_list_format_desc.c_str())
-    ("output,o",
-        po_sys_value<sys_string>(&output_str),
-        "filesystem output name or - for stdout")
-    ("force,f",
-        po::value<bool>(&force_overwrite)->zero_tokens(),
-        "force overwrite of existing output image")
-    ("compress-level,l",
-        po::value<unsigned>(&level)->default_value(default_level),
-        "compression level (0=fast, 9=best, see -H and man page for details)")
-    ;
-  tool::add_common_options(basic_opts, logopts);
-  basic_opts.add_options()
-    ("long-help,H",
-        "output full help message and exit")
-    ;
+  cli::options opts("Options");
+  common_cli_options common;
+  bool long_help{false};
 
-  po::options_description advanced_opts("Advanced options");
-  advanced_opts.add_options()
-    ("block-size-bits,S",
-        po::value<unsigned>(&sf_config.block_size_bits)
-          ->value_name(lvl_def_val(&level_defaults::block_size_bits)),
-        "block size bits (size = 2^arg bits)")
-    ("num-workers,N",
-        po::value<size_t>(&num_workers)->default_value(num_cpu),
-        "number of writer (compression) worker threads")
-    ("compress-niceness",
-        po::value<int>(&compress_niceness)->default_value(5),
-        "compression worker threads niceness")
-    ("num-walk-workers",
-        po::value<size_t>(&num_walk_workers)->default_value(4),
-        "number of directory walking worker threads")
-    ("num-scanner-workers",
-        po::value<size_t>(&num_scanner_workers)
-          ->value_name(dep_def_val("num-workers")),
-        "number of scanner (hasher/categorizer) worker threads")
-    ("num-segmenter-workers",
-        po::value<size_t>(&num_segmenter_workers)
-          ->value_name(dep_def_val("num-workers")),
-        "number of segmenter worker threads")
-    ("num-file-prep-workers",
-        po::value<size_t>(&options.num_file_prep_workers)->default_value(2),
-        "file preparation workers (0: synchronous preparation)")
-    ("file-prep-queue-size",
-        po::value<size_t>(&options.file_prep_queue_size)->default_value(64),
-        "maximum outstanding file preparations per category")
-    ("memory-limit,L",
-        po::value<std::string>(&memory_limit)->default_value("auto"),
-        "block manager memory limit")
-    ("recompress",
-        po::value<std::string>(&recompress_opts)->implicit_value("all"),
-        "recompress an existing filesystem (none, block, metadata, all)")
-    ("rebuild-metadata",
-        po::value<bool>(&rebuild_metadata)->zero_tokens(),
-        "fully rebuild metadata")
-    ("rebuild-metadata-source-os-hint",
-        po::value<std::string>(&rebuild_metadata_source_os_hint),
-        source_os_hint_desc.c_str())
-    ("change-block-size",
-        po::value<bool>(&change_block_size)->zero_tokens(),
-        "change block size when recompressing")
-    ("no-metadata-version-history",
-        po::value<bool>(&options.metadata.no_metadata_version_history)->zero_tokens(),
-        "remove metadata version history")
-    ("recompress-categories",
-        po::value<std::string>(&recompress_categories),
-        "only recompress blocks of these categories")
-    ("categorize",
-        po::value<categorize_optval>(&categorizer_list)
-          ->implicit_value(categorize_optval("fits,pcmaudio,binary,incompressible")),
-        categorize_desc.c_str())
-    ("order",
-        po::value<std::vector<std::string>>(&order)
-          ->value_name(lvl_cat_def_val(&level_defaults::order))
-          ->multitoken()->composing(),
-        order_desc.c_str())
-    ("max-similarity-size",
-        po::value<std::string>(&max_similarity_size),
-        "maximum file size to compute similarity")
-    ("no-dedupe",
-        po::value<bool>(&no_dedupe)->zero_tokens(),
-        "turn off file-level deduplication")
-    ("file-hash",
-        po::value<std::string>(&file_hash_algo),
-        "deprecated; passing 'none' is equivalent to --no-dedupe")
-    ("progress",
-        po::value<std::string>(&progress_mode)->default_value(default_progress_mode),
-        progress_desc.c_str())
-    ("no-progress",
-        po::value<bool>(&no_progress)->zero_tokens(),
-        "don't show progress")
-    ("no-check",
-        po::value<bool>(&no_check)->zero_tokens(),
-        "don't check input filesystem when recompressing")
-    ;
+  auto const input_list_formats = writer::input_entry_reader_factory::names();
 
-  po::options_description filesystem_opts("File system options");
-  filesystem_opts.add_options()
-    ("with-devices",
-        po::value<bool>(&options.with_devices)->zero_tokens(),
-        "include block and character devices")
-    ("with-specials",
-        po::value<bool>(&options.with_specials)->zero_tokens(),
-        "include named fifo and sockets")
-    ("no-sparse-files",
-        po::value<bool>(&no_sparse_files)->zero_tokens(),
-        "don't store sparse files as sparse")
-    ("header",
-        po_sys_value<sys_string>(&header_str),
-        "prepend output filesystem with contents of this file")
-    ("remove-header",
-        po::value<bool>(&remove_header)->zero_tokens(),
-        "remove any header present before filesystem data"
-        " (use with --recompress)")
-    ("no-superblock",
-        po::value<bool>(&no_superblock)->zero_tokens(),
-        "don't add superblock to filesystem")
-    ("no-superblock-init",
-        po::value<bool>(&no_superblock_init)->zero_tokens(),
-        "don't initialize superblock fields after writing filesystem")
-    ("superblock-digests",
-        po::value<std::string>(&superblock_digests_str)->default_value("auto"),
-        "digests to store in superblock (auto, none, attr, tree, both)")
-    ("clear-label",
-        po::value<bool>(&clear_label)->zero_tokens(),
-        "clear inherited filesystem label")
-    ("label",
-        po_sys_value<sys_string>(&fs_label),
-        "set filesystem label to this string")
-    ("uuid",
-        po::value<std::string>(&uuid_str),
-        uuid_desc.c_str())
-    ("image-size-alignment",
-        po::value<std::string>(&image_size_alignment_str),
-        "make output image size a multiple of this value (must be a power of 2)")
-    ("no-section-index",
-        po::value<bool>(&no_section_index)->zero_tokens(),
-        "don't add section index to file system")
-    ("no-history",
-        po::value<bool>(&no_history)->zero_tokens(),
-        "don't add history to file system")
-    ("reproducible",
-        po::value<bool>(&reproducible)->zero_tokens(),
-        "omit non-deterministic timestamps and use a nil superblock UUID")
-    ("no-history-timestamps",
-        po::value<bool>(&no_history_timestamps)->zero_tokens(),
-        "don't add timestamps to file system history")
-    ("no-history-command-line",
-        po::value<bool>(&no_history_command_line)->zero_tokens(),
-        "don't add command line to file system history")
-    ("hollow",
-        po::value<bool>(&options.hollow_filesystem)->zero_tokens(),
-        "create hollow filesystem (only zero-filled files)")
-    ("no-backwards-compat",
-        po::value<bool>(&no_backwards_compat)->zero_tokens(),
-        "don't try to produce a backwards compatible filesystem")
-    ;
+  opts.add("input,i", path_str, "path to root directory or source filesystem");
+  opts.add("input-list", input_list_str, "input list file or - for stdin");
+  opts.add("input-list-format", input_list_format_str,
+           fmt::format("input list format ({})",
+                       fmt::join(input_list_formats, ", ")),
+           "plain");
+  opts.add("output,o", output_str, "filesystem output name or - for stdout");
+  opts.flag("force,f", force_overwrite,
+            "force overwrite of existing output image");
+  opts.add("compress-level,l", level,
+           "compression level (0=fast, 9=best, see -H and man page for "
+           "details)",
+           default_level);
+  tool::add_common_options(opts, logopts, common);
+  opts.flag("long-help,H", long_help, "output full help message and exit");
 
-  po::options_description segmenter_opts("Segmenter options");
-  segmenter_opts.add_options()
-    ("max-lookback-blocks,B",
-        po::value<std::vector<std::string>>(&max_lookback_blocks)
-          ->value_name(cat_def_val(kDefaultMaxActiveBlocks))
-          ->multitoken()->composing(),
-        "how many blocks to scan for segments")
-    ("window-size,W",
-        po::value<std::vector<std::string>>(&window_size)
-          ->value_name(lvl_cat_def_val(&level_defaults::window_size))
-          ->multitoken()->composing(),
-        "window sizes for block hashing")
-    ("window-step,w",
-        po::value<std::vector<std::string>>(&window_step)
-          ->value_name(lvl_cat_def_val(&level_defaults::window_step))
-          ->multitoken()->composing(),
-        "window step (as right shift of size)")
-    ("bloom-filter-size",
-        po::value<std::vector<std::string>>(&bloom_filter_size)
-          ->value_name(cat_def_val(kDefaultBloomFilterSize))
-          ->multitoken()->composing(),
-        "bloom filter size (2^N*values bits)")
-    ;
+  opts.group("Advanced options");
+  opts.add("block-size-bits,S", sf_config.block_size_bits,
+           "block size bits (size = 2^arg bits)")
+      .value_name(lvl_def_val(&level_defaults::block_size_bits));
+  opts.add("num-workers,N", num_workers,
+           "number of writer (compression) worker threads", num_cpu);
+  opts.add("compress-niceness", compress_niceness,
+           "compression worker threads niceness", 5);
+  opts.add("num-walk-workers", num_walk_workers,
+           "number of directory walking worker threads", 4);
+  opts.add("num-scanner-workers", num_scanner_workers,
+           "number of scanner (hasher/categorizer) worker threads")
+      .value_name(dep_def_val("num-workers"));
+  opts.add("num-segmenter-workers", num_segmenter_workers,
+           "number of segmenter worker threads")
+      .value_name(dep_def_val("num-workers"));
+  opts.add("num-file-prep-workers", options.num_file_prep_workers,
+           "file preparation workers (0: synchronous preparation)", 2);
+  opts.add("file-prep-queue-size", options.file_prep_queue_size,
+           "maximum outstanding file preparations per category", 64);
+  opts.add("memory-limit,L", memory_limit, "block manager memory limit",
+           "auto");
+  opts.add("recompress", recompress_opts,
+           "recompress an existing filesystem (none, block, metadata, all)")
+      .implicit_value("all");
+  opts.flag("rebuild-metadata", rebuild_metadata, "fully rebuild metadata");
+  opts.add("rebuild-metadata-source-os-hint", rebuild_metadata_source_os_hint,
+           fmt::format("hint for source OS when rebuilding metadata ({})",
+                       fmt::join(get_fs_source_os_names(), ", ")));
+  opts.flag("change-block-size", change_block_size,
+            "change block size when recompressing");
+  opts.flag("no-metadata-version-history",
+            options.metadata.no_metadata_version_history,
+            "remove metadata version history");
+  opts.add("recompress-categories", recompress_categories,
+           "only recompress blocks of these categories");
+  opts.add("categorize", categorizer_list,
+           fmt::format("enable categorizers in the given order ({})",
+                       fmt::join(catreg.categorizer_names(), ", ")))
+      .implicit_value("fits,pcmaudio,binary,incompressible");
+  opts.add_multi("order", order,
+                 "inode fragments order (" +
+                     dwarfs::writer::fragment_order_parser::choices() + ")")
+      .value_name(lvl_cat_def_val(&level_defaults::order));
+  opts.add("max-similarity-size", max_similarity_size,
+           "maximum file size to compute similarity");
+  opts.flag("no-dedupe", no_dedupe, "turn off file-level deduplication");
+  opts.add("file-hash", file_hash_algo,
+           "deprecated; passing 'none' is equivalent to --no-dedupe");
+  opts.add("progress", progress_mode,
+           fmt::format("progress mode ({})",
+                       fmt::join(ranges::views::keys(progress_modes), ", ")),
+           default_progress_mode);
+  opts.flag("no-progress", no_progress, "don't show progress");
+  opts.flag("no-check", no_check,
+            "don't check input filesystem when recompressing");
 
-  po::options_description compressor_opts("Compressor options");
-  compressor_opts.add_options()
-    ("compression,C",
-        po::value<std::vector<std::string>>(&compression)
-          ->value_name(lvl_cat_def_val(&level_defaults::data_compression))
-          ->multitoken()->composing(),
-        "block compression algorithm")
-    ("schema-compression",
-        po::value<std::string>(&schema_compression)
-          ->value_name(lvl_def_val(&level_defaults::schema_history_compression)),
-        "metadata schema compression algorithm")
-    ("metadata-compression",
-        po::value<std::string>(&metadata_compression)
-          ->value_name(lvl_def_val(&level_defaults::metadata_compression)),
-        "metadata compression algorithm")
-    ("history-compression",
-        po::value<std::string>(&history_compression)
-          ->value_name(lvl_def_val(&level_defaults::schema_history_compression)),
-        "history compression algorithm")
-    ("estimate-compression-memory",
-        po::value<bool>(&estimate_compression_memory)->zero_tokens(),
-        "estimate compression algorithm per-thread memory usage")
-    ;
+  opts.group("Filter options");
+  opts.add_multi("filter,F", filter, "add filter rule");
+  opts.add("debug-filter", debug_filter,
+           fmt::format(
+               "show effect of filter rules without producing an image ({})",
+               fmt::join(ranges::views::keys(debug_filter_modes), ", ")))
+      .implicit_value("all");
+  opts.add("dereference", dereference_str,
+           "follow symlinks (symlinks or external-symlinks)")
+      .implicit_value("symlinks");
+  opts.flag("remove-empty-dirs", options.remove_empty_dirs,
+            "remove empty directories in file system");
 
-  po::options_description filter_opts("Filter options");
-  filter_opts.add_options()
-    ("filter,F",
-        po_sys_value<std::vector<sys_string>>(&filter)
-          ->multitoken()->composing(),
-        "add filter rule")
-    ("debug-filter",
-        po::value<std::string>(&debug_filter)->implicit_value("all"),
-        debug_filter_desc.c_str())
-    ("dereference",
-        po::value<std::string>(&dereference_str)->implicit_value("symlinks"),
-        "follow symlinks (symlinks or external-symlinks)")
-    ("remove-empty-dirs",
-        po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
-        "remove empty directories in file system")
-    ;
+  opts.group("Segmenter options");
+  opts.add_multi("max-lookback-blocks,B", max_lookback_blocks,
+                 "how many blocks to scan for segments")
+      .value_name(cat_def_val(kDefaultMaxActiveBlocks));
+  opts.add_multi("window-size,W", window_size, "window sizes for block hashing")
+      .value_name(lvl_cat_def_val(&level_defaults::window_size));
+  opts.add_multi("window-step,w", window_step,
+                 "window step (as right shift of size)")
+      .value_name(lvl_cat_def_val(&level_defaults::window_step));
+  opts.add_multi("bloom-filter-size", bloom_filter_size,
+                 "bloom filter size (2^N*values bits)")
+      .value_name(cat_def_val(kDefaultBloomFilterSize));
 
-  po::options_description metadata_opts("Metadata options");
-  metadata_opts.add_options()
-    ("set-owner",
-        po::value<uint16_t>(&uid),
-        "set owner (uid) for whole file system")
-    ("set-group",
-        po::value<uint16_t>(&gid),
-        "set group (gid) for whole file system")
-    ("chmod",
-        po::value<std::string>(&chmod_str),
-        "recursively apply permission changes")
-    ("no-create-timestamp",
-        po::value<bool>(&options.metadata.no_create_timestamp)->zero_tokens(),
-        "don't add create timestamp to file system")
-    ("set-time",
-        po::value<std::string>(&timestamp),
-        "set timestamp for whole file system (unixtime or 'now')")
-    ("keep-all-times",
-        po::value<bool>(&options.metadata.keep_all_times)->zero_tokens(),
-        "save atime and ctime in addition to mtime")
-    ("time-resolution",
-        po::value<std::string>(&time_resolution),
-        "resolution of inode timestamps (default: 1s)")
-    ("synthetic-time",
-        po::value<std::string>(&synthetic_time_str),
-        "default timestamp for synthetic input-list entries (unixtime or 'now')")
-    ("root-mode",
-        po::value<std::string>(&root_mode_str),
-        "set root directory permissions (octal)")
-    ("root-owner",
-        po::value<file_stat::uid_type>(&root_uid),
-        "set root directory owner (uid)")
-    ("root-group",
-        po::value<file_stat::gid_type>(&root_gid),
-        "set root directory group (gid)")
-    ("root-time",
-        po::value<std::string>(&root_time_str),
-        "set root directory timestamps (unixtime or 'now')")
-    ("root-like",
-        po_sys_value<sys_string>(&root_like_str),
-        "take root directory metadata from an existing directory")
-    ("no-category-names",
-        po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
-        "don't add category names to file system")
-    ("no-category-metadata",
-        po::value<bool>(&options.metadata.no_category_metadata)->zero_tokens(),
-        "don't add category metadata to file system")
-    ("no-hardlink-table",
-        po::value<bool>(&options.metadata.no_hardlink_table)->zero_tokens(),
-        "don't add hardlink count table to file system")
-    ("pack-metadata,P",
-        po::value<std::string>(&pack_metadata)->default_value("auto"),
-        "pack certain metadata elements (auto, all, none, chunk_table, "
-        "directories, shared_files, names, names_index, symlinks, "
-        "symlinks_index, force, plain)")
-    ;
-  // clang-format on
+  opts.group("Compressor options");
+  opts.add_multi("compression,C", compression, "block compression algorithm")
+      .value_name(lvl_cat_def_val(&level_defaults::data_compression));
+  opts.add("schema-compression", schema_compression,
+           "metadata schema compression algorithm")
+      .value_name(lvl_def_val(&level_defaults::schema_history_compression));
+  opts.add("metadata-compression", metadata_compression,
+           "metadata compression algorithm")
+      .value_name(lvl_def_val(&level_defaults::metadata_compression));
+  opts.add("history-compression", history_compression,
+           "history compression algorithm")
+      .value_name(lvl_def_val(&level_defaults::schema_history_compression));
+  opts.flag("estimate-compression-memory", estimate_compression_memory,
+            "estimate compression algorithm per-thread memory usage");
 
-  po::options_description opts;
-  opts.add(basic_opts)
-      .add(advanced_opts)
-      .add(filter_opts)
-      .add(segmenter_opts)
-      .add(compressor_opts)
-      .add(filesystem_opts)
-      .add(metadata_opts);
+  opts.group("File system options");
+  opts.flag("with-devices", options.with_devices,
+            "include block and character devices");
+  opts.flag("with-specials", options.with_specials,
+            "include named fifo and sockets");
+  opts.flag("no-sparse-files", no_sparse_files,
+            "don't store sparse files as sparse");
+  opts.add("header", header_str,
+           "prepend output filesystem with contents of this file");
+  opts.flag("remove-header", remove_header,
+            "remove any header present before filesystem data (use with "
+            "--recompress)");
+  opts.flag("no-superblock", no_superblock,
+            "don't add superblock to filesystem");
+  opts.flag("no-superblock-init", no_superblock_init,
+            "don't initialize superblock fields after writing filesystem");
+  opts.add("superblock-digests", superblock_digests_str,
+           "digests to store in superblock (auto, none, attr, tree, both)",
+           "auto");
+  opts.add("label", fs_label,
+           "set filesystem label (empty value clears inherited label)");
+  opts.add(
+      "uuid", uuid_str,
+      fmt::format("set UUID in superblock ({}, {}, keep, or RFC 9562 string)",
+                  superblock_editor::kUuidRandom, superblock_editor::kUuidNil));
+  opts.add("image-size-alignment", image_size_alignment_str,
+           "make output image size a multiple of this value (must be a power "
+           "of 2)");
+  opts.flag("no-section-index", no_section_index,
+            "don't add section index to file system");
+  opts.flag("no-history", no_history, "don't add history to file system");
+  opts.flag("reproducible", reproducible,
+            "omit non-deterministic timestamps and use a nil superblock UUID");
+  opts.flag("no-history-timestamps", no_history_timestamps,
+            "don't add timestamps to file system history");
+  opts.flag("no-history-command-line", no_history_command_line,
+            "don't add command line to file system history");
+  opts.flag("hollow", options.hollow_filesystem,
+            "create hollow filesystem (only zero-filled files)");
+  opts.flag("no-backwards-compat", no_backwards_compat,
+            "don't try to produce a backwards compatible filesystem");
+
+  opts.group("Metadata options");
+  opts.add("set-owner", uid, "set owner (uid) for whole file system");
+  opts.add("set-group", gid, "set group (gid) for whole file system");
+  opts.add("chmod", chmod_str, "recursively apply permission changes");
+  opts.flag("no-create-timestamp", options.metadata.no_create_timestamp,
+            "don't add create timestamp to file system");
+  opts.add("set-time", timestamp,
+           "set timestamp for whole file system (unixtime or 'now')");
+  opts.flag("keep-all-times", options.metadata.keep_all_times,
+            "save atime and ctime in addition to mtime");
+  opts.add("time-resolution", time_resolution,
+           "resolution of inode timestamps (default: 1s)");
+  opts.add("synthetic-time", synthetic_time_str,
+           "default timestamp for synthetic input-list entries (unixtime or "
+           "'now')");
+  opts.add("root-mode", root_mode_str,
+           "set root directory permissions (octal)");
+  opts.add("root-owner", root_uid, "set root directory owner (uid)");
+  opts.add("root-group", root_gid, "set root directory group (gid)");
+  opts.add("root-time", root_time_str,
+           "set root directory timestamps (unixtime or 'now')");
+  opts.add("root-like", root_like_str,
+           "take root directory metadata from an existing directory");
+  opts.flag("no-category-names", options.metadata.no_category_names,
+            "don't add category names to file system");
+  opts.flag("no-category-metadata", options.metadata.no_category_metadata,
+            "don't add category metadata to file system");
+  opts.flag("no-hardlink-table", options.metadata.no_hardlink_table,
+            "don't add hardlink count table to file system");
+  opts.add("pack-metadata,P", pack_metadata,
+           "pack certain metadata elements (auto, all, none, chunk_table, "
+           "directories, shared_files, names, names_index, symlinks, "
+           "symlinks_index, force, plain)",
+           "auto");
 
   catreg.add_options(opts);
-
-  po::options_description positional_opts;
-  positional_opts.add_options()(
-      "source-path",
-      po_sys_value<std::vector<sys_string>>(&source_path_strs)->composing(),
-      "positional source paths");
-  po::options_description parse_opts;
-  parse_opts.add(opts).add(positional_opts);
-  po::positional_options_description positional;
-  positional.add("source-path", -1);
-
-  po::variables_map vm;
+  opts.add_repeated("source-path", source_path_strs, "positional source paths")
+      .hidden();
+  opts.positional("source-path");
 
   std::vector<std::string> command_line;
   command_line.reserve(argc);
@@ -882,29 +719,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   try {
-    auto parsed = po::basic_command_line_parser<sys_char>(argc, argv)
-                      .options(parse_opts)
-                      .positional(positional)
-                      .run();
-
-    po::store(parsed, vm);
-    po::notify(vm);
-
-    auto unrecognized =
-        po::collect_unrecognized(parsed.options, po::exclude_positional);
-
-    if (!unrecognized.empty()) {
-      iol.err << "error: unrecognized argument(s) '"
-              << sys_string_to_string(boost::join(unrecognized, " ")) << "'\n";
-      return 1;
-    }
-  } catch (po::error const& e) {
+    opts.parse(argc, argv);
+  } catch (cli::error const& e) {
     iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.contains("man")) {
+  if (common.man) {
     tool::show_manpage(tool::manpage::get_mkdwarfs_manpage(), iol);
     return 0;
   }
@@ -917,7 +739,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     catreg.add_library_dependencies(deps);
   };
 
-  if (vm.contains("long-help")) {
+  if (long_help) {
     constexpr std::string_view block_data_hdr{"Block Data"};
     constexpr std::string_view schema_history_hdr{"Schema/History"};
     constexpr std::string_view metadata_hdr{"Metadata"};
@@ -932,8 +754,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << opts
-            << "\n"
+    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage;
+    opts.help(iol.out);
+    iol.out << "\n"
             << "Compression level defaults:\n"
             << "  " << sep << "\n"
             << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
@@ -970,7 +793,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     for (auto const& name : catreg.categorizer_names()) {
       stream_logger lgr(iol.term, iol.err, *iol.os);
-      auto categorizer = catreg.create(lgr, name, vm, iol.file);
+      auto categorizer = catreg.create(lgr, name, iol.file);
       iol.out << "  [" << name << "]\n";
       for (auto cat : categorizer->categories()) {
         iol.out << "    " << cat << "\n";
@@ -982,20 +805,21 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 0;
   }
 
-  if (!estimate_compression_memory and (vm.contains("help") or argc == 1)) {
-    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n"
-            << basic_opts << "\n";
+  if (!estimate_compression_memory and (common.help or argc == 1)) {
+    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n";
+    opts.help(iol.out, "Options");
+    iol.out << "\n";
     return 0;
   }
 
-  if (!estimate_compression_memory and !vm.contains("input") and
-      !vm.contains("input-list") and source_path_strs.empty()) {
+  if (!estimate_compression_memory and !opts.contains("input") and
+      !opts.contains("input-list") and source_path_strs.empty()) {
     iol.err << "error: no input specified\n";
     return 1;
   }
 
-  if (!estimate_compression_memory and !vm.contains("output") and
-      !vm.contains("debug-filter")) {
+  if (!estimate_compression_memory and !opts.contains("output") and
+      !opts.contains("debug-filter")) {
     iol.err << "error: no output specified\n";
     return 1;
   }
@@ -1007,22 +831,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto const& defaults = levels[level];
 
-  categorizer_list.add_defaults(categorize_defaults_common());
-  categorizer_list.add_defaults(categorize_defaults_level(level));
+  cat_defaults.add_defaults(categorize_defaults_common());
+  cat_defaults.add_defaults(categorize_defaults_level(level));
 
-  if (!vm.contains("block-size-bits")) {
+  if (!opts.contains("block-size-bits")) {
     sf_config.block_size_bits = defaults.block_size_bits;
   }
 
-  if (!vm.contains("schema-compression")) {
+  if (!opts.contains("schema-compression")) {
     schema_compression = defaults.schema_history_compression;
   }
 
-  if (!vm.contains("history-compression")) {
+  if (!opts.contains("history-compression")) {
     history_compression = defaults.schema_history_compression;
   }
 
-  if (!vm.contains("metadata-compression")) {
+  if (!opts.contains("metadata-compression")) {
     metadata_compression = defaults.metadata_compression;
   }
 
@@ -1034,7 +858,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (reproducible) {
-    if (vm.contains("uuid") && uuid_str != superblock_editor::kUuidNil) {
+    if (opts.contains("uuid") && uuid_str != superblock_editor::kUuidNil) {
       iol.err << "error: --reproducible cannot be combined with --uuid="
               << uuid_str << "; only --uuid=nil is allowed\n";
       return 1;
@@ -1049,21 +873,21 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (!source_path_strs.empty() &&
-      (vm.contains("input") || vm.contains("input-list"))) {
+      (opts.contains("input") || opts.contains("input-list"))) {
     iol.err << "error: positional sources cannot be combined with "
                "--input or --input-list\n";
     return 1;
   }
 
   bool const recompress =
-      vm.contains("recompress") || rebuild_metadata || change_block_size;
+      opts.contains("recompress") || rebuild_metadata || change_block_size;
 
   if (recompress && !source_path_strs.empty()) {
     iol.err << "error: positional sources cannot be used when recompressing\n";
     return 1;
   }
 
-  if (vm.contains("dereference")) {
+  if (opts.contains("dereference")) {
     if (dereference_str == "symlinks") {
       options.dereference = writer::dereference_mode::symlinks;
     } else if (dereference_str == "external-symlinks") {
@@ -1075,14 +899,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (recompress && vm.contains("dereference")) {
+  if (recompress && opts.contains("dereference")) {
     iol.err << "error: --dereference cannot be used when recompressing\n";
     return 1;
   }
 
   writer::scan_root_attributes root_attributes;
 
-  if (vm.contains("root-mode")) {
+  if (opts.contains("root-mode")) {
     std::string_view mode{root_mode_str};
 
     if (mode.starts_with("0o") || mode.starts_with("0O")) {
@@ -1102,15 +926,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     root_attributes.mode = parsed_mode;
   }
 
-  if (vm.contains("root-owner")) {
+  if (opts.contains("root-owner")) {
     root_attributes.uid = root_uid;
   }
 
-  if (vm.contains("root-group")) {
+  if (opts.contains("root-group")) {
     root_attributes.gid = root_gid;
   }
 
-  if (vm.contains("root-time")) {
+  if (opts.contains("root-time")) {
     try {
       auto const time = parse_timestamp(root_time_str);
       if (!std::in_range<file_stat::time_type>(time)) {
@@ -1126,8 +950,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::optional<file_stat::time_type> explicit_synthetic_time;
 
-  if (vm.contains("synthetic-time")) {
-    if (!vm.contains("input-list")) {
+  if (opts.contains("synthetic-time")) {
+    if (!opts.contains("input-list")) {
       iol.err << "error: --synthetic-time requires --input-list\n";
       return 1;
     }
@@ -1145,9 +969,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (recompress && (vm.contains("root-mode") || vm.contains("root-owner") ||
-                     vm.contains("root-group") || vm.contains("root-time") ||
-                     vm.contains("root-like"))) {
+  if (recompress &&
+      (opts.contains("root-mode") || opts.contains("root-owner") ||
+       opts.contains("root-group") || opts.contains("root-time") ||
+       opts.contains("root-like"))) {
     iol.err << "error: root directory options cannot be used when "
                "recompressing\n";
     return 1;
@@ -1155,7 +980,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::optional<file_stat> root_metadata;
 
-  if (vm.contains("root-like")) {
+  if (opts.contains("root-like")) {
     auto const path = std::filesystem::path{root_like_str};
 
     try {
@@ -1238,8 +1063,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  if (vm.contains("input-list")) {
-    if (vm.contains("filter")) {
+  if (opts.contains("input-list")) {
+    if (opts.contains("filter")) {
       iol.err << "error: cannot combine --input-list and --filter\n";
       return 1;
     }
@@ -1247,7 +1072,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.with_devices = true;
     options.with_specials = true;
 
-    if (!vm.contains("input")) {
+    if (!opts.contains("input")) {
       assert(input_path.has_value());
       *input_path = iol.os->current_path();
     }
@@ -1280,7 +1105,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::optional<fs_source_os> source_os_hint;
 
   if ((rebuild_metadata || change_block_size) &&
-      vm.contains("rebuild-metadata-source-os-hint")) {
+      opts.contains("rebuild-metadata-source-os-hint")) {
     auto os = parse_fs_source_os(rebuild_metadata_source_os_hint);
     if (!os) {
       iol.err << "error: invalid source OS hint: "
@@ -1335,18 +1160,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     rw_opts.no_check = no_check;
   }
 
-  if (vm.contains("max-similarity-size")) {
+  if (opts.contains("max-similarity-size")) {
     auto size = parse_size_with_unit(max_similarity_size);
     if (size > 0) {
       options.inode.max_similarity_scan_size = size;
     }
   }
 
-  if (!vm.contains("num-scanner-workers")) {
+  if (!opts.contains("num-scanner-workers")) {
     num_scanner_workers = num_workers;
   }
 
-  if (!vm.contains("num-segmenter-workers")) {
+  if (!opts.contains("num-segmenter-workers")) {
     num_segmenter_workers = num_workers;
   }
 
@@ -1361,7 +1186,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::vector<writer::debug_filter_entry> debug_filter_entries;
 
-  if (vm.contains("debug-filter")) {
+  if (opts.contains("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
       options.debug_filter_function = [&](bool exclude,
@@ -1459,7 +1284,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (vm.contains("chmod")) {
+  if (opts.contains("chmod")) {
     if (chmod_str == "norm") {
       chmod_str = "ug-st,=Xr";
     }
@@ -1468,15 +1293,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.metadata.umask = get_current_umask();
   }
 
-  if (vm.contains("set-owner")) {
+  if (opts.contains("set-owner")) {
     options.metadata.uid = uid;
   }
 
-  if (vm.contains("set-group")) {
+  if (opts.contains("set-group")) {
     options.metadata.gid = gid;
   }
 
-  if (vm.contains("set-time")) {
+  if (opts.contains("set-time")) {
     try {
       options.metadata.timestamp = parse_timestamp(timestamp);
     } catch (std::exception const& e) {
@@ -1485,7 +1310,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (vm.contains("time-resolution")) {
+  if (opts.contains("time-resolution")) {
     try {
       auto const res = parse_time_with_unit(time_resolution);
       if (res.count() == 0) {
@@ -1586,7 +1411,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   options.hash_files = !no_dedupe;
 
-  if (vm.contains("file-hash")) {
+  if (opts.contains("file-hash")) {
     LOG_WARN << "the '--file-hash' option is deprecated and will be removed in "
                 "a future version";
     if (file_hash_algo == "none") {
@@ -1621,7 +1446,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       source_date_epoch = epoch;
       options.metadata.create_timestamp = epoch;
 
-      if (!vm.contains("set-time")) {
+      if (!opts.contains("set-time")) {
         options.metadata.max_file_timestamp =
             static_cast<file_stat::time_type>(epoch);
       }
@@ -1630,7 +1455,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::optional<file_stat::time_type> synthetic_time;
 
-  if (vm.contains("input-list")) {
+  if (opts.contains("input-list")) {
     if (explicit_synthetic_time) {
       synthetic_time = *explicit_synthetic_time;
     } else if (source_date_epoch) {
@@ -1736,7 +1561,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!categorizer_list.empty()) {
     auto categorizers =
-        split_to<std::vector<std::string>>(categorizer_list.value(), ',');
+        split_to<std::vector<std::string>>(categorizer_list, ',');
 
     options.inode.categorizer_mgr =
         std::make_shared<writer::categorizer_manager>(
@@ -1744,8 +1569,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     try {
       for (auto const& name : categorizers) {
-        options.inode.categorizer_mgr->add(
-            catreg.create(lgr, name, vm, iol.file));
+        options.inode.categorizer_mgr->add(catreg.create(lgr, name, iol.file));
       }
     } catch (std::exception const& e) {
       LOG_ERROR << "could not create categorizer: " << e.what();
@@ -1841,18 +1665,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   uint64_t const image_size_alignment =
-      vm.contains("image-size-alignment")
+      opts.contains("image-size-alignment")
           ? parse_size_with_unit(image_size_alignment_str)
           : 1;
 
   if (!std::has_single_bit(image_size_alignment)) {
     LOG_ERROR
         << "the argument to '--image-size-alignment' must be a power of 2";
-    return 1;
-  }
-
-  if (vm.contains("label") && clear_label) {
-    LOG_ERROR << "'--label' and '--clear-label' are mutually exclusive";
     return 1;
   }
 
@@ -1872,18 +1691,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (!no_backwards_compat) {
-    if (vm.contains("label")) {
+    if (opts.contains("label")) {
       LOG_ERROR << "the '--label' option requires '--no-backwards-compat'";
       return 1;
     }
 
-    if (vm.contains("uuid")) {
+    if (opts.contains("uuid")) {
       LOG_ERROR << "the '--uuid' option requires '--no-backwards-compat'";
-      return 1;
-    }
-
-    if (clear_label) {
-      LOG_ERROR << "'--clear-label' requires '--no-backwards-compat'";
       return 1;
     }
 
@@ -1896,23 +1710,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (no_superblock) {
-    if (clear_label) {
-      LOG_ERROR << "'--clear-label' cannot be used with '--no-superblock'";
-      return 1;
-    }
-
     if (superblock_digests_str != "auto" &&
         (want_attr_digest || want_tree_digest)) {
       LOG_ERROR << "cannot request digests without a superblock";
       return 1;
     }
 
-    if (vm.contains("label")) {
+    if (opts.contains("label")) {
       LOG_ERROR << "the '--label' option cannot be used with '--no-superblock'";
       return 1;
     }
 
-    if (vm.contains("uuid")) {
+    if (opts.contains("uuid")) {
       LOG_ERROR << "the '--uuid' option cannot be used with '--no-superblock'";
       return 1;
     }
@@ -1920,7 +1729,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     try {
       if (reproducible) {
         uuid_str = superblock_editor::kUuidNil;
-      } else if (!vm.contains("uuid")) {
+      } else if (!opts.contains("uuid")) {
         if (recompress && input_filesystem->has_superblock()) {
           uuid_str = "keep";
         } else {
@@ -1956,7 +1765,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   for (auto const& name : catreg.categorizer_names()) {
     stream_logger lgr(iol.term, iol.err, *iol.os);
-    auto categorizer = catreg.create(lgr, name, vm, iol.file);
+    auto categorizer = catreg.create(lgr, name, iol.file);
     for (auto cat : categorizer->categories()) {
       accepted_categories.insert(cat);
     }
@@ -1971,7 +1780,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
           "--order", options.inode.fragment_order, cp, order_parser);
       cop.parse(defaults.order);
       cop.parse(order);
-      categorizer_list.add_implicit_defaults(cop);
+      cat_defaults.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1981,7 +1790,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                            max_lookback_parser);
       sf_config.max_active_blocks.set_default(kDefaultMaxActiveBlocks);
       cop.parse(max_lookback_blocks);
-      categorizer_list.add_implicit_defaults(cop);
+      cat_defaults.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1991,7 +1800,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                            window_size_parser);
       sf_config.blockhash_window_size.set_default(defaults.window_size);
       cop.parse(window_size);
-      categorizer_list.add_implicit_defaults(cop);
+      cat_defaults.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -2001,7 +1810,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                            window_step_parser);
       sf_config.window_increment_shift.set_default(defaults.window_step);
       cop.parse(window_step);
-      categorizer_list.add_implicit_defaults(cop);
+      cat_defaults.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -2011,7 +1820,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                            bloom_filter_size_parser);
       sf_config.bloom_filter_size.set_default(kDefaultBloomFilterSize);
       cop.parse(bloom_filter_size);
-      categorizer_list.add_implicit_defaults(cop);
+      cat_defaults.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
   } catch (std::exception const& e) {
@@ -2034,7 +1843,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.no_superblock = no_superblock;
   fswopts.no_backwards_compat = no_backwards_compat;
 
-  if (vm.count("image-size-alignment")) {
+  if (opts.contains("image-size-alignment")) {
     fswopts.image_size_alignment = image_size_alignment;
   } else if (input_filesystem.has_value()) {
     fswopts.image_size_alignment = input_filesystem->image_size_alignment();
@@ -2042,9 +1851,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   fswopts.uuid = uuid_str;
 
-  if (vm.count("label")) {
+  if (opts.contains("label")) {
     fswopts.fs_label = sys_string_to_string(fs_label);
-  } else if (!clear_label && input_filesystem.has_value()) {
+  } else if (input_filesystem.has_value()) {
     fswopts.fs_label = input_filesystem->filesystem_label();
   }
 
@@ -2104,7 +1913,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     compression_opt.set_default(
         block_compressor(std::string(defaults.data_compression)));
     cop.parse(compression);
-    categorizer_list.add_implicit_defaults(cop);
+    cat_defaults.add_implicit_defaults(cop);
     LOG_VERBOSE << cop.as_string();
 
     if (estimate_compression_memory) {

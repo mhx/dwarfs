@@ -26,12 +26,11 @@
 #include <cstring>
 #include <numeric>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/format.h>
 
 #include <zstd.h>
 
+#include <dwarfs/command_line.h>
 #include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
@@ -42,8 +41,6 @@
 
 namespace dwarfs::writer {
 
-namespace po = boost::program_options;
-
 namespace {
 
 constexpr std::string_view const INCOMPRESSIBLE_CATEGORY{"incompressible"};
@@ -52,8 +49,8 @@ struct incompressible_categorizer_config {
   file_size_t min_input_size{0};
   size_t block_size{0};
   bool generate_fragments{false};
-  double max_ratio{0.0};
-  int zstd_level{0};
+  double max_ratio{0.99};
+  int zstd_level{-1};
 };
 
 template <typename LoggerPolicy>
@@ -309,44 +306,29 @@ bool incompressible_categorizer_::subcategory_less(fragment_category,
 
 class incompressible_categorizer_factory : public categorizer_factory {
  public:
-  incompressible_categorizer_factory()
-      : opts_{std::make_shared<po::options_description>(
-            "Incompressible categorizer options")} {
-    static constexpr double const default_ratio{0.99};
-    auto const default_ratio_str{fmt::format("{:.2f}", default_ratio)};
-    auto const zstd_level_str{fmt::format("ZSTD compression level [{}..{}]",
-                                          ZSTD_minCLevel(), ZSTD_maxCLevel())};
-    // clang-format off
-    opts_->add_options()
-      ("incompressible-min-input-size",
-          po::value<std::string>(&min_input_size_str_)->default_value("256"),
-          "minimum file size to check for incompressibility")
-      ("incompressible-block-size",
-          po::value<std::string>(&block_size_str_)->default_value("1M"),
-          "block size to use for zstd compression")
-      ("incompressible-fragments",
-          po::value<bool>(&cfg_.generate_fragments)
-            ->default_value(false)->implicit_value(true)->zero_tokens(),
-          "generate individual incompressible fragments")
-      ("incompressible-ratio",
-          po::value<double>(&cfg_.max_ratio)
-            ->default_value(default_ratio, default_ratio_str),
-          "compression ratio above which files or fragments are considered incompressible")
-      ("incompressible-zstd-level",
-          po::value<int>(&cfg_.zstd_level)->default_value(-1),
-          zstd_level_str.c_str())
-      ;
-    // clang-format on
+  void add_options(cli::options& opts) override {
+    opts.group("Incompressible categorizer options");
+    opts.add("incompressible-min-input-size", min_input_size_str_,
+             "minimum file size to check for incompressibility", "256");
+    opts.add("incompressible-block-size", block_size_str_,
+             "block size to use for zstd compression", "1M");
+    opts.flag("incompressible-fragments", cfg_.generate_fragments,
+              "generate individual incompressible fragments");
+    opts.add("incompressible-ratio", cfg_.max_ratio,
+             "compression ratio above which files or fragments are considered "
+             "incompressible",
+             0.99)
+        .default_text("0.99");
+    opts.add("incompressible-zstd-level", cfg_.zstd_level,
+             fmt::format("ZSTD compression level [{}..{}]", ZSTD_minCLevel(),
+                         ZSTD_maxCLevel()),
+             -1);
   }
 
   std::string_view name() const override { return "incompressible"; }
 
-  std::shared_ptr<po::options_description const> options() const override {
-    return opts_;
-  }
-
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/,
+  create(logger& lgr,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     auto cfg = cfg_;
     cfg.min_input_size = parse_size_with_unit(min_input_size_str_);
@@ -355,10 +337,9 @@ class incompressible_categorizer_factory : public categorizer_factory {
   }
 
  private:
-  std::string min_input_size_str_;
-  std::string block_size_str_;
+  std::string min_input_size_str_{"256"};
+  std::string block_size_str_{"1M"};
   incompressible_categorizer_config cfg_;
-  std::shared_ptr<po::options_description> opts_;
 };
 
 } // namespace

@@ -25,8 +25,6 @@
 #include <iostream>
 #include <unordered_map>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/format.h>
 
 #include <nlohmann/json.hpp>
@@ -35,6 +33,7 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/command_line.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
@@ -344,8 +343,6 @@ bool categorizer_manager_<LoggerPolicy>::deterministic_less(
 
 } // namespace internal
 
-namespace po = boost::program_options;
-
 fs::path file_path_info::relative_path() const {
   return logical_path_ ? logical_path_->relative_path()
                        : full_path_.lexically_relative(root_path_);
@@ -394,7 +391,7 @@ fragment_category categorizer_manager::default_category() {
 }
 
 void categorizer_registry::register_factory(
-    std::unique_ptr<categorizer_factory const>&& factory) {
+    std::unique_ptr<categorizer_factory>&& factory) {
   auto name = factory->name();
 
   DWARFS_CHECKF(factories_.emplace(name, std::move(factory)).second,
@@ -411,7 +408,7 @@ void categorizer_registry::add_library_dependencies(
 }
 
 std::unique_ptr<categorizer> categorizer_registry::create(
-    logger& lgr, std::string const& name, po::variables_map const& vm,
+    logger& lgr, std::string const& name,
     std::shared_ptr<file_access const> const& fa) const {
   auto it = factories_.find(name);
 
@@ -419,14 +416,14 @@ std::unique_ptr<categorizer> categorizer_registry::create(
     DWARFS_THROW(runtime_error, "unknown categorizer: " + name);
   }
 
-  return it->second->create(lgr, vm, fa);
+  return it->second->create(lgr, fa);
 }
 
-void categorizer_registry::add_options(po::options_description& opts) const {
+void categorizer_factory::add_options(cli::options&) {}
+
+void categorizer_registry::add_options(cli::options& opts) {
   for (auto& f : factories_) {
-    if (auto f_opts = f.second->options()) {
-      opts.add(*f_opts);
-    }
+    f.second->add_options(opts);
   }
 }
 

@@ -1934,8 +1934,8 @@ TEST(mkdwarfs_test, output_not_opened_for_invalid_superblock_options) {
   mkdwarfs_tester t;
 
   EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs", "--no-backwards-compat",
-                      "--label=test", "--clear-label"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("mutually exclusive"));
+                      "--label=test", "--no-superblock"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot be used with"));
   EXPECT_EQ(0, t.fa->output_binary_open_count());
   EXPECT_FALSE(t.fa->get_file("test.dwarfs"));
 }

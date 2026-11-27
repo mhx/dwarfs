@@ -260,7 +260,7 @@ std::vector<rebuild_step> rebuild_steps{
         .has_tree_digest = true,
     },
     {
-        .args = {"--recompress=none", "--clear-label"},
+        .args = {"--recompress=none", "--label="},
         .label = "",
         .has_attr_digest = true,
         .has_tree_digest = true,
@@ -1055,6 +1055,28 @@ TEST(mkdwarfs_superblock_digest_test, hollow_preserves_attribute_digest) {
             hollow_computed.tree_digest.hex());
   EXPECT_NE(regular_digests.tree_digest.hex(),
             hollow_digests.tree_digest.hex());
+}
+
+TEST(mkdwarfs_superblock_cli_test, explicit_empty_label) {
+  mkdwarfs_tester t;
+  t.fa->sync_files_to(*t.os);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "source.dwarfs", "-l1",
+                      "--no-backwards-compat", "--label=original"}))
+      << t.err();
+  auto const image = t.fa->get_file("source.dwarfs");
+  ASSERT_TRUE(image);
+
+  auto rewrite = mkdwarfs_tester::create_with_image(*image, "input.dwarfs");
+  rewrite.fa->sync_files_to(*rewrite.os);
+  ASSERT_EQ(0, rewrite.run({"-i", "input.dwarfs", "-o", "out.dwarfs", "-l1",
+                            "--recompress=none", "--no-backwards-compat",
+                            "--label="}))
+      << rewrite.err();
+  EXPECT_TRUE(rewrite.fs_from_file("out.dwarfs").filesystem_label().empty());
+
+  auto check = dwarfsck_tester::create_with_image(*image, "input.dwarfs");
+  ASSERT_EQ(0, check.run({"input.dwarfs", "--set-label="})) << check.err();
+  EXPECT_TRUE(check.fs_from_file("input.dwarfs").filesystem_label().empty());
 }
 
 TEST(mkdwarfs_superblock_cli_test, rejects_conflicting_or_invalid_options) {

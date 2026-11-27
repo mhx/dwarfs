@@ -33,7 +33,6 @@
 #include <vector>
 
 #include <boost/container_hash/hash.hpp>
-#include <boost/program_options.hpp>
 
 #include <fmt/format.h>
 
@@ -59,8 +58,6 @@ namespace dwarfs::writer {
 using namespace std::string_view_literals;
 
 namespace fs = std::filesystem;
-namespace po = boost::program_options;
-
 namespace {
 
 constexpr std::string_view const METADATA_CATEGORY{"fits/metadata"};
@@ -518,13 +515,8 @@ class fits_categorizer_factory : public categorizer_factory {
  public:
   std::string_view name() const override { return "fits"; }
 
-  std::shared_ptr<boost::program_options::options_description const>
-  options() const override {
-    return nullptr;
-  }
-
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/,
+  create(logger& lgr,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     return make_unique_logging_object<categorizer, fits_categorizer_,
                                       default_logger_policy>(lgr);

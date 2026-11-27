@@ -40,8 +40,6 @@
 namespace dwarfs::writer {
 
 namespace fs = std::filesystem;
-namespace po = boost::program_options;
-
 namespace {
 
 constexpr std::string_view const ELF_CATEGORY{"binary/elf"};
@@ -455,13 +453,8 @@ class binary_categorizer_factory : public categorizer_factory {
  public:
   std::string_view name() const override { return "binary"; }
 
-  std::shared_ptr<boost::program_options::options_description const>
-  options() const override {
-    return nullptr;
-  }
-
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/,
+  create(logger& lgr,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
     return make_unique_logging_object<categorizer, binary_categorizer_,
                                       default_logger_policy>(lgr);

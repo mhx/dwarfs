@@ -28,14 +28,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/program_options.hpp>
-
 #include <fmt/format.h>
 
 #include <magic.h>
 
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/block_decompressor.h>
+#include <dwarfs/command_line.h>
 #include <dwarfs/error.h>
 #include <dwarfs/glob_matcher.h>
 #include <dwarfs/library_dependencies.h>
@@ -51,7 +50,6 @@ namespace dwarfs::writer {
 
 namespace {
 
-namespace po = boost::program_options;
 using namespace dwarfs::binary_literals;
 
 class magic_wrapper {
@@ -314,33 +312,22 @@ bool libmagic_categorizer_<LoggerPolicy>::subcategory_less(
 
 class libmagic_categorizer_factory : public categorizer_factory {
  public:
-  libmagic_categorizer_factory()
-      : opts_{std::make_shared<po::options_description>(
-            "LibMagic categorizer options")} {
-    // clang-format off
-    opts_->add_options()
-      ("libmagic-category",
-          po::value<std::vector<std::string>>(&categories_)
-            ->value_name("category=mime-type[:mime-type...]")
-            ->multitoken()->composing(),
-          "define category based on mime types "
-          "(accepts globs, can be specified multiple times)")
-      ("libmagic-max-bytes",
-          po::value<std::string>(&max_bytes_str_)->default_value("64K"),
-          "maximum number of bytes to read from a file for libmagic to "
-          "identify it")
-      ("libmagic-database",
-          po::value<std::string>(&magic_db_path_),
-          default_database_str())
-      ;
-    // clang-format on
+  void add_options(cli::options& opts) override {
+    opts.group("LibMagic categorizer options");
+    opts.add_multi("libmagic-category", categories_,
+                   "define category based on mime types "
+                   "(accepts globs, can be specified multiple times)")
+        .value_name("category=mime-type[:mime-type...]");
+    opts.add("libmagic-max-bytes", max_bytes_str_,
+             "maximum number of bytes to read from a file for libmagic to "
+             "identify it",
+             "64K");
+    opts.add("libmagic-database", magic_db_path_,
+             fmt::format("path to libmagic database (default: {})",
+                         magic_wrapper::default_database()));
   }
 
   std::string_view name() const override { return "libmagic"; }
-
-  std::shared_ptr<po::options_description const> options() const override {
-    return opts_;
-  }
 
   void add_library_dependencies(library_dependencies& deps) const override {
     auto const ver = ::magic_version();
@@ -348,29 +335,17 @@ class libmagic_categorizer_factory : public categorizer_factory {
   }
 
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& vm,
+  create(logger& lgr,
          std::shared_ptr<file_access const> const& /*fa*/) const override {
-    std::optional<std::string> magic_file;
-    if (vm.contains("libmagic-database")) {
-      magic_file = magic_db_path_;
-    }
     return make_unique_logging_object<categorizer, libmagic_categorizer_,
                                       default_logger_policy>(
-        lgr, categories_, parse_size_with_unit(max_bytes_str_), magic_file);
+        lgr, categories_, parse_size_with_unit(max_bytes_str_), magic_db_path_);
   }
 
  private:
-  static char const* default_database_str() {
-    static std::string const str =
-        fmt::format("path to libmagic database (default: {})",
-                    magic_wrapper::default_database());
-    return str.c_str();
-  }
-
-  std::shared_ptr<po::options_description> opts_;
   std::vector<std::string> categories_;
-  std::string max_bytes_str_;
-  std::string magic_db_path_;
+  std::string max_bytes_str_{"64K"};
+  std::optional<std::string> magic_db_path_;
 };
 
 } // namespace

@@ -154,6 +154,19 @@ TEST(dwarfsextract_main_test, cmdline_option_values) {
   }
 }
 
+TEST(mkdwarfs_main_test, strict_option_values) {
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(t.run({"--compress-level=-1", "--help"}), 1);
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("is invalid"));
+  }
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(t.run({"--input=--help", "--label=", "--help"}), 0);
+    EXPECT_THAT(t.out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  }
+}
+
 TEST(dwarfsck_main_test, positional_input_and_explicit_empty_label) {
   dwarfsck_tester t;
   EXPECT_EQ(t.run({"--set-label=", "input.dwarfs", "--help"}), 0);
