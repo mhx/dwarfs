@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include <dwarfs/internal/io_ops.h>
 #include <dwarfs/internal/mmap_file_view.h>
 
