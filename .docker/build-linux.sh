@@ -567,7 +567,7 @@ case "-$BUILD_TYPE-" in
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TARGET install
-    $BUILD_TARGET distclean
+    # $BUILD_TARGET distclean
     rm -rf *
 
     # ==== example binary ====
@@ -580,7 +580,7 @@ case "-$BUILD_TYPE-" in
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TARGET install
-    $BUILD_TARGET distclean
+    # $BUILD_TARGET distclean
     rm -rf *
 
     # ==== dwarfs fuse driver ====
@@ -588,7 +588,7 @@ case "-$BUILD_TYPE-" in
     time $BUILD_TOOL
     $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TARGET install
-    $BUILD_TARGET distclean
+    # $BUILD_TARGET distclean
 
     # That's it for split builds, we are done
     exit 0
@@ -668,7 +668,8 @@ if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
    [[ "-$BUILD_TYPE-" != *-source-* ]] && \
    [[ "-$BUILD_TYPE-" != *-static-* ]]; then
   DESTDIR="$INSTALLDIR" $BUILD_TARGET install
-  $BUILD_TARGET distclean
+  # $BUILD_TARGET distclean
+  rm -rf *
 
   cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
   $BUILD_TOOL
