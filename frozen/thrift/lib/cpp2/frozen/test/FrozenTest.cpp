@@ -152,12 +152,11 @@ TEST(Frozen, Compatibility) {
   // Make sure Person1 works well with Person2
   schema::MemorySchema schema;
   Layout<Person1> person1;
-  Layout<Person2> person2;
 
   size_t size = LayoutRoot::layout(tom1, person1);
 
   saveRoot(person1, schema);
-  loadRoot(person2, schema);
+  auto person2 = loadRoot<Person2>(schema);
 
   std::string storage(size, 'X');
   auto const bytes = make_mutable_byte_span(storage);
@@ -165,7 +164,7 @@ TEST(Frozen, Compatibility) {
 
   ByteRangeFreezer::freeze(person1, tom1, freezeRange);
   auto view12 = person1.view({bytes.data(), 0});
-  auto view21 = person2.view({bytes.data(), 0});
+  auto view21 = person2->view({bytes.data(), 0});
   EXPECT_EQ(view12.name(), view21.name());
   EXPECT_EQ(view12.age(), view21.age());
   EXPECT_TRUE(view12.height());
@@ -228,7 +227,6 @@ TEST(Frozen, EmbeddedSchema) {
   {
     schema::Schema schema;
     schema::MemorySchema memSchema;
-    Layout<Person2> person2;
 
     dwarfs::thrift_lite::compact_reader r(
         std::as_bytes(make_mutable_byte_span(storage)));
@@ -237,10 +235,10 @@ TEST(Frozen, EmbeddedSchema) {
 
     schema::convert(std::move(schema), memSchema);
 
-    loadRoot(person2, memSchema);
+    auto person2 = loadRoot<Person2>(memSchema);
 
     auto bytes = make_mutable_byte_span(storage).subspan(start);
-    auto view = person2.view({bytes.data(), 0});
+    auto view = person2->view({bytes.data(), 0});
     EXPECT_EQ(*tom1.name(), view.name());
     ASSERT_EQ(tom1.age().has_value(), view.age().has_value());
     if (auto age = tom1.age()) {
@@ -380,15 +378,14 @@ TEST(Frozen, SchemaSaving) {
   saveRoot(stressLayoutCalculated, schemaSaved);
 
   // reload it
-  Layout<EveryLayout> stressLayoutLoaded;
-  loadRoot(stressLayoutLoaded, schemaSaved);
+  auto stressLayoutLoaded = loadRoot<EveryLayout>(schemaSaved);
 
   // make sure the two layouts are identical (via printing)
-  EXPECT_PRINTED_EQ(stressLayoutCalculated, stressLayoutLoaded);
+  EXPECT_PRINTED_EQ(stressLayoutCalculated, *stressLayoutLoaded);
 
   // make sure layouts round-trip
   schema::MemorySchema schemaLoaded;
-  saveRoot(stressLayoutLoaded, schemaLoaded);
+  saveRoot(*stressLayoutLoaded, schemaLoaded);
   EXPECT_EQ(schemaSaved, schemaLoaded);
 }
 
@@ -499,7 +496,7 @@ class FrozenLayout : public testing::Test {
 
 TYPED_TEST_SUITE_P(FrozenLayout);
 
-TYPED_TEST_P(FrozenLayout, PrintAndClear) {
+TYPED_TEST_P(FrozenLayout, Print) {
   Layout<TypeParam> layout;
   EXPECT_GT(LayoutRoot::layout(this->value(), layout), 0);
 
@@ -511,11 +508,10 @@ TYPED_TEST_P(FrozenLayout, PrintAndClear) {
     EXPECT_THAT(got, testing::HasSubstr("@ offset "));
   }
 
-  layout.clear();
-
   {
+    Layout<TypeParam> empty;
     std::ostringstream oss;
-    layout.print(oss);
+    empty.print(oss);
     auto const& got = oss.str();
     EXPECT_THAT(got, testing::HasSubstr("empty"));
     EXPECT_THAT(got, testing::HasSubstr("@ start"));
@@ -525,7 +521,7 @@ TYPED_TEST_P(FrozenLayout, PrintAndClear) {
   }
 }
 
-REGISTER_TYPED_TEST_SUITE_P(FrozenLayout, PrintAndClear);
+REGISTER_TYPED_TEST_SUITE_P(FrozenLayout, Print);
 using TypesToLayout =
     ::testing::Types<EveryLayout, Person1, TestFixedSizeString>;
 INSTANTIATE_TYPED_TEST_SUITE_P(Frozen, FrozenLayout, TypesToLayout);
@@ -618,8 +614,7 @@ TEST(Frozen, LoadedLayoutPrintsSchemaLayoutIds) {
   schema::MemorySchema schema;
   saveRoot(source, schema);
 
-  Layout<Person1> loaded;
-  loadRoot(loaded, schema);
+  auto loaded = loadRoot<Person1>(schema);
 
   auto fieldLayoutId = [&](int16_t fieldId) {
     const auto& fields = schema.getRootLayout().getFields();
@@ -632,13 +627,13 @@ TEST(Frozen, LoadedLayoutPrintsSchemaLayoutIds) {
                               : LayoutBase::kNoSchemaLayoutId;
   };
 
-  EXPECT_EQ(loaded.schemaLayoutId, schema.getRootLayoutId());
-  EXPECT_EQ(loaded.nameField.layout.schemaLayoutId, fieldLayoutId(1));
-  EXPECT_EQ(loaded.petsField.layout.schemaLayoutId, fieldLayoutId(4));
-  EXPECT_EQ(toString(source), toString(loaded));
+  EXPECT_EQ(loaded->schemaLayoutId, schema.getRootLayoutId());
+  EXPECT_EQ(loaded->nameField.layout.schemaLayoutId, fieldLayoutId(1));
+  EXPECT_EQ(loaded->petsField.layout.schemaLayoutId, fieldLayoutId(4));
+  EXPECT_EQ(toString(source), toString(*loaded));
 
   std::ostringstream annotated;
-  loaded.print(annotated, LayoutPrintOptions{.includeSchemaLayoutIds = true});
+  loaded->print(annotated, LayoutPrintOptions{.includeSchemaLayoutIds = true});
   const auto printed = annotated.str();
   EXPECT_THAT(
       printed,
@@ -646,26 +641,26 @@ TEST(Frozen, LoadedLayoutPrintsSchemaLayoutIds) {
   EXPECT_THAT(
       printed,
       HasSubstr(
-          "layout #" + std::to_string(loaded.nameField.layout.schemaLayoutId)));
+          "layout #" +
+          std::to_string(loaded->nameField.layout.schemaLayoutId)));
 
-  annotated << loaded;
+  annotated << *loaded;
   EXPECT_THAT(
       annotated.str().substr(printed.size()), Not(HasSubstr("layout #")));
 
-  loaded.clear();
-  EXPECT_EQ(loaded.schemaLayoutId, LayoutBase::kNoSchemaLayoutId);
-  std::ostringstream cleared;
-  loaded.print(cleared, LayoutPrintOptions{.includeSchemaLayoutIds = true});
-  EXPECT_THAT(cleared.str(), Not(HasSubstr("layout #")));
+  Layout<Person1> empty;
+  EXPECT_EQ(empty.schemaLayoutId, LayoutBase::kNoSchemaLayoutId);
+  std::ostringstream emptyPrinted;
+  empty.print(emptyPrinted, LayoutPrintOptions{.includeSchemaLayoutIds = true});
+  EXPECT_THAT(emptyPrinted.str(), Not(HasSubstr("layout #")));
 
   auto pairSource = layout(std::pair{3, 3});
   schema::MemorySchema pairSchema;
   saveRoot(pairSource, pairSchema);
-  Layout<std::pair<int, int>> pairLoaded;
-  loadRoot(pairLoaded, pairSchema);
+  auto pairLoaded = loadRoot<std::pair<int, int>>(pairSchema);
   EXPECT_EQ(
-      pairLoaded.firstField.layout.schemaLayoutId,
-      pairLoaded.secondField.layout.schemaLayoutId);
+      pairLoaded->firstField.layout.schemaLayoutId,
+      pairLoaded->secondField.layout.schemaLayoutId);
 }
 
 TEST(Frozen, TypeHelpers) {

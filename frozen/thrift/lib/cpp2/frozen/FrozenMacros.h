@@ -70,7 +70,6 @@
         std::ostream& os,                                                    \
         const LayoutPrintOptions& options = {},                              \
         int level = 0) const final;                                          \
-    void clear() final;                                                      \
     struct View;                                                             \
     static size_t hash(const TYPE&);                                         \
     static size_t hash(const View&);                                         \
@@ -178,12 +177,6 @@
     LayoutBase::print(os, options, level);                                    \
     os << #TYPE;                                                              \
     __VA_ARGS__                                                               \
-  }
-#define FROZEN_CLEAR_FIELD(NAME) this->NAME##Field.clear();
-#define FROZEN_CLEAR(TYPE, ...) \
-  void Layout<TYPE>::clear() {  \
-    LayoutBase::clear();        \
-    __VA_ARGS__                 \
   }
 
 #define FROZEN_SAVE_FIELD(NAME) \

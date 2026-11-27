@@ -86,12 +86,6 @@ struct PairLayout : public LayoutBase {
     secondField.print(os, options, level + 1);
   }
 
-  void clear() final {
-    LayoutBase::clear();
-    firstField.clear();
-    secondField.clear();
-  }
-
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(first) FROZEN_SAVE_FIELD(second))
 
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(first, 1) FROZEN_LOAD_FIELD(second, 2))

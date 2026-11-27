@@ -274,13 +274,6 @@ struct ArrayLayout : public LayoutBase {
     itemField.print(os, options, level + 1);
   }
 
-  void clear() override {
-    LayoutBase::clear();
-    distanceField.clear();
-    countField.clear();
-    itemField.clear();
-  }
-
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(distance) FROZEN_SAVE_FIELD(count)
                          FROZEN_SAVE_FIELD(item))
 

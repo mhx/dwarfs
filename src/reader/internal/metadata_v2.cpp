@@ -123,8 +123,7 @@ MappedFrozen<T> map_frozen(logger& lgr, std::span<uint8_t const> schema,
                            std::span<uint8_t const> data) {
   LOG_PROXY(debug_logger_policy, lgr);
   using namespace ::apache::thrift::frozen;
-  auto layout = std::make_unique<Layout<T>>();
-  deserializeRootLayout(schema, *layout);
+  auto layout = deserializeRootLayout<T>(schema);
   {
     auto tv = LOG_TIMED_VERBOSE;
     inspectFrozenData(*layout, data, {.checkAssociativeConsistency = true});

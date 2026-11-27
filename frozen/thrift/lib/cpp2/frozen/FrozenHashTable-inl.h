@@ -52,7 +52,6 @@ struct BlockLayout : public LayoutBase {
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const final;
-  void clear() final;
 
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(mask) FROZEN_SAVE_FIELD(offset))
 
@@ -253,11 +252,6 @@ struct HashTableLayout : public ArrayLayout<T, Item> {
       int level = 0) const override {
     Base::print(os, options, level);
     sparseTableField.print(os, options, level + 1);
-  }
-
-  void clear() final {
-    Base::clear();
-    sparseTableField.clear();
   }
 
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(sparseTable))

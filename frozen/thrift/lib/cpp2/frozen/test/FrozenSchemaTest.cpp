@@ -65,8 +65,7 @@ schema::Schema makeSchema(const T& value) {
 template <typename T>
 void loadSchema(schema::Schema schema) {
   auto memorySchema = toMemorySchema(std::move(schema));
-  Layout<T> layout;
-  loadRoot(layout, memorySchema);
+  loadRoot<T>(memorySchema);
 }
 
 schema::Layout& rootLayout(schema::Schema& schema) {
@@ -77,9 +76,8 @@ TEST(FrozenSchema, EmptyRootLayoutIsValid) {
   schema::MemorySchema schema;
   saveRoot(Layout<int>{}, schema);
 
-  Layout<int> layout;
-  EXPECT_NO_THROW(loadRoot(layout, schema));
-  EXPECT_TRUE(layout.empty());
+  auto layout = loadRoot<int>(schema);
+  EXPECT_TRUE(layout->empty());
 }
 
 TEST(FrozenSchema, RejectsLayoutOverflowWhileSaving) {
@@ -292,11 +290,9 @@ TEST(FrozenSchema, RejectsLayoutReferenceCycle) {
 
 TEST(FrozenSchema, EmptyBoolLayoutIsValid) {
   auto memorySchema = toMemorySchema(makeSchema(false));
-  Layout<bool> layout;
-
-  EXPECT_NO_THROW(loadRoot(layout, memorySchema));
-  EXPECT_TRUE(layout.empty());
-  EXPECT_FALSE(layout.view({nullptr, 0}));
+  auto layout = loadRoot<bool>(memorySchema);
+  EXPECT_TRUE(layout->empty());
+  EXPECT_FALSE(layout->view({nullptr, 0}));
 }
 
 TEST(FrozenSchema, RejectsInvalidBoolLayout) {

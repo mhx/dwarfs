@@ -108,12 +108,14 @@ TEST(FrozenFixedSizeString, AbsentFieldReadsAsDefault) {
 
   schema::MemorySchema memSchema;
   saveRoot(layout, memSchema);
+  auto loaded = loadRoot<test::TestFixedSizeString>(memSchema);
+  ViewPosition pos{reinterpret_cast<const byte*>(data.data()), 0};
+  EXPECT_EQ("abcdefgh", loaded->view(pos).bytes8().toString());
+
   stripFieldFromRootLayout(memSchema, 1); // 1: bytes8
+  loaded = loadRoot<test::TestFixedSizeString>(memSchema);
 
-  Layout<test::TestFixedSizeString> stripped;
-  loadRoot(stripped, memSchema);
-
-  auto view = stripped.view({reinterpret_cast<const byte*>(data.data()), 0});
+  auto view = loaded->view(pos);
   // The field is absent from the schema, so it must read as the default
   // value, even though the static type says kFixedSize == 8.
   EXPECT_TRUE(view.bytes8().empty());

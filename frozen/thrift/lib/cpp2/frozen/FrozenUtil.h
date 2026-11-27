@@ -152,11 +152,12 @@ void serializeRootLayout(const Layout<T>& layout, std::string& out) {
 }
 
 template <class T>
-void deserializeRootLayout(
-    std::span<uint8_t const>& range, Layout<T>& layoutOut) {
+std::unique_ptr<Layout<T>> deserializeRootLayout(
+    std::span<uint8_t const>& range) {
   auto decoded = decodeSchema(range);
-  loadRoot(layoutOut, decoded.memorySchema);
+  auto layout = loadRoot<T>(decoded.memorySchema);
   range = range.subspan(decoded.encodedSize);
+  return layout;
 }
 
 template <class T>
@@ -224,8 +225,7 @@ using MappedFrozen = Bundled<typename Layout<T>::View>;
 
 template <class T>
 MappedFrozen<T> mapFrozen(std::span<uint8_t const> range) {
-  auto layout = std::make_unique<Layout<T>>();
-  deserializeRootLayout(range, *layout);
+  auto layout = deserializeRootLayout<T>(range);
   MappedFrozen<T> ret(layout->view({range.data(), 0}));
   ret.hold(std::move(layout));
   return ret;
@@ -243,12 +243,11 @@ MappedFrozen<T> mapFrozen(std::string_view range) {
  */
 template <class T>
 MappedFrozen<T> mapFrozen(std::string&& str, bool trim = true) {
-  auto layout = std::make_unique<Layout<T>>();
   auto holder = std::make_unique<HolderImpl<std::string>>(std::move(str));
   auto& ownedStr = holder->t_;
   auto const rangeBefore = make_byte_span(ownedStr);
   auto range = rangeBefore;
-  deserializeRootLayout(range, *layout);
+  auto layout = deserializeRootLayout<T>(range);
   if (trim) {
     size_t trimSize = range.data() - rangeBefore.data();
     ownedStr.erase(ownedStr.begin(), ownedStr.begin() + trimSize);

@@ -82,13 +82,6 @@ DWARFS_NOINLINE void FieldBase::printField(
   layout.print(os, options, level + 1);
 }
 
-void LayoutBase::clear() {
-  size = 0;
-  bits = 0;
-  inlined = false;
-  schemaLayoutId = kNoSchemaLayoutId;
-}
-
 std::string_view LayoutBase::type_name() const {
   return "<unknown>";
 }
@@ -549,12 +542,6 @@ void BlockLayout::print(
   os << dwarfs::thrift_lite::type_name<Block>;
   maskField.print(os, options, level + 1);
   offsetField.print(os, options, level + 1);
-}
-
-void BlockLayout::clear() {
-  LayoutBase::clear();
-  maskField.clear();
-  offsetField.clear();
 }
 
 } // namespace detail

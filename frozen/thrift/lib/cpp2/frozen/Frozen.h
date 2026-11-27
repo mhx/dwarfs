@@ -17,6 +17,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <span>
@@ -244,11 +245,6 @@ struct LayoutBase {
   bool empty() const { return !size && !bits; }
 
   virtual ~LayoutBase() = default;
-
-  /**
-   * Clears the layout back to a zero-byte layout, recursively.
-   */
-  virtual void clear();
 
   /**
    * Returns the demangled name of the type for which this layout was created.
@@ -528,11 +524,10 @@ struct FieldBase {
 
   explicit FieldBase(int16_t _key, const char* _name)
       : key(_key), name(_name) {}
-  virtual ~FieldBase() = default;
-
-  virtual void clear() = 0;
 
  protected:
+  ~FieldBase() = default;
+
   void printField(
       std::ostream& os,
       const LayoutBase& layout,
@@ -587,14 +582,6 @@ struct Field final : public FieldBase {
       const LayoutPrintOptions& options = {},
       int level = 0) const {
     printField(os, layout, options, level);
-  }
-
-  /**
-   * Clears this subtree's layout, changing the layout to 0 bytes.
-   */
-  void clear() override {
-    layout.clear();
-    pos = FieldPosition();
   }
 
   /**
@@ -1085,14 +1072,15 @@ void saveRoot(const Layout<T>& layout, typename SchemaInfo::Schema& schema) {
 }
 
 template <typename T, typename SchemaInfo = schema::SchemaInfo>
-void loadRoot(Layout<T>& layout, const typename SchemaInfo::Schema& schema) {
+std::unique_ptr<Layout<T>> loadRoot(const typename SchemaInfo::Schema& schema) {
   schema.validate();
-  layout.clear();
+  auto layout = std::make_unique<Layout<T>>();
   LoadRoot root;
-  layout.schemaLayoutId = schema.getRootLayoutId();
-  layout.template load<SchemaInfo>(schema, schema.getRootLayout(), root);
-  layout.validate(root);
+  layout->schemaLayoutId = schema.getRootLayoutId();
+  layout->template load<SchemaInfo>(schema, schema.getRootLayout(), root);
+  layout->validate(root);
   root.finish();
+  return layout;
 }
 
 template <typename T>

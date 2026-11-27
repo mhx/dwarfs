@@ -2024,7 +2024,6 @@ def get_layouts(out_stem: str, idl: ParsedIDL) -> Tuple[str, str]:
         emit_cpp("FREEZE", needs_opt=True)
         emit_cpp("THAW", needs_opt=True)
         emit_cpp("DEBUG")
-        emit_cpp("CLEAR")
 
         c.emit("\n", strip=False)
 

@@ -75,12 +75,33 @@ TEST(FrozenUtil, DeserializeRootLayoutConsumesOnlySchema) {
   input.append(trailing);
 
   auto range = make_byte_span(input);
-  Layout<TestType> decodedLayout;
-  deserializeRootLayout(range, decodedLayout);
+  auto decodedLayout = deserializeRootLayout<TestType>(range);
 
   EXPECT_EQ(range.size(), trailing.size());
   EXPECT_EQ(range.data(), make_byte_span(input).data() + encoded.size());
   EXPECT_TRUE(std::equal(range.begin(), range.end(), trailing.begin()));
+
+  std::string decodedEncoded;
+  serializeRootLayout(*decodedLayout, decodedEncoded);
+  EXPECT_EQ(decodedEncoded, encoded);
+}
+
+TEST(FrozenUtil, ReplaceLayoutWithEmptyLayout) {
+  using TestType = std::vector<std::string>;
+  auto store = freezeToString(TestType{"hello", "world"});
+  auto range = make_byte_span(store);
+  auto loaded = deserializeRootLayout<TestType>(range);
+  ASSERT_EQ(loaded->view({range.data(), 0}).size(), 2);
+
+  auto emptyStore = freezeToString(TestType{});
+  auto emptyRange = make_byte_span(emptyStore);
+  loaded = deserializeRootLayout<TestType>(emptyRange);
+  EXPECT_TRUE(loaded->view({emptyRange.data(), 0}).empty());
+  std::string loadedSchema;
+  serializeRootLayout(*loaded, loadedSchema);
+  EXPECT_EQ(
+      loadedSchema,
+      emptyStore.substr(0, emptyStore.size() - emptyRange.size()));
 }
 
 TEST(FrozenUtil, FrozenSize) {

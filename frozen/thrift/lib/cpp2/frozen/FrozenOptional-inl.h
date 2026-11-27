@@ -181,12 +181,6 @@ struct OptionalLayout : public LayoutBase {
     valueField.print(os, options, level + 1);
   }
 
-  void clear() final {
-    LayoutBase::clear();
-    issetField.clear();
-    valueField.clear();
-  }
-
   FROZEN_SAVE_INLINE(FROZEN_SAVE_FIELD(isset) FROZEN_SAVE_FIELD(value))
 
   FROZEN_LOAD_INLINE(FROZEN_LOAD_FIELD(isset, 1) FROZEN_LOAD_FIELD(value, 2))
