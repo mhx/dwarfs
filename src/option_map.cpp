@@ -34,7 +34,7 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/util.h>
@@ -58,9 +58,8 @@ option_map::option_map(std::string_view const spec) {
     }
 
     if (!opt_.emplace(key, val).second) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("duplicate option '{}' for choice '{}'", key, choice_));
+      DWARFS_THROWF(runtime_error, "duplicate option '{}' for choice '{}'", key,
+                    choice_);
     }
   }
 }
@@ -85,28 +84,26 @@ void option_map::report() {
     std::ranges::transform(opt_, std::back_inserter(invalid),
                            [](auto const& p) { return p.first; });
     std::ranges::sort(invalid);
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid option(s) for choice '{}': {}", choice_,
-                             fmt::join(invalid, ", ")));
+    DWARFS_THROWF(runtime_error, "invalid option(s) for choice '{}': {}",
+                  choice_, fmt::join(invalid, ", "));
   }
 }
 
 void option_map::throw_missing_value(std::string_view key) {
-  DWARFS_THROW(runtime_error,
-               fmt::format("missing value for option '{}' of choice '{}'", key,
-                           choice_));
+  DWARFS_THROWF(runtime_error, "missing value for option '{}' of choice '{}'",
+                key, choice_);
 }
 
 void option_map::throw_value_not_allowed(std::string_view key) {
-  DWARFS_THROW(runtime_error,
-               fmt::format("value not allowed for option '{}' of choice '{}'",
-                           key, choice_));
+  DWARFS_THROWF(runtime_error,
+                "value not allowed for option '{}' of choice '{}'", key,
+                choice_);
 }
 
 void option_map::check_consumed(std::string_view key) {
-  DWARFS_CHECK(consumed_keys_.emplace(key).second,
-               fmt::format("option '{}' of choice '{}' consumed multiple times",
-                           key, choice_));
+  DWARFS_CHECKF(consumed_keys_.emplace(key).second,
+                "option '{}' of choice '{}' consumed multiple times", key,
+                choice_);
 }
 
 } // namespace dwarfs

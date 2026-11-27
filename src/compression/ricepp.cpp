@@ -35,7 +35,7 @@
 
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/thrift_lite/compact_reader.h>
@@ -84,10 +84,10 @@ class ricepp_block_compressor final : public block_compressor::impl {
     assert(1 <= component_count && component_count <= 2);
 
     if (data.size() % (component_count * bytes_per_sample)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("unexpected data configuration: {} bytes to "
-                               "compress, {} components, {} bytes per sample",
-                               data.size(), component_count, bytes_per_sample));
+      DWARFS_THROWF(runtime_error,
+                    "unexpected data configuration: {} bytes to "
+                    "compress, {} components, {} bytes per sample",
+                    data.size(), component_count, bytes_per_sample);
     }
 
     using pixel_type = uint16_t;
@@ -197,19 +197,17 @@ class ricepp_block_decompressor final : public block_decompressor_base {
                                                        : std::endian::little,
              .unused_lsb_count = header_.unused_lsb_count().value()})} {
     if (header_.bytes_per_sample().value() != 2) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("[RICEPP] unsupported bytes per sample: {}",
-                               header_.bytes_per_sample().value()));
+      DWARFS_THROWF(runtime_error, "[RICEPP] unsupported bytes per sample: {}",
+                    header_.bytes_per_sample().value());
     }
     if (uncompressed_size_ % (header_.component_count().value() *
                               header_.bytes_per_sample().value()) !=
         0) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("[RICEPP] inconsistent uncompressed size: {} "
-                               "bytes, {} components, {} bytes per sample",
-                               uncompressed_size_,
-                               header_.component_count().value(),
-                               header_.bytes_per_sample().value()));
+      DWARFS_THROWF(runtime_error,
+                    "[RICEPP] inconsistent uncompressed size: {} "
+                    "bytes, {} components, {} bytes per sample",
+                    uncompressed_size_, header_.component_count().value(),
+                    header_.bytes_per_sample().value());
     }
   }
 
@@ -254,14 +252,13 @@ class ricepp_block_decompressor final : public block_decompressor_base {
     hdr.read(r);
     span = span.subspan(r.consumed_bytes());
     if (hdr.ricepp_version().value() > RICEPP_VERSION) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("[RICEPP] unsupported version: {}",
-                               hdr.ricepp_version().value()));
+      DWARFS_THROWF(runtime_error, "[RICEPP] unsupported version: {}",
+                    hdr.ricepp_version().value());
     }
     if (hdr.unused_lsb_count().value() >= kPixelBits) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("[RICEPP] invalid unused_lsb_count: {} >= {}",
-                               hdr.unused_lsb_count().value(), kPixelBits));
+      DWARFS_THROWF(runtime_error,
+                    "[RICEPP] invalid unused_lsb_count: {} >= {}",
+                    hdr.unused_lsb_count().value(), kPixelBits);
     }
     if (hdr.block_size().value() == 0) {
       DWARFS_THROW(runtime_error, "[RICEPP] invalid block_size: 0");

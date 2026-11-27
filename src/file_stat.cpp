@@ -51,7 +51,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/container/sorted_array_set.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
@@ -383,8 +383,7 @@ char get_filetype_label(file_stat::mode_type mode) {
   case posix_file_type::socket:
     return 's';
   default:
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unknown file type: {:#06x}", mode));
+    DWARFS_THROWF(runtime_error, "unknown file type: {:#06x}", mode);
   }
 }
 
@@ -515,17 +514,14 @@ file_stat::file_stat(fs::path const& path, file_stat_options const& opts) {
             offsetof(std::decay_t<decltype(buffer)>, PathBuffer);
         size_t const end = kReparseHeaderSize + buffer.PrintNameOffset +
                            buffer.PrintNameLength;
-        DWARFS_CHECK(
-            end <= total_size,
-            fmt::format("invalid reparse buffer size: {} + {} + {} > {}",
-                        kReparseHeaderSize, buffer.PrintNameOffset,
-                        buffer.PrintNameLength, total_size));
-        DWARFS_CHECK(
-            buffer.PrintNameOffset % sizeof(WCHAR) == 0,
-            fmt::format("invalid PrintNameOffset: {}", buffer.PrintNameOffset));
-        DWARFS_CHECK(
-            buffer.PrintNameLength % sizeof(WCHAR) == 0,
-            fmt::format("invalid PrintNameLength: {}", buffer.PrintNameLength));
+        DWARFS_CHECKF(end <= total_size,
+                      "invalid reparse buffer size: {} + {} + {} > {}",
+                      kReparseHeaderSize, buffer.PrintNameOffset,
+                      buffer.PrintNameLength, total_size);
+        DWARFS_CHECKF(buffer.PrintNameOffset % sizeof(WCHAR) == 0,
+                      "invalid PrintNameOffset: {}", buffer.PrintNameOffset);
+        DWARFS_CHECKF(buffer.PrintNameLength % sizeof(WCHAR) == 0,
+                      "invalid PrintNameLength: {}", buffer.PrintNameLength);
         auto const base = reinterpret_cast<BYTE const*>(buffer.PathBuffer);
         auto const w_print =
             reinterpret_cast<WCHAR const*>(base + buffer.PrintNameOffset);
@@ -677,9 +673,8 @@ void file_stat::ensure_valid(valid_fields_type fields) const {
       std::rethrow_exception(exception_);
     }
 
-    DWARFS_THROW(runtime_error,
-                 fmt::format("missing stat fields: {:#x} (have: {:#x})", fields,
-                             valid_fields_));
+    DWARFS_THROWF(runtime_error, "missing stat fields: {:#x} (have: {:#x})",
+                  fields, valid_fields_);
   }
 }
 

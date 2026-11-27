@@ -36,7 +36,7 @@
 
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
@@ -631,11 +631,9 @@ class brotli_block_decompressor final : public block_decompressor_base {
 
     if (pos + frame_size > uncompressed_size_) {
       if (pos > uncompressed_size_) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format(
-                "[BROTLI] decompressed size {} exceeds expected size {}", pos,
-                uncompressed_size_));
+        DWARFS_THROWF(runtime_error,
+                      "[BROTLI] decompressed size {} exceeds expected size {}",
+                      pos, uncompressed_size_);
       }
       frame_size = uncompressed_size_ - pos;
     }
@@ -655,8 +653,7 @@ class brotli_block_decompressor final : public block_decompressor_base {
                                                &next_out, nullptr);
 
     if (res == BROTLI_DECODER_RESULT_ERROR) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("brotli error: {}", brotli_error()));
+      DWARFS_THROWF(runtime_error, "brotli error: {}", brotli_error());
     }
 
     decompressed_.resize(std::distance(decompressed_.data(), next_out));

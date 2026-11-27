@@ -34,7 +34,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
@@ -86,8 +86,8 @@ hotness_categorizer_<LoggerPolicy>::hotness_categorizer_(
     auto input = fa->open_input(file, ec);
 
     if (ec) {
-      DWARFS_THROW(runtime_error, fmt::format("failed to open file '{}': {}",
-                                              file, ec.message()));
+      DWARFS_THROWF(runtime_error, "failed to open file '{}': {}", file,
+                    ec.message());
     }
 
     std::string line;
@@ -95,8 +95,8 @@ hotness_categorizer_<LoggerPolicy>::hotness_categorizer_(
       auto const path = std::filesystem::path{line}.relative_path();
       LOG_DEBUG << "hotness categorizer: adding path '" << path << "'";
       if (!hotness_set_.emplace(path.generic_string()).second) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("duplicate path in hotness list: '{}'", line));
+        DWARFS_THROWF(runtime_error, "duplicate path in hotness list: '{}'",
+                      line);
       }
     }
 

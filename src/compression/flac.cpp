@@ -39,7 +39,7 @@
 
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/pcm_sample_transformer.h>
@@ -174,9 +174,8 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
   // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
   void error_callback(::FLAC__StreamDecoderErrorStatus status) override {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("[FLAC] decoder error: {}",
-                             FLAC__StreamDecoderErrorStatusString[status]));
+    DWARFS_THROWF(runtime_error, "[FLAC] decoder error: {}",
+                  FLAC__StreamDecoderErrorStatusString[status]);
   }
 
   ::FLAC__StreamDecoderSeekStatus
@@ -245,11 +244,10 @@ class flac_block_compressor final : public block_compressor::impl {
     assert(1 <= num_channels);
 
     if (data.size() % (num_channels * bytes_per_sample)) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("unexpected PCM waveform configuration: {} bytes to "
-                      "compress, {} channels, {} bytes per sample",
-                      data.size(), num_channels, bytes_per_sample));
+      DWARFS_THROWF(runtime_error,
+                    "unexpected PCM waveform configuration: {} bytes to "
+                    "compress, {} channels, {} bytes per sample",
+                    data.size(), num_channels, bytes_per_sample);
     }
 
     size_t num_samples = data.size() / (num_channels * bytes_per_sample);
@@ -314,9 +312,8 @@ class flac_block_compressor final : public block_compressor::impl {
     encoder.set_total_samples_estimate(num_samples);
 
     if (encoder.init() != FLAC__STREAM_ENCODER_INIT_STATUS_OK) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("[FLAC] init: {}", encoder.get_state().as_cstring()));
+      DWARFS_THROWF(runtime_error, "[FLAC] init: {}",
+                    encoder.get_state().as_cstring());
     }
 
     pcm_sample_transformer<FLAC__int32> xfm(pcm_end, pcm_sig, pcm_pad,
@@ -334,10 +331,9 @@ class flac_block_compressor final : public block_compressor::impl {
                                           buffer.size() * bytes_per_sample));
 
       if (!encoder.process_interleaved(buffer.data(), n)) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("[FLAC] failed to process interleaved samples: {}",
-                        encoder.get_state().as_cstring()));
+        DWARFS_THROWF(runtime_error,
+                      "[FLAC] failed to process interleaved samples: {}",
+                      encoder.get_state().as_cstring());
       }
 
       input_pos += buffer.size() * bytes_per_sample;
@@ -413,9 +409,8 @@ class flac_block_decompressor final : public block_decompressor_base {
 
     if (auto status = decoder_->init();
         status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("[FLAC] could not initialize decoder: {}",
-                               FLAC__StreamDecoderInitStatusString[status]));
+      DWARFS_THROWF(runtime_error, "[FLAC] could not initialize decoder: {}",
+                    FLAC__StreamDecoderInitStatusString[status]);
     }
   }
 
@@ -446,10 +441,9 @@ class flac_block_decompressor final : public block_decompressor_base {
 
     if (pos + frame_size > uncompressed_size_) {
       if (pos > uncompressed_size_) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("[FLAC] decompressed size {} exceeds expected size {}",
-                        pos, uncompressed_size_));
+        DWARFS_THROWF(runtime_error,
+                      "[FLAC] decompressed size {} exceeds expected size {}",
+                      pos, uncompressed_size_);
       }
       frame_size = uncompressed_size_ - pos;
     }
@@ -465,9 +459,8 @@ class flac_block_decompressor final : public block_decompressor_base {
 
     while (decompressed_.size() < wanted) {
       if (!decoder_->process_single()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("[FLAC] failed to process frame: {}",
-                                 decoder_->get_state().as_cstring()));
+        DWARFS_THROWF(runtime_error, "[FLAC] failed to process frame: {}",
+                      decoder_->get_state().as_cstring());
       }
     }
 
@@ -493,10 +486,9 @@ class flac_block_decompressor final : public block_decompressor_base {
         (hdr.flags().value() & kBytesPerSampleMask) + 1;
     auto const bits_per_sample = hdr.bits_per_sample().value();
     if (bits_per_sample > bytes_per_sample * 8) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("[FLAC] bits per sample {} exceeds bytes per sample {}",
-                      bits_per_sample, bytes_per_sample));
+      DWARFS_THROWF(runtime_error,
+                    "[FLAC] bits per sample {} exceeds bytes per sample {}",
+                    bits_per_sample, bytes_per_sample);
     }
     return hdr;
   }

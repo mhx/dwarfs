@@ -43,7 +43,7 @@
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/container/small_vector.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/util.h>
@@ -1683,11 +1683,10 @@ DWARFS_FORCE_INLINE bool active_block::append_bytes(
   auto const data_frames = granularity.bytes_to_frames(data_size);
   auto offset = v.size();
 
-  DWARFS_CHECK(granularity.frames_to_bytes(offset) + data_size <=
-                   capacity_in_bytes_,
-               fmt::format("block capacity exceeded: {} + {} > {}",
-                           granularity.frames_to_bytes(offset), data_size,
-                           capacity_in_bytes_));
+  DWARFS_CHECKF(
+      granularity.frames_to_bytes(offset) + data_size <= capacity_in_bytes_,
+      "block capacity exceeded: {} + {} > {}",
+      granularity.frames_to_bytes(offset), data_size, capacity_in_bytes_);
 
   v.append(data, data_offset, data_size);
 

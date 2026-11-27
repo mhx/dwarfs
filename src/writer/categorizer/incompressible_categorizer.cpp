@@ -32,7 +32,7 @@
 
 #include <zstd.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
@@ -162,8 +162,7 @@ class data_extent_fragments {
     }
 
     if (ZSTD_isError(size)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("ZSTD: {}", ZSTD_getErrorName(size)));
+      DWARFS_THROWF(runtime_error, "ZSTD: {}", ZSTD_getErrorName(size));
     }
 
     total_output_size_ += size;

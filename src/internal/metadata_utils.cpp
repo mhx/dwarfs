@@ -32,7 +32,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_type.h>
 
 #include <dwarfs/internal/metadata_utils.h>
@@ -72,8 +72,7 @@ inode_rank get_inode_rank(uint32_t mode) {
   case posix_file_type::fifo:
     return inode_rank::INO_OTH;
   default:
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unknown file type: {:#06x}", mode));
+    DWARFS_THROWF(runtime_error, "unknown file type: {:#06x}", mode);
   }
 }
 

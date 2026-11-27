@@ -44,7 +44,7 @@
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/block_decompressor.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
@@ -165,9 +165,8 @@ class section_wrapper {
   section_data get_section_data() {
     auto const& seg = segment();
 
-    DWARFS_CHECK(
-        sec_.check_fast(seg),
-        fmt::format("attempt to access damaged {} section", sec_.name()));
+    DWARFS_CHECKF(sec_.check_fast(seg), "attempt to access damaged {} section",
+                  sec_.name());
 
     auto compression = sec_.compression();
 
@@ -192,9 +191,8 @@ class section_wrapper {
     auto const& seg = segment();
 
     if (!sec_.check_fast(seg)) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("attempt to access damaged {} section", sec_.name()));
+      DWARFS_THROWF(runtime_error, "attempt to access damaged {} section",
+                    sec_.name());
     }
 
     return {sec_.compression(), sec_.data(seg)};

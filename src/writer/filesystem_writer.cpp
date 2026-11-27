@@ -42,7 +42,7 @@
 
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/checksum.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/superblock_editor.h>
@@ -1183,9 +1183,8 @@ void filesystem_writer_<LoggerPolicy>::add_category_compressor(
   LOG_DEBUG << "adding compressor (" << bc.describe() << ") for category "
             << cat;
 
-  DWARFS_CHECK(
-      category_bc_.emplace(cat, std::move(bc)).second,
-      fmt::format("compressor registered more than once for category {}", cat));
+  DWARFS_CHECKF(category_bc_.emplace(cat, std::move(bc)).second,
+                "compressor registered more than once for category {}", cat);
 }
 
 template <typename LoggerPolicy>
@@ -1212,10 +1211,9 @@ void filesystem_writer_<LoggerPolicy>::add_section_compressor(
     }
   }
 
-  DWARFS_CHECK(
-      section_bc_.emplace(type, std::move(bc)).second,
-      fmt::format("compressor registered more than once for section type {}",
-                  get_friendly_section_name(type)));
+  DWARFS_CHECKF(section_bc_.emplace(type, std::move(bc)).second,
+                "compressor registered more than once for section type {}",
+                get_friendly_section_name(type));
 }
 
 template <typename LoggerPolicy>

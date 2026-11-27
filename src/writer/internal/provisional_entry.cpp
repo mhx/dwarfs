@@ -26,7 +26,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
@@ -53,9 +53,8 @@ provisional_entry::provisional_entry(std::filesystem::path const& path,
   DWARFS_CHECK(parent_ || std::holds_alternative<std::size_t>(mapping_),
                "root entry cannot have a physical path override");
   if (!parent_ && type() != entry_type::E_DIR) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("root entry '{}' must be a directory", path.string()));
+    DWARFS_THROWF(runtime_error, "root entry '{}' must be a directory",
+                  path.string());
   }
 }
 

@@ -44,7 +44,7 @@
 #include <dwarfs/bits.h>
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/match.h>
@@ -264,8 +264,8 @@ template <typename Func, typename... Args>
 auto zstd_checked(std::string_view message, Func&& func, Args&&... args) {
   auto r = std::invoke(std::forward<Func>(func), std::forward<Args>(args)...);
   if (ZSTD_isError(r)) {
-    DWARFS_THROW(runtime_error, fmt::format("failed to {} (zstd error: {})",
-                                            message, ZSTD_getErrorName(r)));
+    DWARFS_THROWF(runtime_error, "failed to {} (zstd error: {})", message,
+                  ZSTD_getErrorName(r));
   }
   return r;
 }
@@ -273,10 +273,9 @@ auto zstd_checked(std::string_view message, Func&& func, Args&&... args) {
 ZSTD_bounds zstd_checked_bounds(ZSTD_cParameter param) {
   auto const bounds = ZSTD_cParam_getBounds(param);
   if (ZSTD_isError(bounds.error)) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("failed to get bounds for parameter '{}': (zstd error: {})",
-                    get_param_name(param), ZSTD_getErrorName(bounds.error)));
+    DWARFS_THROWF(runtime_error,
+                  "failed to get bounds for parameter '{}': (zstd error: {})",
+                  get_param_name(param), ZSTD_getErrorName(bounds.error));
   }
   return bounds;
 }
@@ -373,11 +372,10 @@ class zstd_block_compressor final : public block_compressor::impl {
                  }};
 
     if (ZSTD_isError(r)) {
-      DWARFS_THROW(
+      DWARFS_THROWF(
           runtime_error,
-          fmt::format(
-              "failed to set compression parameter '{}': (zstd error: {})",
-              get_param_name(param), ZSTD_getErrorName(r)));
+          "failed to set compression parameter '{}': (zstd error: {})",
+          get_param_name(param), ZSTD_getErrorName(r));
     }
   }
 

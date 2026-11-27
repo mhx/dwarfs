@@ -30,7 +30,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 
 #include <dwarfs/internal/detail/align_advise_range.h>
 #include <dwarfs/internal/io_ops.h>
@@ -154,9 +154,9 @@ class memory_mapping_ final : public dwarfs::detail::memory_mapping_impl {
       } else {
         ops_.unmap(addr_, mapped_size_, ec);
       }
-      DWARFS_CHECK(!ec, fmt::format("{}({}, {}) failed: {}",
-                                    is_virtual_ ? "virtual_free" : "unmap",
-                                    addr_, mapped_size_, ec.message()));
+      DWARFS_CHECKF(!ec, "{}({}, {}) failed: {}",
+                    is_virtual_ ? "virtual_free" : "unmap", addr_, mapped_size_,
+                    ec.message());
     }
   }
 

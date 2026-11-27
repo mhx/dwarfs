@@ -32,7 +32,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 
@@ -116,7 +116,7 @@ fsinfo_features fsinfo_features::parse(std::string_view features) {
         fsinfo_feature_names, [&f](auto const& p) { return f == p.second; });
 
     if (it == fsinfo_feature_names.end()) {
-      DWARFS_THROW(runtime_error, fmt::format("invalid feature: \"{}\"", f));
+      DWARFS_THROWF(runtime_error, "invalid feature: \"{}\"", f);
     }
 
     result |= it->first;

@@ -48,7 +48,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/checksum.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 
 namespace dwarfs {
 
@@ -122,9 +122,8 @@ class checksum_evp : public checksum::impl {
     finalized_ = true;
 
     if (rv) {
-      DWARFS_CHECK(
-          dig_size_ == dig_size,
-          fmt::format("digest size mismatch: {0} != {1}", dig_size_, dig_size));
+      DWARFS_CHECKF(dig_size_ == dig_size, "digest size mismatch: {0} != {1}",
+                    dig_size_, dig_size);
     }
 
     return rv;
@@ -207,8 +206,8 @@ class checksum_xxh3 : public checksum::impl {
   void update(void const* data, size_t size) override {
     assert(!finalized_);
     auto err = Policy::update(state_.get(), data, size);
-    DWARFS_CHECK(err == XXH_OK,
-                 fmt::format("XXH3 update failed: {}", static_cast<int>(err)));
+    DWARFS_CHECKF(err == XXH_OK, "XXH3 update failed: {}",
+                  static_cast<int>(err));
   }
 
   void reset() override { init(); }

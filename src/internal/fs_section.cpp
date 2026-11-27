@@ -34,7 +34,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/checksum.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>
@@ -56,20 +56,18 @@ template <typename T>
 void read_section_header_common(T& header, file_off_t& start,
                                 file_view const& mm, file_off_t offset,
                                 file_off_t const image_end) {
-  DWARFS_CHECK(image_end <= mm.size(),
-               fmt::format("invalid image end: {} > {}", image_end, mm.size()));
+  DWARFS_CHECKF(image_end <= mm.size(), "invalid image end: {} > {}", image_end,
+                mm.size());
 
   if (std::cmp_less(image_end, sizeof(T))) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid image end: {} < {} [mm.size() = {}]",
-                             image_end, sizeof(T), mm.size()));
+    DWARFS_THROWF(runtime_error, "invalid image end: {} < {} [mm.size() = {}]",
+                  image_end, sizeof(T), mm.size());
   }
 
   if (offset < 0 || std::cmp_greater(offset, image_end - sizeof(T))) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("truncated section header: {} > {} - {} [mm.size() = {}]",
-                    offset, image_end, sizeof(T), mm.size()));
+    DWARFS_THROWF(runtime_error,
+                  "truncated section header: {} > {} - {} [mm.size() = {}]",
+                  offset, image_end, sizeof(T), mm.size());
   }
 
   mm.copy_to(header, offset);
@@ -77,10 +75,9 @@ void read_section_header_common(T& header, file_off_t& start,
   offset += sizeof(T);
 
   if (std::cmp_greater(header.length.load(), image_end - offset)) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("truncated section data: {} + {} > {} [mm.size() = {}]",
-                    offset, header.length.load(), image_end, mm.size()));
+    DWARFS_THROWF(runtime_error,
+                  "truncated section data: {} + {} > {} [mm.size() = {}]",
+                  offset, header.length.load(), image_end, mm.size());
   }
 
   start = offset;
@@ -89,14 +86,13 @@ void read_section_header_common(T& header, file_off_t& start,
 template <typename T>
 void check_section(T const& sec) {
   if (!is_known_section_type(sec.type())) {
-    DWARFS_THROW(runtime_error, fmt::format("unknown section type ({0})",
-                                            static_cast<int>(sec.type())));
+    DWARFS_THROWF(runtime_error, "unknown section type ({0})",
+                  static_cast<int>(sec.type()));
   }
 
   if (!is_known_compression_type(sec.compression())) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unknown compression type ({0})",
-                             static_cast<int>(sec.compression())));
+    DWARFS_THROWF(runtime_error, "unknown compression type ({0})",
+                  static_cast<int>(sec.compression()));
   }
 }
 
@@ -394,8 +390,7 @@ fs_section::fs_section(file_view const& mm, file_off_t const offset,
     break;
 
   default:
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unsupported section version {}", version));
+    DWARFS_THROWF(runtime_error, "unsupported section version {}", version);
     break;
   }
 }
@@ -410,8 +405,8 @@ fs_section::fs_section(file_view const& mm, section_type const type,
     break;
 
   default:
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unsupported section version {} [lazy]", version));
+    DWARFS_THROWF(runtime_error, "unsupported section version {} [lazy]",
+                  version);
     break;
   }
 }
@@ -443,9 +438,9 @@ fs_section_v2_lazy::fs_section_v2_lazy(file_view const& mm,
     , offset_{offset}
     , size_{size}
     , image_end_{image_end} {
-  DWARFS_CHECK(size_ >= sizeof(section_header_v2),
-               fmt::format("lazy section too small for header: {} < {}", size_,
-                           sizeof(section_header_v2)));
+  DWARFS_CHECKF(size_ >= sizeof(section_header_v2),
+                "lazy section too small for header: {} < {}", size_,
+                sizeof(section_header_v2));
 }
 
 fs_section::impl const& fs_section_v2_lazy::section() const {
@@ -455,16 +450,14 @@ fs_section::impl const& fs_section_v2_lazy::section() const {
     sec_ = std::make_unique<fs_section_v2>(*mm_, offset_, image_end_);
     mm_.reset();
     if (sec_->type() != type_) [[unlikely]] {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("section type mismatch: expected {} from index, got {}",
-                      get_section_name(type_), get_section_name(sec_->type())));
+      DWARFS_THROWF(runtime_error,
+                    "section type mismatch: expected {} from index, got {}",
+                    get_section_name(type_), get_section_name(sec_->type()));
     }
     if (sec_->length() != this->length()) [[unlikely]] {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("section length mismatch: expected {} from index, got {}",
-                      this->length(), sec_->length()));
+      DWARFS_THROWF(runtime_error,
+                    "section length mismatch: expected {} from index, got {}",
+                    this->length(), sec_->length());
     }
   }
 

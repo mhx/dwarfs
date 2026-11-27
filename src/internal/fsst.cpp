@@ -34,7 +34,7 @@
 #include <utility>
 
 #include <dwarfs/container/packed_int_vector.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/internal/fsst.h>
 
 #include <fmt/format.h>
@@ -135,9 +135,8 @@ class fsst_decoder_ : public fsst_decoder::impl {
           "read {0} symtab bytes, expected {1}", read, dictionary.size()));
     }
     auto const read2 = ::fsst_import(&decoder_, header);
-    DWARFS_CHECK(
-        read2 == read,
-        fmt::format("imported {0} symtab bytes, expected {1}", read2, read));
+    DWARFS_CHECKF(read2 == read, "imported {0} symtab bytes, expected {1}",
+                  read2, read);
   }
 
   void

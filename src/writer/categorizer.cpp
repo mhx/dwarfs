@@ -36,7 +36,7 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/compiler.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
@@ -246,7 +246,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
 
   fragment_category::value_type category(std::string_view cat) const override {
     auto it = catmap_.find(cat);
-    DWARFS_CHECK(it != catmap_.end(), fmt::format("unknown category: {}", cat));
+    DWARFS_CHECKF(it != catmap_.end(), "unknown category: {}", cat);
     return it->second;
   }
 
@@ -397,8 +397,8 @@ void categorizer_registry::register_factory(
     std::unique_ptr<categorizer_factory const>&& factory) {
   auto name = factory->name();
 
-  DWARFS_CHECK(factories_.emplace(name, std::move(factory)).second,
-               fmt::format("categorizer factory name conflict: {}", name));
+  DWARFS_CHECKF(factories_.emplace(name, std::move(factory)).second,
+                "categorizer factory name conflict: {}", name);
 }
 
 void categorizer_info::add_library_dependencies(library_dependencies&) const {}

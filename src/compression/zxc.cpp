@@ -36,7 +36,7 @@
 
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
@@ -89,9 +89,8 @@ class zxc_block_compressor final : public block_compressor::impl {
                             compressed.data(), compressed.size());
 
     if (csize < 0) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("ZXC: compression failed ({})",
-                               ::zxc_error_name(static_cast<int>(csize))));
+      DWARFS_THROWF(runtime_error, "ZXC: compression failed ({})",
+                    ::zxc_error_name(static_cast<int>(csize)));
     }
 
     compressed.resize(static_cast<size_t>(csize));
@@ -128,9 +127,8 @@ class zxc_block_compressor final : public block_compressor::impl {
   static void set_param(::zxc_cctx* cctx, zxc_cparam_t param, int64_t value) {
     if (auto const rv = ::zxc_cctx_set_param(cctx, param, value);
         rv != ZXC_OK) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("ZXC: invalid compression parameter ({})",
-                               ::zxc_error_name(rv)));
+      DWARFS_THROWF(runtime_error, "ZXC: invalid compression parameter ({})",
+                    ::zxc_error_name(rv));
     }
   }
 

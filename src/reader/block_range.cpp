@@ -28,7 +28,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/reader/block_range.h>
 
 #include <dwarfs/reader/internal/cached_block.h>
@@ -40,16 +40,15 @@ namespace {
 std::span<uint8_t const>
 checked_subspan(std::span<uint8_t const> data, size_t offset, size_t size) {
   if (offset > data.size()) [[unlikely]] {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("block_range: offset out of range ({0} > {1})",
-                             offset, data.size()));
+    DWARFS_THROWF(runtime_error, "block_range: offset out of range ({0} > {1})",
+                  offset, data.size());
   }
 
   if (auto const available = data.size() - offset; size > available)
       [[unlikely]] {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("block_range: size out of range ({0} + {1} > {2})",
-                             offset, size, data.size()));
+    DWARFS_THROWF(runtime_error,
+                  "block_range: size out of range ({0} + {1} > {2})", offset,
+                  size, data.size());
   }
 
   if (size > 0 && !data.data()) [[unlikely]] {

@@ -52,7 +52,7 @@
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
@@ -741,7 +741,7 @@ void dwarfsck_impl::do_dump_info() {
 
 void dwarfsck_impl::do_list_files() {
   auto max_width = [](auto const& vec, std::string_view what) {
-    DWARFS_CHECK(!vec.empty(), fmt::format("no {} in filesystem", what));
+    DWARFS_CHECKF(!vec.empty(), "no {} in filesystem", what);
     auto max = std::ranges::max_element(vec);
     return std::to_string(*max).size();
   };
@@ -754,8 +754,8 @@ void dwarfsck_impl::do_list_files() {
     assert(iv.is_device());
     std::error_code ec;
     auto id = fs().get_device(iv, ec);
-    DWARFS_CHECK(!ec, fmt::format("failed to get device for inode {}: {}",
-                                  iv.inode_num(), ec.message()));
+    DWARFS_CHECKF(!ec, "failed to get device for inode {}: {}", iv.inode_num(),
+                  ec.message());
     return fmt::format(
         "{:>{}}", fmt::format("{},{}", id.major_id(), id.minor_id()), width);
   };

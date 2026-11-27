@@ -45,7 +45,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
@@ -179,10 +179,10 @@ std::optional<input_entry> plain_impl::next() {
             root_.empty()
                 ? std::string{"empty"}
                 : fmt::format("'{}'", path_to_utf8_string_sanitized(root_));
-        DWARFS_THROW(runtime_error,
-                     fmt::format("absolute paths in input list require "
-                                 "absolute input path, but input path is {}",
-                                 root_desc));
+        DWARFS_THROWF(runtime_error,
+                      "absolute paths in input list require "
+                      "absolute input path, but input path is {}",
+                      root_desc);
       }
 
       input_path = rebase(input_path);
@@ -263,8 +263,8 @@ class gen_init_cpio_impl final : public input_entry_reader {
 
  private:
   [[noreturn]] void invalid(std::string_view reason) const {
-    DWARFS_THROW(runtime_error, fmt::format("gen_init_cpio line {}: {}",
-                                            line_number_, reason));
+    DWARFS_THROWF(runtime_error, "gen_init_cpio line {}: {}", line_number_,
+                  reason);
   }
 
   std::uint32_t
@@ -478,13 +478,13 @@ class jsonl_impl final : public input_entry_reader {
 std::string
 jsonl_impl::string(json const& value, std::string_view field) const {
   if (!value.is_string()) {
-    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a string", field));
+    DWARFS_THROWF(runtime_error, "'{}' must be a string", field);
   }
 
   auto result = value.get<std::string>();
 
   if (result.find('\0') != std::string::npos) {
-    DWARFS_THROW(runtime_error, fmt::format("'{}' contains a NUL byte", field));
+    DWARFS_THROWF(runtime_error, "'{}' contains a NUL byte", field);
   }
 
   return result;
@@ -493,7 +493,7 @@ jsonl_impl::string(json const& value, std::string_view field) const {
 std::uint32_t
 jsonl_impl::number(json const& value, std::string_view field) const {
   if (!value.is_number_integer()) {
-    DWARFS_THROW(runtime_error, fmt::format("'{}' must be an integer", field));
+    DWARFS_THROWF(runtime_error, "'{}' must be an integer", field);
   }
 
   if (value.is_number_unsigned()) {
@@ -510,7 +510,7 @@ jsonl_impl::number(json const& value, std::string_view field) const {
     }
   }
 
-  DWARFS_THROW(runtime_error, fmt::format("'{}' is out of range", field));
+  DWARFS_THROWF(runtime_error, "'{}' is out of range", field);
 }
 
 fs::path jsonl_impl::logical_path(json const& value, bool allow_root) const {
@@ -525,7 +525,7 @@ fs::path jsonl_impl::logical_path(json const& value, bool allow_root) const {
   if (name.empty() || path.empty() || path == "." ||
       std::ranges::any_of(path,
                           [](auto const& part) { return part == ".."; })) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid image path '{}'", name));
+    DWARFS_THROWF(runtime_error, "invalid image path '{}'", name);
   }
 
   return path;

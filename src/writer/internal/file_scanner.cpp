@@ -40,6 +40,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/container/chunked_append_only_vector.h>
 #include <dwarfs/container/dense_map_index.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
@@ -1044,25 +1045,25 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(SourceVecType& ent,
   auto finalize = [&](auto&& p) {
     auto&& files = access.files(p);
 
-    DWARFS_CHECK(!files.empty(),
-                 fmt::format("internal error while finalizing {} inodes: "
-                             "empty files vector for key {}",
-                             key, access.key(p)));
+    DWARFS_CHECKF(!files.empty(),
+                  "internal error while finalizing {} inodes: "
+                  "empty files vector for key {}",
+                  key, access.key(p));
 
     auto const nlink = storage_.handle(files.front()).hardlink_count();
 
     if constexpr (Unique) {
-      DWARFS_CHECK(files.size() == nlink,
-                   fmt::format("internal error while finalizing {} inodes: "
-                               "non-unique files vector for key {}",
-                               key, access.key(p)));
+      DWARFS_CHECKF(files.size() == nlink,
+                    "internal error while finalizing {} inodes: "
+                    "non-unique files vector for key {}",
+                    key, access.key(p));
 
       ++num_unique_;
     } else {
-      DWARFS_CHECK(files.size() > nlink,
-                   fmt::format("internal error while finalizing {} inodes: "
-                               "unique files vector for key {}",
-                               key, access.key(p)));
+      DWARFS_CHECKF(files.size() > nlink,
+                    "internal error while finalizing {} inodes: "
+                    "unique files vector for key {}",
+                    key, access.key(p));
     }
 
     // needed for reproducibility, also for unique hardlinked files

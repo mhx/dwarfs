@@ -40,7 +40,7 @@
 #include <dwarfs/boxed_endian.h>
 #include <dwarfs/checksum.h>
 #include <dwarfs/device_number.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/compute_file_hashes.h>
@@ -298,10 +298,9 @@ fs_digest_computer::fs_digest_computer(logger& lgr, os_access const& os,
 
     std::size_t const seen_count = std::ranges::count(seen, true);
 
-    DWARFS_CHECK(
-        seen_count == st.unique_content_count,
-        fmt::format("expected {} unique content digests, but computed only {}",
-                    st.unique_content_count, seen_count));
+    DWARFS_CHECKF(seen_count == st.unique_content_count,
+                  "expected {} unique content digests, but computed only {}",
+                  st.unique_content_count, seen_count);
 
     tv << "computed " << seen_count << " unique content digests";
   }
@@ -417,8 +416,8 @@ fs_digest_computer::compute_dir_digests(state& st, dir_entry_view const& de,
                                         inode_view const& iv) const {
   auto const dir = fs_.opendir(iv);
 
-  DWARFS_CHECK(dir, fmt::format("failed to open directory inode {} ({})",
-                                iv.inode_num(), de.unix_path()));
+  DWARFS_CHECKF(dir, "failed to open directory inode {} ({})", iv.inode_num(),
+                de.unix_path());
 
   auto const num_entries = fs_.dirsize(*dir);
   assert(num_entries >= 2); // "." and ".." entries
@@ -443,9 +442,8 @@ fs_digest_computer::compute_dir_digests(state& st, dir_entry_view const& de,
   for (size_t offset = 2; offset < num_entries; ++offset) {
     auto const ent = fs_.readdir(*dir, offset);
 
-    DWARFS_CHECK(
-        ent, fmt::format("failed to read directory entry {} in inode {} ({})",
-                         offset, iv.inode_num(), de.unix_path()));
+    DWARFS_CHECKF(ent, "failed to read directory entry {} in inode {} ({})",
+                  offset, iv.inode_num(), de.unix_path());
 
     auto const child_digests = compute_entry_digests(st, *ent);
 
@@ -538,8 +536,8 @@ fs_digest_computer::compute_device_digests(state& st, dir_entry_view const& de,
 
   std::error_code ec;
   auto const rdev = fs_.get_device(iv, ec);
-  DWARFS_CHECK(!ec, fmt::format("failed to get device id for inode {}: {}",
-                                iv.inode_num(), ec.message()));
+  DWARFS_CHECKF(!ec, "failed to get device id for inode {}: {}", iv.inode_num(),
+                ec.message());
 
   device_id dev{};
 

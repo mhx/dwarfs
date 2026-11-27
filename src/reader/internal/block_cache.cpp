@@ -43,7 +43,7 @@
 
 #include <parallel_hashmap/phmap.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/performance_monitor.h>
@@ -430,9 +430,8 @@ class block_cache_ final : public block_cache::impl {
     // can completely bypass the cache
     try {
       if (block_no >= block_.size()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("block number out of range {0} >= {1}",
-                                 block_no, block_.size()));
+        DWARFS_THROWF(runtime_error, "block number out of range {0} >= {1}",
+                      block_no, block_.size());
       }
 
       // TODO: we probably want to change the interface for `section.data()`

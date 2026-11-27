@@ -56,7 +56,7 @@
 #endif
 
 #include <dwarfs/container/small_vector.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal_ansi.h>
@@ -145,7 +145,7 @@ logger::level_type logger::parse_level(std::string_view level) {
       return lvl;
     }
   }
-  DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}", level));
+  DWARFS_THROWF(runtime_error, "invalid logger level: {}", level);
 }
 
 std::string_view logger::level_name(level_type level) {
@@ -154,8 +154,8 @@ std::string_view logger::level_name(level_type level) {
       return name;
     }
   }
-  DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}",
-                                          static_cast<int>(level)));
+  DWARFS_THROWF(runtime_error, "invalid logger level: {}",
+                static_cast<int>(level));
 }
 
 std::string logger::all_level_names() {

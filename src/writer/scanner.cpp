@@ -49,7 +49,7 @@
 #include <dwarfs/binary_literals.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/device_number.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
@@ -1196,9 +1196,8 @@ auto scanner_<LoggerPolicy>::materialize_list_entry(entry_storage& tree,
     auto fsrc = inspect(file->source, nullptr, boundary, true);
 
     if (!fsrc.stat.is_regular_file()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("source type mismatch for '{}'",
-                               path_to_utf8_string_sanitized(entry.path)));
+      DWARFS_THROWF(runtime_error, "source type mismatch for '{}'",
+                    path_to_utf8_string_sanitized(entry.path));
     }
 
     auto& st = rv.stat;
@@ -1262,9 +1261,8 @@ void scanner_<LoggerPolicy>::scan_list_hardlink(
     std::filesystem::path const& path, file_handle source, progress& prog,
     file_scanner& fs) {
   if (!valid_list_path(path) || path == ".") {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("invalid hardlink path '{}'",
-                             path_to_utf8_string_sanitized(path)));
+    DWARFS_THROWF(runtime_error, "invalid hardlink path '{}'",
+                  path_to_utf8_string_sanitized(path));
   }
 
   auto parent = list_parent(state, path, prog);
@@ -1311,9 +1309,8 @@ void scanner_<LoggerPolicy>::scan_list_entry(entry_storage& tree,
     }
 
     if (!valid_list_path(path)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid input entry path '{}'",
-                               path_to_utf8_string_sanitized(path)));
+      DWARFS_THROWF(runtime_error, "invalid input entry path '{}'",
+                    path_to_utf8_string_sanitized(path));
     }
 
     if (entry.source && entry.spec) {
@@ -1327,11 +1324,10 @@ void scanner_<LoggerPolicy>::scan_list_entry(entry_storage& tree,
         auto target = tree.find_entry(state.root, hardlink->target);
 
         if (!target || !target.is_file()) {
-          DWARFS_THROW(
-              runtime_error,
-              fmt::format("hardlink '{}' has no preceding file '{}'",
-                          path_to_utf8_string_sanitized(path),
-                          path_to_utf8_string_sanitized(hardlink->target)));
+          DWARFS_THROWF(runtime_error,
+                        "hardlink '{}' has no preceding file '{}'",
+                        path_to_utf8_string_sanitized(path),
+                        path_to_utf8_string_sanitized(hardlink->target));
         }
 
         scan_list_hardlink(tree, state, path, target.as_file(), prog, fs);
@@ -1671,9 +1667,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
         auto const path = canonical_if_dereference(source.path);
 
         if (!os_.symlink_info(path).is_directory()) {
-          DWARFS_THROW(runtime_error,
-                       fmt::format("contents source '{}' is not a directory",
-                                   path_to_utf8_string_sanitized(source.path)));
+          DWARFS_THROWF(runtime_error,
+                        "contents source '{}' is not a directory",
+                        path_to_utf8_string_sanitized(source.path));
         }
       }
 

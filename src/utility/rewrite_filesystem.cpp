@@ -23,6 +23,7 @@
 
 #include <vector>
 
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
@@ -316,9 +317,9 @@ void rewrite_filesystem(
               opts.change_block_size ? &bci : nullptr);
 
           if (opts.change_block_size) {
-            DWARFS_CHECK(block_no == blocks.size(),
-                         fmt::format("block_no ({}) != blocks.size() ({})",
-                                     block_no, blocks.size()));
+            DWARFS_CHECKF(block_no == blocks.size(),
+                          "block_no ({}) != blocks.size() ({})", block_no,
+                          blocks.size());
             LOG_DEBUG << "adding block " << block_no
                       << " uncompressed size: " << bci.uncompressed_size;
             auto& info = blocks.emplace_back();
@@ -427,9 +428,9 @@ void rewrite_filesystem(
                   fs.read_raw_block_data(c.block, c.offset, c.size).get();
               data.append(range.data(), range.size());
             }
-            DWARFS_CHECK(data.size() == m.size,
-                         fmt::format("data size {} != expected size {}",
-                                     data.size(), m.size));
+            DWARFS_CHECKF(data.size() == m.size,
+                          "data size {} != expected size {}", data.size(),
+                          m.size);
             return std::pair{data.share(), m.metadata};
           },
           m.size, cat);

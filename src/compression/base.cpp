@@ -28,7 +28,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 
 #include "base.h"
 
@@ -44,9 +44,8 @@ void block_decompressor_base::start_decompression(mutable_byte_buffer target) {
   try {
     decompressed_.reserve(size);
   } catch (std::bad_alloc const&) {
-    DWARFS_THROW(
-        runtime_error,
-        fmt::format("could not reserve {} bytes for decompressed block", size));
+    DWARFS_THROWF(runtime_error,
+                  "could not reserve {} bytes for decompressed block", size);
   }
 }
 

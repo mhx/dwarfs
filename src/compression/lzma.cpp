@@ -42,7 +42,7 @@
 #include <dwarfs/compressor_factory.h>
 #include <dwarfs/container/sorted_array_map.h>
 #include <dwarfs/decompressor_factory.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
@@ -104,7 +104,7 @@ T find_option(
   if (auto value = options.get(name)) {
     return *value;
   }
-  DWARFS_THROW(runtime_error, fmt::format("unknown {} '{}'", what, name));
+  DWARFS_THROWF(runtime_error, "unknown {} '{}'", what, name);
 }
 
 template <typename T, size_t N>
@@ -230,8 +230,8 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
 
   if (auto ret = lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64);
       ret != LZMA_OK) {
-    DWARFS_THROW(runtime_error, fmt::format("lzma_stream_encoder: {}",
-                                            lzma_error_string(ret)));
+    DWARFS_THROWF(runtime_error, "lzma_stream_encoder: {}",
+                  lzma_error_string(ret));
   }
 
   lzma_action action = LZMA_FINISH;
@@ -257,8 +257,8 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
   if (ret == LZMA_STREAM_END) {
     compressed.shrink_to_fit();
   } else {
-    DWARFS_THROW(runtime_error, fmt::format("LZMA compression failed: {}",
-                                            lzma_error_string(ret)));
+    DWARFS_THROWF(runtime_error, "LZMA compression failed: {}",
+                  lzma_error_string(ret));
   }
 
   return compressed.share();
@@ -294,8 +294,8 @@ class lzma_block_decompressor final : public block_decompressor_base {
     stream_.avail_in = data.size();
     if (auto ret = lzma_stream_decoder(&stream_, UINT64_MAX, LZMA_CONCATENATED);
         ret != LZMA_OK) {
-      DWARFS_THROW(runtime_error, fmt::format("lzma_stream_decoder: {}",
-                                              lzma_error_string(ret)));
+      DWARFS_THROWF(runtime_error, "lzma_stream_decoder: {}",
+                    lzma_error_string(ret));
     }
   }
 
@@ -316,10 +316,9 @@ class lzma_block_decompressor final : public block_decompressor_base {
 
     if (pos + frame_size > uncompressed_size_) {
       if (pos > uncompressed_size_) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("[LZMA] decompressed size {} exceeds expected size {}",
-                        pos, uncompressed_size_));
+        DWARFS_THROWF(runtime_error,
+                      "[LZMA] decompressed size {} exceeds expected size {}",
+                      pos, uncompressed_size_);
       }
       frame_size = uncompressed_size_ - pos;
       action = LZMA_FINISH;
@@ -394,8 +393,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* const data,
 
   if (auto ret = lzma_stream_footer_decode(&footer_flags, data + pos);
       ret != LZMA_OK) {
-    DWARFS_THROW(runtime_error, fmt::format("lzma_stream_footer_decode: {}",
-                                            lzma_error_string(ret)));
+    DWARFS_THROWF(runtime_error, "lzma_stream_footer_decode: {}",
+                  lzma_error_string(ret));
   }
 
   lzma_vli index_size = footer_flags.backward_size;
@@ -409,8 +408,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* const data,
   lzma_stream s = LZMA_STREAM_INIT;
 
   if (auto ret = lzma_index_decoder(&s, &index, UINT64_MAX); ret != LZMA_OK) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("lzma_index_decoder: {}", lzma_error_string(ret)));
+    DWARFS_THROWF(runtime_error, "lzma_index_decoder: {}",
+                  lzma_error_string(ret));
   }
 
   s.avail_in = index_size;
@@ -418,9 +417,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* const data,
 
   lzma_ret ret = lzma_code(&s, LZMA_RUN);
   if (ret != LZMA_STREAM_END || s.avail_in != 0) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("lzma_code(): {} (avail_in={})",
-                             lzma_error_string(ret), s.avail_in));
+    DWARFS_THROWF(runtime_error, "lzma_code(): {} (avail_in={})",
+                  lzma_error_string(ret), s.avail_in);
   }
 
   pos -= LZMA_STREAM_HEADER_SIZE;

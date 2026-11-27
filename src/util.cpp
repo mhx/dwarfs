@@ -109,7 +109,7 @@
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
@@ -1536,12 +1536,11 @@ std::tm safe_localtime(std::time_t t) {
   std::tm buf{};
 #ifdef _WIN32
   if (auto r = ::localtime_s(&buf, &t); r != 0) {
-    DWARFS_THROW(runtime_error, fmt::format("localtime_s: error code {}", r));
+    DWARFS_THROWF(runtime_error, "localtime_s: error code {}", r);
   }
 #else
   if (!::localtime_r(&t, &buf)) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("localtime_r: error code {}", errno));
+    DWARFS_THROWF(runtime_error, "localtime_r: error code {}", errno);
   }
 #endif
   return buf;

@@ -37,7 +37,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
+#include <dwarfs/error_fmt.h>
 #include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
 #include <dwarfs/os_access_generic.h>
@@ -603,8 +603,8 @@ os_access_mock::open_file_opts(fs::path const& path,
     }
 
     auto it = file_contents_.find({de->status.dev, de->status.ino});
-    DWARFS_CHECK(it != file_contents_.end(),
-                 fmt::format("no file contents for: {}", path.string()));
+    DWARFS_CHECKF(it != file_contents_.end(), "no file contents for: {}",
+                  path.string());
     auto const& contents = it->second;
 
     if (std::holds_alternative<test_file_data>(contents)) {
