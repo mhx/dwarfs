@@ -243,6 +243,78 @@ if use_lib llvm; then
     cd "$WORKDIR"
     tar xf ${WORKROOT}/${LLVM_TARBALL}
     cd llvm-project-${LLVM_VERSION}.src
+
+    # https://github.com/llvm/llvm-project/issues/231806
+    patch -p1 <<'PATCH'
+diff --git a/libunwind/src/UnwindRegistersRestore.S b/libunwind/src/UnwindRegistersRestore.S
+--- a/libunwind/src/UnwindRegistersRestore.S
++++ b/libunwind/src/UnwindRegistersRestore.S
+@@ -261,9 +261,10 @@
+   lxvd2x n, 0, 4
+ #endif
+ 
+-#if !defined(_AIX)
+-  // use VRSAVE to conditionally restore the remaining VS regs, that are
+-  // where the V regs are mapped. In the AIX ABI, VRSAVE is not used.
++#if !defined(_AIX) && !(defined(_CALL_ELF) && _CALL_ELF == 2)
++  // Use VRSAVE to conditionally restore the remaining VS registers,
++  // which correspond to the V registers. AIX and ELFv2 do not require
++  // VRSAVE to be maintained.
+   ld    5, PPC64_OFFS_VRSAVE(3)   // test VRsave
+   cmpwi 5, 0
+   beq   Lnovec
+@@ -286,7 +287,7 @@
+ #define PPC64_CLVSl(n) PPC64_CLVS_RESTORE(n)
+ #define PPC64_CLVSh(n) PPC64_CLVS_RESTORE(n)
+ 
+-#endif // !defined(_AIX)
++#endif
+ 
+   PPC64_CLVSl(32)
+   PPC64_CLVSl(33)
+@@ -370,9 +371,9 @@
+   std    0, 8(4)                            ;\
+   lvx    n, 0, 4
+ 
+-#if !defined(_AIX)
+-  // restore vector registers if any are in use. In the AIX ABI, VRSAVE is
+-  // not used.
++#if !defined(_AIX) && !(defined(_CALL_ELF) && _CALL_ELF == 2)
++  // Restore vector registers if any are in use. AIX and ELFv2 do not
++  // require VRSAVE to be maintained.
+   ld    5, PPC64_OFFS_VRSAVE(3)   // test VRsave
+   cmpwi 5, 0
+   beq   Lnovec
+@@ -394,7 +395,7 @@
+ #define PPC64_CLV_UNALIGNEDl(n) PPC64_CLV_UNALIGNED_RESTORE(n)
+ #define PPC64_CLV_UNALIGNEDh(n) PPC64_CLV_UNALIGNED_RESTORE(n)
+ 
+-#endif // !defined(_AIX)
++#endif
+ 
+   subi  4, 1, 16
+   // r4 is now a 16-byte aligned pointer into the red zone
+diff --git a/libunwind/src/UnwindRegistersSave.S b/libunwind/src/UnwindRegistersSave.S
+--- a/libunwind/src/UnwindRegistersSave.S
++++ b/libunwind/src/UnwindRegistersSave.S
+@@ -421,12 +421,14 @@
+ // store VS register
+ #ifdef __LITTLE_ENDIAN__
+ // For little-endian targets, we need a swap since stxvd2x will store the
+-// register in the incorrect doubleword order.
++// register in the incorrect doubleword order. Swap it back after storing
++// to preserve the original register contents.
+ // FIXME: when supporting targets older than Power9 on LE is no longer required
+ //        this can be changed to simply `stxv n, 16 * n(4)`.
+ #define PPC64_STVS(n)      \
+   xxswapd n, n            ;\
+   stxvd2x n, 0, 4         ;\
++  xxswapd n, n            ;\
+   addi    4, 4, 16
+ #else
+ #define PPC64_STVS(n)      \
+PATCH
+
     python /usr/local/bin/trim-libcxx-locale.py
     cd runtimes
     mkdir build
