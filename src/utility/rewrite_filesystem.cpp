@@ -220,7 +220,8 @@ rw_block_mappings build_block_mappings(std::span<block_info const> blocks,
   return result;
 }
 
-std::string block_mappings_to_string(rw_block_mappings const& mapped) {
+[[maybe_unused]] std::string
+block_mappings_to_string(rw_block_mappings const& mapped) {
   std::ostringstream oss;
   for (auto const& m : mapped.new_to_old) {
     oss << "new block " << m.block << " (size " << m.size;

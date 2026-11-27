@@ -83,22 +83,29 @@ TEST(test_logger, logger_level) {
   EXPECT_TRUE(lgr.empty());
   EXPECT_EQ(logger::DEBUG, lgr.threshold());
 
+  int debug_evaluated = 0;
   LOG_INFO << "info";
-  LOG_DEBUG << "debug";
+  LOG_DEBUG << (++debug_evaluated, "debug");
 
   EXPECT_FALSE(lgr.empty());
 
   auto const& ent = lgr.get_log();
-  ASSERT_EQ(2, ent.size());
-  EXPECT_EQ(logger::INFO, ent[0].level);
-  EXPECT_EQ("info", ent[0].output);
-  EXPECT_EQ(logger::DEBUG, ent[1].level);
-  EXPECT_EQ("debug", ent[1].output);
-
   auto const str = lgr.as_string();
   EXPECT_THAT(str, testing::StartsWith("I ["));
+#if DWARFS_DEBUG_LOGGING_ENABLED
+  EXPECT_EQ(1, debug_evaluated);
+  ASSERT_EQ(2, ent.size());
+  EXPECT_EQ(logger::DEBUG, ent[1].level);
+  EXPECT_EQ("debug", ent[1].output);
   EXPECT_THAT(str, testing::HasSubstr("] info\nD "));
   EXPECT_THAT(str, testing::EndsWith("] debug\n"));
+#else
+  EXPECT_EQ(0, debug_evaluated);
+  ASSERT_EQ(1, ent.size());
+  EXPECT_THAT(str, testing::EndsWith("] info\n"));
+#endif
+  EXPECT_EQ(logger::INFO, ent[0].level);
+  EXPECT_EQ("info", ent[0].output);
 
   {
     std::ostringstream oss2;

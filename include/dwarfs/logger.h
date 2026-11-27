@@ -192,7 +192,7 @@ class timed_level_log_entry {
 class no_log_entry {
  public:
   no_log_entry(logger&, logger::level_type) {}
-  no_log_entry(logger&, logger::level_type, source_location) {}
+  no_log_entry(logger&, logger::level_type, source_location, bool = false) {}
 
   template <typename T>
   no_log_entry& operator<<(T const&) {
@@ -379,7 +379,11 @@ class log_proxy {
 #define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(DWARFS_CURRENT_SOURCE_LOCATION)
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {};
+#if DWARFS_DEBUG_LOGGING_ENABLED
 class debug_logger_policy : public MinimumLogLevelPolicy<logger::TRACE> {};
+#else
+using debug_logger_policy = prod_logger_policy;
+#endif
 
 namespace detail {
 

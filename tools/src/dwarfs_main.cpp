@@ -457,12 +457,12 @@ void check_fusermount(dwarfs_userdata& userdata [[maybe_unused]]) {
 }
 
 #if DWARFS_FUSE_LOWLEVEL
-std::string get_caller_context(fuse_req_t req) {
+[[maybe_unused]] std::string get_caller_context(fuse_req_t req) {
   auto ctx = fuse_req_ctx(req);
   return fmt::format(" [pid={}, uid={}, gid={}]", ctx->pid, ctx->uid, ctx->gid);
 }
 #else
-std::string get_caller_context() {
+[[maybe_unused]] std::string get_caller_context() {
   auto ctx = fuse_get_context();
   return fmt::format(" [pid={}, uid={}, gid={}]", ctx->pid, ctx->uid, ctx->gid);
 }
