@@ -91,7 +91,17 @@ std::string
 ratio_to_string(std::uint64_t num, std::uint64_t den, int precision = 3);
 file_size_t parse_size_with_unit(std::string const& str);
 std::chrono::nanoseconds parse_time_with_unit(std::string const& str);
-std::chrono::system_clock::time_point parse_time_point(std::string const& str);
+
+// seconds since the Unix epoch, plus a nonnegative, subsecond fraction
+struct parsed_timestamp {
+  std::chrono::seconds seconds{};
+  std::chrono::nanoseconds fraction{};
+
+  friend constexpr bool
+  operator==(parsed_timestamp const&, parsed_timestamp const&) = default;
+};
+
+parsed_timestamp parse_time_point(std::string const& str);
 
 std::unordered_map<std::string_view, std::string_view>
 parse_option_string(std::string_view str);

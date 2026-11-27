@@ -741,10 +741,8 @@ std::chrono::nanoseconds parse_time_with_unit(std::string const& str) {
 
 namespace {
 
-std::optional<std::chrono::system_clock::time_point>
-try_parse_time_point(std::string_view str) {
+std::optional<parsed_timestamp> try_parse_time_point(std::string_view str) {
   using namespace std::chrono;
-  using duration = system_clock::duration;
 
   auto consume = [&](char ch) {
     if (!str.empty() && str.front() == ch) {
@@ -796,7 +794,7 @@ try_parse_time_point(std::string_view str) {
   }
 
   auto whole = duration_cast<seconds>(sys_days{ymd}.time_since_epoch());
-  duration fraction{};
+  nanoseconds fraction{};
 
   if (str.empty()) {
     // A compact date needs the T to distinguish it from a Unix timestamp.
@@ -851,7 +849,7 @@ try_parse_time_point(std::string_view str) {
           ns *= 10;
         }
 
-        fraction = duration_cast<duration>(nanoseconds{ns});
+        fraction = nanoseconds{ns};
       }
     }
   }
@@ -860,30 +858,12 @@ try_parse_time_point(std::string_view str) {
     return std::nullopt;
   }
 
-  // Normalize negative timestamps before converting to the clock duration.
-  if (whole < seconds::zero() && fraction != duration::zero()) {
-    whole += seconds{1};
-    fraction -= duration_cast<duration>(seconds{1});
-  }
-
-  if (whole < ceil<seconds>(duration::min()) ||
-      whole > floor<seconds>(duration::max())) {
-    return std::nullopt;
-  }
-
-  auto const base = duration_cast<duration>(whole);
-
-  if ((fraction < duration::zero() && base < duration::min() - fraction) ||
-      (fraction > duration::zero() && base > duration::max() - fraction)) {
-    return std::nullopt;
-  }
-
-  return system_clock::time_point{base + fraction};
+  return parsed_timestamp{whole, fraction};
 }
 
 } // namespace
 
-std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
+parsed_timestamp parse_time_point(std::string const& str) {
   if (auto tp = try_parse_time_point(str)) {
     return *tp;
   }

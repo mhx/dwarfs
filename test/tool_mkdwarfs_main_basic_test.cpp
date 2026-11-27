@@ -660,7 +660,7 @@ TEST(mkdwarfs_test, root_time_epoch_string) {
   t.os->add_file("/file", "data");
 
   ASSERT_EQ(0, t.run({"-o", "test.dwarfs", "-l1", "/file", "--root-time",
-                      "2020-01-01 01:02", "--keep-all-times"}))
+                      "2020-01-01 01:02:00.999999999", "--keep-all-times"}))
       << t.err();
 
   auto fs = t.fs_from_file("test.dwarfs");
@@ -674,6 +674,19 @@ TEST(mkdwarfs_test, root_time_epoch_string) {
   EXPECT_EQ(expected, st.mtime());
   EXPECT_EQ(expected, st.atime());
   EXPECT_EQ(expected, st.ctime());
+}
+
+TEST(mkdwarfs_test, root_time_rejects_pre_epoch) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.os->add_dir("/");
+  t.os->add_file("/file", "data");
+
+  ASSERT_EQ(1, t.run({"-o", "test.dwarfs", "-l1", "/file", "--root-time",
+                      "1969-12-31T23:59:59.123456789", "--keep-all-times"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("pre-epoch timestamps are not supported"));
 }
 
 TEST(mkdwarfs_test, synthetic_root_respects_set_time) {

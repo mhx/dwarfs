@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -567,14 +566,9 @@ file_stat::timespec_type jsonl_impl::parse_timestamp(json const& value) const {
   }
 
   if (value.is_string()) {
-    auto const tp = parse_time_point(string(value, "timestamp"));
-    auto const elapsed = tp.time_since_epoch();
-    auto const seconds = std::chrono::floor<std::chrono::seconds>(elapsed);
-    auto const nanos =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed - seconds)
-            .count();
-
-    return {seconds.count(), static_cast<std::uint32_t>(nanos)};
+    auto const [seconds, fraction] =
+        parse_time_point(string(value, "timestamp"));
+    return {seconds.count(), static_cast<std::uint32_t>(fraction.count())};
   }
 
   if (value.is_number_integer()) {

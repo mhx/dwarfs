@@ -27,7 +27,6 @@
 #include <array>
 #include <csignal>
 #include <cstdlib>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <vector>
@@ -414,25 +413,31 @@ TEST(utils, parse_size_with_unit) {
 }
 
 TEST(utils, parse_time_point) {
+  using namespace std::chrono;
   using namespace std::chrono_literals;
-  using std::chrono::sys_days;
 
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01 00:00:00"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T00:00:00"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01 00:00"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T00:00"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T000000"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T0000"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s,
+  auto const midnight = sys_seconds{sys_days{2020y / 1 / 1}}.time_since_epoch();
+  for (auto const* str : {
+           "2020-01-01",
+           "2020-01-01T",
+           "2020-01-01 00:00:00",
+           "2020-01-01T00:00:00",
+           "2020-01-01 00:00",
+           "2020-01-01T00:00",
+           "20200101T000000",
+           "20200101T0000",
+           "20200101T",
+       }) {
+    SCOPED_TRACE(str);
+    EXPECT_EQ((parsed_timestamp{midnight, 0ns}), parse_time_point(str));
+  }
+  EXPECT_EQ((parsed_timestamp{midnight + 1h + 2min + 3s, 0ns}),
             parse_time_point("2020-01-01 01:02:03"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min,
+  EXPECT_EQ((parsed_timestamp{midnight + 1h + 2min, 0ns}),
             parse_time_point("2020-01-01 01:02"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s + 123ms,
+  EXPECT_EQ((parsed_timestamp{midnight + 1h + 2min + 3s, 123ms}),
             parse_time_point("2020-01-01 01:02:03.123"));
-  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s + 123ms,
+  EXPECT_EQ((parsed_timestamp{midnight + 1h + 2min + 3s, 123ms}),
             parse_time_point("20200101T010203.123"));
 
   EXPECT_THAT([] { parse_time_point("InVaLiD"); },
@@ -447,12 +452,16 @@ TEST(utils, parse_time_point_calendar) {
   using namespace std::chrono;
   using namespace std::chrono_literals;
 
-  EXPECT_EQ(system_clock::time_point{}, parse_time_point("1970-01-01"));
-  EXPECT_EQ(system_clock::time_point{} - 1ms,
+  EXPECT_EQ((parsed_timestamp{0s, 0ns}), parse_time_point("1970-01-01"));
+  EXPECT_EQ((parsed_timestamp{-1s, 999ms}),
             parse_time_point("1969-12-31T23:59:59.999"));
-  EXPECT_EQ(sys_days{2000y / 2 / 29} + 23h + 59min + 59s,
+  auto const leap2000 =
+      sys_seconds{sys_days{2000y / 2 / 29}}.time_since_epoch();
+  auto const leap2024 =
+      sys_seconds{sys_days{2024y / 2 / 29}}.time_since_epoch();
+  EXPECT_EQ((parsed_timestamp{leap2000 + 23h + 59min + 59s, 0ns}),
             parse_time_point("20000229T235959"));
-  EXPECT_EQ(sys_days{2024y / 2 / 29} + 12h + 34min + 56s + 1ms,
+  EXPECT_EQ((parsed_timestamp{leap2024 + 12h + 34min + 56s, 1ms}),
             parse_time_point("2024-02-29T12:34:56.001"));
 
   for (auto const* str : {
@@ -487,32 +496,32 @@ TEST(utils, parse_time_point_calendar) {
 }
 
 TEST(utils, parse_time_point_precision) {
-  using namespace std::chrono;
-  using duration = system_clock::duration;
+  using namespace std::chrono_literals;
 
-  constexpr auto width = hh_mm_ss<duration>::fractional_width;
-  EXPECT_EQ(system_clock::time_point{duration{1}},
-            parse_time_point("1970-01-01T00:00:00." +
-                             std::string(width - 1, '0') + "1"));
-  EXPECT_EQ(system_clock::time_point{duration{-1}},
-            parse_time_point("1969-12-31T23:59:59." + std::string(width, '9')));
-  EXPECT_THROW(
-      parse_time_point("1970-01-01T00:00:00." + std::string(width + 1, '1')),
-      dwarfs::runtime_error);
+  EXPECT_EQ((parsed_timestamp{0s, 1ns}),
+            parse_time_point("1970-01-01T00:00:00.000000001"));
+  EXPECT_EQ((parsed_timestamp{0s, 123456789ns}),
+            parse_time_point("1970-01-01T00:00:00.123456789"));
+  EXPECT_EQ((parsed_timestamp{-1s, 999999999ns}),
+            parse_time_point("1969-12-31T23:59:59.999999999"));
+  EXPECT_EQ((parsed_timestamp{-1s, 1ns}),
+            parse_time_point("1969-12-31T23:59:59.000000001"));
+  EXPECT_THROW(parse_time_point("1970-01-01T00:00:00.1234567890"),
+               dwarfs::runtime_error);
+}
 
-  if constexpr (std::ratio_equal_v<duration::period, std::nano> &&
-                std::numeric_limits<duration::rep>::digits == 63) {
-    EXPECT_EQ(system_clock::time_point::min(),
-              parse_time_point("1677-09-21T00:12:43.145224192"));
-    EXPECT_EQ(system_clock::time_point::max(),
-              parse_time_point("2262-04-11T23:47:16.854775807"));
-    EXPECT_THROW(parse_time_point("1677-09-21T00:12:43.145224191"),
-                 dwarfs::runtime_error);
-    EXPECT_THROW(parse_time_point("2262-04-11T23:47:16.854775808"),
-                 dwarfs::runtime_error);
-    EXPECT_THROW(parse_time_point("0001-01-01"), dwarfs::runtime_error);
-    EXPECT_THROW(parse_time_point("9999-12-31"), dwarfs::runtime_error);
-  }
+TEST(utils, parse_time_point_range) {
+  using namespace std::chrono_literals;
+
+  // Beyond the range of a signed 64-bit nanosecond system_clock.
+  EXPECT_EQ((parsed_timestamp{-62135596800s, 0ns}),
+            parse_time_point("0001-01-01"));
+  EXPECT_EQ((parsed_timestamp{253402300799s, 999999999ns}),
+            parse_time_point("9999-12-31T23:59:59.999999999"));
+  EXPECT_EQ((parsed_timestamp{-9223372037s, 145224191ns}),
+            parse_time_point("1677-09-21T00:12:43.145224191"));
+  EXPECT_EQ((parsed_timestamp{9223372036s, 854775808ns}),
+            parse_time_point("2262-04-11T23:47:16.854775808"));
 }
 
 TEST(utils, getenv_is_enabled) {

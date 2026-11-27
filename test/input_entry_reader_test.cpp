@@ -469,7 +469,7 @@ TEST(input_entry_reader, jsonl_streaming_and_metadata) {
   test::test_logger lgr;
   std::istringstream list{R"(
 {"type":"dir","path":"/etc/my app","mode":"0750","uid":7}
-{"type":"file","path":"etc/my app/file name","source":"physical file","aliases":["etc/my app/copy 1"],"mtime":-0.25,"atime":[-2,123456789],"ctime":"1970-01-02T00:00:00"}
+{"type":"file","path":"etc/my app/file name","source":"physical file","aliases":["etc/my app/copy 1"],"mtime":-0.25,"atime":[-2,123456789],"ctime":"1969-12-31T23:59:59.123456789"}
 {"type":"hardlink","path":"etc/my app/copy 2","target":"etc/my app/copy 1"}
 {"type":"symlink","path":"link name","target":"file name\nnext"}
 {"type":"char","path":"dev/null","major":1,"minor":3}
@@ -503,7 +503,8 @@ TEST(input_entry_reader, jsonl_streaming_and_metadata) {
             file->spec->attributes.mtime);
   EXPECT_EQ((file_stat::timespec_type{-2, 123456789}),
             file->spec->attributes.atime);
-  EXPECT_EQ((file_stat::timespec_type{86400, 0}), file->spec->attributes.ctime);
+  EXPECT_EQ((file_stat::timespec_type{-1, 123456789}),
+            file->spec->attributes.ctime);
 
   auto hardlink = reader->next();
   ASSERT_TRUE(hardlink);

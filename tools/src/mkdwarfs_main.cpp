@@ -451,9 +451,11 @@ std::uint64_t parse_timestamp(std::string const& value) {
   if (auto const val = try_to<std::uint64_t>(value)) {
     return *val;
   }
-  return std::chrono::duration_cast<std::chrono::seconds>(
-             parse_time_point(value).time_since_epoch())
-      .count();
+  auto [seconds, fraction] = parse_time_point(value);
+  if (seconds.count() < 0) {
+    throw std::invalid_argument("pre-epoch timestamps are not supported");
+  }
+  return static_cast<std::uint64_t>(seconds.count());
 }
 
 } // namespace
