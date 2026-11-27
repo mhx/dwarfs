@@ -30,6 +30,7 @@
 #include <ostream>
 
 #include <dwarfs/command_line.h>
+#include <dwarfs/sort.h>
 
 namespace dwarfs::cli {
 
@@ -220,7 +221,8 @@ option* options::find_long(std::string_view name) {
   }
 
   if (matches.size() > 1) {
-    std::ranges::sort(matches);
+    insert_sort(matches);
+
     std::string message =
         "option " + quoted(name) + " is ambiguous and matches ";
 

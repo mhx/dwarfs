@@ -467,7 +467,7 @@ if use_lib boost; then
 
     BOOST_LIBRARIES='accumulators;algorithm;align;assert;chrono;compat;config'
     BOOST_LIBRARIES+=';container;container_hash;convert;core;iterator'
-    BOOST_LIBRARIES+=';lexical_cast;range;uuid'
+    BOOST_LIBRARIES+=';lexical_cast;range;sort;uuid'
 
     cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
              -DBOOST_CHARCONV_QUADMATH_FOUND_EXITCODE=0 \
