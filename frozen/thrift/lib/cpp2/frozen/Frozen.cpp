@@ -14,6 +14,8 @@
 #include <limits>
 #include <utility>
 
+#include <dwarfs/compiler.h>
+
 namespace apache::thrift::frozen {
 
 std::ostream& operator<<(std::ostream& os, DebugLine dl) {
@@ -62,6 +64,22 @@ void LayoutBase::print(
   if (options.includeSchemaLayoutIds && schemaLayoutId != kNoSchemaLayoutId) {
     os << "layout #" << schemaLayoutId << ' ';
   }
+}
+
+DWARFS_NOINLINE void FieldBase::printField(
+    std::ostream& os,
+    const LayoutBase& layout,
+    const LayoutPrintOptions& options,
+    int level) const {
+  os << DebugLine(level) << name;
+  if (pos.offset) {
+    os << " @ offset " << pos.offset;
+  } else if (pos.bitOffset) {
+    os << " @ bit " << pos.bitOffset;
+  } else {
+    os << " @ start";
+  }
+  layout.print(os, options, level + 1);
 }
 
 void LayoutBase::clear() {

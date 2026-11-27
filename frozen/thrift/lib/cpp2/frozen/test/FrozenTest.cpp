@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 
@@ -528,6 +529,31 @@ REGISTER_TYPED_TEST_SUITE_P(FrozenLayout, PrintAndClear);
 using TypesToLayout =
     ::testing::Types<EveryLayout, Person1, TestFixedSizeString>;
 INSTANTIATE_TYPED_TEST_SUITE_P(Frozen, FrozenLayout, TypesToLayout);
+
+TEST(Frozen, FieldPrintPositionAndOptions) {
+  apache::thrift::frozen::Field<int> field(1, "field");
+  field.layout.schemaLayoutId = 42;
+
+  auto check = [&](FieldPosition pos, const char* prefix) {
+    field.pos = pos;
+    for (bool includeIds : {false, true}) {
+      LayoutPrintOptions options{.includeSchemaLayoutIds = includeIds};
+      std::ostringstream actual;
+      field.print(actual, options, 2);
+
+      std::ostringstream expected;
+      expected << prefix;
+      field.layout.print(expected, options, 3);
+      EXPECT_EQ(actual.str(), expected.str());
+      EXPECT_EQ(
+          actual.str().find("layout #42") != std::string::npos, includeIds);
+    }
+  };
+
+  check(FieldPosition{}, "\n    field @ start");
+  check(FieldPosition{8}, "\n    field @ offset 8");
+  check(FieldPosition{0, 3}, "\n    field @ bit 3");
+}
 
 TEST(Frozen, ReusedLayoutForInlineScalarStructArrays) {
   static_assert(detail::can_reuse_item_layout_v<Layout<Ratio>>);

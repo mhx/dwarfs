@@ -531,6 +531,13 @@ struct FieldBase {
   virtual ~FieldBase() = default;
 
   virtual void clear() = 0;
+
+ protected:
+  void printField(
+      std::ostream& os,
+      const LayoutBase& layout,
+      const LayoutPrintOptions& options,
+      int level) const;
 };
 
 enum class FieldPlacement {
@@ -579,15 +586,7 @@ struct Field final : public FieldBase {
       std::ostream& os,
       const LayoutPrintOptions& options = {},
       int level = 0) const {
-    os << DebugLine(level) << name;
-    if (pos.offset) {
-      os << " @ offset " << pos.offset;
-    } else if (pos.bitOffset) {
-      os << " @ bit " << pos.bitOffset;
-    } else {
-      os << " @ start";
-    }
-    layout.print(os, options, level + 1);
+    printField(os, layout, options, level);
   }
 
   /**
