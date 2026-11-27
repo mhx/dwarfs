@@ -26,10 +26,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <algorithm>
 #include <iostream>
 
+#include <boost/program_options.hpp>
 #include <fmt/format.h>
 
+#include <dwarfs/command_line.h>
 #include <dwarfs/config.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -162,6 +165,27 @@ void add_common_options(po::options_description& opts,
         "output help message and exit")
     ;
   // clang-format on
+}
+
+void add_common_options(cli::options& opts, logger_options& logopts,
+                        common_cli_options& common) {
+  logopts.threshold = logger::INFO;
+  opts.add_value("log-level", "log level (" + logger::all_level_names() + ")",
+                 [&logopts](std::string_view value) {
+                   auto const levels = logger::supported_levels();
+                   if (std::ranges::find(levels, value) == levels.end()) {
+                     return false;
+                   }
+                   logopts.threshold = logger::parse_level(value);
+                   return true;
+                 })
+      .default_text(logger::level_name(logopts.threshold));
+  opts.flag("log-with-context", logopts.with_context,
+            "enable context logging regardless of level");
+#ifdef DWARFS_BUILTIN_MANPAGE
+  opts.flag("man", common.man, "show manual page and exit");
+#endif
+  opts.flag("help,h", common.help, "output help message and exit");
 }
 
 #ifdef DWARFS_BUILTIN_MANPAGE

@@ -699,6 +699,7 @@ if(WITH_TESTS)
       test/checksum_test.cpp
       test/chmod_transformer_test.cpp
       test/chunked_append_only_vector_test.cpp
+      test/command_line_test.cpp
       test/compare_directories_test.cpp
       test/completion_gate_test.cpp
       test/compile_time_sort_test.cpp

@@ -26,39 +26,21 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <algorithm>
+#pragma once
 
-#if __has_include(<utf8cpp/utf8.h>)
-#include <utf8cpp/utf8.h>
-#else
-#include <utf8.h>
-#endif
+#include <string>
 
-#include <dwarfs/tool/sys_char.h>
+namespace dwarfs {
 
-namespace dwarfs::tool {
-
-std::string sys_string_to_string(sys_string const& in) {
 #ifdef _WIN32
-  std::u16string tmp(in.size(), 0);
-  std::ranges::transform(in, tmp.begin(),
-                         [](sys_char c) { return static_cast<char16_t>(c); });
-  return utf8::utf16to8(tmp);
+using sys_char = wchar_t;
+using sys_string = std::wstring;
 #else
-  return in;
+using sys_char = char;
+using sys_string = std::string;
 #endif
-}
 
-sys_string string_to_sys_string(std::string const& in) {
-#ifdef _WIN32
-  auto tmp = utf8::utf8to16(in);
-  sys_string rv(tmp.size(), 0);
-  std::ranges::transform(tmp, rv.begin(),
-                         [](char16_t c) { return static_cast<sys_char>(c); });
-  return rv;
-#else
-  return in;
-#endif
-}
+std::string sys_string_to_string(sys_string const& in);
+sys_string string_to_sys_string(std::string const& in);
 
-} // namespace dwarfs::tool
+} // namespace dwarfs
