@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <fmt/color.h>
 #include <fmt/format.h>
@@ -113,7 +114,7 @@ std::optional<line_view> next_line(std::string_view& data) {
               data[3] != 0};
 
     data.remove_prefix(4);
-  } else if (command >= 0x10 && command - 0x10 < layouts.size()) {
+  } else if (command >= 0x10 && std::cmp_less(command - 0x10, layouts.size())) {
     format = layouts[command - 0x10];
     data.remove_prefix(1);
   } else {
