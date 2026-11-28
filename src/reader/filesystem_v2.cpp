@@ -285,7 +285,7 @@ class filesystem_ final {
   file_stat getattr(inode_view entry, getattr_options const& opts,
                     std::error_code& ec) const;
   duplication_info
-  get_duplication_info(inode_view entry, std::error_code& ec) const;
+  get_duplication_info(inode_view const& entry, std::error_code& ec) const;
   device_number get_device(inode_view entry, std::error_code& ec) const;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const;
@@ -1105,7 +1105,7 @@ file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
 
 template <typename LoggerPolicy>
 duplication_info
-filesystem_<LoggerPolicy>::get_duplication_info(inode_view entry,
+filesystem_<LoggerPolicy>::get_duplication_info(inode_view const& entry,
                                                 std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(get_duplication_info)
   return metadata_v2_utils(meta_).get_duplication_info(LOG_GET_LOGGER, entry,
