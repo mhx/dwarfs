@@ -43,7 +43,8 @@ bool looks_like_option(std::string_view text) {
 bool can_be_value(std::string_view text) {
   return !looks_like_option(text) || (text[1] >= '0' && text[1] <= '9') ||
          text[1] == '.' ||
-         (!text.starts_with("--") && text.find_first_of(" \t") != text.npos);
+         (!text.starts_with("--") &&
+          text.find_first_of(" \t") != std::string_view::npos);
 }
 
 [[noreturn]] void unrecognised(std::string_view arg) {
@@ -330,7 +331,8 @@ void options::parse(std::span<std::string_view const> args) {
       positional_only = true;
     } else if (!positional_only && arg.starts_with("--")) {
       auto const eq = arg.find('=');
-      auto const name = arg.substr(2, eq == arg.npos ? arg.npos : eq - 2);
+      auto const name = arg.substr(
+          2, eq == std::string_view::npos ? std::string_view::npos : eq - 2);
       auto* entry = name.empty() ? nullptr : find_long(name);
 
       if (!entry) {
@@ -339,7 +341,7 @@ void options::parse(std::span<std::string_view const> args) {
 
       std::optional<std::string_view> value;
 
-      if (eq != arg.npos) {
+      if (eq != std::string_view::npos) {
         value = arg.substr(eq + 1);
       }
 
