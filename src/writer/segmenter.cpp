@@ -208,7 +208,7 @@ using segmenter_logger_policy = std::tuple_element_t<0, default_logger_policy>;
  *   extremely cheap, so we can't afford e.g. using two hashes instead
  *   of one.
  */
-class alignas(64) bloom_filter {
+class bloom_filter {
  public:
   using bits_type = uint64_t;
 
