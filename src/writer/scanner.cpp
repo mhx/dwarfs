@@ -469,7 +469,7 @@ inferred_root_metadata_path(std::span<scan_source const> sources) {
     return parent.empty() ? std::filesystem::path{"."} : parent;
   };
 
-  auto const parent = source_parent(first.path);
+  auto parent = source_parent(first.path);
   if (std::ranges::all_of(sources, [&](scan_source const& source) {
         return source.mode == scan_source_mode::entry &&
                source_parent(source.path) == parent;
