@@ -601,23 +601,24 @@ file_stat::file_stat(fs::path const& path, file_stat_options const&) {
   *this = file_stat(path, st);
 }
 
-file_stat::file_stat(fs::path const& path, struct ::stat const& st) {
-  valid_fields_ = file_stat::all_valid;
-  dev_ = st.st_dev;
-  ino_ = st.st_ino;
-  nlink_ = st.st_nlink;
-  mode_ = st.st_mode;
-  uid_ = st.st_uid;
-  gid_ = st.st_gid;
+file_stat::file_stat(fs::path const& path, struct ::stat const& st)
+    : valid_fields_{file_stat::all_valid}
+    , dev_{static_cast<dev_type>(st.st_dev)}
+    , ino_{st.st_ino}
+    , nlink_{st.st_nlink}
+    , mode_{st.st_mode}
+    , uid_{st.st_uid}
+    , gid_{st.st_gid}
+    , size_{st.st_size}
+    , blksize_{st.st_blksize}
+    , blocks_{st.st_blocks} {
   set_rdev(static_cast<dev_type>(st.st_rdev));
-  size_ = st.st_size;
+
   if (S_ISREG(mode_) && st.st_blocks * 512 < size_) {
     allocated_size_ = get_sparse_file_allocated_size_posix(path, size_);
   } else {
     allocated_size_ = size_;
   }
-  blksize_ = st.st_blksize;
-  blocks_ = st.st_blocks;
 
   auto copy_timespec = [](file_stat::timespec_type& dst, auto const& src) {
     dst.sec = src.tv_sec;
