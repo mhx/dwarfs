@@ -215,7 +215,7 @@ class options {
   option* find_exact(std::string_view name);
 
   void print_help(std::ostream& out, size_t width,
-                  std::optional<std::string_view> group) const;
+                  std::optional<std::string_view> selected) const;
 
   std::deque<option> options_;
   std::string group_;

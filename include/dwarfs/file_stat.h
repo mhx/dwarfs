@@ -98,7 +98,7 @@ class file_stat {
   explicit file_stat(std::filesystem::path const& path,
                      file_stat_options const& opts = {});
 #ifndef _WIN32
-  file_stat(std::filesystem::path const& path, struct ::stat const& native);
+  file_stat(std::filesystem::path const& path, struct ::stat const& st);
 #endif
 
   // If any OS error was encountered during construction, this will return the

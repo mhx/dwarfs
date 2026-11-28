@@ -97,7 +97,7 @@ class device_number {
   std::uint64_t native(device_number_layout layout, std::error_code& ec) const;
 
   std::string to_string() const;
-  friend std::ostream& operator<<(std::ostream& os, device_number const& id);
+  friend std::ostream& operator<<(std::ostream& os, device_number const& dev);
 
   friend constexpr bool
   operator==(device_number const& lhs, device_number const& rhs) = default;
