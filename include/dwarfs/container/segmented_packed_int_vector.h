@@ -38,6 +38,7 @@
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <dwarfs/container/detail/index_based_iterator.h>
@@ -271,7 +272,8 @@ class segmented_packed_int_vector {
 
   template <std::ranges::forward_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
-  void append_range(R&& range) {
+  void append_range(R&& r) {
+    auto&& range = std::forward<R>(r);
     auto first = std::ranges::begin(range);
     auto const last = std::ranges::end(range);
 
