@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -2175,7 +2176,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
             std::count_if(matches.begin(), matches.end(),
                           [](auto const& m) { return m.size() == 0; });
 
-        auto best = std::max_element(matches.begin(), matches.end());
+        auto best = std::ranges::max_element(matches, std::less<>{});
         auto match_len = best->size();
 
         if (match_len > 0) {

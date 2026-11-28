@@ -383,7 +383,7 @@ static_assert(checksum::digest_data::kMaxSize >= EVP_MAX_MD_SIZE);
 checksum::digest_data::digest_data(std::span<std::uint8_t const> data) {
   DWARFS_CHECK(data.size() <= kMaxSize, "digest too large");
   size_ = data.size();
-  std::copy(data.begin(), data.end(), data_.begin());
+  std::ranges::copy(data, data_.begin());
 }
 
 std::string checksum::digest_data::hex() const {
