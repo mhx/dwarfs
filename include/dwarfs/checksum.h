@@ -46,7 +46,7 @@ class checksum {
  public:
   class digest_data {
    public:
-    static constexpr inline std::size_t kMaxSize = 64;
+    static constexpr std::size_t kMaxSize = 64;
 
     digest_data() = default;
     explicit digest_data(std::span<std::uint8_t const> data);
