@@ -15,6 +15,7 @@
 #include <utility>
 
 #include <dwarfs/compiler.h>
+#include <dwarfs/sort.h>
 
 namespace apache::thrift::frozen {
 
@@ -454,7 +455,7 @@ void LoadRoot::registerField(
 }
 
 void LoadRoot::finish() {
-  std::ranges::sort(fields_, [](const auto& lhs, const auto& rhs) {
+  dwarfs::insert_sort(fields_, [](const auto& lhs, const auto& rhs) {
     const auto less = std::less<const LayoutBase*>();
     if (less(lhs.parent, rhs.parent)) {
       return true;

@@ -32,6 +32,7 @@
 #include <dwarfs/container/small_vector.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/sort.h>
 #include <dwarfs/type_list.h>
 #include <dwarfs/writer/categorizer.h>
 
@@ -313,7 +314,9 @@ struct minimal_macho_fat_header {
     }
 
     // sort them by offset, just in case
-    std::ranges::sort(archs, std::ranges::less{}, &T::offset);
+    insert_sort(archs, [](auto const& a, auto const& b) {
+      return a.offset < b.offset;
+    });
 
     file_off_t pos{0};
     file_size_t const end{mm.size()};

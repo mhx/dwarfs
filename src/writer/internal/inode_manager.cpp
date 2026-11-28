@@ -47,6 +47,7 @@
 #include <dwarfs/file_view.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/sort.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/inode_options.h>
@@ -131,7 +132,7 @@ class inode_manager_ final : public inode_manager::impl {
       rv.categories.emplace_back(cs.first);
     }
 
-    std::ranges::sort(rv.info, [](auto const& a, auto const& b) {
+    insert_sort(rv.info, [](auto const& a, auto const& b) {
       return a.total_size > b.total_size ||
              (a.total_size == b.total_size && a.category < b.category);
     });

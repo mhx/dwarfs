@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <utility>
 
+#include <dwarfs/sort.h>
+
 #include <dwarfs/writer/internal/progress.h>
 
 namespace dwarfs::writer::internal {
@@ -54,7 +56,7 @@ auto progress::get_active_contexts() const
                 ctxts.end());
   });
 
-  std::ranges::stable_sort(rv, [](auto const& a, auto const& b) {
+  insert_sort(rv, [](auto const& a, auto const& b) {
     return a->get_priority() > b->get_priority();
   });
 
