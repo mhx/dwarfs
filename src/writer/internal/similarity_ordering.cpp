@@ -947,7 +947,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
                         index_type const& index) const;
 #endif
 
-  void order_impl(receiver<index_type>&& rec, index_type index,
+  void order_impl(receiver<index_type>& rec, index_type index,
                   similarity_element_view& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -1026,7 +1026,7 @@ size_t similarity_ordering_<LoggerPolicy>::total_distance(
 
 template <typename LoggerPolicy>
 void similarity_ordering_<LoggerPolicy>::order_impl(
-    receiver<index_type>&& rec, index_type index,
+    receiver<index_type>& rec, index_type index,
     similarity_element_view& ev) const {
 #if defined(DWARFS_DEBUG_SIMILARITY_ORDERING)
   LOG_DEBUG << opts_.context
@@ -1136,10 +1136,8 @@ template <typename LoggerPolicy>
 void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
     similarity_element_view& ev, receiver<index_type> rec,
     index_type index) const {
-  wg_.add_job(
-      [this, rec = std::move(rec), idx = std::move(index), &ev] mutable {
-        order_impl(std::move(rec), std::move(idx), ev);
-      });
+  wg_.add_job([this, rec = std::move(rec), idx = std::move(index),
+               &ev] mutable { order_impl(rec, std::move(idx), ev); });
 }
 
 similarity_ordering::similarity_ordering(
