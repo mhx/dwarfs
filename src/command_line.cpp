@@ -66,8 +66,7 @@ void print_description(std::ostream& out, std::string_view text, size_t indent,
       break;
     }
 
-    bool const newline =
-        text.substr(0, first).find('\n') != std::string_view::npos;
+    bool const newline = text.substr(0, first).contains('\n');
 
     text.remove_prefix(first);
 

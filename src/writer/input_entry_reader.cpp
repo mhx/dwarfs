@@ -483,7 +483,7 @@ jsonl_impl::string(json const& value, std::string_view field) const {
 
   auto result = value.get<std::string>();
 
-  if (result.find('\0') != std::string::npos) {
+  if (result.contains('\0')) {
     DWARFS_THROWF(runtime_error, "'{}' contains a NUL byte", field);
   }
 
