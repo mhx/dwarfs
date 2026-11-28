@@ -432,7 +432,7 @@ class compressed_fsblock : public fsblock::impl {
           pctx_->bytes_in += size();
           pctx_->bytes_out += size();
         }
-        prom.set_value(std::move(sh));
+        prom.set_value(sh);
       } catch (...) {
         prom.set_exception(std::current_exception());
       }
