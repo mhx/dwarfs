@@ -29,6 +29,7 @@
 #pragma once
 
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 namespace dwarfs {
@@ -40,6 +41,7 @@ class scope_exit {
       : f_{std::move(f)} {}
 
   scope_exit(scope_exit&& other)
+      noexcept(std::is_nothrow_move_constructible_v<F>)
       : f_{std::move(other.f_)} {
     other.f_.reset();
   }
