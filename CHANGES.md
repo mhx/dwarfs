@@ -103,6 +103,12 @@
   intuitively configurable O(n log n) algorithm. This new algorithm typically
   outperforms the old one in both speed and quality of the resulting ordering.
 
+- (feature) Boost.ProgramOptions has been replaced with a small, custom
+  command line parser. This not only helps significantly reduce the binary
+  size, it also makes the code much easier to read and maintain. Furthermore,
+  the new parser can handle certain use cases much more intuitively, for
+  example passing and empty string as an option value using `--option=`.
+
 - (perf) Significantly reduce the memory overhead of `mkdwarfs`, especially
   in the context of scanning large numbers of files. Both the peak memory
   usage and the number of memory allocations have been reduced roughly by a
@@ -122,13 +128,26 @@
 - (perf) Add an `--estimate-compression-memory` option to `mkdwarfs` to help
   estimate the memory usage requirements given a particular configuration.
 
-- (perf) Improve segmenter throughput by using a blocked Bloom filter and
-  caching cyclic hashes.
+- (perf) Segmenter throughput has been improved significantly. This was
+  achieved by using a blocked Bloom filter, caching cyclic hashes, replacing
+  `std::mismatch` with a custom prefix matcher, and several other optimizations
+  which were originally meant to primarily reduce binary size. Overall, the
+  segmenter is now about twice as fast as before and I've seen it reach peak
+  speeds of nearly 3 GiB/s. For longer lookback distances, the speedup is
+  usually even larger. Furthermore, the segmentation overhead of using
+  read-based I/O instead of the default memory-mapped I/O has been reduced
+  from between 50%-70% to just about 5%-8%.
 
 - (build) The static release builds now use libc++ instead of libstdc++,
   as it was *much* easier to build the former with LTO enabled. This allows
   for better optimization and smaller binaries. Despite adding a lot of new
   features, the static release builds are typically smaller than before.
+
+- (build) The dependencies on Boost have been significantly reduced. The build
+  no longer requires Boost.Asio, Boost.Context, Boost.Filesystem,
+  Boost.ProgramOptions, Boost.Process, Boost.Regex, or Boost.Thread. The only
+  remaining non-header-only Boost dependency is Boost.Chrono, which is used for
+  CPU time measurements. There are still several header-only Boost dependencies.
 
 - (other) The Boost.Process based pager has been replaced with a native
   implementation that removes the dependency on both Boost.Process and
