@@ -163,21 +163,21 @@ for ARCH in aarch64 arm i386 loongarch64 ppc64 ppc64le riscv64 s390x x86_64 ; do
 
   case "$ARCH" in
     riscv64)
-      _tarball_config="clang-minsize-musl-libressl-lto"
+      _tarball_config="clang-minsize-musl-libressl-zxc-lto"
       _universal_config="clang-minsize-musl-libressl-lto"
       _universal_small_config="clang-minsize-musl-small-libressl-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
       ;;
 
     s390x)
-      _tarball_config="clang-minsize-musl-lto"
+      _tarball_config="clang-minsize-musl-zxc-lto"
       _universal_config="clang-minsize-musl-lto"
       _universal_small_config="clang-minsize-musl-small-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-lto"
       ;;
 
     *)
-      _tarball_config="clang-minsize-musl-lto"
+      _tarball_config="clang-minsize-musl-zxc-lto"
       _universal_config="clang-minsize-musl-libressl-lto"
       _universal_small_config="clang-minsize-musl-small-libressl-lto"
       _fuse_extract_config="clang-minsize-musl-minimal-libressl-lto"
