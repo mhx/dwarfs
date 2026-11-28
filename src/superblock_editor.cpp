@@ -757,8 +757,8 @@ void superblock_editor::impl::update(std::iostream& io) {
     throw std::runtime_error("failed to write superblock");
   }
 
-  if (auto const end = io.tellp();
-      end < 0 || end - offset_ != static_cast<std::streamoff>(buf.size())) {
+  if (std::streamoff const end = io.tellp();
+      end < 0 || std::cmp_not_equal(end - offset_, buf.size())) {
     throw std::runtime_error(
         "unexpected output position after writing superblock");
   }
