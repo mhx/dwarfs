@@ -56,6 +56,7 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/getattr_options.h>
+#include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/varint.h>
@@ -717,6 +718,144 @@ TEST(brotli_compressor, malformed_stream_is_rejected) {
   EXPECT_THAT([&] { dec.decompress_frame(128); },
               testing::ThrowsMessage<runtime_error>(
                   testing::HasSubstr("brotli error:")));
+}
+#endif
+
+#ifdef DWARFS_HAVE_LIBZXC
+namespace {
+
+// The zxc block size the compressor picks for inputs of at least this size.
+constexpr size_t kZxcBlockSize{512 * 1024};
+constexpr size_t kZxcInputSize{6 * kZxcBlockSize + 12345};
+
+// Each chunk is random and stored twice, so that every zxc block compresses
+// to about half its size.
+shared_byte_buffer make_zxc_input() {
+  constexpr size_t kChunkSize{4096};
+  std::mt19937_64 rng{42};
+  std::string data;
+  data.reserve(kZxcInputSize + 2 * kChunkSize);
+  while (data.size() < kZxcInputSize) {
+    auto const chunk = test::create_random_string(kChunkSize, rng);
+    data += chunk;
+    data += chunk;
+  }
+  data.resize(kZxcInputSize);
+  return malloc_byte_buffer::create(data).share();
+}
+
+bool is_prefix_of(mutable_byte_buffer const& prefix,
+                  shared_byte_buffer const& data) {
+  return prefix.size() <= data.size() &&
+         std::ranges::equal(prefix.span(), data.span().first(prefix.size()));
+}
+
+} // namespace
+
+TEST(zxc_compressor, partial_decompression) {
+  auto const input = make_zxc_input();
+  auto const compressed = block_compressor("zxc").compress(input);
+  block_decompressor dec(compression_type::ZXC, compressed.span());
+  ASSERT_EQ(input.size(), dec.uncompressed_size());
+
+  auto target = malloc_byte_buffer::create_reserve(dec.uncompressed_size());
+  dec.start_decompression(target);
+
+  size_t frames{0};
+
+  for (bool done = false; !done; ++frames) {
+    auto const before = target.size();
+    ASSERT_LT(before, input.size());
+    done = dec.decompress_frame(1);
+    ASSERT_GT(target.size(), before);
+    if (!done) {
+      EXPECT_EQ(0, target.size() % kZxcBlockSize);
+    }
+    ASSERT_TRUE(is_prefix_of(target, input));
+  }
+
+  EXPECT_GT(frames, 1);
+  EXPECT_EQ(input.size(), target.size());
+}
+
+TEST(zxc_compressor, frame_size_is_honored) {
+  auto const input = make_zxc_input();
+  auto const compressed = block_compressor("zxc").compress(input);
+
+  {
+    block_decompressor dec(compression_type::ZXC, compressed.span());
+    auto target = malloc_byte_buffer::create_reserve(dec.uncompressed_size());
+    dec.start_decompression(target);
+
+    EXPECT_FALSE(dec.decompress_frame(kZxcBlockSize + 1));
+    EXPECT_EQ(2 * kZxcBlockSize, target.size());
+    EXPECT_TRUE(is_prefix_of(target, input));
+
+    // the rest of the block, after a partial read
+    EXPECT_TRUE(dec.decompress_frame(dec.uncompressed_size()));
+    EXPECT_EQ(input, target.share());
+  }
+
+  {
+    block_decompressor dec(compression_type::ZXC, compressed.span());
+    auto target = malloc_byte_buffer::create_reserve(dec.uncompressed_size());
+    dec.start_decompression(target);
+
+    EXPECT_TRUE(dec.decompress_frame(dec.uncompressed_size()));
+    EXPECT_EQ(input, target.share());
+  }
+
+  EXPECT_EQ(input, block_decompressor::decompress(compression_type::ZXC,
+                                                  compressed.span()));
+}
+
+TEST(zxc_compressor, corrupt_block_is_rejected) {
+  auto const input = make_zxc_input();
+  auto const compressed = block_compressor("zxc").compress(input);
+
+  // Keep the first blocks and the footer intact.
+  std::vector<uint8_t> data(compressed.span().begin(), compressed.span().end());
+  std::fill(data.begin() + data.size() / 2, data.end() - 32, 0xff);
+
+  test::os_access_mock os;
+  auto const mmap_factory =
+      reader::internal::block_cache_byte_buffer_factory::create(
+          os, reader::block_cache_allocation_mode::MMAP);
+
+  for (auto const& target :
+       {malloc_byte_buffer::create_reserve(input.size()),
+        mmap_factory.create_mutable_fixed_reserve(input.size())}) {
+    block_decompressor dec(compression_type::ZXC, data);
+    dec.start_decompression(target);
+
+    EXPECT_FALSE(dec.decompress_frame(1));
+    EXPECT_TRUE(is_prefix_of(target, input));
+
+    auto const read_all = [&] {
+      while (!dec.decompress_frame(1)) {
+      }
+    };
+
+    EXPECT_THAT(read_all, testing::ThrowsMessage<runtime_error>(
+                              testing::HasSubstr("ZXC: decompression failed")));
+
+    // the error is sticky and what was decoded before it is kept
+    EXPECT_THAT([&] { dec.decompress_frame(1); },
+                testing::ThrowsMessage<runtime_error>(
+                    testing::HasSubstr("ZXC: decompression failed")));
+    EXPECT_GT(target.size(), 0);
+    EXPECT_LT(target.size(), input.size());
+    EXPECT_TRUE(is_prefix_of(target, input));
+  }
+}
+
+TEST(zxc_compressor, rejects_invalid_level) {
+  for (auto const* spec : {"zxc:level=0", "zxc:level=-1", "zxc:level=99"}) {
+    EXPECT_THAT([&] { (void)block_compressor{spec}; },
+                testing::ThrowsMessage<runtime_error>(
+                    testing::HasSubstr("ZXC: invalid compression level")))
+        << spec;
+  }
 }
 #endif
 
