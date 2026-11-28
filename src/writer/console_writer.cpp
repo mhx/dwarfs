@@ -586,8 +586,12 @@ void console_writer::update(writer_progress& prog, bool last) {
   update_chunk_size(p.similarity);
   update_chunk_size(p.categorize);
 
-  auto const memory_usage =
-      mem_usage_ ? std::optional{mem_usage_()} : std::nullopt;
+  std::optional<size_t> memory_usage;
+
+  if (mem_usage_) {
+    memory_usage.emplace(mem_usage_());
+  }
+
   if (opts_.progress == NONE) {
     if (INFO <= log_threshold()) {
       std::lock_guard lock(log_mutex());
