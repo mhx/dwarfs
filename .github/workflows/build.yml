@@ -40,6 +40,7 @@ permissions:
 
 jobs:
   windows:
+    name: Windows (${{ matrix.arch }}, ${{ matrix.config.name }})
     runs-on:
       - self-hosted
       - Windows
@@ -48,9 +49,28 @@ jobs:
       matrix:
         arch:
           - X64
-        build_mode:
-          - Release
-          - Debug
+        config:
+          - name: Debug
+            build_mode: Debug
+            cmake_args: >-
+              -DWITH_UNIVERSAL_BINARY=ON
+              -DWITH_BENCHMARKS=ON
+              -DENABLE_STACKTRACE=ON
+
+          - name: Release Individual
+            build_mode: Release
+            cmake_args: >-
+              -DWITH_BENCHMARKS=ON
+              -DWITH_PXATTR=ON
+
+          - name: Release Universal
+            build_mode: Release
+            cmake_args: >-
+              -DONLY_UNIVERSAL_BINARIES=ON
+              -DWITH_UNIVERSAL_BINARY=ON
+              -DONLY_TOOLS_TEST=ON
+              -DWITH_BENCHMARKS=OFF
+              -DTRY_ENABLE_ZXC=OFF
 
     steps:
       - name: Checkout
@@ -65,8 +85,19 @@ jobs:
 
       - name: Configure Build
         shell: cmd
-        run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
+        run: >-
+          cmake --fresh
+          -B${{ runner.temp }}\build
+          -S${{ runner.workspace }}\dwarfs
+          -GNinja
+          -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_mode }}
+          -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static
+          -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs
+          -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs
+          -DWITH_TESTS=ON
+          ${{ matrix.config.cmake_args }}
 
       - name: Run Build
         shell: cmd
@@ -90,6 +121,7 @@ jobs:
           cmake --build ${{ runner.temp }}\build --target package
 
       - name: Compress Universal Binary
+        if: matrix.config.name != 'Release Individual'
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target universal_upx
