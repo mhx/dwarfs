@@ -217,8 +217,7 @@ class fs_digest_computer {
         return it->second;
       }
 
-      auto const group_id =
-          static_cast<std::uint64_t>(hardlink_groups_.size() + 1);
+      std::uint64_t const group_id = hardlink_groups_.size() + 1;
 
       hardlink_groups_.emplace(inode, group_id);
 

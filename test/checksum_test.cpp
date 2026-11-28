@@ -138,8 +138,7 @@ TEST_P(checksum_test_str, end_to_end) {
   }
 
   auto const binary = dd.span();
-  auto const bdata = reinterpret_cast<uint8_t const*>(binary.data());
-  EXPECT_EQ(std::vector<uint8_t>(bdata, bdata + binary.size()), digest);
+  EXPECT_EQ(std::vector<uint8_t>(binary.begin(), binary.end()), digest);
   EXPECT_EQ(std::string_view(reinterpret_cast<char const*>(digest.data()),
                              digest.size()),
             dd.view());

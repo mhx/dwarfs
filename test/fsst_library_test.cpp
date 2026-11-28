@@ -354,7 +354,7 @@ TEST(fsst_library_random_test, indexed_matches_array_based) {
   std::mt19937 rng{42};
 
   for (int i = 0; i < num_random_tests; ++i) {
-    auto const count = 1 + static_cast<std::size_t>(rng() % 3000);
+    std::size_t const count = 1 + rng() % 3000;
     auto const kind = static_cast<corpus_kind>(rng() % 3);
     auto const zero_terminated = static_cast<int>(rng() % 2);
     auto const strings = make_corpus(kind, count, static_cast<unsigned>(rng()));

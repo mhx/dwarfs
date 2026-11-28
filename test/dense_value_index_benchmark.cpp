@@ -217,8 +217,8 @@ void fill_index(Index& index, std::vector<T> const& values) {
 }
 
 inline void set_items_processed(benchmark::State& state, std::size_t per_iter) {
-  state.SetItemsProcessed(static_cast<std::int64_t>(state.iterations()) *
-                          static_cast<std::int64_t>(per_iter));
+  std::int64_t const items_per_iteration = per_iter;
+  state.SetItemsProcessed(state.iterations() * items_per_iteration);
 }
 
 // Bulk insertion with both store and index pre-reserved.

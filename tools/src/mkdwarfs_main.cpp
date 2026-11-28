@@ -1019,9 +1019,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
 
       std::filesystem::path source_path(source_str);
-      bool const contents = source_str.back() == static_cast<sys_char>('/') ||
+      bool const contents = source_str.back() == '/' ||
 #ifdef _WIN32
-                            source_str.back() == static_cast<sys_char>('\\') ||
+                            source_str.back() == '\\' ||
 #endif
                             source_path.filename() == ".";
 
@@ -1476,8 +1476,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     if (!synthetic_time) {
       synthetic_time =
-          reproducible ? file_stat::time_type{0}
-                       : static_cast<file_stat::time_type>(std::time(nullptr));
+          reproducible ? file_stat::time_type{0} : std::time(nullptr);
     }
   }
 

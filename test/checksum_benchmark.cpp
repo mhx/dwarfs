@@ -97,8 +97,8 @@ void bm_checksum_reset(benchmark::State& state, std::string const& alg,
     cs.reset();
   }
 
-  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
-                          static_cast<int64_t>(data.size()));
+  int64_t const bytes_per_iteration = data.size();
+  state.SetBytesProcessed(state.iterations() * bytes_per_iteration);
   state.SetLabel(alg);
 }
 
@@ -122,8 +122,8 @@ void bm_checksum_construct(benchmark::State& state, std::string const& alg,
     benchmark::ClobberMemory();
   }
 
-  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
-                          static_cast<int64_t>(data.size()));
+  int64_t const bytes_per_iteration = data.size();
+  state.SetBytesProcessed(state.iterations() * bytes_per_iteration);
   state.SetLabel(alg);
 }
 

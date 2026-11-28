@@ -147,7 +147,7 @@ class mem_stringbuf : public std::stringbuf {
     if (append_ && (which & std::ios_base::out) != std::ios_base::openmode{}) {
       which &= ~std::ios_base::out; // never reposition the put area
       if (which == std::ios_base::openmode{}) {
-        return pos_type(off_type(pptr() - pbase()));
+        return pos_type(pptr() - pbase());
       }
     }
     return std::nullopt;

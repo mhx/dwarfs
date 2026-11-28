@@ -44,13 +44,9 @@ namespace {
 
 // Keep the platform macros/functions behind wrappers to
 // avoid conflicts with any major/minor/makedev names.
-std::uint32_t native_major(dev_t dev) {
-  return static_cast<std::uint32_t>(major(dev));
-}
+std::uint32_t native_major(dev_t dev) { return major(dev); }
 
-std::uint32_t native_minor(dev_t dev) {
-  return static_cast<std::uint32_t>(minor(dev));
-}
+std::uint32_t native_minor(dev_t dev) { return minor(dev); }
 
 dev_t native_makedev(std::uint32_t major_value, std::uint32_t minor_value) {
   return makedev(major_value, minor_value);
