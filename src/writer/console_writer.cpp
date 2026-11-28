@@ -421,8 +421,8 @@ render_frame(internal::progress& p, console_writer::options const& opts,
              terminal const& term, bool colored, terminal_dimensions dimensions,
              double fraction, size_t tick, std::optional<size_t> memory_usage) {
   rendered_frame result;
-  auto append = [&](std::string text) {
-    result.text += std::move(text);
+  auto append = [&](std::string_view text) {
+    result.text += text;
     result.text += '\n';
     ++result.lines;
   };
@@ -435,7 +435,7 @@ render_frame(internal::progress& p, console_writer::options const& opts,
     rule += opts.progress == console_writer::UNICODE ? "⎯" : "-";
   }
 
-  append(std::move(rule));
+  append(rule);
 
   if (opts.display == console_writer::NORMAL) {
     append(term.colored(
@@ -443,8 +443,8 @@ render_frame(internal::progress& p, console_writer::options const& opts,
         termcolor::BOLD_CYAN, colored));
   }
 
-  for (auto& line : summary_lines(p, opts, available, memory_usage)) {
-    append(std::move(line));
+  for (auto const& line : summary_lines(p, opts, available, memory_usage)) {
+    append(line);
   }
 
   auto const spinner = opts.progress == console_writer::UNICODE
@@ -496,7 +496,7 @@ render_frame(internal::progress& p, console_writer::options const& opts,
       if (auto line =
               context_line(term, ctx, available, bar_width, speed_width,
                            opts.progress == console_writer::UNICODE, colored)) {
-        append(std::move(*line));
+        append(*line);
       }
     }
   }
