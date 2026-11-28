@@ -505,7 +505,7 @@ jsonl_impl::number(json const& value, std::string_view field) const {
   } else {
     auto const n = value.get<std::int64_t>();
 
-    if (n >= 0 && n <= std::numeric_limits<std::uint32_t>::max()) {
+    if (std::in_range<std::uint32_t>(n)) {
       return static_cast<std::uint32_t>(n);
     }
   }
