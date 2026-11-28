@@ -52,6 +52,10 @@ Checks:
   - -readability-named-parameter
   - -readability-redundant-member-init
   - -readability-redundant-nested-if
+  # too noisy in assertion macros
+  - -readability-simplify-boolean-expr
+  # revisit once all compilers support this
+  - -readability-redundant-lambda-parameter-list
   - -readability-math-missing-parentheses
   - -readability-isolate-declaration
   - -readability-qualified-auto
