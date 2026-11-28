@@ -662,11 +662,11 @@ os_access_mock::strict_canonical(std::filesystem::path const& path,
                                  std::error_code& ec) const {
   ec.clear();
 
-  if (!root_) {
-    return path;
-  }
-
   auto current = path;
+
+  if (!root_) {
+    return current;
+  }
 
   for (unsigned hops = 0; hops < 40; ++hops) {
     fs::path prefix;
@@ -697,7 +697,7 @@ os_access_mock::strict_canonical(std::filesystem::path const& path,
     if (!found_link) {
       if (!find(current)) {
         ec = std::make_error_code(std::errc::no_such_file_or_directory);
-        return {};
+        current.clear();
       }
 
       return current;
@@ -705,7 +705,8 @@ os_access_mock::strict_canonical(std::filesystem::path const& path,
   }
 
   ec = std::make_error_code(std::errc::too_many_symbolic_link_levels);
-  return {};
+  current.clear();
+  return current;
 }
 
 std::filesystem::path

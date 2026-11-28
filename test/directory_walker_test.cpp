@@ -70,17 +70,16 @@ class failing_reader final : public dir_reader {
     if (failure_ == injected_failure::unexpected) {
       throw std::logic_error("injected unexpected exception");
     }
-    if (failure_ == injected_failure::enumeration && calls_++ == 1) {
-      return std::unexpected(
-          std::make_error_code(std::errc::permission_denied));
+    if (failure_ != injected_failure::enumeration || calls_++ != 1) {
+      auto result = wrapped_->read(mode);
+      if (result && *result && failure_ == injected_failure::metadata &&
+          (*result)->path == "root/a") {
+        (*result)->metadata.emplace(std::unexpected(
+            std::make_error_code(std::errc::no_such_file_or_directory)));
+      }
+      return result;
     }
-    auto result = wrapped_->read(mode);
-    if (result && *result && failure_ == injected_failure::metadata &&
-        (*result)->path == "root/a") {
-      (*result)->metadata.emplace(std::unexpected(
-          std::make_error_code(std::errc::no_such_file_or_directory)));
-    }
-    return result;
+    return std::unexpected(std::make_error_code(std::errc::permission_denied));
   }
 
  private:
@@ -97,7 +96,7 @@ class failing_os_access final : public test::os_access_mock {
   std::unique_ptr<dir_reader> opendir(fs::path const& path) const override {
     auto reader = test::os_access_mock::opendir(path);
     if (path == "root") {
-      return std::make_unique<failing_reader>(std::move(reader), failure_);
+      reader = std::make_unique<failing_reader>(std::move(reader), failure_);
     }
     return reader;
   }

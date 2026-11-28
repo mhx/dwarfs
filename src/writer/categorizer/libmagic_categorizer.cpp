@@ -161,12 +161,12 @@ class magic_wrapper {
    private:
     static magic_cookie_t get_scoped_cookie(magic_wrapper const& w) {
       return w.state_.with_wlock([&](auto& state) {
-        if (state.cookies.empty()) [[unlikely]] {
-          return w.new_cookie(state);
+        if (!state.cookies.empty()) [[likely]] {
+          auto cookie = std::move(state.cookies.top());
+          state.cookies.pop();
+          return cookie;
         }
-        auto cookie = std::move(state.cookies.top());
-        state.cookies.pop();
-        return cookie;
+        return w.new_cookie(state);
       });
     }
 

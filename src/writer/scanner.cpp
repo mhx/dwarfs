@@ -656,6 +656,7 @@ class scanner_ final : public scanner::impl {
                              progress& prog) const;
 
   file_stat get_root_stat(scan_request const& request) const;
+  file_stat get_synthetic_root_stat(scan_request const& request) const;
 
   std::filesystem::path
   canonical_if_dereference(std::filesystem::path const& path) const {
@@ -1494,6 +1495,12 @@ scanner_<LoggerPolicy>::get_root_stat(scan_request const& request) const {
     return os_.symlink_info(os_.canonical(*path));
   }
 
+  return get_synthetic_root_stat(request);
+}
+
+template <typename LoggerPolicy>
+file_stat scanner_<LoggerPolicy>::get_synthetic_root_stat(
+    scan_request const& request) const {
   auto st = synthetic_root_stat();
 
   if (!request.root_attributes.time) {

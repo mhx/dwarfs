@@ -516,19 +516,21 @@ jsonl_impl::number(json const& value, std::string_view field) const {
 fs::path jsonl_impl::logical_path(json const& value, bool allow_root) const {
   auto const name = string(value, "path");
 
-  if (allow_root && (name == "/" || name == ".")) {
-    return ".";
+  bool const is_root = allow_root && (name == "/" || name == ".");
+
+  if (!is_root) {
+    auto path = fs::path{name}.relative_path().lexically_normal();
+
+    if (name.empty() || path.empty() || path == "." ||
+        std::ranges::any_of(path,
+                            [](auto const& part) { return part == ".."; })) {
+      DWARFS_THROWF(runtime_error, "invalid image path '{}'", name);
+    }
+
+    return path;
   }
 
-  auto path = fs::path{name}.relative_path().lexically_normal();
-
-  if (name.empty() || path.empty() || path == "." ||
-      std::ranges::any_of(path,
-                          [](auto const& part) { return part == ".."; })) {
-    DWARFS_THROWF(runtime_error, "invalid image path '{}'", name);
-  }
-
-  return path;
+  return ".";
 }
 
 fs::path jsonl_impl::physical_path(json const& value) const {

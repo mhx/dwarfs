@@ -326,10 +326,11 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   // search for the first chunk that contains data from this request
   while (it < end) {
     auto const chunksize = it->size();
+
     if (chunksize <= 0 ||
         chunksize > std::numeric_limits<file_off_t>::max() - it_offset) {
       ec = std::make_error_code(std::errc::value_too_large);
-      return {};
+      return ranges;
     }
 
     if (offset < chunksize) {
@@ -360,7 +361,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     if (chunksize <= 0 ||
         chunksize > std::numeric_limits<file_off_t>::max() - it_offset) {
       ec = std::make_error_code(std::errc::value_too_large);
-      return {};
+      ranges.clear();
+      return ranges;
     }
     auto copysize = chunksize - offset;
 

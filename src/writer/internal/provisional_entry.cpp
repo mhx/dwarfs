@@ -120,17 +120,17 @@ std::string provisional_entry::unix_dpath() const {
 }
 
 std::string provisional_entry::logical_path() const {
-  if (!parent_) {
-    return "/";
+  if (parent_) {
+    auto path = parent_->logical_path() + name();
+
+    if (is_directory()) {
+      path += '/';
+    }
+
+    return path;
   }
 
-  auto path = parent_->logical_path() + name();
-
-  if (is_directory()) {
-    path += '/';
-  }
-
-  return path;
+  return "/";
 }
 
 entry_handle provisional_entry::commit(entry_storage& tree) {

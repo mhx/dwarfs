@@ -195,26 +195,7 @@ std::optional<text_run> next_run(std::string_view& data, uint8_t& style) {
   return text_run{style, text};
 }
 
-fmt::text_style text_style(uint8_t code) {
-  switch (code) {
-  case 0:
-    return {};
-  case 1:
-    return fmt::emphasis::bold;
-  case 2:
-    return fmt::emphasis::italic;
-  case 3:
-    return fmt::fg(fmt::terminal_color::bright_green) | fmt::emphasis::bold;
-  case 4:
-    return fmt::fg(fmt::terminal_color::bright_blue) | fmt::emphasis::bold;
-  case 5:
-    return fmt::emphasis::faint;
-  default:
-    break;
-  }
-
-  // Styles not in the fast-path table are encoded as a bit mask.
-  auto const mask = code & 0x1f;
+fmt::text_style text_style_from_mask(int mask) {
   fmt::text_style style;
 
   if (mask & 1) {
@@ -240,6 +221,26 @@ fmt::text_style text_style(uint8_t code) {
   }
 
   return style;
+}
+
+fmt::text_style text_style(uint8_t code) {
+  switch (code) {
+  case 0:
+    return {};
+  case 1:
+    return fmt::emphasis::bold;
+  case 2:
+    return fmt::emphasis::italic;
+  case 3:
+    return fmt::fg(fmt::terminal_color::bright_green) | fmt::emphasis::bold;
+  case 4:
+    return fmt::fg(fmt::terminal_color::bright_blue) | fmt::emphasis::bold;
+  case 5:
+    return fmt::emphasis::faint;
+  default:
+    // Styles not in the fast-path table are encoded as a bit mask.
+    return text_style_from_mask(code & 0x1f);
+  }
 }
 
 } // namespace
