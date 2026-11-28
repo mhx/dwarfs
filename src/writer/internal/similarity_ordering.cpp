@@ -215,11 +215,11 @@ class active_positions {
  public:
   explicit active_positions(size_t n)
       : blocks_{n / 64 + (n % 64 != 0)} {
-    assert(n != 0);
+    assert(n != 0 && n <= invalid_rank);
 
-    for (size_t i = 0; i < blocks_.size(); ++i) {
-      blocks_[i] = {~uint64_t{0}, i == 0 ? invalid_rank : rank_type(i - 1),
-                    i + 1 == blocks_.size() ? invalid_rank : rank_type(i + 1)};
+    for (rank_type i = 0; i < blocks_.size(); ++i) {
+      blocks_[i] = {~UINT64_C(0), i == 0 ? invalid_rank : i - 1,
+                    i + 1 == blocks_.size() ? invalid_rank : i + 1};
     }
 
     if (auto const tail = n % 64; tail != 0) {
