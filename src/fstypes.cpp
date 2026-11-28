@@ -62,7 +62,7 @@ constexpr container::sorted_array_map sections{
 };
 
 constexpr container::sorted_array_map digest_algorithms{
-#define DIGEST_ALGO_(x, bits) std::pair{digest_algorithm::x, digest_algo_info{#x ## sv, bits / 8}}
+#define DIGEST_ALGO_(x, bits) std::pair{digest_algorithm::x, digest_algo_info{#x ## sv, (bits) / 8}}
     DIGEST_ALGO_(UNINITIALIZED, 0),
     DIGEST_ALGO_(BLAKE3_256, 256),
 #undef DIGEST_ALGO_
