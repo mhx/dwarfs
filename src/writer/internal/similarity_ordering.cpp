@@ -639,7 +639,7 @@ DWARFS_FORCE_INLINE void walk_impl(walk_state& s) {
 }
 
 #if defined(__aarch64__)
-void walk(walk_state&& s) { walk_impl<distance_neon>(s); }
+void walk(walk_state s) { walk_impl<distance_neon>(s); }
 #else
 void walk_portable(walk_state& s) { walk_impl<distance_portable>(s); }
 
@@ -651,7 +651,7 @@ __attribute__((__target__("popcnt"))) void walk_popcnt(walk_state& s) {
 }
 #endif
 
-void walk(walk_state&& s) {
+void walk(walk_state s) {
 #if defined(__linux__) && defined(__arm__)
   if ((getauxval(AT_HWCAP) & HWCAP_NEON) != 0) {
     walk_neon(s);
