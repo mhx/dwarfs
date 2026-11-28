@@ -1112,7 +1112,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               << rebuild_metadata_source_os_hint << "\n";
       return 1;
     }
-    source_os_hint = *os;
+    source_os_hint = os;
   }
 
   utility::rewrite_options rw_opts;
@@ -1457,7 +1457,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (opts.contains("input-list")) {
     if (explicit_synthetic_time) {
-      synthetic_time = *explicit_synthetic_time;
+      synthetic_time = explicit_synthetic_time;
     } else if (source_date_epoch) {
       synthetic_time = static_cast<file_stat::time_type>(*source_date_epoch);
     } else if (std::filesystem::path{input_list_str} != "-") {

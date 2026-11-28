@@ -199,7 +199,7 @@ try_detect_source_os(logger& lgr, thrift::metadata::metadata const& md,
 
   if (opts.source_os_hint) {
     LOG_INFO << "using source OS hint: " << *opts.source_os_hint;
-    return *opts.source_os_hint;
+    return opts.source_os_hint;
   }
 
   return std::nullopt;
