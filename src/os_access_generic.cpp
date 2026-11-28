@@ -153,8 +153,9 @@ class posix_dir_reader final : public dir_reader {
     if (mode == directory_metadata::full) {
       struct ::stat st;
 
-      if (::fstatat(::dirfd(dir_.get()), dent.path.filename().c_str(), &st,
-                    AT_SYMLINK_NOFOLLOW) != 0) {
+      if (auto const fd = ::dirfd(dir_.get());
+          fd < 0 || ::fstatat(fd, dent.path.filename().c_str(), &st,
+                              AT_SYMLINK_NOFOLLOW) != 0) {
         dent.metadata =
             std::unexpected(std::error_code(errno, std::generic_category()));
       } else {
