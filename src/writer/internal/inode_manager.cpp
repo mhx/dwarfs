@@ -138,12 +138,12 @@ class inode_manager_ final : public inode_manager::impl {
     });
 
     if (opts_.categorizer_mgr) {
-      std::ranges::sort(rv.categories,
-                        [&catmgr = *opts_.categorizer_mgr](auto a, auto b) {
-                          return catmgr.deterministic_less(a, b);
-                        });
+      insert_sort(rv.categories,
+                  [&catmgr = *opts_.categorizer_mgr](auto a, auto b) {
+                    return catmgr.deterministic_less(a, b);
+                  });
     } else {
-      std::ranges::sort(rv.categories);
+      insert_sort(rv.categories);
     }
 
     return rv;
