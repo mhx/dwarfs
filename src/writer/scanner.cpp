@@ -1423,12 +1423,8 @@ dir_handle scanner_<LoggerPolicy>::scan_list(entry_storage& tree,
   auto error_updater = scope_exit{[&] { prog.errors += reader.error_count(); }};
   auto first = reader.next();
   bool const has_explicit_root = first && first->path == ".";
-  auto root_entry =
-      has_explicit_root ? std::move(first) : reader.implicit_root();
-
-  if (has_explicit_root) {
-    first.reset();
-  }
+  auto root_entry = has_explicit_root ? std::exchange(first, std::nullopt)
+                                      : reader.implicit_root();
 
   auto stat = make_synthetic_entry_stat(source.synthetic_time);
 
