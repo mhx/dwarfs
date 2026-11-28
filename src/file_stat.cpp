@@ -34,6 +34,7 @@
 #include <ostream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -613,6 +614,11 @@ file_stat::file_stat(fs::path const& path, struct ::stat const& st)
     , blksize_{st.st_blksize}
     , blocks_{st.st_blocks} {
   set_rdev(static_cast<dev_type>(st.st_rdev));
+
+  DWARFS_CHECKF(std::in_range<dev_type>(st.st_dev),
+                "st_dev value out of range: {}", st.st_dev);
+  DWARFS_CHECKF(std::in_range<dev_type>(st.st_rdev),
+                "st_rdev value out of range: {}", st.st_rdev);
 
   if (S_ISREG(mode_) && st.st_blocks * 512 < size_) {
     allocated_size_ = get_sparse_file_allocated_size_posix(path, size_);
