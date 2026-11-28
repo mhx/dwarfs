@@ -1469,6 +1469,8 @@ class segmenter_base : public segmenter::impl {
     file_size_t size_in_bytes{0};
   };
 
+  // Shared state for the derived segmenter policies.
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   LOG_PROXY_DECL(segmenter_logger_policy);
   progress& prog_;
   std::shared_ptr<block_manager> blkmgr_;
@@ -1496,6 +1498,7 @@ class segmenter_base : public segmenter::impl {
   repeating_collisions_map_type repeating_collisions_;
 
   value_stream_quantile_estimator match_counts_{0.5, 0.75, 0.9, 0.95, 0.99};
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
  private:
   template <typename Source>

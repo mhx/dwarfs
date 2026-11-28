@@ -95,6 +95,8 @@ std::optional<T> try_to(U const& s)
   } else {
     T value{};
     auto const* end = str.data() + str.size();
+    // from_chars takes a bounded range
+    // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
     auto const res = std::from_chars(str.data(), end, value);
 
     if (res.ec == std::errc{} && res.ptr == end) {

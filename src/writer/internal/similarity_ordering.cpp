@@ -124,6 +124,8 @@ class projection {
  public:
   explicit projection(uint64_t& seed) {
     std::array<unsigned, 256> bits;
+
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::iota(bits.begin(), bits.end(), 0);
 
     for (unsigned i = 0; i < 64; ++i) {

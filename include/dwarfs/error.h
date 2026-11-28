@@ -96,11 +96,14 @@ throw_runtime_error(std::string_view message, source_location loc);
 template <typename Exception, typename... Args>
 [[noreturn]] DWARFS_FORCE_INLINE void
 throw_exception(source_location loc, Args&&... args) {
+  // String literals may decay when forwarded to the exception constructors.
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
   if constexpr (std::is_same_v<Exception, runtime_error>) {
     throw_runtime_error(std::forward<Args>(args)..., loc);
   } else {
     throw Exception(std::forward<Args>(args)..., loc);
   }
+  // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 }
 
 } // namespace detail

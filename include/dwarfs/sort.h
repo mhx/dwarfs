@@ -37,6 +37,7 @@ namespace dwarfs {
 
 template <typename Iterator,
           typename Compare = ::boost::sort::compare_iter<Iterator>>
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 void insert_sort(Iterator first, Iterator last, Compare comp = Compare()) {
   ::boost::sort::insert_sort(first, last, comp);
 }

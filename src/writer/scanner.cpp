@@ -1942,6 +1942,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fs_writer,
               return prepare_inode_for_category(ino, category, prog);
             });
 
+        // NOLINTNEXTLINE(modernize-use-structured-binding)
         for (auto&& prep : prepared_files) {
           // workaround for AppleClang 15
           auto& ino = prep.first;

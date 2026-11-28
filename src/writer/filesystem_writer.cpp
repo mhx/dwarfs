@@ -227,6 +227,7 @@ class fsblock {
     virtual uint32_t section_num() const = 0;
 
    protected:
+    // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
     std::future<section_header_v2> future_;
 
    private:

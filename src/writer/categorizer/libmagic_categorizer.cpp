@@ -75,6 +75,7 @@ class magic_wrapper {
     throw_magic_error(m.get(), "identify");
   }
 
+  // NOLINTNEXTLINE(modernize-use-string-view)
   [[nodiscard]] static std::string default_database() {
 #ifdef DWARFS_HAS_MAGIC_DATABASE
     auto const db = internal::compressed_magic_database();

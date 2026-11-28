@@ -95,8 +95,12 @@ class pair_inode_accessor {
       files.push_back(static_cast<file_id>(p));
       return files;
     } else if constexpr (requires { p.second.files; }) {
+      // needed for decltype(auto) to return a reference
+      // NOLINTNEXTLINE(readability-redundant-parentheses)
       return (p.second.files);
     } else {
+      // needed for decltype(auto) to return a reference
+      // NOLINTNEXTLINE(readability-redundant-parentheses)
       return (p.second);
     }
   }

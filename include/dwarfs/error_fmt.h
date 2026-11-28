@@ -54,6 +54,9 @@ throw_formatted_impl(std::type_identity<runtime_error>, source_location loc,
 assertion_failed_formatted_impl(std::string_view expr, source_location loc,
                                 fmt::string_view format, fmt::format_args args);
 
+// make_format_args actually requires lvalues
+// NOLINTBEGIN(cppcoreguidelines-missing-std-forward)
+
 template <typename Exception, typename... Args>
 [[noreturn]] inline void
 throw_formatted(source_location loc, fmt::format_string<Args...> format,
@@ -70,6 +73,8 @@ assertion_failed_formatted(std::string_view expr, source_location loc,
   assertion_failed_formatted_impl(expr, loc, format_string_view(format),
                                   fmt::make_format_args(args...));
 }
+
+// NOLINTEND(cppcoreguidelines-missing-std-forward)
 
 } // namespace dwarfs::detail
 

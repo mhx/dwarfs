@@ -112,6 +112,8 @@ std::vector<std::string> fit_fields(line_fields fields, size_t width) {
   };
 
   std::vector<size_t> order(fields.size());
+
+  // NOLINTNEXTLINE(modernize-use-ranges)
   std::iota(order.begin(), order.end(), 0);
   insert_sort(order, [&](auto const a, auto const b) {
     return fields[a].priority < fields[b].priority;

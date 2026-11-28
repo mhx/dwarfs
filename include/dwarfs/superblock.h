@@ -156,6 +156,7 @@ struct superblock_v1 {
   using label_t = std::array<char, kMaxLabelSize>;
   using digest_t = std::array<uint8_t, kMaxDigestSize>;
 
+  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
   // ---------------------------------------------------------------------------
   uint8_t major_version;         //   0 major version; never zero
   uint8_t minor_version;         //   1 minor version; never zero
@@ -179,6 +180,7 @@ struct superblock_v1 {
   digest_t tree_digest;          // 128 tree/content digest using `digest_algo`,
                                  //     zero if absent; see above for details.
   // ---------------------------------------------------------------------------
+  // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 };
 
 // The superblock is (de)serialized as raw bytes, and both `fs_uuid` and
