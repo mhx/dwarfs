@@ -66,7 +66,7 @@ namespace {
 
 using hash_type = std::array<uint64_t, 4>;
 
-DWARFS_FORCE_INLINE int
+[[maybe_unused]] DWARFS_FORCE_INLINE int
 distance_portable(hash_type const& a, hash_type const& b) {
   int d = 0;
   for (size_t i = 0; i < a.size(); ++i) {
