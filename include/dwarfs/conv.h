@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <array>
 #include <charconv>
 #include <concepts>
 #include <optional>
@@ -112,11 +113,11 @@ std::optional<T> try_to(U const& value)
   requires(std::same_as<T, std::string> && !std::convertible_to<U, T> &&
            std::is_arithmetic_v<U> && !std::same_as<U, bool>)
 {
-  char buf[64];
-  auto const res = std::to_chars(buf, buf + sizeof(buf), value);
+  std::array<char, 64> buf;
+  auto const res = std::to_chars(buf.data(), buf.data() + buf.size(), value);
 
   if (res.ec == std::errc{}) {
-    return std::string(buf, res.ptr);
+    return std::string(buf.data(), res.ptr);
   }
 
   return std::nullopt;
